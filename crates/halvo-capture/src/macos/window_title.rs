@@ -2,7 +2,7 @@
 
 use std::ffi::c_void;
 
-use core_foundation::base::TCFType;
+use core_foundation::base::{CFType, CFTypeRef, TCFType};
 use core_foundation::string::{CFString, CFStringRef};
 
 #[link(name = "ApplicationServices", kind = "framework")]
@@ -11,14 +11,9 @@ extern "C" {
     fn AXUIElementCopyAttributeValue(
         element: *const c_void,
         attribute: CFStringRef,
-        value: *mut *const c_void,
+        value: *mut CFTypeRef,
     ) -> i32;
     fn AXIsProcessTrusted() -> bool;
-}
-
-#[link(name = "CoreFoundation", kind = "framework")]
-extern "C" {
-    fn CFRelease(cf: *const c_void);
 }
 
 const AX_ERROR_SUCCESS: i32 = 0;
@@ -29,18 +24,21 @@ pub fn accessibility_trusted() -> bool {
     unsafe { AXIsProcessTrusted() }
 }
 
-fn copy_attribute(element: *const c_void, attribute: &str) -> *const c_void {
+/// Copy one Accessibility attribute of `element` as an owned [`CFType`], or
+/// `None` if the attribute is absent. The returned value frees itself on drop.
+fn copy_attribute(element: *const c_void, attribute: &str) -> Option<CFType> {
     let key = CFString::new(attribute);
-    let mut value: *const c_void = std::ptr::null();
-    // SAFETY: `element` is a live AX element; `key` outlives the call; `value`
-    // receives a +1 ref on success.
+    let mut value: CFTypeRef = std::ptr::null();
+    // SAFETY: `element` is a live AX element; `key` outlives the call; on success
+    // `value` receives a +1 reference, taken over by the wrap below.
     let err =
         unsafe { AXUIElementCopyAttributeValue(element, key.as_concrete_TypeRef(), &mut value) };
-    if err != AX_ERROR_SUCCESS {
-        std::ptr::null()
-    } else {
-        value
+    if err != AX_ERROR_SUCCESS || value.is_null() {
+        return None;
     }
+    // SAFETY: AX copy APIs follow the Create rule; wrap the +1 ref as an owned
+    // CFType whose Drop releases it.
+    Some(unsafe { CFType::wrap_under_create_rule(value) })
 }
 
 /// The title of the focused window of the application with process id `pid`, or
@@ -52,32 +50,21 @@ pub fn focused_window_title(pid: libc::pid_t) -> Option<String> {
     }
 
     // SAFETY: AXUIElementCreateApplication returns a +1 ref or null.
-    let app = unsafe { AXUIElementCreateApplication(pid) };
-    if app.is_null() {
+    let app_ref = unsafe { AXUIElementCreateApplication(pid) };
+    if app_ref.is_null() {
         return None;
     }
+    // SAFETY: the Create rule gives a +1 ref; own it so Drop releases it.
+    let app = unsafe { CFType::wrap_under_create_rule(app_ref) };
 
-    let focused_window = copy_attribute(app, "AXFocusedWindow");
-    // SAFETY: `app` is a +1 ref we own.
-    unsafe { CFRelease(app) };
-    if focused_window.is_null() {
-        return None;
-    }
-
-    let title_ref = copy_attribute(focused_window, "AXTitle");
-    // SAFETY: `focused_window` is a +1 ref we own.
-    unsafe { CFRelease(focused_window) };
-    if title_ref.is_null() {
-        return None;
-    }
-
-    // SAFETY: `title_ref` is a live, owned CFStringRef.
-    let title = unsafe { CFString::wrap_under_create_rule(title_ref as CFStringRef) };
-    let text = title.to_string();
-    if text.is_empty() {
+    let focused_window = copy_attribute(app.as_CFTypeRef(), "AXFocusedWindow")?;
+    let title = copy_attribute(focused_window.as_CFTypeRef(), "AXTitle")?
+        .downcast::<CFString>()?
+        .to_string();
+    if title.is_empty() {
         None
     } else {
-        Some(text)
+        Some(title)
     }
 }
 
