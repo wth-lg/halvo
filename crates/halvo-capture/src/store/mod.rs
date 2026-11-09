@@ -5,6 +5,9 @@ pub mod expiry;
 pub mod segment;
 pub mod verify;
 
+#[cfg(test)]
+mod hardening_tests;
+
 use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -51,6 +54,8 @@ pub enum StoreError {
     Io(String),
     #[error("the store is sealed; its key is not available")]
     Sealed,
+    #[error("the store holds corrupt or tampered data: {0}")]
+    Corrupt(String),
     #[error("another writer holds the store at {0}")]
     Locked(PathBuf),
     #[error("a store already exists at {0}")]

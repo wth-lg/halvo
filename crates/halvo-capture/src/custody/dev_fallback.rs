@@ -147,6 +147,11 @@ mod keychain {
     pub(super) fn destroy_root(root_id: RootId) -> Result<(), CustodyError> {
         absent_is_none(delete_generic_password(SERVICE, &root_id.to_string())).map(|_| ())
     }
+
+    #[cfg(test)]
+    pub(super) fn root_exists(root_id: RootId) -> Result<bool, CustodyError> {
+        existing_root(root_id).map(|root| root.is_some())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -167,6 +172,11 @@ mod dpapi {
 
     pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
         destroy_root_is_deleting_the_wrapped_blob()
+    }
+
+    #[cfg(test)]
+    pub(super) fn root_exists(_root_id: RootId) -> Result<bool, CustodyError> {
+        Ok(false)
     }
 }
 
@@ -194,6 +204,11 @@ mod unsupported {
     pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
         Err(no_root())
     }
+
+    #[cfg(test)]
+    pub(super) fn root_exists(_root_id: RootId) -> Result<bool, CustodyError> {
+        Ok(false)
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -202,6 +217,12 @@ use dpapi as platform;
 use keychain as platform;
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use unsupported as platform;
+
+/// Whether the platform still holds the dev-fallback root for `root_id`.
+#[cfg(test)]
+pub(crate) fn dev_root_exists(root_id: RootId) -> Result<bool, CustodyError> {
+    platform::root_exists(root_id)
+}
 
 /// Dev-fallback custody over the one store key. `root_id` is a non-secret
 /// per-store locator (a UUID) so two stores never share one platform root: on
