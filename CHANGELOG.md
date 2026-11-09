@@ -37,3 +37,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Resolve the consent settings path through Tauri so the identifier lives only in tauri.conf.json
 - Write the storage cap constants from the window, the daily estimate and the headroom
 - Name the calendar constants and the year-month-day conversions of UtcDay
+
+### Fixed
+
+- Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store

@@ -31,7 +31,7 @@ impl ObservationWindow {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct StorageCap(u64);
 
@@ -55,6 +55,14 @@ impl StorageCap {
         Ok(Self(bytes))
     }
 
+    pub const fn clamped(bytes: u64) -> Self {
+        if bytes < Self::MIN.0 {
+            Self::MIN
+        } else {
+            Self(bytes)
+        }
+    }
+
     pub const fn bytes(self) -> u64 {
         self.0
     }
@@ -63,6 +71,12 @@ impl StorageCap {
 impl Default for StorageCap {
     fn default() -> Self {
         Self::DEFAULT
+    }
+}
+
+impl<'de> Deserialize<'de> for StorageCap {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        u64::deserialize(deserializer).map(Self::clamped)
     }
 }
 
@@ -342,7 +356,8 @@ pub fn r1_modality_consent(modality: Modality) -> ModalityConsent {
     }
 }
 
-pub fn eviction_cutoff(inventory: &Inventory, cap_bytes: u64) -> Option<UtcDay> {
+pub fn eviction_cutoff(inventory: &Inventory, cap: StorageCap) -> Option<UtcDay> {
+    let cap_bytes = cap.bytes();
     let mut remaining = inventory.total_bytes();
     if remaining <= cap_bytes {
         return None;
@@ -423,8 +438,7 @@ impl ConsentController {
 
     pub fn enforce_storage_cap(&mut self) -> Result<Option<ShredReport>, ConsentError> {
         self.refresh_inventory()?;
-        let Some(cutoff) = eviction_cutoff(&self.last_inventory, self.settings.storage_cap.bytes())
-        else {
+        let Some(cutoff) = eviction_cutoff(&self.last_inventory, self.settings.storage_cap) else {
             return Ok(None);
         };
         let report = self.store.crypto_shred_before(cutoff)?;
@@ -634,32 +648,35 @@ mod tests {
 
     #[test]
     fn the_cap_cutoff_removes_the_oldest_days_first() {
+        let gib = StorageCap::GIB;
+        let cap = |bytes| StorageCap::from_bytes(bytes).unwrap();
         let inv = Inventory::from_rows(vec![
-            row(10, Modality::ScreenFrame, 1, 400),
-            row(11, Modality::ScreenFrame, 1, 400),
-            row(12, Modality::ScreenFrame, 1, 400),
+            row(10, Modality::ScreenFrame, 1, 4 * gib),
+            row(11, Modality::ScreenFrame, 1, 4 * gib),
+            row(12, Modality::ScreenFrame, 1, 4 * gib),
         ]);
-        assert_eq!(eviction_cutoff(&inv, 1200), None);
+        assert_eq!(eviction_cutoff(&inv, cap(12 * gib)), None);
         assert_eq!(
-            eviction_cutoff(&inv, 900),
+            eviction_cutoff(&inv, cap(9 * gib)),
             Some(UtcDay::from_days_since_epoch(11))
         );
         assert_eq!(
-            eviction_cutoff(&inv, 400),
+            eviction_cutoff(&inv, cap(4 * gib)),
             Some(UtcDay::from_days_since_epoch(12))
         );
         assert_eq!(
-            eviction_cutoff(&inv, 100),
+            eviction_cutoff(&inv, StorageCap::MIN),
             Some(UtcDay::from_days_since_epoch(13))
         );
     }
 
     #[test]
     fn an_inventory_built_from_unsorted_rows_still_evicts_the_oldest_day_only() {
+        let gib = StorageCap::GIB;
         let inv = Inventory::from_rows(vec![
-            row(12, Modality::ScreenFrame, 1, 400),
-            row(10, Modality::ScreenFrame, 1, 400),
-            row(11, Modality::ScreenFrame, 1, 400),
+            row(12, Modality::ScreenFrame, 1, gib),
+            row(10, Modality::ScreenFrame, 1, gib),
+            row(11, Modality::ScreenFrame, 1, gib),
         ]);
         let days: Vec<i64> = inv
             .rows()
@@ -668,7 +685,7 @@ mod tests {
             .collect();
         assert_eq!(days, vec![10, 11, 12]);
         assert_eq!(
-            eviction_cutoff(&inv, 900),
+            eviction_cutoff(&inv, StorageCap::from_bytes(2 * gib).unwrap()),
             Some(UtcDay::from_days_since_epoch(11))
         );
     }
@@ -701,6 +718,41 @@ mod tests {
         assert!(StorageCap::DEFAULT.bytes() > window_bytes);
         assert_eq!(StorageCap::DEFAULT.bytes(), 25 * StorageCap::GIB);
         assert_eq!(StorageCap::MIN.bytes(), StorageCap::ESTIMATED_BYTES_PER_DAY);
+    }
+
+    #[test]
+    fn a_zero_cap_in_the_settings_file_is_clamped_to_the_minimum_and_shreds_nothing_at_open() {
+        let file = temp_settings();
+        std::fs::create_dir_all(file.path().parent().unwrap()).unwrap();
+        std::fs::write(file.path(), r#"{"storage_cap": 0}"#).unwrap();
+        assert_eq!(file.load().unwrap().storage_cap, StorageCap::MIN);
+        let mut c = ConsentController::open(
+            Box::new(MockStore {
+                rows: vec![
+                    row(20_764, Modality::ScreenFrame, 1, 10),
+                    row(20_765, Modality::ScreenFrame, 1, 10),
+                    row(20_766, Modality::ScreenFrame, 1, 10),
+                ],
+                shred_all_calls: 0,
+                shred_before_calls: vec![],
+            }),
+            file,
+        )
+        .unwrap();
+        assert_eq!(c.storage_cap(), StorageCap::MIN);
+        assert_eq!(c.status().store_cap_bytes, StorageCap::MIN.bytes());
+        assert_eq!(c.inventory().unwrap().rows().len(), 3);
+    }
+
+    #[test]
+    fn a_deserialized_cap_below_the_minimum_becomes_the_minimum() {
+        let parse = |bytes: u64| serde_json::from_str::<StorageCap>(&bytes.to_string()).unwrap();
+        assert_eq!(parse(0), StorageCap::MIN);
+        assert_eq!(parse(StorageCap::MIN.bytes() - 1), StorageCap::MIN);
+        assert_eq!(parse(StorageCap::MIN.bytes()), StorageCap::MIN);
+        assert_eq!(parse(2 * StorageCap::GIB).bytes(), 2 * StorageCap::GIB);
+        let json = serde_json::to_string(&StorageCap::DEFAULT).unwrap();
+        assert_eq!(json, StorageCap::DEFAULT.bytes().to_string());
     }
 
     #[test]
