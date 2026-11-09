@@ -25,3 +25,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Silence the shellcheck findings in the gate harness
 - Add SQLCipher and AEAD dependencies for the encrypted segment store
 - Add dev-fallback and release key custody for the store key
+- Add the encrypted segment store, crypto-shred and verify paths
