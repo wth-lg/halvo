@@ -118,7 +118,7 @@ pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
 
     let mut screen = screen::ScreenSource::new(SCREEN_FRAME_CAP_FPS, foreground_reader.clone());
     let mut input = input::InputSource::new(foreground_reader);
-    let secure_counter = input.secure_blocked_handle();
+    let secure_violations = input.violations_handle();
     let mut foreground = foreground::ForegroundSource::new(FOREGROUND_POLL, foreground_writer);
     let mut audio = audio::SystemAudioSource::disabled();
     let mut mic = mic::MicrophoneSource::disabled();
@@ -165,7 +165,7 @@ pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
         pointer: counts.pointer.load(),
         foreground_app: counts.foreground_app.load(),
         window_title: counts.window_title.load(),
-        secure_input_keystrokes: secure_counter.load(),
+        secure_input_keystrokes: secure_violations.count(),
     })
 }
 
