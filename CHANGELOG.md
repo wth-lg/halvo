@@ -29,6 +29,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the data view, its Tauri commands and the menu-bar capture indicator
 - Add failing tests for the adversarial review of the encrypted store
 - Measure the peak resident set of a 512 MiB segment write and read in an ignored test
+- Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
 
 ### Changed
 
