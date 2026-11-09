@@ -1,16 +1,4 @@
 //! Screen capture via ScreenCaptureKit.
-//!
-//! An `SCStream` delivers frames to a listen-only `SCStreamOutput` delegate on a
-//! dedicated dispatch queue. The stream is frame-rate throttled
-//! ([`SCStreamConfiguration::setMinimumFrameInterval`]) and the delegate reads
-//! nothing from the sample buffer, so no frame is buffered beyond the bounded
-//! sink and resident memory stays flat (see the module memory note).
-//!
-//! Self-exclusion is by construction: the `SCContentFilter` excludes Halvo's own
-//! running application, so a captured frame can never contain a Halvo window.
-//! ScreenCaptureKit additionally yields no content for windows the owner marks
-//! protected and for DRM media, so password windows and protected video are
-//! excluded by the framework, not by Halvo policy.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
@@ -34,15 +22,12 @@ use crate::macos::{unpersisted_placement, SharedForeground};
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource, EventSink};
 
-/// Ivars the frame delegate carries: the emit path and the shared foreground app.
 struct ScreenIvars {
     sink: SinkHandle,
     foreground: SharedForeground,
 }
 
 define_class!(
-    // A listen-only screen-capture output. It observes frames and emits a
-    // metadata event per frame; it never writes back to the stream.
     #[unsafe(super(NSObject))]
     #[name = "HalvoScreenOutput"]
     #[ivars = ScreenIvars]
@@ -56,9 +41,6 @@ define_class!(
             if ty != SCStreamOutputType::Screen {
                 return;
             }
-            // Record that a frame occurred; read nothing out of the buffer, so it
-            // is released as soon as this returns. byte_len is 0 because no pixels
-            // are persisted in this phase.
             let ivars = self.ivars();
             let (segment_ref, segment_key_id) = unpersisted_placement(0);
             let event = CaptureStreamEvent::new_raw(
@@ -83,10 +65,7 @@ impl ScreenOutput {
     }
 }
 
-/// The screen capture source. Holds the live stream, its delegate and the sample
-/// queue for the duration of a run. Not `Send`: it is created, started and
-/// stopped on one thread (the ScreenCaptureKit objects are not thread-safe to
-/// move), which the timed run honors.
+/// The screen capture source.
 pub struct ScreenSource {
     fps: i32,
     foreground: SharedForeground,
@@ -107,8 +86,6 @@ impl ScreenSource {
     }
 }
 
-/// Fetch the shareable content (displays, windows, running apps) through the
-/// async completion-handler API, blocking briefly for the result.
 fn fetch_shareable_content() -> Option<Retained<SCShareableContent>> {
     let (tx, rx): (Sender<Option<Retained<SCShareableContent>>>, _) = channel();
     let handler = RcBlock::new(
@@ -142,7 +119,6 @@ impl CaptureSource for ScreenSource {
             .next()
             .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
 
-        // Self-exclusion: exclude Halvo's own running application from the frame.
         let my_pid = std::process::id() as i32;
         let apps = unsafe { content.applications() };
         let excluded: Vec<Retained<SCRunningApplication>> = apps
@@ -166,10 +142,7 @@ impl CaptureSource for ScreenSource {
         unsafe {
             config.setWidth(display.width() as usize);
             config.setHeight(display.height() as usize);
-            // The frame-rate throttle: at most `fps` frames per second.
             config.setMinimumFrameInterval(CMTime::new(1, self.fps));
-            // A shallow frame-pool depth; the delegate drains instantly, so a
-            // deep queue would only hold pixels we never read.
             config.setQueueDepth(3);
         }
 
@@ -194,7 +167,6 @@ impl CaptureSource for ScreenSource {
                 .map_err(|e| CaptureError::Start(format!("addStreamOutput failed: {e:?}")))?;
         }
 
-        // Start capture and wait for the completion handler to confirm.
         let started = Arc::new(AtomicBool::new(false));
         let (stx, srx) = channel();
         let handler = {

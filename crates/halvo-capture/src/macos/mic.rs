@@ -1,21 +1,15 @@
 //! Microphone capture source: present, but off by default in R1.
-//!
-//! Same contract as [`crate::macos::audio`]: the source exists so the pipeline
-//! and consent UI can reason about it, it is constructed disabled, a disabled
-//! start captures nothing, and an enabled start returns a clear "not in R1" error
-//! because R1 does not wire microphone capture. No camera source exists in R1.
 
 use crate::event::Modality;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
 
-/// Microphone capture. Off by default; see the module note.
+/// Microphone capture. Off by default.
 pub struct MicrophoneSource {
     enabled: bool,
 }
 
 impl MicrophoneSource {
-    /// The R1 default: present but off.
     pub fn disabled() -> Self {
         Self { enabled: false }
     }

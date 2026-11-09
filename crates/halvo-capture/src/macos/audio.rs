@@ -1,30 +1,21 @@
 //! System-audio capture source: present, but off by default in R1.
-//!
-//! Halvo records system audio only when the owner turns it on. The source exists
-//! so the pipeline and the consent UI can reason about it, but it is constructed
-//! disabled and starting it is a no-op that captures nothing. Turning it on is a
-//! later-phase concern (it rides the ScreenCaptureKit stream's audio output), so
-//! an enabled start returns a clear "not in R1" error rather than silently doing
-//! nothing.
 
 use crate::event::Modality;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
 
-/// System-audio capture. Off by default; see the module note.
+/// System-audio capture. Off by default.
 pub struct SystemAudioSource {
     enabled: bool,
 }
 
 impl SystemAudioSource {
-    /// The R1 default: present but off.
     pub fn disabled() -> Self {
         Self { enabled: false }
     }
 
     /// Construct it enabled. R1 does not wire the capture, so [`Self::start`]
-    /// returns [`CaptureError::NotImplemented`]; the constructor exists so the
-    /// off/on seam is real and the enabled branch is covered.
+    /// returns [`CaptureError::NotImplemented`].
     pub fn enabled() -> Self {
         Self { enabled: true }
     }

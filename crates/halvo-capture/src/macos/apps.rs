@@ -1,12 +1,4 @@
 //! Installed-application inventory.
-//!
-//! The documented macOS inventory source is the set of `.app` bundles in the
-//! standard Applications directories (researcher-1, researcher-4). This is a
-//! utility, not a capture modality: it lists what is installed so a later phase
-//! can name the app behind a foreground event. It reads only directory names and,
-//! best-effort, the `CFBundleIdentifier` from an XML `Info.plist`; a binary plist
-//! yields `None` for the bundle id rather than pulling in a plist parser Halvo
-//! does not otherwise need.
 
 use std::path::{Path, PathBuf};
 
@@ -21,7 +13,6 @@ pub struct InstalledApp {
     pub bundle_id: Option<String>,
 }
 
-/// The standard directories macOS keeps applications in.
 fn standard_app_dirs() -> Vec<PathBuf> {
     let mut dirs = vec![
         PathBuf::from("/Applications"),
@@ -33,12 +24,9 @@ fn standard_app_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Best-effort read of `CFBundleIdentifier` from an XML `Info.plist`. Returns
-/// `None` for a binary plist or a missing key.
 fn read_bundle_id(app_path: &Path) -> Option<String> {
     let plist = app_path.join("Contents").join("Info.plist");
     let text = std::fs::read_to_string(&plist).ok()?;
-    // XML plist shape: <key>CFBundleIdentifier</key> <string>the.id</string>.
     let after_key = text.split("<key>CFBundleIdentifier</key>").nth(1)?;
     let open = after_key.find("<string>")? + "<string>".len();
     let close = after_key[open..].find("</string>")?;
@@ -107,7 +95,6 @@ mod tests {
             "<plist><dict><key>CFBundleIdentifier</key><string>com.example.widget</string></dict></plist>",
         )
         .unwrap();
-        // A non-app directory is ignored.
         fs::create_dir_all(tmp.path().join("notes")).unwrap();
 
         let apps = scan_dir(tmp.path());

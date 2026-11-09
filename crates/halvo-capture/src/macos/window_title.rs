@@ -1,20 +1,10 @@
 //! Focused-window title via the Accessibility API (`AXUIElement`).
-//!
-//! On each foreground change the foreground source reads the newly focused app's
-//! focused-window title through `AXUIElementCopyAttributeValue`. This needs the
-//! Accessibility grant; without it the read returns `None` and no window-title
-//! event is emitted, which is a missing signal, never a crash.
-//!
-//! Titles are read only on a change event, not polled, so this is event-triggered
-//! as the plan requires.
 
 use std::ffi::c_void;
 
 use core_foundation::base::TCFType;
 use core_foundation::string::{CFString, CFStringRef};
 
-// AXUIElement lives in the ApplicationServices umbrella (HIServices). The element
-// refs are CoreFoundation objects, released through `CFRelease`.
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     fn AXUIElementCreateApplication(pid: libc::pid_t) -> *const c_void;
@@ -39,8 +29,6 @@ pub fn accessibility_trusted() -> bool {
     unsafe { AXIsProcessTrusted() }
 }
 
-/// Copy one AX attribute whose value is itself an AX/CF object, returning the raw
-/// owned ref (caller releases) or null.
 fn copy_attribute(element: *const c_void, attribute: &str) -> *const c_void {
     let key = CFString::new(attribute);
     let mut value: *const c_void = std::ptr::null();
@@ -83,7 +71,6 @@ pub fn focused_window_title(pid: libc::pid_t) -> Option<String> {
         return None;
     }
 
-    // The title value is a CFString; take ownership of the +1 ref and read it.
     // SAFETY: `title_ref` is a live, owned CFStringRef.
     let title = unsafe { CFString::wrap_under_create_rule(title_ref as CFStringRef) };
     let text = title.to_string();
@@ -100,14 +87,11 @@ mod tests {
 
     #[test]
     fn trusted_predicate_does_not_panic() {
-        // Reading the trust state is always safe; the value depends on the grant.
         let _ = accessibility_trusted();
     }
 
     #[test]
     fn title_of_a_bogus_pid_is_none() {
-        // A pid that owns no AX-reachable app yields no title, never a crash.
-        // (Also returns None early when Accessibility is not granted.)
         assert_eq!(focused_window_title(-1), None);
     }
 }

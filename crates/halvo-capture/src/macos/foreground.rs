@@ -1,14 +1,4 @@
 //! Foreground-app capture via `NSWorkspace`, which also drives window titles.
-//!
-//! A change-detected poll of `NSWorkspace.frontmostApplication` emits a
-//! `foreground_app` event on each real app switch and, on the same change, reads
-//! the newly focused window's title (see [`crate::macos::window_title`]) and
-//! emits a `window_title` event. One poller owns both signals, so there is no
-//! second reader racing the foreground state.
-//!
-//! The poll is change-detected: one property read at [`crate::macos::FOREGROUND_POLL`]
-//! cadence, emitting only on a transition, so a quiet desktop produces no events
-//! and costs almost nothing.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -23,18 +13,13 @@ use crate::macos::{unpersisted_placement, window_title, SharedForeground};
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource, EventSink};
 
-/// The current foreground app's bundle id and process id, read from NSWorkspace.
 struct Frontmost {
     bundle_id: String,
     pid: libc::pid_t,
 }
 
-/// Read the current foreground application. Returns `None` when no app is
-/// frontmost (rare: e.g. during fast user switching).
 fn read_frontmost() -> Option<Frontmost> {
     autoreleasepool(|_| {
-        // NSWorkspace shared accessors read these properties safely; the pool
-        // bounds the autoreleased temporaries each call creates.
         let workspace = NSWorkspace::sharedWorkspace();
         let app = workspace.frontmostApplication()?;
         let bundle_id = app
@@ -85,7 +70,6 @@ impl CaptureSource for ForegroundSource {
                             last_bundle = front.bundle_id.clone();
                             foreground.set(front.bundle_id.clone());
 
-                            // foreground_app event.
                             let (segment_ref, segment_key_id) = unpersisted_placement(0);
                             let event = CaptureStreamEvent::new_raw(
                                 CapturedAt {
@@ -99,8 +83,6 @@ impl CaptureSource for ForegroundSource {
                             );
                             let _ = sink.emit(event);
 
-                            // window_title event on the same change, if the title
-                            // is readable (needs Accessibility).
                             if let Some(title) = window_title::focused_window_title(front.pid) {
                                 let (segment_ref, segment_key_id) =
                                     unpersisted_placement(title.len() as u64);

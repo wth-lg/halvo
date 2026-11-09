@@ -1,16 +1,4 @@
 //! Keystroke and pointer capture via one listen-only `CGEventTap`.
-//!
-//! The tap is created with [`CGEventTapOptions::ListenOnly`], which makes
-//! injection unrepresentable: a listen-only tap's callback return value is
-//! ignored by the OS, so Halvo can observe input but can never modify or post it.
-//! That is the type-level form of "capture, never inject".
-//!
-//! Secure input is held by construction twice over. First, the OS stops
-//! delivering key events to *every* tap while a password field is focused, so the
-//! callback is not even invoked for those keystrokes. Second, as defense in
-//! depth, the callback re-checks [`secure_input_active`] and, on the vanishing
-//! chance a key event arrives while secure input is active, counts it and emits
-//! nothing. The count is surfaced as `secure_input_keystrokes` and must be zero.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
@@ -40,7 +28,6 @@ extern "C" {
 }
 
 /// A read handle on the count of keystrokes seen while secure input was active.
-/// It must always read zero; it is the report's `secure_input_keystrokes`.
 #[derive(Clone)]
 pub struct SecureBlockedCounter(Arc<AtomicU64>);
 
@@ -50,12 +37,9 @@ impl SecureBlockedCounter {
     }
 }
 
-/// What a tapped event should be recorded as. The pure core of the tap callback,
-/// so the secure-input guarantee is a unit test with no permission needed.
 pub(crate) fn classify_for_record(etype: CGEventType, secure_active: bool) -> Option<Modality> {
     match etype {
         CGEventType::KeyDown | CGEventType::KeyUp | CGEventType::FlagsChanged => {
-            // A keystroke is recorded only when secure input is NOT active.
             if secure_active {
                 None
             } else {
@@ -77,7 +61,6 @@ pub(crate) fn classify_for_record(etype: CGEventType, secure_active: bool) -> Op
     }
 }
 
-/// The set of event types the tap listens for.
 fn events_of_interest() -> Vec<CGEventType> {
     vec![
         CGEventType::KeyDown,
@@ -115,7 +98,6 @@ impl InputSource {
         }
     }
 
-    /// A read handle on the secure-input keystroke count for the report.
     pub fn secure_blocked_handle(&self) -> SecureBlockedCounter {
         SecureBlockedCounter(self.secure_blocked.clone())
     }
@@ -129,8 +111,6 @@ impl CaptureSource for InputSource {
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let foreground = self.foreground.clone();
         let secure_blocked = self.secure_blocked.clone();
-        // The tap's mach port, published after creation so the callback can
-        // re-enable the tap if the OS disables it.
         let port_slot: Arc<AtomicPtr<c_void>> = Arc::new(AtomicPtr::new(std::ptr::null_mut()));
 
         let (loop_tx, loop_rx) = channel::<Option<CFRunLoop>>();
@@ -144,7 +124,6 @@ impl CaptureSource for InputSource {
                         move |_proxy: core_graphics::event::CGEventTapProxy,
                               etype: CGEventType,
                               _event: &core_graphics::event::CGEvent| {
-                            // The OS disabled the tap: re-enable it and move on.
                             if matches!(
                                 etype,
                                 CGEventType::TapDisabledByTimeout
@@ -175,11 +154,6 @@ impl CaptureSource for InputSource {
                                     let _ = sink.emit(event);
                                 }
                                 None => {
-                                    // A key event while secure input is active is
-                                    // counted and never recorded. Pointer and
-                                    // disable events map to None harmlessly here;
-                                    // only keystrokes-under-secure reach this with
-                                    // a key type.
                                     if secure
                                         && matches!(
                                             etype,
@@ -205,14 +179,11 @@ impl CaptureSource for InputSource {
                     ) {
                         Ok(tap) => tap,
                         Err(()) => {
-                            // No Accessibility / Input Monitoring grant: report
-                            // and exit the thread cleanly.
                             let _ = loop_tx.send(None);
                             return;
                         }
                     };
 
-                    // Publish the mach port for the re-enable path.
                     port_slot.store(
                         tap.mach_port().as_concrete_TypeRef() as *mut c_void,
                         Ordering::Relaxed,
@@ -230,9 +201,7 @@ impl CaptureSource for InputSource {
                     tap.enable();
                     let _ = loop_tx.send(Some(run_loop));
 
-                    // Block here draining input until stop() stops this run loop.
                     CFRunLoop::run_current();
-                    // `tap` drops here, invalidating the mach port.
                 })
                 .map_err(|e| CaptureError::Start(format!("tap thread: {e}")))?
         };
@@ -266,8 +235,6 @@ mod tests {
 
     #[test]
     fn keystrokes_are_suppressed_while_secure_input_is_active() {
-        // The secure-input guarantee as a pure unit test: a key event is never
-        // recorded while secure input is active.
         assert_eq!(
             classify_for_record(CGEventType::KeyDown, true),
             None,
@@ -287,7 +254,6 @@ mod tests {
 
     #[test]
     fn pointer_records_regardless_of_secure_input() {
-        // Secure input concerns keystrokes only; the pointer is unaffected.
         for secure in [false, true] {
             assert_eq!(
                 classify_for_record(CGEventType::MouseMoved, secure),

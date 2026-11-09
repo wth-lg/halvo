@@ -1,12 +1,4 @@
 //! macOS LaunchAgent install for the capture daemon.
-//!
-//! The daemon runs as a per-user LaunchAgent so capture starts after the user
-//! logs in (researcher-1: RunAtLoad after login), in its own process, never
-//! sharing a writer with the UI. The install is idempotent: it writes the plist
-//! only when it is absent or its content differs, so running it twice leaves one
-//! correct plist and changes nothing the second time. Activation through
-//! `launchctl` is left to the onboarding flow; this type owns the plist on disk,
-//! which is what "install, idempotent" means and what the gate checks.
 
 use std::path::{Path, PathBuf};
 
@@ -34,8 +26,7 @@ impl LaunchAgentInstaller {
         ))
     }
 
-    /// An installer with an explicit label and LaunchAgents directory (used by
-    /// tests to target a temporary directory).
+    /// An installer with an explicit label and LaunchAgents directory.
     pub fn with_agents_dir(
         label: impl Into<String>,
         binary_path: impl Into<PathBuf>,
@@ -53,8 +44,7 @@ impl LaunchAgentInstaller {
         self.agents_dir.join(format!("{}.plist", self.label))
     }
 
-    /// The exact plist content this installer wants on disk. Deterministic, so
-    /// an unchanged install is a byte-for-byte match and writes nothing.
+    /// The exact plist content this installer wants on disk.
     pub fn desired_plist(&self) -> String {
         let program = xml_escape(&self.binary_path.to_string_lossy());
         let label = xml_escape(&self.label);
@@ -81,7 +71,6 @@ impl LaunchAgentInstaller {
     }
 }
 
-/// Escape the five XML special characters so a path or label is safe in the plist.
 fn xml_escape(input: &str) -> String {
     input
         .replace('&', "&amp;")
@@ -91,7 +80,6 @@ fn xml_escape(input: &str) -> String {
         .replace('\'', "&apos;")
 }
 
-/// Whether the file at `path` already holds exactly `content`.
 fn file_matches(path: &Path, content: &str) -> bool {
     std::fs::read_to_string(path)
         .map(|existing| existing == content)
@@ -102,7 +90,6 @@ impl ServiceInstaller for LaunchAgentInstaller {
     fn install(&self) -> Result<(), ServiceError> {
         let desired = self.desired_plist();
         let path = self.plist_path();
-        // Idempotent: if the plist already matches, do nothing.
         if file_matches(&path, &desired) {
             return Ok(());
         }
@@ -117,7 +104,6 @@ impl ServiceInstaller for LaunchAgentInstaller {
 
     fn uninstall(&self) -> Result<(), ServiceError> {
         let path = self.plist_path();
-        // Idempotent: removing an already-absent plist is success.
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -156,7 +142,6 @@ mod tests {
         assert_eq!(inst.status().unwrap(), ServiceStatus::Installed);
         let first = std::fs::read_to_string(inst.plist_path()).unwrap();
 
-        // Running it again changes nothing and does not error.
         inst.install().unwrap();
         let second = std::fs::read_to_string(inst.plist_path()).unwrap();
         assert_eq!(first, second);
@@ -170,7 +155,6 @@ mod tests {
         inst.install().unwrap();
         inst.uninstall().unwrap();
         assert_eq!(inst.status().unwrap(), ServiceStatus::NotInstalled);
-        // Removing again is still success.
         inst.uninstall().unwrap();
         assert_eq!(inst.status().unwrap(), ServiceStatus::NotInstalled);
     }
