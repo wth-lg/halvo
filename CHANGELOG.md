@@ -35,6 +35,11 @@ Each entry under Unreleased is the subject line of one commit.
 
 ### Changed
 
+- Split the foreground state into one writer and readers and name the unpersisted placement
+- Make the secure-input zero-keystroke invariant a type and a test
+- Make the secure-input hold RAII and name the screen self-exclusion step
+- Own window-title CoreFoundation values by Drop instead of manual CFRelease
+- Subtract the unwired audio and mic on/off and name the XML, installer and start-failure types
 - Make the inventory sorted by construction so eviction shreds the oldest day
 - Request the Accessibility grant through the system prompt and name request outcomes by what the code knows
 - Keep one public source for the pane title the running macOS shows
