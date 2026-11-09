@@ -27,6 +27,8 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the consent status types, stored-data inventory, pause and storage cap with mock-store tests
 - Add just-in-time macOS permission onboarding with System Settings deep links and lost-grant walk-back
 - Add the data view, its Tauri commands and the menu-bar capture indicator
+- Add failing tests for the adversarial review of the encrypted store
+- Measure the peak resident set of a 512 MiB segment write and read in an ignored test
 
 ### Changed
 
@@ -41,3 +43,17 @@ Each entry under Unreleased is the subject line of one commit.
 ### Fixed
 
 - Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store
+- Add SQLCipher and AEAD dependencies for the encrypted segment store
+- Add dev-fallback and release key custody for the store key
+- Add the encrypted segment store, crypto-shred and verify paths
+- Strip comments from the encrypted store and custody files
+- Build SQLCipher with its libtomcrypt provider instead of OpenSSL
+- Stream segment files through bounded chunks instead of buffering them
+- Propagate keychain errors and bind each custody to a RootId
+- Make the store a single writer with retention as a parameter and a sealed state
+- Check deletion by decrypting with every remaining key
+- Destroy the keychain roots the store tests create when each test ends
+- Hold the store under an exclusive database lock and complete every shred before reporting it
+- Make the store and deletion gates measure the store instead of matching constants
+- Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
+- Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles

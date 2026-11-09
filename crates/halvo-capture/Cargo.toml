@@ -5,9 +5,39 @@ description = "Halvo always-on capture pipeline: shared types, traits and the da
 edition = "2021"
 publish = false
 
+[features]
+# The release macOS custody (Secure Enclave) needs a Developer ID signed bundle to
+# persist its key (researcher-2, OSStatus -34018). It is compiled behind this
+# feature, off by default, and its tests are gated off; R1 builds and tests the
+# dev-fallback custody only.
+secure-enclave = []
+
 [dependencies]
 uuid = { version = "1", features = ["v7", "serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
+rusqlite = { version = "0.41", features = ["sqlcipher"] }
+chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
+aead = { version = "0.6", features = ["alloc"] }
+aead-stream = { version = "0.6", features = ["alloc"] }
+getrandom = "0.2"
+base64 = "0.22"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+security-framework-sys = "2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+] }
+
+[build-dependencies]
+cc = { version = "1", features = ["parallel"] }
+sqlcipher-src = "=419.0.6"
+
+[dev-dependencies]
+tempfile = "3"
