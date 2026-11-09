@@ -451,16 +451,51 @@ pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
 }
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    use std::ops::{Deref, DerefMut};
+    use std::path::Path;
+
+    use super::EncryptedStore;
+    use crate::custody::dev_fallback::DevFallbackCustody;
+    use crate::custody::RootId;
+    use crate::store::DEFAULT_RETENTION;
+
+    pub(crate) struct TestStore(EncryptedStore);
+
+    impl Deref for TestStore {
+        type Target = EncryptedStore;
+        fn deref(&self) -> &EncryptedStore {
+            &self.0
+        }
+    }
+
+    impl DerefMut for TestStore {
+        fn deref_mut(&mut self) -> &mut EncryptedStore {
+            &mut self.0
+        }
+    }
+
+    impl Drop for TestStore {
+        fn drop(&mut self) {
+            self.0
+                .destroy_root()
+                .expect("the test store's platform root is destroyed when the test ends");
+        }
+    }
+
+    pub(crate) fn make_store(dir: &Path) -> TestStore {
+        let custody = DevFallbackCustody::new(RootId::fresh());
+        TestStore(EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap())
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::test_support::make_store;
     use super::*;
     use crate::custody::dev_fallback::DevFallbackCustody;
     use crate::event::{CapturedAt, Modality, MonotonicSequence};
     use crate::store::{SegmentStore, DEFAULT_RETENTION};
-
-    fn make_store(dir: &Path) -> EncryptedStore {
-        let custody = DevFallbackCustody::new(RootId::fresh());
-        EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap()
-    }
 
     #[test]
     fn pragmas_are_set() {
@@ -472,16 +507,24 @@ mod tests {
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
     }
 
+    fn persistent_store(dir: &Path) -> (EncryptedStore, RootId) {
+        let root_id = RootId::fresh();
+        let custody = Box::new(DevFallbackCustody::new(root_id));
+        let store = EncryptedStore::create(dir, custody, DEFAULT_RETENTION).unwrap();
+        (store, root_id)
+    }
+
     #[test]
     fn a_second_writer_on_the_same_directory_is_refused() {
         let dir = tempfile::tempdir().unwrap();
-        let first = make_store(dir.path());
+        let (first, root_id) = persistent_store(dir.path());
         assert!(matches!(
             EncryptedStore::open(dir.path(), DEFAULT_RETENTION),
             Err(StoreError::Locked(_))
         ));
         drop(first);
         assert!(EncryptedStore::open(dir.path(), DEFAULT_RETENTION).is_ok());
+        DevFallbackCustody::new(root_id).destroy_root().unwrap();
     }
 
     #[test]
@@ -499,17 +542,18 @@ mod tests {
     #[test]
     fn open_rebuilds_the_custody_from_the_key_file() {
         let dir = tempfile::tempdir().unwrap();
-        let segment_id = {
-            let mut store = make_store(dir.path());
-            let (seg_ref, _) = store
-                .write_segment(&mut std::io::Cursor::new(b"persisted"))
-                .unwrap();
-            seg_ref.segment_id
-        };
+        let (mut store, _) = persistent_store(dir.path());
+        let (seg_ref, _) = store
+            .write_segment(&mut std::io::Cursor::new(b"persisted"))
+            .unwrap();
+        drop(store);
         let reopened = EncryptedStore::open(dir.path(), DEFAULT_RETENTION).unwrap();
         let mut plain = Vec::new();
-        reopened.read_segment(segment_id, &mut plain).unwrap();
+        reopened
+            .read_segment(seg_ref.segment_id, &mut plain)
+            .unwrap();
         assert_eq!(plain, b"persisted");
+        reopened.destroy_root().unwrap();
     }
 
     #[test]

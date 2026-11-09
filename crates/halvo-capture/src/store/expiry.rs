@@ -127,17 +127,10 @@ impl SegmentExpiry for EncryptedStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::custody::dev_fallback::DevFallbackCustody;
-    use crate::custody::RootId;
+    use crate::store::db::test_support::make_store;
     use crate::store::segment::segment_path;
     use crate::store::{SegmentStore, DEFAULT_RETENTION};
     use std::io::Cursor;
-    use std::path::Path;
-
-    fn make_store(dir: &Path) -> EncryptedStore {
-        let custody = DevFallbackCustody::new(RootId::fresh());
-        EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap()
-    }
 
     fn wrapped_key_row(store: &EncryptedStore, segment_id: Uuid) -> Option<Vec<u8>> {
         store

@@ -33,3 +33,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Propagate keychain errors and bind each custody to a RootId
 - Make the store a single writer with retention as a parameter and a sealed state
 - Check deletion by decrypting with every remaining key
+- Destroy the keychain roots the store tests create when each test ends

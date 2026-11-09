@@ -237,17 +237,12 @@ fn decryptable_with_remaining_keys(store: &EncryptedStore, cipher: &[u8]) -> Sto
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use crate::store::db::test_support::make_store;
 
     #[test]
     fn a_shredded_segment_is_not_decryptable_with_any_remaining_key_while_its_sibling_is() {
         let dir = tempfile::tempdir().unwrap();
-        let mut store = EncryptedStore::create(
-            dir.path(),
-            Box::new(DevFallbackCustody::new(RootId::fresh())),
-            DEFAULT_RETENTION,
-        )
-        .unwrap();
+        let mut store = make_store(dir.path());
         let (expired, _) = store
             .write_segment_with_expiry(&mut Cursor::new(b"PLAINTEXT-SECRET-TO-DESTROY"), 0, 1)
             .unwrap();
