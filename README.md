@@ -59,3 +59,27 @@ The version lives in one place: the `version` field of `[package]` in
   `src-tauri/tauri.conf.json` sets no `version` of its own.
 - The release tool (see Release) reads that field to compute the next version and
   rewrites it when a release is executed.
+
+## Release
+
+```sh
+sh scripts/release.sh --dry-run
+```
+
+The release tool is cargo-release, configured in `release.toml`. The dry run exits
+0, writes nothing, and prints the next version (`0.0.1` from `0.0.0`), the tag
+(`v0.0.1`) and the `## [0.0.1]` section it would write to `CHANGELOG.md` from the
+`## [Unreleased]` section. The script runs cargo-release's own dry run, which prints
+the version bump and the changelog diff, then adds the tag name and the full section
+body, which cargo-release does not print.
+
+To perform the release, which bumps `src-tauri/Cargo.toml`, promotes the changelog
+section, commits and tags `v<version>` without pushing:
+
+```sh
+sh scripts/release.sh --execute
+```
+
+Both forms take an optional bump level after the flag: `patch` (default), `minor` or
+`major`. `CHANGELOG.md` follows Keep a Changelog; every change goes under
+`## [Unreleased]` and the release promotes that section.
