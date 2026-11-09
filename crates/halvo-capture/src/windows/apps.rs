@@ -17,8 +17,10 @@ pub struct RawUninstallEntry {
     pub display_name: Option<String>,
     pub display_version: Option<String>,
     pub publisher: Option<String>,
-    /// `SystemComponent` DWORD: `Some(1)` marks an OS component, not a user app.
-    pub system_component: Option<u32>,
+    /// True when the entry's `SystemComponent` DWORD is 1: an OS component, not a
+    /// user-facing application. The DWORD is parsed to this bool at the registry
+    /// boundary, so the magic `1` lives in one place.
+    pub is_system_component: bool,
 }
 
 /// Turn one raw `Uninstall` subkey into an [`InstalledApp`], or drop it. An entry
@@ -26,7 +28,7 @@ pub struct RawUninstallEntry {
 /// flagged a system component, so the inventory lists user-facing applications
 /// only.
 pub fn parse_entry(raw: &RawUninstallEntry) -> Option<InstalledApp> {
-    if raw.system_component == Some(1) {
+    if raw.is_system_component {
         return None;
     }
     let name = raw.display_name.as_ref()?.trim();
@@ -73,11 +75,49 @@ impl InstalledSoftwareSnapshot {
     }
 }
 
+/// A registry root the installed-software scan reads.
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UninstallRoot {
+    LocalMachine,
+    CurrentUser,
+}
+
+#[cfg(target_os = "windows")]
+impl UninstallRoot {
+    fn hkey(self) -> winreg::HKEY {
+        use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        match self {
+            UninstallRoot::LocalMachine => HKEY_LOCAL_MACHINE,
+            UninstallRoot::CurrentUser => HKEY_CURRENT_USER,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+const UNINSTALL_ROOTS: [UninstallRoot; 2] =
+    [UninstallRoot::LocalMachine, UninstallRoot::CurrentUser];
+
 #[cfg(target_os = "windows")]
 const UNINSTALL_PATHS: &[&str] = &[
     "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
     "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
 ];
+
+/// Every (registry root, subkey path) the installed-software scan reads. The
+/// scan and the change watch both iterate this one list, so the set the watcher
+/// arms on cannot drift from the set the scan reads: an install under any root or
+/// path wakes the watcher.
+#[cfg(target_os = "windows")]
+fn scan_targets() -> Vec<(UninstallRoot, &'static str)> {
+    let mut targets = Vec::new();
+    for root in UNINSTALL_ROOTS {
+        for path in UNINSTALL_PATHS {
+            targets.push((root, *path));
+        }
+    }
+    targets
+}
 
 #[cfg(target_os = "windows")]
 fn read_entry(key: &winreg::RegKey) -> RawUninstallEntry {
@@ -85,60 +125,99 @@ fn read_entry(key: &winreg::RegKey) -> RawUninstallEntry {
         display_name: key.get_value("DisplayName").ok(),
         display_version: key.get_value("DisplayVersion").ok(),
         publisher: key.get_value("Publisher").ok(),
-        system_component: key.get_value::<u32, _>("SystemComponent").ok(),
+        is_system_component: key.get_value::<u32, _>("SystemComponent").ok() == Some(1),
     }
 }
 
-/// Scan HKLM and HKCU for installed applications and return the snapshot.
+/// Scan every watched root and path for installed applications and return the
+/// snapshot.
 #[cfg(target_os = "windows")]
 pub fn scan_installed() -> io::Result<InstalledSoftwareSnapshot> {
-    use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
+    use winreg::enums::KEY_READ;
     use winreg::RegKey;
 
     let mut entries = Vec::new();
-    for root in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
-        let hive = RegKey::predef(root);
-        for path in UNINSTALL_PATHS {
-            let Ok(uninstall) = hive.open_subkey_with_flags(path, KEY_READ) else {
-                continue;
-            };
-            for name in uninstall.enum_keys().flatten() {
-                if let Ok(sub) = uninstall.open_subkey_with_flags(&name, KEY_READ) {
-                    entries.push(read_entry(&sub));
-                }
+    for (root, path) in scan_targets() {
+        let hive = RegKey::predef(root.hkey());
+        let Ok(uninstall) = hive.open_subkey_with_flags(path, KEY_READ) else {
+            continue;
+        };
+        for name in uninstall.enum_keys().flatten() {
+            if let Ok(sub) = uninstall.open_subkey_with_flags(&name, KEY_READ) {
+                entries.push(read_entry(&sub));
             }
         }
     }
     Ok(InstalledSoftwareSnapshot::from_entries(entries))
 }
 
-/// Block until something under the HKCU `Uninstall` key changes, so the caller
-/// can rescan only when the installed set actually moves rather than polling.
+/// Block until something under any scanned `Uninstall` key changes, so the caller
+/// can rescan only when the installed set actually moves rather than polling. Arms
+/// an asynchronous change notification on every root and path [`scan_installed`]
+/// reads and waits for the first to signal, so an install under HKLM or a
+/// `WOW6432Node` mirror wakes the caller, not only one under HKCU.
 #[cfg(target_os = "windows")]
 pub fn wait_for_change() -> io::Result<()> {
-    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, ERROR_SUCCESS, FALSE, HANDLE, TRUE, WAIT_FAILED,
+    };
     use windows_sys::Win32::System::Registry::{
         RegNotifyChangeKeyValue, REG_NOTIFY_CHANGE_LAST_SET, REG_NOTIFY_CHANGE_NAME,
     };
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_NOTIFY};
+    use windows_sys::Win32::System::Threading::{CreateEventW, WaitForMultipleObjects, INFINITE};
+    use winreg::enums::KEY_NOTIFY;
     use winreg::RegKey;
 
-    let key =
-        RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(UNINSTALL_PATHS[0], KEY_NOTIFY)?;
-    let status = unsafe {
-        RegNotifyChangeKeyValue(
-            key.raw_handle(),
-            1,
-            REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET,
-            std::ptr::null_mut(),
-            0,
-        )
+    let filter = REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET;
+    // Keep the opened keys alive for the whole wait: the async notification is
+    // tied to the key handle.
+    let mut keys = Vec::new();
+    let mut events: Vec<HANDLE> = Vec::new();
+
+    let close_all = |events: &[HANDLE]| {
+        for event in events {
+            unsafe {
+                let _ = CloseHandle(*event);
+            }
+        }
     };
-    if status == ERROR_SUCCESS {
-        Ok(())
-    } else {
-        Err(io::Error::from_raw_os_error(status as i32))
+
+    for (root, path) in scan_targets() {
+        let Ok(key) = RegKey::predef(root.hkey()).open_subkey_with_flags(path, KEY_NOTIFY) else {
+            continue;
+        };
+        // A manual-reset event, initially non-signaled, armed for one async change.
+        let event = unsafe { CreateEventW(std::ptr::null(), TRUE, FALSE, std::ptr::null()) };
+        if event.is_null() {
+            let err = io::Error::last_os_error();
+            close_all(&events);
+            return Err(err);
+        }
+        let status =
+            unsafe { RegNotifyChangeKeyValue(key.raw_handle(), TRUE, filter, event, TRUE) };
+        if status != ERROR_SUCCESS {
+            unsafe {
+                let _ = CloseHandle(event);
+            }
+            close_all(&events);
+            return Err(io::Error::from_raw_os_error(status as i32));
+        }
+        keys.push(key);
+        events.push(event);
     }
+
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    let wait =
+        unsafe { WaitForMultipleObjects(events.len() as u32, events.as_ptr(), FALSE, INFINITE) };
+    close_all(&events);
+    drop(keys);
+    if wait == WAIT_FAILED {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -150,7 +229,7 @@ mod tests {
             display_name: Some(name.to_string()),
             display_version: Some("1.0".to_string()),
             publisher: Some("Acme".to_string()),
-            system_component: None,
+            is_system_component: false,
         }
     }
 
@@ -168,7 +247,7 @@ mod tests {
     fn a_system_component_is_dropped() {
         let raw = RawUninstallEntry {
             display_name: Some("KB5000000".to_string()),
-            system_component: Some(1),
+            is_system_component: true,
             ..Default::default()
         };
         assert!(parse_entry(&raw).is_none());
@@ -196,5 +275,25 @@ mod tests {
         let a = InstalledSoftwareSnapshot::from_entries([entry("A"), entry("B")]);
         let b = InstalledSoftwareSnapshot::from_entries([entry("B"), entry("A")]);
         assert_eq!(a, b);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_watch_covers_every_root_and_path_the_scan_reads() {
+        let targets = scan_targets();
+        // Both roots times both paths: HKLM and HKCU, native and WOW6432Node.
+        assert_eq!(targets.len(), UNINSTALL_ROOTS.len() * UNINSTALL_PATHS.len());
+        for root in UNINSTALL_ROOTS {
+            for path in UNINSTALL_PATHS {
+                assert!(
+                    targets.contains(&(root, *path)),
+                    "scan/watch set is missing {root:?} {path}"
+                );
+            }
+        }
+        // An HKLM path is in the set: the bug was watching HKCU only.
+        assert!(targets
+            .iter()
+            .any(|(root, _)| *root == UninstallRoot::LocalMachine));
     }
 }
