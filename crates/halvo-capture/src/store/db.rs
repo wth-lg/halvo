@@ -179,7 +179,7 @@ impl Db {
         Ok(SegmentKeyId(self.conn.last_insert_rowid()))
     }
 
-    fn insert_event(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
+    pub(crate) fn insert_event(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
         self.conn
             .execute(
                 "INSERT INTO events (event_id, wall_clock_nanos, sequence, modality, \
@@ -213,6 +213,12 @@ impl Db {
 
     pub(crate) fn pragma_int(&self, name: &str) -> StoreResult<i64> {
         pragma_int(&self.conn, name)
+    }
+
+    pub(crate) fn cipher_provider(&self) -> StoreResult<String> {
+        self.conn
+            .query_row("PRAGMA cipher_provider", [], |r| r.get::<_, String>(0))
+            .map_err(db_error)
     }
 
     pub(crate) fn fts_secure_delete(&self) -> StoreResult<i64> {
@@ -311,9 +317,9 @@ impl EncryptedStore {
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
-    /// through `custody`** (the owner's no-prompt unwrap) and open the database.
-    /// Fails [`StoreError::Sealed`] if the key file is gone (delete-all ran) or the
-    /// custody cannot unwrap (a non-owner).
+    /// through the custody it names** (the owner's no-prompt unwrap) and open the
+    /// database. Fails [`StoreError::Sealed`] if the key file is gone (delete-all
+    /// ran) or the custody cannot unwrap (a non-owner).
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
@@ -348,17 +354,12 @@ impl EncryptedStore {
         &self.dir
     }
 
-    #[cfg(test)]
     pub(crate) fn store_key(&self) -> StoreResult<&StoreKey> {
         self.keyed().map(|(_, key)| key)
     }
 
     pub(crate) fn seal(&mut self) {
         self.keyed = Keyed::Sealed;
-    }
-
-    pub(crate) fn is_sealed(&self) -> bool {
-        matches!(self.keyed, Keyed::Sealed)
     }
 
     /// Read and decrypt a segment's plaintext: unwrap its per-segment key with the

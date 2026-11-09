@@ -199,7 +199,6 @@ mod tests {
         let report = store.crypto_shred_all().unwrap();
         assert_eq!(report.segments_shredded, 2);
         assert_eq!(report.keys_destroyed, 3);
-        assert!(store.is_sealed());
         assert!(matches!(
             store.write_segment(&mut Cursor::new(b"c")),
             Err(StoreError::Sealed)

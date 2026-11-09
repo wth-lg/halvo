@@ -1,7 +1,4 @@
-//! The encrypted segment store: traits and types only. The SQLCipher metadata
-//! database, the per-segment files, window-expiry crypto-shred and the verify
-//! paths are phase P2, added as the sibling files already declared here (db.rs,
-//! segment.rs, expiry.rs, verify.rs), so P2 never edits this file.
+//! The encrypted segment store: its traits, types and errors.
 
 pub mod db;
 pub mod expiry;
@@ -67,13 +64,13 @@ pub enum StoreError {
 pub type StoreResult<T> = Result<T, StoreError>;
 
 /// `--verify-store`: no plaintext leaked and the owner unwrapped the store key
-/// with no prompt. Delegates to the verify module, which phase P2 fills.
+/// with no prompt.
 pub fn verify_store() -> StoreResult<String> {
-    verify::run_store_check()
+    verify::run_store_check().map(|check| check.to_string())
 }
 
 /// `--verify-deletion`: a crypto-shredded segment is not decryptable with any
-/// remaining key. Delegates to the verify module, which phase P2 fills.
+/// remaining key.
 pub fn verify_deletion() -> StoreResult<String> {
-    verify::run_deletion_check()
+    verify::run_deletion_check().map(|check| check.to_string())
 }

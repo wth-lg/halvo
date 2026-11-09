@@ -27,3 +27,9 @@ Each entry under Unreleased is the subject line of one commit.
 - Add SQLCipher and AEAD dependencies for the encrypted segment store
 - Add dev-fallback and release key custody for the store key
 - Add the encrypted segment store, crypto-shred and verify paths
+- Strip comments from the encrypted store and custody files
+- Build SQLCipher with its libtomcrypt provider instead of OpenSSL
+- Stream segment files through bounded chunks instead of buffering them
+- Propagate keychain errors and bind each custody to a RootId
+- Make the store a single writer with retention as a parameter and a sealed state
+- Check deletion by decrypting with every remaining key

@@ -256,8 +256,7 @@ pub(crate) fn read_segment_file(
     decrypt_segment(&mut reader, out, seg_key)
 }
 
-#[cfg(test)]
-fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> StoreResult<Vec<u8>> {
+pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> StoreResult<Vec<u8>> {
     let mut plaintext = Vec::new();
     decrypt_segment(&mut io::Cursor::new(file_bytes), &mut plaintext, key)?;
     Ok(plaintext)
