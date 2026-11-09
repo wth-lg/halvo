@@ -10,3 +10,4 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+halvo-capture = { path = "../crates/halvo-capture" }
