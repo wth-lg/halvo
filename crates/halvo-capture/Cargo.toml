@@ -28,6 +28,36 @@ base64 = "0.22"
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3"
 security-framework-sys = "2"
+# Capture backend (phase P3). All of these are pure Objective-C / C FFI bindings
+# that link only system frameworks already present on macOS, so the Tauri app
+# that depends on this crate for its status view links no Swift runtime and needs
+# no extra rpath. ScreenCaptureKit via objc2 (not the Swift-bridge crate) for
+# exactly this reason.
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+    "NSString",
+    "NSArray",
+    "NSError",
+    "NSEnumerator",
+] }
+objc2-app-kit = { version = "0.3", features = [
+    "NSWorkspace",
+    "NSRunningApplication",
+] }
+objc2-screen-capture-kit = { version = "0.3", features = [
+    "SCStream",
+    "SCShareableContent",
+    "block2",
+    "dispatch2",
+    "std",
+    "alloc",
+] }
+objc2-core-media = { version = "0.3", features = ["CMSampleBuffer"] }
+core-graphics = "0.25"
+core-foundation = "0.10"
+block2 = "0.6"
+dispatch2 = "0.3"
+libc = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = [
