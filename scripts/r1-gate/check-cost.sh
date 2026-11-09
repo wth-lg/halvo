@@ -30,16 +30,27 @@ sample_mean_cpu() {
 
 measure() {
   seconds=${1:-$GATE_DURATION}
-  store=$(mktemp -d); err=$(mktemp); trap 'rm -rf "$store" "$err"' EXIT
+  store=$(mktemp -d); err=$(mktemp); pidfile=$(mktemp)
+  trap 'rm -rf "$store" "$err" "$pidfile"' EXIT
   before=$(dir_bytes "$store")
-  HALVO_STORE_DIR="$store" run_capture_bin --timed-run "$seconds" > /dev/null 2> "$err" &
-  pid=$!
-  cpu=$(sample_mean_cpu "$pid")
-  if ! wait "$pid" 2>/dev/null; then
+  # `cargo run` wraps the daemon in a shell, so $! is that shell, not the capture
+  # process. The daemon writes its own pid to HALVO_PID_FILE; sample that pid.
+  HALVO_STORE_DIR="$store" HALVO_PID_FILE="$pidfile" \
+    run_capture_bin --timed-run "$seconds" > /dev/null 2> "$err" &
+  wrapper=$!
+  daemon_pid=$(wait_for_pid_file "$pidfile" 120)
+  if [ -z "$daemon_pid" ]; then
+    wait "$wrapper" 2>/dev/null
+    emit_fail "$name" "the daemon did not report its pid: $(head -1 "$err" 2>/dev/null)"; return 1
+  fi
+  cpu=$(sample_mean_cpu "$daemon_pid")
+  if ! wait "$wrapper" 2>/dev/null; then
     emit_fail "$name" "daemon did not complete a timed run: $(head -1 "$err" 2>/dev/null)"; return 1
   fi
   after=$(dir_bytes "$store"); growth=$((after - before))
-  if predicate_cost_within_bound "$cpu" "$growth" "$seconds"; then emit_pass "$name"; return 0; fi
+  if predicate_cost_within_bound "$cpu" "$growth" "$seconds"; then
+    emit_pass "$name (cpu=${cpu}% growth=${growth}B pid=${daemon_pid})"; return 0
+  fi
   emit_fail "$name" "cpu=${cpu}% growth=${growth}B over ${seconds}s exceeds bound"; return 1
 }
 

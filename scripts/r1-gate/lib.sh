@@ -27,6 +27,17 @@ GATE_DURATION=${GATE_DURATION:-600}
 GATE_CPU_MAX_PCT=${GATE_CPU_MAX_PCT:-20}
 GATE_DISK_BYTES_PER_DAY=${GATE_DISK_BYTES_PER_DAY:-2000000000}
 
+# The P0 memory bound for the daemon's resident set (sub-check (e)), read from
+# the pre-measurement baseline. The baseline file records how it was measured.
+GATE_RSS_BASELINE_FILE=${GATE_RSS_BASELINE_FILE:-$GATE_ROOT/docs/baseline/r1-gate-before.txt}
+
+# The rss_max_bytes value from the baseline file, or empty if the file or key is
+# absent. A missing bound makes the memory sub-check FAIL rather than pass blind.
+gate_rss_max_bytes() {
+  [ -f "$GATE_RSS_BASELINE_FILE" ] || return 0
+  sed -n 's/^rss_max_bytes=\([0-9][0-9]*\)$/\1/p' "$GATE_RSS_BASELINE_FILE" | head -1
+}
+
 # Modalities a timed run must record for the capture sub-check to pass.
 GATE_REQUIRED_MODALITIES="screen_frame keystroke pointer foreground_app"
 
@@ -128,6 +139,34 @@ predicate_cost_within_bound() {
   [ "$cpu_x10" -le "$max_x10" ] || return 1
   bound=$((seconds * GATE_DISK_BYTES_PER_DAY / 86400))
   [ "$disk" -le "$bound" ] || return 1
+  return 0
+}
+
+# PASS(0) if both peak and mean RSS are within a set, positive bound. An unset or
+# non-positive bound FAILs, so a missing baseline cannot pass the memory check.
+predicate_rss_within_bound() {
+  peak=$1; mean=$2; max=$3
+  { [ -n "$max" ] && [ "$max" -gt 0 ]; } || return 1
+  { [ -n "$peak" ] && [ "$peak" -ge 0 ]; } || return 1
+  { [ -n "$mean" ] && [ "$mean" -ge 0 ]; } || return 1
+  [ "$peak" -le "$max" ] || return 1
+  [ "$mean" -le "$max" ] || return 1
+  return 0
+}
+
+# Echo a process pid once it has been written to `$1`, polling for up to `$2`
+# seconds. Empty if it never appears. Used to sample the capture process itself
+# rather than the shell that `cargo run` wraps it in.
+wait_for_pid_file() {
+  file=$1; timeout=${2:-60}; waited=0
+  while [ "$waited" -lt "$((timeout * 10))" ]; do
+    if [ -s "$file" ]; then
+      sed -n '1p' "$file" | tr -d ' '
+      return 0
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
   return 0
 }
 
