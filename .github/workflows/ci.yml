@@ -43,14 +43,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         shell: bash
-        run: npm run tauri build
+        run: npm run tauri build -- --no-bundle
       - name: Version
         shell: bash
         run: test "$(target/release/halvo.exe --version)" = 0.0.0
       - uses: actions/upload-artifact@v7
         with:
           name: halvo-windows
-          path: |
-            target/release/halvo.exe
-            target/release/bundle/nsis/*.exe
+          path: target/release/halvo.exe
           if-no-files-found: error

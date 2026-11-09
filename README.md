@@ -29,14 +29,18 @@ npm run tauri build
 ```
 
 Run from the repository root. The command builds the Rust crate in `src-tauri/` in
-release mode and bundles it with the static page in `ui/`. The output is unsigned: no
-signing identity is configured, so macOS applies only the ad-hoc signature the linker
-adds to every arm64 binary.
+release mode with the static page in `ui/` and, on macOS, bundles it as an app. The
+output is unsigned: no signing identity is configured, so macOS applies only the
+ad-hoc signature the linker adds to every arm64 binary.
 
-| Platform | Unsigned app | Binary to run with `--version` |
-|---|---|---|
-| macOS | `target/release/bundle/macos/Halvo.app` | `target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo` |
-| Windows | `target/release/halvo.exe` (installer: `target/release/bundle/nsis/Halvo_<version>_x64-setup.exe`) | `target/release/halvo.exe` |
+| Platform | Build command | Unsigned app | Binary to run with `--version` |
+|---|---|---|---|
+| macOS | `npm run tauri build` | `target/release/bundle/macos/Halvo.app` | `target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo` |
+| Windows | `npm run tauri build -- --no-bundle` | `target/release/halvo.exe` | `target/release/halvo.exe` |
+
+On Windows the app is the bare executable; no installer is produced yet. The
+`--no-bundle` flag skips Tauri's bundling step, which would otherwise download
+installer tooling at build time, and the config lists no Windows bundle target.
 
 The `target/` directory is at the repository root because the root `Cargo.toml` is a
 Cargo workspace. Double-clicking the app opens the version window; running the binary

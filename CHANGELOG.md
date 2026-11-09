@@ -17,3 +17,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the changelog and the release dry run
 - Add the ADRs for the three scaffold decisions
 - Copy the research reports and the plan into docs
+- Build the bare executable on Windows without installer tooling
