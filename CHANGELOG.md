@@ -20,3 +20,6 @@ Each entry under Unreleased is the subject line of one commit.
 - Build the bare executable on Windows without installer tooling
 - Update the plan copy after the ledger plan revisions
 - Refresh the research report copies after the review fixes
+- Add the R1 gate harness and the pre-crate baseline
+- Scaffold the halvo-capture crate with shared types and module boundaries
+- Silence the shellcheck findings in the gate harness
