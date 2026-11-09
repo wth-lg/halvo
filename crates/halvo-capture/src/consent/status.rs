@@ -69,6 +69,16 @@ impl Default for StorageCap {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UtcDay(i64);
 
+const SECONDS_PER_DAY: u64 = 86_400;
+const DAYS_PER_YEAR: i64 = 365;
+const DAYS_PER_4_YEARS: i64 = 4 * DAYS_PER_YEAR + 1;
+const DAYS_PER_100_YEARS: i64 = 25 * DAYS_PER_4_YEARS - 1;
+const YEARS_PER_ERA: i64 = 400;
+const DAYS_PER_ERA: i64 = 4 * DAYS_PER_100_YEARS + 1;
+const DAYS_PER_5_MONTHS_FROM_MARCH: i64 = 31 + 30 + 31 + 30 + 31;
+const MONTHS_FROM_MARCH_TO_JANUARY: i64 = 10;
+const DAYS_FROM_0000_03_01_TO_UNIX_EPOCH: i64 = 719_468;
+
 impl UtcDay {
     pub const fn from_days_since_epoch(days: i64) -> Self {
         Self(days)
@@ -80,8 +90,8 @@ impl UtcDay {
 
     pub fn from_system_time(at: SystemTime) -> Self {
         let days = match at.duration_since(UNIX_EPOCH) {
-            Ok(after) => (after.as_secs() / 86_400) as i64,
-            Err(before) => -((before.duration().as_secs().div_ceil(86_400)) as i64),
+            Ok(after) => (after.as_secs() / SECONDS_PER_DAY) as i64,
+            Err(before) => -((before.duration().as_secs().div_ceil(SECONDS_PER_DAY)) as i64),
         };
         Self(days)
     }
@@ -94,34 +104,56 @@ impl UtcDay {
         Self(self.0 + 1)
     }
 
-    pub fn civil(self) -> (i64, u32, u32) {
-        let z = self.0 + 719_468;
-        let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-        let doe = z - era * 146_097;
-        let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-        let mp = (5 * doy + 2) / 153;
-        let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-        let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-        let year = yoe + era * 400 + i64::from(month <= 2);
+    pub fn to_year_month_day(self) -> (i64, u32, u32) {
+        let days_from_0000_03_01 = self.0 + DAYS_FROM_0000_03_01_TO_UNIX_EPOCH;
+        let era = if days_from_0000_03_01 >= 0 {
+            days_from_0000_03_01
+        } else {
+            days_from_0000_03_01 - (DAYS_PER_ERA - 1)
+        } / DAYS_PER_ERA;
+        let day_of_era = days_from_0000_03_01 - era * DAYS_PER_ERA;
+        let year_of_era = (day_of_era - day_of_era / (DAYS_PER_4_YEARS - 1)
+            + day_of_era / DAYS_PER_100_YEARS
+            - day_of_era / (DAYS_PER_ERA - 1))
+            / DAYS_PER_YEAR;
+        let day_of_march_year =
+            day_of_era - (DAYS_PER_YEAR * year_of_era + year_of_era / 4 - year_of_era / 100);
+        let month_from_march = (5 * day_of_march_year + 2) / DAYS_PER_5_MONTHS_FROM_MARCH;
+        let day = (day_of_march_year - (DAYS_PER_5_MONTHS_FROM_MARCH * month_from_march + 2) / 5
+            + 1) as u32;
+        let month = if month_from_march < MONTHS_FROM_MARCH_TO_JANUARY {
+            month_from_march + 3
+        } else {
+            month_from_march - 9
+        } as u32;
+        let year = year_of_era + era * YEARS_PER_ERA + i64::from(month <= 2);
         (year, month, day)
     }
 
-    pub fn from_civil(year: i64, month: u32, day: u32) -> Self {
-        let y = if month <= 2 { year - 1 } else { year };
-        let era = if y >= 0 { y } else { y - 399 } / 400;
-        let yoe = y - era * 400;
-        let m = i64::from(month);
-        let mp = if m > 2 { m - 3 } else { m + 9 };
-        let doy = (153 * mp + 2) / 5 + i64::from(day) - 1;
-        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-        Self(era * 146_097 + doe - 719_468)
+    pub fn from_year_month_day(year: i64, month: u32, day: u32) -> Self {
+        let march_year = if month <= 2 { year - 1 } else { year };
+        let era = if march_year >= 0 {
+            march_year
+        } else {
+            march_year - (YEARS_PER_ERA - 1)
+        } / YEARS_PER_ERA;
+        let year_of_era = march_year - era * YEARS_PER_ERA;
+        let month_from_march = if month > 2 {
+            i64::from(month) - 3
+        } else {
+            i64::from(month) + 9
+        };
+        let day_of_march_year =
+            (DAYS_PER_5_MONTHS_FROM_MARCH * month_from_march + 2) / 5 + i64::from(day) - 1;
+        let day_of_era =
+            year_of_era * DAYS_PER_YEAR + year_of_era / 4 - year_of_era / 100 + day_of_march_year;
+        Self(era * DAYS_PER_ERA + day_of_era - DAYS_FROM_0000_03_01_TO_UNIX_EPOCH)
     }
 }
 
 impl fmt::Display for UtcDay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (y, m, d) = self.civil();
+        let (y, m, d) = self.to_year_month_day();
         write!(f, "{y:04}-{m:02}-{d:02}")
     }
 }
@@ -138,7 +170,7 @@ impl FromStr for UtcDay {
         if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
             return Err(bad());
         }
-        Ok(Self::from_civil(year, month, day))
+        Ok(Self::from_year_month_day(year, month, day))
     }
 }
 
@@ -715,6 +747,24 @@ mod tests {
         );
         let json = serde_json::to_string(&UtcDay::from_days_since_epoch(20_766)).unwrap();
         assert_eq!(json, "\"2026-11-09\"");
+    }
+
+    #[test]
+    fn every_day_across_two_eras_round_trips_through_year_month_day() {
+        for days in -DAYS_PER_ERA..=DAYS_PER_ERA {
+            let day = UtcDay::from_days_since_epoch(days);
+            let (y, m, d) = day.to_year_month_day();
+            assert!((1..=12).contains(&m) && (1..=31).contains(&d), "{days}");
+            assert_eq!(UtcDay::from_year_month_day(y, m, d), day, "{y}-{m}-{d}");
+        }
+        assert_eq!(
+            UtcDay::from_year_month_day(2000, 2, 29).next().to_string(),
+            "2000-03-01"
+        );
+        assert_eq!(
+            UtcDay::from_year_month_day(1900, 2, 28).next().to_string(),
+            "1900-03-01"
+        );
     }
 
     #[test]
