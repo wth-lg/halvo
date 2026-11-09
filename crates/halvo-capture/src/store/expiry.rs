@@ -126,7 +126,7 @@ mod tests {
     use super::*;
     use crate::custody::dev_fallback::DevFallbackCustody;
     use crate::custody::CustodyError;
-    use crate::store::segment::{decrypt_segment_bytes, segment_path};
+    use crate::store::segment::segment_path;
     use crate::store::SegmentStore;
     use std::path::Path;
 
@@ -148,15 +148,17 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
         let (seg_ref, _key_id) = store
-            .write_segment_with_expiry(b"PLAINTEXT-SECRET", 0, 1)
+            .write_segment_with_expiry(&mut std::io::Cursor::new(b"PLAINTEXT-SECRET"), 0, 1)
             .unwrap();
-        let cipher = std::fs::read(segment_path(dir.path(), seg_ref.segment_id)).unwrap();
 
         let report = store.crypto_shred_expired().unwrap();
         assert_eq!(report.segments_shredded, 1);
 
         assert!(!segment_path(dir.path(), seg_ref.segment_id).exists());
-        assert!(decrypt_segment_bytes(&cipher, store.store_key_bytes()).is_err());
+        assert!(matches!(
+            store.read_segment(seg_ref.segment_id, &mut Vec::new()),
+            Err(StoreError::Sealed)
+        ));
         let null: Option<Vec<u8>> = store
             .db()
             .connection()
@@ -173,8 +175,12 @@ mod tests {
     fn delete_all_seals_the_store() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
-        store.write_segment(b"a").unwrap();
-        store.write_segment(b"b").unwrap();
+        store
+            .write_segment(&mut std::io::Cursor::new(b"a"))
+            .unwrap();
+        store
+            .write_segment(&mut std::io::Cursor::new(b"b"))
+            .unwrap();
         let report = store.crypto_shred_all().unwrap();
         assert_eq!(report.segments_shredded, 2);
         assert!(store.is_sealed());

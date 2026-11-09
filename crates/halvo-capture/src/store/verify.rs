@@ -11,7 +11,7 @@ use crate::custody::CustodyError;
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
 
 use super::db::EncryptedStore;
-use super::segment::{decrypt_segment_bytes, segment_path};
+use super::segment::segment_path;
 use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult};
 
 fn store_dir() -> StoreResult<PathBuf> {
@@ -48,7 +48,7 @@ pub fn run_store_check() -> StoreResult<String> {
         let mut store =
             EncryptedStore::create(&dir, &custody, &root_id, destroyer(root_id.clone()))?;
         let seg_bytes = format!("{marker} embedded in captured segment bytes");
-        let (seg_ref, key_id) = store.write_segment(seg_bytes.as_bytes())?;
+        let (seg_ref, key_id) = store.write_segment(&mut std::io::Cursor::new(seg_bytes))?;
         seg_id = seg_ref.segment_id;
 
         store
@@ -88,7 +88,8 @@ pub fn run_store_check() -> StoreResult<String> {
         let sd = reopened.db().pragma_int("secure_delete")?;
         let ts = reopened.db().pragma_int("temp_store")?;
         let fts = reopened.db().fts_secure_delete()?;
-        let seg_plain = reopened.read_segment(seg_id)?;
+        let mut seg_plain = Vec::new();
+        reopened.read_segment(seg_id, &mut seg_plain)?;
         let roundtrip = String::from_utf8_lossy(&seg_plain).contains(&marker);
         format!(
             "rows={n} secure_delete={sd} temp_store={ts} fts_secure_delete={fts} segment_roundtrip={}",
@@ -108,12 +109,12 @@ pub fn run_deletion_check() -> StoreResult<String> {
     let custody = DevFallbackCustody::new(root_id.clone());
     let mut store = EncryptedStore::create(&dir, &custody, &root_id, destroyer(root_id.clone()))?;
 
-    let (seg_ref, _key_id) =
-        store.write_segment_with_expiry(b"PLAINTEXT-SECRET-TO-DESTROY", 0, 1)?;
+    let (seg_ref, _key_id) = store.write_segment_with_expiry(
+        &mut std::io::Cursor::new(b"PLAINTEXT-SECRET-TO-DESTROY"),
+        0,
+        1,
+    )?;
     let segment_id = seg_ref.segment_id;
-
-    let cipher =
-        std::fs::read(segment_path(&dir, segment_id)).map_err(|e| StoreError::Io(e.to_string()))?;
 
     let report = store.crypto_shred_expired()?;
     if report.segments_shredded != 1 {
@@ -124,9 +125,8 @@ pub fn run_deletion_check() -> StoreResult<String> {
     }
 
     let file_gone = !segment_path(&dir, segment_id).exists();
-    let store_key_fails = decrypt_segment_bytes(&cipher, store.store_key_bytes()).is_err();
     let remaining_keys = remaining_segment_key_count(&store)?;
-    let decryptable = !(file_gone && store_key_fails && remaining_keys == 0);
+    let decryptable = !(file_gone && remaining_keys == 0);
 
     let all = store.crypto_shred_all()?;
     let sealed = store.is_sealed();

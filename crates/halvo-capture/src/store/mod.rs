@@ -8,6 +8,8 @@ pub mod expiry;
 pub mod segment;
 pub mod verify;
 
+use std::io::Read;
+
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
 /// The sole-writer store the capture daemon appends to. One writer only; the
@@ -18,7 +20,7 @@ pub trait SegmentStore {
 
     /// Write raw capture bytes as a new encrypted segment and return its ref and
     /// the id of the per-segment key that encrypts it.
-    fn write_segment(&mut self, bytes: &[u8]) -> StoreResult<(SegmentRef, SegmentKeyId)>;
+    fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
     /// Total bytes the store occupies on disk, for the cost bound.
     fn size_bytes(&self) -> StoreResult<u64>;

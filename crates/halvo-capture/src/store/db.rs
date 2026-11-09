@@ -1,5 +1,6 @@
 //! SQLCipher metadata store and the sole-writer [`EncryptedStore`].
 
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, StoreKey};
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
-use super::segment::{self, NewSegment};
+use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{SegmentStore, StoreError, StoreResult};
 
 const DEFAULT_RETENTION_SECS: u64 = 14 * 24 * 60 * 60;
@@ -271,6 +272,7 @@ impl EncryptedStore {
         &self.dir
     }
 
+    #[cfg(test)]
     pub(crate) fn store_key_bytes(&self) -> &[u8; 32] {
         self.store_key.expose()
     }
@@ -278,7 +280,7 @@ impl EncryptedStore {
     /// Read and decrypt a segment's plaintext: unwrap its per-segment key with the
     /// store key, then stream-decrypt the file. Fails [`StoreError::Sealed`] if the
     /// segment has been crypto-shredded (its key row is NULL or gone).
-    pub fn read_segment(&self, segment_id: uuid::Uuid) -> StoreResult<Vec<u8>> {
+    pub fn read_segment(&self, segment_id: uuid::Uuid, out: &mut dyn Write) -> StoreResult<u64> {
         let wrapped: Option<Vec<u8>> = self
             .db
             .connection()
@@ -290,7 +292,7 @@ impl EncryptedStore {
             .map_err(|_| StoreError::Sealed)?;
         let wrapped = wrapped.ok_or(StoreError::Sealed)?;
         let seg_key = segment::unwrap_segment_key(self.store_key.expose(), &wrapped)?;
-        segment::read_segment_file(&self.dir, &seg_key, segment_id)
+        segment::read_segment_file(&self.dir, &seg_key, segment_id, out)
     }
 
     pub(crate) fn destroy_root(&self) -> Result<(), CustodyError> {
@@ -299,17 +301,29 @@ impl EncryptedStore {
 
     pub(crate) fn write_segment_with_expiry(
         &mut self,
-        bytes: &[u8],
+        bytes: &mut dyn Read,
         created_at: u64,
         expires_at: u64,
     ) -> StoreResult<(SegmentRef, SegmentKeyId)> {
-        let seg = NewSegment::new()?;
-        let wrapped = segment::wrap_segment_key(self.store_key.expose(), &seg.seg_key)?;
-        let key_id =
-            self.db
-                .insert_segment_key(seg.segment_id, &wrapped, created_at, expires_at)?;
-        let seg_ref = seg.write(&self.dir, key_id, bytes)?;
-        Ok((seg_ref, key_id))
+        let segment_id = uuid::Uuid::now_v7();
+        let seg_key = SegmentKey::random()?;
+        let wrapped = segment::wrap_segment_key(self.store_key.expose(), &seg_key)?;
+        let segment_key_id = self
+            .db
+            .insert_segment_key(segment_id, &wrapped, created_at, expires_at)?;
+        let header = SegmentHeader {
+            segment_id,
+            segment_key_id,
+        };
+        let byte_len = segment::write_segment_file(&self.dir, &seg_key, &header, bytes)?;
+        Ok((
+            SegmentRef {
+                segment_id,
+                byte_offset: 0,
+                byte_len,
+            },
+            segment_key_id,
+        ))
     }
 }
 
@@ -318,7 +332,7 @@ impl SegmentStore for EncryptedStore {
         self.db.insert_event(event)
     }
 
-    fn write_segment(&mut self, bytes: &[u8]) -> StoreResult<(SegmentRef, SegmentKeyId)> {
+    fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
         let created = now_secs();
         let expires = created + retention_secs();
         self.write_segment_with_expiry(bytes, created, expires)
@@ -385,7 +399,9 @@ mod tests {
     fn writes_and_reads_a_segment_and_event() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
-        let (seg_ref, key_id) = store.write_segment(b"screen frame bytes").unwrap();
+        let (seg_ref, key_id) = store
+            .write_segment(&mut std::io::Cursor::new(b"screen frame bytes"))
+            .unwrap();
         let event = CaptureStreamEvent::new_raw(
             CapturedAt {
                 wall_clock: SystemTime::now(),
@@ -407,7 +423,14 @@ mod tests {
             )
             .unwrap();
         let seg_key = segment::unwrap_segment_key(store.store_key_bytes(), &wrapped).unwrap();
-        let plain = segment::read_segment_file(store.dir(), &seg_key, seg_ref.segment_id).unwrap();
+        let mut plain = Vec::new();
+        segment::read_segment_file(store.dir(), &seg_key, seg_ref.segment_id, &mut plain).unwrap();
         assert_eq!(plain, b"screen frame bytes");
+        let mut again = Vec::new();
+        assert_eq!(
+            store.read_segment(seg_ref.segment_id, &mut again).unwrap(),
+            18
+        );
+        assert_eq!(again, b"screen frame bytes");
     }
 }
