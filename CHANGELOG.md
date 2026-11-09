@@ -24,6 +24,23 @@ Each entry under Unreleased is the subject line of one commit.
 - Scaffold the halvo-capture crate with shared types and module boundaries
 - Silence the shellcheck findings in the gate harness
 - Run cargo test, clippy and fmt on both CI jobs
+- Add the consent status types, stored-data inventory, pause and storage cap with mock-store tests
+- Add just-in-time macOS permission onboarding with System Settings deep links and lost-grant walk-back
+- Add the data view, its Tauri commands and the menu-bar capture indicator
+
+### Changed
+
+- Make the inventory sorted by construction so eviction shreds the oldest day
+- Request the Accessibility grant through the system prompt and name request outcomes by what the code knows
+- Keep one public source for the pane title the running macOS shows
+- Derive the grants to record from the permission list instead of a duplicate field
+- Resolve the consent settings path through Tauri so the identifier lives only in tauri.conf.json
+- Write the storage cap constants from the window, the daily estimate and the headroom
+- Name the calendar constants and the year-month-day conversions of UtcDay
+
+### Fixed
+
+- Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store
 - Add SQLCipher and AEAD dependencies for the encrypted segment store
 - Add dev-fallback and release key custody for the store key
 - Add the encrypted segment store, crypto-shred and verify paths
