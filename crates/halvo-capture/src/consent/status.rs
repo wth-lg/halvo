@@ -11,8 +11,6 @@ use super::{CaptureState, CaptureStatus, ConsentError, ConsentView, ModalityCons
 use crate::event::Modality;
 use crate::store::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
-pub const APP_IDENTIFIER: &str = "com.halvo.desktop";
-
 pub const SETTINGS_FILE_NAME: &str = "consent.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -244,10 +242,6 @@ impl Default for ConsentSettings {
 }
 
 impl ConsentSettings {
-    pub fn load_default() -> Result<Self, ConsentError> {
-        SettingsFile::default_location().load()
-    }
-
     pub fn load(path: &Path) -> Result<Self, ConsentError> {
         SettingsFile::new(path.to_path_buf()).load()
     }
@@ -261,10 +255,6 @@ pub struct SettingsFile {
 impl SettingsFile {
     pub fn new(path: PathBuf) -> Self {
         Self { path }
-    }
-
-    pub fn default_location() -> Self {
-        Self::new(default_config_dir().join(SETTINGS_FILE_NAME))
     }
 
     pub fn path(&self) -> &Path {
@@ -299,32 +289,6 @@ impl SettingsFile {
         let tmp = self.path.with_extension("json.tmp");
         fs::write(&tmp, bytes).map_err(|e| io("write", e))?;
         fs::rename(&tmp, &self.path).map_err(|e| io("replace", e))
-    }
-}
-
-fn default_config_dir() -> PathBuf {
-    let home = std::env::var_os("HOME").map(PathBuf::from);
-    #[cfg(target_os = "macos")]
-    {
-        home.unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join("Library/Application Support")
-            .join(APP_IDENTIFIER)
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .or(home)
-            .unwrap_or_else(std::env::temp_dir)
-            .join(APP_IDENTIFIER)
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .or_else(|| home.map(|h| h.join(".config")))
-            .unwrap_or_else(std::env::temp_dir)
-            .join(APP_IDENTIFIER)
     }
 }
 

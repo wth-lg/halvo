@@ -10,9 +10,9 @@ mod unwired_store;
 use std::sync::Mutex;
 
 use halvo_capture::consent::onboarding::platform_probe;
-use halvo_capture::consent::status::{ConsentController, SettingsFile};
+use halvo_capture::consent::status::{ConsentController, SettingsFile, SETTINGS_FILE_NAME};
 use tauri::webview::PageLoadEvent;
-use tauri::WindowEvent;
+use tauri::{Manager, WindowEvent};
 
 use commands::AppState;
 
@@ -24,22 +24,7 @@ fn main() {
         return;
     }
 
-    let settings = SettingsFile::default_location();
-    let controller =
-        ConsentController::open(Box::new(unwired_store::UnwiredStore), settings.clone())
-            .unwrap_or_else(|e| {
-                panic!(
-                    "could not open the consent settings at {}: {e}",
-                    settings.path().display()
-                )
-            });
-
     tauri::Builder::default()
-        .manage(AppState {
-            controller: Mutex::new(controller),
-            probe: platform_probe(),
-            store_backend: unwired_store::DESCRIPTION,
-        })
         .invoke_handler(tauri::generate_handler![
             commands::capture_status,
             commands::inventory,
@@ -51,6 +36,20 @@ fn main() {
             commands::open_permission_pane,
         ])
         .setup(|app| {
+            let settings = SettingsFile::new(app.path().app_config_dir()?.join(SETTINGS_FILE_NAME));
+            let controller =
+                ConsentController::open(Box::new(unwired_store::UnwiredStore), settings.clone())
+                    .map_err(|e| {
+                        format!(
+                            "could not open the consent settings at {}: {e}",
+                            settings.path().display()
+                        )
+                    })?;
+            app.manage(AppState {
+                controller: Mutex::new(controller),
+                probe: platform_probe(),
+                store_backend: unwired_store::DESCRIPTION,
+            });
             tray::install(app.handle())?;
             Ok(())
         })
@@ -69,5 +68,5 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("failed to run the Halvo window");
+        .expect("failed to start Halvo");
 }
