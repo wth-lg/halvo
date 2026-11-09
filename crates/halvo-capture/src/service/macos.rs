@@ -8,13 +8,13 @@ use crate::service::{ServiceError, ServiceInstaller, ServiceStatus};
 pub const DEFAULT_LABEL: &str = "com.halvo.capture";
 
 /// Installs and removes the capture LaunchAgent plist.
-pub struct LaunchAgentInstaller {
+pub struct LaunchAgentPlistInstaller {
     label: String,
     binary_path: PathBuf,
     agents_dir: PathBuf,
 }
 
-impl LaunchAgentInstaller {
+impl LaunchAgentPlistInstaller {
     /// An installer for `binary_path`, writing into the current user's
     /// `~/Library/LaunchAgents`.
     pub fn new(binary_path: impl Into<PathBuf>) -> Result<Self, ServiceError> {
@@ -86,7 +86,7 @@ fn file_matches(path: &Path, content: &str) -> bool {
         .unwrap_or(false)
 }
 
-impl ServiceInstaller for LaunchAgentInstaller {
+impl ServiceInstaller for LaunchAgentPlistInstaller {
     fn install(&self) -> Result<(), ServiceError> {
         let desired = self.desired_plist();
         let path = self.plist_path();
@@ -124,8 +124,8 @@ impl ServiceInstaller for LaunchAgentInstaller {
 mod tests {
     use super::*;
 
-    fn installer(dir: &std::path::Path) -> LaunchAgentInstaller {
-        LaunchAgentInstaller::with_agents_dir(
+    fn installer(dir: &std::path::Path) -> LaunchAgentPlistInstaller {
+        LaunchAgentPlistInstaller::with_agents_dir(
             "com.halvo.capture.test",
             "/usr/local/bin/halvo-capture",
             dir,
@@ -172,13 +172,13 @@ mod tests {
     #[test]
     fn a_changed_binary_path_rewrites_the_plist() {
         let tmp = tempfile::tempdir().unwrap();
-        let a = LaunchAgentInstaller::with_agents_dir(
+        let a = LaunchAgentPlistInstaller::with_agents_dir(
             "com.halvo.capture.test",
             "/old/path",
             tmp.path(),
         );
         a.install().unwrap();
-        let b = LaunchAgentInstaller::with_agents_dir(
+        let b = LaunchAgentPlistInstaller::with_agents_dir(
             "com.halvo.capture.test",
             "/new/path",
             tmp.path(),

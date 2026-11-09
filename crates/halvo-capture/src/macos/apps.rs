@@ -24,7 +24,7 @@ fn standard_app_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-fn read_bundle_id(app_path: &Path) -> Option<String> {
+fn xml_bundle_id(app_path: &Path) -> Option<String> {
     let plist = app_path.join("Contents").join("Info.plist");
     let text = std::fs::read_to_string(&plist).ok()?;
     let after_key = text.split("<key>CFBundleIdentifier</key>").nth(1)?;
@@ -60,7 +60,7 @@ pub fn scan_dir(dir: &Path) -> Vec<InstalledApp> {
             .and_then(|s| s.to_str())
             .unwrap_or_default()
             .to_string();
-        let bundle_id = read_bundle_id(&path);
+        let bundle_id = xml_bundle_id(&path);
         apps.push(InstalledApp {
             name,
             path,

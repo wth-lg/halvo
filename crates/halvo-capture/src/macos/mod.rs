@@ -105,6 +105,20 @@ pub(crate) fn emit_metadata_only(
     ))
 }
 
+/// A source that failed to start. Reported, not fatal: the timed run continues
+/// with the sources that did start.
+#[derive(Debug)]
+struct SourceStartFailure {
+    name: &'static str,
+    error: crate::source::CaptureError,
+}
+
+impl std::fmt::Display for SourceStartFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "source {} did not start: {}", self.name, self.error)
+    }
+}
+
 /// Run every macOS source for a bounded window and report per-modality counts.
 /// Reads the gate's secure-input switch from the environment, then delegates to
 /// [`run_sources`], which takes it as a parameter.
@@ -132,17 +146,19 @@ fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, Daemon
     let mut audio = audio::SystemAudioSource::disabled();
     let mut mic = mic::MicrophoneSource::disabled();
 
-    let sources: [(&str, Result<(), crate::source::CaptureError>); 5] = [
+    let starts: [(&'static str, Result<(), crate::source::CaptureError>); 5] = [
         ("foreground", foreground.start(handle.clone())),
         ("screen", screen.start(handle.clone())),
         ("input", input.start(handle.clone())),
         ("system_audio", audio.start(handle.clone())),
         ("microphone", mic.start(handle.clone())),
     ];
-    for (name, result) in sources {
-        if let Err(e) = result {
-            eprintln!("halvo-capture: source {name} did not start: {e}");
-        }
+    let failed: Vec<SourceStartFailure> = starts
+        .into_iter()
+        .filter_map(|(name, result)| result.err().map(|error| SourceStartFailure { name, error }))
+        .collect();
+    for failure in &failed {
+        eprintln!("halvo-capture: {failure}");
     }
 
     let _secure_hold = secure_gate.then(crate::secure_input_macos::hold_secure_input);
