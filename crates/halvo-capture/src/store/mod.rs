@@ -2,6 +2,7 @@
 
 pub mod db;
 pub mod expiry;
+pub mod inventory;
 pub mod segment;
 pub mod verify;
 

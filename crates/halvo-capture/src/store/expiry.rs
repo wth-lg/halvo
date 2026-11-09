@@ -113,6 +113,32 @@ impl EncryptedStore {
         Ok(ids.len() as u64)
     }
 
+    fn segment_ids_created_before(&self, cutoff_secs: u64) -> StoreResult<Vec<Uuid>> {
+        let conn = self.db()?.connection();
+        let mut stmt = conn
+            .prepare(
+                "SELECT segment_id FROM segment_keys \
+                 WHERE wrapped_key IS NOT NULL AND created_at < ?1",
+            )
+            .map_err(db_error)?;
+        let rows = stmt
+            .query_map([cutoff_secs as i64], segment_id_column)
+            .map_err(db_error)?;
+        rows.map(|row| parse_segment_id(&row.map_err(db_error)?))
+            .collect()
+    }
+
+    /// Crypto-shred every segment captured before `cutoff_secs` (unix seconds),
+    /// used by the storage-cap and date-cutoff eviction the consent view drives.
+    pub(crate) fn shred_created_before(&mut self, cutoff_secs: u64) -> StoreResult<ShredReport> {
+        let ids = self.segment_ids_created_before(cutoff_secs)?;
+        let segments_shredded = self.shred_segments(&ids)?;
+        Ok(ShredReport {
+            segments_shredded,
+            keys_destroyed: segments_shredded,
+        })
+    }
+
     /// Delete-all's last step: destroy the custody root first, so a failure
     /// leaves the store open and the call retryable; then seal, scrub the key
     /// file and remove the now-keyless database and segments, leaving a
