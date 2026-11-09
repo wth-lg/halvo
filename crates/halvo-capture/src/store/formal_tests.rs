@@ -643,14 +643,13 @@ fn contend_for_store_for_parent() {
         let mut store = loop {
             match EncryptedStore::open(&store_dir, DEFAULT_RETENTION) {
                 Ok(store) => break store,
-                Err(StoreError::Locked(_)) => {
+                Err(refusal) => {
                     assert!(
                         Instant::now() < deadline,
-                        "contender {index} never got the store"
+                        "contender {index} never got the store; last refusal: {refusal}"
                     );
                     std::thread::sleep(Duration::from_millis(1));
                 }
-                Err(e) => panic!("contender {index}: open failed with {e}"),
             }
         };
         if inside.exists() {

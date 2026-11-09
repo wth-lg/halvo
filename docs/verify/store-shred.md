@@ -80,13 +80,32 @@ ciphertext.
 Check 2 (`at_most_one_process_holds_the_store_at_a_time`) creates a store,
 then spawns the test binary two to five times as contending processes
 (`contend_for_store_for_parent`). Each contender sleeps a random delay, then
-one to three times: retries `EncryptedStore::open` while it returns `Locked`,
-writes a witness file, logs `enter`, writes a segment, sleeps the hold time,
+one to three times: retries `EncryptedStore::open` while the platform refuses it
+(see the platform note below), writes a witness file, logs `enter`, writes a segment, sleeps the hold time,
 logs `exit`, removes the witness, drops the store. The parent meanwhile
 unlinks `writer.lock` on a random cadence of 1 to 8 ms, or never. The check
 fails if any contender found the witness present on entry, if two logged hold
 intervals overlap, if any contender exited non-zero, or if a contender held
 the store a different number of times than planned.
+
+## How each platform refuses a second writer
+
+The contender retries `open` on any error until its deadline, because the
+refusal reaches it in a platform-specific shape:
+
+| Platform | Refusal a losing contender sees | Where it comes from |
+|---|---|---|
+| macOS, Linux | `Locked` | `WriterLock::take` gets `WouldBlock` from the file lock, or `verify_key` gets `SQLITE_BUSY` from the holder's exclusive database lock once `writer.lock` has been unlinked |
+| Windows | `Locked`, or `Io("Access is denied. (os error 5)")` | the same two paths, plus: unlinking `writer.lock` while the holder keeps it open leaves the name delete-pending, and Windows refuses every open of that path until the holder closes it |
+
+A refusal of either shape is the single-writer property holding, not a
+failure, so the contender keeps retrying and the check stays the same on both
+platforms: it fails only if a second process is admitted (the witness or an
+overlapping interval), if an admitted writer cannot write, if a contender never
+gets in before its deadline, or if one holds the store fewer times than
+planned. The deadline message names the last refusal, so a misconfigured
+custody or a lock that is never released reads as what it is. Both checks run
+in CI on the macOS and Windows jobs; the break proofs below were run on macOS.
 
 ## Bounds and assumptions
 
@@ -136,12 +155,13 @@ the words of the code:
   delete-all messages name the file left behind or the retained key that
   still unwraps.
 - **Check 2.** The input is the contender plans, the hold and the unlink
-  cadence. "found another contender inside the store" or "held the store at
+  cadence. A contender that is refused and retries is not a failure. "found another contender inside the store" or "held the store at
   the same time" means two processes were admitted at once. "contender N
   exited with exit status: 101" with `database is locked` on stderr means a
   second process reached the database while the first held it, and SQLite
-  refused one of them mid-operation: both were inside. "never got the store"
-  means the lock was never released to a waiter.
+  refused one of them mid-operation: both were inside. "never got the store; last
+  refusal: ..." means the lock was never released to a waiter, or the named
+  refusal was not a lock at all.
 
 A step that cannot happen in the code marks a modeling error in the harness:
 for example an op the harness applies to a state the daemon can never reach.
