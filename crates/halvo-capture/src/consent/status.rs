@@ -160,9 +160,9 @@ pub struct InventoryRow {
     pub bytes: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct Inventory {
-    pub rows: Vec<InventoryRow>,
+    rows: Vec<InventoryRow>,
 }
 
 impl Inventory {
@@ -173,6 +173,10 @@ impl Inventory {
                 .then_with(|| modality_order(a.modality).cmp(&modality_order(b.modality)))
         });
         Self { rows }
+    }
+
+    pub fn rows(&self) -> &[InventoryRow] {
+        &self.rows
     }
 
     pub fn total_bytes(&self) -> u64 {
@@ -343,14 +347,11 @@ pub fn eviction_cutoff(inventory: &Inventory, cap_bytes: u64) -> Option<UtcDay> 
         return None;
     }
     let mut cutoff = None;
-    for row in &inventory.rows {
+    for row in inventory.rows() {
         if remaining <= cap_bytes {
             break;
         }
-        match cutoff {
-            Some(day) if day > row.day => {}
-            _ => cutoff = Some(row.day.next()),
-        }
+        cutoff = Some(row.day.next());
         remaining = remaining.saturating_sub(row.bytes);
     }
     cutoff
@@ -600,9 +601,9 @@ mod tests {
             row(19_999, Modality::ScreenFrame, 3, 300),
         ]);
         let inv = c.inventory().unwrap();
-        assert_eq!(inv.rows.len(), 3);
-        assert_eq!(inv.rows[0].day, UtcDay::from_days_since_epoch(19_999));
-        assert_eq!(inv.rows[2].day, UtcDay::from_days_since_epoch(20_000));
+        assert_eq!(inv.rows().len(), 3);
+        assert_eq!(inv.rows()[0].day, UtcDay::from_days_since_epoch(19_999));
+        assert_eq!(inv.rows()[2].day, UtcDay::from_days_since_epoch(20_000));
         assert_eq!(inv.total_bytes(), 870);
         assert_eq!(inv.total_events(), 15);
         assert_eq!(c.status().store_bytes, 870);
@@ -617,7 +618,7 @@ mod tests {
         let report = c.delete_everything().unwrap();
         assert_eq!(report.segments_shredded, 2);
         assert_eq!(report.keys_destroyed, 3);
-        assert!(c.inventory().unwrap().rows.is_empty());
+        assert!(c.inventory().unwrap().is_empty());
         assert_eq!(c.status().store_bytes, 0);
         let again = c.delete_everything().unwrap();
         assert_eq!(again.segments_shredded, 0);
@@ -627,7 +628,7 @@ mod tests {
     fn delete_all_through_the_consent_view_trait() {
         let mut c = controller(vec![row(1, Modality::Pointer, 2, 20)]);
         ConsentView::delete_all(&mut c).unwrap();
-        assert!(c.inventory().unwrap().rows.is_empty());
+        assert!(c.inventory().unwrap().is_empty());
     }
 
     #[test]
@@ -653,6 +654,25 @@ mod tests {
     }
 
     #[test]
+    fn an_inventory_built_from_unsorted_rows_still_evicts_the_oldest_day_only() {
+        let inv = Inventory::from_rows(vec![
+            row(12, Modality::ScreenFrame, 1, 400),
+            row(10, Modality::ScreenFrame, 1, 400),
+            row(11, Modality::ScreenFrame, 1, 400),
+        ]);
+        let days: Vec<i64> = inv
+            .rows()
+            .iter()
+            .map(|r| r.day.days_since_epoch())
+            .collect();
+        assert_eq!(days, vec![10, 11, 12]);
+        assert_eq!(
+            eviction_cutoff(&inv, 900),
+            Some(UtcDay::from_days_since_epoch(11))
+        );
+    }
+
+    #[test]
     fn lowering_the_cap_shreds_oldest_first_until_under_the_cap() {
         let gib = StorageCap::GIB;
         let mut c = controller(vec![
@@ -666,8 +686,8 @@ mod tests {
             .unwrap();
         assert_eq!(report.map(|r| r.segments_shredded), Some(1));
         let inv = c.inventory().unwrap();
-        assert_eq!(inv.rows.len(), 2);
-        assert_eq!(inv.rows[0].day, UtcDay::from_days_since_epoch(11));
+        assert_eq!(inv.rows().len(), 2);
+        assert_eq!(inv.rows()[0].day, UtcDay::from_days_since_epoch(11));
         assert_eq!(c.status().store_cap_bytes, 2 * gib);
         let second = c.enforce_storage_cap().unwrap();
         assert_eq!(second, None);
