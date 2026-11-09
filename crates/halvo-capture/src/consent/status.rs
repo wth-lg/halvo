@@ -37,13 +37,18 @@ pub struct StorageCap(u64);
 
 impl StorageCap {
     pub const GIB: u64 = 1024 * 1024 * 1024;
-    pub const DEFAULT: StorageCap = StorageCap(25 * Self::GIB);
-    pub const MIN: StorageCap = StorageCap(Self::GIB);
+    pub const ESTIMATED_BYTES_PER_DAY: u64 = Self::GIB;
+    pub const MIN: StorageCap = StorageCap(Self::ESTIMATED_BYTES_PER_DAY);
+    const HEADROOM_BYTES: u64 = 11 * Self::GIB;
+    pub const DEFAULT: StorageCap = StorageCap(
+        ObservationWindow::ROLLING_DAYS as u64 * Self::ESTIMATED_BYTES_PER_DAY
+            + Self::HEADROOM_BYTES,
+    );
 
     pub fn from_bytes(bytes: u64) -> Result<Self, ConsentError> {
         if bytes < Self::MIN.0 {
             return Err(ConsentError::Action(format!(
-                "the storage cap must be at least {} bytes (1 GiB); {bytes} was given",
+                "the storage cap must be at least {} bytes (one day of capture); {bytes} was given",
                 Self::MIN.0
             )));
         }
@@ -655,6 +660,15 @@ mod tests {
         assert_eq!(c.status().store_cap_bytes, 2 * gib);
         let second = c.enforce_storage_cap().unwrap();
         assert_eq!(second, None);
+    }
+
+    #[test]
+    fn the_default_cap_holds_the_rolling_window_and_matches_recall_smallest_default() {
+        let window_bytes =
+            u64::from(ObservationWindow::ROLLING_DAYS) * StorageCap::ESTIMATED_BYTES_PER_DAY;
+        assert!(StorageCap::DEFAULT.bytes() > window_bytes);
+        assert_eq!(StorageCap::DEFAULT.bytes(), 25 * StorageCap::GIB);
+        assert_eq!(StorageCap::MIN.bytes(), StorageCap::ESTIMATED_BYTES_PER_DAY);
     }
 
     #[test]
