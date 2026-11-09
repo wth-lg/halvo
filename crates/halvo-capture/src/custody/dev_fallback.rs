@@ -165,27 +165,24 @@ mod keychain {
 
 #[cfg(target_os = "windows")]
 mod dpapi {
-    use super::store_key_from;
-    use crate::custody::windows::{
-        destroy_root_is_deleting_the_wrapped_blob, dpapi_protect, dpapi_unprotect,
-    };
+    use crate::custody::windows::user_roots;
     use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
 
     pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        Ok(WrappedKey(dpapi_protect(key.expose(), root_id.as_bytes())?))
+        user_roots()?.wrap(root_id, key)
     }
 
     pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        store_key_from(dpapi_unprotect(&wrapped.0, root_id.as_bytes())?)
+        user_roots()?.unwrap(root_id, wrapped)
     }
 
-    pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
-        destroy_root_is_deleting_the_wrapped_blob()
+    pub(super) fn destroy_root(root_id: RootId) -> Result<(), CustodyError> {
+        user_roots()?.destroy_root(root_id)
     }
 
     #[cfg(test)]
-    pub(super) fn root_exists(_root_id: RootId) -> Result<bool, CustodyError> {
-        Ok(false)
+    pub(super) fn root_exists(root_id: RootId) -> Result<bool, CustodyError> {
+        user_roots()?.root_exists(root_id)
     }
 }
 

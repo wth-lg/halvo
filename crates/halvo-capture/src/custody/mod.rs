@@ -1,6 +1,8 @@
 //! Key custody: wrapping the one store key under a per-platform root.
 
 pub mod dev_fallback;
+#[cfg(any(target_os = "windows", test))]
+pub(crate) mod file_root;
 #[cfg(target_os = "macos")]
 pub mod macos;
 #[cfg(target_os = "windows")]

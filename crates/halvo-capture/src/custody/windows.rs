@@ -1,12 +1,14 @@
 //! Windows DPAPI key custody.
 
+use std::path::PathBuf;
 use windows::Win32::Foundation::{LocalFree, HLOCAL};
 use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
 };
+
 use zeroize::Zeroizing;
 
-use super::dev_fallback::store_key_from;
+use super::file_root::{FileRoots, Protector};
 use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
 /// A buffer DPAPI allocated: zeroed, then freed, on drop.
@@ -81,17 +83,40 @@ pub(crate) fn dpapi_unprotect(
     Ok(Zeroizing::new(DpapiBlob(out).as_slice().to_vec()))
 }
 
-pub(crate) fn destroy_root_is_deleting_the_wrapped_blob() -> Result<(), CustodyError> {
-    Ok(())
+/// DPAPI, user scope and no UI, as the protector of the per-user root files.
+struct Dpapi;
+
+impl Protector for Dpapi {
+    fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError> {
+        dpapi_protect(plain, label)
+    }
+
+    fn unprotect(&self, blob: &[u8], label: &[u8]) -> Result<Zeroizing<Vec<u8>>, CustodyError> {
+        dpapi_unprotect(blob, label)
+    }
 }
 
-/// The release Windows custody: DPAPI user scope wrapping the store key directly.
+/// The current user's root files, under `%LOCALAPPDATA%\Halvo\roots`. DPAPI
+/// cannot destroy a key per store, so the destroyable root is this file, and
+/// a store directory copied elsewhere carries no root with it.
+pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
+    let local = std::env::var_os("LOCALAPPDATA").ok_or_else(|| {
+        CustodyError::RootUnavailable("LOCALAPPDATA is not set for this user".to_string())
+    })?;
+    Ok(FileRoots::new(
+        PathBuf::from(local).join("Halvo").join("roots"),
+        Dpapi,
+    ))
+}
+
+/// The release Windows custody: the store key wrapped under a per-store root
+/// that DPAPI protects for this user.
 pub struct DpapiCustody {
     root_id: RootId,
 }
 
 impl DpapiCustody {
-    /// Build a custody scoped by a per-store entropy label (a non-secret id).
+    /// Build a custody bound to a per-store root locator.
     pub fn new(root_id: RootId) -> Self {
         Self { root_id }
     }
@@ -107,17 +132,14 @@ impl KeyCustody for DpapiCustody {
     }
 
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        Ok(WrappedKey(dpapi_protect(
-            key.expose(),
-            self.root_id.as_bytes(),
-        )?))
+        user_roots()?.wrap(self.root_id, key)
     }
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        store_key_from(dpapi_unprotect(&wrapped.0, self.root_id.as_bytes())?)
+        user_roots()?.unwrap(self.root_id, wrapped)
     }
 
     fn destroy_root(&self) -> Result<(), CustodyError> {
-        destroy_root_is_deleting_the_wrapped_blob()
+        user_roots()?.destroy_root(self.root_id)
     }
 }
