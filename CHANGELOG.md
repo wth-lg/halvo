@@ -25,3 +25,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Silence the shellcheck findings in the gate harness
 - Add the consent status types, stored-data inventory, pause and storage cap with mock-store tests
 - Add just-in-time macOS permission onboarding with System Settings deep links and lost-grant walk-back
+- Add the data view, its Tauri commands and the menu-bar capture indicator
