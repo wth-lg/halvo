@@ -73,14 +73,43 @@ predicate_ciphertext() {
   return 0
 }
 
-# PASS(0) if the owner unwrapped the store key with no prompt.
-predicate_unwrap_no_prompt() {
-  case "$1" in *"unwrap=ok prompt=none"*) return 0 ;; *) return 1 ;; esac
+# The value of key=value in a report line; empty if the key is absent.
+report_field() {
+  printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p" | head -1
 }
 
-# PASS(0) if the shredded segment is reported not decryptable with any key.
-predicate_not_decryptable() {
-  case "$1" in *"decryptable=no"*) return 0 ;; *) return 1 ;; esac
+# Print each key whose value in the report differs from the key=expected pairs
+# that follow it; prints nothing when the report meets every pair. A missing
+# key is a defect, so a report that omits a field cannot pass.
+report_defects() {
+  line=$1; shift
+  for want in "$@"; do
+    key=${want%%=*}; expected=${want#*=}
+    [ "$(report_field "$line" "$key")" = "$expected" ] || printf '%s ' "$key"
+  done
+}
+
+# What --verify-store must have measured: the owner read back the segment it
+# wrote, SQLCipher ran on libtomcrypt with secure_delete on, and the unwrap
+# returned without a custody prompt.
+GATE_STORE_SPEC="segment_roundtrip=ok cipher_provider=libtomcrypt secure_delete=1 fts_secure_delete=1 unwrap=ok prompt=none"
+
+# What --verify-deletion must have measured: the shredded segment's ciphertext
+# decrypts under no remaining key and its file is gone, the live sibling still
+# reads, the WAL holds no frames after the shred, and delete-all left a store
+# key that no longer unwraps and a directory that opens as sealed.
+GATE_DELETION_SPEC="decryptable=no file_gone=yes sibling_readable=yes wal_bytes=0 root_destroyed=yes store_sealed=yes"
+
+# PASS(0) if the --verify-store report meets GATE_STORE_SPEC.
+predicate_store_report() {
+  # shellcheck disable=SC2086
+  [ -z "$(report_defects "$1" $GATE_STORE_SPEC)" ]
+}
+
+# PASS(0) if the --verify-deletion report meets GATE_DELETION_SPEC.
+predicate_deletion_report() {
+  # shellcheck disable=SC2086
+  [ -z "$(report_defects "$1" $GATE_DELETION_SPEC)" ]
 }
 
 # PASS(0) if zero keystrokes were recorded while secure input was active.
