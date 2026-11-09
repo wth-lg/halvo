@@ -1,0 +1,48 @@
+//! System-audio capture source: present, but off by default in R1.
+
+use crate::event::Modality;
+use crate::sink::SinkHandle;
+use crate::source::{CaptureError, CaptureSource};
+
+/// System-audio capture. Off by default; R1 does not wire the capture.
+pub struct SystemAudioSource;
+
+impl SystemAudioSource {
+    pub fn disabled() -> Self {
+        Self
+    }
+}
+
+impl CaptureSource for SystemAudioSource {
+    fn modality(&self) -> Modality {
+        Modality::SystemAudio
+    }
+
+    fn start(&mut self, _sink: SinkHandle) -> Result<(), CaptureError> {
+        Ok(())
+    }
+
+    fn stop(&mut self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sink;
+
+    #[test]
+    fn disabled_by_default_and_start_is_a_no_op() {
+        let (handle, _writer) = sink::channel(1);
+        let mut source = SystemAudioSource::disabled();
+        assert!(source.start(handle).is_ok());
+        source.stop();
+    }
+
+    #[test]
+    fn modality_is_system_audio() {
+        assert_eq!(
+            SystemAudioSource::disabled().modality(),
+            Modality::SystemAudio
+        );
+    }
+}
