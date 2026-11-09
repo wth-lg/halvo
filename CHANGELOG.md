@@ -33,6 +33,9 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the macOS secure-input guard and the capture backend dependencies
 - Add the idempotent macOS LaunchAgent install for the capture daemon
 - Add the macOS capture sources for screen, keystroke, pointer, foreground app and window title
+- Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
+- Add the Windows capture backend behind cfg with the logon-task install and unit tests
+- Add a CI grep lint banning low-level input hooks in the capture crate
 
 ### Changed
 
@@ -49,8 +52,13 @@ Each entry under Unreleased is the subject line of one commit.
 - Write the storage cap constants from the window, the daily estimate and the headroom
 - Accept a platform refusal of a contending writer in the single-writer race check
 - Name the calendar constants and the year-month-day conversions of UtcDay
+- Add the Windows crate features for the new input, HID and registry-watch constants
 
 ### Fixed
+
+- Read Windows raw input through an aligned buffer and close the pump start/stop race, carrying decoded payload sizes to an explicit metadata-only placement
+- Watch every registry root and path the installed-software scan reads and parse SystemComponent to a bool at the boundary
+- Quote every scheduled-task argument token and match the Task Scheduler Command element
 
 - Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store
 - Add SQLCipher and AEAD dependencies for the encrypted segment store

@@ -135,3 +135,14 @@ predicate_cost_within_bound() {
 predicate_ci_success() {
   case "$1" in success) return 0 ;; *) return 1 ;; esac
 }
+
+# PASS(0) if no low-level global input hook API appears under the given source
+# dir. The Windows backend is a listen-only Raw Input path; SetWindowsHookEx or a
+# WH_KEYBOARD_LL / WH_MOUSE_LL hook would be a lower-level global hook the crate
+# forbids (comment-hunter-3 DELETE). The pattern allows them inside this file's
+# own word boundaries by scanning .rs sources only.
+predicate_no_ll_hook() {
+  dir=$1
+  grep -rqE --include='*.rs' 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' "$dir" 2>/dev/null && return 1
+  return 0
+}

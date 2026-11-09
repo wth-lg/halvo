@@ -61,8 +61,28 @@ libc = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = [
+    "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
     "Win32_Security_Cryptography",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Input",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+    "Foundation",
+] }
+# Screen capture via Windows.Graphics.Capture (FrameArrived); researcher-1 #8.
+windows-capture = "2"
+# Installed-software inventory from the registry Uninstall keys; researcher-1 #12.
+winreg = "0.56"
+# RegNotifyChangeKeyValue for the installed-software change watch; its HKEY type
+# is winreg's, so the watch reuses winreg's raw handle (researcher-1 #12).
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
 ] }
 
 [build-dependencies]
