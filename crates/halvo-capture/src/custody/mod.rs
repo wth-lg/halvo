@@ -22,6 +22,14 @@ impl StoreKey {
         Self(bytes)
     }
 
+    /// A fresh random store key, generated in place so no unscrubbed copy of
+    /// its bytes is left behind.
+    pub fn random() -> Result<Self, CustodyError> {
+        let mut key = Self([0u8; 32]);
+        dev_fallback::fill_random(&mut key.0)?;
+        Ok(key)
+    }
+
     /// The raw key bytes, for the store to open the database. Keep the borrow
     /// short; the key zeroes on drop.
     pub fn expose(&self) -> &[u8; 32] {

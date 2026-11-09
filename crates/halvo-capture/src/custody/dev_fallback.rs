@@ -1,8 +1,8 @@
 //! Dev-fallback key custody for unsigned builds.
 
 use aead::{Aead, KeyInit};
-use chacha20poly1305::aead::array::Array;
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
+use zeroize::Zeroizing;
 
 use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
@@ -34,7 +34,7 @@ pub(crate) fn aead_seal(
     plaintext: &[u8],
     aad: &[u8],
 ) -> Result<Vec<u8>, aead::Error> {
-    let cipher = XChaCha20Poly1305::new(&Array::from(*key));
+    let cipher = XChaCha20Poly1305::new(key.into());
     let mut nonce_bytes = [0u8; XNONCE_LEN];
     getrandom::getrandom(&mut nonce_bytes).map_err(|_| aead::Error)?;
     let nonce = XNonce::from(nonce_bytes);
@@ -51,35 +51,43 @@ pub(crate) fn aead_seal(
     Ok(out)
 }
 
-pub(crate) fn aead_open(key: &[u8; 32], sealed: &[u8], aad: &[u8]) -> Result<Vec<u8>, aead::Error> {
+pub(crate) fn aead_open(
+    key: &[u8; 32],
+    sealed: &[u8],
+    aad: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, aead::Error> {
     if sealed.len() < XNONCE_LEN {
         return Err(aead::Error);
     }
     let (nonce_bytes, ciphertext) = sealed.split_at(XNONCE_LEN);
-    let cipher = XChaCha20Poly1305::new(&Array::from(*key));
+    let cipher = XChaCha20Poly1305::new(key.into());
     let nonce = XNonce::try_from(nonce_bytes).map_err(|_| aead::Error)?;
-    cipher.decrypt(
-        &nonce,
-        aead::Payload {
-            msg: ciphertext,
-            aad,
-        },
-    )
+    cipher
+        .decrypt(
+            &nonce,
+            aead::Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
+        .map(Zeroizing::new)
 }
 
-pub(crate) fn random_key() -> Result<[u8; 32], CustodyError> {
-    let mut bytes = [0u8; 32];
-    getrandom::getrandom(&mut bytes)
-        .map_err(|e| CustodyError::Crypto(format!("os rng failed: {e}")))?;
-    Ok(bytes)
+/// Fill `buf` from the OS random number generator.
+pub(crate) fn fill_random(buf: &mut [u8]) -> Result<(), CustodyError> {
+    getrandom::getrandom(buf).map_err(|e| CustodyError::Crypto(format!("os rng failed: {e}")))
 }
 
-fn store_key_from(plain: Vec<u8>) -> Result<StoreKey, CustodyError> {
-    let arr: [u8; 32] = plain
-        .as_slice()
-        .try_into()
-        .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
-    Ok(StoreKey::from_bytes(arr))
+/// Parse 32 unwrapped key bytes into a [`StoreKey`] without leaving a copy.
+pub(crate) fn store_key_from(plain: Zeroizing<Vec<u8>>) -> Result<StoreKey, CustodyError> {
+    if plain.len() != 32 {
+        return Err(CustodyError::Crypto(
+            "store key is not 32 bytes".to_string(),
+        ));
+    }
+    let mut key = StoreKey::from_bytes([0u8; 32]);
+    key.0.copy_from_slice(&plain);
+    Ok(key)
 }
 
 #[cfg(target_os = "macos")]
@@ -91,7 +99,7 @@ mod keychain {
     use security_framework_sys::base::errSecItemNotFound;
     use zeroize::Zeroizing;
 
-    use super::{aead_open, aead_seal, random_key, store_key_from};
+    use super::{aead_open, aead_seal, fill_random, store_key_from};
     use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
 
     const SERVICE: &str = "com.halvo.capture.dev-fallback";
@@ -122,7 +130,8 @@ mod keychain {
         if let Some(root) = existing_root(root_id)? {
             return Ok(root);
         }
-        let root = Zeroizing::new(random_key()?);
+        let mut root = Zeroizing::new([0u8; 32]);
+        fill_random(root.as_mut_slice())?;
         set_generic_password(SERVICE, &root_id.to_string(), root.as_slice())
             .map_err(|e| CustodyError::RootUnavailable(format!("keychain write: {e}")))?;
         Ok(root)
@@ -277,7 +286,7 @@ mod tests {
         let aad = b"segment-header";
         let sealed = aead_seal(&key, b"thirty-two-byte-secret-padding!!", aad).unwrap();
         let opened = aead_open(&key, &sealed, aad).unwrap();
-        assert_eq!(opened, b"thirty-two-byte-secret-padding!!");
+        assert_eq!(opened.as_slice(), b"thirty-two-byte-secret-padding!!");
         assert!(aead_open(&key, &sealed, b"other").is_err());
         assert!(aead_open(&[8u8; 32], &sealed, aad).is_err());
         let mut bad = sealed.clone();

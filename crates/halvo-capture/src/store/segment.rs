@@ -1,6 +1,6 @@
 //! Per-segment XChaCha20-Poly1305 file writer and reader.
 
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use aead::array::typenum::Unsigned;
@@ -11,9 +11,10 @@ use chacha20poly1305::XChaCha20Poly1305;
 use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::custody::dev_fallback::{aead_open, aead_seal, random_key};
+use crate::custody::dev_fallback::{aead_open, aead_seal, fill_random};
 use crate::event::SegmentKeyId;
 
+use super::db::remove_if_present;
 use super::{StoreError, StoreResult};
 
 pub(crate) const CHUNK: usize = 64 * 1024;
@@ -24,14 +25,17 @@ const MAGIC: [u8; 7] = *b"HLVOSEG";
 const FORMAT_VERSION: u8 = 1;
 const HEADER_LEN: usize = MAGIC.len() + size_of::<u8>() + size_of::<Uuid>() + size_of::<i64>();
 const SEGMENT_KEY_AAD: &[u8] = b"halvo-segment-key";
+const SEGMENT_EXT: &str = "seg";
+const PARTIAL_EXT: &str = "seg.tmp";
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub(crate) struct SegmentKey([u8; 32]);
 
 impl SegmentKey {
     pub(crate) fn random() -> StoreResult<Self> {
-        let bytes = random_key().map_err(|e| StoreError::Io(e.to_string()))?;
-        Ok(Self(bytes))
+        let mut key = Self([0u8; 32]);
+        fill_random(&mut key.0).map_err(|e| StoreError::Io(e.to_string()))?;
+        Ok(key)
     }
     fn expose(&self) -> &[u8; 32] {
         &self.0
@@ -46,16 +50,22 @@ pub(crate) fn wrap_segment_key(store_key: &[u8; 32], seg_key: &SegmentKey) -> St
         .map_err(|_| StoreError::Io("sealing the segment key failed".to_string()))
 }
 
+/// Unwrap a stored segment key. The store key opened the database, so a wrapped
+/// key that does not open under it is corrupt rather than sealed.
 pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreResult<SegmentKey> {
-    let plain = aead_open(store_key, wrapped, SEGMENT_KEY_AAD).map_err(|_| StoreError::Sealed)?;
-    let arr: [u8; 32] = plain
-        .as_slice()
-        .try_into()
-        .map_err(|_| StoreError::Io("segment key is not 32 bytes".to_string()))?;
-    Ok(SegmentKey::from_bytes(arr))
+    let plain = aead_open(store_key, wrapped, SEGMENT_KEY_AAD)
+        .map_err(|_| StoreError::Corrupt("the segment key does not unwrap".to_string()))?;
+    if plain.len() != 32 {
+        return Err(StoreError::Corrupt(
+            "segment key is not 32 bytes".to_string(),
+        ));
+    }
+    let mut key = SegmentKey::from_bytes([0u8; 32]);
+    key.0.copy_from_slice(&plain);
+    Ok(key)
 }
 
-fn segments_root(store_dir: &Path) -> PathBuf {
+pub(crate) fn segments_root(store_dir: &Path) -> PathBuf {
     store_dir.join("segments")
 }
 
@@ -64,7 +74,56 @@ pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
     let shard = &id[..2];
     segments_root(store_dir)
         .join(shard)
-        .join(format!("{id}.seg"))
+        .join(format!("{id}.{SEGMENT_EXT}"))
+}
+
+/// A file found under the segments directory: a complete segment file named by
+/// its id, or anything else (a partial write, a stray file).
+pub(crate) enum SegmentFile {
+    Segment { id: Uuid, path: PathBuf },
+    Other(PathBuf),
+}
+
+impl SegmentFile {
+    pub(crate) fn path(&self) -> &Path {
+        match self {
+            SegmentFile::Segment { path, .. } | SegmentFile::Other(path) => path,
+        }
+    }
+
+    fn classify(path: PathBuf) -> Self {
+        let id = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.strip_suffix(&format!(".{SEGMENT_EXT}")))
+            .and_then(|stem| Uuid::parse_str(stem).ok());
+        match id {
+            Some(id) => SegmentFile::Segment { id, path },
+            None => SegmentFile::Other(path),
+        }
+    }
+}
+
+/// Every file under the segments directory.
+pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<Vec<SegmentFile>> {
+    let mut files = Vec::new();
+    let mut stack = vec![segments_root(store_dir)];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(io_error(e)),
+        };
+        for entry in entries {
+            let path = entry.map_err(io_error)?.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files.push(SegmentFile::classify(path));
+            }
+        }
+    }
+    Ok(files)
 }
 
 pub(crate) struct SegmentHeader {
@@ -89,10 +148,10 @@ impl SegmentHeader {
 fn check_header(bytes: &[u8; HEADER_LEN]) -> StoreResult<()> {
     let (magic, rest) = bytes.split_at(MAGIC.len());
     if magic != MAGIC {
-        return Err(StoreError::Io("bad segment magic".to_string()));
+        return Err(StoreError::Corrupt("bad segment magic".to_string()));
     }
     if rest[0] != FORMAT_VERSION {
-        return Err(StoreError::Io(format!(
+        return Err(StoreError::Corrupt(format!(
             "unsupported segment format version {}",
             rest[0]
         )));
@@ -167,7 +226,7 @@ pub(crate) fn encrypt_segment(
     let nonce = Array::try_from(&nonce_bytes[..])
         .map_err(|_| StoreError::Io("bad stream nonce".to_string()))?;
     let mut encryptor: EncryptorBE32<XChaCha20Poly1305> =
-        EncryptorBE32::new(&Array::from(*key.expose()), &nonce);
+        EncryptorBE32::new(key.expose().into(), &nonce);
     let mut chunks = Chunks::new(plaintext, CHUNK);
     let mut total = 0u64;
     loop {
@@ -190,6 +249,10 @@ fn emit_ciphertext(out: &mut dyn Write, sealed: Result<Vec<u8>, aead::Error>) ->
     out.write_all(&ciphertext).map_err(io_error)
 }
 
+/// Decrypt one pass over a segment file into `out`. Each chunk is authenticated
+/// before it is written, so a tampered chunk stops the stream, but the chunks
+/// before it have already reached `out`; [`read_segment_file`] runs this once
+/// into a sink before it runs it into the caller's writer.
 pub(crate) fn decrypt_segment(
     file: &mut dyn Read,
     out: &mut dyn Write,
@@ -199,13 +262,13 @@ pub(crate) fn decrypt_segment(
     let mut nonce_bytes = [0u8; STREAM_NONCE];
     file.read_exact(&mut head)
         .and_then(|()| file.read_exact(&mut nonce_bytes))
-        .map_err(|_| StoreError::Io("segment file too short".to_string()))?;
+        .map_err(|_| StoreError::Corrupt("segment file too short".to_string()))?;
     check_header(&head)?;
 
     let nonce = Array::try_from(&nonce_bytes[..])
-        .map_err(|_| StoreError::Io("bad stream nonce".to_string()))?;
+        .map_err(|_| StoreError::Corrupt("bad stream nonce".to_string()))?;
     let mut decryptor: DecryptorBE32<XChaCha20Poly1305> =
-        DecryptorBE32::new(&Array::from(*key.expose()), &nonce);
+        DecryptorBE32::new(key.expose().into(), &nonce);
     let mut chunks = Chunks::new(file, CIPHER_CHUNK);
     let mut total = 0u64;
     loop {
@@ -223,11 +286,16 @@ pub(crate) fn decrypt_segment(
 }
 
 fn emit_plaintext(out: &mut dyn Write, opened: Result<Vec<u8>, aead::Error>) -> StoreResult<u64> {
-    let plaintext = Zeroizing::new(opened.map_err(|_| StoreError::Sealed)?);
+    let plaintext = Zeroizing::new(
+        opened.map_err(|_| StoreError::Corrupt("segment did not authenticate".to_string()))?,
+    );
     out.write_all(&plaintext).map_err(io_error)?;
     Ok(plaintext.len() as u64)
 }
 
+/// Write the whole ciphertext to a temp path, sync it, and rename it into place,
+/// so a segment file either exists complete or not at all. A failed write
+/// removes the temp file.
 pub(crate) fn write_segment_file(
     store_dir: &Path,
     seg_key: &SegmentKey,
@@ -235,16 +303,37 @@ pub(crate) fn write_segment_file(
     plaintext: &mut dyn Read,
 ) -> StoreResult<u64> {
     let path = segment_path(store_dir, header.segment_id);
+    let partial = path.with_extension(PARTIAL_EXT);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(io_error)?;
     }
-    let file = std::fs::File::create(&path).map_err(io_error)?;
+    let written = write_complete(&partial, seg_key, header, plaintext).and_then(|written| {
+        std::fs::rename(&partial, &path).map_err(io_error)?;
+        Ok(written)
+    });
+    if written.is_err() {
+        let _ = std::fs::remove_file(&partial);
+    }
+    written
+}
+
+fn write_complete(
+    partial: &Path,
+    seg_key: &SegmentKey,
+    header: &SegmentHeader,
+    plaintext: &mut dyn Read,
+) -> StoreResult<u64> {
+    let file = std::fs::File::create(partial).map_err(io_error)?;
     let mut writer = io::BufWriter::new(file);
     let written = encrypt_segment(plaintext, &mut writer, seg_key, header)?;
     writer.flush().map_err(io_error)?;
+    writer.get_ref().sync_all().map_err(io_error)?;
     Ok(written)
 }
 
+/// Decrypt a segment file into `out`, emitting nothing until every chunk has
+/// authenticated once: the file is decrypted into a sink first, then again into
+/// `out`. Memory stays bounded by the chunk size either way.
 pub(crate) fn read_segment_file(
     store_dir: &Path,
     seg_key: &SegmentKey,
@@ -253,6 +342,8 @@ pub(crate) fn read_segment_file(
 ) -> StoreResult<u64> {
     let file = std::fs::File::open(segment_path(store_dir, segment_id)).map_err(io_error)?;
     let mut reader = io::BufReader::new(file);
+    decrypt_segment(&mut reader, &mut io::sink(), seg_key)?;
+    reader.seek(SeekFrom::Start(0)).map_err(io_error)?;
     decrypt_segment(&mut reader, out, seg_key)
 }
 
@@ -260,6 +351,11 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> Stor
     let mut plaintext = Vec::new();
     decrypt_segment(&mut io::Cursor::new(file_bytes), &mut plaintext, key)?;
     Ok(plaintext)
+}
+
+/// Remove a partial or orphaned file under the segments directory.
+pub(crate) fn remove_segment_file(path: &Path) -> StoreResult<()> {
+    remove_if_present(path)
 }
 
 #[cfg(test)]
@@ -325,7 +421,7 @@ mod tests {
         assert!(!bytes.windows(12).any(|w| w == b"secret bytes"));
         assert!(matches!(
             decrypt_segment_bytes(&bytes, &SegmentKey::from_bytes([9u8; 32])),
-            Err(StoreError::Sealed)
+            Err(StoreError::Corrupt(_))
         ));
         assert_eq!(
             decrypt_segment_bytes(&bytes, &seg_key).unwrap(),

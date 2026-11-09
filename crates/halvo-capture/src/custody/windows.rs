@@ -4,20 +4,30 @@ use windows::Win32::Foundation::{LocalFree, HLOCAL};
 use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
 };
+use zeroize::Zeroizing;
 
+use super::dev_fallback::store_key_from;
 use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
+/// A buffer DPAPI allocated: zeroed, then freed, on drop.
 struct DpapiBlob(CRYPT_INTEGER_BLOB);
 
 impl DpapiBlob {
     fn as_slice(&self) -> &[u8] {
+        if self.0.pbData.is_null() {
+            return &[];
+        }
         unsafe { std::slice::from_raw_parts(self.0.pbData, self.0.cbData as usize) }
     }
 }
 
 impl Drop for DpapiBlob {
     fn drop(&mut self) {
+        if self.0.pbData.is_null() {
+            return;
+        }
         unsafe {
+            std::ptr::write_bytes(self.0.pbData, 0, self.0.cbData as usize);
             let _ = LocalFree(Some(HLOCAL(self.0.pbData as *mut core::ffi::c_void)));
         }
     }
@@ -49,7 +59,10 @@ pub(crate) fn dpapi_protect(data: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cust
     Ok(DpapiBlob(out).as_slice().to_vec())
 }
 
-pub(crate) fn dpapi_unprotect(blob: &[u8], entropy: &[u8]) -> Result<Vec<u8>, CustodyError> {
+pub(crate) fn dpapi_unprotect(
+    blob: &[u8],
+    entropy: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, CustodyError> {
     let in_blob = borrowed_blob(blob);
     let entropy_blob = borrowed_blob(entropy);
     let mut out = CRYPT_INTEGER_BLOB::default();
@@ -65,19 +78,11 @@ pub(crate) fn dpapi_unprotect(blob: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cu
         )
     }
     .map_err(|e| CustodyError::Crypto(format!("CryptUnprotectData: {e}")))?;
-    Ok(DpapiBlob(out).as_slice().to_vec())
+    Ok(Zeroizing::new(DpapiBlob(out).as_slice().to_vec()))
 }
 
 pub(crate) fn destroy_root_is_deleting_the_wrapped_blob() -> Result<(), CustodyError> {
     Ok(())
-}
-
-fn store_key_from(plain: Vec<u8>) -> Result<StoreKey, CustodyError> {
-    let arr: [u8; 32] = plain
-        .as_slice()
-        .try_into()
-        .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
-    Ok(StoreKey::from_bytes(arr))
 }
 
 /// The release Windows custody: DPAPI user scope wrapping the store key directly.

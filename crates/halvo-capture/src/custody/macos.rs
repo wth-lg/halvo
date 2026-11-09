@@ -3,6 +3,7 @@
 #![cfg(feature = "secure-enclave")]
 
 use security_framework::key::{Algorithm, SecKey};
+use zeroize::Zeroizing;
 
 use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
@@ -44,12 +45,9 @@ impl KeyCustody for SecureEnclaveCustody {
         let plain = self
             .key
             .decrypt_data(ECIES, &wrapped.0)
+            .map(Zeroizing::new)
             .map_err(|e| CustodyError::Crypto(format!("ECIES decrypt: {e}")))?;
-        let arr: [u8; 32] = plain
-            .as_slice()
-            .try_into()
-            .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
-        Ok(StoreKey::from_bytes(arr))
+        super::dev_fallback::store_key_from(plain)
     }
 
     fn destroy_root(&self) -> Result<(), CustodyError> {

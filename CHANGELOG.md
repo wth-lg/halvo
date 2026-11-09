@@ -52,3 +52,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Make the store a single writer with retention as a parameter and a sealed state
 - Check deletion by decrypting with every remaining key
 - Destroy the keychain roots the store tests create when each test ends
+- Hold the store under an exclusive database lock and complete every shred before reporting it
