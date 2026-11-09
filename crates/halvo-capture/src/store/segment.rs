@@ -1,16 +1,4 @@
 //! Per-segment XChaCha20-Poly1305 file writer and reader.
-//!
-//! Each segment is one file under a random 256-bit per-segment key, encrypted with
-//! the STREAM chunked AEAD construction (aead-stream) in 64 KiB chunks. The
-//! segment header (magic, version, segment id, segment-key id) is the associated
-//! data on every chunk, so a chunk cannot be moved between segments or reordered
-//! without failing authentication. The per-segment key is itself wrapped under the
-//! one store key and kept in the database, so destroying that one row crypto-shreds
-//! exactly this segment.
-//!
-//! The writer **streams**: it reads the plaintext 64 KiB at a time and never holds
-//! more than two chunks plus one chunk of ciphertext in memory, so resident memory
-//! does not grow with the segment or the retention window.
 
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -27,22 +15,13 @@ use crate::event::{SegmentKeyId, SegmentRef};
 
 use super::{StoreError, StoreResult};
 
-/// Plaintext bytes per STREAM chunk.
 pub(crate) const CHUNK: usize = 64 * 1024;
-/// Poly1305 tag length added to each chunk's ciphertext.
 const TAG: usize = 16;
-/// Ciphertext bytes per full chunk.
 const CIPHER_CHUNK: usize = CHUNK + TAG;
-/// STREAM-BE32 nonce length for XChaCha20-Poly1305 (24-byte nonce minus the
-/// 5-byte STREAM counter overhead).
 const STREAM_NONCE: usize = 24 - 5;
-/// File magic plus a one-byte format version.
 const MAGIC: &[u8; 8] = b"HLVOSEG1";
-/// Header length: magic (8) + segment id (16) + segment-key id (8).
 const HEADER_LEN: usize = 8 + 16 + 8;
 
-/// A per-segment key: 32 bytes, zeroed on drop so a destroyed key is not a usable
-/// key (type-discipline). It is never serialized in the clear.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub(crate) struct SegmentKey([u8; 32]);
 
@@ -59,14 +38,11 @@ impl SegmentKey {
     }
 }
 
-/// Wrap a per-segment key under the store key for storage in the database.
 pub(crate) fn wrap_segment_key(store_key: &[u8; 32], seg_key: &SegmentKey) -> StoreResult<Vec<u8>> {
     aead_seal(store_key, seg_key.expose(), b"halvo-segment-key")
         .map_err(|_| StoreError::Io("sealing the segment key failed".to_string()))
 }
 
-/// Unwrap a per-segment key the store key wrapped. Fails (authentication) if the
-/// store key is wrong or the blob was tampered with.
 pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreResult<SegmentKey> {
     let plain =
         aead_open(store_key, wrapped, b"halvo-segment-key").map_err(|_| StoreError::Sealed)?;
@@ -77,13 +53,10 @@ pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreR
     Ok(SegmentKey::from_bytes(arr))
 }
 
-/// Directory holding segment files, sharded by the first two hex characters of the
-/// segment id to keep any one directory small.
 fn segments_root(store_dir: &Path) -> PathBuf {
     store_dir.join("segments")
 }
 
-/// Absolute path of a segment file.
 pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
     let id = segment_id.simple().to_string();
     let shard = &id[..2];
@@ -92,7 +65,6 @@ pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
         .join(format!("{id}.seg"))
 }
 
-/// Build the header that is the associated data for every chunk of this segment.
 fn header(segment_id: Uuid, segment_key_id: SegmentKeyId) -> [u8; HEADER_LEN] {
     let mut h = [0u8; HEADER_LEN];
     h[..8].copy_from_slice(MAGIC);
@@ -101,8 +73,6 @@ fn header(segment_id: Uuid, segment_key_id: SegmentKeyId) -> [u8; HEADER_LEN] {
     h
 }
 
-/// Encrypt `plaintext` to the segment file, streaming in 64 KiB chunks. Returns
-/// the plaintext length (the segment's logical byte length).
 pub(crate) fn write_segment_file(
     store_dir: &Path,
     seg_key: &SegmentKey,
@@ -137,8 +107,6 @@ pub(crate) fn write_segment_file(
     Ok(plaintext.len() as u64)
 }
 
-/// Stream-encrypt a reader into a writer with a one-chunk lookahead so the final
-/// chunk is sealed with `encrypt_last`. Holds at most two plaintext chunks.
 fn encrypt_stream<R: Read, W: Write>(
     reader: &mut R,
     writer: &mut W,
@@ -185,7 +153,6 @@ fn encrypt_stream<R: Read, W: Write>(
     }
 }
 
-/// Read up to one chunk, filling across short reads until full or EOF.
 fn read_chunk<R: Read>(reader: &mut R) -> StoreResult<Vec<u8>> {
     let mut buf = vec![0u8; CHUNK];
     let mut filled = 0;
@@ -201,9 +168,6 @@ fn read_chunk<R: Read>(reader: &mut R) -> StoreResult<Vec<u8>> {
     Ok(buf)
 }
 
-/// Decrypt a segment file with its per-segment key, streaming. Returns the
-/// plaintext. Fails if the key is wrong, the file is truncated or any chunk's
-/// authentication fails.
 pub(crate) fn read_segment_file(
     store_dir: &Path,
     seg_key: &SegmentKey,
@@ -214,9 +178,6 @@ pub(crate) fn read_segment_file(
     decrypt_segment_bytes(&bytes, seg_key.expose())
 }
 
-/// Decrypt an in-memory copy of a segment file with a candidate 32-byte key.
-/// Returns `Ok` only if every chunk authenticates. Used by the deletion check to
-/// prove a retained ciphertext copy is not decryptable with any remaining key.
 pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &[u8; 32]) -> StoreResult<Vec<u8>> {
     if file_bytes.len() < HEADER_LEN + STREAM_NONCE {
         return Err(StoreError::Io("segment file too short".to_string()));
@@ -258,10 +219,6 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &[u8; 32]) -> StoreR
     }
 }
 
-/// Create a new segment on disk under a fresh per-segment key, and return its ref,
-/// the wrapped per-segment key (for the database) and the plaintext length. The
-/// caller inserts the wrapped key, learns its row id, and that id is the segment
-/// header's key id, so the writer takes it as an argument.
 pub(crate) struct NewSegment {
     pub segment_id: Uuid,
     pub seg_key: SegmentKey,
@@ -275,8 +232,6 @@ impl NewSegment {
         })
     }
 
-    /// Finish writing the segment file now that the key-row id is known, returning
-    /// the event's segment ref.
     pub(crate) fn write(
         self,
         store_dir: &Path,
@@ -323,9 +278,9 @@ mod tests {
     fn roundtrips_empty_small_exact_and_large() {
         roundtrip(0);
         roundtrip(100);
-        roundtrip(CHUNK); // exactly one chunk
+        roundtrip(CHUNK);
         roundtrip(CHUNK + 1);
-        roundtrip(CHUNK * 3); // exact multiple of chunk
+        roundtrip(CHUNK * 3);
         roundtrip(CHUNK * 2 + 123);
     }
 
@@ -338,9 +293,7 @@ mod tests {
         seg.write(dir.path(), SegmentKeyId(1), b"secret bytes")
             .unwrap();
         let bytes = std::fs::read(segment_path(dir.path(), id)).unwrap();
-        // A different per-segment key cannot decrypt.
         assert!(decrypt_segment_bytes(&bytes, &[9u8; 32]).is_err());
-        // Neither can the store key, which never encrypts a segment directly.
         assert!(decrypt_segment_bytes(&bytes, &store_key).is_err());
     }
 }

@@ -1,14 +1,4 @@
 //! SQLCipher metadata store and the sole-writer [`EncryptedStore`].
-//!
-//! One SQLCipher database holds the capture-stream event rows, the per-segment key
-//! table (each key wrapped under the store key) and the full-text index. It is
-//! opened with a raw 32-byte key (no key derivation), `secure_delete` ON,
-//! `temp_store` MEMORY and WAL, and the FTS5 index runs with secure-delete so
-//! deleted text leaves no residue (researcher-2 findings 36, 37, 39, 40). The raw
-//! capture bytes live outside the database as per-segment files ([`super::segment`]).
-//!
-//! [`EncryptedStore`] is the one writer the capture daemon holds; the single-writer
-//! sink guarantees no second writer exists.
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,13 +14,8 @@ use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 use super::segment::{self, NewSegment};
 use super::{SegmentStore, StoreError, StoreResult};
 
-/// Default retention window: 14 days. A segment past this is crypto-shredded at
-/// window expiry. Overridable with `HALVO_RETENTION_SECS` for tests and the gate.
 const DEFAULT_RETENTION_SECS: u64 = 14 * 24 * 60 * 60;
 
-/// The on-disk store-key file: the wrapped store key plus the non-secret locator a
-/// later open needs to find the same platform root. The wrapped key is ciphertext;
-/// the root that unwraps it lives in platform custody, never here.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct KeyFile {
     pub version: u32,
@@ -45,7 +30,6 @@ impl KeyFile {
     }
 }
 
-/// Current unix time in whole seconds.
 fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -53,7 +37,6 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// Current unix time in nanoseconds, for the event wall-clock column.
 fn now_nanos(t: SystemTime) -> i64 {
     t.duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos() as i64)
@@ -67,21 +50,16 @@ fn retention_secs() -> u64 {
         .unwrap_or(DEFAULT_RETENTION_SECS)
 }
 
-/// The SQLCipher connection with Halvo's schema and privacy pragmas.
 pub(crate) struct Db {
     conn: Connection,
 }
 
 impl Db {
-    /// Open (creating if absent) the SQLCipher database at `path` with the raw
-    /// 32-byte key, apply the privacy pragmas and ensure the schema.
     pub(crate) fn open(path: &Path, key: &[u8; 32]) -> StoreResult<Self> {
         let conn = Connection::open(path).map_err(|e| StoreError::Io(e.to_string()))?;
-        // The raw key pragma MUST be the first statement on the connection.
         let hex = hex_lower(key);
         conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
             .map_err(|e| StoreError::Io(format!("set key: {e}")))?;
-        // Privacy and durability pragmas (researcher-2 findings 36, 39).
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
@@ -89,7 +67,6 @@ impl Db {
              PRAGMA foreign_keys = ON;",
         )
         .map_err(|e| StoreError::Io(format!("pragmas: {e}")))?;
-        // Prove the key is correct: a wrong key fails to read the header here.
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)
         })
@@ -125,8 +102,6 @@ impl Db {
                  CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
             )
             .map_err(|e| StoreError::Io(format!("schema: {e}")))?;
-        // FTS5 secure-delete: remove index entries on delete instead of waiting
-        // for a merge, so deleted text cannot be reconstructed (finding 37).
         self.conn
             .execute_batch("INSERT INTO events_fts(events_fts, rank) VALUES('secure-delete', 1);")
             .map_err(|e| StoreError::Io(format!("fts secure-delete: {e}")))?;
@@ -137,8 +112,6 @@ impl Db {
         &self.conn
     }
 
-    /// Insert one wrapped per-segment key and return its row id (the segment-key
-    /// id the event and the segment header carry).
     fn insert_segment_key(
         &self,
         segment_id: uuid::Uuid,
@@ -193,14 +166,12 @@ impl Db {
         Ok(())
     }
 
-    /// Read a pragma that returns a single integer (e.g. `secure_delete`).
     pub(crate) fn pragma_int(&self, name: &str) -> StoreResult<i64> {
         self.conn
             .query_row(&format!("PRAGMA {name}"), [], |r| r.get::<_, i64>(0))
             .map_err(|e| StoreError::Io(e.to_string()))
     }
 
-    /// Read the FTS5 secure-delete config value (`1` when on).
     pub(crate) fn fts_secure_delete(&self) -> StoreResult<i64> {
         self.conn
             .query_row(
@@ -212,7 +183,6 @@ impl Db {
     }
 }
 
-/// 64-character lowercase hex of a 32-byte key.
 fn hex_lower(bytes: &[u8; 32]) -> String {
     let mut s = String::with_capacity(64);
     for b in bytes {
@@ -222,8 +192,7 @@ fn hex_lower(bytes: &[u8; 32]) -> String {
 }
 
 /// The sole-writer encrypted store: the SQLCipher database, the per-segment files
-/// under `dir`, and the one store key in the clear only in memory. Delete-all
-/// destroys the store key through `destroy_root`.
+/// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
     db: Db,
     store_key: StoreKey,
@@ -233,8 +202,7 @@ pub struct EncryptedStore {
 
 impl EncryptedStore {
     /// Create a fresh store in `dir`: generate a random store key, wrap it with
-    /// `custody`, write the store-key file, and open the database. `destroy_root`
-    /// is how delete-all destroys the platform root that unwraps the store key.
+    /// `custody`, write the store-key file, and open the database.
     pub fn create<C: KeyCustody>(
         dir: &Path,
         custody: &C,
@@ -329,8 +297,6 @@ impl EncryptedStore {
         (self.destroy_root)()
     }
 
-    /// Write a segment with an explicit expiry, used by the gate to force-expire a
-    /// segment. The normal path uses the default retention window.
     pub(crate) fn write_segment_with_expiry(
         &mut self,
         bytes: &[u8],
@@ -363,7 +329,6 @@ impl SegmentStore for EncryptedStore {
     }
 }
 
-/// Total bytes of every file under a directory tree.
 pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
     let mut total = 0u64;
     let mut stack = vec![dir.to_path_buf()];
@@ -432,7 +397,6 @@ mod tests {
             key_id,
         );
         store.append_event(&event).unwrap();
-        // The segment decrypts through its wrapped key.
         let wrapped: Vec<u8> = store
             .db()
             .connection()

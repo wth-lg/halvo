@@ -1,21 +1,4 @@
 //! Windows DPAPI key custody.
-//!
-//! `CryptProtectData` in user scope wraps the store key: only a process with the
-//! same logon on the same computer can unwrap it (researcher-2 findings 26, 27,
-//! 31). `CRYPTPROTECT_UI_FORBIDDEN` makes any call that would show UI fail instead
-//! of blocking, so the logon-trigger daemon never prompts. An
-//! application-specific entropy (the per-store root id) scopes the blob to this
-//! store. The DPAPI master key is derived from the user's logon password, so a
-//! second local account and an administrator who does not know the password
-//! recover only ciphertext.
-//!
-//! This path reports [`CustodyKind::Dpapi`], which the release privacy check
-//! accepts. The dev fallback on Windows ([`super::dev_fallback`]) shares the same
-//! `CryptProtectData` mechanism but reports [`CustodyKind::DevFallback`]; the
-//! difference is the keyed kind, not the primitive.
-//!
-//! Compiled on Windows; its functional test is deferred to a Windows machine (no
-//! interactive Windows desktop in this run).
 
 use windows::Win32::Foundation::{LocalFree, HLOCAL};
 use windows::Win32::Security::Cryptography::{
@@ -24,7 +7,6 @@ use windows::Win32::Security::Cryptography::{
 
 use super::{CustodyError, CustodyKind, KeyCustody, StoreKey, WrappedKey};
 
-/// Protect `data` with DPAPI user scope, UI forbidden, scoped by `entropy`.
 pub(crate) fn dpapi_protect(data: &[u8], entropy: &[u8]) -> Result<Vec<u8>, CustodyError> {
     unsafe {
         let in_blob = CRYPT_INTEGER_BLOB {
@@ -50,7 +32,6 @@ pub(crate) fn dpapi_protect(data: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cust
     }
 }
 
-/// Unprotect a blob produced by [`dpapi_protect`] with the same `entropy`.
 pub(crate) fn dpapi_unprotect(blob: &[u8], entropy: &[u8]) -> Result<Vec<u8>, CustodyError> {
     unsafe {
         let in_blob = CRYPT_INTEGER_BLOB {
@@ -76,7 +57,6 @@ pub(crate) fn dpapi_unprotect(blob: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cu
     }
 }
 
-/// Copy a DPAPI output blob into an owned `Vec` and free the OS allocation.
 unsafe fn copy_and_free(out: &CRYPT_INTEGER_BLOB) -> Vec<u8> {
     let slice = std::slice::from_raw_parts(out.pbData, out.cbData as usize);
     let owned = slice.to_vec();

@@ -1,19 +1,4 @@
 //! macOS Secure Enclave key custody: the release path.
-//!
-//! A Secure Enclave P-256 key with `privateKeyUsage` only and the
-//! `AfterFirstUnlockThisDeviceOnly` class wraps the store key by ECIES
-//! (researcher-2 findings 17, 18, 19). The private key never leaves the enclave,
-//! so moving the disk to another machine makes the store unreadable. This path
-//! reports [`CustodyKind::SecureEnclave`], which the release privacy check
-//! accepts.
-//!
-//! It is compiled only behind the `secure-enclave` feature, which is off by
-//! default, because persisting the enclave key needs a Developer ID signed bundle
-//! with an application identifier: the scratch probe generated and used an enclave
-//! key but could not persist it from an unsigned binary (OSStatus -34018,
-//! researcher-2). R1 builds and tests the dev fallback ([`super::dev_fallback`]);
-//! this path is **untested** until a signed bundle exists (the owner's reserved
-//! signing decision). Its tests are gated off.
 
 #![cfg(feature = "secure-enclave")]
 
@@ -23,26 +8,16 @@ use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, To
 
 use super::{CustodyError, CustodyKind, KeyCustody, StoreKey, WrappedKey};
 
-/// `kSecAccessControlPrivateKeyUsage`: the key may sign and perform key agreement
-/// without biometry or passcode, which is what a background daemon needs.
 const PRIVATE_KEY_USAGE: u32 = 1 << 30;
 
-/// The ECIES algorithm used to wrap and unwrap the store key, as recommended by
-/// Apple for Secure Enclave symmetric wrapping (researcher-2 finding 18).
 const ECIES: Algorithm = Algorithm::ECIESEncryptionCofactorX963SHA256AESGCM;
 
-/// Secure Enclave custody keyed by a per-store label. The private key lives in the
-/// data-protection keychain of the owner; `wrap`/`unwrap` are ECIES encrypt/decrypt.
+/// Secure Enclave custody keyed by a per-store label.
 pub struct SecureEnclaveCustody {
     key: SecKey,
 }
 
 impl SecureEnclaveCustody {
-    /// Generate (or the caller supplies) a Secure Enclave key for this store.
-    ///
-    /// Untested: persisting the key needs a signed bundle. Callers in a signed
-    /// release wire this to a persisted key found by label; here it generates a
-    /// fresh non-persistent key so the path type-checks.
     pub fn new(label: impl Into<String>) -> Result<Self, CustodyError> {
         let access = SecAccessControl::create_with_protection(
             Some(ProtectionMode::AccessibleAfterFirstUnlockThisDeviceOnly),

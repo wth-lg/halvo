@@ -1,14 +1,4 @@
 //! Window-expiry crypto-shred.
-//!
-//! Deletion is key destruction, never an overwrite: modern flash cannot be
-//! securely overwritten, so the data key is what gets sanitized (researcher-2
-//! findings 24, 44; NIST SP 800-88r2 cryptographic erase). Destroying a segment's
-//! per-segment key makes its ciphertext file unrecoverable with any remaining key.
-//! With `secure_delete` ON, SQLite also zero-fills the freed wrapped-key bytes, and
-//! FTS5 secure-delete removes the text-index entries, so no residue is left in the
-//! database either (findings 36, 37).
-//!
-//! The one store writer runs this, so there is never a second writer.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,7 +16,6 @@ fn now_secs() -> u64 {
 }
 
 impl EncryptedStore {
-    /// Segment ids whose key still exists and whose expiry has passed.
     fn expired_segment_ids(&self, now: u64) -> StoreResult<Vec<String>> {
         let conn = self.db().connection();
         let mut stmt = conn
@@ -45,12 +34,8 @@ impl EncryptedStore {
         Ok(ids)
     }
 
-    /// Destroy one segment: delete its events and FTS rows, unlink its file, and
-    /// NULL (zero-fill) its wrapped per-segment key. The plaintext key never
-    /// touched disk, so after this no key can decrypt the segment.
     fn shred_segment(&mut self, segment_id_simple: &str) -> StoreResult<()> {
         let conn = self.db().connection();
-        // Delete the text-index entries for this segment's events first.
         conn.execute(
             "DELETE FROM events_fts WHERE rowid IN \
                (SELECT rowid FROM events WHERE segment_id = ?1)",
@@ -62,14 +47,12 @@ impl EncryptedStore {
             [segment_id_simple],
         )
         .map_err(|e| StoreError::Io(e.to_string()))?;
-        // Destroy the key: secure_delete zero-fills the old blob bytes.
         conn.execute(
             "UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = ?1",
             [segment_id_simple],
         )
         .map_err(|e| StoreError::Io(e.to_string()))?;
 
-        // Unlink the ciphertext file (freeing disk; it is already unrecoverable).
         if let Ok(id) = Uuid::parse_str(segment_id_simple) {
             let path = segment::segment_path(self.dir(), id);
             let _ = std::fs::remove_file(path);
@@ -77,8 +60,6 @@ impl EncryptedStore {
         Ok(())
     }
 
-    /// Checkpoint the WAL to zero bytes so no plaintext-logical residue remains in
-    /// the WAL after a shred (finding 36).
     fn checkpoint_truncate(&self) -> StoreResult<()> {
         self.db()
             .connection()
@@ -86,8 +67,6 @@ impl EncryptedStore {
             .map_err(|e| StoreError::Io(e.to_string()))
     }
 
-    /// Whether the store key has been destroyed (delete-all ran). A sealed store
-    /// has no key file.
     pub(crate) fn is_sealed(&self) -> bool {
         !KeyFile::path(self.dir()).exists()
     }
@@ -110,7 +89,6 @@ impl SegmentExpiry for EncryptedStore {
     }
 
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
-        // Shred every segment regardless of expiry.
         let conn = self.db().connection();
         let mut stmt = conn
             .prepare("SELECT segment_id FROM segment_keys WHERE wrapped_key IS NOT NULL")
@@ -131,9 +109,6 @@ impl SegmentExpiry for EncryptedStore {
         }
         self.checkpoint_truncate()?;
 
-        // Destroy the store key: delete the wrapped key file and the platform root,
-        // so any retained ciphertext is unrecoverable (Apple effaceable-key
-        // pattern, NIST purge; researcher-2 findings 24, 44).
         let key_file = KeyFile::path(self.dir());
         let _ = std::fs::remove_file(&key_file);
         self.destroy_root()
@@ -141,7 +116,7 @@ impl SegmentExpiry for EncryptedStore {
 
         Ok(ShredReport {
             segments_shredded: shredded,
-            keys_destroyed: shredded + 1, // + the store key
+            keys_destroyed: shredded + 1,
         })
     }
 }
@@ -172,21 +147,16 @@ mod tests {
     fn expired_segment_is_not_decryptable_after_shred() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
-        // Force-expire: created and expires both in the past.
         let (seg_ref, _key_id) = store
             .write_segment_with_expiry(b"PLAINTEXT-SECRET", 0, 1)
             .unwrap();
-        // Retain a copy of the ciphertext file before shredding.
         let cipher = std::fs::read(segment_path(dir.path(), seg_ref.segment_id)).unwrap();
 
         let report = store.crypto_shred_expired().unwrap();
         assert_eq!(report.segments_shredded, 1);
 
-        // The file is gone and the retained ciphertext decrypts with no key: the
-        // store key never encrypts a segment, and the per-segment key is destroyed.
         assert!(!segment_path(dir.path(), seg_ref.segment_id).exists());
         assert!(decrypt_segment_bytes(&cipher, store.store_key_bytes()).is_err());
-        // The wrapped key row is now NULL.
         let null: Option<Vec<u8>> = store
             .db()
             .connection()
