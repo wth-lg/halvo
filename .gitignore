@@ -1,0 +1,12 @@
+# Build output
+/target/
+src-tauri/gen/
+
+# Dependencies
+node_modules/
+
+# Claude Code worktrees
+.claude/worktrees/
+
+# macOS
+.DS_Store
