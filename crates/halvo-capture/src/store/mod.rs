@@ -6,6 +6,8 @@ pub mod segment;
 pub mod verify;
 
 #[cfg(test)]
+mod formal_tests;
+#[cfg(test)]
 mod hardening_tests;
 
 use std::io::Read;

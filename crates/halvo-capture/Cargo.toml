@@ -40,4 +40,5 @@ cc = { version = "1", features = ["parallel"] }
 sqlcipher-src = "=419.0.6"
 
 [dev-dependencies]
+proptest = "1"
 tempfile = "3"
