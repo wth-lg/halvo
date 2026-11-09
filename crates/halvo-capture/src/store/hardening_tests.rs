@@ -620,3 +620,85 @@ fn a_wrong_store_key_opens_as_sealed_and_a_shredded_segment_reads_as_sealed() {
         opened.err()
     );
 }
+
+/// Yields `remaining` bytes of a fixed pattern without ever holding them.
+struct PatternReader {
+    remaining: u64,
+}
+
+impl Read for PatternReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = (buf.len() as u64).min(self.remaining) as usize;
+        for (i, b) in buf[..n].iter_mut().enumerate() {
+            *b = (i % 251) as u8;
+        }
+        self.remaining -= n as u64;
+        Ok(n)
+    }
+}
+
+#[cfg(unix)]
+fn rss_kib() -> u64 {
+    let out = Command::new("ps")
+        .args(["-o", "rss=", "-p", &std::process::id().to_string()])
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&out.stdout).trim().parse().unwrap()
+}
+
+/// The memory bound: the peak resident set during a 512 MiB segment write and
+/// read must stay within 64 MiB of the resident set before the write. Sampled
+/// every 20 ms with `ps -o rss=`; run with
+/// `cargo test --release -p halvo-capture --lib peak_rss -- --ignored --nocapture`.
+#[cfg(unix)]
+#[test]
+#[ignore]
+fn peak_rss_stays_bounded_for_a_512_mib_segment() {
+    const SEGMENT_BYTES: u64 = 512 * 1024 * 1024;
+    const BOUND_KIB: u64 = 64 * 1024;
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let before = rss_kib();
+    let peak = Arc::new(AtomicUsize::new(0));
+    let stop = Arc::new(AtomicUsize::new(0));
+    let sampler = {
+        let (peak, stop) = (Arc::clone(&peak), Arc::clone(&stop));
+        std::thread::spawn(move || {
+            while stop.load(Ordering::SeqCst) == 0 {
+                peak.fetch_max(rss_kib() as usize, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        })
+    };
+
+    let (seg_ref, _) = store
+        .write_segment(&mut PatternReader {
+            remaining: SEGMENT_BYTES,
+        })
+        .unwrap();
+    let after_write = rss_kib();
+    let mut sink = CountingSink(0);
+    store.read_segment(seg_ref.segment_id, &mut sink).unwrap();
+    let after_read = rss_kib();
+    stop.store(1, Ordering::SeqCst);
+    sampler.join().unwrap();
+    let peak = (peak.load(Ordering::SeqCst) as u64)
+        .max(after_write)
+        .max(after_read);
+
+    println!(
+        "RSS segment_bytes={SEGMENT_BYTES} read_back_bytes={} rss_before_kib={before} \
+         rss_after_write_kib={after_write} rss_after_read_kib={after_read} \
+         rss_peak_kib={peak} peak_delta_kib={} bound_kib={BOUND_KIB}",
+        sink.0,
+        peak - before
+    );
+    assert_eq!(seg_ref.byte_len, SEGMENT_BYTES);
+    assert_eq!(sink.0, SEGMENT_BYTES);
+    assert!(
+        peak - before <= BOUND_KIB,
+        "peak RSS grew by {} KiB",
+        peak - before
+    );
+}

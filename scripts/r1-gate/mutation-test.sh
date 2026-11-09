@@ -44,7 +44,7 @@ mutate shredded-key-survives "$EXPIRY" \
   's/UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = \?1/UPDATE segment_keys SET wrapped_key = wrapped_key WHERE segment_id = ?1/' \
   deletion
 mutate checkpoint-not-verified "$DB" \
-  's/PRAGMA wal_checkpoint\(TRUNCATE\)/PRAGMA wal_checkpoint(PASSIVE)/; s/if checkpoint\.busy != 0 \|\| checkpoint\.wal_bytes != 0 \{/if checkpoint.busy < 0 {/' \
+  's/query_row\("PRAGMA wal_checkpoint\(TRUNCATE\)"/query_row("PRAGMA wal_checkpoint(PASSIVE)"/; s/if checkpoint\.busy != 0 \|\| checkpoint\.wal_bytes != 0 \{/if checkpoint.busy < 0 {/' \
   deletion
 # shellcheck disable=SC2016
 mutate segment-roundtrip-broken "$DB" \

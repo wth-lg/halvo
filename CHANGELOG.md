@@ -28,6 +28,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add just-in-time macOS permission onboarding with System Settings deep links and lost-grant walk-back
 - Add the data view, its Tauri commands and the menu-bar capture indicator
 - Add failing tests for the adversarial review of the encrypted store
+- Measure the peak resident set of a 512 MiB segment write and read in an ignored test
 
 ### Changed
 
