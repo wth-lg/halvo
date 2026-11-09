@@ -18,3 +18,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the ADRs for the three scaffold decisions
 - Copy the research reports and the plan into docs
 - Build the bare executable on Windows without installer tooling
+- Update the plan copy after the ledger plan revisions
