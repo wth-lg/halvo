@@ -9,8 +9,13 @@ pub mod segment;
 pub mod verify;
 
 use std::io::Read;
+use std::path::PathBuf;
+use std::time::Duration;
 
+use crate::custody::CustodyError;
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
+
+pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 /// The sole-writer store the capture daemon appends to. One writer only; the
 /// daemon holds it behind the single-writer sink.
@@ -49,6 +54,12 @@ pub enum StoreError {
     Io(String),
     #[error("the store is sealed; its key is not available")]
     Sealed,
+    #[error("another writer holds the store at {0}")]
+    Locked(PathBuf),
+    #[error("a store already exists at {0}")]
+    AlreadyExists(PathBuf),
+    #[error(transparent)]
+    Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
 }

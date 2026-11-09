@@ -12,7 +12,7 @@ use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
 
 use super::db::EncryptedStore;
 use super::segment::segment_path;
-use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult};
+use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
 
 fn store_dir() -> StoreResult<PathBuf> {
     match std::env::var("HALVO_STORE_DIR") {
@@ -40,13 +40,17 @@ pub fn run_store_check() -> StoreResult<String> {
 
     let seg_id;
     {
-        let mut store = EncryptedStore::create(&dir, Box::new(DevFallbackCustody::new(root_id)))?;
+        let mut store = EncryptedStore::create(
+            &dir,
+            Box::new(DevFallbackCustody::new(root_id)),
+            DEFAULT_RETENTION,
+        )?;
         let seg_bytes = format!("{marker} embedded in captured segment bytes");
         let (seg_ref, key_id) = store.write_segment(&mut std::io::Cursor::new(seg_bytes))?;
         seg_id = seg_ref.segment_id;
 
         store
-            .db()
+            .db()?
             .connection()
             .execute_batch("BEGIN")
             .map_err(|e| StoreError::Io(e.to_string()))?;
@@ -61,27 +65,23 @@ pub fn run_store_check() -> StoreResult<String> {
             store.append_event(&event)?;
         }
         store
-            .db()
+            .db()?
             .connection()
             .execute_batch("COMMIT")
             .map_err(|e| StoreError::Io(e.to_string()))?;
-        store
-            .db()
-            .connection()
-            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
-            .map_err(|e| StoreError::Io(e.to_string()))?;
+        store.db()?.checkpoint_truncate()?;
     }
 
     let count = {
-        let reopened = EncryptedStore::open(&dir)?;
+        let reopened = EncryptedStore::open(&dir, DEFAULT_RETENTION)?;
         let n: i64 = reopened
-            .db()
+            .db()?
             .connection()
             .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
             .map_err(|e| StoreError::Io(e.to_string()))?;
-        let sd = reopened.db().pragma_int("secure_delete")?;
-        let ts = reopened.db().pragma_int("temp_store")?;
-        let fts = reopened.db().fts_secure_delete()?;
+        let sd = reopened.db()?.pragma_int("secure_delete")?;
+        let ts = reopened.db()?.pragma_int("temp_store")?;
+        let fts = reopened.db()?.fts_secure_delete()?;
         let mut seg_plain = Vec::new();
         reopened.read_segment(seg_id, &mut seg_plain)?;
         let roundtrip = String::from_utf8_lossy(&seg_plain).contains(&marker);
@@ -101,8 +101,11 @@ pub fn run_store_check() -> StoreResult<String> {
 /// Implements `--verify-deletion`.
 pub fn run_deletion_check() -> StoreResult<String> {
     let dir = store_dir()?;
-    let mut store =
-        EncryptedStore::create(&dir, Box::new(DevFallbackCustody::new(RootId::fresh())))?;
+    let mut store = EncryptedStore::create(
+        &dir,
+        Box::new(DevFallbackCustody::new(RootId::fresh())),
+        DEFAULT_RETENTION,
+    )?;
 
     let (seg_ref, _key_id) = store.write_segment_with_expiry(
         &mut std::io::Cursor::new(b"PLAINTEXT-SECRET-TO-DESTROY"),
@@ -138,7 +141,7 @@ pub fn run_deletion_check() -> StoreResult<String> {
 
 fn remaining_segment_key_count(store: &EncryptedStore) -> StoreResult<i64> {
     store
-        .db()
+        .db()?
         .connection()
         .query_row(
             "SELECT count(*) FROM segment_keys WHERE wrapped_key IS NOT NULL",
