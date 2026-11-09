@@ -1,19 +1,27 @@
-R1 gate driver run against the tree before the capture crate exists.
-Tree at commit 08de1f1a692afe9727f67f7a0f9a7b794db5bcfc (the merged R1 scaffold; no crates/halvo-capture yet).
-
-command: sh scripts/r1-gate/run.sh
-exit code: 1
-
-Every capture and store sub-check FAILs: there is no halvo-capture crate,
-so the driver cannot run --timed-run, --verify-store or --verify-deletion,
-and there is no daemon to sample. windows-ci reflects the existing CI state
-for this SHA (the scaffold already builds on windows-2025); it is orthogonal
-to the capture crate and is not a capture/store sub-check.
-
-output:
-  FAIL timed-run (timed-run unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
-  FAIL store (verify-store unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
-  FAIL deletion (verify-deletion unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
-  FAIL secure-input (timed-run unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
-  FAIL cost (daemon did not complete a timed run: error: package(s) `halvo-capture` not found in workspace `<repo>`)
-  PASS windows-ci
+# R1 gate pre-measurement baseline (P6 integration, sub-check (e): daemon memory).
+#
+# The P0 memory bound for the capture daemon's resident set. check-memory.sh
+# gates the daemon's peak and mean RSS against rss_max_bytes below.
+#
+# How measured (perf-check / explain-number):
+#   Binary: the halvo-capture DEBUG binary, which is what the gate runs through
+#           `cargo run`, so the bound matches the gate's own measurement.
+#   Load:   `--timed-run` with the screen, input and foreground sources active,
+#           a 2 Hz synthetic input load (mouse + keystrokes), persisting
+#           encrypted segments to a store (the full wired pipeline).
+#   Sample: daemon RSS once per second via `ps -o rss= -p <pid>`, sampling the
+#           capture process's own pid (written to HALVO_PID_FILE), not a wrapping
+#           shell.
+#   Host:   this Mac (aarch64-apple-darwin), 2026-11-09.
+#
+# Pre-measurement over a 25 s run (25 samples):
+#   peak_rss_bytes=25231360   (24.1 MiB)
+#   mean_rss_bytes=25116672   (24.0 MiB)
+# Peak == mean to within one percent, which confirms the resident set is
+# bounded: the sink is a bounded channel and the daemon flushes each batch at
+# SEGMENT_BATCH_MAX events rather than buffering a capture window.
+#
+# The bound is the measured peak with roughly 2x headroom for run-to-run and
+# 600 s-run variance. A bounded daemon (~24 MiB) passes; a daemon that buffered a
+# whole capture window (hundreds of MiB) fails. 48 MiB = 50331648 bytes.
+rss_max_bytes=50331648

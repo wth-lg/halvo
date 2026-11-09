@@ -8,15 +8,20 @@ pub mod mic;
 pub mod screen;
 pub mod window_title;
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use uuid::Uuid;
 
+use crate::custody::dev_fallback::DevFallbackCustody;
+use crate::custody::{KeyCustody, RootId};
 use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
-use crate::sink::{self, SinkError, SinkHandle, SinkWriter};
+use crate::sink::{self, SinkError, SinkHandle};
 use crate::source::{CaptureSource, EmitOutcome, EventSink};
+use crate::store::db::EncryptedStore;
+use crate::store::DEFAULT_RETENTION;
 
 /// The cap on the screen stream's frame rate.
 pub const SCREEN_FRAME_CAP_FPS: i32 = 2;
@@ -119,22 +124,85 @@ impl std::fmt::Display for SourceStartFailure {
     }
 }
 
-/// Run every macOS source for a bounded window and report per-modality counts.
-/// Reads the gate's secure-input switch from the environment, then delegates to
-/// [`run_sources`], which takes it as a parameter.
-pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
-    let secure_gate = std::env::var("HALVO_GATE_SECURE_INPUT").as_deref() == Ok("1");
-    run_sources(seconds, secure_gate)
+/// Run every macOS source for the gate's bounded `--timed-run`, persisting the
+/// captured events into a throwaway encrypted store and reporting per-modality
+/// counts. The store is fresh and single-use: when `HALVO_STORE_DIR` is set the
+/// run writes into it and leaves the files for the gate to measure and remove;
+/// otherwise it uses a unique temp directory it removes when done. Either way the
+/// store's custody root is destroyed at the end, so the measurement leaves no
+/// keychain item and no decryptable ciphertext behind.
+pub fn timed_run(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, DaemonError> {
+    let (dir, remove_dir) = match std::env::var("HALVO_STORE_DIR") {
+        Ok(d) => (PathBuf::from(d), false),
+        Err(_) => (
+            std::env::temp_dir().join(format!("halvo-timedrun-{}", Uuid::now_v7())),
+            true,
+        ),
+    };
+    let root_id = RootId::fresh();
+    let store = EncryptedStore::create(
+        &dir,
+        Box::new(DevFallbackCustody::new(root_id)),
+        DEFAULT_RETENTION,
+    )
+    .map_err(|e| DaemonError::Store(e.to_string()))?;
+
+    let result = run_capture(
+        RunMode::Timed(Duration::from_secs(seconds)),
+        secure_gate,
+        store,
+    );
+
+    // The throwaway measurement store is crypto-shredded by destroying its root,
+    // so the keychain is left clean and the ciphertext left on disk is
+    // undecryptable; the directory is removed unless the gate owns it.
+    let _ = DevFallbackCustody::new(root_id).destroy_root();
+    if remove_dir {
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    result.map(|mut report| {
+        report.seconds = seconds;
+        report
+    })
 }
 
-/// Run every macOS source for `seconds`. When `secure_gate` is set, hold secure
-/// input for the window so the zero-keystroke invariant can be measured.
-fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, DaemonError> {
+/// Run the always-on capture daemon, persisting into the store at `store_dir`,
+/// until the process is terminated. The daemon is the sole store writer.
+pub fn service_run(store_dir: PathBuf) -> Result<(), DaemonError> {
+    let store = crate::daemon::open_or_create_store(&store_dir)
+        .map_err(|e| DaemonError::Store(e.to_string()))?;
+    run_capture(RunMode::UntilSignal, false, store).map(|_| ())
+}
+
+/// How long a capture run lasts.
+enum RunMode {
+    /// A bounded run of this duration (the gate's timed run).
+    Timed(Duration),
+    /// An unbounded run until the process receives SIGTERM or SIGINT (the
+    /// always-on daemon under launchd).
+    UntilSignal,
+}
+
+/// Start every macOS source, drain the single-writer sink into `store` on a
+/// writer thread (the sole store writer), run for the mode's lifetime, then stop
+/// the sources and flush. When `secure_gate` is set, hold secure input for the
+/// window so the zero-keystroke invariant can be measured.
+fn run_capture(
+    mode: RunMode,
+    secure_gate: bool,
+    store: EncryptedStore,
+) -> Result<TimedRunReport, DaemonError> {
     let (handle, writer) = sink::channel(SINK_CAPACITY);
     let counts = Arc::new(Counts::default());
     let drain = {
         let counts = counts.clone();
-        std::thread::spawn(move || drain_counting(writer, &counts))
+        std::thread::spawn(move || -> Result<u64, DaemonError> {
+            let mut store = store;
+            crate::daemon::drain_to_store(&writer, &mut store, |event| {
+                counts.record(event.modality)
+            })
+        })
     };
 
     let (foreground_writer, foreground_reader) = foreground_state();
@@ -163,7 +231,10 @@ fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, Daemon
 
     let _secure_hold = secure_gate.then(crate::secure_input_macos::hold_secure_input);
 
-    std::thread::sleep(Duration::from_secs(seconds));
+    match mode {
+        RunMode::Timed(duration) => std::thread::sleep(duration),
+        RunMode::UntilSignal => park_until_terminated(),
+    }
 
     drop(_secure_hold);
 
@@ -174,19 +245,46 @@ fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, Daemon
     mic.stop();
 
     drop(handle);
-    drain
+    let segments_written = drain
         .join()
-        .map_err(|_| DaemonError::Store("drain thread panicked".into()))?;
+        .map_err(|_| DaemonError::Store("drain thread panicked".into()))??;
 
     Ok(TimedRunReport {
-        seconds,
+        seconds: 0,
         screen_frame: counts.screen_frame.load(),
         keystroke: counts.keystroke.load(),
         pointer: counts.pointer.load(),
         foreground_app: counts.foreground_app.load(),
         window_title: counts.window_title.load(),
         secure_input_keystrokes: secure_violations.count(),
+        segments_written,
+        failed_sources: failed
+            .iter()
+            .map(|f| format!("{}: {}", f.name, f.error))
+            .collect(),
     })
+}
+
+/// Block until the process receives SIGTERM or SIGINT, so the always-on daemon
+/// runs until launchd (or a user) stops it, then returns so the sources stop and
+/// the final batch flushes.
+fn park_until_terminated() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static TERMINATED: AtomicBool = AtomicBool::new(false);
+    extern "C" fn on_signal(_sig: libc::c_int) {
+        TERMINATED.store(true, Ordering::SeqCst);
+    }
+    // SAFETY: installing a handler for two termination signals; the handler only
+    // stores to a static atomic, which is async-signal-safe.
+    let handler = on_signal as *const () as libc::sighandler_t;
+    unsafe {
+        libc::signal(libc::SIGTERM, handler);
+        libc::signal(libc::SIGINT, handler);
+    }
+    while !TERMINATED.load(Ordering::SeqCst) {
+        std::thread::sleep(Duration::from_millis(200));
+    }
 }
 
 #[derive(Default)]
@@ -198,6 +296,19 @@ struct Counts {
     window_title: Counter,
 }
 
+impl Counts {
+    fn record(&self, modality: Modality) {
+        match modality {
+            Modality::ScreenFrame => self.screen_frame.inc(),
+            Modality::Keystroke => self.keystroke.inc(),
+            Modality::Pointer => self.pointer.inc(),
+            Modality::ForegroundApp => self.foreground_app.inc(),
+            Modality::WindowTitle => self.window_title.inc(),
+            Modality::SystemAudio | Modality::Microphone | Modality::Camera => {}
+        }
+    }
+}
+
 #[derive(Default)]
 struct Counter(std::sync::atomic::AtomicU64);
 
@@ -207,19 +318,6 @@ impl Counter {
     }
     fn load(&self) -> u64 {
         self.0.load(std::sync::atomic::Ordering::Relaxed)
-    }
-}
-
-fn drain_counting(writer: SinkWriter, counts: &Counts) {
-    while let Some(event) = writer.recv() {
-        match event.modality {
-            Modality::ScreenFrame => counts.screen_frame.inc(),
-            Modality::Keystroke => counts.keystroke.inc(),
-            Modality::Pointer => counts.pointer.inc(),
-            Modality::ForegroundApp => counts.foreground_app.inc(),
-            Modality::WindowTitle => counts.window_title.inc(),
-            Modality::SystemAudio | Modality::Microphone | Modality::Camera => {}
-        }
     }
 }
 

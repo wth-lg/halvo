@@ -7,6 +7,12 @@ use crate::service::{ServiceError, ServiceInstaller, ServiceStatus};
 /// The default LaunchAgent label (and plist base name).
 pub const DEFAULT_LABEL: &str = "com.halvo.capture";
 
+/// The argument that puts the binary into its always-on daemon mode. The agent
+/// must pass it: launched bare, the binary prints usage and exits 64, which with
+/// `KeepAlive` set would respawn-loop. With this argument it runs the capture
+/// daemon and stays alive, so launchd keeps the one instance.
+pub const DAEMON_ARG: &str = "--service-run";
+
 /// Installs and removes the capture LaunchAgent plist.
 pub struct LaunchAgentPlistInstaller {
     label: String,
@@ -47,6 +53,7 @@ impl LaunchAgentPlistInstaller {
     /// The exact plist content this installer wants on disk.
     pub fn desired_plist(&self) -> String {
         let program = xml_escape(&self.binary_path.to_string_lossy());
+        let daemon_arg = xml_escape(DAEMON_ARG);
         let label = xml_escape(&self.label);
         format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
@@ -58,6 +65,7 @@ impl LaunchAgentPlistInstaller {
 \t<key>ProgramArguments</key>\n\
 \t<array>\n\
 \t\t<string>{program}</string>\n\
+\t\t<string>{daemon_arg}</string>\n\
 \t</array>\n\
 \t<key>RunAtLoad</key>\n\
 \t<true/>\n\
@@ -167,6 +175,22 @@ mod tests {
         assert!(plist.contains("com.halvo.capture.test"));
         assert!(plist.contains("/usr/local/bin/halvo-capture"));
         assert!(plist.contains("<key>RunAtLoad</key>"));
+    }
+
+    #[test]
+    fn plist_passes_the_daemon_argument_so_the_bare_binary_never_respawn_loops() {
+        let tmp = tempfile::tempdir().unwrap();
+        let plist = installer(tmp.path()).desired_plist();
+        // The program and the daemon argument are two separate <string> entries
+        // in ProgramArguments, in order, so launchd runs `binary --service-run`.
+        let program = plist
+            .find("<string>/usr/local/bin/halvo-capture</string>")
+            .unwrap();
+        let arg = plist
+            .find(&format!("<string>{DAEMON_ARG}</string>"))
+            .unwrap();
+        assert!(arg > program, "the daemon argument follows the program");
+        assert!(plist.contains("<key>KeepAlive</key>"));
     }
 
     #[test]
