@@ -5,19 +5,36 @@ use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
 };
 
-use super::{CustodyError, CustodyKind, KeyCustody, StoreKey, WrappedKey};
+use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
+
+struct DpapiBlob(CRYPT_INTEGER_BLOB);
+
+impl DpapiBlob {
+    fn as_slice(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.0.pbData, self.0.cbData as usize) }
+    }
+}
+
+impl Drop for DpapiBlob {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = LocalFree(Some(HLOCAL(self.0.pbData as *mut core::ffi::c_void)));
+        }
+    }
+}
+
+fn borrowed_blob(bytes: &[u8]) -> CRYPT_INTEGER_BLOB {
+    CRYPT_INTEGER_BLOB {
+        cbData: bytes.len() as u32,
+        pbData: bytes.as_ptr() as *mut u8,
+    }
+}
 
 pub(crate) fn dpapi_protect(data: &[u8], entropy: &[u8]) -> Result<Vec<u8>, CustodyError> {
+    let in_blob = borrowed_blob(data);
+    let entropy_blob = borrowed_blob(entropy);
+    let mut out = CRYPT_INTEGER_BLOB::default();
     unsafe {
-        let in_blob = CRYPT_INTEGER_BLOB {
-            cbData: data.len() as u32,
-            pbData: data.as_ptr() as *mut u8,
-        };
-        let entropy_blob = CRYPT_INTEGER_BLOB {
-            cbData: entropy.len() as u32,
-            pbData: entropy.as_ptr() as *mut u8,
-        };
-        let mut out = CRYPT_INTEGER_BLOB::default();
         CryptProtectData(
             &in_blob as *const _,
             None,
@@ -27,22 +44,16 @@ pub(crate) fn dpapi_protect(data: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cust
             CRYPTPROTECT_UI_FORBIDDEN,
             &mut out as *mut _,
         )
-        .map_err(|e| CustodyError::Crypto(format!("CryptProtectData: {e}")))?;
-        Ok(copy_and_free(&out))
     }
+    .map_err(|e| CustodyError::Crypto(format!("CryptProtectData: {e}")))?;
+    Ok(DpapiBlob(out).as_slice().to_vec())
 }
 
 pub(crate) fn dpapi_unprotect(blob: &[u8], entropy: &[u8]) -> Result<Vec<u8>, CustodyError> {
+    let in_blob = borrowed_blob(blob);
+    let entropy_blob = borrowed_blob(entropy);
+    let mut out = CRYPT_INTEGER_BLOB::default();
     unsafe {
-        let in_blob = CRYPT_INTEGER_BLOB {
-            cbData: blob.len() as u32,
-            pbData: blob.as_ptr() as *mut u8,
-        };
-        let entropy_blob = CRYPT_INTEGER_BLOB {
-            cbData: entropy.len() as u32,
-            pbData: entropy.as_ptr() as *mut u8,
-        };
-        let mut out = CRYPT_INTEGER_BLOB::default();
         CryptUnprotectData(
             &in_blob as *const _,
             None,
@@ -52,29 +63,32 @@ pub(crate) fn dpapi_unprotect(blob: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cu
             CRYPTPROTECT_UI_FORBIDDEN,
             &mut out as *mut _,
         )
-        .map_err(|e| CustodyError::Crypto(format!("CryptUnprotectData: {e}")))?;
-        Ok(copy_and_free(&out))
     }
+    .map_err(|e| CustodyError::Crypto(format!("CryptUnprotectData: {e}")))?;
+    Ok(DpapiBlob(out).as_slice().to_vec())
 }
 
-unsafe fn copy_and_free(out: &CRYPT_INTEGER_BLOB) -> Vec<u8> {
-    let slice = std::slice::from_raw_parts(out.pbData, out.cbData as usize);
-    let owned = slice.to_vec();
-    let _ = LocalFree(Some(HLOCAL(out.pbData as *mut core::ffi::c_void)));
-    owned
+pub(crate) fn destroy_root_is_deleting_the_wrapped_blob() -> Result<(), CustodyError> {
+    Ok(())
+}
+
+fn store_key_from(plain: Vec<u8>) -> Result<StoreKey, CustodyError> {
+    let arr: [u8; 32] = plain
+        .as_slice()
+        .try_into()
+        .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
+    Ok(StoreKey::from_bytes(arr))
 }
 
 /// The release Windows custody: DPAPI user scope wrapping the store key directly.
 pub struct DpapiCustody {
-    entropy: Vec<u8>,
+    root_id: RootId,
 }
 
 impl DpapiCustody {
     /// Build a custody scoped by a per-store entropy label (a non-secret id).
-    pub fn new(entropy: impl Into<Vec<u8>>) -> Self {
-        Self {
-            entropy: entropy.into(),
-        }
+    pub fn new(root_id: RootId) -> Self {
+        Self { root_id }
     }
 }
 
@@ -83,17 +97,22 @@ impl KeyCustody for DpapiCustody {
         CustodyKind::Dpapi
     }
 
+    fn root_id(&self) -> RootId {
+        self.root_id
+    }
+
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        let blob = dpapi_protect(key.expose(), &self.entropy)?;
-        Ok(WrappedKey(blob))
+        Ok(WrappedKey(dpapi_protect(
+            key.expose(),
+            self.root_id.as_bytes(),
+        )?))
     }
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        let plain = dpapi_unprotect(&wrapped.0, &self.entropy)?;
-        let arr: [u8; 32] = plain
-            .as_slice()
-            .try_into()
-            .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
-        Ok(StoreKey::from_bytes(arr))
+        store_key_from(dpapi_unprotect(&wrapped.0, self.root_id.as_bytes())?)
+    }
+
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        destroy_root_is_deleting_the_wrapped_blob()
     }
 }

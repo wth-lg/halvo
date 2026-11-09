@@ -9,7 +9,7 @@ use base64::Engine;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::custody::{CustodyError, CustodyKind, KeyCustody, StoreKey};
+use crate::custody::{custody_for, CustodyError, CustodyKind, KeyCustody, RootId, StoreKey};
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
 use super::segment::{self, SegmentHeader, SegmentKey};
@@ -21,7 +21,7 @@ const DEFAULT_RETENTION_SECS: u64 = 14 * 24 * 60 * 60;
 pub(crate) struct KeyFile {
     pub version: u32,
     pub custody_kind: CustodyKind,
-    pub root_id: String,
+    pub root_id: RootId,
     pub wrapped_store_key_b64: String,
 }
 
@@ -198,18 +198,13 @@ pub struct EncryptedStore {
     db: Db,
     store_key: StoreKey,
     dir: PathBuf,
-    destroy_root: Box<dyn Fn() -> Result<(), CustodyError> + Send>,
+    custody: Box<dyn KeyCustody + Send>,
 }
 
 impl EncryptedStore {
     /// Create a fresh store in `dir`: generate a random store key, wrap it with
     /// `custody`, write the store-key file, and open the database.
-    pub fn create<C: KeyCustody>(
-        dir: &Path,
-        custody: &C,
-        root_id: &str,
-        destroy_root: Box<dyn Fn() -> Result<(), CustodyError> + Send>,
-    ) -> StoreResult<Self> {
+    pub fn create(dir: &Path, custody: Box<dyn KeyCustody + Send>) -> StoreResult<Self> {
         std::fs::create_dir_all(dir).map_err(|e| StoreError::Io(e.to_string()))?;
         let store_key_bytes = crate::custody::dev_fallback::random_key()
             .map_err(|e| StoreError::Io(e.to_string()))?;
@@ -221,7 +216,7 @@ impl EncryptedStore {
         let key_file = KeyFile {
             version: 1,
             custody_kind: custody.kind(),
-            root_id: root_id.to_string(),
+            root_id: custody.root_id(),
             wrapped_store_key_b64: BASE64.encode(&wrapped.0),
         };
         let json =
@@ -233,7 +228,7 @@ impl EncryptedStore {
             db,
             store_key,
             dir: dir.to_path_buf(),
-            destroy_root,
+            custody,
         })
     }
 
@@ -241,17 +236,15 @@ impl EncryptedStore {
     /// through `custody`** (the owner's no-prompt unwrap) and open the database.
     /// Fails [`StoreError::Sealed`] if the key file is gone (delete-all ran) or the
     /// custody cannot unwrap (a non-owner).
-    pub fn open<C: KeyCustody>(
-        dir: &Path,
-        custody: &C,
-        destroy_root: Box<dyn Fn() -> Result<(), CustodyError> + Send>,
-    ) -> StoreResult<Self> {
+    pub fn open(dir: &Path) -> StoreResult<Self> {
         let json = std::fs::read(KeyFile::path(dir)).map_err(|_| StoreError::Sealed)?;
         let kf: KeyFile =
             serde_json::from_slice(&json).map_err(|e| StoreError::Io(e.to_string()))?;
         let wrapped_bytes = BASE64
             .decode(kf.wrapped_store_key_b64.as_bytes())
             .map_err(|e| StoreError::Io(e.to_string()))?;
+        let custody =
+            custody_for(kf.custody_kind, kf.root_id).map_err(|e| StoreError::Io(e.to_string()))?;
         let store_key = custody
             .unwrap_store_key(&crate::custody::WrappedKey(wrapped_bytes))
             .map_err(|_| StoreError::Sealed)?;
@@ -260,7 +253,7 @@ impl EncryptedStore {
             db,
             store_key,
             dir: dir.to_path_buf(),
-            destroy_root,
+            custody,
         })
     }
 
@@ -296,7 +289,7 @@ impl EncryptedStore {
     }
 
     pub(crate) fn destroy_root(&self) -> Result<(), CustodyError> {
-        (self.destroy_root)()
+        self.custody.destroy_root()
     }
 
     pub(crate) fn write_segment_with_expiry(
@@ -374,16 +367,8 @@ mod tests {
     use crate::store::SegmentStore;
 
     fn make_store(dir: &Path) -> EncryptedStore {
-        let root_id = format!("halvo-test-{}", uuid::Uuid::now_v7());
-        let custody = DevFallbackCustody::new(root_id.clone());
-        #[cfg(target_os = "macos")]
-        let destroyer = {
-            let c = DevFallbackCustody::new(root_id.clone());
-            Box::new(move || c.destroy_root()) as Box<dyn Fn() -> Result<(), CustodyError> + Send>
-        };
-        #[cfg(not(target_os = "macos"))]
-        let destroyer = Box::new(|| Ok(())) as Box<dyn Fn() -> Result<(), CustodyError> + Send>;
-        EncryptedStore::create(dir, &custody, &root_id, destroyer).unwrap()
+        let custody = DevFallbackCustody::new(RootId::fresh());
+        EncryptedStore::create(dir, Box::new(custody)).unwrap()
     }
 
     #[test]

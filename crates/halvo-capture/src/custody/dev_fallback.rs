@@ -4,9 +4,9 @@ use aead::{Aead, KeyInit};
 use chacha20poly1305::aead::array::Array;
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 
-use super::{CustodyError, CustodyKind, KeyCustody, StoreKey, WrappedKey};
+use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
-const XNONCE_LEN: usize = 24;
+const XNONCE_LEN: usize = size_of::<XNonce>();
 
 impl CustodyKind {
     /// Whether this custody is strong enough for a release build.
@@ -74,66 +74,146 @@ pub(crate) fn random_key() -> Result<[u8; 32], CustodyError> {
     Ok(bytes)
 }
 
+fn store_key_from(plain: Vec<u8>) -> Result<StoreKey, CustodyError> {
+    let arr: [u8; 32] = plain
+        .as_slice()
+        .try_into()
+        .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
+    Ok(StoreKey::from_bytes(arr))
+}
+
+#[cfg(target_os = "macos")]
+mod keychain {
+    use security_framework::base::Error as KeychainError;
+    use security_framework::passwords::{
+        delete_generic_password, get_generic_password, set_generic_password,
+    };
+    use security_framework_sys::base::errSecItemNotFound;
+    use zeroize::Zeroizing;
+
+    use super::{aead_open, aead_seal, random_key, store_key_from};
+    use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
+
+    const SERVICE: &str = "com.halvo.capture.dev-fallback";
+
+    pub(super) fn absent_is_none<T>(
+        result: Result<T, KeychainError>,
+    ) -> Result<Option<T>, CustodyError> {
+        match result {
+            Ok(value) => Ok(Some(value)),
+            Err(e) if e.code() == errSecItemNotFound => Ok(None),
+            Err(e) => Err(CustodyError::RootUnavailable(format!("keychain: {e}"))),
+        }
+    }
+
+    fn existing_root(root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
+        let Some(bytes) = absent_is_none(get_generic_password(SERVICE, &root_id.to_string()))?
+        else {
+            return Ok(None);
+        };
+        let bytes = Zeroizing::new(bytes);
+        let root: [u8; 32] = bytes.as_slice().try_into().map_err(|_| {
+            CustodyError::RootUnavailable("keychain root key is not 32 bytes".to_string())
+        })?;
+        Ok(Some(Zeroizing::new(root)))
+    }
+
+    fn existing_or_new_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+        if let Some(root) = existing_root(root_id)? {
+            return Ok(root);
+        }
+        let root = Zeroizing::new(random_key()?);
+        set_generic_password(SERVICE, &root_id.to_string(), root.as_slice())
+            .map_err(|e| CustodyError::RootUnavailable(format!("keychain write: {e}")))?;
+        Ok(root)
+    }
+
+    pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        let root = existing_or_new_root(root_id)?;
+        let sealed = aead_seal(&root, key.expose(), root_id.as_bytes())
+            .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
+        Ok(WrappedKey(sealed))
+    }
+
+    pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+        let root = existing_root(root_id)?.ok_or_else(|| {
+            CustodyError::RootUnavailable(format!("no keychain root for store {root_id}"))
+        })?;
+        let plain = aead_open(&root, &wrapped.0, root_id.as_bytes())
+            .map_err(|_| CustodyError::Crypto("unwrapping the store key failed".to_string()))?;
+        store_key_from(plain)
+    }
+
+    pub(super) fn destroy_root(root_id: RootId) -> Result<(), CustodyError> {
+        absent_is_none(delete_generic_password(SERVICE, &root_id.to_string())).map(|_| ())
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod dpapi {
+    use super::store_key_from;
+    use crate::custody::windows::{
+        destroy_root_is_deleting_the_wrapped_blob, dpapi_protect, dpapi_unprotect,
+    };
+    use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
+
+    pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Ok(WrappedKey(dpapi_protect(key.expose(), root_id.as_bytes())?))
+    }
+
+    pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+        store_key_from(dpapi_unprotect(&wrapped.0, root_id.as_bytes())?)
+    }
+
+    pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
+        destroy_root_is_deleting_the_wrapped_blob()
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+mod unsupported {
+    use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
+
+    fn no_root() -> CustodyError {
+        CustodyError::RootUnavailable(
+            "dev-fallback custody has no platform root on this OS".to_string(),
+        )
+    }
+
+    pub(super) fn wrap(_root_id: RootId, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Err(no_root())
+    }
+
+    pub(super) fn unwrap(
+        _root_id: RootId,
+        _wrapped: &WrappedKey,
+    ) -> Result<StoreKey, CustodyError> {
+        Err(no_root())
+    }
+
+    pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
+        Err(no_root())
+    }
+}
+
+#[cfg(target_os = "windows")]
+use dpapi as platform;
+#[cfg(target_os = "macos")]
+use keychain as platform;
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+use unsupported as platform;
+
 /// Dev-fallback custody over the one store key. `root_id` is a non-secret
 /// per-store locator (a UUID) so two stores never share one platform root: on
 /// macOS it is the keychain account, on Windows the DPAPI entropy label.
 pub struct DevFallbackCustody {
-    root_id: String,
+    root_id: RootId,
 }
 
 impl DevFallbackCustody {
-    #[cfg(target_os = "macos")]
-    const KEYCHAIN_SERVICE: &'static str = "com.halvo.capture.dev-fallback";
-
     /// Build a custody bound to a per-store root locator.
-    pub fn new(root_id: impl Into<String>) -> Self {
-        Self {
-            root_id: root_id.into(),
-        }
-    }
-
-    /// The per-store root locator, written (non-secret) into the store-key file
-    /// so a later open finds the same platform root.
-    pub fn root_id(&self) -> &str {
-        &self.root_id
-    }
-
-    /// Destroy the platform root so no retained wrapped store key can ever be
-    /// unwrapped again.
-    pub fn destroy_root(&self) -> Result<(), CustodyError> {
-        #[cfg(target_os = "macos")]
-        {
-            match security_framework::passwords::delete_generic_password(
-                Self::KEYCHAIN_SERVICE,
-                &self.root_id,
-            ) {
-                Ok(()) => Ok(()),
-                Err(_) => Ok(()),
-            }
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            Ok(())
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    fn mac_root_key(&self) -> Result<[u8; 32], CustodyError> {
-        use security_framework::passwords::{get_generic_password, set_generic_password};
-        match get_generic_password(Self::KEYCHAIN_SERVICE, &self.root_id) {
-            Ok(bytes) => {
-                let arr: [u8; 32] = bytes.as_slice().try_into().map_err(|_| {
-                    CustodyError::RootUnavailable("keychain root key is not 32 bytes".to_string())
-                })?;
-                Ok(arr)
-            }
-            Err(_) => {
-                let key = random_key()?;
-                set_generic_password(Self::KEYCHAIN_SERVICE, &self.root_id, &key)
-                    .map_err(|e| CustodyError::RootUnavailable(format!("keychain write: {e}")))?;
-                Ok(key)
-            }
-        }
+    pub fn new(root_id: RootId) -> Self {
+        Self { root_id }
     }
 }
 
@@ -142,58 +222,20 @@ impl KeyCustody for DevFallbackCustody {
         CustodyKind::DevFallback
     }
 
+    fn root_id(&self) -> RootId {
+        self.root_id
+    }
+
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        #[cfg(target_os = "macos")]
-        {
-            let root = self.mac_root_key()?;
-            let sealed = aead_seal(&root, key.expose(), self.root_id.as_bytes())
-                .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
-            Ok(WrappedKey(sealed))
-        }
-        #[cfg(target_os = "windows")]
-        {
-            let blob =
-                crate::custody::windows::dpapi_protect(key.expose(), self.root_id.as_bytes())?;
-            Ok(WrappedKey(blob))
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        {
-            let _ = key;
-            Err(CustodyError::RootUnavailable(
-                "dev-fallback custody has no platform root on this OS".to_string(),
-            ))
-        }
+        platform::wrap(self.root_id, key)
     }
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
-        #[cfg(target_os = "macos")]
-        {
-            let root = self.mac_root_key()?;
-            let plain = aead_open(&root, &wrapped.0, self.root_id.as_bytes())
-                .map_err(|_| CustodyError::Crypto("unwrapping the store key failed".to_string()))?;
-            let arr: [u8; 32] = plain
-                .as_slice()
-                .try_into()
-                .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
-            Ok(StoreKey::from_bytes(arr))
-        }
-        #[cfg(target_os = "windows")]
-        {
-            let plain =
-                crate::custody::windows::dpapi_unprotect(&wrapped.0, self.root_id.as_bytes())?;
-            let arr: [u8; 32] = plain
-                .as_slice()
-                .try_into()
-                .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
-            Ok(StoreKey::from_bytes(arr))
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        {
-            let _ = wrapped;
-            Err(CustodyError::RootUnavailable(
-                "dev-fallback custody has no platform root on this OS".to_string(),
-            ))
-        }
+        platform::unwrap(self.root_id, wrapped)
+    }
+
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        platform::destroy_root(self.root_id)
     }
 }
 
@@ -225,20 +267,40 @@ mod tests {
 
     #[test]
     fn reject_helper_matches_kind() {
-        let custody = DevFallbackCustody::new("test-root");
+        let custody = DevFallbackCustody::new(RootId::fresh());
         assert!(reject_fallback_for_release(&custody).is_err());
     }
 
     #[cfg(target_os = "macos")]
     #[test]
     fn mac_wrap_unwrap_roundtrips_with_no_prompt() {
-        let root_id = format!("halvo-test-{}", uuid::Uuid::now_v7());
-        let custody = DevFallbackCustody::new(root_id);
+        let custody = DevFallbackCustody::new(RootId::fresh());
         let key = StoreKey::from_bytes([42u8; 32]);
         let wrapped = custody.wrap_store_key(&key).unwrap();
         let unwrapped = custody.unwrap_store_key(&wrapped).unwrap();
         assert_eq!(unwrapped.expose(), &[42u8; 32]);
         custody.destroy_root().unwrap();
+        assert!(matches!(
+            custody.unwrap_store_key(&wrapped),
+            Err(CustodyError::RootUnavailable(_))
+        ));
         assert!(custody.destroy_root().is_ok());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn only_a_missing_keychain_item_counts_as_absent() {
+        use security_framework::base::Error;
+        use security_framework_sys::base::{errSecAuthFailed, errSecItemNotFound};
+
+        assert_eq!(keychain::absent_is_none(Ok(7u8)).unwrap(), Some(7));
+        assert_eq!(
+            keychain::absent_is_none::<u8>(Err(Error::from_code(errSecItemNotFound))).unwrap(),
+            None
+        );
+        assert!(matches!(
+            keychain::absent_is_none::<u8>(Err(Error::from_code(errSecAuthFailed))),
+            Err(CustodyError::RootUnavailable(_))
+        ));
     }
 }

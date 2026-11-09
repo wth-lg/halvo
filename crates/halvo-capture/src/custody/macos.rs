@@ -2,47 +2,31 @@
 
 #![cfg(feature = "secure-enclave")]
 
-use security_framework::access_control::{ProtectionMode, SecAccessControl};
-use security_framework::item::Location;
-use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token};
+use security_framework::key::{Algorithm, SecKey};
 
-use super::{CustodyError, CustodyKind, KeyCustody, StoreKey, WrappedKey};
-
-const PRIVATE_KEY_USAGE: u32 = 1 << 30;
+use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
 const ECIES: Algorithm = Algorithm::ECIESEncryptionCofactorX963SHA256AESGCM;
 
 /// Secure Enclave custody keyed by a per-store label.
 pub struct SecureEnclaveCustody {
+    root_id: RootId,
     key: SecKey,
 }
 
 impl SecureEnclaveCustody {
-    pub fn new(label: impl Into<String>) -> Result<Self, CustodyError> {
-        let access = SecAccessControl::create_with_protection(
-            Some(ProtectionMode::AccessibleAfterFirstUnlockThisDeviceOnly),
-            PRIVATE_KEY_USAGE as _,
-        )
-        .map_err(|e| CustodyError::RootUnavailable(format!("access control: {e}")))?;
-
-        let mut options = GenerateKeyOptions::default();
-        options
-            .set_key_type(KeyType::ec())
-            .set_size_in_bits(256)
-            .set_token(Token::SecureEnclave)
-            .set_location(Location::DataProtectionKeychain)
-            .set_access_control(access)
-            .set_label(label);
-
-        let key = SecKey::new(&options)
-            .map_err(|e| CustodyError::RootUnavailable(format!("enclave key: {e}")))?;
-        Ok(Self { key })
+    pub fn from_persisted_key(root_id: RootId, key: SecKey) -> Self {
+        Self { root_id, key }
     }
 }
 
 impl KeyCustody for SecureEnclaveCustody {
     fn kind(&self) -> CustodyKind {
         CustodyKind::SecureEnclave
+    }
+
+    fn root_id(&self) -> RootId {
+        self.root_id
     }
 
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
@@ -66,5 +50,11 @@ impl KeyCustody for SecureEnclaveCustody {
             .try_into()
             .map_err(|_| CustodyError::Crypto("store key is not 32 bytes".to_string()))?;
         Ok(StoreKey::from_bytes(arr))
+    }
+
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        Err(CustodyError::NotImplemented(
+            "secure-enclave root destruction",
+        ))
     }
 }

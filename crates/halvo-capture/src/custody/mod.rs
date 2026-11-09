@@ -1,7 +1,4 @@
-//! Key custody: wrapping the one store key under a per-platform root. Traits and
-//! types only. The dev-fallback custody and the per-OS implementations
-//! (dev_fallback.rs, macos.rs, windows.rs) are phase P2, added as the sibling
-//! files already declared here, so P2 never edits this file.
+//! Key custody: wrapping the one store key under a per-platform root.
 
 pub mod dev_fallback;
 #[cfg(target_os = "macos")]
@@ -9,7 +6,10 @@ pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// The 32-byte store key, in the clear only in memory and zeroed on drop. It is
@@ -34,6 +34,27 @@ impl StoreKey {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WrappedKey(pub Vec<u8>);
 
+/// The non-secret per-store locator of the platform root that wraps the store
+/// key, so two stores never share one root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RootId(Uuid);
+
+impl RootId {
+    pub fn fresh() -> Self {
+        Self(Uuid::now_v7())
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        self.0.as_bytes()
+    }
+}
+
+impl fmt::Display for RootId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.simple())
+    }
+}
+
 /// Which custody wrapped the store key. The release privacy check rejects
 /// [`CustodyKind::DevFallback`]; the signed-build paths are the real roots.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,8 +73,36 @@ pub enum CustodyKind {
 /// unwraps with no prompt; a second account or an admin cannot.
 pub trait KeyCustody {
     fn kind(&self) -> CustodyKind;
+
+    /// The per-store root locator, written (non-secret) into the store-key file
+    /// so a later open finds the same platform root.
+    fn root_id(&self) -> RootId;
+
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError>;
+
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError>;
+
+    /// Destroy the platform root so no retained wrapped store key can ever be
+    /// unwrapped again. Succeeds when the root is already gone.
+    fn destroy_root(&self) -> Result<(), CustodyError>;
+}
+
+/// The custody that wrapped a store key, rebuilt from the kind and root id the
+/// store-key file records.
+pub fn custody_for(
+    kind: CustodyKind,
+    root_id: RootId,
+) -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+    match kind {
+        CustodyKind::DevFallback => Ok(Box::new(dev_fallback::DevFallbackCustody::new(root_id))),
+        CustodyKind::SecureEnclave => Err(CustodyError::NotImplemented("secure-enclave custody")),
+        #[cfg(target_os = "windows")]
+        CustodyKind::Dpapi => Ok(Box::new(windows::DpapiCustody::new(root_id))),
+        #[cfg(not(target_os = "windows"))]
+        CustodyKind::Dpapi => Err(CustodyError::RootUnavailable(
+            "DPAPI custody exists only on Windows".to_string(),
+        )),
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

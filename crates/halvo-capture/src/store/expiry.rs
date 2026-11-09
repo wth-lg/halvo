@@ -125,22 +125,14 @@ impl SegmentExpiry for EncryptedStore {
 mod tests {
     use super::*;
     use crate::custody::dev_fallback::DevFallbackCustody;
-    use crate::custody::CustodyError;
+    use crate::custody::RootId;
     use crate::store::segment::segment_path;
     use crate::store::SegmentStore;
     use std::path::Path;
 
     fn make_store(dir: &Path) -> EncryptedStore {
-        let root_id = format!("halvo-test-{}", uuid::Uuid::now_v7());
-        let custody = DevFallbackCustody::new(root_id.clone());
-        #[cfg(target_os = "macos")]
-        let destroyer = {
-            let c = DevFallbackCustody::new(root_id.clone());
-            Box::new(move || c.destroy_root()) as Box<dyn Fn() -> Result<(), CustodyError> + Send>
-        };
-        #[cfg(not(target_os = "macos"))]
-        let destroyer = Box::new(|| Ok(())) as Box<dyn Fn() -> Result<(), CustodyError> + Send>;
-        EncryptedStore::create(dir, &custody, &root_id, destroyer).unwrap()
+        let custody = DevFallbackCustody::new(RootId::fresh());
+        EncryptedStore::create(dir, Box::new(custody)).unwrap()
     }
 
     #[test]

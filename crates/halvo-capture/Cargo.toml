@@ -26,10 +26,8 @@ getrandom = "0.2"
 base64 = "0.22"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# OSX_10_15 exposes Location::DataProtectionKeychain, which the Secure Enclave
-# release custody needs (researcher-2 learning); the dev fallback uses only the
-# passwords module and is unaffected.
-security-framework = { version = "3", features = ["OSX_10_15"] }
+security-framework = "3"
+security-framework-sys = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = [

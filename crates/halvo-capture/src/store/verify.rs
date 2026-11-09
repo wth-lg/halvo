@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
-use crate::custody::CustodyError;
+use crate::custody::{KeyCustody, RootId};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
 
 use super::db::EncryptedStore;
@@ -24,10 +24,6 @@ fn store_dir() -> StoreResult<PathBuf> {
     }
 }
 
-fn destroyer(root_id: String) -> Box<dyn Fn() -> Result<(), CustodyError> + Send> {
-    Box::new(move || DevFallbackCustody::new(root_id.clone()).destroy_root())
-}
-
 fn at(seq: u64) -> CapturedAt {
     CapturedAt {
         wall_clock: SystemTime::now(),
@@ -40,13 +36,11 @@ pub fn run_store_check() -> StoreResult<String> {
     let dir = store_dir()?;
     let marker =
         std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string());
-    let root_id = format!("halvo-store-{}", Uuid::now_v7());
-    let custody = DevFallbackCustody::new(root_id.clone());
+    let root_id = RootId::fresh();
 
     let seg_id;
     {
-        let mut store =
-            EncryptedStore::create(&dir, &custody, &root_id, destroyer(root_id.clone()))?;
+        let mut store = EncryptedStore::create(&dir, Box::new(DevFallbackCustody::new(root_id)))?;
         let seg_bytes = format!("{marker} embedded in captured segment bytes");
         let (seg_ref, key_id) = store.write_segment(&mut std::io::Cursor::new(seg_bytes))?;
         seg_id = seg_ref.segment_id;
@@ -79,7 +73,7 @@ pub fn run_store_check() -> StoreResult<String> {
     }
 
     let count = {
-        let reopened = EncryptedStore::open(&dir, &custody, destroyer(root_id.clone()))?;
+        let reopened = EncryptedStore::open(&dir)?;
         let n: i64 = reopened
             .db()
             .connection()
@@ -97,7 +91,9 @@ pub fn run_store_check() -> StoreResult<String> {
         )
     };
 
-    let _ = custody.destroy_root();
+    DevFallbackCustody::new(root_id)
+        .destroy_root()
+        .map_err(|e| StoreError::Io(e.to_string()))?;
 
     Ok(format!("store {count} unwrap=ok prompt=none\n"))
 }
@@ -105,9 +101,8 @@ pub fn run_store_check() -> StoreResult<String> {
 /// Implements `--verify-deletion`.
 pub fn run_deletion_check() -> StoreResult<String> {
     let dir = store_dir()?;
-    let root_id = format!("halvo-del-{}", Uuid::now_v7());
-    let custody = DevFallbackCustody::new(root_id.clone());
-    let mut store = EncryptedStore::create(&dir, &custody, &root_id, destroyer(root_id.clone()))?;
+    let mut store =
+        EncryptedStore::create(&dir, Box::new(DevFallbackCustody::new(RootId::fresh())))?;
 
     let (seg_ref, _key_id) = store.write_segment_with_expiry(
         &mut std::io::Cursor::new(b"PLAINTEXT-SECRET-TO-DESTROY"),
@@ -130,8 +125,6 @@ pub fn run_deletion_check() -> StoreResult<String> {
 
     let all = store.crypto_shred_all()?;
     let sealed = store.is_sealed();
-
-    let _ = custody.destroy_root();
 
     Ok(format!(
         "segment={} shred=ok decryptable={} remaining_keys={} delete_all_keys={} store_sealed={}\n",
