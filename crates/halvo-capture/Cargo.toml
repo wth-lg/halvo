@@ -18,7 +18,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
-rusqlite = { version = "0.41", features = ["bundled-sqlcipher-vendored-openssl"] }
+rusqlite = { version = "0.41", features = ["sqlcipher"] }
 chacha20poly1305 = "0.11"
 aead = { version = "0.6", features = ["alloc"] }
 aead-stream = { version = "0.6", features = ["alloc"] }
@@ -36,6 +36,10 @@ windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Security_Cryptography",
 ] }
+
+[build-dependencies]
+cc = { version = "1", features = ["parallel"] }
+sqlcipher-src = "=419.0.6"
 
 [dev-dependencies]
 tempfile = "3"
