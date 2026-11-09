@@ -36,6 +36,8 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
 - Add the Windows capture backend behind cfg with the logon-task install and unit tests
 - Add a CI grep lint banning low-level input hooks in the capture crate
+- Persist captured events as encrypted segments through the daemon
+- Wire the consent view to the real encrypted store
 
 ### Changed
 
@@ -75,3 +77,5 @@ Each entry under Unreleased is the subject line of one commit.
 - Make the store and deletion gates measure the store instead of matching constants
 - Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
 - Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles
+- Pass the daemon argument on the macOS LaunchAgent
+- Sample the capture process and gate daemon memory in the R1 gate
