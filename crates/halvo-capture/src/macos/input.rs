@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
 
 use core_foundation::base::TCFType;
 use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
@@ -14,11 +13,11 @@ use core_graphics::event::{
     CallbackResult,
 };
 
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality};
-use crate::macos::{unpersisted_placement, SharedForeground};
+use crate::event::Modality;
+use crate::macos::{emit_metadata_only, ForegroundReader, Unpersisted};
 use crate::secure_input_macos::secure_input_active;
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{CaptureError, CaptureSource};
 
 // Re-enable a tap the OS disabled (by timeout or by a security event). Declared
 // here so the callback can re-enable its own tap without owning the wrapper.
@@ -82,14 +81,14 @@ fn events_of_interest() -> Vec<CGEventType> {
 
 /// The keystroke + pointer source.
 pub struct InputSource {
-    foreground: SharedForeground,
+    foreground: ForegroundReader,
     secure_blocked: Arc<AtomicU64>,
     run_loop: Option<CFRunLoop>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl InputSource {
-    pub fn new(foreground: SharedForeground) -> Self {
+    pub fn new(foreground: ForegroundReader) -> Self {
         Self {
             foreground,
             secure_blocked: Arc::new(AtomicU64::new(0)),
@@ -140,18 +139,12 @@ impl CaptureSource for InputSource {
                             let secure = secure_input_active();
                             match classify_for_record(etype, secure) {
                                 Some(modality) => {
-                                    let (segment_ref, segment_key_id) = unpersisted_placement(0);
-                                    let event = CaptureStreamEvent::new_raw(
-                                        CapturedAt {
-                                            wall_clock: SystemTime::now(),
-                                            sequence: sink.next_sequence(),
-                                        },
+                                    let _ = emit_metadata_only(
+                                        &sink,
                                         modality,
                                         foreground.get(),
-                                        segment_ref,
-                                        segment_key_id,
+                                        Unpersisted::EMPTY,
                                     );
-                                    let _ = sink.emit(event);
                                 }
                                 None => {
                                     if secure

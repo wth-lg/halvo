@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use block2::RcBlock;
 use dispatch2::{DispatchQueue, DispatchRetained};
@@ -17,14 +17,14 @@ use objc2_screen_capture_kit::{
     SCStreamOutput, SCStreamOutputType, SCWindow,
 };
 
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality};
-use crate::macos::{unpersisted_placement, SharedForeground};
+use crate::event::Modality;
+use crate::macos::{emit_metadata_only, ForegroundReader, Unpersisted};
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{CaptureError, CaptureSource};
 
 struct ScreenIvars {
     sink: SinkHandle,
-    foreground: SharedForeground,
+    foreground: ForegroundReader,
 }
 
 define_class!(
@@ -42,24 +42,18 @@ define_class!(
                 return;
             }
             let ivars = self.ivars();
-            let (segment_ref, segment_key_id) = unpersisted_placement(0);
-            let event = CaptureStreamEvent::new_raw(
-                CapturedAt {
-                    wall_clock: SystemTime::now(),
-                    sequence: ivars.sink.next_sequence(),
-                },
+            let _ = emit_metadata_only(
+                &ivars.sink,
                 Modality::ScreenFrame,
                 ivars.foreground.get(),
-                segment_ref,
-                segment_key_id,
+                Unpersisted::EMPTY,
             );
-            let _ = ivars.sink.emit(event);
         }
     }
 );
 
 impl ScreenOutput {
-    fn new(sink: SinkHandle, foreground: SharedForeground) -> Retained<Self> {
+    fn new(sink: SinkHandle, foreground: ForegroundReader) -> Retained<Self> {
         let this = Self::alloc().set_ivars(ScreenIvars { sink, foreground });
         unsafe { msg_send![super(this), init] }
     }
@@ -68,14 +62,14 @@ impl ScreenOutput {
 /// The screen capture source.
 pub struct ScreenSource {
     fps: i32,
-    foreground: SharedForeground,
+    foreground: ForegroundReader,
     stream: Option<Retained<SCStream>>,
     _output: Option<Retained<ScreenOutput>>,
     _queue: Option<DispatchRetained<DispatchQueue>>,
 }
 
 impl ScreenSource {
-    pub fn new(fps: i32, foreground: SharedForeground) -> Self {
+    pub fn new(fps: i32, foreground: ForegroundReader) -> Self {
         Self {
             fps,
             foreground,

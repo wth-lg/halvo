@@ -3,15 +3,15 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use objc2::rc::autoreleasepool;
 use objc2_app_kit::NSWorkspace;
 
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality};
-use crate::macos::{unpersisted_placement, window_title, SharedForeground};
+use crate::event::Modality;
+use crate::macos::{emit_metadata_only, window_title, ForegroundWriter, Unpersisted};
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{CaptureError, CaptureSource};
 
 struct Frontmost {
     bundle_id: String,
@@ -34,16 +34,16 @@ fn read_frontmost() -> Option<Frontmost> {
 /// The foreground-app source (also emits window-title events on each change).
 pub struct ForegroundSource {
     interval: Duration,
-    foreground: SharedForeground,
+    foreground: Option<ForegroundWriter>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl ForegroundSource {
-    pub fn new(interval: Duration, foreground: SharedForeground) -> Self {
+    pub fn new(interval: Duration, foreground: ForegroundWriter) -> Self {
         Self {
             interval,
-            foreground,
+            foreground: Some(foreground),
             stop: Arc::new(AtomicBool::new(false)),
             thread: None,
         }
@@ -57,7 +57,9 @@ impl CaptureSource for ForegroundSource {
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let stop = self.stop.clone();
-        let foreground = self.foreground.clone();
+        let foreground = self.foreground.take().ok_or(CaptureError::Start(
+            "the foreground poller was already started".into(),
+        ))?;
         let interval = self.interval;
 
         let thread = std::thread::Builder::new()
@@ -70,33 +72,22 @@ impl CaptureSource for ForegroundSource {
                             last_bundle = front.bundle_id.clone();
                             foreground.set(front.bundle_id.clone());
 
-                            let (segment_ref, segment_key_id) = unpersisted_placement(0);
-                            let event = CaptureStreamEvent::new_raw(
-                                CapturedAt {
-                                    wall_clock: SystemTime::now(),
-                                    sequence: sink.next_sequence(),
-                                },
+                            let _ = emit_metadata_only(
+                                &sink,
                                 Modality::ForegroundApp,
                                 front.bundle_id.clone(),
-                                segment_ref,
-                                segment_key_id,
+                                Unpersisted::EMPTY,
                             );
-                            let _ = sink.emit(event);
 
                             if let Some(title) = window_title::focused_window_title(front.pid) {
-                                let (segment_ref, segment_key_id) =
-                                    unpersisted_placement(title.len() as u64);
-                                let event = CaptureStreamEvent::new_raw(
-                                    CapturedAt {
-                                        wall_clock: SystemTime::now(),
-                                        sequence: sink.next_sequence(),
-                                    },
+                                let _ = emit_metadata_only(
+                                    &sink,
                                     Modality::WindowTitle,
                                     front.bundle_id.clone(),
-                                    segment_ref,
-                                    segment_key_id,
+                                    Unpersisted {
+                                        byte_len: title.len() as u64,
+                                    },
                                 );
-                                let _ = sink.emit(event);
                             }
                         }
                     }
