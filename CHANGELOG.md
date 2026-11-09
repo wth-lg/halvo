@@ -29,6 +29,9 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the data view, its Tauri commands and the menu-bar capture indicator
 - Add failing tests for the adversarial review of the encrypted store
 - Measure the peak resident set of a 512 MiB segment write and read in an ignored test
+- Add the macOS secure-input guard and the capture backend dependencies
+- Add the idempotent macOS LaunchAgent install for the capture daemon
+- Add the macOS capture sources for screen, keystroke, pointer, foreground app and window title
 
 ### Changed
 
