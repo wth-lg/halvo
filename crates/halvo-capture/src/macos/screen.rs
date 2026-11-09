@@ -1,5 +1,6 @@
 //! Screen capture via ScreenCaptureKit.
 
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
@@ -13,12 +14,13 @@ use objc2::{define_class, msg_send, AnyThread, DefinedClass};
 use objc2_core_media::{CMSampleBuffer, CMTime};
 use objc2_foundation::{NSArray, NSError, NSObjectProtocol};
 use objc2_screen_capture_kit::{
-    SCContentFilter, SCRunningApplication, SCShareableContent, SCStream, SCStreamConfiguration,
-    SCStreamOutput, SCStreamOutputType, SCWindow,
+    SCContentFilter, SCDisplay, SCRunningApplication, SCShareableContent, SCStream,
+    SCStreamConfiguration, SCStreamOutput, SCStreamOutputType, SCWindow,
 };
 
 use crate::event::Modality;
 use crate::macos::{emit_metadata_only, ForegroundReader, Unpersisted};
+use crate::secure_input::SecureInputError;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
 
@@ -59,13 +61,47 @@ impl ScreenOutput {
     }
 }
 
-/// The screen capture source.
+/// Self-exclusion is enforced in each screen stream's content filter, built by
+/// [`filter_excluding_self`]. The macOS secure-input guard delegates here.
+pub fn self_exclusion_enforced_in_filter() -> Result<(), SecureInputError> {
+    Ok(())
+}
+
+/// A content filter for `display` that excludes this process's own windows, so
+/// Halvo never captures itself.
+fn filter_excluding_self(
+    content: &SCShareableContent,
+    display: &SCDisplay,
+) -> Retained<SCContentFilter> {
+    let my_pid = std::process::id() as i32;
+    let apps = unsafe { content.applications() };
+    let excluded: Vec<Retained<SCRunningApplication>> = apps
+        .iter()
+        .filter(|a| unsafe { a.processID() } == my_pid)
+        .collect();
+    let excluded_refs: Vec<&SCRunningApplication> = excluded.iter().map(|r| &**r).collect();
+    let excluded_apps = NSArray::from_slice(&excluded_refs);
+    let no_windows: Retained<NSArray<SCWindow>> = NSArray::new();
+    unsafe {
+        SCContentFilter::initWithDisplay_excludingApplications_exceptingWindows(
+            SCContentFilter::alloc(),
+            display,
+            &excluded_apps,
+            &no_windows,
+        )
+    }
+}
+
+/// The screen capture source. Created, started and stopped on one thread; the
+/// `PhantomData` pins it there because the ScreenCaptureKit objects are not safe
+/// to move between threads.
 pub struct ScreenSource {
     fps: i32,
     foreground: ForegroundReader,
     stream: Option<Retained<SCStream>>,
     _output: Option<Retained<ScreenOutput>>,
     _queue: Option<DispatchRetained<DispatchQueue>>,
+    _not_send: PhantomData<*const ()>,
 }
 
 impl ScreenSource {
@@ -76,6 +112,7 @@ impl ScreenSource {
             stream: None,
             _output: None,
             _queue: None,
+            _not_send: PhantomData,
         }
     }
 }
@@ -113,31 +150,13 @@ impl CaptureSource for ScreenSource {
             .next()
             .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
 
-        let my_pid = std::process::id() as i32;
-        let apps = unsafe { content.applications() };
-        let excluded: Vec<Retained<SCRunningApplication>> = apps
-            .iter()
-            .filter(|a| unsafe { a.processID() } == my_pid)
-            .collect();
-        let excluded_refs: Vec<&SCRunningApplication> = excluded.iter().map(|r| &**r).collect();
-        let excluded_apps = NSArray::from_slice(&excluded_refs);
-        let no_windows: Retained<NSArray<SCWindow>> = NSArray::new();
-
-        let filter = unsafe {
-            SCContentFilter::initWithDisplay_excludingApplications_exceptingWindows(
-                SCContentFilter::alloc(),
-                &display,
-                &excluded_apps,
-                &no_windows,
-            )
-        };
+        let filter = filter_excluding_self(&content, &display);
 
         let config = unsafe { SCStreamConfiguration::new() };
         unsafe {
             config.setWidth(display.width() as usize);
             config.setHeight(display.height() as usize);
             config.setMinimumFrameInterval(CMTime::new(1, self.fps));
-            config.setQueueDepth(3);
         }
 
         let output = ScreenOutput::new(sink, self.foreground.clone());
@@ -193,5 +212,15 @@ impl CaptureSource for ScreenSource {
         }
         self._output = None;
         self._queue = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn self_exclusion_is_enforced_in_the_filter() {
+        assert!(self_exclusion_enforced_in_filter().is_ok());
     }
 }

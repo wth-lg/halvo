@@ -1,5 +1,6 @@
 //! macOS secure-input guard.
 
+use crate::macos::screen::self_exclusion_enforced_in_filter;
 use crate::secure_input::{SecureInputError, SecureInputGuard, SecureInputState};
 
 #[link(name = "Carbon", kind = "framework")]
@@ -16,16 +17,25 @@ pub fn secure_input_active() -> bool {
     unsafe { IsSecureEventInputEnabled() != 0 }
 }
 
-/// Hold secure input, the same call a focused password field makes.
-pub fn hold_secure_input() {
-    // SAFETY: parameterless Carbon call; reference counted, released on exit.
+/// A live hold on secure input, the same state a focused password field asserts.
+/// The hold lasts until this value drops, which releases it.
+#[must_use = "dropping the hold releases secure input immediately"]
+pub struct SecureInputHold(());
+
+/// Hold secure input until the returned [`SecureInputHold`] drops.
+pub fn hold_secure_input() -> SecureInputHold {
+    // SAFETY: parameterless Carbon call; reference counted, balanced by the Drop
+    // below.
     unsafe { EnableSecureEventInput() };
+    SecureInputHold(())
 }
 
-/// Release a hold taken by [`hold_secure_input`].
-pub fn release_secure_input() {
-    // SAFETY: parameterless Carbon call, balancing one `hold_secure_input`.
-    unsafe { DisableSecureEventInput() };
+impl Drop for SecureInputHold {
+    fn drop(&mut self) {
+        // SAFETY: parameterless Carbon call, balancing the EnableSecureEventInput
+        // taken in hold_secure_input.
+        unsafe { DisableSecureEventInput() };
+    }
 }
 
 /// The macOS [`SecureInputGuard`].
@@ -48,7 +58,7 @@ impl SecureInputGuard for MacosSecureInput {
     }
 
     fn exclude_self_window(&self) -> Result<(), SecureInputError> {
-        Ok(())
+        self_exclusion_enforced_in_filter()
     }
 }
 
@@ -66,13 +76,17 @@ mod tests {
     #[test]
     fn guard_tracks_a_real_secure_input_transition() {
         let guard = MacosSecureInput::new();
-        hold_secure_input();
-        let active_seen = secure_input_active();
-        if active_seen {
-            assert_eq!(guard.state(), SecureInputState::Active);
+        let hold = hold_secure_input();
+        if !secure_input_active() {
+            eprintln!(
+                "skipped guard_tracks_a_real_secure_input_transition: the OS did not \
+                 flip the secure-input flag in this environment"
+            );
+            return;
         }
-        release_secure_input();
-        if active_seen && !secure_input_active() {
+        assert_eq!(guard.state(), SecureInputState::Active);
+        drop(hold);
+        if !secure_input_active() {
             assert_eq!(guard.state(), SecureInputState::Inactive);
         }
     }

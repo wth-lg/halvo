@@ -106,7 +106,16 @@ pub(crate) fn emit_metadata_only(
 }
 
 /// Run every macOS source for a bounded window and report per-modality counts.
+/// Reads the gate's secure-input switch from the environment, then delegates to
+/// [`run_sources`], which takes it as a parameter.
 pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
+    let secure_gate = std::env::var("HALVO_GATE_SECURE_INPUT").as_deref() == Ok("1");
+    run_sources(seconds, secure_gate)
+}
+
+/// Run every macOS source for `seconds`. When `secure_gate` is set, hold secure
+/// input for the window so the zero-keystroke invariant can be measured.
+fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, DaemonError> {
     let (handle, writer) = sink::channel(SINK_CAPACITY);
     let counts = Arc::new(Counts::default());
     let drain = {
@@ -136,16 +145,11 @@ pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
         }
     }
 
-    let secure_gate = std::env::var("HALVO_GATE_SECURE_INPUT").as_deref() == Ok("1");
-    if secure_gate {
-        crate::secure_input_macos::hold_secure_input();
-    }
+    let _secure_hold = secure_gate.then(crate::secure_input_macos::hold_secure_input);
 
     std::thread::sleep(Duration::from_secs(seconds));
 
-    if secure_gate {
-        crate::secure_input_macos::release_secure_input();
-    }
+    drop(_secure_hold);
 
     foreground.stop();
     screen.stop();
