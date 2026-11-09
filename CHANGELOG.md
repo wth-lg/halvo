@@ -29,6 +29,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the data view, its Tauri commands and the menu-bar capture indicator
 - Add failing tests for the adversarial review of the encrypted store
 - Measure the peak resident set of a 512 MiB segment write and read in an ignored test
+- Prove the store crypto-shred and single-writer invariants over random operation sequences and process races
 - Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
 - Add the Windows capture backend behind cfg with the logon-task install and unit tests
 - Add a CI grep lint banning low-level input hooks in the capture crate
@@ -41,6 +42,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Derive the grants to record from the permission list instead of a duplicate field
 - Resolve the consent settings path through Tauri so the identifier lives only in tauri.conf.json
 - Write the storage cap constants from the window, the daily estimate and the headroom
+- Accept a platform refusal of a contending writer in the single-writer race check
 - Name the calendar constants and the year-month-day conversions of UtcDay
 - Add the Windows crate features for the new input, HID and registry-watch constants
 
