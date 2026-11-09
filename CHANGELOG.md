@@ -30,9 +30,17 @@ Each entry under Unreleased is the subject line of one commit.
 - Add failing tests for the adversarial review of the encrypted store
 - Measure the peak resident set of a 512 MiB segment write and read in an ignored test
 - Prove the store crypto-shred and single-writer invariants over random operation sequences and process races
+- Add the macOS secure-input guard and the capture backend dependencies
+- Add the idempotent macOS LaunchAgent install for the capture daemon
+- Add the macOS capture sources for screen, keystroke, pointer, foreground app and window title
 
 ### Changed
 
+- Split the foreground state into one writer and readers and name the unpersisted placement
+- Make the secure-input zero-keystroke invariant a type and a test
+- Make the secure-input hold RAII and name the screen self-exclusion step
+- Own window-title CoreFoundation values by Drop instead of manual CFRelease
+- Subtract the unwired audio and mic on/off and name the XML, installer and start-failure types
 - Make the inventory sorted by construction so eviction shreds the oldest day
 - Request the Accessibility grant through the system prompt and name request outcomes by what the code knows
 - Keep one public source for the pane title the running macOS shows
