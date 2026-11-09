@@ -29,14 +29,17 @@ impl TaskSpec {
         }
     }
 
-    /// The `/TR` value: the quoted program followed by its arguments. The program
-    /// is wrapped in literal quotes so a path with spaces stays one token to the
-    /// Task Scheduler.
+    /// The `/TR` value: the program followed by its arguments, every token
+    /// wrapped in literal quotes. Quoting each token (not just the program) keeps
+    /// an argument that contains a space one token to the Task Scheduler rather
+    /// than two.
     pub fn task_run(&self) -> String {
         let mut run = format!("\"{}\"", self.program);
         for arg in &self.args {
             run.push(' ');
+            run.push('"');
             run.push_str(arg);
+            run.push('"');
         }
         run
     }
@@ -92,13 +95,37 @@ pub fn build_delete_args(task_name: &str) -> Vec<String> {
     ]
 }
 
+/// The text inside each `<Command>` element of a Task Scheduler XML definition.
+fn command_texts(xml: &str) -> Vec<&str> {
+    const OPEN: &str = "<Command>";
+    const CLOSE: &str = "</Command>";
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find(OPEN) {
+        let after = &rest[start + OPEN.len()..];
+        let Some(end) = after.find(CLOSE) else {
+            break;
+        };
+        out.push(&after[..end]);
+        rest = &after[end + CLOSE.len()..];
+    }
+    out
+}
+
 /// Whether an existing task's XML already registers `program` as its command, so
-/// install can skip the rewrite. The match is case-insensitive because Windows
-/// paths are, and ignores the surrounding `<Command>` quoting.
+/// install can skip the rewrite. Reads the `<Command>` element text, not a
+/// substring of the whole XML, so a path that appears only in `<Arguments>` or a
+/// comment does not count. The match is case-insensitive because Windows paths
+/// are, and ignores the surrounding quoting of the command.
 pub fn task_registers(existing_xml: &str, program: &str) -> bool {
-    let haystack = existing_xml.to_ascii_lowercase();
+    if program.is_empty() {
+        return false;
+    }
     let needle = program.to_ascii_lowercase();
-    !needle.is_empty() && haystack.contains(&needle)
+    command_texts(existing_xml).into_iter().any(|cmd| {
+        let cmd = cmd.trim().trim_matches('"').trim();
+        cmd.to_ascii_lowercase() == needle
+    })
 }
 
 /// Installs, removes and reports the capture daemon's per-user logon task by
@@ -178,26 +205,44 @@ mod tests {
     }
 
     #[test]
-    fn create_args_are_a_logon_task_with_an_interactive_token() {
-        let args = build_create_args(&spec());
-        for expected in [
-            "/Create", "/F", "/SC", "ONLOGON", "/RL", "LIMITED", "/IT", "/TN", "/TR",
-        ] {
-            assert!(
-                args.iter().any(|a| a == expected),
-                "missing {expected} in {args:?}"
-            );
-        }
-        let tn = args.iter().position(|a| a == "/TN").unwrap();
-        assert_eq!(args[tn + 1], DEFAULT_TASK_NAME);
+    fn create_args_are_the_exact_logon_task_vector() {
+        let s = spec();
+        let mut expected: Vec<String> = [
+            "/Create", "/F", "/SC", "ONLOGON", "/RL", "LIMITED", "/IT", "/TN",
+        ]
+        .iter()
+        .map(|a| a.to_string())
+        .collect();
+        expected.push(DEFAULT_TASK_NAME.to_string());
+        expected.push("/TR".to_string());
+        expected.push(s.task_run());
+        assert_eq!(build_create_args(&s), expected);
     }
 
     #[test]
-    fn task_run_quotes_the_program_and_keeps_args() {
+    fn task_run_quotes_every_token() {
         let run = spec().task_run();
         assert_eq!(
             run,
-            "\"C:\\Program Files\\Halvo\\halvo-capture.exe\" --service-run"
+            "\"C:\\Program Files\\Halvo\\halvo-capture.exe\" \"--service-run\""
+        );
+    }
+
+    #[test]
+    fn task_run_keeps_an_arg_with_a_space_as_one_token() {
+        let spec = TaskSpec {
+            task_name: DEFAULT_TASK_NAME.to_string(),
+            program: "C:\\Program Files\\Halvo\\halvo-capture.exe".to_string(),
+            args: vec![
+                "--log-dir".to_string(),
+                "C:\\Program Data\\Halvo".to_string(),
+            ],
+        };
+        // The spaced path is wrapped in one pair of quotes, so Task Scheduler
+        // reads it as a single argument rather than splitting on the space.
+        assert_eq!(
+            spec.task_run(),
+            "\"C:\\Program Files\\Halvo\\halvo-capture.exe\" \"--log-dir\" \"C:\\Program Data\\Halvo\""
         );
     }
 
@@ -214,14 +259,30 @@ mod tests {
     }
 
     #[test]
-    fn task_registers_matches_case_insensitively_and_rejects_other_commands() {
-        let xml = "<Command>\"C:\\Program Files\\Halvo\\HALVO-CAPTURE.EXE\"</Command>";
+    fn task_registers_matches_the_command_element_case_insensitively() {
+        let xml = "<Actions><Exec>\
+            <Command>\"C:\\Program Files\\Halvo\\HALVO-CAPTURE.EXE\"</Command>\
+            <Arguments>--service-run</Arguments></Exec></Actions>";
         assert!(task_registers(
             xml,
             "C:\\Program Files\\Halvo\\halvo-capture.exe"
         ));
         assert!(!task_registers(xml, "C:\\Windows\\notepad.exe"));
         assert!(!task_registers(xml, ""));
+    }
+
+    #[test]
+    fn task_registers_ignores_a_program_that_is_only_an_argument() {
+        // The program path appears in <Arguments>, not <Command>; a substring
+        // search would false-match, a <Command> read must not.
+        let xml = "<Actions><Exec>\
+            <Command>C:\\Windows\\cmd.exe</Command>\
+            <Arguments>C:\\Program Files\\Halvo\\halvo-capture.exe</Arguments>\
+            </Exec></Actions>";
+        assert!(!task_registers(
+            xml,
+            "C:\\Program Files\\Halvo\\halvo-capture.exe"
+        ));
     }
 
     #[test]
