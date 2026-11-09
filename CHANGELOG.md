@@ -24,3 +24,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Scaffold the halvo-capture crate with shared types and module boundaries
 - Silence the shellcheck findings in the gate harness
 - Add SQLCipher and AEAD dependencies for the encrypted segment store
+- Add dev-fallback and release key custody for the store key
