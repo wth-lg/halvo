@@ -25,7 +25,7 @@ impl Permission {
         }
     }
 
-    pub const fn pane_name(self) -> &'static str {
+    const fn pane_name(self) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => "Screen & System Audio Recording",
             Permission::Accessibility => "Accessibility",
