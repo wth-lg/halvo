@@ -1,20 +1,3 @@
-//! Capture status, stored-data inventory, pause and the storage cap: the types
-//! the data view binds to and the controller behind its commands (phase P5).
-//!
-//! The view reads and deletes through [`DataStore`], which is the store's expiry
-//! (delete) side plus the read-only [`StoreInventory`]. It never holds the append
-//! side ([`crate::store::SegmentStore`]), so the UI process cannot become a second
-//! writer of the segment store; the capture daemon stays the sole writer.
-//!
-//! Pause and the storage cap live in one small settings file, [`SettingsFile`],
-//! whose only writer is the consent view. The capture daemon reads it (through
-//! [`ConsentSettings::load`]) and emits nothing while the state is
-//! [`CaptureState::Paused`]; the state is one enum in one place, so a paused
-//! capture cannot also be recording.
-//!
-//! The observation window is fixed ([`ObservationWindow`]) and is never asked
-//! about: the user controls what is kept with pause, delete-all and the cap.
-
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -28,18 +11,10 @@ use super::{CaptureState, CaptureStatus, ConsentError, ConsentView, ModalityCons
 use crate::event::Modality;
 use crate::store::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
-/// The bundle identifier the settings directory is named after. It must match
-/// `identifier` in src-tauri/tauri.conf.json so the app and the daemon read the
-/// same file.
 pub const APP_IDENTIFIER: &str = "com.halvo.desktop";
 
-/// The file name of the consent settings inside the app's config directory.
 pub const SETTINGS_FILE_NAME: &str = "consent.json";
 
-/// The rolling observation window (decision item 5). Capture never stops; raw
-/// capture older than the window is crypto-shredded by the store's expiry pass;
-/// the first workflow report comes after the first report day. Fixed in R1 and
-/// not a setting, so no onboarding step asks about it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct ObservationWindow {
     pub rolling_days: u32,
@@ -58,19 +33,13 @@ impl ObservationWindow {
     }
 }
 
-/// The storage cap in bytes. When the store grows past it, the oldest days are
-/// crypto-shredded first until the store is under the cap again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct StorageCap(u64);
 
 impl StorageCap {
     pub const GIB: u64 = 1024 * 1024 * 1024;
-    /// 25 GiB: the smallest default Microsoft Recall ships (researcher-3 #27),
-    /// above the 14 GB a 14-day window costs at the 1 GB/day Screenpipe figure.
     pub const DEFAULT: StorageCap = StorageCap(25 * Self::GIB);
-    /// Below one day of capture the cap would shred the current day on every
-    /// pass, so 1 GiB is the floor.
     pub const MIN: StorageCap = StorageCap(Self::GIB);
 
     pub fn from_bytes(bytes: u64) -> Result<Self, ConsentError> {
@@ -94,8 +63,6 @@ impl Default for StorageCap {
     }
 }
 
-/// A calendar day in UTC, as days since 1970-01-01. The inventory is bucketed by
-/// it and the cap evicts whole days, oldest first. Serializes as `YYYY-MM-DD`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UtcDay(i64);
 
@@ -124,7 +91,6 @@ impl UtcDay {
         Self(self.0 + 1)
     }
 
-    /// Proleptic Gregorian (year, month, day) for this day.
     pub fn civil(self) -> (i64, u32, u32) {
         let z = self.0 + 719_468;
         let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -186,8 +152,6 @@ impl<'de> Deserialize<'de> for UtcDay {
     }
 }
 
-/// One inventory line: how many events of one modality were captured on one day
-/// and how many bytes they occupy in the store.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InventoryRow {
     pub day: UtcDay,
@@ -196,16 +160,12 @@ pub struct InventoryRow {
     pub bytes: u64,
 }
 
-/// What is stored, by modality and day, oldest day first. This is the list the
-/// data view shows so the user can see what Halvo holds before deleting it.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Inventory {
     pub rows: Vec<InventoryRow>,
 }
 
 impl Inventory {
-    /// Build an inventory, sorting rows by day then modality so the order is the
-    /// same whichever store produced them.
     pub fn from_rows(mut rows: Vec<InventoryRow>) -> Self {
         rows.sort_by(|a, b| {
             a.day
@@ -241,12 +201,7 @@ fn modality_order(modality: Modality) -> u8 {
     }
 }
 
-/// The read side the data view needs that [`crate::store::SegmentStore`] does
-/// not declare: the stored inventory, and oldest-first eviction for the cap. The
-/// encrypted store (phase P2) implements it next to its expiry pass; until P6
-/// wires that store into the app, the app binds a stand-in that holds nothing.
 pub trait StoreInventory {
-    /// Everything stored, by modality and day.
     fn inventory(&self) -> StoreResult<Inventory>;
 
     /// Crypto-shred every segment captured before the start of `day` (UTC), so
@@ -254,9 +209,6 @@ pub trait StoreInventory {
     fn crypto_shred_before(&mut self, day: UtcDay) -> StoreResult<ShredReport>;
 }
 
-/// Everything the data view touches in the store: delete (expiry) and read
-/// (inventory). Deliberately not [`crate::store::SegmentStore`]: the view never
-/// appends.
 pub trait DataStore: SegmentExpiry + StoreInventory {}
 
 impl<T: SegmentExpiry + StoreInventory> DataStore for T {}
@@ -267,16 +219,12 @@ impl From<StoreError> for ConsentError {
     }
 }
 
-/// The user's capture controls, persisted. One writer: the consent view. The
-/// daemon reads `capture` and emits nothing while it is paused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ConsentSettings {
     pub version: u32,
     pub capture: CaptureState,
     pub storage_cap: StorageCap,
-    /// Every permission Halvo has held at some point on this install. A member
-    /// that is not granted now is a lost grant the onboarding walks back.
     pub permissions_once_granted: Vec<Permission>,
 }
 
@@ -292,19 +240,15 @@ impl Default for ConsentSettings {
 }
 
 impl ConsentSettings {
-    /// Load the settings from the default path; a missing file is the defaults.
     pub fn load_default() -> Result<Self, ConsentError> {
         SettingsFile::default_location().load()
     }
 
-    /// Load the settings from `path`; a missing file is the defaults.
     pub fn load(path: &Path) -> Result<Self, ConsentError> {
         SettingsFile::new(path.to_path_buf()).load()
     }
 }
 
-/// The consent settings file and its atomic writer. Safe to save twice: each
-/// save writes a sibling temp file and renames it over the target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsFile {
     path: PathBuf,
@@ -315,9 +259,6 @@ impl SettingsFile {
         Self { path }
     }
 
-    /// `<app config dir>/consent.json`, where the config dir is the platform's
-    /// per-user application directory named after [`APP_IDENTIFIER`]: the same
-    /// directory Tauri's `app_config_dir` resolves for this identifier.
     pub fn default_location() -> Self {
         Self::new(default_config_dir().join(SETTINGS_FILE_NAME))
     }
@@ -383,9 +324,6 @@ fn default_config_dir() -> PathBuf {
     }
 }
 
-/// The modality policy for R1: screen, keystroke, pointer, foreground app and
-/// window title are on; system audio, microphone and camera are off and are not
-/// requested (researcher-3 item 10). Not a setting in R1.
 pub fn r1_modality_consent(modality: Modality) -> ModalityConsent {
     match modality {
         Modality::ScreenFrame
@@ -399,9 +337,6 @@ pub fn r1_modality_consent(modality: Modality) -> ModalityConsent {
     }
 }
 
-/// The first day to keep so that the store fits under `cap_bytes`, removing
-/// whole days oldest first; `None` when the store already fits. Every segment
-/// before the returned day is shredded.
 pub fn eviction_cutoff(inventory: &Inventory, cap_bytes: u64) -> Option<UtcDay> {
     let mut remaining = inventory.total_bytes();
     if remaining <= cap_bytes {
@@ -421,8 +356,6 @@ pub fn eviction_cutoff(inventory: &Inventory, cap_bytes: u64) -> Option<UtcDay> 
     cutoff
 }
 
-/// The controller behind the data view: status, inventory, pause, delete-all
-/// and the storage cap, against a [`DataStore`] and one [`SettingsFile`].
 pub struct ConsentController {
     store: Box<dyn DataStore + Send>,
     settings_file: SettingsFile,
@@ -431,8 +364,6 @@ pub struct ConsentController {
 }
 
 impl ConsentController {
-    /// Load the settings, read the inventory and enforce the cap once, so a
-    /// store that grew past the cap while the view was closed is trimmed on open.
     pub fn open(
         store: Box<dyn DataStore + Send>,
         settings_file: SettingsFile,
@@ -461,7 +392,6 @@ impl ConsentController {
         self.settings.storage_cap
     }
 
-    /// Re-read the inventory from the store and return it.
     pub fn inventory(&mut self) -> Result<&Inventory, ConsentError> {
         self.refresh_inventory()?;
         Ok(&self.last_inventory)
@@ -472,15 +402,12 @@ impl ConsentController {
         Ok(())
     }
 
-    /// Crypto-shred everything through the store's delete-all. Safe twice: a
-    /// second call shreds nothing and reports zero.
     pub fn delete_everything(&mut self) -> Result<ShredReport, ConsentError> {
         let report = self.store.crypto_shred_all()?;
         self.refresh_inventory()?;
         Ok(report)
     }
 
-    /// Set and persist the cap, then trim the store to it, oldest days first.
     pub fn set_storage_cap(
         &mut self,
         cap: StorageCap,
@@ -492,8 +419,6 @@ impl ConsentController {
         self.enforce_storage_cap()
     }
 
-    /// Trim the store to the cap, oldest days first. `Ok(None)` when nothing
-    /// had to go. Safe twice.
     pub fn enforce_storage_cap(&mut self) -> Result<Option<ShredReport>, ConsentError> {
         self.refresh_inventory()?;
         let Some(cutoff) = eviction_cutoff(&self.last_inventory, self.settings.storage_cap.bytes())
@@ -505,8 +430,6 @@ impl ConsentController {
         Ok(Some(report))
     }
 
-    /// Record which permissions are granted now, so a later loss is detected.
-    /// Persists only when the set grew.
     pub fn record_granted_permissions(
         &mut self,
         granted_now: &[Permission],
@@ -538,8 +461,6 @@ impl ConsentView for ConsentController {
         r1_modality_consent(modality)
     }
 
-    /// Pause or resume. Persisted so the daemon sees it; a no-op when already
-    /// in that state.
     fn set_capture_state(&mut self, state: CaptureState) -> Result<(), ConsentError> {
         if self.settings.capture == state {
             return Ok(());

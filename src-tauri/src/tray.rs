@@ -1,7 +1,3 @@
-//! The persistent menu-bar (macOS) or tray (Windows) indicator: it says whether
-//! Halvo is capturing or paused, and its menu pauses, resumes, opens the data
-//! view and quits. Closing the window hides it, so the indicator stays up.
-
 use halvo_capture::consent::{CaptureState, ConsentView};
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
@@ -20,7 +16,6 @@ pub struct TrayHandles {
     toggle_item: MenuItem<Wry>,
 }
 
-/// The texts the indicator shows for a capture state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrayLabels {
     pub title: &'static str,
@@ -89,7 +84,6 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Re-read the capture state and update the indicator. Safe to call any time.
 pub fn refresh(app: &AppHandle) {
     let Some(handles) = app.try_state::<TrayHandles>() else {
         return;

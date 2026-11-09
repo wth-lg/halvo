@@ -1,29 +1,7 @@
-//! Just-in-time permission onboarding (phase P5).
-//!
-//! macOS gates capture behind three Privacy & Security panes: Screen & System
-//! Audio Recording (frames; system audio shares the grant but stays off in R1),
-//! Accessibility (window titles) and Input Monitoring (the listen-only event tap
-//! for keystrokes and pointer). Microphone and camera are not requested in R1.
-//! Each pane is deep-linked with the `x-apple.systempreferences:` scheme, so a
-//! non-technical user lands on the exact switch (researcher-3 and researcher-4).
-//!
-//! macOS also takes grants away: it re-prompts for screen recording
-//! periodically, resets grants after an OS update and after the app's code
-//! signature changes. [`assess`] compares what the OS reports now with the
-//! permissions Halvo has held before and turns every gap into a [`WalkbackStep`]
-//! list the view shows: ask the system, open the pane, relaunch where needed.
-//!
-//! Windows has no privacy-pane gate for screen or input capture (researcher-4),
-//! so [`Permission::required_on_this_platform`] is empty there and the view
-//! shows no onboarding.
-
 use serde::{Deserialize, Serialize};
 
 use super::ConsentError;
 
-/// The macOS Privacy & Security grants R1 capture needs. A closed set: the
-/// microphone and camera panes are not in it because those modalities are off
-/// and not requested in R1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Permission {
@@ -33,15 +11,12 @@ pub enum Permission {
 }
 
 impl Permission {
-    /// The three R1 grants, in the order the view asks for them.
     pub const R1_MACOS: [Permission; 3] = [
         Permission::ScreenAndSystemAudioRecording,
         Permission::Accessibility,
         Permission::InputMonitoring,
     ];
 
-    /// The grants this platform gates capture behind: all three on macOS, none
-    /// on Windows, where screen and input capture have no Privacy page gate.
     pub fn required_on_this_platform() -> &'static [Permission] {
         if cfg!(target_os = "macos") {
             &Self::R1_MACOS
@@ -50,7 +25,6 @@ impl Permission {
         }
     }
 
-    /// The pane's name as System Settings shows it.
     pub const fn pane_name(self) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => "Screen & System Audio Recording",
@@ -59,10 +33,6 @@ impl Permission {
         }
     }
 
-    /// The pane's title as the running macOS shows it. macOS 27 retitled the
-    /// Accessibility privacy pane "Device Control and Data Access" (measured on
-    /// 27.2: the `Privacy_Accessibility` anchor opens a window with that title
-    /// and the accessibility app list); the deep link is unchanged.
     pub const fn pane_title_on_macos(self, major_version: Option<u32>) -> &'static str {
         match (self, major_version) {
             (Permission::Accessibility, Some(major)) if major >= 27 => {
@@ -72,7 +42,6 @@ impl Permission {
         }
     }
 
-    /// The deep link that opens the exact pane in System Settings.
     pub const fn settings_url(self) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => {
@@ -87,7 +56,6 @@ impl Permission {
         }
     }
 
-    /// Why Halvo needs it, in the user's terms.
     pub const fn why(self) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => {
@@ -100,9 +68,6 @@ impl Permission {
         }
     }
 
-    /// Whether macOS shows its own consent dialog when the app asks. The
-    /// Accessibility pane has no supported prompt, so the walk-back opens the
-    /// pane directly.
     pub const fn has_system_prompt(self) -> bool {
         matches!(
             self,
@@ -110,49 +75,35 @@ impl Permission {
         )
     }
 
-    /// Whether a new grant takes effect only after the app restarts. Screen
-    /// recording does; the other two apply to the running process.
     pub const fn needs_relaunch_after_grant(self) -> bool {
         matches!(self, Permission::ScreenAndSystemAudioRecording)
     }
 }
 
-/// What the OS reports for one permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrantState {
     Granted,
-    /// The pane lists Halvo with its switch off, or the OS answers no.
     NotGranted,
-    /// The user has never been asked (only Input Monitoring reports this).
     NotDetermined,
 }
 
-/// What happened when the app asked the system for a grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RequestOutcome {
-    /// The grant is already held.
     AlreadyGranted,
-    /// macOS showed (or queued) its consent dialog; re-check after the user answers.
     PromptShown,
-    /// macOS will not prompt again (already denied once); the pane is the only way.
     NoPromptAvailable,
 }
 
-/// Reads and requests grants from the OS. The macOS probe is
-/// [`platform_probe`]; tests use a fake.
 pub trait PermissionProbe {
     fn check(&self, permission: Permission) -> GrantState;
     fn request(&self, permission: Permission) -> RequestOutcome;
-    /// The macOS major version, for pane titles that changed between releases.
-    /// `None` off macOS or when it cannot be read.
     fn macos_major_version(&self) -> Option<u32> {
         None
     }
 }
 
-/// One permission as the view shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PermissionStatus {
     pub permission: Permission,
@@ -160,11 +111,9 @@ pub struct PermissionStatus {
     pub settings_url: &'static str,
     pub why: &'static str,
     pub grant: GrantState,
-    /// Granted before on this install and not granted now.
     pub lost: bool,
 }
 
-/// A step that walks the user back to a working grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WalkbackAction {
@@ -181,9 +130,6 @@ pub struct WalkbackStep {
     pub text: String,
 }
 
-/// The onboarding state the view polls: every required permission, which ones
-/// were lost, the steps that walk the user back, and the grants held now (for
-/// the caller to record).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct OnboardingState {
     pub permissions: Vec<PermissionStatus>,
@@ -193,8 +139,6 @@ pub struct OnboardingState {
     pub walkback: Vec<WalkbackStep>,
 }
 
-/// Compare what the OS grants now against `once_granted` for every permission
-/// in `required`, and build the walk-back for each gap.
 pub fn assess(
     probe: &dyn PermissionProbe,
     required: &[Permission],
@@ -281,7 +225,6 @@ fn walkback_for(permission: Permission, pane: &str, lost: bool) -> Vec<WalkbackS
     steps
 }
 
-/// Open the pane for `permission` in System Settings through its deep link.
 pub fn open_settings_pane(permission: Permission) -> Result<(), ConsentError> {
     #[cfg(target_os = "macos")]
     {
@@ -307,7 +250,6 @@ pub fn open_settings_pane(permission: Permission) -> Result<(), ConsentError> {
     }
 }
 
-/// The probe for the platform this binary runs on.
 pub fn platform_probe() -> Box<dyn PermissionProbe + Send + Sync> {
     #[cfg(target_os = "macos")]
     {
@@ -319,8 +261,6 @@ pub fn platform_probe() -> Box<dyn PermissionProbe + Send + Sync> {
     }
 }
 
-/// A platform with no permission gate: every permission reads as granted.
-/// Windows uses it (researcher-4: no Privacy page gate for screen or input).
 #[cfg(not(target_os = "macos"))]
 pub struct NoGateProbe;
 
@@ -334,9 +274,6 @@ impl PermissionProbe for NoGateProbe {
     }
 }
 
-/// The macOS probe over the TCC query functions: `CGPreflightScreenCaptureAccess`
-/// (screen), `AXIsProcessTrusted` (accessibility) and `IOHIDCheckAccess` (input
-/// monitoring), with the matching request calls where the OS has a prompt.
 #[cfg(target_os = "macos")]
 pub mod macos {
     use super::{GrantState, Permission, PermissionProbe, RequestOutcome};
@@ -364,7 +301,6 @@ pub mod macos {
 
     pub struct TccProbe;
 
-    /// Read the major version from `sw_vers -productVersion` once.
     fn macos_major_version() -> Option<u32> {
         static MAJOR: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
         *MAJOR.get_or_init(|| {

@@ -1,7 +1,3 @@
-//! The Tauri commands behind the data view. Each one locks the consent
-//! controller, does one thing and returns a serializable value; the page polls
-//! `capture_status` and `onboarding_state` and calls the rest on a click.
-
 use std::sync::Mutex;
 
 use halvo_capture::consent::onboarding::{

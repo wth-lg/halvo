@@ -1,7 +1,3 @@
-//! The store the app binds until phase P6 wires the encrypted segment store in.
-//! It holds nothing, so the inventory is empty, and it refuses to pretend a
-//! deletion happened: delete-all and the cap report that the store is not wired.
-
 use halvo_capture::consent::status::{Inventory, StoreInventory, UtcDay};
 use halvo_capture::store::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
