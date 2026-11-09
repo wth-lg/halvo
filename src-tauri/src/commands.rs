@@ -1,7 +1,8 @@
 use std::sync::Mutex;
 
 use halvo_capture::consent::onboarding::{
-    assess, open_settings_pane, OnboardingState, Permission, PermissionProbe, RequestOutcome,
+    assess, open_settings_pane, GrantState, OnboardingState, Permission, PermissionProbe,
+    RequestOutcome,
 };
 use halvo_capture::consent::status::{ConsentController, Inventory, ObservationWindow, StorageCap};
 use halvo_capture::consent::{CaptureState, CaptureStatus, ConsentView};
@@ -112,7 +113,13 @@ pub fn onboarding_state(state: State<'_, AppState>) -> Result<OnboardingState, S
             Permission::required_on_this_platform(),
             &c.settings().permissions_once_granted,
         );
-        c.record_granted_permissions(&onboarding.granted_now)
+        let granted: Vec<Permission> = onboarding
+            .permissions
+            .iter()
+            .filter(|p| p.grant == GrantState::Granted)
+            .map(|p| p.permission)
+            .collect();
+        c.record_granted_permissions(&granted)
             .map_err(|e| e.to_string())?;
         Ok(onboarding)
     })

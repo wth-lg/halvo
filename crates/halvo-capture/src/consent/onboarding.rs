@@ -126,7 +126,6 @@ pub struct WalkbackStep {
 pub struct OnboardingState {
     pub permissions: Vec<PermissionStatus>,
     pub lost_grants: Vec<Permission>,
-    pub granted_now: Vec<Permission>,
     pub all_granted: bool,
     pub walkback: Vec<WalkbackStep>,
 }
@@ -138,7 +137,6 @@ pub fn assess(
 ) -> OnboardingState {
     let mut permissions = Vec::with_capacity(required.len());
     let mut lost_grants = Vec::new();
-    let mut granted_now = Vec::new();
     let mut walkback = Vec::new();
     let macos_major = probe.macos_major_version();
 
@@ -147,9 +145,7 @@ pub fn assess(
         let grant = probe.check(permission);
         let held_before = once_granted.contains(&permission);
         let lost = grant != GrantState::Granted && held_before;
-        if grant == GrantState::Granted {
-            granted_now.push(permission);
-        } else {
+        if grant != GrantState::Granted {
             if lost {
                 lost_grants.push(permission);
             }
@@ -169,7 +165,6 @@ pub fn assess(
         all_granted: walkback.is_empty(),
         permissions,
         lost_grants,
-        granted_now,
         walkback,
     }
 }
@@ -546,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn all_granted_yields_no_walk_back_and_records_every_grant() {
+    fn all_granted_yields_no_walk_back() {
         let probe = FakeProbe(
             Permission::R1_MACOS
                 .iter()
@@ -556,7 +551,10 @@ mod tests {
         let state = assess(&probe, &Permission::R1_MACOS, &[]);
         assert!(state.all_granted);
         assert!(state.walkback.is_empty());
-        assert_eq!(state.granted_now, Permission::R1_MACOS.to_vec());
+        assert!(state
+            .permissions
+            .iter()
+            .all(|p| p.grant == GrantState::Granted));
     }
 
     #[test]
