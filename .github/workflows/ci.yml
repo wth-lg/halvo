@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - name: Prerequisites
+        shell: bash
+        run: sh scripts/prerequisites.sh
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        shell: bash
+        run: npm run tauri build
+      - name: Version
+        shell: bash
+        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: halvo-macos
+          path: target/release/bundle/macos/Halvo.app
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - name: Prerequisites
+        shell: bash
+        run: sh scripts/prerequisites.sh
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        shell: bash
+        run: npm run tauri build -- --no-bundle
+      - name: Version
+        shell: bash
+        run: test "$(target/release/halvo.exe --version)" = 0.0.0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: halvo-windows
+          path: target/release/halvo.exe
+          if-no-files-found: error

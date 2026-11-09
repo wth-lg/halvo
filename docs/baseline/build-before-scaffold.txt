@@ -1,0 +1,14 @@
+Build command run on the README-only repository (commit a9d79ab), before the scaffold existed.
+
+command: npm run tauri build
+exit code: 254
+
+output (first lines):
+  npm error code ENOENT
+  npm error syscall open
+  npm error path <repo>/package.json
+  npm error errno -2
+  npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '<repo>/package.json'
+  npm error enoent This is related to npm not being able to find a file.
+  npm error enoent
+  npm error A complete log of this run can be found in: <npm log>
