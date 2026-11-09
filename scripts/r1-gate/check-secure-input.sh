@@ -1,7 +1,9 @@
 #!/bin/sh
 # Sub-check: typing into a password field records zero keystroke events.
 set -u
-DIR=$(cd "$(dirname "$0")" && pwd); . "$DIR/lib.sh"
+DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
+. "$DIR/lib.sh"
 name=secure-input
 
 self_test() {

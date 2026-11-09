@@ -2,7 +2,9 @@
 # Sub-check: the store holds no plaintext marker and the owner unwraps the store
 # key with no prompt.
 set -u
-DIR=$(cd "$(dirname "$0")" && pwd); . "$DIR/lib.sh"
+DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
+. "$DIR/lib.sh"
 name=store
 
 self_test() {

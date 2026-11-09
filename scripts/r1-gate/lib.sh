@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Shared logic for the R1 gate harness.
 #
 # This file is the measuring instrument. Every sub-check decides PASS or FAIL by
