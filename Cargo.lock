@@ -1140,6 +1140,7 @@ name = "halvo"
 version = "0.0.0"
 dependencies = [
  "halvo-capture",
+ "serde",
  "tauri",
  "tauri-build",
 ]
@@ -1149,6 +1150,7 @@ name = "halvo-capture"
 version = "0.0.0"
 dependencies = [
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
  "uuid",
  "zeroize",
