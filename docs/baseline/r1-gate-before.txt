@@ -1,0 +1,19 @@
+R1 gate driver run against the tree before the capture crate exists.
+Tree at commit 08de1f1a692afe9727f67f7a0f9a7b794db5bcfc (the merged R1 scaffold; no crates/halvo-capture yet).
+
+command: sh scripts/r1-gate/run.sh
+exit code: 1
+
+Every capture and store sub-check FAILs: there is no halvo-capture crate,
+so the driver cannot run --timed-run, --verify-store or --verify-deletion,
+and there is no daemon to sample. windows-ci reflects the existing CI state
+for this SHA (the scaffold already builds on windows-2025); it is orthogonal
+to the capture crate and is not a capture/store sub-check.
+
+output:
+  FAIL timed-run (timed-run unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
+  FAIL store (verify-store unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
+  FAIL deletion (verify-deletion unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
+  FAIL secure-input (timed-run unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
+  FAIL cost (daemon did not complete a timed run: error: package(s) `halvo-capture` not found in workspace `<repo>`)
+  PASS windows-ci
