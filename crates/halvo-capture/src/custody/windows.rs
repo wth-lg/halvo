@@ -84,7 +84,7 @@ pub(crate) fn dpapi_unprotect(
 }
 
 /// DPAPI, user scope and no UI, as the protector of the per-user root files.
-struct Dpapi;
+pub(crate) struct Dpapi;
 
 impl Protector for Dpapi {
     fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError> {

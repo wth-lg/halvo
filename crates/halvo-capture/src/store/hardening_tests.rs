@@ -622,10 +622,12 @@ fn a_wrong_store_key_opens_as_sealed_and_a_shredded_segment_reads_as_sealed() {
 }
 
 /// Yields `remaining` bytes of a fixed pattern without ever holding them.
+#[cfg(unix)]
 struct PatternReader {
     remaining: u64,
 }
 
+#[cfg(unix)]
 impl Read for PatternReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = (buf.len() as u64).min(self.remaining) as usize;

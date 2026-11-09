@@ -56,3 +56,4 @@ Each entry under Unreleased is the subject line of one commit.
 - Hold the store under an exclusive database lock and complete every shred before reporting it
 - Make the store and deletion gates measure the store instead of matching constants
 - Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
+- Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles
