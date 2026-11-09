@@ -1,27 +1,21 @@
 //! Window-title capture via `SetWinEventHook`.
 
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
-use std::thread::JoinHandle;
-
 use crate::event::{CaptureStreamEvent, Modality};
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource, EventSink};
 
-use super::foreground::{foreground_app_for, ForegroundState};
-use super::{build_event, EventPlacement, PlacementSink};
+use super::{build_event, EventPlacement, PumpHandle, PumpReady};
 
+#[cfg(target_os = "windows")]
+use super::foreground::{foreground_app_for, HOOK_FLAGS};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextLengthW, GetWindowTextW, OBJID_WINDOW, WINEVENT_OUTOFCONTEXT,
-    WINEVENT_SKIPOWNPROCESS,
+    GetWindowTextLengthW, GetWindowTextW, EVENT_OBJECT_NAMECHANGE, OBJID_WINDOW,
 };
-
-pub const NAME_CHANGE_EVENT: u32 = 0x800C;
 
 /// Build the window-title event, or `None` for an empty title. A title made only
 /// of whitespace is treated as empty, so a cleared caption records nothing.
@@ -59,32 +53,38 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
     }
 }
 
+/// The state a running window-title hook needs: the sink to emit through. The
+/// title and its app are read from the window each callback, so unlike the
+/// foreground hook this carries no last-app cell.
+pub struct TitleState {
+    pub(crate) sink: SinkHandle,
+}
+
 /// Window-title capture source. `start` installs the name-change hook on its own
 /// pump thread; `stop` quits that thread and unhooks.
 pub struct WindowTitleSource {
-    placement: Arc<dyn PlacementSink>,
-    thread_id: Arc<AtomicU32>,
-    pump: Option<JoinHandle<()>>,
+    pump: Option<PumpHandle>,
 }
 
 impl WindowTitleSource {
-    pub fn new(placement: Arc<dyn PlacementSink>) -> Self {
-        Self {
-            placement,
-            thread_id: Arc::new(AtomicU32::new(0)),
-            pump: None,
-        }
+    pub fn new() -> Self {
+        Self { pump: None }
+    }
+}
+
+impl Default for WindowTitleSource {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[cfg(target_os = "windows")]
 thread_local! {
-    static TITLE_CTX: std::cell::RefCell<Option<ForegroundState>> =
+    static TITLE_CTX: std::cell::RefCell<Option<TitleState>> =
         const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(target_os = "windows")]
-#[allow(clippy::too_many_arguments)]
 unsafe extern "system" fn title_proc(
     _hook: HWINEVENTHOOK,
     _event: u32,
@@ -100,19 +100,12 @@ unsafe extern "system" fn title_proc(
         return;
     }
     let title = read_window_title(hwnd);
-    if title.trim().is_empty() {
-        return;
-    }
-    let app = foreground_app_for(hwnd);
+    let app = foreground_app_for(hwnd).unwrap_or_default();
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow().as_ref() {
-            if let Ok(placement) = state
-                .placement
-                .place(title.as_bytes(), crate::event::RetentionClass::Raw)
-            {
-                if let Some(event) = map_window_title(&state.sink, &title, app, placement) {
-                    let _ = state.sink.emit(event);
-                }
+            let placement = EventPlacement::unpersisted(title.len() as u64);
+            if let Some(event) = map_window_title(&state.sink, &title, app, placement) {
+                let _ = state.sink.emit(event);
             }
         }
     });
@@ -124,43 +117,37 @@ impl CaptureSource for WindowTitleSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let state = ForegroundState {
-            sink,
-            placement: Arc::clone(&self.placement),
-            last_app: Arc::new(std::sync::Mutex::new(String::new())),
-        };
-        let thread_id = Arc::clone(&self.thread_id);
-        let pump = std::thread::Builder::new()
-            .name("halvo-window-title".to_string())
-            .spawn(move || run_title_hook(state, &thread_id))
-            .map_err(|e| CaptureError::Start(format!("window-title pump thread: {e}")))?;
+        let state = TitleState { sink };
+        let pump = super::spawn_pump("halvo-window-title".to_string(), move |ready| {
+            run_title_hook(state, ready)
+        })?;
         self.pump = Some(pump);
         Ok(())
     }
 
     fn stop(&mut self) {
-        super::post_quit_to(self.thread_id.load(Ordering::SeqCst));
         if let Some(pump) = self.pump.take() {
-            let _ = pump.join();
+            pump.stop();
         }
     }
 }
 
 #[cfg(target_os = "windows")]
-fn run_title_hook(state: ForegroundState, thread_id: &AtomicU32) {
+fn run_title_hook(state: TitleState, ready: PumpReady) {
     TITLE_CTX.with(|cell| *cell.borrow_mut() = Some(state));
-    thread_id.store(super::current_thread_id(), Ordering::SeqCst);
     let hook = unsafe {
         SetWinEventHook(
-            NAME_CHANGE_EVENT,
-            NAME_CHANGE_EVENT,
+            EVENT_OBJECT_NAMECHANGE,
+            EVENT_OBJECT_NAMECHANGE,
             None,
             Some(title_proc),
             0,
             0,
-            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+            HOOK_FLAGS,
         )
     };
+    super::ensure_message_queue();
+    ready.report();
     super::pump_messages();
     if !hook.is_invalid() {
         unsafe {
@@ -174,16 +161,6 @@ fn run_title_hook(state: ForegroundState, thread_id: &AtomicU32) {
 mod tests {
     use super::*;
     use crate::windows::tests::test_placement;
-
-    #[test]
-    fn name_change_event_is_the_object_namechange_constant() {
-        assert_eq!(NAME_CHANGE_EVENT, 0x800C);
-        #[cfg(target_os = "windows")]
-        assert_eq!(
-            NAME_CHANGE_EVENT,
-            windows::Win32::UI::WindowsAndMessaging::EVENT_OBJECT_NAMECHANGE
-        );
-    }
 
     #[test]
     fn a_non_empty_title_maps_to_a_window_title_event() {

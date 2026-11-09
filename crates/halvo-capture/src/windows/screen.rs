@@ -14,14 +14,18 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
-use crate::event::{CaptureStreamEvent, Modality, RetentionClass};
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::event::{CaptureStreamEvent, Modality};
+use crate::sink::{SinkError, SinkHandle};
+use crate::source::{CaptureError, CaptureSource, EmitOutcome, EventSink};
 
-use super::{build_event, EventPlacement, PlacementSink};
+use super::{build_event, EventPlacement};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Bytes per pixel of the captured `Bgra8` frame, used to measure the frame's
+/// payload size for the metadata-only placement.
+const BGRA8_BYTES_PER_PIXEL: u64 = 4;
 
 /// Exclude a window from screen capture, so Halvo never records its own windows.
 /// Call on each Halvo top-level window.
@@ -53,16 +57,14 @@ pub fn map_frame(
 /// The dependencies the capture handler needs, passed through the settings flags.
 pub struct ScreenFlags {
     pub sink: SinkHandle,
-    pub placement: Arc<dyn PlacementSink>,
-    pub last_app: Arc<Mutex<String>>,
+    pub last_app: Arc<Mutex<Option<String>>>,
 }
 
 /// The `windows-capture` frame handler. Built by the capture thread from the
 /// flags; `on_frame_arrived` emits one event per frame and buffers nothing.
 pub struct ScreenHandler {
     sink: SinkHandle,
-    placement: Arc<dyn PlacementSink>,
-    last_app: Arc<Mutex<String>>,
+    last_app: Arc<Mutex<Option<String>>>,
 }
 
 impl GraphicsCaptureApiHandler for ScreenHandler {
@@ -72,7 +74,6 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
     fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
         Ok(Self {
             sink: ctx.flags.sink,
-            placement: ctx.flags.placement,
             last_app: ctx.flags.last_app,
         })
     }
@@ -83,10 +84,26 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         _control: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
         let (width, height) = (frame.width(), frame.height());
-        let app = self.last_app.lock().map(|g| g.clone()).unwrap_or_default();
-        let placement = self.placement.place(&[], RetentionClass::Raw)?;
+        let app = self
+            .last_app
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .unwrap_or_default();
+        // Metadata-only: no pixels are read or held (the memory bound), but the
+        // frame's measured byte size rides in the placement so the dimensions are
+        // not lost. P6 writes the pixels to the store and assigns a real placement.
+        let byte_len = width as u64 * height as u64 * BGRA8_BYTES_PER_PIXEL;
+        let placement = EventPlacement::unpersisted(byte_len);
         if let Some(event) = map_frame(&self.sink, width, height, app, placement) {
-            let _ = self.sink.emit(event);
+            match self.sink.emit(event) {
+                Ok(EmitOutcome::Queued | EmitOutcome::Dropped) => {}
+                Err(SinkError::Disconnected) => {
+                    return Err(CaptureError::Start(
+                        "screen sink disconnected; the capture writer has stopped".to_string(),
+                    ))
+                }
+            }
         }
         Ok(())
     }
@@ -95,16 +112,14 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
 /// Screen capture source over the primary monitor. `start` opens a capture
 /// session on its own thread; `stop` ends it.
 pub struct ScreenSource {
-    placement: Arc<dyn PlacementSink>,
-    last_app: Arc<Mutex<String>>,
+    last_app: Arc<Mutex<Option<String>>>,
     min_interval: Duration,
     control: Option<windows_capture::capture::CaptureControl<ScreenHandler, CaptureError>>,
 }
 
 impl ScreenSource {
-    pub fn new(placement: Arc<dyn PlacementSink>, last_app: Arc<Mutex<String>>) -> Self {
+    pub fn new(last_app: Arc<Mutex<Option<String>>>) -> Self {
         Self {
-            placement,
             last_app,
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             control: None,
@@ -128,7 +143,6 @@ impl CaptureSource for ScreenSource {
             Monitor::primary().map_err(|e| CaptureError::Start(format!("primary monitor: {e}")))?;
         let flags = ScreenFlags {
             sink,
-            placement: Arc::clone(&self.placement),
             last_app: Arc::clone(&self.last_app),
         };
         let settings = Settings::new(
