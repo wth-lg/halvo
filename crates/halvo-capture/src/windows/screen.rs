@@ -1,21 +1,4 @@
 //! Screen capture via Windows.Graphics.Capture (`FrameArrived`).
-//!
-//! The `windows-capture` crate wraps Windows.Graphics.Capture and calls
-//! `on_frame_arrived` for each composed frame (researcher-1 #8). Two properties
-//! hold by construction:
-//!
-//! - **Own windows are excluded.** A window that sets
-//!   `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` is omitted from the
-//!   captured surface, so Halvo never records its own overlay
-//!   ([`exclude_window_from_capture`]). DRM-protected media composes black.
-//! - **Frames are not buffered.** The handler reads a frame's metadata and emits
-//!   one event, holding no queue of frames. Under backpressure the sink drops
-//!   screen frames (they are the droppable modality), and a minimum update
-//!   interval throttles the frame rate, so resident memory stays bounded. The
-//!   measured Windows memory number is deferred with functional capture.
-//!
-//! The frame-to-event mapping is pure and unit tested; the capture session is
-//! compiled and type-checked here and run on a real desktop (deferred).
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -37,9 +20,7 @@ use crate::source::{CaptureError, CaptureSource, EventSink};
 
 use super::{build_event, EventPlacement, PlacementSink};
 
-/// The default minimum interval between captured frames. Throttling the frame
-/// rate bounds CPU and the rate of payloads the store must absorb; the exact
-/// value is a tuning parameter the measured run will set (deferred).
+/// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Exclude a window from screen capture, so Halvo never records its own windows.
@@ -103,13 +84,8 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
     ) -> Result<(), Self::Error> {
         let (width, height) = (frame.width(), frame.height());
         let app = self.last_app.lock().map(|g| g.clone()).unwrap_or_default();
-        // Metadata only: the frame's pixels stream to the store through the
-        // placement sink (deferred). No frame is held past this call, so no window
-        // of frames accumulates in memory.
         let placement = self.placement.place(&[], RetentionClass::Raw)?;
         if let Some(event) = map_frame(&self.sink, width, height, app, placement) {
-            // ScreenFrame is droppable: a full sink drops the frame rather than
-            // block capture, which is what keeps memory bounded under load.
             let _ = self.sink.emit(event);
         }
         Ok(())

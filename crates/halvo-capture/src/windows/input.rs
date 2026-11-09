@@ -1,17 +1,4 @@
 //! Keystroke and pointer capture via Raw Input (`WM_INPUT`).
-//!
-//! Raw Input with `RIDEV_INPUTSINK` delivers background keyboard and mouse data
-//! to a message-only window as `WM_INPUT` messages (researcher-1 #15). It is a
-//! listen-only path: it cannot read from a higher-integrity process (the UIPI
-//! boundary) and the secure desktop (UAC prompts, the logon screen) runs where no
-//! user-level app can hook it, so credential entry is withheld by the OS, not by
-//! Halvo policy. Halvo adds no lower-level hook and no bypass.
-//!
-//! One source handles one device (keyboard or pointer) so it has one
-//! [`crate::event::Modality`]. The decode from a raw packet to a small owned value
-//! and the mapping from that value to a stream event are pure and unit tested; the
-//! window, device registration and message pump are compiled and type-checked here
-//! and exercised on a real desktop (functional capture is deferred).
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -23,9 +10,7 @@ use crate::source::{CaptureError, CaptureSource, EventSink};
 
 use super::{build_event, EventPlacement, PlacementSink};
 
-/// `RI_KEY_BREAK` (winuser.h): set in a raw keyboard packet's flags on key-up.
 const RI_KEY_BREAK: u16 = 0x01;
-/// Raw input header device types (winuser.h): mouse is 0, keyboard is 1.
 const RIM_TYPE_MOUSE: u32 = 0;
 const RIM_TYPE_KEYBOARD: u32 = 1;
 
@@ -44,8 +29,6 @@ impl RawDevice {
         }
     }
 
-    /// The HID usage (page 0x01) this device registers for: keyboard 0x06, mouse
-    /// 0x02 (USB HID usage tables).
     fn hid_usage(self) -> u16 {
         match self {
             RawDevice::Keyboard => 0x06,
@@ -90,8 +73,7 @@ pub fn map_keystroke(
     ))
 }
 
-/// Map a decoded pointer sample to a stream event. Every sample is recorded; the
-/// payload (movement and buttons) is placed in the store by the caller.
+/// Map a decoded pointer sample to a stream event; every sample is recorded.
 pub fn map_pointer(
     sink: &SinkHandle,
     _sample: PointerSample,
@@ -114,19 +96,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
     UnregisterClassW, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_DESTROY, WM_INPUT, WNDCLASSW,
 };
 
-/// `RIDEV_INPUTSINK` (winuser.h): receive input even when not the foreground
-/// window — the whole point of a background capture.
 #[cfg(target_os = "windows")]
 const RIDEV_INPUTSINK: u32 = 0x0000_0100;
-/// `RIDEV_REMOVE` (winuser.h): stop receiving input for a device.
 #[cfg(target_os = "windows")]
 const RIDEV_REMOVE: u32 = 0x0000_0001;
-/// HID usage page 0x01 (generic desktop) covers keyboard and mouse.
 #[cfg(target_os = "windows")]
 const HID_USAGE_PAGE_GENERIC: u16 = 0x01;
 
-/// The per-thread emit context a running raw-input window reads in its window
-/// procedure.
 #[cfg(target_os = "windows")]
 struct InputState {
     device: RawDevice,
@@ -179,8 +155,6 @@ impl RawInputSource {
     }
 }
 
-/// The attributed foreground app for an input event: the last app the foreground
-/// hook saw, or an empty string before it has seen one.
 #[cfg(target_os = "windows")]
 fn attributed_app(last_app: &Mutex<String>) -> String {
     last_app.lock().map(|g| g.clone()).unwrap_or_default()
@@ -246,7 +220,6 @@ unsafe extern "system" fn wnd_proc(
     }
 }
 
-/// Read the raw-input packet behind a `WM_INPUT` and emit its event.
 #[cfg(target_os = "windows")]
 fn read_raw_input(handle: HRAWINPUT) {
     let header_size = core::mem::size_of::<RAWINPUTHEADER>() as u32;
@@ -269,7 +242,6 @@ fn read_raw_input(handle: HRAWINPUT) {
     if read != size {
         return;
     }
-    // The buffer begins with a RAWINPUT; it was sized to hold one.
     let raw = unsafe { &*(buf.as_ptr() as *const RAWINPUT) };
     emit_from_raw(raw);
 }
@@ -303,16 +275,11 @@ impl CaptureSource for RawInputSource {
     }
 }
 
-/// Open a message-only window, register the device for background raw input, pump
-/// until `WM_QUIT`, then unregister and destroy the window. Runs on the source's
-/// pump thread.
 #[cfg(target_os = "windows")]
 fn run_raw_input(state: InputState, thread_id: &AtomicU32) {
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 
-    // Record the pump thread id first, so a stop() that races start() can always
-    // post WM_QUIT rather than join a thread that never learned its own id.
     thread_id.store(super::current_thread_id(), Ordering::SeqCst);
 
     let device = state.device;
@@ -377,7 +344,6 @@ fn run_raw_input(state: InputState, thread_id: &AtomicU32) {
 
     if registered {
         super::pump_messages();
-        // Unregister the device before the window goes away.
         let remove = RAWINPUTDEVICE {
             usUsagePage: HID_USAGE_PAGE_GENERIC,
             usUsage: device.hid_usage(),

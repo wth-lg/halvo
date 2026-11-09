@@ -1,14 +1,4 @@
 //! Window-title capture via `SetWinEventHook`.
-//!
-//! The OS raises `EVENT_OBJECT_NAMECHANGE` when a window's title changes
-//! (researcher-1 #14). A listen-only out-of-context hook on that event, filtered
-//! to the window object itself, reads the new title and emits one
-//! [`crate::event::Modality::WindowTitle`] event. An empty title produces no
-//! event, so a window that clears its caption is not recorded as a blank title.
-//!
-//! The mapping (title plus app to event, with the empty-title rule) is pure and
-//! unit tested; the hook, pump and title read are compiled and type-checked here
-//! and exercised on a real desktop (functional capture is deferred).
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -31,7 +21,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINEVENT_SKIPOWNPROCESS,
 };
 
-/// The WinEvent this source hooks: an accessible object's name changed.
 pub const NAME_CHANGE_EVENT: u32 = 0x800C;
 
 /// Build the window-title event, or `None` for an empty title. A title made only
@@ -45,8 +34,6 @@ pub fn map_window_title(
     if title.trim().is_empty() {
         return None;
     }
-    // The title travels as the event payload (placed in the store by the caller);
-    // the app owning the window is the event's foreground_app.
     Some(build_event(
         sink,
         Modality::WindowTitle,
@@ -55,7 +42,6 @@ pub fn map_window_title(
     ))
 }
 
-/// Read a window's title, or an empty string when it has none.
 #[cfg(target_os = "windows")]
 pub(crate) fn read_window_title(hwnd: HWND) -> String {
     unsafe {

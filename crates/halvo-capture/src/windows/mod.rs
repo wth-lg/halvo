@@ -1,25 +1,4 @@
 //! Windows capture backend.
-//!
-//! Each modality's source lives in its own file and emits the one
-//! [`crate::event::CaptureStreamEvent`] through an [`crate::sink::SinkHandle`]:
-//!
-//! - [`screen`]: Windows.Graphics.Capture `FrameArrived` (the `windows-capture`
-//!   crate), frame-rate throttled so no window of frames is ever buffered.
-//! - [`input`]: keystroke and pointer from Raw Input (`WM_INPUT`), a listen-only
-//!   path the OS withholds across the UIPI boundary and the secure desktop.
-//! - [`foreground`]: the foreground app from `SetWinEventHook`
-//!   (`EVENT_SYSTEM_FOREGROUND`).
-//! - [`window_title`]: the focused window title from `EVENT_OBJECT_NAMECHANGE`.
-//! - [`audio`]: system audio, present but off by default.
-//! - [`apps`]: the installed-software inventory from the registry (a scan, not a
-//!   stream event; see [`apps`]).
-//!
-//! **Functional capture is deferred.** Every source here type-checks for the
-//! Windows target and its mapping logic is unit-tested without a desktop, which
-//! is what CI confirms. Driving the OS callbacks needs an interactive logon
-//! session, so [`timed_run`] reports the deferral rather than pretend to run; the
-//! per-source wiring is real code, exercised on a permissioned machine, not in
-//! CI. The measured Windows memory number is deferred with it.
 
 pub mod apps;
 pub mod audio;
@@ -36,8 +15,7 @@ use crate::sink::SinkHandle;
 use crate::source::CaptureError;
 
 /// Where a captured payload's bytes live in the encrypted segment store: the
-/// segment ref plus the per-segment key id. A source obtains one from a
-/// [`PlacementSink`] after the payload is written, then stamps it onto the event.
+/// segment ref plus the per-segment key id.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventPlacement {
     pub segment_ref: SegmentRef,
@@ -46,10 +24,7 @@ pub struct EventPlacement {
 
 /// The store-write seam the capture sources depend on but do not implement. A
 /// source hands its raw payload here and gets back the [`EventPlacement`] to put
-/// on the stream event. The real, store-backed implementation is the daemon
-/// wiring (phase P6); the capture backend only needs the seam so its sources are
-/// constructible and the mapping stays pure. The cross-platform home for this
-/// seam is likely [`crate::source`], but that file is owned by an earlier phase.
+/// on the stream event.
 pub trait PlacementSink: Send + Sync {
     /// Persist `payload` under `retention` and return where it landed.
     fn place(
@@ -61,8 +36,7 @@ pub trait PlacementSink: Send + Sync {
 
 /// Build the one raw stream event for a captured payload: stamp the sink's next
 /// monotonic sequence, record the foreground app and the store placement, and
-/// mark it raw. Every Windows source funnels through this, so the event shape is
-/// identical across modalities and set in exactly one place.
+/// mark it raw.
 pub fn build_event(
     sink: &SinkHandle,
     modality: Modality,
@@ -82,15 +56,11 @@ pub fn build_event(
     )
 }
 
-/// The current OS thread id, stored by a source so [`post_quit_to`] can stop its
-/// pump from another thread.
 #[cfg(target_os = "windows")]
 pub(crate) fn current_thread_id() -> u32 {
     unsafe { windows::Win32::System::Threading::GetCurrentThreadId() }
 }
 
-/// Post `WM_QUIT` to a source's pump thread so its message loop returns. A zero
-/// thread id (the pump never recorded one) is ignored.
 #[cfg(target_os = "windows")]
 pub(crate) fn post_quit_to(thread_id: u32) {
     use windows::Win32::Foundation::{LPARAM, WPARAM};
@@ -121,12 +91,6 @@ pub(crate) fn pump_messages() {
 }
 
 /// Run the Windows sources for a bounded window and report per-modality counts.
-///
-/// Functional capture is deferred to a machine that can grant an interactive
-/// logon session, so this reports the deferral instead of running a capture that
-/// a headless host would silently record nothing from. The sources and their
-/// mapping are compiled and unit-tested; only the timed functional run is
-/// deferred, together with the measured Windows memory number.
 pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
     let _ = seconds;
     Err(DaemonError::NotImplemented(

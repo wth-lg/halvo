@@ -1,22 +1,10 @@
 //! The Windows background service: a per-user logon Scheduled Task.
-//!
-//! A capture backend needs the interactive desktop (Windows.Graphics.Capture,
-//! Raw Input and WinEvent hooks all run in the user's session), so the right
-//! model is a per-user Scheduled Task triggered `ONLOGON` with an interactive
-//! token, not a session-0 Windows Service (researcher-1, researcher-4). The task
-//! is created through `schtasks.exe`; the argument vectors it is driven with are
-//! built by the pure functions here, which is what the unit tests pin.
-//!
-//! Install is idempotent: it queries first and rewrites the task only when it is
-//! absent or registered against a different command, and the create uses `/F`, so
-//! any number of runs converge to one task with one definition.
 
 use std::process::Command;
 
 use super::{ServiceError, ServiceInstaller, ServiceStatus};
 
-/// The Scheduled Task name, under a `Halvo` folder so it is easy to find and
-/// remove and never collides with another task.
+/// The Scheduled Task name.
 pub const DEFAULT_TASK_NAME: &str = "Halvo\\HalvoCapture";
 
 /// A Scheduled Task definition: its name and the command it runs.
@@ -131,7 +119,6 @@ impl WindowsTaskInstaller {
             .map_err(|e| ServiceError::Op(format!("schtasks.exe failed to launch: {e}")))
     }
 
-    /// The task's current definition XML, or `None` if the task does not exist.
     fn existing_definition(&self) -> Result<Option<String>, ServiceError> {
         let out = Self::run_schtasks(&build_query_xml_args(&self.spec.task_name))?;
         if out.status.success() {
@@ -144,9 +131,6 @@ impl WindowsTaskInstaller {
 
 impl ServiceInstaller for WindowsTaskInstaller {
     fn install(&self) -> Result<(), ServiceError> {
-        // Idempotent: if the task already runs our command, leave it; otherwise
-        // (re)create it. The create carries `/F`, so an out-of-date task is
-        // overwritten rather than duplicated.
         if let Some(xml) = self.existing_definition()? {
             if task_registers(&xml, &self.spec.program) {
                 return Ok(());
@@ -165,8 +149,6 @@ impl ServiceInstaller for WindowsTaskInstaller {
 
     fn uninstall(&self) -> Result<(), ServiceError> {
         let out = Self::run_schtasks(&build_delete_args(&self.spec.task_name))?;
-        // A missing task is already the desired end state, so deleting one that is
-        // not there is success, which keeps uninstall idempotent.
         if out.status.success() || self.status()? == ServiceStatus::NotInstalled {
             Ok(())
         } else {
@@ -198,7 +180,6 @@ mod tests {
     #[test]
     fn create_args_are_a_logon_task_with_an_interactive_token() {
         let args = build_create_args(&spec());
-        // The ordered flags the Task Scheduler needs for a per-user logon task.
         for expected in [
             "/Create", "/F", "/SC", "ONLOGON", "/RL", "LIMITED", "/IT", "/TN", "/TR",
         ] {

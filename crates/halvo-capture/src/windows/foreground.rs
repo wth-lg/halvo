@@ -1,14 +1,4 @@
 //! Foreground-application capture via `SetWinEventHook`.
-//!
-//! The OS raises `EVENT_SYSTEM_FOREGROUND` whenever the foreground window
-//! changes (researcher-1 #14). A listen-only out-of-context WinEvent hook on that
-//! event, pumped on its own thread, resolves the new foreground window to its
-//! executable path and emits one [`crate::event::Modality::ForegroundApp`] event.
-//!
-//! The event mapping and the hook-range selection are pure and unit tested; the
-//! hook install, the message pump and the process-path lookup are compiled and
-//! type-checked here and exercised on a real desktop (functional capture is
-//! deferred).
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -33,15 +23,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowThreadProcessId, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
-/// The WinEvent range this source hooks: the single foreground-changed event, as
-/// both the low and high bound. Pulled out so it is testable on its own.
 pub const FOREGROUND_EVENT: u32 = 0x0003;
 
-/// The flags for a listen-only out-of-context hook that skips Halvo's own
-/// process, so Halvo never reports its own windows coming to the foreground.
 pub fn hook_flags() -> u32 {
-    // WINEVENT_OUTOFCONTEXT (deliver on our pump thread, no DLL injection) plus
-    // WINEVENT_SKIPOWNPROCESS (never fire for our own process).
     WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
 }
 
@@ -65,9 +49,6 @@ pub fn current_foreground_app() -> String {
     }
 }
 
-/// The executable path for the process that owns `hwnd`. Split out from
-/// [`current_foreground_app`] so the hook callback, which already has the window,
-/// does not query the foreground a second time.
 #[cfg(target_os = "windows")]
 pub(crate) fn foreground_app_for(hwnd: HWND) -> String {
     use windows::core::PWSTR;
@@ -102,8 +83,7 @@ pub(crate) fn foreground_app_for(hwnd: HWND) -> String {
 
 /// Shared state a running foreground hook exposes to its callback and to the
 /// input sources: the sink to emit through, the placement seam, and the last
-/// foreground app the hook observed (read by keystroke and pointer events so they
-/// are attributed to the right app without re-querying the OS each time).
+/// foreground app the hook observed.
 pub struct ForegroundState {
     pub(crate) sink: SinkHandle,
     pub(crate) placement: Arc<dyn PlacementSink>,
@@ -129,8 +109,7 @@ impl ForegroundAppSource {
         }
     }
 
-    /// The shared last-foreground-app cell, so the input sources can attribute
-    /// keystrokes and pointer events to the current app.
+    /// The shared last-foreground-app cell.
     pub fn last_app(&self) -> Arc<Mutex<String>> {
         Arc::clone(&self.last_app)
     }
@@ -197,8 +176,6 @@ impl CaptureSource for ForegroundAppSource {
     }
 }
 
-/// Install the foreground hook on the current thread, pump messages until a
-/// `WM_QUIT` arrives, then unhook. Runs on the source's pump thread.
 #[cfg(target_os = "windows")]
 fn run_foreground_hook(state: ForegroundState, thread_id: &AtomicU32) {
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = Some(state));

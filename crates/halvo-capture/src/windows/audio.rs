@@ -1,10 +1,4 @@
 //! System-audio capture, present but off by default.
-//!
-//! Halvo can record the system output mix through WASAPI loopback (researcher-4),
-//! but audio is the most sensitive stream and stays off unless the user turns it
-//! on. This source exists so the capability is wired and the default is explicit
-//! and testable; the WASAPI loopback client itself is deferred with the rest of
-//! Windows functional capture.
 
 use crate::event::Modality;
 use crate::sink::SinkHandle;
@@ -22,8 +16,7 @@ impl SystemAudioSource {
         Self { enabled: false }
     }
 
-    /// An enabled source. The WASAPI loopback client is deferred, so starting one
-    /// reports `NotImplemented` until functional capture lands on a real desktop.
+    /// An enabled source.
     pub fn enabled() -> Self {
         Self { enabled: true }
     }
@@ -47,8 +40,6 @@ impl CaptureSource for SystemAudioSource {
 
     fn start(&mut self, _sink: SinkHandle) -> Result<(), CaptureError> {
         if !self.enabled {
-            // Off by default: starting a disabled source is a no-op, not an error,
-            // so the daemon can hold the source without ever capturing audio.
             return Ok(());
         }
         Err(CaptureError::NotImplemented(

@@ -1,18 +1,4 @@
 //! Installed-software inventory from the registry.
-//!
-//! The installed-application list lives under the `Uninstall` registry keys, in
-//! HKLM and HKCU and their 32-bit `WOW6432Node` mirrors (researcher-1 #12). Unlike
-//! the other Windows signals this is a scan, not a push event: it has no place in
-//! the [`crate::event::Modality`] set, so it is surfaced as an
-//! [`InstalledSoftwareSnapshot`] rather than forced into the capture stream. New
-//! installs and removals are noticed with `RegNotifyChangeKeyValue` on the keys,
-//! which blocks until something under them changes, so the inventory is refreshed
-//! on change instead of polled.
-//!
-//! The parse from raw registry values to an [`InstalledApp`] is pure and unit
-//! tested; the registry read and the change watch are deferred with the rest of
-//! Windows functional capture (they need a live registry), and are compiled and
-//! type-checked here.
 
 #[cfg(target_os = "windows")]
 use std::io;
@@ -25,9 +11,7 @@ pub struct InstalledApp {
     pub publisher: Option<String>,
 }
 
-/// The raw values read from one `Uninstall` subkey, before filtering. Kept
-/// separate from the registry read so the filter rules are testable without a
-/// registry.
+/// The raw values read from one `Uninstall` subkey, before filtering.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RawUninstallEntry {
     pub display_name: Option<String>,
@@ -89,17 +73,12 @@ impl InstalledSoftwareSnapshot {
     }
 }
 
-/// The registry roots the inventory scans: HKLM and HKCU, each at the native and
-/// the 32-bit `WOW6432Node` `Uninstall` path.
 #[cfg(target_os = "windows")]
 const UNINSTALL_PATHS: &[&str] = &[
     "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
     "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
 ];
 
-/// Read one `Uninstall` subkey into a [`RawUninstallEntry`]. Missing values are
-/// `None`; only read failures other than "value not found" would surface, and
-/// those are treated as absent so one broken entry never fails the whole scan.
 #[cfg(target_os = "windows")]
 fn read_entry(key: &winreg::RegKey) -> RawUninstallEntry {
     RawUninstallEntry {
@@ -110,8 +89,7 @@ fn read_entry(key: &winreg::RegKey) -> RawUninstallEntry {
     }
 }
 
-/// Scan HKLM and HKCU for installed applications and return the snapshot. Deferred
-/// at runtime with functional capture; compiled and type-checked here.
+/// Scan HKLM and HKCU for installed applications and return the snapshot.
 #[cfg(target_os = "windows")]
 pub fn scan_installed() -> io::Result<InstalledSoftwareSnapshot> {
     use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
@@ -136,7 +114,6 @@ pub fn scan_installed() -> io::Result<InstalledSoftwareSnapshot> {
 
 /// Block until something under the HKCU `Uninstall` key changes, so the caller
 /// can rescan only when the installed set actually moves rather than polling.
-/// Deferred at runtime with functional capture; compiled and type-checked here.
 #[cfg(target_os = "windows")]
 pub fn wait_for_change() -> io::Result<()> {
     use windows_sys::Win32::Foundation::ERROR_SUCCESS;
@@ -148,15 +125,13 @@ pub fn wait_for_change() -> io::Result<()> {
 
     let key =
         RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(UNINSTALL_PATHS[0], KEY_NOTIFY)?;
-    // Synchronous watch: the call returns when a subkey is added or removed or a
-    // value is set, which is exactly an install or uninstall.
     let status = unsafe {
         RegNotifyChangeKeyValue(
             key.raw_handle(),
-            1, // watch the whole subtree
+            1,
             REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_LAST_SET,
             std::ptr::null_mut(),
-            0, // synchronous: block until a change
+            0,
         )
     };
     if status == ERROR_SUCCESS {
@@ -209,11 +184,8 @@ mod tests {
 
     #[test]
     fn a_snapshot_dedupes_the_wow6432node_mirror_and_sorts() {
-        let snap = InstalledSoftwareSnapshot::from_entries([
-            entry("Zeta"),
-            entry("Alpha"),
-            entry("Zeta"), // the same app under the 32-bit mirror
-        ]);
+        let snap =
+            InstalledSoftwareSnapshot::from_entries([entry("Zeta"), entry("Alpha"), entry("Zeta")]);
         assert_eq!(snap.len(), 2);
         assert_eq!(snap.apps[0].name, "Alpha");
         assert_eq!(snap.apps[1].name, "Zeta");
