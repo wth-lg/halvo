@@ -30,6 +30,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add failing tests for the adversarial review of the encrypted store
 - Measure the peak resident set of a 512 MiB segment write and read in an ignored test
 - Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
+- Add the Windows capture backend behind cfg with the logon-task install and unit tests
 
 ### Changed
 
