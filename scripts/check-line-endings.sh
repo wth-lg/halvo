@@ -340,7 +340,7 @@ self_test() {
   track scripts/check.sh '#!/bin/sh\necho\n'
   expect 'the two patterns of this repository cover a hook, a file in a subdirectory of .githooks and a .sh file' 0 "$(pass_line 3)"
 
-  start_fixture '*.sh text eol=lf' '.githooks/* text eol=lf'
+  start_fixture '.githooks/* text eol=lf' '*.sh text eol=lf'
   track .githooks/commit-msg '#!/bin/sh\nexec true\n'
   track .githooks/lib/helper '#!/bin/sh\necho\n'
   expect 'the older pattern .githooks/* leaves a file in a subdirectory of .githooks without eol=lf' 1 '/.githooks/lib/helper text eol=lf'
@@ -408,6 +408,18 @@ self_test() {
   track vendor/blob.sh 'BLOB\0000\r\n'
   expect 'a file with eol=lf and -text that holds a NUL byte is accepted as binary content' 0 "$(pass_line 0)"
 
+  start_fixture '* text=auto eol=lf'
+  track data.bin '\0001\0001\0001\0001\n'
+  expect 'content without a carriage return that git reads as binary for its control characters is accepted' 0 "$(pass_line 0)"
+
+  start_fixture '*.sh eol=lf'
+  track scripts/check.sh '#!/bin/sh\r\nprintf x\ry\r\n'
+  expect 'a file with eol=lf and no text attribute that holds a carriage return inside a line is refused as text with binary content' 1 'check-line-endings: scripts/check.sh has eol=lf, and git reads its content in the index as binary: it holds a carriage return outside a CRLF line ending, or a NUL byte.'
+
+  start_fixture
+  track notes.txt 'a\rb\n'
+  expect 'a file without eol=lf that holds a carriage return inside a line is accepted' 0 "$(pass_line 0)"
+
   start_fixture
   track installer/windows/.gitattributes '* text eol=crlf\n'
   track installer/windows/build.sh '#!/bin/sh\necho build\n'
@@ -461,8 +473,11 @@ self_test() {
     done
   }
 
-  track_the_texts_that_quote_the_lines
-  expect 'three texts that quote the eol=lf lines of .gitattributes as the file has them are accepted' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
+  start_fixture_with_the_lines_of_this_repository
+  track AGENTS.md "${TICK}.gitattributes${TICK} holds the lines ${TICK}*.sh text eol=lf${TICK} and ${TICK}.githooks/** text eol=lf${TICK}.\\n"
+  track .github/workflows/ci.yml "echo \"Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf', and no later line may take eol=lf from these files.\"\\n"
+  track scripts/check-line-endings.sh "$(printf 'start_fixture %s %s' "'*.sh text eol=lf'" "'.githooks/** text eol=lf'")\\n"
+  expect 'the three texts that quote the eol=lf lines of .gitattributes, worded as this repository words them, are accepted' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
 
   for stale_path in $QUOTING_PATHS; do
     track_the_texts_that_quote_the_lines
