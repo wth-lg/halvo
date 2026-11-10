@@ -41,11 +41,15 @@ measure() {
 check() {
   out=$(
     CI_D_REPO=$work/$1
-    GITHUB_EVENT_NAME=$event
-    GITHUB_REF=$ref
     STUB_CALLS=$work/$1/calls
-    export CI_D_REPO GITHUB_EVENT_NAME GITHUB_REF STUB_CALLS
-    measure 2>&1
+    export CI_D_REPO STUB_CALLS
+    unset GITHUB_EVENT_NAME GITHUB_REF
+    if [ -n "$event" ]; then
+      GITHUB_EVENT_NAME=$event
+      GITHUB_REF=$ref
+      export GITHUB_EVENT_NAME GITHUB_REF
+    fi
+    sh "$0" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -82,36 +86,53 @@ self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   only='[ "${1:-}" = --apply-only ] || exit 9'
   applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and builds)\n"; exit 0 ;; esac'
+  apply_only='call --apply-only'
+  both="call --apply-only${nl}call "
   rejected=0
   wrong=
   event=push
   ref=refs/heads/a-branch
 
   runner rows-apply "$applies; exit 9"
-  check rows-apply PASS '' 'call --apply-only'
+  check rows-apply PASS '' "$apply_only"
   runner anchor-moved "$only; printf \"PASS mutation:checkpoint-not-verified (applies and builds)\\nFAIL mutation:shredded-key-survives (the substitution did not apply)\\n\"; exit 1"
-  check anchor-moved FAIL 'mutation-test.sh --apply-only exited 1: FAIL mutation:shredded-key-survives (the substitution did not apply))' 'call --apply-only'
+  check anchor-moved FAIL 'mutation-test.sh --apply-only exited 1: FAIL mutation:shredded-key-survives (the substitution did not apply))' "$apply_only"
+  runner runner-exits-2 "$only; printf \"PASS mutation:shredded-key-survives (applies and builds)\\n\"; exit 2"
+  check runner-exits-2 FAIL 'mutation-test.sh --apply-only exited 2: it printed no FAIL line)' "$apply_only"
   runner fail-line-with-exit-0 "$only; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\""
-  check fail-line-with-exit-0 FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL mutation:shredded-key-survives' 'call --apply-only'
+  check fail-line-with-exit-0 FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL mutation:shredded-key-survives' "$apply_only"
+  runner other-fail-line-with-exit-0 "$only; printf \"PASS mutation:shredded-key-survives (applies and builds)\\nFAIL unmutated:store (gate said: FAIL store)\\n\""
+  check other-fail-line-with-exit-0 FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL unmutated:store' "$apply_only"
+  runner fail-line-on-standard-error "$only; printf \"PASS mutation:checkpoint-not-verified (applies and builds)\\n\"; printf \"FAIL mutation:shredded-key-survives (the substitution did not apply)\\n\" >&2"
+  check fail-line-on-standard-error FAIL 'mutation-test.sh --apply-only exited 0 and printed: FAIL mutation:shredded-key-survives' "$apply_only"
   runner no-row "$only; exit 0"
-  check no-row FAIL 'mutation-test.sh --apply-only printed no mutation line)' 'call --apply-only'
+  check no-row FAIL 'mutation-test.sh --apply-only printed no mutation line)' "$apply_only"
+  runner only-other-lines "$only; printf \"PASS unmutated:store\\n\""
+  check only-other-lines FAIL 'mutation-test.sh --apply-only printed no mutation line)' "$apply_only"
   runner runner-without-the-flag 'printf "PASS mutation:shredded-key-survives (gate said: FAIL deletion)\n"'
   check runner-without-the-flag FAIL 'scripts/r1-gate/mutation-test.sh takes no --apply-only)' ''
   mkdir -p "$work/runner-missing"
   check runner-missing FAIL 'scripts/r1-gate/mutation-test.sh is missing)' ''
+  runner run-outside-github-actions "$applies; exit 9"
+  event=
+  check run-outside-github-actions PASS '' "$apply_only"
 
   runner push-to-main-full-run-fails "$applies; printf \"FAIL mutation:event-rows-never-written (gate said: PASS store)\\n\"; exit 1"
-  event=push
   ref=refs/heads/main
-  check push-to-main-full-run-fails FAIL 'mutation-test.sh exited 1: FAIL mutation:event-rows-never-written (gate said: PASS store))' "call --apply-only${nl}call "
+  check push-to-main-full-run-fails FAIL 'mutation-test.sh exited 1: FAIL mutation:event-rows-never-written (gate said: PASS store))' "$both"
+  runner push-to-main-full-run-prints-no-row "$applies; exit 0"
+  ref=refs/heads/main
+  check push-to-main-full-run-prints-no-row FAIL 'mutation-test.sh printed no mutation line)' "$both"
   runner push-to-main-full-run-passes "$applies; printf \"PASS mutation:shredded-key-survives (decryptable)\\n\""
-  event=push
   ref=refs/heads/main
-  check push-to-main-full-run-passes PASS '' "call --apply-only${nl}call "
+  check push-to-main-full-run-passes PASS '' "$both"
+  runner push-to-a-branch-that-ends-in-main "$applies; exit 9"
+  ref=refs/heads/team/main
+  check push-to-a-branch-that-ends-in-main PASS '' "$apply_only"
   runner pull-request-into-main "$applies; exit 9"
   event=pull_request
   ref=refs/heads/main
-  check pull-request-into-main PASS '' 'call --apply-only'
+  check pull-request-into-main PASS '' "$apply_only"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
