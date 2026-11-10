@@ -59,8 +59,9 @@ Three layers apply this predicate.
      rebase, am and commit-tree, or in a checkout that has no .githooks directory.
   2. .githooks/pre-push reads the stored messages of the commits that a push
      would add to the remote, and refuses the push. It cannot see a push made
-     with --no-verify, a push from a clone where sh scripts/prerequisites.sh has
-     not set core.hooksPath, or a commit that GitHub itself makes.
+     with --no-verify, a push from a checkout that has no .githooks directory
+     or from a clone where sh scripts/prerequisites.sh has not set
+     core.hooksPath, or a commit that GitHub itself makes.
   3. The CI step "Commit messages" (scripts/ci-commit-messages.sh) cannot be
      skipped from a clone. It reads the stored messages of every push and pull
      request, and the title and description of a pull request. It reads them
@@ -447,6 +448,7 @@ self_test() {
   expect_at_lines 'a trailer after two carriage returns fails at line 3' '3' "Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
   expect_at_lines 'a trailer after two pairs of carriage return and newline fails at line 3' '3' "Fix the gate${carriage_return}${nl}${carriage_return}${nl}$trailer${carriage_return}"
   expect_at_lines 'prose that starts with the footer words fails, as the rule says' '1' "Generated with bindgen 0.71: refresh the Windows bindings"
+  expect_at_lines 'prose that starts with Co-authored by fails, as the rule says' '3' "Keep both gates${nl}${nl}Co-authored by the capture team, this change keeps both gates."
   expect_in_hook_file_at_lines 'a trailer above the diff of git commit -v fails at its line in the hook file' '3' '#' "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
   expect_in_hook_file_at_lines 'a trailer at the start of a line below a scissors block and a diff header fails at its line in the hook file' '7' '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}$trailer"
   expect_in_hook_file_at_lines 'a tool footer at the start of a line below a scissors block and a diff header fails in the hook file' '8' '#' "Fix the gate${nl}${nl}$scissors_block${nl}${nl}diff --git a/x b/x${nl}$generated"
