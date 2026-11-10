@@ -473,6 +473,49 @@ fn an_array_formula_that_loses_its_range_differs() {
 }
 
 #[test]
+fn a_panic_in_a_library_is_a_miss_and_the_other_cells_run() {
+    let dir = scratch("panic");
+    let corpus = dir.join("corpus");
+    std::fs::create_dir_all(&corpus).unwrap();
+    for file in corpus::FILES {
+        if file != "values.xlsx" {
+            std::fs::copy(corpus_dir().join(file), corpus.join(file)).unwrap();
+        }
+    }
+    rewrite_entry(
+        &corpus_dir().join("values.xlsx"),
+        &corpus.join("values.xlsx"),
+        "xl/worksheets/sheet1.xml",
+        "<c r=\"B5\"",
+        "<c r=\"5B\"",
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_r3-sheet-trial"))
+        .args(["run", "--candidate", "umya", "--corpus"])
+        .arg(&corpus)
+        .arg("--out")
+        .arg(dir.join("out"))
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert_eq!(
+        stderr, "miss candidate=umya file=values.xlsx cause=panic\n",
+        "{stderr}"
+    );
+    let ran: Vec<&str> = stdout
+        .lines()
+        .map(|line| line.split_whitespace().nth(2).unwrap_or(""))
+        .collect();
+    let others: Vec<String> = corpus::FILES
+        .iter()
+        .filter(|file| **file != "values.xlsx")
+        .map(|file| format!("file={file}"))
+        .collect();
+    assert_eq!(ran, others, "{stdout}");
+}
+
+#[test]
 fn the_binary_refuses_a_missing_flag() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_r3-sheet-trial"))
         .arg("run")

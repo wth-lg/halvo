@@ -109,7 +109,10 @@ comparison of a cached result with the computed one is exact.
   two such cells, as in `two-sheets.xlsx`, the line names the worse of the
   two, in the order `fresh`, `absent`, `stale`.
 - A cell could not run, and `run.sh` exits 1, when a candidate fails or the
-  saved file does not hold the new value in the changed cell.
+  saved file does not hold the new value in the changed cell. The run prints
+  a `miss` line for that cell on standard error and runs the other cells. A
+  panic inside a library is such a failure: its line ends in `cause=panic`,
+  and the run prints nothing of the panic's own message.
 
 `tools/r3-trials/sheet/src/parts.rs` holds the rule of each kind as code
 that U2.3 can take over.

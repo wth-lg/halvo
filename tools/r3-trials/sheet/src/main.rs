@@ -308,7 +308,8 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let result = match args.command.as_str() {
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(|| match args.command.as_str() {
         "generate" => {
             need(&args.corpus, "--corpus").and_then(|dir| corpus::generate(dir).map(|()| true))
         }
@@ -317,7 +318,8 @@ fn main() -> ExitCode {
         "facts" => facts_cmd(&args),
         "inspect" => inspect(&args),
         _ => unreachable!("parse refuses an unknown command"),
-    };
+    })
+    .unwrap_or_else(|_| Err("panic".to_string()));
     match result {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::from(1),

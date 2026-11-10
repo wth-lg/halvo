@@ -1,4 +1,5 @@
 use std::fmt;
+use std::panic::AssertUnwindSafe;
 use std::path::Path;
 
 use crate::book::{self, Book};
@@ -106,6 +107,11 @@ pub fn run_cell(
     corpus: &Path,
     out: &Path,
 ) -> Result<Line, String> {
+    std::panic::catch_unwind(AssertUnwindSafe(|| cell(candidate, spec, corpus, out)))
+        .unwrap_or_else(|_| Err("panic".to_string()))
+}
+
+fn cell(candidate: Candidate, spec: &Spec, corpus: &Path, out: &Path) -> Result<Line, String> {
     let original = corpus.join(spec.file);
     let dir = out.join(candidate.name());
     std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
