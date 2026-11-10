@@ -101,7 +101,13 @@ Three layers apply this predicate.
      are the commits that are on neither the remote's copy of that ref nor the
      default branch as this clone last fetched it: the default branch of that
      remote, or the one of origin when the push names a URL or a remote whose
-     default branch this clone does not know. It cannot see a push made
+     default branch this clone does not know. The hook reads more commits in
+     two cases. When this clone does not hold the commit that the remote's
+     copy of the ref names, as in a force push over a commit that was never
+     fetched, it also reads the commits of the pushed ref that are already
+     on that copy. When this clone knows no default branch, of that remote
+     or of origin, it reads every commit of the pushed ref that is not
+     exempt and not on the remote's copy of that ref. It cannot see a push made
      with --no-verify, a push from a checkout that has no .githooks/pre-push
      file, such as a branch cut before the file existed, a push from a clone
      where sh scripts/prerequisites.sh has not set core.hooksPath, or a commit
