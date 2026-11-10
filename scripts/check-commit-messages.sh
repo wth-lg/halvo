@@ -179,6 +179,9 @@ self_test() {
   expect_in_hook_file 'a trailer below a scissors block that no diff follows fails in the hook file' 1 "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
   expect_in_hook_file 'a trailer between a scissors line and a diff header fails in the hook file' 1 "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
   expect_in_hook_file 'a trailer below prose that holds the scissors text fails in the hook file' 1 "Fix the gate${nl}${nl}The hook stopped at $SCISSORS before.${nl}$trailer"
+  expect_in_hook_file 'a trailer below prose that ends with the scissors text and a diff header fails in the hook file' 1 "Fix the gate${nl}${nl}The hook stopped at $SCISSORS${nl}diff --git a/bindings.rs b/bindings.rs${nl}$trailer"
+  expect_in_hook_file 'trailers between a scissors line that starts like them and a diff header fail in the hook file' 2 "Fix the gate${nl}${nl}Co-Authored-By: C $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
+  expect_in_hook_file 'the diff below a scissors block with empty lines, as git writes when it concludes a merge, is dropped from the hook file' 0 "Merge branch 'side'${nl}${nl}$scissors_block${nl}#${nl}# It looks like you may be committing a merge.${nl}${nl}${nl}# On branch main${nl}#${nl}$diff_with_attribution_text"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d fixtures misclassified\n' "$failures"
