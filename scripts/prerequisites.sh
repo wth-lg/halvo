@@ -13,7 +13,7 @@ current_directory_is_git_work_tree_root() {
 if current_directory_is_git_work_tree_root; then
   if [ "$(git config --local --get core.hooksPath || true)" != .githooks ]; then
     echo "prerequisites: setting git core.hooksPath to .githooks"
-    git config --local core.hooksPath .githooks
+    git config --local --replace-all core.hooksPath .githooks
   fi
   if [ "$(git config --get core.hooksPath || true)" != .githooks ]; then
     echo "prerequisites: error: git does not read core.hooksPath=.githooks although the config of this clone holds it, so git runs no hook of .githooks. The setting below has a higher priority. Remove it, then run this script again." >&2
