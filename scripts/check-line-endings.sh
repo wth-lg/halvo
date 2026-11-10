@@ -275,7 +275,7 @@ self_test() {
   track tool '#!/bin/sh\necho\n'
   expect 'the same file is accepted once .gitattributes holds that line' 0 "$(pass_line 1)"
 
-  start_fixture '*.sh text eol=lf' '.githooks/* text eol=lf'
+  start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf'
   track .githooks/commit-msg '#!/bin/sh\nexec true\n'
   track scripts/check.sh '#!/bin/sh\necho\n'
   expect 'the two patterns of this repository cover a hook and a .sh file' 0 "$(pass_line 2)"
