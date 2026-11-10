@@ -14,6 +14,7 @@ fi
 
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 cd "$(dirname "$0")"
+. ./s5-verdict.sh
 
 case "$(uname -s)" in
   Darwin)
@@ -72,10 +73,16 @@ install_build() {
     codesign --force --sign - --identifier dev.halvo.spike.r7-s5.custody "$custody.new"
   fi
   mv -f "$custody.new" "$custody"
-  echo "S5 $runner build $stamp installed: stamp=$("$custody" stamp) sha256=$(sha256 "$custody")"
-  cdhash=
+  # The code hash is what the key store can tell two builds apart by: the code directory
+  # hash of the signature on macOS, the SHA-256 of the program file on Windows.
   if [ "$os" = macos ]; then
-    cdhash=$(codesign -dvvv "$custody" 2>&1 | sed -n 's/^CDHash=//p')
+    code_hash=$(codesign -dvvv "$custody" 2>&1 | sed -n 's/^CDHash=//p')
+    code_hash=${code_hash:+cdhash:$code_hash}
+  else
+    code_hash=sha256:$(sha256 "$custody")
+  fi
+  echo "S5 $runner build $stamp installed: stamp=$("$custody" stamp) sha256=$(sha256 "$custody") code_hash=$code_hash"
+  if [ "$os" = macos ]; then
     {
       codesign -dvvv "$custody" 2>&1 | grep -E '^(Identifier|CodeDirectory|CDHash|Signature|TeamIdentifier)'
       codesign -d -r- "$custody" 2>&1 | grep designated
@@ -99,8 +106,7 @@ s5() {
 
   build_custody 1
   install_build 1
-  first=$(sha256 "$custody")
-  first_cdhash=$cdhash
+  first_hash=$code_hash
   "$custody" store "$value" || does_not_count "build 1 could not store the item"
   "$custody" read "$value" ||
     does_not_count "the build that stored the item cannot read it back, so this key store is unusable here"
@@ -108,12 +114,8 @@ s5() {
 
   build_custody 2
   install_build 2
-  if [ "$(sha256 "$custody")" = "$first" ]; then
-    does_not_count "the rebuilt binary is identical to the first, so it does not stand for an update"
-  fi
-  if [ "$os" = macos ] && { [ -z "$cdhash" ] || [ "$cdhash" = "$first_cdhash" ]; }; then
-    does_not_count "the two builds do not have two different code directory hashes ('$first_cdhash', '$cdhash')"
-  fi
+  second_hash=$code_hash
+  echo "S5 $runner code hashes: build 1 '$first_hash', build 2 '$second_hash'"
 
   set +e
   "$custody" read "$value"
@@ -134,11 +136,7 @@ s5() {
     does_not_count "build 1, installed again, could not read the item, so build 2's result cannot be tied to the rebuild"
   fi
 
-  case $rc in
-    0) echo "S5 RULE $runner: MET (rebuilt build 2 read the item that build 1 stored, with user interaction disabled)" ;;
-    10 | 12) echo "S5 RULE $runner: MISSED (rebuilt build 2 could not read the item that build 1 stored, with user interaction disabled; read exit $rc)" ;;
-    *) does_not_count "build 2's read ended with exit $rc" ;;
-  esac
+  s5_verdict "$runner" "$rc" "$first_hash" "$second_hash" || exit 1
 
   "$custody" delete || echo "S5 $runner: the item was left in the key store of this runner"
 }
