@@ -213,6 +213,13 @@ self_test() {
   expect 'a message that holds the word head before the name of the script is accepted' '' "printf '%s\\n' \"pipe the output to head first\" $own_path"
   expect 'sed with a variable as its script is accepted' '' "sed -n \"\$pattern\" $own_path"
   expect 'sed with a pattern that holds a number is accepted' '' "sed -n '/^# 2nd/p' $own_path"
+  expect 'sed named by its path is refused' 1 "/usr/bin/sed -n $lines_2_to_20 $own_path"
+  expect 'head named by its path is refused' 1 "/usr/bin/head -n 3 $own_path"
+  expect 'tail named by a relative path is refused' 1 "./tools/tail -n +2 $own_path"
+  expect 'awk named by its path, with FNR, is refused' 1 "/usr/bin/awk 'FNR <= 3' $own_path"
+  expect 'sed named by its path after cat named by its path and a pipe is refused' 1 "/bin/cat $own_path | /usr/bin/sed -n $lines_2_to_20"
+  expect 'sed named by its path after an assignment is refused' 1 "LC_ALL=C /usr/bin/sed -n $lines_2_to_20 $own_path"
+  expect 'the path of a reader as an operand of another command is accepted' '' "ls -l /usr/bin/head $own_path"
 
   leave_the_repository_that_git_variables_name
   fixture_directory=$(mktemp -d "${TMPDIR:-/tmp}/check-own-source-reads-self-test.XXXXXX") || die 'mktemp could not make a directory'
