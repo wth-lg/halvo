@@ -58,7 +58,7 @@ check() {
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts
     STUB_TREES=$work/$1
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TREES STUB_STALE
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TREES STUB_STALE STUB_METADATA STUB_BROKEN
     measure 2>&1
   )
   code=$?
@@ -79,6 +79,8 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_STALE=no
+  STUB_METADATA=ok
+  STUB_BROKEN=none
 }
 
 trees() {
@@ -113,9 +115,13 @@ case $* in
     [ "$STUB_STALE" = no ] || exit 101
     cat "$STUB_TREES/workspace.txt"
     ;;
-  'metadata --no-deps --locked --format-version 1') cat "$STUB_TREES/metadata.json" ;;
+  'metadata --no-deps --locked --format-version 1')
+    [ "$STUB_METADATA" = ok ] || exit 101
+    cat "$STUB_TREES/metadata.json"
+    ;;
   *)
     if [ $# -eq 11 ] && [ "$1 $2 $4 $5 $6 $7 $9 ${10} ${11}" = 'tree -p -e normal --all-features --target --prefix none --locked' ]; then
+      [ "$3-$8" != "$STUB_BROKEN" ] || exit 101
       cat "$STUB_TREES/$3-$8.txt"
     else
       printf 'stub cargo: got the arguments: %s\n' "$*"
@@ -134,6 +140,8 @@ EOF
   rejected=0
   wrong=
   STUB_STALE=no
+  STUB_METADATA=ok
+  STUB_BROKEN=none
 
   trees what-main-links
   check what-main-links PASS 'halvo-capture on x86_64-pc-windows-msvc: 2 lines'
@@ -160,6 +168,12 @@ EOF
   printf 'halvo-control v0.0.0 (/w/crates/halvo-control)\n' >"$work/control-crate-links-hyper/halvo-control-aarch64-apple-darwin.txt"
   printf 'halvo-control v0.0.0 (/w/crates/halvo-control)\nhyper v1.9.0\n' >"$work/control-crate-links-hyper/halvo-control-x86_64-pc-windows-msvc.txt"
   check control-crate-links-hyper FAIL 'halvo-control on x86_64-pc-windows-msvc: forbidden crate line: hyper v1.9.0)'
+  trees metadata-fails
+  STUB_METADATA=broken
+  check metadata-fails FAIL 'cargo metadata failed)'
+  trees package-tree-fails
+  STUB_BROKEN=halvo-capture-x86_64-pc-windows-msvc
+  check package-tree-fails FAIL 'cargo tree failed for halvo-capture on x86_64-pc-windows-msvc)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
