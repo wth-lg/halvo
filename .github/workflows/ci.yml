@@ -28,7 +28,7 @@ jobs:
           cargo test --locked
       - name: Probes
         shell: bash
-        run: sh tools/r2-probes/run-hosted.sh "$RUNNER_TEMP/r2-out" --runs 1
+        run: sh tools/r2-probes/run-hosted.sh "$RUNNER_TEMP/r2-out" --runs 1 --debug-frames
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -60,7 +60,7 @@ jobs:
           cargo test --locked
       - name: Probes
         shell: bash
-        run: sh tools/r2-probes/run-hosted.sh "$RUNNER_TEMP/r2-out" --runs 1
+        run: sh tools/r2-probes/run-hosted.sh "$RUNNER_TEMP/r2-out" --runs 1 --debug-frames
       - uses: actions/upload-artifact@v7
         if: always()
         with:
