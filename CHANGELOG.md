@@ -92,3 +92,7 @@ and merge without an entry landing under the heading of another.
 - Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, and pair each rule in AGENTS.md with its check and its limits
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
+- Added: Add the per-run ci.d driver with the nine R1 checks, the bounds file of the R1 gate, its memory check and its mutant rows beside the code
+- Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
+- Fixed: Make the R1 gate checks fail closed when a source did not run, a bound is unreadable, or the tree changed during the run
+- Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
