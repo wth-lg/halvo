@@ -1,20 +1,10 @@
 # shellcheck shell=sh
-# Shared logic for the R1 gate harness.
-#
-# This file is the measuring instrument. Every sub-check decides PASS or FAIL by
-# calling one of the predicate functions below, and `run.sh --self-test` proves
-# those predicates on fixtures. The predicates take data (a report file, a
-# directory, a number) and never acquire it, so the same logic runs against a
-# fixture in self-test and against the real pipeline in a measured run.
-#
-# POSIX sh only. Safe to source more than once.
-
-# Repo root (scripts/r1-gate/ is two levels below it).
 GATE_ROOT=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
-# origin repo slug, for the Windows CI sub-check.
+GATE_ROOT=$(cd "$GATE_ROOT" && pwd -P)
 GATE_REPO=${GATE_REPO:-wth-lg/halvo}
-# Default measured-run length. The whole-plan gate uses 600s; callers override.
 GATE_DURATION=${GATE_DURATION:-600}
+GATE_TARGET=$GATE_ROOT/target/r1-gate
+GATE_BIN=$GATE_TARGET/debug/halvo-capture
 
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 
@@ -117,13 +107,6 @@ check_main() {
   done
   trap gate_exit EXIT
   if [ "$mode" = self-test ]; then selftest_run; else measure "$seconds"; fi
-}
-
-# Run the capture bin from the repo root. Returns its exit code; the crate not
-# existing yet (the P0 baseline) makes cargo fail here, which the caller treats
-# as FAIL.
-run_capture_bin() {
-  ( cd "$GATE_ROOT" && cargo run -q -p halvo-capture --bin halvo-capture -- "$@" )
 }
 
 dir_disk_usage_bytes() {
@@ -242,14 +225,103 @@ predicate_zero_secure_keystrokes() {
   [ "$count" = 0 ]
 }
 
+gate_build() {
+  mkdir -p "$GATE_TARGET" || { gate_build_error="cannot make $GATE_TARGET"; return 1; }
+  ( cd "$GATE_ROOT" && CARGO_TARGET_DIR="$GATE_TARGET" cargo build -q --locked -p halvo-capture --bin halvo-capture ) > "$GATE_TARGET/build.log" 2>&1 && return 0
+  gate_build_error=$(grep -m 1 -E '^error' "$GATE_TARGET/build.log")
+  [ -n "$gate_build_error" ] || gate_build_error=$(head -1 "$GATE_TARGET/build.log")
+  return 1
+}
+
+need_build() {
+  gate_build && return 0
+  emit_fail "$name" "build failed: $gate_build_error"
+  return 1
+}
+
+run_capture_bin() {
+  "$GATE_BIN" "$@"
+}
+
+standin_build() {
+  standin=$GATE_TARGET/load-standin
+  mkdir -p "$GATE_TARGET" || return 1
+  cc -O2 -o "$standin" "$GATE_ROOT/scripts/r1-gate/helper/load-standin.c" > "$GATE_TARGET/load-standin.log" 2>&1
+}
+
+child_wrapper=''
+child_pid=''
+child_defect=''
+child_status=''
+
+timed_child() {
+  child_dir=$1; child_bin=$2; shift 2
+  child_defect=''; child_pid=''
+  /usr/bin/time -l -o "$child_dir/time" "$child_bin" "$@" > "$child_dir/stdout" 2> "$child_dir/stderr" &
+  child_wrapper=$!
+  child_polls=0
+  while :; do
+    child_pid=$(pgrep -P "$child_wrapper" 2>/dev/null | head -1)
+    [ -z "$child_pid" ] || break
+    if ! kill -0 "$child_wrapper" 2>/dev/null; then
+      child_defect="the process ended before its pid was read"; break
+    fi
+    child_polls=$((child_polls + 1))
+    if [ "$child_polls" -ge 100 ]; then
+      child_defect="the time wrapper had no child after 10 s"
+      kill -TERM "$child_wrapper" 2>/dev/null
+      break
+    fi
+    sleep 0.1
+  done
+  child_polls=0
+  while [ -n "$child_pid" ]; do
+    child_comm=$(ps -o comm= -p "$child_pid" 2>/dev/null)
+    [ "$child_comm" != "$child_bin" ] || break
+    child_polls=$((child_polls + 1))
+    if [ "$child_polls" -ge 10 ]; then
+      child_defect="the child of the time wrapper is ${child_comm:-gone}, not $child_bin"
+      kill -TERM "$child_pid" 2>/dev/null
+      break
+    fi
+    sleep 0.1
+  done
+  wait "$child_wrapper"
+  child_status=$?
+  child_wrapper=''
+  [ -z "$child_defect" ]
+}
+
+child_report_defect() {
+  case $child_status in
+    0|3) return 0 ;;
+    2) printf 'the timed run ended on a signal before its time (exit 2)\n' ;;
+    *) child_first=$(head -1 "$child_dir/stderr" 2>/dev/null)
+       printf 'timed-run unavailable (exit %s): %s\n' "$child_status" "$child_first" ;;
+  esac
+  return 1
+}
+
+time_file_cpu_pct() {
+  awk 'NR == 1 {
+    decimal = "^[0-9]+(\\.[0-9]+)?$"
+    if (NF != 6 || $2 != "real" || $4 != "user" || $6 != "sys") exit 1
+    if ($1 !~ decimal || $3 !~ decimal || $5 !~ decimal) exit 1
+    printf "%.2f\n", ($3 + $5) / $1 * 100
+    found = 1
+  }
+  END { if (!found) exit 1 }' "$1" 2>/dev/null
+}
+
 predicate_cost_within_bound() {
-  cpu=$1; disk=$2; seconds=$3; cpu_max=$4; per_day=$5
-  cpu_x10=$(printf '%s' "$cpu" | awk '{printf "%d", $1*10}')
-  max_x10=$((cpu_max * 10))
-  [ "$cpu_x10" -le "$max_x10" ] || return 1
-  disk_max=$((seconds * per_day / 86400))
-  [ "$disk" -le "$disk_max" ] || return 1
-  return 0
+  awk -v cpu="$1" -v growth="$2" -v seconds="$3" -v cpu_max="$4" -v per_day="$5" 'BEGIN {
+    decimal = "^[0-9]+(\\.[0-9]+)?$"; whole = "^[0-9]+$"
+    if (cpu !~ decimal || cpu_max !~ decimal || growth !~ /^-?[0-9]+$/) exit 2
+    if (seconds !~ whole || per_day !~ whole || seconds + 0 == 0) exit 2
+    if (cpu + 0 > cpu_max + 0) exit 1
+    if (growth + 0 > seconds * per_day / 86400) exit 1
+    exit 0
+  }'
 }
 
 # PASS(0) if the CI conclusion is success.

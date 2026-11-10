@@ -26,6 +26,7 @@ cases() {
 
 measure() {
   seconds=$1
+  need_build || return 1
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-timed-run.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   if run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then
     if predicate_modalities_present "$tmp/report"; then emit_pass "$name"; return 0; fi

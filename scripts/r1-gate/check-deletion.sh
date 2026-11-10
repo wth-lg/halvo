@@ -29,7 +29,9 @@ cases() {
 
 measure() {
   store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); out=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); trap 'rm -rf "$store" "$out" "$err"' EXIT
-  if HALVO_STORE_DIR="$store" run_capture_bin --verify-deletion > "$out" 2> "$err"; then
+  need_build || return 1
+  export HALVO_STORE_DIR="$store"
+  if run_capture_bin --verify-deletion > "$out" 2> "$err"; then
     report=$(cat "$out")
     defects=$(deletion_report_defects "$report")
     if [ -z "$defects" ]; then emit_pass "$name"; return 0; fi

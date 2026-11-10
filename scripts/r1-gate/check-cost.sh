@@ -44,8 +44,71 @@ usage_is_a_number() {
   return 0
 }
 
+time_fixture() {
+  printf '        %s real         %s user         %s sys\n             1081344  maximum resident set size\n' "$2" "$3" "$4" > "$gate_scratch/$1"
+}
+
+cpu_of_time_file_is() {
+  cpu=$(time_file_cpu_pct "$1") || return 1
+  [ "$cpu" = "$2" ]
+}
+
+live_cpu_above() {
+  mkdir -p "$gate_scratch/live-$1"
+  timed_child "$gate_scratch/live-$1" "$standin" "$@" || return 1
+  child_report_defect || return 1
+  cpu=$(time_file_cpu_pct "$gate_scratch/live-$1/time") || return 1
+  predicate_cost_within_bound "$cpu" 0 600 "$live_floor" 2000000000 && return 1
+  return 0
+}
+
+exit_status_gives() {
+  child_status=$1
+  child_dir=$gate_scratch
+  child_report_defect
+}
+
+child_of_script() {
+  mkdir -p "$gate_scratch/script-child"
+  printf '#!/bin/sh\nsleep 2\n' > "$gate_scratch/wrapper-script"
+  chmod 755 "$gate_scratch/wrapper-script"
+  timed_child "$gate_scratch/script-child" "$gate_scratch/wrapper-script"
+}
+
 cases() {
   scratch_root
+  standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  t cpu-20.00-vs-20 PASS predicate_cost_within_bound 20.00 0 600 20 2000000000
+  t cpu-20.09-vs-20 FAIL predicate_cost_within_bound 20.09 0 600 20 2000000000
+  t cpu-with-a-comma FAIL predicate_cost_within_bound 20,09 0 600 20 2000000000
+  t cpu-empty FAIL predicate_cost_within_bound "" 0 600 20 2000000000
+  t bound-not-a-number FAIL predicate_cost_within_bound 10 0 600 abc 2000000000
+  t disk-bound-not-a-number FAIL predicate_cost_within_bound 10 0 600 20 abc
+  t duration-not-a-number FAIL predicate_cost_within_bound 10 0 abc 20 2000000000
+  t duration-zero FAIL predicate_cost_within_bound 10 0 0 20 2000000000
+  t growth-not-a-number FAIL predicate_cost_within_bound 10 "" 600 20 2000000000
+  t growth-at-the-bound PASS predicate_cost_within_bound 10 13888888 600 20 2000000000
+  t growth-above-the-bound FAIL predicate_cost_within_bound 10 13888889 600 20 2000000000
+  time_fixture time-good 2.00 0.30 0.10
+  time_fixture time-zero-real 0.00 0.30 0.10
+  time_fixture time-comma 2,00 0,30 0,10
+  printf '             1081344  maximum resident set size\n' > "$gate_scratch/time-lacks-real"
+  : > "$gate_scratch/time-empty"
+  t time-file-read PASS cpu_of_time_file_is "$gate_scratch/time-good" 20.00
+  t zero-samples FAIL time_file_cpu_pct "$gate_scratch/time-empty"
+  t time-file-missing FAIL time_file_cpu_pct "$gate_scratch/no-such-time-file"
+  t time-file-lacks-real FAIL time_file_cpu_pct "$gate_scratch/time-lacks-real"
+  t real-is-zero FAIL time_file_cpu_pct "$gate_scratch/time-zero-real"
+  t time-file-with-commas FAIL time_file_cpu_pct "$gate_scratch/time-comma"
+  live_floor=50
+  t live-busy-loop-reads-above-50 PASS live_cpu_above burn 2
+  t live-idle-reads-under-50 FAIL live_cpu_above sleep 1
+  t comm-is-bin-sh FAIL child_of_script
+  t exit-0-report-read PASS exit_status_gives 0
+  t exit-3-report-read PASS exit_status_gives 3
+  t exit-1-unavailable FAIL exit_status_gives 1
+  t exit-2-signal FAIL exit_status_gives 2
+  t exit-64-usage FAIL exit_status_gives 64
   t within-bound PASS predicate_cost_within_bound 10 1000000 600 20 2000000000
   t cpu-50 FAIL predicate_cost_within_bound 50 1000000 600 20 2000000000
   t disk-1-gb FAIL predicate_cost_within_bound 10 1000000000 600 20 2000000000
@@ -76,35 +139,26 @@ cases() {
   t line-names-the-bounds PASS line_names_the_bounds
 }
 
-sample_mean_cpu() {
-  pid=$1; sum=0; n=0
-  while kill -0 "$pid" 2>/dev/null; do
-    c=$(ps -o %cpu= -p "$pid" 2>/dev/null | tr -d ' ')
-    if [ -n "$c" ]; then sum=$(awk -v s="$sum" -v c="$c" 'BEGIN{printf "%.2f", s+c}'); n=$((n+1)); fi
-    sleep 1
-  done
-  awk -v s="$sum" -v n="$n" 'BEGIN{ if (n>0) printf "%.2f", s/n; else print "0" }'
-}
-
 measure() {
   seconds=$1
-  store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-cost.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-cost.XXXXXX"); trap 'rm -rf "$store" "$err"' EXIT
-  before=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
-  HALVO_STORE_DIR="$store" run_capture_bin --timed-run "$seconds" > /dev/null 2> "$err" &
-  pid=$!
-  cpu=$(sample_mean_cpu "$pid")
-  if ! wait "$pid" 2>/dev/null; then
-    first=$(head -1 "$err" 2>/dev/null)
-    emit_fail "$name" "daemon did not complete a timed run: $first"; return 1
-  fi
-  after=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured after the run"; return 1; }
-  growth=$((after - before))
   need_bound cpu_max_pct_of_one_core || return 1
   cpu_max=$bound
   need_bound disk_max_bytes_per_day || return 1
   per_day=$bound
-  if predicate_cost_within_bound "$cpu" "$growth" "$seconds" "$cpu_max" "$per_day"; then emit_pass "$name" "cpu=${cpu}% growth=${growth}B over ${seconds}s"; return 0; fi
-  emit_fail "$name" "cpu=${cpu}% growth=${growth}B over ${seconds}s exceeds a bound"; return 1
+  need_build || return 1
+  scratch_root
+  store=$gate_scratch/store; run=$gate_scratch/run
+  mkdir "$store" "$run"
+  before=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
+  export HALVO_STORE_DIR="$store"
+  timed_child "$run" "$GATE_BIN" --timed-run "$seconds" || { emit_fail "$name" "$child_defect"; return 1; }
+  defect=$(child_report_defect) || { emit_fail "$name" "$defect"; return 1; }
+  after=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured after the run"; return 1; }
+  growth=$((after - before))
+  cpu=$(time_file_cpu_pct "$run/time") || { emit_fail "$name" "the time file holds no real, user and sys figures, or real is 0"; return 1; }
+  figures="cpu=${cpu}% of one core, growth=${growth}B over ${seconds}s, binary=${GATE_BIN#"$GATE_ROOT"/}"
+  if predicate_cost_within_bound "$cpu" "$growth" "$seconds" "$cpu_max" "$per_day"; then emit_pass "$name" "$figures"; return 0; fi
+  emit_fail "$name" "$figures: above a bound"; return 1
 }
 
 check_main "$@"

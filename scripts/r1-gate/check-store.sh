@@ -80,11 +80,13 @@ cases() {
 }
 
 measure() {
+  need_build || return 1
   scratch_root
   store=$gate_scratch/store; out=$gate_scratch/stdout; err=$gate_scratch/stderr
   mkdir "$store"
   marker="HALVO_GATE_MARKER_$$"
-  if HALVO_STORE_DIR="$store" HALVO_GATE_MARKER="$marker" run_capture_bin --verify-store --marker "$marker" > "$out" 2> "$err"; then
+  export HALVO_STORE_DIR="$store" HALVO_GATE_MARKER="$marker"
+  if run_capture_bin --verify-store --marker "$marker" > "$out" 2> "$err"; then
     if ! defect=$(marker_defect "$store" "$marker" "$out" "$err"); then
       emit_fail "$name" "$defect"; return 1
     fi
