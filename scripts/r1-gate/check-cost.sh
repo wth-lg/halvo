@@ -237,6 +237,10 @@ cases() {
   standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
   sources_cases
   t standin-run-with-sources PASS against_the_standin ok operator
+  t standin-run-with-no-input NO-INPUT against_the_standin ok none
+  t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
+  t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
+  t standin-binary-hangs FAIL hanging_standin
   t standin-screen-source-failed FAIL against_the_standin screen-failed operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
   t cpu-20.00-vs-20 PASS predicate_cost_within_bound 20.00 0 600 20 2000000000
@@ -320,6 +324,11 @@ cases() {
   t line-names-the-bounds PASS line_names_the_bounds
 }
 
+hanging_standin() {
+  export GATE_OVERRIDE_child_deadline_extra_s=1
+  against_the_standin hang operator
+}
+
 against_the_standin() {
   standin_as_the_binary "$1" "$2"
   measure 1
@@ -347,7 +356,7 @@ measure() {
   if ! strict_run_ok; then
     emit_fail "$name" "$line: --strict needs pressure level 1 at both ends and no other halvo-capture"; return 1
   fi
-  emit_pass "$name" "$line"
+  verdict_under_input "and the bound is defined under input load" "$line"
 }
 
 check_main "$@"

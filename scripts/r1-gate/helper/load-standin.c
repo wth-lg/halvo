@@ -187,7 +187,7 @@ static int capture_standin(int argc, char **argv) {
             return 64;
         }
         if (strcmp(scenario, "hang") == 0) {
-            idle(3600);
+            idle(20);
         }
         idle(atof(argv[2]));
         if (screen_failed) {

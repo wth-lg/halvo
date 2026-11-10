@@ -49,12 +49,30 @@ emit_line() {
   printf '%s\n' "$line"
 }
 emit_pass() { emit_line PASS "$@"; }
+emit_no_input() { emit_line NO-INPUT "$@"; }
+
+verdict_under_input() {
+  if [ "$gate_input" = none ]; then
+    emit_no_input "$name" "input=none, $1: $2"
+    return 3
+  fi
+  emit_pass "$name" "input=$gate_input: $2"
+}
+
+worst_status() {
+  case $2 in
+    0) printf '%s\n' "$1" ;;
+    3) if [ "$1" -eq 0 ]; then printf '3\n'; else printf '%s\n' "$1"; fi ;;
+    *) printf '1\n' ;;
+  esac
+}
 emit_fail() { emit_line FAIL "$@"; }
 
 name=${name:-gate}
 gate_scratch=''
 gate_remove_scratch=no
 gate_verbose=''
+gate_input=none
 gate_sha=''
 gate_strict=no
 gate_case=''
@@ -142,6 +160,12 @@ check_main() {
       --remove-scratch) gate_remove_scratch=yes ;;
       --strict) gate_strict=yes ;;
       --sha) shift; gate_sha=${1:-} ;;
+      --input)
+        shift
+        case ${1:-} in
+          none|operator) gate_input=$1 ;;
+          *) printf 'check-%s.sh: --input takes none or operator\n' "$name" >&2; exit 64 ;;
+        esac ;;
       ''|*[!0-9]*) printf 'check-%s.sh: unknown argument: %s\n' "$name" "$1" >&2; exit 64 ;;
       *) seconds=$1 ;;
     esac
@@ -379,6 +403,7 @@ standin_as_the_binary() {
   capture_helper_bin=$gate_scratch/standin-helper
   capture_builds=no
   capture_label="$name-$1-$2-"
+  gate_input=$2
   printf '#!/bin/sh\nprintf "helper visible pid=1\\n"\nexec sleep 30\n' > "$capture_helper_bin"
   chmod 755 "$capture_helper_bin"
 }

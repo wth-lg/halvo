@@ -16,12 +16,13 @@ usage() {
   cat <<EOF
 R1 gate driver. One line for each sub-check of the done-when.
 
-  sh scripts/r1-gate/run.sh --self-test [-v]
+  sh scripts/r1-gate/run.sh --self-test [-v] [--group NAME [--case CASE]]
       Prove the gate's own logic on fixtures and on stand-in programs. Needs no
       capture crate, cargo, gh or network. -v prints one line for each case:
-      case <check>/<name> want=<PASS|FAIL> got=<PASS|FAIL>.
+      case <check>/<name> want=<PASS|FAIL|NO-INPUT> got=<PASS|FAIL|NO-INPUT>.
+      --group runs one group of the driver's own cases and no check script.
 
-  sh scripts/r1-gate/run.sh [--duration N] [--strict] [--allow-dirty] [--remove-scratch]
+  sh scripts/r1-gate/run.sh [--duration N] [--input none|operator] [--strict] [--allow-dirty] [--remove-scratch]
       Measure the built binary of HEAD. The first line names the commit, the
       tree id, the state of the work tree, the input and the machine. The tree
       id is the hash of the listing of HEAD without docs/baseline, so a squash
@@ -29,7 +30,11 @@ R1 gate driver. One line for each sub-check of the done-when.
         git ls-tree -r HEAD | awk -F '\t' 'index(\$2, "docs/baseline/") != 1' | git hash-object --stdin
       A dirty tree is refused unless --allow-dirty is given,
       and then every line says so. N is the length of each timed run in seconds,
-      a positive integer (default $GATE_DURATION). --strict fails a cost or memory
+      a positive integer (default $GATE_DURATION). --input says who gives keyboard and
+      pointer input during the timed runs: none (the default) or operator, a
+      person. With none the lines that need input print their figures and end
+      NO-INPUT, never PASS. Exit status: 0 when every line is PASS, 1 on any
+      FAIL, 3 on no FAIL and at least one NO-INPUT. --strict fails a cost or memory
       line on a machine under memory pressure or beside another halvo-capture.
       Scratch directories stay in place and their paths go to stderr, unless
       --remove-scratch is given.
@@ -81,6 +86,15 @@ tree_ids() {
 head_of() {
   GATE_ROOT=$1
   head_read
+}
+
+status_is() {
+  status=$(worst_status "$2" "$3")
+  [ "$status" = "$1" ]
+}
+
+input_accepted() {
+  sh "$DIR/run.sh" --input "$1" --help
 }
 
 duration_accepted() {
@@ -142,6 +156,18 @@ cases_run() {
   t check-script-missing FAIL run_check no-such-check --self-test
   t check-script-missing-is-named PASS missing_script_line_is "FAIL no-such-check (check script missing)"
   t check-script-present PASS run_check windows-ci --self-test
+  t exit-0-when-every-line-passes PASS status_is 0 0 0
+  t exit-3-on-a-no-input-line PASS status_is 3 0 3
+  t exit-3-stays-after-a-pass PASS status_is 3 3 0
+  t exit-1-on-a-fail PASS status_is 1 0 1
+  t exit-1-beats-no-input PASS status_is 1 3 1
+  t exit-1-stays-after-no-input PASS status_is 1 1 3
+  t exit-1-stays-after-a-pass PASS status_is 1 1 0
+  t exit-1-on-an-unknown-status PASS status_is 1 0 64
+  t input-none PASS input_accepted none
+  t input-operator PASS input_accepted operator
+  t input-scripted-arrives-later FAIL input_accepted scripted
+  t input-empty FAIL input_accepted ""
   t duration-600 PASS duration_accepted 600
   t duration-0 FAIL duration_accepted 0
   t duration-letters FAIL duration_accepted abc
@@ -151,7 +177,7 @@ cases_run() {
 
 
 main() {
-  mode=measure; verbose=''; strict=''; remove=''; allow_dirty=no; duration=$GATE_DURATION
+  mode=measure; verbose=''; strict=''; remove=''; allow_dirty=no; input=none; group=''; duration=$GATE_DURATION
   while [ $# -gt 0 ]; do
     case "$1" in
       --self-test) mode=self-test ;;
@@ -159,6 +185,14 @@ main() {
       --strict) strict=--strict ;;
       --remove-scratch) remove=--remove-scratch ;;
       --allow-dirty) allow_dirty=yes ;;
+      --group) shift; group=${1:-} ;;
+      --case) shift; gate_case=${1:-} ;;
+      --input)
+        shift
+        case ${1:-} in
+          none|operator) input=$1 ;;
+          *) usage >&2; return 64 ;;
+        esac ;;
       --duration)
         shift
         case ${1:-} in
@@ -172,16 +206,22 @@ main() {
   done
   rc=0
   if [ "$mode" = self-test ]; then
-    for entry in $CHECKS; do
-      check=${entry#*:}
-      [ -f "$DIR/check-$check.sh" ] || continue
-      run_check "$check" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
-    done
     gate_verbose=${verbose:+yes}
     name=run
     scratch_root
     gate_traps
     [ -z "$remove" ] || gate_remove_scratch=yes
+    if [ -n "$group" ]; then
+      case $group in
+        run|helper) name=$group; selftest_run; return ;;
+        *) printf 'run.sh: --group takes run or helper\n' >&2; return 64 ;;
+      esac
+    fi
+    for entry in $CHECKS; do
+      check=${entry#*:}
+      [ -f "$DIR/check-$check.sh" ] || continue
+      run_check "$check" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
+    done
     for name in run helper; do
       selftest_run || rc=1
     done
@@ -192,7 +232,7 @@ main() {
 $start
 HEAD
   machine=$(machine_kind)
-  printf 'gate head=%s tree=%s state=%s input=none machine=%s\n' "$start_sha" "$start_tree" "$start_state" "$machine"
+  printf 'gate head=%s tree=%s state=%s input=%s machine=%s\n' "$start_sha" "$start_tree" "$start_state" "$input" "$machine"
   if [ "$start_state" = dirty ]; then
     if [ "$allow_dirty" = no ]; then
       emit_fail run "the work tree is dirty: commit first, or pass --allow-dirty for a run that is no done-when run"
@@ -201,7 +241,8 @@ HEAD
     export GATE_TREE_STATE=dirty
   fi
   for entry in $CHECKS; do
-    run_check "${entry#*:}" --measure "$duration" --sha "$start_sha" ${strict:+"$strict"} ${remove:+"$remove"} || rc=1
+    run_check "${entry#*:}" --measure "$duration" --input "$input" --sha "$start_sha" ${strict:+"$strict"} ${remove:+"$remove"}
+    rc=$(worst_status "$rc" "$?")
   done
   printf 'OPEN second-account-read (owner step; no test bed)\n'
   end=$(head_read) || end="unreadable unreadable unreadable"

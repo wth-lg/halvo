@@ -95,6 +95,10 @@ cases() {
   t standin-leak FAIL live_verdict leak 16 5 0.3
   sources_cases
   t standin-run-with-sources PASS against_the_standin ok operator
+  t standin-run-with-no-input NO-INPUT against_the_standin ok none
+  t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
+  t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
+  t standin-binary-hangs FAIL hanging_standin
   t standin-screen-source-failed FAIL against_the_standin screen-failed operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
   run_fixture within 25231360 8113000 '24640 24528 25'
@@ -151,6 +155,11 @@ cases() {
   t pressure-2-without-strict PASS strict_verdict no pressure=2 pressure=2 yes
 }
 
+hanging_standin() {
+  export GATE_OVERRIDE_child_deadline_extra_s=1
+  against_the_standin hang operator
+}
+
 against_the_standin() {
   standin_as_the_binary "$1" "$2"
   measure 1
@@ -175,7 +184,7 @@ FIGURES
   if ! strict_run_ok; then
     emit_fail "$name" "$line: --strict needs pressure level 1 at both ends and no other halvo-capture"; return 1
   fi
-  emit_pass "$name" "$line"
+  verdict_under_input "and the bound is defined under input load" "$line"
 }
 
 check_main "$@"

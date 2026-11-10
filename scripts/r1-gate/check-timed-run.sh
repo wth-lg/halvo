@@ -24,6 +24,10 @@ cases() {
   t report-missing FAIL predicate_modalities_present "$gate_scratch/no-such-report"
   standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
   t standin-run-with-typed-input PASS against_the_standin typed operator
+  t standin-run-with-no-input NO-INPUT against_the_standin ok none
+  t standin-typed-run-is-no-pass-under-none NO-INPUT against_the_standin typed none
+  t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
+  t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
   t standin-run-with-no-event-of-two-kinds FAIL against_the_standin ok operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
   t standin-binary-prints-usage FAIL against_the_standin exit-64 operator
@@ -42,8 +46,12 @@ measure() {
   counts=$(report_counts "$run_dir/stdout")
   line="${counts% }over ${1}s with --switch screen_activity=on and the helper window"
   defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
-  if predicate_modalities_present "$run_dir/stdout"; then emit_pass "$name" "$line"; return 0; fi
-  emit_fail "$name" "a required kind recorded no event: $line"; return 1
+  if [ "$gate_input" = none ]; then
+    verdict_under_input "so keystroke and pointer are not judged" "$line"
+    return
+  fi
+  if predicate_modalities_present "$run_dir/stdout"; then emit_pass "$name" "input=$gate_input: $line"; return 0; fi
+  emit_fail "$name" "a required kind recorded no event under input=$gate_input: $line"; return 1
 }
 
 check_main "$@"
