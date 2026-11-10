@@ -101,6 +101,13 @@ cases() {
   t standin-binary-hangs FAIL hanging_standin
   t standin-screen-source-failed FAIL against_the_standin screen-failed operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 operator
+  t standin-run-ends-early FAIL against_the_standin ends-early operator
+  t standin-peak-above-the-bound FAIL against_the_standin big operator
+  t standin-helper-missing FAIL without_the_helper
+  t standin-deadline-bound-unreadable FAIL with_an_unreadable_deadline
+  t standin-strict-run-alone PASS strict_beside no
+  t standin-strict-run-beside-another-capture FAIL strict_beside yes
   run_fixture within 25231360 8113000 '24640 24528 25'
   t within-bound PASS verdict_of within
   t peak-is-the-largest-term PASS peak_is within 25231360
@@ -158,6 +165,28 @@ cases() {
 hanging_standin() {
   export GATE_OVERRIDE_child_deadline_extra_s=1
   against_the_standin hang operator
+}
+
+without_the_helper() {
+  standin_as_the_binary ok operator
+  capture_helper_bin=$gate_scratch/no-such-helper
+  measure 1
+}
+
+with_an_unreadable_deadline() {
+  export GATE_OVERRIDE_child_deadline_extra_s=soon
+  against_the_standin ok operator
+}
+
+strict_beside() {
+  standin_as_the_binary ok operator
+  gate_strict=yes
+  if [ "$1" = yes ]; then
+    mkdir -p "$gate_scratch/other-$name"
+    cp "$standin" "$gate_scratch/other-$name/halvo-capture"
+    "$gate_scratch/other-$name/halvo-capture" sleep 6 &
+  fi
+  measure 2
 }
 
 against_the_standin() {

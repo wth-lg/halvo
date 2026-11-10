@@ -38,6 +38,11 @@ line_names_the_bounds() {
   [ "$out" = "PASS cost (cpu=1.00; bounds: cpu_max_pct_of_one_core=20)" ]
 }
 
+usage_at_least() {
+  usage=$(dir_disk_usage_bytes "$1") || return 1
+  [ "$usage" -ge "$2" ]
+}
+
 usage_is_a_number() {
   usage=$(dir_disk_usage_bytes "$1") || return 1
   case $usage in ''|*[!0-9]*) return 1 ;; esac
@@ -243,6 +248,17 @@ cases() {
   t standin-binary-hangs FAIL hanging_standin
   t standin-screen-source-failed FAIL against_the_standin screen-failed operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 operator
+  t standin-run-ends-early FAIL against_the_standin ends-early operator
+  t standin-cpu-above-the-bound FAIL against_the_standin busy operator
+  t standin-growth-above-the-bound FAIL against_the_standin grows operator
+  mkdir "$gate_scratch/sixty-four-kib"
+  dd if=/dev/zero of="$gate_scratch/sixty-four-kib/file" bs=1024 count=64 2> /dev/null
+  t usage-is-in-bytes PASS usage_at_least "$gate_scratch/sixty-four-kib" 65536
+  t standin-helper-missing FAIL without_the_helper
+  t standin-deadline-bound-unreadable FAIL with_an_unreadable_deadline
+  t standin-strict-run-alone PASS strict_beside no
+  t standin-strict-run-beside-another-capture FAIL strict_beside yes
   t cpu-20.00-vs-20 PASS predicate_cost_within_bound 20.00 0 600 20 2000000000
   t cpu-20.09-vs-20 FAIL predicate_cost_within_bound 20.09 0 600 20 2000000000
   t cpu-with-a-comma FAIL predicate_cost_within_bound 20,09 0 600 20 2000000000
@@ -327,6 +343,28 @@ cases() {
 hanging_standin() {
   export GATE_OVERRIDE_child_deadline_extra_s=1
   against_the_standin hang operator
+}
+
+without_the_helper() {
+  standin_as_the_binary ok operator
+  capture_helper_bin=$gate_scratch/no-such-helper
+  measure 1
+}
+
+with_an_unreadable_deadline() {
+  export GATE_OVERRIDE_child_deadline_extra_s=soon
+  against_the_standin ok operator
+}
+
+strict_beside() {
+  standin_as_the_binary ok operator
+  gate_strict=yes
+  if [ "$1" = yes ]; then
+    mkdir -p "$gate_scratch/other-$name"
+    cp "$standin" "$gate_scratch/other-$name/halvo-capture"
+    "$gate_scratch/other-$name/halvo-capture" sleep 6 &
+  fi
+  measure 2
 }
 
 against_the_standin() {

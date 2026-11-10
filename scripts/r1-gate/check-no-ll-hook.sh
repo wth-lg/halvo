@@ -21,6 +21,17 @@ defect_is() {
   [ "$defect" = "$2" ]
 }
 
+measured_on() {
+  GATE_ROOT=$gate_scratch/$1
+  measure
+}
+
+measured_line_is() {
+  GATE_ROOT=$gate_scratch/$2
+  out=$(measure)
+  [ "$out" = "$1" ]
+}
+
 cases() {
   scratch_root
   tree listen-only
@@ -63,6 +74,13 @@ cases() {
   t no-rs-file-is-named PASS defect_is "$gate_scratch/no-rs" "not scanned: no .rs file"
   tree no-control crates/halvo-capture/src/macos/input.rs 'let tap = make_tap();'
   t listen-only-absent FAIL predicate_no_ll_hook "$gate_scratch/no-control"
+  tree trailing-comment crates/halvo-capture/src/windows/hook.rs 'let h = SetWindowsHookExW(id, Some(cb), hmod, 0); // a note after the call'
+  t hook-before-a-trailing-comment FAIL predicate_no_ll_hook "$gate_scratch/trailing-comment"
+  t measured-listen-only-tree PASS measured_on listen-only
+  t measured-active-tap FAIL measured_on tap-default
+  t measured-windows-hook FAIL measured_on windows-hook
+  t measured-tree-not-scanned FAIL measured_on no-rs
+  t measured-line-names-the-rule PASS measured_line_is "FAIL no-ll-hook (source scan measured: active-tap at crates/halvo-capture/src/macos/tap.rs:1)" tap-default
   tree unreadable crates/halvo-capture/src/windows/locked.rs 'let h = 1;'
   chmod 000 "$gate_scratch/unreadable/crates/halvo-capture/src/windows/locked.rs"
   t unreadable-source FAIL predicate_no_ll_hook "$gate_scratch/unreadable"

@@ -53,6 +53,51 @@ run_check() {
   sh "$DIR/check-$check_name.sh" "$@"
 }
 
+measure_all() {
+  all_status=0
+  for entry in $CHECKS; do
+    run_check "${entry#*:}" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
+    all_status=$(worst_status "$all_status" "$?")
+  done
+  return "$all_status"
+}
+
+stub_checks() {
+  stubs=$gate_scratch/stubs-$st_case
+  mkdir -p "$stubs"
+  for entry in $CHECKS; do
+    cat > "$stubs/check-${entry#*:}.sh" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" > "$0.args"
+read -r verdict < "$0.verdict"
+stub=${0##*/check-}
+printf '%s %s\n' "$verdict" "${stub%.sh}"
+case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
+exit 1
+STUB
+    printf 'PASS\n' > "$stubs/check-${entry#*:}.sh.verdict"
+  done
+  for pair in "$@"; do
+    printf '%s\n' "${pair#*=}" > "$stubs/check-${pair%%=*}.sh.verdict"
+  done
+  DIR=$stubs; strict=''; remove=''
+}
+
+all_checks_exit() {
+  all_want=$1; shift
+  stub_checks "$@"
+  measure_all 5 operator 0123456789abcdef0123456789abcdef01234567 > /dev/null
+  [ "$?" -eq "$all_want" ]
+}
+
+checks_get_their_arguments() {
+  stub_checks
+  strict=--strict
+  measure_all 5 operator 0123456789abcdef0123456789abcdef01234567 > /dev/null
+  read -r stub_args < "$stubs/check-memory.sh.args"
+  [ "$stub_args" = "--measure 5 --input operator --sha 0123456789abcdef0123456789abcdef01234567 --strict" ]
+}
+
 missing_script_line_is() {
   out=$(run_check no-such-check --self-test)
   [ "$out" = "$1" ]
@@ -181,6 +226,12 @@ cases_run() {
   t check-script-missing FAIL run_check no-such-check --self-test
   t check-script-missing-is-named PASS missing_script_line_is "FAIL no-such-check (check script missing)"
   t check-script-present PASS run_check no-ll-hook --self-test
+  t every-check-passing-exits-0 PASS all_checks_exit 0
+  t a-no-input-line-exits-3 PASS all_checks_exit 3 cost=NO-INPUT timed-run=NO-INPUT
+  t a-fail-beside-no-input-exits-1 PASS all_checks_exit 1 cost=NO-INPUT memory=FAIL
+  t a-fail-of-the-first-check-exits-1 PASS all_checks_exit 1 timed-run=FAIL
+  t a-fail-of-the-last-check-exits-1 PASS all_checks_exit 1 no-ll-hook=FAIL
+  t checks-get-duration-input-sha-and-strict PASS checks_get_their_arguments
   t exit-0-when-every-line-passes PASS status_is 0 0 0
   t exit-3-on-a-no-input-line PASS status_is 3 0 3
   t exit-3-stays-after-a-pass PASS status_is 3 3 0
@@ -267,10 +318,8 @@ HEAD
     fi
     export GATE_TREE_STATE=dirty
   fi
-  for entry in $CHECKS; do
-    run_check "${entry#*:}" --measure "$duration" --input "$input" --sha "$start_sha" ${strict:+"$strict"} ${remove:+"$remove"}
-    rc=$(worst_status "$rc" "$?")
-  done
+  measure_all "$duration" "$input" "$start_sha"
+  rc=$?
   printf 'OPEN second-account-read (owner step; no test bed)\n'
   end=$(head_read) || end="unreadable unreadable unreadable"
   read -r end_sha end_tree end_state <<HEAD

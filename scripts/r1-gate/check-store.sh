@@ -64,6 +64,13 @@ cases() {
   t standin-marker-on-stderr FAIL against_the_standin leak-on-stderr none
   t standin-rows-0 FAIL against_the_standin rows-0 none
   t standin-binary-fails FAIL against_the_standin exit-1 none
+  t standin-marker-on-stdout FAIL against_the_standin leak-on-stdout none
+  t standin-no-store-files FAIL against_the_standin no-store-files none
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 none
+  for pair in rows=2000 secure_delete=1 temp_store=2 cipher_provider=libtomcrypt segment_roundtrip=ok; do
+    line=$(with "s/ $pair//")
+    t "${pair%%=*}-absent" FAIL predicate_store_report "$line"
+  done
   t good-line PASS predicate_store_report "$good"
   t line-of-store-4 PASS predicate_store_report "store events=2000 records=2000 secure_delete=1 temp_store=2 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none"
   line=$(with 's/ prompt=none//'); t defects-name-the-key PASS defects_are "$line" "prompt "

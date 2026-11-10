@@ -20,6 +20,16 @@ cases() {
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
   t standin-keystroke-while-held FAIL against_the_standin keystroke-while-held operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 operator
+  t standin-run-ends-early FAIL against_the_standin ends-early operator
+  t no-input-line-starts-with-its-word PASS first_word_is NO-INPUT ok none
+}
+
+first_word_is() {
+  export STANDIN_NEEDS_HOLD=1
+  standin_as_the_binary "$2" "$3"
+  out=$(measure 1)
+  [ "${out%% *}" = "$1" ]
 }
 
 against_the_standin() {

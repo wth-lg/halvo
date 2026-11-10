@@ -402,7 +402,7 @@ standin_as_the_binary() {
   capture_bin=$standin
   capture_helper_bin=$gate_scratch/standin-helper
   capture_builds=no
-  capture_label="$name-$1-$2-"
+  capture_label="$st_case-"
   gate_input=$2
   printf '#!/bin/sh\nprintf "helper visible pid=1\\n"\nexec sleep 30\n' > "$capture_helper_bin"
   chmod 755 "$capture_helper_bin"
@@ -560,7 +560,9 @@ capture_run() {
   helper_stop
   [ "$capture_status" -eq 0 ] || return 1
   run_after=$(machine_state)
-  child_report_defect
+  child_report_defect || return 1
+  run_real=$(awk -v asked="$capture_seconds" 'NR == 1 && $2 == "real" { if ($1 + 0 < asked + 0) print $1 }' "$run_dir/time" 2>/dev/null)
+  [ -z "$run_real" ] || { gate_defect="the timed run ended after ${run_real}s of ${capture_seconds}s"; return 1; }
 }
 
 run_machine_note() {
@@ -689,8 +691,10 @@ predicate_ci() {
   ci_defect "$1" "$2" > /dev/null
 }
 
+GATE_LIMIT=$GATE_ROOT/scripts/r1-gate/helper/limit.pl
+
 limited() {
-  perl "$GATE_ROOT/scripts/r1-gate/helper/limit.pl" "$@"
+  perl "$GATE_LIMIT" "$@"
 }
 
 cargo_test_outcome() {

@@ -31,7 +31,37 @@ cases() {
   t standin-run-with-no-event-of-two-kinds FAIL against_the_standin ok operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
   t standin-binary-prints-usage FAIL against_the_standin exit-64 operator
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 operator
+  t standin-run-ends-early FAIL against_the_standin ends-early operator
+  t standin-helper-missing FAIL without_the_helper
+  t standin-deadline-bound-unreadable FAIL with_an_unreadable_deadline
+  t input-option-none-reaches-the-verdict NO-INPUT through_the_options none
+  t input-option-operator-reaches-the-verdict PASS through_the_options operator
+  t no-input-line-starts-with-its-word PASS first_word_is NO-INPUT ok none
+  t pass-line-starts-with-its-word PASS first_word_is PASS typed operator
   t standin-screen-source-failed FAIL against_the_standin screen-failed operator
+}
+
+without_the_helper() {
+  standin_as_the_binary typed operator
+  capture_helper_bin=$gate_scratch/no-such-helper
+  measure 1
+}
+
+with_an_unreadable_deadline() {
+  export GATE_OVERRIDE_child_deadline_extra_s=soon
+  against_the_standin typed operator
+}
+
+through_the_options() {
+  standin_as_the_binary typed operator
+  check_main --measure 1 --input "$1"
+}
+
+first_word_is() {
+  standin_as_the_binary "$2" "$3"
+  out=$(measure 1)
+  [ "${out%% *}" = "$1" ]
 }
 
 against_the_standin() {
@@ -44,7 +74,7 @@ measure() {
   capture_prepare || { fail_defect; return 1; }
   capture_run "$1" --switch screen_activity=on || { fail_defect; return 1; }
   counts=$(report_counts "$run_dir/stdout")
-  line="${counts% }over ${1}s with --switch screen_activity=on and the helper window"
+  line="${counts% } over ${1}s with --switch screen_activity=on and the helper window"
   defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
   if [ "$gate_input" = none ]; then
     verdict_under_input "so keystroke and pointer are not judged" "$line"

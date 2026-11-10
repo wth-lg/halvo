@@ -19,6 +19,11 @@ cases() {
   t standin-deletion PASS against_the_standin ok none
   t standin-root-kept FAIL against_the_standin root-kept none
   t standin-binary-fails FAIL against_the_standin exit-1 none
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 none
+  for pair in decryptable=no file_gone=yes sibling_readable=yes wal_bytes=0 root_destroyed=yes; do
+    line=$(with "s/ $pair//")
+    t "${pair%%=*}-absent" FAIL predicate_deletion_report "$line"
+  done
   t good-line PASS predicate_deletion_report "$good"
   line=$(with 's/decryptable=no/decryptable=yes/'); t decryptable-yes FAIL predicate_deletion_report "$line"
   line=$(with 's/file_gone=yes/file_gone=no/'); t file-gone-no FAIL predicate_deletion_report "$line"

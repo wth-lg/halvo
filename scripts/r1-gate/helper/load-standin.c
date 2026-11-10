@@ -159,8 +159,12 @@ static int capture_standin(int argc, char **argv) {
             fprintf(stderr, "usage: halvo-capture --verify-store --store-dir DIR --marker MARKER\n");
             return 64;
         }
-        if (write_file(dir, "store.db", "ciphertext\n") != 0 || write_file(dir, "store.key", "wrapped\n") != 0) {
+        if (strcmp(scenario, "no-store-files") != 0 &&
+            (write_file(dir, "store.db", "ciphertext\n") != 0 || write_file(dir, "store.key", "wrapped\n") != 0)) {
             return 1;
+        }
+        if (strcmp(scenario, "leak-on-stdout") == 0) {
+            printf("debug: wrote %s\n", marker);
         }
         if (strcmp(scenario, "leak-in-dir") == 0 && write_file(dir, "plain.txt", marker) != 0) {
             return 1;
@@ -170,12 +174,12 @@ static int capture_standin(int argc, char **argv) {
         }
         printf("store rows=%d secure_delete=1 temp_store=2 fts_secure_delete=1 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none\n",
                strcmp(scenario, "rows-0") == 0 ? 0 : 2000);
-        return 0;
+        return strcmp(scenario, "report-then-exit-1") == 0 ? 1 : 0;
     }
     if (strcmp(argv[1], "--verify-deletion") == 0) {
         printf("segment=42 shred=ok file_gone=yes decryptable=no sibling_readable=yes remaining_keys=1 wal_bytes=0 delete_all_keys=2 root_destroyed=%s store_sealed=yes\n",
                strcmp(scenario, "root-kept") == 0 ? "no" : "yes");
-        return 0;
+        return strcmp(scenario, "report-then-exit-1") == 0 ? 1 : 0;
     }
     if (strcmp(argv[1], "--timed-run") == 0 && argc >= 3) {
         int held = has_word(argc, argv, "--hold-secure-input");
@@ -189,7 +193,31 @@ static int capture_standin(int argc, char **argv) {
         if (strcmp(scenario, "hang") == 0) {
             idle(20);
         }
-        idle(atof(argv[2]));
+        if (strcmp(scenario, "ends-early") == 0) {
+            idle(0.3);
+        } else if (strcmp(scenario, "busy") == 0) {
+            burn(atof(argv[2]));
+        } else if (strcmp(scenario, "big") == 0) {
+            hold_mapped(64, atof(argv[2]), 0);
+        } else {
+            idle(atof(argv[2]));
+        }
+        if (strcmp(scenario, "grows") == 0) {
+            char megabyte[4097];
+            memset(megabyte, 'x', 4096);
+            megabyte[4096] = 0;
+            FILE *grown = NULL;
+            char path[4096];
+            snprintf(path, sizeof path, "%s/grown.bin", dir);
+            grown = fopen(path, "w");
+            if (grown == NULL) {
+                return 1;
+            }
+            for (int i = 0; i < 256; i++) {
+                fputs(megabyte, grown);
+            }
+            fclose(grown);
+        }
         if (screen_failed) {
             fprintf(stderr, "halvo-capture: source screen did not start: the capture permission for ScreenFrame is not granted\n");
         }
@@ -199,7 +227,7 @@ static int capture_standin(int argc, char **argv) {
         printf("modality=foreground_app count=2\n");
         printf("modality=window_title count=1\n");
         printf("secure_input_keystrokes=%d\n", strcmp(scenario, "keystroke-while-held") == 0 ? 3 : 0);
-        return 0;
+        return strcmp(scenario, "report-then-exit-1") == 0 ? 1 : 0;
     }
     fprintf(stderr, "usage: halvo-capture --timed-run | --verify-store | --verify-deletion\n");
     return 64;

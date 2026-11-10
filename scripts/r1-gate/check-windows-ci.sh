@@ -21,6 +21,26 @@ defect_is() {
   [ "$defect" = "$facts_want" ]
 }
 
+with_a_stub_gh() {
+  stub_bin=$gate_scratch/bin-$st_case
+  mkdir -p "$stub_bin"
+  printf '%s\n' "$2" > "$stub_bin/runs"
+  printf '%s\n' "$3" > "$stub_bin/jobs"
+  cat > "$stub_bin/gh" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+case "$1 $2" in
+  'run list') cat "$here/runs" ;;
+  'run view') cat "$here/jobs" ;;
+  *) exit 1 ;;
+esac
+STUB
+  chmod 755 "$stub_bin/gh"
+  PATH="$stub_bin:$PATH"
+  gate_sha=$1
+  measure
+}
+
 cases() {
   scratch_root
   sha=5d71834b43d3cedf77edf36ac4dcf5d62b728ad0
@@ -44,6 +64,11 @@ cases() {
   t two-green-push-runs PASS verdict "$sha" "$push" "job windows success 18" "run 3 push $sha completed success" "job windows success 18"
   t windows-job-of-a-pull-request-run-does-not-count FAIL verdict "$sha" "$push" "job macos success 21" "$pull" "job windows success 18"
   t zero-steps-is-named PASS defect_is "push run 42619829679: the windows job did not start (zero steps)" "$sha" "$push" "job windows success 0"
+  t measured-green-run PASS with_a_stub_gh "$sha" "$push" "job windows success 18"
+  t measured-windows-job-failed FAIL with_a_stub_gh "$sha" "$push" "job windows failure 18"
+  t measured-windows-zero-steps FAIL with_a_stub_gh "$sha" "$push" "job windows success 0"
+  t measured-pull-request-run-only FAIL with_a_stub_gh "$sha" "$pull" "job windows success 18"
+  t measured-sha-is-the-word-HEAD FAIL with_a_stub_gh HEAD "$push" "job windows success 18"
   t no-push-run-is-named PASS defect_is "no push run for $sha" "$sha" "$pull"
   t sha-empty-is-named PASS defect_is "the commit to read is no 40 hex digits: []" "" "$push" "job windows success 18"
   t sha-39-is-named PASS defect_is "the commit to read is no 40 hex digits: [5d71834b43d3cedf77edf36ac4dcf5d62b728ad]" 5d71834b43d3cedf77edf36ac4dcf5d62b728ad "$push" "job windows success 18"

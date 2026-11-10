@@ -105,7 +105,7 @@ mutant_builds() {
 gate_lines() {
   : > "$work/gate.out"
   for gate_check in store deletion no-ll-hook; do
-    GATE_ROOT=$tree sh "$tree/scripts/r1-gate/check-$gate_check.sh" --measure >> "$work/gate.out" 2> "$work/gate.err"
+    env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$gate_check.sh" --measure >> "$work/gate.out" 2> "$work/gate.err"
   done
 }
 
@@ -114,7 +114,7 @@ test_run() {
   case $test_name in
     selftest:*/*)
       test_check=${test_name#selftest:}; test_case=${test_check#*/}; test_check=${test_check%%/*}
-      GATE_ROOT=$tree limited 300 sh "$tree/scripts/r1-gate/check-$test_check.sh" --self-test -v --case "$test_case" > "$work/test.out" 2>&1
+      limited 300 env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$test_check.sh" --self-test -v --case "$test_case" > "$work/test.out" 2>&1
       test_status=$?
       [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
       awk -v want="case $test_check/$test_case" '
@@ -123,7 +123,7 @@ test_run() {
     *)
       test_package=${rows_file#crates/}; test_package=${test_package%%/*}
       case $rows_file in crates/*) ;; *) test_package=halvo ;; esac
-      ( cd "$tree" && CARGO_TARGET_DIR="$tree/target/r1-gate" limited 900 cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name" ) > "$work/test.out" 2>&1
+      ( cd "$tree" && limited 900 env CARGO_TARGET_DIR="$tree/target/r1-gate" cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name" ) > "$work/test.out" 2>&1
       test_status=$?
       [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
       cargo_test_outcome "$work/test.out" ;;
@@ -154,9 +154,16 @@ run_rows() {
     case " $only " in "  "|*" $row_name "*) ;; *) continue ;; esac
     case $row_state in
       'retired '*) say RETIRED "$row_name" "${row_state#retired }"; continue ;;
-      'pending '*) say OPEN "$row_name" "${row_state#pending }"; opens=$((opens + 1)); continue ;;
+      'pending '*)
+        say OPEN "$row_name" "${row_state#pending }"; opens=$((opens + 1))
+        [ "$strict" = no ] || say FAIL "$row_name" "strict: the row is pending"
+        continue ;;
       'required on measuring-mac')
-        if [ "${CI:-}" = true ]; then say NOT-RUN "$row_name" "runs on the measuring Mac"; unrun=$((unrun + 1)); continue; fi ;;
+        if [ "${CI:-}" = true ]; then
+          say NOT-RUN "$row_name" "runs on the measuring Mac"; unrun=$((unrun + 1))
+          [ "$strict" = no ] || say FAIL "$row_name" "strict: a row for the measuring Mac did not run"
+          continue
+        fi ;;
       'required on hosted-runner')
         if [ "${CI:-}" != true ]; then say NOT-RUN "$row_name" "needs input; runs on the hosted runner"; continue; fi ;;
       'required on test-bed')
@@ -168,7 +175,8 @@ run_rows() {
           if [ -n "$taken" ]; then say MOVED "$row_name" "$takeover"; continue; fi
           say FAIL "$row_name" "transitional row not taken over by $takeover"; failures=$((failures + 1)); continue
         fi
-        transitionals=$((transitionals + 1)) ;;
+        transitionals=$((transitionals + 1))
+        [ "$strict" = no ] || say FAIL "$row_name" "strict: a transitional row, and no $takeover holds it yet" ;;
     esac
     mutated=$(row_path)
     if [ ! -f "$tree/$mutated" ]; then say FAIL "$row_name" "the file $mutated is not in the copy"; failures=$((failures + 1)); continue; fi
@@ -259,7 +267,7 @@ row() {
 }
 
 fixture_run() {
-  list=no; apply_only=${2:-no}; strict=${3:-no}; only=''
+  list=no; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}
   work=$gate_scratch/work-$1
   mkdir -p "$work"
   run_rows "$gate_scratch/$1"
@@ -274,6 +282,48 @@ fixture_says() {
 outcome_is() {
   outcome=$(cargo_test_outcome "$gate_scratch/$2")
   [ "$outcome" = "$1" ]
+}
+
+stub_gate() {
+  for stub in deletion no-ll-hook; do
+    printf '#!/bin/sh\nprintf "PASS %s\\n"\n' "$stub" > "$gate_scratch/$1/scripts/r1-gate/check-$stub.sh"
+  done
+  printf '%s\n' "$2" > "$gate_scratch/$1/scripts/r1-gate/store.mutated"
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-store.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+if grep -q three "$here/b.sh"; then cat "$here/store.mutated"; exit 1; fi
+printf 'PASS store\n'
+STUB
+}
+
+stub_test() {
+  printf '%s\n' "$2" > "$gate_scratch/$1/scripts/r1-gate/demo.mode"
+  cat > "$gate_scratch/$1/scripts/r1-gate/check-demo.sh" <<'STUB'
+#!/bin/sh
+here=${0%/*}
+read -r mode < "$here/demo.mode"
+got=FAIL
+if grep -q three "$here/b.sh"; then got=PASS; fi
+case $mode in
+  silent) exit 0 ;;
+  silent-when-mutated) [ "$got" = FAIL ] || exit 0 ;;
+  wrong-unmutated) got=PASS ;;
+  blind) got=FAIL ;;
+esac
+printf 'case demo/c1 want=FAIL got=%s\n' "$got"
+STUB
+}
+
+with_only() {
+  fixture_only=" $1"; shift
+  "$@"
+}
+
+limit_status_is() {
+  limit_want=$1; shift
+  limited "$@"
+  [ "$?" -eq "$limit_want" ]
 }
 
 verdict_on() {
@@ -306,6 +356,40 @@ cases() {
   fixture_tree builds
   row builds/scripts/r1-gate/mutants.rows applies b.sh 's/two/three/' leak required X-1
   t row-applies-and-builds PASS fixture_run builds yes
+  fixture_tree judged
+  stub_gate judged 'FAIL store (verify-store measured: rows)'
+  row judged/scripts/r1-gate/mutants.rows keyed b.sh 's/two/three/' 'measured rows' required X-1
+  t row-judged-by-its-key PASS fixture_says judged 'PASS mutation:keyed (measured rows: gate said: FAIL store (verify-store measured: rows))'
+  fixture_tree scenario-a
+  stub_gate scenario-a "$unavailable"
+  row scenario-a/scripts/r1-gate/mutants.rows uncompiled b.sh 's/two/three/' 'measured segment_roundtrip' required X-1
+  t row-on-an-unavailable-line FAIL fixture_run scenario-a
+  t row-on-an-unavailable-line-is-named PASS fixture_says scenario-a 'FAIL mutation:uncompiled (measured segment_roundtrip not shown; gate said: FAIL store (verify-store unavailable'
+  fixture_tree tested
+  stub_test tested sees-the-mutant
+  row tested/scripts/r1-gate/mutants.rows by-test b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
+  t test-row-caught PASS fixture_says tested 'PASS mutation:by-test (test selftest:demo/c1: the one test failed)'
+  fixture_tree blind
+  stub_test blind blind
+  row blind/scripts/r1-gate/mutants.rows by-test b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
+  t test-row-whose-test-still-passes FAIL fixture_run blind
+  fixture_tree wrong
+  stub_test wrong wrong-unmutated
+  row wrong/scripts/r1-gate/mutants.rows by-test b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
+  t test-row-failing-unmutated FAIL fixture_run wrong
+  t test-row-failing-unmutated-is-named PASS fixture_says wrong 'FAIL mutation:by-test (unmutated, the test selftest:demo/c1 must run as one passing test: failed)'
+  fixture_tree silent
+  stub_test silent silent
+  row silent/scripts/r1-gate/mutants.rows by-test b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
+  t test-row-that-runs-no-case FAIL fixture_run silent
+  fixture_tree vanishing
+  stub_test vanishing silent-when-mutated
+  row vanishing/scripts/r1-gate/mutants.rows by-test b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
+  t test-row-whose-test-vanishes-under-the-mutant FAIL fixture_run vanishing
+  t only-names-no-row FAIL with_only no-such-row fixture_run builds yes
+  t only-runs-the-named-row PASS with_only applies fixture_says builds 'PASS mutation:applies (applies and builds)' yes
+  t unknown-argument-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --no-such-flag
+  t limit-status-of-a-hang-is-124 PASS limit_status_is 124 1 sleep 5
   fixture_tree broken
   row broken/scripts/r1-gate/mutants.rows broken b.sh 's/echo two/if then/' leak required X-1
   t does-not-build FAIL fixture_run broken yes
@@ -340,6 +424,7 @@ cases() {
   row waiting/scripts/r1-gate/mutants.rows shared code/a.sh 's/one/1/' leak transitional X-1
   t transitional-runs-while-no-file-is-beside-the-code PASS fixture_says waiting 'PASS mutation:shared (applies and builds)' yes
   t transitional-fails-strict FAIL fixture_run waiting yes yes
+  t strict-names-the-transitional-row PASS fixture_says waiting 'FAIL mutation:shared (strict: a transitional row, and no code/mutants.rows holds it yet)' yes yes
   fixture_tree twice
   row twice/scripts/r1-gate/mutants.rows same b.sh 's/two/2/' leak required X-1
   row twice/code/mutants.rows same a.sh 's/one/1/' leak required X-2
@@ -360,6 +445,7 @@ cases() {
   row pending/scripts/r1-gate/mutants.rows later b.sh 's/two/2/' leak 'pending X-9' X-9
   t pending-row-is-open PASS fixture_says pending 'OPEN mutation:later (X-9)' yes
   t pending-row-fails-strict FAIL fixture_run pending yes yes
+  t strict-names-the-pending-row PASS fixture_says pending 'FAIL mutation:later (strict: the row is pending)' yes yes
   fixture_tree retired
   row retired/scripts/r1-gate/mutants.rows gone b.sh 's/two/2/' leak 'retired replaced by the test store::x' X-9
   t retired-row-passes-strict PASS fixture_run retired yes yes
@@ -382,6 +468,7 @@ cases() {
   row input/scripts/r1-gate/mutants.rows typed b.sh 's/two/2/' leak 'required on hosted-runner' X-1
   t input-row-here-is-not-run-and-no-fail PASS not_ci fixture_run input yes yes
   t input-row-here-is-named PASS not_ci fixture_says input 'NOT-RUN mutation:typed (needs input; runs on the hosted runner)' yes
+  t input-row-runs-under-ci PASS under_ci fixture_says input 'PASS mutation:typed (applies and builds)' yes
   printf 'running 1 test\ntest store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages ... FAILED\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 98 filtered out; finished in 0.21s\n' > "$gate_scratch/cargo-failed"
   printf 'running 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 98 filtered out; finished in 0.21s\n' > "$gate_scratch/cargo-passed"
   printf 'running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 99 filtered out; finished in 0.00s\n' > "$gate_scratch/cargo-none"
