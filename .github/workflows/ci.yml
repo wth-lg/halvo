@@ -59,6 +59,33 @@ jobs:
       - name: Test
         shell: bash
         run: cargo test --workspace
+      - name: Windows functional verification
+        shell: bash
+        timeout-minutes: 30
+        run: |
+          cmd //c ver
+          MSYS_NO_PATHCONV=1 whoami /groups | grep -i "Mandatory Label" || true
+          failed=0
+          for t in \
+            c1_raw_input_delivers_keystrokes_and_pointer_events \
+            c2_screen_source_delivers_a_frame \
+            c3_foreground_source_reports_an_activated_window \
+            c4_window_title_source_reports_a_title_change \
+            c5_installed_software_returns_registry_entries \
+            c6_dpapi_custody_and_store_lifecycle \
+            c7_logon_task_installs_is_idempotent_and_is_removed \
+            c8_a_window_can_be_excluded_from_capture \
+            c8b_an_excluded_window_is_absent_from_a_captured_frame \
+            x1_keystrokes_typed_into_a_password_field \
+            c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+          do
+            echo "=== HALVO-VERIFY begin $t"
+            rc=0
+            cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact "$t" || rc=$?
+            echo "=== HALVO-VERIFY end $t exit=$rc"
+            if [ "$rc" != 0 ]; then failed=1; fi
+          done
+          exit "$failed"
       - name: Clippy
         shell: bash
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -68,6 +95,11 @@ jobs:
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
+      - name: Windows functional verification, release memory sample
+        if: ${{ !cancelled() }}
+        shell: bash
+        timeout-minutes: 30
+        run: cargo test --release -p halvo-capture --test windows_functional -- --ignored --nocapture --exact c9_peak_working_set_of_sources_1_to_4_for_60_seconds
       - name: Version
         shell: bash
         run: test "$(target/release/halvo.exe --version)" = 0.0.0
