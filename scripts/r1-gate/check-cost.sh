@@ -234,8 +234,11 @@ sources_defect_is() {
 
 cases() {
   scratch_root
-  sources_cases
   standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  sources_cases
+  t standin-run-with-sources PASS against_the_standin ok operator
+  t standin-screen-source-failed FAIL against_the_standin screen-failed operator
+  t standin-binary-fails FAIL against_the_standin exit-1 operator
   t cpu-20.00-vs-20 PASS predicate_cost_within_bound 20.00 0 600 20 2000000000
   t cpu-20.09-vs-20 FAIL predicate_cost_within_bound 20.09 0 600 20 2000000000
   t cpu-with-a-comma FAIL predicate_cost_within_bound 20,09 0 600 20 2000000000
@@ -317,6 +320,11 @@ cases() {
   t line-names-the-bounds PASS line_names_the_bounds
 }
 
+against_the_standin() {
+  standin_as_the_binary "$1" "$2"
+  measure 1
+}
+
 measure() {
   seconds=$1
   need_bound cpu_max_pct_of_one_core || return 1
@@ -326,7 +334,7 @@ measure() {
   capture_helper=yes
   capture_prepare || { fail_defect; return 1; }
   before=$(dir_disk_usage_bytes "$run_store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
-  capture_run "$seconds" || { fail_defect; return 1; }
+  capture_run "$seconds" --switch screen_activity=on || { fail_defect; return 1; }
   after=$(dir_disk_usage_bytes "$run_store") || { emit_fail "$name" "the store directory could not be measured after the run"; return 1; }
   growth=$((after - before))
   cpu=$(time_file_cpu_pct "$run_dir/time") || { emit_fail "$name" "the time file holds no real, user and sys figures"; return 1; }

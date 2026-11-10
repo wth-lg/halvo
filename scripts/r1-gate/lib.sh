@@ -359,8 +359,28 @@ need_build() {
   return 1
 }
 
+capture_bin=$GATE_BIN
+capture_helper_bin=$GATE_TARGET/window-helper
+capture_builds=yes
+capture_label=''
+
+build_for_measure() {
+  [ "$capture_builds" = yes ] || return 0
+  need_build
+}
+
 run_capture_bin() {
-  "$GATE_BIN" "$@"
+  "$capture_bin" "$@"
+}
+
+standin_as_the_binary() {
+  export STANDIN_SCENARIO="$1"
+  capture_bin=$standin
+  capture_helper_bin=$gate_scratch/standin-helper
+  capture_builds=no
+  capture_label="$name-$1-$2-"
+  printf '#!/bin/sh\nprintf "helper visible pid=1\\n"\nexec sleep 30\n' > "$capture_helper_bin"
+  chmod 755 "$capture_helper_bin"
 }
 
 standin_build() {
@@ -495,9 +515,9 @@ helper_stop() {
 capture_helper=no
 
 capture_prepare() {
-  need_build || return 1
+  build_for_measure || return 1
   scratch_root
-  run_store=$gate_scratch/store; run_dir=$gate_scratch/run
+  run_store=$gate_scratch/${capture_label}store; run_dir=$gate_scratch/${capture_label}run
   mkdir "$run_store" "$run_dir" || { gate_defect="cannot make the scratch store"; return 1; }
   export HALVO_STORE_DIR="$run_store"
 }
@@ -506,11 +526,11 @@ capture_run() {
   capture_seconds=$1; shift
   use_bound child_deadline_extra_s || { gate_defect="bound child_deadline_extra_s is not readable: docs/baseline/r1-gate-bounds.txt must hold exactly one child_deadline_extra_s=digits line"; return 1; }
   if [ "$capture_helper" = yes ]; then
-    helper_build || return 1
-    helper_start "$((capture_seconds + 60))" "$GATE_TARGET/window-helper" || return 1
+    [ "$capture_builds" = no ] || helper_build || return 1
+    helper_start "$((capture_seconds + 60))" "$capture_helper_bin" || return 1
   fi
   run_before=$(machine_state)
-  timed_child "$((capture_seconds + bound))" "$run_dir" "$GATE_BIN" --timed-run "$capture_seconds" "$@"
+  timed_child "$((capture_seconds + bound))" "$run_dir" "$capture_bin" --timed-run "$capture_seconds" --store-dir "$run_store" "$@"
   capture_status=$?
   helper_stop
   [ "$capture_status" -eq 0 ] || return 1
@@ -520,7 +540,7 @@ capture_run() {
 
 run_machine_note() {
   run_others=$(cat "$run_dir/others" 2>/dev/null)
-  printf 'start %s, end %s, other halvo-capture=%s, binary=%s\n' "$run_before" "$run_after" "${run_others:-unread}" "${GATE_BIN#"$GATE_ROOT"/}"
+  printf 'start %s, end %s, other halvo-capture=%s, binary=%s\n' "$run_before" "$run_after" "${run_others:-unread}" "${capture_bin#"$GATE_ROOT"/}"
 }
 
 strict_run_ok() {

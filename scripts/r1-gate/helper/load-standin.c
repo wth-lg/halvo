@@ -110,7 +110,105 @@ static int short_lived_children(int count, double each_s) {
     return 0;
 }
 
+static const char *flag_value(int argc, char **argv, const char *flag) {
+    for (int i = 1; i + 1 < argc; i++) {
+        if (strcmp(argv[i], flag) == 0) {
+            return argv[i + 1];
+        }
+    }
+    return NULL;
+}
+
+static int has_word(int argc, char **argv, const char *word) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], word) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int write_file(const char *dir, const char *name, const char *text) {
+    char path[4096];
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    FILE *file = fopen(path, "w");
+    if (file == NULL) {
+        return 1;
+    }
+    fputs(text, file);
+    return fclose(file);
+}
+
+static int capture_standin(int argc, char **argv) {
+    const char *scenario = getenv("STANDIN_SCENARIO");
+    const char *dir = flag_value(argc, argv, "--store-dir");
+    if (scenario == NULL) {
+        scenario = "ok";
+    }
+    if (dir == NULL || strcmp(scenario, "exit-64") == 0) {
+        fprintf(stderr, "usage: halvo-capture --timed-run SECONDS --store-dir DIR [--hold-secure-input] [--switch NAME=on|off]...\n");
+        return 64;
+    }
+    if (strcmp(scenario, "exit-1") == 0) {
+        fprintf(stderr, "halvo-capture: the stand-in was told to fail\n");
+        return 1;
+    }
+    if (strcmp(argv[1], "--verify-store") == 0) {
+        const char *marker = flag_value(argc, argv, "--marker");
+        if (marker == NULL) {
+            fprintf(stderr, "usage: halvo-capture --verify-store --store-dir DIR --marker MARKER\n");
+            return 64;
+        }
+        if (write_file(dir, "store.db", "ciphertext\n") != 0 || write_file(dir, "store.key", "wrapped\n") != 0) {
+            return 1;
+        }
+        if (strcmp(scenario, "leak-in-dir") == 0 && write_file(dir, "plain.txt", marker) != 0) {
+            return 1;
+        }
+        if (strcmp(scenario, "leak-on-stderr") == 0) {
+            fprintf(stderr, "debug: wrote %s\n", marker);
+        }
+        printf("store rows=%d secure_delete=1 temp_store=2 fts_secure_delete=1 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none\n",
+               strcmp(scenario, "rows-0") == 0 ? 0 : 2000);
+        return 0;
+    }
+    if (strcmp(argv[1], "--verify-deletion") == 0) {
+        printf("segment=42 shred=ok file_gone=yes decryptable=no sibling_readable=yes remaining_keys=1 wal_bytes=0 delete_all_keys=2 root_destroyed=%s store_sealed=yes\n",
+               strcmp(scenario, "root-kept") == 0 ? "no" : "yes");
+        return 0;
+    }
+    if (strcmp(argv[1], "--timed-run") == 0 && argc >= 3) {
+        int held = has_word(argc, argv, "--hold-secure-input");
+        int screen_on = has_word(argc, argv, "screen_activity=on") && has_word(argc, argv, "--switch");
+        int screen_failed = strcmp(scenario, "screen-failed") == 0;
+        int typed = strcmp(scenario, "typed") == 0;
+        if (getenv("STANDIN_NEEDS_HOLD") != NULL && !held) {
+            fprintf(stderr, "usage: halvo-capture --timed-run SECONDS --store-dir DIR --hold-secure-input\n");
+            return 64;
+        }
+        if (strcmp(scenario, "hang") == 0) {
+            idle(3600);
+        }
+        idle(atof(argv[2]));
+        if (screen_failed) {
+            fprintf(stderr, "halvo-capture: source screen did not start: the capture permission for ScreenFrame is not granted\n");
+        }
+        printf("modality=screen_frame count=%d\n", screen_on && !screen_failed ? 12 : 0);
+        printf("modality=keystroke count=%d\n", typed && !held ? 5 : 0);
+        printf("modality=pointer count=%d\n", typed ? 7 : 0);
+        printf("modality=foreground_app count=2\n");
+        printf("modality=window_title count=1\n");
+        printf("secure_input_keystrokes=%d\n", strcmp(scenario, "keystroke-while-held") == 0 ? 3 : 0);
+        return 0;
+    }
+    fprintf(stderr, "usage: halvo-capture --timed-run | --verify-store | --verify-deletion\n");
+    return 64;
+}
+
 int main(int argc, char **argv) {
+    if (argc >= 2 && strncmp(argv[1], "--", 2) == 0) {
+        return capture_standin(argc, argv);
+    }
     if (argc == 3 && strcmp(argv[1], "burn") == 0) {
         burn(atof(argv[2]));
         return 0;

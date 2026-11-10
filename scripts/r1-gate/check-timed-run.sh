@@ -22,14 +22,25 @@ cases() {
     t "$kind-absent" FAIL predicate_modalities_present "$gate_scratch/$kind-absent"
   done
   t report-missing FAIL predicate_modalities_present "$gate_scratch/no-such-report"
+  standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  t standin-run-with-typed-input PASS against_the_standin typed operator
+  t standin-run-with-no-event-of-two-kinds FAIL against_the_standin ok operator
+  t standin-binary-fails FAIL against_the_standin exit-1 operator
+  t standin-binary-prints-usage FAIL against_the_standin exit-64 operator
+  t standin-screen-source-failed FAIL against_the_standin screen-failed operator
+}
+
+against_the_standin() {
+  standin_as_the_binary "$1" "$2"
+  measure 1
 }
 
 measure() {
   capture_helper=yes
   capture_prepare || { fail_defect; return 1; }
-  capture_run "$1" || { fail_defect; return 1; }
+  capture_run "$1" --switch screen_activity=on || { fail_defect; return 1; }
   counts=$(report_counts "$run_dir/stdout")
-  line="${counts% }over ${1}s with the helper window"
+  line="${counts% }over ${1}s with --switch screen_activity=on and the helper window"
   defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
   if predicate_modalities_present "$run_dir/stdout"; then emit_pass "$name" "$line"; return 0; fi
   emit_fail "$name" "a required kind recorded no event: $line"; return 1

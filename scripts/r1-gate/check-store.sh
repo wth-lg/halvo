@@ -58,6 +58,12 @@ cases() {
   t unscanned-directory-is-no-leak PASS marker_defect_is "$not_run" "$gate_scratch/empty" "$marker" "$gate_scratch/stdout" "$gate_scratch/stderr"
   t empty-marker-is-no-leak PASS marker_defect_is "$not_run" "$gate_scratch/clean" "" "$gate_scratch/stdout" "$gate_scratch/stderr"
   t empty-marker-on-empty-capture FAIL predicate_marker_not_printed "" "$gate_scratch/stderr"
+  standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  t standin-store PASS against_the_standin ok none
+  t standin-marker-in-the-directory FAIL against_the_standin leak-in-dir none
+  t standin-marker-on-stderr FAIL against_the_standin leak-on-stderr none
+  t standin-rows-0 FAIL against_the_standin rows-0 none
+  t standin-binary-fails FAIL against_the_standin exit-1 none
   t good-line PASS predicate_store_report "$good"
   t line-of-store-4 PASS predicate_store_report "store events=2000 records=2000 secure_delete=1 temp_store=2 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none"
   line=$(with 's/ prompt=none//'); t defects-name-the-key PASS defects_are "$line" "prompt "
@@ -79,14 +85,19 @@ cases() {
   t line-printed-twice FAIL predicate_store_report "$good $good"
 }
 
+against_the_standin() {
+  standin_as_the_binary "$1" "$2"
+  measure
+}
+
 measure() {
-  need_build || { fail_defect; return 1; }
+  build_for_measure || { fail_defect; return 1; }
   scratch_root
-  store=$gate_scratch/store; out=$gate_scratch/stdout; err=$gate_scratch/stderr
+  store=$gate_scratch/${capture_label}store; out=$gate_scratch/${capture_label}stdout; err=$gate_scratch/${capture_label}stderr
   mkdir "$store"
   marker="HALVO_GATE_MARKER_$$"
   export HALVO_STORE_DIR="$store" HALVO_GATE_MARKER="$marker"
-  if watched run_capture_bin --verify-store --marker "$marker" > "$out" 2> "$err"; then
+  if watched run_capture_bin --verify-store --store-dir "$store" --marker "$marker" > "$out" 2> "$err"; then
     if ! defect=$(marker_defect "$store" "$marker" "$out" "$err"); then
       emit_fail "$name" "$defect"; return 1
     fi

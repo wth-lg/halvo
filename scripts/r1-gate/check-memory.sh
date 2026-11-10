@@ -94,6 +94,9 @@ cases() {
   t standin-spike FAIL live_verdict spike 64 0.2 1
   t standin-leak FAIL live_verdict leak 16 5 0.3
   sources_cases
+  t standin-run-with-sources PASS against_the_standin ok operator
+  t standin-screen-source-failed FAIL against_the_standin screen-failed operator
+  t standin-binary-fails FAIL against_the_standin exit-1 operator
   run_fixture within 25231360 8113000 '24640 24528 25'
   t within-bound PASS verdict_of within
   t peak-is-the-largest-term PASS peak_is within 25231360
@@ -148,12 +151,17 @@ cases() {
   t pressure-2-without-strict PASS strict_verdict no pressure=2 pressure=2 yes
 }
 
+against_the_standin() {
+  standin_as_the_binary "$1" "$2"
+  measure 1
+}
+
 measure() {
   need_bound rss_max_bytes || return 1
   rss_max=$bound
   capture_helper=yes
   capture_prepare || { fail_defect; return 1; }
-  capture_run "$1" || { fail_defect; return 1; }
+  capture_run "$1" --switch screen_activity=on || { fail_defect; return 1; }
   figures=$(memory_figures "$run_dir") || { emit_fail "$name" "$figures"; return 1; }
   read -r peak mean_kib samples maxrss ps_kib footprint <<FIGURES
 $figures

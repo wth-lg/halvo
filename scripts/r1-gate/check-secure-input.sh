@@ -13,12 +13,22 @@ cases() {
   t four-keystrokes FAIL predicate_zero_secure_keystrokes "$gate_scratch/four"
   t line-absent FAIL predicate_zero_secure_keystrokes "$gate_scratch/line-absent"
   t report-missing FAIL predicate_zero_secure_keystrokes "$gate_scratch/no-such-report"
+  standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  t standin-held-run PASS against_the_standin typed operator
+  t standin-keystroke-while-held FAIL against_the_standin keystroke-while-held operator
+  t standin-binary-fails FAIL against_the_standin exit-1 operator
+}
+
+against_the_standin() {
+  export STANDIN_NEEDS_HOLD=1
+  standin_as_the_binary "$1" "$2"
+  measure 1
 }
 
 measure() {
   export HALVO_GATE_SECURE_INPUT=1
   capture_prepare || { fail_defect; return 1; }
-  capture_run "$1" || { fail_defect; return 1; }
+  capture_run "$1" --hold-secure-input --switch screen_activity=on || { fail_defect; return 1; }
   held=$(sed -n 's/^secure_input_keystrokes=//p' "$run_dir/stdout")
   line="secure_input_keystrokes=${held:-absent} over ${1}s of held secure input"
   if predicate_zero_secure_keystrokes "$run_dir/stdout"; then emit_pass "$name" "$line"; return 0; fi
