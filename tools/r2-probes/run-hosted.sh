@@ -54,6 +54,15 @@ else
         powershell -NoProfile -Command "\$p = Start-Process msiexec -Wait -PassThru -ArgumentList '/i','$package','/qn','/norestart','ALLUSERS=1','CREATEDESKTOPLINK=0','REGISTER_NO_MSO_TYPES=1','ISCHECKFORPRODUCTUPDATES=0','QUICKSTART=0','UI_LANGS=en_US','RebootYesNo=No'; exit \$p.ExitCode"
     fi
     (cd "$here/input" && npm ci --no-audit --no-fund && npx playwright install chromium)
+    if [ ! -f "$files/playwright-files.tsv" ]; then
+        (cd "$here/input" && npx playwright install --dry-run chromium) |
+            awk '$1 == "Download" && $2 == "url:" { print $3 }' >"$files/playwright-addresses.txt"
+        while read -r address; do
+            curl --fail --silent --show-error --location --retry 3 --user-agent r2-probes --output "$files/playwright.part" "$address"
+            printf '%s\t%s\t%s\n' "$address" "$(wc -c <"$files/playwright.part" | tr -d ' ')" "$(sha256sum <"$files/playwright.part" | cut -d ' ' -f 1)"
+        done <"$files/playwright-addresses.txt" >"$files/playwright-files.part"
+        mv "$files/playwright-files.part" "$files/playwright-files.tsv"
+    fi
 fi
 
 (cd "$here" && cargo build --release --locked --features pp-ocrv6)
@@ -68,4 +77,9 @@ set -- suite --out "$(native "$out")" "$@" \
 if [ "$system" = windows ]; then
     set -- "$@" --node "$(native "$(command -v node)")" --input-dir "$(native "$here/input")"
 fi
-"$here/target/release/r2-probes$exe" "$@"
+status=0
+"$here/target/release/r2-probes$exe" "$@" || status=$?
+if [ -f "$files/playwright-files.tsv" ] && [ -d "$out" ]; then
+    cp "$files/playwright-files.tsv" "$out/playwright-files.tsv"
+fi
+exit "$status"

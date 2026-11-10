@@ -707,7 +707,11 @@ impl Suite {
             let mut failure = String::new();
             for run in 1..=runs {
                 match self.private_run(&browser, &cell, run) {
-                    Ok(read) => reads.push(read),
+                    Ok(read) => reads.push(read.number(
+                        "start_reruns_count",
+                        How::Sum,
+                        f64::from(self.restarts.get()),
+                    )),
                     Err(error) => {
                         failure = error;
                         break;
@@ -746,6 +750,13 @@ impl Suite {
                         How::Sum,
                         f64::from(u8::from(answered(read, name))),
                     );
+                }
+                if let Some(field) = read
+                    .fields
+                    .iter()
+                    .find(|field| field.key == "start_reruns_count")
+                {
+                    record.fields.push(field.clone());
                 }
                 self.save(&record.with_detail(read.detail.clone()));
             }
