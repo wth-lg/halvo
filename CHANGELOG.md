@@ -63,6 +63,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Read Windows raw input through an aligned buffer and close the pump start/stop race, carrying decoded payload sizes to an explicit metadata-only placement
 - Watch every registry root and path the installed-software scan reads and parse SystemComponent to a bool at the boundary
 - Quote every scheduled-task argument token and match the Task Scheduler Command element
+- Drop only the diff below git's own scissors block from the hook file
 
 - Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store
 - Add SQLCipher and AEAD dependencies for the encrypted segment store

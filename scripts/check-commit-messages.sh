@@ -22,6 +22,8 @@ BASELINE=685d84637c302976956d56e6bbb5c18a4503e7c8
 
 RULE='Commits in this repository are authored by the configured git user only. See AGENTS.md.'
 
+SCISSORS='------------------------ >8 ------------------------'
+
 die() {
   printf 'check-commit-messages: error: %s\n' "$1" >&2
   exit 2
@@ -33,9 +35,30 @@ usage() {
   exit 64
 }
 
+drop_commit_verbose_diff() {
+  printf '%s\n' "$1" | LC_ALL=C awk -v scissors_end=" $SCISSORS" '
+    dropping_diff { next }
+    maybe_scissors_block != "" {
+      if (index($0, "diff --git ") == 1) { dropping_diff = 1; next }
+      if (index($0, comment_string) == 1) { maybe_scissors_block = maybe_scissors_block $0 "\n"; next }
+      printf "%s", maybe_scissors_block
+      maybe_scissors_block = ""
+    }
+    {
+      comment_length = length($0) - length(scissors_end)
+      if (comment_length > 0 && substr($0, comment_length + 1) == scissors_end) {
+        comment_string = substr($0, 1, comment_length)
+        maybe_scissors_block = $0 "\n"
+        next
+      }
+      print
+    }
+    END { if (!dropping_diff) printf "%s", maybe_scissors_block }
+  '
+}
+
 attribution_lines() {
-  LC_ALL=C awk -v scissors="$1" '
-    scissors && index($0, "------------------------ >8 ------------------------") { exit }
+  LC_ALL=C awk '
     { line = tolower($0) }
     line ~ /^[ \t]*co-authored-by[ \t]*:/ || line ~ /^[^a-z]*generated with([^a-z]|$)/ {
       printf "  line %d: %s\n", NR, $0
@@ -47,7 +70,7 @@ attribution_lines() {
 
 scan() {
   status=0
-  lines=$(printf '%s\n' "$2" | attribution_lines "$1") || status=$?
+  lines=$(printf '%s\n' "$1" | attribution_lines) || status=$?
   case $status in
     0|1) ;;
     *) die "awk exited $status while reading a message" ;;
@@ -56,8 +79,9 @@ scan() {
 
 check_file() {
   [ -f "$1" ] || die "no such message file: $1"
-  message=$(cat "$1") || die "cannot read the message file: $1"
-  scan 1 "$message"
+  hook_file=$(cat "$1") || die "cannot read the message file: $1"
+  message=$(drop_commit_verbose_diff "$hook_file") || die "awk exited $? while reading the message file: $1"
+  scan "$message"
   [ "$status" = 1 ] || return 0
   {
     printf 'check-commit-messages: the commit message carries an attribution line:\n%s\n' "$lines"
@@ -85,7 +109,7 @@ check_range() {
   for commit in $commits; do
     total=$((total + 1))
     message=$(git log -1 --format=%B "$commit") || die "git log could not read $commit"
-    scan 0 "$message"
+    scan "$message"
     if [ "$status" = 1 ]; then
       bad=$((bad + 1))
       printf 'check-commit-messages: %s\n%s\n' "$(git log -1 --format='%h %s' "$commit")" "$lines" >&2
@@ -109,14 +133,13 @@ self_test() {
 '
   generated='🤖 Generated with [Claude Code](https://claude.com/claude-code)'
   trailer='Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>'
-  scissors_line='# ------------------------ >8 ------------------------'
-  scissors_block="$scissors_line${nl}# Do not modify or remove the line above.${nl}# Everything below it will be ignored."
+  scissors_block="# $SCISSORS${nl}# Do not modify or remove the line above.${nl}# Everything below it will be ignored."
   diff_with_attribution_text="diff --git a/bindings.rs b/bindings.rs${nl}--- a/bindings.rs${nl}+++ b/bindings.rs${nl}@@ -1 +1,2 @@${nl} $trailer${nl}+// Generated with bindgen"
   commit_verbose_file="Fix the gate${nl}${nl}# Please enter the commit message for your changes.${nl}#${nl}$scissors_block${nl}$diff_with_attribution_text"
-  semicolon_commit_verbose_file="Fix the gate${nl}${nl}; ------------------------ >8 ------------------------${nl}; Do not modify or remove the line above.${nl}; Everything below it will be ignored.${nl}$diff_with_attribution_text"
+  semicolon_commit_verbose_file="Fix the gate${nl}${nl}; $SCISSORS${nl}; Do not modify or remove the line above.${nl}; Everything below it will be ignored.${nl}$diff_with_attribution_text"
 
   expect() {
-    scan "$3" "$4"
+    scan "$3"
     if [ -z "$lines" ]; then count=0; else count=$(printf '%s\n' "$lines" | wc -l | tr -d ' '); fi
     want_status=1
     [ "$2" != 0 ] || want_status=0
@@ -128,22 +151,28 @@ self_test() {
     fi
   }
 
-  expect 'a clean message passes' 0 0 "Add the store${nl}${nl}Stream segment files through bounded chunks."
-  expect 'a Co-Authored-By trailer fails' 1 0 "Fix the gate${nl}${nl}$trailer"
-  expect 'a lower-case co-authored-by trailer fails' 1 0 "Fix the gate${nl}${nl}co-authored-by: Claude <noreply@anthropic.com>"
-  expect 'a mixed-case, indented trailer with a space before the colon fails' 1 0 "Fix the gate${nl}${nl}  cO-aUtHoReD-bY : Claude <noreply@anthropic.com>"
-  expect 'a Generated with line after an emoji fails' 1 0 "Fix the gate${nl}${nl}$generated"
-  expect 'a mixed-case gEnErAtEd WiTh line fails' 1 0 "Fix the gate${nl}${nl}gEnErAtEd WiTh Claude Code"
-  expect 'both lines of the baseline commit fail, one finding each' 2 0 "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
-  expect 'prose that mentions both phrases passes' 0 0 "Reject attribution lines${nl}${nl}The check fails on a Co-Authored-By: trailer and on a line that says a${nl}tool was Generated with. A message that only mentions them passes."
-  expect 'a line that starts with Generated without passes' 0 0 "Fix the gate${nl}${nl}Generated without a tool."
-  expect 'the diff below the scissors block of git commit -v passes in a message file' 0 1 "$commit_verbose_file"
-  expect 'the same diff passes under another comment character' 0 1 "$semicolon_commit_verbose_file"
-  expect 'the same text fails when it is a stored commit message' 2 0 "$commit_verbose_file"
-  expect 'a trailer above the scissors block fails in a message file' 1 1 "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
-  expect 'a trailer below a scissors line that no diff follows fails in a message file' 1 1 "Fix the gate${nl}${nl}$scissors_line${nl}$trailer"
-  expect 'a trailer below a scissors block that no diff follows fails in a message file' 1 1 "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
-  expect 'a trailer below prose that holds the scissors text fails in a message file' 1 1 "Fix the gate${nl}${nl}The hook stopped at ------------------------ >8 ------------------------ before.${nl}$trailer"
+  expect_in_hook_file() {
+    message=$(drop_commit_verbose_diff "$3") || die "awk exited $? while reading a fixture"
+    expect "$1" "$2" "$message"
+  }
+
+  expect 'a clean message passes' 0 "Add the store${nl}${nl}Stream segment files through bounded chunks."
+  expect 'a Co-Authored-By trailer fails' 1 "Fix the gate${nl}${nl}$trailer"
+  expect 'a lower-case co-authored-by trailer fails' 1 "Fix the gate${nl}${nl}co-authored-by: Claude <noreply@anthropic.com>"
+  expect 'a mixed-case, indented trailer with a space before the colon fails' 1 "Fix the gate${nl}${nl}  cO-aUtHoReD-bY : Claude <noreply@anthropic.com>"
+  expect 'a Generated with line after an emoji fails' 1 "Fix the gate${nl}${nl}$generated"
+  expect 'a mixed-case gEnErAtEd WiTh line fails' 1 "Fix the gate${nl}${nl}gEnErAtEd WiTh Claude Code"
+  expect 'both lines of the baseline commit fail, one finding each' 2 "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
+  expect 'prose that mentions both phrases passes' 0 "Reject attribution lines${nl}${nl}The check fails on a Co-Authored-By: trailer and on a line that says a${nl}tool was Generated with. A message that only mentions them passes."
+  expect 'a line that starts with Generated without passes' 0 "Fix the gate${nl}${nl}Generated without a tool."
+  expect 'the diff of git commit -v fails when it is a stored commit message' 2 "$commit_verbose_file"
+  expect_in_hook_file 'the diff below the scissors block of git commit -v is dropped from the hook file' 0 "$commit_verbose_file"
+  expect_in_hook_file 'the same diff is dropped under another comment character' 0 "$semicolon_commit_verbose_file"
+  expect_in_hook_file 'a trailer above the scissors block fails in the hook file' 1 "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
+  expect_in_hook_file 'a trailer below a scissors line that no diff follows fails in the hook file' 1 "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer"
+  expect_in_hook_file 'a trailer below a scissors block that no diff follows fails in the hook file' 1 "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
+  expect_in_hook_file 'a trailer between a scissors line and a diff header fails in the hook file' 1 "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
+  expect_in_hook_file 'a trailer below prose that holds the scissors text fails in the hook file' 1 "Fix the gate${nl}${nl}The hook stopped at $SCISSORS before.${nl}$trailer"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d fixtures misclassified\n' "$failures"
