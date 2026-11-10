@@ -30,11 +30,11 @@ jobs:
         shell: bash
         timeout-minutes: 10
         run: bash scratch/r7-s5/ci.sh s6 macos-15
-      - name: "S6: self-test of the harness (no key store, no trust store)"
+      - name: Self-test of the harness (no key store, no trust store)
         if: ${{ !cancelled() && steps.s6build.outcome == 'success' }}
         shell: bash
         timeout-minutes: 15
-        run: bash scratch/r7-s5/ci.sh s6-selftest macos-15
+        run: bash scratch/r7-s5/ci.sh selftest macos-15
 
   windows:
     runs-on: windows-2025
@@ -59,8 +59,8 @@ jobs:
         shell: bash
         timeout-minutes: 10
         run: bash scratch/r7-s5/ci.sh s6 windows-2025
-      - name: "S6: self-test of the harness (no key store, no trust store)"
+      - name: Self-test of the harness (no key store, no trust store)
         if: ${{ !cancelled() && steps.s6build.outcome == 'success' }}
         shell: bash
         timeout-minutes: 15
-        run: bash scratch/r7-s5/ci.sh s6-selftest windows-2025
+        run: bash scratch/r7-s5/ci.sh selftest windows-2025

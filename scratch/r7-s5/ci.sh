@@ -4,7 +4,7 @@
 # a fresh test CA on every run.
 set -euo pipefail
 
-step=${1:?step: facts, s5, s6-build, s6 or s6-selftest}
+step=${1:?step: facts, s5, s6-build, s6 or selftest}
 runner=${2:?runner label}
 
 if [ "${GITHUB_ACTIONS:-}" != true ]; then
@@ -155,7 +155,8 @@ s6() {
     --runner "$runner" --runs 30 --limit-ms 1000 -- "${trust[@]}"
 }
 
-s6_selftest() {
+selftest() {
+  sh tests/s5-verdict-test.sh
   cargo test --release --locked --target-dir "$work/s6"
 }
 
@@ -164,7 +165,7 @@ case "$step" in
   s5) s5 ;;
   s6-build) s6_build ;;
   s6) s6 ;;
-  s6-selftest) s6_selftest ;;
+  selftest) selftest ;;
   *)
     echo "unknown step $step" >&2
     exit 2

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Checks the S5 rule line against the plan's unit. Touches no key store; runs anywhere.
 set -u
+# shellcheck source=scratch/r7-s5/s5-verdict.sh
 . "$(dirname "$0")/../s5-verdict.sh"
 failed=0
 
