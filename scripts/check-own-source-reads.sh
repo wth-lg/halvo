@@ -28,10 +28,10 @@ is added above it or a comment is removed, and nothing fails.
 The fix is to print the text from a here-document, as this script does.
 The check reads one line at a time. It does not see a path that a variable
 holds, a command that continues on another line, an address that a variable
-holds, a line number after the first command of a sed script, a reader that
-another command such as xargs starts, or a read by a pattern. It cannot tell
-code from the text of a here-document, so a line of such a text that starts
-with such a read is refused too.
+holds, a line number after the first command inside one script argument of
+sed, as in '/x/p;3p', a reader that another command such as xargs starts, or
+a read by a pattern. It cannot tell code from the text of a here-document, so
+a line of such a text that starts with such a read is refused too.
 
 EOF
   synopsis
