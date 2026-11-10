@@ -126,6 +126,11 @@ An event has exactly these keys, in this order: `id`, `subject`, `start.dateTime
 `start.timeZone`, `end.dateTime`, `end.timeZone`, `isCancelled`, `responseStatus.response`. A
 `dateTime` has the form `YYYY-MM-DDTHH:MM:SS.0000000`, and `timeZone` is `UTC`.
 
+The events count their days from the UTC day on which the server started, not from the day of
+the request, and a reset does not move that day. After a UTC midnight, a caller therefore sees
+each event one day further back than on the server's first day, until the server is started
+again. No key of the state object gives the day; the `start.dateTime` that the view serves does.
+
 ### Control (`control.agent.test`)
 
 Requests to this host are not counted.
@@ -137,7 +142,9 @@ Requests to this host are not counted.
 | `POST /advance` | adds the seed's `later.message` to the inbox and `later.event` to the calendar, and answers 200 with the state object. Choice: a second advance before the next reset adds nothing |
 
 `GET /reset` and `GET /advance` get 405. A reset or a restart makes every session, device and
-token invalid, and restores the inbox, the calendar and every counter.
+token invalid, removes every draft that was not sent, and restores the inbox, the calendar and
+every counter. A browser that kept its cookies is sent to `/signin` when it next opens `/` or a
+page behind the sign-in on either site, and a send of an old draft id gets 404.
 
 ## Pages and controls
 
@@ -336,7 +343,10 @@ a seed.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 4 = 168. Around every GET of a walk, the self-test reads the state
+So `k` is 120 + 12 + 4 + 16 + 12 + 4 = 168. A walk case runs one variant alone. Only two cases
+reset with two variants: `session-expiry-device` signs in under `second_factor` with
+`session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
+variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
 object and compares it without its `requests` key. `state_changing_by_get` is the number of GETs
 that changed it.
 
@@ -348,7 +358,13 @@ A10.3 says to take them from the OpenAPI description in Microsoft's metadata rep
 
 ```text
 licence item=msgraph-metadata spdx=MIT read=2026-11-10 ok=yes
+source item=msgraph-metadata repo=github.com/microsoftgraph/msgraph-metadata ref=master path=openapi/v1.0/openapi.yaml bytes=44758767 sha256=eed44b45dd36f8489aabdffedd9de6e2f4e7613c1c7b2d884845e59652d489ff fetched=2026-11-10
 ```
+
+The second line names the file that the unit's verifier fetched on 2026-11-10 from
+`https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/master/openapi/v1.0/openapi.yaml`,
+in which it found each key of A10.3. That address names the branch `master` and no commit, so
+no commit is known: the size and the SHA-256 identify the file of that one fetch.
 
 The fetch tool of the builder's harness refused the description itself
 (`openapi/v1.0/openapi.yaml`), because the file is larger than its limit of 10 MiB. The builder
