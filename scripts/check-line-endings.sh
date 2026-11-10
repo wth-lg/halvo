@@ -176,6 +176,9 @@ report_text_file_with_binary_content() {
 
 report_a_carriage_return_in_content_without_a_nul_byte() {
   path=$1 text_attribute=$2
+  case $path in
+    '"'*) die "git prints the name of this file in quotes, because it holds a double quote, a backslash or a control character: $path. The check does not read such a name. Fix: rename the file." ;;
+  esac
   git cat-file -e ":0:$path" 2>/dev/null || die "git cat-file could not read the content of $path in the index"
   nul_bytes=$(($(git cat-file blob ":0:$path" | LC_ALL=C tr -d -c '\000' | wc -c)))
   [ "$nul_bytes" = 0 ] || return 0
@@ -323,6 +326,14 @@ self_test() {
       die "git update-index could not track the fixture file $path"
   }
 
+  track_under_the_name_that_git_prints_as() {
+    quoted_name=$1 content=$2
+    blob=$(printf '%b' "$content" | git -C "$repository" hash-object -w --stdin) ||
+      die "git hash-object could not store the fixture file $quoted_name"
+    printf '100755 %s\t%s\n' "$blob" "$quoted_name" | git -C "$repository" update-index --index-info ||
+      die "git update-index could not track the fixture file $quoted_name"
+  }
+
   expect() {
     name=$1 want_status=$2 want_line=$3 directory=${4:-.}
     status=0
@@ -435,6 +446,10 @@ self_test() {
   start_fixture '* text=auto eol=lf'
   track data.bin '\0001\0001\0001\0001\n'
   expect 'content without a carriage return that git reads as binary for its control characters is accepted' 0 "$(pass_line 0)"
+
+  start_fixture '* text=auto eol=lf'
+  track_under_the_name_that_git_prints_as '"data\177.bin"' '\0001\0001\0001\0001\n'
+  expect 'a file whose name git prints in quotes stops the check, with the cause and the fix' 2 'check-line-endings: error: git prints the name of this file in quotes, because it holds a double quote, a backslash or a control character: "data\177.bin". The check does not read such a name. Fix: rename the file.'
 
   start_fixture '*.sh eol=lf'
   track scripts/check.sh '#!/bin/sh\r\nprintf x\ry\r\n'
