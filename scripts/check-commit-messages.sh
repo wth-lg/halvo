@@ -76,13 +76,15 @@ authored by the configured git user only, so no line of a message may start with
 Letter case does not matter. Whitespace is a space, a tab, a no-break space or
 another space of Unicode (U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000),
 and any run of it separates the words. Before the first word, whitespace is
-skipped, and so is every character from U+2000 to U+2FFF or above U+FFFF.
-Those ranges hold the emoji that tools put before the words, and also symbols
+skipped, and so is every character from U+2000 to U+2FFF, from U+FE00 to
+U+FE0F or above U+FFFF. Those ranges hold the emoji that tools put before the
+words and the variation selector that can follow an emoji, and also symbols
 and a few scripts. A carriage return ends a line as a newline does.
 A line passes when any other character comes before those words: an ASCII
 character such as a digit, a bracket or the "> " of a quotation, or a letter
-from below U+2000 or from U+3000 to U+FFFF, such as a Cyrillic or a Chinese
-one. A trailer that names a person, such as Signed-off-by, passes.
+from below U+2000 or from U+3000 to U+FFFF outside U+FE00 to U+FE0F, such as
+a Cyrillic or a Chinese one. A trailer that names a person, such as
+Signed-off-by, passes.
 
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
