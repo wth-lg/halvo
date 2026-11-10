@@ -764,6 +764,14 @@ EOF
   printf 'push\t2026-11-10T09:00:00Z\t101\tcompleted\tsuccess\t1\t.github/workflows/ci.yml\n' >"$work/state/workflow-run-line-of-seven-fields/runs"
   expect workflow-run-line-of-seven-fields 2 not-called 'It reads 8 fields divided by tabs' --body-file "$work/body.txt"
 
+  state_of pull-request-facts-of-seven-lines
+  printf 'OPEN\nfalse\nMERGEABLE\n%s\nmain\nfalse\nnone\n' "$reviewed_head" >"$work/state/pull-request-facts-of-seven-lines/fields"
+  expect pull-request-facts-of-seven-lines 2 not-called 'gh printed fewer than 8 fields' --body-file "$work/body.txt"
+
+  state_of job-line-of-two-fields
+  printf 'macos\tcompleted\n' >"$work/state/job-line-of-two-fields/jobs-101"
+  expect job-line-of-two-fields 2 not-called 'It reads 3 fields divided by tabs' --body-file "$work/body.txt"
+
   state_of newest-pull-request-run-waits-for-approval
   fields newest-pull-request-run-waits-for-approval OPEN false MERGEABLE "$reviewed_head" true
   runs newest-pull-request-run-waits-for-approval "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed action_required)"
