@@ -58,6 +58,9 @@ them. So it cannot tell which pull request a pull_request run belongs to when
 two pull requests share a head, and it refuses when the newest run of an event
 comes from a workflow file without the jobs macos and windows. It reads no
 check that an app other than GitHub Actions reports on the head.
+A refusal over a run that failed names the full re-run, gh run rerun <run>,
+and not gh run rerun <run> --failed: the gate reads the job list of the run,
+and nobody has seen what that list holds after only the failed jobs ran again.
 
 Exit codes: 0 merged and the merge commit passed the range check, or with
 --dry-run every gate holds; 1 a gate refuses, and this run merged nothing; 2
@@ -223,10 +226,10 @@ refuse_a_run_without_success() {
       failed_run="$run_fact completed with $run_conclusion. Read why: gh run view $run_id --log-failed."
       case $event in
         push)
-          refuse "$failed_run If the cause is in the commits, fix it and push: the new head needs a new review. If the cause is outside them, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+          refuse "$failed_run If the cause is in the commits, fix it and push: the new head needs a new review. If the cause is outside them, such as a runner that failed, run it again and wait: gh run rerun $run_id && gh run watch $run_id. Then run this script again."
           ;;
         pull_request)
-          refuse "$failed_run If its step Commit messages names a line in the title or the description, remove the line on GitHub (gh pr edit $number), then close and reopen the pull request: gh pr close $number && gh pr reopen $number. That starts a new pull_request run, which reads the new text; a re-run reads the old text. If the cause is in the commits or in their merge with $base, fix it and push: the new head needs a new review. If the cause is outside both, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+          refuse "$failed_run If its step Commit messages names a line in the title or the description, remove the line on GitHub (gh pr edit $number), then close and reopen the pull request: gh pr close $number && gh pr reopen $number. That starts a new pull_request run, which reads the new text; a re-run reads the old text. If the cause is in the commits or in their merge with $base, fix it and push: the new head needs a new review. If the cause is outside both, such as a runner that failed, run it again and wait: gh run rerun $run_id && gh run watch $run_id. Then run this script again."
           ;;
       esac
       ;;
@@ -620,11 +623,15 @@ EOF
   runs newest-pull-request-run-failed-above-an-older-green-one "$green_pull_request_run" "$green_push_run" "$(run_line pull_request 2026-11-10T09:20:00Z 104 completed failure)"
   jobs newest-pull-request-run-failed-above-an-older-green-one 104 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
   refused newest-pull-request-run-failed-above-an-older-green-one 'a re-run reads the old text'
+  says newest-pull-request-run-failed-above-an-older-green-one 'such as a runner that failed, run it again and wait: gh run rerun 104 && gh run watch 104. Then run this script again.'
+  does_not_say newest-pull-request-run-failed-above-an-older-green-one '--failed'
 
   state_of newest-push-run-failed
   runs newest-push-run-failed "$(run_line push 2026-11-10T09:00:00Z 101 completed failure)" "$green_pull_request_run"
   jobs newest-push-run-failed 101 "macos${tab}completed${tab}success${nl}windows${tab}completed${tab}failure"
   refused newest-push-run-failed 'run 101, completed with failure'
+  says newest-push-run-failed 'such as a runner that failed, run it again and wait: gh run rerun 101 && gh run watch 101. Then run this script again.'
+  does_not_say newest-push-run-failed '--failed'
 
   state_of newest-push-run-timed-out
   runs newest-push-run-timed-out "$(run_line push 2026-11-10T09:00:00Z 101 completed timed_out)" "$green_pull_request_run"
