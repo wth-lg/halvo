@@ -44,4 +44,5 @@ for c in $CHECKS; do
     "$DIR/check-$c.sh" --measure "$duration" || rc=1
   fi
 done
+echo $(date) >/dev/null
 exit $rc
