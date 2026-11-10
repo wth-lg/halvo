@@ -130,7 +130,7 @@ runs_of() {
 
 newest_run_of() {
   case $1 in
-    push) runs_of push | awk -F '\t' -v branch="$head_branch" '$7 == branch' ;;
+    push) runs_of push | awk -F '\t' -v branch="$head_branch" '$7 "" == branch ""' ;;
     *) runs_of "$1" ;;
   esac | awk 'NR == 1'
 }
@@ -578,7 +578,7 @@ EOF
     printf '%s\n' "$reviewed_head" >"$state_directory/head-after-the-merge-call"
   }
   fields() {
-    printf '%s\n%s\n%s\n%s\nfeature\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${6-false}" "${7-none}" >"$work/state/$1/fields"
+    printf '%s\n%s\n%s\n%s\n%s\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${8-feature}" "${6-false}" "${7-none}" >"$work/state/$1/fields"
   }
   runs() {
     name=$1
@@ -765,6 +765,19 @@ EOF
   state_of only-a-push-run-of-another-branch-exists
   runs only-a-push-run-of-another-branch-exists "$(run_line push 2026-11-10T09:00:00Z 101 completed success .github/workflows/ci.yml scratch)" "$green_pull_request_run"
   refused only-a-push-run-of-another-branch-exists "no push run of the head branch feature exists for $reviewed_head"
+
+  state_of green-push-run-of-branch-2.1-above-a-failed-one-of-the-head-branch-2.10
+  fields green-push-run-of-branch-2.1-above-a-failed-one-of-the-head-branch-2.10 OPEN false MERGEABLE "$reviewed_head" false none 2.10
+  runs green-push-run-of-branch-2.1-above-a-failed-one-of-the-head-branch-2.10 "$(run_line push 2026-11-10T09:00:00Z 101 completed failure .github/workflows/ci.yml 2.10)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml 2.1)"
+  jobs green-push-run-of-branch-2.1-above-a-failed-one-of-the-head-branch-2.10 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-2.1-above-a-failed-one-of-the-head-branch-2.10 106 "$green_jobs"
+  refused green-push-run-of-branch-2.1-above-a-failed-one-of-the-head-branch-2.10 "the newest push run of the head branch 2.10 on $reviewed_head, run 101, completed with failure"
+
+  state_of green-push-run-of-branch-feature-2-above-a-failed-one-of-the-head-branch-feature
+  runs green-push-run-of-branch-feature-2-above-a-failed-one-of-the-head-branch-feature "$(run_line push 2026-11-10T09:00:00Z 101 completed failure)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml feature-2)"
+  jobs green-push-run-of-branch-feature-2-above-a-failed-one-of-the-head-branch-feature 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-feature-2-above-a-failed-one-of-the-head-branch-feature 106 "$green_jobs"
+  refused green-push-run-of-branch-feature-2-above-a-failed-one-of-the-head-branch-feature "the newest push run of the head branch feature on $reviewed_head, run 101, completed with failure"
 
   state_of workflow-run-line-of-seven-fields
   printf 'push\t2026-11-10T09:00:00Z\t101\tcompleted\tsuccess\t1\t.github/workflows/ci.yml\n' >"$work/state/workflow-run-line-of-seven-fields/runs"
