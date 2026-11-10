@@ -110,7 +110,9 @@ profile, so no other cell has touched the process that it reads.
 frames of a hosted macos-15 run, one process per frame, each under `/usr/bin/time -l`. It
 reads image files and calls no capture or accessibility interface. Run it alone through the
 helper for timed runs. `r2-probes stamp` then adds the start and end times of the helper's
-record line and the largest resident set size to each record.
+record line and the largest resident set size to each record. A cell whose name ends in
+`.this-mac.repeat-K` is a repeat set of the same timing on the same frames; it shows how far the
+figure moves between sets and decides nothing.
 
 ## Checks
 
