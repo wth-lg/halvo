@@ -105,8 +105,8 @@ Three layers apply this predicate.
      am and commit-tree, for a commit that a rebase picks without a new
      message, for the commit that a squash, a fixup -c or a fixup -C of git
      rebase -i makes, although that commit gets a new message, for the commit
-     that git rebase --continue makes after an edit or a conflict of git
-     rebase -i, although an editor opens for its message, or in a checkout
+     that git rebase --continue makes after an edit or after a conflict, with
+     -i or without, when it opens an editor for the message, or in a checkout
      that has no .githooks directory. git rebase -i runs it for a commit that
      it rewords.
   2. .githooks/pre-push reads the stored messages of the commits that a push
