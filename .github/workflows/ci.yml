@@ -24,6 +24,7 @@ jobs:
           elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             sh scripts/check-commit-messages.sh "$BEFORE..$AFTER"
           else
+            echo "The before value '$BEFORE' is not a commit in this clone: the push created the branch, or a force push dropped its old tip. Checking every commit of $AFTER."
             sh scripts/check-commit-messages.sh "$AFTER"
           fi
       - uses: actions/setup-node@v7
