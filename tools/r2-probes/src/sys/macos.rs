@@ -137,6 +137,9 @@ pub fn own_usage() -> Own {
 }
 
 pub fn kill_tree(pid: u32) {
+    if pid <= 1 {
+        return;
+    }
     let mut pids = ax::descendants(pid as i32);
     pids.push(pid as i32);
     for pid in pids {
