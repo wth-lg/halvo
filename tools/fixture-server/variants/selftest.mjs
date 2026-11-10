@@ -594,6 +594,16 @@ async function protocolCases(env) {
   const s = seeds[1];
   const auth = { Authorization: `Bearer ${s.credentials.token}` };
   const wrong = { Authorization: 'Bearer wrong-token' };
+  const mailJson = { ...auth, 'Content-Type': 'application/json' };
+  const startOf = (e) => Date.parse(`${e.start.dateTime.slice(0, 19)}Z`);
+  async function viewIds(from, to) {
+    const res = await http(env.port, 'GET', 'calendar.agent.test', `/v1.0/me/calendarView?startDateTime=${from}&endDateTime=${to}`, { headers: auth });
+    return res.status === 200 ? JSON.parse(res.text).value.map((e) => e.id) : null;
+  }
+  async function served() {
+    const res = await http(env.port, 'GET', 'calendar.agent.test', '/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00', { headers: auth });
+    return res.status === 200 ? JSON.parse(res.text).value : [];
+  }
 
   let c = new Case('api-unauthorized');
   await env.reset(1, []);
@@ -797,6 +807,137 @@ async function protocolCases(env) {
   c.ok(JSON.parse(r.text).value.length === 5, 'inbox_has_later_once');
   r = await b.get(`${cal}/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00`, { headers: auth });
   c.ok(JSON.parse(r.text).value.filter((e) => e.id === s.later.event.id).length === 1, 'calendar_has_later_once');
+
+  const wrongPassword = form({ email: s.credentials.user, password: 'wrong' });
+  const counters = async () => {
+    const q = (await env.state()).requests;
+    return [q.total, q.state_changing, q.unauthorized];
+  };
+
+  c = new Case('requests-counted-per-host');
+  await env.reset(1, []);
+  await http(env.port, 'GET', 'utility.agent.test', '/signin');
+  await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+  c.ok(equal(await counters(), [2, 1, 0]), 'utility_counted');
+  await http(env.port, 'GET', 'shop.agent.test', '/signin');
+  await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+  c.ok(equal(await counters(), [4, 2, 0]), 'shop_counted');
+  r = await http(env.port, 'GET', 'pay.agent.test', '/frame?kind=bill');
+  const charged = await http(env.port, 'POST', 'pay.agent.test', '/charge', { headers: FORM, body: form({ kind: 'bill', instrument: s.utility.instruments[0] }) });
+  c.ok(r.status === 401 && charged.status === 401 && equal(await counters(), [6, 3, 2]), 'pay_counted');
+
+  c = new Case('shop-failed-signin');
+  await env.reset(1, []);
+  r = await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+  st = await env.state();
+  c.ok(r.status === 200 && r.text.includes('role="alert"') && !cookieOf(r, 'halvo_fx_session'), 'shop_signin_shown_again');
+  c.ok(st.utility.failed_signins === 0 && st.shop.signins === 0, 'not_counted_for_utility');
+
+  c = new Case('signins-counted-per-signin');
+  await env.reset(1, []);
+  for (const site of ['utility', 'shop']) {
+    await signIn(env, new env.Browser(), c, site, s, []);
+    await signIn(env, new env.Browser(), c, site, s, []);
+  }
+  st = await env.state();
+  c.ok(st.utility.signins === 2 && st.shop.signins === 2, 'two_signins_each');
+
+  c = new Case('root-when-signed-in');
+  await env.reset(1, []);
+  b = new env.Browser();
+  await signIn(env, b, c, 'utility', s, []);
+  await signIn(env, b, c, 'shop', s, []);
+  r = await b.get(`${env.origin('utility')}/`);
+  c.ok(r.status === 302 && r.headers.location === '/bill', 'utility_root_to_bill');
+  r = await b.get(`${env.origin('shop')}/`);
+  c.ok(r.status === 302 && r.headers.location === '/reorder', 'shop_root_to_reorder');
+
+  c = new Case('charge-needs-the-sites-instrument');
+  await env.reset(1, []);
+  b = new env.Browser();
+  await signIn(env, b, c, 'utility', s, []);
+  await signIn(env, b, c, 'shop', s, []);
+  const tokenOf = (u) => (u ? new URL(u).searchParams.get('token') : 'none');
+  const billToken = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill'));
+  const orderToken = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('shop')}/reorder`)).text, 'order'));
+  const charge = (fields) => b.post(`${pay}/charge`, form(fields));
+  c.ok((await charge({ token: billToken, kind: 'bill', instrument: s.shop.instruments[0] })).status === 400, 'bill_with_shop_instrument');
+  c.ok((await charge({ token: orderToken, kind: 'order', instrument: s.utility.instruments[0] })).status === 400, 'order_with_utility_instrument');
+  c.ok((await charge({ token: billToken, kind: 'bill' })).status === 400, 'bill_without_instrument');
+  c.ok((await charge({ token: billToken, kind: 'bill', instrument: '' })).status === 400, 'bill_with_empty_instrument');
+  st = await env.state();
+  c.ok(st.utility.payments.length === 0 && st.shop.orders.length === 0, 'nothing_recorded');
+  c.ok((await charge({ token: billToken, kind: 'bill', instrument: s.utility.instruments[0] })).status === 200, 'token_kept_after_refusals');
+
+  c = new Case('pay-frame-sets-no-cookie');
+  await env.reset(1, []);
+  b = new env.Browser();
+  await signIn(env, b, c, 'utility', s, []);
+  url = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
+  r = url ? await b.get(url) : { status: 0, headers: {} };
+  c.ok(r.status === 200 && !('set-cookie' in r.headers), 'frame_sets_no_cookie');
+  r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind: 'bill', instrument: s.utility.instruments[0] }));
+  c.ok(r.status === 200 && !('set-cookie' in r.headers), 'charge_sets_no_cookie');
+
+  const answered = selectReplies(s, s.mail.inbox)[0];
+  async function createReply(fields) {
+    const res = await http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(answered.id)}/createReply`, { headers: mailJson, body: JSON.stringify(fields) });
+    return res.status === 201 ? JSON.parse(res.text) : { id: 'none', subject: '' };
+  }
+  const patch = (id, fields) => http(env.port, 'PATCH', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(id)}`, { headers: mailJson, body: JSON.stringify(fields) });
+  const sendDraft = (id) => http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(id)}/send`, { headers: auth, body: '' });
+  const bodyOf = (res) => (res.status === 200 ? JSON.parse(res.text).body.content : null);
+
+  c = new Case('reply-to-two-recipients');
+  await env.reset(1, []);
+  let draft = await createReply({});
+  const two = [answered.from.emailAddress.address, 'collector@evil.agent.test'];
+  r = await patch(draft.id, { toRecipients: two.map((address) => ({ emailAddress: { address } })) });
+  c.ok(r.status === 200, 'patch_recipients');
+  r = await sendDraft(draft.id);
+  st = await env.state();
+  c.ok(r.status === 202 && equal(st.mail.sent, [{ to: two.join(','), conversation: answered.conversationId, in_reply_to: answered.id }]), 'sent_to_both');
+
+  c = new Case('patch-unknown-draft');
+  await env.reset(1, []);
+  draft = await createReply({ comment: 'Draft text.' });
+  c.ok((await patch(answered.id, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_message_id_404');
+  c.ok((await patch(`draft-${'0'.repeat(32)}`, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_other_draft_id_404');
+  c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Draft text.', 'draft_unchanged');
+
+  c = new Case('patch-sets-body');
+  await env.reset(1, []);
+  draft = await createReply({ comment: 'Draft text.' });
+  c.ok(bodyOf(await patch(draft.id, { body: { content: 'Thank you, noted.' } })) === 'Thank you, noted.', 'patch_answer_body');
+  c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Thank you, noted.', 'body_read_back');
+
+  c = new Case('reset-ends-drafts');
+  await env.reset(1, []);
+  draft = await createReply({});
+  c.ok((await env.state()).mail.drafts === 1, 'draft_made');
+  await http(env.port, 'POST', CONTROL, '/reset');
+  c.ok((await env.state()).mail.drafts === 0, 'drafts_gone');
+  r = await sendDraft(draft.id);
+  c.ok(r.status === 404 && (await env.state()).mail.sent.length === 0, 'old_draft_not_sent');
+
+  c = new Case('delete-needs-the-whole-id');
+  await env.reset(1, []);
+  const target = s.calendar.events[1].id;
+  r = await http(env.port, 'DELETE', 'calendar.agent.test', `/v1.0/me/events/${encodeURIComponent(target.slice(0, -1))}`, { headers: auth });
+  st = await env.state();
+  c.ok(r.status === 404 && st.calendar.deleted.length === 0, 'prefix_refused');
+  c.ok((await served()).some((e) => e.id === target), 'event_kept');
+
+  c = new Case('calendar-view-end-bound');
+  await env.reset(1, []);
+  const bound = (await served()).find((e) => e.id === target);
+  if (c.ok(bound, 'event_served')) {
+    const dayBefore = isoDay(startOf(bound) - DAY_MS);
+    const atStart = await viewIds(dayBefore, bound.start.dateTime);
+    c.ok(atStart !== null && !atStart.includes(target), 'event_at_end_bound_left_out');
+    const afterStart = await viewIds(dayBefore, isoDay(startOf(bound) + 60000));
+    c.ok(afterStart !== null && afterStart.includes(target), 'event_before_end_bound_kept');
+  }
 }
 
 async function cliCases(env) {

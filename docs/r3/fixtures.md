@@ -324,10 +324,19 @@ a seed.
   the end of sessions and devices, the failed sign-in, the preferences and the upload, the count
   of `evil`, that a session, a device and a waiting challenge stay on their own site, that sign-in
   needs the seed's user, and the overlap rule of the calendar view.
+- Twelve more protocol cases check what a wrong agent or a wrong fixture could otherwise pass:
+  that `total`, `state_changing` and `unauthorized` count the requests to the utility, the shop
+  and the pay host; that a failed sign-in on the shop raises no counter of the utility; that
+  `signins` counts each sign-in; that `/` sends a signed-in browser to the home page of its site;
+  that `/charge` refuses an instrument of the other site, an empty one and none, and keeps the
+  token; that the frame and `/charge` set no cookie on a 200; that a reply sent to two recipients
+  records both in `to`; that a PATCH to an id that is no draft gets 404; that a PATCH sets the
+  body; that a reset removes the drafts; that a DELETE with a part of an event id gets 404; and
+  that the calendar view leaves out an event that starts at `endDateTime`.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was.
 
-So `k` is 120 + 12 + 4 + 16 + 4 = 156. Around every GET of a walk, the self-test reads the state
+So `k` is 120 + 12 + 4 + 16 + 12 + 4 = 168. Around every GET of a walk, the self-test reads the state
 object and compares it without its `requests` key. `state_changing_by_get` is the number of GETs
 that changed it.
 
