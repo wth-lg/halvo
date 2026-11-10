@@ -119,11 +119,47 @@ predicate_modalities_present() {
   return 0
 }
 
-# PASS(0) if the plaintext marker appears in no file under the store dir.
-predicate_marker_absent() {
-  dir=$1; marker=$2
-  grep -rqF -- "$marker" "$dir" 2>/dev/null && return 1
+marker_scan_dir() {
+  [ -n "$2" ] || return 2
+  [ -f "$1/store.db" ] || return 2
+  [ -f "$1/store.key" ] || return 2
+  grep -rqF -e "$2" -- "$1" 2>/dev/null
+  case $? in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+}
+
+marker_scan_files() {
+  marker=$1; shift
+  [ -n "$marker" ] || return 2
+  [ $# -gt 0 ] || return 2
+  for capture in "$@"; do
+    grep -qF -e "$marker" -- "$capture" 2>/dev/null
+    case $? in 1) ;; 0) return 1 ;; *) return 2 ;; esac
+  done
   return 0
+}
+
+predicate_marker_absent() {
+  marker_scan_dir "$1" "$2"
+}
+
+predicate_marker_not_printed() {
+  marker_scan_files "$@"
+}
+
+marker_defect() {
+  marker_scan_dir "$1" "$2"
+  case $? in
+    0) ;;
+    1) printf 'leak: the marker is in the store directory\n'; return 1 ;;
+    *) printf 'marker scan did not run on the store directory: it needs a marker, store.db, store.key and files that grep can read\n'; return 1 ;;
+  esac
+  shift
+  marker_scan_files "$@"
+  case $? in
+    0) return 0 ;;
+    1) printf 'leak: the marker is in what the binary printed\n'; return 1 ;;
+    *) printf 'marker scan did not run on the captured output: it needs a marker and both capture files\n'; return 1 ;;
+  esac
 }
 
 # PASS(0) if the file does not contain the plaintext marker (a proxy for "this
