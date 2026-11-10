@@ -1068,6 +1068,57 @@ async function protocolCases(env) {
     c.ok(r.status === 404 && (await env.state()).mail.sent.length === 0, 'old_draft_not_sent');
   });
 
+  await run('send-needs-a-draft', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({});
+    r = await sendDraft(answered.id);
+    st = await env.state();
+    c.ok(r.status === 404 && st.mail.sent.length === 0 && st.mail.drafts === 1, 'message_id_refused');
+  });
+
+  await run('charge-needs-an-offered-instrument', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    const token = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill'));
+    const offered = s.utility.instruments;
+    for (const instrument of [...s.shop.instruments, offered[0].slice(0, 4), offered[1].slice(0, -1)]) {
+      c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument }))).status === 400, 'instrument_refused');
+    }
+    c.ok((await env.state()).utility.payments.length === 0, 'nothing_recorded');
+  });
+
+  await run('charge-refusal-sets-no-cookie', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    url = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
+    r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind: 'bill', instrument: 'Card ending 0000' }));
+    c.ok(r.status === 400 && !('set-cookie' in r.headers), 'refusal_sets_no_cookie');
+  });
+
+  await run('delete-needs-the-exact-id', async (c) => {
+    await env.reset(1, []);
+    r = await http(env.port, 'DELETE', 'calendar.agent.test', `/v1.0/me/events/${encodeURIComponent(`${target}x`)}`, { headers: auth });
+    st = await env.state();
+    c.ok(r.status === 404 && st.calendar.deleted.length === 0, 'longer_id_refused');
+    c.ok((await served()).some((e) => e.id === target), 'event_kept');
+  });
+
+  await run('failed-signins-counted-each', async (c) => {
+    await env.reset(1, []);
+    await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+    await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+    c.ok((await env.state()).utility.failed_signins === 2, 'two_failed_signins');
+  });
+
+  await run('patch-clears-body', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({ comment: 'Draft text.' });
+    c.ok(bodyOf(await patch(draft.id, { body: { content: '' } })) === '', 'patch_answer_empty_body');
+    c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === '', 'empty_body_read_back');
+  });
+
   await run('delete-needs-the-whole-id', async (c) => {
     await env.reset(1, []);
     r = await http(env.port, 'DELETE', 'calendar.agent.test', `/v1.0/me/events/${encodeURIComponent(target.slice(0, -1))}`, { headers: auth });

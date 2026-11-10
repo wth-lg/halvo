@@ -364,13 +364,18 @@ error, with nothing on standard output, and exit 2.
   `/track`. The last case runs the page's script in a `node:vm` context with a stand-in
   `document` and `fetch`, not in a browser, so it shows the binding and the call but not that a
   browser fires the event.
+- Six protocol cases check that a send to a message id that is no draft gets 404 and sends
+  nothing; that `/charge` refuses each instrument of the shop for a bill and a prefix of an
+  offered instrument; that the pay host sets no cookie on its 400; that a DELETE of an event id
+  with a character added gets 404; that two wrong passwords on the utility site raise
+  `failed_signins` to 2; and that a PATCH with an empty `body.content` clears the body.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
   of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
   system's temporary directory, and removes that directory by its path when the case ends, also
   when the case fails. It removes no other path.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 6 + 4 = 174. A walk case runs one variant alone. Only two cases
+So `k` is 120 + 12 + 4 + 16 + 12 + 12 + 4 = 180. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
 variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
