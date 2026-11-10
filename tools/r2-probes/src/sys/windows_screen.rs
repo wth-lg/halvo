@@ -165,7 +165,11 @@ pub fn ocr_languages() -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub fn recognize(frame: &Frame, language_tag: Option<&str>) -> Result<(Vec<String>, f64), String> {
+pub fn recognize(
+    frame: &Frame,
+    language_tag: Option<&str>,
+    cpu: fn() -> f64,
+) -> Result<(Vec<String>, f64, f64), String> {
     if frame.bgra.len() != frame.width * frame.height * 4 {
         return Err("bgra length".into());
     }
@@ -189,12 +193,14 @@ pub fn recognize(frame: &Frame, language_tag: Option<&str>) -> Result<(Vec<Strin
         None => OcrEngine::TryCreateFromUserProfileLanguages(),
     };
     let engine = s("OcrEngine (a null engine: language not installed)", engine)?;
+    let cpu_start = cpu();
     let started = Instant::now();
     let result = s(
         "RecognizeAsync",
         engine.RecognizeAsync(&bitmap).and_then(|op| op.join()),
     )?;
     let ms = started.elapsed().as_secs_f64() * 1000.0;
+    let cpu_ms = cpu() - cpu_start;
     let lines = s("Lines", result.Lines())?;
     Ok((
         lines
@@ -202,6 +208,7 @@ pub fn recognize(frame: &Frame, language_tag: Option<&str>) -> Result<(Vec<Strin
             .map(|l| l.Text().map(|t| t.to_string()).unwrap_or_default())
             .collect(),
         ms,
+        cpu_ms,
     ))
 }
 

@@ -376,8 +376,18 @@ pub fn capture() -> Result<(Frame, String), String> {
     ))
 }
 
-pub fn recognize(engine: &str, frame: &Frame) -> Result<(Vec<String>, f64), String> {
-    screen::recognize(frame, engine == "apple-vision-accurate", true, &["en-US"])
+fn own_cpu_ms() -> f64 {
+    own_usage().cpu_ms
+}
+
+pub fn recognize(engine: &str, frame: &Frame) -> Result<(Vec<String>, f64, f64), String> {
+    screen::recognize(
+        frame,
+        engine == "apple-vision-accurate",
+        true,
+        &["en-US"],
+        own_cpu_ms,
+    )
 }
 
 pub fn engine_settings(engine: &str) -> Vec<(&'static str, String)> {

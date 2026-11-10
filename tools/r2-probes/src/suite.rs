@@ -393,7 +393,9 @@ impl Suite {
                 let result = suite.child(&args, 60);
                 suite.snap(&cell, run);
                 running.stop(&title);
-                Ok(result?.text("version", &browser.version))
+                Ok(result?
+                    .text("served", "http-loopback")
+                    .text("version", &browser.version))
             });
         }
     }
@@ -421,6 +423,7 @@ impl Suite {
                     running.stop(&title);
                     Ok(result?
                         .text("process", "chrome")
+                        .text("served", "http-loopback")
                         .text("version", &chrome.version))
                 });
             }
@@ -548,7 +551,9 @@ impl Suite {
                         }
                         suite.child(&args, 60)?
                     };
-                    let record = record.text("version", &version);
+                    let record = record
+                        .text("shown_by", if is_page { "chrome-kiosk" } else { "soffice" })
+                        .text("version", &version);
                     if is_page {
                         suite.pool(&pooled, &record);
                     }
@@ -1047,11 +1052,10 @@ fn child_extract(args: &[String]) -> Result<Record, String> {
     if let Some(path) = value(args, "--frame-out") {
         frame.save_png(Path::new(&path))?;
     }
+    let display = (frame.width, frame.height);
     let image = if scale == "0.5" { frame.halve() } else { frame };
-    let (_, first_ms) = sys::recognize(&engine, &image)?;
-    let cpu_start = sys::own_usage().cpu_ms;
-    let (pieces, elapsed_ms) = sys::recognize(&engine, &image)?;
-    let cpu_ms = sys::own_usage().cpu_ms - cpu_start;
+    let (_, first_ms, _) = sys::recognize(&engine, &image)?;
+    let (pieces, elapsed_ms, cpu_ms) = sys::recognize(&engine, &image)?;
     let mut record = extraction(
         &target,
         &pieces,
@@ -1061,7 +1065,9 @@ fn child_extract(args: &[String]) -> Result<Record, String> {
         (image.width, image.height),
     )
     .text("filter", if scale == "0.5" { "box-2x2" } else { "none" })
-    .text("capture", &device);
+    .text("capture", &device)
+    .number("display_width_px", How::Max, display.0 as f64)
+    .number("display_height_px", How::Max, display.1 as f64);
     for (key, setting) in sys::engine_settings(&engine) {
         record = record.text(key, &setting);
     }
@@ -1090,7 +1096,7 @@ pub fn extraction(
         }
     }
     record
-        .number("stored_bytes", How::Max, text.len() as f64)
+        .number("stored_bytes", How::Max, pieces.join(" ").len() as f64)
         .number(
             "peak_footprint_bytes",
             How::Max,

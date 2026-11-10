@@ -308,8 +308,12 @@ pub fn capture() -> Result<(Frame, String), String> {
     screen::capture_with_adapter(15_000)
 }
 
-pub fn recognize(_engine: &str, frame: &Frame) -> Result<(Vec<String>, f64), String> {
-    screen::recognize(frame, Some("en-US"))
+fn own_cpu_ms() -> f64 {
+    own_usage().cpu_ms
+}
+
+pub fn recognize(_engine: &str, frame: &Frame) -> Result<(Vec<String>, f64, f64), String> {
+    screen::recognize(frame, Some("en-US"), own_cpu_ms)
 }
 
 pub fn engine_settings(_engine: &str) -> Vec<(&'static str, String)> {

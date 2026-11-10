@@ -178,7 +178,8 @@ pub fn recognize(
     accurate: bool,
     correction: bool,
     languages: &[&str],
-) -> Result<(Vec<String>, f64), String> {
+    cpu: fn() -> f64,
+) -> Result<(Vec<String>, f64, f64), String> {
     let image = cgimage_from_bgra(frame)?;
     autoreleasepool(|_| {
         let request = VNRecognizeTextRequest::new();
@@ -205,9 +206,11 @@ pub fn recognize(
         };
         let as_request: &VNRequest = &request;
         let requests = NSArray::from_slice(&[as_request]);
+        let cpu_start = cpu();
         let started = Instant::now();
         let outcome = handler.performRequests_error(&requests);
         let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let cpu_ms = cpu() - cpu_start;
         outcome.map_err(|e| format!("performRequests: {}", err_text(Some(&e))))?;
         let mut lines = Vec::new();
         if let Some(results) = request.results() {
@@ -220,6 +223,6 @@ pub fn recognize(
                 });
             }
         }
-        Ok((lines, elapsed_ms))
+        Ok((lines, elapsed_ms, cpu_ms))
     })
 }
