@@ -520,12 +520,17 @@ EOF
       failures=$((failures + 1))
     fi
   }
+  run_script() {
+    name=$1
+    shift
+    status=0
+    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/$name" MERGE_PR_STUB_GITHUB="$work/github.git" \
+      sh "$script_directory/merge-pr.sh" "$@") >"$work/out/$name.txt" 2>&1 || status=$?
+  }
   expect() {
     name=$1 want_status=$2 want_merge=$3 want_text=$4
     shift 4
-    status=0
-    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/$name" MERGE_PR_STUB_GITHUB="$work/github.git" \
-      sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" "$@") >"$work/out/$name.txt" 2>&1 || status=$?
+    run_script "$name" 7 --head "$reviewed_head" --subject "$subject" "$@"
     judge "$name" "$status" "$want_status" "$want_merge" "$want_text"
   }
   refused() {
@@ -533,6 +538,26 @@ EOF
     shift 2
     [ $# -gt 0 ] || set -- --body-file "$work/body.txt"
     expect "$name" 1 not-called "$want_text" "$@"
+  }
+  says() {
+    name=$1 text=$2
+    cases=$((cases + 1))
+    if grep -qF -- "$text" "$work/out/$name.txt"; then
+      printf 'PASS %s: the output holds the text "%s"\n' "$name" "$text"
+    else
+      printf 'FAIL %s: the output does not hold the text "%s"; see %s\n' "$name" "$text" "$work/out/$name.txt"
+      failures=$((failures + 1))
+    fi
+  }
+  does_not_say() {
+    name=$1 text=$2
+    cases=$((cases + 1))
+    if grep -qF -- "$text" "$work/out/$name.txt"; then
+      printf 'FAIL %s: the output holds the text "%s"; see %s\n' "$name" "$text" "$work/out/$name.txt"
+      failures=$((failures + 1))
+    else
+      printf 'PASS %s: the output does not hold the text "%s"\n' "$name" "$text"
+    fi
   }
 
   state_of dry-run-with-every-gate-open
@@ -548,6 +573,10 @@ EOF
     printf 'FAIL merged-pull-request: a line says "Nothing was merged" about a pull request that GitHub merged, or no line says "This run merged nothing"; see %s\n' "$work/out/merged-pull-request.txt"
     failures=$((failures + 1))
   fi
+
+  state_of merged-pull-request-without-a-merge-commit
+  fields merged-pull-request-without-a-merge-commit MERGED false UNKNOWN "$reviewed_head"
+  refused merged-pull-request-without-a-merge-commit 'reports no merge commit for it yet. gh pr view 7 --json mergeCommit shows the commit when GitHub has it'
 
   state_of closed-pull-request
   fields closed-pull-request CLOSED false UNKNOWN "$reviewed_head"
@@ -597,6 +626,10 @@ EOF
   jobs newest-push-run-failed 101 "macos${tab}completed${tab}success${nl}windows${tab}completed${tab}failure"
   refused newest-push-run-failed 'run 101, completed with failure'
 
+  state_of newest-push-run-timed-out
+  runs newest-push-run-timed-out "$(run_line push 2026-11-10T09:00:00Z 101 completed timed_out)" "$green_pull_request_run"
+  refused newest-push-run-timed-out 'run 101, completed with timed_out. Read why: gh run view 101 --log-failed'
+
   state_of newest-push-run-in-progress
   runs newest-push-run-in-progress "$(run_line push 2026-11-10T09:00:00Z 101 in_progress none)" "$green_pull_request_run"
   jobs newest-push-run-in-progress 101 "macos${tab}completed${tab}success${nl}windows${tab}in_progress${tab}none"
@@ -627,6 +660,7 @@ EOF
   runs newest-push-run-of-another-workflow-file "$green_push_run" "$green_pull_request_run" "$(run_line push 2026-11-10T09:30:00Z 105 completed success .github/workflows/docs.yml)"
   jobs newest-push-run-of-another-workflow-file 105 "build${tab}completed${tab}success"
   refused newest-push-run-of-another-workflow-file 'Another workflow file than .github/workflows/ci.yml started this run'
+  says newest-push-run-of-another-workflow-file 'gates that refuse the merge of pull request #7: 1.'
 
   state_of newest-pull-request-run-waits-for-approval
   fields newest-pull-request-run-waits-for-approval OPEN false MERGEABLE "$reviewed_head" true
@@ -689,7 +723,12 @@ EOF
 
   state_of merge-that-github-refuses
   : >"$work/state/merge-that-github-refuses/github-refuses-the-merge"
-  expect merge-that-github-refuses 2 called 'GitHub reports pull request #7 as OPEN: it is not merged' --body-file "$work/body.txt"
+  expect merge-that-github-refuses 2 called 'gh pr merge exited 1, and its message is above. GitHub reports pull request #7 as OPEN: it is not merged. Read the message, and do not retry with --admin.' --body-file "$work/body.txt"
+
+  state_of merge-that-github-refuses-on-a-closed-pull-request
+  : >"$work/state/merge-that-github-refuses-on-a-closed-pull-request/github-refuses-the-merge"
+  printf 'CLOSED\n' >"$work/state/merge-that-github-refuses-on-a-closed-pull-request/state-after-the-merge-call"
+  expect merge-that-github-refuses-on-a-closed-pull-request 2 called 'gh pr merge exited 1, and its message is above. GitHub reports pull request #7 as CLOSED: it is not merged. Read the message, and do not retry with --admin.' --body-file "$work/body.txt"
 
   printf 'What changed and why.\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n' >"$work/clone/-body-with-a-trailer.txt"
   state_of body-file-whose-name-starts-with-a-hyphen
@@ -699,17 +738,37 @@ EOF
   expect body-file-is-standard-input 64 not-called 'starts with a hyphen' --body-file -
 
   state_of subject-value-missing-before-dry-run
-  status=0
-  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/subject-value-missing-before-dry-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
-    sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --body-file "$work/body.txt" --subject --dry-run) >"$work/out/subject-value-missing-before-dry-run.txt" 2>&1 || status=$?
+  run_script subject-value-missing-before-dry-run 7 --head "$reviewed_head" --body-file "$work/body.txt" --subject --dry-run
   judge subject-value-missing-before-dry-run "$status" 64 not-called 'starts with a hyphen'
 
   state_of head-in-upper-case
   upper_case_head=$(printf '%s' "$reviewed_head" | LC_ALL=C tr 'abcdef' 'ABCDEF')
-  status=0
-  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/head-in-upper-case" MERGE_PR_STUB_GITHUB="$work/github.git" \
-    sh "$script_directory/merge-pr.sh" 7 --head "$upper_case_head" --subject "$subject" --body-file "$work/body.txt" --dry-run) >"$work/out/head-in-upper-case.txt" 2>&1 || status=$?
+  run_script head-in-upper-case 7 --head "$upper_case_head" --subject "$subject" --body-file "$work/body.txt" --dry-run
   judge head-in-upper-case "$status" 0 not-called 'dry run: every gate holds'
+
+  state_of number-that-is-not-digits
+  run_script number-that-is-not-digits 7a --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt"
+  judge number-that-is-not-digits "$status" 64 not-called 'the pull request number must be digits, and got: 7a'
+
+  state_of head-that-is-not-hex
+  run_script head-that-is-not-hex 7 --head "${reviewed_head%?}g" --subject "$subject" --body-file "$work/body.txt"
+  judge head-that-is-not-hex "$status" 64 not-called '--head needs the full sha of the reviewed commit, 40 hex digits, and got:'
+
+  state_of head-that-is-short
+  run_script head-that-is-short 7 --head "${reviewed_head%?}" --subject "$subject" --body-file "$work/body.txt"
+  judge head-that-is-short "$status" 64 not-called '--head needs the full sha of the reviewed commit, 40 hex digits, and got:'
+
+  state_of subject-of-two-lines
+  run_script subject-of-two-lines 7 --head "$reviewed_head" --subject "Add the feature${nl}and a second line" --body-file "$work/body.txt"
+  judge subject-of-two-lines "$status" 64 not-called '--subject must be one line'
+
+  state_of body-file-missing
+  run_script body-file-missing 7 --head "$reviewed_head" --subject "$subject"
+  judge body-file-missing "$status" 64 not-called '--body-file needs the file that holds the body of the squash message'
+
+  state_of body-file-that-does-not-exist
+  run_script body-file-that-does-not-exist 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/no-such-body.txt"
+  judge body-file-that-does-not-exist "$status" 64 not-called '--body-file: no such file'
 
   state_of accepted
   expect accepted 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
@@ -724,6 +783,7 @@ EOF
     printf 'FAIL accepted: the arguments of gh pr merge, the body it received or the report of the merge commit differ; see %s and %s\n' "$work/state/accepted" "$work/out/accepted.txt"
     failures=$((failures + 1))
   fi
+  does_not_say accepted 'MERGED all the same'
 
   state_of merged-commit-to-which-github-added-a-trailer
   printf '%s\n' "$squash_with_a_trailer" >"$work/state/merged-commit-to-which-github-added-a-trailer/merge-commit"
@@ -731,7 +791,7 @@ EOF
 
   state_of merged-and-github-reports-no-merge-commit
   : >"$work/state/merged-and-github-reports-no-merge-commit/merge-commit"
-  expect merged-and-github-reports-no-merge-commit 3 called 'pull request #7 is merged, but' --body-file "$work/body.txt"
+  expect merged-and-github-reports-no-merge-commit 3 called 'pull request #7 is merged, but GitHub reports no merge commit for it yet' --body-file "$work/body.txt"
   cases=$((cases + 1))
   if grep -qF "'refs/remotes/origin/main^!'" "$work/out/merged-and-github-reports-no-merge-commit.txt"; then
     printf 'PASS merged-and-github-reports-no-merge-commit: the remedy names the default branch by its full ref\n'
@@ -743,6 +803,7 @@ EOF
   state_of merge-call-fails-after-github-merged
   : >"$work/state/merge-call-fails-after-github-merged/call-fails-after-github-merged"
   expect merge-call-fails-after-github-merged 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
+  says merge-call-fails-after-github-merged 'gh pr merge exited 1, and its message is above. GitHub reports pull request #7 as MERGED all the same'
 
   state_of merge-call-fails-after-github-merged-a-commit-with-a-trailer
   : >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/call-fails-after-github-merged"
@@ -756,12 +817,10 @@ EOF
 
   state_of merge-call-exits-0-and-github-did-not-merge
   : >"$work/state/merge-call-exits-0-and-github-did-not-merge/call-exits-0-and-github-did-not-merge"
-  expect merge-call-exits-0-and-github-did-not-merge 2 called 'GitHub reports pull request #7 as OPEN: it is not merged' --body-file "$work/body.txt"
+  expect merge-call-exits-0-and-github-did-not-merge 2 called 'gh pr merge exited 0, and GitHub reports pull request #7 as OPEN: it is not merged. GitHub may hold the merge' --body-file "$work/body.txt"
 
   state_of subject-of-spaces
-  status=0
-  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/subject-of-spaces" MERGE_PR_STUB_GITHUB="$work/github.git" \
-    sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject '   ' --body-file "$work/body.txt") >"$work/out/subject-of-spaces.txt" 2>&1 || status=$?
+  run_script subject-of-spaces 7 --head "$reviewed_head" --subject '   ' --body-file "$work/body.txt"
   judge subject-of-spaces "$status" 64 not-called '--subject needs the subject line'
 
   state_of standard-output-closed-before-the-merge
