@@ -64,7 +64,7 @@ jobs:
         timeout-minutes: 30
         run: |
           cmd //c ver
-          MSYS_NO_PATHCONV=1 whoami /groups | grep -i "Mandatory Label" || true
+          cmd //c "whoami /groups" | grep -i "Mandatory Label" || true
           failed=0
           for t in \
             c1_raw_input_delivers_keystrokes_and_pointer_events \
@@ -75,9 +75,15 @@ jobs:
             c6_dpapi_custody_and_store_lifecycle \
             c7_logon_task_installs_is_idempotent_and_is_removed \
             c8_a_window_can_be_excluded_from_capture \
-            c8b_an_excluded_window_is_absent_from_a_captured_frame \
             x1_keystrokes_typed_into_a_password_field \
-            c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+            x2_window_title_events_for_other_windows_and_controls \
+            x3_attribution_before_the_first_foreground_change \
+            x4_logon_task_install_without_elevation \
+            x7_capture_border_on_the_screen \
+            c9_peak_working_set_of_sources_1_to_4_for_60_seconds \
+            x5_screen_source_stop_and_start_again \
+            x6_pixel_probe_single_capture \
+            c8b_an_excluded_window_is_absent_from_a_captured_frame
           do
             echo "=== HALVO-VERIFY begin $t"
             rc=0
@@ -86,6 +92,30 @@ jobs:
             if [ "$rc" != 0 ]; then failed=1; fi
           done
           exit "$failed"
+      - name: Windows functional verification, release memory sample
+        if: ${{ !cancelled() }}
+        shell: bash
+        timeout-minutes: 30
+        run: cargo test --release -p halvo-capture --test windows_functional -- --ignored --nocapture --exact c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+      - name: Windows functional verification, larger screens
+        if: ${{ !cancelled() }}
+        shell: bash
+        timeout-minutes: 30
+        run: |
+          run_one() {
+            echo "=== HALVO-VERIFY begin $1"
+            rc=0
+            cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact "$1" || rc=$?
+            echo "=== HALVO-VERIFY end $1 exit=$rc"
+          }
+          run_one x9_screen_source_across_a_display_mode_change
+          for mode in "1920 1080" "2560 1440" "3840 2160"; do
+            set -- $mode
+            echo "=== HALVO-VERIFY display mode requested $1x$2"
+            powershell.exe -NoProfile -Command "Set-DisplayResolution -Width $1 -Height $2 -Force" || echo "=== HALVO-VERIFY display mode $1x$2 refused"
+            run_one c2_screen_source_delivers_a_frame
+            run_one c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+          done
       - name: Clippy
         shell: bash
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -95,11 +125,6 @@ jobs:
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
-      - name: Windows functional verification, release memory sample
-        if: ${{ !cancelled() }}
-        shell: bash
-        timeout-minutes: 30
-        run: cargo test --release -p halvo-capture --test windows_functional -- --ignored --nocapture --exact c9_peak_working_set_of_sources_1_to_4_for_60_seconds
       - name: Version
         shell: bash
         run: test "$(target/release/halvo.exe --version)" = 0.0.0
