@@ -58,8 +58,6 @@ cases() {
   t unscanned-directory-is-no-leak PASS marker_defect_is "$not_run" "$gate_scratch/empty" "$marker" "$gate_scratch/stdout" "$gate_scratch/stderr"
   t empty-marker-is-no-leak PASS marker_defect_is "$not_run" "$gate_scratch/clean" "" "$gate_scratch/stdout" "$gate_scratch/stderr"
   t empty-marker-on-empty-capture FAIL predicate_marker_not_printed "" "$gate_scratch/stderr"
-  t clean-file PASS predicate_ciphertext "$gate_scratch/clean/seg0001" "$marker"
-  t leaky-file FAIL predicate_ciphertext "$gate_scratch/leaky/seg0001" "$marker"
   t good-line PASS predicate_store_report "$good"
   t line-of-store-4 PASS predicate_store_report "store events=2000 records=2000 secure_delete=1 temp_store=2 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none"
   line=$(with 's/ prompt=none//'); t defects-name-the-key PASS defects_are "$line" "prompt "

@@ -162,14 +162,6 @@ marker_defect() {
   esac
 }
 
-# PASS(0) if the file does not contain the plaintext marker (a proxy for "this
-# is ciphertext to another reader").
-predicate_ciphertext() {
-  file=$1; marker=$2
-  grep -qF -- "$marker" "$file" 2>/dev/null && return 1
-  return 0
-}
-
 report_has_key() {
   case " $1 " in *" $2="*) return 0 ;; esac
   return 1

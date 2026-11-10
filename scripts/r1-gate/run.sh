@@ -45,4 +45,5 @@ for c in $CHECKS; do
     "$DIR/check-$c.sh" --measure "$duration" || rc=1
   fi
 done
+[ "$mode" = self-test ] || printf 'OPEN second-account-read (owner step; no test bed)\n'
 exit $rc
