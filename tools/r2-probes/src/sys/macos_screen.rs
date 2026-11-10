@@ -82,7 +82,7 @@ fn frame_from_cgimage(img: &CGImage) -> Result<Frame, String> {
     })
 }
 
-pub fn capture_main_display(timeout_ms: u64) -> Result<Frame, String> {
+pub fn capture_main_display(timeout_ms: u64, cursor: bool) -> Result<Frame, String> {
     let (tx, rx) = mpsc::channel::<Result<Frame, String>>();
     let main_id = CGMainDisplayID();
     let on_content = RcBlock::new(move |content: *mut SCShareableContent, err: *mut NSError| {
@@ -113,7 +113,7 @@ pub fn capture_main_display(timeout_ms: u64) -> Result<Frame, String> {
         unsafe {
             config.setWidth((rect.size.width * scale).round() as usize);
             config.setHeight((rect.size.height * scale).round() as usize);
-            config.setShowsCursor(false);
+            config.setShowsCursor(cursor);
             config.setCaptureResolution(SCCaptureResolutionType::Best);
             config.setPixelFormat(u32::from_be_bytes(*b"BGRA"));
         }

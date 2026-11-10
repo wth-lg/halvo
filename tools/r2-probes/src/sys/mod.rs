@@ -26,6 +26,7 @@ pub struct AddressRead {
     pub role: String,
     pub attempts: u32,
     pub nodes: u32,
+    pub role_query: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]

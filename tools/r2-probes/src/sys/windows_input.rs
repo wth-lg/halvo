@@ -128,7 +128,7 @@ fn count(lparam: LPARAM, n: &mut [u32; 4]) {
     }
 }
 
-pub fn send_os_input(x: i32, y: i32, pause_ms: u64) -> Result<(), String> {
+pub fn send_os_input(x: i32, y: i32, pause_ms: u64) -> Result<(i32, i32), String> {
     use enigo::{
         Button, Coordinate,
         Direction::{Press, Release},
@@ -143,6 +143,8 @@ pub fn send_os_input(x: i32, y: i32, pause_ms: u64) -> Result<(), String> {
     let mut en = Enigo::new(&settings).map_err(|err| err.to_string())?;
     en.move_mouse(x, y, Coordinate::Abs).map_err(e)?;
     pause();
+    let mut pointer = windows::Win32::Foundation::POINT::default();
+    let _ = unsafe { GetCursorPos(&mut pointer) };
     for _ in 0..5 {
         for d in [Press, Release] {
             en.button(Button::Left, d).map_err(e)?;
@@ -155,5 +157,5 @@ pub fn send_os_input(x: i32, y: i32, pause_ms: u64) -> Result<(), String> {
             pause();
         }
     }
-    Ok(())
+    Ok((pointer.x, pointer.y))
 }

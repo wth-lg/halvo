@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 const USAGE: &str = "usage:
   r2-probes suite --out DIR [--only CELL-PREFIX]... [--runs N] [--soffice PATH --soffice-version V]
-            [--ocr-bin PATH --ocr-version V --ocr-arg ARG...] [--node PATH --input-dir DIR]
+            [--ocr-bin PATH --ocr-version V --ocr-arg ARG...] [--node PATH --input-dir DIR] [--debug-frames]
   r2-probes trial layer-cost|input-visibility|private-window [--artifact DIR]... [--records FILE]...
             [--lines FILE] --out FILE
   r2-probes stamp --in FILE --out FILE --cell NAME [--text KEY=VALUE]... [--number KEY=VALUE]...
@@ -43,6 +43,7 @@ fn options(args: &[String]) -> Result<Options, String> {
         ocr_version: value(args, "--ocr-version").unwrap_or_default(),
         node: value(args, "--node").map(PathBuf::from),
         input_dir: value(args, "--input-dir").map(PathBuf::from),
+        debug_frames: args.iter().any(|arg| arg == "--debug-frames"),
     })
 }
 
@@ -211,7 +212,7 @@ fn lines(args: &[String]) -> Result<(), String> {
             }
         }
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
-        println!("command cells of this Mac: sh tools/r2-probes/retime.sh FRAMES FILES OUT, alone through the helper for timed runs, then r2-probes stamp");
+        println!("command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES], alone through the helper for timed runs, then r2-probes stamp");
     } else if kind == "input-visibility" || kind == "private-window" {
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
     } else {

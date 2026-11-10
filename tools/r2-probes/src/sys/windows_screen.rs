@@ -29,7 +29,7 @@ fn s<T>(what: &str, r: WResult<T>) -> Result<T, String> {
     r.map_err(|e| format!("{what}: {:#010x} {}", e.code().0, e.message()))
 }
 
-pub fn capture_with_adapter(timeout_ms: u64) -> Result<(Frame, String), String> {
+pub fn capture_with_adapter(timeout_ms: u64, cursor: bool) -> Result<(Frame, String), String> {
     let (mut device, mut context, mut driver, mut last) = (None, None, "", String::new());
     for (kind, name) in [
         (D3D_DRIVER_TYPE_HARDWARE, "hardware"),
@@ -93,7 +93,7 @@ pub fn capture_with_adapter(timeout_ms: u64) -> Result<(Frame, String), String> 
         });
     let token = s("FrameArrived", pool.FrameArrived(&handler))?;
     let session = s("CreateCaptureSession", pool.CreateCaptureSession(&item))?;
-    let _ = session.SetIsCursorCaptureEnabled(false);
+    let _ = session.SetIsCursorCaptureEnabled(cursor);
     let _ = session.SetIsBorderRequired(false);
     let frame = s("StartCapture", session.StartCapture())
         .and_then(|()| {
