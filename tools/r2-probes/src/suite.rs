@@ -1,3 +1,4 @@
+use crate::frame::Frame;
 use crate::pages::{self, Server};
 use crate::sys::{self, Browser};
 use crate::text::{error_rate, join_pieces};
@@ -28,6 +29,7 @@ pub struct Options {
     pub ocr_version: String,
     pub node: Option<PathBuf>,
     pub input_dir: Option<PathBuf>,
+    pub debug_frames: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -163,7 +165,7 @@ impl Suite {
     }
 
     fn snap(&self, cell: &str, run: u32) {
-        if run == 1 {
+        if run == 1 && self.options.debug_frames {
             let path = self.options.out.join("frames").join(format!("{cell}.png"));
             let _ = self.child(&["frame", "--out", &path.display().to_string()], 30);
         }
@@ -393,7 +395,9 @@ impl Suite {
                 let result = suite.child(&args, 60);
                 suite.snap(&cell, run);
                 running.stop(&title);
-                Ok(result?.text("version", &browser.version))
+                Ok(result?
+                    .text("served", "http-loopback")
+                    .text("version", &browser.version))
             });
         }
     }
@@ -421,6 +425,7 @@ impl Suite {
                     running.stop(&title);
                     Ok(result?
                         .text("process", "chrome")
+                        .text("served", "http-loopback")
                         .text("version", &chrome.version))
                 });
             }
@@ -514,7 +519,8 @@ impl Suite {
                     system_version.clone()
                 };
                 let complete = self.run_cell(cell, 5, |suite, run| {
-                    let frame = frames.join(format!("{target}.run{run}.png"));
+                    let frame = if is_page { &frames } else { &suite.scratch }
+                        .join(format!("{target}.run{run}.png"));
                     let frame_text = frame.display().to_string();
                     let record = if engine == ONE_ENGINE {
                         if !frame.exists() {
@@ -548,7 +554,9 @@ impl Suite {
                         }
                         suite.child(&args, 60)?
                     };
-                    let record = record.text("version", &version);
+                    let record = record
+                        .text("shown_by", if is_page { "chrome-kiosk" } else { "soffice" })
+                        .text("version", &version);
                     if is_page {
                         suite.pool(&pooled, &record);
                     }
@@ -680,7 +688,14 @@ impl Suite {
             for (index, read) in reads.iter().enumerate() {
                 let mut record = Record::new(&cell, index as u32 + 1)
                     .text("signal", signal)
-                    .text("version", &browser.version);
+                    .text("version", &browser.version)
+                    .text(
+                        "attribute_hit",
+                        read.detail
+                            .get("hit")
+                            .and_then(Value::as_str)
+                            .unwrap_or("none"),
+                    );
                 for name in ["attribute", "class", "title"] {
                     record = record.number(
                         &format!("{name}_runs"),
@@ -730,7 +745,7 @@ impl Suite {
             let _ = out.read_to_string(&mut text);
         }
         let _ = counter.wait();
-        let (version, page) = driven?;
+        let (version, page, driven_detail) = driven?;
         let counted = answer(&text).ok_or("the counter printed no record")??;
         let count = |key: &str| {
             counted
@@ -752,7 +767,7 @@ impl Suite {
                 How::Min,
                 count("no_device_clicks"),
             )
-            .with_detail(json!({ "page": page })))
+            .with_detail(json!({ "page": page, "driver": driven_detail })))
     }
 
     fn drive(
@@ -761,7 +776,7 @@ impl Suite {
         dir: &Path,
         url: &str,
         driver: &str,
-    ) -> Result<(String, Value), String> {
+    ) -> Result<(String, Value, Value), String> {
         let mode = if driver == "playwright" {
             "playwright"
         } else {
@@ -789,6 +804,7 @@ impl Suite {
             serde_json::from_str(&line).map_err(|e| format!("the {what} line: {e}"))
         };
         let geometry = next("geometry")?;
+        let mut pointer = (0, 0);
         let mut version = geometry
             .get("version")
             .and_then(Value::as_str)
@@ -803,8 +819,9 @@ impl Suite {
                     .unwrap_or(0) as i32
             };
             pause(500);
-            sys::send_input(at("screenX"), at("screenY"))?;
+            pointer = sys::send_input(at("screenX"), at("screenY"))?;
             pause(500);
+            self.snap(&format!("input.{}.enigo", sys::RUNNER), 1);
             version = sys::input_driver_version();
             if let Some(stdin) = drive.stdin.as_mut() {
                 let _ = writeln!(stdin, "done");
@@ -812,7 +829,8 @@ impl Suite {
         }
         let counts = next("counts")?;
         let _ = drive.wait();
-        Ok((version, counts))
+        let detail = json!({ "geometry": geometry, "pointer": [pointer.0, pointer.1] });
+        Ok((version, counts, detail))
     }
 
     fn input_cells(&mut self) {
@@ -881,9 +899,9 @@ pub fn run(options: Options) -> Result<(), String> {
         crashes: Cell::new(0),
         pooled: BTreeMap::new(),
     };
+    suite.extract_cells();
     suite.address_cells();
     suite.accessibility_cells();
-    suite.extract_cells();
     suite.private_cells();
     suite.input_cells();
     Ok(())
@@ -968,6 +986,11 @@ fn child_address(args: &[String]) -> Result<Record, String> {
     let record = Record::new("", 0)
         .text("activation", &read.activation)
         .number("readable_runs", How::Sum, f64::from(u8::from(readable)))
+        .number(
+            "role_query_runs",
+            How::Sum,
+            f64::from(u8::from(read.role_query)),
+        )
         .number("wall_ms", How::Median, wall_ms)
         .number(
             "value_bytes",
@@ -1037,7 +1060,10 @@ fn child_extract(args: &[String]) -> Result<Record, String> {
     let engine = need(args, "--engine")?;
     let scale = need(args, "--scale")?;
     let target = need(args, "--target")?;
-    let (frame, device) = sys::capture()?;
+    let (frame, device) = match value(args, "--frame-in") {
+        Some(path) => (Frame::load_png(Path::new(&path))?, "file".to_string()),
+        None => sys::capture(false)?,
+    };
     if (frame.width, frame.height) != DISPLAY {
         return Err(format!(
             "the frame is {}x{} and not {}x{}",
@@ -1047,11 +1073,10 @@ fn child_extract(args: &[String]) -> Result<Record, String> {
     if let Some(path) = value(args, "--frame-out") {
         frame.save_png(Path::new(&path))?;
     }
+    let display = (frame.width, frame.height);
     let image = if scale == "0.5" { frame.halve() } else { frame };
-    let (_, first_ms) = sys::recognize(&engine, &image)?;
-    let cpu_start = sys::own_usage().cpu_ms;
-    let (pieces, elapsed_ms) = sys::recognize(&engine, &image)?;
-    let cpu_ms = sys::own_usage().cpu_ms - cpu_start;
+    let (_, first_ms, _) = sys::recognize(&engine, &image)?;
+    let (pieces, elapsed_ms, cpu_ms) = sys::recognize(&engine, &image)?;
     let mut record = extraction(
         &target,
         &pieces,
@@ -1061,7 +1086,9 @@ fn child_extract(args: &[String]) -> Result<Record, String> {
         (image.width, image.height),
     )
     .text("filter", if scale == "0.5" { "box-2x2" } else { "none" })
-    .text("capture", &device);
+    .text("capture", &device)
+    .number("display_width_px", How::Max, display.0 as f64)
+    .number("display_height_px", How::Max, display.1 as f64);
     for (key, setting) in sys::engine_settings(&engine) {
         record = record.text(key, &setting);
     }
@@ -1090,7 +1117,7 @@ pub fn extraction(
         }
     }
     record
-        .number("stored_bytes", How::Max, text.len() as f64)
+        .number("stored_bytes", How::Max, pieces.join(" ").len() as f64)
         .number(
             "peak_footprint_bytes",
             How::Max,
@@ -1109,11 +1136,17 @@ fn child_private(args: &[String]) -> Result<Record, String> {
         &need(args, "--normal")?,
         &need(args, "--private")?,
     )?;
-    let attribute = private.hits.iter().any(|hit| !normal.hits.contains(hit));
+    let hit = private
+        .hits
+        .iter()
+        .find(|hit| !normal.hits.contains(hit))
+        .map(|hit| hit.split('|').take(3).collect::<Vec<&str>>().join("."));
+    let attribute = hit.is_some();
     let class = !private.class.is_empty() && private.class != normal.class;
     let title = sys::marked(&private.title) && !sys::marked(&normal.title);
     Ok(Record::new("", 0).with_detail(json!({
         "attribute": attribute,
+        "hit": hit.unwrap_or_else(|| "none".to_string()),
         "class": class,
         "title": title,
         "private_page_loaded": loaded,
@@ -1147,7 +1180,7 @@ pub fn child(args: &[String]) -> i32 {
         Some("private") => child_private(args),
         Some("count-input") => child_count(args),
         Some("frame") => need(args, "--out").and_then(|path| {
-            let (frame, _) = sys::capture()?;
+            let (frame, _) = sys::capture(true)?;
             frame.save_png(Path::new(&path))?;
             Ok(Record::new("", 0))
         }),

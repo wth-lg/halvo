@@ -172,7 +172,7 @@ pub fn address_read(_pid: u32, needle: &str, title: &str) -> AddressRead {
             }
             read.nodes = read.nodes.max(seen);
         }
-        if read.value.is_some() || start.elapsed() > Duration::from_secs(5) {
+        if read.value.is_some() || start.elapsed() > Duration::from_secs(7) {
             return read;
         }
         std::thread::sleep(Duration::from_millis(250));
@@ -304,12 +304,16 @@ pub fn press_menu(_pid: u32, _path: &[String]) -> Result<(), String> {
     Err("no cell presses a menu item on Windows".to_string())
 }
 
-pub fn capture() -> Result<(Frame, String), String> {
-    screen::capture_with_adapter(15_000)
+pub fn capture(cursor: bool) -> Result<(Frame, String), String> {
+    screen::capture_with_adapter(15_000, cursor)
 }
 
-pub fn recognize(_engine: &str, frame: &Frame) -> Result<(Vec<String>, f64), String> {
-    screen::recognize(frame, Some("en-US"))
+fn own_cpu_ms() -> f64 {
+    own_usage().cpu_ms
+}
+
+pub fn recognize(_engine: &str, frame: &Frame) -> Result<(Vec<String>, f64, f64), String> {
+    screen::recognize(frame, Some("en-US"), own_cpu_ms)
 }
 
 pub fn engine_settings(_engine: &str) -> Vec<(&'static str, String)> {
@@ -327,7 +331,7 @@ pub fn count_input(ms: u64, ready: &Path, stop: &Path) -> Result<[u32; 4], Strin
     input::count_raw_input(ms, ready, stop)
 }
 
-pub fn send_input(x: i32, y: i32) -> Result<(), String> {
+pub fn send_input(x: i32, y: i32) -> Result<(i32, i32), String> {
     input::send_os_input(x, y, 40)
 }
 

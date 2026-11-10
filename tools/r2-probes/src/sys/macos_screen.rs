@@ -82,7 +82,7 @@ fn frame_from_cgimage(img: &CGImage) -> Result<Frame, String> {
     })
 }
 
-pub fn capture_main_display(timeout_ms: u64) -> Result<Frame, String> {
+pub fn capture_main_display(timeout_ms: u64, cursor: bool) -> Result<Frame, String> {
     let (tx, rx) = mpsc::channel::<Result<Frame, String>>();
     let main_id = CGMainDisplayID();
     let on_content = RcBlock::new(move |content: *mut SCShareableContent, err: *mut NSError| {
@@ -113,7 +113,7 @@ pub fn capture_main_display(timeout_ms: u64) -> Result<Frame, String> {
         unsafe {
             config.setWidth((rect.size.width * scale).round() as usize);
             config.setHeight((rect.size.height * scale).round() as usize);
-            config.setShowsCursor(false);
+            config.setShowsCursor(cursor);
             config.setCaptureResolution(SCCaptureResolutionType::Best);
             config.setPixelFormat(u32::from_be_bytes(*b"BGRA"));
         }
@@ -178,7 +178,8 @@ pub fn recognize(
     accurate: bool,
     correction: bool,
     languages: &[&str],
-) -> Result<(Vec<String>, f64), String> {
+    cpu: fn() -> f64,
+) -> Result<(Vec<String>, f64, f64), String> {
     let image = cgimage_from_bgra(frame)?;
     autoreleasepool(|_| {
         let request = VNRecognizeTextRequest::new();
@@ -205,9 +206,11 @@ pub fn recognize(
         };
         let as_request: &VNRequest = &request;
         let requests = NSArray::from_slice(&[as_request]);
+        let cpu_start = cpu();
         let started = Instant::now();
         let outcome = handler.performRequests_error(&requests);
         let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let cpu_ms = cpu() - cpu_start;
         outcome.map_err(|e| format!("performRequests: {}", err_text(Some(&e))))?;
         let mut lines = Vec::new();
         if let Some(results) = request.results() {
@@ -220,6 +223,6 @@ pub fn recognize(
                 });
             }
         }
-        Ok((lines, elapsed_ms))
+        Ok((lines, elapsed_ms, cpu_ms))
     })
 }

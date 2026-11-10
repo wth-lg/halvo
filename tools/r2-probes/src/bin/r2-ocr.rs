@@ -41,11 +41,13 @@ fn load(dylib: &Path, det: &Path, rec: &Path, dict: &Path) -> Result<OAROCR, Str
         .map_err(|error| error.to_string())
 }
 
-fn recognize(engine: &OAROCR, rgb: &image::RgbImage) -> Result<(Vec<String>, f64), String> {
+fn recognize(engine: &OAROCR, rgb: &image::RgbImage) -> Result<(Vec<String>, f64, f64), String> {
     let input = vec![rgb.clone()];
+    let cpu_start = sys::own_usage().cpu_ms;
     let started = Instant::now();
     let results = engine.predict(input).map_err(|error| error.to_string())?;
     let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let cpu_ms = sys::own_usage().cpu_ms - cpu_start;
     let first = results
         .into_iter()
         .next()
@@ -55,7 +57,7 @@ fn recognize(engine: &OAROCR, rgb: &image::RgbImage) -> Result<(Vec<String>, f64
         .iter()
         .filter_map(|region| region.text.as_deref().map(str::to_owned))
         .collect();
-    Ok((pieces, elapsed_ms))
+    Ok((pieces, elapsed_ms, cpu_ms))
 }
 
 fn sha256(path: &Path) -> Result<String, String> {
@@ -93,10 +95,8 @@ fn run(args: &[String]) -> Result<Record, String> {
         Path::new(&dict),
     )?;
     let load_ms = timer.elapsed().as_secs_f64() * 1000.0;
-    let (_, first_ms) = recognize(&engine, &rgb)?;
-    let cpu_start = sys::own_usage().cpu_ms;
-    let (pieces, elapsed_ms) = recognize(&engine, &rgb)?;
-    let cpu_ms = sys::own_usage().cpu_ms - cpu_start;
+    let (_, first_ms, _) = recognize(&engine, &rgb)?;
+    let (pieces, elapsed_ms, cpu_ms) = recognize(&engine, &rgb)?;
     Ok(extraction(
         &target,
         &pieces,

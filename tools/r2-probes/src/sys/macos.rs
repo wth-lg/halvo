@@ -167,6 +167,10 @@ pub fn address_read(pid: u32, needle: &str, _title: &str) -> AddressRead {
     let start = Instant::now();
     loop {
         read.attempts += 1;
+        if !read.role_query && start.elapsed() > Duration::from_secs(2) {
+            let _ = ax::attr_string(&app, "AXRole");
+            read.role_query = true;
+        }
         if let Some(window) = front_window(&app) {
             let mut queue = VecDeque::from([(window, 1usize)]);
             let mut seen = 0u32;
@@ -191,7 +195,7 @@ pub fn address_read(pid: u32, needle: &str, _title: &str) -> AddressRead {
             }
             read.nodes = read.nodes.max(seen);
         }
-        if read.value.is_some() || start.elapsed() > Duration::from_secs(5) {
+        if read.value.is_some() || start.elapsed() > Duration::from_secs(7) {
             return read;
         }
         std::thread::sleep(Duration::from_millis(250));
@@ -200,12 +204,11 @@ pub fn address_read(pid: u32, needle: &str, _title: &str) -> AddressRead {
 
 pub fn activate(pid: u32) -> Result<String, String> {
     let app = ax::app(pid as i32);
-    for name in ["AXEnhancedUserInterface", "AXManualAccessibility"] {
-        if ax::set_attr_bool(&app, name, true) == 0 {
-            return Ok(name.to_string());
-        }
-    }
-    Err("neither AXEnhancedUserInterface nor AXManualAccessibility could be set".to_string())
+    let enhanced = ax::set_attr_bool(&app, "AXEnhancedUserInterface", true);
+    let manual = ax::set_attr_bool(&app, "AXManualAccessibility", true);
+    Ok(format!(
+        "AXEnhancedUserInterface({enhanced})+AXManualAccessibility({manual})"
+    ))
 }
 
 struct AxTree;
@@ -365,8 +368,8 @@ pub fn press_menu(pid: u32, path: &[String]) -> Result<(), String> {
     }
 }
 
-pub fn capture() -> Result<(Frame, String), String> {
-    let frame = screen::capture_main_display(15_000)?;
+pub fn capture(cursor: bool) -> Result<(Frame, String), String> {
+    let frame = screen::capture_main_display(15_000, cursor)?;
     Ok((
         frame,
         format!(
@@ -376,8 +379,18 @@ pub fn capture() -> Result<(Frame, String), String> {
     ))
 }
 
-pub fn recognize(engine: &str, frame: &Frame) -> Result<(Vec<String>, f64), String> {
-    screen::recognize(frame, engine == "apple-vision-accurate", true, &["en-US"])
+fn own_cpu_ms() -> f64 {
+    own_usage().cpu_ms
+}
+
+pub fn recognize(engine: &str, frame: &Frame) -> Result<(Vec<String>, f64, f64), String> {
+    screen::recognize(
+        frame,
+        engine == "apple-vision-accurate",
+        true,
+        &["en-US"],
+        own_cpu_ms,
+    )
 }
 
 pub fn engine_settings(engine: &str) -> Vec<(&'static str, String)> {
@@ -402,7 +415,7 @@ pub fn count_input(_ms: u64, _ready: &Path, _stop: &Path) -> Result<[u32; 4], St
     Err("Raw Input exists on Windows only".to_string())
 }
 
-pub fn send_input(_x: i32, _y: i32) -> Result<(), String> {
+pub fn send_input(_x: i32, _y: i32) -> Result<(i32, i32), String> {
     Err("the input cell runs on Windows only".to_string())
 }
 
