@@ -789,9 +789,10 @@ async function protocolCases(env) {
 
   c = new Case('calendar-view-overlap');
   await env.reset(1, []);
-  const day = Math.floor(Date.now() / DAY_MS) * DAY_MS;
   const ev = s.calendar.events[1];
-  const evStart = eventStart(ev, day);
+  const shown = (await served()).find((e) => e.id === ev.id);
+  c.ok(shown, 'event_served');
+  const evStart = shown ? startOf(shown) : 0;
   const view = `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + 30 * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`;
   r = await http(env.port, 'GET', 'calendar.agent.test', view, { headers: auth });
   c.ok(r.status === 200 && JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_overlaps_the_start');
