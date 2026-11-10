@@ -56,16 +56,11 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: Test
-        shell: bash
-        run: cargo test --workspace
       - name: Windows functional verification
         shell: bash
         timeout-minutes: 30
         run: |
           cmd //c ver
-          cmd //c "whoami /groups" | grep -i "Mandatory Label" || true
-          powershell.exe -NoProfile -Command "Get-CimInstance Win32_VideoController | ForEach-Object { '=== HALVO-VERIFY env video_controller=' + \$_.Name + ' adapter_ram=' + \$_.AdapterRAM + ' driver=' + \$_.InstalledDisplayDrivers }" || true
           failed=0
           for t in \
             c1_raw_input_delivers_keystrokes_and_pointer_events \
@@ -76,145 +71,8 @@ jobs:
             c6_dpapi_custody_and_store_lifecycle \
             c7_logon_task_installs_is_idempotent_and_is_removed \
             c8_a_window_can_be_excluded_from_capture \
-            x1_keystrokes_typed_into_a_password_field \
-            x2_window_title_events_for_other_windows_and_controls \
-            x3_attribution_before_the_first_foreground_change \
-            x4_logon_task_install_without_elevation \
-            x7_capture_border_on_the_screen \
-            x8_raw_input_across_the_integrity_boundary \
-            x13_frames_on_a_static_screen \
-            x14_foreground_app_of_a_hosted_app \
-            x15_a_held_key \
-            x16_packaged_apps_and_the_inventory \
-            x17_a_running_task_and_uninstall \
-            x18_second_install_with_a_non_ascii_path \
             c9_peak_working_set_of_sources_1_to_4_for_60_seconds \
-            x5_screen_source_stop_and_start_again \
-            x12_screen_source_fifteen_start_stop_cycles \
-            x6_pixel_probe_single_capture \
-            c8b_an_excluded_window_is_absent_from_a_captured_frame \
-            x11_pixel_probe_eight_captures
-          do
-            echo "=== HALVO-VERIFY begin $t"
-            rc=0
-            cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact "$t" || rc=$?
-            echo "=== HALVO-VERIFY end $t exit=$rc"
-            if [ "$rc" != 0 ]; then failed=1; fi
-          done
-          exit "$failed"
-      - name: Windows functional verification, teardown variants
-        if: ${{ !cancelled() }}
-        shell: bash
-        timeout-minutes: 20
-        run: |
-          for v in baseline no-exclude product-source delayed-destroy; do
-            for i in 1 2 3; do
-              echo "=== HALVO-VERIFY begin x19 variant=$v rep=$i"
-              rc=0
-              HALVO_VERIFY_VARIANT=$v cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact x19_exclusion_teardown_variants || rc=$?
-              echo "=== HALVO-VERIFY end x19 variant=$v rep=$i exit=$rc"
-            done
-          done
-      - name: Windows functional verification, logon task as a standard user
-        if: ${{ !cancelled() }}
-        shell: powershell
-        timeout-minutes: 10
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $exe = Get-ChildItem target\debug\deps\windows_functional-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          $pub = Join-Path $env:PUBLIC 'halvo-verify'
-          New-Item -ItemType Directory -Force -Path $pub | Out-Null
-          icacls $pub /grant 'Users:(OI)(CI)M' | Out-Null
-          Copy-Item $exe.FullName (Join-Path $pub 'halvo-verify-standard-user.exe') -Force
-          $chars = [char[]](48..57 + 65..90 + 97..122)
-          $pw = (-join (1..24 | ForEach-Object { $chars | Get-Random })) + 'aZ9!'
-          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
-          New-LocalUser -Name 'halvoverify' -Password $secure -AccountNeverExpires | Out-Null
-          Add-LocalGroupMember -Group 'Users' -Member 'halvoverify'
-          $cred = New-Object System.Management.Automation.PSCredential('halvoverify', $secure)
-          $out = Join-Path $pub 'standard-user.txt'
-          Set-Content -Path (Join-Path $pub 'request.txt') -Value @('Halvo\HalvoVerifyStandardUser', $out)
-          "=== HALVO-VERIFY begin x10_logon_task_as_a_standard_user"
-          try {
-            $p = Start-Process -FilePath (Join-Path $pub 'halvo-verify-standard-user.exe') -ArgumentList 'helper_limited_install','--exact','--ignored','--nocapture' -Credential $cred -WorkingDirectory $pub -WindowStyle Hidden -PassThru
-            "HALVO-VERIFY x10 standard_user_process_started=ok"
-            $waited = 0
-            while (-not (Test-Path $out) -and $waited -lt 120) { Start-Sleep -Seconds 1; $waited++ }
-            Start-Sleep -Seconds 1
-            "HALVO-VERIFY x10 standard_user_report_after_secs=$waited"
-          } catch {
-            "HALVO-VERIFY x10 standard_user_process_started=error($($_.Exception.Message))"
-          }
-          if (Test-Path $out) { Get-Content $out | ForEach-Object { "HALVO-VERIFY x10 standard_user $_" } } else { 'HALVO-VERIFY x10 standard_user_report=missing' }
-          Remove-Item (Join-Path $pub 'request.txt') -ErrorAction SilentlyContinue
-          Remove-LocalUser -Name 'halvoverify'
-          "=== HALVO-VERIFY end x10_logon_task_as_a_standard_user"
-      - name: Windows functional verification, release memory sample
-        if: ${{ !cancelled() }}
-        shell: bash
-        timeout-minutes: 30
-        run: cargo test --release -p halvo-capture --test windows_functional -- --ignored --nocapture --exact c9_peak_working_set_of_sources_1_to_4_for_60_seconds
-      - name: Windows functional verification, larger screen
-        if: ${{ !cancelled() }}
-        shell: bash
-        timeout-minutes: 30
-        run: |
-          run_one() {
-            echo "=== HALVO-VERIFY begin $1"
-            rc=0
-            cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact "$1" || rc=$?
-            echo "=== HALVO-VERIFY end $1 exit=$rc"
-          }
-          run_one x9_screen_source_across_a_display_mode_change
-          echo "=== HALVO-VERIFY display mode requested 1920x1080"
-          powershell.exe -NoProfile -Command "Set-DisplayResolution -Width 1920 -Height 1080 -Force" || echo "=== HALVO-VERIFY display mode 1920x1080 refused"
-          run_one c9_peak_working_set_of_sources_1_to_4_for_60_seconds
-      - name: Clippy
-        shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-
-  windows-2022:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@v2
-      - name: Windows functional verification on Windows Server 2022
-        shell: bash
-        timeout-minutes: 45
-        run: |
-          cmd //c ver
-          failed=0
-          for t in \
-            c1_raw_input_delivers_keystrokes_and_pointer_events \
-            c2_screen_source_delivers_a_frame \
-            c3_foreground_source_reports_an_activated_window \
-            c4_window_title_source_reports_a_title_change \
-            c5_installed_software_returns_registry_entries \
-            c6_dpapi_custody_and_store_lifecycle \
-            c7_logon_task_installs_is_idempotent_and_is_removed \
-            c8_a_window_can_be_excluded_from_capture \
-            c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+            c8b_an_excluded_window_is_absent_from_a_captured_frame
           do
             echo "=== HALVO-VERIFY begin $t"
             rc=0

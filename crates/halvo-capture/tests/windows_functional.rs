@@ -101,6 +101,7 @@ const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
 const PROGRAM: &str = r"C:\Program Files\Halvo\halvo-capture.exe";
 /// COLORREF is 0x00BBGGRR: full red and blue, no green.
 const MAGENTA: u32 = 0x00FF_00FF;
+const GREEN: u32 = 0x0000_FF00;
 const BUDGET_48_MIB: usize = 48 * 1024 * 1024;
 
 fn say(claim: &str, message: impl AsRef<str>) {
@@ -944,8 +945,17 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
             key_events_accepted > 0 && move_events_accepted > 0,
             "INCONCLUSIVE: SendInput inserted no events on this machine"
         );
-        assert!(keystrokes >= 1, "no keystroke event for {PRESSES} presses");
-        assert!(pointers >= 1, "no pointer event for {MOVES} moves");
+        assert!(quiet.is_empty(), "events arrived before any input");
+        assert_eq!(
+            keystrokes, PRESSES as usize,
+            "one keystroke event per press"
+        );
+        assert_eq!(pointers, MOVES as usize, "one pointer event per move");
+        assert!(after_stop.is_empty(), "events arrived after stop");
+        assert!(
+            attributed,
+            "every event must carry the app in the shared cell"
+        );
     });
 }
 
@@ -1105,6 +1115,19 @@ fn c4_window_title_source_reports_a_title_change() {
             expected_sizes >= 1,
             "no window-title event for the child's title changes"
         );
+        let distinct_sizes: std::collections::BTreeSet<u64> = child_titles
+            .iter()
+            .copied()
+            .filter(|len| CHILD_TITLE_LENGTHS.contains(len))
+            .collect();
+        say(
+            "c4",
+            format!("distinct_scripted_title_sizes={}", distinct_sizes.len()),
+        );
+        assert!(
+            distinct_sizes.len() >= 2,
+            "the events must follow more than one title change"
+        );
     });
 }
 
@@ -1161,6 +1184,30 @@ fn c5_installed_software_returns_registry_entries() {
                 sorted == before.apps,
             ),
         );
+
+        let mut machine_keys_covered = Vec::new();
+        for (path_name, path) in [("native", UNINSTALL), ("wow6432node", UNINSTALL_WOW)] {
+            let first_listable = hklm
+                .open_subkey_with_flags(path, KEY_READ)
+                .ok()
+                .and_then(|key| {
+                    key.enum_keys().flatten().find_map(|name| {
+                        let sub = key.open_subkey_with_flags(&name, KEY_READ).ok()?;
+                        let display: String = sub.get_value("DisplayName").ok()?;
+                        let system = sub.get_value::<u32, _>("SystemComponent").ok() == Some(1);
+                        let display = display.trim().to_string();
+                        (!display.is_empty() && !system).then_some(display)
+                    })
+                });
+            let in_scan = first_listable
+                .as_ref()
+                .map(|name| before.apps.iter().any(|app| &app.name == name));
+            say(
+                "c5",
+                format!("hklm_{path_name}_first_listable_app_is_in_scan={in_scan:?}"),
+            );
+            machine_keys_covered.push(in_scan);
+        }
 
         let probe_name = format!("Halvo Verify Probe {}", std::process::id());
         let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
@@ -1246,6 +1293,18 @@ fn c5_installed_software_returns_registry_entries() {
 
         assert!(!before.is_empty(), "the registry scan returned no entries");
         assert!(
+            machine_keys_covered
+                .iter()
+                .all(|covered| *covered != Some(false)),
+            "the scan missed an app that a machine-wide Uninstall key lists"
+        );
+        assert!(
+            found.is_some_and(|app| app.version.as_deref() == Some("9.9.9")
+                && app.publisher.as_deref() == Some("halvo-verifier")),
+            "the scan must return the probe's version and publisher"
+        );
+        assert!(system_component_hidden, "a system component must be hidden");
+        assert!(
             found.is_some(),
             "the scan did not return the entry the test wrote"
         );
@@ -1283,13 +1342,53 @@ fn dir_holds(dir: &Path, needle: &[u8]) -> bool {
     })
 }
 
-/// File names and sizes; a segment file's name is its random id.
+/// File kinds and sizes. A segment file's name is its random id, so only the
+/// part after the last dot or slash goes to the log.
 fn files_line(dir: &Path) -> String {
     list_files(dir)
         .iter()
-        .map(|(name, len)| format!("{name}:{len}"))
+        .map(|(name, len)| {
+            let kind = name.rsplit(['/', '.']).next().unwrap_or(name);
+            format!("{kind}:{len}")
+        })
         .collect::<Vec<_>>()
         .join(",")
+}
+
+/// Unprotect `blob` with DPAPI for the current user and return only the
+/// length of the plaintext, which is zeroed before it is freed.
+fn dpapi_plain_len(blob: &[u8], entropy: &[u8]) -> Result<usize, String> {
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Cryptography::{
+        CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
+    };
+    let input = CRYPT_INTEGER_BLOB {
+        cbData: blob.len() as u32,
+        pbData: blob.as_ptr() as *mut u8,
+    };
+    let salt = CRYPT_INTEGER_BLOB {
+        cbData: entropy.len() as u32,
+        pbData: entropy.as_ptr() as *mut u8,
+    };
+    let mut out = CRYPT_INTEGER_BLOB::default();
+    unsafe {
+        CryptUnprotectData(
+            &input as *const _,
+            None,
+            Some(&salt as *const _),
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut out as *mut _,
+        )
+    }
+    .map_err(|e| e.to_string())?;
+    let len = out.cbData as usize;
+    unsafe {
+        std::ptr::write_bytes(out.pbData, 0, len);
+        let _ = LocalFree(Some(HLOCAL(out.pbData.cast())));
+    }
+    Ok(len)
 }
 
 #[test]
@@ -1326,9 +1425,37 @@ fn c6_dpapi_custody_and_store_lifecycle() {
             *last ^= 0x01;
         }
         let tampered_rejected = custody.unwrap_store_key(&WrappedKey(tampered)).is_err();
-        let other_root_rejected = DpapiCustody::new(RootId::fresh())
+        // The other root has a file of its own, so the failure is the seal and
+        // not a missing file.
+        let other = DpapiCustody::new(RootId::fresh());
+        let other_wrap = other.wrap_store_key(&StoreKey::random().expect("random store key"));
+        let other_root_rejected = other_wrap.is_ok() && other.unwrap_store_key(&wrapped).is_err();
+        let _ = other.destroy_root();
+
+        let root_bytes = std::fs::read(root_file(root_id)).expect("read the root file");
+        let dpapi_len = dpapi_plain_len(&root_bytes, root_id.as_bytes());
+        let dpapi_other_entropy = dpapi_plain_len(&root_bytes, &[0u8; 16]);
+        let mut damaged = root_bytes.clone();
+        let middle = damaged.len() / 2;
+        damaged[middle] ^= 0x01;
+        std::fs::write(root_file(root_id), &damaged).expect("damage the root file");
+        let damaged_root_rejected = custody.unwrap_store_key(&wrapped).is_err();
+        std::fs::write(root_file(root_id), &root_bytes).expect("restore the root file");
+        let restored_root_unwraps = custody
             .unwrap_store_key(&wrapped)
-            .is_err();
+            .is_ok_and(|k| k.expose() == key.expose());
+        say(
+            "c6",
+            format!(
+                "root_file_len={} dpapi_unprotect_of_root_file_for_this_user={} plain_len={} \
+                 dpapi_unprotect_with_other_entropy={} damaged_root_file_rejected={damaged_root_rejected} \
+                 restored_root_file_unwraps={restored_root_unwraps}",
+                root_bytes.len(),
+                show(&dpapi_len),
+                dpapi_len.as_ref().copied().unwrap_or(0),
+                show(&dpapi_other_entropy),
+            ),
+        );
         let key_in_wrapped = wrapped.0.windows(32).any(|w| w == key.expose());
         let key_in_root_file = std::fs::read(root_file(root_id))
             .map(|bytes| bytes.windows(32).any(|w| w == key.expose()))
@@ -1348,15 +1475,25 @@ fn c6_dpapi_custody_and_store_lifecycle() {
         say(
             "c6",
             format!(
-                "destroy_root={} root_file_exists_after={} unwrap_after_destroy={} destroy_root_again={}",
+                "destroy_root={} root_file_exists_after={} unwrap_after_destroy_is_error={} destroy_root_again={}",
                 show(&destroy),
                 root_file(root_id).exists(),
-                show(&unwrap_after_destroy),
+                unwrap_after_destroy.is_err(),
                 show(&destroy_again),
             ),
         );
         assert!(round_trip, "DPAPI custody must unwrap what it wrapped");
         assert!(tampered_rejected && other_root_rejected);
+        assert_eq!(
+            dpapi_len,
+            Ok(32),
+            "the root file must be a DPAPI blob of a 32-byte root for this user"
+        );
+        assert!(
+            dpapi_other_entropy.is_err(),
+            "the root file must not open with another entropy"
+        );
+        assert!(damaged_root_rejected && restored_root_unwraps);
         assert!(destroy.is_ok() && unwrap_after_destroy.is_err());
 
         let dir = tempfile::tempdir().expect("temp dir");
@@ -1452,8 +1589,22 @@ fn c6_dpapi_custody_and_store_lifecycle() {
             ),
         );
 
+        let segment_files_after_shred = list_files(&store_dir)
+            .iter()
+            .filter(|(name, _)| name.ends_with(".seg"))
+            .count();
+        let marker_on_disk_after_shred = dir_holds(&store_dir, &marker);
+        say(
+            "c6",
+            format!(
+                "segment_files_after_shred={segment_files_after_shred} \
+                 plaintext_marker_in_store_files_after_shred={marker_on_disk_after_shred}"
+            ),
+        );
+
         let delete_all = store.crypto_shred_all();
         drop(store);
+        let left_after_delete_all = list_files(&store_dir);
         let open_after = EncryptedStore::open(&store_dir, DEFAULT_RETENTION);
         let sealed_after = matches!(open_after, Err(StoreError::Sealed));
         say(
@@ -1496,6 +1647,20 @@ fn c6_dpapi_custody_and_store_lifecycle() {
         }
 
         assert!(append.is_ok(), "the store must append an event");
+        assert_eq!(
+            segment_files_after_shred, 1,
+            "the shredded segment's file must be gone and the live one kept"
+        );
+        assert!(
+            !marker_on_disk_after_shred,
+            "the plaintext marker must not be in any store file"
+        );
+        assert!(
+            left_after_delete_all
+                .iter()
+                .all(|(name, _)| name == "writer.lock"),
+            "delete-all must leave no database, key file or segment"
+        );
         assert!(
             read.is_ok() && read_back == marker,
             "the reopened store must read its segment"
@@ -1643,6 +1808,22 @@ fn c7_logon_task_installs_is_idempotent_and_is_removed() {
         assert!(first_uninstall.is_ok(), "the uninstall must succeed");
         assert_eq!(status_after_uninstall, ServiceStatus::NotInstalled);
         assert!(second_uninstall.is_ok(), "a second uninstall must succeed");
+        assert!(
+            task_registers(&first.text, program),
+            "the installer must recognize its own task"
+        );
+        assert!(
+            first.text.contains("<LogonTrigger>"),
+            "the task must have a logon trigger"
+        );
+        assert!(
+            first.query_ok && second.query_ok && first.text == second.text,
+            "the second install must not rewrite the task"
+        );
+        assert!(
+            !query_task_xml(DEFAULT_TASK_NAME).query_ok,
+            "the task must be gone after the uninstall"
+        );
     });
 }
 
@@ -1686,12 +1867,15 @@ struct PixelProbeFlags {
     samples: mpsc::Sender<Result<FrameSample, String>>,
     x: u32,
     y: u32,
+    reference_x: u32,
+    reference_y: u32,
 }
 
 struct FrameSample {
     width: u32,
     height: u32,
     bgra: [u8; 4],
+    reference: [u8; 4],
 }
 
 /// A capture handler for the test only: it reads one pixel of each frame. The
@@ -1720,16 +1904,21 @@ impl GraphicsCaptureApiHandler for PixelProbe {
             .map_err(|e| format!("frame buffer: {e}"))
             .and_then(|mut buffer| {
                 let pitch = buffer.row_pitch() as usize;
-                let offset = self.flags.y as usize * pitch + self.flags.x as usize * 4;
-                buffer
-                    .as_raw_buffer()
-                    .get(offset..offset + 4)
-                    .map(|px| FrameSample {
+                let raw: &[u8] = buffer.as_raw_buffer();
+                let pixel = |x: u32, y: u32| {
+                    let offset = y as usize * pitch + x as usize * 4;
+                    raw.get(offset..offset + 4)
+                        .map(|px| [px[0], px[1], px[2], px[3]])
+                };
+                pixel(self.flags.x, self.flags.y)
+                    .zip(pixel(self.flags.reference_x, self.flags.reference_y))
+                    .map(|(bgra, reference)| FrameSample {
                         width,
                         height,
-                        bgra: [px[0], px[1], px[2], px[3]],
+                        bgra,
+                        reference,
                     })
-                    .ok_or_else(|| "the probe pixel is outside the frame".to_string())
+                    .ok_or_else(|| "a probe pixel is outside the frame".to_string())
             });
         let _ = self.flags.samples.send(sample);
         Ok(())
@@ -1739,6 +1928,16 @@ impl GraphicsCaptureApiHandler for PixelProbe {
 /// Capture the primary monitor and return the last sample of the pixel at
 /// (`x`, `y`) seen within three seconds of the first frame.
 fn capture_pixel(x: u32, y: u32) -> Result<FrameSample, String> {
+    capture_pixels(x, y, x, y)
+}
+
+/// As [`capture_pixel`], with a second pixel read from the same frame.
+fn capture_pixels(
+    x: u32,
+    y: u32,
+    reference_x: u32,
+    reference_y: u32,
+) -> Result<FrameSample, String> {
     let (samples, received) = mpsc::channel();
     let monitor = Monitor::primary().map_err(|e| format!("primary monitor: {e}"))?;
     let settings = Settings::new(
@@ -1749,7 +1948,13 @@ fn capture_pixel(x: u32, y: u32) -> Result<FrameSample, String> {
         MinimumUpdateIntervalSettings::Default,
         DirtyRegionSettings::Default,
         ColorFormat::Bgra8,
-        PixelProbeFlags { samples, x, y },
+        PixelProbeFlags {
+            samples,
+            x,
+            y,
+            reference_x,
+            reference_y,
+        },
     );
     let control =
         PixelProbe::start_free_threaded(settings).map_err(|e| format!("capture start: {e}"))?;
@@ -1773,6 +1978,10 @@ fn capture_pixel(x: u32, y: u32) -> Result<FrameSample, String> {
     last.unwrap_or_else(|| Err("no frame within 10 seconds".to_string()))
 }
 
+fn is_green(bgra: [u8; 4]) -> bool {
+    bgra[0] < 60 && bgra[1] > 200 && bgra[2] < 60
+}
+
 fn is_magenta(bgra: [u8; 4]) -> bool {
     bgra[0] > 200 && bgra[1] < 60 && bgra[2] > 200
 }
@@ -1793,19 +2002,39 @@ fn c8b_an_excluded_window_is_absent_from_a_captured_frame() {
             100 + WINDOW_HEIGHT as u32 / 2,
         );
 
-        let shown = capture_pixel(x, y);
+        // A second window that is never excluded. Its color must be in both
+        // frames, or the second frame says nothing about the first window.
+        let reference = TestWindow::create(&WindowSpec {
+            class: "HalvoVerifyReference",
+            title: "halvo-verify-reference",
+            style: WS_POPUP | WS_VISIBLE,
+            ex_style: WS_EX_TOPMOST,
+            fill: GREEN,
+            x: 520,
+            y: 100,
+        })
+        .expect("reference window");
+        pump_thread(Duration::from_millis(500));
+        let (reference_x, reference_y) = (
+            520 + WINDOW_WIDTH as u32 / 2,
+            100 + WINDOW_HEIGHT as u32 / 2,
+        );
+
+        let shown = capture_pixels(x, y, reference_x, reference_y);
         let exclude = exclude_window_from_capture(window.hwnd);
         pump_thread(Duration::from_millis(500));
-        let excluded = capture_pixel(x, y);
+        let excluded = capture_pixels(x, y, reference_x, reference_y);
         for (phase, sample) in [("window-shown", &shown), ("window-excluded", &excluded)] {
             match sample {
                 Ok(s) => say(
                     "c8b",
                     format!(
-                        "phase={phase} frame={}x{} probe_pixel=({x},{y}) is_window_color={}",
+                        "phase={phase} frame={}x{} probe_pixel=({x},{y}) is_window_color={} \
+                         reference_pixel=({reference_x},{reference_y}) is_reference_color={}",
                         s.width,
                         s.height,
-                        is_magenta(s.bgra)
+                        is_magenta(s.bgra),
+                        is_green(s.reference)
                     ),
                 ),
                 Err(e) => say("c8b", format!("phase={phase} capture_error={e}")),
@@ -1818,14 +2047,20 @@ fn c8b_an_excluded_window_is_absent_from_a_captured_frame() {
         let shown = shown.expect("INCONCLUSIVE: no frame with the window shown");
         let excluded = excluded.expect("INCONCLUSIVE: no frame with the window excluded");
         assert!(
-            is_magenta(shown.bgra),
-            "INCONCLUSIVE: the window was not in the frame before it was excluded"
+            is_magenta(shown.bgra) && is_green(shown.reference),
+            "INCONCLUSIVE: the two windows were not in the frame before the exclusion"
         );
         assert!(exclude.is_ok(), "the display-affinity call must succeed");
+        assert!(
+            is_green(excluded.reference)
+                && (excluded.width, excluded.height) == (shown.width, shown.height),
+            "INCONCLUSIVE: the second frame does not show the reference window"
+        );
         assert!(
             !is_magenta(excluded.bgra),
             "the excluded window is still in the captured frame"
         );
+        drop(reference);
         drop(window);
         say("c8b", "teardown window_destroyed=true");
         std::thread::sleep(Duration::from_secs(2));
@@ -1958,6 +2193,18 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
             all_started,
             "INCONCLUSIVE: not every source started, so the number is not for sources 1 to 4"
         );
+        for kind in [
+            "ForegroundApp",
+            "Keystroke",
+            "Pointer",
+            "ScreenFrame",
+            "WindowTitle",
+        ] {
+            assert!(
+                counts.get(kind).copied().unwrap_or(0) > 0,
+                "INCONCLUSIVE: no {kind} event in the run, so that source did no work"
+            );
+        }
     });
 }
 
