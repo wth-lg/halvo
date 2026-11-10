@@ -93,6 +93,8 @@ pull_request_into_the_default_branch() {
 check_agent_settings() {
   settings_rule="$1 must hold \"attribution\": {\"commit\": \"\", \"pr\": \"\", \"sessionUrl\": false}. The empty values of commit and pr stop the agent harness from adding its co-author trailer and its pull request line, and sessionUrl false stops its session trailer."
   [ -f "$1" ] || fail "$1 is missing. $settings_rule Restore the tracked file."
+  [ "$(od -An -tx1 -N 3 "$1" | tr -d ' \n')" != efbbbf ] ||
+    fail "$1 starts with a byte order mark, and a JSON parser may reject the whole file for it. Save the file as UTF-8 without one. $settings_rule"
   command -v jq >/dev/null 2>&1 || die "jq is not on PATH, and this step reads $1 with it. Install jq."
   if ! settings_problem=$(jq -r -s "$SETTINGS_PROBLEM" "$1" 2>&1); then
     fail "$1 is not valid JSON: $settings_problem. $settings_rule"
@@ -403,6 +405,8 @@ self_test() {
   expect_settings empty 1 'holds 0 JSON values' ''
   expect_settings two-values 1 'holds 2 JSON values' "$as_decided$nl$as_decided"
   expect_settings not-an-object 1 'is not an object' '[]'
+  expect_settings byte-order-mark 1 'starts with a byte order mark' "$(printf '\357\273\277')$as_decided"
+  expect_settings duplicate-key-whose-last-value-is-wrong 1 'attribution.commit is not the empty string' '{"attribution": {"commit": "", "pr": "", "sessionUrl": false}, "attribution": {"commit": "x", "pr": "", "sessionUrl": false}}'
 
   if [ "$failures" -gt 0 ]; then
     say "self-test FAIL: $failures of $shapes event shapes and $settings_files settings files behaved otherwise. Outputs are in $work/out."
