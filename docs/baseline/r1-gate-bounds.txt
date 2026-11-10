@@ -1,0 +1,1 @@
+ci_job_timeout_min=30
