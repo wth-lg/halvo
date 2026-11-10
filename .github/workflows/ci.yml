@@ -34,6 +34,20 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Changelog
+        shell: bash
+        run: |
+          sh scripts/check-changelog.sh --self-test
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            sh scripts/check-changelog.sh --base "refs/remotes/origin/$GITHUB_BASE_REF"
+          else
+            sh scripts/check-changelog.sh
+          fi
+      - name: Line endings
+        shell: bash
+        run: |
+          sh scripts/check-line-endings.sh --self-test
+          sh scripts/check-line-endings.sh
       - uses: Swatinem/rust-cache@v2
       - name: Rust components
         shell: bash
@@ -94,3 +108,32 @@ jobs:
           name: halvo-windows
           path: target/release/halvo.exe
           if-no-files-found: error
+      - name: Scripts and hook in a core.autocrlf=true clone
+        shell: bash
+        run: |
+          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
+          cd "$clone"
+          line_endings=$(git ls-files --eol -- '*.sh' '.githooks/*')
+          echo "$line_endings"
+          test -n "$line_endings"
+          if echo "$line_endings" | grep -E -q 'w/(crlf|mixed)'; then
+            echo "git checked out the files marked w/crlf above with CRLF. Give them eol=lf in .gitattributes: sh scripts/check-line-endings.sh prints the line for each file."
+            exit 1
+          fi
+          sh scripts/check-commit-messages.sh --self-test
+          sh scripts/check-changelog.sh --self-test
+          sh scripts/check-line-endings.sh --self-test
+          git config core.hooksPath .githooks
+          git config user.name "Halvo CI"
+          git config user.email "ci@halvo.invalid"
+          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
+          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
+            echo "The commit-msg hook accepted a message with an attribution trailer."
+            exit 1
+          fi
+          echo "$refusal"
+          case "$refusal" in
+            *"Co-Authored-By: Probe"*) ;;
+            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
+          esac
