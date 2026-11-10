@@ -46,9 +46,11 @@ synopsis() {
       repository: through git commit -F with the commit-msg hook on, and, as the
       commit that git stored, through the range check. The two verdicts must
       agree. The exceptions are the hand-made shapes that --message-file names
-      above, and the test lists each of them. The repository is under a new
-      temporary directory that is left in place. Needs the .githooks directory
-      beside scripts, and a name and an email for commits, as below.
+      above: git commit -F stores a file with a scissors block and a diff whole,
+      so that diff counts as written by hand. The test lists each such fixture
+      with its shape. The repository is under a new temporary directory that is
+      left in place. Needs the .githooks directory beside scripts, and a name
+      and an email for commits, as below.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
       under a new temporary directory that is left in place. Needs a clone of
@@ -557,7 +559,19 @@ self_test_two_paths() {
   expected_differences_seen=0
   newline='
 '
-  hook_accepts_and_range_check_refuses=
+  space_indented_line_below_a_diff_header='the diff of git commit -v fails when it is a stored commit message
+the diff below the scissors block of git commit -v is dropped from the hook file
+the same diff is dropped when the comment string of git is a semicolon
+the same diff is dropped when the comment string is auto and git picked a semicolon
+the diff below a scissors block with empty lines, as git writes when it concludes a merge, is dropped from the hook file
+the diff of git commit -v is dropped when the comment string is two backslashes
+the diff of git commit -v is dropped when the comment string is a backslash and the letter t
+the diff of git commit -v is dropped when the comment string is that byte
+the diff of git commit -v is dropped when it starts with the summary of a submodule'
+  line_after_a_carriage_return_in_a_skipped_line='an added line of the diff that holds a carriage return before a trailer is dropped
+a removed line of the diff that holds a carriage return before the footer words is dropped
+a hunk header of the diff that copies a line with a carriage return before the footer words is dropped'
+  hook_accepts_and_range_check_refuses=$space_indented_line_below_a_diff_header$newline$line_after_a_carriage_return_in_a_skipped_line
 
   in_repository() {
     git -C "$work/repository" -c commit.gpgsign=false -c core.commentString="$comment_string" "$@"
@@ -569,10 +583,10 @@ self_test_two_paths() {
     printf '%s\n' "$text" >"$work/messages/$fixtures.txt"
     before=$(in_repository rev-parse HEAD)
     hook=accepts
-    if ! in_repository commit -q --allow-empty -F "$work/messages/$fixtures.txt" >"$work/out/$fixtures.hook.txt" 2>&1; then
+    if ! in_repository commit -q --allow-empty --cleanup=whitespace -F "$work/messages/$fixtures.txt" >"$work/out/$fixtures.hook.txt" 2>&1; then
       hook=refuses
       if ! grep -qF 'check-commit-messages: the message carries an attribution line' "$work/out/$fixtures.hook.txt" ||
-        ! in_repository commit -q --allow-empty --no-verify -F "$work/messages/$fixtures.txt" >"$work/out/$fixtures.no-verify.txt" 2>&1; then
+        ! in_repository commit -q --allow-empty --no-verify --cleanup=whitespace -F "$work/messages/$fixtures.txt" >"$work/out/$fixtures.no-verify.txt" 2>&1; then
         hook='fails for another reason than the hook'
       fi
     fi

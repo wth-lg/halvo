@@ -28,6 +28,7 @@ jobs:
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: |
+          sh scripts/check-commit-messages.sh --self-test-two-paths
           sh scripts/check-commit-messages.sh --self-test-pre-push
           sh scripts/ci-commit-messages.sh --self-test
           sh scripts/merge-pr.sh --self-test
