@@ -1,15 +1,23 @@
 #!/bin/sh
-# Installs what the Build and Release commands need, as the current user, with no sudo.
-# Safe to run twice: every step first checks whether its result is already present.
-# Installs into: $HOME/.rustup and $HOME/.cargo (rustup, the pinned Rust toolchain,
-# cargo-release) and node_modules/ in this repository (the Tauri CLI).
-# Expects curl, node and npm on PATH, plus the Xcode Command Line Tools on macOS or
-# Visual Studio C++ build tools on Windows.
 set -eu
 cd "$(dirname "$0")/.."
 
 CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 export PATH="$CARGO_HOME/bin:$PATH"
+
+current_directory_is_git_work_tree_root() {
+  [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+    [ -z "$(git rev-parse --show-cdup)" ]
+}
+
+if current_directory_is_git_work_tree_root; then
+  if [ "$(git config --get core.hooksPath || true)" = .githooks ]; then
+    echo "prerequisites: git hooks path present: .githooks"
+  else
+    echo "prerequisites: setting git core.hooksPath to .githooks"
+    git config core.hooksPath .githooks
+  fi
+fi
 
 if ! command -v rustup >/dev/null 2>&1; then
   echo "prerequisites: installing rustup into $HOME/.rustup and $CARGO_HOME"
@@ -27,8 +35,6 @@ npm ci --no-audit --no-fund
 
 cargo_release_version=1.1.7
 
-# Downloads the prebuilt cargo-release binary for this platform into $CARGO_HOME/bin.
-# Returns 1 when there is no prebuilt binary for the platform or the download fails.
 install_cargo_release_prebuilt() {
   base="https://github.com/crate-ci/cargo-release/releases/download/v$cargo_release_version"
   prefix="cargo-release-v$cargo_release_version"

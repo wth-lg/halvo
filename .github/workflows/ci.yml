@@ -9,6 +9,24 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Commit messages
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          sh scripts/check-commit-messages.sh --self-test
+          if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            sh scripts/check-commit-messages.sh "origin/$DEFAULT_BRANCH..$AFTER"
+          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            sh scripts/check-commit-messages.sh "$BEFORE..$AFTER"
+          else
+            echo "The before value '$BEFORE' is not a commit in this clone: the push created the branch, or a force push dropped its old tip. Checking every commit reachable from $AFTER that is not exempt."
+            sh scripts/check-commit-messages.sh "$AFTER"
+          fi
       - uses: actions/setup-node@v7
         with:
           node-version: 26

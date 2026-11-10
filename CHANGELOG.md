@@ -36,6 +36,10 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
 - Add the Windows capture backend behind cfg with the logon-task install and unit tests
 - Add a CI grep lint banning low-level input hooks in the capture crate
+- Reject attribution lines in commit messages with a commit-msg hook and a CI step
+- Add AGENTS.md with the rule table and import it from CLAUDE.md
+- Add failing fixtures for a trailer below scissors text that git keeps
+- Add failing fixtures for scissors lines git does not write and for a merge conclusion
 
 ### Changed
 
@@ -53,12 +57,23 @@ Each entry under Unreleased is the subject line of one commit.
 - Accept a platform refusal of a contending writer in the single-writer race check
 - Name the calendar constants and the year-month-day conversions of UtcDay
 - Add the Windows crate features for the new input, HID and registry-watch constants
+- Merge CHANGELOG.md with git's union driver so parallel entries stop conflicting
+- Print the help of the commit-message check from here-documents
+- Name the newest exempt commit and record why it is exempt in AGENTS.md
+- Name the parameters of expect and the one-mode rule of the option parser
+- Say in the CI log why the commit-message step checks every commit
+- Say newest exempt commit where the range check said baseline
 
 ### Fixed
 
 - Read Windows raw input through an aligned buffer and close the pump start/stop race, carrying decoded payload sizes to an explicit metadata-only placement
 - Watch every registry root and path the installed-software scan reads and parse SystemComponent to a bool at the boundary
 - Quote every scheduled-task argument token and match the Task Scheduler Command element
+- Drop only the diff below git's own scissors block from the hook file
+- Report a failed awk as an error instead of an attribution line
+- Name the work-tree-root test of prerequisites.sh and make the name true
+- Match the scissors line by git's comment string and keep empty lines in its block
+- Say in the CI echo that exempt commits are not checked
 
 - Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store
 - Add SQLCipher and AEAD dependencies for the encrypted segment store
