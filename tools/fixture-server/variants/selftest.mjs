@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1010,18 +1010,22 @@ async function cliCases(env) {
 
   await run('cli-data', async (c) => {
     const dir = mkdtempSync(join(tmpdir(), 'halvo-fixture-data-'));
-    mkdirSync(join(dir, 'data'));
-    for (const f of readdirSync(HERE)) if (f.endsWith('.mjs')) copyFileSync(join(HERE, f), join(dir, f));
-    for (const n of SEEDS) copyFileSync(join(HERE, 'data', `seed-${n}.json`), join(dir, 'data', `seed-${n}.json`));
-    const good = await startServer(dir, ['--port', '0']);
-    c.ok(good.child !== null, 'copy_starts');
-    await stopServer(good);
-    writeFileSync(join(dir, 'data', 'seed-2.json'), '{"credentials":');
-    c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'broken_json_refused');
-    const bad = JSON.parse(JSON.stringify(seeds[2]));
-    bad.credentials.password = 'other';
-    writeFileSync(join(dir, 'data', 'seed-2.json'), JSON.stringify(bad));
-    c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'bad_value_refused');
+    try {
+      mkdirSync(join(dir, 'data'));
+      for (const f of readdirSync(HERE)) if (f.endsWith('.mjs')) copyFileSync(join(HERE, f), join(dir, f));
+      for (const n of SEEDS) copyFileSync(join(HERE, 'data', `seed-${n}.json`), join(dir, 'data', `seed-${n}.json`));
+      const good = await startServer(dir, ['--port', '0']);
+      c.ok(good.child !== null, 'copy_starts');
+      await stopServer(good);
+      writeFileSync(join(dir, 'data', 'seed-2.json'), '{"credentials":');
+      c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'broken_json_refused');
+      const bad = JSON.parse(JSON.stringify(seeds[2]));
+      bad.credentials.password = 'other';
+      writeFileSync(join(dir, 'data', 'seed-2.json'), JSON.stringify(bad));
+      c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'bad_value_refused');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   await run('cli-flags', async (c) => {

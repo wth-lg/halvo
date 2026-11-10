@@ -348,7 +348,10 @@ error, with nothing on standard output, and exit 2.
   body; that a reset removes the drafts; that a DELETE with a part of an event id gets 404; and
   that the calendar view leaves out an event that starts at `endDateTime`.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
-  on a taken port must refuse with exit 2 and leave the first server's state as it was.
+  on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
+  of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
+  system's temporary directory, and removes that directory by its path when the case ends, also
+  when the case fails. It removes no other path.
 
 So `k` is 120 + 12 + 4 + 16 + 12 + 4 = 168. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
