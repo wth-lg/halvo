@@ -349,6 +349,7 @@ self_test() {
   own_path="\"${dollar}0\""
   own_path_in_braces="\"${dollar}{0}\""
   lines_2_to_20="'2,20p'"
+  tab=$(printf '\t')
 
   expect() {
     name=$1 want_lines=$2 text=$3
@@ -460,6 +461,9 @@ self_test() {
   expect 'a redirection of another descriptor from the script is accepted' '' "head -n 1 3<$own_path"
   expect 'a read behind a comment sign is accepted' '' "echo usage # ; sed -n $lines_2_to_20 $own_path"
   expect 'a line of a here-document that names such a read after other words is accepted' '' "cat <<'EOF'${NEWLINE}Run sed -n $lines_2_to_20 $own_path to see the usage.${NEWLINE}EOF"
+  expect 'sed after a test and two ampersands on one line is refused' 1 "[ \"\$1\" = --help ] && sed -n '2,3p' $own_path"
+  expect 'sed that a tab indents and that tabs separate from its words is refused' 1 "${tab}sed${tab}-n${tab}$lines_2_to_20${tab}$own_path"
+  expect 'head after cat that reads another file is accepted' '' "cat \"\$list\" | head -n 3"
 
   leave_the_repository_that_git_variables_name
   fixture_directory=$(mktemp -d "${TMPDIR:-/tmp}/check-own-source-reads-self-test.XXXXXX") || die 'mktemp could not make a directory'
