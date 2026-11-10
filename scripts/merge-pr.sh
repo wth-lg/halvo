@@ -6,7 +6,7 @@ CHECK=$script_directory/check-commit-messages.sh
 
 THREADS_QUERY="query(\$owner: String!, \$repo: String!, \$number: Int!, \$endCursor: String) { repository(owner: \$owner, name: \$repo) { pullRequest(number: \$number) { reviewThreads(first: 100, after: \$endCursor) { pageInfo { hasNextPage endCursor } nodes { isResolved } } } } }"
 
-RUNS_FILTER='.workflow_runs[] | "\(.event)\t\(.created_at)\t\(.id)\t\(.status)\t\(.conclusion // "none")\t\(.run_attempt)\t\(.path)"'
+RUNS_FILTER='.workflow_runs[] | "\(.event)\t\(.created_at)\t\(.id)\t\(.status)\t\(.conclusion // "none")\t\(.run_attempt)\t\(.head_branch // "no branch")\t\(.path)"'
 JOBS_FILTER='.jobs[] | "\(.name)\t\(.status)\t\(.conclusion // "none")"'
 CI_WORKFLOW=.github/workflows/ci.yml
 
@@ -26,10 +26,13 @@ attribution line reaches the default branch.
         - its head is the commit given with --head, the one that was reviewed
         - for each of the events push and pull_request, the newest workflow
           run on that head, the one created last, completed with success, and
-          the jobs macos and windows succeeded in it. An older run of the same
-          event is printed and is not a gate. When the head branch is in
-          another repository, a push to it starts no run in this repository,
-          and the pull_request run alone is required.
+          the jobs macos and windows succeeded in it. For the event push only
+          a run counts whose head branch, as GitHub names it, is the head
+          branch of the pull request. An older run of the same event, and a
+          push run that another branch started on the same commit, is printed
+          and is not a gate. When the head branch is in another repository, a
+          push to it starts no run in this repository, and the pull_request
+          run alone is required.
         - it has 0 unresolved review threads
         - the squash message (the subject, an empty line, the body file) passes
           sh scripts/check-commit-messages.sh --stored-message
@@ -121,7 +124,17 @@ runs_of() {
 }
 
 newest_run_of() {
-  runs_of "$1" | awk 'NR == 1'
+  case $1 in
+    push) runs_of push | awk -F '\t' -v branch="$head_branch" '$7 == branch' ;;
+    *) runs_of "$1" ;;
+  esac | awk 'NR == 1'
+}
+
+newest_of() {
+  case $1 in
+    push) printf 'the newest push run of the head branch %s on %s' "$head_branch" "$head" ;;
+    *) printf 'the newest %s run on %s' "$1" "$head" ;;
+  esac
 }
 
 jobs_of() {
@@ -129,20 +142,21 @@ jobs_of() {
 }
 
 read_facts() {
-  fields=$(gh pr view "$number" --json state,isDraft,mergeable,headRefOid,baseRefName,isCrossRepository,mergeCommit --jq '.state, .isDraft, .mergeable, .headRefOid, .baseRefName, .isCrossRepository, (.mergeCommit.oid // "none")') ||
+  fields=$(gh pr view "$number" --json state,isDraft,mergeable,headRefOid,headRefName,baseRefName,isCrossRepository,mergeCommit --jq '.state, .isDraft, .mergeable, .headRefOid, .headRefName, .baseRefName, .isCrossRepository, (.mergeCommit.oid // "none")') ||
     die "gh could not read pull request #$number. Its message is above."
   {
     read -r state || :
     read -r is_draft || :
     read -r mergeable || :
     read -r head_on_github || :
+    read -r head_branch || :
     read -r base || :
     read -r is_cross_repository || :
     read -r merge_commit_on_github || :
   } <<EOF
 $fields
 EOF
-  [ -n "$merge_commit_on_github" ] || die "gh printed fewer than 7 fields for pull request #$number: $fields"
+  [ -n "$merge_commit_on_github" ] || die "gh printed fewer than 8 fields for pull request #$number: $fields"
   case $is_cross_repository in
     false) required_events='push pull_request' ;;
     true) required_events=pull_request ;;
@@ -152,10 +166,10 @@ EOF
   description=$(gh pr view "$number" --json body --jq .body) || die "gh could not read the description of pull request #$number"
   workflow_runs=$(gh api "repos/{owner}/{repo}/actions/runs?head_sha=$head&per_page=100" --paginate --jq "$RUNS_FILTER") ||
     die "gh could not read the workflow runs of $head"
-  unread_runs=$(printf '%s\n' "$workflow_runs" | awk -F '\t' 'NF && (NF != 7 || $3 !~ /^[0-9]+$/)') ||
+  unread_runs=$(printf '%s\n' "$workflow_runs" | awk -F '\t' 'NF && (NF != 8 || $3 !~ /^[0-9]+$/)') ||
     die 'awk could not read the workflow runs'
   [ -z "$unread_runs" ] ||
-    die "gh printed a workflow run that this script cannot read. It reads 7 fields divided by tabs, the third a run id of digits, and got:$nl$unread_runs"
+    die "gh printed a workflow run that this script cannot read. It reads 8 fields divided by tabs, the third a run id of digits, and got:$nl$unread_runs"
   workflow_runs=$(printf '%s\n' "$workflow_runs" | LC_ALL=C sort -t "$tab" -k 2,2r -k 3,3nr) ||
     die 'sort could not order the workflow runs'
   jobs=
@@ -183,7 +197,7 @@ EOF
 }
 
 print_facts() {
-  say "pull request #$number: state $state, draft $is_draft, mergeable $mergeable, base $base"
+  say "pull request #$number: state $state, draft $is_draft, mergeable $mergeable, base $base, head branch $head_branch"
   say "head on GitHub: $head_on_github"
   say "head reviewed:  $head"
   say "title: $title"
@@ -192,7 +206,7 @@ print_facts() {
     say "the head branch of pull request #$number is in another repository, so a push to it starts no run in this repository. The pull_request run alone is required."
   for event in push pull_request; do
     runs_of_event=$(runs_of "$event")
-    say "$event runs on $head, newest first (event, created, run, status, conclusion, attempt, workflow file): $(count_lines "$runs_of_event" .)"
+    say "$event runs on $head, newest first (event, created, run, status, conclusion, attempt, head branch, workflow file): $(count_lines "$runs_of_event" .)"
     say_lines "$runs_of_event"
     case " $required_events " in
       *" $event "*) ;;
@@ -201,7 +215,7 @@ print_facts() {
     run_id=$(newest_run_of "$event" | cut -f 3)
     [ -n "$run_id" ] || continue
     jobs_of_run=$(jobs_of "$run_id")
-    say "jobs of $event run $run_id, the newest (name, status, conclusion): $(count_lines "$jobs_of_run" .)"
+    say "jobs of run $run_id, $(newest_of "$event") (name, status, conclusion): $(count_lines "$jobs_of_run" .)"
     say_lines "$jobs_of_run"
   done
   say "review threads: $thread_total, unresolved: $thread_unresolved"
@@ -212,7 +226,7 @@ print_facts() {
 refuse_a_missing_run() {
   case $event in
     push)
-      refuse "no push run exists for $head. GitHub starts one when the commit is pushed to a branch of this repository: wait a minute and run this script again. A push whose newest commit says [skip ci] starts none. When none has started by then, push a new commit: the new head needs a new review."
+      refuse "no push run of the head branch $head_branch exists for $head. GitHub starts one when the commit is pushed to that branch: wait a minute and run this script again. A push run that another branch started on the same commit is not a gate. A push whose newest commit says [skip ci] starts none. When none has started by then, push a new commit: the new head needs a new review."
       ;;
     pull_request)
       refuse "no pull_request run exists for $head. GitHub starts one when the pull request is opened or its head moves: wait a minute and run this script again. When none has started by then, close and reopen the pull request, which starts one: gh pr close $number && gh pr reopen $number. A head commit whose message says [skip ci] starts none that way either: push a new commit then, and the new head needs a new review."
@@ -221,7 +235,7 @@ refuse_a_missing_run() {
 }
 
 refuse_a_run_without_success() {
-  run_fact="the newest $event run on $head, run $run_id,"
+  run_fact="$(newest_of "$event"), run $run_id,"
   case $run_conclusion in
     action_required)
       refuse "$run_fact waits for an approval: its conclusion is action_required. GitHub can hold the run of a pull request from another repository until someone with write access approves it. Approve it on its page (gh run view $run_id --web), wait for it (gh run watch $run_id), then run this script again."
@@ -247,7 +261,7 @@ refuse_a_run_without_success() {
 }
 
 refuse_a_job_without_success() {
-  job_fact="the job $required did not succeed in $event run $run_id, the newest $event run on $head, although the run completed with success: no job of the run has that name, or a job of that name did not complete with success. Its jobs (name, status, conclusion):$nl$(jobs_of "$run_id")$nl"
+  job_fact="the job $required did not succeed in $event run $run_id, $(newest_of "$event"), although the run completed with success: no job of the run has that name, or a job of that name did not complete with success. Its jobs (name, status, conclusion):$nl$(jobs_of "$run_id")$nl"
   if [ "$run_path" = "$CI_WORKFLOW" ]; then
     refuse "${job_fact}A job was renamed, removed or skipped, or it failed where the workflow lets a job fail. The workflow has to run the jobs macos and windows for every push and every pull request, and both have to succeed: restore that in $CI_WORKFLOW and push. The new head needs a new review."
   else
@@ -296,11 +310,11 @@ apply_gates() {
       refuse_a_missing_run
       continue
     fi
-    IFS=$tab read -r _ _ run_id run_status run_conclusion _ run_path <<EOF
+    IFS=$tab read -r _ _ run_id run_status run_conclusion _ _ run_path <<EOF
 $run
 EOF
     if [ "$run_status" != completed ]; then
-      refuse "the newest $event run on $head, run $run_id, has not completed: its status is $run_status. Wait for it: gh run watch $run_id. Then run this script again."
+      refuse "$(newest_of "$event"), run $run_id, has not completed: its status is $run_status. Wait for it: gh run watch $run_id. Then run this script again."
     elif [ "$run_conclusion" != success ]; then
       refuse_a_run_without_success
     else
@@ -440,7 +454,7 @@ state=$MERGE_PR_STUB_STATE
 case "$1 $2" in
   'pr view')
     case " $* " in
-      *' --json state,isDraft,mergeable,headRefOid,baseRefName'*) cat "$state/fields" ;;
+      *' --json state,isDraft,mergeable,headRefOid,headRefName,baseRefName'*) cat "$state/fields" ;;
       *' --json title '*) cat "$state/title" ;;
       *' --json body '*) cat "$state/description" ;;
       *' --json state,headRefOid,mergeCommit '*)
@@ -537,7 +551,7 @@ EOF
   other_head=1111111111111111111111111111111111111111
   green_jobs="macos${tab}completed${tab}success${nl}windows${tab}completed${tab}success"
   run_line() {
-    printf '%s\t%s\t%s\t%s\t%s\t1\t%s\n' "$1" "$2" "$3" "$4" "$5" "${6-.github/workflows/ci.yml}"
+    printf '%s\t%s\t%s\t%s\t%s\t1\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "${7-feature}" "${6-.github/workflows/ci.yml}"
   }
   green_push_run=$(run_line push 2026-11-10T09:00:00Z 101 completed success)
   green_pull_request_run=$(run_line pull_request 2026-11-10T09:00:04Z 102 completed success)
@@ -547,7 +561,7 @@ EOF
   state_of() {
     state_directory=$work/state/$1
     mkdir "$state_directory"
-    printf 'OPEN\nfalse\nMERGEABLE\n%s\nmain\nfalse\nnone\n' "$reviewed_head" >"$state_directory/fields"
+    printf 'OPEN\nfalse\nMERGEABLE\n%s\nfeature\nmain\nfalse\nnone\n' "$reviewed_head" >"$state_directory/fields"
     printf 'Add the feature\n' >"$state_directory/title"
     printf 'A plain description.\n' >"$state_directory/description"
     printf '%s\n%s\n' "$green_push_run" "$green_pull_request_run" >"$state_directory/runs"
@@ -559,7 +573,7 @@ EOF
     printf '%s\n' "$reviewed_head" >"$state_directory/head-after-the-merge-call"
   }
   fields() {
-    printf '%s\n%s\n%s\n%s\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${6-false}" "${7-none}" >"$work/state/$1/fields"
+    printf '%s\n%s\n%s\n%s\nfeature\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${6-false}" "${7-none}" >"$work/state/$1/fields"
   }
   runs() {
     name=$1
@@ -668,7 +682,7 @@ EOF
 
   state_of only-a-pull-request-run-exists
   runs only-a-pull-request-run-exists "$green_pull_request_run"
-  refused only-a-pull-request-run-exists "no push run exists for $reviewed_head"
+  refused only-a-pull-request-run-exists "no push run of the head branch feature exists for $reviewed_head"
 
   state_of failed-pull-request-run-below-a-newer-green-one
   runs failed-pull-request-run-below-a-newer-green-one "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed failure)" "$green_push_run" "$(run_line pull_request 2026-11-10T09:10:00Z 103 completed success)"
@@ -725,6 +739,25 @@ EOF
   jobs newest-push-run-of-another-workflow-file 105 "build${tab}completed${tab}success"
   refused newest-push-run-of-another-workflow-file 'Another workflow file than .github/workflows/ci.yml started this run'
   says newest-push-run-of-another-workflow-file 'gates that refuse the merge of pull request #7: 1.'
+
+  state_of newer-failed-push-run-of-another-branch
+  runs newer-failed-push-run-of-another-branch "$green_push_run" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed failure .github/workflows/ci.yml scratch)"
+  jobs newer-failed-push-run-of-another-branch 106 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  expect newer-failed-push-run-of-another-branch 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
+
+  state_of green-push-run-of-another-branch-above-a-failed-one-of-the-head-branch
+  runs green-push-run-of-another-branch-above-a-failed-one-of-the-head-branch "$(run_line push 2026-11-10T09:00:00Z 101 completed failure)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml scratch)"
+  jobs green-push-run-of-another-branch-above-a-failed-one-of-the-head-branch 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-another-branch-above-a-failed-one-of-the-head-branch 106 "$green_jobs"
+  refused green-push-run-of-another-branch-above-a-failed-one-of-the-head-branch "the newest push run of the head branch feature on $reviewed_head, run 101, completed with failure"
+
+  state_of only-a-push-run-of-another-branch-exists
+  runs only-a-push-run-of-another-branch-exists "$(run_line push 2026-11-10T09:00:00Z 101 completed success .github/workflows/ci.yml scratch)" "$green_pull_request_run"
+  refused only-a-push-run-of-another-branch-exists "no push run of the head branch feature exists for $reviewed_head"
+
+  state_of workflow-run-line-of-seven-fields
+  printf 'push\t2026-11-10T09:00:00Z\t101\tcompleted\tsuccess\t1\t.github/workflows/ci.yml\n' >"$work/state/workflow-run-line-of-seven-fields/runs"
+  expect workflow-run-line-of-seven-fields 2 not-called 'It reads 8 fields divided by tabs' --body-file "$work/body.txt"
 
   state_of newest-pull-request-run-waits-for-approval
   fields newest-pull-request-run-waits-for-approval OPEN false MERGEABLE "$reviewed_head" true
