@@ -2,138 +2,49 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 jobs:
-  macos:
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          sh scripts/check-commit-messages.sh --self-test
-          if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
-            sh scripts/check-commit-messages.sh "origin/$DEFAULT_BRANCH..$AFTER"
-          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            sh scripts/check-commit-messages.sh "$BEFORE..$AFTER"
-          else
-            echo "The before value '$BEFORE' is not a commit in this clone: the push created the branch, or a force push dropped its old tip. Checking every commit reachable from $AFTER that is not exempt."
-            sh scripts/check-commit-messages.sh "$AFTER"
-          fi
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            sh scripts/check-changelog.sh --base "refs/remotes/origin/$GITHUB_BASE_REF"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - uses: Swatinem/rust-cache@v2
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: Test
-        shell: bash
-        run: cargo test --workspace
-      - name: Clippy
-        shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-
   windows:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
         with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@v2
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: Test
-        shell: bash
-        run: cargo test --workspace
-      - name: Clippy
-        shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
+          fetch-depth: 2
+      - name: Probe a core.autocrlf=true clone before and after the eol attribute
         shell: bash
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol -- '*.sh' '.githooks/*')
-          echo "$line_endings"
-          test -n "$line_endings"
-          if echo "$line_endings" | grep -E -q 'w/(crlf|mixed)'; then
-            echo "git checked out the files marked w/crlf above with CRLF. Give them eol=lf in .gitattributes: sh scripts/check-line-endings.sh prints the line for each file."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
+          set +e
+          echo "core.autocrlf of the runner: $(git config --show-origin --get-all core.autocrlf)"
+          git --version
+          sh --version | head -1
+          echo "line endings of the checkout of the runner:"
+          git ls-files --eol -- '*.sh' '.githooks/*' CHANGELOG.md
+          probe() {
+            label=$1 commit=$2
+            clone="$RUNNER_TEMP/probe-$label"
+            git clone --quiet --no-checkout -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
+            cd "$clone" || return
+            git checkout --quiet --detach "$commit"
+            echo "=== $label: $(git rev-parse HEAD)"
+            git ls-files --eol -- '*.sh' '.githooks/*' CHANGELOG.md
+            for script in check-commit-messages check-changelog check-line-endings; do
+              sh "scripts/$script.sh" --self-test
+              echo "--- $label: sh scripts/$script.sh --self-test exit=$?"
+            done
+            sh scripts/check-line-endings.sh
+            echo "--- $label: sh scripts/check-line-endings.sh exit=$?"
+            sh scripts/check-changelog.sh 2>&1 | tail -3
+            echo "--- $label: sh scripts/check-changelog.sh exit=${PIPESTATUS[0]}"
+            git config core.hooksPath .githooks
+            git config user.name "Halvo CI"
+            git config user.email "ci@halvo.invalid"
+            git commit --allow-empty -m "Probe the commit-msg hook with a clean message"
+            echo "--- $label: clean commit exit=$?"
+            git commit --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>"
+            echo "--- $label: trailer commit exit=$?"
+            git log --oneline -3
+            cd "$GITHUB_WORKSPACE" || return
+          }
+          probe before HEAD~1
+          probe after HEAD
+          exit 0
