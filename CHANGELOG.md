@@ -59,6 +59,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Merge CHANGELOG.md with git's union driver so parallel entries stop conflicting
 - Print the help of the commit-message check from here-documents
 - Name the newest exempt commit and record why it is exempt in AGENTS.md
+- Name the parameters of expect and the one-mode rule of the option parser
 
 ### Fixed
 

@@ -145,19 +145,21 @@ self_test() {
   semicolon_commit_verbose_file="Fix the gate${nl}${nl}; $SCISSORS${nl}; Do not modify or remove the line above.${nl}; Everything below it will be ignored.${nl}$diff_with_attribution_text"
 
   expect() {
-    found=$(attribution_lines "$3") || awk_failed $?
+    name=$1 want_count=$2 message=$3
+    found=$(attribution_lines "$message") || awk_failed $?
     if [ -z "$found" ]; then count=0; else count=$(printf '%s\n' "$found" | wc -l | tr -d ' '); fi
-    if [ "$count" = "$2" ]; then
-      printf 'PASS %s\n' "$1"
+    if [ "$count" = "$want_count" ]; then
+      printf 'PASS %s\n' "$name"
     else
-      printf 'FAIL %s (expected %s attribution lines, found %s)\n' "$1" "$2" "$count"
+      printf 'FAIL %s (expected %s attribution lines, found %s)\n' "$name" "$want_count" "$count"
       failures=$((failures + 1))
     fi
   }
 
   expect_in_hook_file() {
-    message=$(drop_commit_verbose_diff "$3") || awk_failed $?
-    expect "$1" "$2" "$message"
+    name=$1 want_count=$2 hook_file=$3
+    message=$(drop_commit_verbose_diff "$hook_file") || awk_failed $?
+    expect "$name" "$want_count" "$message"
   }
 
   expect 'a clean message passes' 0 "Add the store${nl}${nl}Stream segment files through bounded chunks."
@@ -189,26 +191,26 @@ mode=
 exempt=1
 range=
 file=
-pick() {
+set_exclusive_mode() {
   [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --message-file and --self-test exclude each other'
   mode=$1
 }
 while [ $# -gt 0 ]; do
   case "$1" in
-    --self-test) pick self-test ;;
+    --self-test) set_exclusive_mode self-test ;;
     --message-file)
       [ $# -ge 2 ] || usage '--message-file needs a file'
       [ -z "$file" ] || usage "more than one message file: $file and $2"
-      pick message
+      set_exclusive_mode message
       file=$2
       shift
       ;;
-    --no-exempt) pick range; exempt=0 ;;
+    --no-exempt) set_exclusive_mode range; exempt=0 ;;
     -h|--help) help_text; exit 0 ;;
     -*) usage "unknown option: $1" ;;
     '') usage 'the range is empty' ;;
     *)
-      pick range
+      set_exclusive_mode range
       [ -z "$range" ] || usage "more than one range: $range and $1"
       range=$1
       ;;
