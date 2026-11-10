@@ -48,13 +48,13 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    GetForegroundWindow, GetSystemMetrics, GetWindowDisplayAffinity, GetWindowTextLengthW,
-    GetWindowThreadProcessId, PeekMessageW, RegisterClassW, SetForegroundWindow, SetWindowPos,
-    SetWindowTextW, ShowWindow, TranslateMessage, UnregisterClassW, ES_PASSWORD, MSG, PM_REMOVE,
-    SC_KEYMENU, SM_CMONITORS, SM_CXSCREEN, SM_CYSCREEN, SM_REMOTESESSION, SWP_NOACTIVATE,
-    SWP_NOSIZE, SWP_NOZORDER, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WDA_EXCLUDEFROMCAPTURE,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WM_SYSCOMMAND, WNDCLASSW, WS_CHILD, WS_EX_TOPMOST,
-    WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+    FindWindowW, GetForegroundWindow, GetSystemMetrics, GetWindowDisplayAffinity,
+    GetWindowTextLengthW, GetWindowThreadProcessId, PeekMessageW, RegisterClassW,
+    SetForegroundWindow, SetWindowPos, SetWindowTextW, ShowWindow, TranslateMessage,
+    UnregisterClassW, ES_PASSWORD, MSG, PM_REMOVE, SC_KEYMENU, SM_CMONITORS, SM_CXSCREEN,
+    SM_CYSCREEN, SM_REMOTESESSION, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_MINIMIZE,
+    SW_RESTORE, SW_SHOW, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_SYSCOMMAND,
+    WNDCLASSW, WS_CHILD, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
 };
 use windows_capture::capture::{Context, GraphicsCaptureApiHandler};
 use windows_capture::frame::Frame;
@@ -96,6 +96,8 @@ const CHILD_EXE_NAME: &str = "halvo-verify-child.exe";
 const CHILD_MODE_ENV: &str = "HALVO_VERIFY_CHILD_MODE";
 const LIMITED_TASK_ENV: &str = "HALVO_VERIFY_LIMITED_TASK";
 const LIMITED_OUT_ENV: &str = "HALVO_VERIFY_LIMITED_OUT";
+const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
+const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
 const PROGRAM: &str = r"C:\Program Files\Halvo\halvo-capture.exe";
 /// COLORREF is 0x00BBGGRR: full red and blue, no green.
 const MAGENTA: u32 = 0x00FF_00FF;
@@ -444,6 +446,13 @@ impl TestWindow {
                 0,
                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
             );
+        }
+    }
+
+    fn cover_screen(&self) {
+        let (cx, cy) = screen_size();
+        unsafe {
+            let _ = SetWindowPos(self.hwnd, None, 0, 0, cx, cy, SWP_NOZORDER);
         }
     }
 
@@ -1583,6 +1592,21 @@ fn c7_logon_task_installs_is_idempotent_and_is_removed() {
         for line in task_lines(&first.text) {
             say("c7", format!("task_definition {line}"));
         }
+        let effective = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "$s = (Get-ScheduledTask -TaskPath '\\Halvo\\' -TaskName 'HalvoCapture').Settings; \
+                 foreach ($n in 'ExecutionTimeLimit','DisallowStartIfOnBatteries','StopIfGoingOnBatteries',\
+                 'MultipleInstances','RestartCount','StartWhenAvailable','AllowHardTerminate','Hidden') \
+                 { $n + '=' + $s.$n }",
+            ])
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+            .unwrap_or_default();
+        for line in effective.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            say("c7", format!("effective_setting {line}"));
+        }
 
         std::thread::sleep(Duration::from_millis(2100));
         let second_install = installer.install();
@@ -2077,12 +2101,14 @@ fn x2_window_title_events_for_other_windows_and_controls() {
 fn x3_attribution_before_the_first_foreground_change() {
     with_deadline("x3", Duration::from_secs(120), || {
         env_report("x3");
-        let mut child = spawn_child("hold", 5);
+        let mut child = spawn_child("hold", 9);
         let child_pid = child.process.id();
         let waited = Instant::now();
         while foreground_pid() != child_pid && waited.elapsed() < Duration::from_secs(10) {
             std::thread::sleep(Duration::from_millis(50));
         }
+        // Let the activation settle, so no late event of it reaches the hook.
+        std::thread::sleep(Duration::from_secs(2));
         let child_foreground_at_start = foreground_pid() == child_pid;
         let reader_sees_child = current_foreground_app().is_some_and(|app| is_child_app(&app));
 
@@ -2092,11 +2118,12 @@ fn x3_attribution_before_the_first_foreground_change() {
         let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
         let foreground_start = foreground.start(sink.clone());
         let keyboard_start = keyboard.start(sink.clone());
-        std::thread::sleep(Duration::from_millis(300));
+        let settle = drain_for(&writer, Duration::from_secs(1));
+        let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
         press_keys(5);
         let before = drain_for(&writer, Duration::from_millis(700));
         let still_child_foreground = foreground_pid() == child_pid;
-        let cell_before = last_app.lock().ok().and_then(|cell| cell.clone());
+        let cell_after_typing = last_app.lock().ok().and_then(|cell| cell.clone());
 
         let mut between = Vec::new();
         let waited = Instant::now();
@@ -2131,11 +2158,15 @@ fn x3_attribution_before_the_first_foreground_change() {
             format!(
                 "foreground_start={} keyboard_start={} child_window_foreground_when_sources_started={child_foreground_at_start} \
                  current_foreground_app_reader_names_child={reader_sees_child} \
+                 foreground_events_in_first_second={} last_app_cell_is_none_before_typing={} \
                  child_window_foreground_while_typing={still_child_foreground} \
-                 last_app_cell_is_none_before_first_change={}",
+                 foreground_events_while_typing={} last_app_cell_is_none_after_typing={}",
                 show(&foreground_start),
                 show(&keyboard_start),
-                cell_before.is_none(),
+                count(&settle, Modality::ForegroundApp),
+                cell_before_typing.is_none(),
+                count(&before, Modality::ForegroundApp),
+                cell_after_typing.is_none(),
             ),
         );
         say(
@@ -2184,29 +2215,27 @@ fn schtasks(args: &[&str]) -> String {
 #[test]
 #[ignore = "helper: does nothing unless x4 launches it under a restricted token"]
 fn helper_limited_install() {
-    let (Ok(task_name), Ok(out_path)) = (
-        std::env::var(LIMITED_TASK_ENV),
-        std::env::var(LIMITED_OUT_ENV),
-    ) else {
+    let from_env = std::env::var(LIMITED_TASK_ENV)
+        .ok()
+        .zip(std::env::var(LIMITED_OUT_ENV).ok());
+    // A process started as another user gets that user's environment, so the
+    // standard-user run passes its two parameters in a file beside the binary.
+    let from_file = || {
+        let request = std::env::current_exe().ok()?.with_file_name("request.txt");
+        let text = std::fs::read_to_string(request).ok()?;
+        let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
+        Some((lines.next()?.to_string(), lines.next()?.to_string()))
+    };
+    let Some((task_name, out_path)) = from_env.or_else(from_file) else {
         return;
     };
     let mut lines = Vec::new();
-    let groups = Command::new("whoami.exe")
+    let integrity = integrity_label();
+    let administrators_deny_only = Command::new(r"C:\Windows\System32\whoami.exe")
         .arg("/groups")
         .output()
         .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
-        .unwrap_or_default();
-    let integrity = groups
-        .lines()
-        .find(|line| line.contains("Mandatory Label"))
-        .map(|line| {
-            line.split_whitespace()
-                .take(4)
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .unwrap_or_else(|| "unknown".to_string());
-    let administrators_deny_only = groups
+        .unwrap_or_default()
         .lines()
         .any(|line| line.contains("BUILTIN\\Administrators") && line.contains("deny only"));
     lines.push(format!(
@@ -2266,146 +2295,202 @@ fn helper_limited_install() {
     std::fs::write(out_path, lines.join("\n")).expect("write the restricted-token result");
 }
 
+/// A process running under a token like the one an ordinary desktop process
+/// has on a machine with UAC: the administrators group deny-only, the
+/// privileges of a standard user, medium integrity.
+struct RestrictedProcess {
+    handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+impl RestrictedProcess {
+    /// Wait up to `millis` and return the exit code.
+    fn wait(self, millis: u32) -> u32 {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+        let mut code = u32::MAX;
+        unsafe {
+            WaitForSingleObject(self.handle, millis);
+            GetExitCodeProcess(self.handle, &mut code);
+            CloseHandle(self.handle);
+        }
+        code
+    }
+}
+
+/// Start this test binary's `test_name` under the restricted token, with
+/// `env` added to its environment. It gets no console and no handles.
+fn spawn_restricted(test_name: &str, env: &[(&str, String)]) -> Result<RestrictedProcess, String> {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Security::{
+        CreateRestrictedToken, SetTokenInformation, TokenIntegrityLevel, LUA_TOKEN, SID,
+        SID_AND_ATTRIBUTES, SID_IDENTIFIER_AUTHORITY, TOKEN_ALL_ACCESS, TOKEN_MANDATORY_LABEL,
+    };
+    use windows_sys::Win32::System::Threading::{
+        CreateProcessAsUserW, OpenProcessToken, CREATE_NO_WINDOW, PROCESS_INFORMATION, STARTUPINFOW,
+    };
+    const SE_GROUP_INTEGRITY: u32 = 0x20;
+    const MEDIUM_INTEGRITY_RID: u32 = 0x2000;
+    let last_error = || std::io::Error::last_os_error().to_string();
+
+    let mut token: HANDLE = std::ptr::null_mut();
+    if unsafe {
+        OpenProcessToken(
+            windows_sys::Win32::System::Threading::GetCurrentProcess(),
+            TOKEN_ALL_ACCESS,
+            &mut token,
+        )
+    } == 0
+    {
+        return Err(format!("OpenProcessToken: {}", last_error()));
+    }
+    let mut limited: HANDLE = std::ptr::null_mut();
+    let restricted = unsafe {
+        CreateRestrictedToken(
+            token,
+            LUA_TOKEN,
+            0,
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            &mut limited,
+        )
+    };
+    let restricted_error = last_error();
+    unsafe {
+        CloseHandle(token);
+    }
+    if restricted == 0 {
+        return Err(format!("CreateRestrictedToken: {restricted_error}"));
+    }
+    let mut medium = SID {
+        Revision: 1,
+        SubAuthorityCount: 1,
+        IdentifierAuthority: SID_IDENTIFIER_AUTHORITY {
+            Value: [0, 0, 0, 0, 0, 16],
+        },
+        SubAuthority: [MEDIUM_INTEGRITY_RID],
+    };
+    let label = TOKEN_MANDATORY_LABEL {
+        Label: SID_AND_ATTRIBUTES {
+            Sid: (&mut medium as *mut SID).cast(),
+            Attributes: SE_GROUP_INTEGRITY,
+        },
+    };
+    if unsafe {
+        SetTokenInformation(
+            limited,
+            TokenIntegrityLevel,
+            (&label as *const TOKEN_MANDATORY_LABEL).cast(),
+            (core::mem::size_of::<TOKEN_MANDATORY_LABEL>() + core::mem::size_of::<SID>()) as u32,
+        )
+    } == 0
+    {
+        let error = last_error();
+        unsafe {
+            CloseHandle(limited);
+        }
+        return Err(format!("SetTokenInformation: {error}"));
+    }
+
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut command_line: Vec<u16> = format!(
+        "\"{}\" {test_name} --exact --ignored --nocapture",
+        exe.display()
+    )
+    .encode_utf16()
+    .chain(Some(0))
+    .collect();
+    for (name, value) in env {
+        std::env::set_var(name, value);
+    }
+    let mut startup: STARTUPINFOW = unsafe { core::mem::zeroed() };
+    startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
+    let mut info: PROCESS_INFORMATION = unsafe { core::mem::zeroed() };
+    let created = unsafe {
+        CreateProcessAsUserW(
+            limited,
+            std::ptr::null(),
+            command_line.as_mut_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0,
+            CREATE_NO_WINDOW,
+            std::ptr::null(),
+            std::ptr::null(),
+            &startup,
+            &mut info,
+        )
+    };
+    let created_error = last_error();
+    for (name, _) in env {
+        std::env::remove_var(name);
+    }
+    unsafe {
+        CloseHandle(limited);
+    }
+    if created == 0 {
+        return Err(format!("CreateProcessAsUserW: {created_error}"));
+    }
+    unsafe {
+        CloseHandle(info.hThread);
+    }
+    Ok(RestrictedProcess {
+        handle: info.hProcess,
+    })
+}
+
+/// The integrity level line of `whoami /groups`, for example
+/// `Mandatory Label\Medium Mandatory Level`.
+fn integrity_label() -> String {
+    let groups = Command::new(r"C:\Windows\System32\whoami.exe")
+        .arg("/groups")
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+        .unwrap_or_default();
+    groups
+        .lines()
+        .find(|line| line.contains("Mandatory Label"))
+        .map(|line| {
+            line.split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 /// Not one of the nine claims: claim 7 ran as an elevated administrator, which
 /// is what the runner gives. This runs the same install under a token like the
-/// one an ordinary desktop process has (administrators group deny-only, medium
-/// integrity).
+/// one an ordinary desktop process has.
 #[test]
 #[ignore = "functional: creates a restricted token and a scheduled task"]
 fn x4_logon_task_install_without_elevation() {
     with_deadline("x4", Duration::from_secs(180), || {
-        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-        use windows_sys::Win32::Security::{
-            CreateRestrictedToken, SetTokenInformation, TokenIntegrityLevel, LUA_TOKEN, SID,
-            SID_AND_ATTRIBUTES, SID_IDENTIFIER_AUTHORITY, TOKEN_ALL_ACCESS, TOKEN_MANDATORY_LABEL,
-        };
-        use windows_sys::Win32::System::Threading::{
-            CreateProcessAsUserW, GetExitCodeProcess, OpenProcessToken, WaitForSingleObject,
-            CREATE_NO_WINDOW, PROCESS_INFORMATION, STARTUPINFOW,
-        };
-        const SE_GROUP_INTEGRITY: u32 = 0x20;
-        const MEDIUM_INTEGRITY_RID: u32 = 0x2000;
         let task_name = r"Halvo\HalvoVerifyLimitedProbe";
         let dir = tempfile::tempdir().expect("temp dir");
         let out_path = dir.path().join("limited.txt");
-
-        let mut token: HANDLE = std::ptr::null_mut();
-        let opened = unsafe {
-            OpenProcessToken(
-                windows_sys::Win32::System::Threading::GetCurrentProcess(),
-                TOKEN_ALL_ACCESS,
-                &mut token,
-            )
-        };
-        assert!(
-            opened != 0,
-            "INCONCLUSIVE: OpenProcessToken: {}",
-            std::io::Error::last_os_error()
+        say(
+            "x4",
+            format!("this_process integrity={:?}", integrity_label()),
         );
-        let mut limited: HANDLE = std::ptr::null_mut();
-        let restricted = unsafe {
-            CreateRestrictedToken(
-                token,
-                LUA_TOKEN,
-                0,
-                std::ptr::null(),
-                0,
-                std::ptr::null(),
-                0,
-                std::ptr::null(),
-                &mut limited,
-            )
-        };
-        assert!(
-            restricted != 0,
-            "INCONCLUSIVE: CreateRestrictedToken: {}",
-            std::io::Error::last_os_error()
+        let child = spawn_restricted(
+            "helper_limited_install",
+            &[
+                (LIMITED_TASK_ENV, task_name.to_string()),
+                (LIMITED_OUT_ENV, out_path.display().to_string()),
+            ],
         );
-        let mut medium = SID {
-            Revision: 1,
-            SubAuthorityCount: 1,
-            IdentifierAuthority: SID_IDENTIFIER_AUTHORITY {
-                Value: [0, 0, 0, 0, 0, 16],
-            },
-            SubAuthority: [MEDIUM_INTEGRITY_RID],
-        };
-        let label = TOKEN_MANDATORY_LABEL {
-            Label: SID_AND_ATTRIBUTES {
-                Sid: (&mut medium as *mut SID).cast(),
-                Attributes: SE_GROUP_INTEGRITY,
-            },
-        };
-        let lowered = unsafe {
-            SetTokenInformation(
-                limited,
-                TokenIntegrityLevel,
-                (&label as *const TOKEN_MANDATORY_LABEL).cast(),
-                (core::mem::size_of::<TOKEN_MANDATORY_LABEL>() + core::mem::size_of::<SID>())
-                    as u32,
-            )
-        };
-        let lowered_error = std::io::Error::last_os_error();
-
-        let exe = std::env::current_exe().expect("current exe");
-        let mut command_line: Vec<u16> = format!(
-            "\"{}\" helper_limited_install --exact --ignored --nocapture",
-            exe.display()
-        )
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
-        std::env::set_var(LIMITED_TASK_ENV, task_name);
-        std::env::set_var(LIMITED_OUT_ENV, &out_path);
-        let mut startup: STARTUPINFOW = unsafe { core::mem::zeroed() };
-        startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
-        let mut info: PROCESS_INFORMATION = unsafe { core::mem::zeroed() };
-        let created = unsafe {
-            CreateProcessAsUserW(
-                limited,
-                std::ptr::null(),
-                command_line.as_mut_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
-                0,
-                CREATE_NO_WINDOW,
-                std::ptr::null(),
-                std::ptr::null(),
-                &startup,
-                &mut info,
-            )
-        };
-        let created_error = std::io::Error::last_os_error();
-        std::env::remove_var(LIMITED_TASK_ENV);
-        std::env::remove_var(LIMITED_OUT_ENV);
         say(
             "x4",
             format!(
-                "restricted_token=ok integrity_lowered_to_medium={} child_started={}",
-                if lowered != 0 {
-                    "ok".to_string()
-                } else {
-                    format!("error({lowered_error})")
-                },
-                if created != 0 {
-                    "ok".to_string()
-                } else {
-                    format!("error({created_error})")
-                },
+                "restricted_process_started={}",
+                show(&child.as_ref().map(|_| ()))
             ),
         );
-        assert!(
-            created != 0,
-            "INCONCLUSIVE: no process under the restricted token"
-        );
-        let mut exit_code = u32::MAX;
-        unsafe {
-            WaitForSingleObject(info.hProcess, 120_000);
-            GetExitCodeProcess(info.hProcess, &mut exit_code);
-            CloseHandle(info.hThread);
-            CloseHandle(info.hProcess);
-            CloseHandle(limited);
-            CloseHandle(token);
-        }
+        let child = child.expect("INCONCLUSIVE: no process under the restricted token");
+        let exit_code = child.wait(120_000);
         let report = std::fs::read_to_string(&out_path).unwrap_or_default();
         say(
             "x4",
@@ -2438,6 +2523,163 @@ fn x4_logon_task_install_without_elevation() {
         assert!(
             !report.is_empty(),
             "INCONCLUSIVE: the restricted process wrote no report"
+        );
+    });
+}
+
+fn unix_millis(time: SystemTime) -> u128 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
+/// Runs under the restricted token x8 makes: a keyboard source and a window of
+/// medium integrity. Writes the time of every keystroke event to the file x8
+/// names.
+#[test]
+#[ignore = "helper: does nothing unless x8 launches it under a restricted token"]
+fn helper_limited_listener() {
+    let (Ok(out_path), Ok(secs)) = (
+        std::env::var(LISTENER_OUT_ENV),
+        std::env::var(CHILD_SECS_ENV),
+    ) else {
+        return;
+    };
+    let secs: u64 = secs.parse().expect("listener seconds");
+    let (sink, writer) = channel(4096);
+    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+    let start = keyboard.start(sink.clone());
+    let window = TestWindow::create(&normal_window(
+        LISTENER_WINDOW_CLASS,
+        "halvo-verify-listener",
+        320,
+        60,
+    ));
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    let mut stamps = Vec::new();
+    while Instant::now() < deadline {
+        pump_thread(Duration::from_millis(20));
+        for event in drain_for(&writer, Duration::from_millis(20)) {
+            if event.modality == Modality::Keystroke {
+                stamps.push(unix_millis(event.captured_at.wall_clock).to_string());
+            }
+        }
+    }
+    keyboard.stop();
+    let report = format!(
+        "keyboard_start={} window_created={} integrity={:?}\n{}",
+        show(&start),
+        window.is_ok(),
+        integrity_label(),
+        stamps.join(",")
+    );
+    std::fs::write(out_path, report).expect("write the listener result");
+}
+
+/// Not one of the nine claims: the code relies on the integrity boundary to
+/// keep keys typed into an elevated window away from the keyboard source.
+/// A keyboard source of medium integrity listens while keys go first to an
+/// elevated window and then to a window of its own integrity.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and an elevated process"]
+fn x8_raw_input_across_the_integrity_boundary() {
+    with_deadline("x8", Duration::from_secs(120), || {
+        env_report("x8");
+        let dir = tempfile::tempdir().expect("temp dir");
+        let out_path = dir.path().join("listener.txt");
+        say(
+            "x8",
+            format!("this_process integrity={:?}", integrity_label()),
+        );
+        let listener = spawn_restricted(
+            "helper_limited_listener",
+            &[
+                (LISTENER_OUT_ENV, out_path.display().to_string()),
+                (CHILD_SECS_ENV, "9".to_string()),
+            ],
+        );
+        say(
+            "x8",
+            format!("listener_started={}", show(&listener.as_ref().map(|_| ()))),
+        );
+        let listener = listener.expect("INCONCLUSIVE: no process under the restricted token");
+
+        let own = TestWindow::create(&normal_window(
+            "HalvoVerifyElevatedWindow",
+            "halvo-verify-elevated",
+            60,
+            60,
+        ))
+        .expect("elevated window");
+        pump_thread(Duration::from_millis(2500));
+        let (own_foreground, method) = own.activate();
+        pump_thread(Duration::from_millis(300));
+        let elevated_from = unix_millis(SystemTime::now());
+        press_keys(5);
+        pump_thread(Duration::from_millis(400));
+        let elevated_to = unix_millis(SystemTime::now());
+        let own_foreground_after = own.is_foreground();
+
+        let class = HSTRING::from(LISTENER_WINDOW_CLASS);
+        let listener_window = unsafe { FindWindowW(&class, PCWSTR::null()) };
+        let handed_over = match &listener_window {
+            Ok(hwnd) => {
+                unsafe {
+                    let _ = SetForegroundWindow(*hwnd);
+                }
+                pump_thread(Duration::from_millis(400));
+                unsafe { GetForegroundWindow() == *hwnd }
+            }
+            Err(_) => false,
+        };
+        let medium_from = unix_millis(SystemTime::now());
+        press_keys(5);
+        pump_thread(Duration::from_millis(400));
+        let medium_to = unix_millis(SystemTime::now());
+        let still_handed_over = listener_window
+            .as_ref()
+            .is_ok_and(|hwnd| unsafe { GetForegroundWindow() == *hwnd });
+
+        let exit_code = listener.wait(60_000);
+        let report = std::fs::read_to_string(&out_path).unwrap_or_default();
+        let mut lines = report.lines();
+        let header = lines.next().unwrap_or("").to_string();
+        let stamps: Vec<u128> = lines
+            .next()
+            .unwrap_or("")
+            .split(',')
+            .filter_map(|stamp| stamp.parse().ok())
+            .collect();
+        let within =
+            |from: u128, to: u128| stamps.iter().filter(|t| (from..=to).contains(*t)).count();
+        say("x8", format!("listener exit_code={exit_code} {header}"));
+        say(
+            "x8",
+            format!(
+                "elevated_window_foreground={own_foreground} method={method} \
+                 elevated_window_foreground_after_typing={own_foreground_after} \
+                 keys_typed_into_elevated_window=5 keystroke_events_in_medium_integrity_listener={} \
+                 listener_window_found={} foreground_handed_to_listener_window={handed_over} \
+                 still_foreground_after_typing={still_handed_over} \
+                 keys_typed_into_medium_integrity_window=5 keystroke_events_in_listener={} \
+                 listener_keystroke_events_total={}",
+                within(elevated_from, elevated_to),
+                listener_window.is_ok(),
+                within(medium_from, medium_to),
+                stamps.len(),
+            ),
+        );
+        assert!(
+            !header.is_empty(),
+            "INCONCLUSIVE: the listener wrote no report"
+        );
+        assert!(
+            own_foreground && own_foreground_after && handed_over && still_handed_over,
+            "INCONCLUSIVE: the foreground window was not where the test needed it"
+        );
+        assert!(
+            within(medium_from, medium_to) >= 1,
+            "INCONCLUSIVE: the listener saw no keys even for a window of its own integrity"
         );
     });
 }
@@ -2613,5 +2855,107 @@ fn x9_screen_source_across_a_display_mode_change() {
             changed && (now_w, now_h) == (other_w, other_h),
             "INCONCLUSIVE: the display mode did not change"
         );
+    });
+}
+
+/// Not one of the nine claims: how many frames the screen source delivers
+/// while nothing on the screen changes. A topmost window of one color covers
+/// the whole screen, so no other window's repaint reaches the display.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x13_frames_on_a_static_screen() {
+    with_deadline("x13", Duration::from_secs(90), || {
+        env_report("x13");
+        let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
+            .expect("covering window");
+        cover.cover_screen();
+        pump_thread(Duration::from_secs(1));
+        let (sink, writer) = channel(1024);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let start = screen.start(sink.clone());
+        let mut frames = 0;
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(8) {
+            pump_thread(Duration::from_millis(100));
+            frames += count(
+                &drain_for(&writer, Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            );
+        }
+        let covered = cover.is_foreground();
+        drop(cover);
+        let after_uncover = count(
+            &drain_for(&writer, Duration::from_secs(2)),
+            Modality::ScreenFrame,
+        );
+        screen.stop();
+        say(
+            "x13",
+            format!(
+                "screen_start={} static_screen_secs=8 frames_while_static={frames} \
+                 cover_window_was_foreground={covered} frames_in_2s_after_uncover={after_uncover} \
+                 min_frame_interval_ms=500",
+                show(&start)
+            ),
+        );
+        assert!(start.is_ok(), "the screen source must start");
+    });
+}
+
+/// Not one of the nine claims: the product's screen source started and stopped
+/// fifteen times in one process.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x12_screen_source_fifteen_start_stop_cycles() {
+    with_deadline("x12", Duration::from_secs(180), || {
+        env_report("x12");
+        let last_app = Arc::new(Mutex::new(None));
+        let mut frames_total = 0;
+        for cycle in 1..=15 {
+            let (sink, writer) = channel(256);
+            let mut screen = ScreenSource::new(Arc::clone(&last_app));
+            let start = screen.start(sink.clone());
+            let frames = count(
+                &drain_for(&writer, Duration::from_millis(700)),
+                Modality::ScreenFrame,
+            );
+            frames_total += frames;
+            screen.stop();
+            say(
+                "x12",
+                format!(
+                    "cycle={cycle} start={} frames={frames} stopped=true",
+                    show(&start)
+                ),
+            );
+        }
+        std::thread::sleep(Duration::from_secs(3));
+        say(
+            "x12",
+            format!("result cycles_completed=15 frames_total={frames_total} idle_3s_after=true"),
+        );
+    });
+}
+
+/// Not one of the nine claims: the test's pixel-reading capture handler
+/// started and stopped eight times in one process. Run 1 ended in an access
+/// violation after two such captures; this counts how often that happens.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x11_pixel_probe_eight_captures() {
+    with_deadline("x11", Duration::from_secs(240), || {
+        env_report("x11");
+        for capture in 1..=8 {
+            let sample = capture_pixel(10, 10);
+            say(
+                "x11",
+                format!(
+                    "capture={capture} result={}",
+                    show(&sample.as_ref().map(|_| ()))
+                ),
+            );
+        }
+        std::thread::sleep(Duration::from_secs(3));
+        say("x11", "result captures_completed=8 idle_3s_after=true");
     });
 }

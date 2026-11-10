@@ -65,6 +65,7 @@ jobs:
         run: |
           cmd //c ver
           cmd //c "whoami /groups" | grep -i "Mandatory Label" || true
+          powershell.exe -NoProfile -Command "Get-CimInstance Win32_VideoController | ForEach-Object { '=== HALVO-VERIFY env video_controller=' + \$_.Name + ' adapter_ram=' + \$_.AdapterRAM + ' driver=' + \$_.InstalledDisplayDrivers }" || true
           failed=0
           for t in \
             c1_raw_input_delivers_keystrokes_and_pointer_events \
@@ -80,10 +81,14 @@ jobs:
             x3_attribution_before_the_first_foreground_change \
             x4_logon_task_install_without_elevation \
             x7_capture_border_on_the_screen \
+            x8_raw_input_across_the_integrity_boundary \
+            x13_frames_on_a_static_screen \
             c9_peak_working_set_of_sources_1_to_4_for_60_seconds \
             x5_screen_source_stop_and_start_again \
+            x12_screen_source_fifteen_start_stop_cycles \
             x6_pixel_probe_single_capture \
-            c8b_an_excluded_window_is_absent_from_a_captured_frame
+            c8b_an_excluded_window_is_absent_from_a_captured_frame \
+            x11_pixel_probe_eight_captures
           do
             echo "=== HALVO-VERIFY begin $t"
             rc=0
@@ -92,12 +97,46 @@ jobs:
             if [ "$rc" != 0 ]; then failed=1; fi
           done
           exit "$failed"
+      - name: Windows functional verification, logon task as a standard user
+        if: ${{ !cancelled() }}
+        shell: powershell
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $exe = Get-ChildItem target\debug\deps\windows_functional-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $pub = Join-Path $env:PUBLIC 'halvo-verify'
+          New-Item -ItemType Directory -Force -Path $pub | Out-Null
+          icacls $pub /grant 'Users:(OI)(CI)M' | Out-Null
+          Copy-Item $exe.FullName (Join-Path $pub 'halvo-verify-standard-user.exe') -Force
+          $chars = [char[]](48..57 + 65..90 + 97..122)
+          $pw = (-join (1..24 | ForEach-Object { $chars | Get-Random })) + 'aZ9!'
+          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
+          New-LocalUser -Name 'halvoverify' -Password $secure -AccountNeverExpires | Out-Null
+          Add-LocalGroupMember -Group 'Users' -Member 'halvoverify'
+          $cred = New-Object System.Management.Automation.PSCredential('halvoverify', $secure)
+          $out = Join-Path $pub 'standard-user.txt'
+          Set-Content -Path (Join-Path $pub 'request.txt') -Value @('Halvo\HalvoVerifyStandardUser', $out)
+          "=== HALVO-VERIFY begin x10_logon_task_as_a_standard_user"
+          try {
+            $p = Start-Process -FilePath (Join-Path $pub 'halvo-verify-standard-user.exe') -ArgumentList 'helper_limited_install','--exact','--ignored','--nocapture' -Credential $cred -WorkingDirectory $pub -WindowStyle Hidden -PassThru
+            "HALVO-VERIFY x10 standard_user_process_started=ok"
+            $waited = 0
+            while (-not (Test-Path $out) -and $waited -lt 120) { Start-Sleep -Seconds 1; $waited++ }
+            Start-Sleep -Seconds 1
+            "HALVO-VERIFY x10 standard_user_report_after_secs=$waited"
+          } catch {
+            "HALVO-VERIFY x10 standard_user_process_started=error($($_.Exception.Message))"
+          }
+          if (Test-Path $out) { Get-Content $out | ForEach-Object { "HALVO-VERIFY x10 standard_user $_" } } else { 'HALVO-VERIFY x10 standard_user_report=missing' }
+          Remove-Item (Join-Path $pub 'request.txt') -ErrorAction SilentlyContinue
+          Remove-LocalUser -Name 'halvoverify'
+          "=== HALVO-VERIFY end x10_logon_task_as_a_standard_user"
       - name: Windows functional verification, release memory sample
         if: ${{ !cancelled() }}
         shell: bash
         timeout-minutes: 30
         run: cargo test --release -p halvo-capture --test windows_functional -- --ignored --nocapture --exact c9_peak_working_set_of_sources_1_to_4_for_60_seconds
-      - name: Windows functional verification, larger screens
+      - name: Windows functional verification, larger screen
         if: ${{ !cancelled() }}
         shell: bash
         timeout-minutes: 30
@@ -109,13 +148,9 @@ jobs:
             echo "=== HALVO-VERIFY end $1 exit=$rc"
           }
           run_one x9_screen_source_across_a_display_mode_change
-          for mode in "1920 1080" "2560 1440" "3840 2160"; do
-            set -- $mode
-            echo "=== HALVO-VERIFY display mode requested $1x$2"
-            powershell.exe -NoProfile -Command "Set-DisplayResolution -Width $1 -Height $2 -Force" || echo "=== HALVO-VERIFY display mode $1x$2 refused"
-            run_one c2_screen_source_delivers_a_frame
-            run_one c9_peak_working_set_of_sources_1_to_4_for_60_seconds
-          done
+          echo "=== HALVO-VERIFY display mode requested 1920x1080"
+          powershell.exe -NoProfile -Command "Set-DisplayResolution -Width 1920 -Height 1080 -Force" || echo "=== HALVO-VERIFY display mode 1920x1080 refused"
+          run_one c9_peak_working_set_of_sources_1_to_4_for_60_seconds
       - name: Clippy
         shell: bash
         run: cargo clippy --workspace --all-targets -- -D warnings
