@@ -25,9 +25,9 @@ synopsis() {
       Check the commits that a push would add to <remote>. .githooks/pre-push calls
       this and passes on the lines that git writes to standard input.
   sh scripts/check-commit-messages.sh --message-file <file>
-      Check a message before git stores it. .githooks/commit-msg calls this. The
-      lines of the diff that git commit -v appends are dropped, as git drops
-      them. A line below that diff that starts with other text is still read.
+      Check a message before git stores it. .githooks/commit-msg calls this. In
+      the diff that git commit -v appends, a line that starts with a space is
+      skipped: it copies an unchanged line of a file. Every other line is read.
   sh scripts/check-commit-messages.sh --stored-message
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
@@ -120,7 +120,7 @@ drop_commit_verbose_diff() {
       scissors_block_lines = 0
     }
     dropping_diff {
-      if ($0 ~ /^[ +-]/) print ""; else print
+      if ($0 ~ /^ /) print ""; else print
       next
     }
     scissors_block_lines > 0 {
@@ -452,6 +452,7 @@ self_test() {
   expect_in_hook_file_at_lines 'a tool footer at the start of a line below a scissors block and a diff header fails in the hook file' '8' '#' "Fix the gate${nl}${nl}$scissors_block${nl}${nl}diff --git a/x b/x${nl}$generated"
   expect_in_hook_file_at_lines 'a tool trailer at the start of a line below a scissors block and a diff header fails in the hook file' '8' '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}diff --git a/x b/x${nl}$claude_session"
   expect_in_hook_file_at_lines 'a trailer at the start of a line fails below a whole diff, and the context line of that diff does not' '12' '#' "Fix the gate${nl}${nl}$scissors_block${nl}$diff_with_attribution_text${nl}$trailer"
+  expect_in_hook_file_at_lines 'a trailer indented by a tab below a scissors block and a diff header fails, because no line of a diff starts with a tab' '7' '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}${tab}$trailer"
 
   hook_files=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a directory for the hook files of the self-test'
   printf 'Fix the gate\n\n%s\n' "$trailer" >"$hook_files/with-a-trailer.txt"
