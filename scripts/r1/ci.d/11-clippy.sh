@@ -1,12 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Clippy reports no warning for any target of the workspace.
+# rule: Clippy reports no warning for any target of the workspace, built with the committed lockfile.
 set -u
 name=11-clippy
 
 measure() {
   cd "$CI_D_REPO" || exit 2
-  cargo clippy --workspace --all-targets -- -D warnings
+  cargo clippy --workspace --all-targets --locked -- -D warnings
   code=$?
   if [ "$code" -ne 0 ]; then
     printf 'FAIL %s (cargo clippy exited %s)\n' "$name" "$code"
@@ -46,7 +46,7 @@ self_test() {
   mkdir -p "$work/bin"
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
-[ "$*" = 'clippy --workspace --all-targets -- -D warnings' ] || { printf 'stub cargo: got the arguments: %s\n' "$*"; exit 97; }
+[ "$*" = 'clippy --workspace --all-targets --locked -- -D warnings' ] || { printf 'stub cargo: got the arguments: %s\n' "$*"; exit 97; }
 exit "$STUB_EXIT"
 EOF
   chmod +x "$work/bin/cargo"

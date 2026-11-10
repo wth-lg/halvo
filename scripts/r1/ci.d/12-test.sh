@@ -1,12 +1,12 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every test of the workspace passes.
+# rule: Every test of the workspace passes with the committed lockfile.
 set -u
 name=12-test
 
 measure() {
   cd "$CI_D_REPO" || exit 2
-  cargo test --workspace
+  cargo test --workspace --locked
   code=$?
   if [ "$code" -ne 0 ]; then
     printf 'FAIL %s (cargo test exited %s)\n' "$name" "$code"
@@ -46,7 +46,7 @@ self_test() {
   mkdir -p "$work/bin"
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
-[ "$*" = 'test --workspace' ] || { printf 'stub cargo: got the arguments: %s\n' "$*"; exit 97; }
+[ "$*" = 'test --workspace --locked' ] || { printf 'stub cargo: got the arguments: %s\n' "$*"; exit 97; }
 exit "$STUB_EXIT"
 EOF
   chmod +x "$work/bin/cargo"
