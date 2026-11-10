@@ -185,16 +185,33 @@ report_a_carriage_return_in_content_without_a_nul_byte() {
   printf 'check-line-endings: %s has eol=lf, and its content in the index holds a carriage return and no NUL byte, while the attributes do not make it text (its text attribute is %s). Git converts no line ending of such content, so every checkout gets the carriage returns.\nFix: take every carriage return out of the file and commit. If the file is not text, take eol=lf from it in .gitattributes.\n' "$path" "$text_attribute" >&2
 }
 
-expected_text_in() {
+wording_of_the_text_in() {
   case $1 in
     AGENTS.md) opening="$TICK.gitattributes$TICK holds the lines $TICK" separator="$TICK and $TICK" closing=$TICK ;;
     .github/workflows/ci.yml) opening=".gitattributes has to hold the lines '" separator="' and '" closing="'" ;;
     scripts/check-line-endings.sh) opening="start_fixture '" separator="' '" closing="'" ;;
     *) die "this check expects no text in $1" ;;
   esac
+}
+
+expected_text_in() {
+  wording_of_the_text_in "$1"
   printf '%s\n' "$eol_lf_lines" |
     awk -v opening="$opening" -v separator="$separator" -v closing="$closing" '{ text = text (NR > 1 ? separator : opening) $0 } END { print text closing }' ||
     die 'awk could not build the text that quotes the lines of .gitattributes'
+}
+
+file_holds_the_text_and_no_further_quoted_line() {
+  wording_of_the_text_in "$1"
+  git cat-file blob ":0:$1" |
+    EXPECTED_TEXT=$2 FURTHER_QUOTED_LINE=${separator#"$closing"} LC_ALL=C awk '
+      BEGIN { text = ENVIRON["EXPECTED_TEXT"]; further = ENVIRON["FURTHER_QUOTED_LINE"] }
+      {
+        at = index($0, text)
+        if (at && index(substr($0, at + length(text)), further) != 1) { found = 1; exit }
+      }
+      END { exit !found }
+    '
 }
 
 check_the_texts_that_quote_the_eol_lf_lines() {
@@ -205,7 +222,7 @@ check_the_texts_that_quote_the_eol_lf_lines() {
     git cat-file -e ":0:$quoting_path" 2>/dev/null || continue
     quoting_texts=$((quoting_texts + 1))
     expected_text=$(expected_text_in "$quoting_path") || exit
-    git cat-file blob ":0:$quoting_path" | LC_ALL=C grep -q -F -e "$expected_text" && continue
+    file_holds_the_text_and_no_further_quoted_line "$quoting_path" "$expected_text" && continue
     failures=$((failures + 1))
     printf 'check-line-endings: %s does not hold this text, which quotes the lines of .gitattributes that give eol=lf: %s\nFix: write that text into %s. If the wording of that place has to change, change the text that expected_text_in of scripts/check-line-endings.sh builds for it.\n' "$quoting_path" "$expected_text" "$quoting_path" >&2
   done
@@ -357,7 +374,8 @@ self_test() {
   track 'my tool' '#! /usr/bin/env python3\nprint()\n'
   expect 'a file whose name has a space and whose interpreter follows a space is read and refused, with no line that would not work' 1 'Fix: add a line at the end of .gitattributes at the root of the clone that gives this file: text eol=lf. Its name has a character that a pattern must quote; gitattributes(5) says how.'
 
-  start_fixture '*.sh text eol=lf'
+  start_fixture
+  track .gitattributes '*.sh text eol=lf\n'
   track scripts/check.sh '#!/bin/sh\r\necho\r\n'
   expect 'a file with eol=lf that is stored with CRLF is refused, with the command to run' 1 'git add --renormalize -- scripts/check.sh'
 
@@ -384,11 +402,13 @@ self_test() {
   track tool 'notes\n#!/bin/sh\n'
   expect 'a file is not a script because the name of a script ends with its name' 0 "$(pass_line 1)"
 
-  start_fixture '*.sh text eol=lf'
+  start_fixture
+  track .gitattributes '*.sh text eol=lf\n'
   track scripts/check.sh '#!/bin/sh\r\necho\n'
   expect 'a file with eol=lf that is stored with CRLF on one of its lines is refused' 1 'git add --renormalize -- scripts/check.sh'
 
-  start_fixture '*.sh text eol=lf'
+  start_fixture
+  track .gitattributes '*.sh text eol=lf\n'
   track scripts/check.sh '#!/bin/sh\r\nprintf x\ry\r\n'
   expect 'a file with eol=lf that holds a carriage return inside a line is refused' 1 'check-line-endings: scripts/check.sh has eol=lf, and git reads its content in the index as binary: it holds a carriage return outside a CRLF line ending, or a NUL byte.'
 
@@ -504,6 +524,11 @@ self_test() {
     eol_lf_lines=$(printf '%s\n' "$eol_lf_lines" | sed '2s/eol=lf/eol=lf -diff/')
     track "$stale_path" "$(expected_text_in "$stale_path")\\n"
     expect "a text in $stale_path that quotes a longer line than .gitattributes has is refused, with the text that the file has to hold" 1 "check-line-endings: $stale_path does not hold this text, which quotes the lines of .gitattributes that give eol=lf: $wanted_text"
+
+    track_the_texts_that_quote_the_lines
+    eol_lf_lines=$eol_lf_lines$NEWLINE'/tool text eol=lf'
+    track "$stale_path" "$(expected_text_in "$stale_path")\\n"
+    expect "a text in $stale_path that quotes one line more than .gitattributes has is refused, with the text that the file has to hold" 1 "check-line-endings: $stale_path does not hold this text, which quotes the lines of .gitattributes that give eol=lf: $wanted_text"
   done
 
   if [ "$failures" -gt 0 ]; then
