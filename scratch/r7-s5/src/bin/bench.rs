@@ -124,6 +124,11 @@ fn measure(options: &Options) -> Result<(), String> {
         pki.ca_name,
         ca_path.display()
     );
+    if stub.listening.len() < 2 {
+        println!(
+            "S6 warning: the stub listens on one loopback address only; a client that tries the other first waits for a fallback that belongs to the stub"
+        );
+    }
 
     let item = format!("synthetic-s6-item-{:016x}", random_u64());
     let first = helper(options, &["store", &item])?;
@@ -154,7 +159,10 @@ fn measure(options: &Options) -> Result<(), String> {
                 .to_string(),
         );
     }
-    println!("S6 control: failed at the TLS handshake, as required");
+    if !control.stdout.to_lowercase().contains("certificate") {
+        return Err("the control run failed, but not on a certificate error".to_string());
+    }
+    println!("S6 control: failed on the certificate at the TLS handshake, as required");
 
     let trust: Vec<String> = options
         .trust
@@ -223,6 +231,18 @@ fn measure(options: &Options) -> Result<(), String> {
     );
 
     let runs = options.runs;
+    let refused = outputs
+        .iter()
+        .filter(|(_, measured)| {
+            measured.exit_code != Some(0) && measured.stdout.to_lowercase().contains("certificate")
+        })
+        .count();
+    if refused == runs {
+        return Err(
+            "every timed run failed on a certificate error, so the trust command did not make the runner trust the CA"
+                .to_string(),
+        );
+    }
     let wall = summarize(&wall_ms).ok_or("no runs")?;
     let rss = summarize(&rss_mib).ok_or("no runs")?;
     println!(
@@ -247,19 +267,24 @@ fn measure(options: &Options) -> Result<(), String> {
         median(&outside_main_ms)
     );
 
-    let worst = wall.max / 1000.0;
-    let limit = options.limit.as_secs_f64();
-    let verdict = if ok == runs && worst <= limit {
+    let worst = outputs
+        .iter()
+        .map(|(_, measured)| measured.wall)
+        .max()
+        .ok_or("no runs")?;
+    let verdict = if ok == runs && worst <= options.limit {
         "MET"
     } else {
         "MISSED"
     };
     println!(
-        "S6 RULE {}: {verdict} (ok={ok}/{runs}, worst wall time {worst:.3} s, limit {limit:.3} s, control failed before trust as required)",
-        options.runner
+        "S6 RULE {}: {verdict} (ok={ok}/{runs}, worst wall time {worst:?}, limit {:?}, control failed before trust as required)",
+        options.runner, options.limit
     );
 
-    let removed = helper(options, &["delete"])?;
-    print!("{}", removed.stdout);
+    match helper(options, &["delete"]) {
+        Ok(removed) => print!("{}", removed.stdout),
+        Err(problem) => println!("S6 cleanup: {problem}"),
+    }
     Ok(())
 }
