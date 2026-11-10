@@ -49,14 +49,18 @@ attribution line reaches the default branch.
   sh scripts/merge-pr.sh --self-test
       Prove each refusal and the accepted case with a stub gh first on PATH, in
       a throwaway clone under a new temporary directory that is left in place.
+      Six cases send the script a signal. Such a case is left out, with a SKIP
+      line, when the self-test runs in a process that ignores the signal, as
+      a background job of a shell without job control does for INT.
       Needs a clone of this repository, and a name and an email for commits:
       a configured git user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
       GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
 
 The script never passes --admin, never pushes and never edits a pull request.
-It cannot see a merge that someone makes on the website or with gh pr merge
-directly. The push run of CI reports such a merge after the fact, and only a
-ruleset on the default branch can stop it.
+It cannot stop a merge that someone makes on the website or with gh pr merge
+directly, and it sees one only when it lands between the facts that it reads
+and its own merge call. The push run of CI reports such a merge after the
+fact, and only a ruleset on the default branch can stop it.
 It finds the workflow runs by the head commit, whatever workflow file started
 them. So it cannot tell which pull request a pull_request run belongs to when
 two pull requests share a head, and it refuses when the newest run of an event
