@@ -194,11 +194,15 @@ property or the harness; report the counterexample.
 Each check has been seen to fail on a broken store. The patches below apply
 at the sync commit. They and their output are in the run evidence
 (`~/.wstack/runs/20261109-halvo-fix-writer-lock/evidence/formal-verification-1/`).
-The patches of the last two rows and their output are in
+The patches `mutation-unlock-at-once.patch`, `m7-success-only.patch` and
+`m8-store-drop.patch` and their output are in
 `~/.wstack/runs/20261109-halvo-fix-writer-lock/evidence/builder-3/`. They
 apply to the `db.rs` whose blob is in the table under Sync commit. That file
-has the two tests of `db::tests` that those rows name, and the sync commit
-does not.
+has the two tests of `db::tests` that their rows name, and the sync commit
+does not. Every result below that names a test of `db::tests` is from that
+file. The reviewer's and the verifier's runs of this branch are in
+`~/.wstack/runs/20261109-halvo-fix-writer-lock/evidence/pr-review-2/` and
+`verifier-2/` beside it.
 The first proofs, taken at `478fbb5`, are in
 `~/.wstack/runs/20261108-halvo-r1-capture/evidence/formal-verification-1/`.
 The two patches there that change `WriterLock::take` no longer apply, because
@@ -206,22 +210,25 @@ one of their context lines has changed since.
 
 To rerun a row, run `git apply <patch>`, then the check that the row names
 (`cargo test -p halvo-capture --lib formal_tests::a_shredded_segment` or
-`formal_tests::at_most_one`, and for the last two rows
+`formal_tests::at_most_one`, and for the rows of
+`mutation-unlock-at-once.patch`, `m7-success-only.patch` and
+`m8-store-drop.patch`
 `cargo test -p halvo-capture --lib <the test that the row names>`), then
 `git apply -R <patch>`, and confirm that `git status --porcelain` prints
-nothing. `mutations.sh` in the `builder-3` directory does this for the last
-two rows and runs the whole lib suite with each patch.
+nothing. The same command runs a test that another row names. `mutations.sh`
+in the `builder-3` directory does this for those three patches and runs the
+whole lib suite with each patch.
 
 | Patch | What it breaks | Result |
 |---|---|---|
 | `break-crypto-shred.patch` | `destroy_segment_keys` no longer sets `wrapped_key` to NULL | check 1 FAILS: `[Write { len: 0, expiry: Past }, ShredExpired]`, "decrypts with a key remaining in the store" |
 | `break-single-writer.patch` | `Db::open` no longer sets `locking_mode = EXCLUSIVE` | check 2 FAILS: two contenders, `writer.lock` unlinked every 1 ms |
-| `break-single-writer-both-locks.patch` | the above plus `WriterLock::take` never locks | check 2 FAILS with the lock file left alone |
-| `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 still PASSES |
-| `break-writer-lock-outlives-store.patch` | `WriterLock`'s `Drop` does not unlock and leaks a duplicate of its descriptor, so the lock outlives the dropped store | check 1 FAILS: "reopen failed: another writer holds the store". Check 2 FAILS with the lock file left alone: "never got the store; last refusal: another writer holds the store" |
-| `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | both checks PASS unless a drop and the next `open` or `create` both fall between a child's spawn and its exec |
+| `break-single-writer-both-locks.patch` | the above plus `WriterLock::take` never locks | check 2 FAILS with the lock file left alone. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
+| `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 still PASSES. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
+| `break-writer-lock-outlives-store.patch` | `WriterLock`'s `Drop` does not unlock and leaks a duplicate of its descriptor, so the lock outlives the dropped store | check 1 FAILS: "reopen failed: another writer holds the store". Check 2 FAILS with the lock file left alone: "never got the store; last refusal: another writer holds the store". `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` and `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
+| `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | both checks PASS unless a drop and the next `open` or `create` both fall between a child's spawn and its exec. `hardening_tests::a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open`, `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children` and `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
 | `mutation-unlock-at-once.patch` | `WriterLock::take` unlocks the file right after it locks it, so no store holds the file lock | both checks PASS. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
-| `m7-success-only.patch`, `m8-store-drop.patch` | only a lock that reached a store is unlocked: when `open` or `create` returns the store (m7), or in a `Drop` of the store (m8) | both checks PASS. `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAILS |
+| `m7-success-only.patch`, `m8-store-drop.patch` | only a lock that reached a store is unlocked. In m7 the unlock stays in `WriterLock`'s `Drop`, behind a flag that `open` and `create` set when they build the store that they return. In m8 the unlock is in a `Drop` of the store | both checks PASS in the three runs taken with each patch, which the paragraph on where the unlock is lists. Check 1 can fail when a child is spawned while an `open` that fails holds its lock, and the child has not reached its exec at the next `open` or `create`. `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAILS |
 
 Which message the two failing rows of check 2 print depends on timing: "a
 contender found another contender inside the store" when the second process
@@ -236,7 +243,19 @@ wrote the race log at the same moment.
 The `flock-only` row is the point of check 2: the file lock only serializes
 `create`; the single-writer guarantee is SQLite's exclusive lock, which
 unlinking `writer.lock` cannot release. A change that removes the file lock
-alone does not fail the check, and is not a safety regression.
+alone does not fail the check, and is not a safety regression. It does fail
+a test of the lib suite.
+`db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped`
+fails for `break-single-writer-flock-only.patch` and for
+`break-single-writer-both-locks.patch`, because a second take beside a live
+lock answers `Ok`. For `break-writer-lock-outlives-store.patch` that test
+and
+`db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open`
+fail, because the take after the drop is still refused. In the reviewer's
+one run of the lib suite with the `flock-only` patch, that test failed and
+the other 102 tests passed, check 2 among them (`02-mutations.log` in
+`pr-review-2`). With each of the other two patches the reviewer ran the two
+tests alone, once (`13-extra-mutants.log`).
 
 The two `break-writer-lock` rows are about the release of the file lock,
 which the `Reopen` and `Recreate` ops of check 1 need. A lock that outlives
@@ -249,29 +268,57 @@ failing case waits 60 s. When only the unlock is missing, check 1 fails in
 few runs, because the close still releases the lock unless a child shares
 the descriptor at that moment. At `d7b245a`, which has no unlock, check 1 failed
 in 4 of 180 runs of the command on a 16-core Mac under load. At the sync
-commit it failed in 0 of 180. Two tests outside the formal checks failed in
-every run without the unlock:
+commit it failed in 0 of 180. Three tests outside the formal checks test the
+unlock. Two of them failed in every run without the unlock:
 `hardening_tests::a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open`
 and `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children`.
 `break-writer-lock-unlock.txt` holds one run of both beside the formal
-checks, and its second line is the command.
+checks, and its second line is the command. The third is
+`db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open`,
+also on Unix only. It has no timing in it, because it spawns nothing and
+waits for nothing. In the reviewer's one run of the lib suite with
+`break-writer-lock-unlock.patch`, these three tests failed and the other 100
+passed, both formal checks among them (`02-mutations.log` in `pr-review-2`).
 
-The last two rows are about where the unlock is. No formal check fails for
-them. With the unlock right after the take, the database lock still refuses
-a second writer. With the unlock only for a lock that reached a store, a
-lock that reached none is closed without an unlock, and the close releases
-it unless something shares its descriptor. One test of `db::tests` fails
+The rows of `mutation-unlock-at-once.patch` and of `m7-success-only.patch`
+and `m8-store-drop.patch` are about where the unlock is. No formal check
+failed for them in the runs taken. With each of the three patches, the
+builder and the reviewer each ran the lib suite once and the verifier ran
+the two checks once (`mutations-summary.txt` in `builder-3`,
+`02-mutations.log` in `pr-review-2`, and the `m-*-4-formal-checks.txt` files
+in `verifier-2`). With m7 or m8, check 1 can still fail in one case, which
+this paragraph gives further on. With the unlock right after the take, the
+database lock still refuses a second writer. With the unlock only for a lock
+that reached a store, a lock that reached none is closed without an unlock,
+and the close releases it unless something shares its descriptor. One test
+of `db::tests` fails
 for each row. The first requires `Locked` from a second `WriterLock::take`
 in a directory with no database, where only the file lock can give it. The
 second, on Unix only, drops a `WriterLock` that never reached a store while
 a duplicate of its descriptor is open, and requires that the next take
 succeeds. That is the lock of an `open` or `create` that fails: the lock is
-a local of both until they return the store. No test drives that failure
-through `open` itself. With a duplicate of a dropped store's descriptor
-open, an `open` that fails and the `open` after it pass the same test with
-both patches as without them (`sketch-store-level.patch` and the
-`sketch-*.log` files in the `builder-3` directory), because the failing
-`open` locks an open file of its own.
+a local of both until they return the store. Check 1 drives that failure
+through `open` itself. After delete-all, its `Reopen` op calls an `open`
+that takes the lock and then fails as `Sealed`, and the next `Reopen` or
+`Recreate` takes the lock again. So check 1 catches a lock that a failed
+`open` never releases. With a patch that leaks the lock on the error returns
+of `open`, check 1 failed in the verifier's one run with "reopen failed:
+another writer holds the store" (`s-hard-2-check1.txt` in `verifier-2`).
+Check 1 does not catch a lock that a failed `open` closes without the
+unlock, as m7 and m8 do, because the close releases the lock. The exception
+is that of the `break-writer-lock-unlock.patch` row. If a child is spawned
+while the failing `open` holds the lock, and has not reached its exec when
+the next `Reopen` or `Recreate` runs, that op gets `Locked` and check 1
+fails. No run has shown this failure. The reviewer ran check 1 16 times in
+one process with m7, beside four threads that spawned 669,458 children, and
+it passed each time (`14-check1-beside-spawns.log`). No other test catches
+such a lock either. With a patch that closes the lock without the unlock on
+the error returns of `open` and `create`, the verifier's one run of the lib
+suite passed 103 tests of 103 (`s-soft-2-lib-suite.txt`). With a duplicate
+of a dropped store's descriptor open, an `open` that fails and the `open`
+after it pass the same test with both patches as without them
+(`sketch-store-level.patch` and the `sketch-*.log` files in the `builder-3`
+directory), because the failing `open` locks an open file of its own.
 
 ## Updating the verification
 
@@ -304,8 +351,11 @@ it in the plan before weakening an assertion.
   the lock. Check 1 fails when the lock outlives the store, and check 2
   fails when a case leaves the lock file alone. Only check 1 notices a
   missing unlock, and only when a drop and the next `open` or `create` both
-  fall between a child's spawn and its exec. The two `hardening_tests` named
-  under the break proofs test the unlock itself, on Unix only.
+  fall between a child's spawn and its exec. Three tests named under the
+  break proofs test the unlock itself, on Unix only: the two
+  `hardening_tests`, and
+  `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open`,
+  which has no timing in it.
 - A forked child that runs destructors and drops its copy of the store:
   `WriterLock`'s `Drop` then unlocks the lock file that its parent still
   holds, and the tree has no fork without an exec.
@@ -315,15 +365,21 @@ it in the plan before weakening an assertion.
 `46b69b1c2743df14ee8b6d3b02a35f76cc59399c` (branch `halvo-fix-writer-lock`,
 "Release the store's writer lock explicitly so a spawned child cannot keep it
 held"). Both checks pass at this commit on macOS, where this pass ran them,
-and each break proof gives the result in its row. Outcome: updated, for
-both checks. The sync commit before this one was
+and each of the six `break-*` patches, the break proofs of the formal
+checks, gives the result that its row states for the checks. The rows of
+`mutation-unlock-at-once.patch` and of `m7-success-only.patch` and
+`m8-store-drop.patch` give their results on the `db.rs` whose blob is in the
+table below, and so does each result in another row that names a test of
+`db::tests`, because the sync commit does not have those tests. Outcome:
+updated, for both checks. The sync commit before this one was
 `478fbb542b5eb02b5fd79b442ccf8c0c0f7df5e8`.
 
 A squash merge gives this change another SHA on main. The covered functions
 and the harness are unchanged since the sync commit for as long as
 `git rev-parse <commit>:<path>` prints these blob ids. The blob of `db.rs`
-is the sync commit's file plus the two tests of `db::tests` that the last
-two break-proof rows name, and nothing else:
+is the sync commit's file plus the two tests of `db::tests` that the
+break-proof rows of `mutation-unlock-at-once.patch` and of
+`m7-success-only.patch` and `m8-store-drop.patch` name, and nothing else:
 
 | File | Blob |
 |---|---|
