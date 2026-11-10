@@ -11,6 +11,24 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 cd "$GATE_ROOT" || exit 1
 
+if [ "${1:-}" = --apply-only ]; then
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-apply-only.XXXXXX") || exit 2
+  code=0
+  applies() {
+    cp "$2" "$scratch/$1.rs" || exit 2
+    perl -0pi -e "$3" "$scratch/$1.rs"
+    if cmp -s "$2" "$scratch/$1.rs"; then
+      printf 'FAIL mutation:%s (the substitution did not apply)\n' "$1"
+      code=1
+    else
+      printf 'PASS mutation:%s (applies; this stand-in builds nothing)\n' "$1"
+    fi
+  }
+  applies shredded-key-survives crates/halvo-capture/src/store/expiry.rs 's/UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = \?1/UPDATE segment_keys SET wrapped_key = wrapped_key WHERE segment_id = ?1/'
+  applies checkpoint-not-verified crates/halvo-capture/src/store/db.rs 's/query_row\("PRAGMA wal_checkpoint\(TRUNCATE\)"/query_row("PRAGMA wal_checkpoint(PASSIVE)"/'
+  exit "$code"
+fi
+
 DB=crates/halvo-capture/src/store/db.rs
 EXPIRY=crates/halvo-capture/src/store/expiry.rs
 if [ -n "$(git status --porcelain -- "$DB" "$EXPIRY")" ]; then
