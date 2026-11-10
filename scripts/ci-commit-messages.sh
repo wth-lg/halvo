@@ -6,16 +6,22 @@ CHECK=scripts/check-commit-messages.sh
 AGENT_SETTINGS=.claude/settings.json
 
 SETTINGS_PROBLEM='
-  if length != 1 then "the file holds \(length) JSON values"
-  else .[0] |
-    if type != "object" then "the top level is not an object"
-    elif (.attribution | type) != "object" then "the key attribution is not an object"
-    elif .attribution.commit != "" then "attribution.commit is not the empty string"
-    elif .attribution.pr != "" then "attribution.pr is not the empty string"
-    elif .attribution.sessionUrl != false then "attribution.sessionUrl is not false"
-    elif has("includeCoAuthoredBy") and .includeCoAuthoredBy != false then "includeCoAuthoredBy is not false"
-    else empty end
-  end'
+const text = require("fs").readFileSync(process.argv[1], "utf8");
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+let settings;
+try {
+  settings = JSON.parse(text);
+} catch (error) {
+  console.log("the file is not valid JSON (" + error.message + ")");
+  process.exit(0);
+}
+if (!isObject(settings)) console.log("the top level is not an object");
+else if (!isObject(settings.attribution)) console.log("the key attribution is not an object");
+else if (settings.attribution.commit !== "") console.log("attribution.commit is not the empty string");
+else if (settings.attribution.pr !== "") console.log("attribution.pr is not the empty string");
+else if (settings.attribution.sessionUrl !== false) console.log("attribution.sessionUrl is not false");
+else if ("includeCoAuthoredBy" in settings && settings.includeCoAuthoredBy !== false) console.log("includeCoAuthoredBy is not false");
+'
 
 help_text() {
   cat <<'EOF'
@@ -31,15 +37,20 @@ commits of the event that started the workflow. No flag of git skips it.
         AFTER              the newest commit of the event: the head of the pull
                            request, or the pushed commit
         PR_TITLE, PR_BODY  the title and the description of the pull request
+        GITHUB_BASE_REF    the base branch of a pull request. GitHub Actions
+                           sets it. When it is empty, the base counts as the
+                           default branch.
       Each step below can fail the job.
         1. The agent settings. The tracked file .claude/settings.json must hold
            "attribution": {"commit": "", "pr": "", "sessionUrl": false}, which
            stops Claude Code from adding its attribution lines, and no
-           includeCoAuthoredBy other than false. Needs jq.
+           includeCoAuthoredBy other than false. Needs node, which parses the
+           file as strictly as JSON asks.
         2. The self-test of the predicate.
-        3. Two controls. The range check must fail on the exempt commits when
-           no commit is exempt, and the check of a stored message must fail on a
-           message with a trailer. A check that passes there is blind.
+        3. Controls. The range check must fail on the exempt commits when no
+           commit is exempt, and the check of a stored message must fail on a
+           trailer, on a tool footer and on a tool trailer. A check that passes
+           there is blind.
         4. The range check on the commits of the event. On the default branch
            these are the pushed commits. On every other ref they are the commits
            that refs/remotes/origin/<DEFAULT_BRANCH> does not have, and a pull
@@ -48,7 +59,8 @@ commits of the event that started the workflow. No flag of git skips it.
            that the default branch holds. A branch cannot move the exempt commit
            or weaken the predicate for its own commits.
         6. On a pull request, its title and description as one message, with
-           the copy of this branch and with the copy of the default branch.
+           the copy of this branch, and with the copy of the default branch
+           once that copy has the mode --stored-message.
   sh scripts/ci-commit-messages.sh --self-test
       Run those steps on event shapes and on settings files, in throwaway
       repositories under a new temporary directory that is left in place. Needs
@@ -95,10 +107,8 @@ check_agent_settings() {
   [ -f "$1" ] || fail "$1 is missing. $settings_rule Restore the tracked file."
   [ "$(od -An -tx1 -N 3 "$1" | tr -d ' \n')" != efbbbf ] ||
     fail "$1 starts with a byte order mark, and a JSON parser may reject the whole file for it. Save the file as UTF-8 without one. $settings_rule"
-  command -v jq >/dev/null 2>&1 || die "jq is not on PATH, and this step reads $1 with it. Install jq."
-  if ! settings_problem=$(jq -r -s "$SETTINGS_PROBLEM" "$1" 2>&1); then
-    fail "$1 is not valid JSON: $settings_problem. $settings_rule"
-  fi
+  command -v node >/dev/null 2>&1 || die "node is not on PATH, and this step reads $1 with it. Install Node.js, which the build of this repository needs as well."
+  settings_problem=$(node -e "$SETTINGS_PROBLEM" "$1" 2>&1) || die "node could not read $1: $settings_problem"
   [ -z "$settings_problem" ] ||
     fail "in $1, $settings_problem. $settings_rule Do not write \"attribution\": false: older versions of Claude Code reject it and skip the whole file."
   say "$1 turns the attribution lines of Claude Code off"
@@ -133,10 +143,12 @@ run_event() {
     fail "the control did not fail. sh $CHECK --no-exempt $exempt_commit exited $control_status, and it must exit 1, because those commits carry attribution lines. The range check is blind, so a PASS from it means nothing. Repair check_commits in $CHECK."
   fi
   say "control, which must fail: $(printf '%s\n' "$control_output" | sed -n 's/^check-commit-messages: FAIL: //p')"
-  stored_message_control_status=0
-  printf 'Control\n\nCo-Authored-By: Control <control@example.invalid>\n' | sh "$CHECK" --stored-message >/dev/null 2>&1 || stored_message_control_status=$?
-  [ "$stored_message_control_status" = 1 ] ||
-    fail "the control for --stored-message did not fail. A message with a co-author trailer got exit $stored_message_control_status from sh $CHECK --stored-message, and it must get exit 1. The check of a title and a description is blind. Repair check_stored_message in $CHECK."
+  for control_line in 'Co-Authored-By: Control <control@example.invalid>' 'Generated with a control' 'Claude-Session: https://example.invalid/control'; do
+    stored_message_control_status=0
+    printf 'Control\n\n%s\n' "$control_line" | sh "$CHECK" --stored-message >/dev/null 2>&1 || stored_message_control_status=$?
+    [ "$stored_message_control_status" = 1 ] ||
+      fail "the control for --stored-message did not fail. A message with the line '$control_line' got exit $stored_message_control_status from sh $CHECK --stored-message, and it must get exit 1. The check of a title and a description is blind for such a line. Repair check_stored_message and report_message in $CHECK."
+  done
 
   if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
     range="$default_ref..$AFTER"
@@ -364,14 +376,19 @@ self_test() {
   pull_request branch-that-blinded-the-check-of-the-pull-request-text 1 'the control for --stored-message did not fail' "$branch_that_blinded_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
 
   start_at "$main"
-  awk -v added="  case \$1 in *Generated*) return 0 ;; esac" '{ print } $0 == "report_message() {" { print added }' "$root/$CHECK" >"$dev/$CHECK"
-  commit_edited_check_script 'Accept a tool footer in a stored message'
-  branch_that_weakened_the_stored_message_check=$(tip)
-  runner branch-that-accepts-a-tool-footer-in-the-pull-request-text "$main" "$branch_that_weakened_the_stored_message_check" "$branch_that_weakened_the_stored_message_check:refs/heads/feature"
-  pull_request branch-that-accepts-a-tool-footer-in-the-pull-request-text 1 'refuses the title or the description of the pull request' "$branch_that_weakened_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
+  awk -v added="  case \$1 in *\"[Claude Code]\"*) return 0 ;; esac" '{ print } $0 == "report_message() {" { print added }' "$root/$CHECK" >"$dev/$CHECK"
+  commit_edited_check_script 'Accept the footer of one tool in a stored message'
+  branch_that_accepts_the_footer_of_one_tool=$(tip)
+  runner branch-that-accepts-the-footer-of-one-tool-in-the-pull-request-text "$main" "$branch_that_accepts_the_footer_of_one_tool" "$branch_that_accepts_the_footer_of_one_tool:refs/heads/feature"
+  pull_request branch-that-accepts-the-footer-of-one-tool-in-the-pull-request-text 1 'refuses the title or the description of the pull request' "$branch_that_accepts_the_footer_of_one_tool" 'Fix the gate' "A plain description.$nl$nl$footer"
 
-  runner branch-that-accepts-a-tool-footer-while-main-holds-the-older-script "$commit_with_the_predicate_before_this_change" "$branch_that_weakened_the_stored_message_check" "$branch_that_weakened_the_stored_message_check:refs/heads/feature"
-  pull_request branch-that-accepts-a-tool-footer-while-main-holds-the-older-script 1 'the control for --stored-message did not fail' "$branch_that_weakened_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
+  start_at "$main"
+  awk -v added="  case \$1 in *Generated*) return 0 ;; esac" '{ print } $0 == "report_message() {" { print added }' "$root/$CHECK" >"$dev/$CHECK"
+  commit_edited_check_script 'Accept every tool footer in a stored message'
+  branch_that_accepts_every_tool_footer=$(tip)
+
+  runner branch-that-accepts-every-tool-footer-while-main-holds-the-older-script "$commit_with_the_predicate_before_this_change" "$branch_that_accepts_every_tool_footer" "$branch_that_accepts_every_tool_footer:refs/heads/feature"
+  pull_request branch-that-accepts-every-tool-footer-while-main-holds-the-older-script 1 'the control for --stored-message did not fail' "$branch_that_accepts_every_tool_footer" 'Fix the gate' "A plain description.$nl$nl$footer"
 
   runner pull-request-into-another-base-with-no-commit-beyond-main "$main" "$main"
   expect_event pull-request-into-another-base-with-no-commit-beyond-main 0 'commits checked 0,' GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/pull/8/merge GITHUB_BASE_REF=release BEFORE= AFTER="$main" PR_TITLE='Merge main into release' PR_BODY='A plain description.'
