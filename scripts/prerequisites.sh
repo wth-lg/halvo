@@ -5,7 +5,12 @@ cd "$(dirname "$0")/.."
 CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 export PATH="$CARGO_HOME/bin:$PATH"
 
-if [ -z "$(git rev-parse --show-cdup 2>/dev/null || echo not-a-work-tree-root)" ]; then
+current_directory_is_git_work_tree_root() {
+  [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+    [ -z "$(git rev-parse --show-cdup)" ]
+}
+
+if current_directory_is_git_work_tree_root; then
   if [ "$(git config --get core.hooksPath || true)" = .githooks ]; then
     echo "prerequisites: git hooks path present: .githooks"
   else
