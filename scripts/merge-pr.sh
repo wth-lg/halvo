@@ -66,13 +66,17 @@ and nobody has seen what that list holds after only the failed jobs ran again.
 Exit codes: 0 merged and the merge commit passed the range check, or with
 --dry-run every gate holds; 1 a gate refuses, and this run merged nothing; 2
 the script could not finish: either before the merge call, and then this run
-merged nothing, or after it, when GitHub does not report the pull request as
-MERGED, and then the last line says that GitHub reports it as not merged, or
-that the script could not read its state and which command shows it; 3 the
-pull request is merged, and its merge commit failed the range check or was
-not checked: GitHub reports no merge commit for it yet, the script could not
-fetch the commit, or GitHub merged another head than the one given with
---head; 64 bad usage.
+merged nothing, or after it, and then the last line says which of these
+holds: GitHub reports the pull request as not merged; the script could not
+read its state; or a signal stopped the script. In the last two cases the
+pull request may be merged, and the line names the command that shows its
+state and the command that checks its merge commit; 3 the pull request is
+merged, and its merge commit failed the range check or was not checked:
+GitHub reports no merge commit for it yet, the script could not fetch the
+commit, or GitHub merged another head than the one given with --head; 64 bad
+usage.
+The signals INT, TERM and HUP stop the script with exit 2. Its last line then
+says whether the signal came before the merge call or after it.
 EOF
 }
 
@@ -333,6 +337,13 @@ merged_but() {
   exit 3
 }
 
+stopped_by() {
+  [ "$merge_called" = 1 ] ||
+    die "the signal $1 stopped this script before its merge call. This run merged nothing."
+  printf 'merge-pr: error: the signal %s stopped this script after it called gh pr merge, so pull request #%s may be merged, and this run did not finish the check of its merge commit. Run: gh pr view %s --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: %s\n' "$1" "$number" "$number" "$(range_check_command '<merge commit>')" >&2 || :
+  exit 2
+}
+
 merge() {
   merge_called=1
   merge_status=0
@@ -376,6 +387,9 @@ EOF
 
 run() {
   trap '' PIPE
+  trap 'stopped_by INT' INT
+  trap 'stopped_by TERM' TERM
+  trap 'stopped_by HUP' HUP
   case $number in
     ''|*[!0-9]*) usage "the pull request number must be digits, and got: $number" ;;
   esac
@@ -418,7 +432,7 @@ self_test() {
     die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
-  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails"
+  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails" "$work/git-that-signals-the-script"
 
   cat >"$work/bin/gh" <<'EOF'
 #!/bin/sh
@@ -463,6 +477,9 @@ case "$1 $2" in
       git --git-dir="$MERGE_PR_STUB_GITHUB" update-ref refs/heads/main "$(cat "$state/merge-commit")"
     fi
     printf 'MERGED\n' >"$state/state-after-the-merge-call"
+    if [ -e "$state/signal-during-the-merge-call" ]; then
+      kill -s "$(cat "$state/signal-during-the-merge-call")" "$PPID"
+    fi
     if [ -e "$state/call-fails-after-github-merged" ]; then
       echo 'stub gh: the connection dropped after GitHub merged' >&2
       exit 1
@@ -484,6 +501,14 @@ esac
 exec "$MERGE_PR_STUB_REAL_GIT" "$@"
 EOF
   chmod +x "$work/git-whose-fetch-fails/git"
+  cat >"$work/git-that-signals-the-script/git" <<'EOF'
+#!/bin/sh
+case " $* " in
+  ' rev-parse --git-dir ') kill -s "$MERGE_PR_STUB_SIGNAL" "$PPID" ;;
+esac
+exec "$MERGE_PR_STUB_REAL_GIT" "$@"
+EOF
+  chmod +x "$work/git-that-signals-the-script/git"
   MERGE_PR_STUB_REAL_GIT=$(command -v git) || die 'git is not on PATH'
   export MERGE_PR_STUB_REAL_GIT
   stub_path=$work/bin
@@ -866,6 +891,25 @@ EOF
   printf '%s\n' "$other_head" >"$work/state/merged-outside-the-script-with-another-head-and-no-merge-commit/head-after-the-merge-call"
   expect merged-outside-the-script-with-another-head-and-no-merge-commit 3 called "pull request #7 is merged, but with the head $other_head, and --head names $reviewed_head" --body-file "$work/body.txt"
   says merged-outside-the-script-with-another-head-and-no-merge-commit 'gh pr view 7 --json mergeCommit shows that commit when GitHub has it'
+
+  for signal in INT TERM HUP; do
+    signal_case=signal-$signal-during-the-merge-call
+    trap_status=0
+    sh -c 'trap "exit 7" "$1"; kill -s "$1" "$$"; exit 0' sh "$signal" || trap_status=$?
+    if [ "$trap_status" != 7 ]; then
+      printf 'SKIP %s: this process ignores the signal %s, so no script that it starts can set a trap for it. A background job of a shell without job control ignores INT, and nohup ignores HUP. Run the self-test in the foreground to prove this case.\n' "$signal_case" "$signal"
+      continue
+    fi
+    state_of "$signal_case"
+    printf '%s\n' "$signal" >"$work/state/$signal_case/signal-during-the-merge-call"
+    expect "$signal_case" 2 called "the signal $signal stopped this script after it called gh pr merge, so pull request #7 may be merged, and this run did not finish the check of its merge commit. Run: gh pr view 7 --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/main '<merge commit>^!'" --body-file "$work/body.txt"
+    state_of "signal-$signal-before-the-merge-call"
+    MERGE_PR_STUB_SIGNAL=$signal
+    export MERGE_PR_STUB_SIGNAL
+    stub_path=$work/git-that-signals-the-script:$work/bin
+    expect "signal-$signal-before-the-merge-call" 2 not-called "the signal $signal stopped this script before its merge call. This run merged nothing." --body-file "$work/body.txt"
+    stub_path=$work/bin
+  done
 
   state_of merge-call-fails-and-the-state-cannot-be-read
   : >"$work/state/merge-call-fails-and-the-state-cannot-be-read/github-refuses-the-merge"
