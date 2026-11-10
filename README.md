@@ -16,7 +16,9 @@ One command, run from the repository root. It installs only as the current user,
 no sudo, and is safe to run twice. It installs rustup and the Rust toolchain pinned in
 `rust-toolchain.toml` into `~/.rustup` and `~/.cargo`, the Tauri CLI into
 `node_modules/` with `npm ci`, and cargo-release into `~/.cargo/bin` from a prebuilt
-binary (or with `cargo install` when no prebuilt binary matches the platform).
+binary (or with `cargo install` when no prebuilt binary matches the platform). It
+also sets `core.hooksPath` to `.githooks` in this clone, so git runs the commit-msg
+hook that rejects attribution lines in commit messages.
 
 It expects `curl`, `node` and `npm` on PATH, plus the Xcode Command Line Tools on
 macOS (`xcode-select --install`) or the Visual Studio C++ build tools on Windows.
