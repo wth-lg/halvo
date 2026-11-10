@@ -8,15 +8,27 @@ RULE='Commits in this repository are authored by the configured git user only. S
 
 SCISSORS='------------------------ >8 ------------------------'
 
+DEFAULT_BRANCH_REMEDY='The owner decides between rewriting that branch and moving the exempt commit (NEWEST_EXEMPT_COMMIT in scripts/check-commit-messages.sh), with the reason recorded in AGENTS.md. scripts/merge-pr.sh exists so that this does not happen: it checks the squash message before it merges.'
+
+exempt_commit_short=${NEWEST_EXEMPT_COMMIT%"${NEWEST_EXEMPT_COMMIT#???????}"}
+
 synopsis() {
-  cat <<'EOF'
-  sh scripts/check-commit-messages.sh [--no-exempt] [<range>]
-      Check every commit that `git rev-list <range>` lists (default: HEAD).
-      Commits reachable from NEWEST_EXEMPT_COMMIT are exempt; --no-exempt checks them too.
+  cat <<EOF
+  sh scripts/check-commit-messages.sh [--no-exempt] [--default-ref <ref>] [<range>]
+      Check the stored message of every commit that git rev-list <range> lists
+      (default: HEAD). These commits are exempt, because the owner kept them on
+      2026-11-09: $NEWEST_EXEMPT_COMMIT and the commits
+      reachable from it. --no-exempt checks them too. --default-ref names the
+      branch that is never rewritten, by its full ref (default: the branch that
+      refs/remotes/origin/HEAD points to).
   sh scripts/check-commit-messages.sh --message-file <file>
-      Check one message. .githooks/commit-msg calls this.
+      Check a message before git stores it. .githooks/commit-msg calls this. The
+      diff that git commit -v appends is dropped, as git drops it.
+  sh scripts/check-commit-messages.sh --stored-message
+      Check one message from standard input exactly as given: a squash message,
+      or the title and description of a pull request.
   sh scripts/check-commit-messages.sh --self-test
-      Prove the predicate on fixtures. Needs no repository.
+      Prove the predicate on fixtures. Needs git, and no repository.
 EOF
 }
 
@@ -126,55 +138,100 @@ attribution_lines() {
   '
 }
 
-check_file() {
-  [ -f "$1" ] || die "no such message file: $1"
-  hook_file_text=$(cat "$1") || die "cannot read the message file: $1"
-  comment_string=$(git_comment_string) || die 'git config could not report the comment string of git'
-  message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
-  found=$(attribution_lines "$message") || awk_failed $?
+report_message() {
+  found=$(attribution_lines "$1") || awk_failed $?
   [ -n "$found" ] || return 0
   {
-    printf 'check-commit-messages: the commit message carries an attribution line:\n%s\n' "$found"
-    printf 'Fix: remove the line and commit again. If the line is prose, reword it so that it does not start with these words. %s\n' "$RULE"
+    printf 'check-commit-messages: the message carries an attribution line:\n%s\n' "$found"
+    printf 'Fix: remove the line and try again. If the line is prose, reword it so that it does not start with these words. %s\n' "$RULE"
   } >&2
   return 1
 }
 
-check_range() {
+check_hook_file() {
+  [ -f "$1" ] || die "no such message file: $1"
+  hook_file_text=$(cat "$1") || die "cannot read the message file: $1"
+  comment_string=$(git_comment_string) || die 'git config could not report the comment string of git'
+  message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
+  report_message "$message"
+}
+
+check_stored_message() {
+  message=$(cat) || die 'cannot read the message from standard input'
+  report_message "$message"
+}
+
+require_repository_with_exempt_commit() {
   git rev-parse --git-dir >/dev/null 2>&1 || die 'not inside a git repository'
+  [ "$exempt" = 0 ] || git cat-file -e "$NEWEST_EXEMPT_COMMIT^{commit}" 2>/dev/null ||
+    die "the newest exempt commit $NEWEST_EXEMPT_COMMIT is not in this clone, so exempt commits cannot be told from new ones. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
   if [ "$exempt" = 1 ]; then
-    git cat-file -e "$NEWEST_EXEMPT_COMMIT^{commit}" 2>/dev/null ||
-      die "the newest exempt commit $NEWEST_EXEMPT_COMMIT is not in this clone, so exempt commits cannot be told from new ones. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
-    scope="$(git rev-parse --short "$NEWEST_EXEMPT_COMMIT") and the commits reachable from it are exempt"
-    commits=$(git rev-list --reverse --end-of-options "$1" "^$NEWEST_EXEMPT_COMMIT") ||
-      die "git rev-list could not list the commits of '$1'"
+    scope="$exempt_commit_short and the commits reachable from it are exempt"
   else
     scope='no commit is exempt'
-    commits=$(git rev-list --reverse --end-of-options "$1") ||
-      die "git rev-list could not list the commits of '$1'"
   fi
+}
+
+resolve_default_ref() {
+  if [ -n "$default_ref" ]; then
+    git rev-parse -q --verify "$default_ref^{commit}" >/dev/null ||
+      die "--default-ref $default_ref does not name a commit in this clone"
+  else
+    default_ref=$(git symbolic-ref -q refs/remotes/origin/HEAD) || default_ref=
+  fi
+}
+
+check_commits() {
+  label=$1
+  shift
+  commits=$(git rev-list --reverse "$@" --) || die "git rev-list could not list the commits of '$label'"
 
   total=0
   bad=0
+  bad_on_default_branch=0
   for commit in $commits; do
     total=$((total + 1))
-    message=$(git log -1 --format=%B "$commit") || die "git log could not read $commit"
+    stored_commit=$(git cat-file commit "$commit") || die "git cat-file could not read $commit"
+    message=$(printf '%s\n' "$stored_commit" | LC_ALL=C sed '1,/^$/d') || die "sed could not read the message of $commit"
     found=$(attribution_lines "$message") || awk_failed $?
-    if [ -n "$found" ]; then
-      bad=$((bad + 1))
-      printf 'check-commit-messages: %s\n%s\n' "$(git log -1 --format='%h %s' "$commit")" "$found" >&2
+    [ -n "$found" ] || continue
+    bad=$((bad + 1))
+    place=
+    if [ -n "$default_ref" ] && git merge-base --is-ancestor "$commit" "$default_ref" 2>/dev/null; then
+      bad_on_default_branch=$((bad_on_default_branch + 1))
+      place=" (already on $default_ref)"
     fi
+    printf 'check-commit-messages: %s%s\n%s\n' "$(git log -1 --format='%h %s' "$commit")" "$place" "$found" >&2
   done
 
-  if [ "$bad" -gt 0 ]; then
-    {
-      printf 'check-commit-messages: FAIL: %s: commits checked %d, with an attribution line %d (%s).\n' "$1" "$total" "$bad" "$scope"
-      printf 'Fix: remove each listed line from its commit message (git commit --amend for the newest commit, git rebase -i for an older one). %s\n' "$RULE"
-      printf 'Run sh scripts/prerequisites.sh once: it turns on the commit-msg hook that stops such a commit before it is made.\n'
-    } >&2
-    return 1
+  if [ "$bad" = 0 ]; then
+    printf 'check-commit-messages: PASS: %s: commits checked %d, with an attribution line 0 (%s).\n' "$label" "$total" "$scope"
+    return 0
   fi
-  printf 'check-commit-messages: PASS: %s: commits checked %d, with an attribution line 0 (%s).\n' "$1" "$total" "$scope"
+  any_range_failed=1
+  {
+    printf 'check-commit-messages: FAIL: %s: commits checked %d, with an attribution line %d (%s).\n' "$label" "$total" "$bad" "$scope"
+    if [ "$bad" -gt "$bad_on_default_branch" ]; then
+      printf 'Fix: remove each listed line from its commit message: git commit --amend for the newest commit, git rebase -i with "reword" for an older one. Then run this check again. %s\n' "$RULE"
+      printf 'sh scripts/prerequisites.sh turns on the commit-msg and pre-push hooks, which report such a line before it leaves this clone.\n'
+    fi
+    if [ "$bad_on_default_branch" -gt 0 ]; then
+      printf '%d of the listed commits are already on %s. Do not amend or rebase them: an agent does not rewrite the default branch. %s\n' "$bad_on_default_branch" "$default_ref" "$DEFAULT_BRANCH_REMEDY"
+    elif [ -z "$default_ref" ]; then
+      printf 'If a listed commit is already on the default branch, do not amend or rebase it: an agent does not rewrite the default branch. %s\n' "$DEFAULT_BRANCH_REMEDY"
+    fi
+  } >&2
+}
+
+check_range() {
+  require_repository_with_exempt_commit
+  resolve_default_ref
+  if [ "$exempt" = 1 ]; then
+    check_commits "$1" --end-of-options "$1" "^$NEWEST_EXEMPT_COMMIT"
+  else
+    check_commits "$1" --end-of-options "$1"
+  fi
+  [ "$any_range_failed" = 0 ]
 }
 
 self_test() {
@@ -305,18 +362,30 @@ mode=
 exempt=1
 range=
 file=
+default_ref=
+any_range_failed=0
 set_exclusive_mode() {
-  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --message-file and --self-test exclude each other'
+  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --message-file, --stored-message and --self-test exclude each other'
   mode=$1
 }
 while [ $# -gt 0 ]; do
   case "$1" in
     --self-test) set_exclusive_mode self-test ;;
+    --stored-message) set_exclusive_mode stored-message ;;
     --message-file)
       [ $# -ge 2 ] || usage '--message-file needs a file'
       [ -z "$file" ] || usage "more than one message file: $file and $2"
       set_exclusive_mode message
       file=$2
+      shift
+      ;;
+    --default-ref)
+      [ $# -ge 2 ] || usage '--default-ref needs a full ref name'
+      case $2 in
+        refs/?*) ;;
+        *) usage "--default-ref needs a full ref name such as refs/remotes/origin/main, and got: $2" ;;
+      esac
+      default_ref=$2
       shift
       ;;
     --no-exempt) set_exclusive_mode range; exempt=0 ;;
@@ -334,6 +403,7 @@ done
 
 case ${mode:-range} in
   self-test) self_test ;;
-  message) check_file "$file" ;;
+  message) check_hook_file "$file" ;;
+  stored-message) check_stored_message ;;
   range) check_range "${range:-HEAD}" ;;
 esac
