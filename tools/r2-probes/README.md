@@ -30,7 +30,8 @@ that stand between the cells and the verdicts (crates, fetched files, commands).
 ## Cells
 
 Every run of a cell is one process. A crash is run again, and the cell counts the reruns in
-`crash_reruns_count`. A run that gives no answer in 60 s ends, and its cell is not measurable.
+`crash_reruns_count`. A browser that does not request its page in 30 s is started once more,
+and `start_reruns_count` counts those starts. A run that gives no answer in 60 s ends, and its cell is not measurable.
 The extraction cells run first, before any other window is on the display.
 
 - `extract.RUNNER.ENGINE.TARGET.xSCALE`: a frame of the display through ScreenCaptureKit or
