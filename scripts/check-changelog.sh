@@ -220,6 +220,18 @@ self_test() {
     fi
   }
 
+  expect_text() {
+    name=$1 want_text=$2 base=$3 base_changelog=$4 changelog=$5
+    verdict=$(changelog_verdict "$base" "$base_changelog" "$changelog") || :
+    case $verdict in
+      *"$want_text"*) printf 'PASS %s\n' "$name" ;;
+      *)
+        printf 'FAIL %s (expected the text "%s" in this output)\n%s\n' "$name" "$want_text" "$verdict"
+        failures=$((failures + 1))
+        ;;
+    esac
+  }
+
   expect 'a flat list of typed entries is accepted' '' '' '' "$flat_list"
   expect 'an entry of each of the six types is accepted' '' '' '' "${unreleased}- Added: A${nl}- Changed: B${nl}- Deprecated: C${nl}- Removed: D${nl}- Fixed: E${nl}- Security: F"
   expect 'a line of spaces between two entries is accepted' '' '' '' "${unreleased}- Added: Add the store${nl}   ${nl}- Fixed: Close the race"
@@ -258,6 +270,11 @@ self_test() {
   expect 'with a base, a new entry in a release section that the base has under another date is refused' 13 origin/main "$released" "${unreleased}- Security: Rotate the key${nl}${nl}## [0.0.1] - 2026-11-11${nl}${nl}- Added: Add the store${nl}- Fixed: Close the race${nl}- Changed: Name the constants"
   expect 'with a base, the commit of a release does not excuse a new entry in an older release section' 14 origin/main "${unreleased}- Changed: Name the constants${nl}${nl}## [0.0.0] - 2026-11-01${nl}${nl}- Added: Add the store" "$unreleased$release- Changed: Name the constants${nl}${nl}## [0.0.0] - 2026-11-01${nl}${nl}- Added: Add the store${nl}- Fixed: Close the race"
   expect 'with a base, the commit of a release may add an entry to the section that it creates' '' origin/main "$flat_list" "$released${nl}- Changed: Name the constants"
+  expect_text 'the error for an entry in a release section of the base names the last line of the Unreleased list' 'below line 7.' origin/main "$released" "${unreleased}- Security: Rotate the key${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race${nl}- Changed: Name the constants"
+  expect 'with a base, a new untyped entry under a ### heading of a release that the base has is refused' 14 origin/main "$unreleased$release### Fixed${nl}${nl}- Close the race" "${unreleased}- Added: Add the store${nl}${nl}$release### Fixed${nl}${nl}- Close the race${nl}- Quote the arguments"
+  expect 'with a base, a copy in a release section of an entry that the base has under Unreleased is refused' 14 origin/main "${unreleased}- Fixed: Release the lock${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race" "${unreleased}- Fixed: Release the lock${nl}- Changed: Name the constants${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race${nl}- Fixed: Release the lock"
+  expect_text 'the error for such a copy says to delete it and names the line of the entry under Unreleased' 'delete this line: the same entry is on line 7 ' origin/main "${unreleased}- Fixed: Release the lock${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race" "${unreleased}- Fixed: Release the lock${nl}- Changed: Name the constants${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race${nl}- Fixed: Release the lock"
+  expect 'with a base, another date on the heading of a release that the base has is not the commit of a release' 7 origin/main "${unreleased}- Changed: Name the constants${nl}${nl}$release- Added: Add the store" "${unreleased}- Changed: Name the constants${nl}${nl}## [0.0.1] - 2026-11-11${nl}${nl}- Added: Add the store"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-changelog: self-test FAIL: fixtures misjudged: %d\n' "$failures"
