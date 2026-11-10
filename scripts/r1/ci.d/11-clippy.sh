@@ -18,9 +18,9 @@ measure() {
 check() {
   out=$(
     PATH=$work/bin:$PATH
-    CI_D_REPO=$work
-    export PATH CI_D_REPO
-    measure 2>&1
+    CI_D_REPO=$work/repo
+    export PATH CI_D_REPO STUB_EXIT
+    sh "$0" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -43,21 +43,24 @@ check() {
 
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/bin"
+  mkdir -p "$work/bin" "$work/repo"
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
+[ -f fixture-root ] || { printf 'stub cargo: started outside the repo root\n'; exit 98; }
 [ "$*" = 'clippy --workspace --all-targets --locked -- -D warnings' ] || { printf 'stub cargo: got the arguments: %s\n' "$*"; exit 97; }
 exit "$STUB_EXIT"
 EOF
   chmod +x "$work/bin/cargo"
+  : >"$work/repo/fixture-root"
   rejected=0
   wrong=
-  export STUB_EXIT
 
   STUB_EXIT=0
   check no-warning PASS
   STUB_EXIT=101
-  check warning-found FAIL 'cargo clippy exited 101'
+  check warning-found FAIL 'cargo clippy exited 101)'
+  STUB_EXIT=1
+  check cargo-clippy-fails FAIL 'cargo clippy exited 1)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
