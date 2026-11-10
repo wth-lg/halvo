@@ -37,9 +37,10 @@ attribution line reaches the default branch.
       Then merge with
         gh pr merge <number> --squash --match-head-commit <sha> --subject <text> --body-file -
       which hands gh, on standard input, the body that was checked. Then read
-      the state of the pull request, whatever the exit code of gh was. Only
-      when GitHub reports it MERGED, fetch, print the merge commit with its
-      author and committer, and run the range check on that commit.
+      the state, the head and the merge commit of the pull request, whatever
+      the exit code of gh was. Only when GitHub reports it MERGED with the
+      head given with --head, fetch, print the merge commit with its author
+      and committer, and run the range check on that commit.
       --dry-run prints every fact and stops before the merge. It exits 0 only
       when every gate holds.
   sh scripts/merge-pr.sh --self-test
@@ -68,8 +69,10 @@ the script could not finish: either before the merge call, and then this run
 merged nothing, or after it, when GitHub does not report the pull request as
 MERGED, and then the last line says that GitHub reports it as not merged, or
 that the script could not read its state and which command shows it; 3 the
-pull request is merged, and its merge commit failed the range check or could
-not be checked; 64 bad usage.
+pull request is merged, and its merge commit failed the range check or was
+not checked: GitHub reports no merge commit for it yet, the script could not
+fetch the commit, or GitHub merged another head than the one given with
+--head; 64 bad usage.
 EOF
 }
 
@@ -334,7 +337,15 @@ merge() {
   merge_called=1
   merge_status=0
   printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - || merge_status=$?
-  state_after_the_call=$(gh pr view "$number" --json state --jq .state) || state_after_the_call=
+  facts_after_the_call=$(gh pr view "$number" --json state,headRefOid,mergeCommit --jq '.state, .headRefOid, (.mergeCommit.oid // "none")') || facts_after_the_call=
+  {
+    read -r state_after_the_call || :
+    read -r head_after_the_call || :
+    read -r merge_commit || :
+  } <<EOF
+$facts_after_the_call
+EOF
+  [ "$merge_commit" != none ] || merge_commit=
   case $state_after_the_call in
     MERGED)
       [ "$merge_status" = 0 ] ||
@@ -350,10 +361,8 @@ merge() {
       die "gh pr merge exited $merge_status, and its message is above. Then this script could not read the state of the pull request (gh printed '$state_after_the_call'), so it does not know whether pull request #$number was merged. Run: gh pr view $number --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: $(range_check_command '<merge commit>'). Do not retry with --admin."
       ;;
   esac
-  if ! merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid); then
-    merge_commit=
-    merged_but 'gh could not read its merge commit'
-  fi
+  [ "$head_after_the_call" = "$head" ] ||
+    merged_but "with the head $head_after_the_call, and --head names $head, the commit that was reviewed. Someone pushed to the pull request and merged it outside this script after this script read its head, so what that push added was not reviewed. This script stops at such a merge"
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
   git fetch -q origin "$base" || merged_but "git fetch origin $base failed"
   git cat-file -e "$merge_commit^{commit}" 2>/dev/null ||
@@ -420,13 +429,13 @@ case "$1 $2" in
       *' --json state,isDraft,mergeable,headRefOid,baseRefName'*) cat "$state/fields" ;;
       *' --json title '*) cat "$state/title" ;;
       *' --json body '*) cat "$state/description" ;;
-      *' --json mergeCommit '*) cat "$state/merge-commit" ;;
-      *' --json state '*)
+      *' --json state,headRefOid,mergeCommit '*)
         if [ -e "$state/state-cannot-be-read" ]; then
           echo 'stub gh: GitHub did not answer' >&2
           exit 1
         fi
-        cat "$state/state-after-the-merge-call"
+        cat "$state/state-after-the-merge-call" "$state/head-after-the-merge-call"
+        if [ -s "$state/merge-commit" ]; then cat "$state/merge-commit"; else echo none; fi
         ;;
       *) echo "stub gh: unexpected pr view: $*" >&2; exit 97 ;;
     esac
@@ -522,6 +531,7 @@ EOF
     printf 'true\ntrue\n' >"$state_directory/threads"
     printf '%s\n' "$clean_squash" >"$state_directory/merge-commit"
     printf 'OPEN\n' >"$state_directory/state-after-the-merge-call"
+    printf '%s\n' "$reviewed_head" >"$state_directory/head-after-the-merge-call"
   }
   fields() {
     printf '%s\n%s\n%s\n%s\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${6-false}" "${7-none}" >"$work/state/$1/fields"
@@ -843,6 +853,19 @@ EOF
   : >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/call-fails-after-github-merged"
   printf '%s\n' "$squash_with_a_trailer" >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/merge-commit"
   expect merge-call-fails-after-github-merged-a-commit-with-a-trailer 3 called 'an agent does not rewrite the default branch' --body-file "$work/body.txt"
+
+  state_of merged-outside-the-script-with-another-head
+  : >"$work/state/merged-outside-the-script-with-another-head/call-fails-after-github-merged"
+  printf '%s\n' "$other_head" >"$work/state/merged-outside-the-script-with-another-head/head-after-the-merge-call"
+  expect merged-outside-the-script-with-another-head 3 called "pull request #7 is merged, but with the head $other_head, and --head names $reviewed_head" --body-file "$work/body.txt"
+  says merged-outside-the-script-with-another-head "This script stops at such a merge, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/main '$clean_squash^!'"
+  does_not_say merged-outside-the-script-with-another-head 'merge-pr: merged as'
+
+  state_of merged-outside-the-script-with-another-head-and-no-merge-commit
+  : >"$work/state/merged-outside-the-script-with-another-head-and-no-merge-commit/merge-commit"
+  printf '%s\n' "$other_head" >"$work/state/merged-outside-the-script-with-another-head-and-no-merge-commit/head-after-the-merge-call"
+  expect merged-outside-the-script-with-another-head-and-no-merge-commit 3 called "pull request #7 is merged, but with the head $other_head, and --head names $reviewed_head" --body-file "$work/body.txt"
+  says merged-outside-the-script-with-another-head-and-no-merge-commit 'gh pr view 7 --json mergeCommit shows that commit when GitHub has it'
 
   state_of merge-call-fails-and-the-state-cannot-be-read
   : >"$work/state/merge-call-fails-and-the-state-cannot-be-read/github-refuses-the-merge"
