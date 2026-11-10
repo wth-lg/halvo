@@ -37,6 +37,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the Windows capture backend behind cfg with the logon-task install and unit tests
 - Add a CI grep lint banning low-level input hooks in the capture crate
 - Reject attribution lines in commit messages with a commit-msg hook and a CI step
+- Add AGENTS.md with the rule table and import it from CLAUDE.md
 
 ### Changed
 
