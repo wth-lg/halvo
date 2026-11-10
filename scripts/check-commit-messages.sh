@@ -57,7 +57,9 @@ synopsis() {
       and an email for commits, as below.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
-      under a new temporary directory that is left in place. Needs a clone of
+      under a new temporary directory that is left in place. The pushed commits
+      sit on the newest exempt commit, so the result does not depend on the
+      other commits of this repository or on its files. Needs a clone of
       this repository, and a name and an email for commits: a configured git
       user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
       GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
@@ -679,8 +681,9 @@ self_test_pre_push() {
   git init -q --bare "$work/empty-remote.git"
   git -C "$work/clone" remote add proof "$work/remote.git"
   git -C "$work/clone" remote add proof-empty "$work/empty-remote.git"
-  base=$(git -C "$work/clone" rev-parse HEAD)
   tree=$(git -C "$work/clone" rev-parse 'HEAD^{tree}')
+  base=$(git -C "$work/clone" commit-tree "$tree" -p "$NEWEST_EXEMPT_COMMIT" -m 'Hold the tree of HEAD above the newest exempt commit') ||
+    die "the self-test builds its commits on the newest exempt commit $NEWEST_EXEMPT_COMMIT, and git could not make a commit above it in the clone of this repository. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
   failures=0
   pushes=0
   nl='
@@ -717,7 +720,7 @@ self_test_pre_push() {
   hidden_by_a_replace_ref=$(commit_on_base "Tune the gate$nl$nl$trailer")
   shown_by_the_replace_ref=$(commit_on_base 'Tune the gate')
 
-  expect_push the-history-above-the-exempt-commit 0 'with an attribution line 0' proof "$base:refs/heads/base"
+  expect_push a-commit-above-the-exempt-commits 0 'commits checked 1, with an attribution line 0' proof "$base:refs/heads/base"
   expect_push a-clean-commit 0 'commits checked ' proof "$clean:refs/heads/clean"
   expect_push a-commit-with-a-trailer 1 'with an attribution line 1' proof "$with_trailer:refs/heads/trailer"
   expect_push the-same-commit-to-a-path 1 'with an attribution line 1' "$work/remote.git" "$with_trailer:refs/heads/trailer-by-path"
@@ -725,9 +728,9 @@ self_test_pre_push() {
   expect_push a-deleted-ref 0 'deleted' proof :refs/heads/clean
   expect_push the-exempt-commits-alone 0 'commits checked 0,' proof-empty "$NEWEST_EXEMPT_COMMIT:refs/heads/exempt"
 
-  git -C "$work/clone" checkout -q --detach "$base"
+  git -C "$work/clone" checkout -q --detach "$NEWEST_EXEMPT_COMMIT"
   git -C "$work/clone" cherry-pick --keep-redundant-commits "$NEWEST_EXEMPT_COMMIT" >"$work/out/cherry-pick.txt" 2>&1 ||
-    die "the self-test could not cherry-pick the exempt commit; see $work/out/cherry-pick.txt"
+    die "the self-test could not cherry-pick the newest exempt commit onto itself. git printed: $(cat "$work/out/cherry-pick.txt")"
   expect_push a-cherry-pick-of-the-newest-exempt-commit 1 'Generated with [Claude Code]' proof HEAD:refs/heads/cherry-picked
 
   git -C "$work/clone" tag -a -m 'A tag on a commit with a trailer' tag-on-a-trailer "$with_trailer"
