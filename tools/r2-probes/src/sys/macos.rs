@@ -156,6 +156,7 @@ fn front_window(app: &ax::Element) -> Option<ax::Element> {
 }
 
 pub const ROLE_QUERY: bool = true;
+pub const FIRST_QUERY_DECIDES: bool = false;
 
 pub fn address_read(pid: u32, needle: &str, _title: &str, role_query: bool) -> AddressRead {
     let app = ax::app(pid as i32);

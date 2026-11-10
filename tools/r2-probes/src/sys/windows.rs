@@ -133,6 +133,7 @@ pub fn kill_tree(pid: u32) {
 }
 
 pub const ROLE_QUERY: bool = false;
+pub const FIRST_QUERY_DECIDES: bool = true;
 
 pub fn address_read(_pid: u32, needle: &str, title: &str, _role_query: bool) -> AddressRead {
     let mut read = AddressRead {
@@ -250,6 +251,9 @@ fn facts(automation: &IUIAutomation, window: &Window) -> WindowFacts {
     };
     let kind = uia::control_type(&root);
     for (name, value) in properties(&root) {
+        if name == "Name" && value == facts.title {
+            continue;
+        }
         if marked(&value) {
             facts
                 .hits
