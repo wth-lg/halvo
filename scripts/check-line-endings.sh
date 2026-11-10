@@ -23,7 +23,10 @@ CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
   - A tracked file that the attributes make text with eol=lf holds no carriage
     return inside a line and no NUL byte: git reads such content as binary.
 The check reads file content and the .gitattributes files from the index, not
-from the work tree.
+from the work tree. It does not read the attributes file of the user or of the
+system. A line in info/attributes of the git directory wins over every
+.gitattributes file, and no other clone receives that file, so the check stops
+with exit 2 when that file holds an attribute line.
 
 EOF
   synopsis
@@ -74,8 +77,19 @@ files_whose_index_content_is() {
 attributes_of() {
   paths=$1
   shift
-  printf '%s\n' "$paths" | git -c core.quotePath=false check-attr --cached --stdin "$@" ||
+  printf '%s\n' "$paths" |
+    GIT_ATTR_NOSYSTEM=1 git -c core.quotePath=false -c core.attributesFile=/dev/null check-attr --cached --stdin "$@" ||
     die 'git check-attr could not read the attributes'
+}
+
+stop_at_an_attribute_line_of_this_clone_alone() {
+  info_attributes=$(git rev-parse --git-path info/attributes) ||
+    die 'git rev-parse could not name the info/attributes file of this clone'
+  [ -f "$info_attributes" ] || return 0
+  attribute_line_count=$(LC_ALL=C grep -c -v -e '^[[:space:]]*$' -e '^[[:space:]]*#' "$info_attributes") ||
+    [ $? = 1 ] || die "grep could not read $info_attributes"
+  [ "$attribute_line_count" -gt 0 ] || return 0
+  die "$info_attributes holds an attribute line. A line of that file wins over every .gitattributes file, and no other clone receives the file, so this clone cannot show which attributes the tracked .gitattributes files give. Fix: move the line to a tracked .gitattributes file, or to the attributes file of the user, which this check does not read (git config core.attributesFile names it), then run the check again."
 }
 
 name_needs_no_quoting() {
@@ -119,6 +133,7 @@ check() {
   root=$(git rev-parse --show-toplevel 2>/dev/null) ||
     die 'the current directory is not inside the work tree of a git clone'
   cd "$root" || die "cannot enter $root"
+  stop_at_an_attribute_line_of_this_clone_alone
   failures=0
 
   script_count=0
