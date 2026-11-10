@@ -321,7 +321,12 @@ range_check_command() {
 }
 
 merged_but() {
-  printf 'merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. Run: %s\n' "$number" "$1" "$(range_check_command "refs/remotes/origin/$base")" >&2 || :
+  if [ -n "$merge_commit" ]; then
+    how_to_check="Run: $(range_check_command "$merge_commit")"
+  else
+    how_to_check="gh pr view $number --json mergeCommit shows that commit when GitHub has it, and this command checks it: $(range_check_command '<merge commit>')"
+  fi
+  printf 'merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. %s\n' "$number" "$1" "$how_to_check" >&2 || :
   exit 3
 }
 
@@ -345,8 +350,10 @@ merge() {
       die "gh pr merge exited $merge_status, and its message is above. Then this script could not read the state of the pull request (gh printed '$state_after_the_call'), so it does not know whether pull request #$number was merged. Run: gh pr view $number --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: $(range_check_command '<merge commit>'). Do not retry with --admin."
       ;;
   esac
-  merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid) ||
+  if ! merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid); then
+    merge_commit=
     merged_but 'gh could not read its merge commit'
+  fi
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
   git fetch -q origin "$base" || merged_but "git fetch origin $base failed"
   git cat-file -e "$merge_commit^{commit}" 2>/dev/null ||
@@ -402,7 +409,7 @@ self_test() {
     die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
-  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run"
+  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run" "$work/git-whose-fetch-fails"
 
   cat >"$work/bin/gh" <<'EOF'
 #!/bin/sh
@@ -456,6 +463,21 @@ case "$1 $2" in
 esac
 EOF
   chmod +x "$work/bin/gh"
+
+  cat >"$work/git-whose-fetch-fails/git" <<'EOF'
+#!/bin/sh
+case " $* " in
+  *' fetch '*)
+    echo 'stub git: the fetch failed' >&2
+    exit 1
+    ;;
+esac
+exec "$MERGE_PR_STUB_REAL_GIT" "$@"
+EOF
+  chmod +x "$work/git-whose-fetch-fails/git"
+  MERGE_PR_STUB_REAL_GIT=$(command -v git) || die 'git is not on PATH'
+  export MERGE_PR_STUB_REAL_GIT
+  stub_path=$work/bin
 
   git init -q --bare "$work/github.git"
   git -C "$work/github.git" fetch -q "$root" HEAD:refs/heads/main
@@ -527,7 +549,7 @@ EOF
     name=$1
     shift
     status=0
-    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/$name" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    (cd "$work/clone" && PATH="$stub_path:$PATH" MERGE_PR_STUB_STATE="$work/state/$name" MERGE_PR_STUB_GITHUB="$work/github.git" \
       sh "$script_directory/merge-pr.sh" "$@") >"$work/out/$name.txt" 2>&1 || status=$?
   }
   expect() {
@@ -799,13 +821,18 @@ EOF
   state_of merged-and-github-reports-no-merge-commit
   : >"$work/state/merged-and-github-reports-no-merge-commit/merge-commit"
   expect merged-and-github-reports-no-merge-commit 3 called 'pull request #7 is merged, but GitHub reports no merge commit for it yet' --body-file "$work/body.txt"
-  cases=$((cases + 1))
-  if grep -qF "'refs/remotes/origin/main^!'" "$work/out/merged-and-github-reports-no-merge-commit.txt"; then
-    printf 'PASS merged-and-github-reports-no-merge-commit: the remedy names the default branch by its full ref\n'
-  else
-    printf 'FAIL merged-and-github-reports-no-merge-commit: the remedy does not name refs/remotes/origin/main; see %s\n' "$work/out/merged-and-github-reports-no-merge-commit.txt"
-    failures=$((failures + 1))
-  fi
+  says merged-and-github-reports-no-merge-commit "gh pr view 7 --json mergeCommit shows that commit when GitHub has it, and this command checks it: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/main '<merge commit>^!'"
+  does_not_say merged-and-github-reports-no-merge-commit "'refs/remotes/origin/main^!'"
+
+  state_of merged-and-the-fetch-fails
+  stub_path=$work/git-whose-fetch-fails:$work/bin
+  expect merged-and-the-fetch-fails 3 called "pull request #7 is merged, but git fetch origin main failed, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/main '$clean_squash^!'" --body-file "$work/body.txt"
+  stub_path=$work/bin
+
+  absent_commit=2222222222222222222222222222222222222222
+  state_of merged-and-the-merge-commit-is-not-in-the-clone
+  printf '%s\n' "$absent_commit" >"$work/state/merged-and-the-merge-commit-is-not-in-the-clone/merge-commit"
+  expect merged-and-the-merge-commit-is-not-in-the-clone 3 called "pull request #7 is merged, but the merge commit $absent_commit is not in this clone after git fetch origin main, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/main '$absent_commit^!'" --body-file "$work/body.txt"
 
   state_of merge-call-fails-after-github-merged
   : >"$work/state/merge-call-fails-after-github-merged/call-fails-after-github-merged"
