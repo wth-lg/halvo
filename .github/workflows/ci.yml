@@ -32,7 +32,17 @@ jobs:
         run: |
           sh scripts/check-changelog.sh --self-test
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            sh scripts/check-changelog.sh --base "refs/remotes/origin/$GITHUB_BASE_REF"
+            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
+              base=$(git rev-parse 'HEAD^1')
+              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
+            else
+              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
+                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
+                exit 2
+              }
+              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
+            fi
+            sh scripts/check-changelog.sh --base "$base"
           else
             sh scripts/check-changelog.sh
           fi
