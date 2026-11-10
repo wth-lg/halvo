@@ -216,8 +216,13 @@ To rerun a row, run `git apply <patch>`, then the check that the row names
 `cargo test -p halvo-capture --lib <the test that the row names>`), then
 `git apply -R <patch>`, and confirm that `git status --porcelain` prints
 nothing. The same command runs a test that another row names. `mutations.sh`
-in the `builder-3` directory does this for those three patches and runs the
-whole lib suite with each patch.
+in the `builder-3` directory runs those three patches. It applies each
+patch, runs the two tests of `db::tests` alone and then the whole lib suite,
+and reverts the patch. Before the first patch it stops when a file under
+`crates/` is changed. After each revert it prints the number of changed
+files under `crates/` and does not check it: it goes on when the number is
+not 0, and it does not look at the rest of the tree. In the saved run the
+number was 0 after each of the three patches (`mutations-summary.txt`).
 
 | Patch | What it breaks | Result |
 |---|---|---|
@@ -226,9 +231,9 @@ whole lib suite with each patch.
 | `break-single-writer-both-locks.patch` | the above plus `WriterLock::take` never locks | check 2 FAILS with the lock file left alone. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
 | `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 still PASSES. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
 | `break-writer-lock-outlives-store.patch` | `WriterLock`'s `Drop` does not unlock and leaks a duplicate of its descriptor, so the lock outlives the dropped store | check 1 FAILS: "reopen failed: another writer holds the store". Check 2 FAILS with the lock file left alone: "never got the store; last refusal: another writer holds the store". `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` and `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
-| `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | both checks PASS unless a drop and the next `open` or `create` both fall between a child's spawn and its exec. `hardening_tests::a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open`, `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children` and `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
+| `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | check 2 PASSES. Check 1 PASSES unless a drop and the next `open` or `create` both fall between a child's spawn and its exec: at `d7b245a`, which has no unlock, check 1 failed in 4 of 180 runs and check 2 in 0 of 180. `hardening_tests::a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open`, `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children` and `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAIL |
 | `mutation-unlock-at-once.patch` | `WriterLock::take` unlocks the file right after it locks it, so no store holds the file lock | both checks PASS. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
-| `m7-success-only.patch`, `m8-store-drop.patch` | only a lock that reached a store is unlocked. In m7 the unlock stays in `WriterLock`'s `Drop`, behind a flag that `open` and `create` set when they build the store that they return. In m8 the unlock is in a `Drop` of the store | both checks PASS in the three runs taken with each patch, which the paragraph on where the unlock is lists. Check 1 can fail when a child is spawned while an `open` that fails holds its lock, and the child has not reached its exec at the next `open` or `create`. `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAILS |
+| `m7-success-only.patch`, `m8-store-drop.patch` | only a lock that reached a store is unlocked. In m7 the unlock stays in `WriterLock`'s `Drop`, behind a flag that `open` and `create` set when they build the store that they return. In m8 the unlock is in a `Drop` of the store | both checks PASS in every run taken with each patch. The paragraph on where the unlock is lists the runs: with each patch four runs of both checks on the `db.rs` of the blob table, at the sync commit 21 runs of the lib suite with m7 and 8 with m8, and with m7 more runs of check 1 beside spawned children. Check 1 can fail when a child is spawned while an `open` that fails holds its lock, and the child has not reached its exec at the next `open` or `create`. No run has shown that failure of check 1. A probe outside check 1 has shown by run that the `open` after a failed `open` can be refused as `Locked`, and the paragraph gives its counts. `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAILS |
 
 Which message the two failing rows of check 2 print depends on timing: "a
 contender found another contender inside the store" when the second process
@@ -252,10 +257,13 @@ lock answers `Ok`. For `break-writer-lock-outlives-store.patch` that test
 and
 `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open`
 fail, because the take after the drop is still refused. In the reviewer's
-one run of the lib suite with the `flock-only` patch, that test failed and
-the other 102 tests passed, check 2 among them (`02-mutations.log` in
-`pr-review-2`). With each of the other two patches the reviewer ran the two
-tests alone, once (`13-extra-mutants.log`).
+one run of the lib suite with the `flock-only` patch,
+`db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped`
+failed and the other 102 tests that ran passed, check 2 among them
+(`02-mutations.log` in `pr-review-2`). One more test of the binary,
+`hardening_tests::peak_rss_stays_bounded_for_a_512_mib_segment`, is ignored
+and does not run in the lib suite. With each of the other two patches the
+reviewer ran the two tests alone, once (`13-extra-mutants.log`).
 
 The two `break-writer-lock` rows are about the release of the file lock,
 which the `Reopen` and `Recreate` ops of check 1 need. A lock that outlives
@@ -282,11 +290,24 @@ passed, both formal checks among them (`02-mutations.log` in `pr-review-2`).
 
 The rows of `mutation-unlock-at-once.patch` and of `m7-success-only.patch`
 and `m8-store-drop.patch` are about where the unlock is. No formal check
-failed for them in the runs taken. With each of the three patches, the
-builder and the reviewer each ran the lib suite once and the verifier ran
-the two checks once (`mutations-summary.txt` in `builder-3`,
-`02-mutations.log` in `pr-review-2`, and the `m-*-4-formal-checks.txt` files
-in `verifier-2`). With m7 or m8, check 1 can still fail in one case, which
+failed for them in the runs taken. With each of the three patches, on the
+`db.rs` of the blob table, the builder and the reviewer each ran the lib
+suite once and the verifier ran the two checks once (`mutations-summary.txt`
+in `builder-3`, `02-mutations.log` in `pr-review-2`, and the
+`m-*-4-formal-checks.txt` files in `verifier-2`). A second verifier ran both
+checks once more with m7 and with m8 on that file (`p5-m7-tests-lines.txt`
+and `p6-m8-tests-lines.txt` in `verifier-3`). The first and the third
+adversary of this branch's adversarial review ran the patches earlier, on a
+`db.rs` without the two tests of `db::tests` (`interrogate-1` and
+`interrogate-3` in the same evidence directory). The first ran the lib suite
+twice with `mutation-unlock-at-once.patch`, and both checks passed in both
+runs. The third ran m7 and m8 at the sync commit: the lib suite 21 times
+with m7 and 8 times with m8, and check 1 beside a test that spawns children
+from four threads 8 times with m7. All 37 of those runs passed (`extra.tsv`,
+`survivors.tsv` and `survivors-run1.tsv` in `interrogate-3`, the two
+`whole-suite` rows of `logs/rerun/runs.tsv`, and line 109 of
+`logs/final-chain.log`, which is all that is saved of one run of the lib
+suite with m7). With m7 or m8, check 1 can still fail in one case, which
 this paragraph gives further on. With the unlock right after the take, the
 database lock still refuses a second writer. With the unlock only for a lock
 that reached a store, a lock that reached none is closed without an unlock,
@@ -300,10 +321,15 @@ succeeds. That is the lock of an `open` or `create` that fails: the lock is
 a local of both until they return the store. Check 1 drives that failure
 through `open` itself. After delete-all, its `Reopen` op calls an `open`
 that takes the lock and then fails as `Sealed`, and the next `Reopen` or
-`Recreate` takes the lock again. So check 1 catches a lock that a failed
-`open` never releases. With a patch that leaks the lock on the error returns
+`Recreate` takes the lock again. So check 1 can catch a lock that a failed
+`open` never releases. It does not catch one in every run, because it draws
+its cases at random. With a patch that leaks the lock on the error returns
 of `open`, check 1 failed in the verifier's one run with "reopen failed:
 another writer holds the store" (`s-hard-2-check1.txt` in `verifier-2`).
+With the same patch, check 1 failed in 8 of the second verifier's 11 runs:
+in 8 of 10 runs alone, and not in the one run beside four other tests
+(`r1-s-hard-check1-x10.txt` and `q2-s-hard-tests-lines.txt` in
+`verifier-3`).
 Check 1 does not catch a lock that a failed `open` closes without the
 unlock, as m7 and m8 do, because the close releases the lock. The exception
 is that of the `break-writer-lock-unlock.patch` row. If a child is spawned
@@ -311,14 +337,33 @@ while the failing `open` holds the lock, and has not reached its exec when
 the next `Reopen` or `Recreate` runs, that op gets `Locked` and check 1
 fails. No run has shown this failure. The reviewer ran check 1 16 times in
 one process with m7, beside four threads that spawned 669,458 children, and
-it passed each time (`14-check1-beside-spawns.log`). No other test catches
-such a lock either. With a patch that closes the lock without the unlock on
-the error returns of `open` and `create`, the verifier's one run of the lib
-suite passed 103 tests of 103 (`s-soft-2-lib-suite.txt`). With a duplicate
-of a dropped store's descriptor open, an `open` that fails and the `open`
-after it pass the same test with both patches as without them
-(`sketch-store-level.patch` and the `sketch-*.log` files in the `builder-3`
-directory), because the failing `open` locks an open file of its own.
+it passed each time (`14-check1-beside-spawns.log`). Check 1 also passed in
+the third adversary's 8 runs beside spawned children, which are counted
+above. A run has shown the mechanism outside check 1. A probe of that
+adversary, which is not in the repository, calls an `open` that fails as
+`Sealed` again and again for 1.5 s beside four threads that spawn children,
+and counts the opens that are refused as `Locked`. In the first of the three
+runs of its matrix with each binary, 7,634 of 83,096 opens were refused with
+m7 and 7,398 of 84,372 with m8, and 0 of 92,756 at the sync commit without a
+patch
+(`matrix.tsv` in `interrogate-3`, lines 54, 61 and 5; the probe is in
+`i3_probe_tests.rs`).
+The second of the two tests of `db::tests` catches m7 and m8 because they
+skip the unlock for every lock that never reached a store, and the test
+drops such a lock itself. Apart from the case of check 1 above, no test
+catches a patch that skips the unlock only on the error returns of `open`
+and `create` and leaves a bare `WriterLock` alone. With such a patch the lib
+suite passed 103 tests of 103 in one run of each verifier
+(`s-soft-2-lib-suite.txt` in `verifier-2` and `q1-s-soft-tests-lines.txt` in
+`verifier-3`). A test at the level of the store does not tell m7 or m8 from
+the fix either. The sketch
+`sketch_an_open_that_fails_beside_a_duplicate_of_a_store_descriptor` holds a
+duplicate of a dropped store's descriptor open, calls an `open` that must
+fail as `Sealed`, and requires that the `open` after it is not refused as
+`Locked`. It passed without a patch, with m7 and with m8, in one run each of
+the builder and of the reviewer (`sketch-store-level.patch` and the
+`sketch-*.log` files in the `builder-3` directory, and `04-sketch.log` in
+`pr-review-2`), because the failing `open` locks an open file of its own.
 
 ## Updating the verification
 
