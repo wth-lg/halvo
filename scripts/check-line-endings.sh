@@ -28,6 +28,11 @@ CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
     the index: content with a NUL byte is binary and may hold any byte, and
     content without one is text that every checkout gets with its carriage
     returns.
+  - Three tracked texts quote by hand the lines of .gitattributes at the root
+    that give eol=lf: the fix that the last step of the windows job prints
+    (.github/workflows/ci.yml), row 4 of AGENTS.md, and a fixture of this
+    script. Each of these files that is tracked holds its text with those
+    lines as .gitattributes has them.
 The check reads file content and the .gitattributes files from the index, not
 from the work tree. It does not read the attributes file of the user or of the
 system. A line in info/attributes of the git directory wins over every
@@ -47,6 +52,8 @@ INTERPRETER_LINE='^#![[:blank:]]*/'
 
 NEWLINE='
 '
+TICK=$(printf '\140')
+QUOTING_PATHS='AGENTS.md .github/workflows/ci.yml scripts/check-line-endings.sh'
 
 die() {
   printf 'check-line-endings: error: %s\n' "$1" >&2
@@ -178,6 +185,32 @@ report_a_carriage_return_in_content_without_a_nul_byte() {
   printf 'check-line-endings: %s has eol=lf, and its content in the index holds a carriage return and no NUL byte, while the attributes do not make it text (its text attribute is %s). Git converts no line ending of such content, so every checkout gets the carriage returns.\nFix: take every carriage return out of the file and commit. If the file is not text, take eol=lf from it in .gitattributes.\n' "$path" "$text_attribute" >&2
 }
 
+expected_text_in() {
+  case $1 in
+    AGENTS.md) opening="$TICK.gitattributes$TICK holds the lines $TICK" separator="$TICK and $TICK" closing=$TICK ;;
+    .github/workflows/ci.yml) opening=".gitattributes has to hold the lines '" separator="' and '" closing="'" ;;
+    scripts/check-line-endings.sh) opening="start_fixture '" separator="' '" closing="'" ;;
+    *) die "this check expects no text in $1" ;;
+  esac
+  printf '%s\n' "$eol_lf_lines" |
+    awk -v opening="$opening" -v separator="$separator" -v closing="$closing" '{ text = text (NR > 1 ? separator : opening) $0 } END { print text closing }' ||
+    die 'awk could not build the text that quotes the lines of .gitattributes'
+}
+
+check_the_texts_that_quote_the_eol_lf_lines() {
+  quoting_texts=0
+  git cat-file -e :0:.gitattributes 2>/dev/null || return 0
+  eol_lf_lines=$(git cat-file blob :0:.gitattributes | LC_ALL=C grep -E -e '^[^#].*[[:space:]]eol=lf([[:space:]]|$)') || return 0
+  for quoting_path in $QUOTING_PATHS; do
+    git cat-file -e ":0:$quoting_path" 2>/dev/null || continue
+    quoting_texts=$((quoting_texts + 1))
+    expected_text=$(expected_text_in "$quoting_path") || exit
+    git cat-file blob ":0:$quoting_path" | LC_ALL=C grep -q -F -e "$expected_text" && continue
+    failures=$((failures + 1))
+    printf 'check-line-endings: %s does not hold this text, which quotes the lines of .gitattributes that give eol=lf: %s\nFix: write that text into %s. If the wording of that place has to change, change the text that expected_text_in of scripts/check-line-endings.sh builds for it.\n' "$quoting_path" "$expected_text" "$quoting_path" >&2
+  done
+}
+
 check() {
   root=$(git rev-parse --show-toplevel 2>/dev/null) ||
     die 'the current directory is not inside the work tree of a git clone'
@@ -233,10 +266,14 @@ $attribute_lines
 EOF
   fi
 
+  check_the_texts_that_quote_the_eol_lf_lines
+
   if [ "$failures" -gt 0 ]; then
     printf 'check-line-endings: FAIL: files that break a rule: %d. In a clone with core.autocrlf=true, the installer default of Git for Windows, git checks out a file without eol=lf with CRLF, and a shell other than the sh of Git for Windows does not run a script with CRLF.\n' "$failures" >&2
     exit 1
   fi
+  [ "$quoting_texts" = 0 ] ||
+    printf 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: %d.\n' "$quoting_texts"
   printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF or as binary content: 0.\n' "$script_count"
 }
 
@@ -293,7 +330,11 @@ self_test() {
   track tool '#!/bin/sh\necho\n'
   expect 'the same file is accepted once .gitattributes holds that line' 0 "$(pass_line 1)"
 
-  start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf'
+  start_fixture_with_the_lines_of_this_repository() {
+    start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf'
+  }
+
+  start_fixture_with_the_lines_of_this_repository
   track .githooks/commit-msg '#!/bin/sh\nexec true\n'
   track .githooks/lib/helper '#!/bin/sh\necho\n'
   track scripts/check.sh '#!/bin/sh\necho\n'
@@ -410,6 +451,26 @@ self_test() {
   export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
   expect 'an attribute line that only the attributes file of the user has does not count' 1 '/tool text eol=lf'
   unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+
+  track_the_texts_that_quote_the_lines() {
+    start_fixture_with_the_lines_of_this_repository
+    eol_lf_lines=$(git -C "$repository" cat-file blob :0:.gitattributes) ||
+      die 'git cat-file could not read the .gitattributes file of the fixture repository'
+    for quoting_path in $QUOTING_PATHS; do
+      track "$quoting_path" "$(expected_text_in "$quoting_path")\\n"
+    done
+  }
+
+  track_the_texts_that_quote_the_lines
+  expect 'three texts that quote the eol=lf lines of .gitattributes as the file has them are accepted' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
+
+  for stale_path in $QUOTING_PATHS; do
+    track_the_texts_that_quote_the_lines
+    wanted_text=$(expected_text_in "$stale_path")
+    eol_lf_lines=$(printf '%s\n' "$eol_lf_lines" | sed 's/[*][*]/*/')
+    track "$stale_path" "$(expected_text_in "$stale_path")\\n"
+    expect "a text in $stale_path that quotes an older line of .gitattributes is refused, with the text that the file has to hold" 1 "check-line-endings: $stale_path does not hold this text, which quotes the lines of .gitattributes that give eol=lf: $wanted_text"
+  done
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-line-endings: self-test FAIL: fixtures misjudged: %d. The fixture repository is %s\n' "$failures" "$repository"
