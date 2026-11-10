@@ -211,6 +211,9 @@ case "$1 $2" in
   'api repos/'*) cat "$state/check-runs" ;;
   'pr merge')
     printf '%s\n' "$@" >"$state/merge-arguments"
+    case " $* " in
+      *' --body-file - '*) cat >"$state/merge-body" ;;
+    esac
     if [ -e "$state/merge-fails" ]; then
       echo 'stub gh: GitHub refused the merge' >&2
       exit 1
@@ -369,22 +372,59 @@ EOF
   : >"$work/state/merge-that-github-refuses/merge-fails"
   expect merge-that-github-refuses 2 called 'do not retry with --admin' --body-file "$work/body.txt"
 
+  printf 'What changed and why.\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n' >"$work/clone/-body-with-a-trailer.txt"
+  state_of body-file-whose-name-starts-with-a-hyphen
+  expect body-file-whose-name-starts-with-a-hyphen 64 not-called 'starts with a hyphen' --body-file -body-with-a-trailer.txt
+
+  state_of body-file-is-standard-input
+  expect body-file-is-standard-input 64 not-called 'starts with a hyphen' --body-file -
+
+  state_of subject-value-missing-before-dry-run
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/subject-value-missing-before-dry-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --body-file "$work/body.txt" --subject --dry-run) >"$work/out/subject-value-missing-before-dry-run.txt" 2>&1 || status=$?
+  cases=$((cases + 1))
+  if [ "$status" = 64 ] && [ ! -e "$work/state/subject-value-missing-before-dry-run/merge-arguments" ] && grep -qF 'starts with a hyphen' "$work/out/subject-value-missing-before-dry-run.txt"; then
+    printf 'PASS subject-value-missing-before-dry-run (exit 64, gh pr merge not-called)\n'
+  else
+    printf 'FAIL subject-value-missing-before-dry-run (exit %s; expected exit 64, no merge and the text "starts with a hyphen"; output in %s)\n' "$status" "$work/out/subject-value-missing-before-dry-run.txt"
+    failures=$((failures + 1))
+  fi
+
+  state_of head-in-upper-case
+  upper_case_head=$(printf '%s' "$reviewed_head" | LC_ALL=C tr 'abcdef' 'ABCDEF')
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/head-in-upper-case" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$script_directory/merge-pr.sh" 7 --head "$upper_case_head" --subject "$subject" --body-file "$work/body.txt" --dry-run) >"$work/out/head-in-upper-case.txt" 2>&1 || status=$?
+  cases=$((cases + 1))
+  if [ "$status" = 0 ] && grep -qF 'dry run: every gate holds' "$work/out/head-in-upper-case.txt"; then
+    printf 'PASS head-in-upper-case (exit 0)\n'
+  else
+    printf 'FAIL head-in-upper-case (exit %s; expected exit 0 and "dry run: every gate holds"; output in %s)\n' "$status" "$work/out/head-in-upper-case.txt"
+    failures=$((failures + 1))
+  fi
+
   state_of accepted
   expect accepted 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
-  expected_arguments="pr${nl}merge${nl}7${nl}--squash${nl}--match-head-commit${nl}$reviewed_head${nl}--subject${nl}$subject${nl}--body-file${nl}$work/body.txt"
+  expected_arguments="pr${nl}merge${nl}7${nl}--squash${nl}--match-head-commit${nl}$reviewed_head${nl}--subject${nl}$subject${nl}--body-file${nl}-"
   cases=$((cases + 1))
   if [ "$(cat "$work/state/accepted/merge-arguments")" = "$expected_arguments" ] &&
+    cmp -s "$work/state/accepted/merge-body" "$work/body.txt" &&
     grep -q '^merge-pr: committer: ' "$work/out/accepted.txt" &&
     grep -qF "check-commit-messages: PASS: $clean_squash^!: commits checked 1," "$work/out/accepted.txt"; then
-    printf 'PASS accepted: gh pr merge got exactly --squash, --match-head-commit, --subject and --body-file; the merge commit was printed and range-checked\n'
+    printf 'PASS accepted: gh pr merge got exactly --squash, --match-head-commit, --subject and --body-file -, with the checked body on standard input; the merge commit was printed and range-checked\n'
   else
-    printf 'FAIL accepted: the arguments of gh pr merge or the report of the merge commit differ; see %s and %s\n' "$work/state/accepted/merge-arguments" "$work/out/accepted.txt"
+    printf 'FAIL accepted: the arguments of gh pr merge, the body it received or the report of the merge commit differ; see %s and %s\n' "$work/state/accepted" "$work/out/accepted.txt"
     failures=$((failures + 1))
   fi
 
   state_of merged-commit-to-which-github-added-a-trailer
   printf '%s\n' "$squash_with_a_trailer" >"$work/state/merged-commit-to-which-github-added-a-trailer/merge-commit"
-  expect merged-commit-to-which-github-added-a-trailer 1 called 'an agent does not rewrite the default branch' --body-file "$work/body.txt"
+  expect merged-commit-to-which-github-added-a-trailer 3 called 'an agent does not rewrite the default branch' --body-file "$work/body.txt"
+
+  state_of merged-and-github-reports-no-merge-commit
+  : >"$work/state/merged-and-github-reports-no-merge-commit/merge-commit"
+  expect merged-and-github-reports-no-merge-commit 3 called 'pull request #7 is merged, but' --body-file "$work/body.txt"
 
   if [ "$failures" -gt 0 ]; then
     say "self-test FAIL: $failures of $cases cases behaved otherwise. Outputs are in $work/out."

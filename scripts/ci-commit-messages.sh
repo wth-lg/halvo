@@ -185,6 +185,8 @@ self_test() {
   trailer='Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>'
   footer='🤖 Generated with [Claude Code](https://claude.com/claude-code)'
   no_commit=0000000000000000000000000000000000000000
+  commit_with_the_predicate_before_this_change=d7b245a0a29f4c212173e46bb8f0d3fa881c3ed5
+  default_ref_in_runner=refs/remotes/origin/main
   commit_that_no_clone_has=1111111111111111111111111111111111111111
 
   dev=$work/dev
@@ -288,7 +290,7 @@ self_test() {
     expect_event "$1" "$2" "$3" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/feature BEFORE="$4" AFTER="$5" PR_TITLE= PR_BODY=
   }
   pull_request() {
-    expect_event "$1" "$2" "$3" GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/pull/7/merge BEFORE= AFTER="$4" PR_TITLE="$5" PR_BODY="$6"
+    expect_event "$1" "$2" "$3" GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/pull/7/merge GITHUB_BASE_REF=main BEFORE= AFTER="$4" PR_TITLE="$5" PR_BODY="$6"
   }
 
   runner push-to-main-with-a-valid-before-value "$main_with_clean_commit" "$main_with_clean_commit"
@@ -332,7 +334,30 @@ self_test() {
   push_to_branch tag-named-origin-main-on-a-clean-commit 0 'commits checked 2,' "$no_commit" "$clean_branch"
 
   runner branch-that-moved-the-exempt-commit "$main" "$branch_that_moved_the_exempt_commit" "$branch_that_moved_the_exempt_commit:refs/heads/feature"
-  pull_request branch-that-moved-the-exempt-commit 1 'The branch moved the exempt commit or weakened the predicate' "$branch_that_moved_the_exempt_commit" 'Fix the gate' 'A plain description.'
+  pull_request branch-that-moved-the-exempt-commit 1 'this branch moved the exempt commit or changed the predicate' "$branch_that_moved_the_exempt_commit" 'Fix the gate' 'A plain description.'
+
+  start_at "$main"
+  awk '{ print } $0 == "check_stored_message() {" { print "  exit 0" }' "$root/$CHECK" >"$dev/$CHECK"
+  commit_edited_check_script 'Blind the check of a stored message'
+  branch_that_blinded_the_stored_message_check=$(tip)
+  runner branch-that-blinded-the-check-of-the-pull-request-text "$main" "$branch_that_blinded_the_stored_message_check" "$branch_that_blinded_the_stored_message_check:refs/heads/feature"
+  pull_request branch-that-blinded-the-check-of-the-pull-request-text 1 'the control for --stored-message did not fail' "$branch_that_blinded_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
+
+  start_at "$main"
+  awk -v added="  case \$1 in *Generated*) return 0 ;; esac" '{ print } $0 == "report_message() {" { print added }' "$root/$CHECK" >"$dev/$CHECK"
+  commit_edited_check_script 'Accept a tool footer in a stored message'
+  branch_that_weakened_the_stored_message_check=$(tip)
+  runner branch-that-accepts-a-tool-footer-in-the-pull-request-text "$main" "$branch_that_weakened_the_stored_message_check" "$branch_that_weakened_the_stored_message_check:refs/heads/feature"
+  pull_request branch-that-accepts-a-tool-footer-in-the-pull-request-text 1 'refuses the title or the description of the pull request' "$branch_that_weakened_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
+
+  runner pull-request-into-another-base-with-no-commit-beyond-main "$main" "$main"
+  expect_event pull-request-into-another-base-with-no-commit-beyond-main 0 'commits checked 0,' GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/pull/8/merge GITHUB_BASE_REF=release BEFORE= AFTER="$main" PR_TITLE='Merge main into release' PR_BODY='A plain description.'
+
+  start_at "$main"
+  commit "Bump the release tool${nl}${nl}2026-11-09: generated with cargo-release 1.1.7"
+  branch_with_a_line_that_only_the_older_predicate_refuses=$(tip)
+  runner default-branch-with-the-older-predicate "$commit_with_the_predicate_before_this_change" "$branch_with_a_line_that_only_the_older_predicate_refuses" "$branch_with_a_line_that_only_the_older_predicate_refuses:refs/heads/feature"
+  push_to_branch default-branch-with-the-older-predicate 1 "$default_ref_in_runner holds an older predicate" "$no_commit" "$branch_with_a_line_that_only_the_older_predicate_refuses"
 
   runner branch-that-blinded-the-range-check "$main" "$branch_that_blinded_the_range_check" "$branch_that_blinded_the_range_check:refs/heads/feature"
   push_to_branch branch-that-blinded-the-range-check 1 'the control did not fail' "$no_commit" "$branch_that_blinded_the_range_check"
