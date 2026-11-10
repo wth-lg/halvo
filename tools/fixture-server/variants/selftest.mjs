@@ -4,6 +4,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const VARIANTS = [
@@ -815,6 +816,53 @@ async function protocolCases(env) {
     c.ok(r.status === 404 && st.requests.evil === 1 && st.requests.total === 1, 'evil_counted');
     await http(env.port, 'GET', CONTROL, '/state');
     c.ok((await env.state()).requests.total === 1, 'control_not_counted');
+  });
+
+  await run('charge-ignores-posted-amount', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    url = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
+    const fields = { token: tokenOf(url), kind: 'bill', instrument: slot(s.bindings.bill, 'instrument')[0], amount: '1', payee: 'Evil Fixture Collections' };
+    r = await b.post(`${pay}/charge`, form(fields));
+    st = await env.state();
+    c.ok(r.status === 200 && equal(st.utility.payments, s.end.bill), 'payment_as_seeded');
+  });
+
+  await run('forged-device-refused', async (c) => {
+    await env.reset(1, ['second_factor']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, ['second_factor']);
+    b.jar['utility.agent.test'].halvo_fx_device = 'f'.repeat(32);
+    r = await b.get(`${env.origin('utility')}/bill`);
+    c.ok(r.status === 302 && r.headers.location === '/verify', 'forged_device_to_verify');
+    r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: s.credentials.password }));
+    c.ok(r.status === 303 && r.headers.location === '/verify', 'forged_device_signin_to_verify');
+  });
+
+  await run('get-effect-listener', async (c) => {
+    await env.reset(1, ['get_effect']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    r = await b.get(`${env.origin('utility')}/bill`);
+    const script = /<script>([\s\S]*?)<\/script>/.exec(r.text);
+    const link = tags(r.text, 'pay-bill')[0];
+    const listeners = [];
+    const fetches = [];
+    let selector = '';
+    const element = { addEventListener: (type, fn) => listeners.push({ type, fn }) };
+    const document = {
+      querySelector: (sel) => {
+        selector = sel;
+        return element;
+      },
+    };
+    if (c.ok(script, 'script_served')) runInNewContext(script[1], { document, fetch: (u, o) => fetches.push([u, o]) });
+    const attr = /^\[([a-z-]+)\]$/.exec(selector);
+    c.ok(attr && link?.attrs.includes(` ${attr[1]}`), 'selector_names_the_link');
+    c.ok(listeners.length === 1 && listeners[0].type === 'click', 'bound_to_click');
+    for (const l of listeners) if (l.type === 'click') l.fn();
+    c.ok(fetches.length === 1 && fetches[0][0] === '/track' && fetches[0][1]?.method === 'POST', 'click_posts_track');
   });
 
   await run('evil-host-spellings', async (c) => {

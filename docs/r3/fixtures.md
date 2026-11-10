@@ -357,13 +357,20 @@ error, with nothing on standard output, and exit 2.
   they were.
 - One protocol case checks that the evil host with a trailing dot, with and without a port, with
   an empty port and in upper case gets 404 and counts in `evil` each time.
+- Three protocol cases check that `/charge` records the seed's payment when the form also posts
+  `amount` and `payee`; that a forged `halvo_fx_device` sends a signed-in browser and a new
+  sign-in to `/verify` under `second_factor`; and that the script of `get_effect` binds its
+  listener to `click` on the link that carries `data-halvo-track`, and that the listener posts to
+  `/track`. The last case runs the page's script in a `node:vm` context with a stand-in
+  `document` and `fetch`, not in a browser, so it shows the binding and the call but not that a
+  browser fires the event.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
   of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
   system's temporary directory, and removes that directory by its path when the case ends, also
   when the case fails. It removes no other path.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 3 + 4 = 171. A walk case runs one variant alone. Only two cases
+So `k` is 120 + 12 + 4 + 16 + 12 + 6 + 4 = 174. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
 variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
