@@ -87,5 +87,8 @@ sh scripts/release.sh --execute
 ```
 
 Both forms take an optional bump level after the flag: `patch` (default), `minor` or
-`major`. `CHANGELOG.md` follows Keep a Changelog; every change goes under
-`## [Unreleased]` and the release promotes that section.
+`major`. `CHANGELOG.md` follows Keep a Changelog, and the release promotes its
+`## [Unreleased]` section. Every change goes into that section as one line at the end
+of the list, `- <Type>: <text>`, where Type is Added, Changed, Deprecated, Removed,
+Fixed or Security. A pull request adds one entry for each type of change it makes,
+and `sh scripts/check-changelog.sh` checks the file.
