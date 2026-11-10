@@ -213,7 +213,7 @@ self_test() {
     die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
-  mkdir "$work/bin" "$work/state" "$work/out"
+  mkdir "$work/bin" "$work/state" "$work/out" "$work/check-that-cannot-run"
 
   cat >"$work/bin/gh" <<'EOF'
 #!/bin/sh
@@ -221,26 +221,42 @@ state=$MERGE_PR_STUB_STATE
 case "$1 $2" in
   'pr view')
     case " $* " in
-      *' --json state,isDraft,mergeable,headRefOid,baseRefName '*) cat "$state/fields" ;;
+      *' --json state,isDraft,mergeable,headRefOid,baseRefName'*) cat "$state/fields" ;;
       *' --json title '*) cat "$state/title" ;;
       *' --json body '*) cat "$state/description" ;;
       *' --json mergeCommit '*) cat "$state/merge-commit" ;;
+      *' --json state '*)
+        if [ -e "$state/state-cannot-be-read" ]; then
+          echo 'stub gh: GitHub did not answer' >&2
+          exit 1
+        fi
+        cat "$state/state-after-the-merge-call"
+        ;;
       *) echo "stub gh: unexpected pr view: $*" >&2; exit 97 ;;
     esac
     ;;
   'api graphql') cat "$state/threads" ;;
-  'api repos/'*) cat "$state/check-runs" ;;
+  'api repos/{owner}/{repo}/commits/'*) cat "$state"/jobs-* ;;
+  'api repos/{owner}/{repo}/actions/runs?head_sha='*) cat "$state/runs" ;;
+  'api repos/{owner}/{repo}/actions/runs/'*)
+    run=${2#*/actions/runs/}
+    cat "$state/jobs-${run%%/*}"
+    ;;
   'pr merge')
     printf '%s\n' "$@" >"$state/merge-arguments"
     case " $* " in
       *' --body-file - '*) cat >"$state/merge-body" ;;
     esac
-    if [ -e "$state/merge-fails" ]; then
+    if [ -e "$state/github-refuses-the-merge" ]; then
       echo 'stub gh: GitHub refused the merge' >&2
       exit 1
     fi
     if [ -s "$state/merge-commit" ]; then
       git --git-dir="$MERGE_PR_STUB_GITHUB" update-ref refs/heads/main "$(cat "$state/merge-commit")"
+    fi
+    if [ -e "$state/call-fails-after-github-merged" ]; then
+      echo 'stub gh: the connection dropped after GitHub merged' >&2
+      exit 1
     fi
     ;;
   *) echo "stub gh: unexpected call: $*" >&2; exit 97 ;;
@@ -270,29 +286,41 @@ EOF
   printf 'What changed and why.\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n' >"$work/body-with-a-trailer.txt"
   printf 'What changed and why.\n\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n' >"$work/body-with-a-trailer-below-a-scissors-line.txt"
   other_head=1111111111111111111111111111111111111111
-  green_runs="macos${tab}completed${tab}success${nl}windows${tab}completed${tab}success${nl}macos${tab}completed${tab}success${nl}windows${tab}completed${tab}success"
+  green_jobs="macos${tab}completed${tab}success${nl}windows${tab}completed${tab}success"
+  run_line() {
+    printf '%s\t%s\t%s\t%s\t%s\t1\t.github/workflows/ci.yml\n' "$1" "$2" "$3" "$4" "$5"
+  }
+  green_push_run=$(run_line push 2026-11-10T09:00:00Z 101 completed success)
+  green_pull_request_run=$(run_line pull_request 2026-11-10T09:00:04Z 102 completed success)
 
   failures=0
   cases=0
   state_of() {
     state_directory=$work/state/$1
     mkdir "$state_directory"
-    printf 'OPEN\nfalse\nMERGEABLE\n%s\nmain\n' "$reviewed_head" >"$state_directory/fields"
+    printf 'OPEN\nfalse\nMERGEABLE\n%s\nmain\nfalse\nnone\n' "$reviewed_head" >"$state_directory/fields"
     printf 'Add the feature\n' >"$state_directory/title"
     printf 'A plain description.\n' >"$state_directory/description"
-    printf '%s\n' "$green_runs" >"$state_directory/check-runs"
+    printf '%s\n%s\n' "$green_push_run" "$green_pull_request_run" >"$state_directory/runs"
+    printf '%s\n' "$green_jobs" >"$state_directory/jobs-101"
+    printf '%s\n' "$green_jobs" >"$state_directory/jobs-102"
     printf 'true\ntrue\n' >"$state_directory/threads"
     printf '%s\n' "$clean_squash" >"$state_directory/merge-commit"
+    printf 'OPEN\n' >"$state_directory/state-after-the-merge-call"
   }
   fields() {
-    printf '%s\n%s\n%s\n%s\nmain\n' "$2" "$3" "$4" "$5" >"$work/state/$1/fields"
+    printf '%s\n%s\n%s\n%s\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${6-false}" "${7-none}" >"$work/state/$1/fields"
   }
-  expect() {
-    name=$1 want_status=$2 want_merge=$3 want_text=$4
-    shift 4
-    status=0
-    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/$name" MERGE_PR_STUB_GITHUB="$work/github.git" \
-      sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" "$@") >"$work/out/$name.txt" 2>&1 || status=$?
+  runs() {
+    name=$1
+    shift
+    printf '%s\n' "$@" >"$work/state/$name/runs"
+  }
+  jobs() {
+    printf '%s\n' "$3" >"$work/state/$1/jobs-$2"
+  }
+  judge() {
+    name=$1 status=$2 want_status=$3 want_merge=$4 want_text=$5
     if [ -e "$work/state/$name/merge-arguments" ]; then merge=called; else merge=not-called; fi
     cases=$((cases + 1))
     if [ "$status" = "$want_status" ] && [ "$merge" = "$want_merge" ] && grep -qF -- "$want_text" "$work/out/$name.txt"; then
@@ -301,6 +329,14 @@ EOF
       printf 'FAIL %s (exit %s, gh pr merge %s; expected exit %s, %s and the text "%s"; output in %s)\n' "$name" "$status" "$merge" "$want_status" "$want_merge" "$want_text" "$work/out/$name.txt"
       failures=$((failures + 1))
     fi
+  }
+  expect() {
+    name=$1 want_status=$2 want_merge=$3 want_text=$4
+    shift 4
+    status=0
+    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/$name" MERGE_PR_STUB_GITHUB="$work/github.git" \
+      sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" "$@") >"$work/out/$name.txt" 2>&1 || status=$?
+    judge "$name" "$status" "$want_status" "$want_merge" "$want_text"
   }
   refused() {
     name=$1 want_text=$2
@@ -313,8 +349,15 @@ EOF
   expect dry-run-with-every-gate-open 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
 
   state_of merged-pull-request
-  fields merged-pull-request MERGED false UNKNOWN "$reviewed_head"
-  refused merged-pull-request 'is MERGED, and only an OPEN pull request can be merged'
+  fields merged-pull-request MERGED false UNKNOWN "$reviewed_head" false "$clean_squash"
+  refused merged-pull-request "holds its merge commit, $clean_squash"
+  cases=$((cases + 1))
+  if grep -qF 'This run merged nothing' "$work/out/merged-pull-request.txt" && ! grep -qF 'Nothing was merged' "$work/out/merged-pull-request.txt"; then
+    printf 'PASS merged-pull-request: a line says that this run merged nothing, and no line says that nothing was merged\n'
+  else
+    printf 'FAIL merged-pull-request: a line says "Nothing was merged" about a pull request that GitHub merged, or no line says "This run merged nothing"; see %s\n' "$work/out/merged-pull-request.txt"
+    failures=$((failures + 1))
+  fi
 
   state_of closed-pull-request
   fields closed-pull-request CLOSED false UNKNOWN "$reviewed_head"
@@ -336,37 +379,78 @@ EOF
   fields head-moved-after-the-review OPEN false MERGEABLE "$other_head"
   refused head-moved-after-the-review 'A push arrived after the review'
 
-  state_of no-check-run-named-windows
-  printf 'macos\tcompleted\tsuccess\n' >"$work/state/no-check-run-named-windows/check-runs"
-  refused no-check-run-named-windows 'no check run named windows exists'
+  state_of no-workflow-run-at-all
+  runs no-workflow-run-at-all
+  refused no-workflow-run-at-all 'gates that refuse the merge of pull request #7: 2'
 
-  state_of no-check-run-named-macos
-  printf 'windows\tcompleted\tsuccess\n' >"$work/state/no-check-run-named-macos/check-runs"
-  refused no-check-run-named-macos 'no check run named macos exists'
+  state_of only-a-push-run-exists
+  runs only-a-push-run-exists "$green_push_run"
+  refused only-a-push-run-exists 'When none has started by then, close and reopen the pull request'
 
-  state_of no-check-run-at-all
-  : >"$work/state/no-check-run-at-all/check-runs"
-  refused no-check-run-at-all 'no check run named macos exists'
+  state_of only-a-pull-request-run-exists
+  runs only-a-pull-request-run-exists "$green_pull_request_run"
+  refused only-a-pull-request-run-exists "no push run exists for $reviewed_head"
 
-  state_of check-run-in-progress
-  printf '%s\nwindows\tin_progress\tnone\n' "$green_runs" >"$work/state/check-run-in-progress/check-runs"
-  refused check-run-in-progress "windows${tab}in_progress${tab}none"
+  state_of failed-pull-request-run-below-a-newer-green-one
+  runs failed-pull-request-run-below-a-newer-green-one "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed failure)" "$green_push_run" "$(run_line pull_request 2026-11-10T09:10:00Z 103 completed success)"
+  jobs failed-pull-request-run-below-a-newer-green-one 102 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs failed-pull-request-run-below-a-newer-green-one 103 "$green_jobs"
+  expect failed-pull-request-run-below-a-newer-green-one 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
 
-  state_of check-run-failed
-  printf '%s\nmacos\tcompleted\tfailure\n' "$green_runs" >"$work/state/check-run-failed/check-runs"
-  refused check-run-failed "macos${tab}completed${tab}failure"
+  state_of newest-pull-request-run-failed-above-an-older-green-one
+  runs newest-pull-request-run-failed-above-an-older-green-one "$green_pull_request_run" "$green_push_run" "$(run_line pull_request 2026-11-10T09:20:00Z 104 completed failure)"
+  jobs newest-pull-request-run-failed-above-an-older-green-one 104 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  refused newest-pull-request-run-failed-above-an-older-green-one 'a re-run reads the old text'
 
-  state_of check-run-of-another-name-failed
-  printf '%s\nlint\tcompleted\tfailure\n' "$green_runs" >"$work/state/check-run-of-another-name-failed/check-runs"
-  refused check-run-of-another-name-failed "lint${tab}completed${tab}failure"
+  state_of newest-push-run-failed
+  runs newest-push-run-failed "$(run_line push 2026-11-10T09:00:00Z 101 completed failure)" "$green_pull_request_run"
+  jobs newest-push-run-failed 101 "macos${tab}completed${tab}success${nl}windows${tab}completed${tab}failure"
+  refused newest-push-run-failed 'run 101, completed with failure'
 
-  state_of check-run-skipped
-  printf '%s\nwindows\tcompleted\tskipped\n' "$green_runs" >"$work/state/check-run-skipped/check-runs"
-  refused check-run-skipped 'did not complete with success'
+  state_of newest-push-run-in-progress
+  runs newest-push-run-in-progress "$(run_line push 2026-11-10T09:00:00Z 101 in_progress none)" "$green_pull_request_run"
+  jobs newest-push-run-in-progress 101 "macos${tab}completed${tab}success${nl}windows${tab}in_progress${tab}none"
+  refused newest-push-run-in-progress 'gh run watch 101'
+
+  state_of newest-pull-request-run-in-progress
+  runs newest-pull-request-run-in-progress "$green_push_run" "$(run_line pull_request 2026-11-10T09:00:04Z 102 queued none)"
+  jobs newest-pull-request-run-in-progress 102 "macos${tab}queued${tab}none${nl}windows${tab}queued${tab}none"
+  refused newest-pull-request-run-in-progress 'gh run watch 102'
+
+  state_of push-run-without-the-job-windows
+  jobs push-run-without-the-job-windows 101 "macos${tab}completed${tab}success"
+  refused push-run-without-the-job-windows 'no job named windows succeeded in push run 101'
+
+  state_of pull-request-run-without-the-job-macos
+  jobs pull-request-run-without-the-job-macos 102 "windows${tab}completed${tab}success"
+  refused pull-request-run-without-the-job-macos 'no job named macos succeeded in pull_request run 102'
+
+  state_of job-windows-skipped-in-a-green-run
+  jobs job-windows-skipped-in-a-green-run 101 "macos${tab}completed${tab}success${nl}windows${tab}completed${tab}skipped"
+  refused job-windows-skipped-in-a-green-run 'no job named windows succeeded in push run 101'
+
+  state_of run-failed-in-a-job-of-another-name
+  runs run-failed-in-a-job-of-another-name "$green_push_run" "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed failure)"
+  jobs run-failed-in-a-job-of-another-name 102 "$green_jobs${nl}lint${tab}completed${tab}failure"
+  refused run-failed-in-a-job-of-another-name 'run 102, completed with failure'
+
+  state_of pull-request-from-another-repository
+  fields pull-request-from-another-repository OPEN false MERGEABLE "$reviewed_head" true
+  runs pull-request-from-another-repository "$green_pull_request_run"
+  expect pull-request-from-another-repository 0 not-called 'Here the pull_request run alone is required' --body-file "$work/body.txt" --dry-run
+
+  state_of pull-request-from-another-repository-with-only-a-push-run
+  fields pull-request-from-another-repository-with-only-a-push-run OPEN false MERGEABLE "$reviewed_head" true
+  runs pull-request-from-another-repository-with-only-a-push-run "$green_push_run"
+  refused pull-request-from-another-repository-with-only-a-push-run "no pull_request run exists for $reviewed_head"
 
   state_of unresolved-review-thread
   printf 'true\nfalse\ntrue\n' >"$work/state/unresolved-review-thread/threads"
   refused unresolved-review-thread 'has unresolved review threads: 1 of 3'
+
+  state_of review-thread-state-that-is-neither-true-nor-false
+  printf 'true\nFalse\n' >"$work/state/review-thread-state-that-is-neither-true-nor-false/threads"
+  expect review-thread-state-that-is-neither-true-nor-false 2 not-called 'line 2: False' --body-file "$work/body.txt"
 
   state_of squash-message-with-a-trailer
   refused squash-message-with-a-trailer 'the squash message carries an attribution line' --body-file "$work/body-with-a-trailer.txt"
@@ -392,8 +476,8 @@ EOF
   refused dry-run-of-a-draft 'is a draft' --body-file "$work/body.txt" --dry-run
 
   state_of merge-that-github-refuses
-  : >"$work/state/merge-that-github-refuses/merge-fails"
-  expect merge-that-github-refuses 2 called 'do not retry with --admin' --body-file "$work/body.txt"
+  : >"$work/state/merge-that-github-refuses/github-refuses-the-merge"
+  expect merge-that-github-refuses 2 called 'GitHub reports pull request #7 as OPEN: it is not merged' --body-file "$work/body.txt"
 
   printf 'What changed and why.\n\nCo-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>\n' >"$work/clone/-body-with-a-trailer.txt"
   state_of body-file-whose-name-starts-with-a-hyphen
@@ -406,26 +490,14 @@ EOF
   status=0
   (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/subject-value-missing-before-dry-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
     sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --body-file "$work/body.txt" --subject --dry-run) >"$work/out/subject-value-missing-before-dry-run.txt" 2>&1 || status=$?
-  cases=$((cases + 1))
-  if [ "$status" = 64 ] && [ ! -e "$work/state/subject-value-missing-before-dry-run/merge-arguments" ] && grep -qF 'starts with a hyphen' "$work/out/subject-value-missing-before-dry-run.txt"; then
-    printf 'PASS subject-value-missing-before-dry-run (exit 64, gh pr merge not-called)\n'
-  else
-    printf 'FAIL subject-value-missing-before-dry-run (exit %s; expected exit 64, no merge and the text "starts with a hyphen"; output in %s)\n' "$status" "$work/out/subject-value-missing-before-dry-run.txt"
-    failures=$((failures + 1))
-  fi
+  judge subject-value-missing-before-dry-run "$status" 64 not-called 'starts with a hyphen'
 
   state_of head-in-upper-case
   upper_case_head=$(printf '%s' "$reviewed_head" | LC_ALL=C tr 'abcdef' 'ABCDEF')
   status=0
   (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/head-in-upper-case" MERGE_PR_STUB_GITHUB="$work/github.git" \
     sh "$script_directory/merge-pr.sh" 7 --head "$upper_case_head" --subject "$subject" --body-file "$work/body.txt" --dry-run) >"$work/out/head-in-upper-case.txt" 2>&1 || status=$?
-  cases=$((cases + 1))
-  if [ "$status" = 0 ] && grep -qF 'dry run: every gate holds' "$work/out/head-in-upper-case.txt"; then
-    printf 'PASS head-in-upper-case (exit 0)\n'
-  else
-    printf 'FAIL head-in-upper-case (exit %s; expected exit 0 and "dry run: every gate holds"; output in %s)\n' "$status" "$work/out/head-in-upper-case.txt"
-    failures=$((failures + 1))
-  fi
+  judge head-in-upper-case "$status" 0 not-called 'dry run: every gate holds'
 
   state_of accepted
   expect accepted 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
@@ -456,17 +528,50 @@ EOF
     failures=$((failures + 1))
   fi
 
+  state_of merge-call-fails-after-github-merged
+  : >"$work/state/merge-call-fails-after-github-merged/call-fails-after-github-merged"
+  printf 'MERGED\n' >"$work/state/merge-call-fails-after-github-merged/state-after-the-merge-call"
+  expect merge-call-fails-after-github-merged 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
+
+  state_of merge-call-fails-after-github-merged-a-commit-with-a-trailer
+  : >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/call-fails-after-github-merged"
+  printf 'MERGED\n' >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/state-after-the-merge-call"
+  printf '%s\n' "$squash_with_a_trailer" >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/merge-commit"
+  expect merge-call-fails-after-github-merged-a-commit-with-a-trailer 3 called 'an agent does not rewrite the default branch' --body-file "$work/body.txt"
+
+  state_of merge-call-fails-and-the-state-cannot-be-read
+  : >"$work/state/merge-call-fails-and-the-state-cannot-be-read/github-refuses-the-merge"
+  : >"$work/state/merge-call-fails-and-the-state-cannot-be-read/state-cannot-be-read"
+  expect merge-call-fails-and-the-state-cannot-be-read 2 called 'does not know whether pull request #7 was merged. Run: gh pr view 7 --json state,mergeCommit' --body-file "$work/body.txt"
+
   state_of subject-of-spaces
   status=0
   (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/subject-of-spaces" MERGE_PR_STUB_GITHUB="$work/github.git" \
     sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject '   ' --body-file "$work/body.txt") >"$work/out/subject-of-spaces.txt" 2>&1 || status=$?
-  cases=$((cases + 1))
-  if [ "$status" = 64 ] && [ ! -e "$work/state/subject-of-spaces/merge-arguments" ]; then
-    printf 'PASS subject-of-spaces (exit 64, gh pr merge not-called)\n'
-  else
-    printf 'FAIL subject-of-spaces (exit %s; expected exit 64 and no merge; output in %s)\n' "$status" "$work/out/subject-of-spaces.txt"
-    failures=$((failures + 1))
-  fi
+  judge subject-of-spaces "$status" 64 not-called '--subject needs the subject line'
+
+  state_of standard-output-closed-before-the-merge
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/standard-output-closed-before-the-merge" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt" >&- 2>"$work/out/standard-output-closed-before-the-merge.txt") || status=$?
+  judge standard-output-closed-before-the-merge "$status" 2 not-called 'cannot write to standard output'
+
+  state_of reader-of-the-output-left-before-the-facts
+  {
+    status=0
+    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/reader-of-the-output-left-before-the-facts" MERGE_PR_STUB_GITHUB="$work/github.git" \
+      sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt" 2>"$work/out/reader-of-the-output-left-before-the-facts.txt") || status=$?
+    printf '%s\n' "$status" >"$work/out/reader-of-the-output-left-before-the-facts.status"
+  } | true
+  judge reader-of-the-output-left-before-the-facts "$(cat "$work/out/reader-of-the-output-left-before-the-facts.status")" 2 not-called 'cannot write to standard output'
+
+  cp "$script_directory/merge-pr.sh" "$work/check-that-cannot-run/merge-pr.sh"
+  printf '#!/bin/sh\necho "check-commit-messages: error: this copy cannot run" >&2\nexit 2\n' >"$work/check-that-cannot-run/check-commit-messages.sh"
+  state_of check-script-that-cannot-run
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/check-script-that-cannot-run" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$work/check-that-cannot-run/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt") >"$work/out/check-script-that-cannot-run.txt" 2>&1 || status=$?
+  judge check-script-that-cannot-run "$status" 2 not-called 'exited 2 for the squash message'
 
   git --git-dir="$work/github.git" update-ref refs/heads/main "$(git -C "$work/clone" rev-parse "$clean_squash^")"
   state_of reader-of-the-output-leaves-before-the-merge
