@@ -194,8 +194,8 @@ report_counts() {
 }
 
 predicate_modalities_present() {
-  for kind in screen_frame keystroke pointer foreground_app; do
-    count=$(modality_count "$1" "$kind")
+  for required in screen_frame keystroke pointer foreground_app; do
+    count=$(modality_count "$1" "$required")
     case $count in ''|*[!0-9]*) return 1 ;; esac
     [ "$count" -gt 0 ] || return 1
   done
@@ -687,6 +687,40 @@ ci_defect() {
 
 predicate_ci() {
   ci_defect "$1" "$2" > /dev/null
+}
+
+limited() {
+  perl "$GATE_ROOT/scripts/r1-gate/helper/limit.pl" "$@"
+}
+
+mutant_verdict() {
+  verdict_kind=${1%% *}
+  verdict_rest=${1#"$verdict_kind"}
+  verdict_rest=${verdict_rest# }
+  case $verdict_kind in
+    measured)
+      awk -v keys="$verdict_rest" '
+        /^FAIL [a-z-]+ \(.*measured: / {
+          text = $0
+          sub(/^.*measured: /, "", text)
+          sub(/[;)].*$/, "", text)
+          have_n = split(text, have, " ")
+          want_n = split(keys, want, " ")
+          named = (want_n > 0)
+          for (i = 1; i <= want_n; i++) {
+            found = 0
+            for (j = 1; j <= have_n; j++) if (have[j] == want[i]) found = 1
+            if (!found) named = 0
+          }
+          if (named) { print; hit = 1; exit }
+        }
+        END { exit hit ? 0 : 1 }' "$2" ;;
+    leak) grep -m 1 -E '^FAIL [a-z-]+ \(leak: ' "$2" ;;
+    refused)
+      [ -n "$verdict_rest" ] || return 1
+      grep -E '^FAIL [a-z-]+ \(verify-[a-z]+ unavailable' "$2" | grep -m 1 -F -e "$verdict_rest" ;;
+    *) return 1 ;;
+  esac
 }
 
 predicate_tree_lines() {

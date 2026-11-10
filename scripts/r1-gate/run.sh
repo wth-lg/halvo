@@ -239,7 +239,8 @@ main() {
     if [ -n "$group" ]; then
       case $group in
         run|helper|tree) name=$group; selftest_run; return ;;
-        *) printf 'run.sh: --group takes run, helper or tree\n' >&2; return 64 ;;
+        mutation) sh "$DIR/mutation-test.sh" --self-test ${verbose:+"$verbose"} ${gate_case:+--case "$gate_case"}; return ;;
+        *) printf 'run.sh: --group takes run, helper, tree or mutation\n' >&2; return 64 ;;
       esac
     fi
     for entry in $CHECKS; do
@@ -250,6 +251,7 @@ main() {
     for name in run helper tree; do
       selftest_run || rc=1
     done
+    sh "$DIR/mutation-test.sh" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
     return "$rc"
   fi
   start=$(head_read) || { emit_fail run "HEAD of $GATE_ROOT is not readable: the gate measures a commit"; return 1; }
