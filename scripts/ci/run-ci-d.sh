@@ -318,6 +318,14 @@ own_self_test() {
 
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
+  if [ -n "${RUN_CI_D_NESTED:-}" ]; then
+    if [ -n "$wrong" ]; then
+      record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
+    else
+      record PASS 'PASS self-test:run-ci-d (a nested run stops after its first case)'
+    fi
+    return
+  fi
   own_case rules 0 '10-a (macos windows): A fixture rule.' --rules
   own_case list 0 'scripts/r1/ci.d/20-b.sh' --list macos
   own_case name-matches-no-script 1 'FAIL run-ci-d (no script 99-none for macos)' macos 99-none
@@ -422,14 +430,12 @@ own_self_test() {
   case_locale=en_US.UTF-8
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
 
-  if [ -z "${RUN_CI_D_NESTED:-}" ]; then
-    new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
-    own_case bare-self-test-runs-the-own-cases 0 "PASS self-test:run-ci-d ($rejected failing fixtures rejected)" macos --self-test
-    case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
-    own_case self-test-without-scripts 1 'FAIL run-ci-d (no scripts for macos)' macos --self-test
-    case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
-    own_case self-test-of-the-driver-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
-  fi
+  new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
+  own_case bare-self-test-runs-the-own-cases 0 'PASS self-test:run-ci-d (a nested run stops after its first case)' macos --self-test
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  own_case self-test-without-scripts 1 'FAIL run-ci-d (no scripts for macos)' macos --self-test
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  own_case self-test-of-the-driver-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
 
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
