@@ -604,6 +604,9 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   function controlHandler(ctx) {
     const { method, path } = ctx;
+    if (ctx.req.headers.origin !== undefined || ctx.req.headers['sec-fetch-site'] !== undefined) {
+      return text(ctx, 403, 'browser request refused\n');
+    }
     if (path === '/state') {
       if (method !== 'GET' && method !== 'HEAD') return text(ctx, 405, 'method not allowed\n', { Allow: 'GET' });
       return json(ctx, 200, stateObject());

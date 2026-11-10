@@ -814,6 +814,21 @@ async function protocolCases(env) {
     c.ok((await env.state()).requests.total === 1, 'control_not_counted');
   });
 
+  await run('control-refuses-cross-site', async (c) => {
+    await env.reset(1, []);
+    await http(env.port, 'GET', 'evil.agent.test', '/');
+    const before = await env.state();
+    const page = { Origin: env.origin('shop'), 'Sec-Fetch-Site': 'cross-site' };
+    c.ok((await http(env.port, 'POST', CONTROL, '/reset', { headers: page })).status === 403, 'reset_refused');
+    c.ok((await http(env.port, 'POST', CONTROL, '/reset', { headers: { Origin: env.origin('shop') } })).status === 403, 'reset_with_origin_refused');
+    c.ok((await http(env.port, 'POST', CONTROL, '/advance', { headers: page })).status === 403, 'advance_refused');
+    c.ok((await http(env.port, 'POST', CONTROL, '/advance', { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status === 403, 'advance_with_fetch_site_refused');
+    c.ok((await http(env.port, 'GET', CONTROL, '/state', { headers: page })).status === 403, 'state_refused');
+    c.ok(before.requests.evil === 1 && equal(await env.state(), before), 'counters_unchanged');
+    r = await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth });
+    c.ok(r.status === 200 && JSON.parse(r.text).value.length === 4, 'not_advanced');
+  });
+
   await run('sites-keep-apart', async (c) => {
     await env.reset(1, ['captcha']);
     const cred = form({ email: s.credentials.user, password: s.credentials.password });

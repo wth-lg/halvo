@@ -133,7 +133,8 @@ again. No key of the state object gives the day; the `start.dateTime` that the v
 
 ### Control (`control.agent.test`)
 
-Requests to this host are not counted.
+Requests to this host are not counted. A request that carries an `Origin` or a `Sec-Fetch-Site`
+header gets 403 on every route of this host and changes nothing. A test's own HTTP client sends neither header.
 
 | method and path | answer |
 |---|---|
@@ -349,13 +350,16 @@ error, with nothing on standard output, and exit 2.
   that the calendar view leaves out an event that starts at `endDateTime`.
 - One protocol case checks that createReply under `inject_mail` records the recipients that
   `message` sets in `mail.sent`, and refuses any other key.
+- One protocol case checks that the control face answers 403 to a reset, an advance and a read of
+  the state that carry `Origin` or `Sec-Fetch-Site`, and that the state and the inbox stay as
+  they were.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
   of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
   system's temporary directory, and removes that directory by its path when the case ends, also
   when the case fails. It removes no other path.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 1 + 4 = 169. A walk case runs one variant alone. Only two cases
+So `k` is 120 + 12 + 4 + 16 + 12 + 2 + 4 = 170. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
 variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
