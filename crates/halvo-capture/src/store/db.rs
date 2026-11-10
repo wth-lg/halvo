@@ -112,7 +112,7 @@ fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
 /// The single-writer guarantee itself is the exclusive database lock, which a
 /// writer cannot run without and which unlinking this file does not release.
 struct WriterLock {
-    _file: File,
+    file: File,
 }
 
 impl WriterLock {
@@ -124,10 +124,18 @@ impl WriterLock {
             .open(store_dir.join("writer.lock"))
             .map_err(io_error)?;
         match file.try_lock() {
-            Ok(()) => Ok(Self { _file: file }),
+            Ok(()) => Ok(Self { file }),
             Err(TryLockError::WouldBlock) => Err(StoreError::Locked(store_dir.to_path_buf())),
             Err(TryLockError::Error(e)) => Err(io_error(e)),
         }
+    }
+}
+
+impl Drop for WriterLock {
+    fn drop(&mut self) {
+        // The lock belongs to the open file, and a spawned child shares that file
+        // until its exec closes the descriptor, so closing ours would leave it held.
+        let _ = self.file.unlock();
     }
 }
 
@@ -670,6 +678,11 @@ pub(crate) mod test_support {
         let custody = DevFallbackCustody::new(RootId::fresh());
         TestStore(EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap())
     }
+
+    #[cfg(unix)]
+    pub(crate) fn duplicate_writer_lock_descriptor(store: &EncryptedStore) -> std::fs::File {
+        store._writer_lock.file.try_clone().unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -706,8 +719,41 @@ mod tests {
             Err(StoreError::Locked(_))
         ));
         drop(first);
-        assert!(EncryptedStore::open(dir.path(), DEFAULT_RETENTION).is_ok());
+        EncryptedStore::open(dir.path(), DEFAULT_RETENTION)
+            .expect("a dropped writer leaves the store free to reopen");
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    }
+
+    #[test]
+    fn a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = WriterLock::take(dir.path()).unwrap();
+        let second_beside_the_first = WriterLock::take(dir.path()).map(drop);
+        assert!(
+            matches!(second_beside_the_first, Err(StoreError::Locked(_))),
+            "a second take beside a live writer lock answered {second_beside_the_first:?}"
+        );
+        drop(first);
+        WriterLock::take(dir.path())
+            .expect("a dropped writer lock leaves the directory free to lock");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let never_put_in_a_store = WriterLock::take(dir.path()).unwrap();
+        let held_as_a_spawned_child_holds_it = never_put_in_a_store.file.try_clone().unwrap();
+
+        drop(never_put_in_a_store);
+        let taken_again = WriterLock::take(dir.path()).map(drop);
+
+        drop(held_as_a_spawned_child_holds_it);
+        assert!(
+            taken_again.is_ok(),
+            "a writer lock dropped outside a store was still held: {:?}",
+            taken_again.err()
+        );
     }
 
     #[test]
