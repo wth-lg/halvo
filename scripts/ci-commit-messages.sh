@@ -29,17 +29,18 @@ The CI step "Commit messages". It runs scripts/check-commit-messages.sh on the
 commits of the event that started the workflow. No flag of git skips it.
 
   sh scripts/ci-commit-messages.sh
-      Read the event from these variables, which the workflow step sets:
+      Read the event from these variables. GitHub Actions sets three of them
+      for every step:
         GITHUB_EVENT_NAME  push or pull_request
         GITHUB_REF         the ref of the event, for example refs/heads/main
+        GITHUB_BASE_REF    the base branch of a pull request. When it is empty,
+                           the base counts as the default branch.
+      The env block of the workflow step sets the other five from the event:
         DEFAULT_BRANCH     the default branch of the repository, for example main
         BEFORE             the tip of the ref before a push
         AFTER              the newest commit of the event: the head of the pull
                            request, or the pushed commit
         PR_TITLE, PR_BODY  the title and the description of the pull request
-        GITHUB_BASE_REF    the base branch of a pull request. GitHub Actions
-                           sets it. When it is empty, the base counts as the
-                           default branch.
       Each step below can fail the job.
         1. The agent settings. The tracked file .claude/settings.json must hold
            "attribution": {"commit": "", "pr": "", "sessionUrl": false}, which
