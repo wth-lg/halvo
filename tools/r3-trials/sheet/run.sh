@@ -52,7 +52,10 @@ root=$(cd "$here/../../.." && pwd -P) || exit 1
 PATH="$HOME/.cargo/bin:$PATH"
 export PATH
 
-if ! cargo build --locked --release --quiet --manifest-path "$here/Cargo.toml" >&2; then
+host=$(cargo -vV 2>/dev/null | sed -n 's/^host: //p')
+bin="$here/target/$host/release/r3-sheet-trial"
+if [ -z "$host" ] || ! cargo build --locked --release --quiet --manifest-path "$here/Cargo.toml" \
+	--target-dir "$here/target" --target "$host" >&2 || [ ! -x "$bin" ]; then
 	echo "miss cause=build" >&2
 	exit 1
 fi
@@ -61,4 +64,4 @@ set -- run --corpus "$here/corpus" --out "$root/target/r3-trials/sheet/out"
 if [ -n "$candidate" ]; then
 	set -- "$@" --candidate "$candidate"
 fi
-exec "$here/target/release/r3-sheet-trial" "$@"
+exec "$bin" "$@"
