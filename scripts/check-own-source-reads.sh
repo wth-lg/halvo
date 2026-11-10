@@ -204,7 +204,6 @@ reads_of_own_source_by_line_number() {
         raw = word_raws[command, word]
         if (raw ~ /^[A-Za-z_][A-Za-z0-9_]*[+]?=/ || raw ~ /^(if|then|else|elif|do|while|until|!|[{]|exec)$/) continue
         if (raw != "command") return word
-        if (word < word_count[command] && word_raws[command, word + 1] ~ /^-[A-Za-z]*[vV]/) return 0
         while (word < word_count[command] && word_raws[command, word + 1] ~ /^(-p|--)$/) word++
       }
       return 0
@@ -444,6 +443,8 @@ self_test() {
   expect 'standard input that a loop hands on is not seen' '' "while :; do head -n 3; break; done <$own_path"
   expect 'a command that continues on another line is not seen' '' "sed -n $lines_2_to_20 \\${NEWLINE}  $own_path"
   expect 'a line of a here-document that holds such a read as its command is refused too' 2 "cat <<'EOF'${NEWLINE}  sed -n $lines_2_to_20 $own_path${NEWLINE}EOF"
+  expect 'head after cat with a command substitution among its operands is refused' 1 "cat $own_path \$(true) | head -n 3"
+  expect 'command -v, which starts no reader, is accepted' '' "command -v head $own_path"
   expect 'a read behind a comment sign is accepted' '' "echo usage # ; sed -n $lines_2_to_20 $own_path"
   expect 'a line of a here-document that names such a read after other words is accepted' '' "cat <<'EOF'${NEWLINE}Run sed -n $lines_2_to_20 $own_path to see the usage.${NEWLINE}EOF"
 
