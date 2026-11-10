@@ -31,6 +31,24 @@ strict_verdict() {
   strict_run_ok
 }
 
+live_run() {
+  mkdir -p "$gate_scratch/live-$1"
+  timed_child 30 "$gate_scratch/live-$1" "$standin" "$@" || return 1
+  child_report_defect
+}
+
+live_verdict() {
+  live_run "$@" || return 1
+  verdict_of "live-$1"
+}
+
+live_peak_at_least() {
+  floor=$1; shift
+  live_run "$@" || return 1
+  figures=$(memory_figures "$gate_scratch/live-$1") || return 1
+  [ "${figures%% *}" -ge "$floor" ]
+}
+
 bounds_fixture() {
   printf '%s\n' "$2" > "$gate_scratch/$1"
 }
@@ -69,6 +87,12 @@ sources_defect_is() {
 
 cases() {
   scratch_root
+  standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  t standin-quiet PASS live_verdict sleep 1
+  t live-64-mib-for-200-ms-reads-60-mib PASS live_peak_at_least 62914560 spike-munmap 64 0.2 2
+  t standin-spike-munmap FAIL live_verdict spike-munmap 64 0.2 1
+  t standin-spike FAIL live_verdict spike 64 0.2 1
+  t standin-leak FAIL live_verdict leak 16 5 0.3
   sources_cases
   run_fixture within 25231360 8113000 '24640 24528 25'
   t within-bound PASS verdict_of within
@@ -85,6 +109,9 @@ cases() {
   t mean-above-bound FAIL verdict_of mean-above
   run_fixture at-bound 50331648 50331648 '49152 49152 5'
   t at-the-bound PASS verdict_of at-bound
+  t bytes-and-kib-compare-equal PASS peak_is at-bound 50331648
+  run_fixture one-kib-above 50331648 50331648 '49153 49152 5'
+  t ps-max-one-kib-above-bound FAIL verdict_of one-kib-above
   run_fixture one-byte-above 50331649 8113000 '20000 19000 5'
   t one-byte-above-bound FAIL verdict_of one-byte-above
   run_fixture no-samples 25231360 8113000 '0 0 0'

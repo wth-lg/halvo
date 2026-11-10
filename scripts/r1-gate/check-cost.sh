@@ -55,9 +55,9 @@ cpu_of_time_file_is() {
 
 live_cpu_above() {
   mkdir -p "$gate_scratch/live-$1"
-  timed_child 30 "$gate_scratch/live-$1" "$standin" "$@" || return 1
-  child_report_defect || return 1
-  cpu=$(time_file_cpu_pct "$gate_scratch/live-$1/time") || return 1
+  timed_child 30 "$gate_scratch/live-$1" "$standin" "$@" || return 2
+  child_report_defect || return 2
+  cpu=$(time_file_cpu_pct "$gate_scratch/live-$1/time") || return 2
   predicate_cost_within_bound "$cpu" 0 600 "$live_floor" 2000000000 && return 1
   return 0
 }
@@ -188,6 +188,11 @@ MINI
   [ -z "$left" ]
 }
 
+live_cpu_within() {
+  live_cpu_above "$@"
+  [ "$?" -eq 1 ]
+}
+
 child_of_script() {
   mkdir -p "$gate_scratch/script-child"
   printf '#!/bin/sh\nsleep 2\n' > "$gate_scratch/wrapper-script"
@@ -253,7 +258,12 @@ cases() {
   t time-file-lacks-real FAIL time_file_cpu_pct "$gate_scratch/time-lacks-real"
   t real-is-zero FAIL time_file_cpu_pct "$gate_scratch/time-zero-real"
   t time-file-with-commas FAIL time_file_cpu_pct "$gate_scratch/time-comma"
+  live_floor=20
+  t standin-quiet PASS live_cpu_within sleep 1
+  t standin-short-lived-threads FAIL live_cpu_within short-lived-threads 2
+  t standin-burn-last-3s FAIL live_cpu_within burn-last 1 3
   live_floor=50
+  t live-short-lived-children-read-above-50 PASS live_cpu_above short-lived-children 20 0.1
   t live-busy-loop-reads-above-50 PASS live_cpu_above burn 2
   t live-idle-reads-under-50 FAIL live_cpu_above sleep 1
   t german-locale-of-the-caller PASS under_a_german_locale
