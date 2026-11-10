@@ -82,6 +82,11 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Probe line endings
+        shell: bash
+        run: |
+          git config --show-origin --get-all core.autocrlf || echo 'core.autocrlf unset'
+          git ls-files --eol -- docs/baseline/r1-gate-bounds.txt scripts/r1-gate/mutants.rows scripts/r1-gate/lib.sh
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos --self-test
@@ -126,6 +131,11 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Probe line endings
+        shell: bash
+        run: |
+          git config --show-origin --get-all core.autocrlf || echo 'core.autocrlf unset'
+          git ls-files --eol -- docs/baseline/r1-gate-bounds.txt scripts/r1-gate/mutants.rows scripts/r1-gate/lib.sh
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows --self-test

@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs: macos
+# jobs: macos windows
 # rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs every mutant.
 set -u
 name=30-mutants
@@ -32,7 +32,7 @@ measure() {
     fail "scripts/r1-gate/mutation-test.sh takes no --apply-only"
   run_rows 'mutation-test.sh --apply-only' --apply-only
   [ -z "$first" ] || fail "mutation-test.sh --apply-only exited 0 and printed: $first"
-  if [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = refs/heads/main ]; then
+  if [ "${GITHUB_EVENT_NAME:-}" = push ]; then
     run_rows 'mutation-test.sh'
   fi
   printf 'PASS %s\n' "$name"
