@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-BASELINE=685d84637c302976956d56e6bbb5c18a4503e7c8
+NEWEST_EXEMPT_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
 
 RULE='Commits in this repository are authored by the configured git user only. See AGENTS.md.'
 
@@ -11,7 +11,7 @@ synopsis() {
   cat <<'EOF'
   sh scripts/check-commit-messages.sh [--no-exempt] [<range>]
       Check every commit that `git rev-list <range>` lists (default: HEAD).
-      Commits reachable from BASELINE are exempt; --no-exempt checks them too.
+      Commits reachable from NEWEST_EXEMPT_COMMIT are exempt; --no-exempt checks them too.
   sh scripts/check-commit-messages.sh --message-file <file>
       Check one message. .githooks/commit-msg calls this.
   sh scripts/check-commit-messages.sh --self-test
@@ -99,10 +99,10 @@ check_file() {
 check_range() {
   git rev-parse --git-dir >/dev/null 2>&1 || die 'not inside a git repository'
   if [ "$exempt" = 1 ]; then
-    git cat-file -e "$BASELINE^{commit}" 2>/dev/null ||
-      die "the baseline commit $BASELINE is not in this clone, so exempt commits cannot be told from new ones. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
-    scope="commits reachable from the baseline $(git rev-parse --short "$BASELINE") are exempt"
-    commits=$(git rev-list --reverse --end-of-options "$1" "^$BASELINE") ||
+    git cat-file -e "$NEWEST_EXEMPT_COMMIT^{commit}" 2>/dev/null ||
+      die "the baseline commit $NEWEST_EXEMPT_COMMIT is not in this clone, so exempt commits cannot be told from new ones. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
+    scope="commits reachable from the baseline $(git rev-parse --short "$NEWEST_EXEMPT_COMMIT") are exempt"
+    commits=$(git rev-list --reverse --end-of-options "$1" "^$NEWEST_EXEMPT_COMMIT") ||
       die "git rev-list could not list the commits of '$1'"
   else
     scope='no commit is exempt'

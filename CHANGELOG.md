@@ -58,6 +58,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add the Windows crate features for the new input, HID and registry-watch constants
 - Merge CHANGELOG.md with git's union driver so parallel entries stop conflicting
 - Print the help of the commit-message check from here-documents
+- Name the newest exempt commit and record why it is exempt in AGENTS.md
 
 ### Fixed
 
