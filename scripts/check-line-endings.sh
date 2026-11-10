@@ -217,7 +217,7 @@ file_holds_the_text_and_no_further_quoted_line() {
 check_the_texts_that_quote_the_eol_lf_lines() {
   quoting_texts=0
   git cat-file -e :0:.gitattributes 2>/dev/null || return 0
-  eol_lf_lines=$(git cat-file blob :0:.gitattributes | LC_ALL=C grep -E -e '^[^#].*[[:space:]]eol=lf([[:space:]]|$)') || return 0
+  eol_lf_lines=$(git cat-file blob :0:.gitattributes | LC_ALL=C grep -E -e '^[[:blank:]]*[^#[:blank:]].*[[:space:]]eol=lf([[:space:]]|$)') || return 0
   for quoting_path in $QUOTING_PATHS; do
     git cat-file -e ":0:$quoting_path" 2>/dev/null || continue
     quoting_texts=$((quoting_texts + 1))
@@ -512,6 +512,11 @@ self_test() {
   track .gitattributes '# *.txt text eol=lf\n*.sh text eol=lf\n.githooks/** text eol=lf\n'
   track_the_texts_as_this_repository_words_them
   expect 'a comment line of .gitattributes that names eol=lf is not a line to quote' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
+
+  start_fixture
+  track .gitattributes ' # *.txt text eol=lf\n\t# *.md text eol=lf\n*.sh text eol=lf\n.githooks/** text eol=lf\n'
+  track_the_texts_as_this_repository_words_them
+  expect 'a comment line of .gitattributes that a space or a tab indents and that names eol=lf is not a line to quote' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
 
   for stale_path in $QUOTING_PATHS; do
     track_the_texts_that_quote_the_lines
