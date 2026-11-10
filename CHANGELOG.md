@@ -88,3 +88,6 @@ without an entry landing under the heading of another.
 - Fixed: Make the store and deletion gates measure the store instead of matching constants
 - Fixed: Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
 - Fixed: Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles
+- Added: Lint line endings and the changelog in CI, and commit through the hook in a Windows clone with core.autocrlf=true
+- Changed: Write each Unreleased changelog entry as one typed line, one entry for each type of change of a pull request
+- Fixed: Check out shell scripts and git hooks with LF, so that every sh can run them in a clone with core.autocrlf=true
