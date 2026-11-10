@@ -95,7 +95,9 @@ Three layers apply this predicate.
   2. .githooks/pre-push reads the stored messages of the commits that a push
      would add to the remote, and refuses the push. For each pushed ref these
      are the commits that are on neither the remote's copy of that ref nor the
-     default branch as this clone last fetched it. It cannot see a push made
+     default branch as this clone last fetched it: the default branch of that
+     remote, or the one of origin when the push names a URL or a remote whose
+     default branch this clone does not know. It cannot see a push made
      with --no-verify, a push from a checkout that has no .githooks/pre-push
      file, such as a branch cut before the file existed, a push from a clone
      where sh scripts/prerequisites.sh has not set core.hooksPath, or a commit
@@ -310,6 +312,7 @@ check_push() {
   require_repository_with_exempt_commit
   resolve_default_ref
   default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
+  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=$default_ref
   git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=
   while IFS= read -r pushed_ref; do
     remote_object=${pushed_ref##* }
