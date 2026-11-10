@@ -483,12 +483,13 @@ self_test() {
     track scripts/check-line-endings.sh "$(printf 'start_fixture %s %s' "'*.sh text eol=lf'" "'.githooks/** text eol=lf'")\\n"
   }
 
-  start_fixture_with_the_lines_of_this_repository
+  start_fixture
+  track .gitattributes '*.sh text eol=lf\n.githooks/** text eol=lf\n'
   track_the_texts_as_this_repository_words_them
   expect 'the three texts that quote the eol=lf lines of .gitattributes, worded as this repository words them, are accepted' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
 
-  start_fixture_with_the_lines_of_this_repository
-  track .gitattributes "# *.txt text eol=lf\\n$(git -C "$repository" cat-file blob :0:.gitattributes)\\n"
+  start_fixture
+  track .gitattributes '# *.txt text eol=lf\n*.sh text eol=lf\n.githooks/** text eol=lf\n'
   track_the_texts_as_this_repository_words_them
   expect 'a comment line of .gitattributes that names eol=lf is not a line to quote' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 3.'
 
