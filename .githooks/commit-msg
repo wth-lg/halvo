@@ -1,5 +1,2 @@
 #!/bin/sh
-# Rejects a commit whose message carries an attribution line. The rule and its fix
-# are in scripts/check-commit-messages.sh, which CI also runs on every push.
-# `sh scripts/prerequisites.sh` turns this hook on by setting core.hooksPath.
 exec sh "$(dirname "$0")/../scripts/check-commit-messages.sh" --message-file "$1"

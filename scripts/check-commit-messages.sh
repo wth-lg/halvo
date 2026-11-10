@@ -18,9 +18,6 @@
 # 64 bad usage. The script only reads, so it is safe to run twice.
 set -eu
 
-# The last commit on main before this check existed. The owner chose to keep the
-# eight earlier commits that carry attribution lines, so every commit reachable
-# from this one is exempt.
 BASELINE=685d84637c302976956d56e6bbb5c18a4503e7c8
 
 RULE='Commits in this repository are authored by the configured git user only. See AGENTS.md.'
@@ -36,9 +33,6 @@ usage() {
   exit 64
 }
 
-# Prints "  line N: TEXT" for each attribution line of the message on stdin and
-# returns 1 when it printed one. With $1 = 1 it stops at git's scissors line: below
-# it `git commit -v` shows the diff, which never becomes part of the message.
 attribution_lines() {
   LC_ALL=C awk -v scissors="$1" '
     scissors && index($0, "------------------------ >8 ------------------------") { exit }
@@ -51,8 +45,6 @@ attribution_lines() {
   '
 }
 
-# Runs attribution_lines on a message and sets $lines and $status, so each caller
-# tells a finding (1) from an awk failure (anything else).
 scan() {
   status=0
   lines=$(printf '%s\n' "$2" | attribution_lines "$1") || status=$?
@@ -115,13 +107,10 @@ self_test() {
   failures=0
   nl='
 '
-  # The two lines that end the message of the baseline commit, the newest of the
-  # eight exempt commits.
   generated='🤖 Generated with [Claude Code](https://claude.com/claude-code)'
   trailer='Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>'
   diff_below_scissors="Fix the gate${nl}# ------------------------ >8 ------------------------${nl}+// Generated with bindgen${nl} $trailer"
 
-  # expect NAME COUNT SCISSORS MESSAGE: the message must yield COUNT attribution lines.
   expect() {
     scan "$3" "$4"
     if [ -z "$lines" ]; then count=0; else count=$(printf '%s\n' "$lines" | wc -l | tr -d ' '); fi
@@ -159,8 +148,6 @@ mode=
 exempt=1
 range=
 file=
-# A range, a message file and the self-test exclude each other, so no named input
-# is left unread.
 pick() {
   [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --message-file and --self-test exclude each other'
   mode=$1

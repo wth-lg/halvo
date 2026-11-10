@@ -17,11 +17,6 @@ jobs:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        # Off the default branch the step checks the commits that the default branch
-        # lacks, so a commit already on it cannot fail later work. On the default
-        # branch it checks the pushed commits. When BEFORE is not a commit in the
-        # clone (all zeros for a new branch, or dropped by a force push), it checks
-        # every commit reachable from AFTER that is not exempt.
         run: |
           sh scripts/check-commit-messages.sh --self-test
           if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
