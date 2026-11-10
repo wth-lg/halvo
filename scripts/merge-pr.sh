@@ -37,7 +37,9 @@ attribution line reaches the default branch.
         gh pr merge <number> --squash --match-head-commit <sha> --subject <text> --body-file -
       which hands gh, on standard input, the body that was checked. Then fetch,
       print the merge commit with its author and committer, and run the range
-      check on that commit.
+      check on that commit. When the merge call fails, the script reads the
+      state of the pull request, and if GitHub reports it MERGED, it goes on
+      as after a call that succeeded.
       --dry-run prints every fact and stops before the merge. It exits 0 only
       when every gate holds.
   sh scripts/merge-pr.sh --self-test
@@ -57,9 +59,13 @@ two pull requests share a head. It reads no check that an app other than
 GitHub Actions reports on the head.
 
 Exit codes: 0 merged and the merge commit passed the range check, or with
---dry-run every gate holds; 1 a gate refuses and nothing was merged; 2 the
-script could not run; 3 the pull request is merged, and its merge commit failed
-the range check or could not be checked; 64 bad usage.
+--dry-run every gate holds; 1 a gate refuses, and this run merged nothing; 2
+the script could not finish: either before the merge call, and then this run
+merged nothing, or because the merge call failed, and then the last line says
+that GitHub reports the pull request as not merged, or that the script could
+not read its state and which command shows it; 3 the pull request is merged,
+and its merge commit failed the range check or could not be checked; 64 bad
+usage.
 EOF
 }
 
@@ -112,7 +118,7 @@ jobs_of() {
 }
 
 read_facts() {
-  fields=$(gh pr view "$number" --json state,isDraft,mergeable,headRefOid,baseRefName,isCrossRepository --jq '.state, .isDraft, .mergeable, .headRefOid, .baseRefName, .isCrossRepository') ||
+  fields=$(gh pr view "$number" --json state,isDraft,mergeable,headRefOid,baseRefName,isCrossRepository,mergeCommit --jq '.state, .isDraft, .mergeable, .headRefOid, .baseRefName, .isCrossRepository, (.mergeCommit.oid // "none")') ||
     die "gh could not read pull request #$number. Its message is above."
   {
     read -r state || :
@@ -121,13 +127,15 @@ read_facts() {
     read -r head_on_github || :
     read -r base || :
     read -r is_cross_repository || :
+    read -r merge_commit_on_github || :
   } <<EOF
 $fields
 EOF
+  [ -n "$merge_commit_on_github" ] || die "gh printed fewer than 7 fields for pull request #$number: $fields"
   case $is_cross_repository in
     false) required_events='push pull_request' ;;
     true) required_events=pull_request ;;
-    *) die "gh printed fewer than 6 fields for pull request #$number, or a value of isCrossRepository that is neither true nor false: $fields" ;;
+    *) die "gh printed a value of isCrossRepository that is neither true nor false for pull request #$number: $fields" ;;
   esac
   title=$(gh pr view "$number" --json title --jq .title) || die "gh could not read the title of pull request #$number"
   description=$(gh pr view "$number" --json body --jq .body) || die "gh could not read the description of pull request #$number"
@@ -224,15 +232,25 @@ read_stored_message() {
 
 apply_gates() {
   refusals=0
-  if [ "$state" != OPEN ]; then
-    refuse "pull request #$number is $state, and only an OPEN pull request can be merged. If the work is not on $base yet, open a new pull request for it."
-  else
-    case $mergeable in
-      MERGEABLE) ;;
-      CONFLICTING) refuse "GitHub reports that pull request #$number conflicts with $base. Merge origin/$base into the branch in a clone, push, and wait for the checks of the new head." ;;
-      *) refuse "GitHub reports mergeable=$mergeable for pull request #$number: it has not computed the merge yet. Run this script again in a minute." ;;
-    esac
-  fi
+  case $state in
+    OPEN)
+      case $mergeable in
+        MERGEABLE) ;;
+        CONFLICTING) refuse "GitHub reports that pull request #$number conflicts with $base. Merge origin/$base into the branch in a clone, push, and wait for the checks of the new head." ;;
+        *) refuse "GitHub reports mergeable=$mergeable for pull request #$number: it has not computed the merge yet. Run this script again in a minute." ;;
+      esac
+      ;;
+    MERGED)
+      if [ "$merge_commit_on_github" = none ]; then
+        refuse "pull request #$number is MERGED, and only an OPEN pull request can be merged. GitHub merged it before this run started and reports no merge commit for it yet. gh pr view $number --json mergeCommit shows the commit when GitHub has it."
+      else
+        refuse "pull request #$number is MERGED, and only an OPEN pull request can be merged. GitHub merged it before this run started and holds its merge commit, $merge_commit_on_github. This run did not check that commit. To check it: $(range_check_command "$merge_commit_on_github")"
+      fi
+      ;;
+    *)
+      refuse "pull request #$number is $state, and only an OPEN pull request can be merged. If the work is not on $base yet, open a new pull request for it."
+      ;;
+  esac
   [ "$is_draft" = false ] ||
     refuse "pull request #$number is a draft. Mark it ready when its review is done: gh pr ready $number"
   [ "$head_on_github" = "$head" ] ||
@@ -270,16 +288,35 @@ EOF
     refuse "the title or the description of pull request #$number carries an attribution line, listed above. This script does not edit a pull request. Remove the line on GitHub (gh pr edit $number --body-file <file>), then run this script again."
 }
 
+range_check_command() {
+  printf "git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/%s '%s^!'" "$base" "$1"
+}
+
 merged_but() {
-  printf "merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/%s 'refs/remotes/origin/%s^!'\\n" "$number" "$1" "$base" "$base" >&2 || :
+  printf 'merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. Run: %s\n' "$number" "$1" "$(range_check_command "refs/remotes/origin/$base")" >&2 || :
   exit 3
 }
 
 merge() {
   merge_called=1
-  printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - ||
-    die "gh pr merge failed. Its message is above. Read it, and do not retry with --admin. gh pr view $number --json state shows whether GitHub merged it."
-  say "pull request #$number is merged"
+  merge_status=0
+  printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - || merge_status=$?
+  if [ "$merge_status" = 0 ]; then
+    say "pull request #$number is merged"
+  else
+    state_after_the_call=$(gh pr view "$number" --json state --jq .state) || state_after_the_call=
+    case $state_after_the_call in
+      MERGED)
+        say "gh pr merge exited $merge_status, and its message is above. GitHub reports pull request #$number as MERGED all the same, so this script goes on as after a merge call that succeeded."
+        ;;
+      OPEN|CLOSED)
+        die "gh pr merge exited $merge_status, and its message is above. GitHub reports pull request #$number as $state_after_the_call: it is not merged. Read the message, and do not retry with --admin."
+        ;;
+      *)
+        die "gh pr merge exited $merge_status, and its message is above. Then this script could not read the state of the pull request (gh printed '$state_after_the_call'), so it does not know whether pull request #$number was merged. Run: gh pr view $number --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: $(range_check_command '<merge commit>'). Do not retry with --admin."
+        ;;
+    esac
+  fi
   merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid) ||
     merged_but 'gh could not read its merge commit'
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
@@ -320,7 +357,7 @@ run() {
   print_facts
   apply_gates
   if [ "$refusals" -gt 0 ]; then
-    printf 'merge-pr: gates that refuse the merge of pull request #%s: %d. Nothing was merged.\n' "$number" "$refusals" >&2
+    printf 'merge-pr: gates that refuse the merge of pull request #%s: %d. This run merged nothing.\n' "$number" "$refusals" >&2
     exit 1
   fi
   if [ "$dry_run" = 1 ]; then
