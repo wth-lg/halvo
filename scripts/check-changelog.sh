@@ -175,6 +175,7 @@ self_test() {
   unreleased="$introduction${nl}## [Unreleased]${nl}${nl}"
   release="## [0.0.1] - 2026-11-10${nl}${nl}"
   flat_list="${unreleased}- Added: Add the store${nl}- Fixed: Close the race"
+  released="$unreleased$release- Added: Add the store${nl}- Fixed: Close the race"
 
   expect() {
     name=$1 want_error_lines=$2 base=$3 base_changelog=$4 changelog=$5
@@ -193,11 +194,15 @@ self_test() {
   }
 
   expect 'a flat list of typed entries is accepted' '' '' '' "$flat_list"
+  expect 'an entry of each of the six types is accepted' '' '' '' "${unreleased}- Added: A${nl}- Changed: B${nl}- Deprecated: C${nl}- Removed: D${nl}- Fixed: E${nl}- Security: F"
+  expect 'a line of spaces between two entries is accepted' '' '' '' "${unreleased}- Added: Add the store${nl}   ${nl}- Fixed: Close the race"
   expect 'a release section of typed entries, as release.toml writes it, is accepted' '' '' '' "${unreleased}- Changed: Name the constants${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race"
   expect 'an empty Unreleased section above a release section with ### headings is accepted' '' '' '' "$unreleased$release### Added${nl}${nl}- Add the store${nl}${nl}### Fixed${nl}${nl}- Close the race"
   expect 'a list with CRLF line endings, as core.autocrlf=true checks it out, is accepted' '' '' '' "$(printf '%s\n' "$flat_list" | sed "s/\$/$carriage_return/")"
   expect 'spaces at the end of a heading and of an entry are accepted' '' '' '' "$introduction${nl}## [Unreleased]  ${nl}${nl}- Added: Add the store  "
   expect 'a sentence that quotes the Unreleased heading is refused, because release.toml allows the text once' 3 '' '' "# Changelog${nl}${nl}Add an entry under \`## [Unreleased]\`.${nl}${nl}## [Unreleased]${nl}${nl}- Added: Add the store"
+  expect 'a release section with each of the six ### headings is accepted' '' '' '' "$unreleased$release### Added${nl}- A${nl}### Changed${nl}- B${nl}### Deprecated${nl}- C${nl}### Removed${nl}- D${nl}### Fixed${nl}- E${nl}### Security${nl}- F"
+  expect 'two release sections that each hold the same ### heading are accepted' '' '' '' "$unreleased$release### Fixed${nl}${nl}- Close the race${nl}${nl}## [0.0.0] - 2026-11-01${nl}${nl}### Fixed${nl}${nl}- Quote the arguments"
   expect 'a ### heading inside Unreleased is refused' 7 '' '' "${unreleased}### Added${nl}${nl}- Added: Add the store"
   expect 'entries cut off below a ### heading by a blank line, as on main at d7b245a, are refused' '7 9 11 12' '' '' "${unreleased}### Fixed${nl}${nl}- Say in the CI echo that exempt commits are not checked${nl}${nl}- Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store${nl}- Add SQLCipher and AEAD dependencies for the encrypted segment store"
   expect 'a ### heading twice in one release section is refused' 13 '' '' "$unreleased$release### Fixed${nl}${nl}- Close the race${nl}${nl}### Fixed${nl}${nl}- Quote the arguments"
@@ -205,6 +210,13 @@ self_test() {
   expect 'one entry text under two types is refused' 8 '' '' "${unreleased}- Added: Add the store${nl}- Changed: Add the store"
   expect 'an entry with no type is refused' 7 '' '' "${unreleased}- Add the store"
   expect 'an entry with an unknown type is refused' 7 '' '' "${unreleased}- Feature: Add the store"
+  expect 'an entry that has a type and no text is refused' 7 '' '' "${unreleased}- Added:"
+  expect 'a release heading with no date is refused' 9 '' '' "${unreleased}- Added: Add the store${nl}${nl}## [0.0.1]${nl}${nl}- Fixed: Close the race"
+  expect 'an Unreleased heading with more text on its line is refused' '5 7 7' '' '' "$introduction${nl}## [Unreleased] - soon${nl}${nl}- Added: Add the store"
+  expect 'an entry and a ### heading above the Unreleased heading are refused' '3 5' '' '' "# Changelog${nl}${nl}### Added${nl}${nl}- Added: Add the store${nl}${nl}## [Unreleased]${nl}${nl}- Fixed: Close the race"
+  expect 'one release version on two headings is refused' 11 '' '' "$unreleased$release- Added: Add the store${nl}${nl}$release- Fixed: Close the race"
+  expect 'a ### heading with more text and the entry below it are refused' '9 11' '' '' "$unreleased$release### Added later${nl}${nl}- Add the store"
+  expect 'an untyped entry in a second release section, below no heading of that section, is refused' 15 '' '' "$unreleased$release### Fixed${nl}${nl}- Close the race${nl}${nl}## [0.0.0] - 2026-11-01${nl}${nl}- Quote the arguments"
   expect 'a line that continues an entry is refused' 8 '' '' "${unreleased}- Added: Add the store${nl}  and its tests"
   expect 'two ## [Unreleased] headings are refused' 10 '' '' "$flat_list${nl}${nl}## [Unreleased]${nl}${nl}- Changed: Name the constants"
   expect '## [Unreleased] below a release heading is refused' 9 '' '' "$introduction${nl}$release- Added: Add the store${nl}${nl}## [Unreleased]${nl}${nl}- Fixed: Close the race"
@@ -213,7 +225,8 @@ self_test() {
   expect 'an untyped entry above the headings and an unknown ### heading in a release section are refused' '9 11 13' '' '' "$unreleased$release- Add the store${nl}${nl}### Internal${nl}${nl}- Rename a module"
   expect 'with a base, an entry that the base lacks is accepted' '' origin/main "$flat_list" "$flat_list${nl}- Changed: Name the constants"
   expect 'with a base, a file with no new entry is refused at the line to add one below' 8 origin/main "$flat_list" "$flat_list"
-  expect 'with a base, a new entry that a release moved out of Unreleased is refused' '11 5' origin/main "$flat_list" "$unreleased$release- Added: Add the store${nl}- Fixed: Close the race${nl}- Changed: Name the constants"
+  expect 'with a base, a new entry that a release moved out of Unreleased is refused' '11 5' origin/main "$released" "$released${nl}- Changed: Name the constants"
+  expect 'with a base, the commit of a release needs no new entry' '' origin/main "$flat_list" "$released"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-changelog: self-test FAIL: fixtures misjudged: %d\n' "$failures"
