@@ -79,7 +79,12 @@ fn a_child_process_is_measured() {
 /// Runs the driver against the stand-in helper. Each scenario gets its own state
 /// directory under the temp directory, which is left in place.
 #[cfg(unix)]
-fn drive(scenario: &str, trust: &[&str], insecure_helper: bool) -> (Option<i32>, String) {
+fn drive(
+    scenario: &str,
+    trust: &[&str],
+    limit_ms: &str,
+    helper_mode: Option<&str>,
+) -> (Option<i32>, String) {
     let state =
         std::env::temp_dir().join(format!("r7-s5-harness-{}-{scenario}", std::process::id()));
     std::fs::create_dir_all(&state).unwrap();
@@ -89,19 +94,12 @@ fn drive(scenario: &str, trust: &[&str], insecure_helper: bool) -> (Option<i32>,
         .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fake-helper.sh"))
         .arg("--workdir")
         .arg(&state)
-        .args([
-            "--runner",
-            "test-runner",
-            "--runs",
-            "5",
-            "--limit-ms",
-            "5000",
-            "--",
-        ])
+        .args(["--runner", "test-runner", "--runs", "5"])
+        .args(["--limit-ms", limit_ms, "--"])
         .args(trust)
         .env("FAKE_HELPER_STATE", &state);
-    if insecure_helper {
-        command.env("FAKE_HELPER_INSECURE", "1");
+    if let Some(mode) = helper_mode {
+        command.env("FAKE_HELPER_MODE", mode);
     }
     let output = command.output().unwrap();
     (
@@ -110,16 +108,36 @@ fn drive(scenario: &str, trust: &[&str], insecure_helper: bool) -> (Option<i32>,
     )
 }
 
+/// Copies the test CA to where the stand-in helper looks for it and marks it trusted.
+#[cfg(unix)]
+const TRUST: [&str; 5] = [
+    "/bin/sh",
+    "-c",
+    r#"cp "$1" "$FAKE_HELPER_STATE/ca.pem" && touch "$FAKE_HELPER_STATE/trusted""#,
+    "sh",
+    "{ca}",
+];
+
+#[cfg(unix)]
+fn assert_does_not_count(code: Option<i32>, stdout: &str, reason: &str) {
+    assert_eq!(code, Some(1), "{stdout}");
+    assert!(
+        stdout.contains("S6 RULE test-runner: DOES NOT COUNT"),
+        "{stdout}"
+    );
+    assert!(stdout.contains(reason), "{stdout}");
+    assert!(!stdout.contains(": MET"), "{stdout}");
+    assert!(!stdout.contains(": MISSED"), "{stdout}");
+}
+
 #[cfg(unix)]
 #[test]
 fn the_driver_reports_met_after_a_failed_control_and_a_real_trust_step() {
-    let trust = r#"cp "$1" "$FAKE_HELPER_STATE/ca.pem" && touch "$FAKE_HELPER_STATE/trusted""#;
-
-    let (code, stdout) = drive("met", &["/bin/sh", "-c", trust, "sh", "{ca}"], false);
+    let (code, stdout) = drive("met", &TRUST, "5000", None);
 
     assert_eq!(code, Some(0), "{stdout}");
     assert!(
-        stdout.contains("S6 control: failed at the TLS handshake, as required"),
+        stdout.contains("S6 control: failed on the certificate at the TLS handshake, as required"),
         "{stdout}"
     );
     assert!(
@@ -134,25 +152,51 @@ fn the_driver_reports_met_after_a_failed_control_and_a_real_trust_step() {
 
 #[cfg(unix)]
 #[test]
-fn the_driver_reports_missed_when_the_trust_step_trusts_nothing() {
-    let (code, stdout) = drive("missed", &["/usr/bin/true"], false);
+fn the_driver_reports_missed_when_a_run_is_over_the_limit() {
+    let (code, stdout) = drive("over-limit", &TRUST, "0", None);
 
     assert_eq!(code, Some(0), "{stdout}");
     assert!(
-        stdout.contains("S6 RULE test-runner: MISSED (ok=0/5"),
+        stdout.contains("S6 RULE test-runner: MISSED (ok=5/5"),
         "{stdout}"
+    );
+}
+
+/// A MISSED must speak about the helper. When no timed run gets past the certificate,
+/// the runner never trusted the CA, and that is the harness's failure.
+#[cfg(unix)]
+#[test]
+fn the_line_does_not_count_when_the_trust_step_trusts_nothing() {
+    let (code, stdout) = drive("trusts-nothing", &["/usr/bin/true"], "5000", None);
+
+    assert_does_not_count(
+        code,
+        &stdout,
+        "every timed run failed on a certificate error",
     );
 }
 
 #[cfg(unix)]
 #[test]
-fn the_line_does_not_count_when_the_control_passes() {
-    let (code, stdout) = drive("no-control", &["/usr/bin/true"], true);
+fn the_line_does_not_count_when_the_trust_command_fails() {
+    let (code, stdout) = drive("trust-fails", &["/usr/bin/false"], "5000", None);
 
-    assert_eq!(code, Some(1), "{stdout}");
-    assert!(
-        stdout.contains("S6 RULE test-runner: DOES NOT COUNT"),
-        "{stdout}"
-    );
-    assert!(!stdout.contains(": MET"), "{stdout}");
+    assert_does_not_count(code, &stdout, "the trust command ended with");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_line_does_not_count_when_the_control_passes() {
+    let (code, stdout) = drive("no-control", &["/usr/bin/true"], "5000", Some("insecure"));
+
+    assert_does_not_count(code, &stdout, "the control run did not fail");
+}
+
+/// A control that fails at the stub for some other reason shows no trust decision.
+#[cfg(unix)]
+#[test]
+fn the_line_does_not_count_when_the_control_fails_for_another_reason() {
+    let (code, stdout) = drive("other-failure", &TRUST, "5000", Some("plain-http"));
+
+    assert_does_not_count(code, &stdout, "not on a certificate error");
 }
