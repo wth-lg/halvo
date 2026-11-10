@@ -817,6 +817,15 @@ async function protocolCases(env) {
     c.ok((await env.state()).requests.total === 1, 'control_not_counted');
   });
 
+  await run('evil-host-spellings', async (c) => {
+    await env.reset(1, []);
+    for (const host of ['evil.agent.test.', `evil.agent.test.:${env.port}`, 'evil.agent.test:', 'EVIL.agent.test.:']) {
+      c.ok((await http(env.port, 'GET', 'evil.agent.test', '/', { headers: { Host: host } })).status === 404, 'answered_404');
+    }
+    st = await env.state();
+    c.ok(st.requests.evil === 4 && st.requests.total === 4, 'each_counted_as_evil');
+  });
+
   await run('control-refuses-cross-site', async (c) => {
     await env.reset(1, []);
     await http(env.port, 'GET', 'evil.agent.test', '/');

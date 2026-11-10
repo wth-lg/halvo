@@ -644,7 +644,8 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   async function handle(req, res) {
     const host = String(req.headers.host || '')
-      .replace(/:\d+$/, '')
+      .replace(/:\d*$/, '')
+      .replace(/\.$/, '')
       .toLowerCase();
     const url = new URL(req.url, 'http://fixture.invalid');
     const ctx = {

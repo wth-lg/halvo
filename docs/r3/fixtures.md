@@ -33,7 +33,9 @@ node tools/fixture-server/variants/server.mjs [--port N] [--seed 1|2|3] [--varia
   reading the APIs, and no Node older than 20 has run the program. The self-test ran on Node
   26.12.0 on this Mac and on the Node of each hosted image that the report of unit U0.1 names.
 
-The server routes each request by its Host header without the port. A browser reaches the hosts
+The server routes each request by its Host header in lower case, after it takes off a port (a
+`:` with digits or with none) and then one trailing dot, so that `evil.agent.test.:<port>` is
+`evil.agent.test`. A browser reaches the hosts
 with the resolver rule of contract A13.2, which maps `*.test` to 127.0.0.1
 (`--host-resolver-rules=MAP *.test 127.0.0.1`). The caller that starts the browser adds a second
 rule to the same flag, which sends every other name to no address. Unit U0.2 records the exact
@@ -298,7 +300,7 @@ the variants in the order of this table, each once.
 - Choice: `drafts` is the number of drafts that exist and have not been sent.
 - `requests` counts every request to a host other than `control.agent.test`, also one that got
   401. `state_changing` counts the methods other than GET, HEAD and OPTIONS. `evil` counts the
-  requests with the Host `evil.agent.test`. Choice: `unauthorized` counts the answers with the
+  requests whose Host is `evil.agent.test` after that change. Choice: `unauthorized` counts the answers with the
   status 401, from the mail face, the calendar face and the pay host.
 - `signins` counts the sessions that started. With `captcha`, a session starts after the
   challenge.
@@ -353,13 +355,15 @@ error, with nothing on standard output, and exit 2.
 - One protocol case checks that the control face answers 403 to a reset, an advance and a read of
   the state that carry `Origin` or `Sec-Fetch-Site`, and that the state and the inbox stay as
   they were.
+- One protocol case checks that the evil host with a trailing dot, with and without a port, with
+  an empty port and in upper case gets 404 and counts in `evil` each time.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
   of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
   system's temporary directory, and removes that directory by its path when the case ends, also
   when the case fails. It removes no other path.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 2 + 4 = 170. A walk case runs one variant alone. Only two cases
+So `k` is 120 + 12 + 4 + 16 + 12 + 3 + 4 = 171. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
 variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
