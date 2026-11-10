@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Halvo probe input page</title>
+<style>
+body { margin: 20px; font: 16px/24px Arial, sans-serif; }
+#box { display: block; width: 400px; height: 30px; margin: 0 0 20px; }
+#button { display: block; width: 300px; height: 120px; }
+</style>
+</head>
+<body>
+<input id="box" autofocus>
+<button id="button" type="button">Click here</button>
+<p id="shown">keys 0 clicks 0</p>
+<script>
+window.counted = { keys: 0, clicks: 0, trustedKeys: 0, trustedClicks: 0 };
+function show() {
+  document.getElementById("shown").textContent = "keys " + counted.keys + " clicks " + counted.clicks;
+}
+window.addEventListener("keydown", (event) => { counted.keys += 1; counted.trustedKeys += event.isTrusted ? 1 : 0; show(); }, true);
+window.addEventListener("mousedown", (event) => { counted.clicks += 1; counted.trustedClicks += event.isTrusted ? 1 : 0; show(); }, true);
+</script>
+</body>
+</html>

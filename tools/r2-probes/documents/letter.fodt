@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+    office:version="1.3" office:mimetype="application/vnd.oasis.opendocument.text">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1">Notice of rent review for 18 Harlow Street, Flat 3</text:h>
+      <text:p>Eastmere Lettings, 4 Canal Row, Eastmere, 10 November 2026</text:p>
+      <text:p>Dear Jonas Reed,</text:p>
+      <text:p>This letter confirms the rent review that we discussed on 9 November. From 1 January 2027 the monthly rent for Flat 3 is 1,285, and the deposit of 1,430 is carried over to the new term.</text:p>
+      <text:p>The extractor fan in the bathroom will be replaced on Thursday 19 November between 08:00 and 12:00. The window lock for the back bedroom was ordered on 2 November.</text:p>
+      <text:p>Please sign the renewal form and return it by Friday 27 November. Our office is open on weekdays from 09:00 to 17:30, telephone 0155 496 0173.</text:p>
+      <text:p>Kind regards,</text:p>
+      <text:p>Marta Lindqvist</text:p>
+    </office:text>
+  </office:body>
+</office:document>
