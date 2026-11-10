@@ -1,4 +1,5 @@
 # shellcheck shell=sh
+export LC_ALL=C
 GATE_ROOT=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
 GATE_ROOT=$(cd "$GATE_ROOT" && pwd -P)
 GATE_REPO=${GATE_REPO:-wth-lg/halvo}

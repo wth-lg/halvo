@@ -68,6 +68,10 @@ exit_status_gives() {
   child_report_defect
 }
 
+under_a_german_locale() {
+  LC_ALL=de_DE.UTF-8 sh "$DIR/check-cost.sh" --self-test --case live-busy-loop-reads-above-50
+}
+
 child_of_script() {
   mkdir -p "$gate_scratch/script-child"
   printf '#!/bin/sh\nsleep 2\n' > "$gate_scratch/wrapper-script"
@@ -103,6 +107,7 @@ cases() {
   live_floor=50
   t live-busy-loop-reads-above-50 PASS live_cpu_above burn 2
   t live-idle-reads-under-50 FAIL live_cpu_above sleep 1
+  t german-locale-of-the-caller PASS under_a_german_locale
   t comm-is-bin-sh FAIL child_of_script
   t exit-0-report-read PASS exit_status_gives 0
   t exit-3-report-read PASS exit_status_gives 3
