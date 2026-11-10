@@ -120,7 +120,13 @@ test_run() {
       awk -v want="case $test_check/$test_case" '
         index($0, want " want=") == 1 { n++; split($0, part, " "); verdict = (part[3] == "want=" substr(part[4], 5)) ? "passed" : "failed" }
         END { if (n == 1) print verdict; else print "ran " n + 0 " cases" }' "$work/test.out" ;;
-    *) printf 'no such kind of test\n' ;;
+    *)
+      test_package=${rows_file#crates/}; test_package=${test_package%%/*}
+      case $rows_file in crates/*) ;; *) test_package=halvo ;; esac
+      ( cd "$tree" && CARGO_TARGET_DIR="$tree/target/r1-gate" limited 900 cargo test -q --locked -p "$test_package" --lib -- --exact "$test_name" ) > "$work/test.out" 2>&1
+      test_status=$?
+      [ "$test_status" -ne 124 ] || { printf 'hang\n'; return 0; }
+      cargo_test_outcome "$work/test.out" ;;
   esac
 }
 
@@ -265,6 +271,11 @@ fixture_says() {
   return 1
 }
 
+outcome_is() {
+  outcome=$(cargo_test_outcome "$gate_scratch/$2")
+  [ "$outcome" = "$1" ]
+}
+
 verdict_on() {
   printf '%s\n' "$2" > "$gate_scratch/gate-line"
   mutant_verdict "$1" "$gate_scratch/gate-line"
@@ -371,6 +382,16 @@ cases() {
   row input/scripts/r1-gate/mutants.rows typed b.sh 's/two/2/' leak 'required on hosted-runner' X-1
   t input-row-here-is-not-run-and-no-fail PASS not_ci fixture_run input yes yes
   t input-row-here-is-named PASS not_ci fixture_says input 'NOT-RUN mutation:typed (needs input; runs on the hosted runner)' yes
+  printf 'running 1 test\ntest store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages ... FAILED\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 98 filtered out; finished in 0.21s\n' > "$gate_scratch/cargo-failed"
+  printf 'running 1 test\n.\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 98 filtered out; finished in 0.21s\n' > "$gate_scratch/cargo-passed"
+  printf 'running 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 99 filtered out; finished in 0.00s\n' > "$gate_scratch/cargo-none"
+  printf 'running 2 tests\n..\ntest result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 97 filtered out; finished in 0.21s\n' > "$gate_scratch/cargo-two"
+  printf 'error[E0308]: mismatched types\n' > "$gate_scratch/cargo-no-build"
+  t cargo-one-test-failed PASS outcome_is failed cargo-failed
+  t cargo-one-test-passed PASS outcome_is passed cargo-passed
+  t cargo-filter-matched-no-test PASS outcome_is "ran 0 tests" cargo-none
+  t cargo-two-tests-ran PASS outcome_is "ran 2 tests" cargo-two
+  t cargo-test-did-not-build PASS outcome_is "ran 0 tests" cargo-no-build
   t limit-ends-a-hang FAIL limited 1 sleep 5
   t limit-passes-a-status PASS limited 5 true
   t limit-passes-a-failure FAIL limited 5 false

@@ -1,5 +1,6 @@
 delete-all-destroys-nothing
 shredded-key-survives
+key-row-deleted
 checkpoint-not-verified
 segment-roundtrip-broken
 header-not-authenticated

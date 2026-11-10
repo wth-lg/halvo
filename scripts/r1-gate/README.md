@@ -32,7 +32,8 @@ empty, and a line that is empty is skipped.
     `FAIL <check> (verify-... unavailable: ...)` with TEXT in it.
   - `leak`: a gate line reads `FAIL <check> (leak: ...)`.
   - `test NAME`: exactly one test runs and fails inside a time limit; a hang
-    fails the row. NAME is a cargo test, run by `--exact`, or
+    fails the row. NAME is a cargo test of the crate that holds the row file,
+    run by `--exact` on its library, or
     `selftest:<check>/<case>`, a case of a gate self-test. Unmutated, the same
     test must run as exactly one passing test.
 - **state**:

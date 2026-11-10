@@ -693,6 +693,21 @@ limited() {
   perl "$GATE_ROOT/scripts/r1-gate/helper/limit.pl" "$@"
 }
 
+cargo_test_outcome() {
+  awk '
+    /^test result: / {
+      for (i = 1; i < NF; i++) {
+        if ($(i + 1) == "passed;") passed += $i
+        if ($(i + 1) == "failed;") failed += $i
+      }
+    }
+    END {
+      if (passed + failed != 1) print "ran " passed + failed " tests"
+      else if (failed == 1) print "failed"
+      else print "passed"
+    }' "$1"
+}
+
 mutant_verdict() {
   verdict_kind=${1%% *}
   verdict_rest=${1#"$verdict_kind"}
