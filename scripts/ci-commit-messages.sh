@@ -338,7 +338,7 @@ self_test() {
   push_to_branch branch-that-blinded-the-range-check 1 'the control did not fail' "$no_commit" "$branch_that_blinded_the_range_check"
 
   start_at "$main"
-  git -C "$dev" rm -q --ignore-unmatch .claude/settings.json
+  git -C "$dev" update-index --force-remove "$AGENT_SETTINGS"
   commit 'Delete the agent settings'
   branch_without_the_agent_settings=$(tip)
   runner branch-without-the-agent-settings "$main" "$branch_without_the_agent_settings" "$branch_without_the_agent_settings:refs/heads/feature"
