@@ -1052,10 +1052,14 @@ fn child_address(args: &[String]) -> Result<Record, String> {
     let wall_ms = ms(start);
     rest(window_start, WINDOW_MS);
     let after = sys::tree_usage(pid, webkit);
-    let readable = read.value.is_some() && read.activation != "set";
+    let first_try = read.value.is_some() && read.attempts == 1;
+    let readable = read.value.is_some()
+        && read.activation != "set"
+        && (first_try || !sys::FIRST_QUERY_DECIDES);
     let record = Record::new("", 0)
         .text("activation", &read.activation)
         .number("readable_runs", How::Sum, f64::from(u8::from(readable)))
+        .number("first_try_runs", How::Sum, f64::from(u8::from(first_try)))
         .number(
             "role_query_runs",
             How::Sum,

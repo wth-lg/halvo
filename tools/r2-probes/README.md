@@ -62,7 +62,9 @@ profile, so no other cell has touched the process that it reads.
   the read, and `cpu_after_ms` over the 2 s that start with the read; in a run that needed the
   role query the second window starts at the query, so that what the query started is inside
   the figure. `mem_before_bytes` and `mem_after_bytes` are taken at the ends of the two windows. `readable_runs` counts the runs in which the value held
-  `127.0.0.1` and no activation attribute was set.
+  `127.0.0.1` and no activation attribute was set; on Windows the first try has to return it,
+  because the unit line counts the first UI Automation query of a new browser process.
+  `first_try_runs` counts the runs whose first try returned the value.
 - `accessibility.RUNNER.TARGET[.plain|.activated]`: the focused element and the subtree of the
   focused window in the form of contracts.md C11.7 (16 levels, 1,600 lines). The name of a node
   is `AXTitle`, or `AXDescription` where the title is empty, and its value is `AXValue`; on
@@ -76,7 +78,8 @@ profile, so no other cell has touched the process that it reads.
   levels, 600 nodes, outside the page) holds `incognito`, `inprivate` or `private` and the
   normal window has no such value. `class` answers when the window classes differ. `title`
   answers when the title of the private window holds a marker and the title of the normal
-  window holds none. The title is `AXTitle` on macOS and the window text on Windows. Safari has
+  window holds none. The title is `AXTitle` on macOS and the window text on Windows; the
+  name of the window element counts as an attribute only where it differs from that title. Safari has
   no switch for a private window: the probe presses the menu item File, New Private Window
   through the accessibility interface and then opens the page with `open -a Safari`.
 - `input.windows-2025.DRIVER`: a message-only window registers Raw Input for keyboards and
