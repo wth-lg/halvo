@@ -94,7 +94,9 @@ A line passes when any other character comes before those words: an ASCII
 character such as a digit, a bracket or the "> " of a quotation, or a letter
 from below U+2000 or from U+3000 to U+FFFF outside U+FE00 to U+FE0F, such as
 a Cyrillic or a Chinese one. A trailer that names a person, such as
-Signed-off-by, passes.
+Signed-off-by, passes. A line also passes when an ASCII letter or digit
+follows the words Co-Authored-By or Generated with directly, as in Generated
+without: that makes another word.
 
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
@@ -454,6 +456,9 @@ fixture_messages() {
   expect_in_hook_file 'the diff of git commit -v is dropped when the comment string is that byte' 0 "$byte_that_is_not_utf8" "$(commit_verbose_file_with_comment_string "$byte_that_is_not_utf8")"
   expect_in_hook_file 'under the auto setting, a trailer below a line that spells auto before the scissors text fails' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl}$trailer"
   expect_in_hook_file 'under the auto setting, an indented trailer below such a line fails too, because the line starts no scissors block' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl} $trailer"
+  expect 'a line that starts with Generated without passes, because a letter follows the words' 0 "Fix the gate${nl}${nl}Generated without a tool, by hand."
+  expect 'a line that starts with Co-Authored-Byte passes, because a letter follows the words' 0 "Fix the gate${nl}${nl}Co-Authored-Byte: a made-up key"
+  expect 'Generated with fails when a full stop follows the words' 1 "Fix the gate${nl}${nl}Generated with."
   expect 'a line that starts with a tool trailer key and has no colon passes' 0 "Fix the gate${nl}${nl}Assisted-by design, the gate stays manual."
   expect 'Generated with fails with two no-break spaces between the words' 1 "Fix the gate${nl}${nl}Generated${no_break_space}${no_break_space}with Tool"
   expect 'Generated with fails with an Ogham space mark between the words' 1 "Fix the gate${nl}${nl}Generated${ogham_space_mark}with Tool"
