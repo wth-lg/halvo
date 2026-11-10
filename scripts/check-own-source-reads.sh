@@ -22,8 +22,9 @@ is added above it or a comment is removed, and nothing fails.
   - A line of a script fails when a command on it gets the path of the script,
     written as the quoted parameter 0, and reads it by line number. Such a
     command is sed whose script starts with a line number, head, tail, or awk
-    with NR or FNR. The path can come as an operand, on standard input, or
-    from cat through a pipe.
+    with NR or FNR, named alone or by a path such as /usr/bin/sed. The path of
+    the script can come as an operand, on standard input, or from cat through
+    a pipe.
 The fix is to print the text from a here-document, as this script does.
 The check reads one line at a time. It does not see a path that a variable
 holds, a command that continues on another line, an address that a variable
@@ -83,12 +84,13 @@ reads_of_own_source_by_line_number() {
     function command_gets_own_path(reader,    count, part, i) {
       count = split(shell_text, part, /[|;&()`]/)
       for (i = 1; i <= count; i++)
-        if (part[i] ~ own_path && part[i] ~ ("^[ \t]*(" before_a_command ")*" reader "([ \t]|$)")) return 1
-      return shell_text ~ ("(^|[|;&()`])[ \t]*(" before_a_command ")*cat[ \t][^|;&()`]*" own_path "[^|;&()`]*[|][ \t]*(" before_a_command ")*" reader "([ \t]|$)")
+        if (part[i] ~ own_path && part[i] ~ ("^[ \t]*(" before_a_command ")*" a_directory reader "([ \t]|$)")) return 1
+      return shell_text ~ ("(^|[|;&()`])[ \t]*(" before_a_command ")*" a_directory "cat[ \t][^|;&()`]*" own_path "[^|;&()`]*[|][ \t]*(" before_a_command ")*" a_directory reader "([ \t]|$)")
     }
     BEGIN {
       script_path = ENVIRON["SCRIPT_PATH"]
       own_path = "\"[$](0|[{]0[}])\""
+      a_directory = "([^ \t|;&()`]*/)?"
       before_a_command = "([A-Za-z_][A-Za-z0-9_]*=[^ \t]*|[0-9]*[<>]+[ \t]*[^ \t]+|if|then|else|elif|do|while|until|exec|command|[!{])[ \t]+"
       sed_and_its_options = "(^|[^A-Za-z0-9_.-])sed[ \t][^|;&]*"
       after_an_address = "[ \t]*[,~!{=A-Za-z]"
