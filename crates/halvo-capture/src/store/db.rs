@@ -670,6 +670,11 @@ pub(crate) mod test_support {
         let custody = DevFallbackCustody::new(RootId::fresh());
         TestStore(EncryptedStore::create(dir, Box::new(custody), DEFAULT_RETENTION).unwrap())
     }
+
+    #[cfg(unix)]
+    pub(crate) fn duplicate_writer_lock_descriptor(store: &EncryptedStore) -> std::fs::File {
+        store._writer_lock._file.try_clone().unwrap()
+    }
 }
 
 #[cfg(test)]

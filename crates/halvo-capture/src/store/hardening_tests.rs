@@ -704,3 +704,95 @@ fn peak_rss_stays_bounded_for_a_512_mib_segment() {
         peak - before
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_id = RootId::fresh();
+    let store = EncryptedStore::create(
+        dir.path(),
+        Box::new(DevFallbackCustody::new(root_id)),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let held_as_a_spawned_child_holds_it =
+        super::db::test_support::duplicate_writer_lock_descriptor(&store);
+
+    drop(store);
+    let reopened = EncryptedStore::open(dir.path(), DEFAULT_RETENTION);
+
+    drop(held_as_a_spawned_child_holds_it);
+    DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    assert!(
+        reopened.is_ok(),
+        "the store did not reopen after its only writer was dropped: {:?}",
+        reopened.err()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn no_open_is_refused_as_locked_while_other_threads_spawn_children() {
+    use std::sync::atomic::AtomicBool;
+
+    const SPAWNING_THREADS: usize = 4;
+    const OPEN_THEN_DROP_CYCLES: usize = 200;
+
+    let dir = tempfile::tempdir().unwrap();
+    let root_id = RootId::fresh();
+    drop(
+        EncryptedStore::create(
+            dir.path(),
+            Box::new(DevFallbackCustody::new(root_id)),
+            DEFAULT_RETENTION,
+        )
+        .unwrap(),
+    );
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let children_spawned = Arc::new(AtomicUsize::new(0));
+    let spawners: Vec<_> = (0..SPAWNING_THREADS)
+        .map(|_| {
+            let (stop, children_spawned) = (Arc::clone(&stop), Arc::clone(&children_spawned));
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::SeqCst) {
+                    let ran = Command::new("/usr/bin/true").status();
+                    if ran.is_ok_and(|status| status.success()) {
+                        children_spawned.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+            })
+        })
+        .collect();
+
+    let mut refused_as_locked = 0;
+    let mut other_errors = Vec::new();
+    for _ in 0..OPEN_THEN_DROP_CYCLES {
+        match EncryptedStore::open(dir.path(), DEFAULT_RETENTION) {
+            Ok(store) => drop(store),
+            Err(StoreError::Locked(_)) => refused_as_locked += 1,
+            Err(e) => other_errors.push(e),
+        }
+    }
+
+    stop.store(true, Ordering::SeqCst);
+    for spawner in spawners {
+        spawner.join().unwrap();
+    }
+    DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    let children_spawned = children_spawned.load(Ordering::SeqCst);
+    assert!(
+        children_spawned > 0,
+        "no child was spawned, so no open ran beside a spawn"
+    );
+    assert!(
+        other_errors.is_empty(),
+        "opens failed for a reason other than Locked: {other_errors:?}"
+    );
+    assert_eq!(
+        refused_as_locked, 0,
+        "{refused_as_locked} of {OPEN_THEN_DROP_CYCLES} opens were refused as Locked with no \
+         other writer, while {children_spawned} children were spawned"
+    );
+}
