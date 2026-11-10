@@ -57,6 +57,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Name the calendar constants and the year-month-day conversions of UtcDay
 - Add the Windows crate features for the new input, HID and registry-watch constants
 - Merge CHANGELOG.md with git's union driver so parallel entries stop conflicting
+- Print the help of the commit-message check from here-documents
 
 ### Fixed
 

@@ -1,21 +1,4 @@
 #!/bin/sh
-# Rejects commit messages that carry an attribution line. Commits in this repository
-# are authored by the configured git user only, so a message must not contain:
-#   - a Co-Authored-By trailer: a line that starts with "Co-Authored-By:"
-#   - a "Generated with" attribution: a line whose first words are "Generated with"
-# Letter case and leading whitespace do not matter. A line that mentions either
-# phrase after other words passes.
-#
-#   sh scripts/check-commit-messages.sh [--no-exempt] [<range>]
-#       Check every commit that `git rev-list <range>` lists (default: HEAD).
-#       Commits reachable from BASELINE are exempt; --no-exempt checks them too.
-#   sh scripts/check-commit-messages.sh --message-file <file>
-#       Check one message. .githooks/commit-msg calls this.
-#   sh scripts/check-commit-messages.sh --self-test
-#       Prove the predicate on fixtures. Needs no repository.
-#
-# Exit codes: 0 no attribution line, 1 at least one, 2 the check could not run,
-# 64 bad usage. The script only reads, so it is safe to run twice.
 set -eu
 
 BASELINE=685d84637c302976956d56e6bbb5c18a4503e7c8
@@ -24,6 +7,36 @@ RULE='Commits in this repository are authored by the configured git user only. S
 
 SCISSORS='------------------------ >8 ------------------------'
 
+synopsis() {
+  cat <<'EOF'
+  sh scripts/check-commit-messages.sh [--no-exempt] [<range>]
+      Check every commit that `git rev-list <range>` lists (default: HEAD).
+      Commits reachable from BASELINE are exempt; --no-exempt checks them too.
+  sh scripts/check-commit-messages.sh --message-file <file>
+      Check one message. .githooks/commit-msg calls this.
+  sh scripts/check-commit-messages.sh --self-test
+      Prove the predicate on fixtures. Needs no repository.
+EOF
+}
+
+help_text() {
+  cat <<'EOF'
+Rejects commit messages that carry an attribution line. Commits in this repository
+are authored by the configured git user only, so a message must not contain:
+  - a Co-Authored-By trailer: a line that starts with "Co-Authored-By:"
+  - a "Generated with" attribution: a line whose first words are "Generated with"
+Letter case and leading whitespace do not matter. A line that mentions either
+phrase after other words passes.
+
+EOF
+  synopsis
+  cat <<'EOF'
+
+Exit codes: 0 no attribution line, 1 at least one, 2 the check could not run,
+64 bad usage. The script only reads, so it is safe to run twice.
+EOF
+}
+
 die() {
   printf 'check-commit-messages: error: %s\n' "$1" >&2
   exit 2
@@ -31,7 +44,7 @@ die() {
 
 usage() {
   printf 'check-commit-messages: %s\n' "$1" >&2
-  sed -n '9,15p' "$0" | sed 's/^# \{0,1\}//' >&2
+  synopsis >&2
   exit 64
 }
 
@@ -191,7 +204,7 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     --no-exempt) pick range; exempt=0 ;;
-    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) help_text; exit 0 ;;
     -*) usage "unknown option: $1" ;;
     '') usage 'the range is empty' ;;
     *)
