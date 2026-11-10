@@ -25,7 +25,8 @@ attribution line reaches the default branch.
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
         - its head is the commit given with --head, the one that was reviewed
         - for each of the events push and pull_request, the newest workflow
-          run on that head, the one created last, completed with success, and
+          run on that head, the one created last and of two runs of one
+          second the one with the higher run id, completed with success, and
           the jobs macos and windows succeeded in it. For the event push only
           a run counts whose head branch, as GitHub names it, is the head
           branch of the pull request. An older run of the same event, and a
@@ -725,6 +726,7 @@ EOF
   state_of push-run-without-the-job-windows
   jobs push-run-without-the-job-windows 101 "macos${tab}completed${tab}success"
   refused push-run-without-the-job-windows 'the job windows did not succeed in push run 101'
+  says push-run-without-the-job-windows 'A job was renamed, removed or skipped, or it failed where the workflow lets a job fail.'
 
   state_of pull-request-run-without-the-job-macos
   jobs pull-request-run-without-the-job-macos 102 "windows${tab}completed${tab}success"
@@ -767,6 +769,16 @@ EOF
   state_of workflow-run-line-of-seven-fields
   printf 'push\t2026-11-10T09:00:00Z\t101\tcompleted\tsuccess\t1\t.github/workflows/ci.yml\n' >"$work/state/workflow-run-line-of-seven-fields/runs"
   expect workflow-run-line-of-seven-fields 2 not-called 'It reads 8 fields divided by tabs' --body-file "$work/body.txt"
+
+  state_of workflow-run-with-an-id-that-is-not-digits
+  runs workflow-run-with-an-id-that-is-not-digits "$(run_line push 2026-11-10T09:00:00Z 10x completed success)" "$green_pull_request_run"
+  expect workflow-run-with-an-id-that-is-not-digits 2 not-called 'the third a run id of digits' --body-file "$work/body.txt"
+
+  state_of two-pull-request-runs-created-in-the-same-second
+  runs two-pull-request-runs-created-in-the-same-second "$green_push_run" "$(run_line pull_request 2026-11-10T09:00:04Z 107 completed success)" "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed failure)"
+  jobs two-pull-request-runs-created-in-the-same-second 102 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs two-pull-request-runs-created-in-the-same-second 107 "$green_jobs"
+  expect two-pull-request-runs-created-in-the-same-second 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
 
   state_of pull-request-facts-of-seven-lines
   printf 'OPEN\nfalse\nMERGEABLE\n%s\nmain\nfalse\nnone\n' "$reviewed_head" >"$work/state/pull-request-facts-of-seven-lines/fields"
