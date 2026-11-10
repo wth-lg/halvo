@@ -10,6 +10,7 @@ const USAGE: &str = "usage:
   r2-probes trial layer-cost|input-visibility|private-window [--artifact DIR]... [--records FILE]...
             [--lines FILE] --out FILE
   r2-probes stamp --in FILE --out FILE --cell NAME [--text KEY=VALUE]... [--number KEY=VALUE]...
+  r2-probes lines layer-cost|input-visibility|private-window --crate-dir DIR
   r2-probes known TARGET
   r2-probes display";
 
@@ -150,6 +151,76 @@ fn stamp(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn lines(args: &[String]) -> Result<(), String> {
+    let kind = args.first().map(String::as_str).unwrap_or("");
+    let dir =
+        PathBuf::from(value(args, "--crate-dir").ok_or("the argument --crate-dir is missing")?);
+    if kind == "layer-cost" {
+        let output = std::process::Command::new("cargo")
+            .args([
+                "metadata",
+                "--format-version",
+                "1",
+                "--locked",
+                "--all-features",
+            ])
+            .current_dir(&dir)
+            .output()
+            .map_err(|e| format!("cargo metadata: {e}"))?;
+        let meta: Value =
+            serde_json::from_slice(&output.stdout).map_err(|e| format!("cargo metadata: {e}"))?;
+        let root = meta["resolve"]["root"].as_str().unwrap_or("");
+        let empty = Vec::new();
+        let node = meta["resolve"]["nodes"]
+            .as_array()
+            .unwrap_or(&empty)
+            .iter()
+            .find(|node| node["id"] == root)
+            .ok_or("cargo metadata names no root package")?;
+        let mut crates: Vec<String> = node["deps"]
+            .as_array()
+            .unwrap_or(&empty)
+            .iter()
+            .filter_map(|dep| {
+                meta["packages"]
+                    .as_array()?
+                    .iter()
+                    .find(|package| package["id"] == dep["pkg"])
+            })
+            .map(|package| {
+                format!(
+                    "crate {} {} {}",
+                    package["name"].as_str().unwrap_or(""),
+                    package["version"].as_str().unwrap_or(""),
+                    package["license"].as_str().unwrap_or("")
+                )
+            })
+            .collect();
+        crates.sort();
+        for line in crates {
+            println!("{line}");
+        }
+        let list = std::fs::read_to_string(dir.join("files.tsv"))
+            .map_err(|e| format!("files.tsv: {e}"))?;
+        for line in list.lines() {
+            let fields: Vec<&str> = line.split('\t').collect();
+            if let [set, name, address, size, sha256] = fields[..] {
+                println!(
+                    "file {name} set={set} address={address} size_bytes={size} sha256={sha256}"
+                );
+            }
+        }
+        println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
+        println!("command cells of this Mac: sh tools/r2-probes/retime.sh FRAMES FILES OUT, alone through the helper for timed runs, then r2-probes stamp");
+    } else if kind == "input-visibility" || kind == "private-window" {
+        println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
+    } else {
+        return Err("the kind is layer-cost, input-visibility or private-window".to_string());
+    }
+    println!("command this file: r2-probes trial {kind} --artifact MACOS --artifact WINDOWS [--records THIS-MAC] --lines LINES --out FILE");
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
@@ -157,6 +228,7 @@ fn main() {
         Some("suite") => options(&args[1..]).and_then(suite::run),
         Some("trial") => trial_file(&args[1..]),
         Some("stamp") => stamp(&args[1..]),
+        Some("lines") => lines(&args[1..]),
         Some("known") => match args.get(1).and_then(|target| pages::known_text(target)) {
             Some(text) => {
                 println!("{text}");
