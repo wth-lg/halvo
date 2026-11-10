@@ -3,7 +3,8 @@
 Scratch branch, never merged. Every value in the jobs is synthetic.
 
 The rules were written here before the first measured run (commit 99a00a1). The plan revised
-its S5 unit on 2026-11-09 22:00, after run 1. The rules below follow the revised plan.
+its S5 unit on 2026-11-09 at 22:00 and 22:50 local time (UTC-8), after run 1. The rules below
+follow the revised plan.
 "Changed after the first measured run" lists each difference from the first version.
 
 ## Rules, as the plan states them
@@ -53,12 +54,13 @@ test certificate authority only the runner trusts, and exits.
 
 ### Changed after the first measured run
 
-From the plan's revision of 2026-11-09 22:00:
+From the plan's revisions of 2026-11-09, 22:00 and 22:50 (UTC-8):
 
 - The predicted results are named, and no push is spent on the macos-15 leg.
 - Equal code hashes make a leg MISSED, and the rule line prints both hashes. The first
   version here voided the line when the two binaries were identical. The jobs follow the
-  revised rule from run 3 on. In all three runs the hashes differ.
+  revised rule from run 3 on. In all three runs the hashes differ. The plan's text names
+  macos-15 for this condition. The jobs apply it on both runners.
 - "Creating a second account" became "making a second credential".
 - D7 returns to the planner only on a MISSED on windows-2025. The first version sent D7 back
   on any miss.
@@ -82,7 +84,9 @@ S6 RULE macos-15: MET
 S6 RULE windows-2025: MET
 
 The S5 rule needs the read to succeed on both runners, so the MISSED leg makes it MISSED. The
-MISSED leg is the predicted one. All three runs below printed the same five verdicts.
+MISSED leg is the predicted one. Each of the three runs below printed the same four lines,
+one for each leg on each runner. No job prints the `both runners` line. It follows from the
+two S5 legs.
 
 ## Measured values
 
@@ -105,8 +109,8 @@ The run that the commit holding this text starts cannot be listed in it.
 
 | Runner | Image | Machine |
 |---|---|---|
-| macos-15 | macos-15-arm64 20261104.0514.1, macOS 15.8.2, System Integrity Protection disabled | Apple M1 (Virtual), 3 cores, 7 GiB |
-| windows-2025 | windows-2025-vs2026 20261103.298, Windows 10.0.26100.33674 | 4 cores, 16 GiB; AMD EPYC 9V74 in run 1, AMD EPYC 7763 in run 2, Intel Xeon 6973P-C in run 3 |
+| macos-15 | macos-15-arm64 20261104.0514.1, macOS 15.8.2, System Integrity Protection disabled (logged in runs 2 and 3) | Apple M1 (Virtual), 3 cores, 7 GiB |
+| windows-2025 | windows-2025-vs2026 20261103.298.1, Windows 10.0.26100.33674 | 4 cores, 16 GiB; AMD EPYC 9V74 in run 1, AMD EPYC 7763 in run 2, Intel Xeon 6973P-C in run 3 |
 
 ### S5
 
@@ -172,7 +176,9 @@ Where the time goes (median per run, from the helper's own clock):
   macOS: `sudo security add-trusted-cert -d` adds it in the admin trust domain, and
   `security verify-cert` then accepts the leaf. Run 1 first tried to open the right
   `com.apple.trust-settings.admin`. macOS 15 refused that write (`NO (-60005)`) and the add
-  worked without it, so from run 2 on the script leaves the authorization database alone.
+  worked without it. The script's `authorizationdb remove` of that right, run after the add,
+  succeeded (`YES (0)`), so run 1 changed its runner's authorization database. From run 2 on
+  the script leaves that database alone.
   The CA's private key is never written to disk.
 
 ### What limits these numbers
