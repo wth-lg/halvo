@@ -3,6 +3,8 @@
 # rule: ci.yml is the only workflow file, actionlint accepts it, every action is pinned to a 40-hex commit, permissions are set at the top level, and the timeout of each job is the bound ci_job_timeout_min.
 set -u
 name=17-workflow-lint
+nl='
+'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -56,7 +58,7 @@ measure() {
   # shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
   . scripts/r1-gate/lib.sh
   jobs=$(grep -c '^    runs-on: ' "$file")
-  [ "$jobs" -gt 0 ] || finding "ci.yml holds no job"
+  [ "$jobs" -gt 0 ] || finding "ci.yml holds no job with runs-on at four spaces"
   if bound=$(gate_bound ci_job_timeout_min); then
     case $bound in
       '' | *[!0-9]*) finding "the bound ci_job_timeout_min is no number" ;;
@@ -77,16 +79,13 @@ measure() {
 }
 
 check() {
-  out=$(
-    CI_D_REPO=$work/$1
-    export CI_D_REPO STUB_BOUND
-    measure 2>&1
-  )
+  out=$(PATH=$path CI=$ci CI_D_REPO=$work/$1 CI_D_ARTIFACTS=$work/artifacts "$shell" "$0" 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
     "0:PASS $name") got=PASS ;;
     "1:FAIL $name ("*")") got=FAIL ;;
+    "77:SKIP $name ("*")") got=SKIP ;;
     *) got=exit-$code ;;
   esac
   case $out in
@@ -100,14 +99,15 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_BOUND=30
+  path=$PATH
+  ci=
 }
 
-# shellcheck disable=SC2016
 tree() {
   repo=$work/$1
   mkdir -p "$repo/.github/workflows" "$repo/scripts/r1-gate" || exit 2
   sed "$2" "$work/ci.yml" >"$repo/.github/workflows/ci.yml"
-  printf 'gate_bound() {\n  [ "$1" = ci_job_timeout_min ] && printf "%%s\\n" "$STUB_BOUND"\n}\n' >"$repo/scripts/r1-gate/lib.sh"
+  cp "$work/lib.sh" "$repo/scripts/r1-gate/lib.sh"
 }
 
 self_test() {
@@ -116,6 +116,25 @@ self_test() {
     exit 1
   fi
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  mkdir -p "$work/artifacts" "$work/no-tools" "$work/tools"
+  shell=$(command -v sh) || exit 2
+  STUB_REAL=$(command -v actionlint) || exit 2
+  STUB_TOOLS=$work/tools
+  STUB_BOUND=30
+  export STUB_BOUND STUB_REAL STUB_TOOLS
+  cat >"$work/tools/brew" <<'EOF'
+#!/bin/sh
+[ "$*" = 'install actionlint' ] || exit 1
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$STUB_REAL" >"$STUB_TOOLS/actionlint"
+chmod +x "$STUB_TOOLS/actionlint"
+EOF
+  chmod +x "$work/tools/brew"
+  cat >"$work/lib.sh" <<'EOF'
+gate_bound() {
+  [ "${GATE_ROOT:-}" = "$CI_D_REPO" ] || return 1
+  [ "$1" = ci_job_timeout_min ] && printf '%s\n' "$STUB_BOUND"
+}
+EOF
   cat >"$work/ci.yml" <<'EOF'
 name: ci
 on: push
@@ -136,6 +155,8 @@ EOF
   rejected=0
   wrong=
   STUB_BOUND=30
+  path=$PATH
+  ci=
 
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses lines: 2, findings: 0'
@@ -145,13 +166,26 @@ EOF
   check action-on-a-short-commit FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
   tree action-on-41-hex '15s/ # v7.0.1/a # v7.0.1/'
   check action-on-41-hex FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  tree named-step-on-a-tag "10s/.*/      - name: Checkout\\${nl}        uses: actions\\/checkout@v7/"
+  check named-step-on-a-tag FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  tree no-uses-line '10s/.*/      - run: "true"/;15s/.*/      - run: "true"/'
+  check no-uses-line FAIL 'FAIL 17-workflow-lint (ci.yml holds no uses line)'
   tree second-workflow-file ''
   cp "$work/ci.yml" "$work/second-workflow-file/.github/workflows/package.yml"
   check second-workflow-file FAIL 'add a script under scripts/<run>/ci.d/, not a workflow file)'
+  tree hidden-second-workflow-file ''
+  cp "$work/ci.yml" "$work/hidden-second-workflow-file/.github/workflows/.package.yml"
+  check hidden-second-workflow-file FAIL 'add a script under scripts/<run>/ci.d/, not a workflow file)'
   tree no-permissions '3,4d'
   check no-permissions FAIL 'ci.yml must set permissions once at the top level, and it does so 0 times)'
+  tree permissions-at-job-level-only "3,4d;7s/\$/\\${nl}    permissions: {}/"
+  check permissions-at-job-level-only FAIL 'ci.yml must set permissions once at the top level, and it does so 0 times)'
   tree job-without-timeout '13d'
   check job-without-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree step-timeout-in-place-of-the-job-timeout "13d;15s/\$/\\${nl}        timeout-minutes: 30/"
+  check step-timeout-in-place-of-the-job-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree job-keys-at-another-indent '6,15s/^/  /;8d;13d'
+  check job-keys-at-another-indent FAIL 'FAIL 17-workflow-lint (ci.yml holds no job with runs-on at four spaces)'
   tree timeout-above-the-bound '8s/30/31/'
   check timeout-above-the-bound FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree timeout-ten-times-the-bound '8s/30/300/'
@@ -169,6 +203,13 @@ EOF
   check actionlint-finding FAIL 'actionlint reports a finding in ci.yml)'
   tree two-findings '10s/@[0-9a-f]* # v7.0.1/@v7/;3,4d'
   check two-findings FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment; and 1 more above)'
+  tree actionlint-missing ''
+  path=$work/no-tools
+  check actionlint-missing SKIP 'SKIP 17-workflow-lint (actionlint is not installed)'
+  tree actionlint-installed-in-ci ''
+  path=$work/tools:/usr/bin:/bin
+  ci=true
+  check actionlint-installed-in-ci PASS 'jobs: 2, uses lines: 2, findings: 0'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

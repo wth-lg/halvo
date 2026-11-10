@@ -3,14 +3,13 @@
 # rule: The self-tests of the R1 gate pass, and each check script passes its self-test under dash.
 set -u
 name=15-gate-self-test
+nl='
+'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
 }
-
-nl='
-'
 
 self_tested() {
   label=$1
@@ -40,16 +39,13 @@ measure() {
 }
 
 check() {
-  out=$(
-    CI_D_REPO=$work/$1
-    export CI_D_REPO
-    measure 2>&1
-  )
+  out=$(PATH=$path CI_D_REPO=$work/$1 "$shell" "$0" 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
     "0:PASS $name") got=PASS ;;
     "1:FAIL $name ("*")") got=FAIL ;;
+    "77:SKIP $name ("*")") got=SKIP ;;
     *) got=exit-$code ;;
   esac
   case $out in
@@ -62,39 +58,54 @@ check() {
   elif [ "$2" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
+  path=$PATH
 }
 
 gate() {
-  mkdir -p "$work/$1/scripts/r1-gate" || exit 2
-  printf '%s\n' "$2" >"$work/$1/scripts/r1-gate/run.sh"
-  [ $# -lt 3 ] || printf '%s\n' "$3" >"$work/$1/scripts/r1-gate/check-store.sh"
-  [ $# -lt 4 ] || printf '%s\n' "$4" >"$work/$1/scripts/r1-gate/check-timed-run.sh"
+  directory=$work/$1/scripts/r1-gate
+  mkdir -p "$directory" || exit 2
+  printf '%s\n' "$2" >"$directory/run.sh"
+  shift 2
+  while [ $# -ge 2 ]; do
+    printf '%s\n' "$2" >"$directory/check-$1.sh"
+    shift 2
+  done
 }
 
 # shellcheck disable=SC2016
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  mkdir -p "$work/no-tools"
+  shell=$(command -v sh) || exit 2
+  path=$PATH
   pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store\n"'
   planned='printf "FAIL self-test:store (planned)\n"; exit 1'
   rejected=0
   wrong=
 
-  gate gate-passes "$pass" "$pass" "$pass"
+  gate gate-passes "$pass" store "$pass" timed-run "$pass"
   check gate-passes PASS
-  gate run-fails "$planned" "$pass"
+  gate run-fails "$planned" store "$pass"
   check run-fails FAIL 'run.sh --self-test exited 1)'
-  gate run-prints-no-pass-line 'exit 0' "$pass"
+  gate run-prints-no-pass-line 'exit 0' store "$pass"
   check run-prints-no-pass-line FAIL 'run.sh --self-test printed no PASS self-test line)'
+  gate pass-words-inside-a-line 'printf "the line PASS self-test:store is missing\n"' store "$pass"
+  check pass-words-inside-a-line FAIL 'run.sh --self-test printed no PASS self-test line)'
   gate no-check-script "$pass"
   check no-check-script FAIL 'scripts/r1-gate holds no check-*.sh)'
-  gate check-fails "$pass" "$planned"
+  gate check-fails "$pass" store "$planned"
   check check-fails FAIL 'dash check-store.sh --self-test exited 1)'
-  gate check-prints-no-pass-line "$pass" 'exit 0'
+  gate check-prints-no-pass-line "$pass" store 'exit 0'
   check check-prints-no-pass-line FAIL 'dash check-store.sh --self-test printed no PASS self-test line)'
-  gate second-check-fails "$pass" "$pass" "$planned"
+  gate second-check-fails "$pass" store "$pass" timed-run "$planned"
   check second-check-fails FAIL 'dash check-timed-run.sh --self-test exited 1)'
-  gate check-needs-bash "$pass" '[[ a == a ]] && printf "PASS self-test:store\n"'
+  gate check-with-another-initial-fails "$pass" store "$pass" cost "$planned"
+  check check-with-another-initial-fails FAIL 'dash check-cost.sh --self-test exited 1)'
+  gate check-needs-bash "$pass" store '[[ a == a ]] && printf "PASS self-test:store\n"'
   check check-needs-bash FAIL 'dash check-store.sh --self-test exited 127)'
+  gate dash-missing "$pass" store "$pass"
+  path=$work/no-tools
+  check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
