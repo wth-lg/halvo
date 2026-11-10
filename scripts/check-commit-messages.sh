@@ -103,8 +103,12 @@ Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
      stores it. Git does not run it under --no-verify, for revert, cherry-pick,
      am and commit-tree, for a commit that a rebase picks without a new
-     message, or in a checkout that has no .githooks directory. git rebase -i
-     runs it for a commit that it rewords.
+     message, for the commit that a squash, a fixup -c or a fixup -C of git
+     rebase -i makes, although that commit gets a new message, for the commit
+     that git rebase --continue makes after an edit or a conflict of git
+     rebase -i, although an editor opens for its message, or in a checkout
+     that has no .githooks directory. git rebase -i runs it for a commit that
+     it rewords.
   2. .githooks/pre-push reads the stored messages of the commits that a push
      would add to the remote, and refuses the push. For each pushed ref these
      are the commits that are on neither the remote's copy of that ref nor the
