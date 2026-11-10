@@ -4,8 +4,10 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use quick_xml::events::Event;
-use quick_xml::Reader;
+use quick_xml::escape::resolve_predefined_entity;
+use quick_xml::events::attributes::Attribute;
+use quick_xml::events::{BytesRef, Event};
+use quick_xml::{Reader, XmlVersion};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Kind {
@@ -207,10 +209,19 @@ pub fn element_instances(xml: &[u8], rule: &ElementRule) -> Result<Vec<String>, 
                 e.attributes()
                     .flatten()
                     .find(|a| local(a.key.as_ref()) == *key)
-                    .map(|a| a.value.to_string())
+                    .map(|a| attribute_value(&a))
                     .unwrap_or_default()
             })
             .collect()
+    };
+    let add = |instance: &mut Instance, text: &str| {
+        let slot = match instance.stack.last() {
+            None => rule.texts.iter().position(|name| *name == OWN_TEXT),
+            Some(name) => rule.texts.iter().position(|text| text == name),
+        };
+        if let Some(at) = slot {
+            instance.texts[at].push_str(text);
+        }
     };
     let finish = |instance: Instance| {
         let mut parts = instance.attrs;
@@ -226,16 +237,9 @@ pub fn element_instances(xml: &[u8], rule: &ElementRule) -> Result<Vec<String>, 
             (Event::Start(e), Some(instance)) => {
                 instance.stack.push(local(e.name().as_ref()).to_string())
             }
-            (Event::Text(t), Some(instance)) => {
-                let text: &str = t.as_ref();
-                let slot = match instance.stack.last() {
-                    None => rule.texts.iter().position(|name| *name == OWN_TEXT),
-                    Some(name) => rule.texts.iter().position(|text| text == name),
-                };
-                if let Some(at) = slot {
-                    instance.texts[at].push_str(text);
-                }
-            }
+            (Event::Text(t), Some(instance)) => add(instance, &t.xml10_content()),
+            (Event::CData(t), Some(instance)) => add(instance, &t.xml10_content()),
+            (Event::GeneralRef(r), Some(instance)) => add(instance, &reference_text(r)?),
             (Event::End(_), Some(instance)) => {
                 if instance.stack.pop().is_none() {
                     found.push(finish(open.take().expect("open instance")));
@@ -264,6 +268,27 @@ pub fn element_instances(xml: &[u8], rule: &ElementRule) -> Result<Vec<String>, 
         buf.clear();
     }
     Ok(found)
+}
+
+pub fn attribute_value(attribute: &Attribute<'_>) -> String {
+    attribute
+        .normalized_value(XmlVersion::Implicit1_0)
+        .map(|value| value.into_owned())
+        .unwrap_or_else(|_| attribute.value.to_string())
+}
+
+fn reference_text(reference: &BytesRef<'_>) -> Result<String, String> {
+    if let Some(ch) = reference
+        .resolve_char_ref()
+        .map_err(|e| format!("xml: {e}"))?
+    {
+        return Ok(ch.to_string());
+    }
+    let name: &str = reference.as_ref();
+    Ok(match resolve_predefined_entity(name) {
+        Some(text) => text.to_string(),
+        None => format!("&{name};"),
+    })
 }
 
 const IMPLICIT: [&str; 10] = [
@@ -316,7 +341,7 @@ fn element_attributes(xml: &[u8]) -> Vec<(String, BTreeMap<String, String>)> {
                 let attrs = e
                     .attributes()
                     .flatten()
-                    .map(|a| (a.key.as_ref().to_string(), a.value.to_string()))
+                    .map(|a| (a.key.as_ref().to_string(), attribute_value(&a)))
                     .collect();
                 found.push((local(e.name().as_ref()).to_string(), attrs));
             }
@@ -337,6 +362,11 @@ fn referenced_ids(xml: &[u8]) -> BTreeSet<String> {
 }
 
 pub fn linked_parts(entries: &BTreeMap<String, Vec<u8>>) -> BTreeSet<String> {
+    let by_lower: BTreeMap<String, &String> = entries
+        .keys()
+        .map(|name| (name.to_ascii_lowercase(), name))
+        .collect();
+    let entry = |name: &str| by_lower.get(&name.to_ascii_lowercase()).copied();
     let mut live = BTreeSet::new();
     let mut queue = VecDeque::from([String::new()]);
     while let Some(source) = queue.pop_front() {
@@ -345,7 +375,7 @@ pub fn linked_parts(entries: &BTreeMap<String, Vec<u8>>) -> BTreeSet<String> {
         } else {
             rels_of(&source)
         };
-        let Some(rels) = entries.get(&rels_name) else {
+        let Some(rels) = entry(&rels_name).and_then(|name| entries.get(name)) else {
             continue;
         };
         let used: BTreeSet<String> = entries
@@ -363,9 +393,11 @@ pub fn linked_parts(entries: &BTreeMap<String, Vec<u8>>) -> BTreeSet<String> {
             let referenced = source.is_empty()
                 || used.contains(&get("Id"))
                 || IMPLICIT.iter().any(|tail| get("Type").ends_with(tail));
-            let target = resolve(&source, &get("Target"));
-            if referenced && entries.contains_key(&target) && live.insert(target.clone()) {
-                queue.push_back(target);
+            let Some(target) = entry(&resolve(&source, &get("Target"))) else {
+                continue;
+            };
+            if referenced && live.insert(target.clone()) {
+                queue.push_back(target.clone());
             }
         }
     }

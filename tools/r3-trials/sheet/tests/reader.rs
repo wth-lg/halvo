@@ -282,6 +282,129 @@ fn rewrite_entry(src: &Path, dst: &Path, entry: &str, from: &str, to: &str) {
 }
 
 #[test]
+fn the_reader_keys_decoded_values() {
+    let dir = scratch("decoded");
+    let sheet = "xl/worksheets/sheet1.xml";
+    let list = "<formula1>\"yes,no\"</formula1>";
+    let upper = "<formula2>24</formula2>";
+    let name = "Input!$B$6</definedName>";
+    let cases = [
+        (
+            "list-escaped",
+            "validation.xlsx",
+            sheet,
+            list,
+            "<formula1>&quot;yes,no&quot;</formula1>",
+            vec![],
+        ),
+        (
+            "list-cdata",
+            "validation.xlsx",
+            sheet,
+            list,
+            "<formula1><![CDATA[\"yes,no\"]]></formula1>",
+            vec![],
+        ),
+        (
+            "list-changed",
+            "validation.xlsx",
+            sheet,
+            list,
+            "<formula1>\"yes,no&amp;\"</formula1>",
+            vec![Kind::Validation],
+        ),
+        (
+            "upper-charref-changed",
+            "validation.xlsx",
+            sheet,
+            upper,
+            "<formula2>24&#48;</formula2>",
+            vec![Kind::Validation],
+        ),
+        (
+            "upper-cdata-changed",
+            "validation.xlsx",
+            sheet,
+            upper,
+            "<formula2><![CDATA[240]]></formula2>",
+            vec![Kind::Validation],
+        ),
+        (
+            "upper-charref-same",
+            "validation.xlsx",
+            sheet,
+            upper,
+            "<formula2>&#50;&#x34;</formula2>",
+            vec![],
+        ),
+        (
+            "upper-cdata-same",
+            "validation.xlsx",
+            sheet,
+            upper,
+            "<formula2><![CDATA[24]]></formula2>",
+            vec![],
+        ),
+        (
+            "sqref-charref-same",
+            "validation.xlsx",
+            sheet,
+            "sqref=\"B2:B11\"",
+            "sqref=\"B2&#58;B11\"",
+            vec![],
+        ),
+        (
+            "name-charref-same",
+            "two-sheets.xlsx",
+            "xl/workbook.xml",
+            name,
+            "Input!&#36;B&#36;6</definedName>",
+            vec![],
+        ),
+        (
+            "name-changed",
+            "two-sheets.xlsx",
+            "xl/workbook.xml",
+            name,
+            "Input!$B$6&amp;</definedName>",
+            vec![Kind::DefinedName],
+        ),
+        (
+            "format-charref-same",
+            "formats.xlsx",
+            "xl/styles.xml",
+            "formatCode=\"0.0%\"",
+            "formatCode=\"0.0&#37;\"",
+            vec![],
+        ),
+        (
+            "rels-target-case",
+            "chart.xlsx",
+            "xl/drawings/_rels/drawing1.xml.rels",
+            "Target=\"../charts/chart1.xml\"",
+            "Target=\"../Charts/chart1.xml\"",
+            vec![],
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (label, file, entry, from, to, want) in cases {
+        let original = corpus_dir().join(file);
+        let saved = dir.join(format!("{label}.xlsx"));
+        rewrite_entry(&original, &saved, entry, from, to);
+        let spec = corpus::spec(file).unwrap();
+        let judgement = trial::judge(&original, &saved, &spec).unwrap();
+        if judgement.lost != want {
+            wrong.push(format!(
+                "{label}: lost={} want {}",
+                parts::list(&judgement.lost),
+                parts::list(&want)
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
+}
+
+#[test]
 fn an_entry_that_nothing_links_to_is_lost() {
     let dir = scratch("unlinked");
     let original = corpus_dir().join("chart.xlsx");

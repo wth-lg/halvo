@@ -166,7 +166,7 @@ pub fn array_formulas(path: &Path) -> Result<BTreeSet<(String, String, String)>,
                         e.attributes()
                             .flatten()
                             .find(|a| a.key.as_ref() == key)
-                            .map(|a| a.value.to_string())
+                            .map(|a| crate::parts::attribute_value(&a))
                     };
                     match crate::parts::local(e.name().as_ref()) {
                         "c" => cell = attr("r").unwrap_or_default(),

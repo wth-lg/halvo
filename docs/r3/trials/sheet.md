@@ -80,8 +80,9 @@ comparison of a cached result with the computed one is exact.
   `xl/comments*.xml`, a `dataValidations` element in a sheet part, a
   `mergeCells` element in a sheet part, a `numFmts` element in
   `xl/styles.xml`, a `definedNames` element in `xl/workbook.xml`. Entry names
-  are compared without regard to case, and a directory entry counts for no
-  kind. An element counts only with at least one child (`dataValidation`,
+  are compared without regard to case, also where the linked-entry count
+  below looks up the target of a relationship, and a directory entry counts
+  for no kind. An element counts only with at least one child (`dataValidation`,
   `mergeCell`, `numFmt`, `definedName`). A kind is lost when the original has
   it and the saved file has not. The trial reads the rule more strictly than
   that sentence of A13.4, and also counts a kind as lost when the saved file
