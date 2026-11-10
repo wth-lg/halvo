@@ -126,7 +126,7 @@ The token rule of the mail face applies.
 
 | method and path | answer |
 |---|---|
-| `GET /v1.0/me/calendarView?startDateTime=<t>&endDateTime=<t>` | 200 `{"value":[<event>...]}` with each event that overlaps the window (start before `endDateTime` and end after `startDateTime`), sorted by start. A time is `YYYY-MM-DDTHH:MM[:SS[.fraction]]` with an optional `Z` or offset; a time with no zone is read as UTC. A missing or malformed value gets 400 |
+| `GET /v1.0/me/calendarView?startDateTime=<t>&endDateTime=<t>` | 200 `{"value":[<event>...]}` with each event that overlaps the window (start before `endDateTime` and end after `startDateTime`), sorted by start. A time is `YYYY-MM-DDTHH:MM[:SS[.fraction]]` with an optional `Z` or offset; a time with no zone is read as UTC. A missing or malformed value gets 400. Send the `+` of an offset as `%2B`: a raw `+` in the query is read as a space, and the value then gets 400 |
 | `DELETE /v1.0/me/events/{id}` | removes the event, appends its id to `calendar.deleted`, and answers 204; an unknown id gets 404 |
 
 An event has exactly these keys, in this order: `id`, `subject`, `start.dateTime`,
