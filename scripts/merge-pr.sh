@@ -786,6 +786,41 @@ EOF
   jobs green-push-runs-of-branches-old-feature-and-Feature-above-a-failed-one-of-the-head-branch-feature 107 "$green_jobs"
   refused green-push-runs-of-branches-old-feature-and-Feature-above-a-failed-one-of-the-head-branch-feature "the newest push run of the head branch feature on $reviewed_head, run 101, completed with failure"
 
+  state_of green-push-run-of-branch-release-1-above-a-failed-one-of-the-head-branch-release.1
+  fields green-push-run-of-branch-release-1-above-a-failed-one-of-the-head-branch-release.1 OPEN false MERGEABLE "$reviewed_head" false none release.1
+  runs green-push-run-of-branch-release-1-above-a-failed-one-of-the-head-branch-release.1 "$(run_line push 2026-11-10T09:00:00Z 101 completed failure .github/workflows/ci.yml release.1)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml release-1)"
+  jobs green-push-run-of-branch-release-1-above-a-failed-one-of-the-head-branch-release.1 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-release-1-above-a-failed-one-of-the-head-branch-release.1 106 "$green_jobs"
+  refused green-push-run-of-branch-release-1-above-a-failed-one-of-the-head-branch-release.1 "the newest push run of the head branch release.1 on $reviewed_head, run 101, completed with failure"
+
+  state_of green-push-run-of-branch-release.1-above-a-failed-one-of-the-head-branch-release-1
+  fields green-push-run-of-branch-release.1-above-a-failed-one-of-the-head-branch-release-1 OPEN false MERGEABLE "$reviewed_head" false none release-1
+  runs green-push-run-of-branch-release.1-above-a-failed-one-of-the-head-branch-release-1 "$(run_line push 2026-11-10T09:00:00Z 101 completed failure .github/workflows/ci.yml release-1)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml release.1)"
+  jobs green-push-run-of-branch-release.1-above-a-failed-one-of-the-head-branch-release-1 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-release.1-above-a-failed-one-of-the-head-branch-release-1 106 "$green_jobs"
+  refused green-push-run-of-branch-release.1-above-a-failed-one-of-the-head-branch-release-1 "the newest push run of the head branch release-1 on $reviewed_head, run 101, completed with failure"
+
+  state_of green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-old-feature
+  fields green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-old-feature OPEN false MERGEABLE "$reviewed_head" false none old-feature
+  runs green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-old-feature "$(run_line push 2026-11-10T09:00:00Z 101 completed failure .github/workflows/ci.yml old-feature)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml feature)"
+  jobs green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-old-feature 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-old-feature 106 "$green_jobs"
+  refused green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-old-feature "the newest push run of the head branch old-feature on $reviewed_head, run 101, completed with failure"
+
+  state_of green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-Feature
+  fields green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-Feature OPEN false MERGEABLE "$reviewed_head" false none Feature
+  runs green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-Feature "$(run_line push 2026-11-10T09:00:00Z 101 completed failure .github/workflows/ci.yml Feature)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml feature)"
+  jobs green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-Feature 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-Feature 106 "$green_jobs"
+  refused green-push-run-of-branch-feature-above-a-failed-one-of-the-head-branch-Feature "the newest push run of the head branch Feature on $reviewed_head, run 101, completed with failure"
+
+  state_of green-push-run-of-branch-1e2-above-a-failed-one-of-the-head-branch-100
+  fields green-push-run-of-branch-1e2-above-a-failed-one-of-the-head-branch-100 OPEN false MERGEABLE "$reviewed_head" false none 100
+  runs green-push-run-of-branch-1e2-above-a-failed-one-of-the-head-branch-100 "$(run_line push 2026-11-10T09:00:00Z 101 completed failure .github/workflows/ci.yml 100)" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed success .github/workflows/ci.yml 1e2)"
+  jobs green-push-run-of-branch-1e2-above-a-failed-one-of-the-head-branch-100 101 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
+  jobs green-push-run-of-branch-1e2-above-a-failed-one-of-the-head-branch-100 106 "$green_jobs"
+  refused green-push-run-of-branch-1e2-above-a-failed-one-of-the-head-branch-100 "the newest push run of the head branch 100 on $reviewed_head, run 101, completed with failure"
+
   state_of workflow-run-line-of-seven-fields
   printf 'push\t2026-11-10T09:00:00Z\t101\tcompleted\tsuccess\t1\t.github/workflows/ci.yml\n' >"$work/state/workflow-run-line-of-seven-fields/runs"
   expect workflow-run-line-of-seven-fields 2 not-called 'It reads 8 fields divided by tabs' --body-file "$work/body.txt"
