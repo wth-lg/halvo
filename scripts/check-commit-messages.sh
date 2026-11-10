@@ -180,7 +180,7 @@ report_message() {
 }
 
 check_hook_file() {
-  [ -f "$1" ] || die "no such message file: $1"
+  { [ -r "$1" ] && [ ! -d "$1" ]; } || die "no such message file: $1"
   hook_file_text=$(cat "$1") || die "cannot read the message file: $1"
   comment_string=$(git_comment_string) || die 'git config could not report the comment string of git'
   message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
@@ -352,14 +352,14 @@ self_test() {
   }
 
   expect_hook_path() {
-    name=$1 want_status=$2 want_text=$3 hook_file=$4
+    name=$1 want_status=$2 want_text=$3 hook_file=$4 hook_file_text=${5-}
     status=0
-    output=$(check_hook_file "$hook_file" 2>&1) || status=$?
+    printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") >/dev/null 2>&1 || status=$?
+    text=present
+    if [ -n "$want_text" ]; then
+      printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") 2>&1 | grep -qF -- "$want_text" || text=absent
+    fi
     fixtures=$((fixtures + 1))
-    case $output in
-      *"$want_text"*) text=present ;;
-      *) text=absent ;;
-    esac
     if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
       printf 'PASS %s\n' "$name"
     else
@@ -454,12 +454,9 @@ self_test() {
   expect_in_hook_file_at_lines 'a trailer at the start of a line fails below a whole diff, and the context line of that diff does not' '12' '#' "Fix the gate${nl}${nl}$scissors_block${nl}$diff_with_attribution_text${nl}$trailer"
   expect_in_hook_file_at_lines 'a trailer indented by a tab below a scissors block and a diff header fails, because no line of a diff starts with a tab' '7' '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}${tab}$trailer"
 
-  hook_files=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a directory for the hook files of the self-test'
-  printf 'Fix the gate\n\n%s\n' "$trailer" >"$hook_files/with-a-trailer.txt"
-  printf 'Add the store\n\nStream segment files through bounded chunks.\n' >"$hook_files/clean.txt"
-  expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' "$hook_files/with-a-trailer.txt"
-  expect_hook_path 'the hook path exits 0 on a clean file' 0 '' "$hook_files/clean.txt"
-  expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' "$hook_files/absent.txt"
+  expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' /dev/stdin "Fix the gate${nl}${nl}$trailer"
+  expect_hook_path 'the hook path exits 0 on a clean file' 0 '' /dev/stdin "Add the store${nl}${nl}Stream segment files through bounded chunks."
+  expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' /dev/null/absent
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d of %d fixtures misclassified\n' "$failures" "$fixtures"
