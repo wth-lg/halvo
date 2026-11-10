@@ -155,7 +155,7 @@ cases_run() {
   t tree-id-of-no-tree FAIL tree_id "$trees" no-such-tree
   t check-script-missing FAIL run_check no-such-check --self-test
   t check-script-missing-is-named PASS missing_script_line_is "FAIL no-such-check (check script missing)"
-  t check-script-present PASS run_check windows-ci --self-test
+  t check-script-present PASS run_check no-ll-hook --self-test
   t exit-0-when-every-line-passes PASS status_is 0 0 0
   t exit-3-on-a-no-input-line PASS status_is 3 0 3
   t exit-3-stays-after-a-pass PASS status_is 3 3 0

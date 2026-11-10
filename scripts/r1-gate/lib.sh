@@ -643,9 +643,50 @@ predicate_cost_within_bound() {
   }'
 }
 
-# PASS(0) if the CI conclusion is success.
-predicate_ci_success() {
-  case "$1" in success) return 0 ;; *) return 1 ;; esac
+ci_facts() {
+  gh run list -R "$GATE_REPO" -c "$1" -L 100 --json databaseId,event,headSha,status,conclusion \
+    --jq '.[] | "run \(.databaseId) \(.event) \(.headSha) \(.status) \(if .conclusion == null or .conclusion == "" then "none" else .conclusion end)"' > "$2.runs" || return 1
+  : > "$2"
+  while read -r fact_kind fact_id fact_event fact_rest; do
+    printf '%s %s %s %s\n' "$fact_kind" "$fact_id" "$fact_event" "$fact_rest" >> "$2"
+    [ "$fact_event" = push ] || continue
+    gh run view -R "$GATE_REPO" "$fact_id" --json jobs \
+      --jq '.jobs[] | "job \(.name | gsub(" "; "-")) \(if .conclusion == null or .conclusion == "" then "none" else .conclusion end) \(.steps | length)"' >> "$2" || return 1
+  done < "$2.runs"
+}
+
+ci_defect() {
+  awk -v sha="$1" '
+    function close_run() {
+      if (!in_push || defect != "") return
+      if (windows == "absent") defect = "push run " run_id " has no job named windows"
+      else if (windows == "did not start") defect = "push run " run_id ": the windows job did not start (zero steps)"
+      else if (windows != "success") defect = "push run " run_id ": the windows job concluded " windows
+    }
+    BEGIN {
+      if (sha !~ /^[0-9a-f]+$/ || length(sha) != 40) { print "the commit to read is no 40 hex digits: [" sha "]"; bad = 1; exit 1 }
+    }
+    $1 == "run" {
+      close_run()
+      in_push = ($3 == "push")
+      if (!in_push) next
+      pushes++; run_id = $2; windows = "absent"
+      if ($4 != sha && defect == "") defect = "push run " $2 " is for " $4 ", not for the measured commit"
+    }
+    $1 == "job" && in_push && $2 == "windows" {
+      if ($4 + 0 < 1) windows = "did not start"
+      else windows = $3
+    }
+    END {
+      if (bad) exit 1
+      close_run()
+      if (defect == "" && pushes == 0) defect = "no push run for " sha
+      if (defect != "") { print defect; exit 1 }
+    }' "$2"
+}
+
+predicate_ci() {
+  ci_defect "$1" "$2" > /dev/null
 }
 
 source_rule() {
