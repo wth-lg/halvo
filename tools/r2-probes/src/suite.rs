@@ -1043,6 +1043,7 @@ fn child_accessibility(args: &[String]) -> Result<Record, String> {
     let record = Record::new("", 0)
         .number("focused_ms", How::Median, focused_ms)
         .number("focused_bytes", How::Max, focused.bytes as f64)
+        .text("focused", if focused.found { "found" } else { "none" })
         .number("subtree_ms", How::Median, best_ms)
         .number("first_bytes", How::Max, first_bytes as f64)
         .number("stored_bytes", How::Max, best.text.len() as f64)
