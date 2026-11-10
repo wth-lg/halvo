@@ -8,6 +8,7 @@ THREADS_QUERY="query(\$owner: String!, \$repo: String!, \$number: Int!, \$endCur
 
 RUNS_FILTER='.workflow_runs[] | "\(.event)\t\(.created_at)\t\(.id)\t\(.status)\t\(.conclusion // "none")\t\(.run_attempt)\t\(.path)"'
 JOBS_FILTER='.jobs[] | "\(.name)\t\(.status)\t\(.conclusion // "none")"'
+CI_WORKFLOW=.github/workflows/ci.yml
 
 nl='
 '
@@ -35,11 +36,10 @@ attribution line reaches the default branch.
         - the title and the description of the pull request pass it too
       Then merge with
         gh pr merge <number> --squash --match-head-commit <sha> --subject <text> --body-file -
-      which hands gh, on standard input, the body that was checked. Then fetch,
-      print the merge commit with its author and committer, and run the range
-      check on that commit. When the merge call fails, the script reads the
-      state of the pull request, and if GitHub reports it MERGED, it goes on
-      as after a call that succeeded.
+      which hands gh, on standard input, the body that was checked. Then read
+      the state of the pull request, whatever the exit code of gh was. Only
+      when GitHub reports it MERGED, fetch, print the merge commit with its
+      author and committer, and run the range check on that commit.
       --dry-run prints every fact and stops before the merge. It exits 0 only
       when every gate holds.
   sh scripts/merge-pr.sh --self-test
@@ -54,18 +54,19 @@ It cannot see a merge that someone makes on the website or with gh pr merge
 directly. The push run of CI reports such a merge after the fact, and only a
 ruleset on the default branch can stop it.
 It finds the workflow runs by the head commit, whatever workflow file started
-them, so it cannot tell which pull request a pull_request run belongs to when
-two pull requests share a head. It reads no check that an app other than
-GitHub Actions reports on the head.
+them. So it cannot tell which pull request a pull_request run belongs to when
+two pull requests share a head, and it refuses when the newest run of an event
+comes from a workflow file without the jobs macos and windows. It reads no
+check that an app other than GitHub Actions reports on the head.
 
 Exit codes: 0 merged and the merge commit passed the range check, or with
 --dry-run every gate holds; 1 a gate refuses, and this run merged nothing; 2
 the script could not finish: either before the merge call, and then this run
-merged nothing, or because the merge call failed, and then the last line says
-that GitHub reports the pull request as not merged, or that the script could
-not read its state and which command shows it; 3 the pull request is merged,
-and its merge commit failed the range check or could not be checked; 64 bad
-usage.
+merged nothing, or after it, when GitHub does not report the pull request as
+MERGED, and then the last line says that GitHub reports it as not merged, or
+that the script could not read its state and which command shows it; 3 the
+pull request is merged, and its merge commit failed the range check or could
+not be checked; 64 bad usage.
 EOF
 }
 
@@ -209,16 +210,39 @@ refuse_a_missing_run() {
   esac
 }
 
-refuse_a_failed_run() {
-  failed_run="the newest $event run on $head, run $run_id, completed with $run_conclusion. Read why: gh run view $run_id --log-failed."
-  case $event in
-    push)
-      refuse "$failed_run If the cause is in the commits, fix it and push: the new head needs a new review. If the cause is outside them, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+refuse_a_run_without_success() {
+  run_fact="the newest $event run on $head, run $run_id,"
+  case $run_conclusion in
+    action_required)
+      refuse "$run_fact waits for an approval: its conclusion is action_required. GitHub can hold the run of a pull request from another repository until someone with write access approves it. Approve it on its page (gh run view $run_id --web), wait for it (gh run watch $run_id), then run this script again."
       ;;
-    pull_request)
-      refuse "$failed_run If its step Commit messages names a line in the title or the description, remove the line on GitHub (gh pr edit $number), then close and reopen the pull request: gh pr close $number && gh pr reopen $number. That starts a new pull_request run, which reads the new text; a re-run reads the old text. If the cause is in the commits or in their merge with $base, fix it and push: the new head needs a new review. If the cause is outside both, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+    skipped)
+      refuse "$run_fact completed with skipped: it ran no job, so it tested nothing. The workflow has to run the jobs macos and windows for every push and every pull request: restore that in $CI_WORKFLOW and push. The new head needs a new review."
+      ;;
+    failure|timed_out)
+      failed_run="$run_fact completed with $run_conclusion. Read why: gh run view $run_id --log-failed."
+      case $event in
+        push)
+          refuse "$failed_run If the cause is in the commits, fix it and push: the new head needs a new review. If the cause is outside them, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+          ;;
+        pull_request)
+          refuse "$failed_run If its step Commit messages names a line in the title or the description, remove the line on GitHub (gh pr edit $number), then close and reopen the pull request: gh pr close $number && gh pr reopen $number. That starts a new pull_request run, which reads the new text; a re-run reads the old text. If the cause is in the commits or in their merge with $base, fix it and push: the new head needs a new review. If the cause is outside both, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+          ;;
+      esac
+      ;;
+    *)
+      refuse "$run_fact completed with $run_conclusion. Run it again and wait: gh run rerun $run_id && gh run watch $run_id. Then run this script again."
       ;;
   esac
+}
+
+refuse_a_job_without_success() {
+  job_fact="the job $required did not succeed in $event run $run_id, the newest $event run on $head, although the run completed with success: no job of the run has that name, or a job of that name did not complete with success. Its jobs (name, status, conclusion):$nl$(jobs_of "$run_id")$nl"
+  if [ "$run_path" = "$CI_WORKFLOW" ]; then
+    refuse "${job_fact}A job was renamed, removed or skipped, or it failed where the workflow lets a job fail. The workflow has to run the jobs macos and windows for every push and every pull request, and both have to succeed: restore that in $CI_WORKFLOW and push. The new head needs a new review."
+  else
+    refuse "${job_fact}Another workflow file than $CI_WORKFLOW started this run: $run_path. This gate reads the newest run of each event, whatever file started it, so it cannot hold while two workflow files run for the event $event: keep the jobs of that event in one workflow file, or change this gate in the pull request that adds the second file."
+  fi
 }
 
 read_stored_message() {
@@ -262,17 +286,18 @@ apply_gates() {
       refuse_a_missing_run
       continue
     fi
-    IFS=$tab read -r _ _ run_id run_status run_conclusion _ <<EOF
+    IFS=$tab read -r _ _ run_id run_status run_conclusion _ run_path <<EOF
 $run
 EOF
     if [ "$run_status" != completed ]; then
       refuse "the newest $event run on $head, run $run_id, has not completed: its status is $run_status. Wait for it: gh run watch $run_id. Then run this script again."
     elif [ "$run_conclusion" != success ]; then
-      refuse_a_failed_run
+      refuse_a_run_without_success
     else
       for required in macos windows; do
-        jobs_of "$run_id" | awk -F '\t' -v job="$required" '$1 == job && $2 == "completed" && $3 == "success" { found = 1 } END { exit !found }' ||
-          refuse "no job named $required succeeded in $event run $run_id, the newest $event run on $head, although the run completed with success. Its jobs (name, status, conclusion):$nl$(jobs_of "$run_id")${nl}A job was renamed, removed or skipped. The workflow has to run the jobs macos and windows for every push and every pull request: restore that in .github/workflows/ci.yml and push. The new head needs a new review."
+        jobs_of "$run_id" | awk -F '\t' -v job="$required" '$1 == job { seen = 1; if ($2 != "completed" || $3 != "success") failed = 1 } END { exit !(seen && !failed) }' && continue
+        refuse_a_job_without_success
+        [ "$run_path" = "$CI_WORKFLOW" ] || break
       done
     fi
   done
@@ -301,22 +326,22 @@ merge() {
   merge_called=1
   merge_status=0
   printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - || merge_status=$?
-  if [ "$merge_status" = 0 ]; then
-    say "pull request #$number is merged"
-  else
-    state_after_the_call=$(gh pr view "$number" --json state --jq .state) || state_after_the_call=
-    case $state_after_the_call in
-      MERGED)
+  state_after_the_call=$(gh pr view "$number" --json state --jq .state) || state_after_the_call=
+  case $state_after_the_call in
+    MERGED)
+      [ "$merge_status" = 0 ] ||
         say "gh pr merge exited $merge_status, and its message is above. GitHub reports pull request #$number as MERGED all the same, so this script goes on as after a merge call that succeeded."
-        ;;
-      OPEN|CLOSED)
+      say "pull request #$number is merged"
+      ;;
+    OPEN|CLOSED)
+      [ "$merge_status" = 0 ] ||
         die "gh pr merge exited $merge_status, and its message is above. GitHub reports pull request #$number as $state_after_the_call: it is not merged. Read the message, and do not retry with --admin."
-        ;;
-      *)
-        die "gh pr merge exited $merge_status, and its message is above. Then this script could not read the state of the pull request (gh printed '$state_after_the_call'), so it does not know whether pull request #$number was merged. Run: gh pr view $number --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: $(range_check_command '<merge commit>'). Do not retry with --admin."
-        ;;
-    esac
-  fi
+      die "gh pr merge exited 0, and GitHub reports pull request #$number as $state_after_the_call: it is not merged. GitHub may hold the merge, as a merge queue does, and merge later without this script. gh pr view $number --json state,mergeCommit shows it then, and this command checks the merge commit: $(range_check_command '<merge commit>')"
+      ;;
+    *)
+      die "gh pr merge exited $merge_status, and its message is above. Then this script could not read the state of the pull request (gh printed '$state_after_the_call'), so it does not know whether pull request #$number was merged. Run: gh pr view $number --json state,mergeCommit. If the state is MERGED, check the merge commit that it names: $(range_check_command '<merge commit>'). Do not retry with --admin."
+      ;;
+  esac
   merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid) ||
     merged_but 'gh could not read its merge commit'
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
