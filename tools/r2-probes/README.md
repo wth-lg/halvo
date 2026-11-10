@@ -54,10 +54,14 @@ profile, so no other cell has touched the process that it reads.
   the read first takes the attributes `AXEnhancedUserInterface` and `AXManualAccessibility` of
   the application element, then walks the focused window breadth first and reads `AXRole` and
   `AXValue` of each node. On Windows it walks the control view of the window with UI Automation
-  and reads the value pattern. It does not enter the page. The read tries again every 250 ms
-  for 7 s, because a browser fills its tree after the first query. On macOS, after 2 s without
-  a value, it also asks for `AXRole` of the application element once; `role_query_runs` counts
-  the runs that needed this query. `readable_runs` counts the runs in which the value held
+  and reads the value pattern. It does not enter the page. The read tries again every 250 ms,
+  because a browser fills its tree after the first query: for 7 s on Windows, and for 2 s on
+  macOS. On macOS, after 2 s without a value, the read asks for `AXRole` of the application
+  element once and tries for 5 s more; `role_query_runs` counts the runs that needed this
+  query. `cpu_before_ms` is the processor time of the browser's processes over the 2 s before
+  the read, and `cpu_after_ms` over the 2 s that start with the read; in a run that needed the
+  role query the second window starts at the query, so that what the query started is inside
+  the figure. `mem_before_bytes` and `mem_after_bytes` are taken at the ends of the two windows. `readable_runs` counts the runs in which the value held
   `127.0.0.1` and no activation attribute was set.
 - `accessibility.RUNNER.TARGET[.plain|.activated]`: the focused element and the subtree of the
   focused window in the form of contracts.md C11.7 (16 levels, 1,600 lines). The name of a node

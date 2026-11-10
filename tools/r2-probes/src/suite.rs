@@ -980,6 +980,7 @@ fn pid_of(args: &[String]) -> Result<u32, String> {
 fn sampled(
     record: Record,
     before: (sys::Usage, sys::Usage),
+    mark: sys::Usage,
     after: sys::Usage,
     start: Instant,
 ) -> Record {
@@ -994,7 +995,7 @@ fn sampled(
             How::Median,
             before.1.cpu_ms - before.0.cpu_ms,
         )
-        .number("cpu_after_ms", How::Median, after.cpu_ms - before.1.cpu_ms)
+        .number("cpu_after_ms", How::Median, after.cpu_ms - mark.cpu_ms)
         .number("mem_before_bytes", How::Median, before.1.mem_bytes as f64)
         .number("mem_after_bytes", How::Median, after.mem_bytes as f64)
         .number("before_window_ms", How::Median, WINDOW_MS as f64)
@@ -1024,9 +1025,21 @@ fn child_address(args: &[String]) -> Result<Record, String> {
     let pid = sys::resolve_pid(pid_of(args)?, &title);
     let before = baseline(pid, webkit);
     let start = Instant::now();
-    let read = sys::address_read(pid, &needle, &title);
+    let mut read = sys::address_read(pid, &needle, &title, false);
+    let mut mark = before.1;
+    let mut window_start = start;
+    if read.value.is_none() && sys::ROLE_QUERY {
+        mark = sys::tree_usage(pid, webkit);
+        window_start = Instant::now();
+        let second = sys::address_read(pid, &needle, &title, true);
+        read = sys::AddressRead {
+            attempts: read.attempts + second.attempts,
+            nodes: read.nodes.max(second.nodes),
+            ..second
+        };
+    }
     let wall_ms = ms(start);
-    rest(start, WINDOW_MS);
+    rest(window_start, WINDOW_MS);
     let after = sys::tree_usage(pid, webkit);
     let readable = read.value.is_some() && read.activation != "set";
     let record = Record::new("", 0)
@@ -1053,7 +1066,7 @@ fn child_address(args: &[String]) -> Result<Record, String> {
                 &read.role
             },
         );
-    Ok(sampled(record, before, after, start))
+    Ok(sampled(record, before, mark, after, window_start))
 }
 
 fn child_accessibility(args: &[String]) -> Result<Record, String> {
@@ -1100,7 +1113,7 @@ fn child_accessibility(args: &[String]) -> Result<Record, String> {
         .text("value_attr", sys::VALUE_ATTR)
         .text("view", sys::TREE_VIEW)
         .with_detail(json!({ "text": best.text, "focused_found": focused.found }));
-    Ok(sampled(record, before, after, start))
+    Ok(sampled(record, before, before.1, after, start))
 }
 
 fn child_extract(args: &[String]) -> Result<Record, String> {

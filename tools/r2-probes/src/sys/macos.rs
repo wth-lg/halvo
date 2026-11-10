@@ -155,22 +155,25 @@ fn front_window(app: &ax::Element) -> Option<ax::Element> {
         .or_else(|| ax::windows(app).into_iter().next())
 }
 
-pub fn address_read(pid: u32, needle: &str, _title: &str) -> AddressRead {
+pub const ROLE_QUERY: bool = true;
+
+pub fn address_read(pid: u32, needle: &str, _title: &str, role_query: bool) -> AddressRead {
     let app = ax::app(pid as i32);
     let set = ["AXEnhancedUserInterface", "AXManualAccessibility"]
         .iter()
         .any(|name| ax::attr_bool(&app, name) == Some(true));
     let mut read = AddressRead {
         activation: if set { "set" } else { "unset" }.to_string(),
+        role_query,
         ..AddressRead::default()
     };
+    if role_query {
+        let _ = ax::attr_string(&app, "AXRole");
+    }
+    let limit = Duration::from_secs(if role_query { 5 } else { 2 });
     let start = Instant::now();
     loop {
         read.attempts += 1;
-        if !read.role_query && start.elapsed() > Duration::from_secs(2) {
-            let _ = ax::attr_string(&app, "AXRole");
-            read.role_query = true;
-        }
         if let Some(window) = front_window(&app) {
             let mut queue = VecDeque::from([(window, 1usize)]);
             let mut seen = 0u32;
@@ -195,7 +198,7 @@ pub fn address_read(pid: u32, needle: &str, _title: &str) -> AddressRead {
             }
             read.nodes = read.nodes.max(seen);
         }
-        if read.value.is_some() || start.elapsed() > Duration::from_secs(7) {
+        if read.value.is_some() || start.elapsed() > limit {
             return read;
         }
         std::thread::sleep(Duration::from_millis(250));
