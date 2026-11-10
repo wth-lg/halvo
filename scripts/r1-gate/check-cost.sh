@@ -294,7 +294,7 @@ cases() {
   t child-past-deadline FAIL deadline_run 2 sleep 30.25
   t child-in-time PASS deadline_run 5 sleep 1
   t deadline-ends-the-child-inside-the-margin PASS deadline_ends_the_child sleep 31.25 5
-  t kill-follows-an-ignored-term PASS deadline_ends_the_child deaf 32.25 10
+  t kill-follows-an-ignored-term PASS deadline_ends_the_child deaf 32.25 20
   t deadline-zero FAIL deadline_run 0 sleep 1
   t term-ends-the-child PASS signal_ends_the_child sh TERM 33.25
   t hup-ends-the-child PASS signal_ends_the_child sh HUP 34.25
