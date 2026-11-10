@@ -128,9 +128,34 @@ cases_helper() {
   t not-in-time-is-named PASS helper_defect_is "the helper window was not on screen in time" helper-silent
 }
 
+tree_cause_is() {
+  cause=$(predicate_tree_lines "$2" "$3" "$4")
+  [ "$cause" = "$1" ]
+}
+
+cases_tree() {
+  good=$(printf 'halvo v0.0.0 (/repo/src-tauri)\nhalvo-capture v0.0.0 (/repo/crates/halvo-capture)\nrusqlite v0.41.1\nserde v1.0.228')
+  banned="reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys"
+  t tree-of-main PASS predicate_tree_lines "$good" "halvo-capture" "$banned"
+  t capture-failed FAIL predicate_tree_lines "" "halvo-capture" "$banned"
+  renamed=$(printf 'halvo v0.0.0\nhalvo-capture-core v0.0.0\nserde v1.0.228')
+  t package-renamed FAIL predicate_tree_lines "$renamed" "halvo-capture" "$banned"
+  t required-line-missing FAIL predicate_tree_lines "$good" "halvo-control halvo-capture" "$banned"
+  with_openssl=$(printf '%s\nopenssl-sys v0.9.109' "$good")
+  t forbidden-crate FAIL predicate_tree_lines "$with_openssl" "halvo-capture" "$banned"
+  with_reqwest=$(printf '%s\nreqwest v0.13.5' "$good")
+  t reqwest-line FAIL predicate_tree_lines "$with_reqwest" "halvo-capture" "$banned"
+  t forbidden-name-inside-another-name PASS predicate_tree_lines "$good" "halvo-capture" "sqlite serde_json ring"
+  t required-name-needs-its-own-line FAIL predicate_tree_lines "$good" "capture" ""
+  t required-list-empty-and-nothing-forbidden PASS predicate_tree_lines "$good" "" ""
+  t missing-line-is-named PASS tree_cause_is "required line missing: halvo-control v" "$good" "halvo-control" "$banned"
+  t forbidden-line-is-named PASS tree_cause_is "forbidden crate line: reqwest v0.13.5" "$with_reqwest" "halvo-capture" "$banned"
+}
+
 cases() {
   case $name in
     helper) cases_helper ;;
+    tree) cases_tree ;;
     run) cases_run ;;
   esac
 }
@@ -213,8 +238,8 @@ main() {
     [ -z "$remove" ] || gate_remove_scratch=yes
     if [ -n "$group" ]; then
       case $group in
-        run|helper) name=$group; selftest_run; return ;;
-        *) printf 'run.sh: --group takes run or helper\n' >&2; return 64 ;;
+        run|helper|tree) name=$group; selftest_run; return ;;
+        *) printf 'run.sh: --group takes run, helper or tree\n' >&2; return 64 ;;
       esac
     fi
     for entry in $CHECKS; do
@@ -222,7 +247,7 @@ main() {
       [ -f "$DIR/check-$check.sh" ] || continue
       run_check "$check" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
     done
-    for name in run helper; do
+    for name in run helper tree; do
       selftest_run || rc=1
     done
     return "$rc"

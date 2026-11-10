@@ -689,6 +689,18 @@ predicate_ci() {
   ci_defect "$1" "$2" > /dev/null
 }
 
+predicate_tree_lines() {
+  for tree_name in $2; do
+    tree_hit=$(printf '%s\n' "$1" | grep -m 1 -e "^$tree_name v")
+    [ -n "$tree_hit" ] || { printf 'required line missing: %s v\n' "$tree_name"; return 1; }
+  done
+  for tree_name in $3; do
+    tree_hit=$(printf '%s\n' "$1" | grep -m 1 -e "^$tree_name v")
+    [ -z "$tree_hit" ] || { printf 'forbidden crate line: %s\n' "$tree_hit"; return 1; }
+  done
+  return 0
+}
+
 source_rule() {
   rule=$1; rule_pattern=$2; rule_allowed=$3; rule_repo=$4
   hits=$(grep -rnE --include='*.rs' -e "$rule_pattern" -- "$rule_repo/crates" "$rule_repo/src-tauri/src" 2>/dev/null)
