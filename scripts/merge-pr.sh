@@ -146,21 +146,26 @@ apply_gates() {
 }
 
 merged_but() {
-  printf 'merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh origin/%s^!\n' "$number" "$1" "$base" >&2
+  printf "merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh --default-ref refs/remotes/origin/%s 'refs/remotes/origin/%s^!'\\n" "$number" "$1" "$base" "$base" >&2 || :
   exit 3
 }
 
 merge() {
   printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - ||
     die "gh pr merge failed. Its message is above. Read it, and do not retry with --admin. gh pr view $number --json state shows whether GitHub merged it."
-  say "pull request #$number is merged"
+  trap '' PIPE
+  say "pull request #$number is merged" || :
   merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid) ||
     merged_but 'gh could not read its merge commit'
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
   git fetch -q origin "$base" || merged_but "git fetch origin $base failed"
-  git log -1 --format='merge-pr: merged as %H%nmerge-pr: author:    %an <%ae>%nmerge-pr: committer: %cn <%ce>%nmerge-pr: subject:   %s' "$merge_commit" ||
+  git cat-file -e "$merge_commit^{commit}" 2>/dev/null ||
     merged_but "the merge commit $merge_commit is not in this clone after git fetch origin $base"
-  sh "$CHECK" --default-ref "refs/remotes/origin/$base" "$merge_commit^!" || exit 3
+  git log -1 --format='merge-pr: merged as %H%nmerge-pr: author:    %an <%ae>%nmerge-pr: committer: %cn <%ce>%nmerge-pr: subject:   %s' "$merge_commit" || :
+  range_check_status=0
+  range_check_output=$(sh "$CHECK" --default-ref "refs/remotes/origin/$base" "$merge_commit^!") || range_check_status=$?
+  printf '%s\n' "$range_check_output" || :
+  [ "$range_check_status" = 0 ] || exit 3
 }
 
 run() {
@@ -172,7 +177,10 @@ run() {
     *[!0-9a-f]*) usage "--head needs the full sha of the reviewed commit, 40 hex digits, and got: $head" ;;
   esac
   [ ${#head} = 40 ] || usage "--head needs the full sha of the reviewed commit, 40 hex digits, and got: $head"
-  [ -n "$subject" ] || usage '--subject needs the subject line of the squash commit'
+  case $subject in
+    *[![:space:]]*) ;;
+    *) usage '--subject needs the subject line of the squash commit' ;;
+  esac
   case $subject in
     *"$nl"*) usage '--subject must be one line; the rest of the message goes into --body-file' ;;
   esac
