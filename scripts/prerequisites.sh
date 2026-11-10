@@ -11,12 +11,16 @@ current_directory_is_git_work_tree_root() {
 }
 
 if current_directory_is_git_work_tree_root; then
-  if [ "$(git config --get core.hooksPath || true)" = .githooks ]; then
-    echo "prerequisites: git hooks path present: .githooks"
-  else
+  if [ "$(git config --local --get core.hooksPath || true)" != .githooks ]; then
     echo "prerequisites: setting git core.hooksPath to .githooks"
-    git config core.hooksPath .githooks
+    git config --local --replace-all core.hooksPath .githooks
   fi
+  if [ "$(git config --get core.hooksPath || true)" != .githooks ]; then
+    echo "prerequisites: error: git does not read core.hooksPath=.githooks although the config of this clone holds it, so git runs no hook of .githooks. The setting below has a higher priority. Remove it, then run this script again." >&2
+    git config --show-origin --get-all core.hooksPath | sed -n '$p' >&2
+    exit 1
+  fi
+  echo "prerequisites: git hooks path present: .githooks"
 fi
 
 if ! command -v rustup >/dev/null 2>&1; then
@@ -44,7 +48,7 @@ install_cargo_release_prebuilt() {
     MINGW*|MSYS*|CYGWIN*) asset="$prefix-x86_64-pc-windows-msvc.zip" ;;
     *) return 1 ;;
   esac
-  tmp=$(mktemp -d)
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites.XXXXXX")
   ok=0
   if curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$base/$asset"; then
     case "$asset" in

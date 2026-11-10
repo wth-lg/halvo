@@ -17,8 +17,10 @@ no sudo, and is safe to run twice. It installs rustup and the Rust toolchain pin
 `rust-toolchain.toml` into `~/.rustup` and `~/.cargo`, the Tauri CLI into
 `node_modules/` with `npm ci`, and cargo-release into `~/.cargo/bin` from a prebuilt
 binary (or with `cargo install` when no prebuilt binary matches the platform). It
-also sets `core.hooksPath` to `.githooks` in this clone, so git runs the commit-msg
-hook that rejects attribution lines in commit messages.
+also sets `core.hooksPath` to `.githooks` in this clone, so git runs two hooks. The
+commit-msg hook rejects an attribution line in a commit message before the commit is
+made, and the pre-push hook refuses a push that would add a commit with such a line.
+If another git setting overrides the path, the command names that setting and stops.
 
 It expects `curl`, `node` and `npm` on PATH, plus the Xcode Command Line Tools on
 macOS (`xcode-select --install`) or the Visual Studio C++ build tools on Windows.
@@ -87,5 +89,8 @@ sh scripts/release.sh --execute
 ```
 
 Both forms take an optional bump level after the flag: `patch` (default), `minor` or
-`major`. `CHANGELOG.md` follows Keep a Changelog; every change goes under
-`## [Unreleased]` and the release promotes that section.
+`major`. `CHANGELOG.md` follows Keep a Changelog, and the release promotes its
+`## [Unreleased]` section. Every change goes into that section as one line at the end
+of the list, `- <Type>: <text>`, where Type is Added, Changed, Deprecated, Removed,
+Fixed or Security. A pull request adds one entry for each type of change it makes,
+and `sh scripts/check-changelog.sh` checks the file.

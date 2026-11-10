@@ -7,7 +7,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 name=secure-input
 
 self_test() {
-  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-secure-input.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   printf 'secure_input_keystrokes=0\n' > "$tmp/good"
   printf 'secure_input_keystrokes=4\n' > "$tmp/bad"
   if predicate_zero_secure_keystrokes "$tmp/good" && ! predicate_zero_secure_keystrokes "$tmp/bad"; then
@@ -18,7 +18,7 @@ self_test() {
 
 measure() {
   seconds=${1:-$GATE_DURATION}
-  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-secure-input.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   if HALVO_GATE_SECURE_INPUT=1 run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then
     if predicate_zero_secure_keystrokes "$tmp/report"; then emit_pass "$name"; return 0; fi
     emit_fail "$name" "a keystroke was recorded while secure input was active"; return 1

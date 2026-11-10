@@ -14,19 +14,24 @@ jobs:
       - name: Commit messages
         shell: bash
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: sh scripts/ci-commit-messages.sh
+      - name: Self-tests that commit in throwaway repositories
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: |
-          sh scripts/check-commit-messages.sh --self-test
-          if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
-            sh scripts/check-commit-messages.sh "origin/$DEFAULT_BRANCH..$AFTER"
-          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            sh scripts/check-commit-messages.sh "$BEFORE..$AFTER"
-          else
-            echo "The before value '$BEFORE' is not a commit in this clone: the push created the branch, or a force push dropped its old tip. Checking every commit reachable from $AFTER that is not exempt."
-            sh scripts/check-commit-messages.sh "$AFTER"
-          fi
+          sh scripts/check-commit-messages.sh --self-test-two-paths
+          sh scripts/check-commit-messages.sh --self-test-pre-push
+          sh scripts/ci-commit-messages.sh --self-test
+          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -34,6 +39,35 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Changelog
+        shell: bash
+        run: |
+          sh scripts/check-changelog.sh --self-test
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
+              base=$(git rev-parse 'HEAD^1')
+              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
+            else
+              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
+                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
+                exit 2
+              }
+              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
+            fi
+            sh scripts/check-changelog.sh --base "$base"
+          else
+            sh scripts/check-changelog.sh
+          fi
+      - name: Line endings
+        shell: bash
+        run: |
+          sh scripts/check-line-endings.sh --self-test
+          sh scripts/check-line-endings.sh
+      - name: Own-source reads
+        shell: bash
+        run: |
+          sh scripts/check-own-source-reads.sh --self-test
+          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@v2
       - name: Rust components
         shell: bash
@@ -94,3 +128,35 @@ jobs:
           name: halvo-windows
           path: target/release/halvo.exe
           if-no-files-found: error
+      - name: Scripts and hook in a core.autocrlf=true clone
+        shell: bash
+        run: |
+          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
+          cd "$clone"
+          line_endings=$(git ls-files --eol -- '*.sh' '.githooks/*')
+          echo "$line_endings"
+          test -n "$line_endings"
+          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
+          if [ -n "$crlf_files" ]; then
+            echo "git checked out these files with CRLF:"
+            echo "$crlf_files"
+            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf', and no later line may take eol=lf from these files."
+            exit 1
+          fi
+          sh scripts/check-commit-messages.sh --self-test
+          sh scripts/check-changelog.sh --self-test
+          sh scripts/check-line-endings.sh --self-test
+          git config core.hooksPath .githooks
+          git config user.name "Halvo CI"
+          git config user.email "ci@halvo.invalid"
+          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
+          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
+            echo "The commit-msg hook accepted a message with an attribution trailer."
+            exit 1
+          fi
+          echo "$refusal"
+          case "$refusal" in
+            *"Co-Authored-By: Probe"*) ;;
+            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
+          esac

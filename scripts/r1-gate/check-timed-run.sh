@@ -7,7 +7,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 name=timed-run
 
 self_test() {
-  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-timed-run.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   printf 'modality=screen_frame count=10\nmodality=keystroke count=5\nmodality=pointer count=7\nmodality=foreground_app count=3\n' > "$tmp/good"
   printf 'modality=screen_frame count=10\nmodality=keystroke count=0\nmodality=pointer count=7\nmodality=foreground_app count=3\n' > "$tmp/bad"
   if predicate_modalities_present "$tmp/good" && ! predicate_modalities_present "$tmp/bad"; then
@@ -18,7 +18,7 @@ self_test() {
 
 measure() {
   seconds=${1:-$GATE_DURATION}
-  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-timed-run.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   if run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then
     if predicate_modalities_present "$tmp/report"; then emit_pass "$name"; return 0; fi
     emit_fail "$name" "a required modality recorded no events"; return 1

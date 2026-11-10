@@ -10,7 +10,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 name=no-ll-hook
 
 self_test() {
-  tmp=$(mktemp -d)
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-no-ll-hook.XXXXXX")
   mkdir -p "$tmp/clean" "$tmp/dirty"
   printf 'let ok = RegisterRawInputDevices(&[dev], n).is_ok();\n' > "$tmp/clean/a.rs"
   printf 'let h = SetWindowsHookExW(WH_KEYBOARD_LL, Some(cb), hmod, 0);\n' > "$tmp/dirty/b.rs"
