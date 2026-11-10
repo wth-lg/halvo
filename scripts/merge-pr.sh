@@ -27,9 +27,10 @@ attribution line reaches the default branch.
           sh scripts/check-commit-messages.sh --stored-message
         - the title and the description of the pull request pass it too
       Then merge with
-        gh pr merge <number> --squash --match-head-commit <sha> --subject <text> --body-file <file>
-      fetch, print the merge commit with its author and committer, and run the
-      range check on that commit.
+        gh pr merge <number> --squash --match-head-commit <sha> --subject <text> --body-file -
+      which hands gh, on standard input, the body that was checked. Then fetch,
+      print the merge commit with its author and committer, and run the range
+      check on that commit.
       --dry-run prints every fact and stops before the merge. It exits 0 only
       when every gate holds.
   sh scripts/merge-pr.sh --self-test
@@ -42,8 +43,10 @@ It cannot see a merge that someone makes on the website or with gh pr merge
 directly. The push run of CI reports such a merge after the fact, and only a
 ruleset on the default branch can stop it.
 
-Exit codes: 0 merged, or with --dry-run every gate holds; 1 a gate refuses, or
-the merged commit fails the range check; 2 the script could not run; 64 bad usage.
+Exit codes: 0 merged and the merge commit passed the range check, or with
+--dry-run every gate holds; 1 a gate refuses and nothing was merged; 2 the
+script could not run; 3 the pull request is merged, and its merge commit failed
+the range check or could not be checked; 64 bad usage.
 EOF
 }
 
@@ -104,7 +107,7 @@ print_facts() {
   printf '%s\n' "$check_runs" | sed -n '/./s/^/merge-pr:   /p'
   say "review threads: $thread_total, unresolved: $thread_unresolved"
   say "squash subject: $subject"
-  say "squash body: $body_file, $(grep -c '' "$body_file" || true) lines"
+  say "squash body: $body_file, $(count_lines "$body" '') lines"
 }
 
 apply_gates() {
@@ -134,7 +137,7 @@ apply_gates() {
   [ "$thread_unresolved" = 0 ] ||
     refuse "pull request #$number has unresolved review threads: $thread_unresolved of $thread_total. Answer each one and resolve it on GitHub, then run this script again."
 
-  if ! { printf '%s\n\n' "$subject"; cat "$body_file"; } | sh "$CHECK" --stored-message; then
+  if ! printf '%s\n\n%s\n' "$subject" "$body" | sh "$CHECK" --stored-message; then
     refuse "the squash message carries an attribution line, listed above. Remove it from --subject or from $body_file."
   fi
   if ! printf '%s\n\n%s\n' "$title" "$description" | sh "$CHECK" --stored-message; then
@@ -142,23 +145,29 @@ apply_gates() {
   fi
 }
 
+merged_but() {
+  printf 'merge-pr: error: pull request #%s is merged, but %s, so its merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh origin/%s^!\n' "$number" "$1" "$base" >&2
+  exit 3
+}
+
 merge() {
-  gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file "$body_file" ||
-    die "gh pr merge failed. Its message is above. Read it, and do not retry with --admin."
+  printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - ||
+    die "gh pr merge failed. Its message is above. Read it, and do not retry with --admin. gh pr view $number --json state shows whether GitHub merged it."
+  say "pull request #$number is merged"
   merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid) ||
-    die "gh could not read the merge commit of pull request #$number after the merge"
-  [ -n "$merge_commit" ] || die "GitHub reports no merge commit for pull request #$number after the merge"
-  git fetch -q origin "$base" ||
-    die "git fetch origin $base failed, so the merge commit was not checked. Run: git fetch origin && sh scripts/check-commit-messages.sh '$merge_commit^!'"
+    merged_but 'gh could not read its merge commit'
+  [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
+  git fetch -q origin "$base" || merged_but "git fetch origin $base failed"
   git log -1 --format='merge-pr: merged as %H%nmerge-pr: author:    %an <%ae>%nmerge-pr: committer: %cn <%ce>%nmerge-pr: subject:   %s' "$merge_commit" ||
-    die "the merge commit $merge_commit is not in this clone after git fetch origin $base"
-  sh "$CHECK" --default-ref "refs/remotes/origin/$base" "$merge_commit^!"
+    merged_but "the merge commit $merge_commit is not in this clone after git fetch origin $base"
+  sh "$CHECK" --default-ref "refs/remotes/origin/$base" "$merge_commit^!" || exit 3
 }
 
 run() {
   case $number in
     ''|*[!0-9]*) usage "the pull request number must be digits, and got: $number" ;;
   esac
+  head=$(printf '%s' "$head" | LC_ALL=C tr 'ABCDEF' 'abcdef')
   case $head in
     *[!0-9a-f]*) usage "--head needs the full sha of the reviewed commit, 40 hex digits, and got: $head" ;;
   esac
@@ -169,6 +178,7 @@ run() {
   esac
   [ -n "$body_file" ] || usage '--body-file needs the file that holds the body of the squash message'
   [ -f "$body_file" ] || usage "--body-file: no such file: $body_file"
+  body=$(cat <"$body_file") || die "cannot read the file of --body-file: $body_file"
   command -v gh >/dev/null 2>&1 || die 'gh is not on PATH. Install the GitHub CLI and run: gh auth login'
   git rev-parse --git-dir >/dev/null 2>&1 || die 'not inside a git repository'
 
@@ -180,7 +190,7 @@ run() {
     exit 1
   fi
   if [ "$dry_run" = 1 ]; then
-    say "dry run: every gate holds. Without --dry-run this script runs: gh pr merge $number --squash --match-head-commit $head --subject <subject> --body-file $body_file"
+    say "dry run: every gate holds. Without --dry-run this script runs: gh pr merge $number --squash --match-head-commit $head --subject <subject> --body-file -, with the text of $body_file on standard input"
     exit 0
   fi
   merge
@@ -218,7 +228,9 @@ case "$1 $2" in
       echo 'stub gh: GitHub refused the merge' >&2
       exit 1
     fi
-    git --git-dir="$MERGE_PR_STUB_GITHUB" update-ref refs/heads/main "$(cat "$state/merge-commit")"
+    if [ -s "$state/merge-commit" ]; then
+      git --git-dir="$MERGE_PR_STUB_GITHUB" update-ref refs/heads/main "$(cat "$state/merge-commit")"
+    fi
     ;;
   *) echo "stub gh: unexpected call: $*" >&2; exit 97 ;;
 esac
@@ -448,11 +460,17 @@ while [ $# -gt 0 ]; do
       ;;
     --subject)
       [ $# -ge 2 ] || usage '--subject needs the subject line of the squash commit'
+      case $2 in
+        -*) usage "--subject needs the subject line of the squash commit, and the next argument starts with a hyphen like an option: $2" ;;
+      esac
       subject=$2
       shift
       ;;
     --body-file)
       [ $# -ge 2 ] || usage '--body-file needs the file that holds the body of the squash message'
+      case $2 in
+        -*) usage "--body-file needs a file, and the next argument starts with a hyphen: $2. gh reads - as standard input, and cat reads such a name as an option. Give the file another name, or a path such as ./$2" ;;
+      esac
       body_file=$2
       shift
       ;;
