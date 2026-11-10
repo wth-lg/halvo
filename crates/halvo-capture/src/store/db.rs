@@ -112,7 +112,7 @@ fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
 /// The single-writer guarantee itself is the exclusive database lock, which a
 /// writer cannot run without and which unlinking this file does not release.
 struct WriterLock {
-    _file: File,
+    file: File,
 }
 
 impl WriterLock {
@@ -124,10 +124,18 @@ impl WriterLock {
             .open(store_dir.join("writer.lock"))
             .map_err(io_error)?;
         match file.try_lock() {
-            Ok(()) => Ok(Self { _file: file }),
+            Ok(()) => Ok(Self { file }),
             Err(TryLockError::WouldBlock) => Err(StoreError::Locked(store_dir.to_path_buf())),
             Err(TryLockError::Error(e)) => Err(io_error(e)),
         }
+    }
+}
+
+impl Drop for WriterLock {
+    fn drop(&mut self) {
+        // The lock belongs to the open file, and a spawned child shares that file
+        // until its exec closes the descriptor, so closing ours would leave it held.
+        let _ = self.file.unlock();
     }
 }
 
@@ -673,7 +681,7 @@ pub(crate) mod test_support {
 
     #[cfg(unix)]
     pub(crate) fn duplicate_writer_lock_descriptor(store: &EncryptedStore) -> std::fs::File {
-        store._writer_lock._file.try_clone().unwrap()
+        store._writer_lock.file.try_clone().unwrap()
     }
 }
 
@@ -711,7 +719,8 @@ mod tests {
             Err(StoreError::Locked(_))
         ));
         drop(first);
-        assert!(EncryptedStore::open(dir.path(), DEFAULT_RETENTION).is_ok());
+        EncryptedStore::open(dir.path(), DEFAULT_RETENTION)
+            .expect("a dropped writer leaves the store free to reopen");
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
     }
 
