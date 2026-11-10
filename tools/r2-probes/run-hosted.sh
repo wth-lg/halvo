@@ -58,7 +58,7 @@ else
         (cd "$here/input" && npx playwright install --dry-run chromium) |
             awk '$1 == "Download" && $2 == "url:" { print $3 }' >"$files/playwright-addresses.txt"
         while read -r address; do
-            curl --fail --silent --show-error --location --retry 3 --user-agent r2-probes --output "$files/playwright.part" "$address"
+            curl --fail --silent --show-error --location --connect-timeout 30 --speed-limit 50000 --speed-time 60 --retry 3 --user-agent r2-probes --output "$files/playwright.part" "$address"
             printf '%s\t%s\t%s\n' "$address" "$(wc -c <"$files/playwright.part" | tr -d ' ')" "$(sha256sum <"$files/playwright.part" | cut -d ' ' -f 1)"
         done <"$files/playwright-addresses.txt" >"$files/playwright-files.part"
         mv "$files/playwright-files.part" "$files/playwright-files.tsv"
