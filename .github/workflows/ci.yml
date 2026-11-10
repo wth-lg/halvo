@@ -51,6 +51,11 @@ jobs:
         run: |
           sh scripts/check-line-endings.sh --self-test
           sh scripts/check-line-endings.sh
+      - name: Own-source reads
+        shell: bash
+        run: |
+          sh scripts/check-own-source-reads.sh --self-test
+          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@v2
       - name: Rust components
         shell: bash

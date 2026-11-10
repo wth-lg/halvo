@@ -1,0 +1,216 @@
+#!/bin/sh
+set -eu
+
+synopsis() {
+  cat <<'EOF'
+  sh scripts/check-own-source-reads.sh
+      Check the tracked scripts of the clone that holds the current directory:
+      every tracked file whose name ends in .sh or whose first line is an
+      interpreter line. The check reads them in the work tree.
+  sh scripts/check-own-source-reads.sh --self-test
+      Prove the rule on fixtures, and the choice of files in a throwaway
+      repository under the temporary directory. The self-test removes nothing
+      and prints where the repository is.
+EOF
+}
+
+help_text() {
+  cat <<'EOF'
+Refuses a script that reads its own source by line number. A help text that a
+script prints with sed over lines 2 to 20 of its own file changes when a line
+is added above it or a comment is removed, and nothing fails.
+  - A line of a script fails when it hands the path of the script, written as
+    the quoted parameter 0, to sed with an address that is a line number, to
+    head, to tail, or to awk with NR or FNR. The path can come as an operand,
+    on standard input, or through cat and a pipe.
+The fix is to print the text from a here-document, as this script does.
+The check reads one line at a time. It does not see a path that a variable
+holds, a command that continues on another line, an address that a variable
+holds, or a read by a pattern. It cannot tell code from the text of a
+here-document, so a text that shows such a read is refused too.
+
+EOF
+  synopsis
+  cat <<'EOF'
+
+Exit codes: 0 no script breaks the rule, 1 a script does, 2 the check could not
+run, 64 bad usage. The check only reads, so it is safe to run twice.
+EOF
+}
+
+INTERPRETER_LINE='^#![[:blank:]]*/'
+
+NEWLINE='
+'
+
+die() {
+  printf 'check-own-source-reads: error: %s\n' "$1" >&2
+  exit 2
+}
+
+usage() {
+  printf 'check-own-source-reads: %s\n' "$1" >&2
+  synopsis >&2
+  exit 64
+}
+
+reads_of_own_source_by_line_number() {
+  SCRIPT_PATH=$1 LC_ALL=C awk '
+    function own_path_goes_to(reader) {
+      return shell_text ~ ("(^|[^A-Za-z0-9_.-])" reader "[ \t]([^|;&()]*[ \t<])?" own_path) ||
+        shell_text ~ ("(^|[^A-Za-z0-9_.-])cat[ \t]([^|;&()]*[ \t<])?" own_path "[ \t]*[|][ \t]*" reader "([ \t]|$)")
+    }
+    BEGIN {
+      script_path = ENVIRON["SCRIPT_PATH"]
+      own_path = "\"[$](0|[{]0[}])\""
+    }
+    {
+      shell_text = $0
+      gsub(/\047[^\047]*\047/, "", shell_text)
+      reader = ""
+      if (own_path_goes_to("sed") && $0 ~ /(^|[^A-Za-z0-9_.-])sed[ \t]([^|;&]*[ \t\047",])?([$]|[0-9]+)[ \t]*[,pdq!{]/) reader = "sed with an address that is a line number"
+      else if (own_path_goes_to("head")) reader = "head"
+      else if (own_path_goes_to("tail")) reader = "tail"
+      else if (own_path_goes_to("awk") && $0 ~ /(^|[^A-Za-z0-9_])F?NR([^A-Za-z0-9_]|$)/) reader = "awk with NR or FNR"
+      if (reader != "") printf "%s:%d: this line hands the path of the script to %s, so the text that it prints changes when a line is added or removed above that text. Fix: print the text from a here-document (cat <<\047EOF\047, the text, EOF), which holds the text and no line number.\n", script_path, NR, reader
+    }
+  ' "$2"
+}
+
+tracked_scripts() {
+  named_sh=$(git -c core.quotePath=false ls-files -- '*.sh') || die 'git ls-files could not list the tracked files'
+  interpreter_lines=$(git -c core.quotePath=false grep --no-recurse-submodules --color=never --no-column -a -n -G -e "$INTERPRETER_LINE") ||
+    [ $? = 1 ] || die 'git grep could not search the tracked files'
+  {
+    printf '%s\n' "$named_sh"
+    printf '%s\n' "$interpreter_lines" | sed -n 's/^\(.*\):1:#!.*$/\1/p'
+  } | LC_ALL=C sort -u
+}
+
+check() {
+  root=$(git rev-parse --show-toplevel 2>/dev/null) ||
+    die 'the current directory is not inside the work tree of a git clone'
+  cd "$root" || die "cannot enter $root"
+  scripts=$(tracked_scripts) || exit
+  script_count=0
+  findings=
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    case $path in
+      '"'*) die "git quotes the name of this tracked file, so the check cannot open it: $path" ;;
+    esac
+    [ -f "$path" ] || continue
+    script_count=$((script_count + 1))
+    found=$(reads_of_own_source_by_line_number "$path" "./$path") || die "awk exited with an error while reading $path"
+    [ -z "$found" ] || findings=$findings$found$NEWLINE
+  done <<EOF
+$scripts
+EOF
+  if [ -n "$findings" ]; then
+    {
+      printf '%s' "$findings"
+      printf 'check-own-source-reads: FAIL: scripts read: %d, lines that read their own script by line number: %d.\n' "$script_count" "$(($(printf '%s' "$findings" | wc -l)))"
+    } >&2
+    exit 1
+  fi
+  printf 'check-own-source-reads: PASS: scripts read: %d, lines that read their own script by line number: 0.\n' "$script_count"
+}
+
+leave_the_repository_that_git_variables_name() {
+  repository_variables=$(git rev-parse --local-env-vars) || die 'git rev-parse could not list the variables that name a repository'
+  for repository_variable in $repository_variables; do
+    unset "$repository_variable"
+  done
+}
+
+self_test() {
+  failures=0
+  dollar='$'
+  own_path="\"${dollar}0\""
+  own_path_in_braces="\"${dollar}{0}\""
+  lines_2_to_20="'2,20p'"
+
+  expect() {
+    name=$1 want_lines=$2 text=$3
+    found=$(printf '%s\n' "$text" | reads_of_own_source_by_line_number fixture -) || die 'awk exited with an error while reading a fixture'
+    lines=$(printf '%s\n' "$found" | sed -n 's/^fixture:\([0-9][0-9]*\): .* Fix: .*$/\1/p' | tr '\n' ' ')
+    lines=${lines% }
+    if [ "$lines" = "$want_lines" ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (expected findings with a fix on lines [%s]; found lines [%s] and this output)\n%s\n' "$name" "$want_lines" "$lines" "$found"
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect 'sed over lines 2 to 20 of the script, the help of scripts/r1-gate/run.sh as it was, is refused' 1 "    -h|--help) sed -n $lines_2_to_20 $own_path | sed 's/^# \\{0,1\\}//'; exit 0 ;;"
+  expect 'the finding names the line of the read' 3 "#!/bin/sh${NEWLINE}set -eu${NEWLINE}sed -n $lines_2_to_20 $own_path"
+  expect 'two reads in one script are two findings' '1 3' "sed -n $lines_2_to_20 $own_path${NEWLINE}echo${NEWLINE}head -n 3 $own_path"
+  expect 'sed with one line number and no quotes is refused' 1 "sed -n 3p $own_path"
+  expect 'sed that deletes by line number is refused' 1 "sed '1,2d' $own_path"
+  expect 'sed that prints the last line is refused' 1 "sed -n '\$p' $own_path"
+  expect 'sed from a pattern to a line number is refused' 1 "sed -n '/^Usage/,20p' $own_path"
+  expect 'sed with the script on standard input is refused' 1 "sed -n $lines_2_to_20 <$own_path"
+  expect 'sed with the path written in braces is refused' 1 "sed -n $lines_2_to_20 $own_path_in_braces"
+  expect 'sed that reads the script through cat and a pipe is refused' 1 "cat $own_path | sed -n $lines_2_to_20"
+  expect 'head is refused' 1 "head -n 20 $own_path"
+  expect 'tail is refused' 1 "tail -n +2 $own_path | head -n 19"
+  expect 'awk with NR is refused, whatever its program holds' 1 "awk 'NR >= 2 && NR <= 20 { print }' $own_path"
+  expect 'sed with a pattern as its address is accepted' '' "sed -n 's/^#: //p' $own_path"
+  expect 'sed by line number over another file is accepted' '' "sed -n $lines_2_to_20 \"\$file\""
+  expect 'awk without NR over the script is accepted' '' "awk '/^#: / { print }' $own_path"
+  expect 'awk that prints its record is accepted' '' "awk 'NR > 1 { print \$0 }' \"\$file\""
+  expect 'the directory of the script is accepted' '' "DIR=\$(cd \"\$(dirname $own_path)\" && pwd)"
+  expect 'head over a file beside the script is accepted' '' "head -n 1 \"\$(dirname $own_path)/../rust-toolchain.toml\""
+  expect 'head after a command that only names the script is accepted' '' "basename $own_path | head -n 1"
+  expect 'a message that names the script is accepted' '' "printf '%s\\n' \"usage: \$0 [--help]\""
+  expect 'a help text in a here-document is accepted' '' "help_text() {${NEWLINE}  cat <<'EOF'${NEWLINE}Runs the six sub-checks.${NEWLINE}EOF${NEWLINE}}"
+
+  leave_the_repository_that_git_variables_name
+  fixture_directory=$(mktemp -d) || die 'mktemp could not make a directory'
+  repository=$fixture_directory/repository
+  printf 'check-own-source-reads: the fixture repository is %s, which is left in place\n' "$repository"
+  git init -q "$repository" || die "git init failed in $fixture_directory"
+  mkdir "$repository/hooks" || die "mkdir failed in $repository"
+  read_by_line_number="sed -n $lines_2_to_20 $own_path"
+  printf '%s\n' "$read_by_line_number" >"$repository/named.sh"
+  printf '#!/bin/sh\n%s\n' "$read_by_line_number" >"$repository/hooks/with-an-interpreter-line"
+  printf '#! /usr/bin/env sh\n%s\n' "$read_by_line_number" >"$repository/hooks/with-a-space-in-the-interpreter-line"
+  printf 'echo clean\n' >"$repository/clean.sh"
+  printf '%s\n' "$read_by_line_number" >"$repository/notes.md"
+  printf '#![cfg_attr(test, allow(unused))]\n// %s\n' "$read_by_line_number" >"$repository/main.rs"
+  printf '%s\n' "$read_by_line_number" >"$repository/untracked.sh"
+  git -C "$repository" add named.sh hooks clean.sh notes.md main.rs || die "git add failed in $repository"
+  want='hooks/with-a-space-in-the-interpreter-line:2 hooks/with-an-interpreter-line:2 named.sh:1 FAIL:4'
+  status=0
+  output=$(cd "$repository" && check 2>&1) || status=$?
+  got=$(printf '%s\n' "$output" | sed -n -e 's/^\([^ ]*:[0-9][0-9]*\): this line .* Fix: .*$/\1/p' -e 's/^check-own-source-reads: FAIL: scripts read: \([0-9]*\),.*$/FAIL:\1/p' | tr '\n' ' ')
+  got=${got% }
+  if [ "$status" = 1 ] && [ "$got" = "$want" ]; then
+    printf 'PASS in a repository, the check reads the tracked files that are named .sh or start with an interpreter line, and no other file\n'
+  else
+    printf 'FAIL in a repository, the check reads the tracked files that are named .sh or start with an interpreter line, and no other file (expected exit 1 and [%s]; found exit %s, [%s] and this output)\n%s\n' "$want" "$status" "$got" "$output"
+    failures=$((failures + 1))
+  fi
+
+  if [ "$failures" -gt 0 ]; then
+    printf 'check-own-source-reads: self-test FAIL: fixtures misjudged: %d\n' "$failures"
+    return 1
+  fi
+  printf 'check-own-source-reads: self-test PASS\n'
+}
+
+mode=check
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --self-test) mode=self-test ;;
+    -h|--help) help_text; exit 0 ;;
+    *) usage "unknown argument: $1" ;;
+  esac
+  shift
+done
+
+case $mode in
+  self-test) self_test ;;
+  check) check ;;
+esac
