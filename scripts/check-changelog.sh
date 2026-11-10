@@ -9,7 +9,10 @@ synopsis() {
   sh scripts/check-changelog.sh --base <ref>
       Check the structure, and that the file has an entry under ## [Unreleased]
       that CHANGELOG.md at <ref> lacks. A file with a release heading that <ref>
-      lacks is the commit of a release and needs no such entry.
+      lacks is the commit of a release and needs no such entry. Also refuse an
+      entry that <ref> lacks inside the section of a release that <ref> already
+      has, whatever the date on its heading: a merge can put a new entry there,
+      and a correction of a released entry is a new entry under ## [Unreleased].
   sh scripts/check-changelog.sh --self-test
       Prove each rule on fixtures. Needs no repository.
 EOF
@@ -73,7 +76,15 @@ changelog_verdict() {
       entry_form = "\"- <Type>: <text>\" with Type one of Added, Changed, Deprecated, Removed, Fixed, Security"
     }
     { sub(/[ \t\r]+$/, "") }
-    NR <= base_line_count { base_has_line[$0] = 1; next }
+    function release_version(heading) {
+      sub(/\] - .*$/, "]", heading)
+      return heading
+    }
+    NR <= base_line_count {
+      base_has_line[$0] = 1
+      if ($0 ~ release_heading) base_has_release[release_version($0)] = 1
+      next
+    }
     { line_number = NR - base_line_count }
     index($0, "## [Unreleased]") && $0 != "## [Unreleased]" {
       report(line_number, "this line holds the text \"## [Unreleased]\" and is not that heading. release.toml replaces the text and allows it once in the file.", "reword the line, for example to \"the Unreleased heading\".")
@@ -91,11 +102,11 @@ changelog_verdict() {
     }
     $0 ~ release_heading {
       if (!first_release_line) first_release_line = line_number
-      version = $0
-      sub(/\] - .*$/, "]", version)
+      version = release_version($0)
       if (version in release_line) report(line_number, "the release " substr(version, 4) " already has a heading on line " release_line[version] ".", "delete this line, or give it the version of another release.")
       else release_line[version] = line_number
       if (!($0 in base_has_line)) release_is_new = 1
+      base_has_this_release = (version in base_has_release)
       section = "release"
       split("", heading_line)
       under_type_heading = 0
@@ -132,7 +143,10 @@ changelog_verdict() {
       } else if ($0 ~ /^#/) {
         report(line_number, "\"" $0 "\" is not a heading of a release section.", "use ### Added, ### Changed, ### Deprecated, ### Removed, ### Fixed or ### Security, or the form \"## [x.y.z] - YYYY-MM-DD\" for a release.")
       } else if ($0 ~ typed_entry || (under_type_heading && $0 ~ /^- [^ \t]/)) {
-        if (!($0 in base_has_line)) new_released_entry_line[++new_released_entries] = line_number
+        if (base_has_this_release && !($0 in base_has_line)) {
+          new_released_entry_line[++new_released_entries] = line_number
+          new_released_entry_version[new_released_entries] = substr(version, 4)
+        }
       } else if ($0 ~ /^- /) {
         report(line_number, "this entry has no type and no \"### <Type>\" heading above it in its release section.", "write it as " entry_form ", or put it under such a heading.")
       } else {
@@ -143,9 +157,9 @@ changelog_verdict() {
       if (!unreleased_line) {
         if (first_release_line) report(first_release_line, "no \"## [Unreleased]\" heading is above this release heading.", "add the line \"## [Unreleased]\" and an empty line above this line.")
         else report(line_number ? line_number : 1, "the file has no \"## [Unreleased]\" heading.", "add the line \"## [Unreleased]\" below the introduction, and the entries below that line.")
-      } else if (base != "" && !new_unreleased_entries && !release_is_new) {
-        for (i = 1; i <= new_released_entries; i++) report(new_released_entry_line[i], "this entry is new compared with " base " and sits in a release section.", "move it to the end of the list under ## [Unreleased], below line " append_below_line ".")
-        report(append_below_line, "no entry under ## [Unreleased] is new compared with " base ".", "add a line below this one for each type of change that your branch makes, as " entry_form ".")
+      } else {
+        for (i = 1; i <= new_released_entries; i++) report(new_released_entry_line[i], "this entry is new compared with " base " and sits in the section of release " new_released_entry_version[i] ", which " base " already has.", "move it to the end of the list under ## [Unreleased], below line " append_below_line ". If it corrects a released entry, put that entry back as it was and record the correction as a new entry there.")
+        if (base != "" && !new_unreleased_entries && !release_is_new) report(append_below_line, "no entry under ## [Unreleased] is new compared with " base ".", "add a line below this one for each type of change that your branch makes, as " entry_form ".")
       }
       if (error_count) {
         printf "check-changelog: FAIL: errors in CHANGELOG.md: %d.\n", error_count
