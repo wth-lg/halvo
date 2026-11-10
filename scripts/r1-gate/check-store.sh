@@ -80,7 +80,7 @@ cases() {
 }
 
 measure() {
-  need_build || return 1
+  need_build || { fail_defect; return 1; }
   scratch_root
   store=$gate_scratch/store; out=$gate_scratch/stdout; err=$gate_scratch/stderr
   mkdir "$store"

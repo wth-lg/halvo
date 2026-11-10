@@ -54,6 +54,7 @@ name=${name:-gate}
 gate_scratch=''
 gate_remove_scratch=no
 gate_verbose=''
+gate_strict=no
 gate_case=''
 
 scratch_root() {
@@ -101,6 +102,7 @@ check_main() {
       -v) gate_verbose=yes ;;
       --case) shift; gate_case=${1:-} ;;
       --remove-scratch) gate_remove_scratch=yes ;;
+      --strict) gate_strict=yes ;;
       ''|*[!0-9]*) printf 'check-%s.sh: unknown argument: %s\n' "$name" "$1" >&2; exit 64 ;;
       *) seconds=$1 ;;
     esac
@@ -234,9 +236,16 @@ gate_build() {
   return 1
 }
 
+gate_defect=''
+
+fail_defect() {
+  emit_fail "$name" "$gate_defect"
+  return 1
+}
+
 need_build() {
   gate_build && return 0
-  emit_fail "$name" "build failed: $gate_build_error"
+  gate_defect="build failed: $gate_build_error"
   return 1
 }
 
@@ -287,20 +296,65 @@ timed_child() {
     fi
     sleep 0.1
   done
+  child_samples=0; child_sum_kib=0; child_peak_kib=0; child_others=no
+  while [ -z "$child_defect" ] && kill -0 "$child_wrapper" 2>/dev/null; do
+    child_rss=$(ps -o rss= -p "$child_pid" 2>/dev/null)
+    child_rss=${child_rss##* }
+    case $child_rss in
+      ''|*[!0-9]*) ;;
+      *) child_samples=$((child_samples + 1)); child_sum_kib=$((child_sum_kib + child_rss))
+         [ "$child_rss" -le "$child_peak_kib" ] || child_peak_kib=$child_rss ;;
+    esac
+    child_other=$(pgrep -x halvo-capture 2>/dev/null | grep -v -x -e "$child_pid" | head -1)
+    [ -z "$child_other" ] || child_others=yes
+    sleep 1
+  done
+  child_mean_kib=0
+  [ "$child_samples" -eq 0 ] || child_mean_kib=$((child_sum_kib / child_samples))
+  printf '%s %s %s\n' "$child_peak_kib" "$child_mean_kib" "$child_samples" > "$child_dir/samples"
+  printf '%s\n' "$child_others" > "$child_dir/others"
   wait "$child_wrapper"
   child_status=$?
   child_wrapper=''
+  gate_defect=$child_defect
   [ -z "$child_defect" ]
 }
 
 child_report_defect() {
   case $child_status in
     0|3) return 0 ;;
-    2) printf 'the timed run ended on a signal before its time (exit 2)\n' ;;
+    2) gate_defect="the timed run ended on a signal before its time (exit 2)" ;;
     *) child_first=$(head -1 "$child_dir/stderr" 2>/dev/null)
-       printf 'timed-run unavailable (exit %s): %s\n' "$child_status" "$child_first" ;;
+       gate_defect="timed-run unavailable (exit $child_status): $child_first" ;;
   esac
   return 1
+}
+
+capture_prepare() {
+  need_build || return 1
+  scratch_root
+  run_store=$gate_scratch/store; run_dir=$gate_scratch/run
+  mkdir "$run_store" "$run_dir" || { gate_defect="cannot make the scratch store"; return 1; }
+  export HALVO_STORE_DIR="$run_store"
+}
+
+capture_run() {
+  capture_seconds=$1; shift
+  run_before=$(machine_state)
+  timed_child "$run_dir" "$GATE_BIN" --timed-run "$capture_seconds" "$@" || return 1
+  run_after=$(machine_state)
+  child_report_defect
+}
+
+run_machine_note() {
+  run_others=$(cat "$run_dir/others" 2>/dev/null)
+  printf 'start %s, end %s, other halvo-capture=%s, binary=%s\n' "$run_before" "$run_after" "${run_others:-unread}" "${GATE_BIN#"$GATE_ROOT"/}"
+}
+
+strict_run_ok() {
+  [ "$gate_strict" = yes ] || return 0
+  run_others=$(cat "$run_dir/others" 2>/dev/null)
+  predicate_machine_quiet "${run_before#* }" "${run_after#* }" "$run_others"
 }
 
 time_file_cpu_pct() {
@@ -312,6 +366,53 @@ time_file_cpu_pct() {
     found = 1
   }
   END { if (!found) exit 1 }' "$1" 2>/dev/null
+}
+
+time_file_number() {
+  awk -v label="$2" '{
+    value = $1
+    $1 = ""
+    sub(/^ +/, "")
+    if ($0 == label && value ~ /^[0-9]+$/) { print value; found = 1 }
+  }
+  END { if (!found) exit 1 }' "$1" 2>/dev/null
+}
+
+memory_figures() {
+  mem_maxrss=$(time_file_number "$1/time" "maximum resident set size") || { printf 'the time file holds no maximum resident set size\n'; return 1; }
+  mem_footprint=$(time_file_number "$1/time" "peak memory footprint") || { printf 'the time file holds no peak memory footprint\n'; return 1; }
+  read -r mem_ps_kib mem_mean_kib mem_samples < "$1/samples" || { printf 'the sampler wrote no samples file\n'; return 1; }
+  awk -v a="$mem_maxrss" -v b="$mem_ps_kib" -v c="$mem_footprint" -v mean="$mem_mean_kib" -v n="$mem_samples" 'BEGIN {
+    whole = "^[0-9]+$"
+    if (a !~ whole || b !~ whole || c !~ whole || mean !~ whole || n !~ whole) { print "a memory figure is not a number"; exit 1 }
+    peak = a + 0
+    if (b * 1024 > peak) peak = b * 1024
+    if (c + 0 > peak) peak = c + 0
+    printf "%d %d %d %d %d %d\n", peak, mean, n, a, b, c
+  }'
+}
+
+predicate_memory_within_bound() {
+  awk -v peak="$1" -v mean_kib="$2" -v samples="$3" -v max="$4" 'BEGIN {
+    whole = "^[0-9]+$"
+    if (peak !~ whole || mean_kib !~ whole || samples !~ whole || max !~ whole) exit 2
+    if (samples + 0 == 0) exit 1
+    if (peak + 0 > max + 0) exit 1
+    if (mean_kib * 1024 > max + 0) exit 1
+    exit 0
+  }'
+}
+
+machine_state() {
+  state_load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}')
+  state_level=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null)
+  printf 'load1=%s pressure=%s\n' "${state_load:-unread}" "${state_level:-unread}"
+}
+
+predicate_machine_quiet() {
+  [ "$1" = "pressure=1" ] || return 1
+  [ "$2" = "pressure=1" ] || return 1
+  [ "$3" = no ]
 }
 
 predicate_cost_within_bound() {

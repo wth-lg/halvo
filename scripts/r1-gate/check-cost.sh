@@ -150,20 +150,21 @@ measure() {
   cpu_max=$bound
   need_bound disk_max_bytes_per_day || return 1
   per_day=$bound
-  need_build || return 1
-  scratch_root
-  store=$gate_scratch/store; run=$gate_scratch/run
-  mkdir "$store" "$run"
-  before=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
-  export HALVO_STORE_DIR="$store"
-  timed_child "$run" "$GATE_BIN" --timed-run "$seconds" || { emit_fail "$name" "$child_defect"; return 1; }
-  defect=$(child_report_defect) || { emit_fail "$name" "$defect"; return 1; }
-  after=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured after the run"; return 1; }
+  capture_prepare || { fail_defect; return 1; }
+  before=$(dir_disk_usage_bytes "$run_store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
+  capture_run "$seconds" || { fail_defect; return 1; }
+  after=$(dir_disk_usage_bytes "$run_store") || { emit_fail "$name" "the store directory could not be measured after the run"; return 1; }
   growth=$((after - before))
-  cpu=$(time_file_cpu_pct "$run/time") || { emit_fail "$name" "the time file holds no real, user and sys figures, or real is 0"; return 1; }
-  figures="cpu=${cpu}% of one core, growth=${growth}B over ${seconds}s, binary=${GATE_BIN#"$GATE_ROOT"/}"
-  if predicate_cost_within_bound "$cpu" "$growth" "$seconds" "$cpu_max" "$per_day"; then emit_pass "$name" "$figures"; return 0; fi
-  emit_fail "$name" "$figures: above a bound"; return 1
+  cpu=$(time_file_cpu_pct "$run_dir/time") || { emit_fail "$name" "the time file holds no real, user and sys figures"; return 1; }
+  note=$(run_machine_note)
+  line="cpu=${cpu}% of one core, growth=${growth}B over ${seconds}s, $note"
+  if ! predicate_cost_within_bound "$cpu" "$growth" "$seconds" "$cpu_max" "$per_day"; then
+    emit_fail "$name" "$line: above a bound"; return 1
+  fi
+  if ! strict_run_ok; then
+    emit_fail "$name" "$line: --strict needs pressure level 1 at both ends and no other halvo-capture"; return 1
+  fi
+  emit_pass "$name" "$line"
 }
 
 check_main "$@"

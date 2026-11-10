@@ -17,7 +17,7 @@ cases() {
 
 measure() {
   seconds=$1
-  need_build || return 1
+  need_build || { fail_defect; return 1; }
   export HALVO_GATE_SECURE_INPUT=1
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-secure-input.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   if run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then

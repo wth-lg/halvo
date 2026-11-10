@@ -36,7 +36,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-CHECKS="timed-run store deletion secure-input cost windows-ci no-ll-hook"
+CHECKS="timed-run store deletion secure-input cost memory windows-ci no-ll-hook"
 rc=0
 for c in $CHECKS; do
   if [ "$mode" = self-test ]; then
