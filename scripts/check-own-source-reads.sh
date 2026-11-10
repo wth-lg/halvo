@@ -448,6 +448,14 @@ self_test() {
   expect 'a line of a here-document that holds such a read as its command is refused too' 2 "cat <<'EOF'${NEWLINE}  sed -n $lines_2_to_20 $own_path${NEWLINE}EOF"
   expect 'head after cat with a command substitution among its operands is refused' 1 "cat $own_path \$(true) | head -n 3"
   expect 'command -v, which starts no reader, is accepted' '' "command -v head $own_path"
+  for word in 'if' 'then' 'else' 'elif' 'do' 'while' 'until' '!' '{'; do
+    expect "head after the word $word is refused" 1 "$word head -n 1 $own_path"
+  done
+  expect 'sed with --expression= and a line number is refused' 1 "sed -n --expression=2p $own_path"
+  expect 'sed with --expression, a space and a line number is refused' 1 "sed -n --expression 2p $own_path"
+  expect 'a file operand after --file is no script' '' "sed --file=commands.sed 5k.txt $own_path"
+  expect 'a file operand that starts with a digit is no script' '' "sed -n 's/x/y/p' 2nd-file.txt $own_path"
+  expect 'the letters after -i are a suffix and no script' '' "sed -ie2p 's/a/b/' $own_path"
   expect 'sed with the script on descriptor 0, written with its number, is refused' 1 "sed -n $lines_2_to_20 0<$own_path"
   expect 'a redirection of another descriptor from the script is accepted' '' "head -n 1 3<$own_path"
   expect 'a read behind a comment sign is accepted' '' "echo usage # ; sed -n $lines_2_to_20 $own_path"
