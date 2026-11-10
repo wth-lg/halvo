@@ -27,6 +27,7 @@ tab=$(printf '\t')
 found=0
 while IFS=$tab read -r set name address size sha256; do
     [ "$set" = "$wanted" ] || continue
+    sha256=$(printf '%s' "$sha256" | tr -d '\r')
     found=$((found + 1))
     target=$directory/$name
     if holds "$target" "$size" "$sha256"; then
