@@ -13,14 +13,18 @@ fail() {
 
 self_tested() {
   label=$1
-  shift
+  group=$2
+  shift 2
   out=$("$@" 2>&1)
   code=$?
   printf '%s\n' "$out"
   [ "$code" -eq 0 ] || fail "$label exited $code"
-  case $nl$out in
-    *"${nl}PASS self-test:"*) ;;
-    *) fail "$label printed no PASS self-test line" ;;
+  first=$(printf '%s\n' "$out" | sed -n '/^FAIL/{p;q;}')
+  [ -z "$first" ] || fail "$label printed: $first"
+  case $group:$nl$out$nl in
+    :*"${nl}PASS self-test:"*) ;;
+    *"${nl}PASS self-test:$group ("* | *"${nl}PASS self-test:$group$nl"*) ;;
+    *) fail "$label printed no PASS self-test${group:+:$group} line" ;;
   esac
 }
 
@@ -30,10 +34,11 @@ measure() {
     printf 'SKIP %s (dash is not installed)\n' "$name"
     exit 77
   fi
-  self_tested 'run.sh --self-test' sh "$gate/run.sh" --self-test
+  self_tested 'run.sh --self-test' '' sh "$gate/run.sh" --self-test
   for script in "$gate"/check-*.sh; do
     [ -f "$script" ] || fail "scripts/r1-gate holds no check-*.sh"
-    self_tested "dash ${script##*/} --self-test" dash "$script" --self-test
+    group=${script##*/check-}
+    self_tested "dash ${script##*/} --self-test" "${group%.sh}" dash "$script" --self-test
   done
   printf 'PASS %s\n' "$name"
 }
@@ -64,10 +69,10 @@ check() {
 gate() {
   directory=$work/$1/scripts/r1-gate
   mkdir -p "$directory" || exit 2
-  printf '%s\n' "$2" >"$directory/run.sh"
+  printf '%s\n' "$2" | sed 's/@group@/store/g' >"$directory/run.sh"
   shift 2
   while [ $# -ge 2 ]; do
-    printf '%s\n' "$2" >"$directory/check-$1.sh"
+    printf '%s\n' "$2" | sed "s/@group@/$1/g" >"$directory/check-$1.sh"
     shift 2
   done
 }
@@ -78,7 +83,8 @@ self_test() {
   mkdir -p "$work/no-tools"
   shell=$(command -v sh) || exit 2
   path=$PATH
-  pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store\n"'
+  pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:@group@ (1 cases)\n"'
+  fail_then_pass='printf "FAIL self-test:@group@ (case x: wrong verdict)\nPASS self-test:@group@ (1 cases)\n"'
   planned='printf "FAIL self-test:store (planned)\n"; exit 1'
   rejected=0
   wrong=
@@ -96,13 +102,21 @@ self_test() {
   gate check-fails "$pass" store "$planned"
   check check-fails FAIL 'dash check-store.sh --self-test exited 1)'
   gate check-prints-no-pass-line "$pass" store 'exit 0'
-  check check-prints-no-pass-line FAIL 'dash check-store.sh --self-test printed no PASS self-test line)'
+  check check-prints-no-pass-line FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
   gate second-check-fails "$pass" store "$pass" timed-run "$planned"
   check second-check-fails FAIL 'dash check-timed-run.sh --self-test exited 1)'
   gate check-with-another-initial-fails "$pass" store "$pass" cost "$planned"
   check check-with-another-initial-fails FAIL 'dash check-cost.sh --self-test exited 1)'
   gate check-needs-bash "$pass" store '[[ a == a ]] && printf "PASS self-test:store\n"'
   check check-needs-bash FAIL 'dash check-store.sh --self-test exited 127)'
+  gate run-prints-a-fail-line "$fail_then_pass" store "$pass"
+  check run-prints-a-fail-line FAIL 'run.sh --self-test printed: FAIL self-test:store (case x: wrong verdict))'
+  gate check-prints-a-fail-line "$pass" store "$fail_then_pass"
+  check check-prints-a-fail-line FAIL 'dash check-store.sh --self-test printed: FAIL self-test:store (case x: wrong verdict))'
+  gate check-passes-as-another "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:deletion (1 cases)\n"'
+  check check-passes-as-another FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
+  gate check-group-is-a-prefix "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store-other (1 cases)\n"'
+  check check-group-is-a-prefix FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
   gate dash-missing "$pass" store "$pass"
   path=$work/no-tools
   check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
