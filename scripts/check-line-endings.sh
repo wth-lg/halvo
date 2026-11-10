@@ -287,6 +287,24 @@ self_test() {
   printf '/tool text eol=lf\n' >"$repository/.gitattributes"
   expect 'an attribute line that only the work tree has does not count' 1 '/tool text eol=lf'
 
+  start_fixture
+  track tool '#!/bin/sh\necho\n'
+  printf '/tool text eol=lf\n' >"$repository/.git/info/attributes"
+  expect 'an attribute line that only info/attributes of the clone has stops the check, with the name of that file' 2 'check-line-endings: error: .git/info/attributes holds an attribute line. A line of that file wins over every .gitattributes file, and no other clone receives the file, so this clone cannot show which attributes the tracked .gitattributes files give. Fix: move the line to a tracked .gitattributes file, or to the attributes file of the user, which this check does not read (git config core.attributesFile names it), then run the check again.'
+
+  start_fixture '/tool text eol=lf'
+  track tool '#!/bin/sh\necho\n'
+  printf '# a comment and an empty line\n\n' >"$repository/.git/info/attributes"
+  expect 'comment lines and empty lines in info/attributes do not stop the check' 0 "$(pass_line 1)"
+
+  start_fixture
+  track tool '#!/bin/sh\necho\n'
+  printf '/tool text eol=lf\n' >"$fixture_directory/attributes-of-the-user"
+  GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.attributesFile GIT_CONFIG_VALUE_0=$fixture_directory/attributes-of-the-user
+  export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+  expect 'an attribute line that only the attributes file of the user has does not count' 1 '/tool text eol=lf'
+  unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+
   if [ "$failures" -gt 0 ]; then
     printf 'check-line-endings: self-test FAIL: fixtures misjudged: %d. The fixture repository is %s\n' "$failures" "$repository"
     return 1
