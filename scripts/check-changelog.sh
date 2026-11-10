@@ -8,7 +8,8 @@ synopsis() {
       current directory.
   sh scripts/check-changelog.sh --base <ref>
       Check the structure, and that the file has an entry under ## [Unreleased]
-      that CHANGELOG.md at <ref> lacks.
+      that CHANGELOG.md at <ref> lacks. A file with a release heading that <ref>
+      lacks is the commit of a release and needs no such entry.
   sh scripts/check-changelog.sh --self-test
       Prove each rule on fixtures. Needs no repository.
 EOF
@@ -21,10 +22,13 @@ Checks CHANGELOG.md, so that an entry cannot sit in the wrong place.
     and no other line holds that text: release.toml replaces it and allows it once.
   - Below it are entries and blank lines only. An entry is one line,
     "- <Type>: <text>", with Type one of Added, Changed, Deprecated, Removed,
-    Fixed, Security. No entry text is there twice.
+    Fixed, Security. No entry text is there twice, and no entry is above the
+    heading.
   - A release section, "## [x.y.z] - YYYY-MM-DD", holds such entries, or
     "- <text>" entries under "### <Type>" headings, each heading at most once.
-A new entry goes at the end of the list under "## [Unreleased]".
+    No version has two release headings.
+A new entry goes at the end of the list under "## [Unreleased]". The lint does
+not check where in the list an entry is.
 
 EOF
   synopsis
@@ -87,12 +91,21 @@ changelog_verdict() {
     }
     $0 ~ release_heading {
       if (!first_release_line) first_release_line = line_number
+      version = $0
+      sub(/\] - .*$/, "]", version)
+      if (version in release_line) report(line_number, "the release " substr(version, 4) " already has a heading on line " release_line[version] ".", "delete this line, or give it the version of another release.")
+      else release_line[version] = line_number
+      if (!($0 in base_has_line)) release_is_new = 1
       section = "release"
       split("", heading_line)
       under_type_heading = 0
       next
     }
-    section == "" || $0 ~ /^[ \t]*$/ { next }
+    $0 ~ /^[ \t]*$/ { next }
+    section == "" {
+      if ($0 ~ typed_entry || $0 ~ type_heading) report(line_number, "this line is above the \"## [Unreleased]\" heading.", "move an entry to the end of the list under that heading, and delete a ### heading.")
+      next
+    }
     section == "unreleased" {
       if ($0 ~ typed_entry) {
         text = $0
@@ -130,7 +143,7 @@ changelog_verdict() {
       if (!unreleased_line) {
         if (first_release_line) report(first_release_line, "no \"## [Unreleased]\" heading is above this release heading.", "add the line \"## [Unreleased]\" and an empty line above this line.")
         else report(line_number ? line_number : 1, "the file has no \"## [Unreleased]\" heading.", "add the line \"## [Unreleased]\" below the introduction, and the entries below that line.")
-      } else if (base != "" && !new_unreleased_entries) {
+      } else if (base != "" && !new_unreleased_entries && !release_is_new) {
         for (i = 1; i <= new_released_entries; i++) report(new_released_entry_line[i], "this entry is new compared with " base " and sits in a release section.", "move it to the end of the list under ## [Unreleased], below line " append_below_line ".")
         report(append_below_line, "no entry under ## [Unreleased] is new compared with " base ".", "add a line below this one for each type of change that your branch makes, as " entry_form ".")
       }
