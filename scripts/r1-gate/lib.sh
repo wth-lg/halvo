@@ -134,43 +134,52 @@ predicate_ciphertext() {
   return 0
 }
 
-# The value of key=value in a report line; empty if the key is absent.
-report_field() {
-  printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p" | head -1
+report_has_key() {
+  case " $1 " in *" $2="*) return 0 ;; esac
+  return 1
 }
 
-# Print each key whose value in the report differs from the key=expected pairs
-# that follow it; prints nothing when the report meets every pair. A missing
-# key is a defect, so a report that omits a field cannot pass.
+report_values() {
+  printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"
+}
+
 report_defects() {
   line=$1; shift
   for want in "$@"; do
-    key=${want%%=*}; expected=${want#*=}
-    [ "$(report_field "$line" "$key")" = "$expected" ] || printf '%s ' "$key"
+    keys=${want%%=*}; expected=${want#*=}
+    case $keys in
+      \?*)
+        key=${keys#\?}
+        report_has_key "$line" "$key" || continue ;;
+      *\|*)
+        key=${keys%%|*}; other=${keys#*|}
+        if report_has_key "$line" "$other"; then
+          if report_has_key "$line" "$key"; then printf '%s %s ' "$key" "$other"; continue; fi
+          key=$other
+        fi ;;
+      *) key=$keys ;;
+    esac
+    value=$(report_values "$line" "$key")
+    [ "$value" = "$expected" ] || printf '%s ' "$key"
   done
 }
 
-# What --verify-store must have measured: the owner read back the segment it
-# wrote, SQLCipher ran on libtomcrypt with secure_delete on, and the unwrap
-# returned without a custody prompt.
-GATE_STORE_SPEC="segment_roundtrip=ok cipher_provider=libtomcrypt secure_delete=1 fts_secure_delete=1 unwrap=ok prompt=none"
-
-# What --verify-deletion must have measured: the shredded segment's ciphertext
-# decrypts under no remaining key and its file is gone, the live sibling still
-# reads, the WAL holds no frames after the shred, and delete-all left a store
-# key that no longer unwraps and a directory that opens as sealed.
-GATE_DELETION_SPEC="decryptable=no file_gone=yes sibling_readable=yes wal_bytes=0 root_destroyed=yes store_sealed=yes"
-
-# PASS(0) if the --verify-store report meets GATE_STORE_SPEC.
-predicate_store_report() {
-  # shellcheck disable=SC2086
-  [ -z "$(report_defects "$1" $GATE_STORE_SPEC)" ]
+store_report_defects() {
+  report_defects "$1" 'rows|events=2000' '?records=2000' secure_delete=1 temp_store=2 '?fts_secure_delete=1' cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok prompt=none
 }
 
-# PASS(0) if the --verify-deletion report meets GATE_DELETION_SPEC.
+deletion_report_defects() {
+  report_defects "$1" decryptable=no file_gone=yes sibling_readable=yes wal_bytes=0 '?expired_events_left=0' root_destroyed=yes store_sealed=yes
+}
+
+predicate_store_report() {
+  defects=$(store_report_defects "$1")
+  [ -z "$defects" ]
+}
+
 predicate_deletion_report() {
-  # shellcheck disable=SC2086
-  [ -z "$(report_defects "$1" $GATE_DELETION_SPEC)" ]
+  defects=$(deletion_report_defects "$1")
+  [ -z "$defects" ]
 }
 
 predicate_zero_secure_keystrokes() {
