@@ -194,6 +194,11 @@ property or the harness; report the counterexample.
 Each check has been seen to fail on a broken store. The patches below apply
 at the sync commit. They and their output are in the run evidence
 (`~/.wstack/runs/20261109-halvo-fix-writer-lock/evidence/formal-verification-1/`).
+The patches of the last two rows and their output are in
+`~/.wstack/runs/20261109-halvo-fix-writer-lock/evidence/builder-3/`. They
+apply to the `db.rs` whose blob is in the table under Sync commit. That file
+has the two tests of `db::tests` that those rows name, and the sync commit
+does not.
 The first proofs, taken at `478fbb5`, are in
 `~/.wstack/runs/20261108-halvo-r1-capture/evidence/formal-verification-1/`.
 The two patches there that change `WriterLock::take` no longer apply, because
@@ -201,8 +206,11 @@ one of their context lines has changed since.
 
 To rerun a row, run `git apply <patch>`, then the check that the row names
 (`cargo test -p halvo-capture --lib formal_tests::a_shredded_segment` or
-`formal_tests::at_most_one`), then `git apply -R <patch>`, and confirm that
-`git status --porcelain` prints nothing.
+`formal_tests::at_most_one`, and for the last two rows
+`cargo test -p halvo-capture --lib <the test that the row names>`), then
+`git apply -R <patch>`, and confirm that `git status --porcelain` prints
+nothing. `mutations.sh` in the `builder-3` directory does this for the last
+two rows and runs the whole lib suite with each patch.
 
 | Patch | What it breaks | Result |
 |---|---|---|
@@ -212,6 +220,8 @@ To rerun a row, run `git apply <patch>`, then the check that the row names
 | `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 still PASSES |
 | `break-writer-lock-outlives-store.patch` | `WriterLock`'s `Drop` does not unlock and leaks a duplicate of its descriptor, so the lock outlives the dropped store | check 1 FAILS: "reopen failed: another writer holds the store". Check 2 FAILS with the lock file left alone: "never got the store; last refusal: another writer holds the store" |
 | `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | both checks PASS unless a drop and the next `open` or `create` both fall between a child's spawn and its exec |
+| `mutation-unlock-at-once.patch` | `WriterLock::take` unlocks the file right after it locks it, so no store holds the file lock | both checks PASS. `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped` FAILS |
+| `m7-success-only.patch`, `m8-store-drop.patch` | only a lock that reached a store is unlocked: when `open` or `create` returns the store (m7), or in a `Drop` of the store (m8) | both checks PASS. `db::tests::a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open` FAILS |
 
 Which message the two failing rows of check 2 print depends on timing: "a
 contender found another contender inside the store" when the second process
@@ -228,11 +238,12 @@ The `flock-only` row is the point of check 2: the file lock only serializes
 unlinking `writer.lock` cannot release. A change that removes the file lock
 alone does not fail the check, and is not a safety regression.
 
-The last two rows are about the release of the file lock, which the `Reopen`
-and `Recreate` ops of check 1 need. A lock that outlives its dropped store
-makes `open` and `create` answer `Locked` with no other writer, and check 1
-fails. Check 2 fails too when the lock file is left alone: the parent's
-dropped store keeps the lock, and no contender gets in before its deadline.
+The two `break-writer-lock` rows are about the release of the file lock,
+which the `Reopen` and `Recreate` ops of check 1 need. A lock that outlives
+its dropped store makes `open` and `create` answer `Locked` with no other
+writer, and check 1 fails. Check 2 fails too when the lock file is left
+alone: the parent's dropped store keeps the lock, and no contender gets in
+before its deadline.
 Run that row for check 2 with `PROPTEST_MAX_SHRINK_ITERS=0`, because each
 failing case waits 60 s. When only the unlock is missing, check 1 fails in
 few runs, because the close still releases the lock unless a child shares
@@ -244,6 +255,23 @@ every run without the unlock:
 and `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children`.
 `break-writer-lock-unlock.txt` holds one run of both beside the formal
 checks, and its second line is the command.
+
+The last two rows are about where the unlock is. No formal check fails for
+them. With the unlock right after the take, the database lock still refuses
+a second writer. With the unlock only for a lock that reached a store, a
+lock that reached none is closed without an unlock, and the close releases
+it unless something shares its descriptor. One test of `db::tests` fails
+for each row. The first requires `Locked` from a second `WriterLock::take`
+in a directory with no database, where only the file lock can give it. The
+second, on Unix only, drops a `WriterLock` that never reached a store while
+a duplicate of its descriptor is open, and requires that the next take
+succeeds. That is the lock of an `open` or `create` that fails: the lock is
+a local of both until they return the store. No test drives that failure
+through `open` itself. With a duplicate of a dropped store's descriptor
+open, an `open` that fails and the `open` after it pass the same test with
+both patches as without them (`sketch-store-level.patch` and the
+`sketch-*.log` files in the `builder-3` directory), because the failing
+`open` locks an open file of its own.
 
 ## Updating the verification
 
@@ -273,11 +301,14 @@ it in the plan before weakening an assertion.
   through SQLite, so `secure_delete` is assumed, not checked, here.
 - Two writers in different user accounts, or over a network filesystem.
 - The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
-  the lock. Both checks fail when the lock outlives the store. Only check 1
-  notices a missing unlock, and only when a drop and the next `open` or
-  `create` both fall between a child's spawn and its exec. The two
-  `hardening_tests` named under the break proofs test the unlock itself, on
-  Unix only.
+  the lock. Check 1 fails when the lock outlives the store, and check 2
+  fails when a case leaves the lock file alone. Only check 1 notices a
+  missing unlock, and only when a drop and the next `open` or `create` both
+  fall between a child's spawn and its exec. The two `hardening_tests` named
+  under the break proofs test the unlock itself, on Unix only.
+- A forked child that runs destructors and drops its copy of the store:
+  `WriterLock`'s `Drop` then unlocks the lock file that its parent still
+  holds, and the tree has no fork without an exec.
 
 ## Sync commit
 
@@ -288,14 +319,16 @@ and each break proof gives the result in its row. Outcome: updated, for
 both checks. The sync commit before this one was
 `478fbb542b5eb02b5fd79b442ccf8c0c0f7df5e8`.
 
-A squash merge gives this change another SHA on main. The covered files and
-the harness are unchanged since the sync commit for as long as
-`git rev-parse <commit>:<path>` prints these blob ids:
+A squash merge gives this change another SHA on main. The covered functions
+and the harness are unchanged since the sync commit for as long as
+`git rev-parse <commit>:<path>` prints these blob ids. The blob of `db.rs`
+is the sync commit's file plus the two tests of `db::tests` that the last
+two break-proof rows name, and nothing else:
 
 | File | Blob |
 |---|---|
 | `crates/halvo-capture/src/store/expiry.rs` | `93aaef99dfc743d4ba644d0b088bdd09eeccb428` |
-| `crates/halvo-capture/src/store/db.rs` | `5cd231fff01269494b804d1c5aa193932fd12ab8` |
+| `crates/halvo-capture/src/store/db.rs` | `0f4912c0556d6693783ffcf8a36a01add19324f2` |
 | `crates/halvo-capture/src/store/segment.rs` | `efb61ac9736a2e6e9a636233c8c22fe72aaf96ed` |
 | `crates/halvo-capture/src/custody/dev_fallback.rs` | `3a918db8156d23bb37f3a33a804d372ca95aa55b` |
 | `crates/halvo-capture/src/store/formal_tests.rs` | `7b556421010ee8a3316bd793311b13766a447db6` |
