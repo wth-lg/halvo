@@ -54,7 +54,10 @@ synopsis() {
       so that diff counts as written by hand. The test lists each such fixture
       with its shape. The repository is under a new temporary directory that is
       left in place. Needs the .githooks directory beside scripts, and a name
-      and an email for commits, as below.
+      and an email for commits, as below. The test hands git the comment string
+      with -c on the command line, where the shell of Git for Windows turns a
+      byte that is not valid UTF-8 into the code point of the same number, so
+      the test is right only where the workflow runs it, in the macos job.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
       under a new temporary directory that is left in place. The pushed commits
