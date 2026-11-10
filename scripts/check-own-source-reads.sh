@@ -19,15 +19,18 @@ help_text() {
 Refuses a script that reads its own source by line number. A help text that a
 script prints with sed over lines 2 to 20 of its own file changes when a line
 is added above it or a comment is removed, and nothing fails.
-  - A line of a script fails when it hands the path of the script, written as
-    the quoted parameter 0, to sed with an address that is a line number, to
-    head, to tail, or to awk with NR or FNR. The path can come as an operand,
-    on standard input, or through cat and a pipe.
+  - A line of a script fails when a command on it gets the path of the script,
+    written as the quoted parameter 0, and reads it by line number. Such a
+    command is sed whose script starts with a line number, head, tail, or awk
+    with NR or FNR. The path can come as an operand, on standard input, or
+    from cat through a pipe.
 The fix is to print the text from a here-document, as this script does.
 The check reads one line at a time. It does not see a path that a variable
 holds, a command that continues on another line, an address that a variable
-holds, or a read by a pattern. It cannot tell code from the text of a
-here-document, so a text that shows such a read is refused too.
+holds, a line number after the first command of a sed script, a reader that
+another command such as xargs starts, or a read by a pattern. It cannot tell
+code from the text of a here-document, so a text that shows such a read is
+refused too.
 
 EOF
   synopsis
@@ -56,22 +59,53 @@ usage() {
 
 reads_of_own_source_by_line_number() {
   SCRIPT_PATH=$1 LC_ALL=C awk '
-    function own_path_goes_to(reader) {
-      return shell_text ~ ("(^|[^A-Za-z0-9_.-])" reader "[ \t]([^|;&()]*[ \t<])?" own_path) ||
-        shell_text ~ ("(^|[^A-Za-z0-9_.-])cat[ \t]([^|;&()]*[ \t<])?" own_path "[ \t]*[|][ \t]*" reader "([ \t]|$)")
+    function without_single_quoted_text(line,    text, i, last, character, in_double_quotes, closing) {
+      text = ""
+      last = length(line)
+      in_double_quotes = 0
+      for (i = 1; i <= last; i++) {
+        character = substr(line, i, 1)
+        if (character == "\\" && i < last) {
+          text = text character substr(line, i + 1, 1)
+          i++
+        } else if (character == "\"") {
+          in_double_quotes = !in_double_quotes
+          text = text character
+        } else if (character == "\047" && !in_double_quotes) {
+          closing = index(substr(line, i + 1), "\047")
+          if (closing == 0) return text
+          text = text "\047\047"
+          i += closing
+        } else text = text character
+      }
+      return text
+    }
+    function command_gets_own_path(reader,    count, part, i) {
+      count = split(shell_text, part, /[|;&()`]/)
+      for (i = 1; i <= count; i++)
+        if (part[i] ~ own_path && part[i] ~ ("^[ \t]*(" before_a_command ")*" reader "([ \t]|$)")) return 1
+      return shell_text ~ ("(^|[|;&()`])[ \t]*(" before_a_command ")*cat[ \t][^|;&()`]*" own_path "[^|;&()`]*[|][ \t]*(" before_a_command ")*" reader "([ \t]|$)")
     }
     BEGIN {
       script_path = ENVIRON["SCRIPT_PATH"]
       own_path = "\"[$](0|[{]0[}])\""
+      before_a_command = "([A-Za-z_][A-Za-z0-9_]*=[^ \t]*|[0-9]*[<>]+[ \t]*[^ \t]+|if|then|else|elif|do|while|until|exec|command|[!{])[ \t]+"
+      sed_and_its_options = "(^|[^A-Za-z0-9_.-])sed[ \t][^|;&]*"
+      after_an_address = "[ \t]*[,~!{=A-Za-z]"
     }
     {
-      shell_text = $0
-      gsub(/\047[^\047]*\047/, "", shell_text)
+      shell_text = without_single_quoted_text($0)
+      text_outside_quotes = shell_text
+      gsub(/"[^"]*"/, "\"\"", text_outside_quotes)
+      sed_starts_at_a_line_number = $0 ~ (sed_and_its_options "\047[ \t]*([$]|[0-9]+)" after_an_address) ||
+        $0 ~ (sed_and_its_options "\"[ \t]*[0-9]+" after_an_address) ||
+        $0 ~ (sed_and_its_options "[/],[ \t]*[0-9]+") ||
+        text_outside_quotes ~ ("(^|[^A-Za-z0-9_.-])sed[ \t]([^|;&]*[ \t])?(-[A-Za-z]*e)?[0-9]+" after_an_address)
       reader = ""
-      if (own_path_goes_to("sed") && $0 ~ /(^|[^A-Za-z0-9_.-])sed[ \t]([^|;&]*[ \t\047",])?([$]|[0-9]+)[ \t]*[,pdq!{]/) reader = "sed with an address that is a line number"
-      else if (own_path_goes_to("head")) reader = "head"
-      else if (own_path_goes_to("tail")) reader = "tail"
-      else if (own_path_goes_to("awk") && $0 ~ /(^|[^A-Za-z0-9_])F?NR([^A-Za-z0-9_]|$)/) reader = "awk with NR or FNR"
+      if (sed_starts_at_a_line_number && command_gets_own_path("sed")) reader = "sed with an address that is a line number"
+      else if (command_gets_own_path("head")) reader = "head"
+      else if (command_gets_own_path("tail")) reader = "tail"
+      else if ($0 ~ /(^|[^A-Za-z0-9_])F?NR([^A-Za-z0-9_]|$)/ && command_gets_own_path("awk")) reader = "awk with NR or FNR"
       if (reader != "") printf "%s:%d: this line hands the path of the script to %s, so the text that it prints changes when a line is added or removed above that text. Fix: print the text from a here-document (cat <<\047EOF\047, the text, EOF), which holds the text and no line number.\n", script_path, NR, reader
     }
   ' "$2"
@@ -81,10 +115,9 @@ tracked_scripts() {
   named_sh=$(git -c core.quotePath=false ls-files -- '*.sh') || die 'git ls-files could not list the tracked files'
   interpreter_lines=$(git -c core.quotePath=false grep --no-recurse-submodules --color=never --no-column -a -n -G -e "$INTERPRETER_LINE") ||
     [ $? = 1 ] || die 'git grep could not search the tracked files'
-  {
-    printf '%s\n' "$named_sh"
-    printf '%s\n' "$interpreter_lines" | sed -n 's/^\(.*\):1:#!.*$/\1/p'
-  } | LC_ALL=C sort -u
+  with_an_interpreter_line=$(printf '%s\n' "$interpreter_lines" | LC_ALL=C sed -n 's/^\(.*\):1:#!.*$/\1/p') ||
+    die 'sed could not read the output of git grep'
+  printf '%s\n%s\n' "$named_sh" "$with_an_interpreter_line" | LC_ALL=C sort -u || die 'sort could not order the list of scripts'
 }
 
 check() {
@@ -192,7 +225,7 @@ self_test() {
   printf '#!/bin/sh\n%s\n' "$read_by_line_number" >"$repository/hooks/with-an-interpreter-line"
   printf '#! /usr/bin/env sh\n%s\n' "$read_by_line_number" >"$repository/hooks/with-a-space-in-the-interpreter-line"
   printf 'echo clean\n' >"$repository/clean.sh"
-  printf '%s\n' "$read_by_line_number" >"$repository/notes.md"
+  printf 'A script starts like this:\n#!/bin/sh\n%s\n' "$read_by_line_number" >"$repository/notes.md"
   printf '#![cfg_attr(test, allow(unused))]\n// %s\n' "$read_by_line_number" >"$repository/main.rs"
   printf '#!/bin/sh # caf\351\n%s\n' "$read_by_line_number" >"$repository/hooks/a-byte-that-is-not-utf-8"
   printf '%s\n' "$read_by_line_number" >"$repository/untracked.sh"
