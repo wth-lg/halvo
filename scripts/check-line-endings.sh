@@ -235,6 +235,19 @@ self_test() {
   track notes.txt 'stored with CRLF\r\n'
   expect 'an interpreter line below the first line, a Rust inner attribute and CRLF without eol=lf are accepted' 0 "$(pass_line 0)"
 
+  start_fixture '*.sh text eol=lf'
+  track scripts/check.sh '#!/bin/sh\r\nprintf x\ry\r\n'
+  expect 'a file with eol=lf that holds a carriage return inside a line is refused' 1 'check-line-endings: scripts/check.sh has eol=lf, and git reads its content in the index as binary: it holds a carriage return outside a CRLF line ending, or a NUL byte.'
+
+  start_fixture '* text=auto eol=lf'
+  track icon.png '\0211PNG\r\n\0032\n\0000\0000'
+  expect 'an image under text=auto eol=lf is accepted' 0 "$(pass_line 0)"
+
+  start_fixture
+  track tool '#!/bin/sh\necho\n'
+  printf '/tool text eol=lf\n' >"$repository/.gitattributes"
+  expect 'an attribute line that only the work tree has does not count' 1 '/tool text eol=lf'
+
   if [ "$failures" -gt 0 ]; then
     printf 'check-line-endings: self-test FAIL: fixtures misjudged: %d. The fixture repository is %s\n' "$failures" "$repository"
     return 1
