@@ -21,6 +21,9 @@ synopsis() {
       reachable from it. --no-exempt checks them too. --default-ref names the
       branch that is never rewritten, by its full ref (default: the branch that
       refs/remotes/origin/HEAD points to).
+  sh scripts/check-commit-messages.sh --pre-push <remote>
+      Check the commits that a push would add to <remote>. .githooks/pre-push calls
+      this and passes on the lines that git writes to standard input.
   sh scripts/check-commit-messages.sh --message-file <file>
       Check a message before git stores it. .githooks/commit-msg calls this. The
       diff that git commit -v appends is dropped, as git drops it.
@@ -48,6 +51,24 @@ are skipped. A carriage return ends a line as a newline does.
 A line passes when anything else comes before those words: a letter of any
 script, a digit, a bracket or the "> " of a quotation. A trailer that names a
 person, such as Signed-off-by, passes.
+
+Three layers apply this predicate.
+  1. .githooks/commit-msg gives early notice: it reads a message before git
+     stores it. Git does not run it under --no-verify, for revert, cherry-pick,
+     rebase, am and commit-tree, or in a checkout that has no .githooks directory.
+  2. .githooks/pre-push reads the stored messages of the commits that a push
+     would add to the remote, and refuses the push. It cannot see a push made
+     with --no-verify, a push from a clone where sh scripts/prerequisites.sh has
+     not set core.hooksPath, or a commit that GitHub itself makes.
+  3. The CI step "Commit messages" (scripts/ci-commit-messages.sh) cannot be
+     skipped from a clone. It reads the stored messages of every push and pull
+     request, and the title and description of a pull request. It reads them
+     after the push, so it cannot stop a squash commit that GitHub writes on the
+     default branch: scripts/merge-pr.sh checks that message before the merge.
+     It does not run for a push whose newest commit says [skip ci], and it reads
+     a description again only when a commit is pushed.
+No layer reads the author or the committer of a commit, or words that are
+spelled in another way.
 
 EOF
   synopsis
@@ -223,6 +244,28 @@ check_commits() {
   } >&2
 }
 
+check_push() {
+  remote=$1
+  require_repository_with_exempt_commit
+  resolve_default_ref
+  while read -r local_ref local_object remote_ref remote_object; do
+    case $local_object in
+      *[!0]*) ;;
+      *) continue ;;
+    esac
+    git rev-parse -q --verify "$local_object^{commit}" >/dev/null || continue
+    set -- "$local_object" "^$NEWEST_EXEMPT_COMMIT"
+    case $remote_object in
+      *[!0]*)
+        if git cat-file -e "$remote_object^{commit}" 2>/dev/null; then set -- "$@" "^$remote_object"; fi
+        ;;
+    esac
+    if git config --get "remote.$remote.url" >/dev/null 2>&1; then set -- "$@" --not "--remotes=$remote"; fi
+    check_commits "push of $local_ref to $remote_ref" "$@"
+  done
+  [ "$any_range_failed" = 0 ]
+}
+
 check_range() {
   require_repository_with_exempt_commit
   resolve_default_ref
@@ -362,10 +405,11 @@ mode=
 exempt=1
 range=
 file=
+remote=
 default_ref=
 any_range_failed=0
 set_exclusive_mode() {
-  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --message-file, --stored-message and --self-test exclude each other'
+  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --pre-push, --message-file, --stored-message and --self-test exclude each other'
   mode=$1
 }
 while [ $# -gt 0 ]; do
@@ -377,6 +421,12 @@ while [ $# -gt 0 ]; do
       [ -z "$file" ] || usage "more than one message file: $file and $2"
       set_exclusive_mode message
       file=$2
+      shift
+      ;;
+    --pre-push)
+      [ $# -ge 2 ] || usage '--pre-push needs the name or the URL of the remote'
+      set_exclusive_mode pre-push
+      remote=$2
       shift
       ;;
     --default-ref)
@@ -405,5 +455,6 @@ case ${mode:-range} in
   self-test) self_test ;;
   message) check_hook_file "$file" ;;
   stored-message) check_stored_message ;;
+  pre-push) check_push "$remote" ;;
   range) check_range "${range:-HEAD}" ;;
 esac
