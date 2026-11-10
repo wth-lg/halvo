@@ -6,7 +6,7 @@ synopsis() {
   sh scripts/check-line-endings.sh
       Check the tracked files of the clone that holds the current directory.
   sh scripts/check-line-endings.sh --self-test
-      Prove both rules on fixtures in a throwaway repository under the temporary
+      Prove the rules on fixtures in a throwaway repository under the temporary
       directory. The self-test removes nothing and prints where the repository is.
 EOF
 }
@@ -19,16 +19,17 @@ the file has the eol=lf attribute. The sh of Git for Windows runs a script with
 CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
   - A tracked file whose first line is an interpreter line, "#!" and then a path
     that starts with "/", has the eol=lf attribute.
-  - A tracked file with the eol=lf attribute is stored in the index with LF, not
-    with CRLF.
-The check reads file content from the index, not from the work tree, and reads
-attributes through `git check-attr eol`.
+  - A tracked file with the eol=lf attribute is not stored in the index with CRLF.
+  - A tracked file that the attributes make text with eol=lf holds no carriage
+    return inside a line and no NUL byte: git reads such content as binary.
+The check reads file content and the .gitattributes files from the index, not
+from the work tree.
 
 EOF
   synopsis
   cat <<'EOF'
 
-Exit codes: 0 both rules hold, 1 a file breaks a rule, 2 the check could not run,
+Exit codes: 0 every rule holds, 1 a file breaks a rule, 2 the check could not run,
 64 bad usage. The check only reads, so it is safe to run twice.
 EOF
 }
@@ -50,9 +51,9 @@ usage() {
 }
 
 files_that_start_with_an_interpreter_line() {
-  interpreter_lines=$(git -c core.quotePath=false grep --cached --color=never --no-column -a -n -G -e "$INTERPRETER_LINE") ||
+  interpreter_lines=$(git -c core.quotePath=false grep --cached --no-recurse-submodules --color=never --no-column -a -n -G -e "$INTERPRETER_LINE") ||
     [ $? = 1 ] || die 'git grep could not search the index'
-  files_with_an_interpreter_line=$(git -c core.quotePath=false grep --cached --color=never -a -l -G -e "$INTERPRETER_LINE") ||
+  files_with_an_interpreter_line=$(git -c core.quotePath=false grep --cached --no-recurse-submodules --color=never -a -l -G -e "$INTERPRETER_LINE") ||
     [ $? = 1 ] || die 'git grep could not search the index'
   [ -n "$files_with_an_interpreter_line" ] || return 0
   while IFS= read -r path; do
@@ -64,16 +65,17 @@ $files_with_an_interpreter_line
 EOF
 }
 
-files_stored_with_crlf() {
-  eol_listing=$(git -c core.quotePath=false ls-files --eol) || die 'git ls-files could not list the index'
+files_whose_index_content_is() {
   printf '%s\n' "$eol_listing" |
-    awk -F '\t' '$1 ~ /^i\/(crlf|mixed) / { print substr($0, index($0, "\t") + 1) }' ||
+    awk -F '\t' -v states="$1" '$1 ~ ("^i/(" states ") ") { print substr($0, index($0, "\t") + 1) }' ||
     die 'awk exited with an error while reading the output of git ls-files --eol'
 }
 
-eol_attribute_lines() {
-  printf '%s\n' "$1" | git -c core.quotePath=false check-attr --stdin eol ||
-    die 'git check-attr could not read the eol attribute'
+attributes_of() {
+  paths=$1
+  shift
+  printf '%s\n' "$paths" | git -c core.quotePath=false check-attr --cached --stdin "$@" ||
+    die 'git check-attr could not read the attributes'
 }
 
 name_needs_no_quoting() {
@@ -108,6 +110,11 @@ report_eol_lf_file_stored_with_crlf() {
   } >&2
 }
 
+report_text_file_with_binary_content() {
+  failures=$((failures + 1))
+  printf 'check-line-endings: %s has eol=lf, and git reads its content in the index as binary: it holds a carriage return outside a CRLF line ending, or a NUL byte.\nFix: take that byte out of the file and commit. If the file is not text, give it -text in .gitattributes.\n' "$1" >&2
+}
+
 check() {
   root=$(git rev-parse --show-toplevel 2>/dev/null) ||
     die 'the current directory is not inside the work tree of a git clone'
@@ -117,7 +124,7 @@ check() {
   script_count=0
   scripts=$(files_that_start_with_an_interpreter_line) || exit
   if [ -n "$scripts" ]; then
-    attribute_lines=$(eol_attribute_lines "$scripts") || exit
+    attribute_lines=$(attributes_of "$scripts" eol) || exit
     while IFS= read -r attribute_line; do
       script_count=$((script_count + 1))
       case $attribute_line in
@@ -129,12 +136,30 @@ $attribute_lines
 EOF
   fi
 
-  crlf_files=$(files_stored_with_crlf) || exit
+  eol_listing=$(git -c core.quotePath=false ls-files --eol) || die 'git ls-files could not list the index'
+
+  crlf_files=$(files_whose_index_content_is 'crlf|mixed') || exit
   if [ -n "$crlf_files" ]; then
-    attribute_lines=$(eol_attribute_lines "$crlf_files") || exit
+    attribute_lines=$(attributes_of "$crlf_files" eol) || exit
     while IFS= read -r attribute_line; do
       case $attribute_line in
         *': eol: lf') report_eol_lf_file_stored_with_crlf "${attribute_line%: eol: *}" ;;
+      esac
+    done <<EOF
+$attribute_lines
+EOF
+  fi
+
+  binary_files=$(files_whose_index_content_is '-text') || exit
+  if [ -n "$binary_files" ]; then
+    attribute_lines=$(attributes_of "$binary_files" text eol) || exit
+    while IFS= read -r text_attribute_line && IFS= read -r eol_attribute_line; do
+      case $text_attribute_line in
+        *': text: set' | *': text: unspecified') ;;
+        *) continue ;;
+      esac
+      case $eol_attribute_line in
+        *': eol: lf') report_text_file_with_binary_content "${eol_attribute_line%: eol: *}" ;;
       esac
     done <<EOF
 $attribute_lines
@@ -145,7 +170,7 @@ EOF
     printf 'check-line-endings: FAIL: files that break a rule: %d. In a clone with core.autocrlf=true, the installer default of Git for Windows, git checks out a file without eol=lf with CRLF, and a shell other than the sh of Git for Windows does not run a script with CRLF.\n' "$failures" >&2
     exit 1
   fi
-  printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF: 0.\n' "$script_count"
+  printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF or as binary content: 0.\n' "$script_count"
 }
 
 leave_the_repository_that_git_variables_name() {
@@ -166,10 +191,7 @@ self_test() {
 
   start_fixture() {
     git -C "$repository" read-tree --empty || die 'git read-tree could not empty the index of the fixture repository'
-    : >"$repository/.gitattributes"
-    for attributes_line do
-      printf '%s\n' "$attributes_line" >>"$repository/.gitattributes"
-    done
+    [ $# -eq 0 ] || track .gitattributes "$(printf '%s\\n' "$@")"
   }
 
   track() {
@@ -193,7 +215,7 @@ self_test() {
   }
 
   pass_line() {
-    printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF: 0.' "$1"
+    printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF or as binary content: 0.' "$1"
   }
 
   start_fixture
