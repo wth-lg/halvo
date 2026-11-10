@@ -191,7 +191,7 @@ run_event() {
 
   if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
     printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh "$CHECK" --stored-message ||
-      fail "the title or the description of the pull request carries an attribution line, listed above. GitHub offers that text as the squash message. Remove the line on GitHub. This job reads the text from the event that started it, so a re-run reads the old text: push a commit, or close and reopen the pull request."
+      fail "the title or the description of the pull request carries an attribution line, listed above. GitHub offers that text as the squash message. Remove the line on GitHub, then close and reopen the pull request. That starts a new pull_request run, which reads the new text; a re-run reads the old text, because this job reads the text from the event that started it."
     if sh -c "$default_script" check-commit-messages.sh --stored-message </dev/null >/dev/null 2>&1; then
       printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh -c "$default_script" check-commit-messages.sh --stored-message ||
         fail "the copy of $CHECK that $default_ref holds refuses the title or the description of the pull request (its findings are above), and the copy of this branch accepts them. The branch weakened the predicate for this text. Undo that change, and remove the line on GitHub."
@@ -360,7 +360,7 @@ self_test() {
   pull_request pull-request-that-checks-0-commits 1 'the pull request run checked 0 commits' "$main" 'Nothing' 'A plain description.'
 
   runner pull-request-whose-description-ends-with-a-tool-footer "$main" "$clean_branch" "$clean_branch:refs/heads/feature"
-  pull_request pull-request-whose-description-ends-with-a-tool-footer 1 'the title or the description of the pull request carries an attribution line' "$clean_branch" 'Add two clean changes' "A plain description.$nl$nl$footer"
+  pull_request pull-request-whose-description-ends-with-a-tool-footer 1 'then close and reopen the pull request. That starts a new pull_request run, which reads the new text; a re-run reads the old text' "$clean_branch" 'Add two clean changes' "A plain description.$nl$nl$footer"
 
   runner tag-named-origin-main-on-a-trailer-commit "$main" "$bad_branch" "$bad_branch:refs/heads/feature" "$bad_branch:refs/tags/origin/main"
   pull_request tag-named-origin-main-on-a-trailer-commit 1 'commits checked 2, with an attribution line 1' "$bad_branch" 'Fix the gate' 'A plain description.'

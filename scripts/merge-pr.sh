@@ -6,6 +6,9 @@ CHECK=$script_directory/check-commit-messages.sh
 
 THREADS_QUERY="query(\$owner: String!, \$repo: String!, \$number: Int!, \$endCursor: String) { repository(owner: \$owner, name: \$repo) { pullRequest(number: \$number) { reviewThreads(first: 100, after: \$endCursor) { pageInfo { hasNextPage endCursor } nodes { isResolved } } } } }"
 
+RUNS_FILTER='.workflow_runs[] | "\(.event)\t\(.created_at)\t\(.id)\t\(.status)\t\(.conclusion // "none")\t\(.run_attempt)\t\(.path)"'
+JOBS_FILTER='.jobs[] | "\(.name)\t\(.status)\t\(.conclusion // "none")"'
+
 nl='
 '
 tab=$(printf '\t')
@@ -20,8 +23,12 @@ attribution line reaches the default branch.
       Read pull request <number> with gh and refuse unless all of these hold:
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
         - its head is the commit given with --head, the one that was reviewed
-        - check runs named macos and windows exist for that head, and every
-          check run on it completed with success
+        - for each of the events push and pull_request, the newest workflow
+          run on that head, the one created last, completed with success, and
+          the jobs macos and windows succeeded in it. An older run of the same
+          event is printed and is not a gate. When the head branch is in
+          another repository, its push runs are there, and the pull_request
+          run alone is required.
         - it has 0 unresolved review threads
         - the squash message (the subject, an empty line, the body file) passes
           sh scripts/check-commit-messages.sh --stored-message
@@ -44,6 +51,10 @@ The script never passes --admin, never pushes and never edits a pull request.
 It cannot see a merge that someone makes on the website or with gh pr merge
 directly. The push run of CI reports such a merge after the fact, and only a
 ruleset on the default branch can stop it.
+It finds the workflow runs by the head commit, whatever workflow file started
+them, so it cannot tell which pull request a pull_request run belongs to when
+two pull requests share a head. It reads no check that an app other than
+GitHub Actions reports on the head.
 
 Exit codes: 0 merged and the merge commit passed the range check, or with
 --dry-run every gate holds; 1 a gate refuses and nothing was merged; 2 the
@@ -88,8 +99,20 @@ count_lines() {
   printf '%s\n' "$1" | grep -c "$2" || true
 }
 
+runs_of() {
+  printf '%s\n' "$workflow_runs" | awk -F '\t' -v event="$1" '$1 == event'
+}
+
+newest_run_of() {
+  runs_of "$1" | awk 'NR == 1'
+}
+
+jobs_of() {
+  printf '%s\n' "$jobs" | awk -F '\t' -v run="$1" '$1 == run { print $2 "\t" $3 "\t" $4 }'
+}
+
 read_facts() {
-  fields=$(gh pr view "$number" --json state,isDraft,mergeable,headRefOid,baseRefName --jq '.state, .isDraft, .mergeable, .headRefOid, .baseRefName') ||
+  fields=$(gh pr view "$number" --json state,isDraft,mergeable,headRefOid,baseRefName,isCrossRepository --jq '.state, .isDraft, .mergeable, .headRefOid, .baseRefName, .isCrossRepository') ||
     die "gh could not read pull request #$number. Its message is above."
   {
     read -r state || :
@@ -97,14 +120,37 @@ read_facts() {
     read -r mergeable || :
     read -r head_on_github || :
     read -r base || :
+    read -r is_cross_repository || :
   } <<EOF
 $fields
 EOF
-  [ -n "$base" ] || die "gh printed fewer than 5 fields for pull request #$number: $fields"
+  case $is_cross_repository in
+    false) required_events='push pull_request' ;;
+    true) required_events=pull_request ;;
+    *) die "gh printed fewer than 6 fields for pull request #$number, or a value of isCrossRepository that is neither true nor false: $fields" ;;
+  esac
   title=$(gh pr view "$number" --json title --jq .title) || die "gh could not read the title of pull request #$number"
   description=$(gh pr view "$number" --json body --jq .body) || die "gh could not read the description of pull request #$number"
-  check_runs=$(gh api "repos/{owner}/{repo}/commits/$head/check-runs?per_page=100" --paginate --jq '.check_runs[] | "\(.name)\t\(.status)\t\(.conclusion // "none")"') ||
-    die "gh could not read the check runs of $head"
+  workflow_runs=$(gh api "repos/{owner}/{repo}/actions/runs?head_sha=$head&per_page=100" --paginate --jq "$RUNS_FILTER") ||
+    die "gh could not read the workflow runs of $head"
+  unread_runs=$(printf '%s\n' "$workflow_runs" | awk -F '\t' 'NF && (NF != 7 || $3 !~ /^[0-9]+$/)') ||
+    die 'awk could not read the workflow runs'
+  [ -z "$unread_runs" ] ||
+    die "gh printed a workflow run that this script cannot read. It reads 7 fields divided by tabs, the third a run id of digits, and got:$nl$unread_runs"
+  workflow_runs=$(printf '%s\n' "$workflow_runs" | LC_ALL=C sort -t "$tab" -k 2,2r -k 3,3nr) ||
+    die 'sort could not order the workflow runs'
+  jobs=
+  for event in $required_events; do
+    run_id=$(newest_run_of "$event" | cut -f 3)
+    [ -n "$run_id" ] || continue
+    jobs_of_run=$(gh api "repos/{owner}/{repo}/actions/runs/$run_id/jobs?per_page=100" --paginate --jq "$JOBS_FILTER") ||
+      die "gh could not read the jobs of workflow run $run_id"
+    unread_jobs=$(printf '%s\n' "$jobs_of_run" | awk -F '\t' 'NF && NF != 3') ||
+      die 'awk could not read the jobs'
+    [ -z "$unread_jobs" ] ||
+      die "gh printed a job of workflow run $run_id that this script cannot read. It reads 3 fields divided by tabs, and got:$nl$unread_jobs"
+    jobs=$jobs$(printf '%s\n' "$jobs_of_run" | sed -n "/./s/^/$run_id$tab/p")$nl
+  done
   thread_states=$(gh api graphql --paginate -F owner='{owner}' -F repo='{repo}' -F number="$number" -f query="$THREADS_QUERY" --jq '.data.repository.pullRequest.reviewThreads.nodes[].isResolved') ||
     die "gh could not read the review threads of pull request #$number"
   if [ -n "$thread_states" ]; then
@@ -123,11 +169,48 @@ print_facts() {
   say "head reviewed:  $head"
   say "title: $title"
   say "description: $(count_lines "$description" '') lines"
-  say "check runs on $head (name, status, conclusion): $(count_lines "$check_runs" .)"
-  say_lines "$check_runs"
+  [ "$is_cross_repository" = false ] ||
+    say "the head branch of pull request #$number is in another repository, where its push runs are. Here the pull_request run alone is required."
+  for event in push pull_request; do
+    runs_of_event=$(runs_of "$event")
+    say "$event runs on $head, newest first (event, created, run, status, conclusion, attempt, workflow file): $(count_lines "$runs_of_event" .)"
+    say_lines "$runs_of_event"
+    case " $required_events " in
+      *" $event "*) ;;
+      *) continue ;;
+    esac
+    run_id=$(newest_run_of "$event" | cut -f 3)
+    [ -n "$run_id" ] || continue
+    jobs_of_run=$(jobs_of "$run_id")
+    say "jobs of $event run $run_id, the newest (name, status, conclusion): $(count_lines "$jobs_of_run" .)"
+    say_lines "$jobs_of_run"
+  done
   say "review threads: $thread_total, unresolved: $thread_unresolved"
   say "squash subject: $subject"
   say "squash body: $body_file, $(count_lines "$body" '') lines"
+}
+
+refuse_a_missing_run() {
+  case $event in
+    push)
+      refuse "no push run exists for $head. GitHub starts one when the commit is pushed to a branch of this repository: wait a minute and run this script again. A push whose newest commit says [skip ci] starts none. When none has started by then, push a new commit: the new head needs a new review."
+      ;;
+    pull_request)
+      refuse "no pull_request run exists for $head. GitHub starts one when the pull request is opened or its head moves: wait a minute and run this script again. When none has started by then, close and reopen the pull request, which starts one: gh pr close $number && gh pr reopen $number. A head commit whose message says [skip ci] starts none that way either: push a new commit then, and the new head needs a new review."
+      ;;
+  esac
+}
+
+refuse_a_failed_run() {
+  failed_run="the newest $event run on $head, run $run_id, completed with $run_conclusion. Read why: gh run view $run_id --log-failed."
+  case $event in
+    push)
+      refuse "$failed_run If the cause is in the commits, fix it and push: the new head needs a new review. If the cause is outside them, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+      ;;
+    pull_request)
+      refuse "$failed_run If its step Commit messages names a line in the title or the description, remove the line on GitHub (gh pr edit $number), then close and reopen the pull request: gh pr close $number && gh pr reopen $number. That starts a new pull_request run, which reads the new text; a re-run reads the old text. If the cause is in the commits or in their merge with $base, fix it and push: the new head needs a new review. If the cause is outside both, such as a runner that failed, run the failed jobs again and wait: gh run rerun $run_id --failed && gh run watch $run_id. Then run this script again."
+      ;;
+  esac
 }
 
 read_stored_message() {
@@ -155,13 +238,26 @@ apply_gates() {
   [ "$head_on_github" = "$head" ] ||
     refuse "the head of pull request #$number is $head_on_github, and --head names $head. A push arrived after the review. Review and verify the new head, then pass it as --head."
 
-  for required in macos windows; do
-    printf '%s\n' "$check_runs" | grep -q "^$required$tab" ||
-      refuse "no check run named $required exists for $head. CI has not started for this commit, or a job was renamed. Wait for the run: gh pr checks $number --watch"
+  for event in $required_events; do
+    run=$(newest_run_of "$event")
+    if [ -z "$run" ]; then
+      refuse_a_missing_run
+      continue
+    fi
+    IFS=$tab read -r _ _ run_id run_status run_conclusion _ <<EOF
+$run
+EOF
+    if [ "$run_status" != completed ]; then
+      refuse "the newest $event run on $head, run $run_id, has not completed: its status is $run_status. Wait for it: gh run watch $run_id. Then run this script again."
+    elif [ "$run_conclusion" != success ]; then
+      refuse_a_failed_run
+    else
+      for required in macos windows; do
+        jobs_of "$run_id" | awk -F '\t' -v job="$required" '$1 == job && $2 == "completed" && $3 == "success" { found = 1 } END { exit !found }' ||
+          refuse "no job named $required succeeded in $event run $run_id, the newest $event run on $head, although the run completed with success. Its jobs (name, status, conclusion):$nl$(jobs_of "$run_id")${nl}A job was renamed, removed or skipped. The workflow has to run the jobs macos and windows for every push and every pull request: restore that in .github/workflows/ci.yml and push. The new head needs a new review."
+      done
+    fi
   done
-  not_green=$(printf '%s\n' "$check_runs" | awk -F '\t' 'NF && !($2 == "completed" && $3 == "success")')
-  [ -z "$not_green" ] ||
-    refuse "these check runs on $head did not complete with success (name, status, conclusion):$nl$not_green${nl}Wait for a run that is in progress: gh pr checks $number --watch. Fix a run that failed and push; the new head needs a new review."
 
   [ "$thread_unresolved" = 0 ] ||
     refuse "pull request #$number has unresolved review threads: $thread_unresolved of $thread_total. Answer each one and resolve it on GitHub, then run this script again."
@@ -264,7 +360,6 @@ case "$1 $2" in
     esac
     ;;
   'api graphql') cat "$state/threads" ;;
-  'api repos/{owner}/{repo}/commits/'*) cat "$state"/jobs-* ;;
   'api repos/{owner}/{repo}/actions/runs?head_sha='*) cat "$state/runs" ;;
   'api repos/{owner}/{repo}/actions/runs/'*)
     run=${2#*/actions/runs/}
