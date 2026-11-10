@@ -725,6 +725,38 @@ mod tests {
     }
 
     #[test]
+    fn a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = WriterLock::take(dir.path()).unwrap();
+        let second_beside_the_first = WriterLock::take(dir.path()).map(drop);
+        assert!(
+            matches!(second_beside_the_first, Err(StoreError::Locked(_))),
+            "a second take beside a live writer lock answered {second_beside_the_first:?}"
+        );
+        drop(first);
+        WriterLock::take(dir.path())
+            .expect("a dropped writer lock leaves the directory free to lock");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dropped_writer_lock_is_released_while_a_duplicate_of_its_descriptor_stays_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let never_put_in_a_store = WriterLock::take(dir.path()).unwrap();
+        let held_as_a_spawned_child_holds_it = never_put_in_a_store.file.try_clone().unwrap();
+
+        drop(never_put_in_a_store);
+        let taken_again = WriterLock::take(dir.path()).map(drop);
+
+        drop(held_as_a_spawned_child_holds_it);
+        assert!(
+            taken_again.is_ok(),
+            "a writer lock dropped outside a store was still held: {:?}",
+            taken_again.err()
+        );
+    }
+
+    #[test]
     fn create_refuses_a_directory_that_already_holds_a_store() {
         let dir = tempfile::tempdir().unwrap();
         drop(make_store(dir.path()));
