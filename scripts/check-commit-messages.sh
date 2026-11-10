@@ -35,6 +35,10 @@ usage() {
   exit 64
 }
 
+awk_failed() {
+  die "awk exited $1 while reading a message"
+}
+
 drop_commit_verbose_diff() {
   printf '%s\n' "$1" | LC_ALL=C awk -v scissors_end=" $SCISSORS" '
     dropping_diff { next }
@@ -58,33 +62,22 @@ drop_commit_verbose_diff() {
 }
 
 attribution_lines() {
-  LC_ALL=C awk '
+  printf '%s\n' "$1" | LC_ALL=C awk '
     { line = tolower($0) }
     line ~ /^[ \t]*co-authored-by[ \t]*:/ || line ~ /^[^a-z]*generated with([^a-z]|$)/ {
       printf "  line %d: %s\n", NR, $0
-      found = 1
     }
-    END { exit found }
   '
-}
-
-scan() {
-  status=0
-  lines=$(printf '%s\n' "$1" | attribution_lines) || status=$?
-  case $status in
-    0|1) ;;
-    *) die "awk exited $status while reading a message" ;;
-  esac
 }
 
 check_file() {
   [ -f "$1" ] || die "no such message file: $1"
   hook_file=$(cat "$1") || die "cannot read the message file: $1"
-  message=$(drop_commit_verbose_diff "$hook_file") || die "awk exited $? while reading the message file: $1"
-  scan "$message"
-  [ "$status" = 1 ] || return 0
+  message=$(drop_commit_verbose_diff "$hook_file") || awk_failed $?
+  found=$(attribution_lines "$message") || awk_failed $?
+  [ -n "$found" ] || return 0
   {
-    printf 'check-commit-messages: the commit message carries an attribution line:\n%s\n' "$lines"
+    printf 'check-commit-messages: the commit message carries an attribution line:\n%s\n' "$found"
     printf 'Fix: remove the line and commit again. If the line is prose, reword it so that it does not start with these words. %s\n' "$RULE"
   } >&2
   return 1
@@ -109,10 +102,10 @@ check_range() {
   for commit in $commits; do
     total=$((total + 1))
     message=$(git log -1 --format=%B "$commit") || die "git log could not read $commit"
-    scan "$message"
-    if [ "$status" = 1 ]; then
+    found=$(attribution_lines "$message") || awk_failed $?
+    if [ -n "$found" ]; then
       bad=$((bad + 1))
-      printf 'check-commit-messages: %s\n%s\n' "$(git log -1 --format='%h %s' "$commit")" "$lines" >&2
+      printf 'check-commit-messages: %s\n%s\n' "$(git log -1 --format='%h %s' "$commit")" "$found" >&2
     fi
   done
 
@@ -139,20 +132,18 @@ self_test() {
   semicolon_commit_verbose_file="Fix the gate${nl}${nl}; $SCISSORS${nl}; Do not modify or remove the line above.${nl}; Everything below it will be ignored.${nl}$diff_with_attribution_text"
 
   expect() {
-    scan "$3"
-    if [ -z "$lines" ]; then count=0; else count=$(printf '%s\n' "$lines" | wc -l | tr -d ' '); fi
-    want_status=1
-    [ "$2" != 0 ] || want_status=0
-    if [ "$count" = "$2" ] && [ "$status" = "$want_status" ]; then
+    found=$(attribution_lines "$3") || awk_failed $?
+    if [ -z "$found" ]; then count=0; else count=$(printf '%s\n' "$found" | wc -l | tr -d ' '); fi
+    if [ "$count" = "$2" ]; then
       printf 'PASS %s\n' "$1"
     else
-      printf 'FAIL %s (expected %s attribution lines and status %s, found %s and status %s)\n' "$1" "$2" "$want_status" "$count" "$status"
+      printf 'FAIL %s (expected %s attribution lines, found %s)\n' "$1" "$2" "$count"
       failures=$((failures + 1))
     fi
   }
 
   expect_in_hook_file() {
-    message=$(drop_commit_verbose_diff "$3") || die "awk exited $? while reading a fixture"
+    message=$(drop_commit_verbose_diff "$3") || awk_failed $?
     expect "$1" "$2" "$message"
   }
 
