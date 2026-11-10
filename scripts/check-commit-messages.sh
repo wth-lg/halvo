@@ -2,6 +2,7 @@
 set -eu
 
 NEWEST_EXEMPT_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
+TOOL_TRAILER_KEYS='Claude-Session Agent-Logs-Url Amp-Thread-ID Assisted-by'
 
 RULE='Commits in this repository are authored by the configured git user only. See AGENTS.md.'
 
@@ -20,13 +21,21 @@ EOF
 }
 
 help_text() {
-  cat <<'EOF'
-Rejects commit messages that carry an attribution line. Commits in this repository
-are authored by the configured git user only, so a message must not contain:
-  - a Co-Authored-By trailer: a line that starts with "Co-Authored-By:"
-  - a "Generated with" attribution: a line whose first words are "Generated with"
-Letter case and leading whitespace do not matter. A line that mentions either
-phrase after other words passes.
+  cat <<EOF
+Rejects messages that carry an attribution line. Commits in this repository are
+authored by the configured git user only, so no line of a message may start with:
+  - Co-Authored-By, with or without its colon, its three words joined by hyphens
+    or by whitespace
+  - Generated with
+  - one of these trailer keys, which name a tool or its session, and a colon:
+    $TOOL_TRAILER_KEYS
+Letter case does not matter. Whitespace is a space, a tab, a no-break space or
+another Unicode space, and any run of it separates the words. Whitespace and
+emoji (a character from U+2000 to U+2FFF or above U+FFFF) before the first word
+are skipped. A carriage return ends a line as a newline does.
+A line passes when anything else comes before those words: a letter of any
+script, a digit, a bracket or the "> " of a quotation. A trailer that names a
+person, such as Signed-off-by, passes.
 
 EOF
   synopsis
@@ -87,10 +96,28 @@ drop_commit_verbose_diff() {
 }
 
 attribution_lines() {
-  printf '%s\n' "$1" | LC_ALL=C awk '
-    { line = tolower($0) }
-    line ~ /^[ \t]*co-authored-by[ \t]*:/ || line ~ /^[^a-z]*generated with([^a-z]|$)/ {
-      printf "  line %d: %s\n", NR, $0
+  printf '%s\n' "$1" | TOOL_TRAILER_KEYS=$TOOL_TRAILER_KEYS LC_ALL=C awk '
+    BEGIN { tool_key_count = split(tolower(ENVIRON["TOOL_TRAILER_KEYS"]), tool_key, " ") }
+    function starts_with_tool_trailer(text,    k) {
+      for (k = 1; k <= tool_key_count; k++)
+        if (index(text, tool_key[k]) == 1 && substr(text, length(tool_key[k]) + 1) ~ /^ *:/) return 1
+      return 0
+    }
+    function is_attribution(line,    text) {
+      text = tolower(line)
+      gsub(/\t|\302\240|\342\200[\200-\212\257]|\342\201\237|\343\200\200/, " ", text)
+      sub(/^( |\342[\200-\277][\200-\277]|\357\270[\200-\217]|[\360-\364][\200-\277][\200-\277][\200-\277])+/, "", text)
+      return text ~ /^co[- ]*authored[- ]*by([^a-z0-9]|$)/ || text ~ /^generated +with([^a-z0-9]|$)/ || starts_with_tool_trailer(text)
+    }
+    {
+      record = $0
+      sub(/\r$/, "", record)
+      part_count = split(record, part, "\r")
+      if (part_count == 0) line_number++
+      for (i = 1; i <= part_count; i++) {
+        line_number++
+        if (is_attribution(part[i])) printf "  line %d: %s\n", line_number, part[i]
+      }
     }
   '
 }
@@ -214,11 +241,11 @@ self_test() {
   expect 'both lines of the newest exempt commit fail, one finding each' 2 "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
   expect 'prose that mentions both phrases passes' 0 "Reject attribution lines${nl}${nl}The check fails on a Co-Authored-By: trailer and on a line that says a${nl}tool was Generated with. A message that only mentions them passes."
   expect 'a line that starts with Generated without passes' 0 "Fix the gate${nl}${nl}Generated without a tool."
-  expect 'the diff of git commit -v fails when it is a stored commit message' 2 "$commit_verbose_file"
+  expect 'the diff of git commit -v fails when it is a stored commit message' 1 "$commit_verbose_file"
   expect_in_hook_file 'the diff below the scissors block of git commit -v is dropped from the hook file' 0 '#' "$commit_verbose_file"
   expect_in_hook_file 'the same diff is dropped when the comment string of git is a semicolon' 0 ';' "$semicolon_commit_verbose_file"
   expect_in_hook_file 'the same diff is dropped when the comment string is auto and git picked a semicolon' 0 auto "$semicolon_commit_verbose_file"
-  expect_in_hook_file 'a scissors block under a comment string that git does not use keeps its diff' 2 '#' "$semicolon_commit_verbose_file"
+  expect_in_hook_file 'a scissors block under a comment string that git does not use keeps its diff' 1 '#' "$semicolon_commit_verbose_file"
   expect_in_hook_file 'a trailer above the scissors block fails in the hook file' 1 '#' "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
   expect_in_hook_file 'a trailer below a scissors line that no diff follows fails in the hook file' 1 '#' "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer"
   expect_in_hook_file 'a trailer below a scissors block that no diff follows fails in the hook file' 1 '#' "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
