@@ -40,7 +40,11 @@ synopsis() {
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
   sh scripts/check-commit-messages.sh --self-test
-      Prove the predicate on fixtures. Needs git, and no repository.
+      Prove the predicate on fixtures. Needs git, and no repository. One
+      fixture gives git a comment string that is not valid UTF-8. It does so in
+      a config file, a new file under the temporary directory that is left in
+      place: Git for Windows converts such a byte in a variable or an argument
+      on its way to git, and reads a file as it is.
   sh scripts/check-commit-messages.sh --self-test-two-paths
       Send every fixture message of --self-test down both paths in a throwaway
       repository: through git commit -F with the commit-msg hook on, and, as the
@@ -53,7 +57,9 @@ synopsis() {
       and an email for commits, as below.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
-      under a new temporary directory that is left in place. Needs a clone of
+      under a new temporary directory that is left in place. The pushed commits
+      sit on the newest exempt commit, so the result does not depend on the
+      other commits of this repository or on its files. Needs a clone of
       this repository, and a name and an email for commits: a configured git
       user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
       GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
@@ -72,13 +78,15 @@ authored by the configured git user only, so no line of a message may start with
 Letter case does not matter. Whitespace is a space, a tab, a no-break space or
 another space of Unicode (U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000),
 and any run of it separates the words. Before the first word, whitespace is
-skipped, and so is every character from U+2000 to U+2FFF or above U+FFFF.
-Those ranges hold the emoji that tools put before the words, and also symbols
+skipped, and so is every character from U+2000 to U+2FFF, from U+FE00 to
+U+FE0F or above U+FFFF. Those ranges hold the emoji that tools put before the
+words and the variation selector that can follow an emoji, and also symbols
 and a few scripts. A carriage return ends a line as a newline does.
 A line passes when any other character comes before those words: an ASCII
 character such as a digit, a bracket or the "> " of a quotation, or a letter
-from below U+2000 or from U+3000 to U+FFFF, such as a Cyrillic or a Chinese
-one. A trailer that names a person, such as Signed-off-by, passes.
+from below U+2000 or from U+3000 to U+FFFF outside U+FE00 to U+FE0F, such as
+a Cyrillic or a Chinese one. A trailer that names a person, such as
+Signed-off-by, passes.
 
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
@@ -108,7 +116,8 @@ EOF
   cat <<'EOF'
 
 Exit codes: 0 no attribution line, 1 at least one, 2 the check could not run,
-64 bad usage. The script only reads, so it is safe to run twice.
+64 bad usage. A check only reads, and a self-test writes only under the
+temporary directory, so the script is safe to run twice.
 EOF
 }
 
@@ -352,6 +361,8 @@ fixture_messages() {
   tab=$(printf '\t')
   carriage_return=$(printf '\r')
   no_break_space=$(printf '\302\240')
+  variation_selector=$(printf '\357\270\217')
+  heavy_black_heart=$(printf '\342\235\244')
   ogham_space_mark=$(printf '\341\232\200')
   scissors_sign=$(printf '\342\234\202')
   byte_that_is_not_utf8=$(printf '\351')
@@ -400,6 +411,8 @@ fixture_messages() {
   expect 'a trailer with a space before the colon fails' 1 "Fix the gate${nl}${nl}Co-Authored-By : Claude <noreply@anthropic.com>"
   expect 'a trailer indented by a tab fails' 1 "Fix the gate${nl}${nl}${tab}$trailer"
   expect 'a trailer that follows a no-break space fails' 1 "Fix the gate${nl}${nl}${no_break_space}$trailer"
+  expect 'a trailer that follows a variation selector fails' 1 "Fix the gate${nl}${nl}${variation_selector}$trailer"
+  expect 'a Generated with line after an emoji and its variation selector fails' 1 "Fix the gate${nl}${nl}${heavy_black_heart}${variation_selector} Generated with a tool"
   expect 'a trailer fails in a message whose line breaks are carriage returns alone' 1 "Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
   expect 'a trailer fails once in a message whose line breaks are a carriage return and a newline' 1 "Fix the gate${carriage_return}${nl}${carriage_return}${nl}$trailer${carriage_return}"
   expect 'the Claude-Session trailer fails' 1 "Fix the gate${nl}${nl}$claude_session"
@@ -513,17 +526,23 @@ self_test() {
     fi
   }
 
+  bytes_in_hex() {
+    printf '%s' "$1" | od -An -tx1 | tr -d ' \n'
+  }
+
   expect_comment_string_read_from_git() {
     name=$1 want=$2
+    config_file=$(mktemp "${TMPDIR:-/tmp}/check-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a file'
+    printf '[core]\n\tcommentString = "%s"\n' "$want" >"$config_file" || die "cannot write $config_file"
     got=$(
-      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.commentString GIT_CONFIG_VALUE_0="$want" LC_ALL=en_US.UTF-8
+      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0="$config_file" LC_ALL=en_US.UTF-8
       git_comment_string 2>/dev/null
     ) || got=
     fixtures=$((fixtures + 1))
     if [ "$got" = "$want" ]; then
-      printf 'PASS %s\n' "$name"
+      printf 'PASS %s (from the git config file %s, which is left in place)\n' "$name" "$config_file"
     else
-      printf 'FAIL %s (git holds a comment string of %s bytes, the script read one of %s bytes)\n' "$name" "${#want}" "${#got}"
+      printf 'FAIL %s (the git config file %s holds a comment string with the bytes [%s], and the script read the bytes [%s])\n' "$name" "$config_file" "$(bytes_in_hex "$want")" "$(bytes_in_hex "$got")"
       failures=$((failures + 1))
     fi
   }
@@ -662,8 +681,9 @@ self_test_pre_push() {
   git init -q --bare "$work/empty-remote.git"
   git -C "$work/clone" remote add proof "$work/remote.git"
   git -C "$work/clone" remote add proof-empty "$work/empty-remote.git"
-  base=$(git -C "$work/clone" rev-parse HEAD)
   tree=$(git -C "$work/clone" rev-parse 'HEAD^{tree}')
+  base=$(git -C "$work/clone" commit-tree "$tree" -p "$NEWEST_EXEMPT_COMMIT" -m 'Hold the tree of HEAD above the newest exempt commit') ||
+    die "the self-test builds its commits on the newest exempt commit $NEWEST_EXEMPT_COMMIT, and git could not make a commit above it in the clone of this repository. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
   failures=0
   pushes=0
   nl='
@@ -700,7 +720,7 @@ self_test_pre_push() {
   hidden_by_a_replace_ref=$(commit_on_base "Tune the gate$nl$nl$trailer")
   shown_by_the_replace_ref=$(commit_on_base 'Tune the gate')
 
-  expect_push the-history-above-the-exempt-commit 0 'with an attribution line 0' proof "$base:refs/heads/base"
+  expect_push a-commit-above-the-exempt-commits 0 'commits checked 1, with an attribution line 0' proof "$base:refs/heads/base"
   expect_push a-clean-commit 0 'commits checked ' proof "$clean:refs/heads/clean"
   expect_push a-commit-with-a-trailer 1 'with an attribution line 1' proof "$with_trailer:refs/heads/trailer"
   expect_push the-same-commit-to-a-path 1 'with an attribution line 1' "$work/remote.git" "$with_trailer:refs/heads/trailer-by-path"
@@ -708,9 +728,9 @@ self_test_pre_push() {
   expect_push a-deleted-ref 0 'deleted' proof :refs/heads/clean
   expect_push the-exempt-commits-alone 0 'commits checked 0,' proof-empty "$NEWEST_EXEMPT_COMMIT:refs/heads/exempt"
 
-  git -C "$work/clone" checkout -q --detach "$base"
+  git -C "$work/clone" checkout -q --detach "$NEWEST_EXEMPT_COMMIT"
   git -C "$work/clone" cherry-pick --keep-redundant-commits "$NEWEST_EXEMPT_COMMIT" >"$work/out/cherry-pick.txt" 2>&1 ||
-    die "the self-test could not cherry-pick the exempt commit; see $work/out/cherry-pick.txt"
+    die "the self-test could not cherry-pick the newest exempt commit onto itself. git printed: $(cat "$work/out/cherry-pick.txt")"
   expect_push a-cherry-pick-of-the-newest-exempt-commit 1 'Generated with [Claude Code]' proof HEAD:refs/heads/cherry-picked
 
   git -C "$work/clone" tag -a -m 'A tag on a commit with a trailer' tag-on-a-trailer "$with_trailer"
