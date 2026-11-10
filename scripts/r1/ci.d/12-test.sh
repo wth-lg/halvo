@@ -63,8 +63,8 @@ check() {
     CI_D_REPO=$repo
     CI_D_JOB=macos
     RUNNER_TEMP=$work/runner-temp
-    export PATH CI_D_REPO CI_D_JOB RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES
-    measure 2>&1
+    export PATH CI_D_REPO CI_D_JOB RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES
+    sh "$0" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -86,6 +86,7 @@ check() {
   STUB_BUILD_EXIT=0
   STUB_TEST_EXIT=0
   STUB_LEAVES=
+  STUB_MOVES=no
 }
 
 self_test() {
@@ -93,6 +94,7 @@ self_test() {
   mkdir -p "$work/bin" "$work/runner-temp" "$work/literal-tracked/src" "$work/literal-gone/src"
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
+[ -f fixture-root ] || exit 98
 printf '%s\n' "$*" >>"$STUB_CALLS"
 case $* in
   'test --workspace --locked --no-run') exit "$STUB_BUILD_EXIT" ;;
@@ -114,6 +116,7 @@ left=$(ls -A "$TMPDIR")
 for entry in $STUB_LEAVES; do
   mkdir "$TMPDIR/$entry"
 done
+[ "$STUB_MOVES" = no ] || mv "$TMPDIR" "$TMPDIR.moved"
 exit "$STUB_TEST_EXIT"
 EOF
   cat >"$work/bin/security" <<'EOF'
@@ -128,27 +131,38 @@ EOF
   printf 'let dir = private_temp_dir();\n' >"$work/literal-gone/src/a.rs"
   printf 'The tests left halvo-consent-test-7-0 behind.\n' >"$work/literal-gone/notes.txt"
   for repo in "$work/literal-tracked" "$work/literal-gone"; do
+    : >"$repo/fixture-root"
     git -C "$repo" init -q >/dev/null 2>&1
     git -C "$repo" add . >/dev/null 2>&1
   done
+  printf 'let dir = "halvo-consent-test-0";\n' >"$work/literal-gone/src/untracked.rs"
   rejected=0
   wrong=
   STUB_BUILD_EXIT=0
   STUB_TEST_EXIT=0
   STUB_LEAVES=
+  STUB_MOVES=no
 
   repo=$work/literal-tracked
   check tests-pass PASS 'login-keychain items of com.halvo.capture.dev-fallback before the tests: 2'
   STUB_BUILD_EXIT=101
   check build-fails FAIL 'the test build failed: cargo test --no-run exited 101'
   STUB_TEST_EXIT=101
-  check test-fails FAIL 'cargo test exited 101'
+  check test-fails FAIL 'cargo test exited 101)'
+  STUB_TEST_EXIT=137
+  check test-killed FAIL 'cargo test exited 137)'
   STUB_LEAVES=stray
   check stray-entry FAIL 'the tests left 1 entries in their temp directory: stray)'
+  STUB_LEAVES=.tmpAbC
+  check stray-dot-entry FAIL 'the tests left 1 entries in their temp directory: .tmpAbC)'
+  STUB_MOVES=yes
+  check temp-directory-moved-away FAIL 'the temp directory of the test run cannot be listed)'
   STUB_LEAVES='halvo-consent-test-7-0 halvo-consent-test-7-1'
   check consent-directories-while-the-literal-is-tracked PASS 'temp directory: 2, of them exempt: 2'
   STUB_LEAVES='halvo-consent-test-7-0 stray'
   check stray-beside-consent-directories FAIL 'the tests left 1 entries in their temp directory: stray)'
+  STUB_LEAVES=old-halvo-consent-test-7-0
+  check entry-that-holds-the-literal-inside FAIL 'the tests left 1 entries in their temp directory: old-halvo-consent-test-7-0)'
   repo=$work/literal-gone
   STUB_LEAVES='halvo-consent-test-7-0 halvo-consent-test-7-1'
   check consent-directories-after-the-literal-is-gone FAIL 'the tests left 2 entries in their temp directory: halvo-consent-test-7-0 halvo-consent-test-7-1)'
