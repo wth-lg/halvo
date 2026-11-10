@@ -83,7 +83,14 @@ pub fn judge(original: &Path, saved: &Path, spec: &Spec) -> Result<Judgement, St
     let target_written = after
         .cell(spec.sheet, target)
         .is_some_and(|cell| cell.formula.is_none() && book::number(&cell.value) == Some(spec.new));
-    let other_cells_same = book::same_except(&before, &after, spec.sheet, target);
+    let arrays = |path: &Path| -> Result<Vec<(String, String, String)>, String> {
+        Ok(book::array_formulas(path)?
+            .into_iter()
+            .filter(|(sheet, cell, _)| !(sheet == spec.sheet && cell == spec.cell))
+            .collect())
+    };
+    let other_cells_same = book::same_except(&before, &after, spec.sheet, target)
+        && arrays(original)? == arrays(saved)?;
     let lost = parts::lost(&parts::inventory(original)?, &parts::inventory(saved)?);
     Ok(Judgement {
         target_written,

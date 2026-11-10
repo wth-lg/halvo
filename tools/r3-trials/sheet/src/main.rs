@@ -41,6 +41,23 @@ fn parse(mut raw: impl Iterator<Item = String>) -> Result<Args, String> {
             other => return Err(format!("unknown argument {other}")),
         }
     }
+    let needs: &[&str] = match args.command.as_str() {
+        "generate" | "inspect" => &["--corpus"],
+        "run" | "facts" => &["--corpus", "--out"],
+        "mutants" => &["--corpus", "--out", "--work", "--candidate"],
+        other => return Err(format!("unknown command {other}")),
+    };
+    for flag in needs {
+        let given = match *flag {
+            "--corpus" => args.corpus.is_some(),
+            "--out" => args.out.is_some(),
+            "--work" => args.work.is_some(),
+            _ => args.candidate.is_some(),
+        };
+        if !given {
+            return Err(format!("{} needs {flag}", args.command));
+        }
+    }
     Ok(args)
 }
 
@@ -299,10 +316,7 @@ fn main() -> ExitCode {
         "mutants" => mutants(&args),
         "facts" => facts_cmd(&args),
         "inspect" => inspect(&args),
-        other => {
-            eprintln!("REFUSED usage: unknown command {other}; {USAGE}");
-            return ExitCode::from(2);
-        }
+        _ => unreachable!("parse refuses an unknown command"),
     };
     match result {
         Ok(true) => ExitCode::SUCCESS,

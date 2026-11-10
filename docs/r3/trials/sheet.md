@@ -71,6 +71,9 @@ comparison of a cached result with the computed one is exact.
   hold the same value in both files; a cell that holds a formula in the
   original must hold the same formula text, and its cached result is not
   compared. A cell that is empty in one file and not in the other differs.
+  calamine names no formula for the other cells of an array formula, so the
+  trial also reads each sheet part and requires the same array formulas
+  (sheet, cell and range) in both files.
 - `lost`: each kind of the closed list is found by the rule of A13.4: an
   archive entry under `xl/charts/`, `xl/drawings/`, `xl/pivotTables/`,
   `xl/pivotCache/` or `xl/tables/`, the entry `xl/vbaProject.bin`, an entry
@@ -80,14 +83,28 @@ comparison of a cached result with the computed one is exact.
   are compared without regard to case, and a directory entry counts for no
   kind. An element counts only with at least one child (`dataValidation`,
   `mergeCell`, `numFmt`, `definedName`). A kind is lost when the original has
-  it and the saved file has not. The trial also counts a kind as lost when
-  the saved file keeps less of it: fewer archive entries of the kind, or a
-  child of the original that the saved file does not hold (by `sqref` and
-  `type` for a validation, by `ref` for a merged range, by `formatCode` for a
-  number format, by `name` and `localSheetId` for a defined name).
+  it and the saved file has not. The trial reads the rule more strictly than
+  that sentence of A13.4, and also counts a kind as lost when the saved file
+  keeps less of it:
+  - fewer archive entries of the kind that the workbook still links to. An
+    entry counts only when a relationship reaches it from the package root,
+    and only when the part that holds the relationship names its id (as
+    `<drawing r:id>`, `<legacyDrawing r:id>`, `<tablePart r:id>` or
+    `<c:chart r:id>` do) or the relationship is of a type that no element
+    names (comments, styles, theme, shared strings and a few more, listed in
+    `IMPLICIT` of `parts.rs`). So a chart whose sheet no longer names its
+    drawing is lost, although its entry is still in the archive.
+  - a child of the original that the saved file does not hold, compared by
+    `sqref`, `type`, `operator`, `formula1` and `formula2` for a validation,
+    by `ref` for a merged range, by `formatCode` for a number format, and by
+    `name`, `localSheetId` and the reference text for a defined name.
+  The facts in the evidence print, for each file, what the presence rule
+  alone would give (`lost_by_presence_alone`).
 - `cached_results`: calamine reads the cached result of each formula cell in
   the table above. A cell that holds the new result is `fresh`, one with no
-  cached result is `absent`, and one with any other number is `stale`. With
+  cached result is `absent`, and one with any other number is `stale`.
+  A13.4 defines `stale` as the old result; in this run every `stale` cell
+  holds exactly the old result (the facts show each `<v>`). With
   two such cells, as in `two-sheets.xlsx`, the line names the worse of the
   two, in the order `fresh`, `absent`, `stale`.
 - A cell could not run, and `run.sh` exits 1, when a candidate fails or the
@@ -122,12 +139,20 @@ were added. Every item has `ok=yes`.
 ## Result
 
 The block holds the licence lines, the 16 `sheet` lines as the run printed
-them, and the verdict. umya keeps every other cell and every part in all
-eight workbooks, so it is the verdict, and its `refuses` list holds only
-`pivot` and `macro`, which no corpus workbook has. The rewrite also keeps
-every other cell, and loses `chart`, `drawing` and `comment` in
-`chart.xlsx`, `validation` in `validation.xlsx` and `format` in
+them, and the verdict. umya keeps every other cell in all eight workbooks
+and loses no part in `values.xlsx` and `formulas.xlsx`, so it is the
+verdict. It loses one thing: in `validation.xlsx` it writes the whole-number
+rule on B2 to B11 without its bounds (`formula1` 0 and `formula2` 24), while
+it keeps the list rule on C2 to C11 whole. So its `refuses` list holds
+`validation` beside `pivot` and `macro`, which no corpus workbook has. The
+rewrite also keeps every other cell, and loses `chart`, `drawing` and
+`comment` in `chart.xlsx`, `validation` in `validation.xlsx` and `format` in
 `formats.xlsx`.
+
+Under the presence rule alone, umya's `validation.xlsx` line and the
+rewrite's `formats.xlsx` line would read `lost=-`, and the verdict would be
+`verdict sheet=umya refuses=pivot,macro`. The verdict's library is the same
+under both readings.
 
 Neither candidate computes formulas: in each workbook with a formula that
 reads the changed cell, both leave the old cached result (`stale`). umya
@@ -246,7 +271,7 @@ sheet candidate=umya file=values.xlsx other_cells_same=yes lost=- cached_results
 sheet candidate=umya file=formulas.xlsx other_cells_same=yes lost=- cached_results=stale
 sheet candidate=umya file=formats.xlsx other_cells_same=yes lost=- cached_results=none
 sheet candidate=umya file=merged.xlsx other_cells_same=yes lost=- cached_results=none
-sheet candidate=umya file=validation.xlsx other_cells_same=yes lost=- cached_results=none
+sheet candidate=umya file=validation.xlsx other_cells_same=yes lost=validation cached_results=none
 sheet candidate=umya file=chart.xlsx other_cells_same=yes lost=- cached_results=stale
 sheet candidate=umya file=two-sheets.xlsx other_cells_same=yes lost=- cached_results=stale
 sheet candidate=umya file=rows-5000.xlsx other_cells_same=yes lost=- cached_results=stale
@@ -258,5 +283,5 @@ sheet candidate=rewrite file=validation.xlsx other_cells_same=yes lost=validatio
 sheet candidate=rewrite file=chart.xlsx other_cells_same=yes lost=chart,drawing,comment cached_results=stale
 sheet candidate=rewrite file=two-sheets.xlsx other_cells_same=yes lost=- cached_results=stale
 sheet candidate=rewrite file=rows-5000.xlsx other_cells_same=yes lost=- cached_results=stale
-verdict sheet=umya refuses=pivot,macro
+verdict sheet=umya refuses=pivot,macro,validation
 ```

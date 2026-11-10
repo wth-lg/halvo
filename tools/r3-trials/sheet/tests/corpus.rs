@@ -77,7 +77,7 @@ fn two_sheets_has_a_cross_sheet_formula_and_a_defined_name() {
     let inventory = parts::inventory(&path).unwrap();
     assert_eq!(
         inventory.instances[&Kind::DefinedName],
-        vec!["Rate|".to_string()]
+        vec!["Rate||Input!$B$6".to_string()]
     );
 }
 

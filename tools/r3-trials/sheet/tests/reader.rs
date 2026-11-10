@@ -56,7 +56,7 @@ fn element_rules_find_children_of_the_parent() {
     );
     assert_eq!(
         parts::element_instances(sheet, &rule(Kind::Validation)).unwrap(),
-        vec!["B2:B11|whole".to_string()]
+        vec!["B2:B11|whole||0|".to_string()]
     );
     let styles = br##"<styleSheet><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts></styleSheet>"##;
     assert_eq!(
@@ -66,7 +66,7 @@ fn element_rules_find_children_of_the_parent() {
     let workbook = br#"<x:workbook xmlns:x="y"><x:definedNames><x:definedName name="Rate">Input!$B$6</x:definedName></x:definedNames></x:workbook>"#;
     assert_eq!(
         parts::element_instances(workbook, &rule(Kind::DefinedName)).unwrap(),
-        vec!["Rate|".to_string()]
+        vec!["Rate||Input!$B$6".to_string()]
     );
 }
 
@@ -94,20 +94,17 @@ fn inventory(pairs: &[(Kind, &[&str])]) -> Inventory {
 #[test]
 fn a_kind_is_lost_when_the_saved_file_has_less_of_it() {
     let original = inventory(&[
-        (Kind::Chart, &["xl/charts/chart1.xml"]),
-        (
-            Kind::Drawing,
-            &["xl/drawings/drawing1.xml", "xl/drawings/vmlDrawing1.vml"],
-        ),
+        (Kind::Chart, &["entry"]),
+        (Kind::Drawing, &["entry", "entry"]),
         (Kind::Merged, &["A1:D1", "A10:B10"]),
         (Kind::Format, &["#,##0.00", "0.0%"]),
-        (Kind::Table, &["xl/tables/table1.xml"]),
+        (Kind::Table, &["entry"]),
     ]);
     let saved = inventory(&[
-        (Kind::Drawing, &["xl/drawings/vmlDrawing1.vml"]),
+        (Kind::Drawing, &["entry"]),
         (Kind::Merged, &["A1:D1"]),
         (Kind::Format, &["0.0%", "yyyy-mm-dd"]),
-        (Kind::Table, &["xl/tables/table9.xml"]),
+        (Kind::Table, &["entry"]),
     ]);
     assert_eq!(
         parts::lost(&original, &saved),
@@ -247,4 +244,120 @@ fn changing_one_other_cell_makes_other_cells_differ() {
         assert!(!judgement.other_cells_same, "{}", spec.file);
         assert!(judgement.lost.is_empty(), "{}", spec.file);
     }
+}
+
+#[test]
+fn a_validation_is_keyed_by_its_bounds_and_a_name_by_its_target() {
+    let with = br#"<worksheet><dataValidations count="1"><dataValidation type="whole" operator="between" sqref="B2:B11"><formula1>0</formula1><formula2>24</formula2></dataValidation></dataValidations></worksheet>"#;
+    let without = br#"<worksheet><dataValidations count="1"><dataValidation type="whole" operator="between" sqref="B2:B11"/></dataValidations></worksheet>"#;
+    let keys = |xml: &[u8]| parts::element_instances(xml, &rule(Kind::Validation)).unwrap();
+    assert_eq!(keys(with), vec!["B2:B11|whole|between|0|24".to_string()]);
+    assert_eq!(keys(without), vec!["B2:B11|whole|between||".to_string()]);
+    let broken = br#"<workbook><definedNames><definedName name="Rate">#REF!</definedName></definedNames></workbook>"#;
+    assert_eq!(
+        parts::element_instances(broken, &rule(Kind::DefinedName)).unwrap(),
+        vec!["Rate||#REF!".to_string()]
+    );
+}
+
+fn rewrite_entry(src: &Path, dst: &Path, entry: &str, from: &str, to: &str) {
+    use std::io::{Read, Write};
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(src).unwrap()).unwrap();
+    let mut out = zip::ZipWriter::new(std::fs::File::create(dst).unwrap());
+    let options = zip::write::SimpleFileOptions::default();
+    for index in 0..archive.len() {
+        let mut file = archive.by_index(index).unwrap();
+        let name = file.name().unwrap().to_string();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+        if name == entry {
+            let text = String::from_utf8(bytes).unwrap();
+            assert!(text.contains(from), "{entry} lacks {from}");
+            bytes = text.replace(from, to).into_bytes();
+        }
+        out.start_file(name.as_str(), options).unwrap();
+        out.write_all(&bytes).unwrap();
+    }
+    out.finish().unwrap();
+}
+
+#[test]
+fn an_entry_that_nothing_links_to_is_lost() {
+    let dir = scratch("unlinked");
+    let original = corpus_dir().join("chart.xlsx");
+    let spec = corpus::spec("chart.xlsx").unwrap();
+    let cases = [
+        (
+            "<drawing r:id=\"rId1\"/>",
+            "drawing",
+            vec![Kind::Chart, Kind::Drawing],
+        ),
+        (
+            "<legacyDrawing r:id=\"rId2\"/>",
+            "legacy",
+            vec![Kind::Drawing],
+        ),
+        ("<tablePart r:id=\"rId3\"/>", "table", vec![Kind::Table]),
+    ];
+    for (element, name, want) in cases {
+        let saved = dir.join(format!("{name}.xlsx"));
+        let text = String::from_utf8(
+            std::process::Command::new("unzip")
+                .args(["-p"])
+                .arg(&original)
+                .arg("xl/worksheets/sheet1.xml")
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap();
+        assert!(text.contains(element), "{element}");
+        rewrite_entry(&original, &saved, "xl/worksheets/sheet1.xml", element, "");
+        let judgement = trial::judge(&original, &saved, &spec).unwrap();
+        for kind in want {
+            assert!(
+                judgement.lost.contains(&kind),
+                "{name}: {:?}",
+                judgement.lost
+            );
+        }
+    }
+}
+
+#[test]
+fn an_array_formula_that_loses_its_range_differs() {
+    let dir = scratch("array");
+    let original = dir.join("array.xlsx");
+    let mut workbook = rust_xlsxwriter::Workbook::new();
+    let sheet = workbook.add_worksheet().set_name("Values").unwrap();
+    sheet.write_number(1, 1, 3.0).unwrap();
+    sheet.write_number(2, 1, 4.0).unwrap();
+    sheet.write_array_formula(1, 4, 2, 4, "=B2:B3*2").unwrap();
+    workbook.save(&original).unwrap();
+    let saved = dir.join("plain.xlsx");
+    rewrite_entry(
+        &original,
+        &saved,
+        "xl/worksheets/sheet1.xml",
+        " t=\"array\" ref=\"E2:E3\"",
+        "",
+    );
+    let spec = corpus::spec("values.xlsx").unwrap();
+    let judgement = trial::judge(&original, &saved, &spec).unwrap();
+    assert!(!judgement.other_cells_same);
+    let same = trial::judge(&original, &original, &spec).unwrap();
+    assert!(same.other_cells_same);
+}
+
+#[test]
+fn the_binary_refuses_a_missing_flag() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_r3-sheet-trial"))
+        .arg("run")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(stderr.lines().count(), 1);
+    assert!(stderr.starts_with("REFUSED usage: "), "{stderr}");
 }

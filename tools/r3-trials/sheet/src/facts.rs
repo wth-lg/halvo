@@ -1,34 +1,11 @@
 use std::collections::BTreeSet;
-use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 
 use quick_xml::events::Event;
 
 use crate::corpus::Spec;
-use crate::mutate::sheet_part;
+use crate::mutate::{entries, sheet_part};
 use crate::parts;
-
-fn entries(path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
-    let file = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("zip: {e}"))?;
-    let mut all = Vec::new();
-    for index in 0..archive.len() {
-        let mut entry = archive.by_index(index).map_err(|e| format!("zip: {e}"))?;
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
-            .map_err(|e| format!("zip read: {e}"))?;
-        all.push((
-            entry
-                .name()
-                .map_err(|e| format!("zip name: {e}"))?
-                .to_string(),
-            bytes,
-        ));
-    }
-    Ok(all)
-}
 
 fn find<'a>(all: &'a [(String, Vec<u8>)], name: &str) -> Option<&'a [u8]> {
     all.iter()
@@ -125,7 +102,17 @@ pub fn facts(original: &Path, saved: &Path, spec: &Spec) -> Result<Vec<String>, 
             set.into_iter().cloned().collect::<Vec<_>>().join(",")
         }
     };
+    let presence_lost: Vec<parts::Kind> = parts::inventory(original)?
+        .kinds()
+        .into_iter()
+        .filter(|kind| {
+            !parts::inventory(saved)
+                .map(|i| i.present.contains(kind))
+                .unwrap_or(false)
+        })
+        .collect();
     let mut out = vec![
+        format!("lost_by_presence_alone={}", parts::list(&presence_lost)),
         format!("entries_removed={}", list(b.difference(&a).collect())),
         format!("entries_added={}", list(a.difference(&b).collect())),
     ];

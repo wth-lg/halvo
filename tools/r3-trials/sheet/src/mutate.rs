@@ -42,7 +42,7 @@ impl Mutation {
     }
 }
 
-fn entries(path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
+pub fn entries(path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
     let file = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
     let mut archive = ZipArchive::new(file).map_err(|e| format!("zip: {e}"))?;
     let mut all = Vec::new();
@@ -85,61 +85,13 @@ fn attr(start: &BytesStart<'_>, key: &str) -> Option<String> {
         .map(|a| a.value.to_string())
 }
 
-fn pairs(
-    xml: &[u8],
-    element: &str,
-    left: &str,
-    right: &str,
-) -> Result<Vec<(String, String)>, String> {
-    let mut reader = parts::new_reader(xml);
-    let mut buf = Vec::new();
-    let mut found = Vec::new();
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Eof) => break,
-            Ok(Event::Start(e)) | Ok(Event::Empty(e))
-                if parts::local(e.name().as_ref()) == element =>
-            {
-                if let (Some(a), Some(b)) = (attr(&e, left), attr(&e, right)) {
-                    found.push((a, b));
-                }
-            }
-            Ok(_) => {}
-            Err(e) => return Err(format!("xml: {e}")),
-        }
-        buf.clear();
-    }
-    Ok(found)
-}
-
 pub fn sheet_part(all: &[(String, Vec<u8>)], sheet: &str) -> Result<String, String> {
-    let find = |name: &str| {
-        all.iter()
-            .find(|(entry, _)| entry == name)
-            .map(|(_, bytes)| bytes.as_slice())
-            .ok_or_else(|| format!("no entry {name}"))
-    };
-    let sheets = pairs(find("xl/workbook.xml")?, "sheet", "name", "id")?;
-    let rels = pairs(
-        find("xl/_rels/workbook.xml.rels")?,
-        "Relationship",
-        "Id",
-        "Target",
-    )?;
-    let id = sheets
-        .iter()
+    let entries = all.iter().cloned().collect();
+    parts::sheet_parts(&entries)
+        .into_iter()
         .find(|(name, _)| name == sheet)
-        .map(|(_, id)| id.clone())
-        .ok_or_else(|| format!("no sheet {sheet}"))?;
-    let target = rels
-        .iter()
-        .find(|(rel, _)| *rel == id)
-        .map(|(_, target)| target.clone())
-        .ok_or_else(|| format!("no relationship {id}"))?;
-    Ok(match target.strip_prefix('/') {
-        Some(absolute) => absolute.to_string(),
-        None => format!("xl/{target}"),
-    })
+        .map(|(_, part)| part)
+        .ok_or_else(|| format!("no sheet {sheet}"))
 }
 
 fn owned(event: Event<'_>) -> Event<'static> {

@@ -1,4 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+use quick_xml::events::Event;
 use std::path::Path;
 
 use calamine::{open_workbook, Data, Reader, Xlsx};
@@ -144,4 +146,45 @@ pub fn number(value: &Data) -> Option<f64> {
         Data::Int(x) => Some(*x as f64),
         _ => None,
     }
+}
+
+pub fn array_formulas(path: &Path) -> Result<BTreeSet<(String, String, String)>, String> {
+    let entries = crate::parts::read_entries(path)?;
+    let mut found = BTreeSet::new();
+    for (sheet, part) in crate::parts::sheet_parts(&entries) {
+        let Some(xml) = entries.get(&part) else {
+            continue;
+        };
+        let mut reader = crate::parts::new_reader(xml);
+        let mut buf = Vec::new();
+        let mut cell = String::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Eof) => break,
+                Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
+                    let attr = |key: &str| {
+                        e.attributes()
+                            .flatten()
+                            .find(|a| a.key.as_ref() == key)
+                            .map(|a| a.value.to_string())
+                    };
+                    match crate::parts::local(e.name().as_ref()) {
+                        "c" => cell = attr("r").unwrap_or_default(),
+                        "f" if attr("t").as_deref() == Some("array") => {
+                            found.insert((
+                                sheet.clone(),
+                                cell.clone(),
+                                attr("ref").unwrap_or_default(),
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => return Err(format!("xml {part}: {e}")),
+            }
+            buf.clear();
+        }
+    }
+    Ok(found)
 }
