@@ -30,8 +30,8 @@ The check reads one line at a time. It does not see a path that a variable
 holds, a command that continues on another line, an address that a variable
 holds, a line number after the first command of a sed script, a reader that
 another command such as xargs starts, or a read by a pattern. It cannot tell
-code from the text of a here-document, so a text that shows such a read is
-refused too.
+code from the text of a here-document, so a line of such a text that starts
+with such a read is refused too.
 
 EOF
   synopsis
