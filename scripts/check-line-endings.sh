@@ -22,6 +22,12 @@ CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
   - A tracked file with the eol=lf attribute is not stored in the index with CRLF.
   - A tracked file that the attributes make text with eol=lf holds no carriage
     return inside a line and no NUL byte: git reads such content as binary.
+  - A tracked file with eol=lf that the attributes do not make text, under
+    text=auto or -text, holds no carriage return, unless it holds a NUL byte.
+    Where git reports such content as binary, the check reads the bytes in
+    the index: content with a NUL byte is binary and may hold any byte, and
+    content without one is text that every checkout gets with its carriage
+    returns.
 The check reads file content and the .gitattributes files from the index, not
 from the work tree. It does not read the attributes file of the user or of the
 system. A line in info/attributes of the git directory wins over every
@@ -161,6 +167,17 @@ report_text_file_with_binary_content() {
   printf 'check-line-endings: %s has eol=lf, and git reads its content in the index as binary: it holds a carriage return outside a CRLF line ending, or a NUL byte.\nFix: take that byte out of the file and commit. If the file is not text, give it -text in .gitattributes.\n' "$1" >&2
 }
 
+report_a_carriage_return_in_content_without_a_nul_byte() {
+  path=$1 text_attribute=$2
+  git cat-file -e ":0:$path" 2>/dev/null || die "git cat-file could not read the content of $path in the index"
+  nul_bytes=$(($(git cat-file blob ":0:$path" | LC_ALL=C tr -d -c '\000' | wc -c)))
+  [ "$nul_bytes" = 0 ] || return 0
+  carriage_returns=$(($(git cat-file blob ":0:$path" | LC_ALL=C tr -d -c '\r' | wc -c)))
+  [ "$carriage_returns" -gt 0 ] || return 0
+  failures=$((failures + 1))
+  printf 'check-line-endings: %s has eol=lf, and its content in the index holds a carriage return and no NUL byte, while the attributes do not make it text (its text attribute is %s). Git converts no line ending of such content, so every checkout gets the carriage returns.\nFix: take every carriage return out of the file and commit. If the file is not text, take eol=lf from it in .gitattributes.\n' "$path" "$text_attribute" >&2
+}
+
 check() {
   root=$(git rev-parse --show-toplevel 2>/dev/null) ||
     die 'the current directory is not inside the work tree of a git clone'
@@ -203,12 +220,13 @@ EOF
   if [ -n "$binary_files" ]; then
     attribute_lines=$(attributes_of "$binary_files" text eol) || exit
     while IFS= read -r text_attribute_line && IFS= read -r eol_attribute_line; do
-      case $text_attribute_line in
-        *': text: set' | *': text: unspecified') ;;
+      case $eol_attribute_line in
+        *': eol: lf') ;;
         *) continue ;;
       esac
-      case $eol_attribute_line in
-        *': eol: lf') report_text_file_with_binary_content "${eol_attribute_line%: eol: *}" ;;
+      case $text_attribute_line in
+        *': text: set' | *': text: unspecified') report_text_file_with_binary_content "${eol_attribute_line%: eol: *}" ;;
+        *) report_a_carriage_return_in_content_without_a_nul_byte "${eol_attribute_line%: eol: *}" "${text_attribute_line##*: text: }" ;;
       esac
     done <<EOF
 $attribute_lines
@@ -330,6 +348,18 @@ self_test() {
   start_fixture '* text=auto eol=lf'
   track icon.png '\0211PNG\r\n\0032\n\0000\0000'
   expect 'an image under text=auto eol=lf is accepted' 0 "$(pass_line 0)"
+
+  start_fixture '* text=auto eol=lf'
+  track tool '#!/bin/sh\r\nprintf x\ry\r\n'
+  expect 'a script under text=auto eol=lf that is stored with CRLF and with a carriage return inside a line is refused' 1 'check-line-endings: tool has eol=lf, and its content in the index holds a carriage return and no NUL byte, while the attributes do not make it text (its text attribute is auto). Git converts no line ending of such content, so every checkout gets the carriage returns.'
+
+  start_fixture '*.sh text eol=lf' 'vendor/** -text'
+  track vendor/x.sh '#!/bin/sh\r\nprintf x\ry\r\n'
+  expect 'a file with eol=lf and -text that holds a carriage return inside a line is refused' 1 'check-line-endings: vendor/x.sh has eol=lf, and its content in the index holds a carriage return and no NUL byte, while the attributes do not make it text (its text attribute is unset). Git converts no line ending of such content, so every checkout gets the carriage returns.'
+
+  start_fixture '*.sh text eol=lf' 'vendor/** -text'
+  track vendor/blob.sh 'BLOB\0000\r\n'
+  expect 'a file with eol=lf and -text that holds a NUL byte is accepted as binary content' 0 "$(pass_line 0)"
 
   start_fixture
   track installer/windows/.gitattributes '* text eol=crlf\n'
