@@ -180,7 +180,7 @@ main() {
     gate_verbose=${verbose:+yes}
     name=run
     scratch_root
-    trap gate_exit EXIT
+    gate_traps
     [ -z "$remove" ] || gate_remove_scratch=yes
     for name in run helper; do
       selftest_run || rc=1

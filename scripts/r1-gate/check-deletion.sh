@@ -28,10 +28,12 @@ cases() {
 }
 
 measure() {
-  store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); out=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); trap 'rm -rf "$store" "$out" "$err"' EXIT
   need_build || { fail_defect; return 1; }
+  scratch_root
+  store=$gate_scratch/store; out=$gate_scratch/stdout; err=$gate_scratch/stderr
+  mkdir "$store"
   export HALVO_STORE_DIR="$store"
-  if run_capture_bin --verify-deletion > "$out" 2> "$err"; then
+  if watched run_capture_bin --verify-deletion > "$out" 2> "$err"; then
     report=$(cat "$out")
     defects=$(deletion_report_defects "$report")
     if [ -z "$defects" ]; then emit_pass "$name"; return 0; fi

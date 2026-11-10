@@ -86,7 +86,7 @@ measure() {
   mkdir "$store"
   marker="HALVO_GATE_MARKER_$$"
   export HALVO_STORE_DIR="$store" HALVO_GATE_MARKER="$marker"
-  if run_capture_bin --verify-store --marker "$marker" > "$out" 2> "$err"; then
+  if watched run_capture_bin --verify-store --marker "$marker" > "$out" 2> "$err"; then
     if ! defect=$(marker_defect "$store" "$marker" "$out" "$err"); then
       emit_fail "$name" "$defect"; return 1
     fi

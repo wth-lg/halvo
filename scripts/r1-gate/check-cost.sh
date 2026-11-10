@@ -91,6 +91,103 @@ deadline_ends_the_child() {
   [ -z "$left" ]
 }
 
+signal_ends_the_child() {
+  mini_shell=$1; shift
+  mini=$gate_scratch/mini-check-$mini_shell-$1.sh
+  cat > "$mini" <<MINI
+#!/bin/sh
+set -u
+GATE_ROOT=$GATE_ROOT
+. "$DIR/lib.sh"
+name=mini
+cases() { :; }
+measure() {
+  scratch_root
+  timed_child 60 "\$gate_scratch" "$standin" sleep "$2"
+}
+check_main --measure
+MINI
+  "$mini_shell" "$mini" > "$gate_scratch/mini-$mini_shell-$1.out" 2>&1 &
+  mini_pid=$!
+  polls=0
+  until pgrep -f "load-standin sleep $2" > /dev/null; do
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    sleep 0.1
+  done
+  kill "-$1" "$mini_pid"
+  polls=0
+  while kill -0 "$mini_pid" 2>/dev/null; do
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    sleep 0.1
+  done
+  left=$(pgrep -f "load-standin sleep $2")
+  [ -z "$left" ]
+}
+
+watched_child_ends() {
+  mini=$gate_scratch/mini-watched.sh
+  cat > "$mini" <<MINI
+#!/bin/sh
+set -u
+GATE_ROOT=$GATE_ROOT
+. "$DIR/lib.sh"
+name=mini
+cases() { :; }
+measure() { watched "$standin" sleep 36.25; }
+check_main --measure
+MINI
+  sh "$mini" > "$gate_scratch/mini-watched.out" 2>&1 &
+  mini_pid=$!
+  polls=0
+  until pgrep -f "load-standin sleep 36.25" > /dev/null; do
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    sleep 0.1
+  done
+  kill -TERM "$mini_pid"
+  polls=0
+  while kill -0 "$mini_pid" 2>/dev/null; do
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    sleep 0.1
+  done
+  left=$(pgrep -f "load-standin sleep 36.25")
+  [ -z "$left" ]
+}
+
+helper_ends_with_the_check() {
+  printf '#!/bin/sh\nprintf "helper visible pid=1\\n"\nexec sleep 38.25\n' > "$gate_scratch/standin-helper"
+  chmod 755 "$gate_scratch/standin-helper"
+  mini=$gate_scratch/mini-helper.sh
+  cat > "$mini" <<MINI
+#!/bin/sh
+set -u
+GATE_ROOT=$GATE_ROOT
+. "$DIR/lib.sh"
+name=mini
+cases() { :; }
+measure() {
+  scratch_root
+  helper_start 60 "$gate_scratch/standin-helper" 20 || return 1
+  watched "$standin" sleep 39.25
+}
+check_main --measure
+MINI
+  sh "$mini" > "$gate_scratch/mini-helper.out" 2>&1 &
+  mini_pid=$!
+  polls=0
+  until pgrep -f "load-standin sleep 39.25" > /dev/null; do
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    sleep 0.1
+  done
+  kill -TERM "$mini_pid"
+  polls=0
+  while kill -0 "$mini_pid" 2>/dev/null; do
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    sleep 0.1
+  done
+  left=$(pgrep -f "sleep 38.25")
+  [ -z "$left" ]
+}
+
 child_of_script() {
   mkdir -p "$gate_scratch/script-child"
   printf '#!/bin/sh\nsleep 2\n' > "$gate_scratch/wrapper-script"
@@ -166,6 +263,14 @@ cases() {
   t deadline-ends-the-child-inside-the-margin PASS deadline_ends_the_child sleep 31.25 5
   t kill-follows-an-ignored-term PASS deadline_ends_the_child deaf 32.25 10
   t deadline-zero FAIL deadline_run 0 sleep 1
+  t term-ends-the-child PASS signal_ends_the_child sh TERM 33.25
+  t hup-ends-the-child PASS signal_ends_the_child sh HUP 34.25
+  if command -v dash > /dev/null 2>&1; then
+    t term-ends-the-child-under-dash PASS signal_ends_the_child dash TERM 35.25
+    t hup-ends-the-child-under-dash PASS signal_ends_the_child dash HUP 37.25
+  fi
+  t term-ends-a-watched-child PASS watched_child_ends
+  t term-ends-the-helper PASS helper_ends_with_the_check
   t deadline-not-a-number FAIL deadline_run abc sleep 1
   t exit-0-report-read PASS exit_status_gives 0
   t exit-3-report-read PASS exit_status_gives 3

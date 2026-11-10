@@ -67,7 +67,43 @@ scratch_root() {
   exit 1
 }
 
+child_wrapper=''
+child_pid=''
+helper_pid=''
+watched_pid=''
+
+watched() {
+  "$@" &
+  watched_pid=$!
+  wait "$watched_pid"
+  watched_status=$?
+  watched_pid=''
+  return "$watched_status"
+}
+
+stop_children() {
+  if [ -n "$child_wrapper" ]; then
+    if [ -n "$child_pid" ]; then kill -TERM "$child_pid" 2>/dev/null; else pkill -TERM -P "$child_wrapper" 2>/dev/null; fi
+    wait "$child_wrapper" 2>/dev/null
+    child_wrapper=''
+  fi
+  if [ -n "$watched_pid" ]; then
+    kill -TERM "$watched_pid" 2>/dev/null
+    wait "$watched_pid" 2>/dev/null
+    watched_pid=''
+  fi
+  helper_stop
+}
+
+gate_traps() {
+  trap gate_exit EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+}
+
 gate_exit() {
+  stop_children
   [ -n "$gate_scratch" ] || return 0
   if [ "$gate_remove_scratch" = yes ]; then
     rm -rf "$gate_scratch"
@@ -111,7 +147,7 @@ check_main() {
     esac
     shift
   done
-  trap gate_exit EXIT
+  gate_traps
   if [ "$mode" = self-test ]; then selftest_run; else measure "$seconds"; fi
 }
 
@@ -333,8 +369,6 @@ standin_build() {
   cc -O2 -o "$standin" "$GATE_ROOT/scripts/r1-gate/helper/load-standin.c" > "$GATE_TARGET/load-standin.log" 2>&1
 }
 
-child_wrapper=''
-child_pid=''
 child_defect=''
 child_status=''
 
@@ -418,8 +452,6 @@ child_report_defect() {
   esac
   return 1
 }
-
-helper_pid=''
 
 helper_build() {
   helper_source=$GATE_ROOT/scripts/r1-gate/helper/window-helper.swift
