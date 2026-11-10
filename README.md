@@ -17,8 +17,10 @@ no sudo, and is safe to run twice. It installs rustup and the Rust toolchain pin
 `rust-toolchain.toml` into `~/.rustup` and `~/.cargo`, the Tauri CLI into
 `node_modules/` with `npm ci`, and cargo-release into `~/.cargo/bin` from a prebuilt
 binary (or with `cargo install` when no prebuilt binary matches the platform). It
-also sets `core.hooksPath` to `.githooks` in this clone, so git runs the commit-msg
-hook that rejects attribution lines in commit messages.
+also sets `core.hooksPath` to `.githooks` in this clone, so git runs two hooks. The
+commit-msg hook rejects an attribution line in a commit message before the commit is
+made, and the pre-push hook refuses a push that would add a commit with such a line.
+If another git setting overrides the path, the command names that setting and stops.
 
 It expects `curl`, `node` and `npm` on PATH, plus the Xcode Command Line Tools on
 macOS (`xcode-select --install`) or the Visual Studio C++ build tools on Windows.
