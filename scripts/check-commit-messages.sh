@@ -656,7 +656,7 @@ self_test_pre_push() {
   cp "$root/.githooks/pre-push" "$work/tree/.githooks/pre-push"
   cp "$script" "$work/tree/scripts/check-commit-messages.sh"
   chmod +x "$work/tree/.githooks/pre-push"
-  git clone -q "$root" "$work/clone"
+  git clone -q --no-local "$root" "$work/clone"
   git -C "$work/clone" config core.hooksPath "$work/tree/.githooks"
   git init -q --bare "$work/remote.git"
   git init -q --bare "$work/empty-remote.git"
@@ -722,7 +722,7 @@ self_test_pre_push() {
   git -C "$work/clone" replace "$hidden_by_a_replace_ref" "$shown_by_the_replace_ref"
   expect_push a-commit-under-a-replace-ref 1 'with an attribution line 1' proof "$hidden_by_a_replace_ref:refs/heads/replaced"
 
-  git clone -q "$work/remote.git" "$work/other-clone" 2>/dev/null
+  git clone -q --no-local "$work/remote.git" "$work/other-clone" 2>/dev/null
   in_other_clone checkout -q -b shared origin/base
   in_other_clone commit -q --allow-empty --no-verify -m "Add the shared change$nl$nl$trailer"
   in_other_clone push -q origin shared:refs/heads/shared

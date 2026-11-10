@@ -250,7 +250,7 @@ EOF
 
   git init -q --bare "$work/github.git"
   git -C "$work/github.git" fetch -q "$root" HEAD:refs/heads/main
-  git clone -q "$work/github.git" "$work/clone"
+  git clone -q --no-local "$work/github.git" "$work/clone"
   commit() {
     git -C "$work/clone" -c commit.gpgsign=false commit -q --allow-empty --no-verify --cleanup=verbatim -m "$1"
   }
