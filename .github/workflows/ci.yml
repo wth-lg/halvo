@@ -1,5 +1,7 @@
 name: ci
 
+# Scratch branch scratch/r7-s5-<k>, never merged: the two jobs build and run the R7 spikes
+# S5 and S6 from scratch/r7-s5 and print one rule line per leg. They print synthetic values only.
 on:
   push:
   pull_request:
@@ -7,72 +9,58 @@ on:
 jobs:
   macos:
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+      - name: Toolchain and runner facts
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@v2
-      - name: Rust components
+        run: bash scratch/r7-s5/ci.sh facts macos-15
+      - name: "S5: build 1 stores an item, rebuilt build 2 reads it"
         shell: bash
-        run: rustup component add clippy rustfmt
-      - name: Test
+        timeout-minutes: 15
+        run: bash scratch/r7-s5/ci.sh s5 macos-15
+      - name: "S6: build the helper, the stub and the driver"
+        id: s6build
+        if: ${{ !cancelled() }}
         shell: bash
-        run: cargo test --workspace
-      - name: Clippy
+        timeout-minutes: 25
+        run: bash scratch/r7-s5/ci.sh s6-build macos-15
+      - name: "S6: control run, trust the test CA, 30 timed helper runs"
+        if: ${{ !cancelled() && steps.s6build.outcome == 'success' }}
         shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
+        timeout-minutes: 10
+        run: bash scratch/r7-s5/ci.sh s6 macos-15
+      - name: "S6: self-test of the harness (no key store, no trust store)"
+        if: ${{ !cancelled() && steps.s6build.outcome == 'success' }}
         shell: bash
-        run: cargo fmt --check
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        timeout-minutes: 15
+        run: bash scratch/r7-s5/ci.sh s6-selftest macos-15
 
   windows:
     runs-on: windows-2025
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
+      - name: Toolchain and runner facts
         shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@v2
-      - name: Rust components
+        run: bash scratch/r7-s5/ci.sh facts windows-2025
+      - name: "S5: build 1 stores an item, rebuilt build 2 reads it"
         shell: bash
-        run: rustup component add clippy rustfmt
-      - name: Test
+        timeout-minutes: 15
+        run: bash scratch/r7-s5/ci.sh s5 windows-2025
+      - name: "S6: build the helper, the stub and the driver"
+        id: s6build
+        if: ${{ !cancelled() }}
         shell: bash
-        run: cargo test --workspace
-      - name: Clippy
+        timeout-minutes: 25
+        run: bash scratch/r7-s5/ci.sh s6-build windows-2025
+      - name: "S6: control run, trust the test CA, 30 timed helper runs"
+        if: ${{ !cancelled() && steps.s6build.outcome == 'success' }}
         shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
+        timeout-minutes: 10
+        run: bash scratch/r7-s5/ci.sh s6 windows-2025
+      - name: "S6: self-test of the harness (no key store, no trust store)"
+        if: ${{ !cancelled() && steps.s6build.outcome == 'success' }}
         shell: bash
-        run: cargo fmt --check
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        timeout-minutes: 15
+        run: bash scratch/r7-s5/ci.sh s6-selftest windows-2025

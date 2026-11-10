@@ -1,0 +1,52 @@
+[package]
+name = "r7-s5-spike"
+version = "0.0.0"
+description = "R7 spikes S5 (credential custody across builds) and S6 (helper start). Scratch, never merged."
+edition = "2021"
+publish = false
+
+# Its own workspace, so the app's manifest and lockfile stay untouched.
+[workspace]
+
+[features]
+default = ["net"]
+# The HTTPS client, the loopback stub and the test certificates. Without it only the
+# key-store code builds, which is all that S5 needs and all that cross-checks for
+# Windows on a Mac (the TLS stack compiles C).
+net = ["dep:reqwest", "dep:rustls", "dep:rcgen", "dep:time"]
+
+[[bin]]
+name = "custody"
+path = "src/bin/custody.rs"
+
+[[bin]]
+name = "helper"
+path = "src/bin/helper.rs"
+required-features = ["net"]
+
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+required-features = ["net"]
+
+[dependencies]
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "blocking"], optional = true }
+rustls = { version = "0.23.40", optional = true }
+rcgen = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "pem"], optional = true }
+time = { version = "0.3", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7.0"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+    "Win32_System_ProcessStatus",
+] }
+
+[profile.release]
+debug = false
