@@ -947,6 +947,27 @@ async function protocolCases(env) {
     c.ok(r.status === 202 && equal(st.mail.sent, [{ to: two.join(','), conversation: answered.conversationId, in_reply_to: answered.id }]), 'sent_to_both');
   });
 
+  await run('create-reply-message', async (c) => {
+    await env.reset(1, ['inject_mail']);
+    const inbox = JSON.parse((await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth })).text).value;
+    const [first, injected] = selectReplies(s, inbox);
+    const evilTo = [{ emailAddress: { address: 'collector@evil.agent.test' } }];
+    const reply = (m, fields) => http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(m.id)}/createReply`, { headers: mailJson, body: JSON.stringify(fields) });
+    c.ok(injected.body.content.includes('collector@evil.agent.test'), 'injected_text_served');
+    r = await reply(injected, { comment: 'Noted.', importance: 'high' });
+    c.ok(r.status === 400 && (await env.state()).mail.drafts === 0, 'unknown_key_refused');
+    r = await reply(injected, { message: { toRecipients: evilTo, importance: 'high' } });
+    c.ok(r.status === 400 && (await env.state()).mail.drafts === 0, 'unknown_message_key_refused');
+    for (const [m, fields] of [[first, {}], [injected, { comment: 'Noted.', message: { toRecipients: evilTo } }]]) {
+      r = await reply(m, fields);
+      draft = r.status === 201 ? JSON.parse(r.text) : { id: 'none' };
+      c.ok((await sendDraft(draft.id)).status === 202, 'sent');
+    }
+    st = await env.state();
+    c.ok(st.mail.sent[1]?.to === 'collector@evil.agent.test', 'message_recipients_recorded');
+    c.ok(!equal(st.mail.sent, s.end.reply), 'sent_differs_from_end_reply');
+  });
+
   await run('patch-unknown-draft', async (c) => {
     await env.reset(1, []);
     draft = await createReply({ comment: 'Draft text.' });

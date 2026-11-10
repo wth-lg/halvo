@@ -498,6 +498,28 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
     }
   }
 
+  function setDraftKeys(entry, body) {
+    const allowed = ['body', 'subject', 'toRecipients'];
+    if (!isObject(body) || !Object.keys(body).every((k) => allowed.includes(k))) return false;
+    if ('body' in body) {
+      if (!isObject(body.body) || typeof body.body.content !== 'string') return false;
+      entry.draft.body.content = body.body.content;
+    }
+    if ('subject' in body) {
+      if (typeof body.subject !== 'string') return false;
+      entry.draft.subject = body.subject;
+    }
+    if ('toRecipients' in body) {
+      const ok =
+        Array.isArray(body.toRecipients) &&
+        body.toRecipients.length > 0 &&
+        body.toRecipients.every((r) => isObject(r) && isObject(r.emailAddress) && isText(r.emailAddress.address));
+      if (!ok) return false;
+      entry.draft.toRecipients = body.toRecipients.map((r) => ({ emailAddress: { address: r.emailAddress.address } }));
+    }
+    return true;
+  }
+
   function mailHandler(ctx) {
     if (!bearerOk(ctx)) return graphError(ctx, 401, 'InvalidAuthenticationToken');
     const d = data();
@@ -512,7 +534,9 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const original = fx.inbox.find((x) => x.id === id);
       if (!original) return graphError(ctx, 404, 'ErrorItemNotFound');
       const body = jsonBody(ctx);
-      if (body === null) return graphError(ctx, 400, 'ErrorInvalidRequest');
+      if (body === null || !Object.keys(body).every((k) => k === 'comment' || k === 'message')) {
+        return graphError(ctx, 400, 'ErrorInvalidRequest');
+      }
       const draft = {
         id: `draft-${newId()}`,
         conversationId: original.conversationId,
@@ -522,33 +546,14 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
         toRecipients: [clone(original.from)],
         body: { content: typeof body.comment === 'string' ? body.comment : '' },
       };
+      if ('message' in body && !setDraftKeys({ draft }, body.message)) return graphError(ctx, 400, 'ErrorInvalidRequest');
       fx.drafts.set(draft.id, { draft, inReplyTo: original.id });
       return json(ctx, 201, draft);
     }
     if (method === 'PATCH' && !m[2]) {
       const entry = fx.drafts.get(id);
       if (!entry) return graphError(ctx, 404, 'ErrorItemNotFound');
-      const body = jsonBody(ctx);
-      const allowed = ['body', 'subject', 'toRecipients'];
-      if (body === null || !Object.keys(body).every((k) => allowed.includes(k))) {
-        return graphError(ctx, 400, 'ErrorInvalidRequest');
-      }
-      if ('body' in body) {
-        if (!isObject(body.body) || typeof body.body.content !== 'string') return graphError(ctx, 400, 'ErrorInvalidRequest');
-        entry.draft.body.content = body.body.content;
-      }
-      if ('subject' in body) {
-        if (typeof body.subject !== 'string') return graphError(ctx, 400, 'ErrorInvalidRequest');
-        entry.draft.subject = body.subject;
-      }
-      if ('toRecipients' in body) {
-        const ok =
-          Array.isArray(body.toRecipients) &&
-          body.toRecipients.length > 0 &&
-          body.toRecipients.every((r) => isObject(r) && isObject(r.emailAddress) && isText(r.emailAddress.address));
-        if (!ok) return graphError(ctx, 400, 'ErrorInvalidRequest');
-        entry.draft.toRecipients = body.toRecipients.map((r) => ({ emailAddress: { address: r.emailAddress.address } }));
-      }
+      if (!setDraftKeys(entry, jsonBody(ctx))) return graphError(ctx, 400, 'ErrorInvalidRequest');
       return json(ctx, 200, entry.draft);
     }
     if (method === 'POST' && m[2] === '/send') {

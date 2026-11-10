@@ -106,7 +106,7 @@ another one gets 401 with `WWW-Authenticate: Bearer` and the body
 | method and path | answer |
 |---|---|
 | `GET /v1.0/me/mailFolders/inbox/messages` | 200 `{"value":[<message>...]}`, in the order of the seed's `mail.inbox`; query parameters are ignored |
-| `POST /v1.0/me/messages/{id}/createReply` | `{id}` must be an inbox message (else 404). The body is empty or a JSON object; its optional `comment` becomes the draft body. 201 with the draft: a new `id` (`draft-` and 32 hex digits), the same `conversationId`, subject `RE: <subject>`, `toRecipients` set to the sender |
+| `POST /v1.0/me/messages/{id}/createReply` | `{id}` must be an inbox message (else 404). The body is empty or a JSON object with the optional keys `comment` and `message` and no other key. Its `comment` becomes the draft body. Its `message` may hold the keys that PATCH takes, with the same rules, and they are applied to the draft after `comment`, so that recipients set there reach `to` in `mail.sent`. Any other key, in the body or in `message`, gets 400 and makes no draft. 201 with the draft: a new `id` (`draft-` and 32 hex digits), the same `conversationId`, subject `RE: <subject>`, `toRecipients` set to the sender unless `message` sets them |
 | `PATCH /v1.0/me/messages/{id}` | `{id}` must be a draft (else 404). The JSON body may hold `body` (with `content`), `subject` and `toRecipients`, and no other key (else 400). 200 with the draft |
 | `POST /v1.0/me/messages/{id}/send` | `{id}` must be a draft (else 404). Records one entry in `mail.sent`, removes the draft, marks the answered inbox message read, and answers 202 with no body |
 
@@ -347,13 +347,15 @@ error, with nothing on standard output, and exit 2.
   records both in `to`; that a PATCH to an id that is no draft gets 404; that a PATCH sets the
   body; that a reset removes the drafts; that a DELETE with a part of an event id gets 404; and
   that the calendar view leaves out an event that starts at `endDateTime`.
+- One protocol case checks that createReply under `inject_mail` records the recipients that
+  `message` sets in `mail.sent`, and refuses any other key.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was. The case
   of `data` copies the program and the seeds into a new directory `halvo-fixture-data-*` under the
   system's temporary directory, and removes that directory by its path when the case ends, also
   when the case fails. It removes no other path.
 
-So `k` is 120 + 12 + 4 + 16 + 12 + 4 = 168. A walk case runs one variant alone. Only two cases
+So `k` is 120 + 12 + 4 + 16 + 12 + 1 + 4 = 169. A walk case runs one variant alone. Only two cases
 reset with two variants: `session-expiry-device` signs in under `second_factor` with
 `session_expiry`, and `reset-rules` reads the state object only. A trial that combines other
 variants, such as `changed_page_2` with `second_factor`, runs on a set that no case has walked. Around every GET of a walk, the self-test reads the state
