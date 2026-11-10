@@ -63,10 +63,14 @@ commits of the event that started the workflow. No flag of git skips it.
            once that copy has the mode --stored-message.
   sh scripts/ci-commit-messages.sh --self-test
       Run those steps on event shapes and on settings files, in throwaway
-      repositories under a new temporary directory that is left in place. Needs
-      a clone of this repository, and a name and an email for commits: a
-      configured git user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
-      GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
+      repositories under a new temporary directory that is left in place. The
+      commits of the event shapes sit on a commit that holds the tree of HEAD
+      above the newest exempt commit, so the result does not depend on the
+      messages of this repository's commits above the newest exempt commit.
+      Needs a clone of this repository with its full history, and a name and
+      an email for commits: a configured git user, or the variables
+      GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and
+      GIT_COMMITTER_EMAIL.
 
 It cannot see a description that is edited after the last push, a push whose
 newest commit says [skip ci], a settings file of a user that overrides the
@@ -224,10 +228,14 @@ self_test() {
   default_ref_in_runner=refs/remotes/origin/main
   commit_that_no_clone_has=1111111111111111111111111111111111111111
 
+  exempt_commit=$(sed -n 's/^NEWEST_EXEMPT_COMMIT=//p' "$root/$CHECK")
+  [ -n "$exempt_commit" ] || die "cannot read NEWEST_EXEMPT_COMMIT from $CHECK"
   dev=$work/dev
   git init -q "$dev"
   git -C "$dev" fetch -q "$root" HEAD
-  git -C "$dev" checkout -q -b main FETCH_HEAD
+  base=$(git -C "$dev" commit-tree 'FETCH_HEAD^{tree}' -p "$exempt_commit" -m 'Hold the tree of HEAD above the newest exempt commit') ||
+    die "the self-test builds its fixtures on the newest exempt commit $exempt_commit, and git could not make a commit above it from the history of HEAD. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
+  git -C "$dev" checkout -q -b main "$base"
 
   commit() {
     git -C "$dev" -c commit.gpgsign=false commit -q --allow-empty --no-verify --cleanup=verbatim -m "$1"
