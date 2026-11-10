@@ -41,6 +41,14 @@ synopsis() {
       or the title and description of a pull request.
   sh scripts/check-commit-messages.sh --self-test
       Prove the predicate on fixtures. Needs git, and no repository.
+  sh scripts/check-commit-messages.sh --self-test-two-paths
+      Send every fixture message of --self-test down both paths in a throwaway
+      repository: through git commit -F with the commit-msg hook on, and, as the
+      commit that git stored, through the range check. The two verdicts must
+      agree. The exceptions are the hand-made shapes that --message-file names
+      above, and the test lists each of them. The repository is under a new
+      temporary directory that is left in place. Needs the .githooks directory
+      beside scripts, and a name and an email for commits, as below.
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
       under a new temporary directory that is left in place. Needs a clone of
@@ -330,9 +338,7 @@ check_range() {
   [ "$any_range_failed" = 0 ]
 }
 
-self_test() {
-  failures=0
-  fixtures=0
+fixture_messages() {
   nl='
 '
   generated='🤖 Generated with [Claude Code](https://claude.com/claude-code)'
@@ -356,76 +362,6 @@ self_test() {
   commit_verbose_file_with_comment_string() {
     printf 'Fix the gate\n\n%s Please enter the commit message for your changes.\n%s %s\n%s Do not modify or remove the line above.\n%s Everything below it will be ignored.\n%s\n' \
       "$1" "$1" "$SCISSORS" "$1" "$1" "$diff_with_attribution_text"
-  }
-
-  expect() {
-    name=$1 want_count=$2 message=$3
-    found=$(attribution_lines "$message") || awk_failed $?
-    if [ -z "$found" ]; then count=0; else count=$(printf '%s\n' "$found" | wc -l | tr -d ' '); fi
-    fixtures=$((fixtures + 1))
-    if [ "$count" = "$want_count" ]; then
-      printf 'PASS %s\n' "$name"
-    else
-      printf 'FAIL %s (expected %s attribution lines, found %s)\n' "$name" "$want_count" "$count"
-      failures=$((failures + 1))
-    fi
-  }
-
-  expect_in_hook_file() {
-    name=$1 want_count=$2 comment_string=$3 hook_file_text=$4
-    message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
-    expect "$name" "$want_count" "$message"
-  }
-
-  expect_at_lines() {
-    name=$1 want_lines=$2 message=$3
-    found=$(attribution_lines "$message") || awk_failed $?
-    lines=$(printf '%s\n' "$found" | sed -n 's/^  line \([0-9][0-9]*\): .*/\1/p' | paste -s -d ' ' -)
-    fixtures=$((fixtures + 1))
-    if [ "$lines" = "$want_lines" ]; then
-      printf 'PASS %s\n' "$name"
-    else
-      printf 'FAIL %s (expected attribution lines at [%s], found them at [%s])\n' "$name" "$want_lines" "$lines"
-      failures=$((failures + 1))
-    fi
-  }
-
-  expect_in_hook_file_at_lines() {
-    name=$1 want_lines=$2 comment_string=$3 hook_file_text=$4
-    message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
-    expect_at_lines "$name" "$want_lines" "$message"
-  }
-
-  expect_hook_path() {
-    name=$1 want_status=$2 want_text=$3 hook_file=$4 hook_file_text=${5-}
-    status=0
-    printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") >/dev/null 2>&1 || status=$?
-    text=present
-    if [ -n "$want_text" ]; then
-      printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") 2>&1 | grep -qF -- "$want_text" || text=absent
-    fi
-    fixtures=$((fixtures + 1))
-    if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
-      printf 'PASS %s\n' "$name"
-    else
-      printf 'FAIL %s (expected exit %s and the text "%s"; got exit %s, text %s)\n' "$name" "$want_status" "$want_text" "$status" "$text"
-      failures=$((failures + 1))
-    fi
-  }
-
-  expect_comment_string_read_from_git() {
-    name=$1 want=$2
-    got=$(
-      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.commentString GIT_CONFIG_VALUE_0="$want" LC_ALL=en_US.UTF-8
-      git_comment_string 2>/dev/null
-    ) || got=
-    fixtures=$((fixtures + 1))
-    if [ "$got" = "$want" ]; then
-      printf 'PASS %s\n' "$name"
-    else
-      printf 'FAIL %s (git holds a comment string of %s bytes, the script read one of %s bytes)\n' "$name" "${#want}" "${#got}"
-      failures=$((failures + 1))
-    fi
   }
 
   expect 'a clean message passes' 0 "Add the store${nl}${nl}Stream segment files through bounded chunks."
@@ -514,12 +450,184 @@ self_test() {
   expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' /dev/stdin "Fix the gate${nl}${nl}$trailer"
   expect_hook_path 'the hook path exits 0 on a clean file' 0 '' /dev/stdin "Add the store${nl}${nl}Stream segment files through bounded chunks."
   expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' /dev/null/absent
+}
+
+self_test() {
+  failures=0
+  fixtures=0
+
+  expect() {
+    name=$1 want_count=$2 message=$3
+    found=$(attribution_lines "$message") || awk_failed $?
+    if [ -z "$found" ]; then count=0; else count=$(printf '%s\n' "$found" | wc -l | tr -d ' '); fi
+    fixtures=$((fixtures + 1))
+    if [ "$count" = "$want_count" ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (expected %s attribution lines, found %s)\n' "$name" "$want_count" "$count"
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect_in_hook_file() {
+    name=$1 want_count=$2 comment_string=$3 hook_file_text=$4
+    message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
+    expect "$name" "$want_count" "$message"
+  }
+
+  expect_at_lines() {
+    name=$1 want_lines=$2 message=$3
+    found=$(attribution_lines "$message") || awk_failed $?
+    lines=$(printf '%s\n' "$found" | sed -n 's/^  line \([0-9][0-9]*\): .*/\1/p' | paste -s -d ' ' -)
+    fixtures=$((fixtures + 1))
+    if [ "$lines" = "$want_lines" ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (expected attribution lines at [%s], found them at [%s])\n' "$name" "$want_lines" "$lines"
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect_in_hook_file_at_lines() {
+    name=$1 want_lines=$2 comment_string=$3 hook_file_text=$4
+    message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
+    expect_at_lines "$name" "$want_lines" "$message"
+  }
+
+  expect_hook_path() {
+    name=$1 want_status=$2 want_text=$3 hook_file=$4 hook_file_text=${5-}
+    status=0
+    printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") >/dev/null 2>&1 || status=$?
+    text=present
+    if [ -n "$want_text" ]; then
+      printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") 2>&1 | grep -qF -- "$want_text" || text=absent
+    fi
+    fixtures=$((fixtures + 1))
+    if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (expected exit %s and the text "%s"; got exit %s, text %s)\n' "$name" "$want_status" "$want_text" "$status" "$text"
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect_comment_string_read_from_git() {
+    name=$1 want=$2
+    got=$(
+      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.commentString GIT_CONFIG_VALUE_0="$want" LC_ALL=en_US.UTF-8
+      git_comment_string 2>/dev/null
+    ) || got=
+    fixtures=$((fixtures + 1))
+    if [ "$got" = "$want" ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (git holds a comment string of %s bytes, the script read one of %s bytes)\n' "$name" "${#want}" "${#got}"
+      failures=$((failures + 1))
+    fi
+  }
+
+  fixture_messages
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d of %d fixtures misclassified\n' "$failures" "$fixtures"
     return 1
   fi
   printf 'check-commit-messages: self-test PASS: %d fixtures\n' "$fixtures"
+}
+
+self_test_two_paths() {
+  script=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+  root=$(cd "$(dirname "$0")/.." && pwd)
+  [ -f "$root/.githooks/commit-msg" ] || die "this self-test runs the commit-msg hook, and $root/.githooks/commit-msg does not exist"
+  for repository_variable in $(git rev-parse --local-env-vars); do
+    unset "$repository_variable"
+  done
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 ||
+    die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
+  work=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-two-paths-self-test.XXXXXX") || die 'mktemp could not make a directory'
+  printf 'check-commit-messages: two-path self-test in %s, which is left in place\n' "$work"
+  mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/messages" "$work/out"
+  cp "$root/.githooks/commit-msg" "$work/tree/.githooks/commit-msg"
+  cp "$script" "$work/tree/scripts/check-commit-messages.sh"
+  chmod +x "$work/tree/.githooks/commit-msg"
+  git init -q "$work/repository"
+  git -C "$work/repository" config core.hooksPath "$work/tree/.githooks"
+  failures=0
+  fixtures=0
+  expected_differences_seen=0
+  newline='
+'
+  hook_accepts_and_range_check_refuses=
+
+  in_repository() {
+    git -C "$work/repository" -c commit.gpgsign=false -c core.commentString="$comment_string" "$@"
+  }
+
+  two_paths() {
+    name=$1 comment_string=$2 text=$3
+    fixtures=$((fixtures + 1))
+    printf '%s\n' "$text" >"$work/messages/$fixtures.txt"
+    before=$(in_repository rev-parse HEAD)
+    hook=accepts
+    if ! in_repository commit -q --allow-empty -F "$work/messages/$fixtures.txt" >"$work/out/$fixtures.hook.txt" 2>&1; then
+      hook=refuses
+      if ! grep -qF 'check-commit-messages: the message carries an attribution line' "$work/out/$fixtures.hook.txt" ||
+        ! in_repository commit -q --allow-empty --no-verify -F "$work/messages/$fixtures.txt" >"$work/out/$fixtures.no-verify.txt" 2>&1; then
+        hook='fails for another reason than the hook'
+      fi
+    fi
+    after=$(in_repository rev-parse HEAD)
+    status=0
+    (cd "$work/repository" && exempt=0 && check_range "$before..$after") >"$work/out/$fixtures.range.txt" 2>&1 || status=$?
+    case $status in
+      0) range=accepts ;;
+      1) range=refuses ;;
+      *) range="exits $status" ;;
+    esac
+    case $newline$hook_accepts_and_range_check_refuses$newline in
+      *"$newline$name$newline"*) listed=1 ;;
+      *) listed=0 ;;
+    esac
+    case "$listed $hook/$range" in
+      '0 accepts/accepts' | '0 refuses/refuses')
+        printf 'PASS %s (both paths: %s)\n' "$name" "$hook"
+        ;;
+      '1 accepts/refuses')
+        expected_differences_seen=$((expected_differences_seen + 1))
+        printf 'PASS %s (a listed hand-made shape: the hook accepts, the range check refuses)\n' "$name"
+        ;;
+      1*)
+        printf 'FAIL %s (listed as a shape that the hook accepts and the range check refuses, and now git commit with the hook %s and the range check %s. Take it off the list in self_test_two_paths.)\n' "$name" "$hook" "$range"
+        failures=$((failures + 1))
+        ;;
+      *)
+        printf 'FAIL %s (git commit with the hook %s, and the range check on the stored commit %s. The two paths must agree, unless the shape is one that --help names for --message-file and self_test_two_paths lists it. Outputs: %s/out/%s.*.txt)\n' "$name" "$hook" "$range" "$work" "$fixtures"
+        failures=$((failures + 1))
+        ;;
+    esac
+  }
+
+  expect() { two_paths "$1" '#' "$3"; }
+  expect_at_lines() { two_paths "$1" '#' "$3"; }
+  expect_in_hook_file() { two_paths "$1" "$3" "$4"; }
+  expect_in_hook_file_at_lines() { two_paths "$1" "$3" "$4"; }
+  expect_hook_path() { [ -z "${5-}" ] || two_paths "$1" '#' "$5"; }
+  expect_comment_string_read_from_git() { :; }
+
+  comment_string='#'
+  in_repository commit -q --allow-empty --no-verify -m 'Start the repository'
+  fixture_messages
+
+  listed_count=$(printf '%s\n' "$hook_accepts_and_range_check_refuses" | grep -c . || true)
+  if [ "$expected_differences_seen" != "$listed_count" ]; then
+    printf 'FAIL the list of hand-made shapes in self_test_two_paths names %s fixtures, and %s fixtures of that name ran and differed (a name on the list that no fixture has?)\n' "$listed_count" "$expected_differences_seen"
+    failures=$((failures + 1))
+  fi
+  if [ "$failures" -gt 0 ]; then
+    printf 'check-commit-messages: two-path self-test FAIL: %d problems in %d fixtures. Outputs are in %s/out.\n' "$failures" "$fixtures" "$work"
+    return 1
+  fi
+  printf 'check-commit-messages: two-path self-test PASS: %d fixtures went through git commit with the hook and through the range check on the stored commit. The verdicts agree for %d, and %d are the listed hand-made shapes. Outputs are in %s/out.\n' "$fixtures" "$((fixtures - expected_differences_seen))" "$expected_differences_seen" "$work"
 }
 
 self_test_pre_push() {
@@ -638,13 +746,14 @@ remote=
 default_ref=
 any_range_failed=0
 set_exclusive_mode() {
-  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --pre-push, --message-file, --stored-message, --self-test and --self-test-pre-push exclude each other'
+  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --pre-push, --message-file, --stored-message and each self-test exclude each other'
   mode=$1
 }
 while [ $# -gt 0 ]; do
   case "$1" in
     --self-test) set_exclusive_mode self-test ;;
     --self-test-pre-push) set_exclusive_mode self-test-pre-push ;;
+    --self-test-two-paths) set_exclusive_mode self-test-two-paths ;;
     --stored-message) set_exclusive_mode stored-message ;;
     --message-file)
       [ $# -ge 2 ] || usage '--message-file needs a file'
@@ -684,6 +793,7 @@ done
 case ${mode:-range} in
   self-test) self_test ;;
   self-test-pre-push) self_test_pre_push ;;
+  self-test-two-paths) self_test_two_paths ;;
   message) check_hook_file "$file" ;;
   stored-message) check_stored_message ;;
   pre-push) check_push "$remote" ;;
