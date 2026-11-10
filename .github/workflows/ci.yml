@@ -82,12 +82,18 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Pressure sampler
+        run: |
+          nohup sh -c 'while :; do sysctl -n kern.memorystatus_vm_pressure_level; sleep 1; done' > "$RUNNER_TEMP/pressure.txt" 2>&1 &
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: GITHUB_REF=refs/heads/main sh scripts/ci/run-ci-d.sh macos
+      - name: Pressure levels
+        if: always()
+        run: sort "$RUNNER_TEMP/pressure.txt" | uniq -c
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -131,7 +137,7 @@ jobs:
         run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: GITHUB_REF=refs/heads/main sh scripts/ci/run-ci-d.sh windows
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle

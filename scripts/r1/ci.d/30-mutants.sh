@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs: macos
+# jobs: macos windows
 # rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs every mutant.
 set -u
 name=30-mutants
