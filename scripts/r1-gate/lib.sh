@@ -339,8 +339,10 @@ child_defect=''
 child_status=''
 
 timed_child() {
-  child_dir=$1; child_bin=$2; shift 2
+  child_deadline=$1; child_dir=$2; child_bin=$3; shift 3
   child_defect=''; child_pid=''
+  case $child_deadline in ''|*[!0-9]*|0) gate_defect="the deadline of the child is no positive number of seconds"; return 1 ;; esac
+  child_start=$(date +%s)
   /usr/bin/time -l -o "$child_dir/time" "$child_bin" "$@" > "$child_dir/stdout" 2> "$child_dir/stderr" &
   child_wrapper=$!
   child_polls=0
@@ -381,6 +383,18 @@ timed_child() {
     esac
     child_other=$(pgrep -x halvo-capture 2>/dev/null | grep -v -x -e "$child_pid" | head -1)
     [ -z "$child_other" ] || child_others=yes
+    child_now=$(date +%s)
+    if [ "$((child_now - child_start))" -ge "$child_deadline" ]; then
+      child_defect="the child ran past its deadline of ${child_deadline}s and was ended"
+      kill -TERM "$child_pid" 2>/dev/null
+      child_polls=0
+      while kill -0 "$child_wrapper" 2>/dev/null; do
+        child_polls=$((child_polls + 1))
+        if [ "$child_polls" -gt 50 ]; then kill -KILL "$child_pid" 2>/dev/null; break; fi
+        sleep 0.1
+      done
+      break
+    fi
     sleep 1
   done
   child_mean_kib=0
@@ -390,6 +404,7 @@ timed_child() {
   wait "$child_wrapper"
   child_status=$?
   child_wrapper=''
+  child_pid=''
   gate_defect=$child_defect
   [ -z "$child_defect" ]
 }
@@ -457,12 +472,13 @@ capture_prepare() {
 
 capture_run() {
   capture_seconds=$1; shift
+  use_bound child_deadline_extra_s || { gate_defect="bound child_deadline_extra_s is not readable: docs/baseline/r1-gate-bounds.txt must hold exactly one child_deadline_extra_s=digits line"; return 1; }
   if [ "$capture_helper" = yes ]; then
     helper_build || return 1
     helper_start "$((capture_seconds + 60))" "$GATE_TARGET/window-helper" || return 1
   fi
   run_before=$(machine_state)
-  timed_child "$run_dir" "$GATE_BIN" --timed-run "$capture_seconds" "$@"
+  timed_child "$((capture_seconds + bound))" "$run_dir" "$GATE_BIN" --timed-run "$capture_seconds" "$@"
   capture_status=$?
   helper_stop
   [ "$capture_status" -eq 0 ] || return 1

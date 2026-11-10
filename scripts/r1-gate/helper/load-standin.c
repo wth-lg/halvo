@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,6 +38,11 @@ int main(int argc, char **argv) {
         idle(atof(argv[2]));
         return 0;
     }
-    fprintf(stderr, "usage: load-standin burn SECONDS | sleep SECONDS\n");
+    if (argc == 3 && strcmp(argv[1], "deaf") == 0) {
+        signal(SIGTERM, SIG_IGN);
+        idle(atof(argv[2]));
+        return 0;
+    }
+    fprintf(stderr, "usage: load-standin burn SECONDS | sleep SECONDS | deaf SECONDS\n");
     return 64;
 }

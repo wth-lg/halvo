@@ -55,7 +55,7 @@ cpu_of_time_file_is() {
 
 live_cpu_above() {
   mkdir -p "$gate_scratch/live-$1"
-  timed_child "$gate_scratch/live-$1" "$standin" "$@" || return 1
+  timed_child 30 "$gate_scratch/live-$1" "$standin" "$@" || return 1
   child_report_defect || return 1
   cpu=$(time_file_cpu_pct "$gate_scratch/live-$1/time") || return 1
   predicate_cost_within_bound "$cpu" 0 600 "$live_floor" 2000000000 && return 1
@@ -72,11 +72,30 @@ under_a_german_locale() {
   LC_ALL=de_DE.UTF-8 sh "$DIR/check-cost.sh" --self-test --case live-busy-loop-reads-above-50
 }
 
+deadline_run() {
+  mkdir -p "$gate_scratch/deadline-$2-$3"
+  deadline_from=$(date +%s)
+  timed_child "$1" "$gate_scratch/deadline-$2-$3" "$standin" "$2" "$3"
+  deadline_status=$?
+  deadline_to=$(date +%s)
+  deadline_took=$((deadline_to - deadline_from))
+  return "$deadline_status"
+}
+
+deadline_ends_the_child() {
+  deadline_run 2 "$1" "$2" && return 1
+  [ "$gate_defect" = "the child ran past its deadline of 2s and was ended" ] || return 1
+  [ "$deadline_took" -ge 2 ] || return 1
+  [ "$deadline_took" -le "$3" ] || return 1
+  left=$(pgrep -f "load-standin $1 $2")
+  [ -z "$left" ]
+}
+
 child_of_script() {
   mkdir -p "$gate_scratch/script-child"
   printf '#!/bin/sh\nsleep 2\n' > "$gate_scratch/wrapper-script"
   chmod 755 "$gate_scratch/wrapper-script"
-  timed_child "$gate_scratch/script-child" "$gate_scratch/wrapper-script"
+  timed_child 30 "$gate_scratch/script-child" "$gate_scratch/wrapper-script"
 }
 
 report_fixture() {
@@ -142,6 +161,12 @@ cases() {
   t live-idle-reads-under-50 FAIL live_cpu_above sleep 1
   t german-locale-of-the-caller PASS under_a_german_locale
   t comm-is-bin-sh FAIL child_of_script
+  t child-past-deadline FAIL deadline_run 2 sleep 30.25
+  t child-in-time PASS deadline_run 5 sleep 1
+  t deadline-ends-the-child-inside-the-margin PASS deadline_ends_the_child sleep 31.25 5
+  t kill-follows-an-ignored-term PASS deadline_ends_the_child deaf 32.25 10
+  t deadline-zero FAIL deadline_run 0 sleep 1
+  t deadline-not-a-number FAIL deadline_run abc sleep 1
   t exit-0-report-read PASS exit_status_gives 0
   t exit-3-report-read PASS exit_status_gives 3
   t exit-1-unavailable FAIL exit_status_gives 1
