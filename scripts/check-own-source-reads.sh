@@ -464,6 +464,7 @@ self_test() {
   expect 'sed after a test and two ampersands on one line is refused' 1 "[ \"\$1\" = --help ] && sed -n '2,3p' $own_path"
   expect 'sed that a tab indents and that tabs separate from its words is refused' 1 "${tab}sed${tab}-n${tab}$lines_2_to_20${tab}$own_path"
   expect 'head after cat that reads another file is accepted' '' "cat \"\$list\" | head -n 3"
+  expect 'sed after a command that one ampersand sends to the background is refused' 1 "sleep 1 & sed -n $lines_2_to_20 $own_path"
 
   leave_the_repository_that_git_variables_name
   fixture_directory=$(mktemp -d "${TMPDIR:-/tmp}/check-own-source-reads-self-test.XXXXXX") || die 'mktemp could not make a directory'
