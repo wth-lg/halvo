@@ -359,12 +359,19 @@ with_an_unreadable_deadline() {
 strict_beside() {
   standin_as_the_binary ok operator
   gate_strict=yes
+  # shellcheck disable=SC2329
+  machine_state() { printf 'load1=0.00 pressure=1\n'; }
+  other=''
   if [ "$1" = yes ]; then
     mkdir -p "$gate_scratch/other-$name"
     cp "$standin" "$gate_scratch/other-$name/halvo-capture"
     "$gate_scratch/other-$name/halvo-capture" sleep 6 &
+    other=$!
   fi
   measure 2
+  strict_status=$?
+  [ -z "$other" ] || { kill "$other" 2>/dev/null; wait "$other" 2>/dev/null; }
+  return "$strict_status"
 }
 
 against_the_standin() {
