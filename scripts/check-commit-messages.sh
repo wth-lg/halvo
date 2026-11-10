@@ -44,7 +44,9 @@ synopsis() {
   sh scripts/check-commit-messages.sh --self-test-pre-push
       Prove the pre-push mode with real pushes between throwaway repositories,
       under a new temporary directory that is left in place. Needs a clone of
-      this repository and a configured git user.
+      this repository, and a name and an email for commits: a configured git
+      user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
+      GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
 EOF
 }
 
@@ -524,7 +526,8 @@ self_test_pre_push() {
   script=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
   root=$(cd "$(dirname "$0")/.." && pwd)
   git -C "$root" rev-parse --git-dir >/dev/null 2>&1 || die 'this self-test clones the repository, and the script is not inside one'
-  [ -n "$(git config --get user.name || true)" ] || die 'this self-test commits in a throwaway clone and needs a configured git user'
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 ||
+    die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-pre-push-self-test.XXXXXX") || die 'mktemp could not make a directory'
   printf 'check-commit-messages: pre-push self-test in %s, which is left in place\n' "$work"
   mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/out"

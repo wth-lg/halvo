@@ -64,7 +64,9 @@ commits of the event that started the workflow. No flag of git skips it.
   sh scripts/ci-commit-messages.sh --self-test
       Run those steps on event shapes and on settings files, in throwaway
       repositories under a new temporary directory that is left in place. Needs
-      a clone of this repository and a configured git user.
+      a clone of this repository, and a name and an email for commits: a
+      configured git user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
+      GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
 
 It cannot see a description that is edited after the last push, a push whose
 newest commit says [skip ci], a settings file of a user that overrides the
@@ -204,7 +206,8 @@ run_event() {
 self_test() {
   root=$(pwd)
   git rev-parse --git-dir >/dev/null 2>&1 || die 'the self-test clones this repository, and this directory is not inside one'
-  [ -n "$(git config --get user.name || true)" ] || die 'the self-test commits in throwaway repositories and needs a configured git user'
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 ||
+    die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/ci-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
   mkdir "$work/out" "$work/settings"

@@ -20,6 +20,17 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
+      - name: Self-tests that commit in throwaway repositories
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        run: |
+          sh scripts/check-commit-messages.sh --self-test-pre-push
+          sh scripts/ci-commit-messages.sh --self-test
+          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@v7
         with:
           node-version: 26

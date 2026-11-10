@@ -36,7 +36,9 @@ attribution line reaches the default branch.
   sh scripts/merge-pr.sh --self-test
       Prove each refusal and the accepted case with a stub gh first on PATH, in
       a throwaway clone under a new temporary directory that is left in place.
-      Needs a clone of this repository and a configured git user.
+      Needs a clone of this repository, and a name and an email for commits:
+      a configured git user, or the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL,
+      GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.
 
 The script never passes --admin, never pushes and never edits a pull request.
 It cannot see a merge that someone makes on the website or with gh pr merge
@@ -207,7 +209,8 @@ run() {
 self_test() {
   root=$(cd "$script_directory/.." && pwd)
   git -C "$root" rev-parse --git-dir >/dev/null 2>&1 || die 'the self-test clones this repository, and this script is not inside one'
-  [ -n "$(git config --get user.name || true)" ] || die 'the self-test commits in a throwaway clone and needs a configured git user'
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 ||
+    die 'the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.'
   work=$(mktemp -d "${TMPDIR:-/tmp}/merge-pr-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
   mkdir "$work/bin" "$work/state" "$work/out"
