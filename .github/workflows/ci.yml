@@ -82,6 +82,11 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Gate cases that differ
+        shell: bash
+        run: |
+          for g in cost memory; do sh scripts/r1-gate/check-$g.sh --self-test -v 2>/dev/null | grep -E '^(FAIL|PASS self-test)|want=([A-Z-]+) got=' | awk '/^case/ { split($3, a, "="); split($4, b, "="); if (a[2] != b[2]) print; next } { print }'; done
+          sh scripts/r1-gate/check-cost.sh --self-test -v --case standin-run-with-sources 2>/dev/null | tail -n 2
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos --self-test
