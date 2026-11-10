@@ -27,9 +27,9 @@ is added above it or a comment is removed, and nothing fails.
     with NR or FNR.
   - The check splits each line into commands and words as sh does: it follows
     quotes, backslashes, command substitutions and redirections. So it sees
-    such a command named alone, by a path such as /usr/bin/sed, in quotes,
-    after a backslash, with .exe at its end, after assignments, and after
-    exec or command -p.
+    such a command named alone, by a path such as /usr/bin/sed, also one
+    whose directory a variable holds, in quotes, after a backslash, with
+    .exe at its end, after assignments, and after exec or command -p.
 The fix is to print the text from a here-document, as this script does.
 The check reads one line at a time and expands nothing. It does not see:
   - a path that a variable holds or that is built from the parameter 0, as in
