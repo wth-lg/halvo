@@ -213,6 +213,10 @@ self_test() {
   track scripts/check.sh '#!/bin/sh\necho\n'
   expect 'a file that starts with an interpreter line and has eol=crlf is refused' 1 'check-line-endings: scripts/check.sh starts with an interpreter line and its eol attribute is crlf, not lf.'
 
+  start_fixture 'configure -diff'
+  track configure '#!/bin/sh\necho\n'
+  expect 'a script that git does not diff, with no eol attribute, is refused' 1 '/configure text eol=lf'
+
   start_fixture
   track 'my tool' '#! /usr/bin/env python3\nprint()\n'
   expect 'a file whose name has a space and whose interpreter follows a space is read and refused' 1 'check-line-endings: my tool starts with an interpreter line and its eol attribute is unspecified, not lf.'
