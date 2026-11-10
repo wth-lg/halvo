@@ -295,8 +295,14 @@ self_test() {
 
   start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf'
   track .githooks/commit-msg '#!/bin/sh\nexec true\n'
+  track .githooks/lib/helper '#!/bin/sh\necho\n'
   track scripts/check.sh '#!/bin/sh\necho\n'
-  expect 'the two patterns of this repository cover a hook and a .sh file' 0 "$(pass_line 2)"
+  expect 'the two patterns of this repository cover a hook, a file in a subdirectory of .githooks and a .sh file' 0 "$(pass_line 3)"
+
+  start_fixture '*.sh text eol=lf' '.githooks/* text eol=lf'
+  track .githooks/commit-msg '#!/bin/sh\nexec true\n'
+  track .githooks/lib/helper '#!/bin/sh\necho\n'
+  expect 'the older pattern .githooks/* leaves a file in a subdirectory of .githooks without eol=lf' 1 '/.githooks/lib/helper text eol=lf'
 
   start_fixture '*.sh eol=crlf'
   track scripts/check.sh '#!/bin/sh\necho\n'
