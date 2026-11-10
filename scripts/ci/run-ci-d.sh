@@ -306,13 +306,14 @@ own_self_test() {
   own_case rules 0 '10-a (macos windows): A fixture rule.' --rules
   own_case list 0 'scripts/r1/ci.d/20-b.sh' --list macos
   own_case name-matches-no-script 1 'FAIL run-ci-d (no script 99-none for macos)' macos 99-none
+  own_case one-name-matches-no-script 1 'FAIL run-ci-d (no script 99-none for macos)' macos 20-b 99-none
   own_case unknown-job 64 'usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]' linux
   case_cd=scripts
   own_case below-the-root 1 'FAIL run-ci-d (start it at the root of the git work tree)' macos
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
   own_case no-scripts 1 'FAIL run-ci-d (no scripts for macos)' macos
 
-  new_repo && add_script r1 10-a.sh '# rule: A fixture rule.' "$pass_a"
+  new_repo && add_script r1 10-a.sh '# rule: A fixture rule.' "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case no-jobs-line 1 "FAIL 10-a (its first 10 lines hold no single '# jobs:' line)" macos
   own_case rules-refuses 1 "FAIL 10-a (its first 10 lines hold no single '# jobs:' line)" --rules
   new_repo && add_script r1 10-a.sh '# jobs: macos' "$pass_a"
@@ -346,6 +347,7 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "# jobs: windows$nl# rule: A fixture rule." "$pass_a"
   own_case other-job-only 1 'FAIL run-ci-d (no scripts for macos)' macos
   own_case job-named 0 'ci.d windows: 1 passed, 0 failed, 0 skipped' windows
+  own_case list-other-job-only 1 'FAIL run-ci-d (no scripts for macos)' --list macos
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
   own_case lockfile-changed 1 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)' macos
 
