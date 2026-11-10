@@ -203,9 +203,9 @@ self_test() {
   }
 
   expect() {
-    name=$1 want_status=$2 want_line=$3
+    name=$1 want_status=$2 want_line=$3 directory=${4:-.}
     status=0
-    output=$(cd "$repository" && sh "$script" 2>&1) || status=$?
+    output=$(cd "$repository/$directory" && sh "$script" 2>&1) || status=$?
     if [ "$status" = "$want_status" ] && printf '%s\n' "$output" | grep -Fqx -e "$want_line"; then
       printf 'PASS %s\n' "$name"
     else
@@ -241,7 +241,7 @@ self_test() {
 
   start_fixture
   track 'my tool' '#! /usr/bin/env python3\nprint()\n'
-  expect 'a file whose name has a space and whose interpreter follows a space is read and refused' 1 'check-line-endings: my tool starts with an interpreter line and its eol attribute is unspecified, not lf.'
+  expect 'a file whose name has a space and whose interpreter follows a space is read and refused, with no line that would not work' 1 'Fix: add a line at the end of .gitattributes at the root of the clone that gives this file: text eol=lf. Its name has a character that a pattern must quote; gitattributes(5) says how.'
 
   start_fixture '*.sh text eol=lf'
   track scripts/check.sh '#!/bin/sh\r\necho\r\n'
@@ -256,6 +256,23 @@ self_test() {
   track src/main.rs '#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]\nfn main() {}\n'
   track notes.txt 'stored with CRLF\r\n'
   expect 'an interpreter line below the first line, a Rust inner attribute and CRLF without eol=lf are accepted' 0 "$(pass_line 0)"
+
+  start_fixture
+  track tool '#!\t/bin/sh\necho\n'
+  expect 'an interpreter line with a tab after #! is refused' 1 '/tool text eol=lf'
+
+  start_fixture
+  track tool '#!/bin/sh\necho\n'
+  expect 'the lint reads the whole clone when it runs in a directory below the root' 1 '/tool text eol=lf' scripts
+
+  start_fixture '/my-tool text eol=lf'
+  track my-tool '#!/bin/sh\necho\n'
+  track tool 'notes\n#!/bin/sh\n'
+  expect 'a file is not a script because the name of a script ends with its name' 0 "$(pass_line 1)"
+
+  start_fixture '*.sh text eol=lf'
+  track scripts/check.sh '#!/bin/sh\r\necho\n'
+  expect 'a file with eol=lf that is stored with CRLF on one of its lines is refused' 1 'git add --renormalize -- scripts/check.sh'
 
   start_fixture '*.sh text eol=lf'
   track scripts/check.sh '#!/bin/sh\r\nprintf x\ry\r\n'
