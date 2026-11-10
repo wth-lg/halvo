@@ -44,7 +44,8 @@ synopsis() {
       fixture gives git a comment string that is not valid UTF-8. It does so in
       a config file, a new file under the temporary directory that is left in
       place: Git for Windows converts such a byte in a variable or an argument
-      on its way to git, and reads a file as it is.
+      on its way to git, and reads a file as it is. Two fixtures hand the hook
+      path a message file, also a new file there that is left in place.
   sh scripts/check-commit-messages.sh --self-test-two-paths
       Send every fixture message of --self-test down both paths in a throwaway
       repository: through git commit -F with the commit-msg hook on, and, as the
@@ -468,9 +469,9 @@ fixture_messages() {
   expect_in_hook_file 'a trailer on a comment line of a hand-made scissors block fails when the predicate skips the comment string' 1 "$scissors_sign" "Fix the gate${nl}${nl}$scissors_sign $SCISSORS${nl}$scissors_sign $trailer${nl}diff --git a/x b/x"
   expect_in_hook_file 'the diff of git commit -v is dropped when it starts with the summary of a submodule' 0 '#' "Bump the submodule${nl}${nl}$scissors_block${nl}Submodule aaa-sub 4792642..08b513d:${nl}  > Generated with love in the submodule${nl}diff --git a/notes.txt b/notes.txt${nl}--- a/notes.txt${nl}+++ b/notes.txt${nl}@@ -1,4 +1,4 @@${nl} Generated with bindgen 0.71${nl} $trailer${nl}-old line${nl}+new line"
 
-  expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' /dev/stdin "Fix the gate${nl}${nl}$trailer"
-  expect_hook_path 'the hook path exits 0 on a clean file' 0 '' /dev/stdin "Add the store${nl}${nl}Stream segment files through bounded chunks."
-  expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' /dev/null/absent
+  expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' "Fix the gate${nl}${nl}$trailer"
+  expect_hook_path 'the hook path exits 0 on a clean file' 0 '' "Add the store${nl}${nl}Stream segment files through bounded chunks."
+  expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' '' /dev/null/absent
 }
 
 self_test() {
@@ -516,18 +517,24 @@ self_test() {
   }
 
   expect_hook_path() {
-    name=$1 want_status=$2 want_text=$3 hook_file=$4 hook_file_text=${5-}
+    name=$1 want_status=$2 want_text=$3 hook_file_text=$4
+    if [ $# -ge 5 ]; then
+      hook_file=$5
+    else
+      hook_file=$(mktemp "${TMPDIR:-/tmp}/check-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a file'
+      printf '%s\n' "$hook_file_text" >"$hook_file" || die "cannot write $hook_file"
+    fi
     status=0
-    printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") >/dev/null 2>&1 || status=$?
+    (check_hook_file "$hook_file") >/dev/null 2>&1 || status=$?
     text=present
     if [ -n "$want_text" ]; then
-      printf '%s\n' "$hook_file_text" | (check_hook_file "$hook_file") 2>&1 | grep -qF -- "$want_text" || text=absent
+      (check_hook_file "$hook_file") 2>&1 | grep -qF -- "$want_text" || text=absent
     fi
     fixtures=$((fixtures + 1))
     if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
-      printf 'PASS %s\n' "$name"
+      printf 'PASS %s (the message file is %s)\n' "$name" "$hook_file"
     else
-      printf 'FAIL %s (expected exit %s and the text "%s"; got exit %s, text %s)\n' "$name" "$want_status" "$want_text" "$status" "$text"
+      printf 'FAIL %s (expected exit %s and the text "%s" for the message file %s; got exit %s, text %s)\n' "$name" "$want_status" "$want_text" "$hook_file" "$status" "$text"
       failures=$((failures + 1))
     fi
   }
@@ -650,7 +657,7 @@ a hunk header of the diff that copies a line with a carriage return before the f
   expect_at_lines() { two_paths "$1" '#' "$3"; }
   expect_in_hook_file() { two_paths "$1" "$3" "$4"; }
   expect_in_hook_file_at_lines() { two_paths "$1" "$3" "$4"; }
-  expect_hook_path() { [ -z "${5-}" ] || two_paths "$1" '#' "$5"; }
+  expect_hook_path() { [ $# -ge 5 ] || two_paths "$1" '#' "$4"; }
   expect_comment_string_read_from_git() { :; }
 
   comment_string='#'
