@@ -38,6 +38,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Add a CI grep lint banning low-level input hooks in the capture crate
 - Reject attribution lines in commit messages with a commit-msg hook and a CI step
 - Add AGENTS.md with the rule table and import it from CLAUDE.md
+- Add failing fixtures for a trailer below scissors text that git keeps
 
 ### Changed
 

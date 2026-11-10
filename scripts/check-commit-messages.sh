@@ -109,7 +109,11 @@ self_test() {
 '
   generated='🤖 Generated with [Claude Code](https://claude.com/claude-code)'
   trailer='Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>'
-  diff_below_scissors="Fix the gate${nl}# ------------------------ >8 ------------------------${nl}+// Generated with bindgen${nl} $trailer"
+  scissors_line='# ------------------------ >8 ------------------------'
+  scissors_block="$scissors_line${nl}# Do not modify or remove the line above.${nl}# Everything below it will be ignored."
+  diff_with_attribution_text="diff --git a/bindings.rs b/bindings.rs${nl}--- a/bindings.rs${nl}+++ b/bindings.rs${nl}@@ -1 +1,2 @@${nl} $trailer${nl}+// Generated with bindgen"
+  commit_verbose_file="Fix the gate${nl}${nl}# Please enter the commit message for your changes.${nl}#${nl}$scissors_block${nl}$diff_with_attribution_text"
+  semicolon_commit_verbose_file="Fix the gate${nl}${nl}; ------------------------ >8 ------------------------${nl}; Do not modify or remove the line above.${nl}; Everything below it will be ignored.${nl}$diff_with_attribution_text"
 
   expect() {
     scan "$3" "$4"
@@ -133,9 +137,13 @@ self_test() {
   expect 'both lines of the baseline commit fail, one finding each' 2 0 "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
   expect 'prose that mentions both phrases passes' 0 0 "Reject attribution lines${nl}${nl}The check fails on a Co-Authored-By: trailer and on a line that says a${nl}tool was Generated with. A message that only mentions them passes."
   expect 'a line that starts with Generated without passes' 0 0 "Fix the gate${nl}${nl}Generated without a tool."
-  expect 'the diff below the scissors line passes in a message file' 0 1 "$diff_below_scissors"
-  expect 'the same text fails when it is a stored commit message' 2 0 "$diff_below_scissors"
-  expect 'a trailer above the scissors line fails in a message file' 1 1 "Fix the gate${nl}${nl}$trailer${nl}# ------------------------ >8 ------------------------${nl}+// Generated with bindgen"
+  expect 'the diff below the scissors block of git commit -v passes in a message file' 0 1 "$commit_verbose_file"
+  expect 'the same diff passes under another comment character' 0 1 "$semicolon_commit_verbose_file"
+  expect 'the same text fails when it is a stored commit message' 2 0 "$commit_verbose_file"
+  expect 'a trailer above the scissors block fails in a message file' 1 1 "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
+  expect 'a trailer below a scissors line that no diff follows fails in a message file' 1 1 "Fix the gate${nl}${nl}$scissors_line${nl}$trailer"
+  expect 'a trailer below a scissors block that no diff follows fails in a message file' 1 1 "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
+  expect 'a trailer below prose that holds the scissors text fails in a message file' 1 1 "Fix the gate${nl}${nl}The hook stopped at ------------------------ >8 ------------------------ before.${nl}$trailer"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d fixtures misclassified\n' "$failures"
