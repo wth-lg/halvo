@@ -38,6 +38,10 @@ synopsis() {
       or the title and description of a pull request.
   sh scripts/check-commit-messages.sh --self-test
       Prove the predicate on fixtures. Needs git, and no repository.
+  sh scripts/check-commit-messages.sh --self-test-pre-push
+      Prove the pre-push mode with real pushes between throwaway repositories,
+      under a new temporary directory that is left in place. Needs a clone of
+      this repository and a configured git user.
 EOF
 }
 
@@ -506,6 +510,113 @@ self_test() {
   printf 'check-commit-messages: self-test PASS: %d fixtures\n' "$fixtures"
 }
 
+self_test_pre_push() {
+  script=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+  root=$(cd "$(dirname "$0")/.." && pwd)
+  git -C "$root" rev-parse --git-dir >/dev/null 2>&1 || die 'this self-test clones the repository, and the script is not inside one'
+  [ -n "$(git config --get user.name || true)" ] || die 'this self-test commits in a throwaway clone and needs a configured git user'
+  work=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-pre-push-self-test.XXXXXX") || die 'mktemp could not make a directory'
+  printf 'check-commit-messages: pre-push self-test in %s, which is left in place\n' "$work"
+  mkdir -p "$work/tree/.githooks" "$work/tree/scripts" "$work/out"
+  cp "$root/.githooks/pre-push" "$work/tree/.githooks/pre-push"
+  cp "$script" "$work/tree/scripts/check-commit-messages.sh"
+  chmod +x "$work/tree/.githooks/pre-push"
+  git clone -q "$root" "$work/clone"
+  git -C "$work/clone" config core.hooksPath "$work/tree/.githooks"
+  git init -q --bare "$work/remote.git"
+  git init -q --bare "$work/empty-remote.git"
+  git -C "$work/clone" remote add proof "$work/remote.git"
+  git -C "$work/clone" remote add proof-empty "$work/empty-remote.git"
+  base=$(git -C "$work/clone" rev-parse HEAD)
+  tree=$(git -C "$work/clone" rev-parse 'HEAD^{tree}')
+  failures=0
+  pushes=0
+  nl='
+'
+  trailer='Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>'
+
+  commit_on_base() {
+    git -C "$work/clone" commit-tree "$tree" -p "$base" -m "$1"
+  }
+  in_other_clone() {
+    git -C "$work/other-clone" -c commit.gpgsign=false "$@"
+  }
+  judge() {
+    name=$1 status=$2 want_status=$3 want_text=$4
+    pushes=$((pushes + 1))
+    if [ "$status" = "$want_status" ] && grep -qF -- "$want_text" "$work/out/$name.txt"; then
+      printf 'PASS %s (exit %s)\n' "$name" "$status"
+    else
+      printf 'FAIL %s (exit %s, expected exit %s and the text "%s"; output in %s)\n' "$name" "$status" "$want_status" "$want_text" "$work/out/$name.txt"
+      failures=$((failures + 1))
+    fi
+  }
+  expect_push() {
+    name=$1 want_status=$2 want_text=$3 remote=$4
+    shift 4
+    status=0
+    git -C "$work/clone" push "$remote" "$@" >"$work/out/$name.txt" 2>&1 || status=$?
+    judge "$name" "$status" "$want_status" "$want_text"
+  }
+
+  clean=$(commit_on_base 'Add a clean change')
+  with_trailer=$(commit_on_base "Fix the gate$nl$nl$trailer")
+  with_trailer_and_a_subject_of_its_own=$(commit_on_base "Fix the gate two$nl$nl$trailer")
+  hidden_by_a_replace_ref=$(commit_on_base "Tune the gate$nl$nl$trailer")
+  shown_by_the_replace_ref=$(commit_on_base 'Tune the gate')
+
+  expect_push the-history-above-the-exempt-commit 0 'with an attribution line 0' proof "$base:refs/heads/base"
+  expect_push a-clean-commit 0 'commits checked ' proof "$clean:refs/heads/clean"
+  expect_push a-commit-with-a-trailer 1 'with an attribution line 1' proof "$with_trailer:refs/heads/trailer"
+  expect_push the-same-commit-to-a-path 1 'with an attribution line 1' "$work/remote.git" "$with_trailer:refs/heads/trailer-by-path"
+  expect_push a-clean-ref-and-a-ref-with-a-trailer-in-one-push 1 'with an attribution line 1' proof "$clean:refs/heads/clean-again" "$with_trailer:refs/heads/trailer-again"
+  expect_push a-deleted-ref 0 'deleted' proof :refs/heads/clean
+  expect_push the-exempt-commits-alone 0 'commits checked 0,' proof-empty "$NEWEST_EXEMPT_COMMIT:refs/heads/exempt"
+
+  git -C "$work/clone" checkout -q --detach "$base"
+  git -C "$work/clone" cherry-pick --keep-redundant-commits "$NEWEST_EXEMPT_COMMIT" >"$work/out/cherry-pick.txt" 2>&1 ||
+    die "the self-test could not cherry-pick the exempt commit; see $work/out/cherry-pick.txt"
+  expect_push a-cherry-pick-of-the-newest-exempt-commit 1 'Generated with [Claude Code]' proof HEAD:refs/heads/cherry-picked
+
+  git -C "$work/clone" tag -a -m 'A tag on a commit with a trailer' tag-on-a-trailer "$with_trailer"
+  expect_push an-annotated-tag-on-a-commit-with-a-trailer 1 'with an attribution line 1' proof refs/tags/tag-on-a-trailer
+
+  git -C "$work/clone" branch -f spaced "$with_trailer_and_a_subject_of_its_own"
+  expect_push a-source-expression-that-holds-a-space 1 'with an attribution line 1' proof 'spaced^{/gate two}:refs/heads/spaced'
+
+  git -C "$work/clone" replace "$hidden_by_a_replace_ref" "$shown_by_the_replace_ref"
+  expect_push a-commit-under-a-replace-ref 1 'with an attribution line 1' proof "$hidden_by_a_replace_ref:refs/heads/replaced"
+
+  git clone -q "$work/remote.git" "$work/other-clone" 2>/dev/null
+  in_other_clone checkout -q -b shared origin/base
+  in_other_clone commit -q --allow-empty --no-verify -m "Add the shared change$nl$nl$trailer"
+  in_other_clone push -q origin shared:refs/heads/shared
+  git -C "$work/clone" fetch -q proof
+  in_other_clone commit -q --amend --allow-empty --no-verify -m 'Add the shared change'
+  in_other_clone push -q -f origin shared:refs/heads/shared
+  expect_push a-commit-that-the-remote-had-and-no-longer-has 1 'with an attribution line 1' proof refs/remotes/proof/shared:refs/heads/mine
+
+  in_other_clone checkout -q -b held origin/base
+  in_other_clone commit -q --allow-empty --no-verify -m "Add a change that the remote keeps$nl$nl$trailer"
+  in_other_clone push -q origin held:refs/heads/held
+  git -C "$work/clone" fetch -q proof
+  above_the_held_commit=$(git -C "$work/clone" commit-tree "$tree" -p refs/remotes/proof/held -m 'Add a clean change above it')
+  expect_push a-clean-commit-above-a-trailer-that-the-remote-already-holds 0 'commits checked 1,' proof "$above_the_held_commit:refs/heads/held"
+
+  git -C "$work/clone" remote set-head proof base
+  expect_push a-clean-commit-above-the-default-branch-of-the-remote 0 'commits checked 1,' proof "$clean:refs/heads/clean-above-the-default-branch"
+
+  status=0
+  (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?
+  judge a-line-that-git-does-not-write "$status" 2 'cannot read this line'
+
+  if [ "$failures" -gt 0 ]; then
+    printf 'check-commit-messages: pre-push self-test FAIL: %d of %d pushes behaved otherwise. Outputs are in %s.\n' "$failures" "$pushes" "$work/out"
+    return 1
+  fi
+  printf 'check-commit-messages: pre-push self-test PASS: %d pushes. Outputs are in %s.\n' "$pushes" "$work/out"
+}
+
 mode=
 exempt=1
 range=
@@ -514,12 +625,13 @@ remote=
 default_ref=
 any_range_failed=0
 set_exclusive_mode() {
-  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --pre-push, --message-file, --stored-message and --self-test exclude each other'
+  [ -z "$mode" ] || [ "$mode" = "$1" ] || usage 'a range, --pre-push, --message-file, --stored-message, --self-test and --self-test-pre-push exclude each other'
   mode=$1
 }
 while [ $# -gt 0 ]; do
   case "$1" in
     --self-test) set_exclusive_mode self-test ;;
+    --self-test-pre-push) set_exclusive_mode self-test-pre-push ;;
     --stored-message) set_exclusive_mode stored-message ;;
     --message-file)
       [ $# -ge 2 ] || usage '--message-file needs a file'
@@ -558,6 +670,7 @@ done
 
 case ${mode:-range} in
   self-test) self_test ;;
+  self-test-pre-push) self_test_pre_push ;;
   message) check_hook_file "$file" ;;
   stored-message) check_stored_message ;;
   pre-push) check_push "$remote" ;;
