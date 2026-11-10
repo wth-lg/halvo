@@ -95,6 +95,12 @@ EOF
     die "gh could not read the check runs of $head"
   thread_states=$(gh api graphql --paginate -F owner='{owner}' -F repo='{repo}' -F number="$number" -f query="$THREADS_QUERY" --jq '.data.repository.pullRequest.reviewThreads.nodes[].isResolved') ||
     die "gh could not read the review threads of pull request #$number"
+  if [ -n "$thread_states" ]; then
+    unread_states=$(printf '%s\n' "$thread_states" | awk '$0 != "true" && $0 != "false" { printf "%sline %d: %s", separator, NR, $0; separator = ", " }') ||
+      die 'awk could not read the states of the review threads'
+    [ -z "$unread_states" ] ||
+      die "gh printed a review thread state that is neither true nor false for pull request #$number ($unread_states). This script counts a thread as resolved only for true and as unresolved only for false, so it stops here."
+  fi
   thread_total=$(count_lines "$thread_states" .)
   thread_unresolved=$(count_lines "$thread_states" '^false$')
 }
