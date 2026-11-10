@@ -90,9 +90,9 @@ report_script_without_eol_lf() {
   {
     printf 'check-line-endings: %s starts with an interpreter line and its eol attribute is %s, not lf.\n' "$path" "$eol_attribute"
     if name_needs_no_quoting "$path"; then
-      printf 'Fix: add this line at the end of .gitattributes:\n/%s text eol=lf\n' "$path"
+      printf 'Fix: add this line at the end of .gitattributes at the root of the clone:\n/%s text eol=lf\n' "$path"
     else
-      printf 'Fix: add a line at the end of .gitattributes that gives this file: text eol=lf. Its name has a character that a pattern must quote; gitattributes(5) says how.\n'
+      printf 'Fix: add a line at the end of .gitattributes at the root of the clone that gives this file: text eol=lf. Its name has a character that a pattern must quote; gitattributes(5) says how.\n'
     fi
   } >&2
 }
@@ -103,7 +103,7 @@ report_eol_lf_file_stored_with_crlf() {
   {
     printf 'check-line-endings: %s has eol=lf and is stored in the index with CRLF, so every checkout gets the carriage returns.\n' "$path"
     if name_needs_no_quoting "$path"; then
-      printf 'Fix: run this command and commit the result:\ngit add --renormalize -- %s\n' "$path"
+      printf 'Fix: run this command at the root of the clone and commit the result:\ngit add --renormalize -- %s\n' "$path"
     else
       printf 'Fix: run git add --renormalize on this file and commit the result.\n'
     fi
