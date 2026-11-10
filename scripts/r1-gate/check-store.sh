@@ -1,6 +1,4 @@
 #!/bin/sh
-# Sub-check: the store holds no plaintext marker, the owner reads back the
-# segment it wrote through a no-prompt unwrap, and SQLCipher runs on libtomcrypt.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
@@ -8,26 +6,25 @@ name=store
 
 good="store rows=2000 secure_delete=1 temp_store=2 fts_secure_delete=1 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none"
 
-self_test() {
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-store.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
+with() { printf '%s\n' "$good" | sed "$1"; }
+
+cases() {
+  scratch_root
   marker=HALVOMARKERselftest
-  mkdir -p "$tmp/clean" "$tmp/leaky"
-  printf 'bytes-that-are-ciphertext\n' > "$tmp/clean/seg0001"
-  printf 'here is the %s in plaintext\n' "$marker" > "$tmp/leaky/seg0001"
-  if predicate_marker_absent "$tmp/clean" "$marker" \
-     && ! predicate_marker_absent "$tmp/leaky" "$marker" \
-     && predicate_ciphertext "$tmp/clean/seg0001" "$marker" \
-     && ! predicate_ciphertext "$tmp/leaky/seg0001" "$marker" \
-     && predicate_store_report "$good" \
-     && ! predicate_store_report "$(printf '%s' "$good" | sed 's/segment_roundtrip=ok/segment_roundtrip=fail/')" \
-     && ! predicate_store_report "$(printf '%s' "$good" | sed 's/cipher_provider=libtomcrypt/cipher_provider=openssl/')" \
-     && ! predicate_store_report "$(printf '%s' "$good" | sed 's/secure_delete=1/secure_delete=0/')" \
-     && ! predicate_store_report "$(printf '%s' "$good" | sed 's/prompt=none/prompt=shown/')" \
-     && ! predicate_store_report "$(printf '%s' "$good" | sed 's/ prompt=none//')" \
-     && ! predicate_store_report "store unwrap=ok prompt=none"; then
-    emit_pass "self-test:$name"; return 0
-  fi
-  emit_fail "self-test:$name" "predicate misclassified a fixture"; return 1
+  mkdir -p "$gate_scratch/clean" "$gate_scratch/leaky"
+  printf 'bytes-that-are-ciphertext\n' > "$gate_scratch/clean/seg0001"
+  printf 'here is the %s in plaintext\n' "$marker" > "$gate_scratch/leaky/seg0001"
+  t clean-dir PASS predicate_marker_absent "$gate_scratch/clean" "$marker"
+  t leaky-dir FAIL predicate_marker_absent "$gate_scratch/leaky" "$marker"
+  t clean-file PASS predicate_ciphertext "$gate_scratch/clean/seg0001" "$marker"
+  t leaky-file FAIL predicate_ciphertext "$gate_scratch/leaky/seg0001" "$marker"
+  t good-line PASS predicate_store_report "$good"
+  line=$(with 's/segment_roundtrip=ok/segment_roundtrip=fail/'); t roundtrip-fail FAIL predicate_store_report "$line"
+  line=$(with 's/cipher_provider=libtomcrypt/cipher_provider=openssl/'); t provider-openssl FAIL predicate_store_report "$line"
+  line=$(with 's/secure_delete=1/secure_delete=0/'); t secure-delete-0 FAIL predicate_store_report "$line"
+  line=$(with 's/prompt=none/prompt=shown/'); t prompt-shown FAIL predicate_store_report "$line"
+  line=$(with 's/ prompt=none//'); t field-missing FAIL predicate_store_report "$line"
+  t two-fields-only FAIL predicate_store_report "store unwrap=ok prompt=none"
 }
 
 measure() {
@@ -43,11 +40,8 @@ measure() {
     if [ -z "$defects" ]; then emit_pass "$name"; return 0; fi
     emit_fail "$name" "verify-store measured: $defects"; return 1
   fi
-  emit_fail "$name" "verify-store unavailable: $(head -1 "$err" 2>/dev/null)"; return 1
+  first=$(head -1 "$err" 2>/dev/null)
+  emit_fail "$name" "verify-store unavailable: $first"; return 1
 }
 
-case "${1:-}" in
-  --self-test) self_test ;;
-  --measure) shift; measure ;;
-  *) measure ;;
-esac
+check_main "$@"

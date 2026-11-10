@@ -1,15 +1,13 @@
 #!/bin/sh
-# Sub-check: the windows-2025 CI job for the head SHA concluded success.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=windows-ci
 
-self_test() {
-  if predicate_ci_success success && ! predicate_ci_success failure && ! predicate_ci_success ""; then
-    emit_pass "self-test:$name"; return 0
-  fi
-  emit_fail "self-test:$name" "predicate misclassified a fixture"; return 1
+cases() {
+  t success PASS predicate_ci_success success
+  t failure FAIL predicate_ci_success failure
+  t empty FAIL predicate_ci_success ""
 }
 
 measure() {
@@ -22,8 +20,4 @@ measure() {
   emit_fail "$name" "no successful ci run for ${sha:-HEAD} (conclusion='${concl:-none}')"; return 1
 }
 
-case "${1:-}" in
-  --self-test) self_test ;;
-  --measure) shift; measure ;;
-  *) measure ;;
-esac
+check_main "$@"

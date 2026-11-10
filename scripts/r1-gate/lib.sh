@@ -27,13 +27,71 @@ GATE_DURATION=${GATE_DURATION:-600}
 GATE_CPU_MAX_PCT=${GATE_CPU_MAX_PCT:-20}
 GATE_DISK_BYTES_PER_DAY=${GATE_DISK_BYTES_PER_DAY:-2000000000}
 
-# Modalities a timed run must record for the capture sub-check to pass.
-GATE_REQUIRED_MODALITIES="screen_frame keystroke pointer foreground_app"
-
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 
-emit_pass() { printf 'PASS %s\n' "$1"; }
-emit_fail() { if [ $# -gt 1 ]; then printf 'FAIL %s (%s)\n' "$1" "$2"; else printf 'FAIL %s\n' "$1"; fi; }
+emit_line() { if [ $# -gt 2 ]; then printf '%s %s (%s)\n' "$1" "$2" "$3"; else printf '%s %s\n' "$1" "$2"; fi; }
+emit_pass() { emit_line PASS "$@"; }
+emit_fail() { emit_line FAIL "$@"; }
+
+name=${name:-gate}
+gate_scratch=''
+gate_remove_scratch=no
+gate_verbose=''
+gate_case=''
+
+scratch_root() {
+  [ -z "$gate_scratch" ] || return 0
+  scratch_base=${TMPDIR:-/tmp}
+  gate_scratch=$(mktemp -d "${scratch_base%/}/r1-gate-$name.XXXXXX") && return 0
+  emit_fail "$name" "mktemp could not make a scratch directory"
+  exit 1
+}
+
+gate_exit() {
+  [ -n "$gate_scratch" ] || return 0
+  if [ "$gate_remove_scratch" = yes ]; then
+    rm -rf "$gate_scratch"
+  else
+    printf 'scratch %s: %s\n' "$name" "$gate_scratch" >&2
+  fi
+}
+
+t() {
+  st_case=$1; st_want=$2; shift 2
+  if [ -n "$gate_case" ] && [ "$gate_case" != "$st_case" ]; then return 0; fi
+  ( "$@" ) > /dev/null 2>&1
+  case $? in 0) st_got=PASS ;; 3) st_got=NO-INPUT ;; *) st_got=FAIL ;; esac
+  st_cases=$((st_cases + 1))
+  [ "$st_got" = "$st_want" ] || st_wrong=$((st_wrong + 1))
+  [ "$st_want" = PASS ] || st_rejected=$((st_rejected + 1))
+  [ -z "$gate_verbose" ] || printf 'case %s/%s want=%s got=%s\n' "$name" "$st_case" "$st_want" "$st_got"
+}
+
+selftest_run() {
+  st_cases=0; st_wrong=0; st_rejected=0
+  cases
+  if [ "$st_cases" -eq 0 ]; then emit_fail "self-test:$name" "zero cases ran"; return 1; fi
+  if [ "$st_wrong" -ne 0 ]; then emit_fail "self-test:$name" "$st_wrong of $st_cases cases got another verdict than they want"; return 1; fi
+  emit_pass "self-test:$name" "$st_cases cases, $st_rejected failing fixtures rejected"
+}
+
+check_main() {
+  mode=measure; seconds=$GATE_DURATION
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --self-test) mode=self-test ;;
+      --measure) mode=measure ;;
+      -v) gate_verbose=yes ;;
+      --case) shift; gate_case=${1:-} ;;
+      --remove-scratch) gate_remove_scratch=yes ;;
+      ''|*[!0-9]*) printf 'check-%s.sh: unknown argument: %s\n' "$name" "$1" >&2; exit 64 ;;
+      *) seconds=$1 ;;
+    esac
+    shift
+  done
+  trap gate_exit EXIT
+  if [ "$mode" = self-test ]; then selftest_run; else measure "$seconds"; fi
+}
 
 # Run the capture bin from the repo root. Returns its exit code; the crate not
 # existing yet (the P0 baseline) makes cargo fail here, which the caller treats
@@ -48,12 +106,15 @@ dir_bytes() {
   du -sk "$1" 2>/dev/null | awk '{print $1*1024; found=1} END{if(!found) print 0}'
 }
 
-# PASS(0) if every required modality has a positive count in the report.
+modality_count() {
+  sed -n "s/^modality=$2 count=\\([0-9][0-9]*\\)\$/\\1/p" "$1" 2>/dev/null
+}
+
 predicate_modalities_present() {
-  report=$1
-  for m in $GATE_REQUIRED_MODALITIES; do
-    count=$(sed -n "s/^modality=$m count=\\([0-9][0-9]*\\)\$/\\1/p" "$report" 2>/dev/null | head -1)
-    { [ -n "$count" ] && [ "$count" -gt 0 ]; } || return 1
+  for kind in screen_frame keystroke pointer foreground_app; do
+    count=$(modality_count "$1" "$kind")
+    case $count in ''|*[!0-9]*) return 1 ;; esac
+    [ "$count" -gt 0 ] || return 1
   done
   return 0
 }
@@ -112,10 +173,8 @@ predicate_deletion_report() {
   [ -z "$(report_defects "$1" $GATE_DELETION_SPEC)" ]
 }
 
-# PASS(0) if zero keystrokes were recorded while secure input was active.
 predicate_zero_secure_keystrokes() {
-  report=$1
-  count=$(sed -n 's/^secure_input_keystrokes=\([0-9][0-9]*\)$/\1/p' "$report" 2>/dev/null | head -1)
+  count=$(sed -n 's/^secure_input_keystrokes=\([0-9][0-9]*\)$/\1/p' "$1" 2>/dev/null)
   [ "$count" = 0 ]
 }
 

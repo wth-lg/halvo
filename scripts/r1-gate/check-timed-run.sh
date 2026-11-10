@@ -1,32 +1,38 @@
 #!/bin/sh
-# Sub-check: a timed capture run records events for every required modality.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=timed-run
 
-self_test() {
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-timed-run.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
-  printf 'modality=screen_frame count=10\nmodality=keystroke count=5\nmodality=pointer count=7\nmodality=foreground_app count=3\n' > "$tmp/good"
-  printf 'modality=screen_frame count=10\nmodality=keystroke count=0\nmodality=pointer count=7\nmodality=foreground_app count=3\n' > "$tmp/bad"
-  if predicate_modalities_present "$tmp/good" && ! predicate_modalities_present "$tmp/bad"; then
-    emit_pass "self-test:$name"; return 0
-  fi
-  emit_fail "self-test:$name" "predicate misclassified a fixture"; return 1
+report_fixture() {
+  printf 'modality=screen_frame count=%s\nmodality=keystroke count=%s\nmodality=pointer count=%s\nmodality=foreground_app count=%s\n' "$2" "$3" "$4" "$5" > "$1"
+}
+
+cases() {
+  scratch_root
+  report_fixture "$gate_scratch/good" 10 5 7 3
+  t every-kind-recorded PASS predicate_modalities_present "$gate_scratch/good"
+  report_fixture "$gate_scratch/screen_frame-zero" 0 5 7 3
+  report_fixture "$gate_scratch/keystroke-zero" 10 0 7 3
+  report_fixture "$gate_scratch/pointer-zero" 10 5 0 3
+  report_fixture "$gate_scratch/foreground_app-zero" 10 5 7 0
+  for kind in screen_frame keystroke pointer foreground_app; do
+    t "$kind-zero" FAIL predicate_modalities_present "$gate_scratch/$kind-zero"
+    grep -v "^modality=$kind " "$gate_scratch/good" > "$gate_scratch/$kind-absent"
+    t "$kind-absent" FAIL predicate_modalities_present "$gate_scratch/$kind-absent"
+  done
+  t report-missing FAIL predicate_modalities_present "$gate_scratch/no-such-report"
 }
 
 measure() {
-  seconds=${1:-$GATE_DURATION}
+  seconds=$1
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-timed-run.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   if run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then
     if predicate_modalities_present "$tmp/report"; then emit_pass "$name"; return 0; fi
     emit_fail "$name" "a required modality recorded no events"; return 1
   fi
-  emit_fail "$name" "timed-run unavailable: $(head -1 "$tmp/err" 2>/dev/null)"; return 1
+  first=$(head -1 "$tmp/err" 2>/dev/null)
+  emit_fail "$name" "timed-run unavailable: $first"; return 1
 }
 
-case "${1:-}" in
-  --self-test) self_test ;;
-  --measure) shift; measure "${1:-}" ;;
-  *) measure "${1:-}" ;;
-esac
+check_main "$@"
