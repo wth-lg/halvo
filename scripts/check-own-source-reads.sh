@@ -444,6 +444,7 @@ self_test() {
   expect 'standard input that a loop hands on is not seen' '' "while :; do head -n 3; break; done <$own_path"
   expect 'a command that continues on another line is not seen' '' "sed -n $lines_2_to_20 \\${NEWLINE}  $own_path"
   expect 'a line of a here-document that holds such a read as its command is refused too' 2 "cat <<'EOF'${NEWLINE}  sed -n $lines_2_to_20 $own_path${NEWLINE}EOF"
+  expect 'a read behind a comment sign is accepted' '' "echo usage # ; sed -n $lines_2_to_20 $own_path"
   expect 'a line of a here-document that names such a read after other words is accepted' '' "cat <<'EOF'${NEWLINE}Run sed -n $lines_2_to_20 $own_path to see the usage.${NEWLINE}EOF"
 
   leave_the_repository_that_git_variables_name
