@@ -86,7 +86,7 @@ Three layers apply this predicate.
      a description again only when a commit is pushed.
 No layer reads the author or the committer of a commit, or words that are
 spelled in another way. Before the layers, the tracked file .claude/settings.json
-tells the agent harness to add no attribution line, and the CI step checks it.
+tells Claude Code to add no attribution line, and the CI step checks it.
 
 EOF
   synopsis

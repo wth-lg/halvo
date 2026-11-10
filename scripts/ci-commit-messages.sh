@@ -34,7 +34,7 @@ commits of the event that started the workflow. No flag of git skips it.
       Each step below can fail the job.
         1. The agent settings. The tracked file .claude/settings.json must hold
            "attribution": {"commit": "", "pr": "", "sessionUrl": false}, which
-           stops the agent harness from adding its attribution lines, and no
+           stops Claude Code from adding its attribution lines, and no
            includeCoAuthoredBy other than false. Needs jq.
         2. The self-test of the predicate.
         3. Two controls. The range check must fail on the exempt commits when
@@ -91,7 +91,7 @@ pull_request_into_the_default_branch() {
 }
 
 check_agent_settings() {
-  settings_rule="$1 must hold \"attribution\": {\"commit\": \"\", \"pr\": \"\", \"sessionUrl\": false}. The empty values of commit and pr stop the agent harness from adding its co-author trailer and its pull request line, and sessionUrl false stops its session trailer."
+  settings_rule="$1 must hold \"attribution\": {\"commit\": \"\", \"pr\": \"\", \"sessionUrl\": false}. The empty values of commit and pr stop Claude Code from adding its co-author trailer and its pull request line, and sessionUrl false stops its session trailer."
   [ -f "$1" ] || fail "$1 is missing. $settings_rule Restore the tracked file."
   [ "$(od -An -tx1 -N 3 "$1" | tr -d ' \n')" != efbbbf ] ||
     fail "$1 starts with a byte order mark, and a JSON parser may reject the whole file for it. Save the file as UTF-8 without one. $settings_rule"
@@ -100,8 +100,8 @@ check_agent_settings() {
     fail "$1 is not valid JSON: $settings_problem. $settings_rule"
   fi
   [ -z "$settings_problem" ] ||
-    fail "in $1, $settings_problem. $settings_rule Do not write \"attribution\": false: older versions of the harness reject it and skip the whole file."
-  say "$1 turns the attribution lines of the agent harness off"
+    fail "in $1, $settings_problem. $settings_rule Do not write \"attribution\": false: older versions of Claude Code reject it and skip the whole file."
+  say "$1 turns the attribution lines of Claude Code off"
 }
 
 run_event() {
