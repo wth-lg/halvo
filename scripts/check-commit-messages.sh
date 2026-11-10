@@ -40,7 +40,11 @@ synopsis() {
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
   sh scripts/check-commit-messages.sh --self-test
-      Prove the predicate on fixtures. Needs git, and no repository.
+      Prove the predicate on fixtures. Needs git, and no repository. One
+      fixture gives git a comment string that is not valid UTF-8. It does so in
+      a config file, a new file under the temporary directory that is left in
+      place: Git for Windows converts such a byte in a variable or an argument
+      on its way to git, and reads a file as it is.
   sh scripts/check-commit-messages.sh --self-test-two-paths
       Send every fixture message of --self-test down both paths in a throwaway
       repository: through git commit -F with the commit-msg hook on, and, as the
@@ -108,7 +112,8 @@ EOF
   cat <<'EOF'
 
 Exit codes: 0 no attribution line, 1 at least one, 2 the check could not run,
-64 bad usage. The script only reads, so it is safe to run twice.
+64 bad usage. A check only reads, and a self-test writes only under the
+temporary directory, so the script is safe to run twice.
 EOF
 }
 
@@ -513,17 +518,23 @@ self_test() {
     fi
   }
 
+  bytes_in_hex() {
+    printf '%s' "$1" | od -An -tx1 | tr -d ' \n'
+  }
+
   expect_comment_string_read_from_git() {
     name=$1 want=$2
+    config_file=$(mktemp "${TMPDIR:-/tmp}/check-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a file'
+    printf '[core]\n\tcommentString = "%s"\n' "$want" >"$config_file" || die "cannot write $config_file"
     got=$(
-      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.commentString GIT_CONFIG_VALUE_0="$want" LC_ALL=en_US.UTF-8
+      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=include.path GIT_CONFIG_VALUE_0="$config_file" LC_ALL=en_US.UTF-8
       git_comment_string 2>/dev/null
     ) || got=
     fixtures=$((fixtures + 1))
     if [ "$got" = "$want" ]; then
-      printf 'PASS %s\n' "$name"
+      printf 'PASS %s (from the git config file %s, which is left in place)\n' "$name" "$config_file"
     else
-      printf 'FAIL %s (git holds a comment string of %s bytes, the script read one of %s bytes)\n' "$name" "${#want}" "${#got}"
+      printf 'FAIL %s (the git config file %s holds a comment string with the bytes [%s], and the script read the bytes [%s])\n' "$name" "$config_file" "$(bytes_in_hex "$want")" "$(bytes_in_hex "$got")"
       failures=$((failures + 1))
     fi
   }
