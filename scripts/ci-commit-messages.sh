@@ -3,6 +3,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 CHECK=scripts/check-commit-messages.sh
+AGENT_SETTINGS=.claude/settings.json
 
 help_text() {
   cat <<'EOF'
@@ -143,10 +144,11 @@ self_test() {
   [ -n "$(git config --get user.name || true)" ] || die 'the self-test commits in throwaway repositories and needs a configured git user'
   work=$(mktemp -d "${TMPDIR:-/tmp}/ci-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a directory'
   say "self-test in $work, which is left in place"
-  mkdir "$work/out"
+  mkdir "$work/out" "$work/settings"
 
   failures=0
   shapes=0
+  settings_files=0
   nl='
 '
   trailer='Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>'
@@ -175,9 +177,13 @@ self_test() {
   }
 
   cp "$root/$CHECK" "$root/scripts/ci-commit-messages.sh" "$dev/scripts/"
+  if [ -f "$root/$AGENT_SETTINGS" ]; then
+    mkdir -p "$dev/.claude"
+    cp "$root/$AGENT_SETTINGS" "$dev/$AGENT_SETTINGS"
+  fi
   if [ -n "$(git -C "$dev" status --porcelain)" ]; then
-    git -C "$dev" add scripts
-    commit 'Take the scripts of the working tree'
+    git -C "$dev" add -A
+    commit 'Take the scripts and the agent settings of the working tree'
   fi
   main=$(tip)
 
@@ -226,6 +232,20 @@ self_test() {
       printf 'PASS %s (exit %s)\n' "$name" "$status"
     else
       printf 'FAIL %s (exit %s, expected exit %s and the text "%s"; output in %s)\n' "$name" "$status" "$want_status" "$want_text" "$work/out/$name.txt"
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect_settings() {
+    name=$1 want_status=$2 want_text=$3
+    [ $# -lt 4 ] || printf '%s\n' "$4" >"$work/settings/$name.json"
+    status=0
+    (check_agent_settings "$work/settings/$name.json") >"$work/out/settings-$name.txt" 2>&1 || status=$?
+    settings_files=$((settings_files + 1))
+    if [ "$status" = "$want_status" ] && grep -qF -- "$want_text" "$work/out/settings-$name.txt"; then
+      printf 'PASS settings file %s (exit %s)\n' "$name" "$status"
+    else
+      printf 'FAIL settings file %s (exit %s, expected exit %s and the text "%s"; output in %s)\n' "$name" "$status" "$want_status" "$want_text" "$work/out/settings-$name.txt"
       failures=$((failures + 1))
     fi
   }
@@ -286,11 +306,35 @@ self_test() {
   runner branch-that-blinded-the-range-check "$main" "$branch_that_blinded_the_range_check" "$branch_that_blinded_the_range_check:refs/heads/feature"
   push_to_branch branch-that-blinded-the-range-check 1 'the control did not fail' "$no_commit" "$branch_that_blinded_the_range_check"
 
+  start_at "$main"
+  git -C "$dev" rm -q --ignore-unmatch .claude/settings.json
+  commit 'Delete the agent settings'
+  branch_without_the_agent_settings=$(tip)
+  runner branch-without-the-agent-settings "$main" "$branch_without_the_agent_settings" "$branch_without_the_agent_settings:refs/heads/feature"
+  push_to_branch branch-without-the-agent-settings 1 '.claude/settings.json is missing' "$no_commit" "$branch_without_the_agent_settings"
+
+  as_decided='{"attribution": {"commit": "", "pr": "", "sessionUrl": false}}'
+  expect_settings as-decided 0 '' "$as_decided"
+  expect_settings with-other-keys 0 '' '{"permissions": {"allow": ["Bash(git status)"]}, "attribution": {"commit": "", "pr": "", "sessionUrl": false}, "includeCoAuthoredBy": false}'
+  expect_settings missing 1 'is missing'
+  expect_settings commit-not-empty 1 'attribution.commit is not the empty string' '{"attribution": {"commit": "Co-Authored-By: Claude <noreply@anthropic.com>", "pr": "", "sessionUrl": false}}'
+  expect_settings pr-not-empty 1 'attribution.pr is not the empty string' '{"attribution": {"commit": "", "pr": "Generated with Claude Code", "sessionUrl": false}}'
+  expect_settings pr-absent 1 'attribution.pr is not the empty string' '{"attribution": {"commit": "", "sessionUrl": false}}'
+  expect_settings session-url-absent 1 'attribution.sessionUrl is not false' '{"attribution": {"commit": "", "pr": ""}}'
+  expect_settings session-url-true 1 'attribution.sessionUrl is not false' '{"attribution": {"commit": "", "pr": "", "sessionUrl": true}}'
+  expect_settings boolean-form 1 'attribution is not an object' '{"attribution": false}'
+  expect_settings no-attribution-key 1 'attribution is not an object' '{"permissions": {}}'
+  expect_settings older-key-true 1 'includeCoAuthoredBy is not false' '{"attribution": {"commit": "", "pr": "", "sessionUrl": false}, "includeCoAuthoredBy": true}'
+  expect_settings not-json 1 'is not valid JSON' '{"attribution": {"commit": "", "pr": ""'
+  expect_settings empty 1 'holds 0 JSON values' ''
+  expect_settings two-values 1 'holds 2 JSON values' "$as_decided$nl$as_decided"
+  expect_settings not-an-object 1 'is not an object' '[]'
+
   if [ "$failures" -gt 0 ]; then
-    say "self-test FAIL: $failures of $shapes event shapes behaved otherwise. Outputs are in $work/out."
+    say "self-test FAIL: $failures of $shapes event shapes and $settings_files settings files behaved otherwise. Outputs are in $work/out."
     return 1
   fi
-  say "self-test PASS: $shapes event shapes. Outputs are in $work/out."
+  say "self-test PASS: $shapes event shapes and $settings_files settings files. Outputs are in $work/out."
 }
 
 case ${1-} in

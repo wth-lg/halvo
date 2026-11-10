@@ -322,6 +322,42 @@ self_test() {
     expect "$name" "$want_count" "$message"
   }
 
+  expect_at_lines() {
+    name=$1 want_lines=$2 message=$3
+    found=$(attribution_lines "$message") || awk_failed $?
+    lines=$(printf '%s\n' "$found" | sed -n 's/^  line \([0-9][0-9]*\): .*/\1/p' | paste -s -d ' ' -)
+    fixtures=$((fixtures + 1))
+    if [ "$lines" = "$want_lines" ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (expected attribution lines at [%s], found them at [%s])\n' "$name" "$want_lines" "$lines"
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect_in_hook_file_at_lines() {
+    name=$1 want_lines=$2 comment_string=$3 hook_file_text=$4
+    message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
+    expect_at_lines "$name" "$want_lines" "$message"
+  }
+
+  expect_hook_path() {
+    name=$1 want_status=$2 want_text=$3 hook_file=$4
+    status=0
+    output=$(check_hook_file "$hook_file" 2>&1) || status=$?
+    fixtures=$((fixtures + 1))
+    case $output in
+      *"$want_text"*) text=present ;;
+      *) text=absent ;;
+    esac
+    if [ "$status" = "$want_status" ] && [ "$text" = present ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (expected exit %s and the text "%s"; got exit %s, text %s)\n' "$name" "$want_status" "$want_text" "$status" "$text"
+      failures=$((failures + 1))
+    fi
+  }
+
   expect_comment_string_read_from_git() {
     name=$1 want=$2
     got=$(
@@ -393,6 +429,24 @@ self_test() {
   expect_in_hook_file 'the diff of git commit -v is dropped when the comment string is that byte' 0 "$byte_that_is_not_utf8" "$(commit_verbose_file_with_comment_string "$byte_that_is_not_utf8")"
   expect_in_hook_file 'under the auto setting, a trailer below a line that spells auto before the scissors text fails' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl}$trailer"
   expect_in_hook_file 'a comment line of git that lists an untracked file named Generated with passes' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}# Untracked files:${nl}#${tab}Generated with notes.txt${nl}#"
+
+  expect_at_lines 'a trailer on the first line of a message fails at line 1' '1' "$trailer"
+  expect_at_lines 'the two lines of the newest exempt commit fail at lines 3 and 5' '3 5' "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
+  expect_at_lines 'a trailer after two carriage returns fails at line 3' '3' "Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
+  expect_at_lines 'a trailer after two pairs of carriage return and newline fails at line 3' '3' "Fix the gate${carriage_return}${nl}${carriage_return}${nl}$trailer${carriage_return}"
+  expect_at_lines 'prose that starts with the footer words fails, as the rule says' '1' "Generated with bindgen 0.71: refresh the Windows bindings"
+  expect_in_hook_file_at_lines 'a trailer above the diff of git commit -v fails at its line in the hook file' '3' '#' "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
+  expect_in_hook_file_at_lines 'a trailer at the start of a line below a scissors block and a diff header fails at its line in the hook file' '7' '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}$trailer"
+  expect_in_hook_file_at_lines 'a tool footer at the start of a line below a scissors block and a diff header fails in the hook file' '8' '#' "Fix the gate${nl}${nl}$scissors_block${nl}${nl}diff --git a/x b/x${nl}$generated"
+  expect_in_hook_file_at_lines 'a tool trailer at the start of a line below a scissors block and a diff header fails in the hook file' '8' '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}diff --git a/x b/x${nl}$claude_session"
+  expect_in_hook_file_at_lines 'a trailer at the start of a line fails below a whole diff, and the context line of that diff does not' '12' '#' "Fix the gate${nl}${nl}$scissors_block${nl}$diff_with_attribution_text${nl}$trailer"
+
+  hook_files=$(mktemp -d "${TMPDIR:-/tmp}/check-commit-messages-self-test.XXXXXX") || die 'mktemp could not make a directory for the hook files of the self-test'
+  printf 'Fix the gate\n\n%s\n' "$trailer" >"$hook_files/with-a-trailer.txt"
+  printf 'Add the store\n\nStream segment files through bounded chunks.\n' >"$hook_files/clean.txt"
+  expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' "$hook_files/with-a-trailer.txt"
+  expect_hook_path 'the hook path exits 0 on a clean file' 0 '' "$hook_files/clean.txt"
+  expect_hook_path 'the hook path exits 2 when the file does not exist' 2 'no such message file' "$hook_files/absent.txt"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d of %d fixtures misclassified\n' "$failures" "$fixtures"
