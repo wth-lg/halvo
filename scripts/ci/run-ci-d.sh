@@ -19,6 +19,7 @@ root=${CI_D_SCRIPTS:-scripts}
 mode=run
 job=
 wanted=
+seen=' '
 
 case ${1:-} in
   -h | --help)
@@ -102,6 +103,13 @@ inspect() {
       return 1
       ;;
   esac
+  case $seen in
+    *" $script_name "*)
+      refusal="a second script has this name: $script_file"
+      return 1
+      ;;
+  esac
+  seen="$seen$script_name "
   refusal=
   return 0
 }
@@ -147,6 +155,7 @@ recap=$tmp/recap
 passed=0
 failed=0
 skipped=0
+selected=0
 status=0
 
 cargo_home=${CARGO_HOME:-$HOME/.cargo}
@@ -261,9 +270,9 @@ own_case() {
     [ -z "$case_scripts" ] || { CI_D_SCRIPTS=$case_scripts; export CI_D_SCRIPTS; }
     [ -z "$case_locale" ] || { LC_ALL=$case_locale; export LC_ALL; }
     CARGO_HOME=$tmp/cargo-home
-    TMPDIR=$tmp
+    TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    sh "$self" "$@" 2>&1
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=yes sh "$self" "$@" 2>&1
   )
   got_exit=$?
   if [ "$want_exit" -eq 0 ]; then want=PASS; else want=FAIL; fi
@@ -284,6 +293,7 @@ own_case() {
   case_scripts=
   case_cd=
   case_locale=
+  case_tmpdir=
 }
 
 # shellcheck disable=SC2016
@@ -300,6 +310,11 @@ own_self_test() {
   case_scripts=
   case_cd=
   case_locale=
+  case_tmpdir=
+  tab=$(printf '\t')
+  usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
+  name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
+  guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)'
 
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
@@ -307,7 +322,16 @@ own_self_test() {
   own_case list 0 'scripts/r1/ci.d/20-b.sh' --list macos
   own_case name-matches-no-script 1 'FAIL run-ci-d (no script 99-none for macos)' macos 99-none
   own_case one-name-matches-no-script 1 'FAIL run-ci-d (no script 99-none for macos)' macos 20-b 99-none
-  own_case unknown-job 64 'usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]' linux
+  own_case unknown-job 64 "$usage_line" linux
+  own_case rules-with-an-argument 64 "$usage_line" --rules macos
+  own_case list-with-two-arguments 64 "$usage_line" --list macos windows
+  own_case list-for-an-unknown-job 64 "$usage_line" --list linux
+  own_case name-with-a-space 64 "$usage_line" macos '10-a 20-b'
+  own_case driver-name-in-a-run 1 'FAIL run-ci-d (no script run-ci-d for macos)' macos 20-b run-ci-d
+  case_cd=..
+  own_case outside-a-work-tree 1 'FAIL run-ci-d (start it at the root of the git work tree)' macos
+  case_tmpdir=$tmp/missing
+  own_case mktemp-fails 1 'FAIL run-ci-d (mktemp failed)' macos
   case_cd=scripts
   own_case below-the-root 1 'FAIL run-ci-d (start it at the root of the git work tree)' macos
   case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
@@ -327,14 +351,37 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "# jobs: macos linux$nl# rule: A fixture rule." "$pass_a"
   own_case unknown-job-word 1 "FAIL 10-a (its '# jobs:' line names linux; a job is macos or windows)" macos
   new_repo && add_script r1 format.sh "$good" 'printf "PASS format\n"'
-  own_case file-name 1 'FAIL format (the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -)' macos
+  own_case file-name 1 "FAIL format ($name_refusal)" macos
+  new_repo && add_script r1 10-.sh "$good" 'printf "PASS 10-\n"'
+  own_case file-name-without-a-name 1 "FAIL 10- ($name_refusal)" macos
+  new_repo && add_script r1 10-A.sh "$good" 'printf "PASS 10-A\n"'
+  own_case file-name-with-a-capital 1 "FAIL 10-A ($name_refusal)" macos
+  new_repo && add_script r1 1-a.sh "$good" 'printf "PASS 1-a\n"'
+  own_case file-name-with-one-digit 1 "FAIL 1-a ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "# jobs: macos${tab}windows$nl# rule: A fixture rule." "$pass_a"
+  own_case jobs-line-with-a-tab 1 "FAIL 10-a (its '# jobs:' line names something other than macos and windows)" macos
+  new_repo && add_script r1 10-a.sh "$good$nl# rule: A second rule." "$pass_a"
+  own_case two-rule-lines 1 "FAIL 10-a (its first 10 lines hold no single '# rule:' line)" macos
+  new_repo && add_script r1 10-a.sh "# jobs: macos$nl$good" "$pass_a"
+  own_case two-jobs-lines 1 "FAIL 10-a (its first 10 lines hold no single '# jobs:' line)" macos
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r2 10-a.sh "$good" "$pass_a"
   own_case name-used-twice 1 'FAIL 10-a (a second script has this name: scripts/r2/ci.d/10-a.sh)' macos
+  own_case rules-name-used-twice 1 'FAIL 10-a (a second script has this name: scripts/r2/ci.d/10-a.sh)' --rules
 
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a\n"; exit 1'
   own_case pass-line-with-exit-1 1 'FAIL 10-a (exit 1)' macos
   new_repo && add_script r1 10-a.sh "$good" 'printf "done\n"'
   own_case exit-0-without-pass-line 1 'FAIL 10-a (exit 0)' macos
+  new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a (3 checks)\n"'
+  own_case pass-line-with-a-tail 1 'FAIL 10-a (exit 0)' macos
+  new_repo && add_script r1 10-a.sh "$good" 'printf "PASS 10-a\n"; exit 77'
+  own_case pass-line-with-exit-77 1 'FAIL 10-a (exit 77)' macos
+  new_repo && add_script r1 10-a.sh "$good" 'if read -r line; then printf "FAIL 10-a (it read a line)\n"; exit 1; fi; printf "PASS 10-a\n"'
+  own_case no-standard-input 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+  new_repo && add_script r1 10-a.sh "$good" '[ "$CI_D_JOB" = windows ] || { printf "FAIL 10-a (job)\n"; exit 1; }; printf "PASS 10-a\n"'
+  own_case job-handed-to-the-script 0 'ci.d windows: 1 passed, 0 failed, 0 skipped' windows
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && printf 'a file\n' >"$fixture/target"
+  own_case artifacts-directory-cannot-be-made 1 'FAIL 10-a (its artifacts directory cannot be made)' macos
   new_repo && add_script r1 10-a.sh "$good" "$fail_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case fail-does-not-stop-the-run 1 'ci.d macos: 1 passed, 1 failed, 0 skipped' macos
   own_case name-selects-one 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos 20-b
@@ -349,7 +396,10 @@ own_self_test() {
   own_case job-named 0 'ci.d windows: 1 passed, 0 failed, 0 skipped' windows
   own_case list-other-job-only 1 'FAIL run-ci-d (no scripts for macos)' --list macos
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
-  own_case lockfile-changed 1 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)' macos
+  own_case lockfile-changed 1 "$guard_line" macos
+  new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/package-lock.json"; printf "PASS 10-a\n"' &&
+    printf '{}\n' >"$fixture/package-lock.json" && git -C "$fixture" add package-lock.json >/dev/null 2>&1
+  own_case package-lock-changed 1 "$guard_line" macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -357,6 +407,12 @@ own_self_test() {
   own_case self-test-rejects-nothing 1 'FAIL self-test:10-a (0 failing fixtures rejected)' macos --self-test 10-a
   new_repo && add_script r1 10-a.sh "$good" 'printf "PASS self-test:10-a (no failing fixtures rejected)\n"'
   own_case self-test-count-is-no-number 1 'FAIL self-test:10-a (exit 0)' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" 'printf "FAIL self-test:10-a (planned)\n"; exit 1'
+  own_case self-test-fails 1 'FAIL self-test:10-a (planned)' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" 'exit 2'
+  own_case self-test-exits-2 1 'FAIL self-test:10-a (exit 2)' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" 'printf "PASS self-test:10-a (2 failing fixtures rejected)\n"; exit 1'
+  own_case self-test-pass-line-with-exit-1 1 'FAIL self-test:10-a (exit 1)' macos --self-test 10-a
 
   new_repo && add_script B 10-x.sh "$good" ': >"$CI_D_REPO/first-ran"; printf "PASS 10-x\n"' &&
     add_script a 20-y.sh "$good" '[ -e "$CI_D_REPO/first-ran" ] || { printf "FAIL 20-y (it ran first)\n"; exit 1; }; printf "PASS 20-y\n"'
@@ -365,6 +421,15 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" 'here=$(pwd); [ "$CI_D_REPO" = "$here" ] && [ "$CI_D_JOB" = macos ] && [ "$CI_D_ARTIFACTS" = "$here/target/ci-artifacts/10-a" ] && [ -d "$CI_D_ARTIFACTS" ] && [ "$LC_ALL" = C ] && [ "${PATH%%:*}" = "$CARGO_HOME/bin" ] || { printf "FAIL 10-a (environment)\n"; exit 1; }; printf "PASS 10-a\n"'
   case_locale=en_US.UTF-8
   own_case environment 0 'ci.d macos: 1 passed, 0 failed, 0 skipped' macos
+
+  if [ -z "${RUN_CI_D_NESTED:-}" ]; then
+    new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
+    own_case bare-self-test-runs-the-own-cases 0 "PASS self-test:run-ci-d ($rejected failing fixtures rejected)" macos --self-test
+    case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+    own_case self-test-without-scripts 1 'FAIL run-ci-d (no scripts for macos)' macos --self-test
+    case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+    own_case self-test-of-the-driver-alone 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test run-ci-d
+  fi
 
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
@@ -375,27 +440,20 @@ own_self_test() {
   fi
 }
 
+ran=' '
 if [ "$mode" = self-test ]; then
+  ran=' run-ci-d '
   case " $wanted " in
     '  ' | *' run-ci-d '*) own_self_test ;;
   esac
 fi
 
-seen=' '
-ran=' run-ci-d '
 for file in "$root"/*/ci.d/*.sh; do
   [ -f "$file" ] || continue
   if ! inspect "$file"; then
     record FAIL "FAIL $script_name ($refusal)"
     continue
   fi
-  case $seen in
-    *" $script_name "*)
-      record FAIL "FAIL $script_name (a second script has this name: $file)"
-      continue
-      ;;
-  esac
-  seen="$seen$script_name "
   names_job "$job" || continue
   if [ -n "$wanted" ]; then
     case " $wanted " in
@@ -404,6 +462,7 @@ for file in "$root"/*/ci.d/*.sh; do
     esac
   fi
   ran="$ran$script_name "
+  selected=$((selected + 1))
   run_script
 done
 
@@ -417,7 +476,7 @@ for name in $wanted; do
   esac
 done
 
-if [ "$((passed + failed + skipped))" -eq 0 ]; then
+if [ "$selected" -eq 0 ] && [ "$failed" -eq 0 ] && [ "$wanted" != ' run-ci-d' ]; then
   [ "$status" -ne 0 ] || printf 'FAIL run-ci-d (no scripts for %s)\n' "$job"
   exit 1
 fi
