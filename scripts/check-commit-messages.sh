@@ -357,6 +357,8 @@ fixture_messages() {
   tab=$(printf '\t')
   carriage_return=$(printf '\r')
   no_break_space=$(printf '\302\240')
+  variation_selector=$(printf '\357\270\217')
+  heavy_black_heart=$(printf '\342\235\244')
   ogham_space_mark=$(printf '\341\232\200')
   scissors_sign=$(printf '\342\234\202')
   byte_that_is_not_utf8=$(printf '\351')
@@ -405,6 +407,8 @@ fixture_messages() {
   expect 'a trailer with a space before the colon fails' 1 "Fix the gate${nl}${nl}Co-Authored-By : Claude <noreply@anthropic.com>"
   expect 'a trailer indented by a tab fails' 1 "Fix the gate${nl}${nl}${tab}$trailer"
   expect 'a trailer that follows a no-break space fails' 1 "Fix the gate${nl}${nl}${no_break_space}$trailer"
+  expect 'a trailer that follows a variation selector fails' 1 "Fix the gate${nl}${nl}${variation_selector}$trailer"
+  expect 'a Generated with line after an emoji and its variation selector fails' 1 "Fix the gate${nl}${nl}${heavy_black_heart}${variation_selector} Generated with a tool"
   expect 'a trailer fails in a message whose line breaks are carriage returns alone' 1 "Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
   expect 'a trailer fails once in a message whose line breaks are a carriage return and a newline' 1 "Fix the gate${carriage_return}${nl}${carriage_return}${nl}$trailer${carriage_return}"
   expect 'the Claude-Session trailer fails' 1 "Fix the gate${nl}${nl}$claude_session"
