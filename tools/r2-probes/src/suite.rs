@@ -54,7 +54,7 @@ impl Running {
             let _ = child.kill();
             let _ = child.wait();
         }
-        std::thread::sleep(Duration::from_millis(500));
+        std::thread::sleep(Duration::from_millis(1000));
     }
 }
 
@@ -136,6 +136,7 @@ struct Suite {
     scratch: PathBuf,
     tokens: u32,
     crashes: Cell<u32>,
+    restarts: Cell<u32>,
     pooled: BTreeMap<String, u32>,
 }
 
@@ -229,11 +230,17 @@ impl Suite {
                 Ok(mut record) => {
                     record.cell = cell.to_string();
                     record.run = run;
-                    let record = record.number(
-                        "crash_reruns_count",
-                        How::Sum,
-                        f64::from(self.crashes.get()),
-                    );
+                    let record = record
+                        .number(
+                            "crash_reruns_count",
+                            How::Sum,
+                            f64::from(self.crashes.get()),
+                        )
+                        .number(
+                            "start_reruns_count",
+                            How::Sum,
+                            f64::from(self.restarts.get()),
+                        );
                     self.save(&record);
                     done += 1;
                 }
@@ -285,6 +292,25 @@ impl Suite {
     }
 
     fn start(&mut self, browser: &Browser, page: &str, mode: Mode) -> Result<Running, String> {
+        self.restarts.set(0);
+        match self.start_once(browser, page, mode, 30) {
+            Ok(running) => Ok(running),
+            Err(_) => {
+                self.restarts.set(1);
+                println!("a browser start is tried again");
+                pause(3000);
+                self.start_once(browser, page, mode, 40)
+            }
+        }
+    }
+
+    fn start_once(
+        &mut self,
+        browser: &Browser,
+        page: &str,
+        mode: Mode,
+        seconds: u64,
+    ) -> Result<Running, String> {
         let token = self.token();
         let url = self.server.url(page, &token);
         let profile = self.scratch.join(format!("profile-{token}"));
@@ -317,9 +343,11 @@ impl Suite {
             profile,
             webkit,
         };
-        if !self.server.wait_for(&token, Duration::from_secs(40)) {
+        if !self.server.wait_for(&token, Duration::from_secs(seconds)) {
             running.stop(&pages::title(page));
-            return Err("the browser did not request the page in 40 s".to_string());
+            return Err(format!(
+                "the browser did not request the page in {seconds} s"
+            ));
         }
         if webkit {
             match sys::pid_named("Safari") {
@@ -332,6 +360,7 @@ impl Suite {
     }
 
     fn start_office(&mut self, target: &str) -> Result<(Running, String), String> {
+        self.restarts.set(0);
         let soffice = self
             .options
             .soffice
@@ -709,6 +738,7 @@ impl Suite {
     }
 
     fn input_run(&mut self, driver: &str) -> Result<Record, String> {
+        self.restarts.set(0);
         let node = self.options.node.clone().ok_or("no node path was given")?;
         let dir = self
             .options
@@ -897,6 +927,7 @@ pub fn run(options: Options) -> Result<(), String> {
         scratch,
         tokens: 0,
         crashes: Cell::new(0),
+        restarts: Cell::new(0),
         pooled: BTreeMap::new(),
     };
     suite.extract_cells();
@@ -1043,6 +1074,7 @@ fn child_accessibility(args: &[String]) -> Result<Record, String> {
     let record = Record::new("", 0)
         .number("focused_ms", How::Median, focused_ms)
         .number("focused_bytes", How::Max, focused.bytes as f64)
+        .text("focused", if focused.found { "found" } else { "none" })
         .number("subtree_ms", How::Median, best_ms)
         .number("first_bytes", How::Max, first_bytes as f64)
         .number("stored_bytes", How::Max, best.text.len() as f64)

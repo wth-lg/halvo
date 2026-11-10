@@ -10,65 +10,99 @@ It has a workspace and a `Cargo.lock` of its own.
 `sh tools/r2-probes/run-hosted.sh OUT` does the whole run on one runner. It fetches the ONNX
 Runtime archive, the PP-OCRv6 tiny models and LibreOffice by the list in `files.tsv`, and checks
 the size and the SHA-256 of each file. It builds both binaries from the lock, and runs
-`r2-probes suite`. The suite writes into the new directory `OUT`:
+`r2-probes suite`. The suite sets the display to 1920x1080 where it differs, and writes into the
+new directory `OUT`:
 
 - `records.jsonl`: one line per run of a cell, or one line that says why a cell is not measurable.
 - `meta.json`: the runner, the system version, the display size before and after the probe set
   it, the browser versions, and the branch, commit, run and attempt of the hosted run.
-- `frames/`: the frame of each run of an extraction cell at downscale 1.0, and one frame of the
-  first run of each other cell.
+- `frames/`: the frame of each run of an extraction cell on a text page at downscale 1.0.
 
-Arguments after `OUT` go to the suite: `--only CELL-PREFIX` runs a part of the cells, and
-`--runs N` changes the run count.
+Browser profiles, the LibreOffice profile and the frames of the two LibreOffice windows go to
+`OUT-scratch`, beside `OUT`. Arguments after `OUT` go to the suite: `--only CELL-PREFIX` runs a
+part of the cells, `--runs N` changes the run count, and `--debug-frames` also saves one frame of
+the first run of every other cell, with the pointer.
 
 `r2-probes trial KIND --artifact DIR... --records FILE... --lines FILE --out FILE` writes a trial
-file from the records. The verdict lines are computed from the figures as the file prints them.
+file from the records, and `r2-probes lines KIND --crate-dir tools/r2-probes` prints the lines
+that stand between the cells and the verdicts (crates, fetched files, commands).
 
 ## Cells
 
 Every run of a cell is one process. A crash is run again, and the cell counts the reruns in
-`crash_reruns_count`. A run that gives no answer in 60 s ends, and its cell is not measurable.
+`crash_reruns_count`. A browser that does not request its page in 30 s is started once more,
+and `start_reruns_count` counts those starts. A run that gives no answer in 60 s ends, and its cell is not measurable.
+The extraction cells run first, before any other window is on the display.
 
-- `address.RUNNER.BROWSER`: each run starts a new browser process on the page `text-1`, served
-  from 127.0.0.1, and makes one first read of the address field. On macOS the read first takes
-  the attributes `AXEnhancedUserInterface` and `AXManualAccessibility` of the application
-  element, then walks the focused window breadth first and reads `AXRole` and `AXValue` of each
-  node. On Windows it walks the control view of the window with UI Automation and reads the
-  value pattern. It does not enter the page. The read tries again every 250 ms for 5 s, because
-  a browser fills its tree after the first query. `readable_runs` counts the runs in which the
-  value held `127.0.0.1` and no activation attribute was set.
+- `extract.RUNNER.ENGINE.TARGET.xSCALE`: a frame of the display through ScreenCaptureKit or
+  Windows.Graphics.Capture, then two calls of the engine in the same process. `first_call_ms`
+  is the first call. `call_ms` is the second call: the larger of its elapsed time and the
+  processor time of the process over the same span. The pages show in Chrome in kiosk mode, so
+  the frame holds the page alone. Downscale 0.5 averages blocks of 2 by 2 pixels. The error
+  rate is the Levenshtein distance between the engine's pieces, joined by one space, and the
+  text of the page body, both with white space folded, over the length of the page text, in
+  Unicode scalar values. `stored_bytes` is the UTF-8 length of the joined pieces.
+- `engine.RUNNER.ENGINE.xSCALE`: the runs of the three text pages together. The verdict lines
+  read these cells at downscale 1.0. A cell whose name ends in `.this-mac` holds the second
+  timing of the same engine on the saved frames, on a machine that is no hosted VM.
+- `address.RUNNER.BROWSER`: each run starts a new browser process with a new profile on the
+  page `text-1`, served from 127.0.0.1, and makes one first read of the address field. On macOS
+  the read first takes the attributes `AXEnhancedUserInterface` and `AXManualAccessibility` of
+  the application element, then walks the focused window breadth first and reads `AXRole` and
+  `AXValue` of each node. On Windows it walks the control view of the window with UI Automation
+  and reads the value pattern. It does not enter the page. The read tries again every 250 ms
+  for 7 s, because a browser fills its tree after the first query. On macOS, after 2 s without
+  a value, it also asks for `AXRole` of the application element once; `role_query_runs` counts
+  the runs that needed this query. `readable_runs` counts the runs in which the value held
+  `127.0.0.1` and no activation attribute was set.
 - `accessibility.RUNNER.TARGET[.plain|.activated]`: the focused element and the subtree of the
   focused window in the form of contracts.md C11.7 (16 levels, 1,600 lines). The name of a node
   is `AXTitle`, or `AXDescription` where the title is empty, and its value is `AXValue`; on
   Windows they are the name and the value pattern of the control view. The macOS walk also reads
   `AXRole` of each node. A run reads the subtree twice, 1.5 s apart, and keeps the larger text;
-  `first_bytes` is the first read. `.activated` sets `AXEnhancedUserInterface` on macOS and
-  starts Chrome with `--force-renderer-accessibility` on Windows.
-- `extract.RUNNER.ENGINE.TARGET.xSCALE`: a frame of the display through ScreenCaptureKit or
-  Windows.Graphics.Capture, then two calls of the engine in the same process. `first_call_ms`
-  is the first call. `call_ms` is the second call: the larger of its elapsed time and the
-  processor time of the process over it. The pages show in Chrome in kiosk mode, so the frame
-  holds the page alone. Downscale 0.5 averages blocks of 2 by 2 pixels.
-- `engine.RUNNER.ENGINE.xSCALE`: the runs of the three text pages together. The verdict lines
-  read these cells at downscale 1.0.
+  `first_bytes` is the first read. `.activated` sets `AXEnhancedUserInterface` and
+  `AXManualAccessibility` on macOS, waits 3 s and records the two error codes of the calls; on
+  Windows it starts Chrome with `--force-renderer-accessibility`.
 - `private.RUNNER.BROWSER`: one normal and one private window. The signal `attribute` answers
   when an accessibility attribute of the private window or of an element of its frame (8
   levels, 600 nodes, outside the page) holds `incognito`, `inprivate` or `private` and the
   normal window has no such value. `class` answers when the window classes differ. `title`
   answers when the title of the private window holds a marker and the title of the normal
-  window holds none. The title is `AXTitle` on macOS and the window text on Windows.
+  window holds none. The title is `AXTitle` on macOS and the window text on Windows. Safari has
+  no switch for a private window: the probe presses the menu item File, New Private Window
+  through the accessibility interface and then opens the page with `open -a Safari`.
 - `input.windows-2025.DRIVER`: a message-only window registers Raw Input for keyboards and
   mice and counts key-down and button-down records while the driver sends 20 key presses and
   5 clicks to the page `input`. `page_keys_count` and `page_clicks_count` are what the page
   counted.
 - `listen-event-access.macos-15`: the return value of `CGPreflightListenEventAccess`.
 
+## Verdict lines
+
+`r2-probes trial` computes them from the figures as the cell lines print them.
+
+- An engine holds the line when `call_ms` of its cell `engine.RUNNER.ENGINE.x1.0` is at most
+  172.0. Where that figure is over the line and a cell `…x1.0.this-mac` exists, the second
+  figure decides and the value ends with `re-timed`; with no such cell it ends with
+  `not re-timed`. Apple Vision has two cells, one per recognition level. Its verdict takes the
+  accurate level when that level holds the line, else the fast level when that holds, else the
+  accurate level.
+- D3 is `os-pair` when both OS engines hold the line and their `cer_pct` at downscale 1.0
+  differ by at most 2.0, else `pp-ocrv6-tiny`. The Apple Vision figure is that of the level
+  its verdict took.
+- The site layer stays when `readable_runs` equals `runs` in every `address` cell.
+- The accessibility layer stays when no `accessibility` cell stores more than 78,000 bytes.
+- The extracted-text layer stays when every engine that D3 names holds the line on its runner
+  and no `extract` cell of those engines stores more than 78,000 bytes.
+- A layer with a cell that is not measurable, and no cell over its line, is `not measurable`.
+
 ## The second timing on this Mac
 
-`sh tools/r2-probes/retime.sh FRAMES FILES OUT` times the PP-OCRv6 probe on the saved frames of
-a hosted macos-15 run, one process per frame, each under `/usr/bin/time -l`. Run it alone
-through the helper for timed runs. `r2-probes stamp` then adds the start and end times of the
-helper's record line and the largest resident set size to each record.
+`sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES]` times an engine again on the saved
+frames of a hosted macos-15 run, one process per frame, each under `/usr/bin/time -l`. It
+reads image files and calls no capture or accessibility interface. Run it alone through the
+helper for timed runs. `r2-probes stamp` then adds the start and end times of the helper's
+record line and the largest resident set size to each record.
 
 ## Checks
 

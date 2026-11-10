@@ -12,7 +12,7 @@ const version = JSON.parse(
 ).version;
 const browser = await chromium.launch({
   headless: false,
-  args: ['--window-position=40,40', '--window-size=900,650'],
+  args: ['--window-position=1160,40', '--window-size=740,620'],
 });
 const page = await (await browser.newContext({ viewport: null })).newPage();
 await page.goto(url);
