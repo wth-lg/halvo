@@ -16,20 +16,46 @@ GATE_REPO=${GATE_REPO:-wth-lg/halvo}
 # Default measured-run length. The whole-plan gate uses 600s; callers override.
 GATE_DURATION=${GATE_DURATION:-600}
 
-# Cost bounds. Derived, not measured on Halvo yet.
-#   CPU: 20% of one core is the upper end of Screenpipe's self-reported 5-20%
-#        capture CPU (researcher-3 findings 2 and 37). ps reports %cpu where 100
-#        is one core, so the ceiling is 20.
-#   Disk: 2 GB/day is Screenpipe's own storage-planning example (researcher-3
-#        finding 4). Over an N-second run the ceiling is N * 2e9 / 86400 bytes
-#        (13.9 MB at 600s). These ceilings hold until Halvo's measured R1 run
-#        replaces them with its own figures.
-GATE_CPU_MAX_PCT=${GATE_CPU_MAX_PCT:-20}
-GATE_DISK_BYTES_PER_DAY=${GATE_DISK_BYTES_PER_DAY:-2000000000}
-
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 
-emit_line() { if [ $# -gt 2 ]; then printf '%s %s (%s)\n' "$1" "$2" "$3"; else printf '%s %s\n' "$1" "$2"; fi; }
+gate_bound() {
+  bounds_file=${2:-$GATE_ROOT/docs/baseline/r1-gate-bounds.txt}
+  bound_lines=$(grep -c -e "^$1=" -- "$bounds_file" 2>/dev/null)
+  [ "$bound_lines" = 1 ] || return 1
+  bound_digits=$(sed -n "s/^$1=\\([0-9][0-9]*\\)\$/\\1/p" "$bounds_file")
+  [ -n "$bound_digits" ] || return 1
+  printf '%s\n' "$bound_digits"
+}
+
+gate_bounds_used=''
+gate_overrides=$(env | sed -n 's/^GATE_OVERRIDE_\([a-z0-9_]*\)=.*/\1/p' | sort | tr '\n' ' ')
+
+use_bound() {
+  bound_override=''
+  eval "bound_override=\${GATE_OVERRIDE_$1-}"
+  if [ -n "$bound_override" ]; then
+    case $bound_override in *[!0-9]*) return 1 ;; esac
+    bound=$bound_override
+  else
+    bound=$(gate_bound "$1") || return 1
+  fi
+  gate_bounds_used="$gate_bounds_used$1=$bound "
+}
+
+need_bound() {
+  use_bound "$1" && return 0
+  emit_fail "$name" "bound $1 is not readable: docs/baseline/r1-gate-bounds.txt must hold exactly one $1=digits line"
+  return 1
+}
+
+emit_line() {
+  line="$1 $2"
+  detail=${3:-}
+  if [ -n "$gate_bounds_used" ]; then detail="${detail:+$detail; }bounds: ${gate_bounds_used% }"; fi
+  [ -z "$detail" ] || line="$line ($detail)"
+  [ -z "$gate_overrides" ] || line="$line [override: ${gate_overrides% }; not a done-when run]"
+  printf '%s\n' "$line"
+}
 emit_pass() { emit_line PASS "$@"; }
 emit_fail() { emit_line FAIL "$@"; }
 
@@ -215,15 +241,13 @@ predicate_zero_secure_keystrokes() {
   [ "$count" = 0 ]
 }
 
-# PASS(0) if mean CPU is within the ceiling and disk growth within the derived
-# rate bound for the run length.
 predicate_cost_within_bound() {
-  cpu=$1; disk=$2; seconds=$3
+  cpu=$1; disk=$2; seconds=$3; cpu_max=$4; per_day=$5
   cpu_x10=$(printf '%s' "$cpu" | awk '{printf "%d", $1*10}')
-  max_x10=$((GATE_CPU_MAX_PCT * 10))
+  max_x10=$((cpu_max * 10))
   [ "$cpu_x10" -le "$max_x10" ] || return 1
-  bound=$((seconds * GATE_DISK_BYTES_PER_DAY / 86400))
-  [ "$disk" -le "$bound" ] || return 1
+  disk_max=$((seconds * per_day / 86400))
+  [ "$disk" -le "$disk_max" ] || return 1
   return 0
 }
 
