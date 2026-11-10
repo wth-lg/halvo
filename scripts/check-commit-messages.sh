@@ -100,8 +100,8 @@ check_range() {
   git rev-parse --git-dir >/dev/null 2>&1 || die 'not inside a git repository'
   if [ "$exempt" = 1 ]; then
     git cat-file -e "$NEWEST_EXEMPT_COMMIT^{commit}" 2>/dev/null ||
-      die "the baseline commit $NEWEST_EXEMPT_COMMIT is not in this clone, so exempt commits cannot be told from new ones. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
-    scope="commits reachable from the baseline $(git rev-parse --short "$NEWEST_EXEMPT_COMMIT") are exempt"
+      die "the newest exempt commit $NEWEST_EXEMPT_COMMIT is not in this clone, so exempt commits cannot be told from new ones. Fetch the full history: git fetch --unshallow (in CI, fetch-depth: 0 on actions/checkout)."
+    scope="$(git rev-parse --short "$NEWEST_EXEMPT_COMMIT") and the commits reachable from it are exempt"
     commits=$(git rev-list --reverse --end-of-options "$1" "^$NEWEST_EXEMPT_COMMIT") ||
       die "git rev-list could not list the commits of '$1'"
   else
@@ -168,7 +168,7 @@ self_test() {
   expect 'a mixed-case, indented trailer with a space before the colon fails' 1 "Fix the gate${nl}${nl}  cO-aUtHoReD-bY : Claude <noreply@anthropic.com>"
   expect 'a Generated with line after an emoji fails' 1 "Fix the gate${nl}${nl}$generated"
   expect 'a mixed-case gEnErAtEd WiTh line fails' 1 "Fix the gate${nl}${nl}gEnErAtEd WiTh Claude Code"
-  expect 'both lines of the baseline commit fail, one finding each' 2 "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
+  expect 'both lines of the newest exempt commit fail, one finding each' 2 "Fix the gate${nl}${nl}$generated${nl}${nl}$trailer"
   expect 'prose that mentions both phrases passes' 0 "Reject attribution lines${nl}${nl}The check fails on a Co-Authored-By: trailer and on a line that says a${nl}tool was Generated with. A message that only mentions them passes."
   expect 'a line that starts with Generated without passes' 0 "Fix the gate${nl}${nl}Generated without a tool."
   expect 'the diff of git commit -v fails when it is a stored commit message' 2 "$commit_verbose_file"
