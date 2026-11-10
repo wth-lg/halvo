@@ -48,13 +48,13 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    FindWindowW, GetForegroundWindow, GetSystemMetrics, GetWindowDisplayAffinity,
-    GetWindowTextLengthW, GetWindowThreadProcessId, PeekMessageW, RegisterClassW,
-    SetForegroundWindow, SetWindowPos, SetWindowTextW, ShowWindow, TranslateMessage,
-    UnregisterClassW, ES_PASSWORD, MSG, PM_REMOVE, SC_KEYMENU, SM_CMONITORS, SM_CXSCREEN,
-    SM_CYSCREEN, SM_REMOTESESSION, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_MINIMIZE,
-    SW_RESTORE, SW_SHOW, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_SYSCOMMAND,
-    WNDCLASSW, WS_CHILD, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+    EnumWindows, FindWindowW, GetClassNameW, GetForegroundWindow, GetSystemMetrics,
+    GetWindowDisplayAffinity, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible,
+    PeekMessageW, RegisterClassW, SetForegroundWindow, SetWindowPos, SetWindowTextW, ShowWindow,
+    TranslateMessage, UnregisterClassW, ES_PASSWORD, MSG, PM_REMOVE, SC_KEYMENU, SM_CMONITORS,
+    SM_CXSCREEN, SM_CYSCREEN, SM_REMOTESESSION, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+    SW_MINIMIZE, SW_RESTORE, SW_SHOW, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WINDOW_STYLE,
+    WM_SYSCOMMAND, WNDCLASSW, WS_CHILD, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
 };
 use windows_capture::capture::{Context, GraphicsCaptureApiHandler};
 use windows_capture::frame::Frame;
@@ -1598,7 +1598,7 @@ fn c7_logon_task_installs_is_idempotent_and_is_removed() {
                 "-Command",
                 "$s = (Get-ScheduledTask -TaskPath '\\Halvo\\' -TaskName 'HalvoCapture').Settings; \
                  foreach ($n in 'ExecutionTimeLimit','DisallowStartIfOnBatteries','StopIfGoingOnBatteries',\
-                 'MultipleInstances','RestartCount','StartWhenAvailable','AllowHardTerminate','Hidden') \
+                 'MultipleInstances','RestartCount','StartWhenAvailable','AllowHardTerminate','Hidden','Priority') \
                  { $n + '=' + $s.$n }",
             ])
             .output()
@@ -2957,5 +2957,382 @@ fn x11_pixel_probe_eight_captures() {
         }
         std::thread::sleep(Duration::from_secs(3));
         say("x11", "result captures_completed=8 idle_3s_after=true");
+    });
+}
+
+fn powershell_line(script: &str) -> String {
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+/// The rows `tasklist` prints for `image`, as (pid, session number) pairs.
+fn processes_named(image: &str) -> Vec<(String, String)> {
+    let filter = format!("IMAGENAME eq {image}");
+    let out = Command::new("tasklist.exe")
+        .args(["/FI", &filter, "/FO", "CSV", "/NH"])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+        .unwrap_or_default();
+    out.lines()
+        .filter(|line| {
+            line.to_ascii_lowercase()
+                .contains(&image.to_ascii_lowercase())
+        })
+        .map(|line| {
+            let fields: Vec<&str> = line.split(',').map(|f| f.trim_matches('"')).collect();
+            (
+                fields.get(1).unwrap_or(&"").to_string(),
+                fields.get(3).unwrap_or(&"").to_string(),
+            )
+        })
+        .collect()
+}
+
+unsafe extern "system" fn collect_visible_class(hwnd: HWND, lparam: LPARAM) -> windows::core::BOOL {
+    if IsWindowVisible(hwnd).as_bool() {
+        let mut buf = [0u16; 128];
+        let len = GetClassNameW(hwnd, &mut buf) as usize;
+        let classes = &mut *(lparam.0 as *mut Vec<String>);
+        classes.push(String::from_utf16_lossy(&buf[..len]));
+    }
+    windows::core::BOOL(1)
+}
+
+/// The window classes of the visible top-level windows, with their counts.
+fn visible_window_classes() -> BTreeMap<String, usize> {
+    let mut classes: Vec<String> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(
+            Some(collect_visible_class),
+            LPARAM(&mut classes as *mut Vec<String> as isize),
+        );
+    }
+    let mut counts = BTreeMap::new();
+    for class in classes {
+        *counts.entry(class).or_default() += 1;
+    }
+    counts
+}
+
+/// Not one of the nine claims: what the foreground source calls an app whose
+/// window the system hosts in another process (a packaged UI app). The app is
+/// the Settings app that ships with Windows.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x14_foreground_app_of_a_hosted_app() {
+    with_deadline("x14", Duration::from_secs(120), || {
+        env_report("x14");
+        let (sink, writer) = channel(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let start = foreground.start(sink.clone());
+        let launched = Command::new("cmd.exe")
+            .args(["/c", "start", "ms-settings:"])
+            .status()
+            .is_ok_and(|status| status.success());
+        let mut events = Vec::new();
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(12) {
+            events.extend(drain_for(&writer, Duration::from_millis(200)));
+        }
+        let settings_processes = processes_named("SystemSettings.exe").len();
+        let foreground_now = current_foreground_app().map(|app| file_name(&app).to_string());
+        foreground.stop();
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", "SystemSettings.exe", "/F"])
+            .output();
+        summarize("x14", "after-opening-settings", &events);
+        let named = |file: &str| {
+            events
+                .iter()
+                .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
+                .count()
+        };
+        say(
+            "x14",
+            format!(
+                "foreground_start={} settings_launched={launched} settings_processes_running={settings_processes} \
+                 foreground_app_file_now={foreground_now:?} events_naming_applicationframehost={} \
+                 events_naming_systemsettings={}",
+                show(&start),
+                named("ApplicationFrameHost.exe"),
+                named("SystemSettings.exe"),
+            ),
+        );
+        assert!(start.is_ok(), "the foreground source must start");
+        assert!(
+            settings_processes >= 1,
+            "INCONCLUSIVE: the Settings app did not start on this machine"
+        );
+    });
+}
+
+/// Not one of the nine claims: a key held down. The keyboard repeats a held
+/// key as more key-down packets with no key-up between them; SendInput sends
+/// that same sequence here.
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x15_a_held_key() {
+    with_deadline("x15", Duration::from_secs(60), || {
+        const REPEATS: u32 = 6;
+        env_report("x15");
+        let (sink, writer) = channel(4096);
+        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let start = keyboard.start(sink.clone());
+        let mut accepted = 0;
+        for _ in 0..REPEATS {
+            accepted += send(&[key_input(VK_F15, false)]);
+            std::thread::sleep(Duration::from_millis(30));
+        }
+        accepted += send(&[key_input(VK_F15, true)]);
+        let events = drain_for(&writer, Duration::from_secs(1));
+        keyboard.stop();
+        let keystrokes = count(&events, Modality::Keystroke);
+        say(
+            "x15",
+            format!(
+                "keyboard_start={} physical_presses=1 key_down_packets={REPEATS} key_up_packets=1 \
+                 sendinput_events_accepted={accepted} keystroke_events={keystrokes} \
+                 one_event_for_the_press={}",
+                show(&start),
+                keystrokes == 1,
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
+    });
+}
+
+/// Not one of the nine claims: does the inventory hold packaged apps. The
+/// runner's own terminal is one, so the log needs no app names.
+#[test]
+#[ignore = "functional: reads the Windows registry"]
+fn x16_packaged_apps_and_the_inventory() {
+    with_deadline("x16", Duration::from_secs(120), || {
+        let scan = scan_installed().expect("scan the registry");
+        let packages = powershell_line("(Get-AppxPackage | Measure-Object).Count");
+        let terminal_package = powershell_line(
+            "(Get-AppxPackage -Name Microsoft.WindowsTerminal | Measure-Object).Count",
+        );
+        let terminal_in_inventory = scan
+            .apps
+            .iter()
+            .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
+        say(
+            "x16",
+            format!(
+                "inventory_entries={} packaged_apps_registered_for_this_user={packages} \
+                 windows_terminal_packages={terminal_package} foreground_app_file={:?} \
+                 inventory_has_an_entry_naming_terminal={terminal_in_inventory}",
+                scan.len(),
+                current_foreground_app().as_deref().map(file_name),
+            ),
+        );
+        assert!(
+            !packages.is_empty(),
+            "INCONCLUSIVE: could not count the packaged apps"
+        );
+    });
+}
+
+/// Not one of the nine claims: start the task the installer made, then
+/// uninstall it, and see what happens to the process it started and whether
+/// starting it put a window on the desktop.
+#[test]
+#[ignore = "functional: creates, runs and removes a Windows scheduled task"]
+fn x17_a_running_task_and_uninstall() {
+    with_deadline("x17", Duration::from_secs(180), || {
+        const IMAGE: &str = "waitfor.exe";
+        env_report("x17");
+        let task_name = r"Halvo\HalvoVerifyRunning";
+        let installer = WindowsTaskInstaller::new(TaskSpec {
+            task_name: task_name.to_string(),
+            program: r"C:\Windows\System32\waitfor.exe".to_string(),
+            args: vec![
+                "HalvoVerifySignal".to_string(),
+                "/T".to_string(),
+                "120".to_string(),
+            ],
+        });
+        assert_eq!(
+            installer.status().expect("status"),
+            ServiceStatus::NotInstalled,
+            "the probe task must not exist before the test"
+        );
+        assert!(
+            processes_named(IMAGE).is_empty(),
+            "INCONCLUSIVE: the probe program is already running"
+        );
+        let windows_before = visible_window_classes();
+        let install = installer.install();
+        let run = schtasks(&["/Run", "/TN", task_name]);
+        std::thread::sleep(Duration::from_secs(4));
+        let started = processes_named(IMAGE);
+        let windows_after = visible_window_classes();
+        let new_windows: Vec<String> = windows_after
+            .iter()
+            .filter(|(class, n)| **n > windows_before.get(*class).copied().unwrap_or(0))
+            .map(|(class, n)| {
+                format!(
+                    "{class}+{}",
+                    n - windows_before.get(class).copied().unwrap_or(0)
+                )
+            })
+            .collect();
+
+        let uninstall = installer.uninstall();
+        std::thread::sleep(Duration::from_secs(2));
+        let status_after = installer.status().ok();
+        let still_running = processes_named(IMAGE);
+        let _ = Command::new("taskkill.exe")
+            .args(["/IM", IMAGE, "/F"])
+            .output();
+        say(
+            "x17",
+            format!(
+                "install={} schtasks_run={run} task_processes_after_run={} task_process_sessions={:?} \
+                 new_visible_top_level_windows={new_windows:?}",
+                show(&install),
+                started.len(),
+                started
+                    .iter()
+                    .map(|(_, session)| session.as_str())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        say(
+            "x17",
+            format!(
+                "uninstall={} status_after={status_after:?} task_processes_still_running_after_uninstall={}",
+                show(&uninstall),
+                still_running.len(),
+            ),
+        );
+        assert!(install.is_ok(), "the install must succeed");
+        assert!(
+            !started.is_empty(),
+            "INCONCLUSIVE: running the task started no process"
+        );
+    });
+}
+
+/// Not one of the nine claims: the second install when the program path holds
+/// a letter outside ASCII, as a profile folder often does.
+#[test]
+#[ignore = "functional: creates and removes a Windows scheduled task"]
+fn x18_second_install_with_a_non_ascii_path() {
+    with_deadline("x18", Duration::from_secs(120), || {
+        let task_name = r"Halvo\HalvoVerifyNonAscii";
+        let program = "C:\\Program Files\\H\u{e4}lvo\\halvo-capture.exe";
+        let installer = WindowsTaskInstaller::new(TaskSpec {
+            task_name: task_name.to_string(),
+            program: program.to_string(),
+            args: vec!["--service-run".to_string()],
+        });
+        assert_eq!(
+            installer.status().expect("status"),
+            ServiceStatus::NotInstalled,
+            "the probe task must not exist before the test"
+        );
+        let first_install = installer.install();
+        let first = query_task_xml(task_name);
+        std::thread::sleep(Duration::from_millis(2100));
+        let second_install = installer.install();
+        let second = query_task_xml(task_name);
+        let uninstall = installer.uninstall();
+        say(
+            "x18",
+            format!(
+                "first_install={} installer_recognizes_its_own_task={} second_install={} \
+                 definition_unchanged_by_second_install={} uninstall={}",
+                show(&first_install),
+                task_registers(&first.text, program),
+                show(&second_install),
+                first.text == second.text,
+                show(&uninstall),
+            ),
+        );
+        assert!(first_install.is_ok() && second_install.is_ok() && uninstall.is_ok());
+    });
+}
+
+const VARIANT_ENV: &str = "HALVO_VERIFY_VARIANT";
+
+/// Not one of the nine claims: what c8b does, with one part changed at a
+/// time, to find which part its access violation needs. Variants: `baseline`
+/// (c8b itself), `no-exclude` (the window is never excluded),
+/// `product-source` (the product's screen source captures, so no pixel is
+/// read), `delayed-destroy` (three seconds between the last capture and the
+/// window's destruction).
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x19_exclusion_teardown_variants() {
+    let variant = std::env::var(VARIANT_ENV).unwrap_or_else(|_| "baseline".to_string());
+    with_deadline("x19", Duration::from_secs(120), move || {
+        say("x19", format!("variant={variant} begin"));
+        let window =
+            TestWindow::create(&magenta_popup("HalvoVerifyVariant", "halvo-verify-variant"))
+                .expect("window");
+        pump_thread(Duration::from_millis(500));
+        let (x, y) = (
+            100 + WINDOW_WIDTH as u32 / 2,
+            100 + WINDOW_HEIGHT as u32 / 2,
+        );
+        let capture = |label: &str| {
+            if variant == "product-source" {
+                let (sink, writer) = channel(256);
+                let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+                let start = screen.start(sink.clone());
+                let mut frames = 0;
+                let began = Instant::now();
+                while began.elapsed() < Duration::from_secs(3) {
+                    pump_thread(Duration::from_millis(50));
+                    frames += count(
+                        &drain_for(&writer, Duration::from_millis(50)),
+                        Modality::ScreenFrame,
+                    );
+                }
+                screen.stop();
+                say(
+                    "x19",
+                    format!(
+                        "variant={variant} capture={label} product_source start={} frames={frames}",
+                        show(&start)
+                    ),
+                );
+            } else {
+                let sample = capture_pixel(x, y);
+                say(
+                    "x19",
+                    format!(
+                        "variant={variant} capture={label} pixel_probe result={}",
+                        show(&sample.as_ref().map(|_| ()))
+                    ),
+                );
+            }
+        };
+        capture("first");
+        if variant != "no-exclude" {
+            let exclude = exclude_window_from_capture(window.hwnd);
+            say(
+                "x19",
+                format!(
+                    "variant={variant} exclude_window_from_capture={}",
+                    show(&exclude)
+                ),
+            );
+        }
+        pump_thread(Duration::from_millis(500));
+        capture("second");
+        if variant == "delayed-destroy" {
+            pump_thread(Duration::from_secs(3));
+        }
+        say("x19", format!("variant={variant} destroying_window=true"));
+        drop(window);
+        say("x19", format!("variant={variant} window_destroyed=true"));
+        std::thread::sleep(Duration::from_secs(2));
+        say("x19", format!("variant={variant} result completed=true"));
     });
 }

@@ -83,6 +83,11 @@ jobs:
             x7_capture_border_on_the_screen \
             x8_raw_input_across_the_integrity_boundary \
             x13_frames_on_a_static_screen \
+            x14_foreground_app_of_a_hosted_app \
+            x15_a_held_key \
+            x16_packaged_apps_and_the_inventory \
+            x17_a_running_task_and_uninstall \
+            x18_second_install_with_a_non_ascii_path \
             c9_peak_working_set_of_sources_1_to_4_for_60_seconds \
             x5_screen_source_stop_and_start_again \
             x12_screen_source_fifteen_start_stop_cycles \
@@ -97,6 +102,19 @@ jobs:
             if [ "$rc" != 0 ]; then failed=1; fi
           done
           exit "$failed"
+      - name: Windows functional verification, teardown variants
+        if: ${{ !cancelled() }}
+        shell: bash
+        timeout-minutes: 20
+        run: |
+          for v in baseline no-exclude product-source delayed-destroy; do
+            for i in 1 2 3; do
+              echo "=== HALVO-VERIFY begin x19 variant=$v rep=$i"
+              rc=0
+              HALVO_VERIFY_VARIANT=$v cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact x19_exclusion_teardown_variants || rc=$?
+              echo "=== HALVO-VERIFY end x19 variant=$v rep=$i exit=$rc"
+            done
+          done
       - name: Windows functional verification, logon task as a standard user
         if: ${{ !cancelled() }}
         shell: powershell
@@ -168,3 +186,40 @@ jobs:
           name: halvo-windows
           path: target/release/halvo.exe
           if-no-files-found: error
+
+  windows-2022:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - name: Prerequisites
+        shell: bash
+        run: sh scripts/prerequisites.sh
+      - uses: Swatinem/rust-cache@v2
+      - name: Windows functional verification on Windows Server 2022
+        shell: bash
+        timeout-minutes: 45
+        run: |
+          cmd //c ver
+          failed=0
+          for t in \
+            c1_raw_input_delivers_keystrokes_and_pointer_events \
+            c2_screen_source_delivers_a_frame \
+            c3_foreground_source_reports_an_activated_window \
+            c4_window_title_source_reports_a_title_change \
+            c5_installed_software_returns_registry_entries \
+            c6_dpapi_custody_and_store_lifecycle \
+            c7_logon_task_installs_is_idempotent_and_is_removed \
+            c8_a_window_can_be_excluded_from_capture \
+            c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+          do
+            echo "=== HALVO-VERIFY begin $t"
+            rc=0
+            cargo test -p halvo-capture --test windows_functional -- --ignored --nocapture --exact "$t" || rc=$?
+            echo "=== HALVO-VERIFY end $t exit=$rc"
+            if [ "$rc" != 0 ]; then failed=1; fi
+          done
+          exit "$failed"
