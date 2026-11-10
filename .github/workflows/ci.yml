@@ -82,15 +82,12 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: Test
+      - name: ci.d self-test
         shell: bash
-        run: cargo test --workspace
-      - name: Clippy
+        run: sh scripts/ci/run-ci-d.sh macos --self-test
+      - name: ci.d
         shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
+        run: sh scripts/ci/run-ci-d.sh macos
       - name: Build
         shell: bash
         run: npm run tauri build
@@ -102,6 +99,14 @@ jobs:
           name: halvo-macos
           path: target/release/bundle/macos/Halvo.app
           if-no-files-found: error
+      - name: Lockfile unchanged
+        shell: bash
+        run: git diff --exit-code -- Cargo.lock
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ci-artifacts-macos
+          path: target/ci-artifacts/
 
   windows:
     runs-on: windows-2025
@@ -121,15 +126,12 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: Test
+      - name: ci.d self-test
         shell: bash
-        run: cargo test --workspace
-      - name: Clippy
+        run: sh scripts/ci/run-ci-d.sh windows --self-test
+      - name: ci.d
         shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
+        run: sh scripts/ci/run-ci-d.sh windows
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
@@ -173,3 +175,11 @@ jobs:
             *"Co-Authored-By: Probe"*) ;;
             *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
           esac
+      - name: Lockfile unchanged
+        shell: bash
+        run: git diff --exit-code -- Cargo.lock
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ci-artifacts-windows
+          path: target/ci-artifacts/
