@@ -177,7 +177,7 @@ report_text_file_with_binary_content() {
 report_a_carriage_return_in_content_without_a_nul_byte() {
   path=$1 text_attribute=$2
   case $path in
-    '"'*) die "git prints the name of this file in quotes, because it holds a double quote, a backslash or a control character: $path. The check cannot read the content of a file with such a name. Fix: rename the file." ;;
+    '"'*) die "git prints the name of this file in quotes, because it holds a double quote, a backslash or a control character: $path. Git takes its content for binary, and the check cannot read the bytes of a file under such a name. Fix: rename the file." ;;
   esac
   git cat-file -e ":0:$path" 2>/dev/null || die "git cat-file could not read the content of $path in the index"
   nul_bytes=$(($(git cat-file blob ":0:$path" | LC_ALL=C tr -d -c '\000' | wc -c)))
@@ -449,7 +449,7 @@ self_test() {
 
   start_fixture '* text=auto eol=lf'
   track_under_the_name_that_git_prints_as '"data\177.bin"' '\0001\0001\0001\0001\n'
-  expect 'a file whose name git prints in quotes stops the check, with the cause and the fix' 2 'check-line-endings: error: git prints the name of this file in quotes, because it holds a double quote, a backslash or a control character: "data\177.bin". The check cannot read the content of a file with such a name. Fix: rename the file.'
+  expect 'a file whose name git prints in quotes stops the check, with the cause and the fix' 2 'check-line-endings: error: git prints the name of this file in quotes, because it holds a double quote, a backslash or a control character: "data\177.bin". Git takes its content for binary, and the check cannot read the bytes of a file under such a name. Fix: rename the file.'
 
   start_fixture '*.sh eol=lf'
   track scripts/check.sh '#!/bin/sh\r\nprintf x\ry\r\n'
