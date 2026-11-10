@@ -15,7 +15,8 @@ help_text() {
   cat <<'EOF'
 Keeps scripts runnable in a clone with core.autocrlf=true, the installer default
 of Git for Windows. In such a clone git checks out a text file with CRLF unless
-the file has the eol=lf attribute, and a script with CRLF does not run.
+the file has the eol=lf attribute. The sh of Git for Windows runs a script with
+CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
   - A tracked text file whose first line is an interpreter line, "#!" and then a
     path that starts with "/", has the eol=lf attribute.
   - A tracked file with the eol=lf attribute is stored in the index with LF, not
@@ -141,7 +142,7 @@ EOF
   fi
 
   if [ "$failures" -gt 0 ]; then
-    printf 'check-line-endings: FAIL: files that break a rule: %d. In a clone with core.autocrlf=true, the installer default of Git for Windows, git checks out a file without eol=lf with CRLF, and a script with CRLF does not run.\n' "$failures" >&2
+    printf 'check-line-endings: FAIL: files that break a rule: %d. In a clone with core.autocrlf=true, the installer default of Git for Windows, git checks out a file without eol=lf with CRLF, and a shell other than the sh of Git for Windows does not run a script with CRLF.\n' "$failures" >&2
     exit 1
   fi
   printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF: 0.\n' "$script_count"
