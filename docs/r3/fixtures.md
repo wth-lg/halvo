@@ -34,8 +34,11 @@ node tools/fixture-server/variants/server.mjs [--port N] [--seed 1|2|3] [--varia
   image that the report of unit U0.1 names.
 
 The server routes each request by its Host header without the port. A browser reaches the hosts
-with `--host-resolver-rules=MAP *.test 127.0.0.1`. An HTTP client connects to 127.0.0.1 and sends
-the Host header itself. No hosts file is changed and no name is looked up.
+with the resolver rule of contract A13.2, which maps `*.test` to 127.0.0.1
+(`--host-resolver-rules=MAP *.test 127.0.0.1`). The caller that starts the browser adds a second
+rule to the same flag, which sends every other name to no address. Unit U0.2 records the exact
+text of that rule in its result file. An HTTP client connects to 127.0.0.1 and sends the Host
+header itself. No hosts file is changed and no name is looked up.
 
 ## Hosts
 
