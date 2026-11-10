@@ -5,11 +5,11 @@ All notable changes to Halvo are recorded in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-To record a change, add one line at the end of the list under `## [Unreleased]`:
-`- <Type>: <text>`, where Type is Added, Changed, Deprecated, Removed, Fixed or
-Security. A pull request adds one entry for each type of change it makes. The
-list has no `###` headings, so that two branches can each add a line and merge
-without an entry landing under the heading of another.
+To record a change, add one line at the end of the list under the Unreleased
+heading: `- <Type>: <text>`, where Type is Added, Changed, Deprecated, Removed,
+Fixed or Security. A pull request adds one entry for each type of change it
+makes. The list has no `###` headings, so that two branches can each add a line
+and merge without an entry landing under the heading of another.
 `sh scripts/check-changelog.sh` checks the file.
 
 ## [Unreleased]
