@@ -40,7 +40,7 @@ are about bytes on disk, SQLCipher's locking and the OS file lock, none of
 which a hand model would carry. `loom` was considered for property 2 and
 rejected: it explores interleavings of its own atomics and mutexes inside one
 process, and cannot intercept `File::try_lock` or SQLite's exclusive locking,
-which are the two mechanisms the property rests on. A loom model would prove
+which are the two mechanisms that refuse a second writer. A loom model would prove
 only that a stand-in lock is a lock. The process-level test runs the real
 mechanisms instead.
 
@@ -49,10 +49,10 @@ mechanisms instead.
 | Check | File | Functions |
 |---|---|---|
 | 1 | `crates/halvo-capture/src/store/expiry.rs` | `segment_ids_with_keys`, `destroy_segment_keys`, `remove_keyless_files`, `shred_segments`, `destroy_store_key`, `crypto_shred_expired`, `crypto_shred_all` |
-| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `secure_delete`, `locking_mode`, `journal_mode` pragmas), `Db::checkpoint_truncate`, `reserve_segment_key`, `commit_segment_key`, `KeyFile::destroy`, `Db::destroy`, `EncryptedStore::{create, open, read_segment, write_segment_with_expiry}` |
+| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `secure_delete`, `locking_mode`, `journal_mode` pragmas), `Db::checkpoint_truncate`, `reserve_segment_key`, `commit_segment_key`, `KeyFile::destroy`, `Db::destroy`, `EncryptedStore::{create, open, seal, read_segment, write_segment_with_expiry}`, `WriterLock`'s `Drop` (the `Reopen` and `Recreate` ops call `open` or `create` right after a drop) |
 | 1 | `crates/halvo-capture/src/store/segment.rs` | `wrap_segment_key`, `unwrap_segment_key`, `write_segment_file`, `read_segment_file`, `decrypt_segment_bytes`, `segment_files`, `remove_segment_file` |
 | 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | `DevFallbackCustody::{wrap_store_key, unwrap_store_key, destroy_root}`, `aead_seal`, `aead_open` |
-| 2 | `crates/halvo-capture/src/store/db.rs` | `WriterLock::take`, `Db::open` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (its `DatabaseBusy`/`DatabaseLocked` to `Locked` mapping), `EncryptedStore::open` |
+| 2 | `crates/halvo-capture/src/store/db.rs` | `WriterLock::take`, `WriterLock`'s `Drop`, `Db::open` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (its `DatabaseBusy`/`DatabaseLocked` to `Locked` mapping), `EncryptedStore::open` |
 
 A change to any function in the table, or to the schema of `segment_keys`,
 touches verified code.
@@ -69,7 +69,17 @@ a random sequence of these operations, checking the invariants after each:
 | `ShredExpired` | `crypto_shred_expired`; the report must count exactly the live segments past their bound |
 | `ShredAll` | `crypto_shred_all`; the report must count every live segment plus the store key |
 | `Reopen` | drop the store and `EncryptedStore::open`; must succeed unless delete-all ran, then must be `Sealed` |
-| `Recreate` | after delete-all, `create` under a fresh root; otherwise `create` must refuse with `Locked` or `AlreadyExists` |
+| `Recreate` | after delete-all, drop the sealed store and `create` under a fresh root; otherwise `create` must refuse with `Locked` or `AlreadyExists` |
+
+`Reopen`, and `Recreate` after delete-all, call `open` or `create` right
+after they drop the store, so both need the drop to have released the file
+lock. `WriterLock`'s `Drop` unlocks `writer.lock` before its descriptor
+closes. On macOS and Linux the lock belongs to the open file, and a child
+process shares that file from its spawn until its exec, so a lock that only
+the close released would stay held for that time. Check 2 spawns its
+contenders from the same test process. Before the unlock, check 1 failed
+that way on the macOS CI job: "reopen failed: another writer holds the
+store".
 
 "Keys remaining in the store" means every non-NULL `segment_keys.wrapped_key`
 row the live connection returns, plus every such row a copy of `store.db`
@@ -77,8 +87,9 @@ taken without its WAL returns under the store key, each unwrapped with the
 store key. Every one of them is tried against every shredded segment's saved
 ciphertext.
 
-Check 2 (`at_most_one_process_holds_the_store_at_a_time`) creates a store,
-then spawns the test binary two to five times as contending processes
+Check 2 (`at_most_one_process_holds_the_store_at_a_time`) creates a store
+and drops it, then spawns the test binary two to five times as contending
+processes
 (`contend_for_store_for_parent`). Each contender sleeps a random delay, then
 one to three times: retries `EncryptedStore::open` while the platform refuses it
 (see the platform note below), writes a witness file, logs `enter`, writes a segment, sleeps the hold time,
@@ -107,6 +118,13 @@ planned. The deadline message names the last refusal, so a misconfigured
 custody or a lock that is never released reads as what it is. Both checks run
 in CI on the macOS and Windows jobs; the break proofs below were run on macOS.
 
+A refusal ends when the holder drops the store. The database connection
+closes first, which releases the exclusive database lock. Then `WriterLock`'s
+`Drop` unlocks `writer.lock`, and its descriptor closes. An `open` or
+`create` that fails after it took the lock releases it the same way before
+it returns. Check 2 cannot tell the unlock from the close. A contender
+spawns no child, so nothing else shares its descriptor.
+
 ## Bounds and assumptions
 
 | Bound | Value | Why |
@@ -114,12 +132,12 @@ in CI on the macOS and Windows jobs; the break proofs below were run on macOS.
 | Check 1 cases | 48 (`SHRED_CASES`) | each case creates a keychain root and a store; 48 runs in about 5 s on a laptop |
 | Ops per case | 1 to 12 (`MAX_OPS`) | every reachable state needs at most a write, a shred and a reopen or recreate; 12 leaves room for several of each |
 | Segments per case | at most 12 | one per write; bounded by the ops |
-| Segment sizes | 0 to 512 bytes, one chunk minus or plus one byte, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
+| Segment sizes | 0 to 512 bytes, one chunk and one byte either side of it, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
 | Check 2 cases | 10 (`RACE_CASES`) | each case spawns processes; ten runs in about 4 s |
 | Contenders | 2 to 5 (`MAX_CONTENDERS`) | two is the minimal race; five covers a queue of waiters |
 | Acquisitions per contender | 1 to 3 | re-acquisition after a release, with the lock file possibly recreated |
 | Hold | 5 to 30 ms | long enough that a second admission falls inside the hold |
-| Child deadline | 60 s to acquire | a contender that never gets the store is a liveness failure |
+| Child deadline | 60 s per contender process, for all of its acquisitions | a contender that never gets the store is a liveness failure |
 
 `PROPTEST_CASES=<n>` raises either count for a longer run.
 
@@ -153,7 +171,10 @@ the words of the code:
   has its file" means `remove_keyless_files` left it; "does not read" or
   "read back different bytes" means a live segment was damaged; the
   delete-all messages name the file left behind or the retained key that
-  still unwraps.
+  still unwraps. "reopen failed: another writer holds the store", or a panic
+  "create on a free directory: Locked", means that a lock outlived the store
+  that the op had just dropped: the file lock if `WriterLock`'s `Drop` did
+  not release it, or the database lock.
 - **Check 2.** The input is the contender plans, the hold and the unlink
   cadence. A contender that is refused and retries is not a failure. "found another contender inside the store" or "held the store at
   the same time" means two processes were admitted at once. "contender N
@@ -170,9 +191,18 @@ property or the harness; report the counterexample.
 
 ## Break proofs
 
-Each check has been seen to fail on a broken store. The patches and failing
-output are in the run evidence
-(`~/.wstack/runs/20261108-halvo-r1-capture/evidence/formal-verification-1/`):
+Each check has been seen to fail on a broken store. The patches below apply
+at the sync commit. They and their output are in the run evidence
+(`~/.wstack/runs/20261109-halvo-fix-writer-lock/evidence/formal-verification-1/`).
+The first proofs, taken at `478fbb5`, are in
+`~/.wstack/runs/20261108-halvo-r1-capture/evidence/formal-verification-1/`.
+The two patches there that change `WriterLock::take` no longer apply, because
+one of their context lines has changed since.
+
+To rerun a row, run `git apply <patch>`, then the check that the row names
+(`cargo test -p halvo-capture --lib formal_tests::a_shredded_segment` or
+`formal_tests::at_most_one`), then `git apply -R <patch>`, and confirm that
+`git status --porcelain` prints nothing.
 
 | Patch | What it breaks | Result |
 |---|---|---|
@@ -180,17 +210,40 @@ output are in the run evidence
 | `break-single-writer.patch` | `Db::open` no longer sets `locking_mode = EXCLUSIVE` | check 2 FAILS: two contenders, `writer.lock` unlinked every 1 ms |
 | `break-single-writer-both-locks.patch` | the above plus `WriterLock::take` never locks | check 2 FAILS with the lock file left alone |
 | `break-single-writer-flock-only.patch` | `WriterLock::take` never locks, exclusive mode kept | check 2 still PASSES |
+| `break-writer-lock-outlives-store.patch` | `WriterLock`'s `Drop` does not unlock and leaks a duplicate of its descriptor, so the lock outlives the dropped store | check 1 FAILS: "reopen failed: another writer holds the store". Check 2 FAILS with the lock file left alone: "never got the store; last refusal: another writer holds the store" |
+| `break-writer-lock-unlock.patch` | `WriterLock`'s `Drop` does not unlock, so only the close releases the lock | both checks PASS unless a drop and the next `open` or `create` both fall between a child's spawn and its exec |
 
-Which message the two failing rows print depends on timing: "a contender found
-another contender inside the store" when the second process reaches the
-witness, or "contender N exited with exit status: 101" with `database is
-locked` on stderr when SQLite refuses one of the two mid-operation first.
-Both were seen for both patches across runs; either is the property failing.
+Which message the two failing rows of check 2 print depends on timing: "a
+contender found another contender inside the store" when the second process
+reaches the witness, or "contender N exited with exit status: 101" with
+`database is locked` on stderr when SQLite refuses one of the two
+mid-operation first. Both were seen for both patches across runs at
+`478fbb5`; the runs at the sync commit printed the first. Either is the
+property failing. So is a panic "unknown race log event", which one run at
+the sync commit printed while shrinking: two contenders inside the store
+wrote the race log at the same moment.
 
-The last row is the point of the check: the file lock only serializes
+The `flock-only` row is the point of check 2: the file lock only serializes
 `create`; the single-writer guarantee is SQLite's exclusive lock, which
 unlinking `writer.lock` cannot release. A change that removes the file lock
 alone does not fail the check, and is not a safety regression.
+
+The last two rows are about the release of the file lock, which the `Reopen`
+and `Recreate` ops of check 1 need. A lock that outlives its dropped store
+makes `open` and `create` answer `Locked` with no other writer, and check 1
+fails. Check 2 fails too when the lock file is left alone: the parent's
+dropped store keeps the lock, and no contender gets in before its deadline.
+Run that row for check 2 with `PROPTEST_MAX_SHRINK_ITERS=0`, because each
+failing case waits 60 s. When only the unlock is missing, check 1 fails in
+few runs, because the close still releases the lock unless a child shares
+the descriptor at that moment. At `d7b245a`, which has no unlock, check 1 failed
+in 4 of 180 runs of the command on a 16-core Mac under load. At the sync
+commit it failed in 0 of 180. Two tests outside the formal checks failed in
+every run without the unlock:
+`hardening_tests::a_dropped_store_releases_the_writer_lock_while_a_duplicate_of_its_descriptor_stays_open`
+and `hardening_tests::no_open_is_refused_as_locked_while_other_threads_spawn_children`.
+`break-writer-lock-unlock.txt` holds one run of both beside the formal
+checks, and its second line is the command.
 
 ## Updating the verification
 
@@ -219,9 +272,30 @@ it in the plan before weakening an assertion.
 - Keys in freed database pages or filesystem blocks; the harness reads keys
   through SQLite, so `secure_delete` is assumed, not checked, here.
 - Two writers in different user accounts, or over a network filesystem.
+- The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
+  the lock. Both checks fail when the lock outlives the store. Only check 1
+  notices a missing unlock, and only when a drop and the next `open` or
+  `create` both fall between a child's spawn and its exec. The two
+  `hardening_tests` named under the break proofs test the unlock itself, on
+  Unix only.
 
 ## Sync commit
 
-`478fbb542b5eb02b5fd79b442ccf8c0c0f7df5e8` (main, "R1 P2: encrypted on-device
-store and key custody, hardened by adversarial review (#5)"). Both checks
-pass at this commit and both break proofs fail. Outcome: in sync.
+`46b69b1c2743df14ee8b6d3b02a35f76cc59399c` (branch `halvo-fix-writer-lock`,
+"Release the store's writer lock explicitly so a spawned child cannot keep it
+held"). Both checks pass at this commit on macOS, where this pass ran them,
+and each break proof gives the result in its row. Outcome: updated, for
+both checks. The sync commit before this one was
+`478fbb542b5eb02b5fd79b442ccf8c0c0f7df5e8`.
+
+A squash merge gives this change another SHA on main. The covered files and
+the harness are unchanged since the sync commit for as long as
+`git rev-parse <commit>:<path>` prints these blob ids:
+
+| File | Blob |
+|---|---|
+| `crates/halvo-capture/src/store/expiry.rs` | `93aaef99dfc743d4ba644d0b088bdd09eeccb428` |
+| `crates/halvo-capture/src/store/db.rs` | `5cd231fff01269494b804d1c5aa193932fd12ab8` |
+| `crates/halvo-capture/src/store/segment.rs` | `efb61ac9736a2e6e9a636233c8c22fe72aaf96ed` |
+| `crates/halvo-capture/src/custody/dev_fallback.rs` | `3a918db8156d23bb37f3a33a804d372ca95aa55b` |
+| `crates/halvo-capture/src/store/formal_tests.rs` | `7b556421010ee8a3316bd793311b13766a447db6` |
