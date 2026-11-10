@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-pub const CA_NAME: &str = "Halvo R7 S6 spike test CA (synthetic)";
+const CA_NAME_PREFIX: &str = "Halvo R7 S6 spike test CA (synthetic)";
 
 const IO_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_HEAD: usize = 16 * 1024;
@@ -22,6 +22,7 @@ const RESPONSE: &[u8] =
     b"HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok";
 
 pub struct TestPki {
+    pub ca_name: String,
     pub ca_pem: String,
     pub leaf_pem: String,
     leaf: CertificateDer<'static>,
@@ -30,12 +31,16 @@ pub struct TestPki {
 
 /// A fresh CA and a leaf for `localhost`. The CA's private key is dropped on return,
 /// so nothing can issue another certificate under a CA that a runner was told to trust.
+/// Every CA gets its own subject, so a CA that an earlier run left in a trust store
+/// is never taken for the issuer of this leaf.
 pub fn generate_pki() -> Result<TestPki, rcgen::Error> {
+    let ca_name = format!("{CA_NAME_PREFIX} {:016x}", crate::random_u64());
     let not_before = time::OffsetDateTime::now_utc() - time::Duration::days(1);
     let not_after = not_before + time::Duration::days(8);
 
     let mut ca = CertificateParams::new(Vec::<String>::new())?;
-    ca.distinguished_name.push(DnType::CommonName, CA_NAME);
+    ca.distinguished_name
+        .push(DnType::CommonName, ca_name.as_str());
     ca.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     ca.key_usages = vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
     ca.not_before = not_before;
@@ -57,6 +62,7 @@ pub fn generate_pki() -> Result<TestPki, rcgen::Error> {
     let leaf_cert = leaf.signed_by(&leaf_key, &issuer)?;
 
     Ok(TestPki {
+        ca_name,
         ca_pem: ca_cert.pem(),
         leaf_pem: leaf_cert.pem(),
         leaf: leaf_cert.der().clone(),

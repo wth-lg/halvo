@@ -20,6 +20,14 @@ pub const BUILD_STAMP: &str = match option_env!("S5_BUILD_STAMP") {
     None => "unstamped",
 };
 
+/// A random number for synthetic values that must differ from run to run.
+pub fn random_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    std::collections::hash_map::RandomState::new()
+        .build_hasher()
+        .finish()
+}
+
 /// The key-store commands write to the login key store of whoever runs them, so they
 /// run only inside a hosted runner job and never on a developer's machine.
 pub fn require_hosted_runner() {

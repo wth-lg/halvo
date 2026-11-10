@@ -4,10 +4,10 @@
 //! Exit 0 with a MET or MISSED line. Exit 1 when the line does not count.
 
 use r7_s5_spike::procstat::{self, Measured};
+use r7_s5_spike::random_u64;
 use r7_s5_spike::stats::summarize;
 use r7_s5_spike::stub::{self, Entry, Stub};
 use std::collections::HashMap;
-use std::hash::{BuildHasher, Hasher};
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
@@ -79,12 +79,6 @@ fn helper(options: &Options, args: &[&str]) -> Result<Measured, String> {
         .map_err(|error| format!("could not run {}: {error}", options.helper.display()))
 }
 
-fn random_u64() -> u64 {
-    std::collections::hash_map::RandomState::new()
-        .build_hasher()
-        .finish()
-}
-
 /// The stub's entries after `seen`, waiting up to five seconds for the first one.
 fn entries_after(stub: &Stub, seen: usize) -> Vec<Entry> {
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -127,7 +121,7 @@ fn measure(options: &Options) -> Result<(), String> {
     println!(
         "S6 stub: {url} listening on {:?}, test CA {:?} in {}",
         stub.listening,
-        stub::CA_NAME,
+        pki.ca_name,
         ca_path.display()
     );
 
