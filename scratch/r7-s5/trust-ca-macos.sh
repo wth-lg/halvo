@@ -10,33 +10,25 @@ if [ "${GITHUB_ACTIONS:-}" != true ]; then
   exit 2
 fi
 
-# Since macOS 11 a change of trust settings asks for confirmation in a dialog, even as root.
-# A runner has nobody to answer it, so the right is opened for the one command and put back.
-add_trust() {
-  domain=$1
-  shift
-  sudo security authorizationdb write "com.apple.trust-settings.$domain" allow
-  "$@"
-  rc=$?
-  sudo security authorizationdb remove "com.apple.trust-settings.$domain"
-  echo "trust-ca: add-trusted-cert in the $domain domain ended with $rc"
-  return "$rc"
-}
-
-add_trust admin sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain "$ca" ||
-  add_trust user security add-trusted-cert -r trustRoot \
-    -k "$HOME/Library/Keychains/login.keychain-db" "$ca" ||
-  exit 1
+# Run 42764934594 (macos-15, macOS 15.8.2): as root this add ends with 0 and shows no
+# dialog. The usual advice is to open the right com.apple.trust-settings.admin first. That
+# run tried it: macOS 15 refused the write (NO (-60005)) and the add worked without it.
+# So the authorization database is left alone.
+sudo -n security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$ca"
+rc=$?
+echo "trust-ca: sudo security add-trusted-cert -d (admin trust domain) ended with $rc"
+[ "$rc" -eq 0 ] || exit 1
 
 # New trust settings reach the system verifier a moment after the change. The timed runs
-# start once it accepts the leaf, or after ten seconds with a warning.
+# start once it accepts the leaf. If it still rejects the leaf after ten seconds, this
+# runner does not trust the test CA, and exit 1 makes the driver print DOES NOT COUNT.
 tries=0
 until security verify-cert -c "$leaf" -p ssl -n localhost -q >/dev/null 2>&1; do
   tries=$((tries + 1))
   if [ "$tries" -ge 20 ]; then
-    echo "trust-ca: warning: security verify-cert still rejects the leaf after 10 s"
-    exit 0
+    echo "trust-ca: security verify-cert still rejects the leaf after 10 s"
+    security verify-cert -c "$leaf" -p ssl -n localhost 2>&1 | sed 's/^/trust-ca: verify-cert: /'
+    exit 1
   fi
   sleep 0.5
 done

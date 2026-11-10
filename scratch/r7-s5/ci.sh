@@ -52,6 +52,7 @@ facts() {
     echo "FACT cpu=$(sysctl -n machdep.cpu.brand_string) cores=$(sysctl -n hw.ncpu) memory_bytes=$(sysctl -n hw.memsize)"
     echo "FACT default keychain: $(security default-keychain)"
     echo "FACT keychain search list: $(security list-keychains | tr -d '\n')"
+    echo "FACT $(csrutil status 2>&1)"
   else
     cmd //c ver
     echo "FACT cores=$NUMBER_OF_PROCESSORS"
@@ -72,7 +73,9 @@ install_build() {
   fi
   mv -f "$custody.new" "$custody"
   echo "S5 $runner build $stamp installed: stamp=$("$custody" stamp) sha256=$(sha256 "$custody")"
+  cdhash=
   if [ "$os" = macos ]; then
+    cdhash=$(codesign -dvvv "$custody" 2>&1 | sed -n 's/^CDHash=//p')
     {
       codesign -dvvv "$custody" 2>&1 | grep -E '^(Identifier|CodeDirectory|CDHash|Signature|TeamIdentifier)'
       codesign -d -r- "$custody" 2>&1 | grep designated
@@ -97,6 +100,7 @@ s5() {
   build_custody 1
   install_build 1
   first=$(sha256 "$custody")
+  first_cdhash=$cdhash
   "$custody" store "$value" || does_not_count "build 1 could not store the item"
   "$custody" read "$value" ||
     does_not_count "the build that stored the item cannot read it back, so this key store is unusable here"
@@ -106,6 +110,9 @@ s5() {
   install_build 2
   if [ "$(sha256 "$custody")" = "$first" ]; then
     does_not_count "the rebuilt binary is identical to the first, so it does not stand for an update"
+  fi
+  if [ "$os" = macos ] && { [ -z "$cdhash" ] || [ "$cdhash" = "$first_cdhash" ]; }; then
+    does_not_count "the two builds do not have two different code directory hashes ('$first_cdhash', '$cdhash')"
   fi
 
   set +e
@@ -117,13 +124,14 @@ s5() {
     echo "S5 $runner: the item is still in the keychain after build 2's read (its attributes are readable)"
   fi
 
-  # Back to build 1: if it reads the item again, the item is intact and a miss comes from
-  # the change of build, not from the passing of time or from the earlier reads.
+  # Back to build 1: if it reads the item again, the item is intact and build 2's result
+  # comes from the change of build, not from the passing of time or from the earlier reads.
+  # If it cannot, the leg shows nothing about a rebuild.
   install_build 1
   if "$custody" read "$value"; then
     echo "S5 $runner control after: build 1, installed again, read the item"
   else
-    echo "S5 $runner control after: build 1, installed again, could NOT read the item"
+    does_not_count "build 1, installed again, could not read the item, so build 2's result cannot be tied to the rebuild"
   fi
 
   case $rc in
