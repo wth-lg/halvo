@@ -153,9 +153,11 @@ run_event() {
     fail_pull_request_without_commits "$CHECK"
   fi
 
-  if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+  if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ] || [ "$GITHUB_EVENT_NAME" = pull_request ]; then
     default_script=$(git show "$default_ref:$CHECK") ||
-      die "$default_ref holds no $CHECK, so the range cannot be checked with the copy of the default branch"
+      die "$default_ref holds no $CHECK, so nothing can be checked with the copy of the default branch"
+  fi
+  if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
     say "the same range, with the copy of $CHECK that $default_ref holds:"
     default_status=0
     default_output=$(sh -c "$default_script" check-commit-messages.sh "$range") || default_status=$?
