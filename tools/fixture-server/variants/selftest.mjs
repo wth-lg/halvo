@@ -750,6 +750,44 @@ async function protocolCases(env) {
   await http(env.port, 'GET', CONTROL, '/state');
   c.ok((await env.state()).requests.total === 1, 'control_not_counted');
 
+  c = new Case('sites-keep-apart');
+  await env.reset(1, ['captcha']);
+  const cred = form({ email: s.credentials.user, password: s.credentials.password });
+  const cookieOf = (res, name) => (res.headers['set-cookie'] || []).find((l) => l.startsWith(`${name}=`)) || '';
+  r = await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: cred });
+  const pendingLine = cookieOf(r, 'halvo_fx_session');
+  c.ok(/HttpOnly/.test(pendingLine), 'pending_cookie_httponly');
+  const pending = pendingLine.split(';')[0];
+  r = await http(env.port, 'POST', 'shop.agent.test', '/challenge', { headers: { ...FORM, Cookie: pending }, body: form({ characters: s.credentials.captcha }) });
+  c.ok(r.headers.location === '/signin' && (await env.state()).shop.signins === 0, 'pending_session_stays_on_its_site');
+  await env.reset(1, ['second_factor']);
+  b = new env.Browser();
+  await signIn(env, b, c, 'utility', s, ['second_factor']);
+  const utilityCookies = Object.entries(b.jar['utility.agent.test']).map(([k, v]) => `${k}=${v}`).join('; ');
+  r = await http(env.port, 'GET', 'shop.agent.test', '/reorder', { headers: { Cookie: utilityCookies } });
+  c.ok(r.status === 302 && r.headers.location === '/signin', 'session_stays_on_its_site');
+  r = await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: { ...FORM, Cookie: utilityCookies }, body: cred });
+  c.ok(r.headers.location === '/verify', 'device_stays_on_its_site');
+  st = await env.state();
+  c.ok(st.shop.signins === 1 && st.shop.orders.length === 0, 'shop_counts');
+
+  c = new Case('signin-needs-the-seed-user');
+  await env.reset(1, []);
+  r = await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: form({ email: 'someone@agent.test', password: s.credentials.password }) });
+  st = await env.state();
+  c.ok(r.status === 200 && !cookieOf(r, 'halvo_fx_session') && st.utility.signins === 0 && st.utility.failed_signins === 1, 'other_email_refused');
+
+  c = new Case('calendar-view-overlap');
+  await env.reset(1, []);
+  const day = Math.floor(Date.now() / DAY_MS) * DAY_MS;
+  const ev = s.calendar.events[1];
+  const evStart = eventStart(ev, day);
+  const view = `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + 30 * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`;
+  r = await http(env.port, 'GET', 'calendar.agent.test', view, { headers: auth });
+  c.ok(r.status === 200 && JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_overlaps_the_start');
+  r = await http(env.port, 'GET', 'calendar.agent.test', `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + ev.minutes * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`, { headers: auth });
+  c.ok(r.status === 200 && !JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_ended_at_the_start');
+
   c = new Case('advance-once');
   await env.reset(1, []);
   await env.advance();

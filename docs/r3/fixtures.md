@@ -27,11 +27,11 @@ node tools/fixture-server/variants/server.mjs [--port N] [--seed 1|2|3] [--varia
     value.
 - To reset the state, send `POST http://control.agent.test:<port>/reset`. To stop the server,
   send SIGTERM to the process (on Windows, end the process).
-- Node floor: 16.0. The program uses ES modules, top-level `await` (Node 14.8),
-  `for await` over a request, `node:` imports and `String.prototype.padStart`.
+- Node floor: 14.13.1, the first release that loads `node:` imports in an ES module. The program
+  also uses optional chaining (Node 14.0) and `for await` over a request (Node 10).
   `server.closeAllConnections` (Node 18.2) is called only when it exists. This floor comes from
-  reading the APIs. The self-test ran on Node 26.12.0 on this Mac and on the Node of each hosted
-  image that the report of unit U0.1 names.
+  reading the APIs, and no Node older than 20 has run the program. The self-test ran on Node
+  26.12.0 on this Mac and on the Node of each hosted image that the report of unit U0.1 names.
 
 The server routes each request by its Host header without the port. A browser reaches the hosts
 with the resolver rule of contract A13.2, which maps `*.test` to 127.0.0.1
@@ -320,13 +320,14 @@ a seed.
   and `cleanup`) and compares the list with the entries of both runs: 3 x 4 = 12 cases.
 - Four data cases check the seed files: the fixed values, the `end` lists derived from the rules,
   the counts, and that the three seeds differ in every value that a task reads.
-- Thirteen protocol cases check the 401 answers, the one-time token, the reset and advance rules,
-  the end of sessions and devices, the failed sign-in, the preferences and the upload, and the
-  count of `evil`.
+- Sixteen protocol cases check the 401 answers, the one-time token, the reset and advance rules,
+  the end of sessions and devices, the failed sign-in, the preferences and the upload, the count
+  of `evil`, that a session, a device and a waiting challenge stay on their own site, that sign-in
+  needs the seed's user, and the overlap rule of the calendar view.
 - Four command cases check the refusals `usage`, `port` and `data`, and the flags. A second start
   on a taken port must refuse with exit 2 and leave the first server's state as it was.
 
-So `k` is 120 + 12 + 4 + 13 + 4 = 153. Around every GET of a walk, the self-test reads the state
+So `k` is 120 + 12 + 4 + 16 + 4 = 156. Around every GET of a walk, the self-test reads the state
 object and compares it without its `requests` key. `state_changing_by_get` is the number of GETs
 that changed it.
 
