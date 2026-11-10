@@ -124,6 +124,7 @@ cases() {
 measure() {
   need_bound rss_max_bytes || return 1
   rss_max=$bound
+  capture_helper=yes
   capture_prepare || { fail_defect; return 1; }
   capture_run "$1" || { fail_defect; return 1; }
   figures=$(memory_figures "$run_dir") || { emit_fail "$name" "$figures"; return 1; }

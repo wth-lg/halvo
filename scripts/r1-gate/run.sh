@@ -87,7 +87,41 @@ duration_accepted() {
   sh "$DIR/run.sh" --duration "$1" --help
 }
 
+standin_helper() {
+  printf '#!/bin/sh\n%s\n' "$2" > "$gate_scratch/$1"
+  chmod 755 "$gate_scratch/$1"
+}
+
+helper_starts() {
+  helper_start 5 "$gate_scratch/$1" 10 || return 1
+  helper_stop
+}
+
+helper_defect_is() {
+  helper_start 5 "$gate_scratch/$2" 10 && return 1
+  [ "$gate_defect" = "$1" ]
+}
+
+cases_helper() {
+  standin_helper helper-good 'printf "helper visible pid=1\\n"; exec sleep 5'
+  standin_helper helper-silent 'exec sleep 5'
+  standin_helper helper-gone 'printf "window-helper: no screen\\n" >&2; exit 1'
+  t starts-and-stops PASS helper_starts helper-good
+  t missing FAIL helper_starts no-such-helper
+  t ends-before-it-is-visible FAIL helper_starts helper-gone
+  t never-visible FAIL helper_starts helper-silent
+  t ended-is-named PASS helper_defect_is "the helper window ended before it was on screen: window-helper: no screen" helper-gone
+  t not-in-time-is-named PASS helper_defect_is "the helper window was not on screen in time" helper-silent
+}
+
 cases() {
+  case $name in
+    helper) cases_helper ;;
+    run) cases_run ;;
+  esac
+}
+
+cases_run() {
   sha=0123456789abcdef0123456789abcdef01234567
   t run-unchanged PASS predicate_run_unchanged "$sha" clean "$sha" clean
   t sha-changed FAIL predicate_run_unchanged "$sha" clean 1123456789abcdef0123456789abcdef01234567 clean
@@ -148,7 +182,9 @@ main() {
     scratch_root
     trap gate_exit EXIT
     [ -z "$remove" ] || gate_remove_scratch=yes
-    selftest_run || rc=1
+    for name in run helper; do
+      selftest_run || rc=1
+    done
     return "$rc"
   fi
   start=$(head_read) || { emit_fail run "HEAD of $GATE_ROOT is not readable: the gate measures a commit"; return 1; }

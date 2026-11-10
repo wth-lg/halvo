@@ -25,15 +25,14 @@ cases() {
 }
 
 measure() {
-  seconds=$1
-  need_build || { fail_defect; return 1; }
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-timed-run.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
-  if run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then
-    if predicate_modalities_present "$tmp/report"; then emit_pass "$name"; return 0; fi
-    emit_fail "$name" "a required modality recorded no events"; return 1
-  fi
-  first=$(head -1 "$tmp/err" 2>/dev/null)
-  emit_fail "$name" "timed-run unavailable: $first"; return 1
+  capture_helper=yes
+  capture_prepare || { fail_defect; return 1; }
+  capture_run "$1" || { fail_defect; return 1; }
+  counts=$(report_counts "$run_dir/stdout")
+  line="${counts% }over ${1}s with the helper window"
+  defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
+  if predicate_modalities_present "$run_dir/stdout"; then emit_pass "$name" "$line"; return 0; fi
+  emit_fail "$name" "a required kind recorded no event: $line"; return 1
 }
 
 check_main "$@"

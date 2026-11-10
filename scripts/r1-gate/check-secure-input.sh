@@ -16,16 +16,13 @@ cases() {
 }
 
 measure() {
-  seconds=$1
-  need_build || { fail_defect; return 1; }
   export HALVO_GATE_SECURE_INPUT=1
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-secure-input.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
-  if run_capture_bin --timed-run "$seconds" > "$tmp/report" 2> "$tmp/err"; then
-    if predicate_zero_secure_keystrokes "$tmp/report"; then emit_pass "$name"; return 0; fi
-    emit_fail "$name" "a keystroke was recorded while secure input was active"; return 1
-  fi
-  first=$(head -1 "$tmp/err" 2>/dev/null)
-  emit_fail "$name" "timed-run unavailable: $first"; return 1
+  capture_prepare || { fail_defect; return 1; }
+  capture_run "$1" || { fail_defect; return 1; }
+  held=$(sed -n 's/^secure_input_keystrokes=//p' "$run_dir/stdout")
+  line="secure_input_keystrokes=${held:-absent} over ${1}s of held secure input"
+  if predicate_zero_secure_keystrokes "$run_dir/stdout"; then emit_pass "$name" "$line"; return 0; fi
+  emit_fail "$name" "a keystroke was recorded while secure input was held, or the line is absent: $line"; return 1
 }
 
 check_main "$@"

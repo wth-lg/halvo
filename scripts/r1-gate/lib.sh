@@ -126,6 +126,13 @@ modality_count() {
   sed -n "s/^modality=$2 count=\\([0-9][0-9]*\\)\$/\\1/p" "$1" 2>/dev/null
 }
 
+report_counts() {
+  for kind in screen_frame keystroke pointer foreground_app; do
+    count=$(modality_count "$1" "$kind")
+    printf '%s=%s ' "$kind" "${count:-absent}"
+  done
+}
+
 predicate_modalities_present() {
   for kind in screen_frame keystroke pointer foreground_app; do
     count=$(modality_count "$1" "$kind")
@@ -397,6 +404,49 @@ child_report_defect() {
   return 1
 }
 
+helper_pid=''
+
+helper_build() {
+  helper_source=$GATE_ROOT/scripts/r1-gate/helper/window-helper.swift
+  helper_fresh=$(find "$GATE_TARGET/window-helper" -newer "$helper_source" 2>/dev/null)
+  [ -z "$helper_fresh" ] || return 0
+  mkdir -p "$GATE_TARGET" || { gate_defect="cannot make $GATE_TARGET"; return 1; }
+  swiftc -O -o "$GATE_TARGET/window-helper" "$helper_source" > "$GATE_TARGET/window-helper.log" 2>&1 && return 0
+  helper_first=$(head -1 "$GATE_TARGET/window-helper.log")
+  gate_defect="the helper window does not build: $helper_first"
+  return 1
+}
+
+helper_start() {
+  "$2" "$1" > "$gate_scratch/helper.out" 2>&1 &
+  helper_pid=$!
+  helper_polls=0
+  until grep -q '^helper visible' "$gate_scratch/helper.out" 2>/dev/null; do
+    if ! kill -0 "$helper_pid" 2>/dev/null; then
+      helper_first=$(head -1 "$gate_scratch/helper.out")
+      gate_defect="the helper window ended before it was on screen: $helper_first"
+      helper_pid=''
+      return 1
+    fi
+    helper_polls=$((helper_polls + 1))
+    if [ "$helper_polls" -ge "${3:-100}" ]; then
+      gate_defect="the helper window was not on screen in time"
+      helper_stop
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
+helper_stop() {
+  [ -n "$helper_pid" ] || return 0
+  kill -TERM "$helper_pid" 2>/dev/null
+  wait "$helper_pid" 2>/dev/null
+  helper_pid=''
+}
+
+capture_helper=no
+
 capture_prepare() {
   need_build || return 1
   scratch_root
@@ -407,8 +457,15 @@ capture_prepare() {
 
 capture_run() {
   capture_seconds=$1; shift
+  if [ "$capture_helper" = yes ]; then
+    helper_build || return 1
+    helper_start "$((capture_seconds + 60))" "$GATE_TARGET/window-helper" || return 1
+  fi
   run_before=$(machine_state)
-  timed_child "$run_dir" "$GATE_BIN" --timed-run "$capture_seconds" "$@" || return 1
+  timed_child "$run_dir" "$GATE_BIN" --timed-run "$capture_seconds" "$@"
+  capture_status=$?
+  helper_stop
+  [ "$capture_status" -eq 0 ] || return 1
   run_after=$(machine_state)
   child_report_defect
 }

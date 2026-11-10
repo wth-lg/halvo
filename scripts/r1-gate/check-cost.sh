@@ -183,6 +183,7 @@ measure() {
   cpu_max=$bound
   need_bound disk_max_bytes_per_day || return 1
   per_day=$bound
+  capture_helper=yes
   capture_prepare || { fail_defect; return 1; }
   before=$(dir_disk_usage_bytes "$run_store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
   capture_run "$seconds" || { fail_defect; return 1; }
