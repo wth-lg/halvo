@@ -298,6 +298,27 @@ self_test() {
   expect 'an image under text=auto eol=lf is accepted' 0 "$(pass_line 0)"
 
   start_fixture
+  track installer/windows/.gitattributes '* text eol=crlf\n'
+  track installer/windows/build.sh '#!/bin/sh\necho build\n'
+  expect 'under a nearer .gitattributes file that sets eol=crlf, the line to add belongs at the end of that file' 1 '/build.sh text eol=lf'
+
+  start_fixture
+  track installer/windows/.gitattributes '* text eol=crlf\n/build.sh text eol=lf\n'
+  track installer/windows/build.sh '#!/bin/sh\necho build\n'
+  expect 'the same file is accepted once the nearer file ends with that line' 0 "$(pass_line 1)"
+
+  start_fixture '*.sh text eol=lf' 'vendor/** -text'
+  track vendor/x.sh '#!/bin/sh\r\necho x\r\n'
+  expect 'a file with eol=lf and -text that is stored with CRLF gets the line that makes it text again' 1 '/vendor/x.sh text eol=lf'
+
+  start_fixture '*.sh text eol=lf' 'vendor/** -text' '/vendor/x.sh text eol=lf'
+  track vendor/x.sh '#!/bin/sh\r\necho x\r\n'
+  mkdir "$repository/vendor" || die "mkdir failed in $repository"
+  printf '#!/bin/sh\r\necho x\r\n' >"$repository/vendor/x.sh"
+  git -C "$repository" add --renormalize -- vendor/x.sh || die 'git add --renormalize failed in the fixture repository'
+  expect 'the same file is accepted after that line and git add --renormalize' 0 "$(pass_line 1)"
+
+  start_fixture
   track tool '#!/bin/sh\necho\n'
   printf '/tool text eol=lf\n' >"$repository/.gitattributes"
   expect 'an attribute line that only the work tree has does not count' 1 '/tool text eol=lf'
