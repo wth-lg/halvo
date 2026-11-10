@@ -62,19 +62,23 @@ awk_failed() {
 }
 
 git_comment_string() {
-  configured=$(git config --get-regexp '^core\.comment(char|string)$' 2>/dev/null | sed -n '$s/^[^ ]* //p')
+  configured=$(git config --get-regexp '^core\.comment(char|string)$' 2>/dev/null | LC_ALL=C sed -n '$s/^[^ ]* //p')
   printf '%s\n' "${configured:-#}"
 }
 
 drop_commit_verbose_diff() {
-  printf '%s\n' "$2" | LC_ALL=C awk -v git_comment_string="$1" -v scissors_end=" $SCISSORS" '
+  printf '%s\n' "$2" | COMMENT_STRING_OF_GIT=$1 SCISSORS_END=" $SCISSORS" LC_ALL=C awk '
+    BEGIN {
+      git_comment_string = ENVIRON["COMMENT_STRING_OF_GIT"]
+      scissors_end = ENVIRON["SCISSORS_END"]
+      git_picks_the_comment_character = (tolower(git_comment_string) == "auto")
+    }
     function scissors_line_comment_string(line,    comment_length, candidate) {
       comment_length = length(line) - length(scissors_end)
       if (comment_length < 1 || substr(line, comment_length + 1) != scissors_end) return ""
       candidate = substr(line, 1, comment_length)
-      if (candidate == git_comment_string) return candidate
-      if (tolower(git_comment_string) == "auto" && comment_length == 1 && index("#;@!$%^&|:", candidate)) return candidate
-      return ""
+      if (git_picks_the_comment_character) return (comment_length == 1 && index("#;@!$%^&|:", candidate)) ? candidate : ""
+      return (candidate == git_comment_string) ? candidate : ""
     }
     function print_scissors_block(    i) {
       for (i = 1; i <= scissors_block_lines; i++) print scissors_block[i]
@@ -125,7 +129,8 @@ attribution_lines() {
 check_file() {
   [ -f "$1" ] || die "no such message file: $1"
   hook_file_text=$(cat "$1") || die "cannot read the message file: $1"
-  message=$(drop_commit_verbose_diff "$(git_comment_string)" "$hook_file_text") || awk_failed $?
+  comment_string=$(git_comment_string) || die 'git config could not report the comment string of git'
+  message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
   found=$(attribution_lines "$message") || awk_failed $?
   [ -n "$found" ] || return 0
   {
