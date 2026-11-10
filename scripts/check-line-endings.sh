@@ -148,7 +148,15 @@ EOF
   printf 'check-line-endings: PASS: files that start with an interpreter line: %d, each with eol=lf; files with eol=lf that are stored with CRLF: 0.\n' "$script_count"
 }
 
+leave_the_repository_that_git_variables_name() {
+  repository_variables=$(git rev-parse --local-env-vars) || die 'git rev-parse could not list the variables that name a repository'
+  for repository_variable in $repository_variables; do
+    unset "$repository_variable"
+  done
+}
+
 self_test() {
+  leave_the_repository_that_git_variables_name
   script=$(cd "$(dirname "$0")" && pwd)/$(basename "$0") || die "cannot resolve the path of $0"
   fixture_directory=$(mktemp -d) || die 'mktemp could not make a directory'
   repository=$fixture_directory/repository
