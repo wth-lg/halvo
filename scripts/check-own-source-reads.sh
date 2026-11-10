@@ -19,19 +19,32 @@ help_text() {
 Refuses a script that reads its own source by line number. A help text that a
 script prints with sed over lines 2 to 20 of its own file changes when a line
 is added above it or a comment is removed, and nothing fails.
-  - A line of a script fails when a command on it gets the path of the script,
-    written as the quoted parameter 0, and reads it by line number. Such a
-    command is sed whose script starts with a line number, head, tail, or awk
-    with NR or FNR, named alone or by a path such as /usr/bin/sed. The path of
-    the script can come as an operand, on standard input, or from cat through
-    a pipe.
+  - A line of a script fails when a command on it gets the path of the script
+    and reads it by line number. The path is the parameter 0 alone, with or
+    without quotes: "$0", "${0}", $0 or ${0}. The command gets it as an
+    operand, on standard input, or from cat through one pipe. Such a command
+    is sed with a script that starts with a line number, head, tail, or awk
+    with NR or FNR.
+  - The check splits each line into commands and words as sh does: it follows
+    quotes, backslashes, command substitutions and redirections. So it sees
+    such a command named alone, by a path such as /usr/bin/sed, in quotes,
+    after a backslash, with .exe at its end, after assignments, and after
+    exec or command -p.
 The fix is to print the text from a here-document, as this script does.
-The check reads one line at a time. It does not see a path that a variable
-holds, a command that continues on another line, an address that a variable
-holds, a line number after the first command inside one script argument of
-sed, as in '/x/p;3p', a reader that another command such as xargs starts, or
-a read by a pattern. It cannot tell code from the text of a here-document, so
-a line of such a text that starts with such a read is refused too.
+The check reads one line at a time and expands nothing. It does not see:
+  - a path that a variable holds or that is built from the parameter 0, as in
+    "$(dirname "$0")/name", a file descriptor that another line opened, and a
+    command that continues on another line;
+  - a reader that a parameter names, as in ${SED:-sed}, a reader of another
+    name, such as gsed or perl, and a reader that another command starts,
+    such as env, nice or xargs;
+  - standard input that a group, a loop or a function hands on, as in
+    { head -n 3; } <"$0", and a script that comes through more than one pipe;
+  - in sed, an address that a variable holds, a line number after the first
+    command of a script, as in '/x/p;3p', and a read by a pattern.
+The check cannot tell code from text: it reads every line as code. So it
+also refuses a line of a here-document, or of a quoted string that began on
+a line above, when such a read is a command of that line.
 
 EOF
   synopsis
@@ -60,54 +73,224 @@ usage() {
 
 reads_of_own_source_by_line_number() {
   SCRIPT_PATH=$1 LC_ALL=C awk '
-    function without_single_quoted_text(line,    text, i, last, character, in_double_quotes, closing) {
-      text = ""
+    function clear_word() {
+      word_value[depth] = ""
+      word_raw[depth] = ""
+      word_started[depth] = 0
+    }
+    function add_to_word(value, raw) {
+      word_value[depth] = word_value[depth] value
+      word_raw[depth] = word_raw[depth] raw
+      word_started[depth] = 1
+    }
+    function start_frame(kind) {
+      depth++
+      frame_kind[depth] = kind
+      in_double_quotes[depth] = 0
+      open_parentheses[depth] = 0
+      command_of_frame[depth] = 0
+      command_before_a_pipe[depth] = 0
+      redirection[depth] = ""
+      clear_word()
+    }
+    function current_command() {
+      if (!command_of_frame[depth]) {
+        command_count++
+        command_of_frame[depth] = command_count
+        word_count[command_count] = 0
+        own_path_on_standard_input[command_count] = 0
+        piped_from[command_count] = command_before_a_pipe[depth]
+        command_before_a_pipe[depth] = 0
+      }
+      return command_of_frame[depth]
+    }
+    function end_word(    command, is_own_path) {
+      if (!word_started[depth]) return
+      is_own_path = (word_raw[depth] ~ own_path)
+      command = current_command()
+      if (redirection[depth] == "") {
+        word_count[command]++
+        word_values[command, word_count[command]] = word_value[depth]
+        word_raws[command, word_count[command]] = word_raw[depth]
+        word_is_own_path[command, word_count[command]] = is_own_path
+      } else if (redirection[depth] == "input" && is_own_path) own_path_on_standard_input[command] = 1
+      redirection[depth] = ""
+      clear_word()
+    }
+    function end_command(with_a_pipe) {
+      end_word()
+      redirection[depth] = ""
+      command_before_a_pipe[depth] = (with_a_pipe ? command_of_frame[depth] : 0)
+      command_of_frame[depth] = 0
+    }
+    function end_frame() {
+      end_command(0)
+      depth--
+    }
+    function split_into_commands(line,    i, last, character, next_character, rest, closing, operator) {
+      split("", word_values)
+      split("", word_raws)
+      split("", word_is_own_path)
+      command_count = 0
+      depth = -1
+      start_frame("")
       last = length(line)
-      in_double_quotes = 0
       for (i = 1; i <= last; i++) {
         character = substr(line, i, 1)
+        next_character = substr(line, i + 1, 1)
         if (character == "\\" && i < last) {
-          text = text character substr(line, i + 1, 1)
+          if (in_double_quotes[depth] && index("$`\"\\", next_character) == 0) add_to_word(character next_character, character next_character)
+          else add_to_word(next_character, character next_character)
           i++
         } else if (character == "\"") {
-          in_double_quotes = !in_double_quotes
-          text = text character
-        } else if (character == "\047" && !in_double_quotes) {
-          closing = index(substr(line, i + 1), "\047")
-          if (closing == 0) return text
-          text = text "\047\047"
+          in_double_quotes[depth] = !in_double_quotes[depth]
+          add_to_word("", character)
+        } else if (character == "$" && next_character == "(") {
+          add_to_word(expansion, "$()")
+          i++
+          start_frame("substitution")
+        } else if (character == "`" && frame_kind[depth] == "backquotes" && !in_double_quotes[depth]) {
+          end_frame()
+        } else if (character == "`") {
+          add_to_word(expansion, "``")
+          start_frame("backquotes")
+        } else if (character == "$" && next_character ~ /[A-Za-z0-9_{@*#?$!-]/) {
+          add_to_word(expansion, character)
+        } else if (in_double_quotes[depth]) {
+          add_to_word(character, character)
+        } else if (character == "\047") {
+          rest = substr(line, i + 1)
+          closing = index(rest, "\047")
+          if (closing == 0) {
+            add_to_word(rest, character rest)
+            break
+          }
+          add_to_word(substr(rest, 1, closing - 1), substr(line, i, closing + 1))
           i += closing
-        } else text = text character
+        } else if (character == ")") {
+          if (open_parentheses[depth] > 0) {
+            open_parentheses[depth]--
+            end_command(0)
+          } else if (frame_kind[depth] == "substitution") end_frame()
+          else end_command(0)
+        } else if (character == "(") {
+          end_command(0)
+          open_parentheses[depth]++
+        } else if (character == "|") {
+          end_command(1)
+        } else if (character == "&" || character == ";") {
+          end_command(0)
+        } else if (character == " " || character == "\t") {
+          end_word()
+        } else if (character == "<" || character == ">") {
+          if (word_started[depth] && word_raw[depth] ~ /^[0-9]+$/) clear_word()
+          else end_word()
+          operator = character
+          if (next_character == character || next_character == "&" || (character == "<" && next_character == ">") || (character == ">" && next_character == "|")) {
+            operator = operator next_character
+            i++
+          }
+          if (operator == "<<" && substr(line, i + 1, 1) == "-") i++
+          if ((operator == "<&" || operator == ">&") && match(substr(line, i + 1), /^([0-9]+-?|-)/)) i += RLENGTH
+          else redirection[depth] = (operator == "<" || operator == "<>") ? "input" : "other"
+        } else if (character == "#" && !word_started[depth]) {
+          break
+        } else add_to_word(character, character)
       }
-      return text
+      while (depth >= 0) end_frame()
     }
-    function command_gets_own_path(reader,    count, part, i) {
-      count = split(shell_text, part, /[|;&()`]/)
-      for (i = 1; i <= count; i++)
-        if (part[i] ~ own_path && part[i] ~ ("^[ \t]*(" before_a_command ")*" a_directory reader "([ \t]|$)")) return 1
-      return shell_text ~ ("(^|[|;&()`])[ \t]*(" before_a_command ")*" a_directory "cat[ \t][^|;&()`]*" own_path "[^|;&()`]*[|][ \t]*(" before_a_command ")*" a_directory reader "([ \t]|$)")
+    function command_word(command,    word, raw) {
+      for (word = 1; word <= word_count[command]; word++) {
+        raw = word_raws[command, word]
+        if (raw ~ /^[A-Za-z_][A-Za-z0-9_]*[+]?=/ || raw ~ /^(if|then|else|elif|do|while|until|!|[{]|exec)$/) continue
+        if (raw != "command") return word
+        if (word < word_count[command] && word_raws[command, word + 1] ~ /^-[A-Za-z]*[vV]/) return 0
+        while (word < word_count[command] && word_raws[command, word + 1] ~ /^(-p|--)$/) word++
+      }
+      return 0
+    }
+    function name_of(command, word,    name) {
+      if (!word) return ""
+      name = word_values[command, word]
+      sub("^.*/", "", name)
+      sub("[.][Ee][Xx][Ee]$", "", name)
+      return name
+    }
+    function operand_or_standard_input_is_own_path(command, first,    word) {
+      for (word = first + 1; word <= word_count[command]; word++) if (word_is_own_path[command, word]) return 1
+      return own_path_on_standard_input[command]
+    }
+    function gets_own_path(command, first,    before, first_of_before) {
+      if (operand_or_standard_input_is_own_path(command, first)) return 1
+      before = piped_from[command]
+      if (!before) return 0
+      first_of_before = command_word(before)
+      return name_of(before, first_of_before) == "cat" && operand_or_standard_input_is_own_path(before, first_of_before)
+    }
+    function starts_at_a_line_number(script) {
+      return script ~ line_number_first || script ~ pattern_to_line_number
+    }
+    function a_sed_script_starts_at_a_line_number(command, first,    word, value, position, letter, script_follows, script_seen) {
+      script_follows = 0
+      script_seen = 0
+      for (word = first + 1; word <= word_count[command]; word++) {
+        value = word_values[command, word]
+        if (script_follows) {
+          script_follows = 0
+          if (starts_at_a_line_number(value)) return 1
+        } else if (value ~ /^--expression=/) {
+          script_seen = 1
+          if (starts_at_a_line_number(substr(value, 14))) return 1
+        } else if (value == "--expression") {
+          script_seen = 1
+          script_follows = 1
+        } else if (value ~ /^--file/) {
+          script_seen = 1
+        } else if (value ~ /^-[A-Za-z]/) {
+          for (position = 2; position <= length(value); position++) {
+            letter = substr(value, position, 1)
+            if (letter == "e") {
+              script_seen = 1
+              if (position == length(value)) script_follows = 1
+              else if (starts_at_a_line_number(substr(value, position + 1))) return 1
+              break
+            }
+            if (letter == "f") script_seen = 1
+            if (letter == "f" || letter == "i") break
+          }
+        } else if (value !~ /^--/ && !script_seen) {
+          script_seen = 1
+          if (starts_at_a_line_number(value)) return 1
+        }
+      }
+      return 0
+    }
+    function a_word_holds_nr_or_fnr(command, first,    word) {
+      for (word = first + 1; word <= word_count[command]; word++)
+        if (word_values[command, word] ~ /(^|[^A-Za-z0-9_])F?NR([^A-Za-z0-9_]|$)/) return 1
+      return 0
     }
     BEGIN {
       script_path = ENVIRON["SCRIPT_PATH"]
-      own_path = "\"[$](0|[{]0[}])\""
-      a_directory = "([^ \t|;&()`]*/)?"
-      before_a_command = "([A-Za-z_][A-Za-z0-9_]*=[^ \t]*|[0-9]*[<>]+[ \t]*[^ \t]+|if|then|else|elif|do|while|until|exec|command|[!{])[ \t]+"
-      sed_and_its_options = "(^|[^A-Za-z0-9_.-])sed[ \t][^|;&]*"
-      after_an_address = "[ \t]*[,~!{=A-Za-z]"
+      expansion = "\001"
+      own_path = "^(\"[$](0|[{]0[}])\"|[$](0|[{]0[}]))$"
+      line_number_first = "^[ \t]*([$]|[0-9]+)[ \t]*[,~!{=A-Za-z]"
+      pattern_to_line_number = "^[ \t]*[/][^;]*[/][ \t]*,[ \t]*([$]|[0-9]+)"
     }
     {
-      shell_text = without_single_quoted_text($0)
-      text_outside_quotes = shell_text
-      gsub(/"[^"]*"/, "\"\"", text_outside_quotes)
-      sed_starts_at_a_line_number = $0 ~ (sed_and_its_options "\047[ \t]*([$]|[0-9]+)" after_an_address) ||
-        $0 ~ (sed_and_its_options "\"[ \t]*[0-9]+" after_an_address) ||
-        $0 ~ (sed_and_its_options "[/],[ \t]*[0-9]+") ||
-        text_outside_quotes ~ ("(^|[^A-Za-z0-9_.-])sed[ \t]([^|;&]*[ \t])?(-[A-Za-z]*e)?[0-9]+" after_an_address)
+      split_into_commands($0)
       reader = ""
-      if (sed_starts_at_a_line_number && command_gets_own_path("sed")) reader = "sed with an address that is a line number"
-      else if (command_gets_own_path("head")) reader = "head"
-      else if (command_gets_own_path("tail")) reader = "tail"
-      else if ($0 ~ /(^|[^A-Za-z0-9_])F?NR([^A-Za-z0-9_]|$)/ && command_gets_own_path("awk")) reader = "awk with NR or FNR"
+      for (command = 1; command <= command_count && reader == ""; command++) {
+        first = command_word(command)
+        name = name_of(command, first)
+        if (name != "sed" && name != "head" && name != "tail" && name != "awk") continue
+        if (!gets_own_path(command, first)) continue
+        if (name == "sed") {
+          if (a_sed_script_starts_at_a_line_number(command, first)) reader = "sed with an address that is a line number"
+        } else if (name == "awk") {
+          if (a_word_holds_nr_or_fnr(command, first)) reader = "awk with NR or FNR"
+        } else reader = name
+      }
       if (reader != "") printf "%s:%d: this line hands the path of the script to %s, so the text that it prints changes when a line is added or removed above that text. Fix: print the text from a here-document (cat <<\047EOF\047, the text, EOF), which holds the text and no line number.\n", script_path, NR, reader
     }
   ' "$2"
@@ -222,6 +405,46 @@ self_test() {
   expect 'sed named by its path after cat named by its path and a pipe is refused' 1 "/bin/cat $own_path | /usr/bin/sed -n $lines_2_to_20"
   expect 'sed named by its path after an assignment is refused' 1 "LC_ALL=C /usr/bin/sed -n $lines_2_to_20 $own_path"
   expect 'the path of a reader as an operand of another command is accepted' '' "ls -l /usr/bin/head $own_path"
+  expect 'sed after exec is refused' 1 "exec sed -n $lines_2_to_20 $own_path"
+  expect 'awk inside a command substitution after an assignment is refused' 1 "help=\$(/usr/bin/awk 'NR > 1 && NR < 9' $own_path)"
+  expect 'awk inside a command substitution in double quotes is refused' 1 "printf '%s\\n' \"\$(awk 'NR>=2 && NR<=3' $own_path)\""
+  expect 'sed after a redirection that copies a descriptor is refused' 1 ">&2 sed -n '2,3p' $own_path"
+  expect 'sed with a script in double quotes that holds a second command is refused' 1 "sed -n \"2,3p;3q\" $own_path"
+  expect 'sed named by a path in double quotes is refused' 1 "\"/usr/bin/sed\" -n $lines_2_to_20 $own_path"
+  expect 'head named by a path in single quotes is refused' 1 "'/usr/bin/head' -n 3 $own_path"
+  expect 'sed named by a path whose directory a variable holds is refused' 1 "\"\$BIN/sed\" -n $lines_2_to_20 $own_path"
+  expect 'sed named with .exe at its end is refused' 1 "/usr/bin/sed.exe -n $lines_2_to_20 $own_path"
+  expect 'head after command -p is refused' 1 "command -p /usr/bin/head -n 3 $own_path"
+  expect 'sed named in double quotes after cat and a pipe is refused' 1 "/bin/cat $own_path | \"/usr/bin/sed\" -n $lines_2_to_20"
+  expect 'sed after a backslash is refused' 1 "\\sed -n '2,3p' $own_path"
+  expect 'head after cat that reads the script on standard input is refused' 1 "<$own_path cat | head -n 3"
+  expect 'head after cat with a redirection before the pipe is refused' 1 "cat $own_path 2>&1 | head -n 3"
+  expect 'sed over the parameter 0 without quotes is refused' 1 "sed -n '2,3p' ${dollar}0"
+  expect 'head inside backquotes in double quotes is refused' 1 "first=\"\`head -n 3 $own_path\`\""
+  expect 'sed with a second script that starts with a line number is refused' 1 "sed -n -e 's/a/b/' -e '2p' $own_path"
+  expect 'a reader that an assignment only names before exec of the script is accepted' '' "TAIL=/usr/bin/tail exec $own_path --inner"
+  expect 'a reader that an assignment only names before another command is accepted' '' "HEAD_BIN=/usr/bin/head sh $own_path --child"
+  expect 'a path that ends in the name of a reader in an assignment is accepted' '' "log=/var/log/tail echo $own_path"
+  expect 'a redirection to a file that is named like a reader is accepted' '' ">/tmp/head echo $own_path"
+  expect 'two assignments, one of the script and one of a reader, are accepted' '' "self=$own_path tool=bin/tail"
+  expect 'awk with NR over another file, with the script in a variable of awk, is accepted' '' "awk -v prog=$own_path 'NR==1{print prog}' data.txt"
+  expect 'tail over a file whose name starts with the name of the script is accepted' '' "tail -n 1 $own_path.log"
+  expect 'head over a file below a directory that is named after the script is accepted' '' "head -1 $own_path.d/VERSION"
+  expect 'head over another file with its output beside the script is accepted' '' "head -n 1 \"\$1\" > $own_path.first"
+  expect 'a reader that a parameter names is not seen' '' "\${SED:-/usr/bin/sed} -n $lines_2_to_20 $own_path"
+  expect 'a reader that env starts is not seen' '' "/usr/bin/env sed -n $lines_2_to_20 $own_path"
+  expect 'a reader of another name is not seen' '' "/opt/homebrew/bin/gsed -n $lines_2_to_20 $own_path"
+  expect 'standard input that a group hands on is not seen' '' "{ /usr/bin/head -n 3; } <$own_path"
+  expect 'a script that comes through two pipes is not seen' '' "cat $own_path | grep -v '^#!' | head -n 2"
+  expect 'a path that is built from the parameter 0 is not seen' '' "sed -n '2,3p' \"\$(dirname $own_path)/tool.sh\""
+  expect 'a line number after the first command of a sed script is not seen' '' "sed -n '/x/p;3p' $own_path"
+  expect 'a reader that nice starts is not seen' '' "/usr/bin/nice /usr/bin/head -n 3 $own_path"
+  expect 'a reader that xargs starts is not seen' '' "echo $own_path | xargs head -n 3"
+  expect 'perl, a reader of another name, is not seen' '' "perl -ne 'print if \$. <= 3' $own_path"
+  expect 'standard input that a loop hands on is not seen' '' "while :; do head -n 3; break; done <$own_path"
+  expect 'a command that continues on another line is not seen' '' "sed -n $lines_2_to_20 \\${NEWLINE}  $own_path"
+  expect 'a line of a here-document that holds such a read as its command is refused too' 2 "cat <<'EOF'${NEWLINE}  sed -n $lines_2_to_20 $own_path${NEWLINE}EOF"
+  expect 'a line of a here-document that names such a read after other words is accepted' '' "cat <<'EOF'${NEWLINE}Run sed -n $lines_2_to_20 $own_path to see the usage.${NEWLINE}EOF"
 
   leave_the_repository_that_git_variables_name
   fixture_directory=$(mktemp -d "${TMPDIR:-/tmp}/check-own-source-reads-self-test.XXXXXX") || die 'mktemp could not make a directory'
