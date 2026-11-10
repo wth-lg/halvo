@@ -79,8 +79,41 @@ child_of_script() {
   timed_child "$gate_scratch/script-child" "$gate_scratch/wrapper-script"
 }
 
+report_fixture() {
+  printf 'modality=screen_frame count=%s\nmodality=keystroke count=0\nmodality=pointer count=0\nmodality=foreground_app count=%s\nmodality=window_title count=1\nsecure_input_keystrokes=0\n' "$2" "$3" > "$gate_scratch/$1"
+}
+
+sources_cases() {
+  report_fixture report-ran 12 2
+  report_fixture report-no-frames 0 2
+  report_fixture report-no-foreground 12 0
+  cp "$gate_scratch/report-ran" "$gate_scratch/report-failed-source"
+  printf 'failed_sources=1\nfailed_source=screen: the capture permission for ScreenFrame is not granted\n' >> "$gate_scratch/report-failed-source"
+  grep -v '^modality=screen_frame' "$gate_scratch/report-ran" > "$gate_scratch/report-no-frame-line"
+  : > "$gate_scratch/stderr-clean"
+  printf 'halvo-capture: source screen did not start: the capture permission for ScreenFrame is not granted\n' > "$gate_scratch/stderr-screen"
+  printf 'halvo-capture: source input did not start: event tap creation failed\n' > "$gate_scratch/stderr-input"
+  t sources-ran PASS predicate_sources_ran "$gate_scratch/report-ran" "$gate_scratch/stderr-clean"
+  t screen-source-failed FAIL predicate_sources_ran "$gate_scratch/report-no-frames" "$gate_scratch/stderr-screen"
+  t screen-source-failed-with-frames FAIL predicate_sources_ran "$gate_scratch/report-ran" "$gate_scratch/stderr-screen"
+  t input-source-failed FAIL predicate_sources_ran "$gate_scratch/report-ran" "$gate_scratch/stderr-input"
+  t failed-source-line-in-report FAIL predicate_sources_ran "$gate_scratch/report-failed-source" "$gate_scratch/stderr-clean"
+  t screen-frames-zero FAIL predicate_sources_ran "$gate_scratch/report-no-frames" "$gate_scratch/stderr-clean"
+  t screen-frame-line-absent FAIL predicate_sources_ran "$gate_scratch/report-no-frame-line" "$gate_scratch/stderr-clean"
+  t foreground-zero FAIL predicate_sources_ran "$gate_scratch/report-no-foreground" "$gate_scratch/stderr-clean"
+  t stderr-of-the-run-missing FAIL predicate_sources_ran "$gate_scratch/report-ran" "$gate_scratch/no-such-stderr"
+  t report-of-the-run-missing FAIL predicate_sources_ran "$gate_scratch/no-such-report" "$gate_scratch/stderr-clean"
+  t missing-grant-is-named PASS sources_defect_is "source screen did not start: the capture permission for ScreenFrame is not granted (needs a human grant)" "$gate_scratch/report-ran" "$gate_scratch/stderr-screen"
+}
+
+sources_defect_is() {
+  defect=$(sources_defect "$2" "$3")
+  [ "$defect" = "$1" ]
+}
+
 cases() {
   scratch_root
+  sources_cases
   standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
   t cpu-20.00-vs-20 PASS predicate_cost_within_bound 20.00 0 600 20 2000000000
   t cpu-20.09-vs-20 FAIL predicate_cost_within_bound 20.09 0 600 20 2000000000
@@ -161,6 +194,7 @@ measure() {
   if ! predicate_cost_within_bound "$cpu" "$growth" "$seconds" "$cpu_max" "$per_day"; then
     emit_fail "$name" "$line: above a bound"; return 1
   fi
+  defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
   if ! strict_run_ok; then
     emit_fail "$name" "$line: --strict needs pressure level 1 at both ends and no other halvo-capture"; return 1
   fi

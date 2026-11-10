@@ -223,6 +223,31 @@ predicate_deletion_report() {
   [ -z "$defects" ]
 }
 
+sources_defect() {
+  source_line=$(grep -m 1 -E '^halvo-capture: source [a-z_]+ did not start' "$2" 2>/dev/null)
+  case $? in
+    1) ;;
+    0) source_line=${source_line#halvo-capture: }
+       case $source_line in *'is not granted'*) source_line="$source_line (needs a human grant)" ;; esac
+       printf '%s\n' "$source_line"; return 1 ;;
+    *) printf 'the stderr of the run could not be read\n'; return 1 ;;
+  esac
+  source_line=$(grep -m 1 -E '^failed_source=' "$1" 2>/dev/null)
+  if [ -n "$source_line" ]; then
+    case $source_line in *'is not granted'*) source_line="$source_line (needs a human grant)" ;; esac
+    printf '%s\n' "$source_line"; return 1
+  fi
+  for kind in screen_frame foreground_app; do
+    count=$(modality_count "$1" "$kind")
+    case $count in ''|*[!0-9]*) printf 'the report holds no one line modality=%s count\n' "$kind"; return 1 ;; esac
+    [ "$count" -gt 0 ] || { printf 'modality=%s count=0: that source recorded nothing\n' "$kind"; return 1; }
+  done
+}
+
+predicate_sources_ran() {
+  sources_defect "$1" "$2" > /dev/null
+}
+
 predicate_zero_secure_keystrokes() {
   count=$(sed -n 's/^secure_input_keystrokes=\([0-9][0-9]*\)$/\1/p' "$1" 2>/dev/null)
   [ "$count" = 0 ]
