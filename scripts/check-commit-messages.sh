@@ -10,6 +10,8 @@ SCISSORS='------------------------ >8 ------------------------'
 
 DEFAULT_BRANCH_REMEDY='The owner decides between rewriting that branch and moving the exempt commit (NEWEST_EXEMPT_COMMIT in scripts/check-commit-messages.sh), with the reason recorded in AGENTS.md. scripts/merge-pr.sh exists so that this does not happen: it checks the squash message before it merges.'
 
+DEFAULT_REF_WITHOUT_ORIGIN_HEAD=refs/remotes/origin/main
+
 exempt_commit_short=${NEWEST_EXEMPT_COMMIT%"${NEWEST_EXEMPT_COMMIT#???????}"}
 
 synopsis() {
@@ -20,7 +22,7 @@ synopsis() {
       2026-11-09: $NEWEST_EXEMPT_COMMIT and the commits
       reachable from it. --no-exempt checks them too. --default-ref names the
       branch that is never rewritten, by its full ref (default: the branch that
-      refs/remotes/origin/HEAD points to).
+      refs/remotes/origin/HEAD points to, or refs/remotes/origin/main).
   sh scripts/check-commit-messages.sh --pre-push <remote>
       Check the commits that a push would add to <remote>. .githooks/pre-push calls
       this and passes on the lines that git writes to standard input.
@@ -210,6 +212,9 @@ resolve_default_ref() {
       die "--default-ref $default_ref does not name a commit in this clone"
   else
     default_ref=$(git symbolic-ref -q refs/remotes/origin/HEAD) || default_ref=
+    if [ -z "$default_ref" ] && git rev-parse -q --verify "$DEFAULT_REF_WITHOUT_ORIGIN_HEAD^{commit}" >/dev/null; then
+      default_ref=$DEFAULT_REF_WITHOUT_ORIGIN_HEAD
+    fi
   fi
 }
 
@@ -248,7 +253,7 @@ check_commits() {
       printf 'sh scripts/prerequisites.sh turns on the commit-msg and pre-push hooks, which report such a line before it leaves this clone.\n'
     fi
     if [ "$bad_on_default_branch" -gt 0 ]; then
-      printf '%d of the listed commits are already on %s. Do not amend or rebase them: an agent does not rewrite the default branch. %s\n' "$bad_on_default_branch" "$default_ref" "$DEFAULT_BRANCH_REMEDY"
+      printf 'Listed commits that are already on %s: %d. Do not amend or rebase them: an agent does not rewrite the default branch. %s\n' "$default_ref" "$bad_on_default_branch" "$DEFAULT_BRANCH_REMEDY"
     elif [ -z "$default_ref" ]; then
       printf 'If a listed commit is already on the default branch, do not amend or rebase it: an agent does not rewrite the default branch. %s\n' "$DEFAULT_BRANCH_REMEDY"
     fi
