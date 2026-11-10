@@ -22,13 +22,22 @@ const TASKS = ['bill', 'order', 'reply', 'cleanup'];
 const CONTROL = 'control.agent.test';
 const DAY_MS = 86400000;
 
-if (process.argv.length > 2) {
-  process.stderr.write('REFUSED usage: selftest.mjs takes no arguments\n');
+function refuse(line) {
+  process.stderr.write(`${line}\n`);
   process.exit(2);
 }
 
+if (process.argv.length > 2) refuse('REFUSED usage: selftest.mjs takes no arguments');
+
 const seeds = {};
-for (const n of SEEDS) seeds[n] = JSON.parse(readFileSync(join(HERE, 'data', `seed-${n}.json`), 'utf8'));
+for (const n of SEEDS) {
+  const name = `seed-${n}.json`;
+  try {
+    seeds[n] = JSON.parse(readFileSync(join(HERE, 'data', name), 'utf8'));
+  } catch (err) {
+    refuse(`REFUSED data: ${name} cannot be read as JSON (${err.code || err.name})`);
+  }
+}
 
 let getChanges = 0;
 const cases = [];
@@ -1028,8 +1037,8 @@ async function cliCases(env) {
 async function main() {
   const server = await startServer(HERE, ['--port', '0']);
   if (!server.child) {
-    process.stdout.write('fixture self-test: server did not start\n');
-    process.exit(1);
+    const own = server.err.split('\n').find((l) => /^REFUSED [a-z]+: /.test(l));
+    refuse(own || `REFUSED server: server.mjs did not start (exit ${server.code})`);
   }
   const env = makeEnv(server.port);
   try {

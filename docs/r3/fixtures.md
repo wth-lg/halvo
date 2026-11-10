@@ -318,6 +318,13 @@ prints one line `miss case=<case> check=<check>` for each check that misses, the
 every case is ok and `n` is 0, and else 1. Its lines hold names and counts only, never a value of
 a seed.
 
+The self-test reads the seed files inside a guard. When one cannot be read as JSON, it refuses
+with `data` as the server does: one line `REFUSED data: seed-<n>.json cannot be read as JSON
+(<error code or name>)`. When its server refuses to start, it prints the server's own `REFUSED` line. When
+the server ends or prints no `listening` line within 15 seconds without such a line, it prints
+`REFUSED server: server.mjs did not start (exit <code>)`. Each refusal is one line on standard
+error, with nothing on standard output, and exit 2.
+
 - A walk case is one seed, one task (`bill`, `order`, `reply`, `cleanup`) and one variant set (no
   variant, or one of the nine). The case resets the server, does what one run of the task does,
   checks the pages, the controls and the variant's effect on the way, and compares the list of
