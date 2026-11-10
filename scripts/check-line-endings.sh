@@ -17,8 +17,8 @@ Keeps scripts runnable in a clone with core.autocrlf=true, the installer default
 of Git for Windows. In such a clone git checks out a text file with CRLF unless
 the file has the eol=lf attribute. The sh of Git for Windows runs a script with
 CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
-  - A tracked text file whose first line is an interpreter line, "#!" and then a
-    path that starts with "/", has the eol=lf attribute.
+  - A tracked file whose first line is an interpreter line, "#!" and then a path
+    that starts with "/", has the eol=lf attribute.
   - A tracked file with the eol=lf attribute is stored in the index with LF, not
     with CRLF.
 The check reads file content from the index, not from the work tree, and reads
@@ -50,14 +50,14 @@ usage() {
 }
 
 files_that_start_with_an_interpreter_line() {
-  interpreter_lines=$(git -c core.quotePath=false grep --cached --color=never -I -n -G -e "$INTERPRETER_LINE") ||
+  interpreter_lines=$(git -c core.quotePath=false grep --cached --color=never --no-column -a -n -G -e "$INTERPRETER_LINE") ||
     [ $? = 1 ] || die 'git grep could not search the index'
-  files_with_an_interpreter_line=$(git -c core.quotePath=false grep --cached --color=never -I -l -G -e "$INTERPRETER_LINE") ||
+  files_with_an_interpreter_line=$(git -c core.quotePath=false grep --cached --color=never -a -l -G -e "$INTERPRETER_LINE") ||
     [ $? = 1 ] || die 'git grep could not search the index'
   [ -n "$files_with_an_interpreter_line" ] || return 0
   while IFS= read -r path; do
     case $NEWLINE$interpreter_lines in
-      *"$NEWLINE$path:1:"*) printf '%s\n' "$path" ;;
+      *"$NEWLINE$path:1:#!"*) printf '%s\n' "$path" ;;
     esac
   done <<EOF
 $files_with_an_interpreter_line
