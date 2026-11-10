@@ -539,6 +539,11 @@ self_test() {
   expect 'a line of .gitattributes with eol=lf that a space indents is a line to quote, with its space' 1 "check-line-endings: AGENTS.md does not hold this text, which quotes the lines of .gitattributes that give eol=lf: ${TICK}.gitattributes${TICK} holds the lines ${TICK} /tool text eol=lf${TICK}"
 
   start_fixture
+  track .gitattributes '\f#notes text eol=lf\n'
+  track AGENTS.md 'no text that quotes a line\n'
+  expect 'a line of .gitattributes that starts with a form feed and a number sign is a line to quote, as git reads it' 1 "check-line-endings: AGENTS.md does not hold this text, which quotes the lines of .gitattributes that give eol=lf: ${TICK}.gitattributes${TICK} holds the lines ${TICK}$(printf '\f')#notes text eol=lf${TICK}"
+
+  start_fixture
   track .gitattributes '/tool text eol=lf\n'
   track AGENTS.md "${TICK}.gitattributes${TICK} holds the lines ${TICK}/tool text eol=lf${TICK}. A later sentence of the line names ${TICK}a${TICK} and ${TICK}b${TICK}.\\n"
   expect 'a text is accepted when a further quoted word stands later on its line and not right after it' 0 'check-line-endings: texts that quote the lines of .gitattributes with eol=lf, each as the file has them: 1.'
