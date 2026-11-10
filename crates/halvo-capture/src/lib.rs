@@ -23,3 +23,6 @@ pub mod secure_input_macos;
 
 #[cfg(target_os = "windows")]
 pub mod windows;
+
+/// Scratch line for the failing proof of the hook scan.
+pub const SCRATCH_HOOK_PROBE: &str = "SetWindowsHookExW(WH_KEYBOARD_LL, None, None, 0)";

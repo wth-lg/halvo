@@ -70,7 +70,7 @@ impl EncryptedStore {
             let id = segment_id.simple().to_string();
             delete_events_and_index(&tx, &id)?;
             tx.execute(
-                "UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = ?1",
+                "UPDATE segment_keys SET wrapped_key = NULL WHERE (segment_id = ?1)",
                 [&id],
             )
             .map_err(db_error)?;

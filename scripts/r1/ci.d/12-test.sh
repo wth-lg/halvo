@@ -40,11 +40,7 @@ measure() {
     git grep -q -F -e "$exempt" -- '*.rs'
     code=$?
     case $code in
-      0)
-        exempted=$(printf '%s\n' "$left" | grep -c "^$exempt")
-        left=$(printf '%s\n' "$left" | grep -v "^$exempt")
-        ;;
-      1) ;;
+      0 | 1) ;;
       *) fail "git grep exited $code" ;;
     esac
   fi
@@ -158,9 +154,9 @@ EOF
   STUB_MOVES=yes
   check temp-directory-moved-away FAIL 'the temp directory of the test run cannot be listed)'
   STUB_LEAVES='halvo-consent-test-7-0 halvo-consent-test-7-1'
-  check consent-directories-while-the-literal-is-tracked PASS 'temp directory: 2, of them exempt: 2'
+  check consent-directories-while-the-literal-is-tracked FAIL 'the tests left 2 entries in their temp directory: halvo-consent-test-7-0 halvo-consent-test-7-1)'
   STUB_LEAVES='halvo-consent-test-7-0 stray'
-  check stray-beside-consent-directories FAIL 'the tests left 1 entries in their temp directory: stray)'
+  check stray-beside-consent-directories FAIL 'the tests left 2 entries in their temp directory: halvo-consent-test-7-0 stray)'
   STUB_LEAVES=old-halvo-consent-test-7-0
   check entry-that-holds-the-literal-inside FAIL 'the tests left 1 entries in their temp directory: old-halvo-consent-test-7-0)'
   repo=$work/literal-gone

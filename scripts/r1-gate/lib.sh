@@ -146,3 +146,26 @@ predicate_no_ll_hook() {
   grep -rqE --include='*.rs' 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' "$dir" 2>/dev/null && return 1
   return 0
 }
+
+predicate_tree_lines() {
+  for required_name in $2; do
+    printf '%s\n' "$1" | grep -q "^$required_name v" || {
+      printf 'required line missing: %s v\n' "$required_name"
+      return 1
+    }
+  done
+  for forbidden_name in $3; do
+    if forbidden_line=$(printf '%s\n' "$1" | grep "^$forbidden_name v"); then
+      printf 'forbidden crate line: %s\n' "$forbidden_line" | sed 1q
+      return 1
+    fi
+  done
+  return 0
+}
+
+gate_bound() {
+  bounds=$GATE_ROOT/docs/baseline/r1-gate-bounds.txt
+  [ -f "$bounds" ] || return 1
+  [ "$(grep -c "^$1=[0-9][0-9]*\$" "$bounds")" = 1 ] || return 1
+  sed -n "s/^$1=\\([0-9][0-9]*\\)\$/\\1/p" "$bounds"
+}
