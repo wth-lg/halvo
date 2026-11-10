@@ -260,7 +260,7 @@ fail, because the take after the drop is still refused. In the reviewer's
 one run of the lib suite with the `flock-only` patch,
 `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped`
 failed and the other 102 tests that ran passed, check 2 among them
-(`02-mutations.log` in `pr-review-2`). One more test of the binary,
+(`02-mutations.log` in `pr-review-2`). On macOS one more test of the binary,
 `hardening_tests::peak_rss_stays_bounded_for_a_512_mib_segment`, is ignored
 and does not run in the lib suite. With each of the other two patches the
 reviewer ran the two tests alone, once (`13-extra-mutants.log`).
@@ -304,7 +304,7 @@ twice with `mutation-unlock-at-once.patch`, and both checks passed in both
 runs. The third ran m7 and m8 at the sync commit: the lib suite 21 times
 with m7 and 8 times with m8, and check 1 beside a test that spawns children
 from four threads 8 times with m7. All 37 of those runs passed (`extra.tsv`,
-`survivors.tsv` and `survivors-run1.tsv` in `interrogate-3`, the two
+`survivors.tsv` and `survivors-run1.tsv` in `interrogate-3`, the m7 and m8
 `whole-suite` rows of `logs/rerun/runs.tsv`, and line 109 of
 `logs/final-chain.log`, which is all that is saved of one run of the lib
 suite with m7). With m7 or m8, check 1 can still fail in one case, which
@@ -323,7 +323,11 @@ through `open` itself. After delete-all, its `Reopen` op calls an `open`
 that takes the lock and then fails as `Sealed`, and the next `Reopen` or
 `Recreate` takes the lock again. So check 1 can catch a lock that a failed
 `open` never releases. It does not catch one in every run, because it draws
-its cases at random. With a patch that leaks the lock on the error returns
+its cases at random: with the same patch and a fixed seed the result was the
+same in every run of that seed, 6 seeds failing twice each and 2 seeds
+passing three times each (`r1-leak-patch-seeds.txt`,
+`r5-leak-patch-seeds-17-40.txt` and `r6-leak-patch-passing-seeds-again.txt`
+in `verifier-4`). With a patch that leaks the lock on the error returns
 of `open`, check 1 failed in the verifier's one run with "reopen failed:
 another writer holds the store" (`s-hard-2-check1.txt` in `verifier-2`).
 With the same patch, check 1 failed in 8 of the second verifier's 11 runs:
@@ -350,13 +354,15 @@ patch
 `i3_probe_tests.rs`).
 The second of the two tests of `db::tests` catches m7 and m8 because they
 skip the unlock for every lock that never reached a store, and the test
-drops such a lock itself. Apart from the case of check 1 above, no test
+drops such a lock itself. Apart from check 1 in the case of the spawned
+child above, no test
 catches a patch that skips the unlock only on the error returns of `open`
 and `create` and leaves a bare `WriterLock` alone. With such a patch the lib
 suite passed 103 tests of 103 in one run of each verifier
 (`s-soft-2-lib-suite.txt` in `verifier-2` and `q1-s-soft-tests-lines.txt` in
-`verifier-3`). A test at the level of the store does not tell m7 or m8 from
-the fix either. The sketch
+`verifier-3`). A test at the level of the store that holds a duplicate of a
+store's descriptor and spawns no child does not tell m7 or m8 from the fix
+either. The sketch
 `sketch_an_open_that_fails_beside_a_duplicate_of_a_store_descriptor` holds a
 duplicate of a dropped store's descriptor open, calls an `open` that must
 fail as `Sealed`, and requires that the `open` after it is not refused as
@@ -414,7 +420,9 @@ and each of the six `break-*` patches, the break proofs of the formal
 checks, gives the result that its row states for the checks. The rows of
 `mutation-unlock-at-once.patch` and of `m7-success-only.patch` and
 `m8-store-drop.patch` give their results on the `db.rs` whose blob is in the
-table below, and so does each result in another row that names a test of
+table below, except the runs that those rows and their paragraph give as
+taken at the sync commit or on a `db.rs` without the two tests, and so does
+each result in another row that names a test of
 `db::tests`, because the sync commit does not have those tests. Outcome:
 updated, for both checks. The sync commit before this one was
 `478fbb542b5eb02b5fd79b442ccf8c0c0f7df5e8`.
