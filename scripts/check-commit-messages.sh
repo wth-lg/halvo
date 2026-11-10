@@ -438,6 +438,8 @@ self_test() {
   expect_comment_string_read_from_git 'a comment string that is not valid UTF-8 is read from git under a UTF-8 locale' "$byte_that_is_not_utf8"
   expect_in_hook_file 'the diff of git commit -v is dropped when the comment string is that byte' 0 "$byte_that_is_not_utf8" "$(commit_verbose_file_with_comment_string "$byte_that_is_not_utf8")"
   expect_in_hook_file 'under the auto setting, a trailer below a line that spells auto before the scissors text fails' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl}$trailer"
+  expect_in_hook_file 'under the auto setting, an indented trailer below such a line fails too, because the line starts no scissors block' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl} $trailer"
+  expect 'a line that starts with a tool trailer key and has no colon passes' 0 "Fix the gate${nl}${nl}Assisted-by design, the gate stays manual."
   expect_in_hook_file 'a comment line of git that lists an untracked file named Generated with passes' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}# Untracked files:${nl}#${tab}Generated with notes.txt${nl}#"
 
   expect_at_lines 'a trailer on the first line of a message fails at line 1' '1' "$trailer"
