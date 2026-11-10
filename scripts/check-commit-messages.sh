@@ -32,9 +32,10 @@ synopsis() {
   sh scripts/check-commit-messages.sh --message-file <file>
       Check a message before git stores it. .githooks/commit-msg calls this. In
       the diff that git commit -v appends, a line that starts with a space, a
-      plus or a minus is skipped: it is a line of a file. Every other line is
-      read. So below a diff header that someone wrote by hand, an attribution
-      line that starts with one of those three characters passes this mode.
+      plus, a minus or an at sign is skipped: it is a line of a file, or a hunk
+      header that copies one. Every other line is read. So below a diff header
+      that someone wrote by hand, an attribution line passes this mode when a
+      space indents it, or when it follows a carriage return in a skipped line.
   sh scripts/check-commit-messages.sh --stored-message
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
@@ -138,7 +139,7 @@ drop_commit_verbose_diff() {
       scissors_block_lines = 0
     }
     dropping_diff {
-      if ($0 ~ /^[ +-]/) print ""; else print
+      if ($0 ~ /^[ +@-]/) print ""; else print
       next
     }
     scissors_block_lines > 0 {
