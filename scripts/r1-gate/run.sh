@@ -21,8 +21,14 @@ R1 gate driver. One line for each sub-check of the done-when.
       capture crate, cargo, gh or network. -v prints one line for each case:
       case <check>/<name> want=<PASS|FAIL> got=<PASS|FAIL>.
 
-  sh scripts/r1-gate/run.sh [--duration N] [--strict] [--remove-scratch]
-      Measure the built binary. N is the length of each timed run in seconds,
+  sh scripts/r1-gate/run.sh [--duration N] [--strict] [--allow-dirty] [--remove-scratch]
+      Measure the built binary of HEAD. The first line names the commit, the
+      tree id, the state of the work tree, the input and the machine. The tree
+      id is the hash of the listing of HEAD without docs/baseline, so a squash
+      and the commit that adds the record keep it:
+        git ls-tree -r HEAD | awk -F '\t' 'index(\$2, "docs/baseline/") != 1' | git hash-object --stdin
+      A dirty tree is refused unless --allow-dirty is given,
+      and then every line says so. N is the length of each timed run in seconds,
       a positive integer (default $GATE_DURATION). --strict fails a cost or memory
       line on a machine under memory pressure or beside another halvo-capture.
       Scratch directories stay in place and their paths go to stderr, unless
@@ -47,11 +53,58 @@ missing_script_line_is() {
   [ "$out" = "$1" ]
 }
 
+scratch_trees() {
+  trees=$gate_scratch/trees
+  git init -q "$trees" > /dev/null 2>&1 || return 1
+  mkdir -p "$trees/docs/baseline" "$trees/src"
+  printf 'one\n' > "$trees/src/a.txt"
+  printf 'record one\n' > "$trees/docs/baseline/record.txt"
+  git -C "$trees" add -A || return 1
+  tree_first=$(git -C "$trees" write-tree) || return 1
+  printf 'record two\n' > "$trees/docs/baseline/record.txt"
+  git -C "$trees" add -A || return 1
+  tree_new_record=$(git -C "$trees" write-tree) || return 1
+  printf 'two\n' > "$trees/src/a.txt"
+  git -C "$trees" add -A || return 1
+  tree_new_source=$(git -C "$trees" write-tree)
+}
+
+tree_ids() {
+  id_one=$(tree_id "$trees" "$2") || return 1
+  id_two=$(tree_id "$trees" "$3") || return 1
+  case $1 in
+    same) [ "$id_one" = "$id_two" ] ;;
+    differ) [ "$id_one" != "$id_two" ] ;;
+  esac
+}
+
+head_of() {
+  GATE_ROOT=$1
+  head_read
+}
+
 duration_accepted() {
   sh "$DIR/run.sh" --duration "$1" --help
 }
 
 cases() {
+  sha=0123456789abcdef0123456789abcdef01234567
+  t run-unchanged PASS predicate_run_unchanged "$sha" clean "$sha" clean
+  t sha-changed FAIL predicate_run_unchanged "$sha" clean 1123456789abcdef0123456789abcdef01234567 clean
+  t tree-dirty FAIL predicate_run_unchanged "$sha" clean "$sha" dirty
+  t sha-empty FAIL predicate_run_unchanged "" clean "" clean
+  t sha-39-digits FAIL predicate_sha 0123456789abcdef0123456789abcdef0123456
+  t sha-41-digits FAIL predicate_sha 0123456789abcdef0123456789abcdef012345678
+  t sha-is-the-word-HEAD FAIL predicate_sha HEAD
+  t sha-40-hex PASS predicate_sha "$sha"
+  t porcelain-empty PASS predicate_tree_clean ""
+  t porcelain-holds-a-change FAIL predicate_tree_clean " M scripts/r1-gate/run.sh"
+  t porcelain-holds-an-untracked-file FAIL predicate_tree_clean "?? notes.txt"
+  t head-of-no-repository FAIL head_of "$gate_scratch"
+  scratch_trees || { emit_fail "self-test:run" "git could not write the scratch trees"; return 1; }
+  t tree-id-moves-with-a-source-file PASS tree_ids differ "$tree_new_record" "$tree_new_source"
+  t tree-id-holds-under-docs-baseline PASS tree_ids same "$tree_first" "$tree_new_record"
+  t tree-id-of-no-tree FAIL tree_id "$trees" no-such-tree
   t check-script-missing FAIL run_check no-such-check --self-test
   t check-script-missing-is-named PASS missing_script_line_is "FAIL no-such-check (check script missing)"
   t check-script-present PASS run_check windows-ci --self-test
@@ -64,13 +117,14 @@ cases() {
 
 
 main() {
-  mode=measure; verbose=''; strict=''; remove=''; duration=$GATE_DURATION
+  mode=measure; verbose=''; strict=''; remove=''; allow_dirty=no; duration=$GATE_DURATION
   while [ $# -gt 0 ]; do
     case "$1" in
       --self-test) mode=self-test ;;
       -v) verbose=-v ;;
       --strict) strict=--strict ;;
       --remove-scratch) remove=--remove-scratch ;;
+      --allow-dirty) allow_dirty=yes ;;
       --duration)
         shift
         case ${1:-} in
@@ -91,13 +145,37 @@ main() {
     done
     gate_verbose=${verbose:+yes}
     name=run
+    scratch_root
+    trap gate_exit EXIT
+    [ -z "$remove" ] || gate_remove_scratch=yes
     selftest_run || rc=1
     return "$rc"
   fi
+  start=$(head_read) || { emit_fail run "HEAD of $GATE_ROOT is not readable: the gate measures a commit"; return 1; }
+  read -r start_sha start_tree start_state <<HEAD
+$start
+HEAD
+  machine=$(machine_kind)
+  printf 'gate head=%s tree=%s state=%s input=none machine=%s\n' "$start_sha" "$start_tree" "$start_state" "$machine"
+  if [ "$start_state" = dirty ]; then
+    if [ "$allow_dirty" = no ]; then
+      emit_fail run "the work tree is dirty: commit first, or pass --allow-dirty for a run that is no done-when run"
+      return 1
+    fi
+    export GATE_TREE_STATE=dirty
+  fi
   for entry in $CHECKS; do
-    run_check "${entry#*:}" --measure "$duration" ${strict:+"$strict"} ${remove:+"$remove"} || rc=1
+    run_check "${entry#*:}" --measure "$duration" --sha "$start_sha" ${strict:+"$strict"} ${remove:+"$remove"} || rc=1
   done
   printf 'OPEN second-account-read (owner step; no test bed)\n'
+  end=$(head_read) || end="unreadable unreadable unreadable"
+  read -r end_sha end_tree end_state <<HEAD
+$end
+HEAD
+  if ! predicate_run_unchanged "$start_sha" "$start_state" "$end_sha" "$end_state"; then
+    emit_fail run "the commit or the state of the work tree changed during the run: head $start_sha to $end_sha, tree $start_tree to $end_tree, state $start_state to $end_state"
+    rc=1
+  fi
   return "$rc"
 }
 

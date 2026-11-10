@@ -45,6 +45,7 @@ emit_line() {
   if [ -n "$gate_bounds_used" ]; then detail="${detail:+$detail; }bounds: ${gate_bounds_used% }"; fi
   [ -z "$detail" ] || line="$line ($detail)"
   [ -z "$gate_overrides" ] || line="$line [override: ${gate_overrides% }; not a done-when run]"
+  [ "${GATE_TREE_STATE:-clean}" = clean ] || line="$line [dirty tree; not a done-when run]"
   printf '%s\n' "$line"
 }
 emit_pass() { emit_line PASS "$@"; }
@@ -54,6 +55,7 @@ name=${name:-gate}
 gate_scratch=''
 gate_remove_scratch=no
 gate_verbose=''
+gate_sha=''
 gate_strict=no
 gate_case=''
 
@@ -103,6 +105,7 @@ check_main() {
       --case) shift; gate_case=${1:-} ;;
       --remove-scratch) gate_remove_scratch=yes ;;
       --strict) gate_strict=yes ;;
+      --sha) shift; gate_sha=${1:-} ;;
       ''|*[!0-9]*) printf 'check-%s.sh: unknown argument: %s\n' "$name" "$1" >&2; exit 64 ;;
       *) seconds=$1 ;;
     esac
@@ -262,6 +265,45 @@ gate_build() {
 }
 
 gate_defect=''
+
+predicate_sha() {
+  case $1 in ''|*[!0-9a-f]*) return 1 ;; esac
+  [ "${#1}" -eq 40 ]
+}
+
+measured_sha() {
+  if [ -n "$gate_sha" ]; then printf '%s\n' "$gate_sha"; return 0; fi
+  git -C "$GATE_ROOT" rev-parse HEAD 2>/dev/null
+}
+
+tree_id() {
+  tree_listing=$(git -C "$1" ls-tree -r "$2" 2>/dev/null) || return 1
+  printf '%s\n' "$tree_listing" | awk -F '\t' 'index($2, "docs/baseline/") != 1' | git hash-object --stdin
+}
+
+head_read() {
+  head_sha=$(git -C "$GATE_ROOT" rev-parse HEAD 2>/dev/null) || return 1
+  head_tree=$(tree_id "$GATE_ROOT" HEAD) || return 1
+  head_porcelain=$(git -C "$GATE_ROOT" status --porcelain 2>/dev/null) || return 1
+  head_state=clean
+  predicate_tree_clean "$head_porcelain" || head_state=dirty
+  printf '%s %s %s\n' "$head_sha" "$head_tree" "$head_state"
+}
+
+predicate_tree_clean() {
+  [ -z "$1" ]
+}
+
+predicate_run_unchanged() {
+  predicate_sha "$1" || return 1
+  [ "$1" = "$3" ] || return 1
+  [ "$2" = "$4" ]
+}
+
+machine_kind() {
+  machine_vmm=$(sysctl -n kern.hv_vmm_present 2>/dev/null)
+  if [ "$machine_vmm" = 1 ]; then printf 'guest\n'; else printf 'host\n'; fi
+}
 
 fail_defect() {
   emit_fail "$name" "$gate_defect"
