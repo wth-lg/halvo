@@ -4,11 +4,19 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   macos:
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Commit messages
@@ -32,7 +40,7 @@ jobs:
           sh scripts/check-commit-messages.sh --self-test-pre-push
           sh scripts/ci-commit-messages.sh --self-test
           sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
@@ -68,62 +76,69 @@ jobs:
         run: |
           sh scripts/check-own-source-reads.sh --self-test
           sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: Test
+      - name: ci.d self-test
         shell: bash
-        run: cargo test --workspace
-      - name: Clippy
+        run: sh scripts/ci/run-ci-d.sh macos --self-test
+      - name: ci.d
         shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
+        run: sh scripts/ci/run-ci-d.sh macos
       - name: Build
         shell: bash
         run: npm run tauri build
       - name: Version
         shell: bash
         run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: halvo-macos
           path: target/release/bundle/macos/Halvo.app
           if-no-files-found: error
+      - name: Lockfile unchanged
+        shell: bash
+        run: git diff --exit-code -- Cargo.lock
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ci-artifacts-macos
+          path: target/ci-artifacts/
 
   windows:
     runs-on: windows-2025
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: Test
+      - name: ci.d self-test
         shell: bash
-        run: cargo test --workspace
-      - name: Clippy
+        run: sh scripts/ci/run-ci-d.sh windows --self-test
+      - name: ci.d
         shell: bash
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Format
-        shell: bash
-        run: cargo fmt --check
+        run: sh scripts/ci/run-ci-d.sh windows
       - name: Build
         shell: bash
         run: npm run tauri build -- --no-bundle
       - name: Version
         shell: bash
         run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: halvo-windows
           path: target/release/halvo.exe
@@ -160,3 +175,11 @@ jobs:
             *"Co-Authored-By: Probe"*) ;;
             *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
           esac
+      - name: Lockfile unchanged
+        shell: bash
+        run: git diff --exit-code -- Cargo.lock
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ci-artifacts-windows
+          path: target/ci-artifacts/
