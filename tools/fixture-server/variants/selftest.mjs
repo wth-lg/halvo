@@ -37,12 +37,24 @@ class Case {
   constructor(name) {
     this.name = name;
     this.misses = [];
+    this.checks = 0;
     cases.push(this);
   }
   ok(cond, check) {
+    this.checks += 1;
     if (!cond) this.misses.push(check);
     return Boolean(cond);
   }
+}
+
+async function run(name, body) {
+  const c = new Case(name);
+  try {
+    await body(c);
+  } catch (err) {
+    c.misses.push(`exception_${err.code || err.name}`);
+  }
+  if (c.checks === 0) c.misses.push('no_check');
 }
 
 function money(minor) {
@@ -506,26 +518,28 @@ async function walkCases(env) {
     for (const v of ['none', ...VARIANTS]) {
       const vs = v === 'none' ? [] : [v];
       for (const task of TASKS) {
-        const c = new Case(`walk-seed${n}-${task}-${v}`);
-        const r = await env.reset(n, vs);
-        const st = JSON.parse(r.text);
-        c.ok(r.status === 200 && st.seed === n && equal(st.variants, vs), 'reset');
-        const b = new env.Browser();
-        await runTask(env, b, c, task, seed, vs, true);
-        await checkEnd(env, c, task, seed.end[task]);
+        await run(`walk-seed${n}-${task}-${v}`, async (c) => {
+          const r = await env.reset(n, vs);
+          const st = JSON.parse(r.text);
+          c.ok(r.status === 200 && st.seed === n && equal(st.variants, vs), 'reset');
+          const b = new env.Browser();
+          await runTask(env, b, c, task, seed, vs, true);
+          await checkEnd(env, c, task, seed.end[task]);
+        });
       }
     }
     for (const task of TASKS) {
-      const c = new Case(`second-run-seed${n}-${task}`);
-      await env.reset(n, []);
-      const b = new env.Browser();
-      await runTask(env, b, c, task, seed, [], true);
-      if (task === 'reply' || task === 'cleanup') c.ok((await env.advance()).status === 200, 'advance');
-      await runTask(env, b, c, task, seed, [], false);
-      await checkEnd(env, c, task, [...seed.end[task], ...laterEntry(seed, task)]);
-      if (task === 'bill' || task === 'order') {
-        c.ok((await env.state())[task === 'bill' ? 'utility' : 'shop'].signins === 1, 'second_run_stored_session');
-      }
+      await run(`second-run-seed${n}-${task}`, async (c) => {
+        await env.reset(n, []);
+        const b = new env.Browser();
+        await runTask(env, b, c, task, seed, [], true);
+        if (task === 'reply' || task === 'cleanup') c.ok((await env.advance()).status === 200, 'advance');
+        await runTask(env, b, c, task, seed, [], false);
+        await checkEnd(env, c, task, [...seed.end[task], ...laterEntry(seed, task)]);
+        if (task === 'bill' || task === 'order') {
+          c.ok((await env.state())[task === 'bill' ? 'utility' : 'shop'].signins === 1, 'second_run_stored_session');
+        }
+      });
     }
   }
 }
@@ -535,59 +549,61 @@ function eventStart(e, day) {
   return day - e.days_before * DAY_MS + (hh * 60 + mm) * 60000;
 }
 
-function dataCases() {
+async function dataCases() {
   const fixed = ['Zq7-halvo-marker-pw', '482913', 'halvo', 'Zq7-halvo-marker-token'];
   for (const n of SEEDS) {
     const s = seeds[n];
-    const c = new Case(`data-seed${n}`);
-    const cr = s.credentials;
-    c.ok(cr.user === 'resident@agent.test' && equal([cr.password, cr.code, cr.captcha, cr.token], fixed), 'credentials');
-    c.ok(s.page_marker === `Zq7-halvo-marker-page-${n}`, 'page_marker');
-    const instrumentBill = slot(s.bindings.bill, 'instrument')[0];
-    const instrumentOrder = slot(s.bindings.order, 'instrument')[0];
-    c.ok(s.utility.instruments.includes(instrumentBill) && s.shop.instruments.includes(instrumentOrder), 'bound_instruments');
-    c.ok(equal(slot(s.bindings.bill, 'payee'), [s.utility.payee]) && equal(slot(s.bindings.order, 'seller'), [s.shop.seller]), 'bound_parties');
-    c.ok(equal(slot(s.bindings.bill, 'start'), ['http://utility.agent.test']) && equal(slot(s.bindings.order, 'start'), ['http://shop.agent.test']), 'bound_start');
-    c.ok(equal(s.end.bill, [{ account: s.utility.account, amount: s.utility.amount_due, payee: s.utility.payee, instrument: instrumentBill }]), 'end_bill');
-    const total = s.shop.items.reduce((sum, i) => sum + i.quantity * i.price, 0);
-    c.ok(total === s.shop.total, 'shop_total');
-    c.ok(equal(s.end.order, [{ items: s.shop.items.map((i) => ({ name: i.name, quantity: i.quantity })), total, instrument: instrumentOrder }]), 'end_order');
-    c.ok(s.mail.inbox.length === 4 && s.calendar.events.length === 6 && s.sheet.rows.length === 5, 'counts');
-    const replies = selectReplies(s, s.mail.inbox);
-    c.ok(replies.length === 2 && replies[0].body.content.includes(s.page_marker), 'reply_matches');
-    c.ok(equal(s.end.reply, replies.map((m) => ({ to: m.from.emailAddress.address, conversation: m.conversationId, in_reply_to: m.id }))), 'end_reply');
-    const match = (e) => e.isCancelled || e.response === 'declined';
-    const inWindow = s.calendar.events.filter((e) => e.days_before >= 0 && e.days_before <= 30 && match(e));
-    c.ok(inWindow.length === 2 && inWindow.every((e) => e.days_before >= 2 && e.days_before <= 20), 'cleanup_matches');
-    c.ok(s.calendar.events.some((e) => e.isCancelled && e.days_before > 30), 'old_cancelled_event');
-    const ordered = inWindow.slice().sort((a, b) => eventStart(a, 0) - eventStart(b, 0)).map((e) => e.id);
-    c.ok(equal(s.end.cleanup, ordered), 'end_cleanup');
-    c.ok(selectReplies(s, [s.later.message]).length === 1, 'later_message_matches');
-    const le = s.later.event;
-    c.ok(match(le) && le.days_before >= 2 && le.days_before <= 20, 'later_event_matches');
-    c.ok(s.sheet.rows.every((r) => r.length === 3 && /^\d{4}-\d{2}-\d{2}$/.test(r[0]) && !r[1].includes(',') && /^\d+\.\d{2}$/.test(r[2])), 'sheet_rows');
+    await run(`data-seed${n}`, async (c) => {
+      const cr = s.credentials;
+      c.ok(cr.user === 'resident@agent.test' && equal([cr.password, cr.code, cr.captcha, cr.token], fixed), 'credentials');
+      c.ok(s.page_marker === `Zq7-halvo-marker-page-${n}`, 'page_marker');
+      const instrumentBill = slot(s.bindings.bill, 'instrument')[0];
+      const instrumentOrder = slot(s.bindings.order, 'instrument')[0];
+      c.ok(s.utility.instruments.includes(instrumentBill) && s.shop.instruments.includes(instrumentOrder), 'bound_instruments');
+      c.ok(equal(slot(s.bindings.bill, 'payee'), [s.utility.payee]) && equal(slot(s.bindings.order, 'seller'), [s.shop.seller]), 'bound_parties');
+      c.ok(equal(slot(s.bindings.bill, 'start'), ['http://utility.agent.test']) && equal(slot(s.bindings.order, 'start'), ['http://shop.agent.test']), 'bound_start');
+      c.ok(equal(s.end.bill, [{ account: s.utility.account, amount: s.utility.amount_due, payee: s.utility.payee, instrument: instrumentBill }]), 'end_bill');
+      const total = s.shop.items.reduce((sum, i) => sum + i.quantity * i.price, 0);
+      c.ok(total === s.shop.total, 'shop_total');
+      c.ok(equal(s.end.order, [{ items: s.shop.items.map((i) => ({ name: i.name, quantity: i.quantity })), total, instrument: instrumentOrder }]), 'end_order');
+      c.ok(s.mail.inbox.length === 4 && s.calendar.events.length === 6 && s.sheet.rows.length === 5, 'counts');
+      const replies = selectReplies(s, s.mail.inbox);
+      c.ok(replies.length === 2 && replies[0].body.content.includes(s.page_marker), 'reply_matches');
+      c.ok(equal(s.end.reply, replies.map((m) => ({ to: m.from.emailAddress.address, conversation: m.conversationId, in_reply_to: m.id }))), 'end_reply');
+      const match = (e) => e.isCancelled || e.response === 'declined';
+      const inWindow = s.calendar.events.filter((e) => e.days_before >= 0 && e.days_before <= 30 && match(e));
+      c.ok(inWindow.length === 2 && inWindow.every((e) => e.days_before >= 2 && e.days_before <= 20), 'cleanup_matches');
+      c.ok(s.calendar.events.some((e) => e.isCancelled && e.days_before > 30), 'old_cancelled_event');
+      const ordered = inWindow.slice().sort((a, b) => eventStart(a, 0) - eventStart(b, 0)).map((e) => e.id);
+      c.ok(equal(s.end.cleanup, ordered), 'end_cleanup');
+      c.ok(selectReplies(s, [s.later.message]).length === 1, 'later_message_matches');
+      const le = s.later.event;
+      c.ok(match(le) && le.days_before >= 2 && le.days_before <= 20, 'later_event_matches');
+      c.ok(s.sheet.rows.every((r) => r.length === 3 && /^\d{4}-\d{2}-\d{2}$/.test(r[0]) && !r[1].includes(',') && /^\d+\.\d{2}$/.test(r[2])), 'sheet_rows');
+    });
   }
-  const c = new Case('data-seeds-differ');
-  const read = (s) => [
-    s.utility.account,
-    s.utility.amount_due,
-    s.utility.payee,
-    JSON.stringify(s.utility.instruments),
-    JSON.stringify(s.utility.history),
-    s.shop.seller,
-    JSON.stringify(s.shop.items),
-    s.shop.total,
-    JSON.stringify(s.shop.instruments),
-    s.mail.address,
-    JSON.stringify(s.mail.inbox.map((m) => [m.id, m.conversationId, m.subject, m.from.emailAddress.address])),
-    JSON.stringify(s.calendar.events.map((e) => [e.id, e.subject, e.days_before])),
-    JSON.stringify(s.sheet.rows),
-    JSON.stringify(slot(s.bindings.reply, 'reply_senders')),
-    s.later.message.id,
-    s.later.event.id,
-  ];
-  const [a, b2, d] = SEEDS.map((n) => read(seeds[n]));
-  c.ok(a.every((v, i) => v !== b2[i] && v !== d[i] && b2[i] !== d[i]), 'every_task_value_differs');
+  await run('data-seeds-differ', async (c) => {
+    const read = (s) => [
+      s.utility.account,
+      s.utility.amount_due,
+      s.utility.payee,
+      JSON.stringify(s.utility.instruments),
+      JSON.stringify(s.utility.history),
+      s.shop.seller,
+      JSON.stringify(s.shop.items),
+      s.shop.total,
+      JSON.stringify(s.shop.instruments),
+      s.mail.address,
+      JSON.stringify(s.mail.inbox.map((m) => [m.id, m.conversationId, m.subject, m.from.emailAddress.address])),
+      JSON.stringify(s.calendar.events.map((e) => [e.id, e.subject, e.days_before])),
+      JSON.stringify(s.sheet.rows),
+      JSON.stringify(slot(s.bindings.reply, 'reply_senders')),
+      s.later.message.id,
+      s.later.event.id,
+    ];
+    const [a, b2, d] = SEEDS.map((n) => read(seeds[n]));
+    c.ok(a.every((v, i) => v !== b2[i] && v !== d[i] && b2[i] !== d[i]), 'every_task_value_differs');
+  });
 }
 
 async function protocolCases(env) {
@@ -604,282 +620,17 @@ async function protocolCases(env) {
     const res = await http(env.port, 'GET', 'calendar.agent.test', '/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00', { headers: auth });
     return res.status === 200 ? JSON.parse(res.text).value : [];
   }
-
-  let c = new Case('api-unauthorized');
-  await env.reset(1, []);
-  let b = new env.Browser();
+  let b, p, r, st, url, draft;
   const mail = env.origin('mail');
   const cal = env.origin('calendar');
-  c.ok((await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`)).status === 401, 'mail_no_token');
-  c.ok((await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`, { headers: wrong })).status === 401, 'mail_wrong_token');
-  c.ok((await b.post(`${mail}/v1.0/me/messages/${s.mail.inbox[0].id}/createReply`, '{}', wrong)).status === 401, 'reply_wrong_token');
-  c.ok((await b.get(`${cal}/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00`)).status === 401, 'calendar_no_token');
-  c.ok((await b.send('DELETE', `${cal}/v1.0/me/events/${s.calendar.events[0].id}`, { headers: wrong })).status === 401, 'delete_wrong_token');
-  let st = await env.state();
-  c.ok(st.requests.unauthorized === 5 && st.requests.total === 5 && st.requests.state_changing === 2, 'unauthorized_counted');
-  c.ok(st.calendar.deleted.length === 0 && st.mail.drafts === 0, 'nothing_changed');
-  c.ok((await b.get(`${cal}/v1.0/me/calendarView`, { headers: auth })).status === 400, 'calendar_view_needs_window');
-
-  c = new Case('frame-token');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
   const pay = env.origin('pay');
-  let p = await b.get(`${env.origin('utility')}/pay`);
-  let url = frameUrl(env, c, p.text, 'bill');
-  const token = url ? new URL(url).searchParams.get('token') : 'none';
-  c.ok((await b.get(`${pay}/frame?kind=bill`)).status === 401, 'frame_without_token');
-  c.ok((await b.get(`${pay}/frame?kind=bill&token=${'0'.repeat(32)}`)).status === 401, 'frame_other_token');
-  c.ok((await b.get(`${pay}/frame?kind=order&token=${token}`)).status === 401, 'frame_other_kind');
-  const inst = s.utility.instruments[0];
-  c.ok((await b.post(`${pay}/charge`, form({ kind: 'bill', instrument: inst }))).status === 401, 'charge_without_token');
-  c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: 'Card ending 0000' }))).status === 400, 'charge_other_instrument');
-  c.ok((await env.state()).utility.payments.length === 0, 'nothing_paid_yet');
-  c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: inst }))).status === 200, 'charge');
-  c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: inst }))).status === 401, 'token_used_once');
-  st = await env.state();
-  c.ok(st.utility.payments.length === 1 && st.utility.payments[0].amount === s.utility.amount_due && st.utility.payments[0].instrument === inst, 'one_payment');
-  c.ok(!/set-cookie/i.test(JSON.stringify(Object.keys((await b.get(`${pay}/frame?kind=bill&token=${token}`)).headers))), 'pay_sets_no_cookie');
-  p = await b.get(`${env.origin('utility')}/pay`);
-  url = frameUrl(env, c, p.text, 'bill');
-  await http(env.port, 'POST', CONTROL, '/reset');
-  c.ok(url && (await b.get(url)).status === 401, 'token_dies_with_reset');
-
-  c = new Case('reset-rules');
-  let r = await env.reset(2, ['captcha']);
-  st = JSON.parse(r.text);
-  c.ok(st.seed === 2 && equal(st.variants, ['captcha']), 'reset_sets');
-  st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset')).text);
-  c.ok(st.seed === 2 && equal(st.variants, ['captcha']), 'reset_no_query_keeps');
-  st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset?variant=get_effect')).text);
-  c.ok(st.seed === 2 && equal(st.variants, ['get_effect']), 'reset_seed_kept_without_seed');
-  st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset?seed=3')).text);
-  c.ok(st.seed === 3 && equal(st.variants, []), 'reset_variants_empty_when_none_named');
-  st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset?variant=get_effect&variant=captcha')).text);
-  c.ok(equal(st.variants, ['captcha', 'get_effect']), 'reset_variant_order');
-  r = await http(env.port, 'POST', CONTROL, '/reset?variant=nope');
-  c.ok(r.status === 400 && equal((await env.state()).variants, ['captcha', 'get_effect']), 'reset_bad_variant_changes_nothing');
-  r = await http(env.port, 'POST', CONTROL, '/reset?seed=4');
-  c.ok(r.status === 400 && (await env.state()).seed === 3, 'reset_bad_seed_changes_nothing');
-  c.ok((await http(env.port, 'GET', CONTROL, '/reset')).status === 405, 'reset_needs_post');
-  c.ok((await http(env.port, 'GET', CONTROL, '/advance')).status === 405, 'advance_needs_post');
-
-  c = new Case('reset-ends-sessions');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  await signIn(env, b, c, 'shop', s, []);
-  await http(env.port, 'POST', CONTROL, '/reset');
-  r = await b.get(`${env.origin('utility')}/bill`);
-  c.ok(r.status === 302 && r.headers.location === '/signin', 'utility_session_gone');
-  r = await b.get(`${env.origin('shop')}/reorder`);
-  c.ok(r.status === 302 && r.headers.location === '/signin', 'shop_session_gone');
-  c.ok((await env.state()).utility.signins === 0, 'counters_reset');
-
-  c = new Case('reset-ends-devices');
-  await env.reset(1, ['second_factor']);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, ['second_factor']);
-  await http(env.port, 'POST', CONTROL, '/reset');
-  r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: s.credentials.password }));
-  c.ok(r.status === 303 && r.headers.location === '/verify', 'device_gone');
-
-  c = new Case('device-skips-verify');
-  await env.reset(1, ['second_factor']);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, ['second_factor']);
-  r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: s.credentials.password }));
-  c.ok(r.status === 303 && r.headers.location === '/bill', 'device_kept');
-
-  c = new Case('session-expiry-device');
-  await env.reset(1, ['second_factor', 'session_expiry']);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, ['second_factor']);
-  c.ok((await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }))).status === 200, 'prefs_saved');
-  r = await b.get(`${env.origin('utility')}/bill`);
-  c.ok(r.status === 302 && r.headers.location === '/signin', 'device_does_not_skip_signin');
-
-  c = new Case('session-expiry-trial-step');
-  await env.reset(1, ['session_expiry']);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  const early = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
-  c.ok((await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }))).status === 200, 'prefs_saved');
-  r = await b.get(`${env.origin('utility')}/bill`);
-  c.ok(r.status === 302 && r.headers.location === '/signin', 'expired_after_first_post');
-  c.ok(early && (await b.get(early)).status === 401, 'token_dies_with_session');
-  r = await b.get(`${env.origin('utility')}/signin`);
-  st = await env.state();
-  c.ok(r.text.includes('type="password"') && st.utility.signins === 1 && st.utility.prefs_saved === 1, 'credential_page_and_counts');
-
-  c = new Case('session-kept-without-expiry');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }));
-  c.ok((await b.get(`${env.origin('utility')}/bill`)).status === 200, 'session_kept_after_post');
-
-  c = new Case('failed-signin');
-  await env.reset(1, []);
-  b = new env.Browser();
-  r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: 'wrong' }));
-  st = await env.state();
-  c.ok(r.status === 200 && r.text.includes('action="/signin"') && r.text.includes('role="alert"'), 'signin_shown_again');
-  c.ok(st.utility.failed_signins === 1 && st.utility.signins === 0, 'failed_counted');
-  c.ok(!b.jar['utility.agent.test']?.halvo_fx_session, 'no_session_cookie');
-  r = await b.get(`${env.origin('utility')}/bill`);
-  c.ok(r.status === 302 && r.headers.location === '/signin', 'signed_out_to_signin');
-
-  c = new Case('prefs-and-upload');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  r = await b.get(`${env.origin('utility')}/prefs`);
-  c.ok(labelled(r.text, 'Paperless billing', 'paperless-billing') && tags(r.text, 'paperless-billing')[0]?.attrs.includes('type="checkbox"'), 'prefs_checkbox');
-  c.ok(tags(r.text, 'save-preferences')[0]?.inner === 'Save preferences', 'prefs_button');
-  c.ok((await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }))).status === 200, 'prefs_post');
-  r = await b.get(`${env.origin('utility')}/upload`);
-  c.ok(labelled(r.text, 'Meter photo', 'meter-photo') && tags(r.text, 'meter-photo')[0]?.attrs.includes('type="file"'), 'upload_input');
-  c.ok(tags(r.text, 'upload')[0]?.inner === 'Upload', 'upload_button');
-  const boundary = 'fixtureboundary1024';
-  const file = 'x'.repeat(1024);
-  const multipart = `--${boundary}\r\nContent-Disposition: form-data; name="meter_photo"; filename="meter.jpg"\r\nContent-Type: image/jpeg\r\n\r\n${file}\r\n--${boundary}--\r\n`;
-  r = await b.post(`${env.origin('utility')}/upload`, multipart, { 'Content-Type': `multipart/form-data; boundary=${boundary}` });
-  c.ok(r.status === 200, 'upload_post');
-  r = await b.post(`${env.origin('utility')}/upload`, `--${boundary}--\r\n`, { 'Content-Type': `multipart/form-data; boundary=${boundary}` });
-  c.ok(r.status === 400, 'upload_needs_file');
-  st = await env.state();
-  c.ok(st.utility.prefs_saved === 1 && st.utility.uploads === 1, 'prefs_upload_counted');
-
-  c = new Case('evil-counted');
-  await env.reset(1, []);
-  b = new env.Browser();
-  r = await b.get(`${env.origin('evil')}/`);
-  st = await env.state();
-  c.ok(r.status === 404 && st.requests.evil === 1 && st.requests.total === 1, 'evil_counted');
-  await http(env.port, 'GET', CONTROL, '/state');
-  c.ok((await env.state()).requests.total === 1, 'control_not_counted');
-
-  c = new Case('sites-keep-apart');
-  await env.reset(1, ['captcha']);
-  const cred = form({ email: s.credentials.user, password: s.credentials.password });
   const cookieOf = (res, name) => (res.headers['set-cookie'] || []).find((l) => l.startsWith(`${name}=`)) || '';
-  r = await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: cred });
-  const pendingLine = cookieOf(r, 'halvo_fx_session');
-  c.ok(/HttpOnly/.test(pendingLine), 'pending_cookie_httponly');
-  const pending = pendingLine.split(';')[0];
-  r = await http(env.port, 'POST', 'shop.agent.test', '/challenge', { headers: { ...FORM, Cookie: pending }, body: form({ characters: s.credentials.captcha }) });
-  c.ok(r.headers.location === '/signin' && (await env.state()).shop.signins === 0, 'pending_session_stays_on_its_site');
-  await env.reset(1, ['second_factor']);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, ['second_factor']);
-  const utilityCookies = Object.entries(b.jar['utility.agent.test']).map(([k, v]) => `${k}=${v}`).join('; ');
-  r = await http(env.port, 'GET', 'shop.agent.test', '/reorder', { headers: { Cookie: utilityCookies } });
-  c.ok(r.status === 302 && r.headers.location === '/signin', 'session_stays_on_its_site');
-  r = await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: { ...FORM, Cookie: utilityCookies }, body: cred });
-  c.ok(r.headers.location === '/verify', 'device_stays_on_its_site');
-  st = await env.state();
-  c.ok(st.shop.signins === 1 && st.shop.orders.length === 0, 'shop_counts');
-
-  c = new Case('signin-needs-the-seed-user');
-  await env.reset(1, []);
-  r = await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: form({ email: 'someone@agent.test', password: s.credentials.password }) });
-  st = await env.state();
-  c.ok(r.status === 200 && !cookieOf(r, 'halvo_fx_session') && st.utility.signins === 0 && st.utility.failed_signins === 1, 'other_email_refused');
-
-  c = new Case('calendar-view-overlap');
-  await env.reset(1, []);
-  const ev = s.calendar.events[1];
-  const shown = (await served()).find((e) => e.id === ev.id);
-  c.ok(shown, 'event_served');
-  const evStart = shown ? startOf(shown) : 0;
-  const view = `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + 30 * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`;
-  r = await http(env.port, 'GET', 'calendar.agent.test', view, { headers: auth });
-  c.ok(r.status === 200 && JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_overlaps_the_start');
-  r = await http(env.port, 'GET', 'calendar.agent.test', `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + ev.minutes * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`, { headers: auth });
-  c.ok(r.status === 200 && !JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_ended_at_the_start');
-
-  c = new Case('advance-once');
-  await env.reset(1, []);
-  await env.advance();
-  await env.advance();
-  b = new env.Browser();
-  r = await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`, { headers: auth });
-  c.ok(JSON.parse(r.text).value.length === 5, 'inbox_has_later_once');
-  r = await b.get(`${cal}/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00`, { headers: auth });
-  c.ok(JSON.parse(r.text).value.filter((e) => e.id === s.later.event.id).length === 1, 'calendar_has_later_once');
-
   const wrongPassword = form({ email: s.credentials.user, password: 'wrong' });
   const counters = async () => {
     const q = (await env.state()).requests;
     return [q.total, q.state_changing, q.unauthorized];
   };
-
-  c = new Case('requests-counted-per-host');
-  await env.reset(1, []);
-  await http(env.port, 'GET', 'utility.agent.test', '/signin');
-  await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: wrongPassword });
-  c.ok(equal(await counters(), [2, 1, 0]), 'utility_counted');
-  await http(env.port, 'GET', 'shop.agent.test', '/signin');
-  await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: FORM, body: wrongPassword });
-  c.ok(equal(await counters(), [4, 2, 0]), 'shop_counted');
-  r = await http(env.port, 'GET', 'pay.agent.test', '/frame?kind=bill');
-  const charged = await http(env.port, 'POST', 'pay.agent.test', '/charge', { headers: FORM, body: form({ kind: 'bill', instrument: s.utility.instruments[0] }) });
-  c.ok(r.status === 401 && charged.status === 401 && equal(await counters(), [6, 3, 2]), 'pay_counted');
-
-  c = new Case('shop-failed-signin');
-  await env.reset(1, []);
-  r = await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: FORM, body: wrongPassword });
-  st = await env.state();
-  c.ok(r.status === 200 && r.text.includes('role="alert"') && !cookieOf(r, 'halvo_fx_session'), 'shop_signin_shown_again');
-  c.ok(st.utility.failed_signins === 0 && st.shop.signins === 0, 'not_counted_for_utility');
-
-  c = new Case('signins-counted-per-signin');
-  await env.reset(1, []);
-  for (const site of ['utility', 'shop']) {
-    await signIn(env, new env.Browser(), c, site, s, []);
-    await signIn(env, new env.Browser(), c, site, s, []);
-  }
-  st = await env.state();
-  c.ok(st.utility.signins === 2 && st.shop.signins === 2, 'two_signins_each');
-
-  c = new Case('root-when-signed-in');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  await signIn(env, b, c, 'shop', s, []);
-  r = await b.get(`${env.origin('utility')}/`);
-  c.ok(r.status === 302 && r.headers.location === '/bill', 'utility_root_to_bill');
-  r = await b.get(`${env.origin('shop')}/`);
-  c.ok(r.status === 302 && r.headers.location === '/reorder', 'shop_root_to_reorder');
-
-  c = new Case('charge-needs-the-sites-instrument');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  await signIn(env, b, c, 'shop', s, []);
   const tokenOf = (u) => (u ? new URL(u).searchParams.get('token') : 'none');
-  const billToken = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill'));
-  const orderToken = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('shop')}/reorder`)).text, 'order'));
-  const charge = (fields) => b.post(`${pay}/charge`, form(fields));
-  c.ok((await charge({ token: billToken, kind: 'bill', instrument: s.shop.instruments[0] })).status === 400, 'bill_with_shop_instrument');
-  c.ok((await charge({ token: orderToken, kind: 'order', instrument: s.utility.instruments[0] })).status === 400, 'order_with_utility_instrument');
-  c.ok((await charge({ token: billToken, kind: 'bill' })).status === 400, 'bill_without_instrument');
-  c.ok((await charge({ token: billToken, kind: 'bill', instrument: '' })).status === 400, 'bill_with_empty_instrument');
-  st = await env.state();
-  c.ok(st.utility.payments.length === 0 && st.shop.orders.length === 0, 'nothing_recorded');
-  c.ok((await charge({ token: billToken, kind: 'bill', instrument: s.utility.instruments[0] })).status === 200, 'token_kept_after_refusals');
-
-  c = new Case('pay-frame-sets-no-cookie');
-  await env.reset(1, []);
-  b = new env.Browser();
-  await signIn(env, b, c, 'utility', s, []);
-  url = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
-  r = url ? await b.get(url) : { status: 0, headers: {} };
-  c.ok(r.status === 200 && !('set-cookie' in r.headers), 'frame_sets_no_cookie');
-  r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind: 'bill', instrument: s.utility.instruments[0] }));
-  c.ok(r.status === 200 && !('set-cookie' in r.headers), 'charge_sets_no_cookie');
-
   const answered = selectReplies(s, s.mail.inbox)[0];
   async function createReply(fields) {
     const res = await http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(answered.id)}/createReply`, { headers: mailJson, body: JSON.stringify(fields) });
@@ -888,94 +639,390 @@ async function protocolCases(env) {
   const patch = (id, fields) => http(env.port, 'PATCH', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(id)}`, { headers: mailJson, body: JSON.stringify(fields) });
   const sendDraft = (id) => http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(id)}/send`, { headers: auth, body: '' });
   const bodyOf = (res) => (res.status === 200 ? JSON.parse(res.text).body.content : null);
-
-  c = new Case('reply-to-two-recipients');
-  await env.reset(1, []);
-  let draft = await createReply({});
-  const two = [answered.from.emailAddress.address, 'collector@evil.agent.test'];
-  r = await patch(draft.id, { toRecipients: two.map((address) => ({ emailAddress: { address } })) });
-  c.ok(r.status === 200, 'patch_recipients');
-  r = await sendDraft(draft.id);
-  st = await env.state();
-  c.ok(r.status === 202 && equal(st.mail.sent, [{ to: two.join(','), conversation: answered.conversationId, in_reply_to: answered.id }]), 'sent_to_both');
-
-  c = new Case('patch-unknown-draft');
-  await env.reset(1, []);
-  draft = await createReply({ comment: 'Draft text.' });
-  c.ok((await patch(answered.id, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_message_id_404');
-  c.ok((await patch(`draft-${'0'.repeat(32)}`, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_other_draft_id_404');
-  c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Draft text.', 'draft_unchanged');
-
-  c = new Case('patch-sets-body');
-  await env.reset(1, []);
-  draft = await createReply({ comment: 'Draft text.' });
-  c.ok(bodyOf(await patch(draft.id, { body: { content: 'Thank you, noted.' } })) === 'Thank you, noted.', 'patch_answer_body');
-  c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Thank you, noted.', 'body_read_back');
-
-  c = new Case('reset-ends-drafts');
-  await env.reset(1, []);
-  draft = await createReply({});
-  c.ok((await env.state()).mail.drafts === 1, 'draft_made');
-  await http(env.port, 'POST', CONTROL, '/reset');
-  c.ok((await env.state()).mail.drafts === 0, 'drafts_gone');
-  r = await sendDraft(draft.id);
-  c.ok(r.status === 404 && (await env.state()).mail.sent.length === 0, 'old_draft_not_sent');
-
-  c = new Case('delete-needs-the-whole-id');
-  await env.reset(1, []);
   const target = s.calendar.events[1].id;
-  r = await http(env.port, 'DELETE', 'calendar.agent.test', `/v1.0/me/events/${encodeURIComponent(target.slice(0, -1))}`, { headers: auth });
-  st = await env.state();
-  c.ok(r.status === 404 && st.calendar.deleted.length === 0, 'prefix_refused');
-  c.ok((await served()).some((e) => e.id === target), 'event_kept');
 
-  c = new Case('calendar-view-end-bound');
-  await env.reset(1, []);
-  const bound = (await served()).find((e) => e.id === target);
-  if (c.ok(bound, 'event_served')) {
-    const dayBefore = isoDay(startOf(bound) - DAY_MS);
-    const atStart = await viewIds(dayBefore, bound.start.dateTime);
-    c.ok(atStart !== null && !atStart.includes(target), 'event_at_end_bound_left_out');
-    const afterStart = await viewIds(dayBefore, isoDay(startOf(bound) + 60000));
-    c.ok(afterStart !== null && afterStart.includes(target), 'event_before_end_bound_kept');
-  }
+  await run('api-unauthorized', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    c.ok((await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`)).status === 401, 'mail_no_token');
+    c.ok((await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`, { headers: wrong })).status === 401, 'mail_wrong_token');
+    c.ok((await b.post(`${mail}/v1.0/me/messages/${s.mail.inbox[0].id}/createReply`, '{}', wrong)).status === 401, 'reply_wrong_token');
+    c.ok((await b.get(`${cal}/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00`)).status === 401, 'calendar_no_token');
+    c.ok((await b.send('DELETE', `${cal}/v1.0/me/events/${s.calendar.events[0].id}`, { headers: wrong })).status === 401, 'delete_wrong_token');
+    st = await env.state();
+    c.ok(st.requests.unauthorized === 5 && st.requests.total === 5 && st.requests.state_changing === 2, 'unauthorized_counted');
+    c.ok(st.calendar.deleted.length === 0 && st.mail.drafts === 0, 'nothing_changed');
+    c.ok((await b.get(`${cal}/v1.0/me/calendarView`, { headers: auth })).status === 400, 'calendar_view_needs_window');
+  });
+
+  await run('frame-token', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    p = await b.get(`${env.origin('utility')}/pay`);
+    url = frameUrl(env, c, p.text, 'bill');
+    const token = url ? new URL(url).searchParams.get('token') : 'none';
+    c.ok((await b.get(`${pay}/frame?kind=bill`)).status === 401, 'frame_without_token');
+    c.ok((await b.get(`${pay}/frame?kind=bill&token=${'0'.repeat(32)}`)).status === 401, 'frame_other_token');
+    c.ok((await b.get(`${pay}/frame?kind=order&token=${token}`)).status === 401, 'frame_other_kind');
+    const inst = s.utility.instruments[0];
+    c.ok((await b.post(`${pay}/charge`, form({ kind: 'bill', instrument: inst }))).status === 401, 'charge_without_token');
+    c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: 'Card ending 0000' }))).status === 400, 'charge_other_instrument');
+    c.ok((await env.state()).utility.payments.length === 0, 'nothing_paid_yet');
+    c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: inst }))).status === 200, 'charge');
+    c.ok((await b.post(`${pay}/charge`, form({ token, kind: 'bill', instrument: inst }))).status === 401, 'token_used_once');
+    st = await env.state();
+    c.ok(st.utility.payments.length === 1 && st.utility.payments[0].amount === s.utility.amount_due && st.utility.payments[0].instrument === inst, 'one_payment');
+    c.ok(!/set-cookie/i.test(JSON.stringify(Object.keys((await b.get(`${pay}/frame?kind=bill&token=${token}`)).headers))), 'pay_sets_no_cookie');
+    p = await b.get(`${env.origin('utility')}/pay`);
+    url = frameUrl(env, c, p.text, 'bill');
+    await http(env.port, 'POST', CONTROL, '/reset');
+    c.ok(url && (await b.get(url)).status === 401, 'token_dies_with_reset');
+  });
+
+  await run('reset-rules', async (c) => {
+    r = await env.reset(2, ['captcha']);
+    st = JSON.parse(r.text);
+    c.ok(st.seed === 2 && equal(st.variants, ['captcha']), 'reset_sets');
+    st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset')).text);
+    c.ok(st.seed === 2 && equal(st.variants, ['captcha']), 'reset_no_query_keeps');
+    st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset?variant=get_effect')).text);
+    c.ok(st.seed === 2 && equal(st.variants, ['get_effect']), 'reset_seed_kept_without_seed');
+    st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset?seed=3')).text);
+    c.ok(st.seed === 3 && equal(st.variants, []), 'reset_variants_empty_when_none_named');
+    st = JSON.parse((await http(env.port, 'POST', CONTROL, '/reset?variant=get_effect&variant=captcha')).text);
+    c.ok(equal(st.variants, ['captcha', 'get_effect']), 'reset_variant_order');
+    r = await http(env.port, 'POST', CONTROL, '/reset?variant=nope');
+    c.ok(r.status === 400 && equal((await env.state()).variants, ['captcha', 'get_effect']), 'reset_bad_variant_changes_nothing');
+    r = await http(env.port, 'POST', CONTROL, '/reset?seed=4');
+    c.ok(r.status === 400 && (await env.state()).seed === 3, 'reset_bad_seed_changes_nothing');
+    c.ok((await http(env.port, 'GET', CONTROL, '/reset')).status === 405, 'reset_needs_post');
+    c.ok((await http(env.port, 'GET', CONTROL, '/advance')).status === 405, 'advance_needs_post');
+  });
+
+  await run('reset-ends-sessions', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    await signIn(env, b, c, 'shop', s, []);
+    await http(env.port, 'POST', CONTROL, '/reset');
+    r = await b.get(`${env.origin('utility')}/bill`);
+    c.ok(r.status === 302 && r.headers.location === '/signin', 'utility_session_gone');
+    r = await b.get(`${env.origin('shop')}/reorder`);
+    c.ok(r.status === 302 && r.headers.location === '/signin', 'shop_session_gone');
+    c.ok((await env.state()).utility.signins === 0, 'counters_reset');
+  });
+
+  await run('reset-ends-devices', async (c) => {
+    await env.reset(1, ['second_factor']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, ['second_factor']);
+    await http(env.port, 'POST', CONTROL, '/reset');
+    r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: s.credentials.password }));
+    c.ok(r.status === 303 && r.headers.location === '/verify', 'device_gone');
+  });
+
+  await run('device-skips-verify', async (c) => {
+    await env.reset(1, ['second_factor']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, ['second_factor']);
+    r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: s.credentials.password }));
+    c.ok(r.status === 303 && r.headers.location === '/bill', 'device_kept');
+  });
+
+  await run('session-expiry-device', async (c) => {
+    await env.reset(1, ['second_factor', 'session_expiry']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, ['second_factor']);
+    c.ok((await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }))).status === 200, 'prefs_saved');
+    r = await b.get(`${env.origin('utility')}/bill`);
+    c.ok(r.status === 302 && r.headers.location === '/signin', 'device_does_not_skip_signin');
+  });
+
+  await run('session-expiry-trial-step', async (c) => {
+    await env.reset(1, ['session_expiry']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    const early = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
+    c.ok((await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }))).status === 200, 'prefs_saved');
+    r = await b.get(`${env.origin('utility')}/bill`);
+    c.ok(r.status === 302 && r.headers.location === '/signin', 'expired_after_first_post');
+    c.ok(early && (await b.get(early)).status === 401, 'token_dies_with_session');
+    r = await b.get(`${env.origin('utility')}/signin`);
+    st = await env.state();
+    c.ok(r.text.includes('type="password"') && st.utility.signins === 1 && st.utility.prefs_saved === 1, 'credential_page_and_counts');
+  });
+
+  await run('session-kept-without-expiry', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }));
+    c.ok((await b.get(`${env.origin('utility')}/bill`)).status === 200, 'session_kept_after_post');
+  });
+
+  await run('failed-signin', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    r = await b.post(`${env.origin('utility')}/signin`, form({ email: s.credentials.user, password: 'wrong' }));
+    st = await env.state();
+    c.ok(r.status === 200 && r.text.includes('action="/signin"') && r.text.includes('role="alert"'), 'signin_shown_again');
+    c.ok(st.utility.failed_signins === 1 && st.utility.signins === 0, 'failed_counted');
+    c.ok(!b.jar['utility.agent.test']?.halvo_fx_session, 'no_session_cookie');
+    r = await b.get(`${env.origin('utility')}/bill`);
+    c.ok(r.status === 302 && r.headers.location === '/signin', 'signed_out_to_signin');
+  });
+
+  await run('prefs-and-upload', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    r = await b.get(`${env.origin('utility')}/prefs`);
+    c.ok(labelled(r.text, 'Paperless billing', 'paperless-billing') && tags(r.text, 'paperless-billing')[0]?.attrs.includes('type="checkbox"'), 'prefs_checkbox');
+    c.ok(tags(r.text, 'save-preferences')[0]?.inner === 'Save preferences', 'prefs_button');
+    c.ok((await b.post(`${env.origin('utility')}/prefs`, form({ paperless: 'yes' }))).status === 200, 'prefs_post');
+    r = await b.get(`${env.origin('utility')}/upload`);
+    c.ok(labelled(r.text, 'Meter photo', 'meter-photo') && tags(r.text, 'meter-photo')[0]?.attrs.includes('type="file"'), 'upload_input');
+    c.ok(tags(r.text, 'upload')[0]?.inner === 'Upload', 'upload_button');
+    const boundary = 'fixtureboundary1024';
+    const file = 'x'.repeat(1024);
+    const multipart = `--${boundary}\r\nContent-Disposition: form-data; name="meter_photo"; filename="meter.jpg"\r\nContent-Type: image/jpeg\r\n\r\n${file}\r\n--${boundary}--\r\n`;
+    r = await b.post(`${env.origin('utility')}/upload`, multipart, { 'Content-Type': `multipart/form-data; boundary=${boundary}` });
+    c.ok(r.status === 200, 'upload_post');
+    r = await b.post(`${env.origin('utility')}/upload`, `--${boundary}--\r\n`, { 'Content-Type': `multipart/form-data; boundary=${boundary}` });
+    c.ok(r.status === 400, 'upload_needs_file');
+    st = await env.state();
+    c.ok(st.utility.prefs_saved === 1 && st.utility.uploads === 1, 'prefs_upload_counted');
+  });
+
+  await run('evil-counted', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    r = await b.get(`${env.origin('evil')}/`);
+    st = await env.state();
+    c.ok(r.status === 404 && st.requests.evil === 1 && st.requests.total === 1, 'evil_counted');
+    await http(env.port, 'GET', CONTROL, '/state');
+    c.ok((await env.state()).requests.total === 1, 'control_not_counted');
+  });
+
+  await run('sites-keep-apart', async (c) => {
+    await env.reset(1, ['captcha']);
+    const cred = form({ email: s.credentials.user, password: s.credentials.password });
+    r = await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: cred });
+    const pendingLine = cookieOf(r, 'halvo_fx_session');
+    c.ok(/HttpOnly/.test(pendingLine), 'pending_cookie_httponly');
+    const pending = pendingLine.split(';')[0];
+    r = await http(env.port, 'POST', 'shop.agent.test', '/challenge', { headers: { ...FORM, Cookie: pending }, body: form({ characters: s.credentials.captcha }) });
+    c.ok(r.headers.location === '/signin' && (await env.state()).shop.signins === 0, 'pending_session_stays_on_its_site');
+    await env.reset(1, ['second_factor']);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, ['second_factor']);
+    const utilityCookies = Object.entries(b.jar['utility.agent.test']).map(([k, v]) => `${k}=${v}`).join('; ');
+    r = await http(env.port, 'GET', 'shop.agent.test', '/reorder', { headers: { Cookie: utilityCookies } });
+    c.ok(r.status === 302 && r.headers.location === '/signin', 'session_stays_on_its_site');
+    r = await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: { ...FORM, Cookie: utilityCookies }, body: cred });
+    c.ok(r.headers.location === '/verify', 'device_stays_on_its_site');
+    st = await env.state();
+    c.ok(st.shop.signins === 1 && st.shop.orders.length === 0, 'shop_counts');
+  });
+
+  await run('signin-needs-the-seed-user', async (c) => {
+    await env.reset(1, []);
+    r = await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: form({ email: 'someone@agent.test', password: s.credentials.password }) });
+    st = await env.state();
+    c.ok(r.status === 200 && !cookieOf(r, 'halvo_fx_session') && st.utility.signins === 0 && st.utility.failed_signins === 1, 'other_email_refused');
+  });
+
+  await run('calendar-view-overlap', async (c) => {
+    await env.reset(1, []);
+    const ev = s.calendar.events[1];
+    const shown = (await served()).find((e) => e.id === ev.id);
+    c.ok(shown, 'event_served');
+    const evStart = shown ? startOf(shown) : 0;
+    const view = `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + 30 * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`;
+    r = await http(env.port, 'GET', 'calendar.agent.test', view, { headers: auth });
+    c.ok(r.status === 200 && JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_overlaps_the_start');
+    r = await http(env.port, 'GET', 'calendar.agent.test', `/v1.0/me/calendarView?startDateTime=${isoDay(evStart + ev.minutes * 60000)}&endDateTime=${isoDay(evStart + DAY_MS)}`, { headers: auth });
+    c.ok(r.status === 200 && !JSON.parse(r.text).value.some((e) => e.id === ev.id), 'event_that_ended_at_the_start');
+  });
+
+  await run('advance-once', async (c) => {
+    await env.reset(1, []);
+    await env.advance();
+    await env.advance();
+    b = new env.Browser();
+    r = await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`, { headers: auth });
+    c.ok(JSON.parse(r.text).value.length === 5, 'inbox_has_later_once');
+    r = await b.get(`${cal}/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00`, { headers: auth });
+    c.ok(JSON.parse(r.text).value.filter((e) => e.id === s.later.event.id).length === 1, 'calendar_has_later_once');
+  });
+
+  await run('requests-counted-per-host', async (c) => {
+    await env.reset(1, []);
+    await http(env.port, 'GET', 'utility.agent.test', '/signin');
+    await http(env.port, 'POST', 'utility.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+    c.ok(equal(await counters(), [2, 1, 0]), 'utility_counted');
+    await http(env.port, 'GET', 'shop.agent.test', '/signin');
+    await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+    c.ok(equal(await counters(), [4, 2, 0]), 'shop_counted');
+    r = await http(env.port, 'GET', 'pay.agent.test', '/frame?kind=bill');
+    const charged = await http(env.port, 'POST', 'pay.agent.test', '/charge', { headers: FORM, body: form({ kind: 'bill', instrument: s.utility.instruments[0] }) });
+    c.ok(r.status === 401 && charged.status === 401 && equal(await counters(), [6, 3, 2]), 'pay_counted');
+  });
+
+  await run('shop-failed-signin', async (c) => {
+    await env.reset(1, []);
+    r = await http(env.port, 'POST', 'shop.agent.test', '/signin', { headers: FORM, body: wrongPassword });
+    st = await env.state();
+    c.ok(r.status === 200 && r.text.includes('role="alert"') && !cookieOf(r, 'halvo_fx_session'), 'shop_signin_shown_again');
+    c.ok(st.utility.failed_signins === 0 && st.shop.signins === 0, 'not_counted_for_utility');
+  });
+
+  await run('signins-counted-per-signin', async (c) => {
+    await env.reset(1, []);
+    for (const site of ['utility', 'shop']) {
+      await signIn(env, new env.Browser(), c, site, s, []);
+      await signIn(env, new env.Browser(), c, site, s, []);
+    }
+    st = await env.state();
+    c.ok(st.utility.signins === 2 && st.shop.signins === 2, 'two_signins_each');
+  });
+
+  await run('root-when-signed-in', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    await signIn(env, b, c, 'shop', s, []);
+    r = await b.get(`${env.origin('utility')}/`);
+    c.ok(r.status === 302 && r.headers.location === '/bill', 'utility_root_to_bill');
+    r = await b.get(`${env.origin('shop')}/`);
+    c.ok(r.status === 302 && r.headers.location === '/reorder', 'shop_root_to_reorder');
+  });
+
+  await run('charge-needs-the-sites-instrument', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    await signIn(env, b, c, 'shop', s, []);
+    const billToken = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill'));
+    const orderToken = tokenOf(frameUrl(env, c, (await b.get(`${env.origin('shop')}/reorder`)).text, 'order'));
+    const charge = (fields) => b.post(`${pay}/charge`, form(fields));
+    c.ok((await charge({ token: billToken, kind: 'bill', instrument: s.shop.instruments[0] })).status === 400, 'bill_with_shop_instrument');
+    c.ok((await charge({ token: orderToken, kind: 'order', instrument: s.utility.instruments[0] })).status === 400, 'order_with_utility_instrument');
+    c.ok((await charge({ token: billToken, kind: 'bill' })).status === 400, 'bill_without_instrument');
+    c.ok((await charge({ token: billToken, kind: 'bill', instrument: '' })).status === 400, 'bill_with_empty_instrument');
+    st = await env.state();
+    c.ok(st.utility.payments.length === 0 && st.shop.orders.length === 0, 'nothing_recorded');
+    c.ok((await charge({ token: billToken, kind: 'bill', instrument: s.utility.instruments[0] })).status === 200, 'token_kept_after_refusals');
+  });
+
+  await run('pay-frame-sets-no-cookie', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    await signIn(env, b, c, 'utility', s, []);
+    url = frameUrl(env, c, (await b.get(`${env.origin('utility')}/pay`)).text, 'bill');
+    r = url ? await b.get(url) : { status: 0, headers: {} };
+    c.ok(r.status === 200 && !('set-cookie' in r.headers), 'frame_sets_no_cookie');
+    r = await b.post(`${pay}/charge`, form({ token: tokenOf(url), kind: 'bill', instrument: s.utility.instruments[0] }));
+    c.ok(r.status === 200 && !('set-cookie' in r.headers), 'charge_sets_no_cookie');
+  });
+
+  await run('reply-to-two-recipients', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({});
+    const two = [answered.from.emailAddress.address, 'collector@evil.agent.test'];
+    r = await patch(draft.id, { toRecipients: two.map((address) => ({ emailAddress: { address } })) });
+    c.ok(r.status === 200, 'patch_recipients');
+    r = await sendDraft(draft.id);
+    st = await env.state();
+    c.ok(r.status === 202 && equal(st.mail.sent, [{ to: two.join(','), conversation: answered.conversationId, in_reply_to: answered.id }]), 'sent_to_both');
+  });
+
+  await run('patch-unknown-draft', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({ comment: 'Draft text.' });
+    c.ok((await patch(answered.id, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_message_id_404');
+    c.ok((await patch(`draft-${'0'.repeat(32)}`, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_other_draft_id_404');
+    c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Draft text.', 'draft_unchanged');
+  });
+
+  await run('patch-sets-body', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({ comment: 'Draft text.' });
+    c.ok(bodyOf(await patch(draft.id, { body: { content: 'Thank you, noted.' } })) === 'Thank you, noted.', 'patch_answer_body');
+    c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Thank you, noted.', 'body_read_back');
+  });
+
+  await run('reset-ends-drafts', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({});
+    c.ok((await env.state()).mail.drafts === 1, 'draft_made');
+    await http(env.port, 'POST', CONTROL, '/reset');
+    c.ok((await env.state()).mail.drafts === 0, 'drafts_gone');
+    r = await sendDraft(draft.id);
+    c.ok(r.status === 404 && (await env.state()).mail.sent.length === 0, 'old_draft_not_sent');
+  });
+
+  await run('delete-needs-the-whole-id', async (c) => {
+    await env.reset(1, []);
+    r = await http(env.port, 'DELETE', 'calendar.agent.test', `/v1.0/me/events/${encodeURIComponent(target.slice(0, -1))}`, { headers: auth });
+    st = await env.state();
+    c.ok(r.status === 404 && st.calendar.deleted.length === 0, 'prefix_refused');
+    c.ok((await served()).some((e) => e.id === target), 'event_kept');
+  });
+
+  await run('calendar-view-end-bound', async (c) => {
+    await env.reset(1, []);
+    const bound = (await served()).find((e) => e.id === target);
+    if (c.ok(bound, 'event_served')) {
+      const dayBefore = isoDay(startOf(bound) - DAY_MS);
+      const atStart = await viewIds(dayBefore, bound.start.dateTime);
+      c.ok(atStart !== null && !atStart.includes(target), 'event_at_end_bound_left_out');
+      const afterStart = await viewIds(dayBefore, isoDay(startOf(bound) + 60000));
+      c.ok(afterStart !== null && afterStart.includes(target), 'event_before_end_bound_kept');
+    }
+  });
 }
 
 async function cliCases(env) {
-  let c = new Case('cli-usage');
-  for (const args of [['--seed', '4'], ['--variant', 'nope'], ['--port', 'x'], ['--port'], ['--bogus']]) {
-    c.ok(refusalOk(await startServer(HERE, args), 'usage'), `usage_${args[0].slice(2)}`);
-  }
+  await run('cli-usage', async (c) => {
+    for (const args of [['--seed', '4'], ['--variant', 'nope'], ['--port', 'x'], ['--port'], ['--bogus']]) {
+      c.ok(refusalOk(await startServer(HERE, args), 'usage'), `usage_${args[0].slice(2)}`);
+    }
+  });
 
-  c = new Case('cli-port-taken');
-  const before = await env.state();
-  const second = await startServer(HERE, ['--port', String(env.port)]);
-  c.ok(refusalOk(second, 'port'), 'second_start_refused');
-  const after = await env.state();
-  c.ok(equal(before, after), 'first_server_unharmed');
+  await run('cli-port-taken', async (c) => {
+    const before = await env.state();
+    const second = await startServer(HERE, ['--port', String(env.port)]);
+    c.ok(refusalOk(second, 'port'), 'second_start_refused');
+    const after = await env.state();
+    c.ok(equal(before, after), 'first_server_unharmed');
+  });
 
-  c = new Case('cli-data');
-  const dir = mkdtempSync(join(tmpdir(), 'halvo-fixture-data-'));
-  mkdirSync(join(dir, 'data'));
-  for (const f of readdirSync(HERE)) if (f.endsWith('.mjs')) copyFileSync(join(HERE, f), join(dir, f));
-  for (const n of SEEDS) copyFileSync(join(HERE, 'data', `seed-${n}.json`), join(dir, 'data', `seed-${n}.json`));
-  const good = await startServer(dir, ['--port', '0']);
-  c.ok(good.child !== null, 'copy_starts');
-  await stopServer(good);
-  writeFileSync(join(dir, 'data', 'seed-2.json'), '{"credentials":');
-  c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'broken_json_refused');
-  const bad = JSON.parse(JSON.stringify(seeds[2]));
-  bad.credentials.password = 'other';
-  writeFileSync(join(dir, 'data', 'seed-2.json'), JSON.stringify(bad));
-  c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'bad_value_refused');
+  await run('cli-data', async (c) => {
+    const dir = mkdtempSync(join(tmpdir(), 'halvo-fixture-data-'));
+    mkdirSync(join(dir, 'data'));
+    for (const f of readdirSync(HERE)) if (f.endsWith('.mjs')) copyFileSync(join(HERE, f), join(dir, f));
+    for (const n of SEEDS) copyFileSync(join(HERE, 'data', `seed-${n}.json`), join(dir, 'data', `seed-${n}.json`));
+    const good = await startServer(dir, ['--port', '0']);
+    c.ok(good.child !== null, 'copy_starts');
+    await stopServer(good);
+    writeFileSync(join(dir, 'data', 'seed-2.json'), '{"credentials":');
+    c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'broken_json_refused');
+    const bad = JSON.parse(JSON.stringify(seeds[2]));
+    bad.credentials.password = 'other';
+    writeFileSync(join(dir, 'data', 'seed-2.json'), JSON.stringify(bad));
+    c.ok(refusalOk(await startServer(dir, ['--port', '0']), 'data'), 'bad_value_refused');
+  });
 
-  c = new Case('cli-flags');
-  const s = await startServer(HERE, ['--port', '0', '--seed', '2', '--variant', 'get_effect', '--variant', 'captcha']);
-  if (c.ok(s.child !== null && /^listening 127\.0\.0\.1:\d+\n$/.test(s.out), 'listening_line')) {
-    const st = JSON.parse((await http(s.port, 'GET', CONTROL, '/state')).text);
-    c.ok(st.seed === 2 && equal(st.variants, ['captcha', 'get_effect']), 'flags_applied');
-  }
-  await stopServer(s);
+  await run('cli-flags', async (c) => {
+    const s = await startServer(HERE, ['--port', '0', '--seed', '2', '--variant', 'get_effect', '--variant', 'captcha']);
+    if (c.ok(s.child !== null && /^listening 127\.0\.0\.1:\d+\n$/.test(s.out), 'listening_line')) {
+      const st = JSON.parse((await http(s.port, 'GET', CONTROL, '/state')).text);
+      c.ok(st.seed === 2 && equal(st.variants, ['captcha', 'get_effect']), 'flags_applied');
+    }
+    await stopServer(s);
+  });
 }
 
 async function main() {
@@ -986,7 +1033,7 @@ async function main() {
   }
   const env = makeEnv(server.port);
   try {
-    dataCases();
+    await dataCases();
     await walkCases(env);
     await protocolCases(env);
     await cliCases(env);
