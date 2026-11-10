@@ -357,6 +357,10 @@ variants, such as `changed_page_2` with `second_factor`, runs on a set that no c
 object and compares it without its `requests` key. `state_changing_by_get` is the number of GETs
 that changed it.
 
+A case that throws counts as a miss with the check `exception_<error code or name>`, a case that
+makes no check counts as a miss with the check `no_check`, and the cases after it still run, so
+`k` does not shrink.
+
 ## Source of the API keys and its licence
 
 The key names of the mail face and the calendar face are those of the Microsoft Graph v1.0 API.
