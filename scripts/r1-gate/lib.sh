@@ -126,10 +126,11 @@ run_capture_bin() {
   ( cd "$GATE_ROOT" && cargo run -q -p halvo-capture --bin halvo-capture -- "$@" )
 }
 
-# Total bytes of a directory tree (0 for an empty or missing dir).
-dir_bytes() {
-  [ -d "$1" ] || { printf '0\n'; return 0; }
-  du -sk "$1" 2>/dev/null | awk '{print $1*1024; found=1} END{if(!found) print 0}'
+dir_disk_usage_bytes() {
+  [ -d "$1" ] || return 1
+  usage=$(du -sk "$1" 2>/dev/null) || return 1
+  usage_kib=${usage%%[!0-9]*}
+  printf '%s\n' "$((usage_kib * 1024))"
 }
 
 modality_count() {

@@ -38,6 +38,12 @@ line_names_the_bounds() {
   [ "$out" = "PASS cost (cpu=1.00; bounds: cpu_max_pct_of_one_core=20)" ]
 }
 
+usage_is_a_number() {
+  usage=$(dir_disk_usage_bytes "$1") || return 1
+  case $usage in ''|*[!0-9]*) return 1 ;; esac
+  return 0
+}
+
 cases() {
   scratch_root
   t within-bound PASS predicate_cost_within_bound 10 1000000 600 20 2000000000
@@ -51,6 +57,11 @@ cases() {
   bounds_fixture letters 'cpu_max_pct_of_one_core=20x'
   bounds_fixture other-key 'cpu_max_pct=20'
   bounds_fixture commented '# cpu_max_pct_of_one_core=20'
+  mkdir "$gate_scratch/some-dir"
+  printf 'x\n' > "$gate_scratch/some-file"
+  t dir-measured PASS usage_is_a_number "$gate_scratch/some-dir"
+  t dir-missing FAIL dir_disk_usage_bytes "$gate_scratch/no-such-dir"
+  t dir-is-a-file FAIL dir_disk_usage_bytes "$gate_scratch/some-file"
   t bound-read PASS bound_is cpu_max_pct_of_one_core 20 "$gate_scratch/one"
   t bounds-of-the-unit PASS bounds_of_the_unit
   t bound-file-missing FAIL gate_bound cpu_max_pct_of_one_core "$gate_scratch/no-such-file"
@@ -78,7 +89,7 @@ sample_mean_cpu() {
 measure() {
   seconds=$1
   store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-cost.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-cost.XXXXXX"); trap 'rm -rf "$store" "$err"' EXIT
-  before=$(dir_bytes "$store")
+  before=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured before the run"; return 1; }
   HALVO_STORE_DIR="$store" run_capture_bin --timed-run "$seconds" > /dev/null 2> "$err" &
   pid=$!
   cpu=$(sample_mean_cpu "$pid")
@@ -86,7 +97,8 @@ measure() {
     first=$(head -1 "$err" 2>/dev/null)
     emit_fail "$name" "daemon did not complete a timed run: $first"; return 1
   fi
-  after=$(dir_bytes "$store"); growth=$((after - before))
+  after=$(dir_disk_usage_bytes "$store") || { emit_fail "$name" "the store directory could not be measured after the run"; return 1; }
+  growth=$((after - before))
   need_bound cpu_max_pct_of_one_core || return 1
   cpu_max=$bound
   need_bound disk_max_bytes_per_day || return 1
