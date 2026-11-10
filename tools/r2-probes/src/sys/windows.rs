@@ -340,6 +340,6 @@ pub fn input_driver_version() -> String {
                 .lines()
                 .find_map(|line| line.strip_prefix("version = "))
         })
-        .map(|version| version.trim_matches('"').to_string())
+        .map(|version| version.trim().trim_matches('"').to_string())
         .unwrap_or_default()
 }
