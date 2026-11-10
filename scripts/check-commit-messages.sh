@@ -35,11 +35,12 @@ synopsis() {
       plus, a minus or an at sign is skipped: it is a line of a file, or a hunk
       header that copies one. Every other line is read. The mode takes as
       that diff what stands below a scissors line of git and a diff header,
-      with nothing but comment lines and empty lines between the two. So when
-      someone writes both by hand, an attribution line below them passes this
-      mode when a space indents it, or when it follows a carriage return in a
-      skipped line. Below a diff header with no scissors line above it, every
-      line is read.
+      with nothing but comment lines and empty lines between the two. A diff
+      header is a line that starts with "diff --git " or with "Submodule ". So
+      when someone writes both by hand, an attribution line below them passes
+      this mode when a space indents it, or when it follows a carriage return
+      in a skipped line. Below a diff header with no scissors line above it,
+      every line is read.
   sh scripts/check-commit-messages.sh --stored-message
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
@@ -483,6 +484,8 @@ fixture_messages() {
   expect_in_hook_file 'a trailer after a carriage return on an added line passes below a scissors block and a diff header written by hand' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}+x${carriage_return}$trailer"
   expect_in_hook_file 'a comment line of a scissors block that names a diff header does not start the diff' 1 '#' "Fix the gate${nl}${nl}$scissors_block${nl}# see diff --git a/x b/x${nl} $trailer"
   expect_in_hook_file 'a comment line of a scissors block that names a submodule does not start the diff' 1 '#' "Fix the gate${nl}${nl}$scissors_block${nl}# see Submodule notes${nl} $trailer"
+  expect_in_hook_file 'a trailer that a space indents passes below a scissors line and a line that starts with Submodule, written by hand' 0 '#' "Fix the gate${nl}${nl}# $SCISSORS${nl}Submodule notes follow${nl} $trailer"
+  expect_in_hook_file 'a trailer that a space indents fails below a scissors line and a line that starts no diff' 1 '#' "Fix the gate${nl}${nl}# $SCISSORS${nl}Notes follow${nl} $trailer"
   expect_in_hook_file 'a trailer that a space indents fails below a diff header with no scissors line above it' 1 '#' "Fix the gate${nl}${nl}diff --git a/x b/x${nl} $trailer"
   expect_in_hook_file 'an added line of the diff that holds a carriage return before a trailer is dropped' 0 '#' "Add a fixture${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- /dev/null${nl}+++ b/f${nl}@@ -0,0 +1 @@${nl}+Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
   expect_in_hook_file 'a removed line of the diff that holds a carriage return before the footer words is dropped' 0 '#' "Drop a log${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- a/f${nl}+++ /dev/null${nl}@@ -1 +0,0 @@${nl}-Building the bindings${carriage_return}Generated with wasm-bindgen 0.2"
@@ -622,7 +625,8 @@ the diff of git commit -v is dropped when the comment string is two backslashes
 the diff of git commit -v is dropped when the comment string is a backslash and the letter t
 the diff of git commit -v is dropped when the comment string is that byte
 the diff of git commit -v is dropped when it starts with the summary of a submodule
-a trailer that a space indents passes below a scissors block and a diff header written by hand'
+a trailer that a space indents passes below a scissors block and a diff header written by hand
+a trailer that a space indents passes below a scissors line and a line that starts with Submodule, written by hand'
   line_after_a_carriage_return_in_a_skipped_line='an added line of the diff that holds a carriage return before a trailer is dropped
 a removed line of the diff that holds a carriage return before the footer words is dropped
 a hunk header of the diff that copies a line with a carriage return before the footer words is dropped
