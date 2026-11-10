@@ -342,6 +342,7 @@ self_test() {
   carriage_return=$(printf '\r')
   no_break_space=$(printf '\302\240')
   ogham_space_mark=$(printf '\341\232\200')
+  scissors_sign=$(printf '\342\234\202')
   byte_that_is_not_utf8=$(printf '\351')
   backslash=$(printf '\134')
   claude_session='Claude-Session: https://claude.ai/code/session_0000000000000000000000'
@@ -503,6 +504,7 @@ self_test() {
   expect_in_hook_file 'an added line of the diff that holds a carriage return before a trailer is dropped' 0 '#' "Add a fixture${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- /dev/null${nl}+++ b/f${nl}@@ -0,0 +1 @@${nl}+Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
   expect_in_hook_file 'a removed line of the diff that holds a carriage return before the footer words is dropped' 0 '#' "Drop a log${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- a/f${nl}+++ /dev/null${nl}@@ -1 +0,0 @@${nl}-Building the bindings${carriage_return}Generated with wasm-bindgen 0.2"
   expect_in_hook_file 'a trailer after a carriage return on a comment line of a hand-made scissors block fails' 1 '#' "Fix the gate${nl}${nl}# $SCISSORS${nl}#${carriage_return}$trailer${nl}diff --git a/x b/x"
+  expect_in_hook_file 'a trailer on a comment line of a hand-made scissors block fails when the predicate skips the comment string' 1 "$scissors_sign" "Fix the gate${nl}${nl}$scissors_sign $SCISSORS${nl}$scissors_sign $trailer${nl}diff --git a/x b/x"
   expect_in_hook_file 'the diff of git commit -v is dropped when it starts with the summary of a submodule' 0 '#' "Bump the submodule${nl}${nl}$scissors_block${nl}Submodule aaa-sub 4792642..08b513d:${nl}  > Generated with love in the submodule${nl}diff --git a/notes.txt b/notes.txt${nl}--- a/notes.txt${nl}+++ b/notes.txt${nl}@@ -1,4 +1,4 @@${nl} Generated with bindgen 0.71${nl} $trailer${nl}-old line${nl}+new line"
 
   expect_hook_path 'the hook path exits 1 on a file with a trailer and says how to reword prose' 1 'reword it so that it does not start with these words' /dev/stdin "Fix the gate${nl}${nl}$trailer"
