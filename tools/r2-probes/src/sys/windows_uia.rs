@@ -52,6 +52,11 @@ pub fn class_name(e: &IUIAutomationElement) -> String {
 pub fn control_type(e: &IUIAutomationElement) -> i32 {
     unsafe { e.CurrentControlType() }.map(|t| t.0).unwrap_or(0)
 }
+pub fn process_id(e: &IUIAutomationElement) -> u32 {
+    unsafe { e.CurrentProcessId() }
+        .map(|id| id as u32)
+        .unwrap_or(0)
+}
 pub fn automation_id(e: &IUIAutomationElement) -> String {
     unsafe { e.CurrentAutomationId() }
         .map(|b| b.to_string())

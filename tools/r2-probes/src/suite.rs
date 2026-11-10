@@ -497,8 +497,16 @@ impl Suite {
             engines.push(ONE_ENGINE.to_string());
         }
         let system_version = sys::system_version();
-        for target in ["text-1", "text-2", "text-3", "calc", "writer"] {
-            let is_page = target.starts_with("text-");
+        for target in [
+            "text-1",
+            "text-2",
+            "text-3",
+            pages::LIST_PAGE,
+            "calc",
+            "writer",
+        ] {
+            let is_text = target.starts_with("text-");
+            let in_browser = pages::html(target).is_some();
             let cells: Vec<(String, String, String)> = engines
                 .iter()
                 .flat_map(|engine| {
@@ -515,7 +523,7 @@ impl Suite {
             if cells.is_empty() {
                 continue;
             }
-            let started = if is_page {
+            let started = if in_browser {
                 match &chrome {
                     Some(chrome) => self
                         .start(chrome, target, Mode::Kiosk)
@@ -530,7 +538,7 @@ impl Suite {
                 Err(error) => {
                     for (engine, scale, cell) in &cells {
                         self.missing(cell, &error);
-                        if is_page {
+                        if is_text {
                             self.missing(
                                 &format!("engine.{}.{engine}.x{scale}", sys::RUNNER),
                                 &error,
@@ -548,7 +556,7 @@ impl Suite {
                     system_version.clone()
                 };
                 let complete = self.run_cell(cell, 5, |suite, run| {
-                    let frame = if is_page { &frames } else { &suite.scratch }
+                    let frame = if in_browser { &frames } else { &suite.scratch }
                         .join(format!("{target}.run{run}.png"));
                     let frame_text = frame.display().to_string();
                     let record = if engine == ONE_ENGINE {
@@ -584,14 +592,21 @@ impl Suite {
                         suite.child(&args, 60)?
                     };
                     let record = record
-                        .text("shown_by", if is_page { "chrome-kiosk" } else { "soffice" })
+                        .text(
+                            "shown_by",
+                            if in_browser {
+                                "chrome-kiosk"
+                            } else {
+                                "soffice"
+                            },
+                        )
                         .text("version", &version);
-                    if is_page {
+                    if is_text {
                         suite.pool(&pooled, &record);
                     }
                     Ok(record)
                 });
-                if !complete && is_page && self.wanted(cell) {
+                if !complete && is_text && self.wanted(cell) {
                     self.missing(&pooled, &format!("a run of {cell} is missing"));
                 }
             }

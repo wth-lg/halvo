@@ -32,13 +32,17 @@ that stand between the cells and the verdicts (crates, fetched files, commands).
 Every run of a cell is one process. A crash is run again, and the cell counts the reruns in
 `crash_reruns_count`. A browser that does not request its page in 30 s is started once more,
 and `start_reruns_count` counts those starts. A run that gives no answer in 60 s ends, and its cell is not measurable.
-The extraction cells run first, before any other window is on the display.
+The extraction cells run first, before any other window is on the display: on the Windows
+runner a prompt that Firefox raises at its first start stays on the display and would stand in
+every later frame. Every run of an address cell starts a browser process of its own with a new
+profile, so no other cell has touched the process that it reads.
 
 - `extract.RUNNER.ENGINE.TARGET.xSCALE`: a frame of the display through ScreenCaptureKit or
   Windows.Graphics.Capture, then two calls of the engine in the same process. `first_call_ms`
   is the first call. `call_ms` is the second call: the larger of its elapsed time and the
   processor time of the process over the same span. The pages show in Chrome in kiosk mode, so
-  the frame holds the page alone. Downscale 0.5 averages blocks of 2 by 2 pixels. The error
+  the frame holds the page alone; the page `list-1` is longer than the display, so its frame
+  holds its first rows and its cells have no error rate. Downscale 0.5 averages blocks of 2 by 2 pixels. The error
   rate is the Levenshtein distance between the engine's pieces, joined by one space, and the
   text of the page body, both with white space folded, over the length of the page text, in
   Unicode scalar values. `stored_bytes` is the UTF-8 length of the joined pieces.
