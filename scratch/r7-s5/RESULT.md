@@ -56,8 +56,9 @@ test certificate authority only the runner trusts, and exits.
 From the plan's revision of 2026-11-09 22:00:
 
 - The predicted results are named, and no push is spent on the macos-15 leg.
-- Equal code hashes make a leg MISSED. The first version here voided the line when the two
-  binaries were identical.
+- Equal code hashes make a leg MISSED, and the rule line prints both hashes. The first
+  version here voided the line when the two binaries were identical. The jobs follow the
+  revised rule from run 3 on. In all three runs the hashes differ.
 - "Creating a second account" became "making a second credential".
 - D7 returns to the planner only on a MISSED on windows-2025. The first version sent D7 back
   on any miss.
@@ -81,7 +82,7 @@ S6 RULE macos-15: MET
 S6 RULE windows-2025: MET
 
 The S5 rule needs the read to succeed on both runners, so the MISSED leg makes it MISSED. The
-MISSED leg is the predicted one. Both runs below printed the same five verdicts.
+MISSED leg is the predicted one. All three runs below printed the same five verdicts.
 
 ## Measured values
 
@@ -89,6 +90,7 @@ MISSED leg is the predicted one. Both runs below printed the same five verdicts.
 |---|---|---|---|---|---|
 | 1 | 42764934594 | 8d55687 | scratch/r7-s5-1 | 2026-11-10 05:53 | failure (see below) |
 | 2 | 42770843157 | dc776c5 | scratch/r7-s5-2 | 2026-11-10 06:47 | success |
+| 3 | 42771366946 | 8fdfa4a | scratch/r7-s5-3 | 2026-11-10 06:51 | success |
 
 Run 1 ended as a failure. Its macos job passed. Its windows job passed the S5 step and the
 S6 step and then failed the last step, the harness self-test, which runs after both
@@ -96,12 +98,15 @@ measurements. Cause: the S6 step had put its test CA in the machine Root store, 
 made a second CA with the same subject, and Windows paired the new leaf with the old CA by
 name and reported a bad signature (0x80096004). The measured S6 run had the only CA of that
 name, so its numbers stand. Commit ee183d0 gives every test CA its own subject, and the same
-step passed in run 2.
+step passed in runs 2 and 3.
+
+The run that the commit holding this text starts cannot be listed in it.
+`gh run list -R wth-lg/halvo --branch <its branch>` shows that run.
 
 | Runner | Image | Machine |
 |---|---|---|
 | macos-15 | macos-15-arm64 20261104.0514.1, macOS 15.8.2, System Integrity Protection disabled | Apple M1 (Virtual), 3 cores, 7 GiB |
-| windows-2025 | windows-2025-vs2026 20261103.298, Windows 10.0.26100.33674 | 4 cores, 16 GiB; AMD EPYC 9V74 in run 1, AMD EPYC 7763 in run 2 |
+| windows-2025 | windows-2025-vs2026 20261103.298, Windows 10.0.26100.33674 | 4 cores, 16 GiB; AMD EPYC 9V74 in run 1, AMD EPYC 7763 in run 2, Intel Xeon 6973P-C in run 3 |
 
 ### S5
 
@@ -109,13 +114,18 @@ step passed in run 2.
 |---|---|---|---|---|---|---|---|
 | 1 | macos-15 | cdhash 6830223c… | cdhash 36c85386… | ok | failed, OSStatus -25293 | ok | MISSED |
 | 2 | macos-15 | cdhash 8f47b05b… | cdhash 4d2420a9… | ok | failed, OSStatus -25293 | ok | MISSED |
+| 3 | macos-15 | cdhash 8f47b05b… | cdhash 4d2420a9… | ok | failed, OSStatus -25293 | ok | MISSED |
 | 1 | windows-2025 | sha256 cee4d545… | sha256 46819794… | ok | ok | ok | MET |
 | 2 | windows-2025 | sha256 82e16d8d… | sha256 767f57cc… | ok | ok | ok | MET |
+| 3 | windows-2025 | sha256 27b8ba3a… | sha256 81beaf3c… | ok | ok | ok | MET |
 
 - Both builds come from the same source. They differ in a build stamp, as two versions of an
   app differ. Build 2 replaces build 1 at the same path, as an update does.
 - The code hash is what the key store can tell two builds apart by: the code directory hash
   of the signature on macOS, the SHA-256 of the program file on Windows.
+- On macOS, runs 2 and 3 built the same two hashes on two different VMs: the same source,
+  stamp and paths give the same binary. A rebuild with nothing changed would not be another
+  build to the keychain, which is why each build carries a stamp.
 - macOS. Both builds are ad hoc signed with the same identifier, and the designated
   requirement of each is its own code directory hash. Every call runs under
   `SecKeychainSetUserInteractionAllowed(false)`. Build 2's read ends with -25293
@@ -130,8 +140,10 @@ step passed in run 2.
 |---|---|---|---|---|---|
 | 1 | macos-15 | 30/30 | 42.6 / 62.4 / 78.3 / 113.7 | 8.8 / 9.0 | failed: UnknownIssuer |
 | 2 | macos-15 | 30/30 | 37.4 / 40.1 / 44.5 / 59.8 | 8.8 / 8.9 | failed: UnknownIssuer |
+| 3 | macos-15 | 30/30 | 48.5 / 64.4 / 80.3 / 101.0 | 8.9 / 9.0 | failed: UnknownIssuer |
 | 1 | windows-2025 | 30/30 | 76.6 / 81.7 / 89.7 / 96.7 | 13.5 / 13.6 | failed: UnknownIssuer |
 | 2 | windows-2025 | 30/30 | 90.3 / 93.0 / 95.0 / 104.5 | 13.4 / 13.7 | failed: UnknownIssuer |
+| 3 | windows-2025 | 30/30 | 77.2 / 78.6 / 81.1 / 106.6 | 13.4 / 13.6 | failed: UnknownIssuer |
 
 Where the time goes (median per run, from the helper's own clock):
 
@@ -139,8 +151,10 @@ Where the time goes (median per run, from the helper's own clock):
 |---|---|---|---|---|---|
 | 1 | macos-15 | 8.9 ms | 0.3 ms | 45.2 ms | 7.4 ms |
 | 2 | macos-15 | 5.3 ms | 0.1 ms | 30.1 ms | 3.8 ms |
+| 3 | macos-15 | 9.4 ms | 0.2 ms | 45.1 ms | 8.6 ms |
 | 1 | windows-2025 | 1.2 ms | 0.3 ms | 72.4 ms | 7.4 ms |
 | 2 | windows-2025 | 1.4 ms | 0.4 ms | 82.3 ms | 8.7 ms |
+| 3 | windows-2025 | 1.3 ms | 0.4 ms | 68.2 ms | 8.3 ms |
 
 ### How each number is measured
 
@@ -170,9 +184,9 @@ Where the time goes (median per run, from the helper's own clock):
   and does no system proxy lookup.
 - The runs are warm: the helper has already run twice (first run, control) when timing starts.
   The first start after an install or a reboot is not measured.
-- A hosted VM is a shared machine, and each run gets another one. The medians of the two runs
-  differ by 22 ms on macOS and 11 ms on Windows. The cause was not traced. Most of the time
-  and most of the spread are in the request phase.
+- A hosted VM is a shared machine, and each run gets another one. Across the three runs the
+  median lies between 40 and 64 ms on macOS and between 79 and 93 ms on Windows. The cause
+  was not traced. Most of the time and most of the spread are in the request phase.
 - 30 runs per runner in each run. Unit 7.4 repeats the measurement on the real helper.
 
 ## What each result decides
@@ -189,7 +203,7 @@ it. On Windows the credential can stay under DPAPI across updates.
 
 S6, both runners, MET. A helper that reads its credential and makes its own HTTPS request
 through reqwest, rustls and the OS trust store starts and finishes in about a tenth of a
-second, against a limit of 1 second. The worst of 120 runs took 114 ms. Start time does not
+second, against a limit of 1 second. The worst of 180 runs took 114 ms. Start time does not
 force the HTTPS client out of the helper.
 
 Not measured here: a Developer ID signed build (signing is reserved for the owner), Windows
