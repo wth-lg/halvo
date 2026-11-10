@@ -200,11 +200,14 @@ impl Tree for UiaTree {
     }
 }
 
-pub fn focused_read(_pid: u32) -> Focused {
+pub fn focused_read(pid: u32) -> Focused {
     let Ok(automation) = uia::uia() else {
         return Focused::default();
     };
     match uia::focused(&automation) {
+        Ok(element) if !uia::process_tree(pid).contains(&uia::process_id(&element)) => {
+            Focused::default()
+        }
         Ok(element) => Focused {
             found: true,
             bytes: line(

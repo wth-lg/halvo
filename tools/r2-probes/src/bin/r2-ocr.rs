@@ -107,7 +107,7 @@ fn run(args: &[String]) -> Result<Record, String> {
     )
     .number("load_ms", How::Median, load_ms)
     .text("filter", if scale == "0.5" { "box-2x2" } else { "none" })
-    .text("threads", &THREADS.to_string())
+    .text("intra_threads_count", &THREADS.to_string())
     .text("score_threshold", &SCORE_THRESHOLD.to_string())
     .text("box_threshold", &BOX_THRESHOLD.to_string())
     .text("unclip_ratio", &UNCLIP_RATIO.to_string())
