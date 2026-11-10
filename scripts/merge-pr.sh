@@ -788,6 +788,12 @@ EOF
   printf 'macos\tcompleted\n' >"$work/state/job-line-of-two-fields/jobs-101"
   expect job-line-of-two-fields 2 not-called 'It reads 3 fields divided by tabs' --body-file "$work/body.txt"
 
+  state_of head-moved-and-both-newest-runs-without-success
+  fields head-moved-and-both-newest-runs-without-success OPEN false MERGEABLE "$other_head"
+  runs head-moved-and-both-newest-runs-without-success "$(run_line push 2026-11-10T09:00:00Z 101 completed failure)" "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed cancelled)"
+  refused head-moved-and-both-newest-runs-without-success "the newest push run of the head branch feature on $reviewed_head, run 101, completed with failure"
+  says head-moved-and-both-newest-runs-without-success "the newest pull_request run on $reviewed_head, run 102, completed with cancelled"
+
   state_of job-line-of-four-fields
   printf 'macos\tcompleted\tsuccess\textra\nwindows\tcompleted\tsuccess\n' >"$work/state/job-line-of-four-fields/jobs-101"
   expect job-line-of-four-fields 2 not-called 'It reads 3 fields divided by tabs' --body-file "$work/body.txt"
