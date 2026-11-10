@@ -54,6 +54,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Accept a platform refusal of a contending writer in the single-writer race check
 - Name the calendar constants and the year-month-day conversions of UtcDay
 - Add the Windows crate features for the new input, HID and registry-watch constants
+- Merge CHANGELOG.md with git's union driver so parallel entries stop conflicting
 
 ### Fixed
 

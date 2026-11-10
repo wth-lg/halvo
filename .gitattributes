@@ -1,0 +1,3 @@
+# Open branches each add lines under Unreleased. The union merge keeps the lines of
+# both sides, so syncing a branch with main does not stop on this file.
+CHANGELOG.md merge=union
