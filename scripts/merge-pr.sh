@@ -740,6 +740,11 @@ EOF
   refused newest-push-run-of-another-workflow-file 'Another workflow file than .github/workflows/ci.yml started this run'
   says newest-push-run-of-another-workflow-file 'gates that refuse the merge of pull request #7: 1.'
 
+  state_of newest-push-run-of-another-workflow-file-with-jobs-of-the-same-names
+  runs newest-push-run-of-another-workflow-file-with-jobs-of-the-same-names "$green_push_run" "$green_pull_request_run" "$(run_line push 2026-11-10T09:30:00Z 105 completed success .github/workflows/other.yml)"
+  jobs newest-push-run-of-another-workflow-file-with-jobs-of-the-same-names 105 "$green_jobs"
+  expect newest-push-run-of-another-workflow-file-with-jobs-of-the-same-names 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
+
   state_of newer-failed-push-run-of-another-branch
   runs newer-failed-push-run-of-another-branch "$green_push_run" "$green_pull_request_run" "$(run_line push 2026-11-10T09:40:00Z 106 completed failure .github/workflows/ci.yml scratch)"
   jobs newer-failed-push-run-of-another-branch 106 "macos${tab}completed${tab}failure${nl}windows${tab}completed${tab}success"
