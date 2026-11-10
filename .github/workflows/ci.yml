@@ -117,8 +117,11 @@ jobs:
           line_endings=$(git ls-files --eol -- '*.sh' '.githooks/*')
           echo "$line_endings"
           test -n "$line_endings"
-          if echo "$line_endings" | grep -E -q 'w/(crlf|mixed)'; then
-            echo "git checked out the files marked w/crlf above with CRLF. Give them eol=lf in .gitattributes: sh scripts/check-line-endings.sh prints the line for each file."
+          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
+          if [ -n "$crlf_files" ]; then
+            echo "git checked out these files with CRLF:"
+            echo "$crlf_files"
+            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/* text eol=lf', and no later line may take eol=lf from these files."
             exit 1
           fi
           sh scripts/check-commit-messages.sh --self-test
