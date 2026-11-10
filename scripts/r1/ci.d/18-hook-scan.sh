@@ -24,7 +24,7 @@ measure() {
 }
 
 check() {
-  out=$(measure "$work/$1" 2>&1)
+  out=$(CI_D_REPO=$work/$1 sh "$0" 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -63,8 +63,14 @@ self_test() {
   check scan-prints-nothing FAIL 'exited 0 and ended with: )'
   scan pass-line-with-exit-1 'printf "PASS no-ll-hook\n"; exit 1'
   check pass-line-with-exit-1 FAIL 'exited 1 and ended with: PASS no-ll-hook)'
+  scan pass-line-with-exit-2 'printf "PASS no-ll-hook\n"; exit 2'
+  check pass-line-with-exit-2 FAIL 'exited 2 and ended with: PASS no-ll-hook)'
+  scan pass-line-of-another-check 'printf "PASS store\n"'
+  check pass-line-of-another-check FAIL 'exited 0 and ended with: PASS store)'
   scan pass-line-is-not-last 'printf "PASS no-ll-hook\nFAIL no-ll-hook (active-tap)\n"'
   check pass-line-is-not-last FAIL 'exited 0 and ended with: FAIL no-ll-hook (active-tap))'
+  scan message-on-standard-error-after-the-pass-line 'printf "PASS no-ll-hook\n"; printf "the scan stopped early\n" >&2'
+  check message-on-standard-error-after-the-pass-line FAIL 'exited 0 and ended with: the scan stopped early)'
   scan scan-missing
   check scan-missing FAIL 'scripts/r1-gate/check-no-ll-hook.sh is missing)'
 
