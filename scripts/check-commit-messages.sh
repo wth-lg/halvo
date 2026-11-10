@@ -52,25 +52,37 @@ awk_failed() {
   die "awk exited $1 while reading a message"
 }
 
+git_comment_string() {
+  configured=$(git config --get-regexp '^core\.comment(char|string)$' 2>/dev/null | sed -n '$s/^[^ ]* //p')
+  printf '%s\n' "${configured:-#}"
+}
+
 drop_commit_verbose_diff() {
-  printf '%s\n' "$1" | LC_ALL=C awk -v scissors_end=" $SCISSORS" '
+  printf '%s\n' "$2" | LC_ALL=C awk -v git_comment_string="$1" -v scissors_end=" $SCISSORS" '
+    function scissors_line_comment_string(line,    comment_length, candidate) {
+      comment_length = length(line) - length(scissors_end)
+      if (comment_length < 1 || substr(line, comment_length + 1) != scissors_end) return ""
+      candidate = substr(line, 1, comment_length)
+      if (candidate == git_comment_string) return candidate
+      if (tolower(git_comment_string) == "auto" && comment_length == 1 && index("#;@!$%^&|:", candidate)) return candidate
+      return ""
+    }
+    function print_scissors_block(    i) {
+      for (i = 1; i <= scissors_block_lines; i++) print scissors_block[i]
+      scissors_block_lines = 0
+    }
     dropping_diff { next }
-    maybe_scissors_block != "" {
+    scissors_block_lines > 0 {
       if (index($0, "diff --git ") == 1) { dropping_diff = 1; next }
-      if (index($0, comment_string) == 1) { maybe_scissors_block = maybe_scissors_block $0 "\n"; next }
-      printf "%s", maybe_scissors_block
-      maybe_scissors_block = ""
+      if ($0 == "" || index($0, comment_string) == 1) { scissors_block[++scissors_block_lines] = $0; next }
+      print_scissors_block()
     }
     {
-      comment_length = length($0) - length(scissors_end)
-      if (comment_length > 0 && substr($0, comment_length + 1) == scissors_end) {
-        comment_string = substr($0, 1, comment_length)
-        maybe_scissors_block = $0 "\n"
-        next
-      }
+      comment_string = scissors_line_comment_string($0)
+      if (comment_string != "") { scissors_block[++scissors_block_lines] = $0; next }
       print
     }
-    END { if (!dropping_diff) printf "%s", maybe_scissors_block }
+    END { if (!dropping_diff) print_scissors_block() }
   '
 }
 
@@ -85,8 +97,8 @@ attribution_lines() {
 
 check_file() {
   [ -f "$1" ] || die "no such message file: $1"
-  hook_file=$(cat "$1") || die "cannot read the message file: $1"
-  message=$(drop_commit_verbose_diff "$hook_file") || awk_failed $?
+  hook_file_text=$(cat "$1") || die "cannot read the message file: $1"
+  message=$(drop_commit_verbose_diff "$(git_comment_string)" "$hook_file_text") || awk_failed $?
   found=$(attribution_lines "$message") || awk_failed $?
   [ -n "$found" ] || return 0
   {
@@ -157,8 +169,8 @@ self_test() {
   }
 
   expect_in_hook_file() {
-    name=$1 want_count=$2 hook_file=$3
-    message=$(drop_commit_verbose_diff "$hook_file") || awk_failed $?
+    name=$1 want_count=$2 comment_string=$3 hook_file_text=$4
+    message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
     expect "$name" "$want_count" "$message"
   }
 
@@ -172,16 +184,18 @@ self_test() {
   expect 'prose that mentions both phrases passes' 0 "Reject attribution lines${nl}${nl}The check fails on a Co-Authored-By: trailer and on a line that says a${nl}tool was Generated with. A message that only mentions them passes."
   expect 'a line that starts with Generated without passes' 0 "Fix the gate${nl}${nl}Generated without a tool."
   expect 'the diff of git commit -v fails when it is a stored commit message' 2 "$commit_verbose_file"
-  expect_in_hook_file 'the diff below the scissors block of git commit -v is dropped from the hook file' 0 "$commit_verbose_file"
-  expect_in_hook_file 'the same diff is dropped under another comment character' 0 "$semicolon_commit_verbose_file"
-  expect_in_hook_file 'a trailer above the scissors block fails in the hook file' 1 "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
-  expect_in_hook_file 'a trailer below a scissors line that no diff follows fails in the hook file' 1 "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer"
-  expect_in_hook_file 'a trailer below a scissors block that no diff follows fails in the hook file' 1 "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
-  expect_in_hook_file 'a trailer between a scissors line and a diff header fails in the hook file' 1 "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
-  expect_in_hook_file 'a trailer below prose that holds the scissors text fails in the hook file' 1 "Fix the gate${nl}${nl}The hook stopped at $SCISSORS before.${nl}$trailer"
-  expect_in_hook_file 'a trailer below prose that ends with the scissors text and a diff header fails in the hook file' 1 "Fix the gate${nl}${nl}The hook stopped at $SCISSORS${nl}diff --git a/bindings.rs b/bindings.rs${nl}$trailer"
-  expect_in_hook_file 'trailers between a scissors line that starts like them and a diff header fail in the hook file' 2 "Fix the gate${nl}${nl}Co-Authored-By: C $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
-  expect_in_hook_file 'the diff below a scissors block with empty lines, as git writes when it concludes a merge, is dropped from the hook file' 0 "Merge branch 'side'${nl}${nl}$scissors_block${nl}#${nl}# It looks like you may be committing a merge.${nl}${nl}${nl}# On branch main${nl}#${nl}$diff_with_attribution_text"
+  expect_in_hook_file 'the diff below the scissors block of git commit -v is dropped from the hook file' 0 '#' "$commit_verbose_file"
+  expect_in_hook_file 'the same diff is dropped when the comment string of git is a semicolon' 0 ';' "$semicolon_commit_verbose_file"
+  expect_in_hook_file 'the same diff is dropped when the comment string is auto and git picked a semicolon' 0 auto "$semicolon_commit_verbose_file"
+  expect_in_hook_file 'a scissors block under a comment string that git does not use keeps its diff' 2 '#' "$semicolon_commit_verbose_file"
+  expect_in_hook_file 'a trailer above the scissors block fails in the hook file' 1 '#' "Fix the gate${nl}${nl}$trailer${nl}$scissors_block${nl}$diff_with_attribution_text"
+  expect_in_hook_file 'a trailer below a scissors line that no diff follows fails in the hook file' 1 '#' "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer"
+  expect_in_hook_file 'a trailer below a scissors block that no diff follows fails in the hook file' 1 '#' "Fix the gate${nl}${nl}$scissors_block${nl}$trailer"
+  expect_in_hook_file 'a trailer between a scissors line and a diff header fails in the hook file' 1 '#' "Fix the gate${nl}${nl}# $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
+  expect_in_hook_file 'a trailer below prose that holds the scissors text fails in the hook file' 1 '#' "Fix the gate${nl}${nl}The hook stopped at $SCISSORS before.${nl}$trailer"
+  expect_in_hook_file 'a trailer below prose that ends with the scissors text and a diff header fails in the hook file' 1 '#' "Fix the gate${nl}${nl}The hook stopped at $SCISSORS${nl}diff --git a/bindings.rs b/bindings.rs${nl}$trailer"
+  expect_in_hook_file 'trailers between a scissors line that starts like them and a diff header fail in the hook file' 2 '#' "Fix the gate${nl}${nl}Co-Authored-By: C $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
+  expect_in_hook_file 'the diff below a scissors block with empty lines, as git writes when it concludes a merge, is dropped from the hook file' 0 '#' "Merge branch 'side'${nl}${nl}$scissors_block${nl}#${nl}# It looks like you may be committing a merge.${nl}${nl}${nl}# On branch main${nl}#${nl}$diff_with_attribution_text"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-commit-messages: self-test FAIL: %d fixtures misclassified\n' "$failures"

@@ -72,6 +72,7 @@ Each entry under Unreleased is the subject line of one commit.
 - Drop only the diff below git's own scissors block from the hook file
 - Report a failed awk as an error instead of an attribution line
 - Name the work-tree-root test of prerequisites.sh and make the name true
+- Match the scissors line by git's comment string and keep empty lines in its block
 
 - Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store
 - Add SQLCipher and AEAD dependencies for the encrypted segment store
