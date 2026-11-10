@@ -88,6 +88,7 @@ and merge without an entry landing under the heading of another.
 - Fixed: Make the store and deletion gates measure the store instead of matching constants
 - Fixed: Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
 - Fixed: Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles
-- Added: Lint line endings and the changelog in CI, and commit through the hook in a Windows clone with core.autocrlf=true
-- Changed: Write each Unreleased changelog entry as one typed line, one entry for each type of change of a pull request
-- Fixed: Check out shell scripts and git hooks with LF, so that every sh can run them in a clone with core.autocrlf=true
+- Added: Refuse attribution lines at push and at merge with a pre-push hook, scripts/merge-pr.sh, a tested CI script and tracked Claude Code settings, and lint line endings, the changelog and help text read by line number
+- Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, and pair each rule in AGENTS.md with its check and its limits
+- Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
+- Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
