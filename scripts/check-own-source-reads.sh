@@ -165,6 +165,21 @@ self_test() {
   expect 'head after a command that only names the script is accepted' '' "basename $own_path | head -n 1"
   expect 'a message that names the script is accepted' '' "printf '%s\\n' \"usage: \$0 [--help]\""
   expect 'a help text in a here-document is accepted' '' "help_text() {${NEWLINE}  cat <<'EOF'${NEWLINE}Runs the six sub-checks.${NEWLINE}EOF${NEWLINE}}"
+  expect 'sed with a line number before the command s is refused' 1 "sed -n '3s/^# //p' $own_path"
+  expect 'sed with a line number glued to -e is refused' 1 "sed -n -e2p $own_path"
+  expect 'sed with a line number in double quotes is refused' 1 "sed -n \"2,20p\" $own_path"
+  expect 'sed with the script on standard input before the command is refused' 1 "<$own_path sed -n $lines_2_to_20"
+  expect 'head with the script on standard input before the command is refused' 1 "<$own_path head -n 3"
+  expect 'a read after an apostrophe inside double quotes is refused' 1 "echo \"the script's help\"; sed -n $lines_2_to_20 $own_path"
+  expect 'sed after an assignment is refused' 1 "LC_ALL=C sed -n $lines_2_to_20 $own_path"
+  expect 'sed that quits at a line number is refused' 1 "sed 5q $own_path"
+  expect 'sed that deletes one line is refused' 1 "sed '1d' $own_path"
+  expect 'sed that prints all but one line is refused' 1 "sed -n '1!p' $own_path"
+  expect 'sed with a block at a line number is refused' 1 "sed -n '2{p;q;}' $own_path"
+  expect 'awk with FNR is refused' 1 "awk 'FNR <= 3' $own_path"
+  expect 'a message that holds the word head before the name of the script is accepted' '' "printf '%s\\n' \"pipe the output to head first\" $own_path"
+  expect 'sed with a variable as its script is accepted' '' "sed -n \"\$pattern\" $own_path"
+  expect 'sed with a pattern that holds a number is accepted' '' "sed -n '/^# 2nd/p' $own_path"
 
   leave_the_repository_that_git_variables_name
   fixture_directory=$(mktemp -d) || die 'mktemp could not make a directory'
@@ -179,17 +194,18 @@ self_test() {
   printf 'echo clean\n' >"$repository/clean.sh"
   printf '%s\n' "$read_by_line_number" >"$repository/notes.md"
   printf '#![cfg_attr(test, allow(unused))]\n// %s\n' "$read_by_line_number" >"$repository/main.rs"
+  printf '#!/bin/sh # caf\351\n%s\n' "$read_by_line_number" >"$repository/hooks/a-byte-that-is-not-utf-8"
   printf '%s\n' "$read_by_line_number" >"$repository/untracked.sh"
   git -C "$repository" add named.sh hooks clean.sh notes.md main.rs || die "git add failed in $repository"
-  want='hooks/with-a-space-in-the-interpreter-line:2 hooks/with-an-interpreter-line:2 named.sh:1 FAIL:4'
+  want='hooks/a-byte-that-is-not-utf-8:2 hooks/with-a-space-in-the-interpreter-line:2 hooks/with-an-interpreter-line:2 named.sh:1 FAIL:5'
   status=0
-  output=$(cd "$repository" && check 2>&1) || status=$?
+  output=$(cd "$repository" && LC_ALL=en_US.UTF-8 && export LC_ALL && check 2>&1) || status=$?
   got=$(printf '%s\n' "$output" | sed -n -e 's/^\([^ ]*:[0-9][0-9]*\): this line .* Fix: .*$/\1/p' -e 's/^check-own-source-reads: FAIL: scripts read: \([0-9]*\),.*$/FAIL:\1/p' | tr '\n' ' ')
   got=${got% }
   if [ "$status" = 1 ] && [ "$got" = "$want" ]; then
-    printf 'PASS in a repository, the check reads the tracked files that are named .sh or start with an interpreter line, and no other file\n'
+    printf 'PASS in a repository and under a UTF-8 locale, the check reads the tracked files that are named .sh or start with an interpreter line, and no other file\n'
   else
-    printf 'FAIL in a repository, the check reads the tracked files that are named .sh or start with an interpreter line, and no other file (expected exit 1 and [%s]; found exit %s, [%s] and this output)\n%s\n' "$want" "$status" "$got" "$output"
+    printf 'FAIL in a repository and under a UTF-8 locale, the check reads the tracked files that are named .sh or start with an interpreter line, and no other file (expected exit 1 and [%s]; found exit %s, [%s] and this output)\n%s\n' "$want" "$status" "$got" "$output"
     failures=$((failures + 1))
   fi
 
