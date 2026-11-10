@@ -244,6 +244,23 @@ fn parse(head: &[u8]) -> Entry {
 mod tests {
     use super::*;
 
+    fn subject(ca_pem: &str) -> Vec<u8> {
+        use rustls::pki_types::pem::PemObject;
+        let ca = CertificateDer::from_pem_slice(ca_pem.as_bytes()).unwrap();
+        let mut roots = rustls::RootCertStore::empty();
+        roots.add(ca).unwrap();
+        roots.roots[0].subject.as_ref().to_vec()
+    }
+
+    /// A CA that an earlier run left in a trust store must never look like the issuer
+    /// of a later run's leaf. Windows pairs a leaf with a trusted CA of the same name
+    /// and then reports a bad signature instead of an unknown issuer.
+    #[test]
+    fn every_generated_ca_has_its_own_subject() {
+        let (first, second) = (generate_pki().unwrap(), generate_pki().unwrap());
+        assert_ne!(subject(&first.ca_pem), subject(&second.ca_pem));
+    }
+
     #[test]
     fn parses_the_run_id_and_the_bearer() {
         let head = b"GET /v1/ping HTTP/1.1\r\nHost: localhost\r\nX-Run-Id: run-07\r\nauthorization: Bearer synthetic\r\n\r\n";
