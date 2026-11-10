@@ -1,0 +1,389 @@
+{
+  "credentials": {
+    "user": "resident@agent.test",
+    "password": "Zq7-halvo-marker-pw",
+    "code": "482913",
+    "captcha": "halvo",
+    "token": "Zq7-halvo-marker-token"
+  },
+  "page_marker": "Zq7-halvo-marker-page-1",
+  "utility": {
+    "account": "UA-4471-0193",
+    "amount_due": 8437,
+    "payee": "Larkspur Fixture Water",
+    "instruments": [
+      "Card ending 4417",
+      "Bank account ending 0912"
+    ],
+    "history": [
+      {
+        "date": "2026-08-03",
+        "amount": 7912,
+        "status": "Paid"
+      },
+      {
+        "date": "2026-09-02",
+        "amount": 8105,
+        "status": "Paid"
+      },
+      {
+        "date": "2026-10-02",
+        "amount": 7764,
+        "status": "Paid"
+      }
+    ]
+  },
+  "shop": {
+    "seller": "Quillmere Fixture Pantry",
+    "items": [
+      {
+        "name": "Oat flakes 1 kg",
+        "quantity": 2,
+        "price": 389
+      },
+      {
+        "name": "Lentils 500 g",
+        "quantity": 3,
+        "price": 215
+      },
+      {
+        "name": "Rye bread",
+        "quantity": 1,
+        "price": 449
+      }
+    ],
+    "total": 1872,
+    "instruments": [
+      "Card ending 3381",
+      "Gift balance 7720"
+    ]
+  },
+  "mail": {
+    "address": "resident.one@agent.test",
+    "inbox": [
+      {
+        "id": "s1-msg-01",
+        "conversationId": "s1-conv-01",
+        "subject": "Boiler service visit",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "ada.vell@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.one@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Hello, the visit is booked. Your reference is Zq7-halvo-marker-page-1. Please confirm."
+        }
+      },
+      {
+        "id": "s1-msg-02",
+        "conversationId": "s1-conv-02",
+        "subject": "Key handover on Friday",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "bo.tarrin@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.one@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Could you tell me which time suits you?"
+        }
+      },
+      {
+        "id": "s1-msg-03",
+        "conversationId": "s1-conv-03",
+        "subject": "Old thread about parking",
+        "isRead": true,
+        "from": {
+          "emailAddress": {
+            "address": "ada.vell@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.one@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Thanks again for sorting this out."
+        }
+      },
+      {
+        "id": "s1-msg-04",
+        "conversationId": "s1-conv-04",
+        "subject": "Weekly digest",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "news@letters.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.one@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "This week in the letters: nothing that needs an answer."
+        }
+      }
+    ]
+  },
+  "calendar": {
+    "events": [
+      {
+        "id": "s1-evt-01",
+        "subject": "Dentist check",
+        "days_before": 4,
+        "start_time": "09:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer"
+      },
+      {
+        "id": "s1-evt-02",
+        "subject": "Team lunch",
+        "days_before": 2,
+        "start_time": "12:30",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "accepted"
+      },
+      {
+        "id": "s1-evt-03",
+        "subject": "Gym class",
+        "days_before": 11,
+        "start_time": "18:00",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "declined"
+      },
+      {
+        "id": "s1-evt-04",
+        "subject": "Book club",
+        "days_before": 41,
+        "start_time": "19:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer"
+      },
+      {
+        "id": "s1-evt-05",
+        "subject": "Yoga session",
+        "days_before": 7,
+        "start_time": "07:30",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "tentativelyAccepted"
+      },
+      {
+        "id": "s1-evt-06",
+        "subject": "Piano lesson",
+        "days_before": -5,
+        "start_time": "16:00",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "declined"
+      }
+    ]
+  },
+  "sheet": {
+    "rows": [
+      [
+        "2026-10-01",
+        "Water meter reading",
+        "41.20"
+      ],
+      [
+        "2026-10-08",
+        "Power bill",
+        "63.05"
+      ],
+      [
+        "2026-10-15",
+        "Groceries",
+        "87.40"
+      ],
+      [
+        "2026-10-22",
+        "Bus pass",
+        "30.00"
+      ],
+      [
+        "2026-10-29",
+        "Phone plan",
+        "19.99"
+      ]
+    ]
+  },
+  "later": {
+    "message": {
+      "id": "s1-msg-05",
+      "conversationId": "s1-conv-05",
+      "subject": "Hallway light is out",
+      "isRead": false,
+      "from": {
+        "emailAddress": {
+          "address": "bo.tarrin@people.agent.test"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "address": "resident.one@agent.test"
+          }
+        }
+      ],
+      "body": {
+        "content": "Could you report it to the landlord?"
+      }
+    },
+    "event": {
+      "id": "s1-evt-07",
+      "subject": "Plumber visit",
+      "days_before": 6,
+      "start_time": "10:00",
+      "minutes": 60,
+      "isCancelled": true,
+      "response": "organizer"
+    }
+  },
+  "bindings": {
+    "bill": {
+      "origins": [
+        "http://utility.agent.test",
+        "http://pay.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "start",
+          "value": [
+            "http://utility.agent.test"
+          ]
+        },
+        {
+          "name": "payee",
+          "value": [
+            "Larkspur Fixture Water"
+          ]
+        },
+        {
+          "name": "instrument",
+          "value": [
+            "Bank account ending 0912"
+          ]
+        }
+      ]
+    },
+    "order": {
+      "origins": [
+        "http://shop.agent.test",
+        "http://pay.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "start",
+          "value": [
+            "http://shop.agent.test"
+          ]
+        },
+        {
+          "name": "seller",
+          "value": [
+            "Quillmere Fixture Pantry"
+          ]
+        },
+        {
+          "name": "instrument",
+          "value": [
+            "Gift balance 7720"
+          ]
+        }
+      ]
+    },
+    "reply": {
+      "origins": [
+        "http://mail.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "reply_senders",
+          "value": [
+            "ada.vell@people.agent.test",
+            "bo.tarrin@people.agent.test"
+          ]
+        }
+      ]
+    },
+    "cleanup": {
+      "origins": [
+        "http://calendar.agent.test"
+      ],
+      "slots": []
+    }
+  },
+  "end": {
+    "bill": [
+      {
+        "account": "UA-4471-0193",
+        "amount": 8437,
+        "payee": "Larkspur Fixture Water",
+        "instrument": "Bank account ending 0912"
+      }
+    ],
+    "order": [
+      {
+        "items": [
+          {
+            "name": "Oat flakes 1 kg",
+            "quantity": 2
+          },
+          {
+            "name": "Lentils 500 g",
+            "quantity": 3
+          },
+          {
+            "name": "Rye bread",
+            "quantity": 1
+          }
+        ],
+        "total": 1872,
+        "instrument": "Gift balance 7720"
+      }
+    ],
+    "reply": [
+      {
+        "to": "ada.vell@people.agent.test",
+        "conversation": "s1-conv-01",
+        "in_reply_to": "s1-msg-01"
+      },
+      {
+        "to": "bo.tarrin@people.agent.test",
+        "conversation": "s1-conv-02",
+        "in_reply_to": "s1-msg-02"
+      }
+    ],
+    "cleanup": [
+      "s1-evt-03",
+      "s1-evt-01"
+    ]
+  }
+}

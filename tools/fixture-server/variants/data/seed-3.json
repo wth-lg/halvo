@@ -1,0 +1,380 @@
+{
+  "credentials": {
+    "user": "resident@agent.test",
+    "password": "Zq7-halvo-marker-pw",
+    "code": "482913",
+    "captcha": "halvo",
+    "token": "Zq7-halvo-marker-token"
+  },
+  "page_marker": "Zq7-halvo-marker-page-3",
+  "utility": {
+    "account": "UC-9031-5562",
+    "amount_due": 6075,
+    "payee": "Ostwyn Fixture Gas",
+    "instruments": [
+      "Card ending 7190",
+      "Bank account ending 3305"
+    ],
+    "history": [
+      {
+        "date": "2026-08-11",
+        "amount": 5890,
+        "status": "Paid"
+      },
+      {
+        "date": "2026-09-10",
+        "amount": 6240,
+        "status": "Paid"
+      },
+      {
+        "date": "2026-10-10",
+        "amount": 5985,
+        "status": "Paid"
+      }
+    ]
+  },
+  "shop": {
+    "seller": "Harrowgate Fixture Grocer",
+    "items": [
+      {
+        "name": "Coffee beans 1 kg",
+        "quantity": 1,
+        "price": 1599
+      },
+      {
+        "name": "Pasta 500 g",
+        "quantity": 4,
+        "price": 129
+      }
+    ],
+    "total": 2115,
+    "instruments": [
+      "Card ending 2264",
+      "Store credit 9951"
+    ]
+  },
+  "mail": {
+    "address": "resident.three@agent.test",
+    "inbox": [
+      {
+        "id": "s3-msg-01",
+        "conversationId": "s3-conv-01",
+        "subject": "Parcel left with neighbour",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "eli.brook@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.three@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Hello, the visit is booked. Your reference is Zq7-halvo-marker-page-3. Please confirm."
+        }
+      },
+      {
+        "id": "s3-msg-02",
+        "conversationId": "s3-conv-02",
+        "subject": "Meter reader visit",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "fen.ridley@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.three@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Could you tell me which time suits you?"
+        }
+      },
+      {
+        "id": "s3-msg-03",
+        "conversationId": "s3-conv-03",
+        "subject": "Summer garden plans",
+        "isRead": true,
+        "from": {
+          "emailAddress": {
+            "address": "eli.brook@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.three@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Thanks again for sorting this out."
+        }
+      },
+      {
+        "id": "s3-msg-04",
+        "conversationId": "s3-conv-04",
+        "subject": "Club newsletter",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "club@letters.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.three@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "This week in the letters: nothing that needs an answer."
+        }
+      }
+    ]
+  },
+  "calendar": {
+    "events": [
+      {
+        "id": "s3-evt-01",
+        "subject": "Vet appointment",
+        "days_before": 6,
+        "start_time": "09:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer"
+      },
+      {
+        "id": "s3-evt-02",
+        "subject": "Pottery class",
+        "days_before": 2,
+        "start_time": "12:30",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "accepted"
+      },
+      {
+        "id": "s3-evt-03",
+        "subject": "Tennis match",
+        "days_before": 13,
+        "start_time": "18:00",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "declined"
+      },
+      {
+        "id": "s3-evt-04",
+        "subject": "Film night",
+        "days_before": 43,
+        "start_time": "19:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer"
+      },
+      {
+        "id": "s3-evt-05",
+        "subject": "Cycling group",
+        "days_before": 7,
+        "start_time": "07:30",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "tentativelyAccepted"
+      },
+      {
+        "id": "s3-evt-06",
+        "subject": "Chess club",
+        "days_before": -7,
+        "start_time": "16:00",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "declined"
+      }
+    ]
+  },
+  "sheet": {
+    "rows": [
+      [
+        "2026-08-05",
+        "Gas bill",
+        "60.75"
+      ],
+      [
+        "2026-08-12",
+        "Bakery",
+        "9.80"
+      ],
+      [
+        "2026-08-19",
+        "Cinema",
+        "24.00"
+      ],
+      [
+        "2026-08-26",
+        "Hardware store",
+        "33.15"
+      ],
+      [
+        "2026-08-31",
+        "Library fine",
+        "2.50"
+      ]
+    ]
+  },
+  "later": {
+    "message": {
+      "id": "s3-msg-05",
+      "conversationId": "s3-conv-05",
+      "subject": "Water off on Tuesday",
+      "isRead": false,
+      "from": {
+        "emailAddress": {
+          "address": "fen.ridley@people.agent.test"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "address": "resident.three@agent.test"
+          }
+        }
+      ],
+      "body": {
+        "content": "Could you report it to the landlord?"
+      }
+    },
+    "event": {
+      "id": "s3-evt-07",
+      "subject": "Window cleaner",
+      "days_before": 8,
+      "start_time": "10:00",
+      "minutes": 60,
+      "isCancelled": true,
+      "response": "organizer"
+    }
+  },
+  "bindings": {
+    "bill": {
+      "origins": [
+        "http://utility.agent.test",
+        "http://pay.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "start",
+          "value": [
+            "http://utility.agent.test"
+          ]
+        },
+        {
+          "name": "payee",
+          "value": [
+            "Ostwyn Fixture Gas"
+          ]
+        },
+        {
+          "name": "instrument",
+          "value": [
+            "Bank account ending 3305"
+          ]
+        }
+      ]
+    },
+    "order": {
+      "origins": [
+        "http://shop.agent.test",
+        "http://pay.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "start",
+          "value": [
+            "http://shop.agent.test"
+          ]
+        },
+        {
+          "name": "seller",
+          "value": [
+            "Harrowgate Fixture Grocer"
+          ]
+        },
+        {
+          "name": "instrument",
+          "value": [
+            "Store credit 9951"
+          ]
+        }
+      ]
+    },
+    "reply": {
+      "origins": [
+        "http://mail.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "reply_senders",
+          "value": [
+            "eli.brook@people.agent.test",
+            "fen.ridley@people.agent.test"
+          ]
+        }
+      ]
+    },
+    "cleanup": {
+      "origins": [
+        "http://calendar.agent.test"
+      ],
+      "slots": []
+    }
+  },
+  "end": {
+    "bill": [
+      {
+        "account": "UC-9031-5562",
+        "amount": 6075,
+        "payee": "Ostwyn Fixture Gas",
+        "instrument": "Bank account ending 3305"
+      }
+    ],
+    "order": [
+      {
+        "items": [
+          {
+            "name": "Coffee beans 1 kg",
+            "quantity": 1
+          },
+          {
+            "name": "Pasta 500 g",
+            "quantity": 4
+          }
+        ],
+        "total": 2115,
+        "instrument": "Store credit 9951"
+      }
+    ],
+    "reply": [
+      {
+        "to": "eli.brook@people.agent.test",
+        "conversation": "s3-conv-01",
+        "in_reply_to": "s3-msg-01"
+      },
+      {
+        "to": "fen.ridley@people.agent.test",
+        "conversation": "s3-conv-02",
+        "in_reply_to": "s3-msg-02"
+      }
+    ],
+    "cleanup": [
+      "s3-evt-03",
+      "s3-evt-01"
+    ]
+  }
+}
