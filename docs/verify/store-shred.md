@@ -323,17 +323,16 @@ through `open` itself. After delete-all, its `Reopen` op calls an `open`
 that takes the lock and then fails as `Sealed`, and the next `Reopen` or
 `Recreate` takes the lock again. So check 1 can catch a lock that a failed
 `open` never releases. It does not catch one in every run, because it draws
-its cases at random: with the same patch and a fixed seed the result was the
-same in every run of that seed, 6 seeds failing twice each and 2 seeds
-passing three times each (`r1-leak-patch-seeds.txt`,
-`r5-leak-patch-seeds-17-40.txt` and `r6-leak-patch-passing-seeds-again.txt`
-in `verifier-4`). With a patch that leaks the lock on the error returns
+its cases at random. With a patch that leaks the lock on the error returns
 of `open`, check 1 failed in the verifier's one run with "reopen failed:
 another writer holds the store" (`s-hard-2-check1.txt` in `verifier-2`).
 With the same patch, check 1 failed in 8 of the second verifier's 11 runs:
 in 8 of 10 runs alone, and not in the one run beside four other tests
 (`r1-s-hard-check1-x10.txt` and `q2-s-hard-tests-lines.txt` in
-`verifier-3`).
+`verifier-3`). With the same patch and a fixed seed the result was the same
+in every run of that seed, 6 seeds failing twice each and 2 seeds passing
+three times each (`r1-leak-patch-seeds.txt`, `r5-leak-patch-seeds-17-40.txt`
+and `r6-leak-patch-passing-seeds-again.txt` in `verifier-4`).
 Check 1 does not catch a lock that a failed `open` closes without the
 unlock, as m7 and m8 do, because the close releases the lock. The exception
 is that of the `break-writer-lock-unlock.patch` row. If a child is spawned
