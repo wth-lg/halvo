@@ -70,7 +70,7 @@ check() {
 # shellcheck disable=SC2016
 tree() {
   repo=$work/$1
-  mkdir -p "$repo/scripts/ci" "$repo/scripts/r1-gate" || exit 2
+  mkdir -p "$repo/scripts/ci" "$repo/scripts/r1-gate" "$repo/scripts/r1/ci.d" || exit 2
   git -C "$repo" init -q >/dev/null 2>&1
   shift
   for file in "$@"; do
@@ -100,6 +100,10 @@ self_test() {
   check unquoted-substitution-elsewhere FAIL 'shellcheck -x reports a finding in a tracked *.sh file)'
   tree masked-return-in-a-gate-script scripts/ci/clean.sh scripts/r1-gate/masked.sh
   check masked-return-in-a-gate-script FAIL 'shellcheck reports a masked return status'
+  tree masked-return-in-the-driver-directory scripts/ci/clean.sh scripts/ci/masked.sh
+  check masked-return-in-the-driver-directory FAIL 'shellcheck reports a masked return status'
+  tree masked-return-in-a-ci-d-script scripts/ci/clean.sh scripts/r1/ci.d/masked.sh
+  check masked-return-in-a-ci-d-script FAIL 'shellcheck reports a masked return status'
   tree masked-return-elsewhere scripts/ci/clean.sh scripts/masked.sh
   check masked-return-elsewhere PASS
   tree no-tracked-script

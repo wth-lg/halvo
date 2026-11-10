@@ -71,9 +71,10 @@ gate() {
   [ $# -lt 4 ] || printf '%s\n' "$4" >"$work/$1/scripts/r1-gate/check-timed-run.sh"
 }
 
+# shellcheck disable=SC2016
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  pass='printf "PASS self-test:store\n"'
+  pass='[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store\n"'
   planned='printf "FAIL self-test:store (planned)\n"; exit 1'
   rejected=0
   wrong=

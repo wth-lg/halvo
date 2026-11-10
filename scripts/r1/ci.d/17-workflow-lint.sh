@@ -143,6 +143,8 @@ EOF
   check action-on-a-tag FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
   tree action-on-a-short-commit '15s/@[0-9a-f]\{33\}/@/'
   check action-on-a-short-commit FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  tree action-on-41-hex '15s/ # v7.0.1/a # v7.0.1/'
+  check action-on-41-hex FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
   tree second-workflow-file ''
   cp "$work/ci.yml" "$work/second-workflow-file/.github/workflows/package.yml"
   check second-workflow-file FAIL 'add a script under scripts/<run>/ci.d/, not a workflow file)'
@@ -152,6 +154,8 @@ EOF
   check job-without-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree timeout-above-the-bound '8s/30/31/'
   check timeout-above-the-bound FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree timeout-ten-times-the-bound '8s/30/300/'
+  check timeout-ten-times-the-bound FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree bound-moved ''
   STUB_BOUND=45
   check bound-moved FAIL '0 of 2 jobs of ci.yml set timeout-minutes: 45, the bound ci_job_timeout_min)'
