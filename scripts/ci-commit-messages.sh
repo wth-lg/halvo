@@ -37,16 +37,18 @@ commits of the event that started the workflow. No flag of git skips it.
            stops the agent harness from adding its attribution lines, and no
            includeCoAuthoredBy other than false. Needs jq.
         2. The self-test of the predicate.
-        3. A control. The range check must fail on the exempt commits when no
-           commit is exempt. If it passes there, it is blind.
+        3. Two controls. The range check must fail on the exempt commits when
+           no commit is exempt, and the check of a stored message must fail on a
+           message with a trailer. A check that passes there is blind.
         4. The range check on the commits of the event. On the default branch
            these are the pushed commits. On every other ref they are the commits
            that refs/remotes/origin/<DEFAULT_BRANCH> does not have, and a pull
-           request with 0 such commits fails.
+           request into the default branch with 0 such commits fails.
         5. On every other ref, the same range with the copy of the check script
            that the default branch holds. A branch cannot move the exempt commit
            or weaken the predicate for its own commits.
-        6. On a pull request, its title and description as one message.
+        6. On a pull request, its title and description as one message, with
+           the copy of this branch and with the copy of the default branch.
   sh scripts/ci-commit-messages.sh --self-test
       Run those steps on event shapes and on settings files, in throwaway
       repositories under a new temporary directory that is left in place. Needs
@@ -81,7 +83,11 @@ commits_checked_on_pass_line() {
 }
 
 fail_pull_request_without_commits() {
-  fail "the pull request run checked 0 commits in $range with $1. A pull request has at least one commit that $default_ref does not have, so the check read the wrong range, or the script exempts the commits of this branch. Compare NEWEST_EXEMPT_COMMIT in $CHECK with the default branch."
+  fail "the pull request run checked 0 commits in $range with $1. A pull request into $DEFAULT_BRANCH has at least one commit that $default_ref does not have, so the check read the wrong range, or the script exempts the commits of this branch. Compare NEWEST_EXEMPT_COMMIT in $CHECK with the default branch."
+}
+
+pull_request_into_the_default_branch() {
+  [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "${GITHUB_BASE_REF:-$DEFAULT_BRANCH}" = "$DEFAULT_BRANCH" ]
 }
 
 check_agent_settings() {
@@ -125,6 +131,10 @@ run_event() {
     fail "the control did not fail. sh $CHECK --no-exempt $exempt_commit exited $control_status, and it must exit 1, because those commits carry attribution lines. The range check is blind, so a PASS from it means nothing. Repair check_commits in $CHECK."
   fi
   say "control, which must fail: $(printf '%s\n' "$control_output" | sed -n 's/^check-commit-messages: FAIL: //p')"
+  stored_message_control_status=0
+  printf 'Control\n\nCo-Authored-By: Control <control@example.invalid>\n' | sh "$CHECK" --stored-message >/dev/null 2>&1 || stored_message_control_status=$?
+  [ "$stored_message_control_status" = 1 ] ||
+    fail "the control for --stored-message did not fail. A message with a co-author trailer got exit $stored_message_control_status from sh $CHECK --stored-message, and it must get exit 1. The check of a title and a description is blind. Repair check_stored_message in $CHECK."
 
   if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
     range="$default_ref..$AFTER"
@@ -139,7 +149,7 @@ run_event() {
   printf '%s\n' "$head_output"
   head_count=$(printf '%s\n' "$head_output" | commits_checked_on_pass_line)
   [ -n "$head_count" ] || fail "sh $CHECK $range exited 0 and printed no PASS line with a commit count, so nothing shows that it read the range."
-  if [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$head_count" = 0 ]; then
+  if pull_request_into_the_default_branch && [ "$head_count" = 0 ]; then
     fail_pull_request_without_commits "$CHECK"
   fi
 
@@ -150,12 +160,12 @@ run_event() {
     default_status=0
     default_output=$(sh -c "$default_script" check-commit-messages.sh "$range") || default_status=$?
     if [ "$default_status" != 0 ]; then
-      fail "the copy of $CHECK that $default_ref holds refuses this range (exit $default_status, its findings are above), and the copy of this branch accepts it. The branch moved the exempt commit or weakened the predicate. Undo that change, then fix the listed commits."
+      fail "the copy of $CHECK that $default_ref holds refuses this range (exit $default_status, its findings are above), and the copy of this branch accepts it. Either this branch moved the exempt commit or changed the predicate, or $default_ref holds an older predicate that refuses a line which the newer one accepts. In both cases the commits must pass the copy of the default branch: reword the listed lines, and undo a change to the exempt commit."
     fi
     printf '%s\n' "$default_output"
     default_count=$(printf '%s\n' "$default_output" | commits_checked_on_pass_line)
     [ -n "$default_count" ] || fail "the copy of $CHECK that $default_ref holds exited 0 and printed no PASS line with a commit count, so nothing shows that it read the range."
-    if [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$default_count" = 0 ]; then
+    if pull_request_into_the_default_branch && [ "$default_count" = 0 ]; then
       fail_pull_request_without_commits "the copy of $CHECK that $default_ref holds"
     fi
     say "the copy of this branch read $head_count commits, and the copy of the default branch read $default_count"
@@ -164,7 +174,13 @@ run_event() {
   if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
     printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh "$CHECK" --stored-message ||
       fail "the title or the description of the pull request carries an attribution line, listed above. GitHub offers that text as the squash message. Remove the line on GitHub. This job reads the text from the event that started it, so a re-run reads the old text: push a commit, or close and reopen the pull request."
-    say 'the title and the description of the pull request carry no attribution line'
+    if sh -c "$default_script" check-commit-messages.sh --stored-message </dev/null >/dev/null 2>&1; then
+      printf '%s\n\n%s\n' "${PR_TITLE-}" "${PR_BODY-}" | sh -c "$default_script" check-commit-messages.sh --stored-message ||
+        fail "the copy of $CHECK that $default_ref holds refuses the title or the description of the pull request (its findings are above), and the copy of this branch accepts them. The branch weakened the predicate for this text. Undo that change, and remove the line on GitHub."
+      say 'the title and the description of the pull request carry no attribution line, for the copy of this branch and for the copy of the default branch'
+    else
+      say "the title and the description of the pull request carry no attribution line for the copy of this branch. The copy that $default_ref holds has no --stored-message mode yet, so it did not read them."
+    fi
   fi
   say 'PASS'
 }
@@ -315,7 +331,7 @@ self_test() {
   push_to_main force-push-to-main-of-a-squash-with-a-trailer 1 'an agent does not rewrite the default branch' "$commit_that_no_clone_has" "$main_with_bad_squash"
 
   runner pull-request "$main" "$clean_branch" "$clean_branch:refs/heads/feature"
-  pull_request pull-request 0 'the title and the description of the pull request carry no attribution line' "$clean_branch" 'Add two clean changes' 'A plain description.'
+  pull_request pull-request 0 'for the copy of this branch and for the copy of the default branch' "$clean_branch" 'Add two clean changes' 'A plain description.'
   expect_event pull-request 0 'the copy of this branch read 2 commits, and the copy of the default branch read 2' GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/pull/7/merge BEFORE= AFTER="$clean_branch" PR_TITLE='Add two clean changes' PR_BODY=
 
   runner pull-request-with-a-trailer-commit "$main" "$bad_branch" "$bad_branch:refs/heads/feature"
