@@ -232,13 +232,38 @@ predicate_ci_success() {
   case "$1" in success) return 0 ;; *) return 1 ;; esac
 }
 
-# PASS(0) if no low-level global input hook API appears under the given source
-# dir. The Windows backend is a listen-only Raw Input path; SetWindowsHookEx or a
-# WH_KEYBOARD_LL / WH_MOUSE_LL hook would be a lower-level global hook the crate
-# forbids (comment-hunter-3 DELETE). The pattern allows them inside this file's
-# own word boundaries by scanning .rs sources only.
+source_rule() {
+  rule=$1; rule_pattern=$2; rule_allowed=$3; rule_repo=$4
+  hits=$(grep -rnE --include='*.rs' -e "$rule_pattern" -- "$rule_repo/crates" "$rule_repo/src-tauri/src" 2>/dev/null)
+  case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: grep could not read the sources for rule %s\n' "$rule"; return 2 ;; esac
+  code_hits=$(printf '%s\n' "$hits" | grep -vE '^[^:]*:[0-9]+:[[:space:]]*//')
+  case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: the comment filter failed for rule %s\n' "$rule"; return 2 ;; esac
+  left=$(printf '%s\n' "$code_hits" | sed -e "$rule_allowed" | grep -E -e "$rule_pattern")
+  case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: the second read failed for rule %s\n' "$rule"; return 2 ;; esac
+  where=$(printf '%s\n' "$left" | sed -n '1s/^\([^:]*:[0-9]*\):.*/\1/p')
+  printf '%s at %s\n' "$rule" "${where#"$rule_repo"/}"
+  return 1
+}
+
+source_scan_defect() {
+  scan_repo=$1
+  for scan_root in crates src-tauri/src crates/halvo-capture/src/macos; do
+    [ -d "$scan_repo/$scan_root" ] || { printf 'not scanned: %s is missing\n' "$scan_root"; return 2; }
+  done
+  first_rs=$(find "$scan_repo/crates" "$scan_repo/src-tauri/src" -type f -name '*.rs' 2>/dev/null | head -1)
+  [ -n "$first_rs" ] || { printf 'not scanned: no .rs file\n'; return 2; }
+  source_rule windows-hook 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' 's/^//' "$scan_repo" || return $?
+  source_rule active-tap 'CGEventTapOptions::|kCGEventTapOptionDefault|CGEventTapCreate|CGEventPost' 's/CGEventTapOptions::ListenOnly\([^A-Za-z0-9_]\)/\1/g; s/CGEventTapOptions::ListenOnly$//' "$scan_repo" || return $?
+  source_rule audio-capture 'setCapturesAudio|setCaptureMicrophone|SCStreamOutputType::' 's/SCStreamOutputType::Screen\([^A-Za-z0-9_]\)/\1/g; s/SCStreamOutputType::Screen$//' "$scan_repo" || return $?
+  source_rule local-machine-key 'CRYPTPROTECT_LOCAL_MACHINE' 's/^//' "$scan_repo" || return $?
+  grep -rqF --include='*.rs' -e 'CGEventTapOptions::ListenOnly' -- "$scan_repo/crates/halvo-capture/src/macos" 2>/dev/null
+  case $? in
+    0) return 0 ;;
+    1) printf 'listen-only-absent under crates/halvo-capture/src/macos\n'; return 1 ;;
+    *) printf 'not scanned: grep could not read crates/halvo-capture/src/macos\n'; return 2 ;;
+  esac
+}
+
 predicate_no_ll_hook() {
-  dir=$1
-  grep -rqE --include='*.rs' 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' "$dir" 2>/dev/null && return 1
-  return 0
+  source_scan_defect "$1" > /dev/null
 }

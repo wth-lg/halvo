@@ -4,20 +4,77 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=no-ll-hook
 
+tree() {
+  made=$gate_scratch/$1
+  mkdir -p "$made/crates/halvo-capture/src/macos" "$made/crates/halvo-capture/src/windows" "$made/src-tauri/src"
+  printf 'let tap = CGEventTap::new(loc, place, CGEventTapOptions::ListenOnly, mask, cb);\n' > "$made/crates/halvo-capture/src/macos/input.rs"
+  printf 'if ty != SCStreamOutputType::Screen {\n    return;\n}\n' > "$made/crates/halvo-capture/src/macos/screen.rs"
+  printf 'let ok = RegisterRawInputDevices(&[dev], n).is_ok();\n' > "$made/crates/halvo-capture/src/windows/input.rs"
+  printf 'fn main() {}\n' > "$made/src-tauri/src/main.rs"
+  [ $# -ge 3 ] || return 0
+  mkdir -p "$made/${2%/*}"
+  printf '%s\n' "$3" > "$made/$2"
+}
+
+defect_is() {
+  defect=$(source_scan_defect "$1")
+  [ "$defect" = "$2" ]
+}
+
 cases() {
   scratch_root
-  mkdir -p "$gate_scratch/clean" "$gate_scratch/dirty"
-  printf 'let ok = RegisterRawInputDevices(&[dev], n).is_ok();\n' > "$gate_scratch/clean/a.rs"
-  printf 'let h = SetWindowsHookExW(WH_KEYBOARD_LL, Some(cb), hmod, 0);\n' > "$gate_scratch/dirty/b.rs"
-  t raw-input-only PASS predicate_no_ll_hook "$gate_scratch/clean"
-  t windows-hook FAIL predicate_no_ll_hook "$gate_scratch/dirty"
+  tree listen-only
+  t listen-only-tree PASS predicate_no_ll_hook "$gate_scratch/listen-only"
+  tree windows-hook crates/halvo-capture/src/windows/hook.rs 'let h = SetWindowsHookExW(WH_KEYBOARD_LL, Some(cb), hmod, 0);'
+  t windows-hook FAIL predicate_no_ll_hook "$gate_scratch/windows-hook"
+  tree keyboard-hook crates/halvo-capture/src/windows/hook.rs 'let id = WH_KEYBOARD_LL;'
+  t keyboard-hook-constant FAIL predicate_no_ll_hook "$gate_scratch/keyboard-hook"
+  tree mouse-hook crates/halvo-capture/src/windows/hook.rs 'let id = WH_MOUSE_LL;'
+  t mouse-hook-constant FAIL predicate_no_ll_hook "$gate_scratch/mouse-hook"
+  tree hook-in-app src-tauri/src/hook.rs 'let h = SetWindowsHookExW(id, Some(cb), hmod, 0);'
+  t hook-in-src-tauri FAIL predicate_no_ll_hook "$gate_scratch/hook-in-app"
+  tree tap-default crates/halvo-capture/src/macos/tap.rs 'let tap = CGEventTap::new(loc, place, CGEventTapOptions::Default, mask, cb);'
+  t active-tap-default FAIL predicate_no_ll_hook "$gate_scratch/tap-default"
+  t rule-is-named PASS defect_is "$gate_scratch/tap-default" "active-tap at crates/halvo-capture/src/macos/tap.rs:1"
+  tree tap-beside crates/halvo-capture/src/macos/tap.rs 'let both = (CGEventTapOptions::ListenOnly, CGEventTapOptions::Default);'
+  t listen-only-beside-default FAIL predicate_no_ll_hook "$gate_scratch/tap-beside"
+  tree tap-constant crates/halvo-capture/src/macos/tap.rs 'let options = kCGEventTapOptionDefault;'
+  t active-tap-constant FAIL predicate_no_ll_hook "$gate_scratch/tap-constant"
+  tree tap-raw crates/halvo-capture/src/macos/tap.rs 'let port = unsafe { CGEventTapCreate(a, b, c, d, cb, info) };'
+  t raw-tap-create FAIL predicate_no_ll_hook "$gate_scratch/tap-raw"
+  tree event-post crates/halvo-capture/src/macos/tap.rs 'unsafe { CGEventPost(tap, event) };'
+  t event-post FAIL predicate_no_ll_hook "$gate_scratch/event-post"
+  tree audio crates/halvo-capture/src/macos/audio.rs 'config.setCapturesAudio(true);'
+  t audio-captured FAIL predicate_no_ll_hook "$gate_scratch/audio"
+  tree microphone crates/halvo-capture/src/macos/mic.rs 'config.setCaptureMicrophone(true);'
+  t microphone-captured FAIL predicate_no_ll_hook "$gate_scratch/microphone"
+  tree audio-output crates/halvo-capture/src/macos/audio.rs 'stream.addStreamOutput(out, SCStreamOutputType::Audio, queue);'
+  t audio-output-type FAIL predicate_no_ll_hook "$gate_scratch/audio-output"
+  tree machine-key crates/halvo-capture/src/custody/windows.rs 'let flags = CRYPTPROTECT_UI_FORBIDDEN | CRYPTPROTECT_LOCAL_MACHINE;'
+  t local-machine-key FAIL predicate_no_ll_hook "$gate_scratch/machine-key"
+  tree comment crates/halvo-capture/src/windows/note.rs '    // SetWindowsHookExW and CGEventPost are never called here'
+  t comment-only-match PASS predicate_no_ll_hook "$gate_scratch/comment"
+  tree no-app; mv "$gate_scratch/no-app/src-tauri" "$gate_scratch/no-app/moved"
+  t dir-missing FAIL predicate_no_ll_hook "$gate_scratch/no-app"
+  t repo-missing FAIL predicate_no_ll_hook "$gate_scratch/no-such-repo"
+  mkdir -p "$gate_scratch/no-rs/crates/halvo-capture/src/macos" "$gate_scratch/no-rs/src-tauri/src"
+  printf 'CGEventTapOptions::ListenOnly\n' > "$gate_scratch/no-rs/crates/halvo-capture/src/macos/notes.txt"
+  t no-rs-file FAIL predicate_no_ll_hook "$gate_scratch/no-rs"
+  t no-rs-file-is-named PASS defect_is "$gate_scratch/no-rs" "not scanned: no .rs file"
+  tree no-control crates/halvo-capture/src/macos/input.rs 'let tap = make_tap();'
+  t listen-only-absent FAIL predicate_no_ll_hook "$gate_scratch/no-control"
+  tree unreadable crates/halvo-capture/src/windows/locked.rs 'let h = 1;'
+  chmod 000 "$gate_scratch/unreadable/crates/halvo-capture/src/windows/locked.rs"
+  t unreadable-source FAIL predicate_no_ll_hook "$gate_scratch/unreadable"
 }
 
 measure() {
-  if predicate_no_ll_hook "$GATE_ROOT/crates/halvo-capture/src"; then
-    emit_pass "$name"; return 0
-  fi
-  emit_fail "$name" "a low-level input hook (SetWindowsHookEx/WH_KEYBOARD_LL) is present"; return 1
+  if defect=$(source_scan_defect "$GATE_ROOT"); then emit_pass "$name"; return 0; fi
+  case $defect in
+    'not scanned: '*) emit_fail "$name" "source scan did not run: ${defect#not scanned: }" ;;
+    *) emit_fail "$name" "source scan measured: $defect" ;;
+  esac
+  return 1
 }
 
 check_main "$@"
