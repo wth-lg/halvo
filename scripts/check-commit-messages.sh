@@ -147,6 +147,7 @@ check_range() {
 
 self_test() {
   failures=0
+  fixtures=0
   nl='
 '
   generated='🤖 Generated with [Claude Code](https://claude.com/claude-code)'
@@ -155,11 +156,26 @@ self_test() {
   diff_with_attribution_text="diff --git a/bindings.rs b/bindings.rs${nl}--- a/bindings.rs${nl}+++ b/bindings.rs${nl}@@ -1 +1,2 @@${nl} $trailer${nl}+// Generated with bindgen"
   commit_verbose_file="Fix the gate${nl}${nl}# Please enter the commit message for your changes.${nl}#${nl}$scissors_block${nl}$diff_with_attribution_text"
   semicolon_commit_verbose_file="Fix the gate${nl}${nl}; $SCISSORS${nl}; Do not modify or remove the line above.${nl}; Everything below it will be ignored.${nl}$diff_with_attribution_text"
+  tab=$(printf '\t')
+  carriage_return=$(printf '\r')
+  no_break_space=$(printf '\302\240')
+  byte_that_is_not_utf8=$(printf '\351')
+  backslash=$(printf '\134')
+  claude_session='Claude-Session: https://claude.ai/code/session_0000000000000000000000'
+  agent_logs_url='Agent-Logs-Url: https://github.com/example/example/sessions/00000000-0000-0000-0000-000000000000'
+  amp_thread_id='Amp-Thread-ID: https://ampcode.com/threads/T-00000000-0000-0000-0000-000000000000'
+  assisted_by='Assisted-by: GPT-5 via Crush <crush@charm.land>'
+
+  commit_verbose_file_with_comment_string() {
+    printf 'Fix the gate\n\n%s Please enter the commit message for your changes.\n%s %s\n%s Do not modify or remove the line above.\n%s Everything below it will be ignored.\n%s\n' \
+      "$1" "$1" "$SCISSORS" "$1" "$1" "$diff_with_attribution_text"
+  }
 
   expect() {
     name=$1 want_count=$2 message=$3
     found=$(attribution_lines "$message") || awk_failed $?
     if [ -z "$found" ]; then count=0; else count=$(printf '%s\n' "$found" | wc -l | tr -d ' '); fi
+    fixtures=$((fixtures + 1))
     if [ "$count" = "$want_count" ]; then
       printf 'PASS %s\n' "$name"
     else
@@ -172,6 +188,21 @@ self_test() {
     name=$1 want_count=$2 comment_string=$3 hook_file_text=$4
     message=$(drop_commit_verbose_diff "$comment_string" "$hook_file_text") || awk_failed $?
     expect "$name" "$want_count" "$message"
+  }
+
+  expect_comment_string_read_from_git() {
+    name=$1 want=$2
+    got=$(
+      export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.commentString GIT_CONFIG_VALUE_0="$want" LC_ALL=en_US.UTF-8
+      git_comment_string 2>/dev/null
+    ) || got=
+    fixtures=$((fixtures + 1))
+    if [ "$got" = "$want" ]; then
+      printf 'PASS %s\n' "$name"
+    else
+      printf 'FAIL %s (git holds a comment string of %s bytes, the script read one of %s bytes)\n' "$name" "${#want}" "${#got}"
+      failures=$((failures + 1))
+    fi
   }
 
   expect 'a clean message passes' 0 "Add the store${nl}${nl}Stream segment files through bounded chunks."
@@ -197,11 +228,45 @@ self_test() {
   expect_in_hook_file 'trailers between a scissors line that starts like them and a diff header fail in the hook file' 2 '#' "Fix the gate${nl}${nl}Co-Authored-By: C $SCISSORS${nl}$trailer${nl}diff --git a/bindings.rs b/bindings.rs"
   expect_in_hook_file 'the diff below a scissors block with empty lines, as git writes when it concludes a merge, is dropped from the hook file' 0 '#' "Merge branch 'side'${nl}${nl}$scissors_block${nl}#${nl}# It looks like you may be committing a merge.${nl}${nl}${nl}# On branch main${nl}#${nl}$diff_with_attribution_text"
 
+
+  expect 'Generated with fails with two spaces between the words' 1 "Fix the gate${nl}${nl}Generated  with Tool"
+  expect 'Generated with fails with a tab between the words' 1 "Fix the gate${nl}${nl}Generated${tab}with Tool"
+  expect 'Generated with fails with a no-break space between the words' 1 "Fix the gate${nl}${nl}Generated${no_break_space}with Tool"
+  expect 'a line that is exactly Generated with fails' 1 "Fix the gate${nl}${nl}Generated with"
+  expect 'a Generated with line after an emoji and a no-break space fails' 1 "Fix the gate${nl}${nl}💘${no_break_space}Generated with Crush"
+  expect 'a co-author trailer without its colon fails' 1 "Fix the gate${nl}${nl}Co-Authored-By Claude <noreply@anthropic.com>"
+  expect 'the spelling Co-Authored By: fails' 1 "Fix the gate${nl}${nl}Co-Authored By: Claude <noreply@anthropic.com>"
+  expect 'a trailer with a space before the colon fails' 1 "Fix the gate${nl}${nl}Co-Authored-By : Claude <noreply@anthropic.com>"
+  expect 'a trailer indented by a tab fails' 1 "Fix the gate${nl}${nl}${tab}$trailer"
+  expect 'a trailer that follows a no-break space fails' 1 "Fix the gate${nl}${nl}${no_break_space}$trailer"
+  expect 'a trailer fails in a message whose line breaks are carriage returns alone' 1 "Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
+  expect 'a trailer fails once in a message whose line breaks are a carriage return and a newline' 1 "Fix the gate${carriage_return}${nl}${carriage_return}${nl}$trailer${carriage_return}"
+  expect 'the Claude-Session trailer fails' 1 "Fix the gate${nl}${nl}$claude_session"
+  expect 'the Agent-Logs-Url trailer fails' 1 "Fix the gate${nl}${nl}$agent_logs_url"
+  expect 'the Amp-Thread-ID trailer fails' 1 "Fix the gate${nl}${nl}$amp_thread_id"
+  expect 'the Assisted-by trailer fails' 1 "Fix the gate${nl}${nl}$assisted_by"
+  expect 'three tool trailers in one message fail, one finding each' 3 "Fix the gate${nl}${nl}$claude_session${nl}$agent_logs_url${nl}$amp_thread_id"
+  expect 'a Signed-off-by trailer, which names a person, passes' 0 "Fix the gate${nl}${nl}Signed-off-by: Some Person <person@example.invalid>"
+  expect 'a Reviewed-by trailer, which names a person, passes' 0 "Fix the gate${nl}${nl}Reviewed-by: Some Person <person@example.invalid>"
+  expect 'a word that only starts like the trailer passes' 0 "Fix the gate${nl}${nl}Co-Authored-Bystander effects are out of scope."
+  expect 'a date before generated with passes' 0 "Bump the release tool${nl}${nl}2026-11-09: generated with cargo-release 1.1.7"
+  expect 'a number before generated with passes' 0 "Regenerate the bindings${nl}${nl}100% generated with bindgen, no hand edits"
+  expect 'a parenthesis before generated with passes' 0 "Add the app icons${nl}${nl}The icons come from docs/icon.png${nl}(generated with \`npm run tauri icon\`) and unsigned."
+  expect 'a Cyrillic word before generated with passes' 0 "Add the app icons${nl}${nl}Иконки generated with tauri icon"
+  expect 'a quoted Generated with line passes' 0 "Reject attribution lines${nl}${nl}The footer was:${nl}> $generated"
+  expect 'a quoted trailer passes' 0 "Reject attribution lines${nl}${nl}The trailer was:${nl}> $trailer"
+  expect_in_hook_file 'the diff of git commit -v is dropped when the comment string is two backslashes' 0 "$backslash$backslash" "$(commit_verbose_file_with_comment_string "$backslash$backslash")"
+  expect_in_hook_file 'the diff of git commit -v is dropped when the comment string is a backslash and the letter t' 0 "${backslash}t" "$(commit_verbose_file_with_comment_string "${backslash}t")"
+  expect_comment_string_read_from_git 'a comment string that is not valid UTF-8 is read from git under a UTF-8 locale' "$byte_that_is_not_utf8"
+  expect_in_hook_file 'the diff of git commit -v is dropped when the comment string is that byte' 0 "$byte_that_is_not_utf8" "$(commit_verbose_file_with_comment_string "$byte_that_is_not_utf8")"
+  expect_in_hook_file 'under the auto setting, a trailer below a line that spells auto before the scissors text fails' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl}$trailer"
+  expect_in_hook_file 'a comment line of git that lists an untracked file named Generated with passes' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}# Untracked files:${nl}#${tab}Generated with notes.txt${nl}#"
+
   if [ "$failures" -gt 0 ]; then
-    printf 'check-commit-messages: self-test FAIL: %d fixtures misclassified\n' "$failures"
+    printf 'check-commit-messages: self-test FAIL: %d of %d fixtures misclassified\n' "$failures" "$fixtures"
     return 1
   fi
-  printf 'check-commit-messages: self-test PASS\n'
+  printf 'check-commit-messages: self-test PASS: %d fixtures\n' "$fixtures"
 }
 
 mode=
