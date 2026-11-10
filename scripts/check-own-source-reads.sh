@@ -215,7 +215,7 @@ self_test() {
   expect 'sed with a pattern that holds a number is accepted' '' "sed -n '/^# 2nd/p' $own_path"
 
   leave_the_repository_that_git_variables_name
-  fixture_directory=$(mktemp -d) || die 'mktemp could not make a directory'
+  fixture_directory=$(mktemp -d "${TMPDIR:-/tmp}/check-own-source-reads-self-test.XXXXXX") || die 'mktemp could not make a directory'
   repository=$fixture_directory/repository
   printf 'check-own-source-reads: the fixture repository is %s, which is left in place\n' "$repository"
   git init -q "$repository" || die "git init failed in $fixture_directory"

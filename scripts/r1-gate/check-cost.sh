@@ -30,7 +30,7 @@ sample_mean_cpu() {
 
 measure() {
   seconds=${1:-$GATE_DURATION}
-  store=$(mktemp -d); err=$(mktemp); trap 'rm -rf "$store" "$err"' EXIT
+  store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-cost.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-cost.XXXXXX"); trap 'rm -rf "$store" "$err"' EXIT
   before=$(dir_bytes "$store")
   HALVO_STORE_DIR="$store" run_capture_bin --timed-run "$seconds" > /dev/null 2> "$err" &
   pid=$!

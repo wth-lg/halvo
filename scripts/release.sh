@@ -24,7 +24,7 @@ fi
 
 # cargo-release is a dry run unless --execute is given. It prints the version bump,
 # the diff of the CHANGELOG.md replacement and the tag, and writes nothing.
-out=$(mktemp)
+out=$(mktemp "${TMPDIR:-/tmp}/release.XXXXXX")
 if ! cargo release "$level" --no-confirm >"$out" 2>&1; then
   cat "$out"
   rm -f "$out"

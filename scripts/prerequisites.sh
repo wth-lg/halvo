@@ -48,7 +48,7 @@ install_cargo_release_prebuilt() {
     MINGW*|MSYS*|CYGWIN*) asset="$prefix-x86_64-pc-windows-msvc.zip" ;;
     *) return 1 ;;
   esac
-  tmp=$(mktemp -d)
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites.XXXXXX")
   ok=0
   if curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$base/$asset"; then
     case "$asset" in

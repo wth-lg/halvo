@@ -24,7 +24,7 @@ self_test() {
 }
 
 measure() {
-  store=$(mktemp -d); out=$(mktemp); err=$(mktemp); trap 'rm -rf "$store" "$out" "$err"' EXIT
+  store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); out=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); trap 'rm -rf "$store" "$out" "$err"' EXIT
   if HALVO_STORE_DIR="$store" run_capture_bin --verify-deletion > "$out" 2> "$err"; then
     # shellcheck disable=SC2086
     defects=$(report_defects "$(cat "$out")" $GATE_DELETION_SPEC)

@@ -10,7 +10,7 @@ name=store
 good="store rows=2000 secure_delete=1 temp_store=2 fts_secure_delete=1 cipher_provider=libtomcrypt segment_roundtrip=ok unwrap=ok unwrap_ms=3 prompt=none"
 
 self_test() {
-  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-store.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
   marker=HALVOMARKERselftest
   mkdir -p "$tmp/clean" "$tmp/leaky"
   printf 'bytes-that-are-ciphertext\n' > "$tmp/clean/seg0001"
@@ -32,7 +32,7 @@ self_test() {
 }
 
 measure() {
-  store=$(mktemp -d); out=$(mktemp); err=$(mktemp); trap 'rm -rf "$store" "$out" "$err"' EXIT
+  store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-store.XXXXXX"); out=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-store.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-store.XXXXXX"); trap 'rm -rf "$store" "$out" "$err"' EXIT
   marker="HALVO_GATE_MARKER_$$"
   if HALVO_STORE_DIR="$store" HALVO_GATE_MARKER="$marker" run_capture_bin --verify-store > "$out" 2> "$err"; then
     report=$(cat "$out")

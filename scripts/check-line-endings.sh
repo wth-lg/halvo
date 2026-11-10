@@ -198,7 +198,7 @@ leave_the_repository_that_git_variables_name() {
 self_test() {
   leave_the_repository_that_git_variables_name
   script=$(cd "$(dirname "$0")" && pwd)/$(basename "$0") || die "cannot resolve the path of $0"
-  fixture_directory=$(mktemp -d) || die 'mktemp could not make a directory'
+  fixture_directory=$(mktemp -d "${TMPDIR:-/tmp}/check-line-endings-self-test.XXXXXX") || die 'mktemp could not make a directory'
   repository=$fixture_directory/repository
   git init -q "$repository" || die "git init failed in $fixture_directory"
   mkdir "$repository/scripts" || die "mkdir failed in $repository"
