@@ -153,7 +153,7 @@ check() {
   base_changelog=
   if [ -n "$base_ref" ]; then
     base_commit=$(git rev-parse --verify --quiet --end-of-options "$base_ref^{commit}") ||
-      die "the base $base_ref is not a commit in this clone. Fetch it first: git fetch origin (in CI, fetch-depth: 0 on actions/checkout)."
+      die "the base $base_ref is not a commit in this clone. Name a ref that this clone has, for example origin/main after git fetch origin (in CI, fetch-depth: 0 on actions/checkout)."
     base_changelog=$(git cat-file blob "$base_commit:CHANGELOG.md") ||
       die "git cat-file could not read CHANGELOG.md at $base_ref"
   fi
