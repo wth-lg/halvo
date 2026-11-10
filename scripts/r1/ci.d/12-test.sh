@@ -126,9 +126,10 @@ EOF
   chmod +x "$work/bin/cargo" "$work/bin/security"
   printf 'let dir = temp_dir().join(format!("halvo-consent-test-{n}"));\n' >"$work/literal-tracked/src/a.rs"
   printf 'let dir = private_temp_dir();\n' >"$work/literal-gone/src/a.rs"
+  printf 'The tests left halvo-consent-test-7-0 behind.\n' >"$work/literal-gone/notes.txt"
   for repo in "$work/literal-tracked" "$work/literal-gone"; do
     git -C "$repo" init -q >/dev/null 2>&1
-    git -C "$repo" add src/a.rs >/dev/null 2>&1
+    git -C "$repo" add . >/dev/null 2>&1
   done
   rejected=0
   wrong=
