@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+export GIT_NO_REPLACE_OBJECTS=1
 
 NEWEST_EXEMPT_COMMIT=685d84637c302976956d56e6bbb5c18a4503e7c8
 TOOL_TRAILER_KEYS='Claude-Session Agent-Logs-Url Amp-Thread-ID Assisted-by'
@@ -11,6 +12,8 @@ SCISSORS='------------------------ >8 ------------------------'
 DEFAULT_BRANCH_REMEDY='The owner decides between rewriting that branch and moving the exempt commit (NEWEST_EXEMPT_COMMIT in scripts/check-commit-messages.sh), with the reason recorded in AGENTS.md. scripts/merge-pr.sh exists so that this does not happen: it checks the squash message before it merges.'
 
 DEFAULT_REF_WITHOUT_ORIGIN_HEAD=refs/remotes/origin/main
+
+FIX_FOR_A_COMMIT_OFF_THE_DEFAULT_BRANCH='remove each listed line from its commit message: git commit --amend for the newest commit, git rebase -i with "reword" for an older one. If a listed line is prose, reword it so that it does not start with these words. Then run this check again.'
 
 exempt_commit_short=${NEWEST_EXEMPT_COMMIT%"${NEWEST_EXEMPT_COMMIT#???????}"}
 
@@ -42,28 +45,34 @@ help_text() {
   cat <<EOF
 Rejects messages that carry an attribution line. Commits in this repository are
 authored by the configured git user only, so no line of a message may start with:
-  - Co-Authored-By, with or without its colon, its three words joined by hyphens
-    or by whitespace
+  - Co-Authored-By, with or without its colon, its three words joined by hyphens,
+    by whitespace or by nothing
   - Generated with
   - one of these trailer keys, which name a tool or its session, and a colon:
     $TOOL_TRAILER_KEYS
 Letter case does not matter. Whitespace is a space, a tab, a no-break space or
-another Unicode space, and any run of it separates the words. Whitespace and
-emoji (a character from U+2000 to U+2FFF or above U+FFFF) before the first word
-are skipped. A carriage return ends a line as a newline does.
-A line passes when anything else comes before those words: a letter of any
-script, a digit, a bracket or the "> " of a quotation. A trailer that names a
-person, such as Signed-off-by, passes.
+another space of Unicode (U+1680, U+2000 to U+200A, U+202F, U+205F, U+3000),
+and any run of it separates the words. Before the first word, whitespace is
+skipped, and so is every character from U+2000 to U+2FFF or above U+FFFF.
+Those ranges hold the emoji that tools put before the words, and also symbols
+and a few scripts. A carriage return ends a line as a newline does.
+A line passes when any other character comes before those words: an ASCII
+character such as a digit, a bracket or the "> " of a quotation, or a letter
+from below U+2000 or from U+3000 to U+FFFF, such as a Cyrillic or a Chinese
+one. A trailer that names a person, such as Signed-off-by, passes.
 
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
      stores it. Git does not run it under --no-verify, for revert, cherry-pick,
      rebase, am and commit-tree, or in a checkout that has no .githooks directory.
   2. .githooks/pre-push reads the stored messages of the commits that a push
-     would add to the remote, and refuses the push. It cannot see a push made
-     with --no-verify, a push from a checkout that has no .githooks directory
-     or from a clone where sh scripts/prerequisites.sh has not set
-     core.hooksPath, or a commit that GitHub itself makes.
+     would add to the remote, and refuses the push. For each pushed ref these
+     are the commits that are on neither the remote's copy of that ref nor the
+     default branch as this clone last fetched it. It cannot see a push made
+     with --no-verify, a push from a checkout that has no .githooks/pre-push
+     file, such as a branch cut before the file existed, a push from a clone
+     where sh scripts/prerequisites.sh has not set core.hooksPath, or a commit
+     that GitHub itself makes.
   3. The CI step "Commit messages" (scripts/ci-commit-messages.sh) cannot be
      skipped from a clone. It reads the stored messages of every push and pull
      request, and the title and description of a pull request. It reads them
@@ -155,7 +164,7 @@ attribution_lines() {
     }
     function is_attribution(line,    text) {
       text = tolower(line)
-      gsub(/\t|\302\240|\342\200[\200-\212\257]|\342\201\237|\343\200\200/, " ", text)
+      gsub(/\t|\302\240|\341\232\200|\342\200[\200-\212\257]|\342\201\237|\343\200\200/, " ", text)
       sub(/^( |\342[\200-\277][\200-\277]|\357\270[\200-\217]|[\360-\364][\200-\277][\200-\277][\200-\277])+/, "", text)
       return text ~ /^co[- ]*authored[- ]*by([^a-z0-9]|$)/ || text ~ /^generated +with([^a-z0-9]|$)/ || starts_with_tool_trailer(text)
     }
@@ -248,23 +257,42 @@ check_commits() {
   any_range_failed=1
   {
     printf 'check-commit-messages: FAIL: %s: commits checked %d, with an attribution line %d (%s).\n' "$label" "$total" "$bad" "$scope"
-    if [ "$bad" -gt "$bad_on_default_branch" ]; then
-      printf 'Fix: remove each listed line from its commit message: git commit --amend for the newest commit, git rebase -i with "reword" for an older one. If a listed line is prose, reword it so that it does not start with these words. Then run this check again. %s\n' "$RULE"
+    if [ -z "$default_ref" ]; then
+      printf 'This clone names no default branch (it has no refs/remotes/origin/HEAD and no %s), so the check cannot tell which listed commits are already on it. Do not amend or rebase a commit that is: an agent does not rewrite the default branch. %s\n' "$DEFAULT_REF_WITHOUT_ORIGIN_HEAD" "$DEFAULT_BRANCH_REMEDY"
+      printf 'Fix for a listed commit that is not on the default branch: %s %s\n' "$FIX_FOR_A_COMMIT_OFF_THE_DEFAULT_BRANCH" "$RULE"
+    elif [ "$bad" -gt "$bad_on_default_branch" ]; then
+      printf 'Fix: %s %s\n' "$FIX_FOR_A_COMMIT_OFF_THE_DEFAULT_BRANCH" "$RULE"
       printf 'sh scripts/prerequisites.sh turns on the commit-msg and pre-push hooks, which report such a line before it leaves this clone.\n'
     fi
     if [ "$bad_on_default_branch" -gt 0 ]; then
       printf 'Listed commits that are already on %s: %d. Do not amend or rebase them: an agent does not rewrite the default branch. %s\n' "$default_ref" "$bad_on_default_branch" "$DEFAULT_BRANCH_REMEDY"
-    elif [ -z "$default_ref" ]; then
-      printf 'If a listed commit is already on the default branch, do not amend or rebase it: an agent does not rewrite the default branch. %s\n' "$DEFAULT_BRANCH_REMEDY"
     fi
   } >&2
+}
+
+is_object_id() {
+  case $1 in
+    ''|*[!0-9a-f]*) return 1 ;;
+  esac
+  [ ${#1} = 40 ] || [ ${#1} = 64 ]
 }
 
 check_push() {
   remote=$1
   require_repository_with_exempt_commit
   resolve_default_ref
-  while read -r local_ref local_object remote_ref remote_object; do
+  default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
+  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=
+  while IFS= read -r pushed_ref; do
+    remote_object=${pushed_ref##* }
+    rest=${pushed_ref% *}
+    remote_ref=${rest##* }
+    rest=${rest% *}
+    local_object=${rest##* }
+    local_ref=${rest% *}
+    if ! { is_object_id "$local_object" && is_object_id "$remote_object"; }; then
+      die "cannot read this line that git wrote to the pre-push hook, so the push was not checked: $pushed_ref"
+    fi
     case $local_object in
       *[!0]*) ;;
       *) continue ;;
@@ -276,7 +304,7 @@ check_push() {
         if git cat-file -e "$remote_object^{commit}" 2>/dev/null; then set -- "$@" "^$remote_object"; fi
         ;;
     esac
-    if git config --get "remote.$remote.url" >/dev/null 2>&1; then set -- "$@" --not "--remotes=$remote"; fi
+    if [ -n "$default_ref_of_remote" ]; then set -- "$@" "^$default_ref_of_remote"; fi
     check_commits "push of $local_ref to $remote_ref" "$@"
   done
   [ "$any_range_failed" = 0 ]
