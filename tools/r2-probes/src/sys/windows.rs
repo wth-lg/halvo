@@ -124,6 +124,9 @@ pub fn own_usage() -> Own {
 }
 
 pub fn kill_tree(pid: u32) {
+    if pid == 0 {
+        return;
+    }
     let _ = Command::new("taskkill")
         .args(["/PID", &pid.to_string(), "/T", "/F"])
         .output();
