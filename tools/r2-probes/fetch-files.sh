@@ -34,7 +34,7 @@ while IFS=$tab read -r set name address size sha256; do
         echo "kept $name size=$size"
         continue
     fi
-    curl --fail --silent --show-error --location --retry 3 --user-agent r2-probes --output "$target.part" "$address"
+    curl --fail --silent --show-error --location --connect-timeout 30 --speed-limit 50000 --speed-time 60 --retry 3 --user-agent r2-probes --output "$target.part" "$address"
     if ! holds "$target.part" "$size" "$sha256"; then
         echo "fetch-files: $name has size $(wc -c <"$target.part" | tr -d ' ') and SHA-256 $(digest "$target.part"), and the list says $size and $sha256. Fix: correct the line of $name in $list, or the address." >&2
         exit 1

@@ -112,6 +112,15 @@ reads image files and calls no capture or accessibility interface. Run it alone 
 helper for timed runs. `r2-probes stamp` then adds the start and end times of the helper's
 record line and the largest resident set size to each record.
 
+For Apple Vision at the accurate level the first set landed 1.0 ms under the 172 ms line and
+the repeat sets over it, so the coordinator ruled on 2026-11-10 how its `.this-mac` cell is
+made: one helper call that starts only at a 1-minute load of 4 or less and makes three sets on
+the same 15 frames, and the median over all runs of that call decides. If no such call starts
+in 90 minutes, the median over every run on those frames decides. The cell names which of the
+two it holds in `quiet_run` (`yes` or `none`; `pending` while the call waits), and gives the set
+medians, the lowest and the highest run and the load before and after. The cells whose names go
+on with `.first-set` and `.repeat-K` hold the single sets with their loads and decide nothing.
+
 ## Checks
 
 ```sh
