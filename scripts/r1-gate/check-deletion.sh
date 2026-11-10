@@ -1,41 +1,61 @@
 #!/bin/sh
-# Sub-check: a crypto-shredded segment is not decryptable with any remaining key,
-# the shred left nothing in the WAL, and delete-all destroyed the store key.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
 . "$DIR/lib.sh"
 name=deletion
 
 good="segment=42 shred=ok file_gone=yes decryptable=no sibling_readable=yes remaining_keys=1 wal_bytes=0 delete_all_keys=2 root_destroyed=yes store_sealed=yes"
 
-self_test() {
-  if predicate_deletion_report "$good" \
-     && ! predicate_deletion_report "$(printf '%s' "$good" | sed 's/decryptable=no/decryptable=yes/')" \
-     && ! predicate_deletion_report "$(printf '%s' "$good" | sed 's/file_gone=yes/file_gone=no/')" \
-     && ! predicate_deletion_report "$(printf '%s' "$good" | sed 's/sibling_readable=yes/sibling_readable=no/')" \
-     && ! predicate_deletion_report "$(printf '%s' "$good" | sed 's/wal_bytes=0/wal_bytes=78312/')" \
-     && ! predicate_deletion_report "$(printf '%s' "$good" | sed 's/root_destroyed=yes/root_destroyed=no/')" \
-     && ! predicate_deletion_report "$(printf '%s' "$good" | sed 's/store_sealed=yes/store_sealed=no/')" \
-     && ! predicate_deletion_report "segment=42 shred=ok decryptable=no"; then
-    emit_pass "self-test:$name"; return 0
-  fi
-  emit_fail "self-test:$name" "predicate misclassified a fixture"; return 1
+with() { printf '%s\n' "$good" | sed "$1"; }
+
+defects_are() {
+  defects=$(deletion_report_defects "$1")
+  [ "$defects" = "$2" ]
+}
+
+cases() {
+  scratch_root
+  standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
+  t standin-deletion PASS against_the_standin ok none
+  t standin-root-kept FAIL against_the_standin root-kept none
+  t standin-binary-fails FAIL against_the_standin exit-1 none
+  t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 none
+  for pair in decryptable=no file_gone=yes sibling_readable=yes wal_bytes=0 root_destroyed=yes; do
+    line=$(with "s/ $pair//")
+    t "${pair%%=*}-absent" FAIL predicate_deletion_report "$line"
+  done
+  t good-line PASS predicate_deletion_report "$good"
+  line=$(with 's/decryptable=no/decryptable=yes/'); t decryptable-yes FAIL predicate_deletion_report "$line"
+  line=$(with 's/file_gone=yes/file_gone=no/'); t file-gone-no FAIL predicate_deletion_report "$line"
+  line=$(with 's/sibling_readable=yes/sibling_readable=no/'); t sibling-unreadable FAIL predicate_deletion_report "$line"
+  line=$(with 's/wal_bytes=0/wal_bytes=78312/'); t wal-bytes-78312 FAIL predicate_deletion_report "$line"
+  line=$(with 's/root_destroyed=yes/root_destroyed=no/'); t root-not-destroyed FAIL predicate_deletion_report "$line"
+  line=$(with 's/store_sealed=yes/store_sealed=no/'); t store-not-sealed FAIL predicate_deletion_report "$line"
+  t field-missing FAIL predicate_deletion_report "segment=42 shred=ok decryptable=no"
+  line=$(with 's/wal_bytes=0/wal_bytes=0 expired_events_left=0/'); t line-of-store-4 PASS predicate_deletion_report "$line"
+  line=$(with 's/wal_bytes=0/wal_bytes=0 expired_events_left=3/'); t expired-events-left-3 FAIL predicate_deletion_report "$line"
+  line=$(with 's/ store_sealed=yes//'); t defects-name-the-key PASS defects_are "$line" "store_sealed "
+}
+
+against_the_standin() {
+  standin_as_the_binary "$1" "$2"
+  measure
 }
 
 measure() {
-  store=$(mktemp -d "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); out=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); err=$(mktemp "${TMPDIR:-/tmp}/r1-gate-check-deletion.XXXXXX"); trap 'rm -rf "$store" "$out" "$err"' EXIT
-  if HALVO_STORE_DIR="$store" run_capture_bin --verify-deletion > "$out" 2> "$err"; then
-    # shellcheck disable=SC2086
-    defects=$(report_defects "$(cat "$out")" $GATE_DELETION_SPEC)
+  build_for_measure || { fail_defect; return 1; }
+  scratch_root
+  store=$gate_scratch/${capture_label}store; out=$gate_scratch/${capture_label}stdout; err=$gate_scratch/${capture_label}stderr
+  mkdir "$store"
+  export HALVO_STORE_DIR="$store"
+  if watched run_capture_bin --verify-deletion --store-dir "$store" > "$out" 2> "$err"; then
+    report=$(cat "$out")
+    defects=$(deletion_report_defects "$report")
     if [ -z "$defects" ]; then emit_pass "$name"; return 0; fi
-    emit_fail "$name" "verify-deletion measured: $defects"; return 1
+    emit_fail "$name" "verify-deletion measured: ${defects% }"; return 1
   fi
-  emit_fail "$name" "verify-deletion unavailable: $(head -1 "$err" 2>/dev/null)"; return 1
+  first=$(head -1 "$err" 2>/dev/null)
+  emit_fail "$name" "verify-deletion unavailable: $first"; return 1
 }
 
-case "${1:-}" in
-  --self-test) self_test ;;
-  --measure) shift; measure ;;
-  *) measure ;;
-esac
+check_main "$@"

@@ -17,3 +17,13 @@ output:
   FAIL secure-input (timed-run unavailable: error: package(s) `halvo-capture` not found in workspace `<repo>`)
   FAIL cost (daemon did not complete a timed run: error: package(s) `halvo-capture` not found in workspace `<repo>`)
   PASS windows-ci
+
+Note of 2026-11-10, added with the repaired gate (unit gate-1 of the R1 re-plan).
+The output above comes from the gate scripts of commit 3771ece, which held the
+six checks listed. That record cannot show FAIL for every sub-check: windows-ci
+passes for any commit with a successful run, and the hook scan that commit
+685d846 added passed on a tree with no crate directory. Checks added since P0:
+no-ll-hook (685d846), memory, and the names of the sub-checks (f) to (n), whose
+scripts arrive with the later gate units. The record of the repaired gate is
+docs/baseline/r1-gate-main.txt, keyed by the tree, and the bounds it applies
+stand in docs/baseline/r1-gate-bounds.txt.
