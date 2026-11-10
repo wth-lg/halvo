@@ -2,7 +2,6 @@
 # Sub-check: a timed capture run records events for every required modality.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
 . "$DIR/lib.sh"
 name=timed-run
 

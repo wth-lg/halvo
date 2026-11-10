@@ -3,7 +3,6 @@
 # segment it wrote through a no-prompt unwrap, and SQLCipher runs on libtomcrypt.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
 . "$DIR/lib.sh"
 name=store
 

@@ -7,7 +7,6 @@
 # must be clean when it starts. Safe to run twice.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
 . "$DIR/lib.sh"
 cd "$GATE_ROOT" || exit 1
 

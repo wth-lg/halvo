@@ -3,7 +3,6 @@
 # the shred left nothing in the WAL, and delete-all destroyed the store key.
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
 . "$DIR/lib.sh"
 name=deletion
 

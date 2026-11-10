@@ -5,7 +5,6 @@
 # forbids (comment-hunter-3 DELETE constraint).
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
 . "$DIR/lib.sh"
 name=no-ll-hook
 
