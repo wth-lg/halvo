@@ -307,6 +307,7 @@ self_test() {
   tab=$(printf '\t')
   carriage_return=$(printf '\r')
   no_break_space=$(printf '\302\240')
+  ogham_space_mark=$(printf '\341\232\200')
   byte_that_is_not_utf8=$(printf '\351')
   backslash=$(printf '\134')
   claude_session='Claude-Session: https://claude.ai/code/session_0000000000000000000000'
@@ -446,6 +447,11 @@ self_test() {
   expect_in_hook_file 'under the auto setting, a trailer below a line that spells auto before the scissors text fails' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl}$trailer"
   expect_in_hook_file 'under the auto setting, an indented trailer below such a line fails too, because the line starts no scissors block' 1 auto "Fix the gate${nl}${nl}auto $SCISSORS${nl}diff --git a/x b/x${nl} $trailer"
   expect 'a line that starts with a tool trailer key and has no colon passes' 0 "Fix the gate${nl}${nl}Assisted-by design, the gate stays manual."
+  expect 'Generated with fails with two no-break spaces between the words' 1 "Fix the gate${nl}${nl}Generated${no_break_space}${no_break_space}with Tool"
+  expect 'Generated with fails with an Ogham space mark between the words' 1 "Fix the gate${nl}${nl}Generated${ogham_space_mark}with Tool"
+  expect 'a line that is exactly Co-Authored-By fails' 1 "Fix the gate${nl}${nl}Co-Authored-By"
+  expect 'the trailer fails when nothing joins its three words' 1 "Fix the gate${nl}${nl}CoAuthoredBy: Claude <noreply@anthropic.com>"
+  expect 'a tool trailer with a space before its colon fails' 1 "Fix the gate${nl}${nl}Claude-Session : https://claude.ai/code/session_0000000000000000000000"
   expect_in_hook_file 'a comment line of git that lists an untracked file named Generated with passes' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}# Untracked files:${nl}#${tab}Generated with notes.txt${nl}#"
 
   expect_at_lines 'a trailer on the first line of a message fails at line 1' '1' "$trailer"
