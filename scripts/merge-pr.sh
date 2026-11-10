@@ -570,12 +570,12 @@ EOF
   state_of newest-push-run-in-progress
   runs newest-push-run-in-progress "$(run_line push 2026-11-10T09:00:00Z 101 in_progress none)" "$green_pull_request_run"
   jobs newest-push-run-in-progress 101 "macos${tab}completed${tab}success${nl}windows${tab}in_progress${tab}none"
-  refused newest-push-run-in-progress 'gh run watch 101'
+  refused newest-push-run-in-progress 'run 101, has not completed: its status is in_progress. Wait for it: gh run watch 101'
 
   state_of newest-pull-request-run-in-progress
   runs newest-pull-request-run-in-progress "$green_push_run" "$(run_line pull_request 2026-11-10T09:00:04Z 102 queued none)"
   jobs newest-pull-request-run-in-progress 102 "macos${tab}queued${tab}none${nl}windows${tab}queued${tab}none"
-  refused newest-pull-request-run-in-progress 'gh run watch 102'
+  refused newest-pull-request-run-in-progress 'run 102, has not completed: its status is queued. Wait for it: gh run watch 102'
 
   state_of push-run-without-the-job-windows
   jobs push-run-without-the-job-windows 101 "macos${tab}completed${tab}success"
