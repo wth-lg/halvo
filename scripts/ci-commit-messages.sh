@@ -5,6 +5,18 @@ cd "$(dirname "$0")/.."
 CHECK=scripts/check-commit-messages.sh
 AGENT_SETTINGS=.claude/settings.json
 
+SETTINGS_PROBLEM='
+  if length != 1 then "the file holds \(length) JSON values"
+  else .[0] |
+    if type != "object" then "the top level is not an object"
+    elif (.attribution | type) != "object" then "the key attribution is not an object"
+    elif .attribution.commit != "" then "attribution.commit is not the empty string"
+    elif .attribution.pr != "" then "attribution.pr is not the empty string"
+    elif .attribution.sessionUrl != false then "attribution.sessionUrl is not false"
+    elif has("includeCoAuthoredBy") and .includeCoAuthoredBy != false then "includeCoAuthoredBy is not false"
+    else empty end
+  end'
+
 help_text() {
   cat <<'EOF'
 The CI step "Commit messages". It runs scripts/check-commit-messages.sh on the
@@ -20,25 +32,30 @@ commits of the event that started the workflow. No flag of git skips it.
                            request, or the pushed commit
         PR_TITLE, PR_BODY  the title and the description of the pull request
       Each step below can fail the job.
-        1. The self-test of the predicate.
-        2. A control. The range check must fail on the exempt commits when no
+        1. The agent settings. The tracked file .claude/settings.json must hold
+           "attribution": {"commit": "", "pr": "", "sessionUrl": false}, which
+           stops the agent harness from adding its attribution lines, and no
+           includeCoAuthoredBy other than false. Needs jq.
+        2. The self-test of the predicate.
+        3. A control. The range check must fail on the exempt commits when no
            commit is exempt. If it passes there, it is blind.
-        3. The range check on the commits of the event. On the default branch
+        4. The range check on the commits of the event. On the default branch
            these are the pushed commits. On every other ref they are the commits
            that refs/remotes/origin/<DEFAULT_BRANCH> does not have, and a pull
            request with 0 such commits fails.
-        4. On every other ref, the same range with the copy of the check script
+        5. On every other ref, the same range with the copy of the check script
            that the default branch holds. A branch cannot move the exempt commit
            or weaken the predicate for its own commits.
-        5. On a pull request, its title and description as one message.
+        6. On a pull request, its title and description as one message.
   sh scripts/ci-commit-messages.sh --self-test
-      Run those steps on event shapes, in throwaway repositories under a new
-      temporary directory that is left in place. Needs a clone of this
-      repository and a configured git user.
+      Run those steps on event shapes and on settings files, in throwaway
+      repositories under a new temporary directory that is left in place. Needs
+      a clone of this repository and a configured git user.
 
 It cannot see a description that is edited after the last push, a push whose
-newest commit says [skip ci], or a change to this script or to the workflow on
-the branch under test. That change is in the diff of the pull request.
+newest commit says [skip ci], a settings file of a user that overrides the
+tracked one, or a change to this script or to the workflow on the branch under
+test. That change is in the diff of the pull request.
 
 Exit codes: 0 every step passed, 1 a step found a problem, 2 the step could not
 run, 64 bad usage.
@@ -67,6 +84,18 @@ fail_pull_request_without_commits() {
   fail "the pull request run checked 0 commits in $range with $1. A pull request has at least one commit that $default_ref does not have, so the check read the wrong range, or the script exempts the commits of this branch. Compare NEWEST_EXEMPT_COMMIT in $CHECK with the default branch."
 }
 
+check_agent_settings() {
+  settings_rule="$1 must hold \"attribution\": {\"commit\": \"\", \"pr\": \"\", \"sessionUrl\": false}. The empty values of commit and pr stop the agent harness from adding its co-author trailer and its pull request line, and sessionUrl false stops its session trailer."
+  [ -f "$1" ] || fail "$1 is missing. $settings_rule Restore the tracked file."
+  command -v jq >/dev/null 2>&1 || die "jq is not on PATH, and this step reads $1 with it. Install jq."
+  if ! settings_problem=$(jq -r -s "$SETTINGS_PROBLEM" "$1" 2>&1); then
+    fail "$1 is not valid JSON: $settings_problem. $settings_rule"
+  fi
+  [ -z "$settings_problem" ] ||
+    fail "in $1, $settings_problem. $settings_rule Do not write \"attribution\": false: older versions of the harness reject it and skip the whole file."
+  say "$1 turns the attribution lines of the agent harness off"
+}
+
 run_event() {
   [ -n "${GITHUB_EVENT_NAME-}" ] || die 'GITHUB_EVENT_NAME is empty. GitHub Actions sets it; see --help.'
   [ -n "${GITHUB_REF-}" ] || die 'GITHUB_REF is empty. GitHub Actions sets it; see --help.'
@@ -78,6 +107,8 @@ run_event() {
     die "$default_ref is not in this clone. The checkout step needs fetch-depth: 0."
   git rev-parse -q --verify "$AFTER^{commit}" >/dev/null ||
     die "the commit of the event, $AFTER, is not in this clone"
+
+  check_agent_settings "$AGENT_SETTINGS"
 
   if ! self_test_output=$(sh "$CHECK" --self-test 2>&1); then
     printf '%s\n' "$self_test_output" >&2

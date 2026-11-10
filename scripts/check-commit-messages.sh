@@ -69,7 +69,8 @@ Three layers apply this predicate.
      It does not run for a push whose newest commit says [skip ci], and it reads
      a description again only when a commit is pushed.
 No layer reads the author or the committer of a commit, or words that are
-spelled in another way.
+spelled in another way. Before the layers, the tracked file .claude/settings.json
+tells the agent harness to add no attribution line, and the CI step checks it.
 
 EOF
   synopsis
