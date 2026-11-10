@@ -370,6 +370,9 @@ self_test() {
   runner branch-that-accepts-a-tool-footer-in-the-pull-request-text "$main" "$branch_that_weakened_the_stored_message_check" "$branch_that_weakened_the_stored_message_check:refs/heads/feature"
   pull_request branch-that-accepts-a-tool-footer-in-the-pull-request-text 1 'refuses the title or the description of the pull request' "$branch_that_weakened_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
 
+  runner branch-that-accepts-a-tool-footer-while-main-holds-the-older-script "$commit_with_the_predicate_before_this_change" "$branch_that_weakened_the_stored_message_check" "$branch_that_weakened_the_stored_message_check:refs/heads/feature"
+  pull_request branch-that-accepts-a-tool-footer-while-main-holds-the-older-script 1 'the control for --stored-message did not fail' "$branch_that_weakened_the_stored_message_check" 'Fix the gate' "A plain description.$nl$nl$footer"
+
   runner pull-request-into-another-base-with-no-commit-beyond-main "$main" "$main"
   expect_event pull-request-into-another-base-with-no-commit-beyond-main 0 'commits checked 0,' GITHUB_EVENT_NAME=pull_request GITHUB_REF=refs/pull/8/merge GITHUB_BASE_REF=release BEFORE= AFTER="$main" PR_TITLE='Merge main into release' PR_BODY='A plain description.'
 
@@ -402,8 +405,10 @@ self_test() {
   expect_settings no-attribution-key 1 'attribution is not an object' '{"permissions": {}}'
   expect_settings older-key-true 1 'includeCoAuthoredBy is not false' '{"attribution": {"commit": "", "pr": "", "sessionUrl": false}, "includeCoAuthoredBy": true}'
   expect_settings not-json 1 'is not valid JSON' '{"attribution": {"commit": "", "pr": ""'
-  expect_settings empty 1 'holds 0 JSON values' ''
-  expect_settings two-values 1 'holds 2 JSON values' "$as_decided$nl$as_decided"
+  expect_settings empty 1 'is not valid JSON' ''
+  expect_settings two-values 1 'is not valid JSON' "$as_decided$nl$as_decided"
+  expect_settings number-with-a-leading-zero 1 'is not valid JSON' '{"attribution": {"commit": "", "pr": "", "sessionUrl": false}, "cleanupPeriodDays": 030}'
+  expect_settings number-that-is-not-a-number 1 'is not valid JSON' '{"attribution": {"commit": "", "pr": "", "sessionUrl": false}, "cleanupPeriodDays": NaN}'
   expect_settings not-an-object 1 'is not an object' '[]'
   expect_settings byte-order-mark 1 'starts with a byte order mark' "$(printf '\357\273\277')$as_decided"
   expect_settings duplicate-key-whose-last-value-is-wrong 1 'attribution.commit is not the empty string' '{"attribution": {"commit": "", "pr": "", "sessionUrl": false}, "attribution": {"commit": "x", "pr": "", "sessionUrl": false}}'

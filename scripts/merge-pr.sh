@@ -437,6 +437,44 @@ EOF
   state_of merged-and-github-reports-no-merge-commit
   : >"$work/state/merged-and-github-reports-no-merge-commit/merge-commit"
   expect merged-and-github-reports-no-merge-commit 3 called 'pull request #7 is merged, but' --body-file "$work/body.txt"
+  cases=$((cases + 1))
+  if grep -qF "'refs/remotes/origin/main^!'" "$work/out/merged-and-github-reports-no-merge-commit.txt"; then
+    printf 'PASS merged-and-github-reports-no-merge-commit: the remedy names the default branch by its full ref\n'
+  else
+    printf 'FAIL merged-and-github-reports-no-merge-commit: the remedy does not name refs/remotes/origin/main; see %s\n' "$work/out/merged-and-github-reports-no-merge-commit.txt"
+    failures=$((failures + 1))
+  fi
+
+  state_of subject-of-spaces
+  status=0
+  (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/subject-of-spaces" MERGE_PR_STUB_GITHUB="$work/github.git" \
+    sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject '   ' --body-file "$work/body.txt") >"$work/out/subject-of-spaces.txt" 2>&1 || status=$?
+  cases=$((cases + 1))
+  if [ "$status" = 64 ] && [ ! -e "$work/state/subject-of-spaces/merge-arguments" ]; then
+    printf 'PASS subject-of-spaces (exit 64, gh pr merge not-called)\n'
+  else
+    printf 'FAIL subject-of-spaces (exit %s; expected exit 64 and no merge; output in %s)\n' "$status" "$work/out/subject-of-spaces.txt"
+    failures=$((failures + 1))
+  fi
+
+  git --git-dir="$work/github.git" update-ref refs/heads/main "$(git -C "$work/clone" rev-parse "$clean_squash^")"
+  state_of reader-of-the-output-leaves-before-the-merge
+  fact_lines=$(grep -c '^merge-pr: ' "$work/out/dry-run-with-every-gate-open.txt")
+  fact_lines=$((fact_lines - 1))
+  {
+    status=0
+    (cd "$work/clone" && PATH="$work/bin:$PATH" MERGE_PR_STUB_STATE="$work/state/reader-of-the-output-leaves-before-the-merge" MERGE_PR_STUB_GITHUB="$work/github.git" \
+      sh "$script_directory/merge-pr.sh" 7 --head "$reviewed_head" --subject "$subject" --body-file "$work/body.txt" 2>"$work/out/reader-of-the-output-leaves-before-the-merge.txt") || status=$?
+    printf '%s\n' "$status" >"$work/out/reader-of-the-output-leaves-before-the-merge.status"
+  } | head -n "$fact_lines" >/dev/null
+  status=$(cat "$work/out/reader-of-the-output-leaves-before-the-merge.status")
+  cases=$((cases + 1))
+  if [ "$status" = 0 ] && [ -e "$work/state/reader-of-the-output-leaves-before-the-merge/merge-arguments" ]; then
+    printf 'PASS reader-of-the-output-leaves-before-the-merge (exit 0 from the range check, gh pr merge called)\n'
+  else
+    printf 'FAIL reader-of-the-output-leaves-before-the-merge (exit %s; expected exit 0 after a merge; output in %s)\n' "$status" "$work/out/reader-of-the-output-leaves-before-the-merge.txt"
+    failures=$((failures + 1))
+  fi
 
   if [ "$failures" -gt 0 ]; then
     say "self-test FAIL: $failures of $cases cases behaved otherwise. Outputs are in $work/out."
