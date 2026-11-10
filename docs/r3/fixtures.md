@@ -23,8 +23,8 @@ node tools/fixture-server/variants/server.mjs [--port N] [--seed 1|2|3] [--varia
     1, 2 or 3, or an unknown variant.
   - `port`: the port cannot be bound, for example because another process holds it. The other
     process is not touched.
-  - `data`: a seed file cannot be read as JSON, or a key of A10.4 is missing or has the wrong
-    value.
+  - `data`: a seed file cannot be read as JSON, or a seed fails one of the checks that the
+    section Data lists.
 - To reset the state, send `POST http://control.agent.test:<port>/reset`. To stop the server,
   send SIGTERM to the process (on Windows, end the process).
 - Node floor: 14.13.1, the first release that loads `node:` imports in an ES module. The program
@@ -56,6 +56,10 @@ header itself. No hosts file is changed and no name is looked up.
 
 Choice: a request with any other Host gets 404 and counts in `requests.total`.
 
+A request whose body is larger than 1,048,576 bytes gets 413 with the text `body too large` on
+every host and every route, the control host included, and changes nothing else. It is counted in
+`requests` as any other request to its host.
+
 ## Routes
 
 A page changes state by POST only. "Signed in" means a valid `halvo_fx_session` cookie of that
@@ -82,9 +86,10 @@ counters. The home page is `/bill` on the utility site and `/reorder` on the sho
 | `POST /track` (utility) | with `get_effect`: 204; else 404 |
 | `GET /reorder` (shop) | the saved order with the payment frame of kind `order`; each request mints a new token |
 
-A protected route (`/bill`, `/pay`, `/prefs`, `/upload`, `/track`, `/reorder`) sends a signed-out
-request to `/signin` (302 for GET, 303 for POST). With `second_factor` it sends a request with a
-valid session and no device to `/verify`. Any other path gets 404.
+A protected route (`/bill`, `/pay`, `/prefs`, `/upload`, `/reorder`, and `/track` with
+`get_effect`) sends a signed-out request to `/signin` (302 for GET, 303 for POST). With `second_factor` it sends a request with a
+valid session and no device to `/verify`. Without `get_effect`, `/track` gets 404 before the
+sign-in check. Any other path gets 404.
 
 ### Payment frame (`pay.agent.test`)
 
@@ -185,8 +190,9 @@ also have test ids, so that a playbook can read them.
 
 A page amount is the integer of minor units written as digits, `.` and two decimals, alone in its
 element, with no currency sign and no group separator: 8437 is `84.37`. Choice: the challenge page
-shows the text `[challenge image]` and not the answer, so only the seed gives the answer. Each page
-that answers a wrong value shows an element with `role="alert"`. After a save or an upload the page
+shows the text `[challenge image]` and not the answer, so only the seed gives the answer. The pages
+`/signin`, `/challenge` and `/verify` show an element with `role="alert"` after a wrong value. The
+frame after a refused `/charge` and `/upload` after a POST without a file answer 400 and show none. After a save or an upload the page
 shows an element with `role="status"`.
 
 ## Cookies
@@ -206,8 +212,31 @@ host sets no cookie.
 
 `tools/fixture-server/variants/data/seed-1.json`, `seed-2.json` and `seed-3.json` hold invented
 values only. The domains are under `agent.test`, and every company name holds the word `Fixture`.
-The server checks every key below at start and refuses with `data` when one is missing or wrong.
-The shapes, where `<minor>` is an integer of minor units:
+At start the server checks each seed and refuses with `data` when one of these checks fails:
+
+- the five values of `credentials` and the value of `page_marker`, exactly as shown below;
+- `utility`: `account` and `payee` are non-empty text, `amount_due` is an integer of 0 or more,
+  `instruments` is a list of one or more non-empty texts, and `history` has three entries, each
+  with a `date` of the form `YYYY-MM-DD`, an `amount` of 0 or more and a non-empty `status`;
+- `shop`: `seller` is non-empty text, `items` has one or more entries, each with a non-empty
+  `name`, a `quantity` of 1 or more and a `price` of 0 or more, `total` is the sum of quantity x
+  price, and `instruments` is a list of one or more non-empty texts;
+- `mail`: `address` is non-empty text, and `inbox` has four messages. Each message has a
+  non-empty `id`, `conversationId`, `subject` and sender address, a boolean `isRead`, a list
+  `toRecipients` whose addresses are non-empty, and a text `body.content`;
+- `calendar.events` has six event seeds. Each has a non-empty `id`, `subject` and `response`, an
+  integer `days_before`, a `start_time` from `00:00` to `23:59`, an integer `minutes` of 1 or
+  more, and a boolean `isCancelled`;
+- `sheet.rows` has five rows of the form below, with a non-empty text;
+- `later.message` is a message and `later.event` is an event seed, as above;
+- each of the four bindings has a list `origins`, each of the form
+  `http://<lower-case letters>.agent.test`, and a list `slots`, each slot with a non-empty `name`
+  and a list of non-empty texts;
+- each of the four entries of `end` is a list.
+
+The server checks nothing else. For example, it starts with one instrument in a list, a history
+status other than `Paid`, any entries in an `end` list, and a binding with no slot. The shapes,
+where `<minor>` is an integer of minor units:
 
 ```text
 credentials   {"user":"resident@agent.test","password":"Zq7-halvo-marker-pw","code":"482913",
