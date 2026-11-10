@@ -27,8 +27,8 @@ attribution line reaches the default branch.
           run on that head, the one created last, completed with success, and
           the jobs macos and windows succeeded in it. An older run of the same
           event is printed and is not a gate. When the head branch is in
-          another repository, its push runs are there, and the pull_request
-          run alone is required.
+          another repository, a push to it starts no run in this repository,
+          and the pull_request run alone is required.
         - it has 0 unresolved review threads
         - the squash message (the subject, an empty line, the body file) passes
           sh scripts/check-commit-messages.sh --stored-message
@@ -178,7 +178,7 @@ print_facts() {
   say "title: $title"
   say "description: $(count_lines "$description" '') lines"
   [ "$is_cross_repository" = false ] ||
-    say "the head branch of pull request #$number is in another repository, where its push runs are. Here the pull_request run alone is required."
+    say "the head branch of pull request #$number is in another repository, so a push to it starts no run in this repository. The pull_request run alone is required."
   for event in push pull_request; do
     runs_of_event=$(runs_of "$event")
     say "$event runs on $head, newest first (event, created, run, status, conclusion, attempt, workflow file): $(count_lines "$runs_of_event" .)"
@@ -411,9 +411,14 @@ case "$1 $2" in
       echo 'stub gh: GitHub refused the merge' >&2
       exit 1
     fi
+    if [ -e "$state/call-exits-0-and-github-did-not-merge" ]; then
+      echo 'stub gh: the pull request will be added to the merge queue'
+      exit 0
+    fi
     if [ -s "$state/merge-commit" ]; then
       git --git-dir="$MERGE_PR_STUB_GITHUB" update-ref refs/heads/main "$(cat "$state/merge-commit")"
     fi
+    printf 'MERGED\n' >"$state/state-after-the-merge-call"
     if [ -e "$state/call-fails-after-github-merged" ]; then
       echo 'stub gh: the connection dropped after GitHub merged' >&2
       exit 1
@@ -448,7 +453,7 @@ EOF
   other_head=1111111111111111111111111111111111111111
   green_jobs="macos${tab}completed${tab}success${nl}windows${tab}completed${tab}success"
   run_line() {
-    printf '%s\t%s\t%s\t%s\t%s\t1\t.github/workflows/ci.yml\n' "$1" "$2" "$3" "$4" "$5"
+    printf '%s\t%s\t%s\t%s\t%s\t1\t%s\n' "$1" "$2" "$3" "$4" "$5" "${6-.github/workflows/ci.yml}"
   }
   green_push_run=$(run_line push 2026-11-10T09:00:00Z 101 completed success)
   green_pull_request_run=$(run_line pull_request 2026-11-10T09:00:04Z 102 completed success)
@@ -579,15 +584,37 @@ EOF
 
   state_of push-run-without-the-job-windows
   jobs push-run-without-the-job-windows 101 "macos${tab}completed${tab}success"
-  refused push-run-without-the-job-windows 'no job named windows succeeded in push run 101'
+  refused push-run-without-the-job-windows 'the job windows did not succeed in push run 101'
 
   state_of pull-request-run-without-the-job-macos
   jobs pull-request-run-without-the-job-macos 102 "windows${tab}completed${tab}success"
-  refused pull-request-run-without-the-job-macos 'no job named macos succeeded in pull_request run 102'
+  refused pull-request-run-without-the-job-macos 'the job macos did not succeed in pull_request run 102'
 
   state_of job-windows-skipped-in-a-green-run
   jobs job-windows-skipped-in-a-green-run 101 "macos${tab}completed${tab}success${nl}windows${tab}completed${tab}skipped"
-  refused job-windows-skipped-in-a-green-run 'no job named windows succeeded in push run 101'
+  refused job-windows-skipped-in-a-green-run 'the job windows did not succeed in push run 101'
+
+  state_of job-macos-twice-and-one-failed
+  jobs job-macos-twice-and-one-failed 101 "macos${tab}completed${tab}failure${nl}macos${tab}completed${tab}success${nl}windows${tab}completed${tab}success"
+  refused job-macos-twice-and-one-failed 'the job macos did not succeed in push run 101'
+
+  state_of newest-push-run-of-another-workflow-file
+  runs newest-push-run-of-another-workflow-file "$green_push_run" "$green_pull_request_run" "$(run_line push 2026-11-10T09:30:00Z 105 completed success .github/workflows/docs.yml)"
+  jobs newest-push-run-of-another-workflow-file 105 "build${tab}completed${tab}success"
+  refused newest-push-run-of-another-workflow-file 'Another workflow file than .github/workflows/ci.yml started this run'
+
+  state_of newest-pull-request-run-waits-for-approval
+  fields newest-pull-request-run-waits-for-approval OPEN false MERGEABLE "$reviewed_head" true
+  runs newest-pull-request-run-waits-for-approval "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed action_required)"
+  refused newest-pull-request-run-waits-for-approval 'run 102, waits for an approval'
+
+  state_of newest-push-run-skipped
+  runs newest-push-run-skipped "$(run_line push 2026-11-10T09:00:00Z 101 completed skipped)" "$green_pull_request_run"
+  refused newest-push-run-skipped 'run 101, completed with skipped: it ran no job'
+
+  state_of newest-push-run-cancelled
+  runs newest-push-run-cancelled "$(run_line push 2026-11-10T09:00:00Z 101 completed cancelled)" "$green_pull_request_run"
+  refused newest-push-run-cancelled 'run 101, completed with cancelled. Run it again and wait: gh run rerun 101 && gh run watch 101'
 
   state_of run-failed-in-a-job-of-another-name
   runs run-failed-in-a-job-of-another-name "$green_push_run" "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed failure)"
@@ -597,7 +624,7 @@ EOF
   state_of pull-request-from-another-repository
   fields pull-request-from-another-repository OPEN false MERGEABLE "$reviewed_head" true
   runs pull-request-from-another-repository "$green_pull_request_run"
-  expect pull-request-from-another-repository 0 not-called 'Here the pull_request run alone is required' --body-file "$work/body.txt" --dry-run
+  expect pull-request-from-another-repository 0 not-called 'so a push to it starts no run in this repository. The pull_request run alone is required' --body-file "$work/body.txt" --dry-run
 
   state_of pull-request-from-another-repository-with-only-a-push-run
   fields pull-request-from-another-repository-with-only-a-push-run OPEN false MERGEABLE "$reviewed_head" true
@@ -690,12 +717,10 @@ EOF
 
   state_of merge-call-fails-after-github-merged
   : >"$work/state/merge-call-fails-after-github-merged/call-fails-after-github-merged"
-  printf 'MERGED\n' >"$work/state/merge-call-fails-after-github-merged/state-after-the-merge-call"
   expect merge-call-fails-after-github-merged 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
 
   state_of merge-call-fails-after-github-merged-a-commit-with-a-trailer
   : >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/call-fails-after-github-merged"
-  printf 'MERGED\n' >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/state-after-the-merge-call"
   printf '%s\n' "$squash_with_a_trailer" >"$work/state/merge-call-fails-after-github-merged-a-commit-with-a-trailer/merge-commit"
   expect merge-call-fails-after-github-merged-a-commit-with-a-trailer 3 called 'an agent does not rewrite the default branch' --body-file "$work/body.txt"
 
@@ -703,6 +728,10 @@ EOF
   : >"$work/state/merge-call-fails-and-the-state-cannot-be-read/github-refuses-the-merge"
   : >"$work/state/merge-call-fails-and-the-state-cannot-be-read/state-cannot-be-read"
   expect merge-call-fails-and-the-state-cannot-be-read 2 called 'does not know whether pull request #7 was merged. Run: gh pr view 7 --json state,mergeCommit' --body-file "$work/body.txt"
+
+  state_of merge-call-exits-0-and-github-did-not-merge
+  : >"$work/state/merge-call-exits-0-and-github-did-not-merge/call-exits-0-and-github-did-not-merge"
+  expect merge-call-exits-0-and-github-did-not-merge 2 called 'GitHub reports pull request #7 as OPEN: it is not merged' --body-file "$work/body.txt"
 
   state_of subject-of-spaces
   status=0
