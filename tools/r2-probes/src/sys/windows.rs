@@ -132,7 +132,9 @@ pub fn kill_tree(pid: u32) {
         .output();
 }
 
-pub fn address_read(_pid: u32, needle: &str, title: &str) -> AddressRead {
+pub const ROLE_QUERY: bool = false;
+
+pub fn address_read(_pid: u32, needle: &str, title: &str, _role_query: bool) -> AddressRead {
     let mut read = AddressRead {
         activation: "not-readable".to_string(),
         ..AddressRead::default()
