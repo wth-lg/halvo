@@ -127,7 +127,7 @@ reads_of_own_source_by_line_number() {
       end_command(0)
       depth--
     }
-    function split_into_commands(line,    i, last, character, next_character, rest, closing, operator) {
+    function split_into_commands(line,    i, last, character, next_character, rest, closing, operator, descriptor) {
       split("", word_values)
       split("", word_raws)
       split("", word_is_own_path)
@@ -183,8 +183,11 @@ reads_of_own_source_by_line_number() {
         } else if (character == " " || character == "\t") {
           end_word()
         } else if (character == "<" || character == ">") {
-          if (word_started[depth] && word_raw[depth] ~ /^[0-9]+$/) clear_word()
-          else end_word()
+          descriptor = ""
+          if (word_started[depth] && word_raw[depth] ~ /^[0-9]+$/) {
+            descriptor = word_raw[depth]
+            clear_word()
+          } else end_word()
           operator = character
           if (next_character == character || next_character == "&" || (character == "<" && next_character == ">") || (character == ">" && next_character == "|")) {
             operator = operator next_character
@@ -192,7 +195,7 @@ reads_of_own_source_by_line_number() {
           }
           if (operator == "<<" && substr(line, i + 1, 1) == "-") i++
           if ((operator == "<&" || operator == ">&") && match(substr(line, i + 1), /^([0-9]+-?|-)/)) i += RLENGTH
-          else redirection[depth] = (operator == "<" || operator == "<>") ? "input" : "other"
+          else redirection[depth] = ((operator == "<" || operator == "<>") && descriptor + 0 == 0) ? "input" : "other"
         } else if (character == "#" && !word_started[depth]) {
           break
         } else add_to_word(character, character)
@@ -445,6 +448,8 @@ self_test() {
   expect 'a line of a here-document that holds such a read as its command is refused too' 2 "cat <<'EOF'${NEWLINE}  sed -n $lines_2_to_20 $own_path${NEWLINE}EOF"
   expect 'head after cat with a command substitution among its operands is refused' 1 "cat $own_path \$(true) | head -n 3"
   expect 'command -v, which starts no reader, is accepted' '' "command -v head $own_path"
+  expect 'sed with the script on descriptor 0, written with its number, is refused' 1 "sed -n $lines_2_to_20 0<$own_path"
+  expect 'a redirection of another descriptor from the script is accepted' '' "head -n 1 3<$own_path"
   expect 'a read behind a comment sign is accepted' '' "echo usage # ; sed -n $lines_2_to_20 $own_path"
   expect 'a line of a here-document that names such a read after other words is accepted' '' "cat <<'EOF'${NEWLINE}Run sed -n $lines_2_to_20 $own_path to see the usage.${NEWLINE}EOF"
 
