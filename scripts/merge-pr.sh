@@ -52,18 +52,30 @@ the range check or could not be checked; 64 bad usage.
 EOF
 }
 
+merge_called=0
+
+output_failed() {
+  [ "$merge_called" = 1 ] || die 'cannot write to standard output, so this run stops before the merge call. It merged nothing.'
+}
+
 say() {
-  printf 'merge-pr: %s\n' "$1"
+  printf 'merge-pr: %s\n' "$1" || output_failed
+}
+
+say_lines() {
+  printf '%s\n' "$1" | sed -n '/./s/^/merge-pr:   /p' || output_failed
 }
 
 die() {
-  printf 'merge-pr: error: %s\n' "$1" >&2
+  printf 'merge-pr: error: %s\n' "$1" >&2 || :
   exit 2
 }
 
 usage() {
-  printf 'merge-pr: %s\n' "$1" >&2
-  printf 'Usage: sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]\n       sh scripts/merge-pr.sh --help\n' >&2
+  {
+    printf 'merge-pr: %s\n' "$1"
+    printf 'Usage: sh scripts/merge-pr.sh <number> --head <full sha> --subject <text> --body-file <file> [--dry-run]\n       sh scripts/merge-pr.sh --help\n'
+  } >&2 || :
   exit 64
 }
 
@@ -112,10 +124,19 @@ print_facts() {
   say "title: $title"
   say "description: $(count_lines "$description" '') lines"
   say "check runs on $head (name, status, conclusion): $(count_lines "$check_runs" .)"
-  printf '%s\n' "$check_runs" | sed -n '/./s/^/merge-pr:   /p'
+  say_lines "$check_runs"
   say "review threads: $thread_total, unresolved: $thread_unresolved"
   say "squash subject: $subject"
   say "squash body: $body_file, $(count_lines "$body" '') lines"
+}
+
+read_stored_message() {
+  stored_message_status=0
+  printf '%s\n\n%s\n' "$2" "$3" | sh "$CHECK" --stored-message || stored_message_status=$?
+  case $stored_message_status in
+    0|1) ;;
+    *) die "sh $CHECK --stored-message exited $stored_message_status for $1, and only 0 and 1 are verdicts. Its message is above. This script cannot tell whether that text carries an attribution line, so it stops here." ;;
+  esac
 }
 
 apply_gates() {
@@ -145,12 +166,12 @@ apply_gates() {
   [ "$thread_unresolved" = 0 ] ||
     refuse "pull request #$number has unresolved review threads: $thread_unresolved of $thread_total. Answer each one and resolve it on GitHub, then run this script again."
 
-  if ! printf '%s\n\n%s\n' "$subject" "$body" | sh "$CHECK" --stored-message; then
+  read_stored_message 'the squash message' "$subject" "$body"
+  [ "$stored_message_status" = 0 ] ||
     refuse "the squash message carries an attribution line, listed above. Remove it from --subject or from $body_file."
-  fi
-  if ! printf '%s\n\n%s\n' "$title" "$description" | sh "$CHECK" --stored-message; then
+  read_stored_message "the title and the description of pull request #$number" "$title" "$description"
+  [ "$stored_message_status" = 0 ] ||
     refuse "the title or the description of pull request #$number carries an attribution line, listed above. This script does not edit a pull request. Remove the line on GitHub (gh pr edit $number --body-file <file>), then run this script again."
-  fi
 }
 
 merged_but() {
@@ -159,10 +180,10 @@ merged_but() {
 }
 
 merge() {
+  merge_called=1
   printf '%s\n' "$body" | gh pr merge "$number" --squash --match-head-commit "$head" --subject "$subject" --body-file - ||
     die "gh pr merge failed. Its message is above. Read it, and do not retry with --admin. gh pr view $number --json state shows whether GitHub merged it."
-  trap '' PIPE
-  say "pull request #$number is merged" || :
+  say "pull request #$number is merged"
   merge_commit=$(gh pr view "$number" --json mergeCommit --jq .mergeCommit.oid) ||
     merged_but 'gh could not read its merge commit'
   [ -n "$merge_commit" ] || merged_but 'GitHub reports no merge commit for it yet'
@@ -177,6 +198,7 @@ merge() {
 }
 
 run() {
+  trap '' PIPE
   case $number in
     ''|*[!0-9]*) usage "the pull request number must be digits, and got: $number" ;;
   esac
@@ -636,7 +658,10 @@ while [ $# -gt 0 ]; do
       ;;
     --dry-run) dry_run=1 ;;
     --self-test) mode=self-test ;;
-    -h|--help) help_text; exit 0 ;;
+    -h|--help)
+      help_text || die 'cannot write the help text to standard output'
+      exit 0
+      ;;
     -*) usage "unknown option: $1" ;;
     *)
       [ -z "$number" ] || usage "more than one pull request number: $number and $1"
