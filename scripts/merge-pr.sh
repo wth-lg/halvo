@@ -788,6 +788,18 @@ EOF
   printf 'macos\tcompleted\n' >"$work/state/job-line-of-two-fields/jobs-101"
   expect job-line-of-two-fields 2 not-called 'It reads 3 fields divided by tabs' --body-file "$work/body.txt"
 
+  state_of job-line-of-four-fields
+  printf 'macos\tcompleted\tsuccess\textra\nwindows\tcompleted\tsuccess\n' >"$work/state/job-line-of-four-fields/jobs-101"
+  expect job-line-of-four-fields 2 not-called 'It reads 3 fields divided by tabs' --body-file "$work/body.txt"
+
+  state_of cross-repository-fact-that-is-neither-true-nor-false
+  fields cross-repository-fact-that-is-neither-true-nor-false OPEN false MERGEABLE "$reviewed_head" maybe
+  expect cross-repository-fact-that-is-neither-true-nor-false 2 not-called 'a value of isCrossRepository that is neither true nor false' --body-file "$work/body.txt"
+
+  state_of job-macos-not-completed-in-a-green-run
+  jobs job-macos-not-completed-in-a-green-run 101 "macos${tab}in_progress${tab}success${nl}windows${tab}completed${tab}success"
+  refused job-macos-not-completed-in-a-green-run 'the job macos did not succeed in push run 101'
+
   state_of newest-pull-request-run-waits-for-approval
   fields newest-pull-request-run-waits-for-approval OPEN false MERGEABLE "$reviewed_head" true
   runs newest-pull-request-run-waits-for-approval "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed action_required)"
