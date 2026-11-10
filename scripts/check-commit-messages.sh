@@ -26,7 +26,8 @@ synopsis() {
       this and passes on the lines that git writes to standard input.
   sh scripts/check-commit-messages.sh --message-file <file>
       Check a message before git stores it. .githooks/commit-msg calls this. The
-      diff that git commit -v appends is dropped, as git drops it.
+      lines of the diff that git commit -v appends are dropped, as git drops
+      them. A line below that diff that starts with other text is still read.
   sh scripts/check-commit-messages.sh --stored-message
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
@@ -117,9 +118,17 @@ drop_commit_verbose_diff() {
       for (i = 1; i <= scissors_block_lines; i++) print scissors_block[i]
       scissors_block_lines = 0
     }
-    dropping_diff { next }
+    dropping_diff {
+      if ($0 ~ /^[ +-]/) print ""; else print
+      next
+    }
     scissors_block_lines > 0 {
-      if (index($0, "diff --git ") == 1) { dropping_diff = 1; next }
+      if (index($0, "diff --git ") == 1) {
+        dropping_diff = 1
+        for (i = 1; i <= scissors_block_lines; i++) print ""
+        print
+        next
+      }
       if ($0 == "" || index($0, comment_string) == 1) { scissors_block[++scissors_block_lines] = $0; next }
       print_scissors_block()
     }
@@ -233,7 +242,7 @@ check_commits() {
   {
     printf 'check-commit-messages: FAIL: %s: commits checked %d, with an attribution line %d (%s).\n' "$label" "$total" "$bad" "$scope"
     if [ "$bad" -gt "$bad_on_default_branch" ]; then
-      printf 'Fix: remove each listed line from its commit message: git commit --amend for the newest commit, git rebase -i with "reword" for an older one. Then run this check again. %s\n' "$RULE"
+      printf 'Fix: remove each listed line from its commit message: git commit --amend for the newest commit, git rebase -i with "reword" for an older one. If a listed line is prose, reword it so that it does not start with these words. Then run this check again. %s\n' "$RULE"
       printf 'sh scripts/prerequisites.sh turns on the commit-msg and pre-push hooks, which report such a line before it leaves this clone.\n'
     fi
     if [ "$bad_on_default_branch" -gt 0 ]; then
