@@ -33,9 +33,13 @@ synopsis() {
       Check a message before git stores it. .githooks/commit-msg calls this. In
       the diff that git commit -v appends, a line that starts with a space, a
       plus, a minus or an at sign is skipped: it is a line of a file, or a hunk
-      header that copies one. Every other line is read. So below a diff header
-      that someone wrote by hand, an attribution line passes this mode when a
-      space indents it, or when it follows a carriage return in a skipped line.
+      header that copies one. Every other line is read. The mode takes as
+      that diff what stands below a scissors line of git and a diff header,
+      with nothing but comment lines and empty lines between the two. So when
+      someone writes both by hand, an attribution line below them passes this
+      mode when a space indents it, or when it follows a carriage return in a
+      skipped line. Below a diff header with no scissors line above it, every
+      line is read.
   sh scripts/check-commit-messages.sh --stored-message
       Check one message from standard input exactly as given: a squash message,
       or the title and description of a pull request.
@@ -95,7 +99,9 @@ Signed-off-by, passes.
 Three layers apply this predicate.
   1. .githooks/commit-msg gives early notice: it reads a message before git
      stores it. Git does not run it under --no-verify, for revert, cherry-pick,
-     rebase, am and commit-tree, or in a checkout that has no .githooks directory.
+     am and commit-tree, for a commit that a rebase picks without a new
+     message, or in a checkout that has no .githooks directory. git rebase -i
+     runs it for a commit that it rewords.
   2. .githooks/pre-push reads the stored messages of the commits that a push
      would add to the remote, and refuses the push. For each pushed ref these
      are the commits that are on neither the remote's copy of that ref nor the
@@ -468,6 +474,9 @@ fixture_messages() {
   expect_in_hook_file_at_lines 'a tool trailer at the start of a line below a scissors block and a diff header fails in the hook file' '8' '#' "Fix the gate${nl}${nl}$scissors_block${nl}#${nl}diff --git a/x b/x${nl}$claude_session"
   expect_in_hook_file_at_lines 'a trailer at the start of a line fails below a whole diff, and the context line of that diff does not' '12' '#' "Fix the gate${nl}${nl}$scissors_block${nl}$diff_with_attribution_text${nl}$trailer"
   expect_in_hook_file_at_lines 'a trailer indented by a tab below a scissors block and a diff header fails, because no line of a diff starts with a tab' '7' '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}${tab}$trailer"
+  expect_in_hook_file 'a trailer that a space indents passes below a scissors block and a diff header written by hand' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl} $trailer"
+  expect_in_hook_file 'a trailer after a carriage return on an added line passes below a scissors block and a diff header written by hand' 0 '#' "Fix the gate${nl}${nl}$scissors_block${nl}diff --git a/x b/x${nl}+x${carriage_return}$trailer"
+  expect_in_hook_file 'a trailer that a space indents fails below a diff header with no scissors line above it' 1 '#' "Fix the gate${nl}${nl}diff --git a/x b/x${nl} $trailer"
   expect_in_hook_file 'an added line of the diff that holds a carriage return before a trailer is dropped' 0 '#' "Add a fixture${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- /dev/null${nl}+++ b/f${nl}@@ -0,0 +1 @@${nl}+Fix the gate${carriage_return}${carriage_return}$trailer${carriage_return}"
   expect_in_hook_file 'a removed line of the diff that holds a carriage return before the footer words is dropped' 0 '#' "Drop a log${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- a/f${nl}+++ /dev/null${nl}@@ -1 +0,0 @@${nl}-Building the bindings${carriage_return}Generated with wasm-bindgen 0.2"
   expect_in_hook_file 'a hunk header of the diff that copies a line with a carriage return before the footer words is dropped' 0 '#' "Extend a log${nl}${nl}$scissors_block${nl}diff --git a/f b/f${nl}--- a/f${nl}+++ b/f${nl}@@ -2,3 +2,4 @@ Building the bindings${carriage_return}Generated with wasm-bindgen 0.2${nl} unchanged${nl}+added"
@@ -605,10 +614,12 @@ the diff below a scissors block with empty lines, as git writes when it conclude
 the diff of git commit -v is dropped when the comment string is two backslashes
 the diff of git commit -v is dropped when the comment string is a backslash and the letter t
 the diff of git commit -v is dropped when the comment string is that byte
-the diff of git commit -v is dropped when it starts with the summary of a submodule'
+the diff of git commit -v is dropped when it starts with the summary of a submodule
+a trailer that a space indents passes below a scissors block and a diff header written by hand'
   line_after_a_carriage_return_in_a_skipped_line='an added line of the diff that holds a carriage return before a trailer is dropped
 a removed line of the diff that holds a carriage return before the footer words is dropped
-a hunk header of the diff that copies a line with a carriage return before the footer words is dropped'
+a hunk header of the diff that copies a line with a carriage return before the footer words is dropped
+a trailer after a carriage return on an added line passes below a scissors block and a diff header written by hand'
   hook_accepts_and_range_check_refuses=$space_indented_line_below_a_diff_header$newline$line_after_a_carriage_return_in_a_skipped_line
 
   in_repository() {
