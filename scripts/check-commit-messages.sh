@@ -95,7 +95,9 @@ Three layers apply this predicate.
   2. .githooks/pre-push reads the stored messages of the commits that a push
      would add to the remote, and refuses the push. For each pushed ref these
      are the commits that are on neither the remote's copy of that ref nor the
-     default branch as this clone last fetched it. It cannot see a push made
+     default branch as this clone last fetched it: the default branch of that
+     remote, or the one of origin when the push names a URL or a remote whose
+     default branch this clone does not know. It cannot see a push made
      with --no-verify, a push from a checkout that has no .githooks/pre-push
      file, such as a branch cut before the file existed, a push from a clone
      where sh scripts/prerequisites.sh has not set core.hooksPath, or a commit
@@ -310,6 +312,7 @@ check_push() {
   require_repository_with_exempt_commit
   resolve_default_ref
   default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
+  git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=$default_ref
   git rev-parse -q --verify "$default_ref_of_remote^{commit}" >/dev/null 2>&1 || default_ref_of_remote=
   while IFS= read -r pushed_ref; do
     remote_object=${pushed_ref##* }
@@ -760,6 +763,10 @@ self_test_pre_push() {
 
   git -C "$work/clone" remote set-head proof base
   expect_push a-clean-commit-above-the-default-branch-of-the-remote 0 'commits checked 1,' proof "$clean:refs/heads/clean-above-the-default-branch"
+
+  git -C "$work/clone" update-ref refs/remotes/origin/base "$base"
+  git -C "$work/clone" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/base
+  expect_push a-clean-commit-above-the-default-branch-of-origin-to-a-path 0 'commits checked 1,' "$work/remote.git" "$clean:refs/heads/clean-by-path"
 
   status=0
   (cd "$work/clone" && printf 'not a line that git writes\n' | sh "$work/tree/scripts/check-commit-messages.sh" --pre-push proof) >"$work/out/a-line-that-git-does-not-write.txt" 2>&1 || status=$?

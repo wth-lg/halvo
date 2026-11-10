@@ -98,28 +98,60 @@ name_needs_no_quoting() {
   esac
 }
 
+nearest_tracked_attributes_file() {
+  nearest=.gitattributes
+  nearest_directory=
+  while IFS= read -r attributes_file; do
+    [ -n "$attributes_file" ] || continue
+    directory=${attributes_file%.gitattributes}
+    case $1 in
+      "$directory"*) [ ${#directory} -lt ${#nearest_directory} ] || nearest=$attributes_file nearest_directory=$directory ;;
+    esac
+  done <<EOF
+$tracked_attributes_files
+EOF
+  printf '%s\n' "$nearest"
+}
+
+print_the_attribute_line_to_add() {
+  attributes_file=$(nearest_tracked_attributes_file "$1")
+  case $attributes_file in
+    .gitattributes) place='.gitattributes at the root of the clone' ;;
+    *) place="$attributes_file, the tracked .gitattributes file nearest to this file, whose lines win over the files above it" ;;
+  esac
+  path_below_that_file=${1#"${attributes_file%.gitattributes}"}
+  if name_needs_no_quoting "$path_below_that_file"; then
+    printf 'Fix: add this line at the end of %s:\n/%s text eol=lf\n' "$place" "$path_below_that_file"
+  else
+    printf 'Fix: add a line at the end of %s that gives this file: text eol=lf. Its name has a character that a pattern must quote; gitattributes(5) says how.\n' "$place"
+  fi
+}
+
 report_script_without_eol_lf() {
   path=$1 eol_attribute=$2
   failures=$((failures + 1))
   {
     printf 'check-line-endings: %s starts with an interpreter line and its eol attribute is %s, not lf.\n' "$path" "$eol_attribute"
-    if name_needs_no_quoting "$path"; then
-      printf 'Fix: add this line at the end of .gitattributes at the root of the clone:\n/%s text eol=lf\n' "$path"
-    else
-      printf 'Fix: add a line at the end of .gitattributes at the root of the clone that gives this file: text eol=lf. Its name has a character that a pattern must quote; gitattributes(5) says how.\n'
-    fi
+    print_the_attribute_line_to_add "$path"
   } >&2
 }
 
 report_eol_lf_file_stored_with_crlf() {
-  path=$1
+  path=$1 text_attribute=$2
   failures=$((failures + 1))
   {
-    printf 'check-line-endings: %s has eol=lf and is stored in the index with CRLF, so every checkout gets the carriage returns.\n' "$path"
-    if name_needs_no_quoting "$path"; then
-      printf 'Fix: run this command at the root of the clone and commit the result:\ngit add --renormalize -- %s\n' "$path"
+    if [ "$text_attribute" = unset ]; then
+      printf 'check-line-endings: %s has eol=lf and -text, and is stored in the index with CRLF. Under -text git converts no line ending, so every checkout gets the carriage returns and git add --renormalize changes nothing.\n' "$path"
+      print_the_attribute_line_to_add "$path"
+      first_words='Then run' last_words='commit both changes'
     else
-      printf 'Fix: run git add --renormalize on this file and commit the result.\n'
+      printf 'check-line-endings: %s has eol=lf and is stored in the index with CRLF, so every checkout gets the carriage returns.\n' "$path"
+      first_words='Fix: run' last_words='commit the result'
+    fi
+    if name_needs_no_quoting "$path"; then
+      printf '%s this command at the root of the clone and %s:\ngit add --renormalize -- %s\n' "$first_words" "$last_words" "$path"
+    else
+      printf '%s git add --renormalize on this file and %s.\n' "$first_words" "$last_words"
     fi
   } >&2
 }
@@ -134,6 +166,8 @@ check() {
     die 'the current directory is not inside the work tree of a git clone'
   cd "$root" || die "cannot enter $root"
   stop_at_an_attribute_line_of_this_clone_alone
+  tracked_attributes_files=$(git -c core.quotePath=false ls-files -- .gitattributes '*/.gitattributes') ||
+    die 'git ls-files could not list the tracked .gitattributes files'
   failures=0
 
   script_count=0
@@ -155,10 +189,10 @@ EOF
 
   crlf_files=$(files_whose_index_content_is 'crlf|mixed') || exit
   if [ -n "$crlf_files" ]; then
-    attribute_lines=$(attributes_of "$crlf_files" eol) || exit
-    while IFS= read -r attribute_line; do
-      case $attribute_line in
-        *': eol: lf') report_eol_lf_file_stored_with_crlf "${attribute_line%: eol: *}" ;;
+    attribute_lines=$(attributes_of "$crlf_files" text eol) || exit
+    while IFS= read -r text_attribute_line && IFS= read -r eol_attribute_line; do
+      case $eol_attribute_line in
+        *': eol: lf') report_eol_lf_file_stored_with_crlf "${eol_attribute_line%: eol: *}" "${text_attribute_line##*: text: }" ;;
       esac
     done <<EOF
 $attribute_lines
@@ -296,6 +330,27 @@ self_test() {
   start_fixture '* text=auto eol=lf'
   track icon.png '\0211PNG\r\n\0032\n\0000\0000'
   expect 'an image under text=auto eol=lf is accepted' 0 "$(pass_line 0)"
+
+  start_fixture
+  track installer/windows/.gitattributes '* text eol=crlf\n'
+  track installer/windows/build.sh '#!/bin/sh\necho build\n'
+  expect 'under a nearer .gitattributes file that sets eol=crlf, the line to add belongs at the end of that file' 1 '/build.sh text eol=lf'
+
+  start_fixture
+  track installer/windows/.gitattributes '* text eol=crlf\n/build.sh text eol=lf\n'
+  track installer/windows/build.sh '#!/bin/sh\necho build\n'
+  expect 'the same file is accepted once the nearer file ends with that line' 0 "$(pass_line 1)"
+
+  start_fixture '*.sh text eol=lf' 'vendor/** -text'
+  track vendor/x.sh '#!/bin/sh\r\necho x\r\n'
+  expect 'a file with eol=lf and -text that is stored with CRLF gets the line that makes it text again' 1 '/vendor/x.sh text eol=lf'
+
+  start_fixture '*.sh text eol=lf' 'vendor/** -text' '/vendor/x.sh text eol=lf'
+  track vendor/x.sh '#!/bin/sh\r\necho x\r\n'
+  mkdir "$repository/vendor" || die "mkdir failed in $repository"
+  printf '#!/bin/sh\r\necho x\r\n' >"$repository/vendor/x.sh"
+  git -C "$repository" add --renormalize -- vendor/x.sh || die 'git add --renormalize failed in the fixture repository'
+  expect 'the same file is accepted after that line and git add --renormalize' 0 "$(pass_line 1)"
 
   start_fixture
   track tool '#!/bin/sh\necho\n'
