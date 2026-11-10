@@ -17,7 +17,8 @@ EOF
 help_text() {
   cat <<'EOF'
 Checks CHANGELOG.md, so that an entry cannot sit in the wrong place.
-  - The file has exactly one "## [Unreleased]" heading, above every release heading.
+  - The file has exactly one "## [Unreleased]" heading, above every release heading,
+    and no other line holds that text: release.toml replaces it and allows it once.
   - Below it are entries and blank lines only. An entry is one line,
     "- <Type>: <text>", with Type one of Added, Changed, Deprecated, Removed,
     Fixed, Security. No entry text is there twice.
@@ -67,9 +68,12 @@ changelog_verdict() {
       release_heading = "^## \\[[0-9]+\\.[0-9]+\\.[0-9]+\\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$"
       entry_form = "\"- <Type>: <text>\" with Type one of Added, Changed, Deprecated, Removed, Fixed, Security"
     }
-    { sub(/\r$/, "") }
+    { sub(/[ \t\r]+$/, "") }
     NR <= base_line_count { base_has_line[$0] = 1; next }
     { line_number = NR - base_line_count }
+    index($0, "## [Unreleased]") && $0 != "## [Unreleased]" {
+      report(line_number, "this line holds the text \"## [Unreleased]\" and is not that heading. release.toml replaces the text and allows it once in the file.", "reword the line, for example to \"the Unreleased heading\".")
+    }
     $0 == "## [Unreleased]" {
       if (unreleased_line) {
         report(line_number, "this is a second \"## [Unreleased]\" heading; the first is on line " unreleased_line ".", "delete this line and move the entries below it to the end of the list under line " unreleased_line ".")
@@ -101,7 +105,7 @@ changelog_verdict() {
       } else if ($0 ~ /^###/) {
         report(line_number, "\"" $0 "\" is a heading inside ## [Unreleased], and that section holds entries only.", "delete this line and start each entry that was under it with its type, as " entry_form ".")
       } else if ($0 ~ /^- /) {
-        report(line_number, "this entry does not start with one of the six types.", "write it as " entry_form ".")
+        report(line_number, "this entry does not have the form " entry_form ".", "rewrite it in that form.")
       } else {
         report(line_number, "this line is not an entry.", "write each entry on one line, as " entry_form ". A release heading has the form \"## [x.y.z] - YYYY-MM-DD\".")
       }
@@ -192,6 +196,8 @@ self_test() {
   expect 'a release section of typed entries, as release.toml writes it, is accepted' '' '' '' "${unreleased}- Changed: Name the constants${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race"
   expect 'an empty Unreleased section above a release section with ### headings is accepted' '' '' '' "$unreleased$release### Added${nl}${nl}- Add the store${nl}${nl}### Fixed${nl}${nl}- Close the race"
   expect 'a list with CRLF line endings, as core.autocrlf=true checks it out, is accepted' '' '' '' "$(printf '%s\n' "$flat_list" | sed "s/\$/$carriage_return/")"
+  expect 'spaces at the end of a heading and of an entry are accepted' '' '' '' "$introduction${nl}## [Unreleased]  ${nl}${nl}- Added: Add the store  "
+  expect 'a sentence that quotes the Unreleased heading is refused, because release.toml allows the text once' 3 '' '' "# Changelog${nl}${nl}Add an entry under \`## [Unreleased]\`.${nl}${nl}## [Unreleased]${nl}${nl}- Added: Add the store"
   expect 'a ### heading inside Unreleased is refused' 7 '' '' "${unreleased}### Added${nl}${nl}- Added: Add the store"
   expect 'entries cut off below a ### heading by a blank line, as on main at d7b245a, are refused' '7 9 11 12' '' '' "${unreleased}### Fixed${nl}${nl}- Say in the CI echo that exempt commits are not checked${nl}${nl}- Clamp a storage cap read from consent.json to the minimum so a zero cap cannot shred the store${nl}- Add SQLCipher and AEAD dependencies for the encrypted segment store"
   expect 'a ### heading twice in one release section is refused' 13 '' '' "$unreleased$release### Fixed${nl}${nl}- Close the race${nl}${nl}### Fixed${nl}${nl}- Quote the arguments"
