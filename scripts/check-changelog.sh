@@ -240,6 +240,10 @@ self_test() {
   expect 'with a base, a file with no new entry is refused at the line to add one below' 8 origin/main "$flat_list" "$flat_list"
   expect 'with a base, a new entry that a release moved out of Unreleased is refused' '11 5' origin/main "$released" "$released${nl}- Changed: Name the constants"
   expect 'with a base, the commit of a release needs no new entry' '' origin/main "$flat_list" "$released"
+  expect 'with a base, a new entry in a release section that the base has is refused, also when Unreleased has a new entry' 13 origin/main "$released" "${unreleased}- Security: Rotate the key${nl}${nl}$release- Added: Add the store${nl}- Fixed: Close the race${nl}- Changed: Name the constants"
+  expect 'with a base, a new entry in a release section that the base has under another date is refused' 13 origin/main "$released" "${unreleased}- Security: Rotate the key${nl}${nl}## [0.0.1] - 2026-11-11${nl}${nl}- Added: Add the store${nl}- Fixed: Close the race${nl}- Changed: Name the constants"
+  expect 'with a base, the commit of a release does not excuse a new entry in an older release section' 14 origin/main "${unreleased}- Changed: Name the constants${nl}${nl}## [0.0.0] - 2026-11-01${nl}${nl}- Added: Add the store" "$unreleased$release- Changed: Name the constants${nl}${nl}## [0.0.0] - 2026-11-01${nl}${nl}- Added: Add the store${nl}- Fixed: Close the race"
+  expect 'with a base, the commit of a release may add an entry to the section that it creates' '' origin/main "$flat_list" "$released${nl}- Changed: Name the constants"
 
   if [ "$failures" -gt 0 ]; then
     printf 'check-changelog: self-test FAIL: fixtures misjudged: %d\n' "$failures"
