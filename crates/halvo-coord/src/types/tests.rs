@@ -357,6 +357,41 @@ fn a_progress_has_its_step_at_most_its_total() {
 }
 
 #[test]
+fn an_item_is_made_by_one_constructor_per_kind() {
+    let id = || ItemId::parse(&"3".repeat(32)).unwrap();
+    let agent = || AgentId::parse(&"2".repeat(32)).unwrap();
+    let s = String::new;
+    let no = YesNo::No;
+    let items = [
+        Item::confirm(id(), agent(), Presenter::Native, no, s(), vec![], vec![]),
+        Item::sign_in(id(), agent(), no, s(), s(), vec![]),
+        Item::link_account(id(), agent(), no, s(), s(), vec![]),
+        Item::stuck(id(), agent(), no, s(), s(), vec![]),
+        Item::check(id(), agent(), no, s(), s(), vec![], vec![]),
+        Item::setup(id(), agent(), no, s(), s(), vec![], vec![]),
+        Item::ready(id(), agent(), no, s(), s(), vec![]),
+        Item::show(id(), agent(), no, s(), s(), vec![]),
+    ];
+    let got: Vec<(&str, Option<Presenter>)> = items
+        .iter()
+        .map(|i| (i.kind().name(), i.presenter()))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("confirm", Some(Presenter::Native)),
+            ("sign_in", None),
+            ("link_account", None),
+            ("stuck", None),
+            ("check", None),
+            ("setup", None),
+            ("ready", None),
+            ("show", None),
+        ]
+    );
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),

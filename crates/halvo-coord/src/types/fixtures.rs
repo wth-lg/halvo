@@ -715,72 +715,77 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
     }
 }
 
+fn confirm(state: State, id: ItemId, agent: AgentId) -> Item {
+    let (class, presenter, bound): (Class, Presenter, Vec<&[Bound]>) =
+        if state == State::NeedsConfirmNative {
+            (Class::Payment, Presenter::Native, vec![&PAYMENT[..]])
+        } else {
+            (
+                Class::Send,
+                Presenter::Page,
+                SEND.iter().map(|e| &e[..]).collect(),
+            )
+        };
+    let count = bound.len().to_string();
+    let entry = |c: Choice, key: &str, safe: bool| ChoiceText {
+        choice: c,
+        text: if bound.len() > 1 {
+            tp(
+                &format!("confirm.{}.{key}_many", class.name()),
+                &[("count", &count)],
+            )
+        } else {
+            t(&format!("confirm.{}.{key}", class.name()))
+        },
+        safe: safe.into(),
+    };
+    let choices = if presenter == Presenter::Native {
+        vec![ChoiceText {
+            choice: Choice::Present,
+            text: t("confirm.present"),
+            safe: YesNo::Yes,
+        }]
+    } else {
+        vec![
+            entry(Choice::Reject, "reject", true),
+            entry(Choice::Allow, "allow", false),
+        ]
+    };
+    Item::confirm(
+        id,
+        agent,
+        presenter,
+        (presenter == Presenter::Page).into(),
+        t(&format!("confirm.{}.title", class.name())),
+        bound.iter().flat_map(|e| fields(class, e)).collect(),
+        choices,
+    )
+}
+
 fn item(state: State, b: &Built) -> Option<Item> {
     let open = b.facts.item.as_ref()?;
     let kind = open.kind;
     let name = name(b.spec.category);
-    let mut item = Item {
-        item: open.item.clone(),
-        agent: b.facts.agent.clone(),
-        kind,
-        presenter: None,
-        armed: YesNo::No,
-        title: String::new(),
-        text: String::new(),
-        fields: vec![],
-        params: vec![],
-        choices: vec![],
+    let (id, agent) = (open.item.clone(), b.facts.agent.clone());
+    let plain = || {
+        (
+            tp(&format!("item.{}.title", kind.name()), &[("name", &name)]),
+            t(&format!("item.{}.text", kind.name())),
+            two_choices(kind),
+        )
     };
-    if kind == ItemKind::Confirm {
-        let (class, presenter, bound): (Class, Presenter, Vec<&[Bound]>) =
-            if state == State::NeedsConfirmNative {
-                (Class::Payment, Presenter::Native, vec![&PAYMENT[..]])
-            } else {
-                (
-                    Class::Send,
-                    Presenter::Page,
-                    SEND.iter().map(|e| &e[..]).collect(),
-                )
-            };
-        let count = bound.len().to_string();
-        item.presenter = Some(presenter);
-        item.armed = (presenter == Presenter::Page).into();
-        item.title = t(&format!("confirm.{}.title", class.name()));
-        item.fields = bound.iter().flat_map(|e| fields(class, e)).collect();
-        let entry = |c: Choice, key: &str, safe: bool| ChoiceText {
-            choice: c,
-            text: if bound.len() > 1 {
-                tp(
-                    &format!("confirm.{}.{key}_many", class.name()),
-                    &[("count", &count)],
-                )
-            } else {
-                t(&format!("confirm.{}.{key}", class.name()))
-            },
-            safe: safe.into(),
-        };
-        item.choices = if presenter == Presenter::Native {
-            vec![ChoiceText {
-                choice: Choice::Present,
-                text: t("confirm.present"),
-                safe: YesNo::Yes,
-            }]
-        } else {
-            vec![
-                entry(Choice::Reject, "reject", true),
-                entry(Choice::Allow, "allow", false),
-            ]
-        };
-        return Some(item);
-    }
-    item.title = tp(&format!("item.{}.title", kind.name()), &[("name", &name)]);
-    item.text = t(&format!("item.{}.text", kind.name()));
-    item.choices = two_choices(kind);
-    match kind {
-        ItemKind::Check => item.fields = fields(Class::Payment, &PAYMENT),
+    let armed = YesNo::No;
+    Some(match kind {
+        ItemKind::Confirm => confirm(state, id, agent),
+        ItemKind::Check => {
+            let (title, text, choices) = plain();
+            let kept = fields(Class::Payment, &PAYMENT);
+            Item::check(id, agent, armed, title, text, kept, choices)
+        }
         ItemKind::Setup => {
+            let (title, text, choices) = plain();
             let site = b.facts.workflow.site.clone().expect("a site");
-            item.params = params(b.spec.category)
+            let asked = params(b.spec.category)
                 .into_iter()
                 .filter(|p| !b.spec.slots.contains(p))
                 .map(|p| match p {
@@ -788,10 +793,29 @@ fn item(state: State, b: &Built) -> Option<Item> {
                     _ => param(p, None),
                 })
                 .collect();
+            Item::setup(id, agent, armed, title, text, asked, choices)
         }
-        _ => {}
-    }
-    Some(item)
+        ItemKind::SignIn => {
+            let (title, text, choices) = plain();
+            Item::sign_in(id, agent, armed, title, text, choices)
+        }
+        ItemKind::LinkAccount => {
+            let (title, text, choices) = plain();
+            Item::link_account(id, agent, armed, title, text, choices)
+        }
+        ItemKind::Stuck => {
+            let (title, text, choices) = plain();
+            Item::stuck(id, agent, armed, title, text, choices)
+        }
+        ItemKind::Ready => {
+            let (title, text, choices) = plain();
+            Item::ready(id, agent, armed, title, text, choices)
+        }
+        ItemKind::Show => {
+            let (title, text, choices) = plain();
+            Item::show(id, agent, armed, title, text, choices)
+        }
+    })
 }
 
 fn card(b: &Built) -> Card {
