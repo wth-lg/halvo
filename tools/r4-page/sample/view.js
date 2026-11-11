@@ -338,6 +338,17 @@
           status.setAttribute('data-socket', 'refused');
         }
       }
+      if (fault === 'port_fetch') {
+        var near = new Image();
+        near.src = 'http://127.0.0.1:' + port + '/image';
+      }
+      if (fault === 'port_socket') {
+        try {
+          new WebSocket('ws://127.0.0.1:' + port + '/socket');
+        } catch (error) {
+          status.setAttribute('data-socket', 'refused');
+        }
+      }
       if (fault === 'outside_fetch') {
         var lone = new Image();
         lone.src = 'http://localhost:' + port + '/image';

@@ -135,9 +135,9 @@ export async function serve({ ui, fixtures } = {}) {
   return 'http://' + own;
 }
 
-function own(url) {
+function own(url, origin) {
   try {
-    return new URL(url).hostname === '127.0.0.1';
+    return new URL(url).host === new URL(origin).host;
   } catch {
     return false;
   }
@@ -156,16 +156,16 @@ async function pass(route, hit) {
   return route.fulfill({ response: res, body });
 }
 
-async function guard(ctx, count, hit) {
+async function guard(ctx, origin, count, hit) {
   await ctx.route('**/*', (route) => {
-    if (own(route.request().url())) return pass(route, hit);
+    if (own(route.request().url(), origin)) return pass(route, hit);
     count();
     return route.abort();
   });
   await ctx.routeWebSocket(
     () => true,
     (ws) => {
-      if (own(ws.url())) {
+      if (own(ws.url(), origin)) {
         ws.connectToServer();
         return;
       }
@@ -560,6 +560,7 @@ async function openWith(options, context, transform, inner) {
     if (/shadowrootmode/i.test(text)) throw new Refusal('fixture', 'the frame file holds the word shadowrootmode');
     await guard(
       ctx,
+      o.origin,
       () => {
         h.blocked++;
       },
@@ -677,6 +678,7 @@ function alone(h) {
       try {
         await guard(
           ctx,
+          h.origin,
           () => {
             count++;
           },
