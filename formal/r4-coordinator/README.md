@@ -23,19 +23,22 @@ release v1.7.4. On 2026-11-11 the address
 `https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar` led to that
 release. GitHub gives that address to the newest release that is neither a draft nor a
 pre-release, so a pre-release is never the pinned one. The jar is not in this repository.
-Every command here takes its path with `--jar`.
+`export.sh` takes its path with `--jar`, and the TLC commands below take it with `-cp`.
 
 ```
 jar url=https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar bytes=2274532 sha256=936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
 ```
 
-The licence, read from the jar itself: `License.txt` is the MIT License, with the line
-"Copyright (c) 2019 Microsoft Research". The jar also holds the classes `javax/mail`,
-`javax/activation` and `com/sun/mail`, and `META-INF/LICENSE.txt` is the text of the
-Eclipse Public License 2.0. Nothing in this repository links the jar or holds a copy of it.
+The jar holds three licences in two files, read from the jar itself. `License.txt` is the
+MIT License, with the line "Copyright (c) 2019 Microsoft Research". `META-INF/LICENSE.txt`
+holds the Eclipse Public License 2.0 and, after it, the GNU General Public License 2.0
+with the Classpath Exception; both are for the mail classes inside the jar (`javax/mail`,
+`javax/activation`, `com/sun/mail`). The jar is a tool that is fetched and run. Nothing in
+this repository links it, ships it or holds a copy of it.
 
-TLC needs Java 17 or later and nothing else.
-No other tool turns TLC's output into JSON lines: the trace modules build each line
+The classes of TLC in the jar are Java 8 bytecode (class-file version 52). `export.sh`
+asks for Java 17 or later, the floor that the check of these models uses, and for nothing
+else. No other tool turns TLC's output into JSON lines: the trace modules build each line
 as a TLA+ string and print it with TLC's `PrintT`, and `export.sh` takes the quotes off
 with `sed`.
 
@@ -182,8 +185,13 @@ with the frame `completed` or `failed`, and a stopped run with no frame. A run t
 without a frame and without a stop ends `interrupted`, which the rules treat as they treat
 the end of a stopped run; it is in the walks only, like the other seven outcomes. The hold
 `check` comes only from a frame `effect_unknown`, so only the walks hold it. `VIEW` takes
-`ready` and the phases `starting`, `working` and `waiting` out of the fingerprint. No rule
-of the schedule reads them. The model has no `skip`, no `switch_on`, no
+`ready` and the phases `starting`, `working` and `waiting` out of the fingerprint. That is
+sound because `ready` decides only its own next value and the `raised` of a tick, the three
+phases decide only which of `hello`, `wait` and `resume` is accepted, each of which leads
+to a state of the same class, every stop, end, kill, switch-off and deletion treats the
+three alike, and the history holds neither. `VIEW` also takes a stop with `lapsed` for one
+with `cancelled`: no rule and no history tells the two causes apart but the cause that the
+end stores, so the `Reach` properties that name a cause run without the `VIEW` line. The model has no `skip`, no `switch_on`, no
 answer to a `check`, no items budget, no effect in `releasing`, and no time but the grace.
 
 ## Confirm4
@@ -349,8 +357,10 @@ in a directory from `mktemp -d` and leaves that directory in place.
 
 A walk is at most 16 moves from the first state. It takes its steps from the model's own
 `Step`. A generator in the trace module picks each move; TLC's random numbers and TLC's
-order of sets are not used. About one move in eight is one
-that the model refuses. Two exports with one seed and count gave the same
+order of sets are not used. In the committed files the model refuses 385 of the
+3,200 moves of the schedule walks (12.0%) and 312 of the 1,883
+moves of the confirm walks (16.6%); a confirm walk also takes a refusal whenever no
+move is left that the model accepts. Two exports with one seed and count gave the same
 bytes on the development Mac. The export is compared with the committed files in the jobs
 `macos` and `windows`; before the first run of the check only the Mac was tried. One
 export of both files took 17.00 s there, with a largest resident size of
