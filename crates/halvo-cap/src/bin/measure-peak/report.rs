@@ -102,6 +102,40 @@ mod tests {
     }
 
     #[test]
+    fn a_median_equal_to_the_limit_passes_the_checks() {
+        let limit = Limit::new(100).unwrap();
+        let at = outcome(Exit::Code(0), 100, false);
+        assert_eq!(
+            Checks::of(&[at, at, at], limit),
+            Checks {
+                exit: true,
+                cap: true,
+                median: true
+            }
+        );
+    }
+
+    #[test]
+    fn the_status_is_ok_only_when_every_check_is() {
+        for (exit, cap, median) in [
+            (false, true, true),
+            (true, false, true),
+            (true, true, false),
+        ] {
+            assert!(
+                !Checks { exit, cap, median }.all_ok(),
+                "{exit} {cap} {median}"
+            );
+        }
+        assert!(Checks {
+            exit: true,
+            cap: true,
+            median: true
+        }
+        .all_ok());
+    }
+
+    #[test]
     fn each_check_misses_on_its_own_cause() {
         let limit = Limit::new(100).unwrap();
         let fine = outcome(Exit::Code(0), 50, false);

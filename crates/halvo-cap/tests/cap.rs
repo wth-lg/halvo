@@ -69,6 +69,7 @@ fn child() {
         }
         "exit" => std::process::exit(number(1) as i32),
         "echo" => println!("hello from the child"),
+        "cwd" => println!("cwd {}", std::env::current_dir().unwrap().display()),
         "env-names" => {
             for (name, _) in std::env::vars_os() {
                 println!("name {}", name.to_string_lossy());
@@ -263,6 +264,30 @@ fn the_standard_output_is_the_one_the_caller_gives() {
     assert_eq!(outcome.exit, Exit::Code(0), "{outcome:?}");
     let text = read.join().unwrap();
     assert!(text.lines().any(|l| l == "hello from the child"), "{text}");
+}
+
+#[test]
+fn the_current_directory_is_the_one_the_caller_gives() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .canonicalize()
+        .unwrap();
+    let mut spec = spec("cwd");
+    spec.current_dir = Some(dir.clone());
+    let (mut reader, writer) = std::io::pipe().unwrap();
+    spec.stdout = Stdio::from(writer);
+    let read = std::thread::spawn(move || {
+        let mut text = String::new();
+        reader.read_to_string(&mut text).unwrap();
+        text
+    });
+    let outcome = run(spec, limit(256)).unwrap();
+    assert_eq!(outcome.exit, Exit::Code(0), "{outcome:?}");
+    let text = read.join().unwrap();
+    let seen = text
+        .lines()
+        .find_map(|l| l.strip_prefix("cwd "))
+        .map(|p| Path::new(p).canonicalize().unwrap());
+    assert_eq!(seen, Some(dir), "{text}");
 }
 
 #[test]
