@@ -35,6 +35,11 @@ defect_is() {
   [ "$defect" = "$2" ]
 }
 
+fails_naming() {
+  defect=$(source_scan_defect "$1")
+  [ "$defect" != "$2" ]
+}
+
 measured_on() {
   GATE_ROOT=$gate_scratch/$1
   measure
@@ -69,6 +74,19 @@ cases() {
   t raw-tap-create FAIL predicate_no_ll_hook "$gate_scratch/tap-raw"
   tree event-post crates/halvo-capture/src/macos/tap.rs 'unsafe { CGEventPost(tap, event) };'
   t event-post FAIL predicate_no_ll_hook "$gate_scratch/event-post"
+  posted=crates/halvo-capture/src/macos/post.rs
+  tree post-to-a-location "$posted" 'ev.post(CGEventTapLocation::HID);'
+  t post-to-a-tap-location FAIL fails_naming "$gate_scratch/post-to-a-location" "active-tap at $posted:1"
+  tree post-to-a-pid "$posted" 'ev.post_to_pid(pid);'
+  t post-to-a-pid FAIL fails_naming "$gate_scratch/post-to-a-pid" "active-tap at $posted:1"
+  tree post-from-a-tap "$posted" 'ev.post_from_tap(proxy);'
+  t post-from-a-tap FAIL fails_naming "$gate_scratch/post-from-a-tap" "active-tap at $posted:1"
+  tree keyboard-event "$posted" 'let ev = CGEvent::new_keyboard_event(source, 0, true).unwrap();'
+  t new-keyboard-event FAIL fails_naming "$gate_scratch/keyboard-event" "active-tap at $posted:1"
+  tree mouse-event "$posted" 'let ev = CGEvent::new_mouse_event(source, kind, at, button).unwrap();'
+  t new-mouse-event FAIL fails_naming "$gate_scratch/mouse-event" "active-tap at $posted:1"
+  tree scroll-event "$posted" 'let ev = CGEvent::new_scroll_event(source, unit, 1, 3, 0, 0).unwrap();'
+  t new-scroll-event FAIL fails_naming "$gate_scratch/scroll-event" "active-tap at $posted:1"
   tree audio crates/halvo-capture/src/macos/audio.rs 'config.setCapturesAudio(true);'
   t audio-captured FAIL predicate_no_ll_hook "$gate_scratch/audio"
   tree microphone crates/halvo-capture/src/macos/mic.rs 'config.setCaptureMicrophone(true);'
