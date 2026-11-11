@@ -157,13 +157,30 @@ read_freeze() {
 compare_table() {
   table=$1
   shift
-  if ! grep -q "^$table " "$art/freeze-read.txt"; then
-    printf 'none\n'
-    return 0
-  fi
+  present=no
+  while read -r t k v; do
+    if [ "$t" = "$table" ]; then
+      present=yes
+    fi
+  done <"$art/freeze-read.txt" || present=unreadable
+  case $present in
+    no)
+      printf 'none\n'
+      return 0
+      ;;
+    unreadable)
+      printf 'miss\n'
+      return 0
+      ;;
+  esac
   state=ok
   for key in "$@"; do
-    frozen=$(sed -n "s/^$table $key //p" "$art/freeze-read.txt")
+    frozen=
+    while read -r t k v; do
+      if [ "$t $k" = "$table $key" ]; then
+        frozen=$v
+      fi
+    done <"$art/freeze-read.txt" || frozen=
     computed=$(key_digest "$key") || computed=unreadable
     if [ -n "$frozen" ] && [ "$computed" = "$frozen" ]; then
       same=yes
@@ -434,6 +451,14 @@ layout unmatched=1" --all
   fixture freeze-targets-differs
   freeze_text "0${d_targets#?}" >"$work/freeze-targets-differs/docs/r5/freeze.toml"
   check freeze-targets-differs FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture freeze-differs-and-grep-cannot-run
+  freeze_text "0${d_targets#?}" >"$work/freeze-differs-and-grep-cannot-run/docs/r5/freeze.toml"
+  mkdir -p "$work/stub-grep" || exit 2
+  printf '#!/bin/sh\nexit 2\n' >"$work/stub-grep/grep"
+  chmod +x "$work/stub-grep/grep" || exit 2
+  path=$work/stub-grep:$PATH
+  check freeze-differs-and-grep-cannot-run FAIL-targets "$line targets=miss learner=none harness=same"
 
   fixture targets-file-one-byte
   printf '[gate]\ndev_critical = 8\n' >"$work/targets-file-one-byte/docs/r5/targets.toml"

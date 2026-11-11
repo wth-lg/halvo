@@ -252,7 +252,7 @@ check() {
   want=$2
   text=$3
   shift 3
-  out=$(env "$@" PATH="$work/bin:$PATH" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="$work/artifacts-$case_name" sh "$self" 2>&1)
+  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="$work/artifacts-$case_name" sh "$self" 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -283,6 +283,7 @@ self_test() {
   chmod +x "$work/bin/cargo" || exit 2
   rejected=0
   wrong=
+  case_path=
   all_same='trials routine=same stat=same admission=same sample=same'
 
   fixture good
@@ -326,6 +327,16 @@ self_test() {
 
   fixture cargo-test-fails
   check cargo-test-fails FAIL-test 'FAIL 40-r5-trials (test)' STUB_CARGO_EXIT=101
+
+  fixture cargo-missing
+  ifs=$IFS
+  IFS=:
+  for dir in $PATH; do
+    [ -x "$dir/cargo" ] || [ -x "$dir/cargo.exe" ] || case_path=${case_path:+$case_path:}$dir
+  done
+  IFS=$ifs
+  check cargo-missing FAIL-test 'FAIL 40-r5-trials (test)'
+  case_path=
 
   fixture trial-refuses-its-run
   check trial-refuses-its-run FAIL-run 'FAIL 40-r5-trials (run)' STUB_RUN_REFUSES=drift
