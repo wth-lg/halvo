@@ -93,3 +93,4 @@ and merge without an entry landing under the heading of another.
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
 - Added: Keep LF line ends under docs/r6/ and scripts/r6/ in every clone, and say in docs/r6/README.md what its directories hold
+- Added: Record which of the four routing models may enter the model trials, with their licence lines and the size and SHA-256 of each 4-bit file that enters
