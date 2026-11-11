@@ -22,6 +22,8 @@
   if (fault === 'motion_hidden') CSS.push('@media (prefers-reduced-motion: reduce) { .r4s [data-act="delete"] { display: none; } }');
   if (fault === 'forced_hidden') CSS.push('@media (forced-colors: active) { .r4s [data-act="switch_off"] { display: none; } }');
   if (fault === 'narrow_scroll') CSS.push('.r4s-line { min-width: 400px; }');
+  if (fault === 'focus_pale') CSS.push('.r4s button:focus { outline-color: #d8d8d8; }');
+  if (fault === 'focus_behind_image') CSS.push('.r4s { background-image: linear-gradient(#ffffff, #f8f8f8); }');
   if (fault === 'late_css') CSS.push('@keyframes r4s-late { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-late 0.01s 1.5s forwards; }');
 
   var root = null;

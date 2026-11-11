@@ -602,6 +602,51 @@ const HELPER = () => {
     return PROPS.map((p) => s.getPropertyValue(p));
   };
   const name = (el) => el.getAttribute('data-act') || el.tagName.toLowerCase();
+  const rgba = (text) => {
+    const m = /^rgba?\(([^)]+)\)$/.exec(String(text).trim());
+    if (!m) return null;
+    const p = m[1].split(/[\s,/]+/).filter(Boolean).map(parseFloat);
+    if (p.length < 3 || p.some((v) => Number.isNaN(v))) return null;
+    return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+  };
+  const over = (top, bottom) => [0, 1, 2].map((i) => top[i] * top[3] + bottom[i] * (1 - top[3])).concat(1);
+  const backdrop = (start) => {
+    const layers = [];
+    for (let e = start; e; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      if (s.backgroundImage && s.backgroundImage !== 'none') return null;
+      const c = rgba(s.backgroundColor);
+      if (!c) return null;
+      if (c[3] > 0) layers.push(c);
+      if (c[3] >= 1) break;
+    }
+    let base = [255, 255, 255, 1];
+    for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base);
+    return base;
+  };
+  const lum = (c) => {
+    const f = (v) => {
+      const x = v / 255;
+      return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+  };
+  const contrast = (colour, start) => {
+    const c = rgba(colour);
+    const bg = backdrop(start);
+    if (!c || !bg) return null;
+    const a = lum(over(c, bg));
+    const b = lum(bg);
+    return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100;
+  };
+  const ring = (el) => {
+    const s = getComputedStyle(el);
+    const inside = (parseFloat(s.outlineOffset) || 0) < 0;
+    return {
+      outline: contrast(s.outlineColor, inside ? el : el.parentElement),
+      borders: ['top', 'right', 'bottom', 'left'].map((side) => contrast(s.getPropertyValue('border-' + side + '-color'), el.parentElement)),
+    };
+  };
   window.__r4w = {
     begin() {
       const d = dialog();
@@ -621,7 +666,7 @@ const HELPER = () => {
       const a = document.activeElement;
       if (!a || a === document.body || a === document.documentElement) return { id: 0 };
       const d = dialog();
-      return { id: idOf(a), outside: d ? !d.contains(a) : false, style: style(a) };
+      return { id: idOf(a), outside: d ? !d.contains(a) : false, style: style(a), ring: ring(a) };
     },
     rest(list) {
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -663,12 +708,18 @@ function border(style, side) {
   return kind + ' ' + width + ' ' + color;
 }
 
-function visibleChange(focused, rest) {
-  if (!focused || !rest) return false;
+function shownFocus(stop, rest) {
+  if (!stop || !rest) return 'focus_unseen';
+  const focused = stop.style;
+  const shown = [];
   const outlineOn = focused[0] !== 'none' && (focused[0] === 'auto' || parseFloat(focused[1]) > 0) && seen(focused[2]);
-  const outlineChanged = [0, 1, 2, 3].some((i) => focused[i] !== rest[i]);
-  const borderChanged = [0, 1, 2, 3].some((side) => border(focused, side) !== border(rest, side));
-  return (outlineOn && outlineChanged) || borderChanged;
+  if (outlineOn && [0, 1, 2, 3].some((i) => focused[i] !== rest[i])) shown.push(stop.ring.outline);
+  for (const side of [0, 1, 2, 3]) {
+    if (border(focused, side) === border(rest, side)) continue;
+    shown.push(border(focused, side) === 'off' ? null : stop.ring.borders[side]);
+  }
+  if (!shown.length) return 'focus_unseen';
+  return shown.some((c) => c !== null && c >= 3) ? null : 'focus_contrast';
 }
 
 async function walkCheck(h) {
@@ -689,7 +740,7 @@ async function walkCheck(h) {
     const s = await page.evaluate(() => window.__r4w.step());
     if (s.id === 0) continue;
     if (s.outside) misses.add('dialog_focus_lost');
-    if (!stops.has(s.id)) stops.set(s.id, s.style);
+    if (!stops.has(s.id)) stops.set(s.id, { style: s.style, ring: s.ring });
     if (start === 0) {
       start = s.id;
       continue;
@@ -717,18 +768,18 @@ async function walkCheck(h) {
       for (const c of fb.controls) if (c.group) members.set(c.group, [...(members.get(c.group) || []), c.id]);
       for (const ids of members.values()) {
         if (ids.length < 2) continue;
-        const seen = new Set();
+        const got = new Set();
         if (!(await fresh.page.evaluate((id) => window.__r4w.focus(id), ids[0]))) {
           misses.add('radio_arrows');
           continue;
         }
-        for (const key of ['ArrowDown', 'ArrowUp']) {
+        for (const arrow of ['ArrowDown', 'ArrowUp']) {
           for (let i = 1; i < ids.length; i++) {
-            await fresh.page.keyboard.press(key);
-            seen.add(await fresh.page.evaluate((list) => window.__r4w.chosen(list), ids));
+            await fresh.page.keyboard.press(arrow);
+            got.add(await fresh.page.evaluate((list) => window.__r4w.chosen(list), ids));
           }
         }
-        if (!ids.every((id) => seen.has(id))) misses.add('radio_arrows');
+        if (!ids.every((id) => got.has(id))) misses.add('radio_arrows');
       }
     } finally {
       await fresh.close();
@@ -739,7 +790,8 @@ async function walkCheck(h) {
   await page.evaluate(FINISH);
   const rest = await page.evaluate((list) => window.__r4w.rest(list), ids);
   ids.forEach((id, i) => {
-    if (!visibleChange(stops.get(id), rest[i])) misses.add('focus_unseen');
+    const word = shownFocus(stops.get(id), rest[i]);
+    if (word) misses.add(word);
   });
   if (!back && b.controls.length > 0 && stops.size === 0) misses.add('unreached');
   if (b.dialog) {
