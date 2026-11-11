@@ -12,5 +12,11 @@ pub(crate) fn join<T>(handle: JoinHandle<T>) -> T {
         );
         thread::sleep(Duration::from_millis(5));
     }
-    handle.join().expect("the thread panicked")
+    handle
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+}
+
+pub(crate) fn within<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
+    join(thread::spawn(body))
 }

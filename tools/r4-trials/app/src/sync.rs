@@ -147,129 +147,147 @@ impl Hub {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::join;
+    use crate::testing::{join, within};
     use std::sync::Arc;
     use std::thread;
 
     #[test]
     fn a_change_has_its_seq_and_a_payload_of_256_bytes_that_changes() {
-        let a = change(1, 200_000);
-        let b = change(2, 200_000);
-        assert_eq!((a.seq, a.of), (1, 200_000));
-        assert_eq!(a.payload.len(), PAYLOAD_BYTES);
-        assert_eq!(b.payload.len(), PAYLOAD_BYTES);
-        assert_ne!(a.payload, b.payload);
-        assert_eq!(change(1, 200_000), a);
-        assert!(a.payload.bytes().all(|c| c.is_ascii_hexdigit()));
-        assert!(!a.hidden);
-        let json = serde_json::to_value(&a).unwrap();
-        assert_eq!(json["seq"], 1);
-        assert_eq!(json["of"], 200_000);
-        assert_eq!(json["hidden"], false);
+        within(|| {
+            let a = change(1, 200_000);
+            let b = change(2, 200_000);
+            assert_eq!((a.seq, a.of), (1, 200_000));
+            assert_eq!(a.payload.len(), PAYLOAD_BYTES);
+            assert_eq!(b.payload.len(), PAYLOAD_BYTES);
+            assert_ne!(a.payload, b.payload);
+            assert_eq!(change(1, 200_000), a);
+            assert!(a.payload.bytes().all(|c| c.is_ascii_hexdigit()));
+            assert!(!a.hidden);
+            let json = serde_json::to_value(&a).unwrap();
+            assert_eq!(json["seq"], 1);
+            assert_eq!(json["of"], 200_000);
+            assert_eq!(json["hidden"], false);
+        });
     }
 
     #[test]
     fn due_follows_the_rate_and_stops_at_the_count() {
-        assert_eq!(due(200_000, 1000, Duration::ZERO), 0);
-        assert_eq!(due(200_000, 1000, Duration::from_micros(999)), 0);
-        assert_eq!(due(200_000, 1000, Duration::from_millis(1)), 1);
-        assert_eq!(due(200_000, 1000, Duration::from_millis(1500)), 1500);
-        assert_eq!(due(200_000, 1000, Duration::from_secs(10_000)), 200_000);
-        assert_eq!(due(10, u64::MAX, Duration::from_secs(1)), 10);
+        within(|| {
+            assert_eq!(due(200_000, 1000, Duration::ZERO), 0);
+            assert_eq!(due(200_000, 1000, Duration::from_micros(999)), 0);
+            assert_eq!(due(200_000, 1000, Duration::from_millis(1)), 1);
+            assert_eq!(due(200_000, 1000, Duration::from_millis(1500)), 1500);
+            assert_eq!(due(200_000, 1000, Duration::from_secs(10_000)), 200_000);
+            assert_eq!(due(10, u64::MAX, Duration::from_secs(1)), 10);
+        });
     }
 
     #[test]
     fn the_replies_read_as_the_page_reads_them() {
-        assert_eq!(Next::Closed.to_json(), serde_json::json!({"closed": "yes"}));
-        let c = change(3, 9);
-        assert_eq!(
-            Next::Change(c.clone()).to_json(),
-            serde_json::to_value(c).unwrap()
-        );
+        within(|| {
+            assert_eq!(Next::Closed.to_json(), serde_json::json!({"closed": "yes"}));
+            let c = change(3, 9);
+            assert_eq!(
+                Next::Change(c.clone()).to_json(),
+                serde_json::to_value(c).unwrap()
+            );
+        });
     }
 
     #[test]
     fn a_call_behind_the_latest_answers_at_once() {
-        let hub = Hub::default();
-        hub.publish(change(5, 10));
-        assert_eq!(hub.wait_next(4), Next::Change(change(5, 10)));
-        assert_eq!(hub.wait_next(0), Next::Change(change(5, 10)));
+        within(|| {
+            let hub = Hub::default();
+            hub.publish(change(5, 10));
+            assert_eq!(hub.wait_next(4), Next::Change(change(5, 10)));
+            assert_eq!(hub.wait_next(0), Next::Change(change(5, 10)));
+        });
     }
 
     #[test]
     fn a_waiting_call_gets_the_next_change() {
-        let hub = Arc::new(Hub::default());
-        hub.publish(change(1, 10));
-        let waiter = {
-            let hub = hub.clone();
-            thread::spawn(move || hub.wait_next(1))
-        };
-        thread::sleep(Duration::from_millis(50));
-        assert!(!waiter.is_finished());
-        hub.publish(change(2, 10));
-        assert_eq!(join(waiter), Next::Change(change(2, 10)));
+        within(|| {
+            let hub = Arc::new(Hub::default());
+            hub.publish(change(1, 10));
+            let waiter = {
+                let hub = hub.clone();
+                thread::spawn(move || hub.wait_next(1))
+            };
+            thread::sleep(Duration::from_millis(50));
+            assert!(!waiter.is_finished());
+            hub.publish(change(2, 10));
+            assert_eq!(join(waiter), Next::Change(change(2, 10)));
+        });
     }
 
     #[test]
     fn closing_answers_a_waiting_call_and_every_call_while_closed() {
-        let hub = Arc::new(Hub::default());
-        let waiter = {
-            let hub = hub.clone();
-            thread::spawn(move || hub.wait_next(0))
-        };
-        thread::sleep(Duration::from_millis(50));
-        hub.close();
-        assert_eq!(join(waiter), Next::Closed);
-        hub.publish(change(1, 10));
-        assert_eq!(hub.wait_next(0), Next::Closed);
-        hub.open();
-        assert_eq!(hub.wait_next(0), Next::Change(change(1, 10)));
+        within(|| {
+            let hub = Arc::new(Hub::default());
+            let waiter = {
+                let hub = hub.clone();
+                thread::spawn(move || hub.wait_next(0))
+            };
+            thread::sleep(Duration::from_millis(50));
+            hub.close();
+            assert_eq!(join(waiter), Next::Closed);
+            hub.publish(change(1, 10));
+            assert_eq!(hub.wait_next(0), Next::Closed);
+            hub.open();
+            assert_eq!(hub.wait_next(0), Next::Change(change(1, 10)));
+        });
     }
 
     #[test]
     fn a_change_sent_after_the_hide_is_marked_hidden_until_the_show() {
-        let hub = Hub::default();
-        assert!(!hub.stamp(change(1, 3)).hidden);
-        hub.hide();
-        assert!(hub.stamp(change(2, 3)).hidden);
-        hub.open();
-        assert!(!hub.stamp(change(3, 3)).hidden);
+        within(|| {
+            let hub = Hub::default();
+            assert!(!hub.stamp(change(1, 3)).hidden);
+            hub.hide();
+            assert!(hub.stamp(change(2, 3)).hidden);
+            hub.open();
+            assert!(!hub.stamp(change(3, 3)).hidden);
+        });
     }
 
     #[test]
     fn a_reply_carries_the_mark_of_the_moment_it_is_sent() {
-        let hub = Arc::new(Hub::default());
-        hub.publish(change(1, 10));
-        assert_eq!(hub.wait_next(0), Next::Change(change(1, 10)));
-        let waiter = {
-            let hub = hub.clone();
-            thread::spawn(move || hub.wait_next(1))
-        };
-        thread::sleep(Duration::from_millis(50));
-        hub.hide();
-        hub.publish(change(2, 10));
-        let reply = join(waiter);
-        assert_eq!(
-            reply,
-            Next::Change(Change {
-                hidden: true,
-                ..change(2, 10)
-            })
-        );
+        within(|| {
+            let hub = Arc::new(Hub::default());
+            hub.publish(change(1, 10));
+            assert_eq!(hub.wait_next(0), Next::Change(change(1, 10)));
+            let waiter = {
+                let hub = hub.clone();
+                thread::spawn(move || hub.wait_next(1))
+            };
+            thread::sleep(Duration::from_millis(50));
+            hub.hide();
+            hub.publish(change(2, 10));
+            let reply = join(waiter);
+            assert_eq!(
+                reply,
+                Next::Change(Change {
+                    hidden: true,
+                    ..change(2, 10)
+                })
+            );
+        });
     }
 
     #[test]
     fn a_call_that_began_before_a_close_and_open_is_closed() {
-        let hub = Arc::new(Hub::default());
-        let waiter = {
-            let hub = hub.clone();
-            thread::spawn(move || hub.wait_next(0))
-        };
-        thread::sleep(Duration::from_millis(50));
-        {
-            hub.close();
-            hub.open();
-        }
-        assert_eq!(join(waiter), Next::Closed);
+        within(|| {
+            let hub = Arc::new(Hub::default());
+            let waiter = {
+                let hub = hub.clone();
+                thread::spawn(move || hub.wait_next(0))
+            };
+            thread::sleep(Duration::from_millis(50));
+            {
+                hub.close();
+                hub.open();
+            }
+            assert_eq!(join(waiter), Next::Closed);
+        });
     }
 }
