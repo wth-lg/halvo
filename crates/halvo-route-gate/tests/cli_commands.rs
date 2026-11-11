@@ -229,6 +229,18 @@ fn a_write_that_fails_leaves_no_file_at_out() {
         std::fs::read_to_string(&kept).expect("kept"),
         "bytes of another call\n"
     );
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .expect("the scratch directory")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .into_string()
+                .expect("utf-8")
+        })
+        .collect();
+    names.sort();
+    assert_eq!(names, ["kept.tsv", "table.tsv"]);
 }
 
 #[cfg(unix)]

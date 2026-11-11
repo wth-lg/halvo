@@ -35,3 +35,51 @@ fn a_file_that_appears_at_out_before_the_link_keeps_its_bytes() {
         "bytes of another call\n"
     );
 }
+
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("the scratch directory")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .into_string()
+                .expect("utf-8")
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn the_directory_of_out_holds_no_side_name_after_a_call() {
+    let dir = scratch();
+    let written = path(&dir, "written.tsv");
+    assert_eq!(write_new(&written, "the table\n", || {}), Ok(()));
+    assert_eq!(
+        std::fs::read_to_string(&written).expect("written"),
+        "the table\n"
+    );
+    assert_eq!(names(&dir), ["written.tsv"]);
+
+    let kept = path(&dir, "kept.tsv");
+    std::fs::write(&kept, "bytes of another call\n").expect("fixture");
+    assert_eq!(write_new(&kept, "the table\n", || {}), Err(Refused::Exists));
+    assert_eq!(names(&dir), ["kept.tsv", "written.tsv"]);
+
+    let late = path(&dir, "late.tsv");
+    let made = write_new(&late, "the table\n", || {
+        let during = names(&dir);
+        assert_eq!(during.len(), 3, "{during:?}");
+        std::fs::write(&late, "bytes of another call\n").expect("the other call writes");
+    });
+    assert_eq!(made, Err(Refused::Exists));
+    assert_eq!(names(&dir), ["kept.tsv", "late.tsv", "written.tsv"]);
+
+    let missing = dir.join("missing").join("out.tsv");
+    assert_eq!(
+        write_new(missing.to_str().expect("utf-8"), "the table\n", || {}),
+        Err(Refused::Unwritable)
+    );
+    assert_eq!(names(&dir), ["kept.tsv", "late.tsv", "written.tsv"]);
+}
