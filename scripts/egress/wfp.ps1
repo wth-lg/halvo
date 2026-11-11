@@ -297,8 +297,10 @@ switch ($Action) {
             foreach ($group in $live) { if ($saved -eq '') { $saved = Get-Saved $group } }
             if ($saved -eq '') { $saved = Get-Setting }
             $null = New-NetFirewallRule -DisplayName "$(Get-Group) saved" -Group (Get-Group) -Direction Outbound -Action Allow -Enabled False -Description $saved
-            $null = & icacls.exe $Dir /setintegritylevel '(OI)(CI)H'
+            $null = & icacls.exe $Dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F'
             if ($LASTEXITCODE -ne 0) { throw 'icacls could not keep the tree from writing the run directory' }
+            $null = & icacls.exe $Dir /setowner '*S-1-5-32-544'
+            if ($LASTEXITCODE -ne 0) { throw 'icacls could not give the run directory to the Administrators group' }
             $null = & auditpol.exe /set "/subcategory:$FilteringPlatformConnection" /success:enable /failure:enable
             if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Filtering Platform Connection audit' }
             $null = & auditpol.exe /set "/subcategory:$ProcessCreation" /success:enable
