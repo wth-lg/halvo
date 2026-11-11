@@ -111,6 +111,14 @@ pub(crate) fn check_supported(_limit: Limit) -> Result<Mode, CapError> {
 }
 
 pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
+    run_reading(spec, limit, footprint)
+}
+
+fn run_reading(
+    spec: ChildSpec,
+    limit: Limit,
+    mut footprint_of: impl FnMut(libc::pid_t) -> io::Result<u64>,
+) -> Result<Outcome, CapError> {
     let mut command = spec.into_command();
     let spawned = command.spawn();
     let start = UnixNanos::now();
@@ -131,7 +139,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     let mut killed = false;
     let mut ticks = 0u32;
     loop {
-        match footprint(pid) {
+        match footprint_of(pid) {
             Ok(read) => peak = peak.max(read),
             Err(source) => {
                 if !ended {
@@ -189,6 +197,34 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sleeper() -> ChildSpec {
+        let mut spec = ChildSpec::new("/bin/sleep", ["0.6"]);
+        spec.stdout = std::process::Stdio::null();
+        spec
+    }
+
+    #[test]
+    fn a_run_whose_reads_equal_the_limit_is_not_capped() {
+        let limit = Limit::new(1_000_000).unwrap();
+        let outcome = run_reading(sleeper(), limit, |_| Ok(1_000_000)).unwrap();
+        assert_eq!(
+            (outcome.exit, outcome.capped, outcome.peak_bytes),
+            (Exit::Code(0), false, 1_000_000),
+            "{outcome:?}"
+        );
+    }
+
+    #[test]
+    fn a_run_whose_read_passes_the_limit_by_one_byte_is_capped_and_killed() {
+        let limit = Limit::new(1_000_000).unwrap();
+        let outcome = run_reading(sleeper(), limit, |_| Ok(1_000_001)).unwrap();
+        assert_eq!(
+            (outcome.exit, outcome.capped),
+            (Exit::Signal(9), true),
+            "{outcome:?}"
+        );
+    }
 
     #[test]
     fn a_read_above_the_limit_is_a_breach_and_a_read_at_or_below_it_is_none() {

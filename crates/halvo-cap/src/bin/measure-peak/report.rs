@@ -102,6 +102,20 @@ mod tests {
     }
 
     #[test]
+    fn a_median_equal_to_the_limit_passes_the_checks() {
+        let limit = Limit::new(100).unwrap();
+        let at = outcome(Exit::Code(0), 100, false);
+        assert_eq!(
+            Checks::of(&[at, at, at], limit),
+            Checks {
+                exit: true,
+                cap: true,
+                median: true
+            }
+        );
+    }
+
+    #[test]
     fn each_check_misses_on_its_own_cause() {
         let limit = Limit::new(100).unwrap();
         let fine = outcome(Exit::Code(0), 50, false);
