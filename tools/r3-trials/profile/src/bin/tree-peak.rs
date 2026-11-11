@@ -69,10 +69,13 @@ fn main() -> ExitCode {
         out("run and its executable lies in an .app bundle of the tree or is the command's own");
         out("binary outside the system directories; such a process counts alone, without its");
         out(
-            "children. A peak between two samples is not seen; treeinfo lifetime_max_sum adds each",
+            "children. A peak between two samples is not seen. treeinfo lifetime_max_sum sums each",
         );
-        out("seen process's own lifetime maximum, an upper bound. On Windows the peak of a Job");
-        out("object that holds the command from its first instruction, which the system keeps.");
+        out("process's maximum up to its last sample, so it misses growth after that sample and every");
+        out(
+            "process that no sample saw; it is no upper bound. On Windows the peak of a Job object",
+        );
+        out("that holds the command from its first instruction, which the system keeps.");
         out("Prints tree run=<i> exit=<status> peak_bytes=<n> per run, treeinfo and treepart lines,");
         out("and tree median_bytes=<n>. It sets no cap. Exit 0 when every run ran,");
         out("1 when a run could not start or a signal stopped it, 2 for a refusal.");

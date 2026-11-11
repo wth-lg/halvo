@@ -48,7 +48,8 @@ mock keychain, all through the library of `tools/r3-trials/web`. `--help` states
   helper caches under the per-user cache directory. The cookie `halvo_fx_ref` carries the page
   marker, and the browser stores its value encrypted. So the search also counts each occurrence of
   the name of the cookie whose exported value is the marker, and `marker_hits` sums both counts. The
-  `trace` line counts the utility host name over the same places.
+  `trace` line counts the utility host name over the parent directory and the new entries of the
+  temporary directory only, not over the per-user places outside the profile.
 - Item 4 runs five runs of the nine steps of `tools/r3-trials/web` (`--runs 1` each) under
   `tree-peak`. `tree-peak` starts the command and, every 250 ms, sums the memory of the command and
   all its descendants. On macOS that is `phys_footprint` of each process. A process that the
@@ -74,15 +75,17 @@ in run 42960070038, on a scratch branch that holds the same commit plus one comm
 file. That commit calls `run.sh` for both browsers. Item 4 on `mac` ran through the machine's
 timed-run helper, which recorded the five runs from 2026-11-11T04:53:44Z to 2026-11-11T04:54:15Z, with
 the 1-minute load average at 3.64 before and 5.56 after. The five peaks on `mac` lie between
-957,172,600 and 1,007,752,288 bytes. At the peak, the browser's GPU and utility helpers held about
-586 MB, its renderers about 262 MB and its main process about 81 MB. The fixture server held about
+957,172,600 and 1,007,752,288 bytes. At the peak of the median run (run 2), the `treepart` lines
+give the browser's GPU and utility helpers about 586 MB, its renderers about 275 MB and its main
+process about 82 MB. The fixture server held about
 24 MB and the trial program about 4 MB, which the bound includes. On `hosted-win`, Edge is the
 worse browser. The bound of `mac` is the larger one, so it is `browser_bound_bytes`.
 
 ## Each item can come out the other way
 
-These runs on this Mac each gave the other result. The cuts and the plants ran at d869b1d, and the
-other runs at d4a8426, whose item code is that of the cells:
+These runs on this Mac each gave the other result. The three cuts and the UTF-8 plant in the parent
+ran in the work tree on e37060c before d869b1d was committed, the other five plants at d869b1d, and
+the other runs at d4a8426, whose item code is that of the cells:
 
 - Cutting the exported state lands on `/signin`: `--leave-out all` and
   `--leave-out halvo_fx_session` gave `import=miss`.
@@ -132,8 +135,9 @@ ones that could make an item read ok while its condition did not hold were fixed
 the stored cookie (above), a check that profile B is gone, a watch that sampled only four times, and
 a `tree-peak` that adopted any orphan from the directory of the command and that orphan's children.
 `tree-peak` still misses a peak between two samples on macOS and an orphan whose executable lies
-outside the tree's bundles and is not the command's binary; `treeinfo lifetime_max_sum` gives an
-upper bound for the processes that it saw.
+outside the tree's bundles and is not the command's binary. `treeinfo lifetime_max_sum` sums each
+process's maximum up to its last sample, so it misses growth after that sample and every process
+that no sample saw; it is no upper bound.
 
 ```text
 licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
