@@ -18,15 +18,15 @@ enter_repo() {
   if [ -n "${CI_D_REPO:-}" ]; then
     repo=$CI_D_REPO
   else
-    repo=$(git rev-parse --show-toplevel) || exit 2
+    repo=$(git rev-parse --show-toplevel) || fail "no repository"
   fi
-  cd "$repo" || exit 2
+  cd "$repo" || fail "the repository root cannot be entered"
 }
 
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
-  mkdir -p "$artifacts" || exit 2
+  mkdir -p "$artifacts" || fail "the artifacts directory cannot be made"
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
 
   cargo test --locked -p halvo-schema >"$artifacts/cargo-test.txt" 2>&1
@@ -65,7 +65,7 @@ check() {
   out=$(
     PATH=$work/bin:$PATH
     CI_D_REPO=$repo
-    CI_D_ARTIFACTS=$work/artifacts/$1
+    CI_D_ARTIFACTS=${art:-$work/artifacts/$1}
     STUB_RUNS=$work/runs
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_TEST_EXIT STUB_RUN_EXIT STUB_OUT STUB_FIRST STUB_SECOND
     sh "$self" 2>&1
@@ -87,16 +87,22 @@ check() {
   STUB_OUT='names 3'
   STUB_FIRST=$names
   STUB_SECOND=$names
+  art=
+}
+
+self_fail() {
+  printf 'FAIL self-test:%s (%s)\n' "$name" "$1"
+  exit 1
 }
 
 self_test() {
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_fail "mktemp failed"
   repo=$work/repo
-  mkdir -p "$work/bin" "$work/artifacts" "$repo/crates/halvo-schema/tests/golden" || exit 2
+  mkdir -p "$work/bin" "$work/artifacts" "$repo/crates/halvo-schema/tests/golden" || self_fail "the fixture directories cannot be made"
   names='accessibility_text
 active
 address_field'
-  printf '%s\n' "$names" >"$repo/$golden" || exit 2
+  printf '%s\n' "$names" >"$repo/$golden" || self_fail "the fixture names file cannot be written"
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
 case $* in
@@ -123,7 +129,7 @@ case $* in
     ;;
 esac
 EOF
-  chmod +x "$work/bin/cargo"
+  chmod +x "$work/bin/cargo" || self_fail "the stub cargo cannot be made executable"
   rejected=0
   wrong=
   STUB_TEST_EXIT=0
@@ -158,9 +164,14 @@ names 3'
   check nothing-printed FAIL "FAIL $name (export-names run 1 did not print the one line names 3)"
 
   repo=$work/no-golden
-  mkdir -p "$repo" || exit 2
+  mkdir -p "$repo" || self_fail "the fixture directory cannot be made"
   check golden-missing FAIL "FAIL $name ($golden is missing)"
+  repo=$work/missing
+  check repository-missing FAIL "FAIL $name (the repository root cannot be entered)"
   repo=$work/repo
+  : >"$work/a-file" || self_fail "the fixture file cannot be made"
+  art=$work/a-file/artifacts
+  check artifacts-not-made FAIL "FAIL $name (the artifacts directory cannot be made)"
 
   usage=$(sh "$self" --all 2>&1)
   code=$?
