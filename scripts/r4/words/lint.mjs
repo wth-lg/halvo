@@ -910,6 +910,11 @@ function selfTest(dir, repo) {
     { lines: [`words sentences=${5 + 18 * 19} never_read=2 long=0 clash=0`] },
   );
   expect(fixture('ui-app-that-is-a-file', { files: (f) => (f['ui/app'] = 'x\n') }), 'FAIL:input');
+  if (process.platform !== 'win32') {
+    const locked = fixture('a-directory-under-ui-app-that-cannot-be-read', { files: (f) => (f['ui/app/sub/x.js'] = 'const a = 1;\n') });
+    fs.chmodSync(path.join(locked.root, 'ui/app/sub'), 0o000);
+    expect(locked, 'FAIL:input');
+  }
   expect(
     fixture('delete-in-a-row-line-clashes', {
       state: (s, doc) => {
