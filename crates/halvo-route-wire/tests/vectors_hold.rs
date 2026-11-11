@@ -122,8 +122,8 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         ("tier_before_effort", "tier"),
         ("effort_before_role", "effort"),
         ("role_before_limit", "role"),
-        ("limit_before_size", "limit"),
-        ("malformed_before_size", "malformed"),
+        ("size_before_limit", "size"),
+        ("size_before_malformed", "size"),
         ("space_after_largest", "size"),
     ];
     for (name, error) in invalid {

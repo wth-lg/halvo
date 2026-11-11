@@ -59,13 +59,13 @@ fn closed_lists_have_their_words_and_parse_them() {
     assert_eq!(
         BodyError::ALL.map(BodyError::as_str),
         [
+            "size",
             "malformed",
             "key",
             "tier",
             "effort",
             "role",
-            "limit",
-            "size"
+            "limit"
         ]
     );
     for tier in WireTier::ALL {
@@ -297,12 +297,12 @@ fn where_two_errors_fit_the_first_of_the_order_is_returned() {
         ),
         (
             over.replace("\"max_output_tokens\":1,", "\"max_output_tokens\":0,"),
-            BodyError::Limit,
+            BodyError::Size,
         ),
-        (over.replace("\"low\"", "\"low\"]"), BodyError::Malformed),
+        (over.replace("\"low\"", "\"low\"]"), BodyError::Size),
         (
             over.replace("{\"tier\"", "{\"x\":0,\"tier\""),
-            BodyError::Key,
+            BodyError::Size,
         ),
         (
             with_messages(65).replace("\"tier\":\"low_cost_hosted\",", ""),
@@ -311,6 +311,22 @@ fn where_two_errors_fit_the_first_of_the_order_is_returned() {
     ];
     for (case, want) in &cases {
         assert_eq!(parse(case), Err(*want), "{}", &case[..case.len().min(120)]);
+    }
+}
+
+#[test]
+fn size_comes_first_and_needs_no_byte_past_the_limit() {
+    let base = LEAST.replace("low_cost_hosted", "x");
+    let fill = 1_048_576 - base.len() + 1;
+    let big = base.replace(
+        r#""content":"a""#,
+        &format!("\"content\":\"{}\"", "a".repeat(fill)),
+    );
+    assert_eq!(big.len(), 1_048_576);
+    assert_eq!(parse(&big), Err(BodyError::Size));
+    for byte in [b'x', b'{', 0xff] {
+        let bytes = vec![byte; MAX_BODY_BYTES + 1];
+        assert_eq!(Body::parse(&bytes), Err(BodyError::Size), "{byte}");
     }
 }
 

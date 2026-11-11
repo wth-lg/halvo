@@ -101,13 +101,20 @@ fn checks_the_limits_before_it_writes() {
     );
     assert_eq!(
         body(vec![message(Role::User, &over)], 0).to_bytes(),
-        Err(BodyError::Limit)
+        Err(BodyError::Size)
     );
+
     let escapes = "\u{1}".repeat((MAX_BODY_BYTES - frame) / 6 + 1);
     assert_eq!(
         body(vec![message(Role::User, &escapes)], 1).to_bytes(),
         Err(BodyError::Size)
     );
+}
+
+#[test]
+fn size_comes_first_in_to_bytes() {
+    let messages = vec![message(Role::User, &"a".repeat(2_100)); 65];
+    assert_eq!(body(messages, 1).to_bytes(), Err(BodyError::Size));
 }
 
 #[test]
