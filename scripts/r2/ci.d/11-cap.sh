@@ -28,11 +28,15 @@ judge_control() {
   fi
 }
 
-measure() {
+enter_repository() {
   if [ -z "${CI_D_REPO:-}" ] || ! cd "$CI_D_REPO"; then
     printf 'FAIL %s (cannot enter the repository that CI_D_REPO names)\n' "$name"
-    exit 1
+    return 1
   fi
+}
+
+measure() {
+  enter_repository || exit 1
   cargo test -p halvo-cap --locked
   cause=$(judge_test "$?")
   [ -z "$cause" ] || { printf 'FAIL %s (%s)\n' "$name" "$cause"; exit 1; }
@@ -53,6 +57,8 @@ check() {
   shift 2
   if [ "$1" = test ]; then
     cause=$(judge_test "$2")
+  elif [ "$1" = repository ]; then
+    cause=$(CI_D_REPO=$2 enter_repository 2>/dev/null)
   else
     cause=$(judge_control "$2" "$3")
   fi
@@ -68,6 +74,8 @@ check() {
 self_test() {
   rejected=0
   wrong=
+  check repository-entered PASS repository "$PWD"
+  check no-repository FAIL repository "$(mktemp -d)/missing"
   check tests-pass PASS test 0
   check tests-fail FAIL test 101
   check stopped-on-macos PASS control 0 "$head_macos${nl}control allocate_bytes=285212672 outcome=stopped stop_ms=212 peak_bytes=287309824${nl}checks control=ok"
