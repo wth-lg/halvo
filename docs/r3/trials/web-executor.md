@@ -12,7 +12,8 @@ the one before it missed.
 trial program with `cargo build --release --locked`, starts the fixture server of unit U0.1 on the
 port, and runs the nine steps of A13.2 in their order, 10 runs each, with no model. Before each run
 it resets the fixture to seed 1 with the variants of the step, and starts the browser headless on a
-new profile directory under a new mktemp directory. After the run it stops the browser. The steps
+new profile directory, one per run, inside the one scratch directory of the call: a new mktemp
+directory, or the directory that `--scratch` names. After the run it stops the browser. The steps
 read the fixture's state through the program's own HTTP client, which sends no `Origin` and no
 `Sec-Fetch-Site` header. `--help` states every argument.
 
@@ -52,8 +53,8 @@ read the fixture's state through the program's own HTTP client, which sends no `
 
 ## Start of the browser
 
-The `flag` lines in the block are the first flag set. The trial passes them, the resolver rule and
-nothing else of its own. chromiumoxide adds these flags itself: `--remote-debugging-port=0` (the
+The `flag` lines in the block are the first flag set. The trial passes them, the resolver rule and,
+on macOS, `--use-mock-keychain`, and nothing else of its own. chromiumoxide adds these flags itself: `--remote-debugging-port=0` (the
 browser picks the port; `--extras` names one for the attach check), `--user-data-dir`,
 `--headless=new`, `--hide-scrollbars`, `--mute-audio` and `--disable-extensions`. The trial turns
 off chromiumoxide's own list of 24 default flags (`disable_default_args`).
@@ -78,7 +79,8 @@ left the front app as it was (75 samples over 75 s, one app) and left no process
 ## Browsers
 
 Each run line holds the product and version that the browser reported over the protocol
-(`Browser.getVersion`). All 90 runs of each cell reported one version:
+(`Browser.getVersion`). All 90 runs of each machine and browser, 9 cells of 10 runs, reported one
+version:
 
 | machine | browser | version | `--browser` path |
 |---|---|---|---|
