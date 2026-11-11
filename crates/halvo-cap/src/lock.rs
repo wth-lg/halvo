@@ -17,8 +17,14 @@ use std::path::{Path, PathBuf};
 /// `ModelLock::make_inheritable` (macOS), and the process that it becomes holds the lock
 /// until it ends or releases it. On Windows nothing hands the lock on.
 ///
-/// The lock is free again when this value is dropped, so a loader binds it to a named
-/// variable and keeps it until it exits; a caller who drops it at once gets a warning.
+/// The lock is free again when the value that holds it is dropped, so a loader binds that
+/// value to a named variable and keeps it until it exits; a caller who drops it at once gets
+/// a warning.
+///
+/// On Windows the file is opened without delete sharing, so while it is held neither the
+/// file nor its directory can be renamed or removed. On macOS they can: a lock file or
+/// directory that another program moves away while the lock is held lets the next loader
+/// create a new file and take the lock.
 ///
 /// ```no_run
 /// fn load() -> Result<(), halvo_cap::LockError> {
@@ -185,8 +191,9 @@ fn lock_file_options() -> OpenOptions {
 /// `ModelLock::make_inheritable` (macOS), and the process that it becomes holds the lock
 /// until it ends or releases it. On Windows nothing hands the lock on.
 ///
-/// The lock is free again when the returned value is dropped, so a loader binds it to a
-/// named variable and keeps it until it exits.
+/// The lock is free again when the value that holds it is dropped, so a loader binds that
+/// value to a named variable and keeps it until it exits; a caller who drops it at once gets
+/// a warning.
 ///
 /// On Windows the file is opened without delete sharing, so while it is held neither the
 /// file nor its directory can be renamed or removed. On macOS they can: a lock file or

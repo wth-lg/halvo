@@ -14,7 +14,8 @@
 //! program that works against it passes it. `capped=no` says that no read was above the
 //! limit, and on Windows that no report of a refused allocation arrived; it never says that
 //! the program held no more than the limit. The reading is one quantity on each system, and
-//! the two lists below name, as a closed list, what that quantity does not count.
+//! the two lists below name, as a closed list, what that quantity does not count. A way that
+//! a gate tried and that the reading counts is not in the lists.
 //! docs/r2/trials/cap.md holds a `limit` line for each name on each machine of its system,
 //! which a run of the crate's probe, the example `hold`, printed.
 //!
@@ -42,8 +43,7 @@
 //!   Scheduler task is shown; WMI is not shown), which runs outside the Job.
 //!
 //! On macOS the cap ends a child at most one poll after the first read above the limit; it
-//! does not keep it under the limit. Between two polls the child may hold more than the
-//! limit for up to 250 ms before it is killed, and `peak_bytes` then shows how far it went.
+//! does not keep it under the limit, and `peak_bytes` then shows how far the child went.
 
 use std::ffi::OsString;
 use std::fmt;
