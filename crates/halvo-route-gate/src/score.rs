@@ -10,7 +10,7 @@ use halvo_route::policy::{cells, Basis, PickCell, Policy};
 use halvo_route::prices::{Micro, Prices};
 use halvo_route::tier::{CallKind, CategoryId, Tier};
 
-use crate::derive::{derive, tier_rows, Counts};
+use crate::derive::{counted_tiers, derive, tier_rows, Counts};
 use crate::generate::SplitMix64;
 use crate::routers::RANDOM_SEED;
 use crate::table::{Machine, Seed, Split, Table};
@@ -183,12 +183,6 @@ struct Tally {
     wall: u128,
 }
 
-impl Tally {
-    fn has_rows(&self) -> bool {
-        self.dev.n + self.held.n > 0
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 struct Sums {
     attempts: u128,
@@ -283,10 +277,11 @@ pub fn score(
     let picks: Vec<PickCell> = cells()
         .map(|(category, kind)| router.pick(category, kind))
         .collect();
+    let counted = counted_tiers(table, setup);
     let cell_lines: Vec<CellLine> = cells()
         .zip(&tallies)
-        .zip(&picks)
-        .map(|((cell, tally), pick)| cell_line(cell, tally, *pick, &derived))
+        .zip(picks.iter().zip(counted))
+        .map(|((cell, tally), (pick, counted))| cell_line(cell, tally, *pick, counted, &derived))
         .collect();
     let categories = category_lines(&cell_lines, setup);
     let model_cells: Vec<ModelCell> = cell_lines
@@ -339,6 +334,7 @@ fn cell_line(
     (category, kind): (CategoryId, CallKind),
     tallies: &[Tally; 3],
     pick: PickCell,
+    counted: Option<Tier>,
     derived: &Policy,
 ) -> CellLine {
     let basis = derived.row(category, kind).basis;
@@ -368,9 +364,9 @@ fn cell_line(
             line.wall_s = clamp(tally.wall);
         }
         PickCell::HandBack => {
-            if let Some(tally) = tallies.iter().find(|tally| tally.has_rows()) {
-                line.dev = tally.dev;
-                line.held = tally.held;
+            if let Some(tier) = counted {
+                line.dev = tallies[tier as usize].dev;
+                line.held = tallies[tier as usize].held;
             }
         }
         PickCell::None => {}

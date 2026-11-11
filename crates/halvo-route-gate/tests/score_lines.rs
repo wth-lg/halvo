@@ -349,3 +349,47 @@ fn cells_with_development_rows_alone_count_in_no_comparison() {
         "category id=email compile=on_device recover=on_device write=low_cost_hosted line=missed cost_micro=37600"
     );
 }
+
+#[test]
+fn a_cell_handed_back_shows_the_counts_of_the_tier_that_the_derivation_wrote() {
+    let mut rows = hand_table().rows().to_vec();
+    let recover = [
+        (OnDevice, Three, GenA, true),
+        (OnDevice, Three, GenB, true),
+        (LowCostHosted, One, GenA, false),
+        (LowCostHosted, One, GenB, true),
+        (LowCostHosted, Two, GenA, true),
+        (LowCostHosted, Two, GenB, true),
+        (LowCostHosted, Three, GenA, true),
+        (LowCostHosted, Three, GenB, false),
+        (Tier::Frontier, One, GenA, true),
+        (Tier::Frontier, One, GenB, true),
+        (Tier::Frontier, Three, GenA, true),
+        (Tier::Frontier, Three, GenB, true),
+    ];
+    for (tier, seed, machine, pass) in recover {
+        rows.push(row(CallKind::Recover, tier, seed, machine, pass, 1, 50));
+    }
+    for machine in [GenA, GenB] {
+        let mut shop = row(Write, OnDevice, Three, machine, true, 1, 50);
+        shop.category = CategoryId::ShopOrder;
+        rows.push(shop);
+    }
+    rows.sort_by_cached_key(Row::to_line);
+    let table = Table::from_rows(&rows).expect("a table");
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        line(&lines, "cell category=email kind=recover "),
+        "cell category=email kind=recover pick=hand_back basis=line_missed dev_k=3 dev_n=4 held_k=1 held_n=2 lower_pct=0 cost_micro=0 wall_s=0"
+    );
+    assert_eq!(
+        line(&lines, "cell category=shop_order kind=write "),
+        "cell category=shop_order kind=write pick=hand_back basis=untested dev_k=0 dev_n=0 held_k=0 held_n=0 lower_pct=0 cost_micro=0 wall_s=0"
+    );
+    assert_eq!(
+        line(&lines_of(&Handpicked, 1_000), "cell category=email kind=compile "),
+        "cell category=email kind=compile pick=hand_back basis=line_met dev_k=4 dev_n=4 held_k=2 held_n=2 lower_pct=0 cost_micro=0 wall_s=0"
+    );
+}
