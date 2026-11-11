@@ -6,7 +6,7 @@ use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
 use crate::category::SeedCategory;
-use crate::ids::{AgentId, WorkflowId};
+use crate::ids::{AgentId, RequestId, WorkflowId};
 use crate::record::Instant;
 
 /// The cause of a refusal of this run's parsers: `malformed`, an input that is not the form of its contract, or
@@ -299,6 +299,11 @@ pub(in crate::executable) fn agent_id(raw: &RawValue) -> Result<AgentId, Refusal
 pub(in crate::executable) fn workflow_id(raw: &RawValue) -> Result<WorkflowId, Refusal> {
     WorkflowId::parse(&string("WorkflowId", raw)?)
         .map_err(|e| Refusal::malformed("WorkflowId", e.rule()))
+}
+
+pub(in crate::executable) fn request_id(raw: &RawValue) -> Result<RequestId, Refusal> {
+    RequestId::parse(&string("RequestId", raw)?)
+        .map_err(|e| Refusal::malformed("RequestId", e.rule()))
 }
 
 pub(in crate::executable) fn seed_category(raw: &RawValue) -> Result<SeedCategory, Refusal> {
