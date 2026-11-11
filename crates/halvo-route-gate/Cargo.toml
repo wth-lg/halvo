@@ -1,0 +1,13 @@
+[package]
+name = "halvo-route-gate"
+version = "0.0.0"
+description = "Halvo routing gate tool: outcome tables, the derivation, the scorer and the self-test"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-route = { path = "../halvo-route" }
+
+[[bin]]
+name = "route-gate"
+path = "src/main.rs"
