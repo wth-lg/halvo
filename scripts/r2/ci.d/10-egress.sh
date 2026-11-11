@@ -46,8 +46,16 @@ decide() {
     control:0) printf '%s\n' 'control exited 0: the self-test passes without its deny rule' ;;
     control:2) printf 'control refused (%s)\n' "$cause" ;;
     tests:0)
+      empty=$(printf '%s\n' "$3" | grep -c '^part [a-z-]* ran=0$')
+      parts=$(printf '%s\n' "$3" | grep -c '^part [a-z-]* ran=[0-9]*$')
       case $3 in
-        *"tests passed="*" failed=0") printf '%s\n' pass ;;
+        *"tests passed="*" failed=0")
+          if [ "$parts" -eq 0 ] || [ "$empty" -ne 0 ]; then
+            printf 'a part of the tests ran no test (%s of %s parts)\n' "$empty" "$parts"
+          else
+            printf '%s\n' pass
+          fi
+          ;;
         *) printf '%s\n' 'tests exited 0 without failed=0' ;;
       esac
       ;;
@@ -144,7 +152,11 @@ checks probes=miss quiet=ok loopback=miss default=ok' pass
   fixture control-refused control 2 'REFUSED usage: --control-no-deny runs on a hosted runner only' fail
   fixture control-exit-3 control 3 '' fail
   fixture tests-pass tests 0 'ok sandbox/quiet
+part sandbox ran=1
 tests passed=40 failed=0' pass
+  fixture tests-part-ran-nothing tests 0 'part probe ran=15
+part sandbox ran=0
+tests passed=15 failed=0' fail
   fixture tests-fail tests 1 'not ok sandbox/quiet: want 0 0 0, got 1 0 1
 tests passed=39 failed=1' fail
   fixture tests-exit-0-with-a-failure tests 0 'tests passed=39 failed=1' fail

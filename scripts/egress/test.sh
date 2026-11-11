@@ -157,6 +157,11 @@ b.txt"
 b.txt" -- true
   cp scripts/egress/lists/empty.txt "$work/a	b.txt"
   expect_refusal args/list-path-with-a-tab usage sh scripts/egress/check.sh "$work/a	b.txt" -- true
+  for byte in 001 037; do
+    odd=$(printf "a\\${byte}b.txt")
+    cp scripts/egress/lists/empty.txt "$work/$odd"
+    expect_refusal "args/list-path-with-byte-$byte" usage sh scripts/egress/check.sh "$work/$odd" -- true
+  done
   (cd "$work" && expect_refusal args/outside-a-repository no-repository sh "$root/scripts/egress/check.sh" "$root/scripts/egress/lists/empty.txt" -- true)
   expect_refusal lists/committed-empty mode sh scripts/egress/check.sh --mode "$mode" scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh none
   expect_refusal lists/committed-loopback mode sh scripts/egress/check.sh --mode "$mode" scripts/egress/lists/loopback.txt -- sh scripts/egress/probe.sh none
@@ -387,6 +392,7 @@ TREE
   awk -v token=tok -v mark=start -v runner=x -v starts=2 -f scripts/egress/sandbox.awk "$work/kernel-start.ndjson" >/dev/null 2>&1
   result sandbox/start-marker-of-another-process-not-taken 1 "$?"
   kernel='"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox"'
+  kernel_fields=$kernel
   printf '%s\n' "{$kernel,\"eventMessage\":\"Sandbox: x(1) deny(1) network-outbound remote:*:47202\\ntok mark-start\",\"timestamp\":\"2026-11-11 03:06:50.956934-0800\"}" \
     "{$kernel,\"eventMessage\":\"a record of another form tok\",\"timestamp\":\"2026-11-11 03:06:51.956934-0800\"}" >"$work/unreadable.ndjson"
   got=$(awk -v token=tok -v runner=x -v starts=1 -v ends=1 -f scripts/egress/sandbox.awk "$work/unreadable.ndjson" | grep -c 'proto=- dest=- pid=- image=-')
@@ -405,8 +411,31 @@ nl='
 sleep 1
 sh scripts/egress/probe.sh loopback
 TREE
+  run_check sandbox/resolver-service-line sh scripts/egress/check.sh "$e" -- sh "$pr" resolver
+  if [ -f "$log" ] && grep -q ' proto=dns dest=resolver ' "$log" && ! grep -q ' proto=- dest=- ' "$log"; then
+    result sandbox/resolver-service-line yes yes
+  else
+    result sandbox/resolver-service-line "a proto=dns line and no proto=- dest=- line" "$(tr '\n' ';' <"$log" 2>/dev/null)"
+  fi
+  printf '%s\n' "{$kernel_fields,\"eventMessage\":\"Sandbox: x(1) deny(1) network-outbound remote:*:47202\\ntok mark-start\",\"timestamp\":\"2026-11-11 03:06:50.956934-0800\"}" \
+    '{"processImagePath":"/kernel","senderImagePath":"/usr/bin/logger","eventMessage":"Sandbox: y(5) deny(1) network-outbound remote:*:443\ntok tcp4 any","timestamp":"2026-11-11 03:06:51.956934-0800"}' \
+    '{"processImagePath":"/usr/bin/logger","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox","eventMessage":"Sandbox: y(6) deny(1) network-outbound remote:*:443\ntok tcp4 any","timestamp":"2026-11-11 03:06:51.956934-0800"}' >"$work/one-field.ndjson"
+  got=$(awk -v token=tok -v runner=x -v starts=1 -v ends=1 -f scripts/egress/sandbox.awk "$work/one-field.ndjson" | grep -c '')
+  result sandbox/only-kernel-sandbox-records 0 "$got"
   run_check sandbox/end-marker-in-a-file-name sh scripts/egress/check.sh "$e" -- sh "$work/forge-name.sh"
   logged sandbox/end-marker-in-a-file-name "1 1"
+  (cd "$copy" && sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh -c ': >"$1"; sleep 4' sh "$work/moved-started" >"$work/moved.out" 2>"$work/moved.err") &
+  moved_check=$!
+  n=0
+  while [ ! -f "$work/moved-started" ] && [ $n -lt 300 ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  mv "$copy/scripts/egress" "$copy/scripts/egress-moved"
+  cp -R "$copy/scripts/egress-moved" "$copy/scripts/egress"
+  wait "$moved_check"
+  code=$?
+  result sandbox/directory-moved-during-run 'exit-2:REFUSED mode: a directory of the check was moved during the run' "exit-$code:$(tail -n 1 "$work/moved.err")"
   first_log=$log
   expect_run sandbox/second-run 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   if [ "$first_log" != "$log" ]; then
@@ -532,6 +561,7 @@ ps_run() {
 
 [ $# -gt 0 ] || set -- probe lists
 for part in "$@"; do
+  before=$((passed + failed))
   case $part in
     probe) test_probe ;;
     lists) test_lists ;;
@@ -543,6 +573,7 @@ for part in "$@"; do
       exit 1
       ;;
   esac
+  printf 'part %s ran=%s\n' "$part" "$((passed + failed - before))"
 done
 printf 'tests passed=%s failed=%s\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]
