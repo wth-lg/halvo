@@ -1,19 +1,11 @@
 use r2_probes::frame::Frame;
-use r2_probes::text::{distance, error_rate, fold, join_pieces, median};
+use r2_probes::text::{distance, error_rate, fold, median};
 use r2_probes::tree::{walk, Tree};
 
 #[test]
 fn fold_drops_the_ends_and_folds_runs_of_white_space() {
     assert_eq!(fold("  a \t b\r\n c  "), "a b c");
     assert_eq!(fold(" \n "), "");
-}
-
-#[test]
-fn pieces_are_joined_by_one_space() {
-    assert_eq!(
-        join_pieces(&["a  b".to_string(), " c".to_string()]),
-        "a b c"
-    );
 }
 
 #[test]

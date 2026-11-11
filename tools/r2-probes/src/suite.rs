@@ -1,7 +1,7 @@
 use crate::frame::Frame;
 use crate::pages::{self, Server};
 use crate::sys::{self, Browser};
-use crate::text::{error_rate, join_pieces};
+use crate::text::error_rate;
 use crate::trial::{append, How, Record};
 use serde_json::{json, Value};
 use std::cell::Cell;
@@ -1178,7 +1178,7 @@ pub fn extraction(
     first_ms: f64,
     size: (usize, usize),
 ) -> Record {
-    let text = join_pieces(pieces);
+    let text = pieces.join(" ");
     let mut record = Record::new("", 0)
         .number("call_ms", How::Median, elapsed_ms.max(cpu_ms))
         .number("elapsed_ms", How::Median, elapsed_ms)
@@ -1192,7 +1192,7 @@ pub fn extraction(
         }
     }
     record
-        .number("stored_bytes", How::Max, pieces.join(" ").len() as f64)
+        .number("stored_bytes", How::Max, text.len() as f64)
         .number(
             "peak_footprint_bytes",
             How::Max,

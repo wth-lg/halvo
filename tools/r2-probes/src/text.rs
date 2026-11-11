@@ -2,10 +2,6 @@ pub fn fold(text: &str) -> String {
     text.split_whitespace().collect::<Vec<&str>>().join(" ")
 }
 
-pub fn join_pieces(pieces: &[String]) -> String {
-    fold(&pieces.join(" "))
-}
-
 pub fn distance(a: &[char], b: &[char]) -> usize {
     let mut previous: Vec<usize> = (0..=b.len()).collect();
     let mut current = vec![0; b.len() + 1];

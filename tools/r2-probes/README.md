@@ -45,7 +45,8 @@ profile, so no other cell has touched the process that it reads.
   holds its first rows and its cells have no error rate. Downscale 0.5 averages blocks of 2 by 2 pixels. The error
   rate is the Levenshtein distance between the engine's pieces, joined by one space, and the
   text of the page body, both with white space folded, over the length of the page text, in
-  Unicode scalar values. `stored_bytes` is the UTF-8 length of the joined pieces.
+  Unicode scalar values. `stored_bytes` is the UTF-8 length of the joined pieces, and the
+  record saves that text as it is, with no white space folded.
 - `engine.RUNNER.ENGINE.xSCALE`: the runs of the three text pages together. The verdict lines
   read these cells at downscale 1.0. A cell whose name ends in `.this-mac` holds the second
   timing of the same engine on the saved frames, on a machine that is no hosted VM.
