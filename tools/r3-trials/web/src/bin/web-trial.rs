@@ -396,10 +396,10 @@ mod driver {
     }
 
     fn payments(ctx: &Ctx) -> Res<Vec<serde_json::Value>> {
-        Ok(state(ctx)?["utility"]["payments"]
+        state(ctx)?["utility"]["payments"]
             .as_array()
             .cloned()
-            .unwrap_or_default())
+            .ok_or_else(|| Fault::new("check", "state_key"))
     }
 
     fn paid_once_more(ctx: &Ctx, before: usize, instrument: &str) -> Res<()> {
