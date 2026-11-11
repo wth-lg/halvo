@@ -886,6 +886,7 @@ fn a_workflow_that_is_gone_while_its_start_waits_loses_the_start_at_the_tick() {
     let tick = w.tick();
     assert!(w.board.queue.is_empty());
     assert_eq!(tick.stopped, Vec::<RunId>::new());
+    assert_eq!(tick.dropped, vec![agent(1)]);
     assert!(
         !w.calls().iter().any(|c| c.starts_with("log")),
         "nothing is stored for the dropped start: {:?}",
@@ -899,7 +900,8 @@ fn a_tick_drops_the_ready_item_of_a_workflow_that_is_gone_and_stores_nothing() {
     assert_eq!(w.tick().raised, vec![agent(0)]);
     w.delete(0);
     w.forget();
-    w.tick();
+    let tick = w.tick();
+    assert_eq!(tick.dropped, vec![agent(0)]);
     assert!(matches!(w.facts(0).doing, Doing::Idle(None)));
     assert_eq!(w.calls(), Vec::<String>::new());
 }

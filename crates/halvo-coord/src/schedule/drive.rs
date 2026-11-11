@@ -104,6 +104,9 @@ pub struct Report {
     pub started: Vec<Served>,
     /// For a creation, the agents that it created.
     pub created: Vec<AgentId>,
+    /// For a tick, the agents of the workflows that are gone whose queued start or open item it
+    /// dropped.
+    pub dropped: Vec<AgentId>,
 }
 
 impl Default for Report {
@@ -117,6 +120,7 @@ impl Default for Report {
             raised: Vec::new(),
             started: Vec::new(),
             created: Vec::new(),
+            dropped: Vec::new(),
         }
     }
 }
@@ -503,6 +507,7 @@ where
             stop.cause = RunEnd::Deleted;
         }
     }
+    report.dropped.clone_from(&plan.dropped);
     for agent in &plan.dropped {
         board.queue.remove(agent);
         if let Some(i) = board.index(agent) {
