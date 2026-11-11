@@ -272,10 +272,13 @@ stub_trial() {
 #!/bin/sh
 trial=$(basename "$(dirname "$0")")
 refuse() {
-  [ "${STUB_REFUSAL_STDOUT:-}" != "$trial" ] || printf 'a line on standard output\n'
+  [ "${STUB_REFUSAL_STDOUT:-}" != "$trial" ] || [ "$1" = output ] || printf 'a line on standard output\n'
   [ "${STUB_REFUSAL_TARGET:-}" != "$trial" ] || mkdir -p "$(dirname "$0")/../../../target"
-  printf 'REFUSED %s: %s\n' "$1" "stub" >&2
+  cause=$1
+  [ "${STUB_REFUSAL_CAUSE:-}" != "$trial" ] || cause=input
+  printf 'REFUSED %s: %s\n' "$cause" "stub" >&2
   [ "${STUB_REFUSAL_TWO_LINES:-}" != "$trial" ] || printf 'a second line\n' >&2
+  [ "${STUB_REFUSAL_PARTIAL:-}" != "$trial" ] || printf 'a part of a line' >&2
   exit "${STUB_REFUSAL_EXIT:-2}"
 }
 if ! true 2>/dev/null 3>&1; then
@@ -293,9 +296,14 @@ case $# in
       exit 1
     fi
     printf 'block %s\nverdict %s=ok\n' "$trial" "$trial"
+    [ "${STUB_STAT_EXIT:-}" = "" ] || [ "$trial" != stat ] || exit "$STUB_STAT_EXIT"
     exit "${STUB_RUN_EXIT:-0}"
     ;;
+  1)
+    [ "${STUB_ARGUMENT_TAKEN:-}" = "$trial" ] && [ "$1" = --no-such-argument ] && exit 0
+    ;;
   2)
+    [ "${STUB_HELP_EXTRA_TAKEN:-}" = "$trial" ] && [ "$1" = --help ] && exit 0
     if [ "$trial" = routine ] && [ "$1" = --sample ]; then
       [ -z "${STUB_SAMPLE_EXIT:-}" ] || exit "$STUB_SAMPLE_EXIT"
       printf '{"cell":"7-0-0"}\n' >"$2"
@@ -318,8 +326,12 @@ case $* in
     exit "${STUB_CARGO_EXIT:-0}"
     ;;
   'metadata --no-deps --format-version 1 --locked --manifest-path tools/r5-trials/Cargo.toml')
-    printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
-    exit 0
+    if [ "${STUB_NO_MEMBERS:-}" = yes ]; then
+      printf '{"packages":[],"workspace_members":[],"resolve":null}\n'
+    else
+      printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
+    fi
+    exit "${STUB_METADATA_EXIT:-0}"
     ;;
   "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir target/r5-trials -- --emit=mir=$(pwd -W 2>/dev/null || pwd -P)/target/r5-trials/overflow-$7.mir")
     mkdir -p target/r5-trials || exit 92
@@ -328,7 +340,7 @@ case $* in
     else
       printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
     fi
-    exit 0
+    exit "${STUB_RUSTC_EXIT:-0}"
     ;;
 esac
 printf 'stub cargo: got the arguments: %s\n' "$*"
@@ -488,6 +500,64 @@ self_test() {
   printf 'a file\n' >"$work/not-a-directory"
   check temporary-directory-cannot-be-made FAIL-refusal 'FAIL 40-r5-trials (refusal)' TMPDIR="$work/not-a-directory"
 
+  fixture refusal-names-another-cause
+  check refusal-names-another-cause FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_REFUSAL_CAUSE=stat
+
+  fixture refusal-with-a-part-of-a-second-line
+  check refusal-with-a-part-of-a-second-line FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_REFUSAL_PARTIAL=routine
+
+  fixture trial-takes-the-unknown-argument
+  check trial-takes-the-unknown-argument FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_ARGUMENT_TAKEN=stat
+
+  fixture trial-takes-help-and-a-word
+  check trial-takes-help-and-a-word FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_HELP_EXTRA_TAKEN=drift
+
+  fixture refusal-and-test-both-miss
+  check refusal-and-test-both-miss FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_REFUSAL_EXIT=1 STUB_CARGO_EXIT=101
+
+  fixture test-and-run-both-miss
+  check test-and-run-both-miss FAIL-test 'FAIL 40-r5-trials (test)' STUB_CARGO_EXIT=101 STUB_RUN_REFUSES=drift
+
+  fixture stat-exits-3
+  check stat-exits-3 FAIL-run 'FAIL 40-r5-trials (run)' STUB_STAT_EXIT=3
+
+  fixture result-block-with-a-trailing-empty-line
+  printf 'date 2026-11-11\nmachine mac\n\n%s\nblock drift\nverdict drift=ok\n\n%s\n' "$fence" "$fence" >"$work/result-block-with-a-trailing-empty-line/docs/r5/trials/admission.md"
+  check result-block-with-a-trailing-empty-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-with-another-machine
+  result_text drift | sed '2s/mac/laptop/' >"$work/result-with-another-machine/docs/r5/trials/admission.md"
+  check result-with-another-machine FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-without-the-empty-line
+  result_text drift | sed '3d' >"$work/result-without-the-empty-line/docs/r5/trials/admission.md"
+  check result-without-the-empty-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-opened-by-an-info-string-fence
+  printf 'date 2026-11-11\nmachine mac\n\n%stext\nblock drift\nverdict drift=ok\n%s\n' "$fence" "$fence" >"$work/result-opened-by-an-info-string-fence/docs/r5/trials/admission.md"
+  check result-opened-by-an-info-string-fence FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-with-text-after-the-block
+  { result_text drift; printf 'a note\n'; } >"$work/result-with-text-after-the-block/docs/r5/trials/admission.md"
+  check result-with-text-after-the-block FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-without-its-final-line-feed
+  result_text drift | awk '{ printf "%s%s", sep, $0; sep = "\n" }' >"$work/result-without-its-final-line-feed/docs/r5/trials/admission.md"
+  check result-without-its-final-line-feed FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture profile-line-in-a-literal-multi-line-string
+  printf "[workspace]\nmembers = [\n    \"stat\",\n]\n\n[workspace.metadata]\nnote = '''\n[profile.release]\noverflow-checks = true\n'''\n" >"$work/profile-line-in-a-literal-multi-line-string/tools/r5-trials/Cargo.toml"
+  check profile-line-in-a-literal-multi-line-string FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture no-member-in-the-workspace
+  check no-member-in-the-workspace FAIL-test 'FAIL 40-r5-trials (test)' STUB_NO_MEMBERS=yes
+
+  fixture metadata-fails-after-its-output
+  check metadata-fails-after-its-output FAIL-test 'FAIL 40-r5-trials (test)' STUB_METADATA_EXIT=101
+
+  fixture member-build-fails-after-its-output
+  check member-build-fails-after-its-output FAIL-test 'FAIL 40-r5-trials (test)' STUB_RUSTC_EXIT=101
+
   fixture trial-refuses-its-run
   check trial-refuses-its-run FAIL-run 'FAIL 40-r5-trials (run)' STUB_RUN_REFUSES=drift
 
@@ -533,6 +603,8 @@ self_test() {
   check sample-absent-and-not-run PASS 'trials routine=same stat=same admission=same sample=absent' STUB_SAMPLE_EXIT=2
 
   fixture trial-directory-absent
+  mkdir -p "$work/artifacts-trial-directory-absent" || broken
+  printf 'block drift\nverdict drift=ok\n' >"$work/artifacts-trial-directory-absent/drift.out"
   mv "$work/trial-directory-absent/tools/r5-trials/drift" "$work/trial-directory-absent/drift.moved" || broken
   check trial-directory-absent FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 

@@ -60,7 +60,7 @@ list_digest() {
   set --
   while IFS= read -r path; do
     case $path in
-      '' | \"*) return 1 ;;
+      '') return 1 ;;
     esac
     [ -f "$path" ] || return 1
     set -- "$@" "$path"
@@ -262,7 +262,7 @@ match_layout() {
       if (("/" $2 "/") ~ /\/\.\.?\//) bad("a dot component")
       under = 0
       for (i = 1; i <= nr; i++)
-        if (index($2, root[i]) == 1 && length($2) > length(root[i])) under = 1
+        if (index($2, root[i]) == 1) under = 1
       if (!under) bad("a pattern under no root")
       np++
       unit[np] = $1
@@ -275,15 +275,11 @@ match_layout() {
       while ((getline f < tracked) > 0) {
         probe = plain(f)
         found = 0
-        own = 0
-        for (i = 1; i <= nr; i++) {
-          if (index(tolower(probe), tolower(root[i])) == 1) found = 1
-          if (index(probe, root[i]) == 1) own = 1
-        }
+        for (i = 1; i <= nr; i++) if (index(tolower(probe), tolower(root[i])) == 1) found = 1
         if (!found) continue
         files++
         hit = 0
-        if (own) for (j = 1; j <= np; j++) if (probe ~ re[j]) { hit = 1; used[j] = 1 }
+        for (j = 1; j <= np; j++) if (probe ~ re[j]) { hit = 1; used[j] = 1 }
         if (!hit) { out++; print f > outside }
       }
       for (j = 1; j <= np; j++) {
@@ -384,6 +380,7 @@ d_cases=f3231acf0f9b901c1a6f53b198cc129b7603562a0877af227ea7d40e52a45a39
 d_stat=512d4eb2d649dbad496c0771d6afa521cd8b551d429dfeb8d82fbd46da653bea
 d_drift=70f7662612bb4c9f2776179a4f8dd019ff1389873aa1af4bedc6824a817bd474
 d_crates=02f94b0a4459fffc17c91782e0e4f79ff6cc18d459add74ff41ce3f1da4f9f37
+d_crates_store=fcb99729441633423e9989dece60f00cb05ff497f6ed7381e001eec453d48065
 d_tree=09784fa0279a0512247c46f7747fe60f2bed374e
 
 commit_all() {
@@ -563,7 +560,9 @@ layout unmatched=1" --all
   check layout-pattern-under-no-root FAIL-layout 'FAIL 10-r5-layout (layout)'
 
   fixture layout-root-after-pattern
-  printf 'root\tcrates/halvo-learn/\n' >>"$work/layout-root-after-pattern/scripts/r5/layout.txt"
+  awk '$0 != "root\tcrates/halvo-learn-gate/"' "$work/layout-root-after-pattern/scripts/r5/layout.txt" >"$work/layout-root-after-pattern.txt" || broken
+  printf 'root\tcrates/halvo-learn-gate/\n' >>"$work/layout-root-after-pattern.txt"
+  cp "$work/layout-root-after-pattern.txt" "$work/layout-root-after-pattern/scripts/r5/layout.txt" || broken
   check layout-root-after-pattern FAIL-layout 'FAIL 10-r5-layout (layout)'
 
   fixture layout-tenth-root
@@ -575,8 +574,10 @@ layout unmatched=1" --all
   printf 'U6.1\ttools/r5-trials/driver/**\n' >>"$work/quoted-name-under-a-double-star/scripts/r5/layout.txt"
   mkdir -p "$work/quoted-name-under-a-double-star/tools/r5-trials/driver" || broken
   printf 'x\n' >"$work/quoted-name-under-a-double-star/tools/r5-trials/driver/$(printf 'caf\303\251').txt"
+  mkdir -p "$work/quoted-name-under-a-double-star/tools/r5-trials/driver/sub" || broken
+  printf 'x\n' >"$work/quoted-name-under-a-double-star/tools/r5-trials/driver/sub/x.txt"
   git -C "$work/quoted-name-under-a-double-star" add -A || broken
-  check quoted-name-under-a-double-star PASS 'layout roots=9 patterns=10 files=9 outside=0 targets=ok'
+  check quoted-name-under-a-double-star PASS 'layout roots=9 patterns=10 files=10 outside=0 targets=ok'
 
   fixture quoted-name-under-no-pattern
   printf 'x\n' >"$work/quoted-name-under-no-pattern/docs/r5/$(printf 'caf\303\251').md"
@@ -609,6 +610,150 @@ layout unmatched=1" --all
   git -C "$work/stray-path-with-a-backslash-in-the-artifacts-path" add docs/r5/stray.txt || broken
   artifacts=$work/back\\slash
   check stray-path-with-a-backslash-in-the-artifacts-path FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
+
+  fixture freeze-without-its-final-line-feed
+  freeze_text "$d_targets" | awk '{ printf "%s%s", sep, $0; sep = "\n" }' >"$work/freeze-without-its-final-line-feed/docs/r5/freeze.toml"
+  check freeze-without-its-final-line-feed FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-table-short-before-the-next
+  printf '[targets]\ntargets = "%s"\ncases = "%s"\nstat = "%s"\ndrift = "%s"\n[learner]\ncrates = "%s"\n' "$d_targets" "$d_cases" "$d_stat" "$d_drift" "$d_crates" >"$work/freeze-table-short-before-the-next/docs/r5/freeze.toml"
+  check freeze-table-short-before-the-next FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-learner-before-targets
+  { printf '[learner]\ncrates = "%s"\n' "$d_crates"; freeze_text "$d_targets"; } >"$work/freeze-learner-before-targets/docs/r5/freeze.toml"
+  check freeze-learner-before-targets FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-key-renamed
+  freeze_text "$d_targets" | sed 's/^targets = /tergets = /' >"$work/freeze-key-renamed/docs/r5/freeze.toml"
+  check freeze-key-renamed FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-value-with-a-byte-after-the-quote
+  freeze_text "$d_targets" | sed '2s/$/x/' >"$work/freeze-value-with-a-byte-after-the-quote/docs/r5/freeze.toml"
+  check freeze-value-with-a-byte-after-the-quote FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-value-in-upper-case
+  freeze_text "$d_targets" | sed '2s/f/F/' >"$work/freeze-value-in-upper-case/docs/r5/freeze.toml"
+  check freeze-value-in-upper-case FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-key-missing-at-the-end
+  freeze_text "$d_targets" | sed '$d' >"$work/freeze-key-missing-at-the-end/docs/r5/freeze.toml"
+  check freeze-key-missing-at-the-end FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture freeze-with-a-sixth-key
+  { freeze_text "$d_targets"; printf 'extra = "%s"\n' "$archive"; } >"$work/freeze-with-a-sixth-key/docs/r5/freeze.toml"
+  check freeze-with-a-sixth-key FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture layout-line-with-three-fields
+  printf 'U1.1\tdocs/r5/x.md\textra\n' >>"$work/layout-line-with-three-fields/scripts/r5/layout.txt"
+  check layout-line-with-three-fields FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-repeated-line
+  printf 'U9.1\tdocs/r5/gate.md\n' >>"$work/layout-repeated-line/scripts/r5/layout.txt"
+  check layout-repeated-line FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-root-not-of-l13
+  awk '$0 == "root\tcrates/halvo-learn-gate/" { print "root\tdocs/r6/"; next } { print }' "$work/layout-root-not-of-l13/scripts/r5/layout.txt" >"$work/layout-root-not-of-l13.txt" || broken
+  cp "$work/layout-root-not-of-l13.txt" "$work/layout-root-not-of-l13/scripts/r5/layout.txt" || broken
+  check layout-root-not-of-l13 FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-eight-roots
+  awk '$0 != "root\tcrates/halvo-learn-gate/"' "$work/layout-eight-roots/scripts/r5/layout.txt" >"$work/layout-eight-roots.txt" || broken
+  cp "$work/layout-eight-roots.txt" "$work/layout-eight-roots/scripts/r5/layout.txt" || broken
+  check layout-eight-roots FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-first-field-not-a-unit
+  printf 'X1.1\tdocs/r5/x.md\n' >>"$work/layout-first-field-not-a-unit/scripts/r5/layout.txt"
+  check layout-first-field-not-a-unit FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-pattern-with-a-space
+  printf 'U1.1\tdocs/r5/a b.md\n' >>"$work/layout-pattern-with-a-space/scripts/r5/layout.txt"
+  check layout-pattern-with-a-space FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-three-stars
+  printf 'U1.1\tdocs/r5/***\n' >>"$work/layout-three-stars/scripts/r5/layout.txt"
+  check layout-three-stars FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-dot-component
+  printf 'U1.1\tdocs/r5/../x.md\n' >>"$work/layout-dot-component/scripts/r5/layout.txt"
+  check layout-dot-component FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-without-its-final-line-feed
+  awk '{ printf "%s%s", sep, $0; sep = "\n" }' "$work/layout-without-its-final-line-feed/scripts/r5/layout.txt" >"$work/layout-without-its-final-line-feed.txt" || broken
+  cp "$work/layout-without-its-final-line-feed.txt" "$work/layout-without-its-final-line-feed/scripts/r5/layout.txt" || broken
+  check layout-without-its-final-line-feed FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture stray-that-an-unescaped-dot-would-match
+  printf 'stray\n' >"$work/stray-that-an-unescaped-dot-would-match/docs/r5/targetsXtoml"
+  git -C "$work/stray-that-an-unescaped-dot-would-match" add docs/r5/targetsXtoml || broken
+  check stray-that-an-unescaped-dot-would-match FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
+
+  fixture stray-that-starts-like-a-pattern
+  printf 'stray\n' >"$work/stray-that-starts-like-a-pattern/docs/r5/targets.toml.bak"
+  git -C "$work/stray-that-starts-like-a-pattern" add docs/r5/targets.toml.bak || broken
+  check stray-that-starts-like-a-pattern FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
+
+  fixture quoted-name-beside-a-plain-pattern
+  printf 'U9.9\tdocs/r5/caf.md\n' >>"$work/quoted-name-beside-a-plain-pattern/scripts/r5/layout.txt"
+  printf 'x\n' >"$work/quoted-name-beside-a-plain-pattern/docs/r5/$(printf 'caf\303\251').md"
+  git -C "$work/quoted-name-beside-a-plain-pattern" add -A || broken
+  check quoted-name-beside-a-plain-pattern FAIL-outside 'files=9 outside=1 targets=ok'
+
+  fixture quoted-name-in-a-frozen-set
+  printf 'x\n' >"$work/quoted-name-in-a-frozen-set/tools/r5-trials/stat/$(printf 'caf\303\251').txt"
+  git -C "$work/quoted-name-in-a-frozen-set" add -A || broken
+  check quoted-name-in-a-frozen-set FAIL-targets 'files=9 outside=0 targets=miss learner=none harness=same'
+
+  fixture learner-same-with-the-store-crate
+  mkdir -p "$work/learner-same-with-the-store-crate/crates/halvo-learn/src" "$work/learner-same-with-the-store-crate/crates/halvo-learn-store/src" || broken
+  printf 'pub fn f() {}\n' >"$work/learner-same-with-the-store-crate/crates/halvo-learn/src/lib.rs"
+  printf 'pub fn s() {}\n' >"$work/learner-same-with-the-store-crate/crates/halvo-learn-store/src/lib.rs"
+  printf '[learner]\ncrates = "%s"\n' "$d_crates_store" >>"$work/learner-same-with-the-store-crate/docs/r5/freeze.toml"
+  printf 'U1.2\tcrates/halvo-learn/**\nU2.1\tcrates/halvo-learn-store/**\n' >>"$work/learner-same-with-the-store-crate/scripts/r5/layout.txt"
+  commit_all "$work/learner-same-with-the-store-crate"
+  check learner-same-with-the-store-crate PASS 'layout roots=9 patterns=11 files=10 outside=0 targets=ok learner=ok harness=same'
+
+  fixture cases-file-one-byte
+  printf '# cases!\n' >"$work/cases-file-one-byte/docs/r5/cases.md"
+  check cases-file-one-byte FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture file-beside-the-stat-directory
+  printf 'x\n' >"$work/file-beside-the-stat-directory/tools/r5-trials/stat-extra.txt"
+  printf 'U9.9\ttools/r5-trials/stat-extra.txt\n' >>"$work/file-beside-the-stat-directory/scripts/r5/layout.txt"
+  git -C "$work/file-beside-the-stat-directory" add -A || broken
+  check file-beside-the-stat-directory PASS 'layout roots=9 patterns=10 files=9 outside=0 targets=ok learner=none harness=same'
+
+  fixture targets-file-is-a-link-in-the-index
+  link=$(printf '%s' '../../README.md' | git -C "$work/targets-file-is-a-link-in-the-index" hash-object -w --stdin) || broken
+  git -C "$work/targets-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,docs/r5/targets.toml" || broken
+  check targets-file-is-a-link-in-the-index FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture cases-file-is-a-link-in-the-index
+  link=$(printf '%s' '../../README.md' | git -C "$work/cases-file-is-a-link-in-the-index" hash-object -w --stdin) || broken
+  git -C "$work/cases-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,docs/r5/cases.md" || broken
+  check cases-file-is-a-link-in-the-index FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture heldout-is-a-link-in-the-index
+  link=$(printf '%s' '../../README.md' | git -C "$work/heldout-is-a-link-in-the-index" hash-object -w --stdin) || broken
+  git -C "$work/heldout-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,docs/r5/heldout.txt" || broken
+  check heldout-is-a-link-in-the-index FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture targets-file-not-in-the-index
+  git -C "$work/targets-file-not-in-the-index" update-index --force-remove docs/r5/targets.toml || broken
+  check targets-file-not-in-the-index FAIL-targets 'layout roots=9 patterns=9 files=7 outside=0 targets=miss learner=none harness=same'
+
+  fixture stray-path-and-no-freeze
+  printf 'stray\n' >"$work/stray-path-and-no-freeze/docs/r5/stray.txt"
+  git -C "$work/stray-path-and-no-freeze" add docs/r5/stray.txt || broken
+  mv "$work/stray-path-and-no-freeze/docs/r5/freeze.toml" "$work/stray-path-and-no-freeze/freeze.toml.moved" || broken
+  check stray-path-and-no-freeze FAIL-outside 'files=9 outside=1 targets=none learner=none harness=same'
+
+  fixture targets-and-learner-differ
+  mkdir -p "$work/targets-and-learner-differ/crates/halvo-learn/src" || broken
+  printf 'pub fn g() {}\n' >"$work/targets-and-learner-differ/crates/halvo-learn/src/lib.rs"
+  { freeze_text "0${d_targets#?}"; printf '[learner]\ncrates = "%s"\n' "$d_crates"; } >"$work/targets-and-learner-differ/docs/r5/freeze.toml"
+  printf 'U1.2\tcrates/halvo-learn/**\n' >>"$work/targets-and-learner-differ/scripts/r5/layout.txt"
+  commit_all "$work/targets-and-learner-differ"
+  check targets-and-learner-differ FAIL-targets 'targets=miss learner=miss harness=same'
 
   fixture git-fails
   mkdir -p "$work/stub" || broken
