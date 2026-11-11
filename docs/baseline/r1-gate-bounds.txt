@@ -22,7 +22,9 @@ rss_max_bytes=50331648
 # upper end of the 5 to 20 percent that Screenpipe reports for its own capture.
 # Sub-check (d) compares it with (user + sys) / real of the capture process,
 # read from the time file of the timed run. It is defined under input load, so
-# a run with no input cannot pass it.
+# a run with no input cannot pass it: under --input operator the line fails
+# when the report of its own run holds no keystroke or no pointer event, and
+# under --input none it ends NO-INPUT and fails when input reached the run.
 cpu_max_pct_of_one_core=20
 # disk_max_bytes_per_day: the P0 bound, derived and not measured on Halvo:
 # Screenpipe's storage-planning example of 2 GB a day. Sub-check (d) compares
@@ -36,7 +38,8 @@ disk_max_bytes_per_day=2000000000
 ci_job_timeout_min=30
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
-# this many seconds before the gate ends it and prints FAIL.
+# this many seconds before the gate ends it and prints FAIL: each timed run,
+# and the verify runs of the store and deletion checks, whose duration is 0.
 child_deadline_extra_s=25
 # batch_age_s: the owner thread's flush age. The pause wait and the cadence
 # bound of the later gate units derive from it, and a product test pins the

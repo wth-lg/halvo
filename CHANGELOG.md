@@ -94,5 +94,5 @@ and merge without an entry landing under the heading of another.
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
 - Added: Add the per-run ci.d driver with the nine R1 checks, the bounds file of the R1 gate, its memory check and its mutant rows beside the code
 - Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
-- Fixed: Make the R1 gate checks fail closed when a source did not run, a bound is unreadable, or the tree changed during the run
+- Fixed: Make the R1 gate checks fail closed when a source did not run, the input counts of a run contradict its input mode, a bound is unreadable, a verify step outlives its deadline, a ci.d entry is not a regular NN-name.sh file, a mutant had no build of its kind, or the tree changed during the run
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates

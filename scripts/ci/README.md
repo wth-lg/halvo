@@ -56,13 +56,13 @@ Each job of `ci.yml` has the steps `ci.d self-test` and `ci.d`, which run the fi
 | 1 | A script failed, every script skipped, no script names the job, a NAME matches no script, or the lockfile guard failed. |
 | 64 | Bad usage. |
 
-The driver refuses a script, and counts it as failed in every job, when its file name is not `NN-name.sh`, when its first ten lines do not hold exactly one `# jobs:` line and one `# rule:` line, when the `# jobs:` line names anything but `macos` and `windows`, or when another script has the same name.
+The driver refuses an entry of a `ci.d` directory, prints `FAIL <name> (<cause>)` for it and counts it as failed in every job, when the entry is not a regular file (a directory or a symbolic link, also a dangling one), when its file name is not `NN-name.sh` (no `.sh` suffix, an upper-case suffix or a hidden name included), when its first ten lines do not hold exactly one `# jobs:` line and one `# rule:` line, when the `# jobs:` line names anything but `macos` and `windows`, or when another script has the same name.
 
 With no script for the job the driver prints `FAIL run-ci-d (no scripts for <job>)` and exits 1, also with `--self-test`. The one exception is `--self-test run-ci-d`, which runs the driver's own cases and needs no script.
 
 ## The scripts root
 
-The driver reads `scripts/*/ci.d/*.sh` in byte order of the path, so `scripts/r1/ci.d/` runs before `scripts/r2/ci.d/`. When `CI_D_SCRIPTS` is set, it reads `$CI_D_SCRIPTS/*/ci.d/*.sh` instead. This command shows that an empty set fails:
+The driver lists every entry of `scripts/*/ci.d/`, hidden entries included, in byte order of the path, so `scripts/r1/ci.d/` runs before `scripts/r2/ci.d/`, and it runs each entry that is a regular file named `NN-name.sh`. When `CI_D_SCRIPTS` is set, it lists `$CI_D_SCRIPTS/*/ci.d/` instead. This command shows that an empty set fails:
 
 ```sh
 CI_D_SCRIPTS="$(mktemp -d)" sh scripts/ci/run-ci-d.sh macos
