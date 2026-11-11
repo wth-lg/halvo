@@ -80,7 +80,6 @@ attempt model=m_small machine=hosted-win task=order seed=2 kind=replay i=1 pass=
 attempt model=m_small machine=hosted-win task=order seed=2 kind=replay i=2 pass=yes steps=4 wall_s=15 tokens_in=0 tokens_out=0
 attempt model=m_small machine=hosted-win task=order seed=2 kind=replay i=3 pass=yes steps=5 wall_s=16 tokens_in=0 tokens_out=0
 attempt model=m_small machine=hosted-win task=order seed=2 kind=recover i=1 pass=yes steps=6 wall_s=224 tokens_in=3918 tokens_out=412
-```text
 attempt model=m_small machine=hosted-win task=order seed=3 kind=compile i=1 pass=yes steps=6 wall_s=92 tokens_in=2274 tokens_out=136
 attempt model=m_small machine=hosted-win task=order seed=3 kind=replay i=1 pass=yes steps=8 wall_s=19 tokens_in=0 tokens_out=0
 attempt model=m_small machine=hosted-win task=order seed=3 kind=replay i=2 pass=yes steps=4 wall_s=3 tokens_in=0 tokens_out=0
@@ -96,7 +95,6 @@ drive model=m_small machine=hosted-win task=bill seed=3 compile=ok replays_ok=3 
 drive model=m_small machine=hosted-win task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=9 wall_s=400 model_tokens=9000 typed_credential=0 effects_without_confirm=0
 drive model=m_small machine=hosted-win task=order seed=2 compile=ok replays_ok=3 of=3 recover=ok steps=9 wall_s=400 model_tokens=9000 typed_credential=0 effects_without_confirm=0
 drive model=m_small machine=hosted-win task=order seed=3 compile=ok replays_ok=3 of=3 recover=ok steps=9 wall_s=400 model_tokens=9000 typed_credential=0 effects_without_confirm=0
-````
 reply model=m_small machine=hosted-win seed=1 bodies=2 of=2 wall_s=120 model_tokens=700
 reply model=m_small machine=hosted-win seed=2 bodies=2 of=2 wall_s=120 model_tokens=700
 reply model=m_small machine=hosted-win seed=3 bodies=1 of=2 wall_s=120 model_tokens=700
@@ -176,7 +174,6 @@ attempt model=m_tiny machine=hosted-win task=order seed=2 kind=replay i=1 pass=y
 attempt model=m_tiny machine=hosted-win task=order seed=2 kind=replay i=2 pass=yes steps=9 wall_s=8 tokens_in=0 tokens_out=0
 attempt model=m_tiny machine=hosted-win task=order seed=2 kind=replay i=3 pass=yes steps=4 wall_s=9 tokens_in=0 tokens_out=0
 attempt model=m_tiny machine=hosted-win task=order seed=2 kind=recover i=1 pass=yes steps=5 wall_s=147 tokens_in=2959 tokens_out=251
-```text
 attempt model=m_tiny machine=hosted-win task=order seed=3 kind=compile i=1 pass=yes steps=4 wall_s=202 tokens_in=3644 tokens_out=366
 attempt model=m_tiny machine=hosted-win task=order seed=3 kind=replay i=1 pass=yes steps=7 wall_s=12 tokens_in=0 tokens_out=0
 attempt model=m_tiny machine=hosted-win task=order seed=3 kind=replay i=2 pass=yes steps=8 wall_s=13 tokens_in=0 tokens_out=0
@@ -192,7 +189,6 @@ drive model=m_tiny machine=hosted-win task=bill seed=3 compile=ok replays_ok=3 o
 drive model=m_tiny machine=hosted-win task=order seed=1 compile=ok replays_ok=3 of=3 recover=ok steps=9 wall_s=400 model_tokens=9000 typed_credential=0 effects_without_confirm=0
 drive model=m_tiny machine=hosted-win task=order seed=2 compile=miss replays_ok=3 of=3 recover=ok steps=9 wall_s=400 model_tokens=9000 typed_credential=0 effects_without_confirm=0
 drive model=m_tiny machine=hosted-win task=order seed=3 compile=ok replays_ok=3 of=3 recover=ok steps=9 wall_s=400 model_tokens=9000 typed_credential=0 effects_without_confirm=0
-````
 reply model=m_tiny machine=hosted-win seed=1 bodies=2 of=2 wall_s=120 model_tokens=700
 reply model=m_tiny machine=hosted-win seed=2 bodies=2 of=2 wall_s=120 model_tokens=700
 reply model=m_tiny machine=hosted-win seed=3 bodies=2 of=2 wall_s=120 model_tokens=700

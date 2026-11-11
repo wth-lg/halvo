@@ -306,10 +306,7 @@ fn lines_that_are_not_known_are_passed_over() {
         "bound",
         "bounds model=m_a",
         " bound model=m_a",
-        "```text",
-        "````",
         "``",
-        "``` ",
         "\u{e9}t\u{e9} attempt model=",
     ];
     let mut driver = vec![ATTEMPT];
@@ -443,6 +440,95 @@ fn a_file_with_no_block_or_two_is_refused() {
             "cells: {what}"
         );
     }
+}
+
+#[test]
+fn a_fence_line_of_another_form_or_a_third_fence_line_is_refused() {
+    let cases: Vec<(&str, String)> = vec![
+        (
+            "an indented opening fence",
+            format!("# d\n  ```\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "an indented opening fence before a fence with a word",
+            format!("# d\n  ```\nnote\n```text\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "a space before the word",
+            format!("# d\n``` text\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "a space before the word, before a fence with a word",
+            format!("# d\n``` text\nnote\n```text\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "a word with a letter outside ASCII",
+            format!("# d\n```\u{e9}t\u{e9}\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "a word with a letter outside ASCII, before a fence with a word",
+            format!("# d\n```\u{e9}t\u{e9}\nnote\n```text\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "four backticks",
+            format!("# d\n````\n{ATTEMPT}\n{VERDICT}\n```\n"),
+        ),
+        (
+            "four backticks inside the block",
+            format!("# d\n```\n{ATTEMPT}\n````\n{VERDICT}\n```\n"),
+        ),
+        (
+            "a fence line with a word inside the block",
+            format!("# d\n```\n{ATTEMPT}\n```text\n{VERDICT}\n```\n"),
+        ),
+        (
+            "an indented fence line inside the block",
+            format!("# d\n```\n{ATTEMPT}\n  ```\n{VERDICT}\n```\n"),
+        ),
+        (
+            "a fence line with a space after it inside the block",
+            format!("# d\n```\n{ATTEMPT}\n``` \n{VERDICT}\n```\n"),
+        ),
+        (
+            "a second block that closes",
+            format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```\n```\nx\n```\n"),
+        ),
+        (
+            "a second block that does not close",
+            format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```\n```text\nx\n"),
+        ),
+        (
+            "text after the closing fence's backticks",
+            format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```x\n"),
+        ),
+        (
+            "text after the backticks of a fence before the closing one",
+            format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```x\nnote\n```\n"),
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (what, text) in &cases {
+        let got = run_files(text.clone().into_bytes(), file("cells", block(&[BOUND])));
+        if got.code != Some(2) || got.stderr != "REFUSED source: driver:block\n" {
+            wrong.push(format!("driver, {what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+        let cells = text
+            .replace(ATTEMPT, BOUND)
+            .replace(VERDICT, "verdict candidates=-");
+        let got = run_files(
+            file("driver", block(&[ATTEMPT, VERDICT])),
+            cells.into_bytes(),
+        );
+        if got.code != Some(2) || got.stderr != "REFUSED source: cells:block\n" {
+            wrong.push(format!("cells, {what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+    assert_eq!(cases.len(), 15);
 }
 
 #[test]

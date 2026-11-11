@@ -10,12 +10,15 @@ pub struct Line<'a> {
 pub enum BlockFault {
     /// The line of this number holds a carriage return.
     CarriageReturn(usize),
-    /// The file has no block, two blocks, or a block that is not closed.
+    /// The file does not hold exactly two fence lines, an opening and then a closing.
     Block,
 }
 
-/// The lines between the fence lines of the one block of `bytes`. A carriage return anywhere in
-/// the file is refused first, with the number of its line.
+/// The lines between the two fence lines of `bytes`. A fence line is a line whose first
+/// characters, after any spaces and tabs, are three backticks. The file holds exactly two: the
+/// opening, three backticks at the start of the line, alone or followed by one word of ASCII
+/// letters, and then the closing, exactly three backticks. A carriage return anywhere in the file
+/// is refused first, with the number of its line.
 pub fn block(bytes: &[u8]) -> Result<Vec<Line<'_>>, BlockFault> {
     let mut pieces: Vec<&[u8]> = bytes.split(|byte| *byte == b'\n').collect();
     if bytes.is_empty() || bytes.ends_with(b"\n") {
@@ -32,28 +35,21 @@ pub fn block(bytes: &[u8]) -> Result<Vec<Line<'_>>, BlockFault> {
     if let Some(line) = lines.iter().find(|line| line.bytes.contains(&b'\r')) {
         return Err(BlockFault::CarriageReturn(line.number));
     }
-    let mut found: Option<Vec<Line<'_>>> = None;
-    let mut open: Option<Vec<Line<'_>>> = None;
-    for line in lines {
-        match open.as_mut() {
-            Some(body) if line.bytes == b"```" => {
-                found = Some(std::mem::take(body));
-                open = None;
-            }
-            Some(body) => body.push(line),
-            None if opens(line.bytes) => {
-                if found.is_some() {
-                    return Err(BlockFault::Block);
-                }
-                open = Some(Vec::new());
-            }
-            None => {}
+    let fences: Vec<usize> = (0..lines.len())
+        .filter(|&i| fence(lines[i].bytes))
+        .collect();
+    match fences[..] {
+        [open, close] if opens(lines[open].bytes) && lines[close].bytes == b"```" => {
+            Ok(lines[open + 1..close].to_vec())
         }
+        _ => Err(BlockFault::Block),
     }
-    if open.is_some() {
-        return Err(BlockFault::Block);
-    }
-    found.ok_or(BlockFault::Block)
+}
+
+fn fence(line: &[u8]) -> bool {
+    line.iter()
+        .position(|byte| *byte != b' ' && *byte != b'\t')
+        .is_some_and(|start| line[start..].starts_with(b"```"))
 }
 
 fn opens(line: &[u8]) -> bool {

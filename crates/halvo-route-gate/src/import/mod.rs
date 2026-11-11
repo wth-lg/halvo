@@ -48,7 +48,7 @@ impl Input {
 pub enum SourceError {
     /// The line of this number, counted from the first line of the file.
     Line(Input, usize),
-    /// No block, two blocks, or a block that is not closed.
+    /// The file does not hold exactly two fence lines, an opening and then a closing.
     Block(Input),
     /// The driver file holds no line or more than one line that starts `verdict driver=`.
     Verdict,
