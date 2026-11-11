@@ -197,7 +197,104 @@ test_lists() {
   list_case order-per-heading mode '[fixed]\n127.0.0.1:2\n[agent]\n127.0.0.1:1\n'
 }
 
-[ $# -gt 0 ] || set -- probe
+run_check() {
+  label=$1
+  shift
+  "$@" >"$work/out" 2>"$work/err"
+  code=$?
+  last=$(tail -n 1 "$work/err")
+  log=${last##* log=}
+  case $last in
+    "egress mode="*) ;;
+    *) log=/nonexistent ;;
+  esac
+}
+
+field_of() {
+  case " $last " in
+    *" $1="*)
+      value=${last#* "$1"=}
+      printf '%s\n' "${value%% *}"
+      ;;
+    *) printf '%s\n' missing ;;
+  esac
+}
+
+expect_run() {
+  label=$1
+  want_code=$2
+  want_status=$3
+  want_denied=$4
+  shift 4
+  run_check "$label" "$@"
+  status=$(field_of command)
+  denied=$(field_of denied)
+  result "$label" "$want_code $want_status $want_denied" "$code $status $denied"
+}
+
+expect_logged() {
+  if [ -f "$log" ] && grep -q "$2" "$log"; then
+    result "$1" yes yes
+  else
+    result "$1" "a line with $2" "no such line"
+  fi
+}
+
+test_sandbox() {
+  e=scripts/egress/lists/empty.txt
+  l=scripts/egress/lists/loopback.txt
+  pr=scripts/egress/probe.sh
+  expect_run sandbox/quiet 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
+  got=$(field_of mode) || got=
+  size=$(wc -c <"$log") || size=
+  result sandbox/quiet-mode "sandbox 0" "$got $((size))"
+  expect_run sandbox/loopback-denied 1 1 1 sh scripts/egress/check.sh "$e" -- sh "$pr" loopback
+  expect_logged sandbox/loopback-line ' proto=tcp dest=127.0.0.1:47201 pid=[0-9]* image=egress-probe$'
+  serve 47201
+  serve_first=$served
+  stop_first=$stop
+  serve 47202
+  expect_run sandbox/listed-reached 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" loopback
+  expect_run sandbox/unlisted-denied 1 1 1 sh scripts/egress/check.sh "$l" -- sh "$pr" loopback2
+  expect_logged sandbox/unlisted-line ' proto=tcp dest=127.0.0.1:47202 pid=[0-9]* image=egress-probe$'
+  unserve
+  served=$serve_first
+  stop=$stop_first
+  unserve
+  expect_run sandbox/listen-inside 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" listen
+  expect_run sandbox/exit-code-passes 1 3 0 sh scripts/egress/check.sh "$e" -- sh -c 'exit 3'
+  expect_run sandbox/not-started 1 not-started 0 sh scripts/egress/check.sh "$e" -- "$work/no-such-command"
+  expect_run sandbox/signal 1 signal-9 0 sh scripts/egress/check.sh "$e" -- sh -c 'kill -9 $$'
+  expect_run sandbox/stdout-passes 0 0 0 sh scripts/egress/check.sh "$e" -- printf 'through\n'
+  got=$(cat "$work/out") || got=
+  result sandbox/stdout-text through "$got"
+  printf 'from-stdin\n' >"$work/in"
+  sh scripts/egress/check.sh "$e" -- cat <"$work/in" >"$work/out" 2>"$work/err"
+  code=$?
+  got=$(cat "$work/out") || got=
+  result sandbox/stdin-passes "0 from-stdin" "$code $got"
+  printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$work/routable.txt"
+  expect_refusal sandbox/routable-entry entry sh scripts/egress/check.sh "$work/routable.txt" -- sh "$pr" none
+  got=$(cat "$work/err") || got=
+  result sandbox/routable-entry-detail 'REFUSED entry: 2' "$got"
+  printf '[fixed]\n[agent]\nexample.com:443\n' >"$work/name.txt"
+  expect_refusal sandbox/name-entry entry sh scripts/egress/check.sh "$work/name.txt" -- sh "$pr" none
+  printf '[fixed]\n127.0.0.2:47201\n[agent]\n' >"$work/other-loopback.txt"
+  expect_refusal sandbox/other-loopback-entry entry sh scripts/egress/check.sh "$work/other-loopback.txt" -- sh "$pr" none
+  printf '[fixed]\n[::1]:47201\n[agent]\n' >"$work/v6-loopback.txt"
+  expect_run sandbox/ipv4-loopback-not-allowed-by-v6-entry 1 1 1 sh scripts/egress/check.sh "$work/v6-loopback.txt" -- sh "$pr" loopback
+  first_log=$log
+  expect_run sandbox/second-run 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
+  if [ "$first_log" != "$log" ]; then
+    result sandbox/runs-get-new-directories yes yes
+  else
+    result sandbox/runs-get-new-directories yes no
+  fi
+  expect_refusal sandbox/pf-off-a-runner mode env -u GITHUB_ACTIONS sh scripts/egress/check.sh --mode pf "$e" -- sh "$pr" none
+  expect_refusal sandbox/wfp-on-macos mode sh scripts/egress/check.sh --mode wfp "$e" -- sh "$pr" none
+}
+
+[ $# -gt 0 ] || set -- probe lists
 for part in "$@"; do
   case $part in
     probe) test_probe ;;

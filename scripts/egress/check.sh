@@ -30,15 +30,170 @@ not_observable() {
   esac
 }
 
-built=
+built=sandbox
 
-mode_entry() { "${mode}_entry" "$@"; }
-mode_rights() { "${mode}_rights"; }
-mode_setup() { "${mode}_setup" "$@"; }
-mode_launch() { "${mode}_launch" "$@"; }
-mode_collect() { "${mode}_collect" "$@"; }
-mode_teardown() { "${mode}_teardown" "$@"; }
-mode_reap() { "${mode}_reap"; }
+sandbox_entry() {
+  case $2:$3 in
+    v4:127.0.0.1 | 'v6:[::1]') return 0 ;;
+  esac
+  return 1
+}
+
+sandbox_rights() {
+  if [ ! -x /usr/bin/sandbox-exec ] || [ ! -x /usr/bin/log ]; then
+    rights="sandbox-exec or log is missing"
+    return 1
+  fi
+  if ! /usr/bin/sandbox-exec -p '(version 1)(allow default)' /usr/bin/true 2>/dev/null; then
+    rights="sandbox-exec cannot apply a profile here"
+    return 1
+  fi
+}
+
+sandbox_profile() {
+  printf '(version 1)\n(allow default)\n'
+  [ "$2" -eq 1 ] || return 0
+  printf '(deny network-outbound (with message "%s other"))\n' "$1"
+  printf '(allow network-outbound (remote unix-socket))\n'
+  printf '(deny network-outbound (remote unix-socket (path-literal "/private/var/run/mDNSResponder")) (with message "%s dns"))\n' "$1"
+  for family in tcp4 tcp6 udp4 udp6; do
+    printf '(deny network-outbound (remote %s "*:*") (with message "%s %s any"))\n' "$family" "$1" "$family"
+    printf '(deny network-outbound (remote %s "localhost:*") (with message "%s %s lo"))\n' "$family" "$1" "$family"
+  done
+  while read -r number part kind host port; do
+    [ -n "$number" ] || continue
+    case $kind:$part:$host in
+      v4:*) printf '(allow network-outbound (remote ip4 "localhost:%s"))\n' "$port" ;;
+      v6:*) printf '(allow network-outbound (remote ip6 "localhost:%s"))\n' "$port" ;;
+    esac
+  done <"$dir/entries"
+}
+
+sandbox_mark() {
+  tries=0
+  while [ "$tries" -lt 20 ]; do
+    tries=$((tries + 1))
+    /usr/bin/sandbox-exec -p "(version 1)(allow default)(deny network-outbound (with message \"$2 mark-$3\"))" \
+      "$runner" connect loopback2 >/dev/null 2>&1
+    waited=0
+    while [ "$waited" -lt 10 ]; do
+      if grep -q "$2 mark-$3" "$1/stream.ndjson" 2>/dev/null; then
+        return 0
+      fi
+      sleep 0.05
+      waited=$((waited + 1))
+    done
+  done
+  return 1
+}
+
+sandbox_setup() {
+  sandbox_profile "$2" "$3" >"$1/profile.sb" || refuse output "target/egress/$n/profile.sb"
+  [ "$3" -eq 1 ] || return 0
+  /usr/bin/log stream --style ndjson --predicate "eventMessage CONTAINS \"$2\"" >"$1/stream.ndjson" 2>"$1/stream.err" &
+  stream=$!
+  started=$(ps -o lstart= -p "$stream") || started=
+  printf 'stream=%s\nstarted=%s\n' "$stream" "$started" >>"$1/state" || refuse output "target/egress/$n/state"
+  if ! sandbox_mark "$1" "$2" start; then
+    sandbox_teardown "$1" "$2"
+    refuse mode "the log stream gave no start marker"
+  fi
+}
+
+sandbox_launch() {
+  run_dir=$1
+  shift
+  /usr/bin/sandbox-exec -f "$run_dir/profile.sb" "$@"
+}
+
+sandbox_collect() {
+  [ "$3" -eq 1 ] || return 0
+  if ! sandbox_mark "$1" "$2" end; then
+    sandbox_teardown "$1" "$2"
+    refuse mode "the log stream gave no end marker"
+  fi
+  sandbox_teardown "$1" "$2"
+  awk -v token="$2" -f "$here/sandbox.awk" "$1/stream.ndjson" >"$1/denied.log" ||
+    refuse output "target/egress/$n/denied.log"
+}
+
+sandbox_teardown() {
+  if [ -n "${stream:-}" ]; then
+    kill "$stream" 2>/dev/null
+    wait "$stream" 2>/dev/null
+    stream=
+  fi
+}
+
+sandbox_reap() {
+  for state in "$root"/target/egress/*/state; do
+    [ -f "$state" ] || continue
+    if grep -q '^done$' "$state"; then
+      continue
+    fi
+    owner=$(sed -n 's/^pid=//p' "$state") || continue
+    if [ -z "$owner" ] || kill -0 "$owner" 2>/dev/null; then
+      continue
+    fi
+    left=$(sed -n 's/^stream=//p' "$state") || left=
+    if [ -n "$left" ]; then
+      recorded=$(sed -n 's/^started=//p' "$state") || recorded=
+      now=$(ps -o lstart= -p "$left" 2>/dev/null) || now=
+      command=$(ps -o command= -p "$left" 2>/dev/null) || command=
+      case $command in
+        "/usr/bin/log stream"*)
+          if [ -n "$now" ] && [ "$now" = "$recorded" ]; then
+            kill "$left" 2>/dev/null
+          fi
+          ;;
+      esac
+    fi
+    printf 'done\n' >>"$state"
+  done
+}
+
+mode_entry() {
+  case $mode in
+    sandbox) sandbox_entry "$@" ;;
+  esac
+}
+
+mode_rights() {
+  case $mode in
+    sandbox) sandbox_rights ;;
+  esac
+}
+
+mode_setup() {
+  case $mode in
+    sandbox) sandbox_setup "$@" ;;
+  esac
+}
+
+mode_launch() {
+  case $mode in
+    sandbox) sandbox_launch "$@" ;;
+  esac
+}
+
+mode_collect() {
+  case $mode in
+    sandbox) sandbox_collect "$@" ;;
+  esac
+}
+
+mode_teardown() {
+  case $mode in
+    sandbox) sandbox_teardown "$@" ;;
+  esac
+}
+
+mode_reap() {
+  case $mode in
+    sandbox) sandbox_reap ;;
+  esac
+}
+
 rights=
 
 mode=
