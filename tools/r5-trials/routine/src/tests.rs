@@ -446,6 +446,26 @@ fn targets_take_any_integer_in_a_key() {
 }
 
 #[test]
+fn readers_refuse_a_file_that_ends_in_two_line_ends() {
+    assert!(refused_as_input(&format!("{REPO_TARGETS}\n")));
+    assert!(is_seed_refusal(parse_seeds(Some(&format!(
+        "{REPO_SEEDS}\n"
+    )))));
+}
+
+#[test]
+fn readers_refuse_a_number_with_a_sign() {
+    assert!(refused_as_input(
+        &REPO_TARGETS.replace("detect_days = 120", "detect_days = +120")
+    ));
+    assert!(is_seed_refusal(parse_seeds(Some(&REPO_SEEDS.replacen(
+        "7 0 0 1\n",
+        "7 0 0 +1\n",
+        1
+    )))));
+}
+
+#[test]
 fn each_read_key_reaches_its_own_line() {
     let changed = REPO_TARGETS
         .replace("false_stale_max = 30", "false_stale_max = 7")
