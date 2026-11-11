@@ -1633,3 +1633,51 @@ fn a_dropped_store_key_leaves_zeros_in_its_slot() {
         "{after} of 32 bytes of the store key stayed in a dropped store"
     );
 }
+
+#[test]
+fn no_file_of_a_dropped_store_holds_its_raw_store_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_id = RootId::fresh();
+    let mut store = EncryptedStore::create(
+        dir.path(),
+        Box::new(DevFallbackCustody::new(root_id)),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let store_key = zeroize::Zeroizing::new(*store.store_key().unwrap().expose());
+    store
+        .write_segment(&mut Cursor::new(b"a segment beside the key"))
+        .unwrap();
+    drop(store);
+    let at_rest = super::verify::raw_key_at_rest(dir.path(), &store_key);
+    DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    assert!(
+        matches!(at_rest, Ok(false)),
+        "the raw store key is at rest in the store directory: {at_rest:?}"
+    );
+}
+
+#[test]
+fn the_store_key_file_holds_its_four_fields_and_no_other() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(super::db::test_support::make_store(dir.path()));
+    let json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(KeyFile::path(dir.path())).unwrap()).unwrap();
+    let fields: Vec<&str> = json
+        .as_object()
+        .expect("store.key is one JSON object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        fields,
+        [
+            "custody_kind",
+            "root_id",
+            "version",
+            "wrapped_store_key_b64"
+        ]
+    );
+    assert_eq!(json["version"], 1);
+    assert_eq!(json["custody_kind"], "dev_fallback");
+}

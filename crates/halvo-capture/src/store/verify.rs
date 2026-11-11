@@ -7,7 +7,10 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
+use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+use base64::Engine;
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{custody_for, KeyCustody, RootId};
@@ -175,7 +178,7 @@ pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreC
         .map_err(db_error)?;
     let mut seg_plain = Vec::new();
     reopened.read_segment(segment_id, &mut seg_plain)?;
-    Ok(StoreCheck {
+    let check = StoreCheck {
         rows,
         secure_delete: db.pragma_int("secure_delete")?,
         temp_store: db.pragma_int("temp_store")?,
@@ -183,7 +186,52 @@ pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreC
         cipher_provider: db.cipher_provider()?,
         segment_roundtrip: String::from_utf8_lossy(&seg_plain).contains(marker),
         unwrap_ms,
-    })
+    };
+    let store_key = Zeroizing::new(*reopened.store_key()?.expose());
+    drop(reopened);
+    if raw_key_at_rest(dir, &store_key)? {
+        return Err(StoreError::Corrupt(
+            "a file of the store directory holds the raw store key".to_string(),
+        ));
+    }
+    Ok(check)
+}
+
+fn key_texts(key: &[u8; 32]) -> Vec<Zeroizing<Vec<u8>>> {
+    let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
+    let hex = Zeroizing::new(hex);
+    vec![
+        Zeroizing::new(key.to_vec()),
+        Zeroizing::new(hex.as_bytes().to_vec()),
+        Zeroizing::new(hex.to_uppercase().into_bytes()),
+        Zeroizing::new(STANDARD.encode(key).into_bytes()),
+        Zeroizing::new(STANDARD_NO_PAD.encode(key).into_bytes()),
+        Zeroizing::new(URL_SAFE.encode(key).into_bytes()),
+        Zeroizing::new(URL_SAFE_NO_PAD.encode(key).into_bytes()),
+    ]
+}
+
+pub(crate) fn raw_key_at_rest(dir: &Path, key: &[u8; 32]) -> StoreResult<bool> {
+    let texts = key_texts(key);
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        let metadata = std::fs::symlink_metadata(&path).map_err(|e| StoreError::Io(e.kind()))?;
+        if metadata.is_dir() {
+            for entry in std::fs::read_dir(&path).map_err(|e| StoreError::Io(e.kind()))? {
+                stack.push(entry.map_err(|e| StoreError::Io(e.kind()))?.path());
+            }
+        } else if metadata.is_file() {
+            let bytes = Zeroizing::new(std::fs::read(&path).map_err(|e| StoreError::Io(e.kind()))?);
+            if texts.iter().any(|text| {
+                bytes
+                    .windows(text.len())
+                    .any(|window| window == text.as_slice())
+            }) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// What `--verify-deletion` measured: one force-expired segment crypto-shredded
@@ -332,6 +380,32 @@ mod tests {
         assert_eq!(remaining_wrapped_keys(&store).unwrap().len(), 1);
         assert!(!decryptable_with_remaining_keys(&store, &expired_cipher).unwrap());
         assert!(decryptable_with_remaining_keys(&store, &live_cipher).unwrap());
+    }
+
+    #[test]
+    fn the_raw_key_scan_finds_the_key_raw_as_hex_and_as_base64_and_nothing_else() {
+        let key = [0x6bu8; 32];
+        let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
+        let cases: [(&str, Vec<u8>, bool); 6] = [
+            ("raw bytes", key.to_vec(), true),
+            ("lower hex", hex.clone().into_bytes(), true),
+            ("upper hex", hex.to_uppercase().into_bytes(), true),
+            ("base64", STANDARD.encode(key).into_bytes(), true),
+            (
+                "url-safe base64 without padding",
+                URL_SAFE_NO_PAD.encode(key).into_bytes(),
+                true,
+            ),
+            ("another key", vec![0x6c; 32], false),
+        ];
+        for (case, bytes, found) in cases {
+            let dir = tempfile::tempdir().unwrap();
+            std::fs::create_dir(dir.path().join("segments")).unwrap();
+            let mut file = b"prefix ".to_vec();
+            file.extend_from_slice(&bytes);
+            std::fs::write(dir.path().join("segments").join("one.seg"), &file).unwrap();
+            assert_eq!(raw_key_at_rest(dir.path(), &key).unwrap(), found, "{case}");
+        }
     }
 
     #[test]
