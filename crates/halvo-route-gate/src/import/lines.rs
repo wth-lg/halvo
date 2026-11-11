@@ -131,20 +131,23 @@ fn figure(text: &str) -> Option<u64> {
     }
 }
 
-fn category(task: Task) -> Option<CategoryId> {
-    match task {
-        Task::Bill => Some(CategoryId::UtilityBillPayment),
-        Task::Reply => Some(CategoryId::Email),
-        Task::Order => Some(CategoryId::ShopOrder),
-        Task::Cleanup => Some(CategoryId::CalendarCleanup),
-        Task::Fill => Some(CategoryId::SpreadsheetFill),
-        Task::Gen => None,
+fn category(task: Task, kind: CallKind) -> Option<CategoryId> {
+    match (task, kind) {
+        (Task::Bill, CallKind::Compile | CallKind::Replay | CallKind::Recover) => {
+            Some(CategoryId::UtilityBillPayment)
+        }
+        (Task::Order, CallKind::Compile | CallKind::Replay | CallKind::Recover) => {
+            Some(CategoryId::ShopOrder)
+        }
+        (Task::Reply, CallKind::Write) => Some(CategoryId::Email),
+        _ => None,
     }
 }
 
 /// `attempt model=<token> machine=<m> task=<t> seed=<n> kind=<k> i=<n> pass=<yes|no> steps=<n>
 /// wall_s=<n> tokens_in=<n> tokens_out=<n>`: one recorded row with the tier `on_device`, the level
-/// `medium` and the source `s1`. The kind `write` goes with the task `reply` alone (AS-A13.6).
+/// `medium` and the source `s1`. The task and the kind are `bill` or `order` with `compile`,
+/// `replay` or `recover`, or `reply` with `write`, the cells that the trial runs (AS-A13.6, T4.4).
 pub fn attempt(line: &[u8]) -> Option<Row> {
     let v = values(
         line,
@@ -165,9 +168,6 @@ pub fn attempt(line: &[u8]) -> Option<Row> {
     )?;
     let task = Task::parse(v[2]).ok()?;
     let kind = CallKind::parse(v[4]).ok()?;
-    if (kind == CallKind::Write) != (task == Task::Reply) {
-        return None;
-    }
     let pass = match v[6] {
         "yes" => true,
         "no" => false,
@@ -175,7 +175,7 @@ pub fn attempt(line: &[u8]) -> Option<Row> {
     };
     Some(Row {
         task,
-        category: category(task)?,
+        category: category(task, kind)?,
         kind,
         tier: Tier::OnDevice,
         model: model(v[0])?,

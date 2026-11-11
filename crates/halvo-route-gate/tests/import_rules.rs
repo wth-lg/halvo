@@ -221,8 +221,8 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
         &[
             "attempt model=m_b machine=mac task=reply seed=3 kind=write i=1 pass=no steps=0 wall_s=7 tokens_in=1 tokens_out=2",
             ATTEMPT,
-            "attempt model=m_a machine=hosted-win task=fill seed=2 kind=replay i=2 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0",
-            "attempt model=m_a machine=mac task=cleanup seed=1 kind=recover i=4294967295 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1",
+            "attempt model=m_a machine=hosted-win task=order seed=2 kind=replay i=2 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0",
+            "attempt model=m_a machine=mac task=order seed=1 kind=recover i=4294967295 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1",
             "verdict driver=none path=B writer=m_a",
         ],
         &[
@@ -242,8 +242,8 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
         lines,
         [
             ROW,
-            "cleanup\tcalendar_cleanup\trecover\ton_device\tm_a\tmac\t1\tdev\t4294967295\tyes\t18446744073709551615\t1\t1\t1\tmedium\ts1",
-            "fill\tspreadsheet_fill\treplay\ton_device\tm_a\thosted-win\t2\tdev\t2\tyes\t4\t0\t0\t0\tmedium\ts1",
+            "order\tshop_order\trecover\ton_device\tm_a\tmac\t1\tdev\t4294967295\tyes\t18446744073709551615\t1\t1\t1\tmedium\ts1",
+            "order\tshop_order\treplay\ton_device\tm_a\thosted-win\t2\tdev\t2\tyes\t4\t0\t0\t0\tmedium\ts1",
             "reply\temail\twrite\ton_device\tm_b\tmac\t3\theld\t1\tno\t0\t7\t1\t2\tmedium\ts1",
         ]
     );
@@ -717,32 +717,35 @@ fn each_field_of_an_attempt_line_with_a_wrong_value_is_refused() {
 }
 
 #[test]
-fn the_kind_write_goes_with_the_task_reply_alone() {
-    for (task, kind) in [
-        ("bill", "write"),
-        ("order", "write"),
-        ("cleanup", "write"),
-        ("fill", "write"),
-        ("reply", "compile"),
-        ("reply", "replay"),
-        ("reply", "recover"),
-    ] {
-        let line = attempt_with("task", task);
-        let line = line.replace("kind=compile", &format!("kind={kind}"));
-        let got = run(&[&line, VERDICT], &[BOUND]);
-        assert_eq!(got.refused(), "REFUSED source: driver:3", "{task} {kind}");
-    }
-    for (task, kind) in [
-        ("reply", "write"),
+fn a_task_and_kind_other_than_the_seven_pairs_of_the_trial_is_refused() {
+    let taken = [
+        ("bill", "compile"),
         ("bill", "replay"),
+        ("bill", "recover"),
+        ("order", "compile"),
+        ("order", "replay"),
         ("order", "recover"),
-        ("cleanup", "compile"),
-        ("fill", "replay"),
-    ] {
-        let line = attempt_with("task", task);
-        let line = line.replace("kind=compile", &format!("kind={kind}"));
-        run(&[&line, VERDICT], &[BOUND]).passed();
+        ("reply", "write"),
+    ];
+    let mut wrong = Vec::new();
+    let mut refused = 0;
+    for task in ["bill", "order", "reply", "cleanup", "fill"] {
+        for kind in ["compile", "replay", "recover", "write"] {
+            let line = attempt_with("task", task);
+            let line = line.replace("kind=compile", &format!("kind={kind}"));
+            let got = run(&[&line, VERDICT], &[BOUND]);
+            if taken.contains(&(task, kind)) {
+                got.passed();
+            } else if got.code != Some(2) || got.stderr != "REFUSED source: driver:3\n" {
+                wrong.push(format!("{task} {kind}: {:?} {:?}", got.code, got.stderr));
+            } else {
+                got.refused();
+                refused += 1;
+            }
+        }
     }
+    assert_eq!(wrong, Vec::<String>::new());
+    assert_eq!(refused, 13);
 }
 
 #[test]
