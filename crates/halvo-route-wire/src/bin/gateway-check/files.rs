@@ -29,14 +29,14 @@ pub struct BodyVector {
     pub valid: bool,
     pub canon: bool,
     pub error: Option<String>,
-    pub body: String,
+    pub body: Vec<u8>,
 }
 
 pub struct AnswerVector {
     pub n: usize,
     pub name: String,
     pub status: u16,
-    pub body: String,
+    pub body: Vec<u8>,
     pub expect: String,
     pub content: Option<String>,
     pub tokens_in: Option<u64>,
@@ -120,7 +120,41 @@ const ANSWER_KEYS: [&str; 9] = [
     "cost",
 ];
 
-type Build<T> = fn(&[Node]) -> Option<(usize, String, T)>;
+struct Line {
+    values: Vec<Node>,
+    hex: bool,
+}
+
+impl Line {
+    fn bytes(&self, at: usize) -> Option<Vec<u8>> {
+        let Node::Text(text) = &self.values[at] else {
+            return None;
+        };
+        if self.hex {
+            hex(text)
+        } else {
+            Some(text.as_bytes().to_vec())
+        }
+    }
+}
+
+fn hex(digits: &str) -> Option<Vec<u8>> {
+    let value = |digit: u8| match digit {
+        b'0'..=b'9' => Some(digit - b'0'),
+        b'a'..=b'f' => Some(digit - b'a' + 10),
+        _ => None,
+    };
+    if !digits.len().is_multiple_of(2) {
+        return None;
+    }
+    digits
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| Some(value(pair[0])? << 4 | value(pair[1])?))
+        .collect()
+}
+
+type Build<T> = fn(&Line) -> Option<(usize, String, T)>;
 
 fn records<T>(dir: &Path, name: &str, keys: &[&str], build: Build<T>) -> Result<Vec<T>, Refusal> {
     let mut seen = BTreeSet::new();
@@ -138,18 +172,24 @@ fn records<T>(dir: &Path, name: &str, keys: &[&str], build: Build<T>) -> Result<
     Ok(out)
 }
 
-fn fields(line: &str, keys: &[&str]) -> Option<Vec<Node>> {
+fn fields(line: &str, keys: &[&str]) -> Option<Line> {
     if !compact(line) {
         return None;
     }
     let Node::Map(entries) = Node::parse(line)? else {
         return None;
     };
-    let names: Vec<&str> = entries.iter().map(|(key, _)| key.as_str()).collect();
-    if names != keys {
+    let fits = entries.len() == keys.len()
+        && entries
+            .iter()
+            .zip(keys)
+            .all(|((name, _), key)| name == key || (*key == "body" && name == "hex"));
+    if !fits {
         return None;
     }
-    Some(entries.into_iter().map(|(_, value)| value).collect())
+    let hex = entries.iter().any(|(name, _)| name == "hex");
+    let values = entries.into_iter().map(|(_, value)| value).collect();
+    Some(Line { values, hex })
 }
 
 fn name_of(node: &Node) -> Option<String> {
@@ -188,7 +228,8 @@ fn maybe<T>(node: &Node, read: impl Fn(&Node) -> Option<T>) -> Option<Option<T>>
     }
 }
 
-fn body_vector(fields: &[Node]) -> Option<(usize, String, BodyVector)> {
+fn body_vector(line: &Line) -> Option<(usize, String, BodyVector)> {
+    let fields = &line.values;
     let n = usize::try_from(fields[0].count()?).ok()?;
     let name = name_of(&fields[1])?;
     let error = maybe(&fields[4], |node| {
@@ -200,12 +241,13 @@ fn body_vector(fields: &[Node]) -> Option<(usize, String, BodyVector)> {
         valid: yes_no(&fields[2])?,
         canon: yes_no(&fields[3])?,
         error,
-        body: text(&fields[5])?,
+        body: line.bytes(5)?,
     };
     Some((n, name, vector))
 }
 
-fn answer_vector(fields: &[Node]) -> Option<(usize, String, AnswerVector)> {
+fn answer_vector(line: &Line) -> Option<(usize, String, AnswerVector)> {
+    let fields = &line.values;
     let n = usize::try_from(fields[0].count()?).ok()?;
     let name = name_of(&fields[1])?;
     let expect = text(&fields[4]).filter(|word| {
@@ -217,7 +259,7 @@ fn answer_vector(fields: &[Node]) -> Option<(usize, String, AnswerVector)> {
         n,
         name: name.clone(),
         status: u16::try_from(fields[2].count()?).ok()?,
-        body: text(&fields[3])?,
+        body: line.bytes(3)?,
         content: maybe(&fields[5], text)?,
         tokens_in: maybe(&fields[6], Node::count)?,
         tokens_out: maybe(&fields[7], Node::count)?,

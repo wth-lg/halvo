@@ -3,6 +3,8 @@ use std::collections::BTreeSet;
 use halvo_route_wire::{Body, BodyError};
 use serde_json::Value;
 
+mod common;
+
 fn read_lines(name: &str) -> Vec<Value> {
     let path = format!(
         "{}/../../docs/r6/gateway/{name}",
@@ -27,7 +29,8 @@ fn vectors_hold() {
     for (at, vector) in vectors.iter().enumerate() {
         let name = word(&vector["name"]);
         assert_eq!(vector["n"].as_u64(), Some(at as u64 + 1), "{name}");
-        let bytes = word(&vector["body"]).as_bytes();
+        let bytes = common::bytes_of(vector);
+        let bytes = bytes.as_slice();
         let got = match Body::parse(bytes) {
             Ok(read) => match read.to_bytes() {
                 Ok(written) if Body::parse(&written).as_ref() == Ok(&read) => (

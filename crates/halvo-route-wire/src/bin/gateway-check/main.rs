@@ -129,7 +129,7 @@ fn parse_args(mut args: impl Iterator<Item = OsString>) -> Result<Args, Refusal>
 }
 
 fn body_holds(vector: &BodyVector) -> bool {
-    let bytes = vector.body.as_bytes();
+    let bytes = vector.body.as_slice();
     let got = match Body::parse(bytes) {
         Err(error) => Some((false, false, Some(error.as_str()))),
         Ok(read) => match read.to_bytes() {
@@ -143,7 +143,7 @@ fn body_holds(vector: &BodyVector) -> bool {
 }
 
 fn answer_holds(answer: &AnswerVector) -> bool {
-    let got = match Answer::parse(answer.status, answer.body.as_bytes()) {
+    let got = match Answer::parse(answer.status, &answer.body) {
         Ok(Answer::Ok {
             content,
             tokens_in,

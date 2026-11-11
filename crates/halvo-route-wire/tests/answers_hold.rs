@@ -3,6 +3,8 @@ use std::collections::BTreeSet;
 use halvo_route_wire::{Answer, AnswerError, Reason};
 use serde_json::Value;
 
+mod common;
+
 fn read_lines(name: &str) -> Vec<Value> {
     let path = format!(
         "{}/../../docs/r6/gateway/{name}",
@@ -55,8 +57,7 @@ fn answers_hold() {
         let name = answer["name"].as_str().unwrap_or("");
         assert_eq!(answer["n"].as_u64(), Some(at as u64 + 1), "{name}");
         let status = u16::try_from(answer["status"].as_u64().unwrap()).unwrap();
-        let bytes = answer["body"].as_str().unwrap().as_bytes();
-        let got = got(Answer::parse(status, bytes));
+        let got = got(Answer::parse(status, &common::bytes_of(answer)));
         let stated =
             ["expect", "content", "tokens_in", "tokens_out", "cost"].map(|key| answer[key].clone());
         if got != stated {
