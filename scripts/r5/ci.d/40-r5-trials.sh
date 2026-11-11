@@ -21,16 +21,87 @@ note() {
 profile_ok() {
   [ -f "$1" ] || return 1
   awk '
+    function scan(s,   i, c) {
+      i = 1
+      while (i <= length(s)) {
+        c = substr(s, i, 1)
+        if (state == "basic") {
+          if (c == "\\") i++
+          else if (c == "\"") state = ""
+        } else if (state == "literal") {
+          if (c == "'\''") state = ""
+        } else if (state == "ml-basic") {
+          if (c == "\\") i++
+          else if (substr(s, i, 3) == "\"\"\"") { state = ""; i += 2 }
+        } else if (state == "ml-literal") {
+          if (substr(s, i, 3) == "'\'''\'''\''") { state = ""; i += 2 }
+        } else if (c == "#") return
+        else if (substr(s, i, 3) == "\"\"\"") { state = "ml-basic"; i += 2 }
+        else if (substr(s, i, 3) == "'\'''\'''\''") { state = "ml-literal"; i += 2 }
+        else if (c == "\"") state = "basic"
+        else if (c == "'\''") state = "literal"
+        i++
+      }
+      if (state == "basic" || state == "literal") state = ""
+    }
     {
       line = $0
       sub(/^[ \t]+/, "", line)
       sub(/[ \t]+$/, "", line)
+      at_start = state
+      scan($0)
     }
+    at_start != "" { next }
     line == "[profile.release]" { inside = 1; next }
     substr(line, 1, 1) == "[" { inside = 0 }
     inside && line == "overflow-checks = true" { found = 1 }
     END { if (!found) exit 1 }
   ' "$1"
+}
+
+overflow_ok() {
+  host=$(rustc -vV 2>"$art/rustc-version.err" | sed -n 's/^host: \([^[:space:]]*\).*/\1/p')
+  [ -n "$host" ] || return 1
+  cargo metadata --no-deps --format-version 1 --locked --manifest-path tools/r5-trials/Cargo.toml >"$art/metadata.json" 2>"$art/metadata.err" </dev/null || return 1
+  awk '
+    {
+      i = index($0, "\"workspace_members\":[")
+      if (!i) exit 1
+      s = substr($0, i + 21)
+      j = index(s, "]")
+      if (!j) exit 1
+      n = split(substr(s, 1, j - 1), ids, ",")
+      for (k = 1; k <= n; k++) {
+        id = ids[k]
+        if (id !~ /^".*"$/) exit 1
+        id = substr(id, 2, length(id) - 2)
+        fragment = id
+        sub(/^.*#/, "", fragment)
+        dir = id
+        sub(/#.*$/, "", dir)
+        sub(/^.*\//, "", dir)
+        member = index(fragment, "@") ? substr(fragment, 1, index(fragment, "@") - 1) : dir
+        if (member !~ /^[A-Za-z0-9_-]+$/) exit 1
+        print member
+        found++
+      }
+    }
+    END { if (!found) exit 1 }
+  ' "$art/metadata.json" >"$art/members.txt" || return 1
+  root=$(pwd -W 2>/dev/null || pwd -P) || return 1
+  while read -r member; do
+    mir=target/r5-trials/overflow-$member.mir
+    cargo rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p "$member" --lib --target "$host" --target-dir target/r5-trials -- --emit=mir="$root/$mir" >"$art/overflow-$member.txt" 2>&1 </dev/null || {
+      note "test overflow member=$member build=failed"
+      return 1
+    }
+    asserts=$(awk '
+      index($0, "{} + {}`, which would overflow") || index($0, "{} - {}`, which would overflow") || index($0, "{} * {}`, which would overflow") { n++ }
+      END { print n + 0 }
+    ' "$mir") || return 1
+    note "test overflow member=$member asserts=$asserts"
+    [ "$asserts" -gt 0 ] || return 1
+  done <"$art/members.txt"
 }
 
 refusal_ok() {
@@ -142,6 +213,12 @@ measure() {
     note "test cargo=missing"
     finish test
   fi
+  unset RUSTFLAGS CARGO_BUILD_RUSTFLAGS CARGO_ENCODED_RUSTFLAGS CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS
+  if ! overflow_ok; then
+    note "test overflow_checks=no"
+    finish test
+  fi
+  note "test overflow_checks=yes"
   cargo test --locked --manifest-path tools/r5-trials/Cargo.toml --workspace --target-dir target/r5-trials >"$art/cargo-test.txt" 2>&1
   code=$?
   note "test exit=$code"
@@ -226,9 +303,36 @@ stub_cargo() {
   cat <<'EOF'
 #!/bin/sh
 [ -f fixture-root ] || { printf 'stub cargo: started outside the fixture root\n'; exit 98; }
-[ "$*" = 'test --locked --manifest-path tools/r5-trials/Cargo.toml --workspace --target-dir target/r5-trials' ] ||
-  { printf 'stub cargo: got the arguments: %s\n' "$*"; exit 97; }
-exit "${STUB_CARGO_EXIT:-0}"
+[ -z "${RUSTFLAGS+set}${CARGO_BUILD_RUSTFLAGS+set}${CARGO_ENCODED_RUSTFLAGS+set}${CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS+set}" ] ||
+  { printf 'stub cargo: a variable that sets rustc flags or the profile is set\n'; exit 93; }
+case $* in
+  'test --locked --manifest-path tools/r5-trials/Cargo.toml --workspace --target-dir target/r5-trials')
+    exit "${STUB_CARGO_EXIT:-0}"
+    ;;
+  'metadata --no-deps --format-version 1 --locked --manifest-path tools/r5-trials/Cargo.toml')
+    printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
+    exit 0
+    ;;
+  "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir target/r5-trials -- --emit=mir=$(pwd -W 2>/dev/null || pwd -P)/target/r5-trials/overflow-$7.mir")
+    mkdir -p target/r5-trials || exit 92
+    if [ "${STUB_OVERFLOW_OFF:-}" = "$7" ]; then
+      printf '        _0 = Add(copy _1, const 1_u32);\n' >"target/r5-trials/overflow-$7.mir"
+    else
+      printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
+    fi
+    exit 0
+    ;;
+esac
+printf 'stub cargo: got the arguments: %s\n' "$*"
+exit 97
+EOF
+}
+
+stub_rustc() {
+  cat <<'EOF'
+#!/bin/sh
+[ "$*" = -vV ] || exit 91
+printf 'rustc 0.0.0\nhost: stub-host\n'
 EOF
 }
 
@@ -285,7 +389,8 @@ self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/bin" || exit 2
   stub_cargo >"$work/bin/cargo"
-  chmod +x "$work/bin/cargo" || exit 2
+  stub_rustc >"$work/bin/rustc"
+  chmod +x "$work/bin/cargo" "$work/bin/rustc" || exit 2
   rejected=0
   wrong=
   case_path=
@@ -309,6 +414,24 @@ self_test() {
   fixture profile-false
   printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\noverflow-checks = false\n' >"$work/profile-false/tools/r5-trials/Cargo.toml"
   check profile-false FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture profile-line-in-a-multi-line-string
+  printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\noverflow-checks = false\n\n[workspace.metadata]\nnote = """\n[profile.release]\noverflow-checks = true\n"""\n' >"$work/profile-line-in-a-multi-line-string/tools/r5-trials/Cargo.toml"
+  check profile-line-in-a-multi-line-string FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture profile-false-with-a-comment-true
+  printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\noverflow-checks = false # true\n' >"$work/profile-false-with-a-comment-true/tools/r5-trials/Cargo.toml"
+  check profile-false-with-a-comment-true FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture profile-line-under-a-package-header
+  printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release.package.r5-stat]\noverflow-checks = true\n' >"$work/profile-line-under-a-package-header/tools/r5-trials/Cargo.toml"
+  check profile-line-under-a-package-header FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture overflow-checks-off-in-one-member
+  check overflow-checks-off-in-one-member FAIL-test 'FAIL 40-r5-trials (test)' STUB_OVERFLOW_OFF=drift
+
+  fixture flag-variables-are-unset
+  check flag-variables-are-unset PASS "$all_same" RUSTFLAGS=x CARGO_BUILD_RUSTFLAGS=x CARGO_ENCODED_RUSTFLAGS=x CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS=false
 
   fixture profile-first-and-block-differs
   printf '[workspace]\n' >"$work/profile-first-and-block-differs/tools/r5-trials/Cargo.toml"
