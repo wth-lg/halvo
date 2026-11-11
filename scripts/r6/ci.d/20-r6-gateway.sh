@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The gateway crate's tests pass, and gateway-check reads every body vector and answer vector as its line states, a closed schema with the six keys of the body, and the limits of the tier file.
+# rule: The gateway crate's tests pass, also with serde_json's arbitrary_precision on, and gateway-check reads every body vector and answer vector as its line states, a closed schema with the six keys of the body, and the limits of the tier file.
 set -u
 name=20-r6-gateway
 case $0 in
@@ -52,6 +52,10 @@ measure() {
   mkdir -p "$artifacts" || exit 2
   cause=
 
+  if ! cargo test --locked -p halvo-route-wire --features serde_json/arbitrary_precision \
+    >"$artifacts/cargo-test-arbitrary-precision.txt" 2>&1; then
+    cause=tests
+  fi
   if ! cargo test --locked -p halvo-route-wire >"$artifacts/cargo-test.txt" 2>&1; then
     cause=tests
   fi
