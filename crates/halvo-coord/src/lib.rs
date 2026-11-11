@@ -5,5 +5,6 @@
 
 pub mod mem;
 pub mod ports;
+pub mod schedule;
 pub mod types;
 pub mod words;
