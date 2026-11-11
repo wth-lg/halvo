@@ -5,6 +5,12 @@ use halvo_coord::types::{
     Reasoning, RunEnd, Runtime, Status, Tier, Trigger, WorkflowState, WorkflowTrigger, YesNo,
 };
 
+use halvo_coord::types::{
+    Answered, ApprovalId, CheckAnswer, DecisionEntry, Digest, Doing, DoneAnswer, EffectId, ItemId,
+    Lapsed, Live, OtherLapse, OwnItem, OwnItemKind, Raised, ReadyAnswer, RunId, RunItem,
+    RunItemKind, SetupAnswer,
+};
+
 fn names<T: Copy>(all: &[T], name: fn(T) -> &'static str) -> Vec<&'static str> {
     all.iter().map(|v| name(*v)).collect()
 }
@@ -398,4 +404,256 @@ fn param_names_are_the_nine_of_i3_5() {
             "seller",
         ]
     );
+}
+
+#[test]
+fn own_item_kind_names_are_the_kinds_that_no_run_raises_of_i3_1() {
+    assert_eq!(
+        names(OwnItemKind::ALL, OwnItemKind::name),
+        ["check", "setup", "ready"]
+    );
+    for k in OwnItemKind::ALL {
+        assert_eq!(k.kind().name(), k.name());
+    }
+}
+
+#[test]
+fn run_item_kind_names_are_the_kinds_that_a_run_raises_of_i3_1() {
+    assert_eq!(
+        names(RunItemKind::ALL, RunItemKind::name),
+        [
+            "confirm",
+            "sign_in",
+            "link_account",
+            "stuck",
+            "check",
+            "show"
+        ]
+    );
+    for k in RunItemKind::ALL {
+        assert_eq!(k.kind().name(), k.name());
+    }
+}
+
+#[test]
+fn other_lapse_names_are_the_causes_of_an_item_of_another_kind_of_i7_1() {
+    assert_eq!(
+        names(OtherLapse::ALL, OtherLapse::name),
+        ["run_ended", "app_ended", "wait_limit"]
+    );
+    for c in OtherLapse::ALL {
+        assert_eq!(c.cause().name(), c.name());
+    }
+}
+
+#[test]
+fn done_answer_names_are_the_choices_of_sign_in_link_account_stuck_and_show_of_i3_1() {
+    assert_eq!(
+        names(DoneAnswer::ALL, DoneAnswer::name),
+        ["decline", "done"]
+    );
+    for a in DoneAnswer::ALL {
+        assert_eq!(a.choice().name(), a.name());
+    }
+}
+
+#[test]
+fn check_answer_names_are_the_choices_of_check_of_i3_1() {
+    assert_eq!(
+        names(CheckAnswer::ALL, CheckAnswer::name),
+        ["try_again", "went_through"]
+    );
+    for a in CheckAnswer::ALL {
+        assert_eq!(a.choice().name(), a.name());
+    }
+}
+
+#[test]
+fn setup_answer_names_are_the_choices_of_setup_of_i3_1() {
+    assert_eq!(
+        names(SetupAnswer::ALL, SetupAnswer::name),
+        ["none", "choose"]
+    );
+    for a in SetupAnswer::ALL {
+        assert_eq!(a.choice().name(), a.name());
+    }
+}
+
+#[test]
+fn ready_answer_names_are_the_choices_of_ready_of_i3_1() {
+    assert_eq!(
+        names(ReadyAnswer::ALL, ReadyAnswer::name),
+        ["skip", "start"]
+    );
+    for a in ReadyAnswer::ALL {
+        assert_eq!(a.choice().name(), a.name());
+    }
+}
+
+const EIGHT_KINDS_OF_I3_1: [&str; 8] = [
+    "confirm",
+    "sign_in",
+    "link_account",
+    "stuck",
+    "check",
+    "setup",
+    "ready",
+    "show",
+];
+
+fn run() -> RunId {
+    RunId::parse(&"4".repeat(32)).unwrap()
+}
+
+fn answered_kind(a: &Answered) -> &'static str {
+    match a {
+        Answered::Confirm(_) => "confirm",
+        Answered::SignIn(_) => "sign_in",
+        Answered::LinkAccount(_) => "link_account",
+        Answered::Stuck(_) => "stuck",
+        Answered::Check(_) => "check",
+        Answered::Setup(_) => "setup",
+        Answered::Ready(_) => "ready",
+        Answered::Show(_) => "show",
+    }
+}
+
+#[test]
+fn answered_has_one_member_for_each_of_the_eight_kinds_of_i3_1() {
+    let entry = DecisionEntry {
+        approval: ApprovalId::parse(&"9".repeat(32)).unwrap(),
+        effect: EffectId::parse(&"8".repeat(32)).unwrap(),
+        digest: Digest::parse(&"a".repeat(64)).unwrap(),
+        answer: EffectAnswer::AllowOnce,
+    };
+    let all = [
+        Answered::Confirm(entry),
+        Answered::SignIn(DoneAnswer::Done),
+        Answered::LinkAccount(DoneAnswer::Done),
+        Answered::Stuck(DoneAnswer::Done),
+        Answered::Check(CheckAnswer::TryAgain),
+        Answered::Setup(SetupAnswer::Choose),
+        Answered::Ready(ReadyAnswer::Start),
+        Answered::Show(DoneAnswer::Done),
+    ];
+    let got: Vec<&str> = all.iter().map(answered_kind).collect();
+    assert_eq!(got, EIGHT_KINDS_OF_I3_1);
+    for a in &all {
+        assert_eq!(a.kind().name(), answered_kind(a));
+    }
+}
+
+fn raised_kind(r: &Raised) -> &'static str {
+    match r {
+        Raised::Confirm(_) => "confirm",
+        Raised::SignIn(_) => "sign_in",
+        Raised::LinkAccount(_) => "link_account",
+        Raised::Stuck(_) => "stuck",
+        Raised::Check(_) => "check",
+        Raised::Setup => "setup",
+        Raised::Ready => "ready",
+        Raised::Show(_) => "show",
+    }
+}
+
+#[test]
+fn raised_has_one_member_for_each_of_the_eight_kinds_of_i3_1() {
+    let all = [
+        Raised::Confirm(run()),
+        Raised::SignIn(run()),
+        Raised::LinkAccount(run()),
+        Raised::Stuck(run()),
+        Raised::Check(None),
+        Raised::Setup,
+        Raised::Ready,
+        Raised::Show(run()),
+    ];
+    let got: Vec<&str> = all.iter().map(raised_kind).collect();
+    assert_eq!(got, EIGHT_KINDS_OF_I3_1);
+    for r in &all {
+        assert_eq!(r.kind().name(), raised_kind(r));
+    }
+}
+
+fn lapsed_kind(l: &Lapsed) -> &'static str {
+    match l {
+        Lapsed::Confirm(_) => "confirm",
+        Lapsed::SignIn(_) => "sign_in",
+        Lapsed::LinkAccount(_) => "link_account",
+        Lapsed::Stuck(_) => "stuck",
+        Lapsed::Check(_) => "check",
+        Lapsed::Setup(_) => "setup",
+        Lapsed::Ready(_) => "ready",
+        Lapsed::Show(_) => "show",
+    }
+}
+
+#[test]
+fn lapsed_has_one_member_for_each_of_the_eight_kinds_of_i3_1() {
+    let all = [
+        Lapsed::Confirm(LapseCause::Digest),
+        Lapsed::SignIn(OtherLapse::RunEnded),
+        Lapsed::LinkAccount(OtherLapse::RunEnded),
+        Lapsed::Stuck(OtherLapse::RunEnded),
+        Lapsed::Check(OtherLapse::RunEnded),
+        Lapsed::Setup(OtherLapse::RunEnded),
+        Lapsed::Ready(OtherLapse::RunEnded),
+        Lapsed::Show(OtherLapse::RunEnded),
+    ];
+    let got: Vec<&str> = all.iter().map(lapsed_kind).collect();
+    assert_eq!(got, EIGHT_KINDS_OF_I3_1);
+    for l in &all {
+        assert_eq!(l.kind().name(), lapsed_kind(l));
+    }
+}
+
+fn live_phase(l: &Live) -> &'static str {
+    match l {
+        Live::Starting => "starting",
+        Live::Working => "working",
+        Live::Waiting(_) => "waiting",
+        Live::Stopping => "stopping",
+    }
+}
+
+#[test]
+fn live_has_the_four_phases_of_a_live_run_of_i5_6() {
+    let item = RunItem {
+        item: ItemId::parse(&"3".repeat(32)).unwrap(),
+        kind: RunItemKind::Confirm,
+    };
+    let all = [
+        Live::Starting,
+        Live::Working,
+        Live::Waiting(item),
+        Live::Stopping,
+    ];
+    let got: Vec<&str> = all.iter().map(live_phase).collect();
+    assert_eq!(got, ["starting", "working", "waiting", "stopping"]);
+    for l in &all {
+        assert_eq!(l.phase().name(), live_phase(l));
+    }
+}
+
+fn doing_state(d: &Doing) -> &'static str {
+    match d {
+        Doing::Idle(_) => "idle",
+        Doing::Queued(_) => "queued",
+        Doing::Live(_) => "live",
+    }
+}
+
+#[test]
+fn doing_is_idle_queued_or_live_in_a_phase_of_i5_1() {
+    let ready = OwnItem {
+        item: ItemId::parse(&"3".repeat(32)).unwrap(),
+        kind: OwnItemKind::Ready,
+    };
+    let all = [
+        Doing::Idle(None),
+        Doing::Queued(Some(ready)),
+        Doing::Live(Live::Working),
+    ];
+    let got: Vec<&str> = all.iter().map(doing_state).collect();
+    assert_eq!(got, ["idle", "queued", "live"]);
 }

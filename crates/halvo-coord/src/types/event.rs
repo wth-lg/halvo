@@ -1,3 +1,4 @@
+use super::names::names;
 use super::{AgentId, AgentState, Choice, DecisionEntry, HoldSetCause, ItemId, ItemKind};
 use super::{LapseCause, Mode, Name, Origin, RunEnd, RunId, Trigger, WorkflowId};
 use std::num::NonZeroU32;
@@ -174,40 +175,36 @@ impl Answered {
     }
 }
 
-/// The two choices of `sign_in`, `link_account`, `stuck` and `show` (I3.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DoneAnswer {
-    /// `decline`.
-    Decline,
-    /// `done`.
-    Done,
+names! {
+    /// The two choices of `sign_in`, `link_account`, `stuck` and `show` (I3.1).
+    DoneAnswer {
+        Decline = "decline",
+        Done = "done",
+    }
 }
 
-/// The two choices of `check` (I3.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CheckAnswer {
-    /// `try_again`.
-    TryAgain,
-    /// `went_through`.
-    WentThrough,
+names! {
+    /// The two choices of `check` (I3.1).
+    CheckAnswer {
+        TryAgain = "try_again",
+        WentThrough = "went_through",
+    }
 }
 
-/// The two choices of `setup` (I3.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SetupAnswer {
-    /// `none`.
-    None,
-    /// `choose`.
-    Choose,
+names! {
+    /// The two choices of `setup` (I3.1).
+    SetupAnswer {
+        None = "none",
+        Choose = "choose",
+    }
 }
 
-/// The two choices of `ready` (I3.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReadyAnswer {
-    /// `skip`.
-    Skip,
-    /// `start`.
-    Start,
+names! {
+    /// The two choices of `ready` (I3.1).
+    ReadyAnswer {
+        Skip = "skip",
+        Start = "start",
+    }
 }
 
 impl DoneAnswer {
@@ -287,15 +284,13 @@ pub enum Lapsed {
     Show(OtherLapse),
 }
 
-/// The causes of a lapse of an item of another kind than `confirm` (I7.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OtherLapse {
-    /// `run_ended`.
-    RunEnded,
-    /// `app_ended`.
-    AppEnded,
-    /// `wait_limit`.
-    WaitLimit,
+names! {
+    /// The causes of a lapse of an item of another kind than `confirm` (I7.1).
+    OtherLapse {
+        RunEnded = "run_ended",
+        AppEnded = "app_ended",
+        WaitLimit = "wait_limit",
+    }
 }
 
 impl OtherLapse {

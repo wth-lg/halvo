@@ -1,3 +1,4 @@
+use super::names::names;
 use super::{AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun};
 
 /// What the coordinator knows of one agent (I5.1), which `holds`, `start_step`, `status` and
@@ -90,21 +91,19 @@ pub struct RunItem {
     pub kind: RunItemKind,
 }
 
-/// The kinds that a request of a run raises (I3.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RunItemKind {
-    /// `confirm`, from a confirm request.
-    Confirm,
-    /// `sign_in`, from a handback request.
-    SignIn,
-    /// `link_account`, from a handback request.
-    LinkAccount,
-    /// `stuck`, from a handback request.
-    Stuck,
-    /// `check`, from a handback request with the reason `effect_unknown`.
-    Check,
-    /// `show`, from the first run in the mode `compile`.
-    Show,
+names! {
+    /// The kinds that a request of a run raises (I3.1): `confirm` from a confirm request,
+    /// `sign_in`, `link_account` and `stuck` from a handback request, `check` from a handback
+    /// request with the reason `effect_unknown`, and `show` from the first run in the mode
+    /// `compile`.
+    RunItemKind {
+        Confirm = "confirm",
+        SignIn = "sign_in",
+        LinkAccount = "link_account",
+        Stuck = "stuck",
+        Check = "check",
+        Show = "show",
+    }
 }
 
 /// An open item that no run raised: the coordinator's own, from a hold or the scheduler (I3.1).
@@ -116,15 +115,14 @@ pub struct OwnItem {
     pub kind: OwnItemKind,
 }
 
-/// The kinds that no run raises (I3.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OwnItemKind {
-    /// `check`, from the hold `check`.
-    Check,
-    /// `setup`, from the hold `setup`.
-    Setup,
-    /// `ready`, from the scheduler.
-    Ready,
+names! {
+    /// The kinds that no run raises (I3.1): `check` from the hold `check`, `setup` from the hold
+    /// `setup`, and `ready` from the scheduler.
+    OwnItemKind {
+        Check = "check",
+        Setup = "setup",
+        Ready = "ready",
+    }
 }
 
 impl RunItemKind {
