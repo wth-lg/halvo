@@ -694,19 +694,19 @@ lost_report() {
 }
 
 for name in $names; do
-  lost=0
+  lost_runs=0
   while :; do
     first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
     result=$(classify "$name" "$name")
     if lost_report "$result"; then
-      lost=$((lost + 1))
-      [ "$lost" -gt 3 ] || continue
+      lost_runs=$((lost_runs + 1))
+      [ "$lost_runs" -gt 3 ] || continue
     fi
     break
   done
   [ "$result" != missed ] || probes=miss
   lines="$lines
-probe name=$name result=$result lost=$lost"
+probe name=$name result=$result lost=$lost_runs"
 done
 first_form "$empty" "$deny" sh scripts/egress/probe.sh none </dev/null >/dev/null
 quiet=$(empty_ok)
