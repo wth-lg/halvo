@@ -95,7 +95,7 @@ fn give_up(child: &mut Child, call: &'static str, source: io::Error) -> CapError
     CapError { call, source }
 }
 
-pub(crate) fn check_supported(_limit: Limit) -> Result<(), CapError> {
+pub(crate) fn check_supported(_limit: Limit) -> Result<Mode, CapError> {
     footprint(std::process::id() as libc::pid_t)
         .map(|_| ())
         .map_err(|source| CapError {
@@ -103,7 +103,7 @@ pub(crate) fn check_supported(_limit: Limit) -> Result<(), CapError> {
             source,
         })?;
     ExitWatch::new(std::process::id() as libc::pid_t)
-        .map(|_| ())
+        .map(|_| MODE)
         .map_err(|source| CapError {
             call: "kqueue",
             source,
@@ -117,7 +117,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     drop(command);
     let mut child = match spawned {
         Ok(child) => child,
-        Err(_) => return Ok(Outcome::not_started(start)),
+        Err(_) => return Ok(Outcome::not_started(start, MODE)),
     };
     let begun = Instant::now();
     let pid = child.id() as libc::pid_t;
@@ -182,6 +182,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
         capped: breach,
         start,
         end: end.unwrap_or_else(UnixNanos::now),
+        mode: MODE,
     })
 }
 

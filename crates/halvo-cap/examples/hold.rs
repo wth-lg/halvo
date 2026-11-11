@@ -471,12 +471,28 @@ mod way {
     use std::ffi::c_void;
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
     const PAGE_READWRITE: u32 = 0x04;
     const FILE_MAP_ALL_ACCESS: u32 = 0x000f_001f;
 
+    #[repr(C)]
+    struct Counters {
+        cb: u32,
+        _page_faults: u32,
+        peak_working_set: usize,
+        _working_set: usize,
+        _quota_peak_paged: usize,
+        _quota_paged: usize,
+        _quota_peak_nonpaged: usize,
+        _quota_nonpaged: usize,
+        _pagefile: usize,
+        _peak_pagefile: usize,
+    }
+
     #[link(name = "kernel32")]
     extern "system" {
+        fn K32GetProcessMemoryInfo(process: HANDLE, counters: *mut Counters, size: u32) -> i32;
         fn CreateFileMappingW(
             file: HANDLE,
             attributes: *const c_void,
@@ -527,6 +543,12 @@ mod way {
         write_words(base, 0, BYTES / 8, 29);
         std::thread::sleep(HOLD);
         let held = intact_bytes(base, 0, BYTES / 8, 29);
+        let mut counters: Counters = unsafe { std::mem::zeroed() };
+        counters.cb = std::mem::size_of::<Counters>() as u32;
+        if unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) } != 0
+        {
+            println!("hold working_set_peak={}", counters.peak_working_set);
+        }
         unsafe { UnmapViewOfFile(view) };
         unsafe { CloseHandle(mapping) };
         held

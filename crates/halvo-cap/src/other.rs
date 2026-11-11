@@ -12,7 +12,7 @@ fn unsupported() -> CapError {
     }
 }
 
-pub(crate) fn check_supported(_limit: Limit) -> Result<(), CapError> {
+pub(crate) fn check_supported(_limit: Limit) -> Result<Mode, CapError> {
     Err(unsupported())
 }
 

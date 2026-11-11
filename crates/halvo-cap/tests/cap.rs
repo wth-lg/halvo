@@ -139,6 +139,13 @@ fn the_cap_is_supported_here() {
 }
 
 #[test]
+fn a_run_has_the_mode_that_check_supported_gives() {
+    let mode = check_supported(limit(256)).unwrap();
+    let outcome = run(spec("exit 0"), limit(256)).unwrap();
+    assert_eq!(outcome.mode, mode, "{outcome:?}");
+}
+
+#[test]
 fn a_limit_is_above_zero() {
     assert_eq!(Limit::new(0), None);
     assert_eq!(Limit::new(1).map(Limit::bytes), Some(1));

@@ -4,8 +4,9 @@
 //!
 //! [`run`] starts one child under a limit and returns its exit, its peak and whether
 //! the cap stopped it. On Windows the child runs in a new Job object with a per-process
-//! memory limit and a working-set maximum of the limit, and the peak is the Job's peak
-//! process memory. On macOS the parent reads the child's lifetime peak physical
+//! memory limit of the limit and a working-set maximum of the limit, or without the
+//! working-set maximum where the caller's token lacks its privilege, and the peak is the
+//! Job's peak process memory. On macOS the parent reads the child's lifetime peak physical
 //! footprint at the start, every 250 ms and once more when the child has ended, and kills
 //! the child at the first read above the limit; the cap and the peak cover the started
 //! process alone, so a caller wraps the program itself and never a shell.
@@ -38,9 +39,21 @@
 //!   itself;
 //! - `mapped-file`: pages of a mapped file;
 //! - `section`: a section backed by the paging file, whose commit the system charges to no
-//!   process; the working-set maximum holds its resident pages at the limit;
+//!   process; the working-set maximum holds its resident pages at the limit in `mode=job`, and
+//!   nothing holds them in `mode=job-commit`;
 //! - `broker-process`: a process that a service of the system starts for the child (a Task
 //!   Scheduler task is shown; WMI is not shown), which runs outside the Job.
+//!
+//! On Windows the cap does not depend on a privilege. Where setting the Job's limits with the
+//! working-set maximum fails with error 1314, the library sets them without that flag and
+//! goes on: the per-process memory limit, which is what refuses an allocation above the
+//! limit, needs no privilege. Every other failure stays an error (`cap-unsupported`). The
+//! first line of `measure-peak` and the outcome say which of the two a run had: `mode=job`
+//! with the working-set maximum, `mode=job-commit` without it. The working-set maximum only
+//! trims resident pages that are no process commit, which the list above names as not
+//! counted (`section`, `mapped-file`), so a program that keeps the loader rules is bounded as
+//! before; the `section` line of a run in `mode=job-commit` shows that its resident pages
+//! are then not held at the limit. A standard user gets `mode=job-commit`.
 //!
 //! On macOS the cap ends a child at most one poll after the first read above the limit; it
 //! does not keep it under the limit, and `peak_bytes` then shows how far the child went.
@@ -90,8 +103,11 @@ impl Limit {
 /// The mechanism that holds the cap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// A Job object (Windows).
+    /// A Job object with the per-process memory limit and the working-set maximum (Windows).
     Job,
+    /// A Job object with the per-process memory limit alone, where the caller's token lacks
+    /// the privilege that the working-set maximum needs (Windows).
+    JobCommit,
     /// The parent polls the peak physical footprint and kills on a breach (macOS).
     Poll,
     /// As `Poll`, with the child also started under `taskpolicy -m` (macOS).
@@ -99,10 +115,12 @@ pub enum Mode {
 }
 
 impl Mode {
-    /// The word that `measure-peak` prints for the mode: `job`, `poll` or `taskpolicy`.
+    /// The word that `measure-peak` prints for the mode: `job`, `job-commit`, `poll` or
+    /// `taskpolicy`.
     pub fn as_str(self) -> &'static str {
         match self {
             Mode::Job => "job",
+            Mode::JobCommit => "job-commit",
             Mode::Poll => "poll",
             Mode::Taskpolicy => "taskpolicy",
         }
@@ -110,7 +128,9 @@ impl Mode {
 }
 
 /// The mechanism of this build: `Job` on Windows, and on macOS the branch of C23.6 that
-/// docs/r2/trials/cap.md records.
+/// docs/r2/trials/cap.md records. On Windows a run whose caller's token lacks the privilege
+/// of the working-set maximum has `Mode::JobCommit` instead: [`check_supported`] and
+/// [`Outcome::mode`] give the mode of a run.
 pub const MODE: Mode = platform::MODE;
 
 /// The name of this platform as `measure-peak` prints it: `macos` or `windows`.
@@ -169,16 +189,20 @@ pub struct Outcome {
     pub start: UnixNanos,
     /// When it was seen ended; equal to `start` when it did not start.
     pub end: UnixNanos,
+    /// The mechanism that held the cap in this run: on macOS the mode of this build, on
+    /// Windows `Mode::Job` with the working-set maximum or `Mode::JobCommit` without it.
+    pub mode: Mode,
 }
 
 impl Outcome {
-    fn not_started(at: UnixNanos) -> Outcome {
+    fn not_started(at: UnixNanos, mode: Mode) -> Outcome {
         Outcome {
             exit: Exit::NotStarted,
             peak_bytes: 0,
             capped: false,
             start: at,
             end: at,
+            mode,
         }
     }
 }
@@ -238,6 +262,21 @@ impl ChildSpec {
     }
 }
 
+#[cfg(any(windows, test))]
+const PRIVILEGE_NOT_HELD: i32 = 1314;
+
+#[cfg(any(windows, test))]
+fn set_job_limits(mut set: impl FnMut(bool) -> io::Result<()>) -> io::Result<Mode> {
+    match set(true) {
+        Ok(()) => Ok(Mode::Job),
+        Err(error) if error.raw_os_error() == Some(PRIVILEGE_NOT_HELD) => {
+            set(false)?;
+            Ok(Mode::JobCommit)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// This system cannot enforce the cap; `call` names the call that failed.
 #[derive(Debug)]
 pub struct CapError {
@@ -261,8 +300,10 @@ impl std::error::Error for CapError {
 
 /// Checks, before a first run, that this system can enforce `limit`: on Windows a Job
 /// object with the limit can be made, on macOS the peak physical footprint of this
-/// process can be read. The error names the call that failed.
-pub fn check_supported(limit: Limit) -> Result<(), CapError> {
+/// process can be read. The error names the call that failed. It returns the mode that a
+/// run has here: on Windows `Mode::Job`, or `Mode::JobCommit` where the token lacks the
+/// privilege of the working-set maximum.
+pub fn check_supported(limit: Limit) -> Result<Mode, CapError> {
     platform::check_supported(limit)
 }
 
@@ -285,4 +326,51 @@ pub fn check_supported(limit: Limit) -> Result<(), CapError> {
 /// reads the process table after the run and ends what the run started.
 pub fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     platform::run(spec, limit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn choose(answers: &[Option<i32>]) -> (io::Result<Mode>, Vec<bool>) {
+        let mut asked = Vec::new();
+        let mut answers = answers.iter();
+        let chosen = set_job_limits(|working_set| {
+            asked.push(working_set);
+            match answers.next().copied().flatten() {
+                None => Ok(()),
+                Some(code) => Err(io::Error::from_raw_os_error(code)),
+            }
+        });
+        (chosen, asked)
+    }
+
+    #[test]
+    fn the_job_drops_the_working_set_maximum_only_when_the_privilege_is_missing() {
+        let (chosen, asked) = choose(&[None]);
+        assert_eq!((chosen.unwrap(), asked), (Mode::Job, vec![true]));
+        let (chosen, asked) = choose(&[Some(PRIVILEGE_NOT_HELD), None]);
+        assert_eq!(
+            (chosen.unwrap(), asked),
+            (Mode::JobCommit, vec![true, false])
+        );
+        let (chosen, asked) = choose(&[Some(5)]);
+        assert_eq!(
+            (chosen.unwrap_err().raw_os_error(), asked),
+            (Some(5), vec![true])
+        );
+        let (chosen, asked) = choose(&[Some(PRIVILEGE_NOT_HELD), Some(87)]);
+        assert_eq!(
+            (chosen.unwrap_err().raw_os_error(), asked),
+            (Some(87), vec![true, false])
+        );
+    }
+
+    #[test]
+    fn each_mode_has_its_word() {
+        assert_eq!(Mode::Job.as_str(), "job");
+        assert_eq!(Mode::JobCommit.as_str(), "job-commit");
+        assert_eq!(Mode::Poll.as_str(), "poll");
+        assert_eq!(Mode::Taskpolicy.as_str(), "taskpolicy");
+    }
 }

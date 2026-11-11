@@ -49,6 +49,31 @@ impl Drop for Handle {
 struct Job {
     job: Handle,
     port: Handle,
+    mode: Mode,
+}
+
+fn set_limits(job: &Handle, bytes: usize, working_set: bool) -> io::Result<()> {
+    let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
+    info.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if working_set {
+        info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_WORKINGSET;
+        info.BasicLimitInformation.MinimumWorkingSetSize = bytes.min(MINIMUM_WORKING_SET);
+        info.BasicLimitInformation.MaximumWorkingSetSize = bytes;
+    }
+    info.ProcessMemoryLimit = bytes;
+    let set = unsafe {
+        SetInformationJobObject(
+            job.0,
+            JobObjectExtendedLimitInformation,
+            (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast::<c_void>(),
+            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        )
+    };
+    if set == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 impl Job {
@@ -65,24 +90,11 @@ impl Job {
             return Err(last("CreateJobObjectW"));
         }
         let job = Handle(job);
-        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY
-            | JOB_OBJECT_LIMIT_WORKINGSET
-            | JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        info.BasicLimitInformation.MinimumWorkingSetSize = bytes.min(MINIMUM_WORKING_SET);
-        info.BasicLimitInformation.MaximumWorkingSetSize = bytes;
-        info.ProcessMemoryLimit = bytes;
-        let set = unsafe {
-            SetInformationJobObject(
-                job.0,
-                JobObjectExtendedLimitInformation,
-                (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast::<c_void>(),
-                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            )
-        };
-        if set == 0 {
-            return Err(last("SetInformationJobObject"));
-        }
+        let mode = crate::set_job_limits(|working_set| set_limits(&job, bytes, working_set))
+            .map_err(|source| CapError {
+                call: "SetInformationJobObject",
+                source,
+            })?;
         let port = unsafe { CreateIoCompletionPort(INVALID_HANDLE_VALUE, null_mut(), 0, 1) };
         if port.is_null() {
             return Err(last("CreateIoCompletionPort"));
@@ -103,7 +115,7 @@ impl Job {
         if set == 0 {
             return Err(last("SetInformationJobObject"));
         }
-        Ok(Job { job, port })
+        Ok(Job { job, port, mode })
     }
 
     fn active_processes(&self) -> Result<u32, CapError> {
@@ -243,8 +255,8 @@ fn give_up(child: &mut Child, call: &'static str, source: io::Error) -> CapError
     CapError { call, source }
 }
 
-pub(crate) fn check_supported(limit: Limit) -> Result<(), CapError> {
-    Job::new(limit).map(|_| ())
+pub(crate) fn check_supported(limit: Limit) -> Result<Mode, CapError> {
+    Job::new(limit).map(|job| job.mode)
 }
 
 pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
@@ -256,7 +268,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     drop(command);
     let mut child = match spawned {
         Ok(child) => child,
-        Err(_) => return Ok(Outcome::not_started(start)),
+        Err(_) => return Ok(Outcome::not_started(start, job.mode)),
     };
     let process = child.as_raw_handle() as HANDLE;
     if unsafe { AssignProcessToJobObject(job.job.0, process) } == 0 {
@@ -283,6 +295,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
         capped,
         start,
         end,
+        mode: job.mode,
     })
 }
 
@@ -295,6 +308,7 @@ mod tests {
         let job = Job {
             job: Handle(null_mut()),
             port: Handle(null_mut()),
+            mode: Mode::Job,
         };
         let error = job.terminate().unwrap_err();
         assert_eq!(error.call, "TerminateJobObject");

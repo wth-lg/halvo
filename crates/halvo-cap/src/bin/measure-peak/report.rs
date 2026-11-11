@@ -80,6 +80,7 @@ mod tests {
             capped,
             start: UnixNanos(1),
             end: UnixNanos(2),
+            mode: halvo_cap::Mode::Poll,
         }
     }
 

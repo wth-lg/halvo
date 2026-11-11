@@ -6,7 +6,7 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::process::{ExitCode, Stdio};
 
-use halvo_cap::{ChildSpec, Exit, Limit, Outcome, UnixNanos, MODE, PLATFORM};
+use halvo_cap::{ChildSpec, Exit, Limit, Outcome, UnixNanos, PLATFORM};
 
 use args::Form;
 
@@ -24,14 +24,15 @@ fn status(ok: bool) -> ExitCode {
 }
 
 fn measure(limit: Limit, runs: u64, command: Vec<OsString>) -> ExitCode {
-    if let Err(e) = halvo_cap::check_supported(limit) {
-        return refuse("cap-unsupported", &e.to_string());
-    }
+    let mode = match halvo_cap::check_supported(limit) {
+        Ok(mode) => mode,
+        Err(e) => return refuse("cap-unsupported", &e.to_string()),
+    };
     let mut out = std::io::stdout().lock();
     let _ = writeln!(
         out,
         "measure-peak platform={PLATFORM} mode={} limit_bytes={} runs={runs}",
-        MODE.as_str(),
+        mode.as_str(),
         limit.bytes()
     );
     let _ = out.flush();
@@ -49,6 +50,7 @@ fn measure(limit: Limit, runs: u64, command: Vec<OsString>) -> ExitCode {
                 capped: false,
                 start: at,
                 end: at,
+                mode,
             }
         });
         let _ = writeln!(out, "{}", report::run_line(n, &outcome));
@@ -71,14 +73,15 @@ fn control(limit: Limit) -> ExitCode {
     let Some(allocate) = control::allocate_bytes(limit) else {
         return refuse("usage", "--limit plus 16 MiB is above 2^64 - 1");
     };
-    if let Err(e) = halvo_cap::check_supported(limit) {
-        return refuse("cap-unsupported", &e.to_string());
-    }
+    let mode = match halvo_cap::check_supported(limit) {
+        Ok(mode) => mode,
+        Err(e) => return refuse("cap-unsupported", &e.to_string()),
+    };
     let mut out = std::io::stdout().lock();
     let _ = writeln!(
         out,
         "measure-peak platform={PLATFORM} mode={} limit_bytes={} control=yes",
-        MODE.as_str(),
+        mode.as_str(),
         limit.bytes()
     );
     let _ = out.flush();

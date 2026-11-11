@@ -207,6 +207,7 @@ mod tests {
             capped,
             start: UnixNanos(0),
             end: UnixNanos(end_ms * MS),
+            mode: halvo_cap::Mode::Poll,
         }
     }
 
