@@ -62,6 +62,7 @@ const FAULTS = {
     { fault: 'wrapped', state: 'a', want: (r) => r.names.includes('span') },
     { fault: 'act_kind', state: 'a', want: (r) => r.names.includes('more') },
     { fault: 'no_act', state: 'a', want: (r) => r.names.includes('no_act') },
+    { fault: 'area_no_act', state: 'a', want: (r) => r.names.includes('no_act') },
   ],
   5: [
     { fault: 'motion_hidden', state: 'a', mode: 'reduced_motion' },

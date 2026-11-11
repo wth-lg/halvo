@@ -731,7 +731,7 @@ async function engineCheck(h) {
 
 const HELPER = () => {
   if (window.__r4w) return;
-  const NATIVE = 'button, input:not([type="hidden"]), select, textarea, a[href], summary';
+  const NATIVE = 'button, input:not([type="hidden"]), select, textarea, a[href], area[href], summary, audio[controls], video[controls]';
   const ROLES = new Set(['button', 'link', 'radio', 'checkbox', 'switch', 'tab', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'option', 'textbox', 'combobox', 'slider', 'spinbutton', 'searchbox', 'scrollbar', 'treeitem', 'gridcell']);
   const ARIA = new Set(['alert', 'alertdialog', 'application', 'article', 'banner', 'blockquote', 'button', 'caption', 'cell', 'checkbox', 'code', 'columnheader', 'combobox', 'complementary', 'contentinfo', 'definition', 'deletion', 'dialog', 'directory', 'document', 'emphasis', 'feed', 'figure', 'form', 'generic', 'grid', 'gridcell', 'group', 'heading', 'img', 'image', 'insertion', 'link', 'list', 'listbox', 'listitem', 'log', 'main', 'mark', 'marquee', 'math', 'menu', 'menubar', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'meter', 'navigation', 'none', 'note', 'option', 'paragraph', 'presentation', 'progressbar', 'radio', 'radiogroup', 'region', 'row', 'rowgroup', 'rowheader', 'scrollbar', 'search', 'searchbox', 'separator', 'slider', 'spinbutton', 'status', 'strong', 'subscript', 'superscript', 'switch', 'tab', 'table', 'tablist', 'tabpanel', 'term', 'textbox', 'time', 'timer', 'toolbar', 'tooltip', 'tree', 'treegrid', 'treeitem']);
   const role = (el) => {
@@ -751,6 +751,10 @@ const HELPER = () => {
   };
   const rendered = (el) => {
     if (!el.isConnected) return false;
+    if (el.tagName === 'AREA') {
+      const map = el.closest('map');
+      return !!map && map.name !== '' && [...document.querySelectorAll('img[usemap]')].some((img) => img.useMap === '#' + map.name && rendered(img));
+    }
     const s = getComputedStyle(el);
     if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
     return el.getClientRects().length > 0;

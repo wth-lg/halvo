@@ -423,6 +423,24 @@
         inner.src = 'about:blank';
         root.appendChild(inner);
       }
+      if (fault === 'area_no_act') {
+        var picture = el('img', null, null);
+        picture.alt = 'Map of the garden';
+        picture.width = 120;
+        picture.height = 60;
+        picture.useMap = '#r4s-map';
+        picture.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+        var areaMap = el('map', null, null);
+        areaMap.name = 'r4s-map';
+        var spot = el('area', null, null);
+        spot.shape = 'rect';
+        spot.coords = '0,0,120,60';
+        spot.href = '#garden';
+        spot.alt = 'The garden';
+        areaMap.appendChild(spot);
+        root.appendChild(picture);
+        root.appendChild(areaMap);
+      }
       if (fault === 'no_act') {
         var plain = el('button', null, 'Help');
         plain.type = 'button';
