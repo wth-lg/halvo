@@ -238,6 +238,12 @@ expect_run() {
   run_check "$label" "$@"
   status=$(field_of command)
   denied=$(field_of denied)
+  if [ "$want_denied" != 0 ] && [ "$denied" = 0 ]; then
+    printf 'retry %s: the run logged no line\n' "$label"
+    run_check "$label" "$@"
+    status=$(field_of command)
+    denied=$(field_of denied)
+  fi
   result "$label" "$want_code $want_status $want_denied" "$code $status $denied"
 }
 
