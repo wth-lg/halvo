@@ -24,8 +24,7 @@ use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
 pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
-/// The sole-writer store the capture daemon appends to. One writer only; the
-/// daemon holds it behind the single-writer sink.
+/// The store the capture daemon appends to.
 pub trait SegmentStore {
     /// Append one event's metadata row.
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()>;
@@ -60,8 +59,6 @@ pub struct ShredReport {
 /// arrives as [`StoreError::Custody`] with its own variant.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
-    /// A file operation failed with this kind, so a full volume is
-    /// [`std::io::ErrorKind::StorageFull`].
     #[error("store i/o failed: {0}")]
     Io(std::io::ErrorKind),
     /// SQLite failed with this extended result code, so a full volume is

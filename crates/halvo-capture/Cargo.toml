@@ -6,10 +6,6 @@ edition = "2021"
 publish = false
 
 [features]
-# The release macOS custody (Secure Enclave) needs a Developer ID signed bundle to
-# persist its key (researcher-2, OSStatus -34018). It is compiled behind this
-# feature, off by default, and its tests are gated off; R1 builds and tests the
-# dev-fallback custody only.
 secure-enclave = []
 
 [dependencies]
@@ -28,11 +24,6 @@ base64 = "0.22"
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3"
 security-framework-sys = "2"
-# Capture backend (phase P3). All of these are pure Objective-C / C FFI bindings
-# that link only system frameworks already present on macOS, so the Tauri app
-# that depends on this crate for its status view links no Swift runtime and needs
-# no extra rpath. ScreenCaptureKit via objc2 (not the Swift-bridge crate) for
-# exactly this reason.
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = [
     "NSString",
@@ -72,12 +63,8 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
     "Foundation",
 ] }
-# Screen capture via Windows.Graphics.Capture (FrameArrived); researcher-1 #8.
 windows-capture = "2"
-# Installed-software inventory from the registry Uninstall keys; researcher-1 #12.
 winreg = "0.56"
-# RegNotifyChangeKeyValue for the installed-software change watch; its HKEY type
-# is winreg's, so the watch reuses winreg's raw handle (researcher-1 #12).
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",

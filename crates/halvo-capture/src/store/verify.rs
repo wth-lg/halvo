@@ -25,9 +25,7 @@ use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENT
 pub const MARKER_ROWS: u64 = 2000;
 pub const DECRYPTABLE: &str = "decryptable";
 
-/// An unattended keychain unwrap returns in milliseconds; a custody prompt
-/// blocks until a person answers it, which no one does in under a second. An
-/// unwrap slower than this is reported as `prompt=shown`.
+/// An unwrap slower than this is reported as `prompt=shown`.
 pub const PROMPT_BOUND_MS: u128 = 1000;
 
 fn yes_no(value: bool) -> &'static str {
@@ -38,8 +36,6 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-/// The store directory for a verify run: `HALVO_STORE_DIR`, or a fresh temp
-/// directory that is removed when the run ends.
 struct StoreDir {
     path: PathBuf,
     owned: bool,
@@ -68,8 +64,6 @@ impl Drop for StoreDir {
     }
 }
 
-/// Destroys a dev-fallback root when dropped, so a verify run that fails
-/// halfway leaves no keychain item behind. Succeeds when the root is gone.
 struct RootGuard(RootId);
 
 impl Drop for RootGuard {

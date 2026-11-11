@@ -1,13 +1,3 @@
-//! Formal checks of the store's two safety properties, run against the real
-//! store rather than a model of it. `docs/verify/store-shred.md` records the
-//! properties, the covered code, the bounds and the command.
-//!
-//! 1. Crypto-shred: after a segment is shredded, no key remaining in the store
-//!    decrypts its ciphertext, over random sequences of writes, shreds,
-//!    delete-alls, reopens and recreates.
-//! 2. Single writer: at most one process holds the store at a time, over random
-//!    races of contending processes, with the lock file unlinked under them.
-
 use std::cell::Cell;
 use std::fs::OpenOptions;
 use std::io::{self, Cursor, ErrorKind, Read, Write};
@@ -33,12 +23,7 @@ use super::segment::{self, segment_path, SegmentKey, CHUNK};
 use super::verify::{raw_key_at_rest, root_state, RootState};
 use super::{SegmentExpiry, SegmentStore, StoreError, DEFAULT_RETENTION};
 
-/// Random operation sequences, each ending in a full invariant check. Every
-/// case creates a store with a real dev-fallback root, so the count is kept to
-/// what runs in well under a minute; `PROPTEST_CASES` raises it.
 const SHRED_CASES: u32 = 48;
-/// The longest sequence of store operations one case replays. Each write adds
-/// one segment, so this also bounds the segment count.
 const MAX_OPS: usize = 12;
 
 const SCALED_SEGMENTS: usize = 1200;
@@ -57,8 +42,6 @@ const FILES_OF_A_STORE: [&str; 7] = [
     "writer.lock",
 ];
 
-/// Random multi-process races. Each case spawns up to [`MAX_CONTENDERS`]
-/// copies of the test binary, so the count is small and shrinking is short.
 const RACE_CASES: u32 = 30;
 const MAX_CONTENDERS: usize = 5;
 const MAX_ACQUISITIONS: usize = 3;
@@ -86,13 +69,6 @@ fn race_config() -> ProptestConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Property 1: crypto-shred non-decryptability.
-// ---------------------------------------------------------------------------
-
-/// When a written segment expires, relative to the clock at the time of the
-/// write. `AtWrite` sits on the `expires_at <= now` boundary of
-/// `crypto_shred_expired`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Expiry {
     Past,
@@ -178,15 +154,11 @@ impl Read for ASourceThatDies {
     }
 }
 
-/// The real store under test next to the model the harness keeps of it.
 struct Harness {
     dir: PathBuf,
     roots: Vec<RootId>,
     store: Option<EncryptedStore>,
-    /// Delete-all ran and no store has been created in the directory since.
     deleted: bool,
-    /// The store-key file as written by the latest create, kept to show that
-    /// delete-all destroys the root that unwraps it.
     key_file: Option<KeyFile>,
     segments: Vec<ModelSegment>,
 }
@@ -719,12 +691,6 @@ fn hold<T>(result: Result<T, TestCaseError>) -> T {
 proptest! {
     #![proptest_config(shred_config())]
 
-    /// Property 1. For any bounded sequence of writes, expiry shreds,
-    /// delete-alls, reopens and recreates: once a segment is shredded, no key
-    /// remaining in the store decrypts its ciphertext, it reads as Sealed and
-    /// its file is gone; every live segment still reads back its bytes; and
-    /// after delete-all the directory holds no store and the retained wrapped
-    /// store key no longer unwraps.
     #[test]
     fn a_shredded_segment_is_unrecoverable_with_every_remaining_key(
         ops in prop::collection::vec(op(), 1..=MAX_OPS),
@@ -827,11 +793,6 @@ fn the_delete_all_step_takes_only_a_missing_root_as_destroyed() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Property 2: single writer, across processes.
-// ---------------------------------------------------------------------------
-
-/// The plan for one contending process.
 #[derive(Debug, Clone)]
 struct Contender {
     delay_ms: u64,
@@ -842,8 +803,6 @@ struct Contender {
 struct Race {
     contenders: Vec<Contender>,
     hold_ms: u64,
-    /// How often the parent unlinks `writer.lock` while the race runs; `None`
-    /// leaves it in place.
     unlink_every_ms: Option<u64>,
 }
 
@@ -885,7 +844,6 @@ fn is_writer_refusal(error: &StoreError) -> bool {
     writer_refusal(error).is_some()
 }
 
-/// One line of the race log: which contender, what happened, when.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Event {
     Enter,
@@ -948,7 +906,6 @@ fn parse_log(text: &str) -> Vec<Logged> {
         .collect()
 }
 
-/// The hold intervals per contender, from the enter/exit pairs in the log.
 fn intervals(log: &[Logged]) -> Vec<(usize, u128, u128)> {
     let mut open: Vec<Option<u128>> = Vec::new();
     let mut out = Vec::new();
@@ -971,9 +928,6 @@ fn intervals(log: &[Logged]) -> Vec<(usize, u128, u128)> {
     out
 }
 
-/// The child half of the race: open the store named by the environment,
-/// retrying while it is held elsewhere, and hold it for a while, as many
-/// times as planned. A no-op outside a race.
 #[test]
 fn contend_for_store_for_parent() {
     let Ok(dir) = std::env::var(CONTEND_DIR) else {
@@ -1058,9 +1012,6 @@ fn spawn_contender(dir: &Path, index: usize, plan: &Contender, hold_ms: u64) -> 
         .expect("the contender spawns")
 }
 
-/// Run one race to completion: spawn the contenders, unlink the lock file on
-/// the requested cadence until every child exits, and return the exit
-/// statuses in contender order.
 fn run_race(dir: &Path, race: &Race) -> Vec<std::process::ExitStatus> {
     let mut children: Vec<Child> = race
         .contenders
@@ -1174,11 +1125,6 @@ fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
     Ok(())
 }
 
-/// Property 2. For any bounded race of processes opening the same store,
-/// each holding it for a while and writing to it, with `writer.lock`
-/// unlinked under them on a random cadence: no two hold intervals overlap,
-/// no contender finds another inside, every contender holds the store as
-/// many times as planned, and every contender exits clean.
 #[test]
 fn at_most_one_process_holds_the_store_at_a_time() {
     let config = contextualize_config(race_config());

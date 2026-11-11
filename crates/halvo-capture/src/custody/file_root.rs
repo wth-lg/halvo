@@ -1,11 +1,3 @@
-//! Per-user protected root files: the platform root for a custody whose key
-//! store protects blobs but cannot destroy a key per store (DPAPI). Each store's
-//! root is a random 32-byte key in one file under a per-user directory,
-//! protected by the platform; the store key is wrapped under that root. To
-//! destroy the root is to scrub and unlink the file, after which no retained or
-//! restored wrapped store key unwraps, exactly as deleting the macOS keychain
-//! item does.
-
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
@@ -17,7 +9,6 @@ use super::{CustodyError, RootId, StoreKey, WrappedKey};
 const ROOT_EXT: &str = "root";
 const PARTIAL_EXT: &str = "root.tmp";
 
-/// The platform primitive that keeps a root file readable by this user only.
 pub(crate) trait Protector {
     fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError>;
     fn unprotect(&self, blob: &[u8], label: &[u8]) -> Result<Zeroizing<Vec<u8>>, CustodyError>;
@@ -127,7 +118,6 @@ impl<P: Protector> FileRoots<P> {
         store_key_from(plain)
     }
 
-    /// Scrub and unlink the root file. Succeeds when it is already gone.
     pub(crate) fn destroy_root(&self, root_id: RootId) -> Result<(), CustodyError> {
         scrub_and_remove(&self.path(root_id))
     }
@@ -261,8 +251,6 @@ pub(crate) mod test_support {
 mod tests {
     use super::*;
 
-    /// Stands in for the platform: a keyed byte transform that is not identity,
-    /// so the tests see that the protector is applied and the label is bound.
     struct XorProtector(u8);
 
     impl Protector for XorProtector {

@@ -56,9 +56,6 @@ impl EncryptedStore {
             .collect()
     }
 
-    /// Destroy the keys of `ids` in one transaction and checkpoint the WAL, so
-    /// the wrapped keys are gone from every database file before anything
-    /// else happens. The segments are crypto-shredded once this returns.
     fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<()> {
         let db = self.db()?;
         let tx = db.connection().unchecked_transaction().map_err(db_error)?;
@@ -76,9 +73,6 @@ impl EncryptedStore {
         Ok(())
     }
 
-    /// Remove every file under the segments directory that has no live key:
-    /// shredded segments, partial writes, and anything left by a crash between
-    /// a key's destruction and its file's removal.
     pub(crate) fn remove_keyless_files(&self) -> StoreResult<u64> {
         let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
         let mut removed = 0u64;
@@ -106,10 +100,6 @@ impl EncryptedStore {
         Ok(ids.len() as u64)
     }
 
-    /// Delete-all's last step: destroy the custody root first, so a failure
-    /// leaves the store open and the call retryable; then seal, scrub the key
-    /// file and remove the now-keyless database and segments, leaving a
-    /// directory a fresh create can use.
     fn destroy_store_key(&mut self) -> StoreResult<()> {
         self.destroy_root()?;
         self.seal();

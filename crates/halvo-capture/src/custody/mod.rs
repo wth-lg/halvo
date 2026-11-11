@@ -28,8 +28,7 @@ impl StoreKey {
         Self(bytes)
     }
 
-    /// A fresh random store key, generated in place so no unscrubbed copy of
-    /// its bytes is left behind.
+    /// A fresh random store key.
     pub fn random() -> Result<Self, CustodyError> {
         let mut key = Self([0u8; 32]);
         dev_fallback::fill_random(&mut key.0)?;
@@ -49,7 +48,7 @@ impl StoreKey {
 pub struct WrappedKey(pub Vec<u8>);
 
 /// The non-secret per-store locator of the platform root that wraps the store
-/// key, so two stores never share one root.
+/// key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RootId(Uuid);
 
@@ -83,8 +82,7 @@ pub enum CustodyKind {
     Dpapi,
 }
 
-/// Wrap and unwrap the store key under one per-platform root. The owner's process
-/// unwraps with no prompt; a second account or an admin cannot.
+/// Wrap and unwrap the store key under one per-platform root.
 pub trait KeyCustody {
     fn kind(&self) -> CustodyKind;
 
@@ -97,7 +95,7 @@ pub trait KeyCustody {
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError>;
 
     /// Destroy the platform root so no retained wrapped store key can ever be
-    /// unwrapped again. Succeeds when the root is already gone.
+    /// unwrapped again.
     fn destroy_root(&self) -> Result<(), CustodyError>;
 }
 
@@ -121,12 +119,7 @@ pub fn custody_for(
     }
 }
 
-/// Why a custody call failed, classified where the failure happens so that the
-/// owner can match every state: a state that can clear is [`RootLocked`], and
-/// [`Crypto`] is a permanent failure only.
-///
-/// [`RootLocked`]: CustodyError::RootLocked
-/// [`Crypto`]: CustodyError::Crypto
+/// Why a custody call failed.
 #[derive(Debug, thiserror::Error)]
 pub enum CustodyError {
     /// No root exists for this store, also an empty or all-zero root file.
@@ -135,19 +128,16 @@ pub enum CustodyError {
     /// The root exists and does not hold 32 bytes.
     #[error("the root of this store does not hold 32 bytes")]
     RootCorrupt,
-    /// The root exists and this process may not read or destroy it.
     #[error("this process may not read or destroy the root of this store")]
     RootDenied,
     /// A platform state that can clear, with the platform's code.
     #[error("the root of this store is locked for now (code {0:#x})")]
     RootLocked(i32),
-    /// This build has no custody of the kind that the store-key file names.
     #[error("this build has no {0:?} custody")]
     CustodyKindUnsupported(CustodyKind),
     /// The wrapped store key does not authenticate under the root.
     #[error("the wrapped store key does not open under the root")]
     WrapAuthFailed,
-    /// The platform refused the call with a code that no other variant names.
     #[error("the platform refused the custody call (code {})", os_code_text(*.0))]
     Os(Option<i32>),
     /// A permanent failure of the wrap or the unwrap.

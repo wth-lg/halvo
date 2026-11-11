@@ -11,7 +11,6 @@ use zeroize::Zeroizing;
 use super::file_root::{FileRoots, Protector};
 use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
-/// A buffer DPAPI allocated: zeroed, then freed, on drop.
 struct DpapiBlob(CRYPT_INTEGER_BLOB);
 
 impl DpapiBlob {
@@ -83,7 +82,6 @@ pub(crate) fn dpapi_unprotect(
     Ok(Zeroizing::new(DpapiBlob(out).as_slice().to_vec()))
 }
 
-/// DPAPI, user scope and no UI, as the protector of the per-user root files.
 pub(crate) struct Dpapi;
 
 impl Protector for Dpapi {
@@ -96,9 +94,6 @@ impl Protector for Dpapi {
     }
 }
 
-/// The current user's root files, under `%LOCALAPPDATA%\Halvo\roots`. DPAPI
-/// cannot destroy a key per store, so the destroyable root is this file, and
-/// a store directory copied elsewhere carries no root with it.
 pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
     let local = std::env::var_os("LOCALAPPDATA").ok_or(CustodyError::RootDenied)?;
     Ok(FileRoots::new(

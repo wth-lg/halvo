@@ -53,8 +53,6 @@ pub(crate) fn wrap_segment_key(store_key: &[u8; 32], seg_key: &SegmentKey) -> St
         .map_err(|_| StoreError::Io(io::ErrorKind::Other))
 }
 
-/// Unwrap a stored segment key. The store key opened the database, so a wrapped
-/// key that does not open under it is corrupt rather than sealed.
 pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreResult<SegmentKey> {
     let plain = aead_open(store_key, wrapped, SEGMENT_KEY_AAD)
         .map_err(|_| StoreError::Corrupt("the segment key does not unwrap".to_string()))?;
@@ -80,8 +78,6 @@ pub(crate) fn segment_path(store_dir: &Path, segment_id: Uuid) -> PathBuf {
         .join(format!("{id}.{SEGMENT_EXT}"))
 }
 
-/// A file found under the segments directory: a complete segment file named by
-/// its id, or anything else (a partial write, a stray file).
 pub(crate) enum SegmentFile {
     Segment { id: Uuid, path: PathBuf },
     Other(PathBuf),
@@ -107,7 +103,6 @@ impl SegmentFile {
     }
 }
 
-/// Every file under the segments directory.
 pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<Vec<SegmentFile>> {
     let mut files = Vec::new();
     let mut stack = vec![segments_root(store_dir)];
@@ -258,10 +253,6 @@ fn emit_ciphertext(out: &mut dyn Write, sealed: Result<Vec<u8>, aead::Error>) ->
     out.write_all(&ciphertext).map_err(io_error)
 }
 
-/// Decrypt one pass over a segment file into `out`. Each chunk is authenticated
-/// before it is written, so a tampered chunk stops the stream, but the chunks
-/// before it have already reached `out`; [`read_segment_file`] runs this once
-/// into a sink before it runs it into the caller's writer.
 pub(crate) fn decrypt_segment(
     file: &mut dyn Read,
     out: &mut dyn Write,
@@ -307,9 +298,6 @@ fn emit_plaintext(out: &mut dyn Write, opened: Result<Vec<u8>, aead::Error>) -> 
     Ok(plaintext.len() as u64)
 }
 
-/// Write the whole ciphertext to a temp path, sync it, and rename it into place,
-/// so a segment file either exists complete or not at all. A failed write
-/// removes the temp file.
 pub(crate) fn write_segment_file(
     store_dir: &Path,
     seg_key: &SegmentKey,
@@ -345,9 +333,6 @@ fn write_complete(
     Ok(written)
 }
 
-/// Decrypt a segment file into `out`, emitting nothing until every chunk has
-/// authenticated once: the file is decrypted into a sink first, then again into
-/// `out`. Memory stays bounded by the chunk size either way.
 pub(crate) fn read_segment_file(
     store_dir: &Path,
     seg_key: &SegmentKey,
@@ -371,7 +356,6 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> Stor
     Ok(plaintext)
 }
 
-/// Remove a partial or orphaned file under the segments directory.
 pub(crate) fn remove_segment_file(path: &Path) -> StoreResult<()> {
     remove_if_present(path)
 }

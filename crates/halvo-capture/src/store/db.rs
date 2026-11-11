@@ -1,4 +1,4 @@
-//! SQLCipher metadata store and the sole-writer [`EncryptedStore`].
+//! SQLCipher metadata store and the [`EncryptedStore`].
 
 use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
@@ -54,8 +54,6 @@ impl KeyFile {
             .map_err(|_| StoreError::KeyFileUnparseable)
     }
 
-    /// Overwrite the key file with zeros, then unlink it, so the wrapped store
-    /// key does not survive on freed blocks. Succeeds when the file is gone.
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
         let path = Self::path(store_dir);
         match File::options().write(true).open(&path) {
@@ -113,9 +111,6 @@ fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
     }
 }
 
-/// Serializes `create` against other cooperating writers in the same directory.
-/// The single-writer guarantee itself is the exclusive database lock, which a
-/// writer cannot run without and which unlinking this file does not release.
 struct WriterLock {
     file: File,
 }
@@ -138,13 +133,10 @@ impl WriterLock {
 
 impl Drop for WriterLock {
     fn drop(&mut self) {
-        // The lock belongs to the open file, and a spawned child shares that file
-        // until its exec closes the descriptor, so closing ours would leave it held.
         let _ = self.file.unlock();
     }
 }
 
-/// The result of `PRAGMA wal_checkpoint(TRUNCATE)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Checkpoint {
     pub busy: i64,
@@ -170,16 +162,12 @@ impl Db {
         ]
     }
 
-    /// Remove the database and its WAL and shm files. Succeeds when none exist.
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
         Self::side_files(store_dir)
             .iter()
             .try_for_each(|p| remove_if_present(p))
     }
 
-    /// Open the database in `store_dir` with the raw store key and hold an
-    /// exclusive lock on it for the connection's lifetime, so no other
-    /// connection can read a snapshot that would keep a shredded page alive.
     pub(crate) fn open(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
         let path = Self::path(store_dir);
         let conn = Connection::open(&path).map_err(db_error)?;
@@ -244,9 +232,6 @@ impl Db {
         &self.conn
     }
 
-    /// Reserve the key row for a segment with no key yet: until
-    /// [`Db::commit_segment_key`] runs, the row is a tombstone and the segment
-    /// has no usable key.
     fn reserve_segment_key(
         &self,
         segment_id: uuid::Uuid,
@@ -343,9 +328,6 @@ impl Db {
             .unwrap_or(0)
     }
 
-    /// Move every committed page into the main database file and truncate the
-    /// WAL. Fails unless the checkpoint ran unblocked and the WAL holds no
-    /// frames afterwards; a shred is not complete until this succeeds.
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
         let busy: i64 = self
             .conn
@@ -362,8 +344,6 @@ impl Db {
     }
 }
 
-/// The first statement to touch the file: a wrong key is a sealed store, another
-/// connection holding the file is a second writer, anything else is i/o.
 fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
     conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
         r.get::<_, i64>(0)
@@ -429,7 +409,7 @@ enum Keyed {
     Sealed,
 }
 
-/// The sole-writer encrypted store: the SQLCipher database, the per-segment files
+/// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
     dir: PathBuf,
@@ -443,8 +423,7 @@ impl EncryptedStore {
     /// Create a fresh store in `dir`: open a new database under a random store
     /// key, wrap that key with `custody` and write the store-key file. A
     /// directory with a store-key file already holds a store; one without is
-    /// free, and any keyless leftovers in it are removed. If any step fails,
-    /// everything this call made, the custody root included, is destroyed.
+    /// free, and any keyless leftovers in it are removed.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -554,7 +533,6 @@ impl EncryptedStore {
         self.keyed().map(|(_, key)| key)
     }
 
-    /// Drop the database connection and zeroize the store key.
     pub(crate) fn seal(&mut self) {
         self.keyed = Keyed::Sealed;
     }
@@ -586,9 +564,6 @@ impl EncryptedStore {
         self.custody.destroy_root()
     }
 
-    /// Write a segment: reserve its key row, write the whole ciphertext file,
-    /// and only then commit the wrapped key. A write that fails at any point
-    /// leaves no usable key: the row stays a tombstone and the file is removed.
     pub(crate) fn write_segment_with_expiry(
         &mut self,
         bytes: &mut dyn Read,

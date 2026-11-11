@@ -1,6 +1,3 @@
-//! Regression tests for the adversarial review of the encrypted store: each test
-//! reproduces one confirmed finding and fails on the store before its fix.
-
 use std::io::{self, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -32,8 +29,6 @@ fn wal_len(dir: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// The wrapped key for `segment_id` as seen in a copy of `store.db` alone (no
-/// WAL), read with the store key: what a snapshot of the main file leaks.
 fn wrapped_key_in_main_file(
     dir: &Path,
     store_key: &[u8; 32],
@@ -73,8 +68,6 @@ fn live_key_rows(store: &EncryptedStore) -> i64 {
         .unwrap()
 }
 
-/// Custody over the real dev-fallback root whose `destroy_root` fails the first
-/// `failures` times and counts every call.
 struct FlakyCustody {
     inner: DevFallbackCustody,
     failures: AtomicUsize,
@@ -119,9 +112,6 @@ impl KeyCustody for FlakyCustody {
     }
 }
 
-/// Finding HIGH-1 (adversary-1 #3, adversary-2 #2): a reader holding a snapshot
-/// must not be able to keep a shredded key alive, and the shred must leave
-/// nothing recoverable in store.db or its WAL.
 #[test]
 fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
     let dir = tempfile::tempdir().unwrap();
@@ -173,8 +163,6 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
     );
 }
 
-/// Finding MEDIUM-4 (pr-review #6): the single-writer invariant must hold even
-/// after the writer lock file is unlinked out from under the first writer.
 #[test]
 fn a_second_process_is_refused_even_after_the_lock_file_is_unlinked() {
     let dir = tempfile::tempdir().unwrap();
@@ -204,8 +192,6 @@ fn a_second_process_is_refused_even_after_the_lock_file_is_unlinked() {
     );
 }
 
-/// The child half of the two-process lock test: opens the store named by
-/// `HALVO_TEST_HOLD_STORE` and holds it until told to stop. A no-op otherwise.
 #[test]
 fn hold_store_for_parent() {
     let Ok(dir) = std::env::var("HALVO_TEST_HOLD_STORE") else {
@@ -254,9 +240,6 @@ fn wait_for(marker: &Path, child: &mut Child) {
     }
 }
 
-/// Finding MEDIUM-5 (adversary-3 F1): a transient destroy_root failure must leave
-/// delete-all retryable, and once it succeeds a backup of store.key must not
-/// reopen the store.
 #[test]
 fn delete_all_survives_a_transient_root_destroy_failure() {
     let dir = tempfile::tempdir().unwrap();
@@ -296,8 +279,6 @@ fn delete_all_survives_a_transient_root_destroy_failure() {
     DevFallbackCustody::new(root_id).destroy_root().unwrap();
 }
 
-/// Finding MEDIUM-5 (adversary-2 #5, pr-review #10): a create that fails must
-/// destroy the root it made and leave no half store behind.
 #[test]
 fn a_failed_create_leaves_no_root_and_no_half_store() {
     let dir = tempfile::tempdir().unwrap();
@@ -318,8 +299,6 @@ fn a_failed_create_leaves_no_root_and_no_half_store() {
     DevFallbackCustody::new(root_id).destroy_root().unwrap();
 }
 
-/// Same finding, failing after the root exists: the wrap succeeded (so the root
-/// was created) but the key file could not be written.
 #[test]
 fn a_create_that_fails_after_wrapping_destroys_the_root_it_made() {
     let dir = tempfile::tempdir().unwrap();
@@ -344,7 +323,6 @@ fn a_create_that_fails_after_wrapping_destroys_the_root_it_made() {
     DevFallbackCustody::new(root_id).destroy_root().unwrap();
 }
 
-/// A custody whose wrap creates the real root and then fails.
 struct WrapThenFail(FlakyCustody);
 
 impl KeyCustody for WrapThenFail {
@@ -368,9 +346,6 @@ impl KeyCustody for WrapThenFail {
     }
 }
 
-/// Finding MEDIUM-5 (adversary-2 #1, pr-review #7): when a segment file cannot be
-/// removed, its key must still be destroyed everywhere, and the next pass must
-/// remove the orphan.
 #[cfg(unix)]
 #[test]
 fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_removes_the_file() {
@@ -421,8 +396,6 @@ fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_rem
     );
 }
 
-/// Finding MEDIUM-5 (pr-review #1): delete-all must leave a directory a fresh
-/// create can use.
 #[test]
 fn delete_all_leaves_a_directory_a_fresh_create_can_use() {
     let dir = tempfile::tempdir().unwrap();
@@ -489,8 +462,6 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// Finding MEDIUM-6 (adversary-1 #4): a write that fails mid-stream must commit
-/// no key and leave no readable file.
 #[test]
 fn a_failed_write_commits_no_key_and_leaves_no_readable_file() {
     let dir = tempfile::tempdir().unwrap();
@@ -520,9 +491,6 @@ fn a_failed_write_commits_no_key_and_leaves_no_readable_file() {
     );
 }
 
-/// Finding LOW-7 (adversary-1 #5, adversary-3 F4): a truncated or tail-tampered
-/// segment yields no plaintext at all, and the error names corruption, not a
-/// sealed store.
 #[test]
 fn a_truncated_segment_yields_no_plaintext_and_reports_corruption() {
     let dir = tempfile::tempdir().unwrap();
@@ -568,8 +536,6 @@ fn a_truncated_segment_yields_no_plaintext_and_reports_corruption() {
     assert_eq!(out, plaintext);
 }
 
-/// Finding LOW-8 (adversary-1 #6, adversary-3 F5): a ciphertext file with no live
-/// key row, and a stray temp file, are removed by the next shred pass.
 #[test]
 fn orphan_segment_files_are_reconciled() {
     let dir = tempfile::tempdir().unwrap();
@@ -608,8 +574,6 @@ fn orphan_segment_files_are_reconciled() {
     assert!(segment_path(dir.path(), live.segment_id).exists());
 }
 
-/// Finding LOW-9 (pr-review #2 and #4): a wrong store key is a sealed store; a
-/// shredded segment is sealed; tampered data is corrupt.
 #[test]
 fn a_wrong_store_key_opens_as_sealed_and_a_shredded_segment_reads_as_sealed() {
     let dir = tempfile::tempdir().unwrap();
@@ -644,7 +608,6 @@ fn a_wrong_store_key_opens_as_sealed_and_a_shredded_segment_reads_as_sealed() {
     );
 }
 
-/// Yields `remaining` bytes of a fixed pattern without ever holding them.
 #[cfg(unix)]
 struct PatternReader {
     remaining: u64,
@@ -671,10 +634,6 @@ fn rss_kib() -> u64 {
     String::from_utf8_lossy(&out.stdout).trim().parse().unwrap()
 }
 
-/// The memory bound: the peak resident set during a 512 MiB segment write and
-/// read must stay within 64 MiB of the resident set before the write. Sampled
-/// every 20 ms with `ps -o rss=`; run with
-/// `cargo test --release -p halvo-capture --lib peak_rss -- --ignored --nocapture`.
 #[cfg(unix)]
 #[test]
 #[ignore]

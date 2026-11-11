@@ -71,12 +71,10 @@ pub(crate) fn aead_open(
         .map(Zeroizing::new)
 }
 
-/// Fill `buf` from the OS random number generator.
 pub(crate) fn fill_random(buf: &mut [u8]) -> Result<(), CustodyError> {
     getrandom::getrandom(buf).map_err(|e| CustodyError::Os(e.raw_os_error()))
 }
 
-/// Parse 32 unwrapped key bytes into a [`StoreKey`] without leaving a copy.
 pub(crate) fn store_key_from(plain: Zeroizing<Vec<u8>>) -> Result<StoreKey, CustodyError> {
     if plain.len() != 32 {
         return Err(CustodyError::Crypto(
@@ -261,7 +259,6 @@ use keychain as platform;
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use unsupported as platform;
 
-/// Whether the platform still holds the dev-fallback root for `root_id`.
 #[cfg(test)]
 pub(crate) fn dev_root_exists(root_id: RootId) -> Result<bool, CustodyError> {
     platform::root_exists(root_id)
@@ -278,7 +275,7 @@ pub(crate) fn replace_dev_root(root_id: RootId, root: &[u8; 32]) -> Result<(), C
 }
 
 /// Dev-fallback custody over the one store key. `root_id` is a non-secret
-/// per-store locator (a UUID) so two stores never share one platform root: on
+/// per-store locator (a UUID): on
 /// macOS it is the keychain account, on Windows the DPAPI entropy label.
 pub struct DevFallbackCustody {
     root_id: RootId,
