@@ -278,8 +278,7 @@ marker_defect() {
 }
 
 report_has_key() {
-  case " $1 " in *" $2="*) return 0 ;; esac
-  return 1
+  printf '%s\n' "$1" | tr ' ' '\n' | grep -q -e "^$2="
 }
 
 report_values() {

@@ -40,6 +40,8 @@ cases() {
   line=$(with 's/wal_bytes=0/wal_bytes=0 expired_events_left=0/'); t line-of-store-4 PASS predicate_deletion_report "$line"
   line=$(with 's/wal_bytes=0/wal_bytes=0 expired_events_left=3/'); t expired-events-left-3 FAIL predicate_deletion_report "$line"
   line=$(with 's/ store_sealed=yes//'); t defects-name-the-key PASS defects_are "$line" "store_sealed "
+  line=$(printf '%s\nexpired_events_left=3' "$good"); t expired-events-left-3-on-a-line-of-its-own FAIL predicate_deletion_report "$line"
+  t expired-events-left-on-a-line-of-its-own-is-named PASS defects_are "$line" "expired_events_left "
 }
 
 past_the_deadline() {
