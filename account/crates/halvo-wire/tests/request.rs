@@ -221,15 +221,17 @@ fn faults(schema: &Value, routes: &Value, call: &Call, request: &Request) -> Vec
         .iter()
         .find(|route| route["name"] == call.route().name && route["kind"] == "app")
         .expect("the call names an app route of the vendored file");
-    if request.method != route["method"] || request.path != route["path"] {
+    if request.method() != route["method"] || request.path() != route["path"] {
         faults.push(format!(
             "{} {} is not the route {}",
-            request.method, request.path, route["name"]
+            request.method(),
+            request.path(),
+            route["name"]
         ));
     }
     let headers = routes["headers"].as_object().expect("headers is an object");
     let mut seen = Vec::new();
-    for (name, value) in &request.headers {
+    for (name, value) in request.headers() {
         if seen.contains(name) {
             faults.push(format!("the header {name} is sent twice"));
         }
@@ -256,7 +258,7 @@ fn faults(schema: &Value, routes: &Value, call: &Call, request: &Request) -> Vec
         }
     }
     let has_type = seen.contains(&"content-type");
-    match (route["request"].as_str(), &request.body) {
+    match (route["request"].as_str(), request.body()) {
         (None, None) if !has_type => {}
         (None, _) => {
             faults.push("a route with no request got a body or a content type".to_string())
@@ -275,7 +277,7 @@ fn faults(schema: &Value, routes: &Value, call: &Call, request: &Request) -> Vec
             }
             match serde_json::from_slice::<Value>(body) {
                 Ok(value) => {
-                    if serde_json::to_vec(&value).ok().as_deref() != Some(body.as_slice()) {
+                    if serde_json::to_vec(&value).ok().as_deref() != Some(body) {
                         faults.push(
                             "the body is not written as JSON.stringify writes it".to_string(),
                         );
@@ -321,7 +323,7 @@ fn value_faults(
     let mut faults = Vec::new();
     let header = |name: &str| {
         request
-            .headers
+            .headers()
             .iter()
             .find(|(each, _)| *each == name)
             .map(|(_, value)| value.as_str())
@@ -336,8 +338,7 @@ fn value_faults(
     match call {
         Call::CheckoutStart(cap) | Call::CapSet(cap) => {
             let body: Value = request
-                .body
-                .as_deref()
+                .body()
                 .and_then(|bytes| serde_json::from_slice(bytes).ok())
                 .unwrap_or(Value::Null);
             let want =
@@ -347,7 +348,7 @@ fn value_faults(
             }
         }
         Call::Status | Call::CapGet | Call::Manage | Call::AccountDelete => {
-            if request.body.is_some() {
+            if request.body().is_some() {
                 faults.push("a call without a cap got a body".to_string());
             }
         }
@@ -625,7 +626,7 @@ fn each_call_goes_to_the_route_that_contract_8_names() {
         assert_eq!(call.route().name, name);
         let request =
             build(&call, &account, &credential).expect("a call within the bounds is built");
-        assert_eq!((request.method, request.path), (method, path), "{name}");
+        assert_eq!((request.method(), request.path()), (method, path), "{name}");
     }
 }
 

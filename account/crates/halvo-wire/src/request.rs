@@ -184,12 +184,53 @@ impl Call {
 }
 
 /// A request to send to the backend's origin: the method, the path, the headers in order and the body.
+/// [`build`] is its only constructor, and its fields are private, so a caller reads a request and
+/// cannot make or change one.
+///
+/// ```
+/// use halvo_wire::request::{build, AccountId, Call, Credential};
+/// let request = build(&Call::Status, &AccountId::from_random([1; 16]), &Credential::from_random([2; 32]))
+///     .expect("a call without a cap is built");
+/// assert_eq!((request.method(), request.path(), request.body()), ("GET", "/v1/subscription", None));
+/// ```
+///
+/// ```compile_fail,E0451
+/// let request = halvo_wire::request::Request { method: "GET", path: "/x", headers: Vec::new(), body: None };
+/// ```
+///
+/// ```compile_fail,E0616
+/// fn change(request: &mut halvo_wire::request::Request) {
+///     request.path = "/v1/done";
+/// }
+/// ```
 #[derive(Clone, PartialEq, Eq)]
 pub struct Request {
-    pub method: &'static str,
-    pub path: &'static str,
-    pub headers: Vec<(&'static str, String)>,
-    pub body: Option<Vec<u8>>,
+    method: &'static str,
+    path: &'static str,
+    headers: Vec<(&'static str, String)>,
+    body: Option<Vec<u8>>,
+}
+
+impl Request {
+    /// The method of the call's route.
+    pub fn method(&self) -> &'static str {
+        self.method
+    }
+
+    /// The path of the call's route.
+    pub fn path(&self) -> &'static str {
+        self.path
+    }
+
+    /// The headers, in the order in which they are sent.
+    pub fn headers(&self) -> &[(&'static str, String)] {
+        &self.headers
+    }
+
+    /// The body: a `CapBody` as compact JSON for a route with a request schema, and none otherwise.
+    pub fn body(&self) -> Option<&[u8]> {
+        self.body.as_deref()
+    }
 }
 
 impl fmt::Debug for Request {
