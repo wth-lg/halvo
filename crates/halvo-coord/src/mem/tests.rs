@@ -77,6 +77,78 @@ fn config_refuses_every_other_shape() {
     }
 }
 
+const BUDGET: &str = "\"budget\":{\"amount\":500,\"period\":\"month\"}";
+
+fn with_budget() -> String {
+    BILL.replace("\"budget\":null", BUDGET)
+}
+
+#[test]
+fn config_refuses_a_doubled_key_at_every_level() {
+    let bad = [
+        with_budget().replace("\"rev\":1", "\"rev\":1,\"rev\":1"),
+        with_budget().replace("\"rev\":1", "\"rev\":1,\"r\\u0065v\":2"),
+        with_budget().replace(
+            "\"external\":\"yes\"",
+            "\"external\":\"yes\",\"external\":\"no\"",
+        ),
+        with_budget().replace("\"wall_s\":120", "\"wall_s\":120,\"wall_s\":120"),
+        with_budget().replace("\"amount\":500", "\"amount\":500,\"amount\":7"),
+    ];
+    assert!(Config::parse(&with_budget()).is_ok());
+    for text in bad {
+        assert_eq!(Config::parse(&text).err(), Some(Cause::Malformed), "{text}");
+    }
+}
+
+#[test]
+fn config_refuses_an_unknown_key_at_every_level() {
+    let bad = [
+        with_budget().replace("\"rev\":1", "\"rev\":1,\"name\":\"x\""),
+        with_budget().replace(
+            "\"external\":\"yes\"",
+            "\"external\":\"yes\",\"other\":\"no\"",
+        ),
+        with_budget().replace("\"wall_s\":120", "\"wall_s\":120,\"cpu_s\":1"),
+        with_budget().replace("\"amount\":500", "\"amount\":500,\"currency\":\"usd\""),
+    ];
+    for text in bad {
+        assert_eq!(Config::parse(&text).err(), Some(Cause::Malformed), "{text}");
+    }
+}
+
+#[test]
+fn config_refuses_a_missing_key_at_every_level() {
+    let bad = [
+        with_budget().replace("\"rev\":1,", ""),
+        with_budget().replace(",\"external\":\"yes\"", ""),
+        with_budget().replace(",\"wall_s\":120", ""),
+        with_budget().replace(",\"period\":\"month\"", ""),
+    ];
+    for text in bad {
+        assert_eq!(Config::parse(&text).err(), Some(Cause::Malformed), "{text}");
+    }
+}
+
+#[test]
+fn config_refuses_a_budget_amount_outside_1_to_100000000() {
+    for amount in ["0", "100000001", "9223372036854775808"] {
+        let text = with_budget().replace("\"amount\":500", &format!("\"amount\":{amount}"));
+        assert_eq!(
+            Config::parse(&text).err(),
+            Some(Cause::Malformed),
+            "{amount}"
+        );
+    }
+    for amount in [1, 100_000_000] {
+        let text = with_budget().replace("\"amount\":500", &format!("\"amount\":{amount}"));
+        assert_eq!(
+            Config::parse(&text).unwrap().budget().map(|b| b.amount),
+            Some(amount)
+        );
+    }
+}
+
 #[test]
 fn rng_counts_up_from_one() {
     let p: Ports<Config> = Ports::new(0, 0);

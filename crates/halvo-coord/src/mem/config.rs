@@ -84,10 +84,11 @@ fn yes(value: &Value) -> Result<bool, Cause> {
 }
 
 impl Config {
-    /// Reads one record of A-A2.1: exactly its keys, `v` 1, every name of its lists and every
-    /// count that fits; anything else is `malformed`.
+    /// Reads one record of A-A2.1: exactly its keys at every level, each once, `v` 1, every
+    /// name of its lists, every count that fits, and a budget amount of 1 to 100,000,000
+    /// (A-A2.3); anything else is `malformed`.
     pub fn parse(json: &str) -> Result<Config, Cause> {
-        let value: Value = serde_json::from_str(json).map_err(|_| Cause::Malformed)?;
+        let value = crate::types::strict::parse(json)?;
         let o = exact(&value, &KEYS)?;
         if o["v"].as_u64() != Some(1) {
             return Err(Cause::Malformed);
@@ -109,7 +110,9 @@ impl Config {
             b => {
                 let b = exact(b, &["amount", "period"])?;
                 Some(Budget {
-                    amount: count(&b["amount"])?,
+                    amount: Some(count(&b["amount"])?)
+                        .filter(|a| (1..=100_000_000).contains(a))
+                        .ok_or(Cause::Malformed)?,
                     period: Period::parse(text(&b["period"])?)?,
                 })
             }

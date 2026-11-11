@@ -87,11 +87,11 @@ impl Limits {
         setup_candidates: 8,
     };
 
-    /// Reads a JSON object with exactly the eighteen field names of I0.10, each a whole
-    /// number that fits its type, as `formal/r4-coordinator/limits.json` holds them; any other
-    /// text is `malformed`.
+    /// Reads a JSON object with exactly the eighteen field names of I0.10, each once and a
+    /// whole number that fits its type, as `formal/r4-coordinator/limits.json` holds them; any
+    /// other text, a doubled key among it, is `malformed`.
     pub fn from_json(text: &str) -> Result<Limits, Cause> {
-        let value: serde_json::Value = serde_json::from_str(text).map_err(|_| Cause::Malformed)?;
+        let value = super::strict::parse(text)?;
         let object = value.as_object().ok_or(Cause::Malformed)?;
         if object.len() != FIELDS.len() || FIELDS.iter().any(|f| !object.contains_key(*f)) {
             return Err(Cause::Malformed);

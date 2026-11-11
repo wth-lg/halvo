@@ -276,6 +276,37 @@ fn limits_write_and_read_the_field_names_of_i0_10() {
 }
 
 #[test]
+fn limits_refuse_a_doubled_key() {
+    for bad in [
+        PRODUCT_JSON.replace("}", ",\"queue_max\":9}"),
+        PRODUCT_JSON.replace("}", ",\"queue_max\":4}"),
+        PRODUCT_JSON.replace("}", ",\"queue\\u005fmax\":4}"),
+    ] {
+        assert_eq!(Limits::from_json(&bad), Err(Cause::Malformed), "{bad}");
+    }
+}
+
+#[test]
+fn limits_refuse_an_unknown_key() {
+    let bad = PRODUCT_JSON.replace("\"arm_ms\":500", "\"arm_ms\":500,\"arm_s\":1");
+    assert_eq!(Limits::from_json(&bad), Err(Cause::Malformed));
+    let renamed = PRODUCT_JSON.replace("\"arm_ms\"", "\"arm_s\"");
+    assert_eq!(Limits::from_json(&renamed), Err(Cause::Malformed));
+}
+
+#[test]
+fn limits_refuse_a_missing_key() {
+    for field in [
+        "\"max_live_runs\":1,",
+        ",\"arm_ms\":500",
+        ",\"setup_candidates\":8",
+    ] {
+        let bad = PRODUCT_JSON.replace(field, "");
+        assert_eq!(Limits::from_json(&bad), Err(Cause::Malformed), "{bad}");
+    }
+}
+
+#[test]
 fn limits_refuse_every_other_shape() {
     let missing = PRODUCT_JSON.replace(",\"setup_candidates\":8", "");
     let extra = PRODUCT_JSON.replace("}", ",\"other\":1}");

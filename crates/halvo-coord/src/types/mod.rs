@@ -13,6 +13,7 @@ mod names;
 mod reply;
 mod run;
 mod status;
+pub(crate) mod strict;
 mod workflow;
 
 pub use cause::Cause;
