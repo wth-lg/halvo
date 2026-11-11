@@ -141,6 +141,26 @@ impl<P: Protector> FileRoots<P> {
     pub(crate) fn root_path(&self, root_id: RootId) -> PathBuf {
         self.path(root_id)
     }
+
+    #[cfg(test)]
+    pub(crate) fn root_bytes(
+        &self,
+        root_id: RootId,
+    ) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
+        self.existing_root(root_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_root(
+        &self,
+        root_id: RootId,
+        root: &[u8; 32],
+    ) -> Result<(), CustodyError> {
+        let blob = self.protector.protect(root, root_id.as_bytes())?;
+        std::fs::create_dir_all(&self.dir).map_err(root_io)?;
+        let path = self.path(root_id);
+        write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)
+    }
 }
 
 #[cfg(test)]

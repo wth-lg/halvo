@@ -166,6 +166,16 @@ mod keychain {
     pub(super) fn root_exists(root_id: RootId) -> Result<bool, CustodyError> {
         existing_root(root_id).map(|root| root.is_some())
     }
+
+    #[cfg(test)]
+    pub(super) fn root_bytes(root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
+        existing_root(root_id)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_root(root_id: RootId, root: &[u8; 32]) -> Result<(), CustodyError> {
+        set_generic_password(SERVICE, &root_id.to_string(), root).map_err(|e| classify(&e))
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -188,6 +198,18 @@ mod dpapi {
     #[cfg(test)]
     pub(super) fn root_exists(root_id: RootId) -> Result<bool, CustodyError> {
         user_roots()?.root_exists(root_id)
+    }
+
+    #[cfg(test)]
+    pub(super) fn root_bytes(
+        root_id: RootId,
+    ) -> Result<Option<zeroize::Zeroizing<[u8; 32]>>, CustodyError> {
+        user_roots()?.root_bytes(root_id)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_root(root_id: RootId, root: &[u8; 32]) -> Result<(), CustodyError> {
+        user_roots()?.replace_root(root_id, root)
     }
 }
 
@@ -218,6 +240,18 @@ mod unsupported {
     pub(super) fn root_exists(_root_id: RootId) -> Result<bool, CustodyError> {
         Ok(false)
     }
+
+    #[cfg(test)]
+    pub(super) fn root_bytes(
+        _root_id: RootId,
+    ) -> Result<Option<zeroize::Zeroizing<[u8; 32]>>, CustodyError> {
+        Ok(None)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replace_root(_root_id: RootId, _root: &[u8; 32]) -> Result<(), CustodyError> {
+        Err(no_root())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -231,6 +265,16 @@ use unsupported as platform;
 #[cfg(test)]
 pub(crate) fn dev_root_exists(root_id: RootId) -> Result<bool, CustodyError> {
     platform::root_exists(root_id)
+}
+
+#[cfg(test)]
+pub(crate) fn dev_root_bytes(root_id: RootId) -> Result<Option<Zeroizing<[u8; 32]>>, CustodyError> {
+    platform::root_bytes(root_id)
+}
+
+#[cfg(test)]
+pub(crate) fn replace_dev_root(root_id: RootId, root: &[u8; 32]) -> Result<(), CustodyError> {
+    platform::replace_root(root_id, root)
 }
 
 /// Dev-fallback custody over the one store key. `root_id` is a non-secret
@@ -272,6 +316,102 @@ impl KeyCustody for DevFallbackCustody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::custody::file_root::test_support::{FileRootCustody, TestProtector};
+    use crate::custody::file_root::{FileRoots, Protector};
+
+    trait RootHooks: KeyCustody {
+        fn root(&self) -> Zeroizing<[u8; 32]>;
+        fn replace(&self, root: &[u8; 32]);
+    }
+
+    impl RootHooks for DevFallbackCustody {
+        fn root(&self) -> Zeroizing<[u8; 32]> {
+            dev_root_bytes(self.root_id())
+                .unwrap()
+                .expect("the platform holds the root after a wrap")
+        }
+        fn replace(&self, root: &[u8; 32]) {
+            replace_dev_root(self.root_id(), root).unwrap();
+        }
+    }
+
+    impl<P: Protector> RootHooks for FileRootCustody<P> {
+        fn root(&self) -> Zeroizing<[u8; 32]> {
+            self.roots
+                .root_bytes(self.root_id)
+                .unwrap()
+                .expect("the root file exists after a wrap")
+        }
+        fn replace(&self, root: &[u8; 32]) {
+            self.roots.replace_root(self.root_id, root).unwrap();
+        }
+    }
+
+    struct DestroyedAtTheEnd<'a>(&'a dyn RootHooks);
+
+    impl Drop for DestroyedAtTheEnd<'_> {
+        fn drop(&mut self) {
+            let _ = self.0.destroy_root();
+        }
+    }
+
+    fn file_root_custody(dir: &std::path::Path) -> FileRootCustody<TestProtector> {
+        FileRootCustody {
+            roots: FileRoots::new(dir.join("roots"), TestProtector::new(0x5a).0),
+            root_id: RootId::fresh(),
+        }
+    }
+
+    fn a_key_that_is_no_root() -> [u8; 32] {
+        let mut key = [0u8; 32];
+        fill_random(&mut key).unwrap();
+        key
+    }
+
+    fn the_wrap_opens_under_its_root_and_no_other_key(custody: &dyn RootHooks) {
+        let _destroyed = DestroyedAtTheEnd(custody);
+        let wrapped = custody
+            .wrap_store_key(&StoreKey::from_bytes([0x3c; 32]))
+            .unwrap();
+        let root = custody.root();
+        let label = custody.root_id();
+        assert!(
+            aead_open(&root, &wrapped.0, label.as_bytes()).is_ok(),
+            "the wrapped store key does not open under its root"
+        );
+        let replacement = a_key_that_is_no_root();
+        for (name, other) in [
+            ("all zero", [0u8; 32]),
+            ("all ones", [0xffu8; 32]),
+            ("random", replacement),
+        ] {
+            assert!(
+                aead_open(&other, &wrapped.0, label.as_bytes()).is_err(),
+                "the wrapped store key opens under a key that is not its root ({name})"
+            );
+        }
+        custody.replace(&replacement);
+        let under_replacement = custody.unwrap_store_key(&wrapped);
+        assert!(
+            matches!(under_replacement, Err(CustodyError::WrapAuthFailed)),
+            "with the root replaced under the same id, unwrap answered {:?}",
+            under_replacement.err()
+        );
+        custody.replace(&root);
+        let restored = custody.unwrap_store_key(&wrapped).unwrap();
+        assert!(
+            restored.expose() == &[0x3c; 32],
+            "the restored root does not give back the store key"
+        );
+    }
+
+    #[test]
+    fn the_store_key_wrap_opens_under_its_root_and_under_no_other_key() {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        the_wrap_opens_under_its_root_and_no_other_key(&DevFallbackCustody::new(RootId::fresh()));
+        let dir = tempfile::tempdir().unwrap();
+        the_wrap_opens_under_its_root_and_no_other_key(&file_root_custody(dir.path()));
+    }
 
     #[test]
     fn release_check_rejects_only_the_fallback() {
