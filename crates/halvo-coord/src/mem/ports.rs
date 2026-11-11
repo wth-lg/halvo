@@ -264,14 +264,14 @@ impl<C> Ports<C> {
                 None => stored
                     .iter()
                     .filter(|s| s.agent == e.agent)
-                    .map(|s| s.seq)
+                    .map(|s| s.seq.get())
                     .max()
                     .unwrap_or(0),
             };
-            if before.checked_add(1) != Some(e.seq) {
+            if before.checked_add(1) != Some(e.seq.get()) {
                 return Some("seq");
             }
-            last.push((&e.agent, e.seq));
+            last.push((&e.agent, e.seq.get()));
         }
         None
     }
@@ -317,7 +317,7 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             .events
             .borrow()
             .iter()
-            .filter(|e| &e.agent == agent && e.seq > after)
+            .filter(|e| &e.agent == agent && e.seq.get() > after)
             .cloned()
             .collect();
         found.sort_by_key(|e| e.seq);

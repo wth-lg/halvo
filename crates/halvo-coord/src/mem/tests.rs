@@ -336,7 +336,7 @@ fn event(seq: u32, agent: u8) -> Event {
     Event {
         workflow: id(WorkflowId::parse, agent - 1),
         agent: id(AgentId::parse, agent),
-        seq,
+        seq: std::num::NonZeroU32::new(seq).unwrap(),
         day: 1,
         at: 1_000_000,
         what: What::SlotSkipped { slot: None },
@@ -527,10 +527,10 @@ fn history_answers_at_most_64_events_a_call() {
     }
     let first = p.history(&id(AgentId::parse, 2), 0).unwrap();
     assert_eq!(first.len(), 64);
-    assert_eq!((first[0].seq, first[63].seq), (1, 64));
+    assert_eq!((first[0].seq.get(), first[63].seq.get()), (1, 64));
     let rest = p.history(&id(AgentId::parse, 2), 64).unwrap();
     assert_eq!(rest.len(), 36);
-    assert_eq!((rest[0].seq, rest[35].seq), (65, 100));
+    assert_eq!((rest[0].seq.get(), rest[35].seq.get()), (65, 100));
 }
 
 #[test]
@@ -541,7 +541,10 @@ fn history_gives_the_logged_events_of_an_agent_above_a_seq() {
     p.log(&[event(1, 2), event(1, 4), event(2, 2), event(3, 2)])
         .unwrap();
     let h = p.history(&id(AgentId::parse, 2), 1).unwrap();
-    assert_eq!(h.iter().map(|e| e.seq).collect::<Vec<_>>(), vec![2, 3]);
+    assert_eq!(
+        h.iter().map(|e| e.seq.get()).collect::<Vec<_>>(),
+        vec![2, 3]
+    );
     assert_eq!(p.history(&id(AgentId::parse, 4), 0).unwrap().len(), 1);
 }
 

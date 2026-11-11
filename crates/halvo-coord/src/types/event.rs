@@ -1,7 +1,35 @@
 use super::{AgentId, AgentState, Choice, DecisionEntry, HoldSetCause, ItemId, ItemKind};
 use super::{LapseCause, Mode, Name, Origin, RunEnd, RunId, Trigger, WorkflowId};
+use std::num::NonZeroU32;
 
 /// A record `coord_event` of I7.1: the first seven keys and the event with its own keys.
+///
+/// ```
+/// use halvo_coord::types::{AgentId, Event, What, WorkflowId};
+/// use std::num::NonZeroU32;
+/// let e = Event {
+///     workflow: WorkflowId::parse("00000000000000000000000000000001").unwrap(),
+///     agent: AgentId::parse("00000000000000000000000000000002").unwrap(),
+///     seq: NonZeroU32::MIN,
+///     day: 20_760,
+///     at: 0,
+///     what: What::SlotSkipped { slot: None },
+/// };
+/// ```
+///
+/// An event with `seq` 0 cannot be written:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::{AgentId, Event, What, WorkflowId};
+/// let e = Event {
+///     workflow: WorkflowId::parse("00000000000000000000000000000001").unwrap(),
+///     agent: AgentId::parse("00000000000000000000000000000002").unwrap(),
+///     seq: 0,
+///     day: 20_760,
+///     at: 0,
+///     what: What::SlotSkipped { slot: None },
+/// };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Event {
     /// `workflow`.
@@ -9,7 +37,7 @@ pub struct Event {
     /// `agent`.
     pub agent: AgentId,
     /// `seq`: rises by 1 per agent, from 1.
-    pub seq: u32,
+    pub seq: NonZeroU32,
     /// `day`: days since 1970-01-01.
     pub day: u32,
     /// `at`: nanoseconds since 1970-01-01T00:00:00Z, `Clock::now()` times 1,000,000.

@@ -63,6 +63,7 @@ use super::{
 use crate::mem::Config;
 use crate::words;
 use serde::Serialize;
+use std::num::NonZeroU32;
 use std::path::Path;
 
 const TODAY: u32 = 20_760;
@@ -479,7 +480,7 @@ fn build(state: State) -> Vec<Built> {
             events.push(Event {
                 workflow: workflow.clone(),
                 agent: agent.clone(),
-                seq: events.len() as u32 + 1,
+                seq: NonZeroU32::MIN.saturating_add(events.len() as u32),
                 day,
                 at: i64::from(day) * DAY_NS + NOON_NS,
                 what,
