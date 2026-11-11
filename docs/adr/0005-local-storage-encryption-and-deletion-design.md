@@ -37,3 +37,6 @@ Window expiry and cap eviction destroy a segment key. Delete-all destroys the ro
   owner ask; another answer is a dated line here). The Time Machine mark on the data
   directory stays as a mitigation: it stops Time Machine from copying the data
   directory and stops no other copy.
+- The storage cap counts disk bytes of the capture store: its database pages, its
+  WAL and the segment ciphertext. The inventory labels the logical and the disk
+  totals apart (DR-03, which row 76 folds into the units).
