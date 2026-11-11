@@ -95,35 +95,35 @@ impl Role {
     }
 }
 
-/// Why a body is refused (T11.3). `Malformed`: not one JSON object, a value of the wrong JSON type,
-/// a count not written with digits alone or above 4,294,967,295, or a string that is no Unicode
-/// text. `Key`: an unknown, missing or repeated key. `Tier`, `Effort`, `Role`: a word off its list.
-/// `Limit`: a count of messages or an output limit outside its range. `Size`: more than
-/// `MAX_BODY_BYTES` bytes. Where two fit, the one that stands first in `ALL` is returned.
+/// Why a body is refused (T11.3). `Size`: more than `MAX_BODY_BYTES` bytes. `Malformed`: not one
+/// JSON object, a value of the wrong JSON type, a count not written with digits alone or above
+/// 4,294,967,295, or a string that is no Unicode text. `Key`: an unknown, missing or repeated key.
+/// `Tier`, `Effort`, `Role`: a word off its list. `Limit`: a count of messages or an output limit
+/// outside its range. Where two fit, the one that stands first in `ALL` is returned.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BodyError {
+    Size,
     Malformed,
     Key,
     Tier,
     Effort,
     Role,
     Limit,
-    Size,
 }
 
 impl BodyError {
     /// Every value, in the order of T11.3, which is the order in which one error wins over another.
     pub const ALL: [BodyError; 7] = [
+        BodyError::Size,
         BodyError::Malformed,
         BodyError::Key,
         BodyError::Tier,
         BodyError::Effort,
         BodyError::Role,
         BodyError::Limit,
-        BodyError::Size,
     ];
 
-    /// The word of the error: `malformed`, `key`, `tier`, `effort`, `role`, `limit` or `size`.
+    /// The word of the error: `size`, `malformed`, `key`, `tier`, `effort`, `role` or `limit`.
     pub const fn as_str(self) -> &'static str {
         match self {
             BodyError::Malformed => "malformed",
@@ -157,25 +157,25 @@ pub struct Body {
 impl Body {
     /// Reads a body: one JSON object of UTF-8 text with the four keys of T11.3 in any order, JSON
     /// white space between tokens, and messages that hold the keys `role` and `content` in any order.
-    /// A repeated key is refused, also when an escape spells it. Returns the first error of the order
-    /// of `BodyError::ALL` that fits the whole text.
+    /// A repeated key is refused, also when an escape spells it. More than `MAX_BODY_BYTES` bytes are
+    /// `Size` before any byte is read; otherwise returns the first error of the order of
+    /// `BodyError::ALL` that fits the whole text.
     pub fn parse(bytes: &[u8]) -> Result<Body, BodyError> {
+        if bytes.len() > MAX_BODY_BYTES {
+            return Err(BodyError::Size);
+        }
         let read = json::text(bytes)
             .and_then(|text| json::read(text, BodySeed))
             .ok_or(BodyError::Malformed)?;
-        read.finish(bytes.len())
+        read.finish()
     }
 
     /// Writes the body in its one form: the keys in the order of T11.3 with no space, the output
     /// limit in digits, and each string as `serde_json` writes one (`\"`, `\\`, the short escapes,
     /// `\u00xx` with lower-case digits for the other characters under 0x20, every other character as
-    /// UTF-8). Refuses a body outside its limits with `Limit`, and then a longer text with `Size`.
+    /// UTF-8). Refuses a written form of more than `MAX_BODY_BYTES` bytes with `Size`, and then a
+    /// body outside its limits with `Limit`.
     pub fn to_bytes(&self) -> Result<Vec<u8>, BodyError> {
-        if !(1..=MAX_MESSAGES).contains(&self.messages.len())
-            || !(1..=MAX_OUTPUT_TOKENS).contains(&self.max_output_tokens)
-        {
-            return Err(BodyError::Limit);
-        }
         let mut out = Vec::new();
         out.extend_from_slice(b"{\"tier\":\"");
         out.extend_from_slice(self.tier.as_str().as_bytes());
@@ -197,6 +197,11 @@ impl Body {
         out.extend_from_slice(b"]}");
         if out.len() > MAX_BODY_BYTES {
             return Err(BodyError::Size);
+        }
+        if !(1..=MAX_MESSAGES).contains(&self.messages.len())
+            || !(1..=MAX_OUTPUT_TOKENS).contains(&self.max_output_tokens)
+        {
+            return Err(BodyError::Limit);
         }
         Ok(out)
     }
@@ -227,12 +232,8 @@ struct Read {
 }
 
 impl Read {
-    fn finish(self, size: usize) -> Result<Body, BodyError> {
-        let mut fault = self.fault;
-        if size > MAX_BODY_BYTES {
-            fault.add(BodyError::Size);
-        }
-        if let Some(error) = fault.0 {
+    fn finish(self) -> Result<Body, BodyError> {
+        if let Some(error) = self.fault.0 {
             return Err(error);
         }
         match (
