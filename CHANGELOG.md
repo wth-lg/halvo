@@ -101,3 +101,4 @@ and merge without an entry landing under the heading of another.
 - Added: Add ADRs 0004 to 0012 for what the capture run decided, docs/privacy-limits.md on what expiry and delete-all cover and which private windows capture tells, and a ci.d check of the ADR headers
 - Changed: Name the capture daemon in docs/plan.md as the only opener of the capture store and the app as its starter, with a dated revision line for each edit
 - Fixed: Cite the research lines that state the facts in ADRs 0001 and 0003 and record the crates of the workspace in ADR 0002, each by a dated amendment
+- Changed: Give each CI job a 60-minute timeout in place of 30 minutes, so that the checks of the later runs fit, with the bound ci_job_timeout_min and the self-test case that reads it
