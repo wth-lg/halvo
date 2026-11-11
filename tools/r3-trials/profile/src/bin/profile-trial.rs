@@ -962,14 +962,14 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
         scratch: args.scratch.clone(),
         stop,
     };
-    let outcome = task(&ctx).await;
+    let (done, removed) = task(&ctx).await;
     server.stop();
-    match outcome {
-        Ok(true) => {
+    match done {
+        Ok(()) if removed => {
             report("ok", true, "-");
             ExitCode::SUCCESS
         }
-        Ok(false) => {
+        Ok(()) => {
             report("miss", false, "profile_kept");
             ExitCode::from(1)
         }
@@ -978,20 +978,23 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
                 "start" | "browser_start" => "browser_start",
                 other => other,
             };
-            report("miss", false, cause);
+            report("miss", removed, cause);
             ExitCode::from(1)
         }
     }
 }
 
-async fn task(ctx: &Ctx) -> Res<bool> {
-    ctx.control
-        .reset(&["second_factor"])
-        .map_err(|_| Fault::new("fixture", "reset"))?;
+async fn task(ctx: &Ctx) -> (Res<()>, bool) {
+    if ctx.control.reset(&["second_factor"]).is_err() {
+        return (Err(Fault::new("fixture", "reset")), false);
+    }
     let dir = ctx
         .scratch
         .join(format!("{}-profile-task", std::process::id()));
-    let mut ex = ctx.stop.or(Executor::start(&ctx.options(dir))).await?;
+    let mut ex = match ctx.stop.or(Executor::start(&ctx.options(dir))).await {
+        Ok(ex) => ex,
+        Err(f) => return (Err(f), false),
+    };
     let done = ctx
         .stop
         .or(async {
@@ -1007,7 +1010,7 @@ async fn task(ctx: &Ctx) -> Res<bool> {
         })
         .await;
     let stopped = ex.stop_and_remove().await;
-    done.map(|_| stopped.removed)
+    (done, stopped.removed)
 }
 
 #[cfg(unix)]
