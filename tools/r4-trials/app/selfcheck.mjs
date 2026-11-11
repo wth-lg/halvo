@@ -18,6 +18,7 @@ export const WAYS = ['get', 'channel', 'events'];
 export const SYSTEM = process.platform === 'win32' ? 'windows' : 'macos';
 export const SENT = 10000;
 const START_MS = 60000;
+const CONNECT_MS = 10000;
 const ANSWER_MS = 45000;
 const QUIT_MS = 10000;
 const SLOW_FRAME_MS = 1400;
@@ -180,12 +181,22 @@ export function stop(app) {
 /** One connection to the control port; `send` gives the answer line, `null` when the
  * connection closed, `undefined` when no answer came within its bound. */
 export class Control {
-  static connect(port) {
+  static connect(port, ms = CONNECT_MS) {
     return new Promise((resolve, reject) => {
       const socket = net.connect(port, '127.0.0.1');
       const control = new Control(socket);
-      socket.once('connect', () => resolve(control));
-      socket.once('error', reject);
+      const timer = setTimeout(() => {
+        socket.destroy();
+        reject(new Error('no connection within its bound'));
+      }, ms);
+      socket.once('connect', () => {
+        clearTimeout(timer);
+        resolve(control);
+      });
+      socket.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
     });
   }
 
@@ -345,7 +356,8 @@ async function windowRun(options, arm, pages) {
       await sleep(250);
     }
     trace(`quit exit=${app.exitCode ?? 'none'} alive=${alive}`);
-    keys.quit = quit.answer === 'ok' && exited && app.exitCode === 0 && alive === 0 ? 'ok' : 'miss';
+    keys.quit = quit.answer === 'ok' && exited && app.exitCode === 0 && alive === 0
+      && tree.webview >= 1 && atQuit.webview >= 1 ? 'ok' : 'miss';
   } catch (error) {
     trace(`error=${String(error && error.message).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80)}`);
   } finally {

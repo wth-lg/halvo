@@ -118,10 +118,15 @@ impl Hub {
         self.state.lock().unwrap_or_else(|e| e.into_inner()).hidden = true;
     }
 
-    /// `change` with the mark of this moment, for a way that sends it now.
-    pub fn stamp(&self, change: Change) -> Change {
-        let hidden = self.state.lock().unwrap_or_else(|e| e.into_inner()).hidden;
-        Change { hidden, ..change }
+    /// Calls `send` with `change` marked as of this moment, under the hub's lock, so that `open`
+    /// returns only after a change marked `hidden` went out. The core queues the page's show event
+    /// after `open`, so such a change reaches the page before that event.
+    pub fn send_marked(&self, change: Change, send: impl FnOnce(Change)) {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        send(Change {
+            hidden: state.hidden,
+            ..change
+        });
     }
 
     /// Waits until the latest change has a `seq` above `seq`, or the window closes; the change
@@ -242,11 +247,42 @@ mod tests {
     fn a_change_sent_after_the_hide_is_marked_hidden_until_the_show() {
         within(|| {
             let hub = Hub::default();
-            assert!(!hub.stamp(change(1, 3)).hidden);
+            let mut sent = Vec::new();
+            hub.send_marked(change(1, 3), |c| sent.push(c.hidden));
             hub.hide();
-            assert!(hub.stamp(change(2, 3)).hidden);
+            hub.send_marked(change(2, 3), |c| sent.push(c.hidden));
             hub.open();
-            assert!(!hub.stamp(change(3, 3)).hidden);
+            hub.send_marked(change(3, 3), |c| sent.push(c.hidden));
+            assert_eq!(sent, vec![false, true, false]);
+        });
+    }
+
+    #[test]
+    fn a_show_opens_the_hub_only_after_a_marked_change_went_out() {
+        within(|| {
+            let hub = Arc::new(Hub::default());
+            let order = Arc::new(Mutex::new(Vec::new()));
+            hub.hide();
+            let (entered, inside) = std::sync::mpsc::channel();
+            let sender = {
+                let hub = hub.clone();
+                let order = order.clone();
+                thread::spawn(move || {
+                    hub.send_marked(change(1, 1), |c| {
+                        entered.send(()).unwrap();
+                        thread::sleep(Duration::from_millis(100));
+                        order.lock().unwrap().push(("sent", c.hidden));
+                    })
+                })
+            };
+            inside.recv_timeout(crate::testing::BOUND).unwrap();
+            hub.open();
+            order.lock().unwrap().push(("open", false));
+            join(sender);
+            assert_eq!(
+                *order.lock().unwrap(),
+                vec![("sent", true), ("open", false)]
+            );
         });
     }
 

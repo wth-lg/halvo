@@ -258,7 +258,9 @@ impl TrialCore {
             return Answer::Err(ErrCause::UnknownLine);
         };
         self.forget_page();
-        let _ = window.navigate(url);
+        if window.navigate(url).is_err() {
+            return Answer::Err(ErrCause::NoWindow);
+        }
         Answer::Ok
     }
 
@@ -322,7 +324,6 @@ impl TrialCore {
     }
 
     fn deliver(&self, change: Change) {
-        let change = self.hub.stamp(change);
         match self.options.sync {
             Some(SyncWay::Channel) => {
                 let channel = self
@@ -331,11 +332,15 @@ impl TrialCore {
                     .unwrap_or_else(|e| e.into_inner())
                     .clone();
                 if let Some(channel) = channel {
-                    let _ = channel.send(change);
+                    self.hub.send_marked(change, |change| {
+                        let _ = channel.send(change);
+                    });
                 }
             }
             Some(SyncWay::Events) => {
-                let _ = self.app.emit(CHANGE_EVENT, change);
+                self.hub.send_marked(change, |change| {
+                    let _ = self.app.emit(CHANGE_EVENT, change);
+                });
             }
             Some(SyncWay::Get) | None => self.hub.publish(change),
         }
