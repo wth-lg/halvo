@@ -354,11 +354,18 @@ mod driver {
         check(last["instrument"] == instrument, "instrument")
     }
 
-    fn first_instrument(ctx: &Ctx) -> String {
-        ctx.seed.0["utility"]["instruments"][0]
+    fn instrument(ctx: &Ctx, index: usize) -> String {
+        ctx.seed.0["utility"]["instruments"][index]
             .as_str()
             .unwrap_or("-")
             .to_string()
+    }
+
+    fn method_line(lines: &[SnapshotLine]) -> Res<usize> {
+        lines
+            .iter()
+            .position(|l| l.role == "combobox" && l.name == "Payment method")
+            .ok_or_else(|| Fault::new("resolve", "combobox"))
     }
 
     async fn payment_frame(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -366,20 +373,26 @@ mod driver {
         ex.open(&ctx.u("/pay")).await?;
         let before = payments(ctx)?.len();
         let lines = ex.snapshot().await?;
-        let combo = lines
+        let combo = method_line(&lines)?;
+        let second = lines[combo + 1..]
             .iter()
-            .position(|l| l.role == "combobox" && l.name == "Payment method")
-            .ok_or_else(|| Fault::new("resolve", "combobox"))?;
-        let first = lines[combo + 1..]
-            .iter()
-            .find(|l| l.role == "option")
+            .take_while(|l| l.role == "option")
+            .nth(1)
             .map(|l| l.name.clone())
             .ok_or_else(|| Fault::new("resolve", "option"))?;
+        check(
+            lines[combo].value.as_deref() != Some(second.as_str()),
+            "second_not_chosen_yet",
+        )?;
         let method = ex
             .resolve_one(&[role("combobox", "Payment method")], &["Payment"])
             .await?;
-        ex.select(&method, &first).await?;
-        check(ex.read(&method).await? == first, "selected")?;
+        ex.select(&method, &second).await?;
+        let after = ex.snapshot().await?;
+        check(
+            after[method_line(&after)?].value.as_deref() == Some(second.as_str()),
+            "selected",
+        )?;
         let pay = ex
             .resolve_one(&[role("button", "Pay now")], &["Payment"])
             .await?;
@@ -388,8 +401,8 @@ mod driver {
             .resolve(&[role("heading", "Payment received")], &["Payment"])
             .await?;
         check(matches!(heading, Resolved::One { .. }), "heading")?;
-        paid_once_more(ctx, before, &first)?;
-        check(first == first_instrument(ctx), "first_option")
+        paid_once_more(ctx, before, &second)?;
+        check(second == instrument(ctx, 1), "second_option")
     }
 
     async fn file_upload(ex: &mut Executor, ctx: &Ctx, i: u32) -> Res<()> {
@@ -452,7 +465,7 @@ mod driver {
         };
         check(locator == 1, "second_locator")?;
         click_and_wait(ex, &reference).await?;
-        paid_once_more(ctx, before, &first_instrument(ctx))
+        paid_once_more(ctx, before, &instrument(ctx, 0))
     }
 
     async fn block_request(ex: &mut Executor, ctx: &Ctx) -> Res<()> {

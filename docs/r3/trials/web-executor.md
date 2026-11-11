@@ -23,14 +23,14 @@ read the fixture's state through the program's own HTTP client, which sends no `
   `paperless=yes` in the body of the `POST /prefs`. `file_upload` requires that the file input
   holds one file of 1,024 bytes before the click and that the browser sent one `POST /upload`.
   The paused request carries no bytes of a file part, so the trial cannot read the file in the
-  request, and the fixture records no size. `payment_frame` and
-  `changed_page_1` also require that the payment holds the first instrument of the seed, and
-  `payment_frame` reads the chosen option back from the page. `block_request` requires that the
-  browser accepted the command that fails the request and that the page then shows the browser's
-  error page, besides the unchanged `requests.state_changing`. The first option of `Payment method`
-  is also the option that the page selects by default, so the choice in `payment_frame` changes
-  nothing that the fixture can see. The fixture takes the amount of a payment from its token, not
-  from the browser, so the amount check holds whenever a payment is recorded.
+  request, and the fixture records no size. `payment_frame` chooses the second option of
+  `Payment method`, which the page does not select by default, reads the choice back from a new
+  snapshot, and requires that the payment holds the second instrument of the seed, so a choice that
+  does nothing misses. `changed_page_1` requires the first instrument, the page's default.
+  `block_request` requires that the browser accepted the command that fails the request and that
+  the page then shows the browser's error page, besides the unchanged `requests.state_changing`.
+  The fixture takes the amount of a payment from its token, not from the browser, so the amount
+  check holds whenever a payment is recorded.
 - `median_ms` is the median, over the runs of the cell that printed ok, of the time from the first
   page open of the run to the end of its check. It leaves out the browser start. `cold_ms` is the
   median of 10 starts, from the launch call to the load of `/signin`.
