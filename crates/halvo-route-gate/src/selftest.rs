@@ -14,7 +14,7 @@ use crate::score::{score, DEFAULT_DRAWS};
 use crate::{Router, Setup};
 
 /// What builds the router `product` from a table's derived policy.
-pub type ProductRouter<'a> = &'a dyn Fn(Policy) -> Box<dyn Router>;
+pub type ProductBuilder<'a> = &'a dyn Fn(Policy) -> Box<dyn Router>;
 
 /// The counts of a self-test, with one miss for each table on which `derived` or `product` failed
 /// or a bad router passed.
@@ -72,7 +72,7 @@ pub struct SeedRange;
 pub fn self_test(
     tables: NonZeroU32,
     seed: u64,
-    product: Option<ProductRouter<'_>>,
+    product: Option<ProductBuilder<'_>>,
 ) -> Result<SelfTest, SeedRange> {
     let count = tables.get();
     seed.checked_add(u64::from(count) - 1).ok_or(SeedRange)?;

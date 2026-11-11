@@ -43,8 +43,9 @@ const LOWER_PCT: [u32; 36] = [
     88, 89, 89, 89, 90, 90, 90, 91, 91, 91, 91, 92,
 ];
 
-/// The floor of 100 times 0.05 to the power 1/n, the one-sided 95 percent lower bound in percent of
-/// the pass rate after `n` attempts with no miss: 0 for `n` = 0, and 92 for every `n` above 36.
+/// For `n` from 1 to 36, the floor of 100 times 0.05 to the power 1/n, the one-sided 95 percent
+/// lower bound in percent of the pass rate after `n` attempts with no miss; 0 for `n` = 0, and 92
+/// for every `n` above 36, which is never above that floor.
 pub const fn lower_pct(n: u32) -> u32 {
     match n {
         0 => 0,

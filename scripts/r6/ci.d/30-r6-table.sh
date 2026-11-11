@@ -3,6 +3,10 @@
 # rule: The router's tests pass, the gate tool's self-test fails the three bad routers and passes the derived one on 20 generated tables, and the tool regenerates the committed specimen.
 set -u
 name=30-r6-table
+case $0 in
+  /*) self=$0 ;;
+  *) self=$(pwd)/$0 ;;
+esac
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 want_line='selftest tables=20 derived_pass=20 product_pass=- one_tier_fail=20 random_fail=20 peek_fail=20'
 want_product='selftest tables=20 derived_pass=20 product_pass=20 one_tier_fail=20 random_fail=20 peek_fail=20'
@@ -62,7 +66,7 @@ check() {
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts/$1
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
-    sh "$0" 2>&1
+    sh "$self" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -168,7 +172,7 @@ FAIL $name (specimen)"
   check three-causes-name-the-first FAIL "FAIL $name (tests)"
   cp "$work/fresh.tsv" "$work/repo/$specimen" || exit 2
 
-  usage=$(sh "$0" --all 2>&1)
+  usage=$(sh "$self" --all 2>&1)
   code=$?
   if [ "$code:$usage" = "1:FAIL $name (usage)" ]; then
     printf 'case %s/unknown-argument want=FAIL got=FAIL\n' "$name"
@@ -176,6 +180,17 @@ FAIL $name (specimen)"
   else
     printf 'case %s/unknown-argument want=FAIL got=exit-%s\n' "$name" "$code"
     wrong="$wrong unknown-argument"
+  fi
+
+  if [ -z "${R6_TABLE_NESTED:-}" ]; then
+    nested=$(cd crates && R6_TABLE_NESTED=1 sh "../scripts/r6/ci.d/$name.sh" --self-test 2>&1 | tail -n 1)
+    case $nested in
+      "PASS self-test:$name "*) printf 'case %s/self-test-from-a-subdirectory want=PASS got=PASS\n' "$name" ;;
+      *)
+        printf 'case %s/self-test-from-a-subdirectory want=PASS got=%s\n' "$name" "$nested"
+        wrong="$wrong self-test-from-a-subdirectory"
+        ;;
+    esac
   fi
 
   if [ -n "$wrong" ]; then
