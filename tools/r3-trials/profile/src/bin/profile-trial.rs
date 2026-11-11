@@ -289,31 +289,34 @@ impl Watch {
 
 fn sample(seen: &Mutex<Seen>) {
     let roots = seen.lock().map(|s| s.roots.clone()).unwrap_or_default();
-    let table = procs::table().unwrap_or_default();
-    let pids = tree_pids(&table, &roots);
     let front = screen::front();
     let windows = screen::windows();
+    let front_pid = front
+        .as_deref()
+        .filter(|f| *f != "none")
+        .map(screen::front_pid);
+    let table = procs::table().unwrap_or_default();
+    let pids = tree_pids(&table, &roots);
     let Ok(mut s) = seen.lock() else {
         return;
     };
     s.reads += 1;
-    match front {
-        Some(f) => {
-            let (pid, owner) = if s.front.is_new(&f) {
-                let pid = screen::front_pid(&f);
-                let owner = pid
-                    .and_then(|p| table.iter().find(|q| q.pid == p))
-                    .and_then(|q| q.exe.as_ref())
+    match (front, front_pid) {
+        (Some(f), _) if !s.front.is_new(&f) => {}
+        (Some(f), None) => s.front.observe(&f, None, "", &pids),
+        (Some(f), Some(Some(pid))) => match table.iter().find(|q| q.pid == pid) {
+            Some(q) => {
+                let owner = q
+                    .exe
+                    .as_ref()
                     .and_then(|e| e.file_name())
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default();
-                (pid, owner)
-            } else {
-                (None, String::new())
-            };
-            s.front.observe(&f, pid, &owner, &pids);
-        }
-        None => s.failed_reads += 1,
+                s.front.observe(&f, Some(pid), &owner, &pids);
+            }
+            None => s.failed_reads += 1,
+        },
+        (Some(_), Some(None)) | (None, _) => s.failed_reads += 1,
     }
     let raised = match (&s.windows, windows) {
         (Some(before), Some(now)) => screen::raised(before, &now, &pids),
