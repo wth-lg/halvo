@@ -5,10 +5,11 @@ description: Run and maintain the formal checks of the encrypted store's two saf
 
 # Verify: store crypto-shred and single writer
 
-Four tests check two properties of the real `EncryptedStore`. Two of them
+Six tests check two properties of the real `EncryptedStore`. Three of them
 run the store under random inputs and fail on the first input that breaks a
 property. Two run the file scan of check 1 on fixed inputs of 1,200
-segments. They live in `crates/halvo-capture/src/store/formal_tests.rs`,
+segments, and one makes every move that fails or is refused in a fixed
+order. They live in `crates/halvo-capture/src/store/formal_tests.rs`,
 compile only under `cfg(test)`, and need only the `proptest` dev-dependency.
 
 ## When to run it
@@ -30,8 +31,17 @@ link come from it. A change elsewhere in the workspace does not need them.
    bytes. After delete-all the directory holds no store, and the unwrap of
    the wrapped store key retained from before fails because its root is
    missing.
+   A move that fails, or that the store refuses, leaves no half store. A
+   create that fails after it made its database leaves no file and no
+   root. A create under a root that exists is refused, leaves no file, and
+   leaves that root to the store that has it. A delete-all that stops after
+   it destroyed the root leaves a store that the next delete-all on the
+   same handle finishes. An append whose index row fails leaves no event
+   row, and a shred removes the event rows of its segment.
    Harm if broken: data the owner believes destroyed is still recoverable
-   from the store by anyone who later obtains the store key.
+   from the store by anyone who later obtains the store key. A create that
+   takes or destroys the root of another store loses that store. A
+   directory that a failed move left half made takes no new store.
 2. **Single writer.** At most one process holds the store at a time, even
    while `writer.lock` is unlinked under the running processes. Every
    contender that waits eventually gets the store, holds it, writes a segment,
@@ -46,11 +56,15 @@ link come from it. A change elsewhere in the workspace does not need them.
 | 1 | `a_shredded_segment_is_unrecoverable_with_every_remaining_key` |
 | 1 | `no_key_of_a_shredded_segment_is_left_when_three_in_four_expire_in_one_pass` |
 | 1 | `no_key_of_a_shredded_segment_is_left_when_segments_expire_oldest_first` |
+| 1 | `no_failed_or_refused_move_leaves_a_half_store` |
+| 1 | `no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order` |
 | 2 | `at_most_one_process_holds_the_store_at_a_time` |
 
 Check 1 is the first test, over random sequences of at most 12 operations,
-and its two scaled cases, which have a fixed shape each. Check 2 is one test
-over random races. `docs/verify/check-covered.sh` reads this table and the
+its two scaled cases, which have a fixed shape each, and two tests of the
+moves that fail or are refused: one over random sequences of at most 12
+operations that hold those moves, and one that makes each of them in a
+fixed order. Check 2 is one test over random races. `docs/verify/check-covered.sh` reads this table and the
 table under Covered code.
 
 ## Tool
@@ -79,8 +93,8 @@ checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
-| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key` | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing` |
-| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `secure_delete` pragma with `require_secure_delete`, and the `journal_mode` pragma), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file` |
+| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows` |
+| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `secure_delete` pragma with `require_secure_delete`, and the `journal_mode` pragma), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds, and the call of `wrap_store_key_under_new_root`), `EncryptedStore::create` (the removal of the database when `Db::open` fails, the database before the key file and its root, and the arm for `RootExists`), `Db::insert_event` (the rollback to its savepoint) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-failed-append-leaves-the-event-row` |
 | 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | the macOS root store: `seal`, which `wrap` and `wrap_under_new_root` call, and `unwrap` (the `aead_seal` and `aead_open` calls under the root), and `make_root` (the random fill of a new root) | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
 | 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (the mapping of `DatabaseBusy` to `Locked`) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked` |
 
@@ -103,6 +117,32 @@ a random sequence of these operations, checking the invariants after each:
 | `Reopen` | drop the store and `EncryptedStore::open`; must succeed unless delete-all ran, then must be `Sealed` |
 | `ReopenUnderAnotherRoot` | drop the store, flip one bit of the root's 32 bytes under the same root id, and `open`, which must answer `Custody(WrapAuthFailed)`; put the bytes back, and `open` must succeed. Nothing after delete-all |
 | `Recreate` | after delete-all, drop the sealed store and `create` under a fresh root; otherwise `create` must refuse with `Locked` or `AlreadyExists` |
+
+The second random test (`no_failed_or_refused_move_leaves_a_half_store`)
+replays sequences that also hold the moves of the next table, with the same
+checks after each. `no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order`
+makes each of them at least once in one list of 23 moves, and fails when a
+move of the list does not apply to the state that the moves before it left.
+
+| Op | What it does to the real store |
+|---|---|
+| `CreateThatFailsAfterItsDatabase` | after a delete-all that finished: `create` under a fresh root with the failpoint `db_open` armed, which fails `Db::open` once after it made `store.db`. The create must return that error, no root with the id of the create may exist, and the directory must hold nothing but `writer.lock` |
+| `CreateUnderTheRootOfThisStore` | on a live store: `create` in a second temp directory under the root id of the live store. It must answer `Custody(RootExists)` and leave nothing but `writer.lock` in that directory. Then the harness drops the live store, and `open` must succeed |
+| `ShredAllThatStopsAfterItsRootStep` | on a live store: `crypto_shred_all` with the failpoint `key_file_destroy` armed, which fails `KeyFile::destroy` once. The call must return that error. From then on the root must be destroyed and every segment must read as `Sealed`; the directory may hold the files of a store; `Recreate` must be refused and `Reopen` must answer `Custody(RootMissing)`. The next `ShredAll` on the same handle must return `Ok` with a report that counts nothing, and after it the directory must hold nothing but `writer.lock` |
+| `DestroyTheRootAgain` | after a delete-all, finished or stopped: `destroy_root` of the dev-fallback custody on the root that delete-all destroyed; it must return `Ok` |
+| `Append { index_row_fails }` | on a live store with a live segment: `append_event` for the newest live segment. With `index_row_fails` the harness renames the table `events_fts` away for the call and back after it, so that the second of the two inserts fails; the append must return an error |
+
+After every operation on a live store, the three tests that replay
+operations count the rows of `events` and of `events_fts` through the
+store's connection. Each count must equal the appends that returned `Ok`
+for the segments that are live: a failed append leaves no row, and a shred
+removes the rows of its segment.
+
+The two failpoints are the store's own (`store::db::failpoint`, compiled
+under `cfg(test)`), one shot each and local to the thread. After each of the
+two moves the harness requires that the failpoint was reached, so a create
+that opens no database, or a delete-all that never comes to its key file,
+fails the move.
 
 At every create the harness reads `store.key` and requires that the wrapped
 store key does not open under an all-zero key with the root id as
@@ -240,6 +280,8 @@ spawns no child, so nothing else shares its descriptor.
 | Check 1 cases | 48 (`SHRED_CASES`) | each case creates a keychain root and a store; 48 run in about 10 s on a laptop |
 | Ops per case | 1 to 12 (`MAX_OPS`) | every reachable state needs at most a write, a shred and a reopen or recreate; 12 leaves room for several of each |
 | Segments per case | at most 12 | one per write; bounded by the ops |
+| Cases with moves that fail | 32 (`FAILING_MOVE_CASES`), 1 to 12 ops each | the second random test; it interleaves the moves that fail or are refused with the others, and no row depends on a case that it draws |
+| The fixed order | 23 moves | each move that fails or is refused at least once, in the state that it needs; the rows of these moves are judged by it |
 | Segment sizes | 0 to 512 bytes, one chunk and one byte either side of it, two chunks and seven bytes | the empty, the one-chunk boundary and the multi-chunk cases of the 64 KiB stream |
 | Scaled cases, segments | 1,200 of 40 bytes (`SCALED_SEGMENTS`, `SCALED_SEGMENT_LEN`) | the size at which a key row that is deleted, not set to NULL, leaves keys in `store.db`: 3 of 900 after the one pass |
 | Oldest first | 7 segments a pass, 50 passes, a failed write after every third write (`OLDEST_FIRST_PER_PASS`, `OLDEST_FIRST_PASSES`, `A_SOURCE_DIES_AFTER_EVERY`) | with deleted key rows a key is left after passes 17 to 22 and again after passes 49 and 50 of 150; the case ends at 50 |
@@ -273,8 +315,8 @@ do not run the Secure Enclave or DPAPI custodies.
 cargo test -p halvo-capture --lib formal_tests
 ```
 
-The four tests, the contender stub and one test of the delete-all step run;
-six tests. On a 16-core Mac whose 1-minute load was 100 to 400 from other
+The six tests, the contender stub and two tests of what the harness takes
+as a destroyed root run; nine tests. On a 16-core Mac whose 1-minute load was 100 to 400 from other
 work, the command took 31 s in one run, and alone the random test of check 1
 took 19 s, the one-pass case 12 to 15 s, the oldest-first case 34 to 47 s and
 check 2 14 s. At a load near 10 the random test took 10 s and the one-pass
@@ -312,6 +354,24 @@ the words of the code:
   holds the store", or a panic "create on a free directory: Locked", means
   that a lock outlived the store that the op had just dropped: the file lock
   if `WriterLock`'s `Drop` did not release it, or the database lock.
+- **The moves that fail or are refused.** The fixed order prints "at move N
+  of 23" and the move in front of the message. "a create that failed left
+  ... in the store directory" or "left the root that it made" names what
+  the create did not clean up. "a create under the root of another store
+  returned ... in place of RootExists" means that a create took a root that
+  exists; "after a create under its root was refused, the store did not
+  reopen" means that the refused create destroyed or changed that root. "a
+  delete-all whose key file could not be removed returned ..." names what
+  the stopped call returned in place of the failpoint's error. After the
+  `ShredAll` that follows a stopped one, "a second delete-all did not
+  finish with nothing left to shred" names what the second call returned,
+  and "delete-all left ... in the store directory" means that it returned
+  `Ok` and finished nothing. "destroy_root on a root that delete-all had
+  destroyed failed" means that the custody takes a missing root as an
+  error. "an append whose index row could not be written returned Ok" and
+  "events holds N rows, and M appends returned Ok for the segments that are
+  live" mean that an append left one row of two, or that a shred left the
+  event rows of its segment.
 - **The scaled cases.** They print no input. The message names the segment
   and the place of its key, and the oldest-first case names the pass.
 - **Check 2.** The input is the contender plans, the hold and the unlink
@@ -337,7 +397,8 @@ Each check has been seen to fail on a broken store, and each break is a row
 of a `mutants.rows` file: `crates/halvo-capture/src/store/mutants.rows` for
 store code and `crates/halvo-capture/src/custody/mutants.rows` for custody
 code. The name of such a row starts with `formal-`, its verdict is `test`
-with one of the four tests, and its state is `required`.
+with one of the six tests of the table under The checks, and its state is
+`required`.
 
 ```sh
 sh scripts/r1-gate/mutation-test.sh --only formal-shredded-key-survives
@@ -368,6 +429,12 @@ row cannot go stale unseen.
 | `formal-single-writer` | `Db::open` neither sets `locking_mode = EXCLUSIVE` nor requires it | check 2 | "a contender found another contender inside the store", "held the store at the same time", or "contender N exited with exit status: 101" |
 | `formal-single-writer-both-locks` | the same, and `WriterLock::take` never locks | check 2 | the same three, or "no contender was refused while another held the store" |
 | `formal-busy-not-mapped-to-locked` | `verify_key` does not map `DatabaseBusy` and `DatabaseLocked` to `Locked` | check 2 | "contender N exited with exit status: 101", and on stderr "open failed with Db(5), which is no refusal of a second writer" |
+| `formal-failed-create-leaves-the-database` | `create` returns the error of `Db::open` and does not remove the database that the call made | the fixed order | "at move 15 of 23, CreateThatFailsAfterItsDatabase: ... a create that failed left store.db in the store directory" |
+| `formal-create-makes-its-root-first` | `create` writes the key file, and with it the root, before it opens the database | the fixed order | "at move 15 of 23, CreateThatFailsAfterItsDatabase: ... a create that failed left the root that it made" |
+| `formal-create-takes-an-existing-root` | `write_key_file` wraps with `wrap_store_key`, which takes a root that exists | the fixed order | "at move 6 of 23, CreateUnderTheRootOfThisStore: ... a create under the root of another store returned None in place of RootExists" |
+| `formal-refused-create-destroys-the-root` | `create` has no arm for `RootExists`, so a refused create runs `abandon_create`, which destroys the root | the fixed order | "at move 6 of 23, CreateUnderTheRootOfThisStore: ... after a create under its root was refused, the store did not reopen" |
+| `formal-failed-append-leaves-the-event-row` | `insert_event` releases its savepoint without the rollback | the fixed order | "at move 3 of 23, Append { index_row_fails: true }: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
+| `formal-shred-leaves-the-event-rows` | `delete_events_and_index` deletes the index rows and leaves the event rows | the fixed order | "at move 7 of 23, ShredExpired: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
 
 The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
@@ -407,6 +474,15 @@ run in about 1,300 would hold none.
 
 `formal-reader-keyed-with-zeros` mutates the harness, not the store: it is
 the control that the file scan cannot pass blind.
+
+The rows of the moves that fail or are refused are judged by the fixed
+order, which draws nothing: each fails at the same move in every run.
+`DestroyTheRootAgain` has no row. A mutant of `destroy_root` leaves real
+roots in the login keychain of the Mac that runs it, so no row and no probe
+mutates it. Its read has a control in place of a row:
+`a_destroyed_root_destroys_again_only_when_its_custody_returns_ok` gives
+the read a stand-in custody whose `destroy_root` answers `RootMissing` and
+requires the message of the failure.
 
 ### What patches showed about the file lock, before the rows
 
@@ -630,14 +706,27 @@ it in the plan before weakening an assertion.
 - A part of a wrapped key that is shorter than its middle 32 bytes. The
   file scan looks for the whole key and for that middle.
 - What the event rows of a shredded segment leave in the store files. The
-  file scan looks for wrapped keys only.
+  file scan looks for wrapped keys only; check 1 counts the event rows
+  through SQL.
+- A delete-all that stops at another step than the removal of its key
+  file, or whose `destroy_root` fails. The store has one failpoint in
+  delete-all, `key_file_destroy`.
+- A delete-all that stopped and whose handle is gone. Check 1 states what
+  the store answers then: `open` gives `Custody(RootMissing)` and `create`
+  is refused, so no call of this store finishes that directory. The root is
+  destroyed, so nothing in it can be read.
+- Two creates under one root id at the same instant.
+  `CreateUnderTheRootOfThisStore` runs after the first create has returned.
+- An append that fails at its first row, or whose savepoint cannot be
+  released.
 - Code that check 1 calls in every case and that no row fails through. A
   change there can fail the check, and no row shows it: in `expiry.rs`
   `segment_ids_with_keys`, `remove_keyless_files`, `shred_segments`,
   `crypto_shred_expired` and `crypto_shred_all`; in `db.rs`
   `reserve_segment_key`, `commit_segment_key`, `KeyFile::destroy`,
-  `Db::destroy` and `EncryptedStore::{create, open, seal, read_segment}`;
-  every function of `segment.rs`; `DevFallbackCustody::destroy_root`.
+  `Db::destroy` and `EncryptedStore::{open, seal, read_segment}`;
+  every function of `segment.rs`; `DevFallbackCustody::destroy_root`, which
+  no row may mutate (see Break proofs).
 - A key that can be computed from bytes that stay. Two such stores pass
   check 1: one whose root is made of the root id, which `store.key` holds,
   and one whose segment keys are made of the store key and the segment id.
@@ -686,10 +775,13 @@ squash merge would change:
   changes shape under its row fails that run: the substitution no longer
   applies.
 - On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`
-  runs `sh docs/verify/check-covered.sh`, and `12-test` runs the four tests.
+  runs `sh docs/verify/check-covered.sh`, and `12-test` runs the six tests.
 
-Outcome of the last pass, the formal step of store-1: updated, for both
-checks. Check 1 asked SQL which keys remain and now also scans the store
-files. Check 2 took any error of `open` as a refusal and now takes only
-`Locked`, and access denied on Windows, and requires a refusal inside
-another contender's hold.
+Outcome of the last pass, the second formal step of store-1, over the 13
+commits that followed the comment pass: updated, for check 1. The store
+changed what a second delete-all on a handle returns, and the harness
+follows it. Check 1 now also makes the moves that fail or are refused: a
+create that fails after its database, a create under a root that exists, a
+delete-all that stops after its root step, a second `destroy_root` and an
+append whose index row fails. Check 2 is in sync: no commit of the 13
+changed what it reads.

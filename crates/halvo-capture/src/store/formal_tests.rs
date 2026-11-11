@@ -16,15 +16,21 @@ use crate::custody::dev_fallback::{dev_root_bytes, replace_dev_root, DevFallback
 use crate::custody::{
     custody_for, opens_under_an_all_zero_root, CustodyError, KeyCustody, RootId, WrappedKey,
 };
+use crate::event::{
+    CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence, SegmentKeyId, SegmentRef,
+};
 
 use super::db::test_support::pages;
-use super::db::{unix_secs_now, EncryptedStore, KeyFile};
+use super::db::{failpoint, unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
 use super::verify::{raw_key_at_rest, root_state, RootState};
 use super::{SegmentExpiry, SegmentStore, ShredReport, StoreError, DEFAULT_RETENTION};
 
 const SHRED_CASES: u32 = 48;
 const MAX_OPS: usize = 12;
+const FAILING_MOVE_CASES: u32 = 32;
+const EVENTS_INDEX: &str = "events_fts";
+const EVENTS_INDEX_SET_ASIDE: &str = "events_fts_set_aside";
 
 const SCALED_SEGMENTS: usize = 1200;
 const SCALED_SEGMENT_LEN: usize = 40;
@@ -57,6 +63,13 @@ fn shred_config() -> ProptestConfig {
         cases: SHRED_CASES,
         failure_persistence: Some(Box::new(FileFailurePersistence::Off)),
         ..ProptestConfig::default()
+    }
+}
+
+fn failing_moves_config() -> ProptestConfig {
+    ProptestConfig {
+        cases: FAILING_MOVE_CASES,
+        ..shred_config()
     }
 }
 
@@ -94,6 +107,11 @@ enum Op {
     Reopen,
     ReopenUnderAnotherRoot,
     Recreate,
+    CreateThatFailsAfterItsDatabase,
+    CreateUnderTheRootOfThisStore,
+    ShredAllThatStopsAfterItsRootStep,
+    DestroyTheRootAgain,
+    Append { index_row_fails: bool },
 }
 
 fn segment_len() -> impl Strategy<Value = usize> {
@@ -123,6 +141,21 @@ fn op() -> impl Strategy<Value = Op> {
     ]
 }
 
+fn op_with_failures() -> impl Strategy<Value = Op> {
+    prop_oneof![
+        4 => (segment_len(), expiry()).prop_map(|(len, expiry)| Op::Write { len, expiry }),
+        1 => Just(Op::ShredExpired),
+        2 => Just(Op::ShredAll),
+        1 => Just(Op::Reopen),
+        1 => Just(Op::Recreate),
+        2 => Just(Op::CreateThatFailsAfterItsDatabase),
+        2 => Just(Op::CreateUnderTheRootOfThisStore),
+        2 => Just(Op::ShredAllThatStopsAfterItsRootStep),
+        1 => Just(Op::DestroyTheRootAgain),
+        3 => any::<bool>().prop_map(|index_row_fails| Op::Append { index_row_fails }),
+    ]
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Fate {
     Live,
@@ -131,10 +164,13 @@ enum Fate {
 
 struct ModelSegment {
     id: Uuid,
+    seg_ref: SegmentRef,
+    key_id: SegmentKeyId,
     plaintext: Vec<u8>,
     cipher: Vec<u8>,
     wrapped_key: Vec<u8>,
     expires_at: u64,
+    events: u64,
     fate: Fate,
 }
 
@@ -159,8 +195,10 @@ struct Harness {
     roots: Vec<RootId>,
     store: Option<EncryptedStore>,
     deleted_since_last_create: bool,
+    delete_all_owes_its_files: bool,
     latest_created_key_file: Option<KeyFile>,
     segments: Vec<ModelSegment>,
+    moves_that_did_not_apply: usize,
 }
 
 impl Drop for Harness {
@@ -181,8 +219,10 @@ impl Harness {
             roots: Vec::new(),
             store: None,
             deleted_since_last_create: false,
+            delete_all_owes_its_files: false,
             latest_created_key_file: None,
             segments: Vec::new(),
+            moves_that_did_not_apply: 0,
         };
         harness.create_store();
         harness
@@ -223,6 +263,12 @@ impl Harness {
         self.latest_created_key_file = Some(key_file);
         self.store = Some(store);
         self.deleted_since_last_create = false;
+        self.delete_all_owes_its_files = false;
+    }
+
+    fn does_not_apply(&mut self) -> Result<(), TestCaseError> {
+        self.moves_that_did_not_apply += 1;
+        Ok(())
     }
 
     fn open_store(&self) -> Option<&EncryptedStore> {
@@ -241,12 +287,19 @@ impl Harness {
             Op::Reopen => self.reopen(),
             Op::ReopenUnderAnotherRoot => self.reopen_under_another_root(),
             Op::Recreate => self.recreate(),
+            Op::CreateThatFailsAfterItsDatabase => self.create_that_fails_after_its_database(),
+            Op::CreateUnderTheRootOfThisStore => self.create_under_the_root_of_this_store(),
+            Op::ShredAllThatStopsAfterItsRootStep => {
+                self.shred_all_that_stops_after_its_root_step()
+            }
+            Op::DestroyTheRootAgain => self.destroy_the_root_again(),
+            Op::Append { index_row_fails } => self.append(*index_row_fails),
         }
     }
 
     fn write(&mut self, len: usize, expiry: Expiry) -> Result<(), TestCaseError> {
         let Some(store) = self.store.as_mut() else {
-            return Ok(());
+            return self.does_not_apply();
         };
         let plaintext: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
         let now = unix_secs_now();
@@ -260,19 +313,61 @@ impl Harness {
             );
             return Ok(());
         }
-        let (seg_ref, _) = result.expect("a write on an open store");
+        let (seg_ref, key_id) = result.expect("a write on an open store");
         let cipher = std::fs::read(segment_path(&self.dir, seg_ref.segment_id))
             .expect("the segment file exists after the write");
         let wrapped_key = wrapped_key_row(store, seg_ref.segment_id)
             .expect("the key row of a written segment holds its wrapped key");
         self.segments.push(ModelSegment {
             id: seg_ref.segment_id,
+            seg_ref,
+            key_id,
             plaintext,
             cipher,
             wrapped_key,
             expires_at,
+            events: 0,
             fate: Fate::Live,
         });
+        Ok(())
+    }
+
+    fn append(&mut self, index_row_fails: bool) -> Result<(), TestCaseError> {
+        if self.deleted_since_last_create {
+            return self.does_not_apply();
+        }
+        let newest_live = self
+            .segments
+            .iter_mut()
+            .rev()
+            .find(|seg| seg.fate == Fate::Live);
+        let (Some(store), Some(seg)) = (self.store.as_mut(), newest_live) else {
+            return self.does_not_apply();
+        };
+        let event = CaptureStreamEvent::new_raw(
+            CapturedAt {
+                wall_clock: SystemTime::now(),
+                sequence: MonotonicSequence::new(seg.events + 1),
+            },
+            Modality::ScreenFrame,
+            "an app".to_string(),
+            seg.seg_ref.clone(),
+            seg.key_id,
+        );
+        if index_row_fails {
+            rename_table(store, EVENTS_INDEX, EVENTS_INDEX_SET_ASIDE);
+            let appended = store.append_event(&event);
+            rename_table(store, EVENTS_INDEX_SET_ASIDE, EVENTS_INDEX);
+            prop_assert!(
+                appended.is_err(),
+                "an append whose index row could not be written returned Ok"
+            );
+            return Ok(());
+        }
+        store
+            .append_event(&event)
+            .expect("an append on an open store");
+        seg.events += 1;
         Ok(())
     }
 
@@ -314,7 +409,7 @@ impl Harness {
 
     fn shred_expired(&mut self) -> Result<(), TestCaseError> {
         let Some(store) = self.store.as_mut() else {
-            return Ok(());
+            return self.does_not_apply();
         };
         let now = unix_secs_now();
         let result = store.crypto_shred_expired();
@@ -345,10 +440,11 @@ impl Harness {
 
     fn shred_all(&mut self) -> Result<(), TestCaseError> {
         let Some(store) = self.store.as_mut() else {
-            return Ok(());
+            return self.does_not_apply();
         };
         let result = store.crypto_shred_all();
         if self.deleted_since_last_create {
+            self.delete_all_owes_its_files = false;
             prop_assert!(
                 matches!(
                     result,
@@ -386,8 +482,14 @@ impl Harness {
             }
             Err(StoreError::Sealed) => {
                 prop_assert!(
-                    self.deleted_since_last_create,
-                    "an existing store reopened as Sealed"
+                    self.deleted_since_last_create && !self.delete_all_owes_its_files,
+                    "a store whose delete-all did not finish reopened as Sealed"
+                );
+            }
+            Err(StoreError::Custody(CustodyError::RootMissing)) => {
+                prop_assert!(
+                    self.delete_all_owes_its_files,
+                    "a store whose delete-all did not stop after its root step reopened as RootMissing"
                 );
             }
             Err(e) => prop_assert!(false, "reopen failed: {e}"),
@@ -397,7 +499,7 @@ impl Harness {
 
     fn reopen_under_another_root(&mut self) -> Result<(), TestCaseError> {
         if self.deleted_since_last_create {
-            return Ok(());
+            return self.does_not_apply();
         }
         let root_id = *self.roots.last().expect("the root id of the store");
         let root = dev_root_bytes(root_id)
@@ -430,7 +532,7 @@ impl Harness {
     }
 
     fn recreate(&mut self) -> Result<(), TestCaseError> {
-        if self.deleted_since_last_create {
+        if self.deleted_since_last_create && !self.delete_all_owes_its_files {
             self.store = None;
             self.create_store();
             return Ok(());
@@ -449,6 +551,118 @@ impl Harness {
             result.err()
         );
         Ok(())
+    }
+
+    fn create_that_fails_after_its_database(&mut self) -> Result<(), TestCaseError> {
+        if !self.deleted_since_last_create || self.delete_all_owes_its_files {
+            return self.does_not_apply();
+        }
+        self.store = None;
+        let root = RootId::fresh();
+        self.roots.push(root);
+        failpoint::arm("db_open");
+        let result = EncryptedStore::create(
+            &self.dir,
+            Box::new(DevFallbackCustody::new(root)),
+            DEFAULT_RETENTION,
+        );
+        let reached_its_database = failpoint::hit("db_open").is_ok();
+        prop_assert!(
+            reached_its_database,
+            "a create on a free directory did not open a database"
+        );
+        prop_assert!(
+            matches!(result, Err(StoreError::Io(ErrorKind::Other))),
+            "a create whose database failed after it was made returned {:?}",
+            result.as_ref().err()
+        );
+        let root_left = dev_root_bytes(root)
+            .expect("the custody says whether the root exists")
+            .is_some();
+        prop_assert!(
+            !root_left,
+            "a create that failed left the root that it made"
+        );
+        for name in names_in(&self.dir) {
+            prop_assert!(
+                name == "writer.lock",
+                "a create that failed left {name} in the store directory"
+            );
+        }
+        Ok(())
+    }
+
+    fn create_under_the_root_of_this_store(&mut self) -> Result<(), TestCaseError> {
+        if self.deleted_since_last_create || self.store.is_none() {
+            return self.does_not_apply();
+        }
+        let root = *self.roots.last().expect("the root id of the store");
+        let another_dir = tempfile::tempdir().expect("a temp dir for a second store");
+        let result = EncryptedStore::create(
+            another_dir.path(),
+            Box::new(DevFallbackCustody::new(root)),
+            DEFAULT_RETENTION,
+        );
+        prop_assert!(
+            matches!(result, Err(StoreError::Custody(CustodyError::RootExists))),
+            "a create under the root of another store returned {:?} in place of RootExists",
+            result.as_ref().err()
+        );
+        for name in names_in(another_dir.path()) {
+            prop_assert!(
+                name == "writer.lock",
+                "a create that was refused its root left {name} in its directory"
+            );
+        }
+        self.store = None;
+        match EncryptedStore::open(&self.dir, DEFAULT_RETENTION) {
+            Ok(store) => self.store = Some(store),
+            Err(e) => prop_assert!(
+                false,
+                "after a create under its root was refused, the store did not reopen: {e}"
+            ),
+        }
+        Ok(())
+    }
+
+    fn shred_all_that_stops_after_its_root_step(&mut self) -> Result<(), TestCaseError> {
+        if self.deleted_since_last_create {
+            return self.does_not_apply();
+        }
+        let Some(store) = self.store.as_mut() else {
+            return self.does_not_apply();
+        };
+        failpoint::arm("key_file_destroy");
+        let result = store.crypto_shred_all();
+        let reached_its_key_file = failpoint::hit("key_file_destroy").is_ok();
+        for seg in &mut self.segments {
+            seg.fate = Fate::Shredded;
+        }
+        self.deleted_since_last_create = true;
+        self.delete_all_owes_its_files = true;
+        prop_assert!(
+            reached_its_key_file,
+            "delete-all did not reach the removal of its key file: {:?}",
+            result
+        );
+        prop_assert!(
+            matches!(result, Err(StoreError::Io(ErrorKind::Other))),
+            "a delete-all whose key file could not be removed returned {:?}",
+            result
+        );
+        Ok(())
+    }
+
+    fn destroy_the_root_again(&mut self) -> Result<(), TestCaseError> {
+        if !self.deleted_since_last_create {
+            return self.does_not_apply();
+        }
+        let root = self
+            .latest_created_key_file
+            .as_ref()
+            .expect("the deleted store's key file")
+            .root_id;
+        require_a_root_that_destroys_again(&DevFallbackCustody::new(root))
     }
 
     fn remaining_keys(&self, store: &EncryptedStore) -> Vec<SegmentKey> {
@@ -474,7 +688,28 @@ impl Harness {
         self.check_directory()?;
         self.check_remaining_keys(store)?;
         self.check_reads(store)?;
+        self.check_events(store)?;
         self.check_store_files(store)
+    }
+
+    fn check_events(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
+        let conn = store.db().expect("the open store's db").connection();
+        let appended: u64 = self
+            .segments
+            .iter()
+            .filter(|seg| seg.fate == Fate::Live)
+            .map(|seg| seg.events)
+            .sum();
+        for table in ["events", EVENTS_INDEX] {
+            let rows: i64 = conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
+                .expect("the rows of the events count");
+            prop_assert!(
+                rows as u64 == appended,
+                "{table} holds {rows} rows, and {appended} appends returned Ok for the segments that are live"
+            );
+        }
+        Ok(())
     }
 
     fn check_at_scale(&self) -> Result<(), TestCaseError> {
@@ -593,10 +828,17 @@ impl Harness {
             .expect("the retained wrapped key decodes");
         require_a_destroyed_root(custody.as_ref(), &wrapped)?;
         for name in names_in(&self.dir) {
-            prop_assert!(
-                name == "writer.lock",
-                "delete-all left {name} in the store directory"
-            );
+            if self.delete_all_owes_its_files {
+                prop_assert!(
+                    FILES_OF_A_STORE.contains(&name.as_str()),
+                    "a delete-all that stopped left {name}, which is no file of a store"
+                );
+            } else {
+                prop_assert!(
+                    name == "writer.lock",
+                    "delete-all left {name} in the store directory"
+                );
+            }
         }
         if let Some(store) = &self.store {
             for seg in &self.segments {
@@ -625,6 +867,56 @@ fn require_a_destroyed_root(
         RootState::Unknown(error) => Err(TestCaseError::fail(format!(
             "after delete-all the state of the root is unknown: the unwrap of the retained wrapped store key failed with {error:?}, which does not say that the root is missing"
         ))),
+    }
+}
+
+fn require_a_root_that_destroys_again(custody: &dyn KeyCustody) -> Result<(), TestCaseError> {
+    match custody.destroy_root() {
+        Ok(()) => Ok(()),
+        Err(error) => Err(TestCaseError::fail(format!(
+            "destroy_root on a root that delete-all had destroyed failed with {error:?}, so a delete-all that stopped after its root step could not finish"
+        ))),
+    }
+}
+
+fn rename_table(store: &EncryptedStore, from: &str, to: &str) {
+    store
+        .db()
+        .expect("the open store's db")
+        .connection()
+        .execute_batch(&format!("ALTER TABLE {from} RENAME TO {to};"))
+        .expect("the index table of the events renames");
+}
+
+struct AStandInCustody {
+    unwrap: fn() -> Result<crate::custody::StoreKey, CustodyError>,
+    destroy: fn() -> Result<(), CustodyError>,
+}
+
+impl KeyCustody for AStandInCustody {
+    fn kind(&self) -> crate::custody::CustodyKind {
+        crate::custody::CustodyKind::DevFallback
+    }
+    fn root_id(&self) -> RootId {
+        RootId::fresh()
+    }
+    fn wrap_store_key(&self, _key: &crate::custody::StoreKey) -> Result<WrappedKey, CustodyError> {
+        Ok(WrappedKey(Vec::new()))
+    }
+    fn wrap_store_key_under_new_root(
+        &self,
+        _key: &crate::custody::StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
+        Ok(WrappedKey(Vec::new()))
+    }
+    fn unwrap_store_key(
+        &self,
+        _wrapped: &WrappedKey,
+    ) -> Result<crate::custody::StoreKey, CustodyError> {
+        (self.unwrap)()
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        (self.destroy)()
     }
 }
 
@@ -714,6 +1006,86 @@ proptest! {
     }
 }
 
+proptest! {
+    #![proptest_config(failing_moves_config())]
+
+    #[test]
+    fn no_failed_or_refused_move_leaves_a_half_store(
+        ops in prop::collection::vec(op_with_failures(), 1..=MAX_OPS),
+    ) {
+        let dir = tempfile::tempdir().expect("a temp dir for the store");
+        let mut harness = Harness::create(dir.path());
+        harness.check()?;
+        for op in &ops {
+            harness.apply(op)?;
+            harness.check()?;
+        }
+    }
+}
+
+#[test]
+fn no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order() {
+    let moves = [
+        Op::Write {
+            len: SCALED_SEGMENT_LEN,
+            expiry: Expiry::Past,
+        },
+        Op::Append {
+            index_row_fails: false,
+        },
+        Op::Append {
+            index_row_fails: true,
+        },
+        Op::Write {
+            len: SCALED_SEGMENT_LEN,
+            expiry: Expiry::Future,
+        },
+        Op::Append {
+            index_row_fails: false,
+        },
+        Op::CreateUnderTheRootOfThisStore,
+        Op::ShredExpired,
+        Op::Append {
+            index_row_fails: true,
+        },
+        Op::ShredAllThatStopsAfterItsRootStep,
+        Op::DestroyTheRootAgain,
+        Op::Recreate,
+        Op::ShredAll,
+        Op::ShredAll,
+        Op::DestroyTheRootAgain,
+        Op::CreateThatFailsAfterItsDatabase,
+        Op::CreateThatFailsAfterItsDatabase,
+        Op::Recreate,
+        Op::Write {
+            len: SCALED_SEGMENT_LEN,
+            expiry: Expiry::Future,
+        },
+        Op::Append {
+            index_row_fails: false,
+        },
+        Op::CreateUnderTheRootOfThisStore,
+        Op::Reopen,
+        Op::ShredAll,
+        Op::Reopen,
+    ];
+    let dir = tempfile::tempdir().expect("a temp dir for the store");
+    let mut harness = Harness::create(dir.path());
+    hold(harness.check());
+    for (at, op) in moves.iter().enumerate() {
+        if let Err(failure) = harness.apply(op).and_then(|()| harness.check()) {
+            panic!("at move {} of {}, {op:?}: {failure}", at + 1, moves.len());
+        }
+        assert_eq!(
+            harness.moves_that_did_not_apply,
+            0,
+            "move {} of {}, {op:?}, does not apply to the state that the moves before it left",
+            at + 1,
+            moves.len()
+        );
+    }
+}
+
 #[test]
 fn no_key_of_a_shredded_segment_is_left_when_three_in_four_expire_in_one_pass() {
     let dir = tempfile::tempdir().expect("a temp dir for the store");
@@ -755,42 +1127,16 @@ fn no_key_of_a_shredded_segment_is_left_when_segments_expire_oldest_first() {
 
 #[test]
 fn the_delete_all_step_takes_only_a_missing_root_as_destroyed() {
-    struct Unwraps(fn() -> Result<crate::custody::StoreKey, CustodyError>);
-
-    impl KeyCustody for Unwraps {
-        fn kind(&self) -> crate::custody::CustodyKind {
-            crate::custody::CustodyKind::DevFallback
-        }
-        fn root_id(&self) -> RootId {
-            RootId::fresh()
-        }
-        fn wrap_store_key(
-            &self,
-            _key: &crate::custody::StoreKey,
-        ) -> Result<WrappedKey, CustodyError> {
-            Ok(WrappedKey(Vec::new()))
-        }
-        fn wrap_store_key_under_new_root(
-            &self,
-            _key: &crate::custody::StoreKey,
-        ) -> Result<WrappedKey, CustodyError> {
-            Ok(WrappedKey(Vec::new()))
-        }
-        fn unwrap_store_key(
-            &self,
-            _wrapped: &WrappedKey,
-        ) -> Result<crate::custody::StoreKey, CustodyError> {
-            (self.0)()
-        }
-        fn destroy_root(&self) -> Result<(), CustodyError> {
-            Ok(())
-        }
-    }
-
     let retained = WrappedKey(vec![0u8; 72]);
-    let answer = |unwrap| match require_a_destroyed_root(&Unwraps(unwrap), &retained) {
-        Ok(()) => "destroyed".to_string(),
-        Err(failure) => failure.to_string(),
+    let answer = |unwrap| {
+        let custody = AStandInCustody {
+            unwrap,
+            destroy: || Ok(()),
+        };
+        match require_a_destroyed_root(&custody, &retained) {
+            Ok(()) => "destroyed".to_string(),
+            Err(failure) => failure.to_string(),
+        }
     };
 
     assert_eq!(answer(|| Err(CustodyError::RootMissing)), "destroyed");
@@ -805,6 +1151,28 @@ fn the_delete_all_step_takes_only_a_missing_root_as_destroyed() {
     assert!(
         another_error.contains("the state of the root is unknown"),
         "{another_error}"
+    );
+}
+
+#[test]
+fn a_destroyed_root_destroys_again_only_when_its_custody_returns_ok() {
+    let again = |destroy| {
+        let custody = AStandInCustody {
+            unwrap: || Err(CustodyError::RootMissing),
+            destroy,
+        };
+        match require_a_root_that_destroys_again(&custody) {
+            Ok(()) => "destroyed again".to_string(),
+            Err(failure) => failure.to_string(),
+        }
+    };
+
+    assert_eq!(again(|| Ok(())), "destroyed again");
+    let refused = again(|| Err(CustodyError::RootMissing));
+    assert!(
+        refused.contains("destroy_root on a root that delete-all had destroyed")
+            && refused.contains("RootMissing"),
+        "{refused}"
     );
 }
 
