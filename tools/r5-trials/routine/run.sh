@@ -50,8 +50,9 @@ case $# in
   *) sample=$(pwd)/$2 ;;
   esac
   folder=$(dirname -- "$sample")
-  [ -d "$folder" ] && [ -w "$folder" ] && { [ ! -e "$sample" ] || { [ -f "$sample" ] && [ -w "$sample" ]; }; } ||
+  if ! { [ -d "$folder" ] && [ -w "$folder" ] && { [ ! -e "$sample" ] || { [ -f "$sample" ] && [ -w "$sample" ]; }; }; }; then
     refuse usage "the sample file cannot be written"
+  fi
   ;;
 *) refuse usage "$wrong" ;;
 esac
