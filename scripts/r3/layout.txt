@@ -18,7 +18,7 @@ crates/halvo-policy/** U1.2
 formal/r3-confirm/** U1.3
 formal/r3-confirm/.gitattributes U1.3
 scripts/r3/ci.d/30-r3-formal.sh U1.3
-crates/halvo-policy/tests/formal_traces.rs U1.3
+crates/halvo-policy/src/formal_traces.rs U1.3
 docs/r3/README.md U1.4
 docs/r3/category-parameters.md U1.4
 scripts/r3/layout.txt U1.4
