@@ -54,7 +54,9 @@ profile, so no other cell has touched the process that it reads.
   rate is the Levenshtein distance between the engine's pieces, joined by one space, and the
   text of the page body, both with white space folded, over the length of the page text, in
   Unicode scalar values. `stored_bytes` is the UTF-8 length of the joined pieces, and the
-  record saves that text as it is, with no white space folded.
+  record saves that text as it is, with no white space folded. `probe_commit` names the commit
+  that the probe binary was built from, which `build.rs` reads from git, with `-dirty` when
+  `src/`, `Cargo.toml`, `Cargo.lock` or `build.rs` differed from it.
 - `engine.RUNNER.ENGINE.xSCALE`: the runs of the three text pages together. The verdict lines
   read these cells at downscale 1.0. A cell whose name ends in `.this-mac` holds the second
   timing of the same engine on the saved frames, on a machine that is no hosted VM.

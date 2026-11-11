@@ -1221,6 +1221,7 @@ pub fn extraction(
         .number("frame_width_px", How::Max, size.0 as f64)
         .number("frame_height_px", How::Max, size.1 as f64)
         .text("peak_kind", sys::PEAK_KIND)
+        .text("probe_commit", crate::BUILD_COMMIT)
         .with_detail(json!({ "text": text }))
 }
 
