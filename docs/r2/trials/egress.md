@@ -1,6 +1,6 @@
 cells: macos-15.sandbox macos-15.sandbox.entry macos-15.sandbox.listen windows-2025.wfp windows-2025.wfp.entry windows-2025.wfp.listen this-mac.sandbox this-mac.sandbox.listen
 hosted-run branch=scratch/r2-u01-3 commit=3ff65ca296e603c5368a6c17ca0454d0187245d2 run=43017088043 attempt=1
-hosted-run branch=scratch/r2-u01-4 commit=583bacf2ada06401e99861724dd6daf67a673802 run=43019621258 attempt=1
+hosted-run branch=scratch/r2-u01-6 commit=a94d19edd65b2a55068d413ae44f2e48d7f55f61 run=43022419862 attempt=1
 cell macos-15.sandbox runs=1 probes=ok quiet=ok loopback=ok control=ok
 cell macos-15.sandbox.entry runs=1 routable=no
 cell macos-15.sandbox.listen runs=1 inside=ok
