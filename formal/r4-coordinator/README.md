@@ -395,9 +395,19 @@ above). It exits 1 and writes neither file when TLC fails, when a file has not `
 walks and every directed trace, when the walks of the schedule lack one of the answers
 `budget`, `queue_full` and `queued`, when the last move of a directed trace is not the
 move with the answer of the tables below, or when `limits.json` differs from
-`Schedule.cfg`. It writes both files under other names first and then renames them, so a
-failed write leaves the two trace files as they were. It runs java with `-Xmx1g`. It works
-in a directory from `mktemp -d` and leaves that directory in place.
+`Schedule.cfg`. It runs java with `-Xmx1g`. It works in a directory from `mktemp -d` and
+leaves that directory in place.
+
+The export writes both files or neither. It copies the two new files into the directory as
+`.traces-schedule.jsonl.new` and `.traces-confirm.jsonl.new`, keeps a copy of the old
+schedule file as `.traces-schedule.jsonl.kept`, renames the two new files and takes the
+kept copy away. When a copy or a rename fails, it prints `export write=miss` with the step
+that failed and exits 1; before that it takes away every file that it made and, after a
+failed second rename, puts the old schedule file back. So after a failed export the two
+trace files are as they were, and the directory holds no file that the export made. It
+starts no write when a file already stands at one of its three names. If the old schedule
+file cannot be put back, the line also says `restore=miss` and names the kept copy, which
+then holds the old file.
 
 A walk is at most 16 moves from the first state. It takes its steps from the model's own
 `Step`. A generator in the trace module picks each move; TLC's random numbers and TLC's
@@ -410,7 +420,16 @@ bytes on the development Mac. The export is compared with the committed files in
 export of both files took 8.23 s there, with a largest resident size of
 525,287,424 bytes.
 
-The first line of a file is `{"seed":<n>,"count":<n>}`. Each further line is one trace,
+The first line of a file is `{"seed":<n>,"count":<n>,"stamp":"<digest>"}`. The stamp is
+the SHA-256, as 64 hex digits, of the bytes of `Schedule.tla`, `Schedule.cfg`,
+`Confirm4.tla`, `Confirm4.cfg`, `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla`
+and `limits.json`, in this order, with every carriage return taken out, so that a checkout
+with CRLF line ends gives the same stamp. Both files of one export hold the same stamp, and
+the export prints it. Whoever reads the two files compares the two stamps first and refuses
+a pair in which they differ: such a pair holds the traces of two versions of the models.
+The check `30-r4-formal.sh` refuses it with the cause `traces`, and the test
+`formal_traces` fails. A reader that has the model files can compute the stamp again and
+so tell traces that were exported from other model files. Each further line is one trace,
 `{"n":<number>,"moves":[{"m":"<move>","a":{...},"r":"<answer>","s":{...}}...]}`. The walks
 have the numbers 1 to `count`. The directed traces follow them, with one more key after
 `n`: `{"n":<number>,"case":"<name>","moves":[...]}`; `count` does not count them. `a`

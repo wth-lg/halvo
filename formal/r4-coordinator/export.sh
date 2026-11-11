@@ -10,10 +10,12 @@ Confirm4 of this directory: N random walks of each model and, after them, the di
 traces, 11 of Schedule and 15 of Confirm4. PATH is tla2tools.jar of the release that
 README.md names. DIR is an existing directory and defaults to this one. Without --seed
 and --count the export takes both from the first line of the committed
-traces-schedule.jsonl.
+traces-schedule.jsonl. The first line of both files holds one stamp, the SHA-256 of
+the model files that the traces were exported from.
 
-Exit status: 0 when both files are written. 1 when the export ran and a check missed;
-it prints which, and it writes neither trace file. 2 on a refusal: one line
+Exit status: 0 when both files are written. 1 when the export ran and a check or a
+write missed; it prints which, the two trace files of DIR are as they were, and DIR
+holds no file that the export made. 2 on a refusal: one line
 "REFUSED <cause>: <detail>" on standard error, with the cause usage, java or jar.
 EOF
 }
@@ -33,6 +35,14 @@ number() {
         '' | *[!0-9]*) return 1 ;;
     esac
     test "${#1}" -le 9
+}
+
+sha256() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum | cut -d' ' -f1
+    else
+        shasum -a 256 | cut -d' ' -f1
+    fi
 }
 
 directed() {
@@ -82,7 +92,7 @@ if test -n "$seed" || test -n "$count"; then
     number "$count" || refuse usage "--seed and --count come together, each a number of at most 9 digits"
 else
     first=
-    test -f "$here/traces-schedule.jsonl" && first=$(sed -n '1s/^{"seed":\([0-9]*\),"count":\([0-9]*\)}$/\1 \2/p' "$here/traces-schedule.jsonl")
+    test -f "$here/traces-schedule.jsonl" && first=$(sed -n '1s/^{"seed":\([0-9]*\),"count":\([0-9]*\),"stamp":"[0-9a-f]*"}$/\1 \2/p' "$here/traces-schedule.jsonl")
     test -n "$first" || refuse usage "no committed first line, give --seed and --count"
     seed=${first% *}
     count=${first#* }
@@ -96,11 +106,7 @@ test "$major" -ge 17 || refuse java "java $major is older than 17"
 
 test -f "$jar" || refuse jar "no file at the path"
 want=$(sed -n 's/^jar url=[^ ]* bytes=[0-9]* sha256=\([0-9a-f]*\)$/\1/p' "$here/README.md")
-if command -v sha256sum >/dev/null 2>&1; then
-    got=$(sha256sum "$jar" | cut -d' ' -f1)
-else
-    got=$(shasum -a 256 "$jar" | cut -d' ' -f1)
-fi
+got=$(sha256 <"$jar")
 test -n "$want" && test "$got" = "$want" || refuse jar "the SHA-256 is not the one of README.md"
 jar=$(cd "$(dirname "$jar")" && pwd)/$(basename "$jar")
 
@@ -113,7 +119,9 @@ for pair in max_live_runs:MaxLive queue_max:QueueMax starts_per_day:StartsPerDay
 done
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/r4-export.XXXXXX") || miss "scratch=miss"
-cp "$here"/*.tla "$work/" || miss "scratch=miss"
+cp "$here"/*.tla "$here"/*.cfg "$here/limits.json" "$work/" || miss "scratch=miss"
+stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
+test "${#stamp}" -eq 64 || miss "stamp=miss"
 
 for model in Schedule Confirm4; do
     case $model in
@@ -127,7 +135,7 @@ for model in Schedule Confirm4; do
             ;;
     esac
     {
-        grep -v -e '^INIT ' -e '^NEXT ' -e '^CONSTRAINT ' -e '^VIEW ' "$here/$model.cfg"
+        grep -v -e '^INIT ' -e '^NEXT ' -e '^CONSTRAINT ' -e '^VIEW ' "$work/$model.cfg"
         printf 'CONSTANT Seed = %s\nCONSTANT Count = %s\nCONSTANT Depth = 16\n' "$seed" "$count"
         printf 'INIT TraceInit\nNEXT TraceNext\n'
     } >"$work/${model}Trace.cfg"
@@ -136,7 +144,7 @@ for model in Schedule Confirm4; do
     code=$?
     test "$code" -eq 0 || miss "model=$model tlc=$code"
     {
-        printf '{"seed":%s,"count":%s}\n' "$seed" "$count"
+        printf '{"seed":%s,"count":%s,"stamp":"%s"}\n' "$seed" "$count" "$stamp"
         tr -d '\r' <"$work/$model.out" | sed -n 's/^"\({.*}\)"$/\1/p' | sed 's/\\"/"/g'
     } >"$work/$file"
     lines=$(wc -l <"$work/$file" | tr -d ' ')
@@ -173,14 +181,43 @@ for reason in unknown_id used_row digest effect reject_row releasing_no_row rele
 done
 directed "$c" guard_releasing_other guard approval '"state":"releasing"'
 
+old_s=$out/traces-schedule.jsonl
+old_c=$out/traces-confirm.jsonl
 new_s=$out/.traces-schedule.jsonl.new
 new_c=$out/.traces-confirm.jsonl.new
-cp "$s" "$new_s" || miss "write=miss"
-if ! cp "$c" "$new_c"; then
-    mv "$new_s" "$work/unwritten-traces-schedule.jsonl"
-    miss "write=miss"
+kept=$out/.traces-schedule.jsonl.kept
+for path in "$new_s" "$new_c" "$kept"; do
+    test ! -e "$path" || miss "write=miss in-the-way=$(basename "$path")"
+done
+if ! cp "$s" "$new_s"; then
+    rm -f "$new_s"
+    miss "write=miss copy=schedule"
 fi
-mv "$new_s" "$out/traces-schedule.jsonl" || miss "write=miss"
-mv "$new_c" "$out/traces-confirm.jsonl" || miss "write=miss"
-printf 'export seed=%s count=%s schedule=%s confirm=%s\n' "$seed" "$count" \
-    "$(($(wc -l <"$out/traces-schedule.jsonl") - 1))" "$(($(wc -l <"$out/traces-confirm.jsonl") - 1))"
+if ! cp "$c" "$new_c"; then
+    rm -f "$new_s" "$new_c"
+    miss "write=miss copy=confirm"
+fi
+before=no
+if test -e "$old_s"; then
+    before=yes
+    if ! cp -p "$old_s" "$kept"; then
+        rm -f "$new_s" "$new_c" "$kept"
+        miss "write=miss copy=kept"
+    fi
+fi
+if ! mv "$new_s" "$old_s"; then
+    rm -f "$new_s" "$new_c" "$kept"
+    miss "write=miss rename=schedule"
+fi
+if ! mv "$new_c" "$old_c"; then
+    rm -f "$new_c"
+    if test "$before" = yes; then
+        mv "$kept" "$old_s" || miss "write=miss rename=confirm restore=miss kept=$(basename "$kept")"
+    else
+        rm -f "$old_s"
+    fi
+    miss "write=miss rename=confirm"
+fi
+rm -f "$kept"
+printf 'export seed=%s count=%s stamp=%s schedule=%s confirm=%s\n' "$seed" "$count" "$stamp" \
+    "$(($(wc -l <"$old_s") - 1))" "$(($(wc -l <"$old_c") - 1))"
