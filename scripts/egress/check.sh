@@ -74,6 +74,7 @@ sandbox_profile() {
   printf '(deny network-outbound (socket-protocol 58) (with message "%s icmp6"))\n' "$1"
   printf '(deny mach-lookup (global-name "com.apple.dnssd.service") (with message "%s dns"))\n' "$1"
   printf '(deny mach-lookup (global-name "com.apple.nsurlsessiond") (global-name "com.apple.nsurlsessiond-launchondemand") (with message "%s session"))\n' "$1"
+  printf '(deny lsopen (with message "%s open"))\n' "$1"
   while read -r number part kind host port; do
     [ -n "$number" ] || continue
     case $kind:$part:$host in

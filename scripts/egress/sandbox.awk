@@ -99,7 +99,7 @@ function emit(at, proto, dest, pid, image) {
     if (t[2] == "lo" && substr(t[1], 4, 1) == "4") dest = "127.0.0.1:" port
     else dest = "-:" port
   } else if (t[1] ~ /^icmp[46]$/) { proto = "icmp"; dest = "-:-" }
-  else if (tag == "session") { proto = "-"; dest = "-:-" }
+  else if (tag == "session" || tag == "open") { proto = "-"; dest = "-:-" }
   else { proto = "-"; dest = "-" }
   if (dup == 0) { emit(at, proto, dest, pid, image); next }
   if (target != "/private/var/run/mDNSResponder" && op != "mach-lookup") { proto = "-"; dest = "-:" port }
