@@ -18,6 +18,7 @@ use crate::custody::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, Wr
 
 use super::db::test_support::pages;
 use super::db::{EncryptedStore, KeyFile};
+use super::segment::tests::{BODY, CIPHER_CHUNK_LEN, HEADER, TAG_LEN};
 use super::segment::{self, segment_path, CHUNK};
 use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
 
@@ -1279,4 +1280,275 @@ fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages_when_rows_expire_o
         passes_with_leftovers.is_empty(),
         "wrapped keys of shredded segments were in the raw pages after an expiry pass returned (pass, keys, places): {passes_with_leftovers:?}"
     );
+}
+
+fn tamper_pattern(len: usize, seed: u8) -> Vec<u8> {
+    (0..len)
+        .map(|i| ((i as u64 * 31 + seed as u64 * 7) % 251) as u8)
+        .collect()
+}
+
+fn chunk_spans(file_len: usize) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    let mut at = BODY;
+    while at < file_len {
+        let end = (at + CIPHER_CHUNK_LEN).min(file_len);
+        spans.push((at, end));
+        at = end;
+    }
+    spans
+}
+
+fn rebuild(original: &[u8], spans: &[(usize, usize)], order: &[usize]) -> Vec<u8> {
+    let mut rebuilt = original[..BODY].to_vec();
+    for &i in order {
+        rebuilt.extend_from_slice(&original[spans[i].0..spans[i].1]);
+    }
+    rebuilt
+}
+
+#[derive(Default)]
+struct TamperTally {
+    cases: usize,
+    anomalies: Vec<String>,
+}
+
+impl TamperTally {
+    fn case(
+        &mut self,
+        store: &EncryptedStore,
+        id: Uuid,
+        path: &Path,
+        original: &[u8],
+        changed: &[u8],
+        label: &str,
+    ) {
+        if changed == original {
+            return;
+        }
+        std::fs::write(path, changed).unwrap();
+        let mut sink = CountingSink(0);
+        let result = store.read_segment(id, &mut sink);
+        self.cases += 1;
+        if !(matches!(result, Err(StoreError::Corrupt(_))) && sink.0 == 0) {
+            self.anomalies.push(format!(
+                "{label}: answered {:?} after {} plaintext bytes",
+                result.map(|_| ()),
+                sink.0
+            ));
+        }
+    }
+}
+
+fn truncation_points(file: &[u8], spans: &[(usize, usize)]) -> Vec<usize> {
+    let mut cuts: Vec<usize> = if file.len() <= 200 {
+        (0..file.len()).collect()
+    } else {
+        let mut cuts = vec![
+            0,
+            1,
+            HEADER - 1,
+            HEADER,
+            HEADER + 1,
+            BODY - 1,
+            BODY,
+            BODY + 1,
+        ];
+        for &(start, end) in spans {
+            cuts.extend([
+                start + 1,
+                start + 15,
+                start + 16,
+                start + 17,
+                (start + end) / 2,
+                end.saturating_sub(17),
+                end - 16,
+                end - 1,
+                end,
+            ]);
+        }
+        cuts
+    };
+    cuts.retain(|&cut| cut < file.len());
+    cuts.sort_unstable();
+    cuts.dedup();
+    cuts
+}
+
+#[test]
+fn every_modified_segment_file_is_rejected_with_no_plaintext() {
+    const CASES: usize = 1992;
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let mut tally = TamperTally::default();
+    let sizes = [
+        0usize,
+        1,
+        CHUNK - 1,
+        CHUNK,
+        CHUNK + 1,
+        2 * CHUNK,
+        3 * CHUNK + 5,
+    ];
+    for &len in &sizes {
+        let every_bit = len == 0 || len == CHUNK + 1;
+        let (plain_a, plain_b) = (tamper_pattern(len, 1), tamper_pattern(len, 2));
+        let (ref_a, _) = store.write_segment(&mut Cursor::new(&plain_a)).unwrap();
+        let (ref_b, _) = store.write_segment(&mut Cursor::new(&plain_b)).unwrap();
+        let (id_a, id_b) = (ref_a.segment_id, ref_b.segment_id);
+        let (path_a, path_b) = (
+            segment_path(dir.path(), id_a),
+            segment_path(dir.path(), id_b),
+        );
+        let a = std::fs::read(&path_a).unwrap();
+        let b = std::fs::read(&path_b).unwrap();
+        assert_eq!(a.len(), b.len());
+        let spans = chunk_spans(a.len());
+        let n = spans.len();
+        let mut case =
+            |label: String, changed: &[u8]| tally.case(&store, id_a, &path_a, &a, changed, &label);
+
+        for cut in truncation_points(&a, &spans) {
+            case(format!("len={len} truncated at {cut}"), &a[..cut]);
+        }
+        let (last_start, last_end) = spans[n - 1];
+        let extensions: [(&str, Vec<u8>); 5] = [
+            ("+1 byte", vec![0u8]),
+            ("+16 bytes", vec![0u8; 16]),
+            ("+copy of the last chunk", a[last_start..last_end].to_vec()),
+            ("+copy of the body", a[BODY..].to_vec()),
+            ("+one chunk of zeros", vec![0u8; CIPHER_CHUNK_LEN]),
+        ];
+        for (label, tail) in extensions {
+            let mut extended = a.clone();
+            extended.extend_from_slice(&tail);
+            case(format!("len={len} {label}"), &extended);
+        }
+        if n >= 2 {
+            let identity: Vec<usize> = (0..n).collect();
+            let mut swapped = identity.clone();
+            swapped.swap(0, 1);
+            case(
+                format!("len={len} chunks 0 and 1 swapped"),
+                &rebuild(&a, &spans, &swapped),
+            );
+            let mut swapped = identity.clone();
+            swapped.swap(0, n - 1);
+            case(
+                format!("len={len} first and last chunk swapped"),
+                &rebuild(&a, &spans, &swapped),
+            );
+            let mut reversed = identity.clone();
+            reversed.reverse();
+            case(
+                format!("len={len} chunks reversed"),
+                &rebuild(&a, &spans, &reversed),
+            );
+            for i in 0..n {
+                let mut duplicated = identity.clone();
+                duplicated.insert(i, i);
+                case(
+                    format!("len={len} chunk {i} duplicated"),
+                    &rebuild(&a, &spans, &duplicated),
+                );
+                let mut dropped = identity.clone();
+                dropped.remove(i);
+                case(
+                    format!("len={len} chunk {i} dropped"),
+                    &rebuild(&a, &spans, &dropped),
+                );
+            }
+        }
+        for i in [0usize, n - 1] {
+            let mut spliced = a.clone();
+            spliced[spans[i].0..spans[i].1].copy_from_slice(&b[spans[i].0..spans[i].1]);
+            case(
+                format!("len={len} chunk {i} from the other segment"),
+                &spliced,
+            );
+        }
+        let mut spliced = a.clone();
+        spliced[HEADER..BODY].copy_from_slice(&b[HEADER..BODY]);
+        case(format!("len={len} nonce from the other segment"), &spliced);
+        let mut spliced = a.clone();
+        spliced[..HEADER].copy_from_slice(&b[..HEADER]);
+        case(format!("len={len} header from the other segment"), &spliced);
+        let mut spliced = b.clone();
+        spliced[BODY..].copy_from_slice(&a[BODY..]);
+        case(
+            format!("len={len} header and nonce of the other segment"),
+            &spliced,
+        );
+
+        let bits_at = |offset: usize| -> Vec<u8> {
+            if every_bit {
+                (0..8).collect()
+            } else {
+                vec![(offset % 8) as u8]
+            }
+        };
+        for offset in 0..BODY {
+            for bit in bits_at(offset) {
+                let mut flipped = a.clone();
+                flipped[offset] ^= 1 << bit;
+                case(
+                    format!("len={len} header or nonce bit {bit} at {offset}"),
+                    &flipped,
+                );
+            }
+        }
+        for (chunk, &(start, end)) in spans.iter().enumerate() {
+            for offset in (end - TAG_LEN)..end {
+                for bit in bits_at(offset) {
+                    let mut flipped = a.clone();
+                    flipped[offset] ^= 1 << bit;
+                    case(
+                        format!("len={len} chunk {chunk} tag bit {bit} at {offset}"),
+                        &flipped,
+                    );
+                }
+            }
+            if end - TAG_LEN > start {
+                for offset in [start, (start + end - TAG_LEN) / 2, end - TAG_LEN - 1] {
+                    let mut flipped = a.clone();
+                    flipped[offset] ^= 0x80;
+                    case(
+                        format!("len={len} chunk {chunk} ciphertext bit at {offset}"),
+                        &flipped,
+                    );
+                }
+            }
+        }
+
+        tally.case(
+            &store,
+            id_a,
+            &path_a,
+            &a,
+            &b,
+            &format!("len={len} file of the other segment under this id"),
+        );
+        tally.case(
+            &store,
+            id_b,
+            &path_b,
+            &b,
+            &a,
+            &format!("len={len} file of the first segment under the other id"),
+        );
+
+        std::fs::write(&path_a, &a).unwrap();
+        std::fs::write(&path_b, &b).unwrap();
+        for (id, plain) in [(id_a, &plain_a), (id_b, &plain_b)] {
+            let mut out = Vec::new();
+            store.read_segment(id, &mut out).unwrap();
+            assert_eq!(&out, plain, "a restored original no longer reads back");
+        }
+    }
+    assert_eq!(
+        tally.anomalies,
+        Vec::<String>::new(),
+        "modified segment files that were not rejected as Corrupt with 0 bytes emitted"
+    );
+    assert_eq!(tally.cases, CASES, "the matrix ran another number of cases");
 }

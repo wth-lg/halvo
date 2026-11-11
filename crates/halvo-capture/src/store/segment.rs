@@ -374,8 +374,33 @@ pub(crate) fn remove_segment_file(path: &Path) -> StoreResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    pub(crate) const HEADER: usize = HEADER_LEN;
+    pub(crate) const BODY: usize = HEADER_LEN + STREAM_NONCE;
+    pub(crate) const TAG_LEN: usize = TAG;
+    pub(crate) const CIPHER_CHUNK_LEN: usize = CIPHER_CHUNK;
+
+    const GOLDEN: &[u8] = include_bytes!("testdata/segment-v1.golden");
+    const GOLDEN_KEY: [u8; 32] = [0x5e; 32];
+
+    fn golden_plaintext() -> Vec<u8> {
+        (0..300u32).map(|i| (i * 7 % 251) as u8).collect()
+    }
+
+    #[test]
+    fn the_golden_segment_of_format_version_1_decrypts_to_its_plaintext() {
+        let mut head = Vec::new();
+        head.extend_from_slice(b"HLVOSEG");
+        head.push(1);
+        head.extend_from_slice(&[0x11; 16]);
+        head.extend_from_slice(&7i64.to_le_bytes());
+        assert_eq!(&GOLDEN[..HEADER_LEN], head.as_slice());
+        assert_eq!(GOLDEN.len(), BODY + 300 + TAG);
+        let plain = decrypt_segment_bytes(GOLDEN, &SegmentKey::from_bytes(GOLDEN_KEY)).unwrap();
+        assert_eq!(plain, golden_plaintext());
+    }
 
     fn roundtrip(len: usize) {
         let dir = tempfile::tempdir().unwrap();
