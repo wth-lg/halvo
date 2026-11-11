@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -84,21 +73,41 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-egress
+      - name: Builder 9 second list (macos)
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/b9.sh" <<'B9'
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 2
+          out=$RUNNER_TEMP/b9
+          mkdir -p "$out"
+          lines() { grep -E '^(egress self-test|probe name=|quiet |listed |unlisted |listen |control |checks )' "$1"; }
+          git worktree add -q --detach "$RUNNER_TEMP/b9-before" ab0c3e9db13d3f3b26fd44954121a9dc32170a8d
+          printf '== self-test at ab0c3e9db13d3f3b26fd44954121a9dc32170a8d: the probe open, no lsopen rule\n'
+          (cd "$RUNNER_TEMP/b9-before" && sh scripts/egress/check.sh --mode sandbox --self-test >"$out/before.out" 2>"$out/before.err")
+          printf 'self-test exit=%s\n' "$?"
+          lines "$out/before.out"
+          printf '== self-test at the head\n'
+          sh scripts/egress/check.sh --mode sandbox --self-test >"$out/head.out" 2>"$out/head.err"
+          printf 'self-test exit=%s\n' "$?"
+          lines "$out/head.out"
+          grep -E 'list=scripts/egress/lists/empty.txt' "$out/head.err" | tail -n 20 >/dev/null
+          printf '== control at the head\n'
+          sh scripts/egress/check.sh --mode sandbox --self-test --control-no-deny >"$out/control.out" 2>"$out/control.err"
+          printf 'control exit=%s\n' "$?"
+          lines "$out/control.out"
+          printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$out/routable.txt"
+          sh scripts/egress/check.sh --mode sandbox "$out/routable.txt" -- sh scripts/egress/probe.sh none >"$out/entry.out" 2>"$out/entry.err"
+          printf 'entry exit=%s | %s\n' "$?" "$(tail -n 1 "$out/entry.err")"
+          exit 0
+          B9
+          sh "$RUNNER_TEMP/b9.sh"
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -128,21 +137,29 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-egress
+      - name: Builder 9 second list (windows)
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/b9.sh" <<'B9'
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 2
+          out=$RUNNER_TEMP/b9
+          mkdir -p "$out"
+          printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$out/routable.txt"
+          sh scripts/egress/check.sh --mode wfp "$out/routable.txt" -- sh scripts/egress/probe.sh none >"$out/entry.out" 2>"$out/entry.err"
+          printf 'entry exit=%s | %s\n' "$?" "$(tail -n 1 "$out/entry.err" | tr -d '\r')"
+          printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["docs/r2/README.md"]}]}' >"$out/docs-event.json"
+          printf '== 10-egress with a push event that changes docs/r2/README.md alone\n'
+          GITHUB_EVENT_NAME=push GITHUB_EVENT_PATH="$out/docs-event.json" sh scripts/ci/run-ci-d.sh windows 10-egress 2>&1 | tr -d '\r' | grep -E '^(egress self-test|probe name=|checks |self-test mode=|control mode=|long cases|PASS|FAIL|SKIP|seconds )'
+          exit 0
+          B9
+          sh "$RUNNER_TEMP/b9.sh"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
