@@ -956,9 +956,30 @@ macro_rules! runner_conversion_case {
     };
 }
 
+macro_rules! role_conversion_case {
+    ($fence:literal, $role:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::request::{AnalysisRole, InterfaceDecision, InterfaceRole, RunnerRole};\n",
+            "use halvo_schema::{RequestId, WorkflowId};\n",
+            "let role: InterfaceRole = ",
+            $role,
+            ";\n",
+            "let id = RequestId::from_random([1; 16]);\n",
+            "let workflow = WorkflowId::from_random([2; 16]);\n",
+            "let decision = InterfaceDecision::approve(&role, id, workflow);\n",
+            "assert!(decision.to_bytes().is_ok());\n",
+            "```"
+        )
+    };
+}
+
 /// What must not compile: an analysis or a runner value builds no approval, dismissal or deletion, no coordinator
-/// write (which stands for every other state change and every configuration change) and no decision by
-/// conversion. Each case differs from its twin in `compiles` in the role value alone or in the one conversion call.
+/// write (which stands for every other state change and every configuration change), no decision by conversion
+/// and no interface token by conversion. Each case differs from its twin in `compiles` in the role value alone or
+/// in the one conversion call.
 pub mod compile_fail {
     /// `InterfaceDecision::approve` does not take `&AnalysisRole`. Twin: `compiles::interface_approve`.
     #[doc = decision_case!("compile_fail", "AnalysisRole", "approve")]
@@ -999,6 +1020,14 @@ pub mod compile_fail {
     /// No `InterfaceDecision::from` of a `RunnerRequest`. Twin: `compiles::runner_request_builds`.
     #[doc = runner_conversion_case!("compile_fail", "InterfaceDecision::from")]
     pub mod runner_into_decision {}
+
+    /// No `InterfaceRole` converted from an `AnalysisRole`. Twin: `compiles::interface_role_claims`.
+    #[doc = role_conversion_case!("compile_fail", "AnalysisRole::claim().into()")]
+    pub mod analysis_role_into_interface {}
+
+    /// No `InterfaceRole` converted from a `RunnerRole`. Twin: `compiles::interface_role_claims`.
+    #[doc = role_conversion_case!("compile_fail", "RunnerRole::claim().into()")]
+    pub mod runner_role_into_interface {}
 }
 
 /// The twins of the cases of `compile_fail`, which compile and run.
@@ -1026,4 +1055,8 @@ pub mod compiles {
     /// A runner value builds a runner request.
     #[doc = runner_conversion_case!("", "std::convert::identity")]
     pub mod runner_request_builds {}
+
+    /// An interface value claimed as such builds an approval.
+    #[doc = role_conversion_case!("", "InterfaceRole::claim()")]
+    pub mod interface_role_claims {}
 }
