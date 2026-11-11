@@ -10,8 +10,10 @@ pub const PAGE_MAX: usize = 16;
 pub const OCCURRENCES_MIN: usize = 8;
 pub const OCCURRENCES_MAX: usize = 16;
 pub const RESTART_AFTER_DAYS: u64 = 93;
+pub const BYTES_MAX: u64 = 1_048_576;
 
 pub const FILE_NAME: &str = "the file name is not <name>.jsonl";
+pub const SIZE: &str = "the file holds more than 1048576 bytes";
 pub const TEXT: &str = "the file is not UTF-8 text with LF line ends and one LF at its end";
 pub const HEADER_NAME: &str = "the header case is not the file name without .jsonl";
 pub const NAME: &str = "the case name is not 1 to 32 bytes of a to z, 0 to 9 and -";
@@ -471,10 +473,18 @@ fn compiled_resolve(first: &Occurrence, steps: &[Step]) -> Result<(), String> {
     Ok(())
 }
 
-pub fn read_case(file_name: &str, bytes: &[u8], calendar_days_min: u64) -> Result<Case, String> {
+pub fn sized(file_name: &str, bytes: u64) -> Result<&str, String> {
     let stem = file_name
         .strip_suffix(".jsonl")
         .ok_or_else(|| FILE_NAME.to_owned())?;
+    if bytes > BYTES_MAX {
+        return Err(SIZE.to_owned());
+    }
+    Ok(stem)
+}
+
+pub fn read_case(file_name: &str, bytes: &[u8], calendar_days_min: u64) -> Result<Case, String> {
+    let stem = sized(file_name, u64::try_from(bytes.len()).unwrap_or(u64::MAX))?;
     let text = std::str::from_utf8(bytes)
         .ok()
         .and_then(|text| text.strip_suffix('\n'))

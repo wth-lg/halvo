@@ -1,6 +1,7 @@
+use std::io::Read;
 use std::path::Path;
 
-use crate::case::{read_case, Case, Form, Kind};
+use crate::case::{read_case, sized, Case, Form, Kind, BYTES_MAX};
 use crate::model::{self, Arm, Tally};
 use crate::targets::Targets;
 use crate::Refusal;
@@ -71,13 +72,18 @@ pub fn rule(rows: &[Row], targets: &Targets) -> Rule {
 }
 
 fn read_one(name: &str, path: &Path, calendar_days_min: u64) -> Result<Case, Refusal> {
+    let refuse = |rule: String| Refusal::Case(format!("{name}: {rule}"));
     if !path.is_file() {
-        return Err(Refusal::Case(format!("{name}: not a case file")));
+        return Err(refuse("not a case file".to_owned()));
     }
-    let bytes = std::fs::read(path)
-        .map_err(|_| Refusal::Case(format!("{name}: the file cannot be read")))?;
-    read_case(name, &bytes, calendar_days_min)
-        .map_err(|rule| Refusal::Case(format!("{name}: {rule}")))
+    let unreadable = || refuse("the file cannot be read".to_owned());
+    let size = std::fs::metadata(path).map_err(|_| unreadable())?.len();
+    sized(name, size).map_err(refuse)?;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|file| file.take(BYTES_MAX + 1).read_to_end(&mut bytes))
+        .map_err(|_| unreadable())?;
+    read_case(name, &bytes, calendar_days_min).map_err(refuse)
 }
 
 pub fn read_dir(dir: &Path, calendar_days_min: u64) -> Result<Vec<(String, Case)>, Refusal> {

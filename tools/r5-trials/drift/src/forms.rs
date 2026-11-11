@@ -33,8 +33,10 @@ pub const NO_THIRD: Rule =
     "the intended control does not change a third time on a later occurrence";
 pub const CARRIES: Rule =
     "another control carries a test id or a role and name that the intended control has or had";
-pub const FAULT_REPAIR: Rule =
-    "repair names more than the intended control on a day other than the change day of decoy";
+pub const OTHER_TEST_ID: Rule =
+    "another control of the case holds or held the test id of the other control";
+pub const REPAIR_ALONE: Rule =
+    "repair holds two entries for a step other than the changed step on the change day of decoy";
 pub const BENIGN_HARM: Rule = "plain does not complete with harm 0";
 pub const BENIGN_ASSISTED: Rule = "the assisted of plain is not drifts";
 pub const BENIGN_NONE: Rule = "the assisted of none is below drifts + 2";
@@ -382,14 +384,30 @@ fn carries(case: &Case, plan: &Plan) -> Result<(), Rule> {
     Ok(())
 }
 
-fn fault_repair(case: &Case, plan: &Plan) -> Result<(), Rule> {
+fn own_test_id(case: &Case, other: &str) -> Result<(), Rule> {
+    let held: Vec<&str> = case
+        .occurrences
+        .iter()
+        .filter_map(|occurrence| occurrence.control(other))
+        .map(|control| control.test_id.as_str())
+        .collect();
+    let shared = case
+        .occurrences
+        .iter()
+        .flat_map(|occurrence| &occurrence.page)
+        .any(|control| control.id != other && held.contains(&control.test_id.as_str()));
+    if shared {
+        return Err(OTHER_TEST_ID);
+    }
+    Ok(())
+}
+
+fn repair_alone(case: &Case, plan: &Plan) -> Result<(), Rule> {
     for (at, occurrence) in case.occurrences.iter().enumerate() {
-        if case.form == Form::Decoy && at == plan.change {
-            continue;
-        }
         for (index, step) in case.steps.iter().enumerate() {
-            if occurrence.repair[index] != [step.control.clone()] {
-                return Err(FAULT_REPAIR);
+            let excepted = case.form == Form::Decoy && at == plan.change && index == plan.step;
+            if !excepted && occurrence.repair[index] != [step.control.clone()] {
+                return Err(REPAIR_ALONE);
             }
         }
     }
@@ -430,9 +448,10 @@ fn rules(case: &Case) -> Result<(), Rule> {
     }
     let plan = structure(case)?;
     carries(case, &plan)?;
-    if !benign {
-        fault_repair(case, &plan)?;
+    if let (Form::Reused, Some(other)) = (case.form, &plan.extra) {
+        own_test_id(case, other)?;
     }
+    repair_alone(case, &plan)?;
     paragraph(
         case.form,
         model::drifts(case),

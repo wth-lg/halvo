@@ -165,6 +165,73 @@ fn a_missing_case_file_is_refused_with_case() {
     assert_eq!(stderr, "REFUSED case: absent.jsonl: not a case file\n");
 }
 
+fn scratch(file: &str, bytes: &[u8]) -> PathBuf {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(file);
+    std::fs::write(&path, bytes).expect("a scratch file");
+    path
+}
+
+#[test]
+fn a_case_file_of_1048577_bytes_is_refused_before_any_line_is_parsed() {
+    let mut bytes = vec![b'x'; 1_048_576];
+    bytes.push(b'\n');
+    assert_eq!(bytes.len(), 1_048_577);
+    let path = scratch("size-above.jsonl", &bytes);
+    let output = drift(&["--case", path.to_str().expect("a path"), "--arm", "none"]);
+    assert_eq!(
+        refused(&output, "case"),
+        "REFUSED case: size-above.jsonl: the file holds more than 1048576 bytes\n"
+    );
+}
+
+#[test]
+fn a_case_file_of_1048576_bytes_of_valid_lines_is_read_as_its_content_says() {
+    let source = std::fs::read_to_string(root().join("fixtures/r5/cases/dev/renamed-pay.jsonl"))
+        .expect("a development case");
+    let filler = "\"test_id\":\"help-link\",\"passes\":[]";
+    let lines = source.matches(filler).count();
+    assert_eq!(lines, source.lines().count() - 1);
+    let mut name = String::from("size-limit-");
+    let named = |name: &str| {
+        source.replacen(
+            "\"case\":\"renamed-pay\"",
+            &format!("\"case\":\"{name}\""),
+            1,
+        )
+    };
+    while (1_048_576 - named(&name).len()) % lines != 0 {
+        name.push('a');
+    }
+    let pad = (1_048_576 - named(&name).len()) / lines;
+    let items = if pad % 2 == 1 {
+        format!("9{}", ",9".repeat(pad / 2))
+    } else {
+        format!("99{}", ",9".repeat(pad / 2 - 1))
+    };
+    assert_eq!(items.len(), pad);
+    let padded = named(&name).replace(
+        filler,
+        &format!("\"test_id\":\"help-link\",\"passes\":[{items}]"),
+    );
+    assert_eq!(padded.len(), 1_048_576);
+    let path = scratch(&format!("{name}.jsonl"), padded.as_bytes());
+    let source_path = root().join("fixtures/r5/cases/dev/renamed-pay.jsonl");
+    for arm in ["none", "plain"] {
+        let output = drift(&["--case", path.to_str().expect("a path"), "--arm", arm]);
+        assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+        let unpadded = drift(&[
+            "--case",
+            source_path.to_str().expect("a path"),
+            "--arm",
+            arm,
+        ]);
+        assert_eq!(
+            text(&output.stdout),
+            text(&unpadded.stdout).replacen("name=renamed-pay", &format!("name={name}"), 1)
+        );
+    }
+}
+
 #[test]
 fn a_standard_output_that_cannot_be_written_is_refused_with_output() {
     let (reader, writer) = std::io::pipe().expect("a pipe");

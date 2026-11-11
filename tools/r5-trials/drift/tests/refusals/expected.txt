@@ -43,14 +43,14 @@ REFUSED case: flaky-wrong-day.jsonl: flaky: flaky is not the changed step alone 
 REFUSED case: flaky-wrong-step.jsonl: flaky: flaky is not the changed step alone on the occurrence after the change and empty on every other
 REFUSED case: flaky-zero.jsonl: line 3: flaky holds a number outside 1 to 4294967295
 REFUSED case: form-added.jsonl: renamed: the page changes other than the form says
-REFUSED case: form-benign-harm.jsonl: renamed: plain does not complete with harm 0
+REFUSED case: form-benign-harm.jsonl: renamed: repair holds two entries for a step other than the changed step on the change day of decoy
 REFUSED case: form-carries-role-name.jsonl: renamed: another control carries a test id or a role and name that the intended control has or had
 REFUSED case: form-carries-test-id.jsonl: renamed: another control carries a test id or a role and name that the intended control has or had
 REFUSED case: form-change-name-only.jsonl: renamed: a change does not give the control a new test id and a new name alone
 REFUSED case: form-change-passes.jsonl: renamed: a change does not give the control a new test id and a new name alone
 REFUSED case: form-change-role.jsonl: renamed: a change does not give the control a new test id and a new name alone
 REFUSED case: form-extra-change.jsonl: renamed: the page changes other than the form says
-REFUSED case: form-fault-repair.jsonl: decoy: repair names more than the intended control on a day other than the change day of decoy
+REFUSED case: form-fault-repair.jsonl: decoy: repair holds two entries for a step other than the changed step on the change day of decoy
 REFUSED case: form-fault-shows-zero.jsonl: decoy: kind or shows does not fit the form
 REFUSED case: form-flaky-outside.jsonl: renamed: flaky is not empty outside the form flaky
 REFUSED case: form-kind.jsonl: renamed: kind or shows does not fit the form
@@ -64,6 +64,7 @@ REFUSED case: long-name-xxxxxxxxxxxxxxxxxxxxxxx.jsonl: the case name is not 1 to
 REFUSED case: name_underscore.jsonl: the case name is not 1 to 32 bytes of a to z, 0 to 9 and -
 REFUSED case: occurrences-seven.jsonl: the case has 7 occurrences, not 8 to 16
 REFUSED case: occurrences-seventeen.jsonl: the case has 17 occurrences, not 8 to 16
+REFUSED case: p8-reused-tid-filler.jsonl: reused: another control of the case holds or held the test id of the other control
 REFUSED case: page-seventeen.jsonl: line 2: the page holds 17 controls, more than 16
 REFUSED case: renamed-early.jsonl: renamed: the change is before the third occurrence
 REFUSED case: renamed-filler-change.jsonl: renamed: the intended control of one step does not change
@@ -79,12 +80,16 @@ REFUSED case: renamed-twice-short-tail.jsonl: renamed-twice: fewer than three oc
 REFUSED case: renamed-twice-third.jsonl: renamed-twice: the page changes other than the form says
 REFUSED case: renamed-two-changes.jsonl: renamed: the page changes other than the form says
 REFUSED case: repair-absent.jsonl: line 3: repair of step 2 names a control that the page lacks
+REFUSED case: repair-benign-two.jsonl: renamed: repair holds two entries for a step other than the changed step on the change day of decoy
 REFUSED case: repair-count-three.jsonl: line 3: repair of step 1 names 3 controls, not 1 or 2
 REFUSED case: repair-count-zero.jsonl: line 3: repair of step 1 names 0 controls, not 1 or 2
+REFUSED case: repair-decoy-other-step.jsonl: decoy: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: repair-fault-two.jsonl: reused: repair holds two entries for a step other than the changed step on the change day of decoy
 REFUSED case: repair-key-extra.jsonl: line 3: repair holds a key other than the step numbers in order
 REFUSED case: repair-key-order.jsonl: line 3: repair holds a key other than the step numbers in order
 REFUSED case: repair-lacks.jsonl: line 3: repair lacks step 2
 REFUSED case: repair-last.jsonl: line 3: repair of step 2 does not name the intended control last
+REFUSED case: repair-twice.jsonl: renamed: repair holds two entries for a step other than the changed step on the change day of decoy
 REFUSED case: restart-at-93.jsonl: no occurrence more than 93 days after the first holds restart yes
 REFUSED case: restart-missing.jsonl: no occurrence more than 93 days after the first holds restart yes
 REFUSED case: restart-value.jsonl: line 6: restart is not yes or no
