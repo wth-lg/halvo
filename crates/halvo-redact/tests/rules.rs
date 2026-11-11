@@ -24,7 +24,6 @@ fn failing_luhn(number: &str) -> String {
     format!("{body}{wrong}")
 }
 
-#[cfg(not(feature = "control-card-off"))]
 mod card_rule {
     use super::*;
 
@@ -347,7 +346,6 @@ fn the_rows_that_the_release_states_otherwise_are_corrected_or_gone() {
     );
 }
 
-#[cfg(not(feature = "control-card-off"))]
 #[test]
 fn a_card_then_a_key_with_no_byte_between_are_both_masked() {
     let number = card(16);
@@ -358,7 +356,6 @@ fn gb_iban_with_a_card_reading_inside() -> String {
     iban("GB", &format!("WXYZ{}", luhn_number("2468013579246")))
 }
 
-#[cfg(not(feature = "control-card-off"))]
 mod scan_rule {
     use super::*;
 

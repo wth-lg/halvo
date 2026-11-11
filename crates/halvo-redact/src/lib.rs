@@ -81,7 +81,6 @@ impl Rule {
         match self {
             Rule::Key => key::readings(text, start, found),
             Rule::Iban => iban::readings(text, start, found),
-            Rule::Card if cfg!(feature = "control-card-off") => {}
             Rule::Card => card::readings(text, start, found),
             Rule::Ssn => ssn::readings(text, start, found),
         }
