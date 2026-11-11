@@ -294,6 +294,87 @@ fn a_bound_object_holds_exactly_the_fields_of_its_class_in_their_order() {
 }
 
 #[test]
+fn the_mode_of_a_run_record_is_compile_replay_or_null_and_its_key_always_stands() {
+    let good = run_record(R, RUN_REST);
+    let null_mode = swap(&good, r#""mode":"replay""#, r#""mode":null"#);
+    let ended = swap(
+        &null_mode,
+        r#""outcome":"completed""#,
+        r#""outcome":"failed""#,
+    );
+    assert_eq!(
+        AgentRun::parse(ended.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        ended
+    );
+    let compile = swap(&good, r#""mode":"replay""#, r#""mode":"compile""#);
+    assert!(AgentRun::parse(compile.as_bytes()).is_ok());
+    expect(
+        AgentRun::parse(swap(&good, r#""mode":"replay","#, "").as_bytes()),
+        "AgentRun",
+        "missing_key",
+        "mode",
+    );
+    expect(
+        AgentRun::parse(swap(&ended, r#""mode":null,"#, "").as_bytes()),
+        "AgentRun",
+        "missing_key",
+        "mode",
+    );
+    for outcome in [
+        "completed",
+        "nothing_to_do",
+        "declined",
+        "handed_back",
+        "class_mismatch",
+        "refused",
+        "limit",
+        "effect_unknown",
+    ] {
+        let text = swap(
+            &null_mode,
+            r#""outcome":"completed""#,
+            &format!(r#""outcome":"{outcome}""#),
+        );
+        expect(
+            AgentRun::parse(text.as_bytes()),
+            "AgentRun",
+            "mode_null_after_finish",
+            "mode",
+        );
+    }
+    for (to, type_name, rule) in [
+        (r#""mode":"none""#, "Mode", "unknown_name"),
+        (r#""mode":"Replay""#, "Mode", "unknown_name"),
+        (r#""mode":"""#, "Mode", "unknown_name"),
+        (r#""mode":0"#, "Mode", "not_a_string"),
+        (r#""mode":[]"#, "Mode", "not_a_string"),
+    ] {
+        expect(
+            AgentRun::parse(swap(&ended, r#""mode":null"#, to).as_bytes()),
+            type_name,
+            rule,
+            "mode",
+        );
+    }
+    let entry = halvo_schema::executable::KINDS
+        .iter()
+        .find(|k| k.name == "agent_run")
+        .unwrap();
+    assert_eq!(halvo_schema::kinds::check_record(entry, &ended), Ok(()));
+    let finish = format!(r#"{{"op":"finish","agent":"{A}","run":"{R}","record":{ended}}}"#);
+    assert_eq!(
+        RunnerCall::parse(finish.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        finish
+    );
+}
+
+#[test]
 fn an_agent_run_record_holds_counts_that_agree() {
     let good = run_record(R, RUN_REST);
     assert_eq!(

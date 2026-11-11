@@ -17,7 +17,9 @@ pub const SESSION_PARTS_MAX: u32 = 64;
 
 object_type! {
     /// One finished run, kind `agent_run`. `prompts` is the sum of `handbacks` and `confirmations`, `unknown` is at
-    /// most `effects`, and a run that is `completed` has no unknown effect.
+    /// most `effects`, and a run that is `completed` has no unknown effect. The key `mode` always stands: `compile`,
+    /// `replay`, or null in the record that the handler of `end_run` stores, whose outcome is `failed`; a null mode
+    /// beside the outcome of a `finish` is refused.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentRun {
         pub v: V1 = "v" => from_json,
@@ -25,7 +27,7 @@ object_type! {
         pub agent: AgentId = "agent" => json::agent_id,
         pub run: RunId = "run" => from_json,
         pub day: u32 = "day" => from_json,
-        pub mode: Mode = "mode" => from_json,
+        pub mode: Option<Mode> = "mode" => opt(from_json),
         pub outcome: Outcome = "outcome" => from_json,
         pub playbook: Option<NonZeroU32> = "playbook" => opt(from_json),
         pub steps: u32 = "steps" => from_json,
@@ -42,6 +44,9 @@ object_type! {
     }
     rules(r) {
         let fail = |key, rule| Err(Refusal::malformed("AgentRun", rule).at(key));
+        if r.mode.is_none() && r.outcome != Outcome::Failed {
+            return fail("mode", "mode_null_after_finish");
+        }
         if u64::from(r.prompts) != u64::from(r.handbacks) + u64::from(r.confirmations) {
             return fail("prompts", "prompts_sum");
         }

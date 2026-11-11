@@ -168,7 +168,7 @@ fn agent_run(outcome: Outcome, mode: Mode, unknown: u32) -> AgentRun {
         agent: agent(),
         run: run(),
         day: 20768,
-        mode,
+        mode: Some(mode),
         outcome,
         playbook: Some(n(1)),
         steps: 9,
@@ -191,10 +191,23 @@ fn runs() -> Vec<AgentRun> {
     replay.model_calls = 0;
     replay.tokens_in = 0;
     replay.tokens_out = 0;
+    let mut ended = agent_run(Outcome::Failed, Mode::Replay, 1);
+    ended.mode = None;
+    ended.playbook = None;
+    ended.steps = 0;
+    ended.prompts = 0;
+    ended.handbacks = 0;
+    ended.confirmations = 0;
+    ended.model_calls = 0;
+    ended.tokens_in = 0;
+    ended.tokens_out = 0;
+    ended.wall_s = 0;
+    ended.model = None;
     vec![
         replay,
         agent_run(Outcome::Failed, Mode::Compile, 1),
         agent_run(Outcome::EffectUnknown, Mode::Replay, 1),
+        ended,
     ]
 }
 
