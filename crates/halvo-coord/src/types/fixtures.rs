@@ -549,7 +549,9 @@ fn build(state: State) -> Vec<Built> {
                 category: spec.category,
                 site: Some(format!("site{}.example", number(spec.category))),
                 trigger: spec.trigger,
-                period: spec.period,
+                period: spec
+                    .period
+                    .map(|p| NonZeroU32::new(p).expect("a period of 1 day or more")),
                 last: spec.last,
                 agent: Some(agent.clone()),
             },

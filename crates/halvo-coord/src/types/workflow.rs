@@ -1,5 +1,6 @@
 use super::{AgentId, AgentState, Category, Class, EffectId, Name, Outcome, RunId, WorkflowId};
 use super::{WorkflowState, WorkflowTrigger};
+use std::num::NonZeroU32;
 
 /// A workflow of the owner's list, in the two shapes of W-C2.4: a dismissed workflow has no
 /// state value of `WorkflowState` (I5.10).
@@ -22,6 +23,37 @@ impl Workflow {
 }
 
 /// The full shape of a workflow, with what the coordinator reads of it (W-C2.4, I5.10).
+///
+/// ```
+/// use halvo_coord::types::{Category, FullWorkflow, WorkflowId, WorkflowState, WorkflowTrigger};
+/// use std::num::NonZeroU32;
+/// let w = FullWorkflow {
+///     id: WorkflowId::parse("00000000000000000000000000000001").unwrap(),
+///     state: WorkflowState::Active,
+///     category: Category::CalendarCleanup,
+///     site: None,
+///     trigger: WorkflowTrigger::Schedule,
+///     period: NonZeroU32::new(7),
+///     last: 20_750,
+///     agent: None,
+/// };
+/// ```
+///
+/// A period of 0 days cannot be written:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::{Category, FullWorkflow, WorkflowId, WorkflowState, WorkflowTrigger};
+/// let w = FullWorkflow {
+///     id: WorkflowId::parse("00000000000000000000000000000001").unwrap(),
+///     state: WorkflowState::Active,
+///     category: Category::CalendarCleanup,
+///     site: None,
+///     trigger: WorkflowTrigger::Schedule,
+///     period: Some(0),
+///     last: 20_750,
+///     agent: None,
+/// };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FullWorkflow {
     /// `id`.
@@ -35,8 +67,8 @@ pub struct FullWorkflow {
     pub site: Option<String>,
     /// `trigger`.
     pub trigger: WorkflowTrigger,
-    /// `recurrence.period`: days between occurrences, 1 to 93, or none.
-    pub period: Option<u32>,
+    /// `recurrence.period`: days between occurrences, 1 to 93, or none; never 0.
+    pub period: Option<NonZeroU32>,
     /// `recurrence.last`: the day of the last occurrence counted, as days since 1970-01-01.
     pub last: u32,
     /// `agent`, or none.
