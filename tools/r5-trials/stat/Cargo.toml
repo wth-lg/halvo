@@ -1,0 +1,9 @@
+[package]
+name = "r5-stat"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "r5-stat"
+path = "src/main.rs"
