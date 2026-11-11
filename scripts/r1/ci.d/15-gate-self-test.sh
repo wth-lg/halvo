@@ -21,6 +21,8 @@ self_tested() {
   [ "$code" -eq 0 ] || fail "$label exited $code"
   first=$(printf '%s\n' "$out" | sed -n '/^FAIL/{p;q;}')
   [ -z "$first" ] || fail "$label printed: $first"
+  zero=$(printf '%s\n' "$out" | sed -n '/^PASS self-test:[^ ]* (0 cases/{p;q;}')
+  [ -z "$zero" ] || fail "$label printed a PASS line with 0 cases: $zero"
   case $group:$nl$out$nl in
     :*"${nl}PASS self-test:"*) ;;
     *"${nl}PASS self-test:$group ("* | *"${nl}PASS self-test:$group$nl"*) ;;
@@ -116,6 +118,8 @@ self_test() {
   check check-passes-as-another FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
   gate check-group-is-a-prefix "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store-other (1 cases)\n"'
   check check-group-is-a-prefix FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
+  gate check-passes-with-0-cases "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 cases)\n"'
+  check check-passes-with-0-cases FAIL 'dash check-store.sh --self-test printed a PASS line with 0 cases: PASS self-test:store (0 cases))'
   mkdir -p "$work/check-script-renamed/scripts" || exit 2
   cp -R "$CI_D_REPO/scripts/r1-gate" "$work/check-script-renamed/scripts/" || exit 2
   mv "$work/check-script-renamed/scripts/r1-gate/check-store.sh" "$work/check-script-renamed/scripts/r1-gate/check-store-old.sh" || exit 2
