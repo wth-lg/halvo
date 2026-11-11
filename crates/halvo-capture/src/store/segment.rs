@@ -393,17 +393,26 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn two_segment_keys_wrapped_under_one_store_key_use_two_nonces() {
+    fn segment_key_wraps_under_one_store_key_use_distinct_nonces_that_vary_in_every_byte() {
         const XNONCE: usize = 24;
+        const WRAPS: usize = 64;
         let store_key = [0x42u8; 32];
-        let first = wrap_segment_key(&store_key, &SegmentKey::random().unwrap()).unwrap();
-        let second = wrap_segment_key(&store_key, &SegmentKey::random().unwrap()).unwrap();
-        let (first, second) = (&first[..XNONCE], &second[..XNONCE]);
-        assert!(first != second, "two segment-key wraps used one nonce");
-        assert!(
-            first.iter().any(|&b| b != 0) && second.iter().any(|&b| b != 0),
-            "a segment-key wrap used the all-zero nonce"
-        );
+        let nonces: Vec<Vec<u8>> = (0..WRAPS)
+            .map(|_| {
+                wrap_segment_key(&store_key, &SegmentKey::random().unwrap()).unwrap()[..XNONCE]
+                    .to_vec()
+            })
+            .collect();
+        let distinct: std::collections::HashSet<&Vec<u8>> = nonces.iter().collect();
+        assert_eq!(distinct.len(), WRAPS, "segment-key wraps repeated a nonce");
+        for position in 0..XNONCE {
+            assert!(
+                nonces
+                    .iter()
+                    .any(|nonce| nonce[position] != nonces[0][position]),
+                "byte {position} of the nonce took one value in {WRAPS} wraps"
+            );
+        }
     }
 
     #[test]

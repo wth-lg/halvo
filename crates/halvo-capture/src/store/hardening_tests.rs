@@ -970,6 +970,21 @@ fn an_empty_a_zeroed_and_a_garbled_key_file_open_as_key_file_unparseable() {
             opened.err()
         );
     }
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, _, _, _) = file_root_store(dir.path());
+    let mut key_file = KeyFile::read(&store_dir).unwrap();
+    key_file.wrapped_store_key_b64 = "!!!not base64!!!".to_string();
+    std::fs::write(
+        KeyFile::path(&store_dir),
+        serde_json::to_vec(&key_file).unwrap(),
+    )
+    .unwrap();
+    let opened = EncryptedStore::open(&store_dir, DEFAULT_RETENTION);
+    assert!(
+        matches!(opened, Err(StoreError::KeyFileUnparseable)),
+        "a wrapped key that is not base64: {:?}",
+        opened.err()
+    );
 }
 
 fn reopened_file_root_store(store_dir: &Path, roots_dir: &Path, root_id: RootId) -> EncryptedStore {
@@ -992,7 +1007,65 @@ fn a_segment_file_replaced_by_a_directory_reads_as_io() {
     std::fs::create_dir(&path).unwrap();
     let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
     let read = store.read_segment(segment_id, &mut Vec::new());
+    #[cfg(unix)]
+    assert!(
+        matches!(read, Err(StoreError::Io(io::ErrorKind::IsADirectory))),
+        "{read:?}"
+    );
+    #[cfg(not(unix))]
     assert!(matches!(read, Err(StoreError::Io(_))), "{read:?}");
+}
+
+struct FullVolume;
+
+impl Write for FullVolume {
+    fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+        Err(io::ErrorKind::StorageFull.into())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_full_volume_under_the_reader_reads_as_io_storage_full() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    let read = store.read_segment(segment_id, &mut FullVolume);
+    assert!(
+        matches!(read, Err(StoreError::Io(io::ErrorKind::StorageFull))),
+        "{read:?}"
+    );
+}
+
+#[test]
+fn a_full_database_answers_db_with_sqlite_full() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    {
+        let conn = store.db().unwrap().connection();
+        let pages: i64 = conn
+            .query_row("PRAGMA page_count", [], |r| r.get(0))
+            .unwrap();
+        conn.query_row(&format!("PRAGMA max_page_count = {pages}"), [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .unwrap();
+    }
+    let mut answer = None;
+    for i in 0..400u32 {
+        if let Err(e) = store.write_segment(&mut Cursor::new(i.to_le_bytes())) {
+            answer = Some(e);
+            break;
+        }
+    }
+    let full = halvo_sqlcipher::rusqlite::ffi::SQLITE_FULL;
+    assert!(
+        matches!(answer, Some(StoreError::Db(code)) if code & 0xff == full),
+        "{answer:?}"
+    );
 }
 
 #[test]
@@ -1065,6 +1138,20 @@ fn a_root_file_custody_answers_open_by_the_state_of_its_root() {
         "the protector was called for a root file of zeros"
     );
 
+    std::fs::write(&root_file, b"").unwrap();
+    let (protector, unprotects) = TestProtector::new(0x5a);
+    let empty = open_over_protector(&store_dir, &roots_dir, root_id, &Arc::new(protector));
+    assert!(
+        matches!(empty, Err(StoreError::Custody(CustodyError::RootMissing))),
+        "an empty root file answered {:?}",
+        empty.err()
+    );
+    assert_eq!(
+        unprotects.load(Ordering::SeqCst),
+        0,
+        "the protector was called for an empty root file"
+    );
+
     std::fs::write(&root_file, [7u8; 31]).unwrap();
     let short = open_over_protector(
         &store_dir,
@@ -1076,6 +1163,63 @@ fn a_root_file_custody_answers_open_by_the_state_of_its_root() {
         matches!(short, Err(StoreError::Custody(CustodyError::RootCorrupt))),
         "a root of 31 bytes answered {:?}",
         short.err()
+    );
+
+    std::fs::write(&root_file, [7u8; 33]).unwrap();
+    let long = open_over_protector(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        &Arc::new(TestProtector::new(0x5a).0),
+    );
+    assert!(
+        matches!(long, Err(StoreError::Custody(CustodyError::RootCorrupt))),
+        "a root of 33 bytes answered {:?}",
+        long.err()
+    );
+}
+
+struct DirectoryAtTheKeyFile {
+    inner: FileRootCustody<TestProtector>,
+    key_file: PathBuf,
+}
+
+impl KeyCustody for DirectoryAtTheKeyFile {
+    fn kind(&self) -> CustodyKind {
+        self.inner.kind()
+    }
+    fn root_id(&self) -> RootId {
+        self.inner.root_id()
+    }
+    fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        let wrapped = self.inner.wrap_store_key(key)?;
+        std::fs::create_dir(&self.key_file).unwrap();
+        Ok(wrapped)
+    }
+    fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+        self.inner.unwrap_store_key(wrapped)
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        self.inner.destroy_root()
+    }
+}
+
+#[test]
+fn a_create_whose_key_file_can_be_neither_written_nor_removed_still_destroys_its_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh();
+    let custody = DirectoryAtTheKeyFile {
+        inner: file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id),
+        key_file: KeyFile::path(&store_dir),
+    };
+    let created = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
+    assert!(created.is_err(), "the create succeeded");
+    let root_file = FileRoots::new(roots_dir, TestProtector::new(0x5a).0).root_path(root_id);
+    assert!(!root_file.exists(), "a failed create left its root");
+    assert!(
+        !store_dir.join("store.db").exists(),
+        "a failed create left store.db"
     );
 }
 

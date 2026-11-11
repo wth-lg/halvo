@@ -434,16 +434,28 @@ mod tests {
     }
 
     #[test]
-    fn two_seals_under_one_key_use_two_nonces() {
+    fn seals_under_one_key_use_distinct_nonces_that_vary_in_every_byte() {
+        const SEALS: usize = 64;
         let key = [0x21u8; 32];
-        let first = aead_seal(&key, b"one plaintext", b"one label").unwrap();
-        let second = aead_seal(&key, b"one plaintext", b"one label").unwrap();
-        let (first, second) = (&first[..XNONCE_LEN], &second[..XNONCE_LEN]);
-        assert!(first != second, "two seals under one key used one nonce");
-        assert!(
-            first.iter().any(|&b| b != 0) && second.iter().any(|&b| b != 0),
-            "a seal used the all-zero nonce"
+        let nonces: Vec<Vec<u8>> = (0..SEALS)
+            .map(|_| {
+                aead_seal(&key, b"one plaintext", b"one label").unwrap()[..XNONCE_LEN].to_vec()
+            })
+            .collect();
+        let distinct: std::collections::HashSet<&Vec<u8>> = nonces.iter().collect();
+        assert_eq!(
+            distinct.len(),
+            SEALS,
+            "seals under one key repeated a nonce"
         );
+        for position in 0..XNONCE_LEN {
+            assert!(
+                nonces
+                    .iter()
+                    .any(|nonce| nonce[position] != nonces[0][position]),
+                "byte {position} of the nonce took one value in {SEALS} seals"
+            );
+        }
     }
 
     #[test]

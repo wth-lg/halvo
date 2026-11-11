@@ -322,6 +322,31 @@ mod tests {
         assert!(!roots.root_exists(RootId::fresh()).unwrap());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_in_place_of_the_root_file_is_an_os_error_for_unwrap_and_destroy() {
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh();
+        let wrapped = roots
+            .wrap(root_id, &StoreKey::from_bytes([5u8; 32]))
+            .unwrap();
+        let path = roots.path(root_id);
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        let unwrapped = roots.unwrap(root_id, &wrapped);
+        assert!(
+            matches!(unwrapped, Err(CustodyError::Os(Some(_)))),
+            "unwrap answered {:?}",
+            unwrapped.err()
+        );
+        let destroyed = roots.destroy_root(root_id);
+        assert!(
+            matches!(destroyed, Err(CustodyError::Os(Some(_)))),
+            "destroy answered {destroyed:?}"
+        );
+    }
+
     #[test]
     fn a_key_wrapped_under_one_root_does_not_unwrap_under_another() {
         let dir = tempfile::tempdir().unwrap();

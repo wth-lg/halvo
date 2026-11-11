@@ -184,9 +184,7 @@ impl Db {
         let path = Self::path(store_dir);
         let conn = Connection::open(&path).map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
-        let key_pragma =
-            Zeroizing::new(format!("PRAGMA key = \"x'{}'\";", hex_lower(key).as_str()));
-        conn.execute_batch(&key_pragma).map_err(db_error)?;
+        conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
             .map_err(db_error)?;
         verify_key(&conn, store_dir)?;
@@ -403,6 +401,19 @@ fn pragma_int(conn: &Connection, name: &str) -> StoreResult<i64> {
         .map_err(db_error)
 }
 
+const KEY_PRAGMA_HEAD: &str = "PRAGMA key = \"x'";
+const KEY_PRAGMA_TAIL: &str = "'\";";
+
+fn key_pragma(key: &[u8; 32]) -> Zeroizing<String> {
+    let mut pragma = Zeroizing::new(String::with_capacity(
+        KEY_PRAGMA_HEAD.len() + 64 + KEY_PRAGMA_TAIL.len(),
+    ));
+    pragma.push_str(KEY_PRAGMA_HEAD);
+    pragma.push_str(&hex_lower(key));
+    pragma.push_str(KEY_PRAGMA_TAIL);
+    pragma
+}
+
 fn hex_lower(bytes: &[u8; 32]) -> Zeroizing<String> {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut s = Zeroizing::new(String::with_capacity(64));
@@ -479,10 +490,10 @@ impl EncryptedStore {
     }
 
     fn abandon_create(dir: &Path, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
-        let cleanup = KeyFile::destroy(dir)
-            .and_then(|()| Db::destroy(dir))
-            .and_then(|()| custody.destroy_root().map_err(StoreError::Custody));
-        match cleanup {
+        let root = custody.destroy_root().map_err(StoreError::Custody);
+        let key_file = KeyFile::destroy(dir);
+        let database = Db::destroy(dir);
+        match root.and(key_file).and(database) {
             Ok(()) => cause,
             Err(left_behind) => left_behind,
         }
@@ -511,8 +522,9 @@ impl EncryptedStore {
     ) -> StoreResult<Self> {
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
+        let wrapped = key_file.wrapped_store_key()?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
-        let store_key = custody.unwrap_store_key(&key_file.wrapped_store_key()?)?;
+        let store_key = custody.unwrap_store_key(&wrapped)?;
         let db = Db::open(dir, store_key.expose())?;
         Ok(Self {
             dir: dir.to_path_buf(),
@@ -700,6 +712,15 @@ mod tests {
     use crate::custody::dev_fallback::DevFallbackCustody;
     use crate::event::{CapturedAt, Modality, MonotonicSequence};
     use crate::store::{SegmentStore, DEFAULT_RETENTION};
+
+    #[test]
+    fn the_key_pragma_is_built_in_one_allocation_that_never_grows() {
+        let pragma = key_pragma(&[0xab; 32]);
+        assert_eq!(pragma.capacity(), pragma.len());
+        assert!(pragma.starts_with(KEY_PRAGMA_HEAD) && pragma.ends_with(KEY_PRAGMA_TAIL));
+        let hex = hex_lower(&[0xab; 32]);
+        assert_eq!(hex.capacity(), hex.len());
+    }
 
     #[test]
     fn pragmas_are_set() {
