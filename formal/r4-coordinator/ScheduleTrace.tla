@@ -53,7 +53,7 @@ Directed ==
       [case |-> "over_budget",
        moves |-> <<S(4, "ok"), E(1, "completed", "ok"), S(4, "ok"), E(2, "completed", "ok"), S(4, "ok")>>],
       [case |-> "queue_full", moves |-> <<S(1, "ok"), S(3, "ok"), S(2, "ok"), S(4, "ok"), S(5, "ok")>>],
-      [case |-> "outlives_app", moves |-> <<S(1, "ok"), B(1)>>],
+      [case |-> "outlives_app", moves |-> <<S(1, "ok"), S(3, "ok"), X(1, "cancelled"), B(1)>>],
       [case |-> "stop_tree",
        moves |-> <<S(1, "ok"), H(1), X(1, "cancelled"), T(1, FALSE, "ok"), T(1, TRUE, "ok")>>],
       [case |-> "deleted_workflow", moves |-> <<S(4, "ok"), D(4), T(1, TRUE, "ok"), T(1, TRUE, "ok")>>]>>

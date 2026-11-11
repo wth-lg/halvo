@@ -170,8 +170,10 @@ follow these readings.
    already `stopping`, and drops the agent's queued start and its `ready` item.
 9. `off` sets the hold at once and stops the agent's run. A queued start of that agent is
    dropped with `hold` when it leaves the queue. No tick sets or ends the hold `off`.
-10. A restart ends every run with `interrupted`, also a run that was `stopping`, empties
-    the queue and closes every `ready` item. It takes the day that the new life reads.
+10. A restart ends every run with `interrupted`, also a run that was `stopping`: a stop is
+    no stored event, so recovery finds a `run_started` event with no `run_ended` and stores
+    `interrupted` (I5.6, I5.8). It empties the queue and closes every `ready` item, and it
+    takes the day that the new life reads.
 11. A `ready` item closes when a start of its agent is stored or queued. It stays open
     when the start is refused.
 12. The day changes only at a tick or at a restart. The kill comes at a tick at which
@@ -461,7 +463,7 @@ The directed traces, each with its last move:
 | `auto_needs_person` | a tick with the open slot of `a1`: `raised` holds `a1`, and no run of it starts | `tick` | `ok` |
 | `over_budget` | a third start of `a4` on one day | `start` | `budget` |
 | `queue_full` | two live runs, two queued starts, and a start of `a5` | `start` | `queue_full` |
-| `outlives_app` | a restart with a live run: `ended` holds it with `interrupted` | `restart` | `ok` |
+| `outlives_app` | a restart with a live run and a run that was stopped with `cancelled`: `ended` holds both with `interrupted` | `restart` | `ok` |
 | `stop_tree` | a stop, a tick with `grace` `no` that ends nothing, and the tick that kills: `ended` holds the run with `cancelled` | `tick` | `ok` |
 | `deleted_workflow` | a delete, the tick that stops the run, and the tick that kills it: `ended` holds the run with `deleted` | `tick` | `ok` |
 
