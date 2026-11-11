@@ -41,12 +41,11 @@ read the fixture's state through the program's own HTTP client, which sends no `
   never loads), `file_upload` under `upload_input_gone`, `changed_page_1` under `pay_now_renamed`,
   `block_request` under `prefs_get_form` and `credential_mark` under `password_plain`. A control
   run of all nine steps behind the proxy with `history_changed` missed only `table_read`.
-- The cells of `mac` ran through the machine's timed-run helper in one call, which the helper
-  recorded from 2026-11-11T01:50:04Z to 2026-11-11T01:52:13Z, with the 1-minute load average at
-  3.12 before and 9.11 after. Inside that call the cell ran from 01:51:12Z to 01:52:05Z and the
-  extras from 01:52:05Z to 01:52:11Z. The call also held the development pass, the fault runs, the
-  snapshot and the resolver probe. Other work on this Mac set that load, so the times of `mac` are
-  times under load.
+- The cells of `mac` ran through the machine's timed-run helper in two calls. The helper recorded
+  the nine steps from 2026-11-11T03:30:49Z to 2026-11-11T03:31:43Z, with the 1-minute load average
+  at 4.90 before and 9.06 after, and the extras from 2026-11-11T03:31:43Z to 2026-11-11T03:31:49Z,
+  with 9.06 before and 10.66 after. The fault runs above ran on the same code outside the helper,
+  one run each. Other work on this Mac set that load, so the times of `mac` are times under load.
 - The cells of the hosted machines ran in one job per machine, Chrome first and then Edge, on the
   head of the trial code plus one commit that adds the call of `run.sh` to the workflow file. The
   `hosted` lines name the run and that commit.
@@ -264,53 +263,53 @@ flag --disable-domain-reliability
 flag --metrics-recording-only
 flag --no-first-run
 flag --no-default-browser-check
-hosted machine=hosted-mac run=42937993035 sha=5a3cbec722ffb115f02c17a199abe6dcf75eea0f
-hosted machine=hosted-win run=42937993035 sha=5a3cbec722ffb115f02c17a199abe6dcf75eea0f
-cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=103
-cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=106
-cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=195
-cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=183
-cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=183
+hosted machine=hosted-mac run=42950082356 sha=20d84217dd7d84140f945b18245157ce76fb2381
+hosted machine=hosted-win run=42950082356 sha=20d84217dd7d84140f945b18245157ce76fb2381
+cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=99
+cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=102
+cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=199
+cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=195
+cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=178
 cell candidate=cdp machine=mac browser=chrome major=153 step=session_expiry ok=10 of=10 median_ms=198
-cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=178
-cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=179
-cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=171
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=signin_form ok=10 of=10 median_ms=673
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=table_read ok=10 of=10 median_ms=673
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=form_fill ok=10 of=10 median_ms=1145
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame ok=10 of=10 median_ms=939
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=file_upload ok=10 of=10 median_ms=868
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=session_expiry ok=10 of=10 median_ms=1002
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1 ok=10 of=10 median_ms=902
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_request ok=10 of=10 median_ms=951
-cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=credential_mark ok=10 of=10 median_ms=894
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=signin_form ok=10 of=10 median_ms=705
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=table_read ok=10 of=10 median_ms=714
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=form_fill ok=10 of=10 median_ms=1055
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=1014
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=file_upload ok=10 of=10 median_ms=905
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=1003
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=910
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_request ok=10 of=10 median_ms=939
-cell candidate=cdp machine=hosted-mac browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=694
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=signin_form ok=10 of=10 median_ms=864
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=table_read ok=10 of=10 median_ms=867
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=form_fill ok=10 of=10 median_ms=1016
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame ok=10 of=10 median_ms=1008
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=file_upload ok=10 of=10 median_ms=963
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=session_expiry ok=10 of=10 median_ms=995
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1 ok=10 of=10 median_ms=1000
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_request ok=10 of=10 median_ms=982
-cell candidate=cdp machine=hosted-win browser=chrome major=156 step=credential_mark ok=10 of=10 median_ms=942
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=signin_form ok=10 of=10 median_ms=1266
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=table_read ok=10 of=10 median_ms=1383
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=form_fill ok=10 of=10 median_ms=1517
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=1420
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=file_upload ok=10 of=10 median_ms=1500
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=1476
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=1468
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=1533
-cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=1385
-extras candidate=cdp added_bytes=7779328 cold_ms=377 record=ok attach=ok pipe=no
+cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=181
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=183
+cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=169
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=signin_form ok=10 of=10 median_ms=514
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=table_read ok=10 of=10 median_ms=492
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=form_fill ok=10 of=10 median_ms=786
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=payment_frame ok=10 of=10 median_ms=762
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=file_upload ok=10 of=10 median_ms=763
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=session_expiry ok=10 of=10 median_ms=797
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=changed_page_1 ok=10 of=10 median_ms=672
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=block_request ok=10 of=10 median_ms=719
+cell candidate=cdp machine=hosted-mac browser=chrome major=157 step=credential_mark ok=10 of=10 median_ms=681
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=signin_form ok=10 of=10 median_ms=504
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=table_read ok=10 of=10 median_ms=481
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=form_fill ok=10 of=10 median_ms=694
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=727
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=file_upload ok=10 of=10 median_ms=637
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=662
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=656
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=block_request ok=10 of=10 median_ms=592
+cell candidate=cdp machine=hosted-mac browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=558
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=signin_form ok=10 of=10 median_ms=1019
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=table_read ok=10 of=10 median_ms=1077
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=form_fill ok=10 of=10 median_ms=1147
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=payment_frame ok=10 of=10 median_ms=1191
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=file_upload ok=10 of=10 median_ms=1233
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=session_expiry ok=10 of=10 median_ms=1196
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=changed_page_1 ok=10 of=10 median_ms=1132
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=block_request ok=10 of=10 median_ms=1122
+cell candidate=cdp machine=hosted-win browser=chrome major=156 step=credential_mark ok=10 of=10 median_ms=1131
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=signin_form ok=10 of=10 median_ms=1588
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=table_read ok=10 of=10 median_ms=1533
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=form_fill ok=10 of=10 median_ms=1651
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=payment_frame ok=10 of=10 median_ms=1622
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=file_upload ok=10 of=10 median_ms=1587
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=session_expiry ok=10 of=10 median_ms=1562
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1 ok=10 of=10 median_ms=1623
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=1588
+cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=1613
+extras candidate=cdp added_bytes=7548224 cold_ms=367 record=ok attach=ok pipe=no
 verdict executor=cdp version=0.9.1
 ```
