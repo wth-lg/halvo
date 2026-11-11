@@ -9,6 +9,8 @@ case $0 in
 esac
 outcomes=docs/r6/outcomes
 golden=crates/halvo-route-gate/tests/data/r3
+driver_path=docs/r3/trials/driver.md
+cells_path=docs/r3/trials/model-cells.md
 tab=$(printf '\t')
 models_header="model${tab}machine${tab}bound_bytes${tab}fits${tab}group${tab}source"
 sources_header="id${tab}path${tab}blob${tab}date${tab}measures${tab}limits"
@@ -36,6 +38,7 @@ committed_form() {
   [ "$(sed -n 1p "$outcomes/sources.tsv")" = "$sources_header" ] || return 1
   source_row 2 s1 driver_trial_attempts 3_seeds_2_machines_team_fixtures || return 1
   source_row 3 s2 footprint_bounds 5_runs_a_cell_no_16gb_laptop || return 1
+  [ "$(cell 2 2)" = "$driver_path" ] && [ "$(cell 3 2)" = "$cells_path" ] || return 1
   [ "$(grep -c '' "$outcomes/freeze.txt")" = 2 ] || return 1
   sed -n 1p "$outcomes/freeze.txt" |
     grep -Eq "^freeze rows=${count_form} models=${count_form} sources=2 date=${date_form}\$" || return 1
@@ -127,9 +130,12 @@ fixture() {
   if [ "$2" = - ]; then
     return 0
   fi
-  cp "$golden/$2/driver.md" "$golden/$2/model-cells.md" "$case_repo/" || exit 2
+  mkdir -p "$case_repo/docs/r3/trials" || exit 2
+  cp "$golden/$2/driver.md" "$case_repo/$driver_path" || exit 2
+  cp "$golden/$2/model-cells.md" "$case_repo/$cells_path" || exit 2
   cp "$golden/$2/expected/recorded.tsv" "$golden/$2/expected/models.tsv" \
     "$golden/$2/expected/sources.tsv" "$golden/$2/expected/freeze.txt" "$case_repo/$outcomes/" || exit 2
+  edit "$outcomes/sources.tsv" "s|^s1${tab}driver\\.md${tab}|s1${tab}${driver_path}${tab}|;s|^s2${tab}model-cells\\.md${tab}|s2${tab}${cells_path}${tab}|"
 }
 
 edit() {
@@ -228,30 +234,30 @@ PASS $name"
   check recorded-pass-flipped FAIL "outcomes rows=132 models=6 sources=2 same=no stale=0
 FAIL $name (differs)"
   fixture driver-pass-flipped-blob-stale full
-  edit driver.md 's/^\(attempt model=m_small machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=no /'
+  edit "$driver_path" 's/^\(attempt model=m_small machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=no /'
   check driver-pass-flipped-blob-stale FAIL "same=no stale=1
 FAIL $name (stale)"
   fixture cells-bound-changed-blob-stale full
-  edit model-cells.md 's/^bound model=m_tiny machine=mac bound_bytes=2684354560 fits=yes$/bound model=m_tiny machine=mac bound_bytes=2684354560 fits=no/'
+  edit "$cells_path" 's/^bound model=m_tiny machine=mac bound_bytes=2684354560 fits=yes$/bound model=m_tiny machine=mac bound_bytes=2684354560 fits=no/'
   check cells-bound-changed-blob-stale FAIL "same=no stale=1
 FAIL $name (stale)"
   fixture both-files-changed full
-  edit driver.md 's/^verdict driver=m_small path=A writer=m_small$/verdict driver=m_tiny path=A writer=m_tiny/'
-  edit model-cells.md 's/^verdict candidates=m_tiny,m_small$/verdict candidates=m_tiny/'
+  edit "$driver_path" 's/^verdict driver=m_small path=A writer=m_small$/verdict driver=m_tiny path=A writer=m_tiny/'
+  edit "$cells_path" 's/^verdict candidates=m_tiny,m_small$/verdict candidates=m_tiny/'
   check both-files-changed FAIL "same=no stale=2
 FAIL $name (stale)"
   fixture source-file-missing full
-  mv "$case_repo/model-cells.md" "$case_repo/moved.md" || exit 2
+  mv "$case_repo/$cells_path" "$case_repo/moved.md" || exit 2
   check source-file-missing FAIL "stale=1
 FAIL $name (stale)"
   fixture driver-pass-flipped-table-not-imported full
-  edit driver.md 's/^\(attempt model=m_tiny machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=no /'
-  rehash driver.md 2
+  edit "$driver_path" 's/^\(attempt model=m_tiny machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=no /'
+  rehash "$driver_path" 2
   check driver-pass-flipped-table-not-imported FAIL "outcomes rows=132 models=6 sources=2 same=no stale=0
 FAIL $name (differs)"
   fixture import-refused full
-  edit driver.md 's/^\(attempt model=m_small machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=maybe /'
-  rehash driver.md 2
+  edit "$driver_path" 's/^\(attempt model=m_small machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=maybe /'
+  rehash "$driver_path" 2
   check import-refused FAIL "outcomes rows=132 models=6 sources=2 same=no stale=0
 FAIL $name (import)"
   fixture models-fits-flipped full
@@ -278,6 +284,11 @@ FAIL $name (differs)"
   edit "$outcomes/sources.tsv" '2{h;d;};3G'
   check sources-rows-swapped FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
+  fixture sources-names-a-copy full
+  cp "$case_repo/$driver_path" "$case_repo/driver-copy.md" || exit 2
+  edit "$outcomes/sources.tsv" "2s|${tab}${driver_path}${tab}|${tab}driver-copy.md${tab}|"
+  check sources-names-a-copy FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
   fixture models-header-wrong full
   edit "$outcomes/models.tsv" "1s/${tab}group${tab}/${tab}groups${tab}/"
   check models-header-wrong FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
@@ -290,7 +301,7 @@ FAIL $name (differs)"
   STUB_TEST_EXIT=101
   check tests-fail FAIL "FAIL $name (tests)" "outcomes rows="
   fixture tests-fail-and-stale full
-  edit driver.md 's/^verdict driver=m_small path=A writer=m_small$/verdict driver=m_tiny path=A writer=m_tiny/'
+  edit "$driver_path" 's/^verdict driver=m_small path=A writer=m_small$/verdict driver=m_tiny path=A writer=m_tiny/'
   STUB_TEST_EXIT=101
   check tests-fail-and-stale FAIL "FAIL $name (tests)" "outcomes rows="
 
