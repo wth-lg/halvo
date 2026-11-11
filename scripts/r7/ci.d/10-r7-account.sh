@@ -213,13 +213,12 @@ function opened() {
   else if (type[d - 1] == "o") where[d] = where[d - 1] "." key[d - 1]
   else where[d] = where[d - 1] "[]"
   if (where[d] == "root.packages[]") {
-    package = ""; source = ""; null_source = 0; manifest = ""; paths = 0; names = 0
+    package = ""; source = ""; null_source = 0; manifest = ""; paths = 0
   }
 }
 function closed(   j) {
   if (where[d] != "root.packages[]") return
   print "name\t" package
-  for (j = 1; j <= names; j++) print "name\t" name_of[j]
   if (null_source) {
     print "local\t" manifest
     print "path\t" manifest
@@ -236,9 +235,6 @@ function value(v, is_string,   k, w) {
     else if (k == "manifest_path" && is_string) manifest = v
   } else if (w == "root.packages[].targets[]" && k == "src_path" && is_string) {
     path_of[++paths] = v
-  } else if (w == "root.packages[].dependencies[]" && is_string) {
-    if (k == "path") path_of[++paths] = v
-    else if (k == "name") name_of[++names] = v
   }
 }
 BEGIN {
@@ -291,7 +287,6 @@ inside_account() {
   if [ -d "$place" ]; then
     resolved=$(cd "$place" 2>/dev/null && pwd -P) || return 1
   else
-    [ ! -L "$place" ] || return 1
     parent=$(dirname "$place")
     resolved=$(cd "$parent" 2>/dev/null && pwd -P) || return 1
     resolved=$resolved/${place##*/}
