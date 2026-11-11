@@ -312,6 +312,82 @@ fn calls(draw: &mut Draw, amount: u64) -> [Call; 6] {
     ]
 }
 
+fn value_faults(
+    call: &Call,
+    account: &AccountId,
+    credential: &Credential,
+    request: &Request,
+) -> Vec<String> {
+    let mut faults = Vec::new();
+    let header = |name: &str| {
+        request
+            .headers
+            .iter()
+            .find(|(each, _)| *each == name)
+            .map(|(_, value)| value.as_str())
+    };
+    if header("halvo-account") != Some(account.as_str()) {
+        faults.push("halvo-account is not the call's account id".to_string());
+    }
+    let bearer = format!("Bearer {}", credential.as_str());
+    if header("authorization") != Some(bearer.as_str()) {
+        faults.push("authorization is not Bearer and the call's credential".to_string());
+    }
+    match call {
+        Call::CheckoutStart(cap) | Call::CapSet(cap) => {
+            let body: Value = request
+                .body
+                .as_deref()
+                .and_then(|bytes| serde_json::from_slice(bytes).ok())
+                .unwrap_or(Value::Null);
+            let want =
+                serde_json::json!({ "cap": { "amount": cap.amount.get(), "period": cap.period } });
+            if body != want {
+                faults.push(format!("the body {body} is not the call's cap {want}"));
+            }
+        }
+        Call::Status | Call::CapGet | Call::Manage | Call::AccountDelete => {
+            if request.body.is_some() {
+                faults.push("a call without a cap got a body".to_string());
+            }
+        }
+    }
+    faults
+}
+
+#[test]
+fn every_built_request_carries_the_values_of_its_call() {
+    let mut draw = Draw(SEED + 5);
+    let mut amounts = vec![CAP_AMOUNT_MIN, CAP_AMOUNT_MAX];
+    for _ in 0..DRAWN {
+        amounts.push(CAP_AMOUNT_MIN + draw.below(CAP_AMOUNT_MAX - CAP_AMOUNT_MIN + 1));
+    }
+    let mut built = 0;
+    let mut wrong = Vec::new();
+    for amount in amounts {
+        let account = AccountId::from_random(draw.bytes());
+        let credential = Credential::from_random(draw.bytes());
+        for call in calls(&mut draw, amount) {
+            let request =
+                build(&call, &account, &credential).expect("an amount within the bounds is built");
+            built += 1;
+            for fault in value_faults(&call, &account, &credential, &request) {
+                wrong.push(format!(
+                    "{} with amount {amount}: {fault}",
+                    call.route().name
+                ));
+            }
+        }
+    }
+    assert_eq!(built, (DRAWN + 2) * 6);
+    assert!(
+        wrong.is_empty(),
+        "{} faults, the first: {:#?}",
+        wrong.len(),
+        &wrong[..wrong.len().min(5)]
+    );
+}
+
 #[test]
 fn every_built_request_holds_only_what_the_vendored_files_admit() {
     let mut draw = Draw(SEED);
