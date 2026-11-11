@@ -241,6 +241,46 @@ fn the_schema_is_measured() {
         &line(0, 0, "closed=yes keys=6 forbidden=not_checked limits=ok"),
     );
 
+    let dir = fixture("open-defs");
+    edit(&dir, "body.schema.json", |text| {
+        text.replacen(
+            "\"type\":\"object\",",
+            "\"$defs\":{\"m\":{\"type\":\"object\",\"properties\":{\"workflow\":{\"type\":\"string\",\"enum\":[\"w\"]}}}},\"type\":\"object\",",
+            1,
+        )
+    });
+    misses(
+        &check(&dir),
+        &line(0, 0, "closed=no keys=7 forbidden=not_checked limits=ok"),
+    );
+
+    let dir = fixture("open-all-of");
+    edit(&dir, "body.schema.json", |text| {
+        text.replacen(
+            "\"type\":\"object\",",
+            "\"allOf\":[{\"type\":\"object\"}],\"type\":\"object\",",
+            1,
+        )
+    });
+    misses(
+        &check(&dir),
+        &line(0, 0, "closed=no keys=6 forbidden=not_checked limits=ok"),
+    );
+
+    let dir = fixture("open-item-types");
+    edit(&dir, "body.schema.json", |text| {
+        text.replacen(
+            "\"items\":{\"type\":\"object\",",
+            "\"items\":{\"type\":[\"object\",\"null\"],",
+            1,
+        )
+        .replacen(",\"additionalProperties\":false}}}", "}}}", 1)
+    });
+    misses(
+        &check(&dir),
+        &line(0, 0, "closed=no keys=6 forbidden=not_checked limits=ok"),
+    );
+
     let dir = fixture("maximum");
     edit(&dir, "body.schema.json", |text| {
         text.replace("\"maximum\":2048", "\"maximum\":4096")
@@ -401,6 +441,28 @@ fn a_file_not_of_its_form_is_the_refusal_file() {
         edit_line(&dir, file, n, change);
         refused(&check(&dir), want);
     }
+
+    let dir = fixture("values-on-a-refusal");
+    edit_line(&dir, "answers.jsonl", 3, |text| {
+        text.replacen("\"content\":null", "\"content\":\"x\"", 1)
+    });
+    refused(&check(&dir), "file: answers.jsonl:3");
+
+    let dir = fixture("no-values-on-ok");
+    edit_line(&dir, "answers.jsonl", 1, |text| {
+        text.replacen(
+            "\"content\":\"Done.\",\"tokens_in\":120,\"tokens_out\":40,\"cost\":1520",
+            "\"content\":null,\"tokens_in\":null,\"tokens_out\":null,\"cost\":null",
+            1,
+        )
+    });
+    refused(&check(&dir), "file: answers.jsonl:1");
+
+    let dir = fixture("one-value-on-ok");
+    edit_line(&dir, "answers.jsonl", 1, |text| {
+        text.replacen("\"cost\":1520}", "\"cost\":null}", 1)
+    });
+    refused(&check(&dir), "file: answers.jsonl:1");
 
     let dir = fixture("no-final-lf");
     edit(&dir, "answers.jsonl", |text| {

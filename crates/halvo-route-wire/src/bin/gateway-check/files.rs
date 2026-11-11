@@ -218,12 +218,22 @@ fn answer_vector(fields: &[Node]) -> Option<(usize, String, AnswerVector)> {
         name: name.clone(),
         status: u16::try_from(fields[2].count()?).ok()?,
         body: text(&fields[3])?,
-        expect,
         content: maybe(&fields[5], text)?,
         tokens_in: maybe(&fields[6], Node::count)?,
         tokens_out: maybe(&fields[7], Node::count)?,
         cost: maybe(&fields[8], Node::count)?,
+        expect,
     };
+    let values = [
+        vector.content.is_some(),
+        vector.tokens_in.is_some(),
+        vector.tokens_out.is_some(),
+        vector.cost.is_some(),
+    ];
+    let set = vector.expect == "ok";
+    if values.iter().any(|value| *value != set) {
+        return None;
+    }
     Some((n, name, vector))
 }
 
@@ -284,22 +294,44 @@ pub fn measure(root: &Node) -> Measure {
     measure
 }
 
+const SCHEMA_MAPS: [&str; 5] = [
+    "properties",
+    "$defs",
+    "definitions",
+    "patternProperties",
+    "dependentSchemas",
+];
+const DATA: [&str; 5] = ["enum", "const", "default", "examples", "required"];
+
 fn walk(node: &Node, measure: &mut Measure) {
-    if !matches!(node, Node::Map(_)) {
-        return;
-    }
-    let object = node.get("type") == Some(&Node::Text("object".to_string()))
-        || node.get("properties").is_some();
-    if object && node.get("additionalProperties") != Some(&Node::Bool(false)) {
-        measure.closed = false;
-    }
-    if let Some(Node::Map(properties)) = node.get("properties") {
-        for (name, schema) in properties {
-            measure.names.insert(name.clone());
-            walk(schema, measure);
+    match node {
+        Node::List(items) => items.iter().for_each(|item| walk(item, measure)),
+        Node::Map(entries) => {
+            let object = match node.get("type") {
+                Some(Node::Text(word)) => word == "object",
+                Some(Node::List(words)) => words.contains(&Node::Text("object".to_string())),
+                _ => false,
+            } || node.get("properties").is_some();
+            if object && node.get("additionalProperties") != Some(&Node::Bool(false)) {
+                measure.closed = false;
+            }
+            for (key, value) in entries {
+                if DATA.contains(&key.as_str()) {
+                    continue;
+                }
+                match value {
+                    Node::Map(members) if SCHEMA_MAPS.contains(&key.as_str()) => {
+                        for (name, schema) in members {
+                            if key == "properties" {
+                                measure.names.insert(name.clone());
+                            }
+                            walk(schema, measure);
+                        }
+                    }
+                    _ => walk(value, measure),
+                }
+            }
         }
-    }
-    if let Some(items) = node.get("items") {
-        walk(items, measure);
+        _ => {}
     }
 }
