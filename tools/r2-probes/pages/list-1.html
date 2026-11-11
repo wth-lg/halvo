@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Halvo probe list page 1</title>
+<style>
+body { margin: 24px 40px; font: 14px/20px Arial, sans-serif; color: #111; background: #fff; }
+h1 { font-size: 20px; margin: 0 0 8px; }
+input { font: inherit; width: 420px; margin: 0 0 10px; }
+table { border-collapse: collapse; width: 1100px; }
+td, th { text-align: left; padding: 2px 10px 2px 0; border-bottom: 1px solid #ddd; }
+</style>
+</head>
+<body>
+<h1>Inbox of the Canal Row office</h1>
+<input id="search" aria-label="Search the inbox" value="lease renewal" autofocus>
+<table>
+<thead><tr><th>From</th><th>Subject</th><th>Received</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+<script>
+const senders = ["Marta Lindqvist", "Jonas Reed", "Priya Nand", "Dana Whitlow", "Brightwater Utilities", "Eastmere Lettings", "Okafor family", "Whitlow and Dunn"];
+const subjects = ["Renewal of the lease for Flat 3", "Meter reading for October", "Quote for the gutter repair", "Deposit return for Quarry Bank", "Viewing times for Orchard Lane", "Signed inventory for Mill Road", "Parking permit for Bell Lane", "Gas safety certificate", "Arrears reminder, second notice", "Key handover at Station Yard"];
+const rows = document.getElementById("rows");
+for (let index = 0; index < 100; index += 1) {
+  const row = document.createElement("tr");
+  const cells = [senders[index % senders.length], subjects[index % subjects.length] + ", item " + (index + 1), "Nov " + (1 + index % 28)];
+  for (const text of cells) {
+    const cell = document.createElement("td");
+    cell.textContent = text;
+    row.appendChild(cell);
+  }
+  rows.appendChild(row);
+}
+</script>
+</body>
+</html>
