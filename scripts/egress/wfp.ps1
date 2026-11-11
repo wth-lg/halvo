@@ -203,7 +203,9 @@ function Get-Events([hashtable]$filter) {
 }
 
 function Test-Kept {
-    $kept = @(Get-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue).Count
+    $kept = @(Get-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue | Where-Object {
+            ($_.DisplayName -like '* saved' -and "$($_.Enabled)" -eq 'False') -or ("$($_.Enabled)" -eq 'True' -and "$($_.Action)" -eq 'Block' -and "$($_.Direction)" -eq 'Outbound')
+        }).Count
     if ($kept -ne $Rules) { throw "the run's firewall rules were changed during the run ($kept of $Rules left)" }
     foreach ($pair in @(@($FilteringPlatformConnection, 'Success and Failure'), @($ProcessCreation, 'Success'))) {
         $row = @(& auditpol.exe /get "/subcategory:$($pair[0])" /r | Where-Object { $_ -ne '' } | ConvertFrom-Csv)
