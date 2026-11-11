@@ -162,7 +162,7 @@ b.txt" -- true
   cp scripts/egress/lists/empty.txt "$work/a	b.txt"
   expect_refusal args/list-path-with-a-tab usage sh scripts/egress/check.sh "$work/a	b.txt" -- true
   for byte in 001 037; do
-    odd=$(printf "a\\${byte}b.txt")
+    odd=$(printf 'a%bb.txt' "\\0$byte")
     cp scripts/egress/lists/empty.txt "$work/$odd"
     expect_refusal "args/list-path-with-byte-$byte" usage sh scripts/egress/check.sh "$work/$odd" -- true
   done
