@@ -311,3 +311,156 @@ fn the_ids_count_up_from_one_in_each_state() {
         ]
     );
 }
+
+#[test]
+fn each_kind_has_the_choices_of_i3_1_with_the_safe_one_first() {
+    let column: [(&str, [&str; 2]); 8] = [
+        ("confirm", ["reject", "allow"]),
+        ("sign_in", ["decline", "done"]),
+        ("link_account", ["decline", "done"]),
+        ("stuck", ["decline", "done"]),
+        ("check", ["try_again", "went_through"]),
+        ("setup", ["none", "choose"]),
+        ("ready", ["skip", "start"]),
+        ("show", ["decline", "done"]),
+    ];
+    let mut kinds = BTreeSet::new();
+    for state in State::ALL {
+        let file = json(&format!("state-{}.json", state.name()));
+        for item in file["snapshot"]["items"].as_array().unwrap() {
+            let kind = item["kind"].as_str().unwrap();
+            let got: Vec<(&str, &str)> = item["choices"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| (c["choice"].as_str().unwrap(), c["safe"].as_str().unwrap()))
+                .collect();
+            if item["presenter"] == "native" {
+                assert_eq!(got, [("present", "yes")], "{state}: the one choice of I3.4");
+            } else {
+                let want = column.iter().find(|(k, _)| *k == kind).unwrap().1;
+                assert_eq!(got, [(want[0], "yes"), (want[1], "no")], "{state}: {kind}");
+            }
+            kinds.insert(kind.to_owned());
+        }
+    }
+    assert_eq!(kinds.len(), 8, "the fixtures hold an item of each kind");
+}
+
+fn snapshot(state: &str) -> Value {
+    json(&format!("state-{state}.json"))["snapshot"].clone()
+}
+
+fn statuses(state: &str) -> Vec<String> {
+    snapshot(state)["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["status"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn count(list: &[String], name: &str) -> usize {
+    list.iter().filter(|s| *s == name).count()
+}
+
+fn labels(class: &str, fields: &[&str], effects: usize) -> Vec<String> {
+    (0..effects)
+        .flat_map(|_| fields)
+        .map(|f| words::text(&format!("field.{class}.{f}"), &[]).unwrap())
+        .collect()
+}
+
+#[test]
+fn the_states_hold_the_counts_of_i9_4() {
+    assert_eq!(State::ALL.len(), 18, "That is 18 states.");
+
+    let empty = snapshot("empty");
+    assert_eq!(empty["rows"].as_array().unwrap().len(), 0);
+    assert_eq!(empty["items"].as_array().unwrap().len(), 0);
+
+    let ten = statuses("ten");
+    assert_eq!(ten.len(), 10, "the ten seed agents");
+    assert_eq!(count(&ten, "not_yet"), 5, "five not_yet");
+
+    for (state, kind) in [
+        ("needs_confirm_page", "confirm"),
+        ("needs_confirm_native", "confirm"),
+        ("needs_sign_in", "sign_in"),
+        ("needs_link_account", "link_account"),
+        ("needs_stuck", "stuck"),
+        ("needs_check", "check"),
+        ("needs_setup", "setup"),
+        ("needs_ready", "ready"),
+        ("needs_show", "show"),
+    ] {
+        let items = snapshot(state)["items"].as_array().unwrap().clone();
+        assert_eq!(items.len(), 1, "{state}");
+        assert_eq!(items[0]["kind"], kind, "{state}");
+    }
+
+    let page = &snapshot("needs_confirm_page")["items"][0];
+    let got: Vec<&str> = page["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        got,
+        labels("send", &["to", "subject", "body"], 3),
+        "three effects of the class send"
+    );
+    assert_eq!(
+        page["title"],
+        words::text("confirm.send.title", &[]).unwrap().as_str()
+    );
+
+    let native = &snapshot("needs_confirm_native")["items"][0];
+    let got: Vec<&str> = native["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        got,
+        labels("payment", &["payee", "amount", "instrument", "origin"], 1),
+        "one effect of the class payment"
+    );
+    assert_eq!(
+        native["title"],
+        words::text("confirm.payment.title", &[]).unwrap().as_str()
+    );
+
+    let three = snapshot("setup_three");
+    let params = three["items"][0]["params"].as_array().unwrap().clone();
+    assert_eq!(params.len(), 3, "three parameters");
+    assert_eq!(
+        params.iter().filter(|p| p["typed"] == "yes").count(),
+        1,
+        "one typed"
+    );
+
+    let card = json("state-card.json");
+    assert_eq!(statuses("card"), ten, "the roster of ten");
+    assert_eq!(
+        card["card"]["runs"].as_array().unwrap().len(),
+        2,
+        "two runs"
+    );
+
+    let queue = statuses("queue");
+    assert_eq!(queue.len(), 3);
+    assert_eq!(count(&queue, "working"), 1, "one agent working");
+    assert_eq!(count(&queue, "waiting_turn"), 2, "two waiting");
+
+    let none = snapshot("no_service");
+    assert_eq!(none["rows"].as_array().unwrap().len(), 0, "empty lists");
+    assert_eq!(none["items"].as_array().unwrap().len(), 0, "empty lists");
+    assert_eq!(
+        none["note"],
+        words::text("note.no_service", &[]).unwrap().as_str(),
+        "and the note"
+    );
+}
