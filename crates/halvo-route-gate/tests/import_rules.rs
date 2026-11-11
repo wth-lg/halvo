@@ -899,6 +899,24 @@ fn a_fence_line_of_another_form_or_a_third_fence_line_is_refused() {
 }
 
 #[test]
+fn a_fence_line_that_a_tab_indents_inside_a_golden_block_is_refused() {
+    let full = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/r3/full");
+    let driver = std::fs::read_to_string(full.join("driver.md")).expect("the golden driver file");
+    let cells =
+        std::fs::read_to_string(full.join("model-cells.md")).expect("the golden cells file");
+    let tabbed = |text: &str| {
+        let open = text.find("\n```\n").expect("an opening fence") + 5;
+        let next = open + text[open..].find('\n').expect("a line in the block") + 1;
+        format!("{}\t```\n{}", &text[..next], &text[next..])
+    };
+    run_files(driver.clone().into_bytes(), cells.clone().into_bytes()).passed();
+    let got = run_files(tabbed(&driver).into_bytes(), cells.clone().into_bytes());
+    assert_eq!(got.refused(), "REFUSED source: driver:block");
+    let got = run_files(driver.into_bytes(), tabbed(&cells).into_bytes());
+    assert_eq!(got.refused(), "REFUSED source: cells:block");
+}
+
+#[test]
 fn a_carriage_return_is_refused_with_its_line() {
     let got = run_files(
         format!("# d\r\n```\n{ATTEMPT}\n{VERDICT}\n```\n").into_bytes(),
