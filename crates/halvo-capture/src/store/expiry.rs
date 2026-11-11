@@ -124,6 +124,10 @@ impl SegmentExpiry for EncryptedStore {
     }
 
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
+        if self.is_sealed() {
+            self.destroy_store_key()?;
+            return Ok(ShredReport::default());
+        }
         let ids = self.segment_ids_with_keys(None)?;
         let segments_shredded = self.shred_segments(&ids)?;
         self.destroy_store_key()?;

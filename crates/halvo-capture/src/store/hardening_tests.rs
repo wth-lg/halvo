@@ -1827,3 +1827,50 @@ fn the_store_key_file_holds_its_four_fields_and_no_other() {
     assert_eq!(json["version"], 1);
     assert_eq!(json["custody_kind"], "dev_fallback");
 }
+
+#[test]
+fn a_delete_all_that_fails_after_its_root_step_finishes_on_the_next_call() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    super::db::failpoint::arm("key_file_destroy");
+    let first = store.crypto_shred_all();
+    assert!(first.is_err(), "the failpoint did not fail the delete-all");
+    assert!(
+        KeyFile::path(&store_dir).exists(),
+        "the failpoint did not stop the key-file step"
+    );
+    let retry = store.crypto_shred_all();
+    assert!(
+        retry.is_ok(),
+        "the second delete-all did not finish: {:?}",
+        retry.err()
+    );
+    for name in [
+        "store.key",
+        "store.db",
+        "store.db-wal",
+        "store.db-shm",
+        "segments",
+    ] {
+        assert!(
+            !store_dir.join(name).exists(),
+            "the finished delete-all left {name}"
+        );
+    }
+    drop(store);
+    let fresh = EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh(),
+        )),
+        DEFAULT_RETENTION,
+    );
+    assert!(
+        fresh.is_ok(),
+        "a create after the finished delete-all failed: {:?}",
+        fresh.err()
+    );
+}

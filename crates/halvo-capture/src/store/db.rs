@@ -55,6 +55,7 @@ impl KeyFile {
     }
 
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
+        failpoint::hit("key_file_destroy")?;
         let path = Self::path(store_dir);
         match File::options().write(true).open(&path) {
             Ok(mut file) => {
@@ -575,6 +576,10 @@ impl EncryptedStore {
 
     pub(crate) fn seal(&mut self) {
         self.keyed = Keyed::Sealed;
+    }
+
+    pub(crate) fn is_sealed(&self) -> bool {
+        matches!(self.keyed, Keyed::Sealed)
     }
 
     /// Read and decrypt a segment's plaintext: unwrap its per-segment key with the
