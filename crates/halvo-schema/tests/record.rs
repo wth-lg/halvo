@@ -4,8 +4,8 @@ use common::{assert_strict, read, refused, refused_as_array, round_trip, values,
 use halvo_schema::{
     AddressFieldLayer, AppId, Confidence, DismissedWorkflow, Episode, Evidence, EvidencePage,
     FloorLayer, FullWorkflow, InputClass, Instant, KeyCounts, ObservedStep, Ordinal, Part,
-    PointerCounts, Recurrence, Summary, Support, Tagged, Text, TextLayer, Trigger, Workflow,
-    WorkflowItem, WorkflowState, WorkflowsPage,
+    PointerCounts, Recurrence, SiteToken, Summary, Support, Tagged, Text, TextLayer, Trigger,
+    Workflow, WorkflowItem, WorkflowState, WorkflowsPage,
 };
 
 const HASH: &str = "9f2c4b7a1d3e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e";
@@ -479,14 +479,55 @@ fn ordinals_and_instants_keep_their_ranges() {
 fn item(id: &str, state: &str, summaries: &str, hint: &str) -> String {
     let workflow = if state == "dismissed" {
         with(&dismissed(), "id", &format!("\"{id}\""))
-    } else {
+    } else if hint == "null" {
         with(
             &with(PROPOSED, "id", &format!("\"{id}\"")),
             "state",
             &format!("\"{state}\""),
         )
+    } else {
+        with(
+            &with(
+                &with(PROPOSED, "id", &format!("\"{id}\"")),
+                "site",
+                &title_site(),
+            ),
+            "state",
+            &format!("\"{state}\""),
+        )
     };
     format!(r#"{{"workflow":{workflow},"summaries":{summaries},"hint":{hint}}}"#)
+}
+
+fn title_site() -> String {
+    format!(r#"{{"key":"{HASH}","source":"title"}}"#)
+}
+
+#[test]
+fn a_page_item_has_a_hint_only_when_its_workflow_has_a_title_site() {
+    let hint = "\"northwind-power\"";
+    let titled = with(PROPOSED, "site", &title_site());
+    round_trip::<WorkflowItem>(&format!(
+        r#"{{"workflow":{titled},"summaries":[{S1}],"hint":{hint}}}"#
+    ));
+    for site in [
+        "null",
+        r#"{"key":"northwind-power.test","source":"address_field"}"#,
+        r#"{"key":"northwind-power.test","source":"sign_in"}"#,
+    ] {
+        let workflow = with(PROPOSED, "site", site);
+        let without = format!(r#"{{"workflow":{workflow},"summaries":[{S1}],"hint":null}}"#);
+        let mut value = round_trip::<WorkflowItem>(&without);
+        let hinted = format!(r#"{{"workflow":{workflow},"summaries":[{S1}],"hint":{hint}}}"#);
+        let error = refusal::<WorkflowItem>(&hinted);
+        assert!(
+            error.starts_with("WorkflowItem: hint_site"),
+            "{site}: {error}"
+        );
+        refused::<WorkflowsPage>(&format!(r#"{{"workflows":[{hinted}],"next":null}}"#));
+        value.hint = Some(SiteToken::parse("northwind-power").unwrap());
+        assert_write_refused(&value);
+    }
 }
 
 const W1: &str = "10000000000000000000000000000000";
