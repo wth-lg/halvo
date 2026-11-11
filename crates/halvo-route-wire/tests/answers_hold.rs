@@ -58,10 +58,25 @@ fn answers_hold() {
         assert_eq!(answer["n"].as_u64(), Some(at as u64 + 1), "{name}");
         let status = u16::try_from(answer["status"].as_u64().unwrap()).unwrap();
         let got = got(Answer::parse(status, &common::bytes_of(answer)));
-        let stated =
-            ["expect", "content", "tokens_in", "tokens_out", "cost"].map(|key| answer[key].clone());
-        if got != stated {
-            misses.push(format!("{name}: stated {stated:?}, got {got:?}"));
+        let keys = ["expect", "content", "tokens_in", "tokens_out", "cost"];
+        let stated = keys.map(|key| answer[key].clone());
+        if got[0] != stated[0] {
+            misses.push(format!(
+                "n={} name={name}: result stated {}, got {}",
+                at + 1,
+                stated[0],
+                got[0]
+            ));
+        } else if got != stated {
+            let differ: Vec<&str> = (1..keys.len())
+                .filter(|&key| got[key] != stated[key])
+                .map(|key| keys[key])
+                .collect();
+            misses.push(format!(
+                "n={} name={name}: {} differs",
+                at + 1,
+                differ.join(", ")
+            ));
         }
     }
     assert!(misses.is_empty(), "{misses:#?}");
