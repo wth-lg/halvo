@@ -47,12 +47,18 @@ function read(mode, args) {
   return out.split('\n').map((line) => line.replace(/\r$/, '')).filter((line) => line !== '');
 }
 
+/** The state of the app's window, `onscreen`, `hidden` or `absent`, and how the reader found
+ * it: `by` is `title`, or `width` on macOS where the window list gives no titles. */
+export function readWindowMatch(pid) {
+  const line = read('window', [String(pid), TITLE, String(WIDTH)])[0] ?? '';
+  const found = /^window=(onscreen|hidden|absent) matched_by=(title|width)$/.exec(line);
+  if (!found) throw new Error('the window reader gave no state');
+  return { state: found[1], by: found[2] };
+}
+
 /** The state of the app's window: `onscreen`, `hidden` or `absent`. */
 export function readWindow(pid) {
-  const line = read('window', [String(pid), TITLE, String(WIDTH)])[0] ?? '';
-  const state = /^window=(onscreen|hidden|absent)\b/.exec(line);
-  if (!state) throw new Error('the window reader gave no state');
-  return state[1];
+  return readWindowMatch(pid).state;
 }
 
 /** The processes of the app's tree: `{ count, webview, procs: [{ pid, start }] }`. */
@@ -78,7 +84,8 @@ function main(argv) {
   const [mode, ...rest] = argv;
   const pid = Number(rest[0]);
   if (mode === 'window' && rest.length === 1 && Number.isInteger(pid) && pid > 0) {
-    console.log(`window=${readWindow(pid)}`);
+    const found = readWindowMatch(pid);
+    console.log(`window=${found.state} matched_by=${found.by}`);
   } else if (mode === 'tree' && rest.length === 1 && Number.isInteger(pid) && pid > 0) {
     const tree = readTree(pid);
     console.log(`tree count=${tree.count} webview=${tree.webview}`);

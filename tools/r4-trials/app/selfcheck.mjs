@@ -11,7 +11,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { countAlive, readTree, readWindow } from './system/system.mjs';
+import { countAlive, readTree, readWindowMatch } from './system/system.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -297,14 +297,15 @@ async function windowRun(options, arm, pages) {
     };
     const look = async (expected) => {
       let state = null;
+      let by = '-';
       let tries = 0;
       while (tries < READ_TRIES) {
         tries += 1;
-        state = readWindow(app.pid);
+        ({ state, by } = readWindowMatch(app.pid));
         if (state === expected) break;
         await sleep(READ_EVERY_MS);
       }
-      trace(`read=window state=${state} tries=${tries}`);
+      trace(`read=window state=${state} matched_by=${by} tries=${tries}`);
       return state;
     };
     const shows = [];
