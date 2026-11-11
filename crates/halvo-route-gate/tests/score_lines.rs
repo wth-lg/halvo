@@ -226,3 +226,45 @@ fn bad_routers_fail_for_their_reasons_on_the_specimen() {
         assert!(hindsight.contains(" wasted=0 "), "{hindsight}");
     }
 }
+
+struct OneCellOff {
+    derived: PolicyRouter,
+    cell: (CategoryId, CallKind),
+}
+
+impl Router for OneCellOff {
+    fn name(&self) -> &'static str {
+        "one_cell_off"
+    }
+
+    fn pick(&self, category: CategoryId, kind: CallKind) -> PickCell {
+        if (category, kind) == self.cell {
+            PickCell::Tier(OnDevice)
+        } else {
+            self.derived.pick(category, kind)
+        }
+    }
+}
+
+#[test]
+fn a_router_that_routes_a_cell_with_no_model_fails_r1() {
+    let table = generate(1);
+    let setup = Setup::generated();
+    for cell in [
+        (CategoryId::Other, Compile),
+        (Email, CallKind::Replay),
+        (CategoryId::Other, CallKind::Replay),
+    ] {
+        let router = OneCellOff {
+            derived: PolicyRouter::derived(&table, &setup),
+            cell,
+        };
+        let result = score(&table, &setup, &router, Prices::release(), DEFAULT_DRAWS);
+        assert!(!result.passed(), "{cell:?}");
+        assert_eq!(
+            result.lines().pop().as_deref(),
+            Some("gate table=generated router=one_cell_off cells=44 routed=21 handed_back=9 derivation=differs held=ok result=fail"),
+            "{cell:?}"
+        );
+    }
+}

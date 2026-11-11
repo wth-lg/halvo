@@ -357,3 +357,95 @@ fn read_row(line: &str) -> Option<(Row, Split)> {
     };
     fits.then_some((row, split))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn closed<T: Copy + Eq + std::fmt::Debug>(
+        all: &[T],
+        word: fn(T) -> &'static str,
+        parse: fn(&str) -> Result<T, ParseError>,
+    ) {
+        let listed = |text: &str| all.iter().copied().find(|value| word(*value) == text);
+        let check = |text: &str| assert_eq!(parse(text).ok(), listed(text), "{text:?}");
+        for (i, value) in all.iter().enumerate() {
+            let text = word(*value);
+            assert!(
+                all[..i].iter().all(|other| word(*other) != text),
+                "{text} twice"
+            );
+            assert_eq!(parse(text), Ok(*value));
+            let bytes = text.as_bytes();
+            for at in 0..=bytes.len() {
+                for byte in 0..=127u8 {
+                    let mut inserted = bytes.to_vec();
+                    inserted.insert(at, byte);
+                    check(std::str::from_utf8(&inserted).expect("ascii"));
+                    if at < bytes.len() {
+                        let mut replaced = bytes.to_vec();
+                        replaced[at] = byte;
+                        check(std::str::from_utf8(&replaced).expect("ascii"));
+                    }
+                }
+                check(&text[..at]);
+                check(&text[at..]);
+            }
+            check(&text.to_uppercase());
+            check(&format!("{text}\n"));
+        }
+        for text in ["", "-", " ", "\u{feff}"] {
+            check(text);
+        }
+    }
+
+    #[test]
+    fn word_lists_are_closed() {
+        closed(Task::ALL, Task::as_str, Task::parse);
+        closed(Machine::ALL, Machine::as_str, Machine::parse);
+        closed(Seed::ALL, Seed::as_str, Seed::parse);
+        closed(Split::ALL, Split::as_str, Split::parse);
+        closed(Source::ALL, Source::as_str, Source::parse);
+        assert_eq!(
+            Task::ALL.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
+            ["bill", "reply", "order", "cleanup", "fill", "gen"]
+        );
+        assert_eq!(
+            Machine::ALL.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
+            ["mac", "hosted-win", "gen_a", "gen_b"]
+        );
+        assert_eq!(
+            Seed::ALL.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
+            ["1", "2", "3"]
+        );
+        assert_eq!(
+            Split::ALL.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
+            ["dev", "held"]
+        );
+        assert_eq!(
+            Source::ALL.iter().map(|v| v.as_str()).collect::<Vec<_>>(),
+            ["s1", "s2", "generated"]
+        );
+    }
+
+    #[test]
+    fn model_tokens() {
+        for token in ["a", "synthetic", "m_small", "qwen3_5_9b", &"z".repeat(32)] {
+            assert_eq!(
+                Model::parse(token).map(|model| model.as_str().to_owned()),
+                Ok(token.to_owned())
+            );
+        }
+        for text in [
+            "",
+            "M",
+            "m-small",
+            "m small",
+            "m.small",
+            "\u{e9}",
+            &"z".repeat(33),
+        ] {
+            assert_eq!(Model::parse(text), Err(ParseError), "{text:?}");
+        }
+    }
+}
