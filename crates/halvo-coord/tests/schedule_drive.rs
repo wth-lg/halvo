@@ -292,6 +292,29 @@ impl World {
         self.board = Board::new(day, members);
     }
 
+    fn owner_workflow(&self, n: usize, change: impl FnOnce(&mut FullWorkflow)) {
+        for w in self.ports.workflows.borrow_mut().iter_mut() {
+            if let Workflow::Full(f) = w {
+                if f.id == flow(n) {
+                    change(f);
+                    return;
+                }
+            }
+        }
+    }
+
+    fn owner_agent(&self, n: usize, change: impl FnOnce(&mut Agent<Config>)) {
+        if let Some(a) = self
+            .ports
+            .agents
+            .borrow_mut()
+            .iter_mut()
+            .find(|a| a.agent == agent(n))
+        {
+            change(a);
+        }
+    }
+
     fn delete(&self, n: usize) {
         self.ports
             .workflows
@@ -907,7 +930,7 @@ fn a_tick_starts_on_the_day_the_slot_opens_and_not_after_catch_up_days() {
     w.clock(T0, DAY);
     assert_eq!(w.tick().started.len(), 1, "the day the slot opens");
     let mut late = world(&[A { ..AUTO }]);
-    late.board.members[0].facts.workflow.period = NonZeroU32::new(30);
+    late.owner_workflow(0, |f| f.period = NonZeroU32::new(30));
     late.clock(T0, DAY - 2 + 30 + 8);
     assert_eq!(
         late.tick().started,
@@ -2108,4 +2131,107 @@ fn an_owed_run_ended_of_a_workflow_that_is_gone_is_dropped() {
     w.tick();
     w.tick();
     assert_eq!(w.calls(), Vec::<String>::new());
+}
+
+#[test]
+fn refusal_slot_gone() {
+    let mut w = world(&[AUTO]);
+    w.owner_workflow(0, |f| f.last = DAY - 1);
+    let tick = w.tick();
+    assert_eq!(
+        tick.started,
+        Vec::<Served>::new(),
+        "the owner's list has no slot today"
+    );
+    assert_eq!(
+        count(&w.stored(), "run_started"),
+        1,
+        "the run before the test alone"
+    );
+    assert_eq!(w.starts(), 0);
+    let mut q = world(&[manual(), AUTO]);
+    let run = ok_run(&q.start(0));
+    assert_eq!(q.tick().started[0].answer, Ok(Answer::Queued));
+    q.owner_workflow(1, |f| f.last = DAY - 1);
+    q.forget();
+    let end = q.end(&run, Some(Outcome::Completed));
+    assert_eq!(end.ended[0].next[0].agent, agent(1));
+    assert_eq!(end.ended[0].next[0].answer, Err(Cause::State));
+    assert_eq!(q.starts(), 0);
+    assert!(!q.calls().iter().any(|c| c.contains("run_started")));
+}
+
+#[test]
+fn a_tick_reads_the_trigger_from_the_owners_list() {
+    let mut w = world(&[AUTO]);
+    w.owner_workflow(0, |f| {
+        f.trigger = WorkflowTrigger::Manual;
+        f.period = None;
+    });
+    let tick = w.tick();
+    assert_eq!(tick.started, Vec::<Served>::new());
+    assert_eq!(w.calls(), Vec::<String>::new());
+}
+
+#[test]
+fn a_tick_reads_the_configuration_from_the_owners_entry() {
+    let mut w = world(&[AUTO]);
+    w.owner_agent(0, |a| a.config = config(0, &person()));
+    let tick = w.tick();
+    assert_eq!(
+        tick.started,
+        Vec::<Served>::new(),
+        "an agent that needs the person"
+    );
+    assert_eq!(tick.raised, vec![agent(0)]);
+    assert_eq!(w.starts(), 0);
+}
+
+#[test]
+fn a_start_reads_whether_the_agent_needs_the_model_from_the_owners_entry() {
+    let mut w = world_with(
+        &[model(), manual()],
+        Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        },
+    );
+    ok_run(&w.start(0));
+    w.owner_agent(1, |a| a.config = config(1, &model()));
+    assert_eq!(w.start(1).answer, Ok(Answer::Queued), "the model is held");
+    assert_eq!(w.starts(), 1);
+}
+
+#[test]
+fn a_start_reads_the_bindings_and_the_session_from_the_owners_entry() {
+    let email = A {
+        category: Category::Email,
+        runtime: "graph_mail",
+        slots: &[],
+        ..manual()
+    };
+    let mut w = world(&[email]);
+    assert_eq!(w.start(0).answer, Err(Cause::Hold), "setup stands");
+    w.owner_agent(0, |a| {
+        a.slots = names(&["reply_senders"]);
+        a.session = false;
+    });
+    ok_run(&w.start(0));
+    let headed = w.ports.calls.borrow().iter().find_map(|t| match &t.call {
+        Call::Start(spec) => Some(spec.headed),
+        _ => None,
+    });
+    assert_eq!(headed, Some(true), "no stored session");
+    assert_eq!(halvo_coord::schedule::holds(w.facts(0)), Vec::<Hold>::new());
+}
+
+#[test]
+fn a_tick_whose_read_of_the_agents_fails_raises_no_ready_from_kept_facts() {
+    let mut w = world(&[person()]);
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    let tick = w.tick();
+    assert_eq!(tick.raised, Vec::<AgentId>::new());
+    assert_eq!(w.calls(), Vec::<String>::new());
+    w.ports.clear_refusals();
+    assert_eq!(w.tick().raised, vec![agent(0)]);
 }

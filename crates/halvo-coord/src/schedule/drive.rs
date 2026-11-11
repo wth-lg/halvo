@@ -166,7 +166,13 @@ fn newest_started<C>(facts: &Facts<C>) -> Option<&RunId> {
     })
 }
 
-fn refresh<C>(facts: &mut Facts<C>, entry: Option<&Agent<C>>, history: usize) {
+fn refresh<C: Clone>(member: &mut Member<C>, entry: Option<&Agent<C>>, history: usize) {
+    if let Some(a) = entry {
+        member.facts.config = a.config.clone();
+        member.facts.slots = a.slots.clone();
+        member.session = a.session;
+    }
+    let facts = &mut member.facts;
     let last = entry.and_then(|a| a.last.as_ref());
     facts.store_ended = match newest_started(facts) {
         None => true,
@@ -179,7 +185,7 @@ fn refresh<C>(facts: &mut Facts<C>, entry: Option<&Agent<C>>, history: usize) {
     }
 }
 
-fn fresh<P: Owner<Config = C>, C>(
+fn fresh<P: Owner<Config = C>, C: Clone>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     only: Option<usize>,
@@ -189,10 +195,30 @@ fn fresh<P: Owner<Config = C>, C>(
     for (k, m) in board.members.iter_mut().enumerate() {
         if only.is_none_or(|i| i == k) {
             let entry = agents.iter().find(|a| a.agent == m.facts.agent);
-            refresh(&mut m.facts, entry, history);
+            refresh(m, entry, history);
         }
     }
     Ok(())
+}
+
+fn listing<P: Owner, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    only: Option<usize>,
+) -> Result<Vec<WorkflowId>, PortError> {
+    let list = cx.ports.workflows()?;
+    for (k, m) in board.members.iter_mut().enumerate() {
+        if only.is_none_or(|i| i == k) {
+            let found = list.iter().find_map(|w| match w {
+                Workflow::Full(f) if f.id == m.facts.workflow.id => Some(f.clone()),
+                _ => None,
+            });
+            if let Some(f) = found {
+                m.facts.workflow = f;
+            }
+        }
+    }
+    Ok(ids(&list))
 }
 
 fn instant(now: u64) -> i64 {
@@ -619,7 +645,7 @@ fn raise<P: Owner + Rng, C>(
 fn tick<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>) -> Report
 where
     P: Owner<Config = C> + Runs + Analysis + Clock + Rng,
-    C: ConfigView,
+    C: ConfigView + Clone,
 {
     let day = match cx.ports.today() {
         Ok(day) => day,
@@ -629,7 +655,7 @@ where
     for m in &mut board.members {
         m.facts.today = day;
     }
-    let listed = cx.ports.workflows().ok().map(|w| ids(&w));
+    let listed = listing(cx, board, None).ok();
     let starts = listed.is_some() && fresh(cx, board, None).is_ok();
     let seen = listed.clone().unwrap_or_else(|| known(board));
     let plan = tick_plan(board, &seen, cx.now, cx.limits);
@@ -689,11 +715,12 @@ where
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
         match tick_step(facts, listed.contains(&facts.workflow.id), cx.limits) {
-            Ask::Ready => {
+            Ask::Ready if starts => {
                 if raise(cx, board, i, Raised::Ready, OwnItemKind::Ready).is_ok() {
                     report.raised.push(agent);
                 }
             }
+            Ask::Ready => {}
             Ask::Start if starts => {
                 report
                     .started
@@ -789,7 +816,7 @@ where
 fn member_move<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, mv: Move) -> Report
 where
     P: Owner<Config = C> + Runs + Analysis + Rng,
-    C: ConfigView,
+    C: ConfigView + Clone,
 {
     let agent = match &mv {
         Move::Start { agent }
@@ -802,6 +829,7 @@ where
     let Some(i) = board.index(&agent) else {
         return refused(Cause::UnknownAgent);
     };
+    let list = listing(cx, board, Some(i));
     let read = fresh(cx, board, Some(i));
     let facts = &board.members[i].facts;
     let standing = holds(facts);
@@ -815,8 +843,8 @@ where
     };
     match mv {
         Move::Start { .. } => {
-            let listed = match cx.ports.workflows() {
-                Ok(w) => ids(&w),
+            let listed = match list {
+                Ok(listed) => listed,
                 Err(e) => return refused(port_cause(&e)),
             };
             let unread = read.err().map(|e| port_cause(&e));
@@ -828,6 +856,9 @@ where
             }
         }
         Move::Skip { .. } => {
+            if let Err(e) = list {
+                return refused(port_cause(&e));
+            }
             let Some(item) = own(&facts.doing, OwnItemKind::Ready) else {
                 return refused(Cause::State);
             };
@@ -846,6 +877,9 @@ where
             }
         }
         Move::Check { answer, .. } => {
+            if let Err(e) = read {
+                return refused(port_cause(&e));
+            }
             let Some(newest) = facts
                 .runs
                 .first()
@@ -938,9 +972,11 @@ where
 /// or ended in between, and ends each live one with the cause of its stop; serves the queue
 /// only when no run was live before it; and then raises the `ready` items and makes the starts
 /// that `tick_step` gives, agent by agent; it serves and starts only when its reads of the
-/// owner's list and of `Owner::agents` answered. Each move of an agent, and each end, reads
-/// `Owner::agents` and takes from the agent's entry whether the agent store has ended its
-/// newest run and that run's record (ruling XB-2); a start of the person whose read fails goes
+/// owner's list and of `Owner::agents` answered, and raises a `ready` item only then. Each
+/// move decides from what the owner answers in that move (ruling XB-9): the workflow's state,
+/// trigger, period and `last` from the owner's list that it reads, and from the agent's entry
+/// of `Owner::agents` its configuration, its slot names, its session, whether the agent store
+/// has ended its newest run and that run's record (ruling XB-2); a start of the person whose read fails goes
 /// through steps 0 to 3 on the facts it holds and is answered `busy` or `no_service` where the
 /// store's answer would decide, so that an earlier step that fails keeps its cause. A start goes through `start_step` and then steps 5
 /// to 8 of I5.5: the request to defer, the `run_started` event, which closes an open `ready`
@@ -976,7 +1012,7 @@ where
                 (None, Some(outcome)) => RunEnd::from(outcome),
                 (None, None) => RunEnd::Interrupted,
             };
-            let listed = ports.workflows().ok().map(|w| ids(&w));
+            let listed = listing(&cx, board, None).ok();
             let serving = listed.is_some() && fresh(&cx, board, None).is_ok();
             let listed = listed.unwrap_or_else(|| known(board));
             Report {
