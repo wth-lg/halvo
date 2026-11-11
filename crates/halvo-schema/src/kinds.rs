@@ -453,24 +453,77 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
 /// closed list (every enum of names), an app id, a stored domain, a site hash, a site value, a count or a day
 /// (`u32`), the objects of counts and days of this run's records, and `Option` and `Vec` of them. No type of free
 /// text, token, instant or ordinal is `Coarse`. A later run's kinds are covered by `check_registry` alone.
-pub trait Coarse {}
+///
+/// It is sealed: `src/kinds.rs` implements it through a private module that no other module can name, so neither a
+/// module of a later run's file nor another crate can implement it. What must not compile, a type of another
+/// module made `Coarse`:
+///
+/// ```compile_fail
+/// use halvo_schema::kinds::{assert_coarse, Coarse};
+/// use halvo_schema::SummaryId;
+/// struct Note;
+/// impl Coarse for Note {}
+/// const _: () = assert_coarse::<SummaryId>();
+/// ```
+///
+/// Its twin, which differs in the one `impl` line and compiles:
+///
+/// ```
+/// use halvo_schema::kinds::{assert_coarse, Coarse};
+/// use halvo_schema::SummaryId;
+/// struct Note;
+/// impl Note {}
+/// const _: () = assert_coarse::<SummaryId>();
+/// ```
+pub trait Coarse: sealed::Sealed {}
+
+mod sealed {
+    pub trait Sealed {}
+}
 
 /// Compiles only for a `Coarse` type. The assertion of `src/record.rs` calls it for every field type of the
 /// summary, the support row and both shapes of the workflow.
 pub const fn assert_coarse<T: Coarse + ?Sized>() {}
 
-impl Coarse for u32 {}
+macro_rules! coarse_types {
+    ($($t:ty),+ $(,)?) => {
+        $(
+            impl sealed::Sealed for $t {}
+            impl Coarse for $t {}
+        )+
+    };
+}
+
+coarse_types!(
+    u32,
+    WorkflowId,
+    SummaryId,
+    AgentId,
+    RequestId,
+    AppId,
+    SiteDomain,
+    SiteHash,
+    SiteValue,
+    Confidence,
+    Recurrence,
+    KeyCounts,
+    PointerCounts,
+    crate::category::Category,
+    crate::category::SeedCategory,
+    crate::site::DomainSource,
+    crate::request::Role,
+    crate::request::ErrorName,
+    crate::request::Decision,
+    crate::record::Trigger,
+    crate::record::WorkflowState,
+    crate::record::Part,
+    crate::record::InputClass,
+    crate::record::FloorLayer,
+    crate::record::AddressFieldLayer,
+    crate::record::TextLayer,
+);
+
+impl<T: Coarse> sealed::Sealed for Option<T> {}
 impl<T: Coarse> Coarse for Option<T> {}
+impl<T: Coarse> sealed::Sealed for Vec<T> {}
 impl<T: Coarse> Coarse for Vec<T> {}
-impl Coarse for WorkflowId {}
-impl Coarse for SummaryId {}
-impl Coarse for AgentId {}
-impl Coarse for RequestId {}
-impl Coarse for AppId {}
-impl Coarse for SiteDomain {}
-impl Coarse for SiteHash {}
-impl Coarse for SiteValue {}
-impl Coarse for Confidence {}
-impl Coarse for Recurrence {}
-impl Coarse for KeyCounts {}
-impl Coarse for PointerCounts {}

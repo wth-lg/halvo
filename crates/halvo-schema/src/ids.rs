@@ -329,8 +329,6 @@ macro_rules! name_enum {
                 $crate::ids::parse_str(deserializer, concat!("a name of ", stringify!($name)), $name::parse)
             }
         }
-
-        impl $crate::kinds::Coarse for $name {}
     };
 }
 
