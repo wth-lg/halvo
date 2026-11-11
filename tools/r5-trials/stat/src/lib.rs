@@ -1,7 +1,3 @@
-//! The gate statistics of the learning run (contracts.md L7.3): the exact
-//! one-sided binomial tail in whole numbers, `critical(n)`, the stub and the
-//! verdict of `sh tools/r5-trials/stat/run.sh`.
-
 use std::fmt;
 use std::path::Path;
 
