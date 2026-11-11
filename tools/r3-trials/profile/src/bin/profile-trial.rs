@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use r3_profile::screen::{self, Window};
+use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
     bound_bytes, encode, entry_names, landing, marker_needles, new_entries, outside_roots, search,
     search_with, LEAVE_OUT_ALL,
@@ -205,9 +205,8 @@ fn watch_signals() -> std::io::Result<Stop> {
 
 #[derive(Default)]
 struct Seen {
-    front: Option<String>,
+    front: FrontSeen,
     windows: Option<Vec<Window>>,
-    changed_front: bool,
     raised: Vec<Window>,
     reads: u32,
     failed_reads: u32,
@@ -216,7 +215,7 @@ struct Seen {
 
 impl Seen {
     fn prompt(&self) -> bool {
-        self.changed_front || !self.raised.is_empty()
+        self.front.prompt || !self.raised.is_empty()
     }
 }
 
@@ -234,8 +233,12 @@ impl Watch {
         let front = screen::front();
         let windows = screen::windows();
         let failed = u32::from(front.is_none()) + u32::from(windows.is_none());
+        let mut first = FrontSeen::default();
+        if let Some(f) = &front {
+            first.observe(f, None, "", &[]);
+        }
         let seen = Arc::new(Mutex::new(Seen {
-            front,
+            front: first,
             windows,
             reads: 1,
             failed_reads: failed,
@@ -282,7 +285,8 @@ impl Watch {
 
 fn sample(seen: &Mutex<Seen>) {
     let roots = seen.lock().map(|s| s.roots.clone()).unwrap_or_default();
-    let pids = tree_pids(&roots);
+    let table = procs::table().unwrap_or_default();
+    let pids = tree_pids(&table, &roots);
     let front = screen::front();
     let windows = screen::windows();
     let Ok(mut s) = seen.lock() else {
@@ -291,9 +295,19 @@ fn sample(seen: &Mutex<Seen>) {
     s.reads += 1;
     match front {
         Some(f) => {
-            if s.front.as_ref().is_some_and(|b| *b != f) {
-                s.changed_front = true;
-            }
+            let (pid, owner) = if s.front.is_new(&f) {
+                let pid = screen::front_pid(&f);
+                let owner = pid
+                    .and_then(|p| table.iter().find(|q| q.pid == p))
+                    .and_then(|q| q.exe.as_ref())
+                    .and_then(|e| e.file_name())
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                (pid, owner)
+            } else {
+                (None, String::new())
+            };
+            s.front.observe(&f, pid, &owner, &pids);
         }
         None => s.failed_reads += 1,
     }
@@ -311,21 +325,20 @@ fn sample(seen: &Mutex<Seen>) {
     }
 }
 
-fn tree_pids(roots: &[u32]) -> Vec<u32> {
-    let table = procs::table().unwrap_or_default();
+fn tree_pids(table: &[procs::Proc], roots: &[u32]) -> Vec<u32> {
     let mut pids = Vec::new();
     for root in roots {
         let Some(r) = table.iter().find(|p| p.pid == *root) else {
             continue;
         };
-        let tree = procs::descendants(&table, std::slice::from_ref(r));
+        let tree = procs::descendants(table, std::slice::from_ref(r));
         let bundles: Vec<PathBuf> = r
             .exe
             .as_deref()
             .map(procs::bundle_root)
             .into_iter()
             .collect();
-        let adopted = procs::adopted(&table, &tree, r.started_us, &bundles);
+        let adopted = procs::adopted(table, &tree, r.started_us, &bundles);
         pids.extend(tree.iter().chain(adopted.iter()).map(|p| p.pid));
     }
     pids
@@ -643,12 +656,13 @@ async fn run_items12(
         return ExitCode::from(1);
     }
     out(&format!(
-        "watch {cell} reads={} failed_reads={} front_changed={} windows_raised={}",
+        "watch {cell} reads={} failed_reads={} front_prompt={} windows_raised={}",
         watch.reads,
         watch.failed_reads,
-        if watch.changed_front { "yes" } else { "no" },
+        if watch.front.prompt { "yes" } else { "no" },
         watch.raised.len()
     ));
+    eprintln!("watch {cell} front_other_changes={}", watch.front.other);
     if watch.failed_reads > 0 {
         out(&format!(
             "notrun item={} {cell} cause=window_list",

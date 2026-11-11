@@ -14,6 +14,57 @@ pub const PROMPT_OWNERS: [&str; 6] = [
     "CredentialUIBroker.exe",
 ];
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FrontSeen {
+    first: Option<String>,
+    last: Option<String>,
+    pub prompt: bool,
+    pub other: u32,
+}
+
+impl FrontSeen {
+    pub fn is_new(&self, token: &str) -> bool {
+        self.last.as_deref() != Some(token)
+    }
+
+    pub fn observe(&mut self, token: &str, pid: Option<u32>, owner: &str, browser: &[u32]) {
+        if self.first.is_none() {
+            self.first = Some(token.to_string());
+        }
+        if !self.is_new(token) {
+            return;
+        }
+        self.last = Some(token.to_string());
+        if self.first.as_deref() == Some(token) {
+            return;
+        }
+        if pid.is_some_and(|p| browser.contains(&p)) || PROMPT_OWNERS.contains(&owner) {
+            self.prompt = true;
+        } else {
+            self.other += 1;
+        }
+    }
+}
+
+pub fn pid_in(text: &str) -> Option<u32> {
+    let mut rest = text;
+    while let Some(i) = rest.find("pid") {
+        rest = &rest[i + 3..];
+        let after = rest.trim_start_matches([' ', '"']);
+        if let Some(value) = after.strip_prefix('=') {
+            let digits: String = value
+                .trim_start_matches([' ', '"'])
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if let Ok(p) = digits.parse() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
 pub fn raised(before: &[Window], after: &[Window], browser: &[u32]) -> Vec<Window> {
     after
         .iter()
@@ -135,6 +186,14 @@ mod mac {
             .success()
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
     }
+
+    pub fn front_pid(token: &str) -> Option<u32> {
+        let out = std::process::Command::new("lsappinfo")
+            .args(["info", "-only", "pid", token])
+            .output()
+            .ok()?;
+        super::pid_in(&String::from_utf8_lossy(&out.stdout))
+    }
 }
 
 #[cfg(windows)]
@@ -204,12 +263,16 @@ mod win {
         unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
         Some(format!("{} {}", hwnd as u64, pid))
     }
+
+    pub fn front_pid(token: &str) -> Option<u32> {
+        token.split(' ').nth(1)?.parse().ok()
+    }
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{front, windows};
+pub use mac::{front, front_pid, windows};
 #[cfg(windows)]
-pub use win::{front, windows};
+pub use win::{front, front_pid, windows};
 
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn windows() -> Option<Vec<Window>> {
@@ -218,6 +281,11 @@ pub fn windows() -> Option<Vec<Window>> {
 
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn front() -> Option<String> {
+    None
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn front_pid(_token: &str) -> Option<u32> {
     None
 }
 
@@ -250,11 +318,64 @@ mod tests {
         assert!(raised(&after, &after, &[50]).is_empty());
     }
 
+    fn replay(steps: &[(&str, Option<u32>, &str)], browser: &[u32]) -> FrontSeen {
+        let mut seen = FrontSeen::default();
+        for (token, pid, owner) in steps {
+            seen.observe(token, *pid, owner, browser);
+        }
+        seen
+    }
+
+    #[test]
+    fn a_front_change_counts_as_a_prompt_only_for_the_browser_or_a_prompt_process() {
+        let other = replay(
+            &[
+                ("ASN:0x0-0x1:", Some(100), "Finder"),
+                ("ASN:0x0-0x1:", Some(100), "Finder"),
+                ("ASN:0x0-0x2:", Some(200), "Mail"),
+                ("ASN:0x0-0x1:", Some(100), "Finder"),
+            ],
+            &[500, 501],
+        );
+        assert!(!other.prompt);
+        assert_eq!(other.other, 1);
+        let prompt = replay(
+            &[
+                ("ASN:0x0-0x1:", Some(100), "Finder"),
+                ("ASN:0x0-0x3:", Some(300), "SecurityAgent"),
+            ],
+            &[500, 501],
+        );
+        assert!(prompt.prompt);
+        assert_eq!(prompt.other, 0);
+        let browser = replay(
+            &[
+                ("ASN:0x0-0x1:", Some(100), "Finder"),
+                ("ASN:0x0-0x4:", Some(501), "Google Chrome Helper"),
+            ],
+            &[500, 501],
+        );
+        assert!(browser.prompt);
+    }
+
+    #[test]
+    fn pid_in_reads_the_pid_field() {
+        assert_eq!(
+            pid_in(
+                "\"X\" ASN:0x0-0x1:\n    bundleID=\"com.example.x\" pid = 1303 type=\"Foreground\""
+            ),
+            Some(1303)
+        );
+        assert_eq!(pid_in("\"pid\"=42"), Some(42));
+        assert_eq!(pid_in("rapid path, no field"), None);
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn the_window_list_reads_without_a_prompt() {
         let list = windows().expect("window list");
         assert!(list.iter().all(|w| w.id > 0));
-        assert!(front().is_some());
+        let token = front().expect("front");
+        assert!(front_pid(&token).is_some());
     }
 }
