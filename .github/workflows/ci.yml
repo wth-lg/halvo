@@ -11,6 +11,124 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Browser profile trial (scratch branch of U0.3, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          cat >"$RUNNER_TEMP/r3-temp-monitor.py" <<'R3EOF'
+          import os
+          import re
+          import sys
+          import time
+          
+          # usage: python3 -I temp_monitor.py SYSTEM_TMP X_DIR SCRATCH STOP_FILE
+          # Polls every 100 ms until STOP_FILE exists (at most 600 s). Attributes a temporary entry to the
+          # trial's browser by the Singleton links of its profiles in SCRATCH, which point into the directory
+          # where the browser keeps its process-singleton socket. Prints, by name pattern only (random parts
+          # as *): where those links pointed (system temp or the run's own temp dir), the entries of the
+          # run's own temp dirs, and new entries of the system temp and of the X dir whose names start with
+          # the bundle id of Google Chrome. Every other new entry is counted, never named.
+          
+          OWN = tuple(
+              p for p in os.environ.get("R3_OWN", "com.google.Chrome.,.com.google.Chrome.").split(",") if p
+          )
+          
+          
+          def pattern(name):
+              return re.sub(r"[A-Za-z0-9_-]{6,}$", "*", name)
+          
+          
+          def listing(d):
+              try:
+                  return set(os.listdir(d))
+              except OSError:
+                  return set()
+          
+          
+          def main():
+              system, xdir, scratch, stop = sys.argv[1:5]
+              system_real = os.path.realpath(system)
+              scratch_real = os.path.realpath(scratch)
+              base = {"system": listing(system), "x": listing(xdir)}
+              seen = {"system": {}, "x": {}, "run": {}}
+              links = {}
+              other = {"system": set(), "x": set()}
+              run_dirs = set()
+              end = time.time() + 600
+              polls = 0
+              while time.time() < end:
+                  polls += 1
+                  for place, d in (("system", system), ("x", xdir)):
+                      for name in listing(d) - base[place]:
+                          if name.startswith(OWN):
+                              seen[place].setdefault(pattern(name), set()).add(name)
+                          else:
+                              other[place].add(name)
+                  for entry in listing(scratch):
+                      full = os.path.join(scratch, entry)
+                      if entry.endswith("-tmp"):
+                          run_dirs.add(entry)
+                          for name in listing(full):
+                              seen["run"].setdefault(pattern(name), set()).add(entry + "/" + name)
+                      for single in ("SingletonSocket", "SingletonLock", "SingletonCookie"):
+                          try:
+                              target = os.path.realpath(os.path.dirname(os.readlink(os.path.join(full, single))))
+                          except OSError:
+                              continue
+                          if target.startswith(scratch_real + os.sep):
+                              rel = target[len(scratch_real) + 1:]
+                              where = "run_temp:" + "/".join(pattern(p) for p in rel.split(os.sep))
+                          elif target.startswith(system_real + os.sep):
+                              rel = target[len(system_real) + 1:]
+                              where = "system_temp:" + "/".join(pattern(p) for p in rel.split(os.sep))
+                          else:
+                              where = "elsewhere"
+                          links.setdefault((single, where), set()).add(entry)
+                  if os.path.exists(stop):
+                      break
+                  time.sleep(0.1)
+              print(f"monitor polls={polls} run_temp_dirs={len(run_dirs)}")
+              for (single, where), profiles in sorted(links.items()):
+                  print(f"singleton_link name={single} points_to={where} profiles={len(profiles)}")
+              if not links:
+                  print("singleton_link name=- points_to=- profiles=0")
+              for place in ("system", "x", "run"):
+                  if not seen[place]:
+                      print(f"temp_place place={place} pattern=- distinct=0")
+                  for p, names in sorted(seen[place].items()):
+                      print(f"temp_place place={place} pattern={p} distinct={len(names)}")
+              print(f"temp_other place=system new_entries={len(other['system'])}")
+              print(f"temp_other place=x new_entries={len(other['x'])}")
+          
+          
+          main()
+          R3EOF
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          cargo build --release --locked --quiet --manifest-path tools/r3-trials/profile/Cargo.toml --target-dir tools/r3-trials/profile/target --target "$host" || code=1
+          tmp=${TMPDIR:-/tmp}
+          for b in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b" | tr ' ' '_')"; code=1; continue; }
+            case "$b" in
+              *Edge*) kind=edge own="com.microsoft.edgemac.,.com.microsoft.edgemac." ;;
+              *) kind=chrome own="com.google.Chrome.,.com.google.Chrome." ;;
+            esac
+            echo "browser version $("$b" --version | tr ' ' '_')"
+            scratch=$(mktemp -d "$tmp/r3-profile.XXXXXX")
+            stop="$RUNNER_TEMP/r3-stop-$kind"
+            R3_OWN="$own" python3 -I "$RUNNER_TEMP/r3-temp-monitor.py" "$tmp" "$(dirname "${tmp%/}")/X" "$scratch" "$stop" >"$RUNNER_TEMP/r3-monitor-$kind.txt" 2>&1 &
+            mon=$!
+            sleep 1
+            sh tools/r3-trials/profile/run.sh --item 2 --browser "$b" --port 18590 --scratch "$scratch" || code=1
+            touch "$stop"
+            wait "$mon"
+            sed "s/^/machine=hosted-mac browser=$kind /" "$RUNNER_TEMP/r3-monitor-$kind.txt"
+            echo "scratch_after machine=hosted-mac browser=$kind entries=$(ls -A "$scratch" | wc -l | tr -d ' ')"
+            sleep 5
+            pgrep -f "$scratch" >/dev/null 2>&1
+            echo "leftover machine=hosted-mac browser=$kind pgrep_exit=$?"
+          done
+          exit $code
       - name: Commit messages
         shell: bash
         env:
@@ -97,6 +215,121 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
+      - name: Browser profile trial (scratch branch of U0.3, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          cat >"$RUNNER_TEMP/r3-temp-monitor.py" <<'R3EOF'
+          import os
+          import re
+          import sys
+          import time
+          
+          # usage: python3 -I temp_monitor.py SYSTEM_TMP X_DIR SCRATCH STOP_FILE
+          # Polls every 100 ms until STOP_FILE exists (at most 600 s). Attributes a temporary entry to the
+          # trial's browser by the Singleton links of its profiles in SCRATCH, which point into the directory
+          # where the browser keeps its process-singleton socket. Prints, by name pattern only (random parts
+          # as *): where those links pointed (system temp or the run's own temp dir), the entries of the
+          # run's own temp dirs, and new entries of the system temp and of the X dir whose names start with
+          # the bundle id of Google Chrome. Every other new entry is counted, never named.
+          
+          OWN = tuple(
+              p for p in os.environ.get("R3_OWN", "com.google.Chrome.,.com.google.Chrome.").split(",") if p
+          )
+          
+          
+          def pattern(name):
+              return re.sub(r"[A-Za-z0-9_-]{6,}$", "*", name)
+          
+          
+          def listing(d):
+              try:
+                  return set(os.listdir(d))
+              except OSError:
+                  return set()
+          
+          
+          def main():
+              system, xdir, scratch, stop = sys.argv[1:5]
+              system_real = os.path.realpath(system)
+              scratch_real = os.path.realpath(scratch)
+              base = {"system": listing(system), "x": listing(xdir)}
+              seen = {"system": {}, "x": {}, "run": {}}
+              links = {}
+              other = {"system": set(), "x": set()}
+              run_dirs = set()
+              end = time.time() + 600
+              polls = 0
+              while time.time() < end:
+                  polls += 1
+                  for place, d in (("system", system), ("x", xdir)):
+                      for name in listing(d) - base[place]:
+                          if name.startswith(OWN):
+                              seen[place].setdefault(pattern(name), set()).add(name)
+                          else:
+                              other[place].add(name)
+                  for entry in listing(scratch):
+                      full = os.path.join(scratch, entry)
+                      if entry.endswith("-tmp"):
+                          run_dirs.add(entry)
+                          for name in listing(full):
+                              seen["run"].setdefault(pattern(name), set()).add(entry + "/" + name)
+                      for single in ("SingletonSocket", "SingletonLock", "SingletonCookie"):
+                          try:
+                              target = os.path.realpath(os.path.dirname(os.readlink(os.path.join(full, single))))
+                          except OSError:
+                              continue
+                          if target.startswith(scratch_real + os.sep):
+                              rel = target[len(scratch_real) + 1:]
+                              where = "run_temp:" + "/".join(pattern(p) for p in rel.split(os.sep))
+                          elif target.startswith(system_real + os.sep):
+                              rel = target[len(system_real) + 1:]
+                              where = "system_temp:" + "/".join(pattern(p) for p in rel.split(os.sep))
+                          else:
+                              where = "elsewhere"
+                          links.setdefault((single, where), set()).add(entry)
+                  if os.path.exists(stop):
+                      break
+                  time.sleep(0.1)
+              print(f"monitor polls={polls} run_temp_dirs={len(run_dirs)}")
+              for (single, where), profiles in sorted(links.items()):
+                  print(f"singleton_link name={single} points_to={where} profiles={len(profiles)}")
+              if not links:
+                  print("singleton_link name=- points_to=- profiles=0")
+              for place in ("system", "x", "run"):
+                  if not seen[place]:
+                      print(f"temp_place place={place} pattern=- distinct=0")
+                  for p, names in sorted(seen[place].items()):
+                      print(f"temp_place place={place} pattern={p} distinct={len(names)}")
+              print(f"temp_other place=system new_entries={len(other['system'])}")
+              print(f"temp_other place=x new_entries={len(other['x'])}")
+          
+          
+          main()
+          R3EOF
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          cargo build --release --locked --quiet --manifest-path tools/r3-trials/profile/Cargo.toml --target-dir tools/r3-trials/profile/target --target "$host" || code=1
+          tmp=$(python -I -c "import tempfile; print(tempfile.gettempdir())")
+          for b in "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b")"; code=1; continue; }
+            case "$b" in *msedge*) kind=edge ;; *) kind=chrome ;; esac
+            scratch=$(mktemp -d "/tmp/r3-profile.XXXXXX")
+            stop="$RUNNER_TEMP/r3-stop-$kind"
+            R3_OWN="scoped_dir,chrome_,edge_,msedge_,Chrome,Edge" python -I "$RUNNER_TEMP/r3-temp-monitor.py" "$tmp" "$RUNNER_TEMP/r3-no-x-dir" "$(cygpath -w "$scratch")" "$(cygpath -w "$stop")" >"$RUNNER_TEMP/r3-monitor-$kind.txt" 2>&1 &
+            mon=$!
+            sleep 1
+            sh tools/r3-trials/profile/run.sh --item 2 --browser "$b" --port 18590 --scratch "$scratch" || code=1
+            touch "$stop"
+            wait "$mon"
+            sed "s/^/machine=hosted-win browser=$kind /" "$RUNNER_TEMP/r3-monitor-$kind.txt"
+            echo "scratch_after machine=hosted-win browser=$kind entries=$(ls -A "$scratch" | wc -l | tr -d ' ')"
+          done
+          for b in "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"; do
+            [ -f "$b" ] || continue
+            sh tools/r3-trials/profile/run.sh --item 4 --browser "$b" --port 18591 || code=1
+          done
+          exit $code
       - uses: actions/setup-node@v7
         with:
           node-version: 26
