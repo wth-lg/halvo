@@ -13,7 +13,7 @@ use halvo_route::tier::{CallKind, CategoryId, Tier};
 use crate::derive::{counted_tiers, derive, tier_rows, Counts};
 use crate::generate::SplitMix64;
 use crate::routers::RANDOM_SEED;
-use crate::table::{Machine, Seed, Split, Table};
+use crate::table::{Machine, Row, Seed, Split, Table};
 use crate::{Router, Setup};
 
 /// The draws of the comparison `random` when `--draws` is absent.
@@ -109,6 +109,31 @@ pub struct Score {
 }
 
 impl Score {
+    /// The score of these lines. R3 is decided from the versus lines `router` and `hindsight`: it
+    /// fails when `hindsight` passes fewer attempts than `router` or wastes one, and when either
+    /// line is missing.
+    pub fn new(
+        cells: Vec<CellLine>,
+        categories: Vec<CategoryLine>,
+        versus: Vec<Versus>,
+        verdict: Verdict,
+    ) -> Score {
+        let named = |name: &str| versus.iter().find(|line| line.name == name);
+        let hindsight_fault = match (named("router"), named("hindsight")) {
+            (Some(router), Some(hindsight)) => {
+                hindsight.passed < router.passed || hindsight.wasted > 0
+            }
+            _ => true,
+        };
+        Score {
+            cells,
+            categories,
+            versus,
+            verdict,
+            hindsight_fault,
+        }
+    }
+
     /// The verdict passes and the tool's own check R3 holds: the command exits 0.
     pub const fn passed(&self) -> bool {
         self.verdict.pass() && !self.hindsight_fault
@@ -321,17 +346,9 @@ pub fn score(
         random_sums(&model_cells, router_sums.attempted_cells, draws)
             .versus("random", u128::from(draws.get())),
     );
-    let hindsight = hindsight_sums(table, setup, prices, &model_cells);
-    versus.push(hindsight.versus("hindsight", 1));
-    let hindsight_fault = hindsight.passed < router_sums.sums.passed || hindsight.wasted > 0;
+    versus.push(hindsight_sums(table, setup, prices, &model_cells).versus("hindsight", 1));
     let verdict = verdict(table, &cell_lines, &derived, router.name());
-    Score {
-        cells: cell_lines,
-        categories,
-        versus,
-        verdict,
-        hindsight_fault,
-    }
+    Score::new(cell_lines, categories, versus, verdict)
 }
 
 fn cell_line(
@@ -483,23 +500,24 @@ fn hindsight_sums(
 ) -> Sums {
     let mut sums = Sums::default();
     for cell in model_cells.iter().filter(|cell| cell.has_held_rows()) {
-        let mut best: BTreeMap<(Seed, Machine, NonZeroU32), (u64, u64)> = BTreeMap::new();
+        let mut best: BTreeMap<(Seed, Machine, NonZeroU32), (Tier, &Row)> = BTreeMap::new();
         for tier in Tier::ALL {
             for row in tier_rows(table, setup, cell.category, cell.kind, tier)
                 .filter(|row| row.split() == Split::Held && row.pass)
             {
                 best.entry((row.seed, row.machine, row.attempt))
-                    .or_insert((prices.cost(tier, row.tokens_in, row.tokens_out), row.wall_s));
+                    .or_insert((tier, row));
             }
         }
         if best.is_empty() {
             sums.handed_back += 1;
         }
-        for (cost, wall) in best.into_values() {
+        for (tier, row) in best.into_values() {
             sums.attempts += 1;
-            sums.passed += 1;
-            sums.cost += u128::from(cost);
-            sums.wall += u128::from(wall);
+            sums.passed += u128::from(row.pass);
+            sums.wasted += u128::from(!row.pass);
+            sums.cost += u128::from(prices.cost(tier, row.tokens_in, row.tokens_out));
+            sums.wall += u128::from(row.wall_s);
         }
     }
     sums

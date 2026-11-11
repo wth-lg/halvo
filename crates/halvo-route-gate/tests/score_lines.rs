@@ -5,7 +5,7 @@ use halvo_route::prices::Prices;
 use halvo_route::tier::{CallKind, CategoryId, Level, Tier};
 use halvo_route_gate::generate::generate;
 use halvo_route_gate::routers::{fixed, OneTier, PolicyRouter, Random};
-use halvo_route_gate::score::{score, DEFAULT_DRAWS};
+use halvo_route_gate::score::{score, Score, Versus, DEFAULT_DRAWS};
 use halvo_route_gate::table::{Machine, Model, Row, Seed, Source, Table, Task};
 use halvo_route_gate::{Router, Setup};
 
@@ -465,4 +465,48 @@ fn a_category_with_rows_and_no_routed_cell_is_a_shortfall() {
         line(&lines, "category id=calendar_cleanup "),
         "category id=calendar_cleanup compile=hand_back recover=hand_back write=hand_back line=shortfall cost_micro=0"
     );
+}
+
+#[test]
+fn a_breach_of_r3_prints_its_fault_after_the_verdict_and_fails() {
+    let table = hand_table();
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let result = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS);
+    let lines = result.lines();
+    assert!(result.passed() && !result.hindsight_fault);
+    assert_eq!(
+        line(&lines, "versus name=hindsight "),
+        "versus name=hindsight attempts=4 passed=4 wasted=0 handed_back=0 cost_micro=18800 wall_s=40"
+    );
+    let gate = line(&lines, "gate ").to_owned();
+    assert_eq!(lines.last(), Some(&gate));
+    let router = result.versus[0];
+    let hindsight = *result.versus.last().expect("the line hindsight");
+    assert_eq!((router.name, hindsight.name), ("router", "hindsight"));
+    let wastes = Versus {
+        wasted: 1,
+        ..hindsight
+    };
+    let passes_fewer = Versus {
+        passed: router.passed - 1,
+        ..hindsight
+    };
+    for breach in [wastes, passes_fewer] {
+        let mut versus = result.versus.clone();
+        *versus.last_mut().expect("the line hindsight") = breach;
+        let breached = Score::new(
+            result.cells.clone(),
+            result.categories.clone(),
+            versus,
+            result.verdict,
+        );
+        let lines = breached.lines();
+        assert_eq!(
+            lines[lines.len() - 2..],
+            [gate.clone(), "gate fault=hindsight".to_owned()],
+            "{breach:?}"
+        );
+        assert!(breached.hindsight_fault && !breached.passed(), "{breach:?}");
+    }
 }
