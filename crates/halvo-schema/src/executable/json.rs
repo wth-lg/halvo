@@ -7,6 +7,7 @@ use serde_json::value::RawValue;
 
 use crate::category::SeedCategory;
 use crate::ids::{AgentId, WorkflowId};
+use crate::record::Instant;
 
 /// The cause of a refusal of this run's parsers: `malformed`, an input that is not the form of its contract, or
 /// `length`, a playbook of more than 64 steps, a step whose compact JSON passes 2,048 bytes or a frame whose JSON
@@ -109,6 +110,14 @@ pub(in crate::executable) fn whole<'a>(
     bytes: &'a [u8],
 ) -> Result<&'a RawValue, Refusal> {
     serde_json::from_slice::<&RawValue>(bytes).map_err(|_| Refusal::malformed(type_name, "json"))
+}
+
+pub(in crate::executable) fn deserialize_raw<'de, D: Deserializer<'de>>(
+    type_name: &'static str,
+    deserializer: D,
+) -> Result<Box<RawValue>, D::Error> {
+    Box::<RawValue>::deserialize(deserializer)
+        .map_err(|_| <D::Error as serde::de::Error>::custom(Refusal::malformed(type_name, "json")))
 }
 
 struct Entries<'a>(Vec<(String, &'a RawValue)>);
@@ -270,6 +279,17 @@ impl FromJson for NonZeroU32 {
         })?)
         .ok_or_else(|| Refusal::malformed("number", "zero"))
     }
+}
+
+pub(in crate::executable) fn instant(raw: &RawValue) -> Result<Instant, Refusal> {
+    let text = raw.get();
+    digits("Instant", text.strip_prefix('-').unwrap_or(text))?;
+    if text == "-0" {
+        return Err(Refusal::malformed("Instant", "minus_zero"));
+    }
+    text.parse::<i64>()
+        .map(Instant)
+        .map_err(|_| Refusal::malformed("Instant", "range"))
 }
 
 pub(in crate::executable) fn agent_id(raw: &RawValue) -> Result<AgentId, Refusal> {

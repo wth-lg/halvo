@@ -5,16 +5,22 @@
 
 mod json;
 
+pub mod body;
+pub mod bound;
 pub mod config;
 pub mod names;
+pub mod record;
 pub mod step;
 pub mod text;
 
+pub use body::{CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply};
+pub use bound::{Bound, BoundField, KeptField};
 pub use config::{AgentConfig, Budget, Caps, Limits};
 pub use json::{Refusal, RefusalCause};
 pub use names::{
     ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning, Runtime,
 };
+pub use record::{AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession};
 pub use step::{ExecutableStep, Playbook};
 pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, WebOrigin};
 
