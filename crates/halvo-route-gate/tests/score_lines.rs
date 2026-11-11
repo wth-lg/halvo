@@ -558,3 +558,44 @@ fn cost_sums_beyond_u64_are_u64_max_on_the_cell_and_versus_lines() {
         "versus name=router attempts=4 passed=4 wasted=0 handed_back=0 cost_micro=18446744073709551615 wall_s=42"
     );
 }
+
+fn with_compile_held_miss() -> Table {
+    let mut rows = hand_table().rows().to_vec();
+    for row in rows
+        .iter_mut()
+        .filter(|row| row.kind == Compile && row.seed == Three && row.machine == GenB)
+    {
+        row.pass = false;
+    }
+    Table::from_rows(&rows).expect("a table")
+}
+
+#[test]
+fn a_routed_cell_that_is_not_clean_has_no_lower_bound() {
+    let table = with_compile_held_miss();
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        line(&lines, "cell category=email kind=compile "),
+        "cell category=email kind=compile pick=on_device basis=line_met dev_k=4 dev_n=4 held_k=1 held_n=2 lower_pct=0 cost_micro=0 wall_s=30"
+    );
+}
+
+#[test]
+fn random_attempts_nothing_on_a_table_with_no_held_out_row() {
+    let rows: Vec<Row> = hand_table()
+        .rows()
+        .iter()
+        .filter(|row| row.seed != Three)
+        .cloned()
+        .collect();
+    let table = Table::from_rows(&rows).expect("a table");
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        line(&lines, "versus name=random "),
+        "versus name=random attempts=0 passed=0 wasted=0 handed_back=0 cost_micro=0 wall_s=0"
+    );
+}
