@@ -164,7 +164,7 @@ fn play(occurrence: &Occurrence, step: &Step, index: usize, served: &[Locator]) 
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum State {
+pub(crate) enum State {
     Provisional,
     Active,
     Reverted,
@@ -177,16 +177,16 @@ enum Use {
     FailOther,
 }
 
-struct Edit {
-    list: Vec<Locator>,
-    on: Option<usize>,
-    state: State,
-    clean: u32,
+pub(crate) struct Edit {
+    pub(crate) list: Vec<Locator>,
+    pub(crate) on: Option<usize>,
+    pub(crate) state: State,
+    pub(crate) clean: u32,
 }
 
 #[derive(Default)]
-struct Edits {
-    edits: Vec<Edit>,
+pub(crate) struct Edits {
+    pub(crate) edits: Vec<Edit>,
 }
 
 impl Edits {
@@ -221,7 +221,7 @@ impl Edits {
             .collect()
     }
 
-    fn admit(&self, served: &[Locator], proposal: &Locator) -> bool {
+    pub(crate) fn admit(&self, served: &[Locator], proposal: &Locator) -> bool {
         !served.contains(proposal)
             && !self.barred().contains(&proposal)
             && self.edits.len() < EDITS_MAX
@@ -246,7 +246,7 @@ impl Edits {
         }
     }
 
-    fn keep(&mut self, candidate: Locator) {
+    pub(crate) fn keep(&mut self, candidate: Locator) {
         if self.provisional().is_some() || self.edits.len() >= EDITS_MAX {
             return;
         }

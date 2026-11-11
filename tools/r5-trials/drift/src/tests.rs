@@ -429,6 +429,51 @@ fn a_locator_resolves_only_when_exactly_one_control_matches() {
     );
 }
 
+fn role(name: &str) -> model::Locator {
+    model::Locator::Role(case::Role::Button, name.to_owned())
+}
+
+fn edit(names: &[&str], state: model::State) -> model::Edit {
+    model::Edit {
+        list: names.iter().map(|name| role(name)).collect(),
+        on: None,
+        state,
+        clean: 0,
+    }
+}
+
+fn reverted_edits(count: usize) -> model::Edits {
+    model::Edits {
+        edits: (0..count)
+            .map(|n| edit(&[&format!("old {n}")], model::State::Reverted))
+            .collect(),
+    }
+}
+
+#[test]
+fn keep_adds_no_edit_to_a_step_that_holds_edits_max_edits() {
+    let mut full = reverted_edits(8);
+    full.keep(role("new"));
+    assert_eq!(full.edits.len(), 8);
+    let mut below = reverted_edits(7);
+    below.keep(role("new"));
+    assert_eq!(below.edits.len(), 8);
+}
+
+#[test]
+fn keep_cuts_the_list_of_a_new_edit_at_locators_max() {
+    let mut edits = model::Edits {
+        edits: vec![edit(&["a", "b", "c", "d"], model::State::Active)],
+    };
+    edits.keep(role("new"));
+    assert_eq!(edits.edits.len(), 2);
+    assert_eq!(
+        edits.edits[1].list,
+        vec![role("new"), role("a"), role("b"), role("c")]
+    );
+    assert_eq!(edits.edits[1].list.len(), 4);
+}
+
 #[test]
 fn a_case_file_with_a_carriage_return_is_refused_as_not_lf_text() {
     let bytes = std::fs::read(dev_dir().join("renamed-pay.jsonl")).expect("a development case");
