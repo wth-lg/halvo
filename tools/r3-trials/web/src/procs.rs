@@ -16,9 +16,11 @@ pub fn same(a: &Proc, b: &Proc) -> bool {
 }
 
 /// The roots and every process of `table` that descends from them. A process is a child of a member
-/// only when its parent pid is the member's pid, its creation time is known and at or after the
-/// member's, and the member's pid still has the member's creation time in `table`; so a process whose
-/// parent pid is stale, or whose parent's pid was reused, does not enter. Roots come first, each pid once.
+/// only when the member is in `table` with its own creation time, which is known (not 0), and the
+/// process's parent pid is the member's pid and its creation time is known and at or after the
+/// member's. So a process whose parent pid is stale, whose parent's pid was reused, or whose parent
+/// has exited does not enter, and neither does any process below a member whose creation time is
+/// unknown. Roots come first, each pid once.
 pub fn descendants(table: &[Proc], roots: &[Proc]) -> Vec<Proc> {
     let mut tree: Vec<Proc> = Vec::new();
     for r in roots {
@@ -30,10 +32,7 @@ pub fn descendants(table: &[Proc], roots: &[Proc]) -> Vec<Proc> {
     while i < tree.len() {
         let parent = tree[i].clone();
         i += 1;
-        if table
-            .iter()
-            .any(|p| p.pid == parent.pid && p.started_us != parent.started_us)
-        {
+        if parent.started_us == 0 || !table.iter().any(|p| same(p, &parent)) {
             continue;
         }
         for p in table {
@@ -107,9 +106,11 @@ fn started_of(info: &libc::proc_bsdinfo) -> u64 {
     info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec
 }
 
-/// Every process of the system with its parent pid, its creation time and its executable: on macOS
-/// from `proc_listallpids` and `proc_pidinfo`, on Windows from a Toolhelp snapshot and
-/// `GetProcessTimes`. A creation time that the system does not give is 0. Other systems get an error.
+/// Every process of the system that it can read, with its parent pid, its creation time and its
+/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
+/// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
+/// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
+/// systems get an error.
 #[cfg(target_os = "macos")]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     use std::os::unix::ffi::OsStringExt;
@@ -199,9 +200,11 @@ fn started_of_pid(pid: u32) -> u64 {
     t.unwrap_or(0)
 }
 
-/// Every process of the system with its parent pid, its creation time and its executable: on macOS
-/// from `proc_listallpids` and `proc_pidinfo`, on Windows from a Toolhelp snapshot and
-/// `GetProcessTimes`. A creation time that the system does not give is 0. Other systems get an error.
+/// Every process of the system that it can read, with its parent pid, its creation time and its
+/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
+/// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
+/// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
+/// systems get an error.
 #[cfg(windows)]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
@@ -274,9 +277,11 @@ pub fn kill(p: &Proc) -> bool {
     killed
 }
 
-/// Every process of the system with its parent pid, its creation time and its executable: on macOS
-/// from `proc_listallpids` and `proc_pidinfo`, on Windows from a Toolhelp snapshot and
-/// `GetProcessTimes`. A creation time that the system does not give is 0. Other systems get an error.
+/// Every process of the system that it can read, with its parent pid, its creation time and its
+/// executable: on macOS from `proc_listallpids` and `proc_pidinfo`, where a process whose information
+/// the system refuses (a process of another user, a zombie) has no row; on Windows from a Toolhelp
+/// snapshot and `GetProcessTimes`, where a process that cannot be opened has creation time 0. Other
+/// systems get an error.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     Err(std::io::Error::new(
@@ -363,6 +368,28 @@ mod tests {
         assert_eq!(pids(&tree), vec![500, 501]);
         assert!(tree.iter().all(|m| recorded.iter().any(|r| same(r, m))));
         assert_eq!(pids(&descendants(&now, &[now[0].clone()])), vec![500]);
+    }
+
+    #[test]
+    fn a_member_that_exited_or_has_no_creation_time_takes_no_child() {
+        let recorded = vec![
+            p(500, 9, 1_000, "/b/browser"),
+            p(600, 500, 1_100, "/b/helper"),
+        ];
+        let now = vec![
+            p(500, 9, 1_000, "/b/browser"),
+            p(701, 600, 5_200, "/other/child-of-a-reuser-that-exited"),
+        ];
+        assert_eq!(pids(&descendants(&now, &recorded)), vec![500, 600]);
+        let unknown = vec![
+            p(500, 9, 0, "/b/browser"),
+            p(777, 500, 50, "/other/program"),
+            p(778, 777, 60, "/other/child"),
+        ];
+        assert_eq!(
+            pids(&descendants(&unknown, &[unknown[0].clone()])),
+            vec![500]
+        );
     }
 
     #[test]
