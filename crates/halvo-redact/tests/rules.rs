@@ -57,7 +57,7 @@ mod card_rule {
 
     #[test]
     fn the_longest_valid_reading_is_masked_and_the_rest_is_kept() {
-        let number = grouped(&card(16), '-');
+        let number = grouped(&luhn_number("623170586270777"), '-');
         masks_to(&format!("{number} 2026"), "[card] 2026");
         masks_to(&format!("{number}-2026 end"), "[card]-2026 end");
     }
@@ -79,7 +79,7 @@ mod card_rule {
             &format!("Pay {} - Northgrid Billing", grouped(&card(16), ' ')),
             "Pay [card] - Northgrid Billing",
         );
-        masks_to(&format!("{} 2026", grouped(&card(16), '-')), "[card] 2026");
+        masks_to(&format!("{} 2026", grouped(&card(16), '-')), "[card]");
     }
 }
 
@@ -288,7 +288,7 @@ fn an_aws_key_takes_16_characters_of_a_to_z_and_2_to_7() {
         );
     }
     masks_to(
-        &format!("key {}0 saved", key("AKIA", '2', 16)),
+        &format!("key AKIA{}0 saved", "Q2".repeat(8)),
         "key [key]0 saved",
     );
     unchanged(&format!("key {} saved", key("AKIA", '9', 16)));
@@ -352,6 +352,138 @@ fn the_rows_that_the_release_states_otherwise_are_corrected_or_gone() {
 fn a_card_then_a_key_with_no_byte_between_are_both_masked() {
     let number = card(16);
     masks_to(&format!("{number}{}", key("AKIA", 'Q', 16)), "[card][key]");
+}
+
+fn gb_iban_with_a_card_reading_inside() -> String {
+    iban("GB", &format!("WXYZ{}", luhn_number("2468013579246")))
+}
+
+#[cfg(not(feature = "control-card-off"))]
+mod scan_rule {
+    use super::*;
+
+    #[test]
+    fn an_iban_that_touches_a_card_starts_where_the_card_ends() {
+        let account = gb_iban_with_a_card_reading_inside();
+        masks_to(&format!("{}{account}", card(16)), "[card][iban]");
+        masks_to(
+            "note 0085697852016451NL54 0123 4567 8901 2345 67 now",
+            "note [card][iban] now",
+        );
+    }
+
+    #[test]
+    fn an_iban_that_touches_a_key_starts_where_the_key_ends() {
+        masks_to(
+            &format!(
+                "note {}NO56 3456 7890 1234 5678 90 ok",
+                key("glpat-", 'z', 20)
+            ),
+            "note [key][iban] ok",
+        );
+    }
+
+    #[test]
+    fn a_reading_that_starts_before_a_card_and_crosses_one_separator_keeps_none_of_it() {
+        let crossing = luhn_number("202611053507152");
+        let number = luhn_number(&format!("{}6618304", &crossing[8..]));
+        masks_to(
+            &format!("on 2026 1105 {}", grouped(&number, ' ')),
+            "on [card]",
+        );
+        masks_to(
+            &format!("ref 2026-1105-{} end", grouped(&number, '-')),
+            "ref [card] end",
+        );
+    }
+
+    #[test]
+    fn a_key_body_that_runs_into_a_card_keeps_none_of_the_card() {
+        masks_to(
+            &format!(
+                "key {}{} notes",
+                key("sk_live_", 'b', 10),
+                grouped(&card(16), ' ')
+            ),
+            "key [key] notes",
+        );
+    }
+
+    #[test]
+    fn the_classes_of_a_reading_that_crosses_one_separator_keep_nothing() {
+        for (title, want) in [
+            (
+                "cards 0077-8932-8792-8 0042 1809 6792 9084 end",
+                "cards [card] end",
+            ),
+            (
+                "box 0000-491675-43583-0067 0500 6480 8194 now",
+                "box [card] now",
+            ),
+            ("pay 4162382333 0055-3940-6067-4828 end", "pay [card] end"),
+            ("note 2026 11 05 0086 1345 3032 7786 end", "note [card] end"),
+            ("cards 555 0545 0073-6545-9425-3730 now", "cards [card] now"),
+            ("note 819031190568 324-27-3006 ok", "note [card] ok"),
+            (
+                "cards 248-28-1017 8952-0017-4436-6666 ok",
+                "cards [card] ok",
+            ),
+            (
+                "pay CH421234567890123 0088-3481-8131-7601 ok",
+                "pay [iban] ok",
+            ),
+            (
+                "cards QR99 CH51 3456 7890 1234 5678 901 now",
+                "cards [iban] now",
+            ),
+            ("cards RE65 0099-4994-0285-5593 ok", "cards RE[card] ok"),
+            (
+                "box AT89901234567890123456 FR32 5678 9012 3456 7890 1234 5678 90 now",
+                "box [iban] now",
+            ),
+        ] {
+            masks_to(title, want);
+        }
+    }
+
+    #[test]
+    fn an_iban_whose_end_a_card_reading_on_its_right_masks_is_masked() {
+        let digits = "80467213590824";
+        let tail = luhn_number(&format!("{digits}5"));
+        masks_to(
+            &format!(
+                "ref {}{} end",
+                iban("GB", &format!("WXYZ{digits}")),
+                &tail[14..]
+            ),
+            "ref [iban] end",
+        );
+    }
+
+    #[test]
+    fn nine_identifiers_that_touch_are_masked_in_one_call() {
+        let token = key("ghp_", 'a', 36);
+        let title = format!(
+            "{token}247-61-3058{token}247-61-3058{token}247-61-3058{token}{}{}",
+            card(16),
+            gb_iban_with_a_card_reading_inside()
+        );
+        masks_to(&title, "[key][ssn][key][ssn][key][ssn][key][card][iban]");
+    }
+
+    #[test]
+    fn a_group_takes_the_token_of_its_first_reading_and_the_first_rule_at_that_byte() {
+        masks_to(
+            &format!("key GR1348941000026-{} saved", "q".repeat(13)),
+            "key [key] saved",
+        );
+        let number = luhn_number("24761305860174");
+        masks_to(
+            &format!("pay 247-61-3058-6017-4{} now", &number[14..]),
+            "pay [card] now",
+        );
+        masks_to("id 151-14-20044028163578 end", "id [ssn] end");
+    }
 }
 
 #[test]

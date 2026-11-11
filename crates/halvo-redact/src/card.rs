@@ -1,7 +1,7 @@
 const SHORTEST: usize = 13;
 const LONGEST: usize = 19;
 
-pub(crate) fn end_of_match(text: &[u8], start: usize) -> Option<usize> {
+pub(crate) fn readings(text: &[u8], start: usize, found: &mut impl FnMut(usize)) {
     let mut digits = [0u8; LONGEST];
     let mut ends = [0usize; LONGEST];
     let mut count = 0;
@@ -19,10 +19,11 @@ pub(crate) fn end_of_match(text: &[u8], start: usize) -> Option<usize> {
             at += 1;
         }
     }
-    (SHORTEST..=count)
-        .rev()
-        .find(|&n| !text.get(ends[n - 1]).is_some_and(u8::is_ascii_digit) && luhn(&digits[..n]))
-        .map(|n| ends[n - 1])
+    for n in SHORTEST..=count {
+        if luhn(&digits[..n]) {
+            found(ends[n - 1]);
+        }
+    }
 }
 
 fn luhn(digits: &[u8]) -> bool {

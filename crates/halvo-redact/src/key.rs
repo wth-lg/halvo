@@ -242,19 +242,23 @@ const ROWS: [Row; 28] = [
     ),
 ];
 
-pub(crate) fn end_of_match(text: &[u8], start: usize) -> Option<usize> {
+pub(crate) fn readings(text: &[u8], start: usize, found: &mut impl FnMut(usize)) {
     let rest = &text[start..];
-    ROWS.iter().find_map(|row| {
-        row.prefixes.iter().find_map(|prefix| {
-            let body = rest.strip_prefix(prefix.as_bytes())?;
+    for row in &ROWS {
+        for prefix in row.prefixes {
+            let Some(body) = rest.strip_prefix(prefix.as_bytes()) else {
+                continue;
+            };
             let length = body
                 .iter()
                 .take(row.max)
                 .take_while(|&&b| row.alphabet.holds(b))
                 .count();
-            (length >= row.min).then_some(start + prefix.len() + length)
-        })
-    })
+            if length >= row.min {
+                found(start + prefix.len() + length);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
