@@ -9,7 +9,8 @@
 //!    races of contending processes, with the lock file unlinked under them.
 
 use std::fs::OpenOptions;
-use std::io::{Cursor, Write};
+use std::io::{self, Cursor, Read, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -18,11 +19,11 @@ use halvo_sqlcipher::rusqlite::Connection;
 use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
 use uuid::Uuid;
-use zeroize::Zeroizing;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{custody_for, KeyCustody, RootId};
 
+use super::db::test_support::pages;
 use super::db::{unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
 use super::{SegmentExpiry, SegmentStore, StoreError, DEFAULT_RETENTION};
@@ -34,6 +35,13 @@ const SHRED_CASES: u32 = 48;
 /// The longest sequence of store operations one case replays. Each write adds
 /// one segment, so this also bounds the segment count.
 const MAX_OPS: usize = 12;
+
+const SCALED_SEGMENTS: usize = 1200;
+const SCALED_SEGMENT_LEN: usize = 40;
+const OLDEST_FIRST_PER_PASS: usize = 7;
+const OLDEST_FIRST_PASSES: usize = 50;
+const A_SOURCE_DIES_AFTER_EVERY: usize = 3;
+const WRAPPED_KEY_MIDDLE: Range<usize> = 24..56;
 
 /// Random multi-process races. Each case spawns up to [`MAX_CONTENDERS`]
 /// copies of the test binary, so the count is small and shrinking is short.
@@ -133,8 +141,25 @@ struct ModelSegment {
     id: Uuid,
     plaintext: Vec<u8>,
     cipher: Vec<u8>,
+    wrapped_key: Vec<u8>,
     expires_at: u64,
     fate: Fate,
+}
+
+struct ASourceThatDies {
+    bytes_before_it_dies: usize,
+}
+
+impl Read for ASourceThatDies {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.bytes_before_it_dies == 0 {
+            return Err(io::Error::other("the source died"));
+        }
+        let given = buf.len().min(self.bytes_before_it_dies);
+        buf[..given].fill(0x5a);
+        self.bytes_before_it_dies -= given;
+        Ok(given)
+    }
 }
 
 /// The real store under test next to the model the harness keeps of it.
@@ -226,14 +251,53 @@ impl Harness {
         let (seg_ref, _) = result.expect("a write on an open store");
         let cipher = std::fs::read(segment_path(&self.dir, seg_ref.segment_id))
             .expect("the segment file exists after the write");
+        let wrapped_key = wrapped_key_row(store, seg_ref.segment_id)
+            .expect("the key row of a written segment holds its wrapped key");
         self.segments.push(ModelSegment {
             id: seg_ref.segment_id,
             plaintext,
             cipher,
+            wrapped_key,
             expires_at,
             fate: Fate::Live,
         });
         Ok(())
+    }
+
+    fn write_from_a_source_that_dies(&mut self) {
+        let store = self.store.as_mut().expect("an open store");
+        let now = unix_secs_now();
+        let written = store.write_segment_with_expiry(
+            &mut ASourceThatDies {
+                bytes_before_it_dies: 100,
+            },
+            now,
+            Expiry::Future.expires_at(now),
+        );
+        assert!(
+            written.is_err(),
+            "a write whose source died returned a segment"
+        );
+    }
+
+    fn time_passes_for_the_oldest_live_segments(&mut self, count: usize) {
+        let store = self.store.as_ref().expect("an open store");
+        let conn = store.db().expect("the open store's db").connection();
+        let oldest_live = self
+            .segments
+            .iter_mut()
+            .filter(|seg| seg.fate == Fate::Live)
+            .take(count);
+        for seg in oldest_live {
+            seg.expires_at = 1;
+            let rows = conn
+                .execute(
+                    "UPDATE segment_keys SET expires_at = 1 WHERE segment_id = ?1",
+                    [seg.id.simple().to_string()],
+                )
+                .expect("the expiry of a live segment moves into the past");
+            assert_eq!(rows, 1, "a live segment has one key row");
+        }
     }
 
     fn shred_expired(&mut self) -> Result<(), TestCaseError> {
@@ -333,13 +397,11 @@ impl Harness {
     }
 
     /// Every segment key still usable through the store: the non-NULL
-    /// `segment_keys` rows of the live connection, plus the rows a copy of
-    /// `store.db` alone yields, each unwrapped with the store key.
+    /// `segment_keys` rows of the live connection, each unwrapped with the
+    /// store key.
     fn remaining_keys(&self, store: &EncryptedStore) -> Vec<SegmentKey> {
         let store_key = store.store_key().expect("the open store's key");
-        let mut wrapped = wrapped_rows(store.db().expect("the open store's db").connection());
-        wrapped.extend(wrapped_rows_in_main_file(&self.dir, store_key.expose()));
-        wrapped
+        wrapped_rows(store.db().expect("the open store's db").connection())
             .iter()
             .map(|w| {
                 segment::unwrap_segment_key(store_key.expose(), w).expect("a remaining key unwraps")
@@ -354,17 +416,35 @@ impl Harness {
         let Some(store) = self.open_store() else {
             return Ok(());
         };
+        self.check_remaining_keys(store)?;
+        self.check_reads(store)?;
+        self.check_store_files(store)
+    }
+
+    fn check_at_scale(&self) -> Result<(), TestCaseError> {
+        let store = self.open_store().expect("an open store");
+        self.check_reads(store)?;
+        self.check_store_files(store)
+    }
+
+    fn check_remaining_keys(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
         let keys = self.remaining_keys(store);
+        for seg in self.segments.iter().filter(|s| s.fate == Fate::Shredded) {
+            for key in &keys {
+                prop_assert!(
+                    segment::decrypt_segment_bytes(&seg.cipher, key).is_err(),
+                    "shredded segment {} decrypts with a key remaining in the store",
+                    seg.id.simple()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn check_reads(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
         for seg in &self.segments {
             match seg.fate {
                 Fate::Shredded => {
-                    for key in &keys {
-                        prop_assert!(
-                            segment::decrypt_segment_bytes(&seg.cipher, key).is_err(),
-                            "shredded segment {} decrypts with a key remaining in the store",
-                            seg.id.simple()
-                        );
-                    }
                     let read = store.read_segment(seg.id, &mut Vec::new());
                     prop_assert!(
                         matches!(read, Err(StoreError::Sealed)),
@@ -398,13 +478,43 @@ impl Harness {
         Ok(())
     }
 
-    fn check_deleted(&self) -> Result<(), TestCaseError> {
-        for name in ["store.key", "store.db", "store.db-wal", "segments"] {
+    fn check_store_files(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
+        let store_key = store.store_key().expect("the open store's key");
+        let images = pages::store_pages(&self.dir, store_key.expose());
+        let (live, shredded): (Vec<&ModelSegment>, Vec<&ModelSegment>) =
+            self.segments.iter().partition(|seg| seg.fate == Fate::Live);
+        let whole: Vec<&[u8]> = shredded
+            .iter()
+            .map(|seg| seg.wrapped_key.as_slice())
+            .collect();
+        let middle: Vec<&[u8]> = shredded
+            .iter()
+            .map(|seg| &seg.wrapped_key[WRAPPED_KEY_MIDDLE])
+            .collect();
+        let found = pages::places_of(&images, &whole)
+            .into_iter()
+            .zip(pages::places_of(&images, &middle));
+        for (seg, (whole, middle)) in shredded.iter().zip(found) {
             prop_assert!(
-                !self.dir.join(name).exists(),
-                "delete-all left {name} in the store directory"
+                whole.is_empty() && middle.is_empty(),
+                "the wrapped key of shredded segment {} is still in the store files: whole at {:?}, its middle 32 bytes at {:?}",
+                seg.id.simple(),
+                whole,
+                middle
             );
         }
+        let live_keys: Vec<&[u8]> = live.iter().map(|seg| seg.wrapped_key.as_slice()).collect();
+        for (seg, places) in live.iter().zip(pages::places_of(&images, &live_keys)) {
+            prop_assert!(
+                !places.is_empty(),
+                "the wrapped key of live segment {} is in no page of store.db, no frame of store.db-wal and no record of store.db-journal, so the reader of the store files sees no key",
+                seg.id.simple()
+            );
+        }
+        Ok(())
+    }
+
+    fn check_deleted(&self) -> Result<(), TestCaseError> {
         let key_file = self
             .key_file
             .as_ref()
@@ -418,6 +528,19 @@ impl Harness {
             custody.unwrap_store_key(&wrapped).is_err(),
             "the retained wrapped store key still unwraps after delete-all"
         );
+        for name in [
+            "store.key",
+            "store.db",
+            "store.db-wal",
+            "store.db-shm",
+            "store.db-journal",
+            "segments",
+        ] {
+            prop_assert!(
+                !self.dir.join(name).exists(),
+                "delete-all left {name} in the store directory"
+            );
+        }
         if let Some(store) = &self.store {
             for seg in &self.segments {
                 let read = store.read_segment(seg.id, &mut Vec::new());
@@ -433,6 +556,19 @@ impl Harness {
     }
 }
 
+fn wrapped_key_row(store: &EncryptedStore, segment_id: Uuid) -> Option<Vec<u8>> {
+    store
+        .db()
+        .expect("the open store's db")
+        .connection()
+        .query_row(
+            "SELECT wrapped_key FROM segment_keys WHERE segment_id = ?1",
+            [segment_id.simple().to_string()],
+            |r| r.get(0),
+        )
+        .expect("the key row of the segment")
+}
+
 fn wrapped_rows(conn: &Connection) -> Vec<Vec<u8>> {
     let mut stmt = conn
         .prepare("SELECT wrapped_key FROM segment_keys WHERE wrapped_key IS NOT NULL")
@@ -443,38 +579,8 @@ fn wrapped_rows(conn: &Connection) -> Vec<Vec<u8>> {
     rows.map(|r| r.expect("a wrapped key row")).collect()
 }
 
-/// The non-NULL key rows a copy of `store.db` taken without its WAL yields
-/// under the store key. Before the first checkpoint the copy holds no schema,
-/// so an unreadable copy yields no rows.
-fn wrapped_rows_in_main_file(dir: &Path, store_key: &[u8; 32]) -> Vec<Vec<u8>> {
-    let copy = tempfile::tempdir().expect("a temp dir for the store.db copy");
-    if std::fs::copy(dir.join("store.db"), copy.path().join("store.db")).is_err() {
-        return Vec::new();
-    }
-    let Ok(conn) = Connection::open(copy.path().join("store.db")) else {
-        return Vec::new();
-    };
-    let key_pragma = Zeroizing::new(format!("PRAGMA key = \"x'{}'\";", hex(store_key).as_str()));
-    if conn.execute_batch(&key_pragma).is_err() {
-        return Vec::new();
-    }
-    let Ok(mut stmt) =
-        conn.prepare("SELECT wrapped_key FROM segment_keys WHERE wrapped_key IS NOT NULL")
-    else {
-        return Vec::new();
-    };
-    let Ok(rows) = stmt.query_map([], |r| r.get::<_, Vec<u8>>(0)) else {
-        return Vec::new();
-    };
-    rows.filter_map(|r| r.ok()).collect()
-}
-
-fn hex(bytes: &[u8; 32]) -> Zeroizing<String> {
-    let mut s = Zeroizing::new(String::with_capacity(64));
-    for b in bytes {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
+fn hold<T>(result: Result<T, TestCaseError>) -> T {
+    result.unwrap_or_else(|failure| panic!("{failure}"))
 }
 
 proptest! {
@@ -498,6 +604,45 @@ proptest! {
             harness.check()?;
         }
     }
+}
+
+#[test]
+fn no_key_of_a_shredded_segment_is_left_when_three_in_four_expire_in_one_pass() {
+    let dir = tempfile::tempdir().expect("a temp dir for the store");
+    let mut harness = Harness::create(dir.path());
+    for i in 0..SCALED_SEGMENTS {
+        let expiry = if i % 4 == 0 {
+            Expiry::Future
+        } else {
+            Expiry::Past
+        };
+        hold(harness.write(SCALED_SEGMENT_LEN, expiry));
+    }
+    hold(harness.check_at_scale());
+    hold(harness.shred_expired());
+    hold(harness.check_at_scale());
+}
+
+#[test]
+fn no_key_of_a_shredded_segment_is_left_when_segments_expire_oldest_first() {
+    let dir = tempfile::tempdir().expect("a temp dir for the store");
+    let mut harness = Harness::create(dir.path());
+    for i in 0..SCALED_SEGMENTS {
+        hold(harness.write(SCALED_SEGMENT_LEN, Expiry::Future));
+        if (i + 1) % A_SOURCE_DIES_AFTER_EVERY == 0 {
+            harness.write_from_a_source_that_dies();
+        }
+    }
+    hold(harness.check_at_scale());
+    for pass in 1..=OLDEST_FIRST_PASSES {
+        harness.time_passes_for_the_oldest_live_segments(OLDEST_FIRST_PER_PASS);
+        hold(harness.shred_expired());
+        let store = harness.open_store().expect("an open store");
+        if let Err(failure) = harness.check_store_files(store) {
+            panic!("after pass {pass} of {OLDEST_FIRST_PASSES}: {failure}");
+        }
+    }
+    hold(harness.check_at_scale());
 }
 
 // ---------------------------------------------------------------------------
