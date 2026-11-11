@@ -597,7 +597,7 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   nul=$work/flags/nul-byte
   make_repo "$nul"
   mkdir -p "$nul/tools" || exit 2
-  printf '// a\000b\nprocess.env.%s = 1\n' "$setting" >"$nul/tools/n.js" || exit 2
+  printf '// a\000b process.env.%s = 1\n' "$setting" >"$nul/tools/n.js" || exit 2
   git -C "$nul" add -- tools/n.js || exit 2
   check nul-byte "$nul" FAIL "FAIL $name (flags)"
   flags_case this-check-as-it-is PASS "scripts/r6/ci.d/$name.sh" "$(cat "$self")"
