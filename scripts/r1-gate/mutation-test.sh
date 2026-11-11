@@ -518,7 +518,7 @@ main() {
   work=$gate_scratch/work; tree=$gate_scratch/tree
   mkdir "$work" "$tree" || return 2
   git -C "$GATE_ROOT" archive -o "$work/head.tar" HEAD || { say FAIL copy "git archive of HEAD failed"; return 2; }
-  tar -xf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
+  tar -xmf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
   if [ -d "$GATE_TARGET" ]; then
     mkdir "$tree/target" || return 2
     cp -Rpc "$GATE_TARGET" "$tree/target/r1-gate" 2> /dev/null || cp -Rp "$GATE_TARGET" "$tree/target/r1-gate" || return 2
