@@ -201,7 +201,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "item.check.text",
-        "Check on the site or in your account whether this happened, then answer.",
+        "Check the site or your account to see if this happened; it asks again before it pays.",
     ),
     ("item.setup.title", "Answer a few questions for “{name}”"),
     (
@@ -221,7 +221,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("choice.link_account.done", "Done"),
     ("choice.stuck.decline", "Stop this time"),
     ("choice.stuck.done", "Done"),
-    ("choice.check.try_again", "No, try again"),
+    ("choice.check.try_again", "No, try again next time"),
     ("choice.check.went_through", "Yes, it went through"),
     ("choice.setup.none", "Not now"),
     ("choice.setup.choose", "Use these answers"),
