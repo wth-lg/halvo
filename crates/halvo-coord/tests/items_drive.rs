@@ -58,7 +58,7 @@ fn armed<P: Owner + Runs + Clock + Rng>(
     t: &mut Table,
     a: &ConfirmAsk,
 ) -> Held {
-    let mut held = issue(p, l, &LIMITS, a).expect("an item");
+    let mut held = issue(p, l, t, &LIMITS, a).expect("an item");
     on_screen(&mut held, NOW);
     set_clock(NOW + LIMITS.arm_ms);
     tick(p, l, t, &mut held, &LIMITS).expect("a tick");
@@ -219,7 +219,7 @@ fn refusal_timer_allow() {
                         runs += 1;
                         let p = ports();
                         let (mut l, mut t) = (ledger(), Table::new());
-                        let mut held = issue(&p, &mut l, &LIMITS, &a).unwrap();
+                        let mut held = issue(&p, &mut l, &Table::new(), &LIMITS, &a).unwrap();
                         let mut now = NOW;
                         if arm {
                             on_screen(&mut held, now);
@@ -520,6 +520,54 @@ fn an_answer_with_no_clock_leaves_the_item_armed_and_calls_no_port() {
     .expect("the answer once the clock is back");
 }
 
+/// A stopped run gets no further item and no decision that allows (I4.2, L6): an answer for
+/// an item of a run that the table holds as stopped, and a request of a run whose item lapsed
+/// with wait_limit or cancelled, are refused with state and reach no port.
+#[test]
+fn a_stopped_run_gets_no_item_and_no_allow_decision() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let mut held = armed(&p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+    t = t.stop(&run_id(1));
+    let before = p.calls.borrow().len();
+    assert_eq!(
+        answer(
+            &p,
+            &mut l,
+            &mut t,
+            &mut held,
+            ConfirmAnswer::Allow,
+            Presenter::Page,
+            &LIMITS
+        ),
+        Err(Cause::State)
+    );
+    assert_eq!(held.confirmation().state(), &ConfirmState::Armed);
+    assert_eq!(p.calls.borrow().len(), before, "no port was called");
+    for cause in [LapseCause::WaitLimit, LapseCause::Cancelled] {
+        let q = ports();
+        let (mut l, mut t) = (ledger(), Table::new());
+        let mut first = issue(&q, &mut l, &t, &LIMITS, &ask(PAGE)).unwrap();
+        lapse(&q, &mut l, &mut t, &mut first, cause, &LIMITS).unwrap();
+        let before = q.calls.borrow().len();
+        let second = ask_of(1, 1, vec![asked(3, Class::Send, 3, true)]);
+        assert_eq!(
+            issue(&q, &mut l, &t, &LIMITS, &second).err(),
+            Some(Cause::State),
+            "a request after a lapse with {cause}"
+        );
+        assert_eq!(
+            q.calls.borrow().len(),
+            before,
+            "{cause}: nothing stored or sent"
+        );
+        assert!(q.sent_decisions().iter().all(|d| d
+            .approvals()
+            .iter()
+            .all(|e| e.answer == EffectAnswer::RejectOnce)));
+    }
+}
+
 #[test]
 fn a_released_answer_lets_its_own_records_through() {
     let p = ports();
@@ -573,7 +621,7 @@ fn an_answer_that_confirm_step_refuses_reaches_no_port() {
     let p = ports();
     let (mut l, mut t) = (ledger(), Table::new());
     let a = ask(NATIVE);
-    let mut held = issue(&p, &mut l, &LIMITS, &a).unwrap();
+    let mut held = issue(&p, &mut l, &Table::new(), &LIMITS, &a).unwrap();
     let before = p.calls.borrow().len();
     assert_eq!(
         answer(
@@ -632,7 +680,7 @@ fn an_answer_that_confirm_step_refuses_reaches_no_port() {
 #[test]
 fn an_item_arms_only_arm_ms_after_its_first_report_on_screen() {
     let p = ports();
-    let mut held = issue(&p, &mut ledger(), &LIMITS, &ask(PAGE)).unwrap();
+    let mut held = issue(&p, &mut ledger(), &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
     assert!(
         due(&held, NOW + 10 * LIMITS.arm_ms, &LIMITS).is_none(),
         "never reported"
@@ -676,7 +724,7 @@ fn a_lapse_with_wait_limit_answers_reject_stores_the_lapse_and_stops_the_run() {
     let allowed = released(&p);
     assert!(any_passes(&t, &allowed), "the first item's rows count");
     let second = ask_of(1, 1, vec![asked(3, Class::Send, 3, true)]);
-    let mut two = issue(&p, &mut l, &LIMITS, &second).unwrap();
+    let mut two = issue(&p, &mut l, &Table::new(), &LIMITS, &second).unwrap();
     p.set_clock(two.issued_at() + LIMITS.wait_limit_s * 1000, TODAY);
     tick(&p, &mut l, &mut t, &mut two, &LIMITS).unwrap();
     assert_eq!(
@@ -708,7 +756,7 @@ fn a_lapse_of_a_run_that_ended_sends_nothing() {
     for cause in [LapseCause::RunEnded, LapseCause::AppEnded] {
         let p = ports();
         let (mut l, mut t) = (ledger(), Table::new());
-        let mut held = issue(&p, &mut l, &LIMITS, &ask(PAGE)).unwrap();
+        let mut held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
         lapse(&p, &mut l, &mut t, &mut held, cause, &LIMITS).unwrap();
         assert!(p.sent_decisions().is_empty(), "{cause}");
         let methods: Vec<&str> = p.calls.borrow().iter().map(|c| c.call.method()).collect();
@@ -721,7 +769,7 @@ fn a_lapse_of_a_run_that_ended_sends_nothing() {
 fn a_lapse_with_cancelled_answers_reject_and_stops_the_run() {
     let p = ports();
     let (mut l, mut t) = (ledger(), Table::new());
-    let mut held = issue(&p, &mut l, &LIMITS, &ask(PAGE)).unwrap();
+    let mut held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
     lapse(
         &p,
         &mut l,
@@ -748,7 +796,7 @@ fn a_request_whose_digest_does_not_hold_is_not_shown() {
             asked(2, Class::Send, 2, false),
         ],
     );
-    let held = issue(&p, &mut l, &LIMITS, &a).unwrap();
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &a).unwrap();
     assert_eq!(
         held.confirmation().state(),
         &ConfirmState::Lapsed(LapseCause::Digest)
@@ -777,7 +825,10 @@ fn a_request_with_a_field_that_no_key_labels_raises_no_item() {
     bad.fields
         .push(field("note", halvo_coord::types::BoundFrom::Model, "x"));
     let a = ask_of(1, 1, vec![bad]);
-    assert_eq!(issue(&p, &mut l, &LIMITS, &a).err(), Some(Cause::Malformed));
+    assert_eq!(
+        issue(&p, &mut l, &Table::new(), &LIMITS, &a).err(),
+        Some(Cause::Malformed)
+    );
     assert!(p.calls.borrow().is_empty(), "nothing stored, nothing sent");
 }
 
@@ -785,7 +836,7 @@ fn a_request_with_a_field_that_no_key_labels_raises_no_item() {
 fn the_item_raised_names_its_run_and_its_page_item_composes() {
     let p = ports();
     let mut l = ledger();
-    let held = issue(&p, &mut l, &LIMITS, &ask(PAGE)).unwrap();
+    let held = issue(&p, &mut l, &Table::new(), &LIMITS, &ask(PAGE)).unwrap();
     let stored = p.events.borrow().clone();
     assert!(matches!(
         &stored[0].what,

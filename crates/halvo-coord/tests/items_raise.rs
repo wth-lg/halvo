@@ -103,7 +103,15 @@ fn refusal_kind_class() {
     let f = working();
     for class in Class::ALL {
         let ask = confirm_of(&[Class::Send, *class]);
-        let want = if CONFIRM_CLASSES.contains(class) {
+        let six = [
+            Class::Send,
+            Class::Delete,
+            Class::Submit,
+            Class::Purchase,
+            Class::Payment,
+            Class::Sign,
+        ];
+        let want = if six.contains(class) {
             Raise::Run(RunItemKind::Confirm)
         } else {
             Raise::End(RunEnd::Kind)
@@ -145,6 +153,21 @@ fn refusal_kind_frame() {
             "{label} before the first is answered"
         );
     }
+}
+
+#[test]
+fn the_six_confirm_classes_of_a_a4_1() {
+    assert_eq!(
+        CONFIRM_CLASSES,
+        [
+            Class::Send,
+            Class::Delete,
+            Class::Submit,
+            Class::Purchase,
+            Class::Payment,
+            Class::Sign
+        ]
+    );
 }
 
 #[test]
@@ -320,6 +343,55 @@ fn refusal_check_again() {
         raise_step(&older, Source::Handback(&h), &LIMITS),
         Raise::Run(RunItemKind::Check),
         "the answered check is of an earlier run than the last"
+    );
+}
+
+#[test]
+fn only_an_effect_unknown_handback_is_answered_from_a_check() {
+    let mut f = with_past_runs(working());
+    push(
+        &mut f,
+        What::HoldCleared {
+            cause: Cleared::Check {
+                run: run_id(5),
+                answer: CheckAnswer::TryAgain,
+            },
+        },
+    );
+    for reason in HandbackReason::ALL {
+        let h = handback(1, *reason);
+        let want = if *reason == HandbackReason::EffectUnknown {
+            Raise::Answer(HandbackResult::Done)
+        } else {
+            Raise::Run(handback_kind(*reason))
+        };
+        assert_eq!(
+            raise_step(&f, Source::Handback(&h), &LIMITS),
+            want,
+            "{reason}"
+        );
+    }
+}
+
+/// Of two answers to the check of the last run, the newest answers the handback.
+#[test]
+fn the_newest_check_answer_answers_the_handback() {
+    let h = handback(1, HandbackReason::EffectUnknown);
+    let mut f = with_past_runs(working());
+    for answer in [CheckAnswer::TryAgain, CheckAnswer::WentThrough] {
+        push(
+            &mut f,
+            What::HoldCleared {
+                cause: Cleared::Check {
+                    run: run_id(5),
+                    answer,
+                },
+            },
+        );
+    }
+    assert_eq!(
+        raise_step(&f, Source::Handback(&h), &LIMITS),
+        Raise::Answer(HandbackResult::Declined)
     );
 }
 

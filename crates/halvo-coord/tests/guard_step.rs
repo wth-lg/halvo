@@ -30,11 +30,11 @@ fn table() -> Table {
     let rejected = Decision::new(vec![entry(3, 3, 3, EffectAnswer::RejectOnce)]).unwrap();
     let recorded = Decision::new(vec![entry(4, 4, 4, EffectAnswer::AllowOnce)]).unwrap();
     Table::new()
-        .record(&item_id(1), &allowed)
+        .record(&item_id(1), &run_id(1), &allowed)
         .release(&item_id(1))
-        .record(&item_id(2), &rejected)
+        .record(&item_id(2), &run_id(1), &rejected)
         .release(&item_id(2))
-        .record(&item_id(3), &recorded)
+        .record(&item_id(3), &run_id(1), &recorded)
 }
 
 fn class_of(effect: u32) -> Class {
@@ -347,11 +347,48 @@ fn a_row_counts_only_from_the_release_of_its_decision() {
     assert!(step(&released, &releasing(4, 4, 4)).is_ok());
 }
 
+/// A row counts for a record of its own run alone, so a record that names another run passes on
+/// no row, and none passes once the row's run was stopped (I4.7, L9, L10).
+#[test]
+fn a_record_of_another_run_passes_on_no_row() {
+    let t = table();
+    for state in [EffectState::Approved, EffectState::Releasing] {
+        let other = EffectRecord {
+            run: run_id(2),
+            ..rec(state, 1, 1, Some(1))
+        };
+        assert_eq!(step(&t, &other).err(), Some(Refusal::Approval), "{state}");
+        assert_eq!(
+            step(&t.stop(&run_id(1)), &other).err(),
+            Some(Refusal::Approval),
+            "{state} after run 1 stopped"
+        );
+    }
+}
+
+/// An approval id that a row of a reject_once decision holds passes nothing, also beside an
+/// allow_once row of the same id, which a port that breaks L3 would make (L9).
+#[test]
+fn an_approval_id_of_a_reject_once_row_passes_nothing() {
+    let rejected = Decision::new(vec![entry(1, 1, 1, EffectAnswer::RejectOnce)]).unwrap();
+    let allowed = Decision::new(vec![entry(1, 1, 1, EffectAnswer::AllowOnce)]).unwrap();
+    let t = Table::new()
+        .record(&item_id(1), &run_id(1), &rejected)
+        .release(&item_id(1))
+        .record(&item_id(2), &run_id(1), &allowed)
+        .release(&item_id(2));
+    for r in [approved(1, 1, 1), releasing(1, 1, 1)] {
+        assert_eq!(step(&t, &r).err(), Some(Refusal::Approval), "{r:?}");
+    }
+}
+
 /// The release of one item's decision counts that item's rows and no other item's.
 #[test]
 fn a_release_counts_the_rows_of_its_own_item_alone() {
     let later = Decision::new(vec![entry(5, 5, 5, EffectAnswer::AllowOnce)]).unwrap();
-    let t = table().record(&item_id(4), &later).release(&item_id(4));
+    let t = table()
+        .record(&item_id(4), &run_id(1), &later)
+        .release(&item_id(4));
     assert!(step(&t, &approved(5, 5, 5)).is_ok(), "item 4's own row");
     assert_eq!(
         step(&t, &approved(4, 4, 4)).err(),

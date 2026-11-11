@@ -225,16 +225,21 @@ impl Held {
 }
 
 /// Issues a confirmation for a confirm request that `raise_step` admitted (I4.2, I4.4): mints
-/// the item id and stores `item_raised` with the run. A request whose item does not compose is
+/// the item id and stores `item_raised` with the run. A request of a run that the guard's table
+/// holds as stopped is refused with `state`: nothing is stored and nothing sent (I4.2). A request whose item does not compose is
 /// `malformed`: no item, nothing stored and nothing sent. A request whose digests do not hold is
 /// not shown: the port answers `reject` for every effect with a record that writes no row, and
 /// `item_lapsed` with the cause `digest` is stored, with no `item_raised`.
 pub fn issue<P: Owner + Runs + Clock + Rng>(
     ports: &P,
     ledger: &mut Ledger,
+    table: &Table,
     limits: &Limits,
     ask: &ConfirmAsk,
 ) -> Result<Held, Cause> {
+    if table.is_stopped(ask.run()) {
+        return Err(Cause::State);
+    }
     let confirmation = confirm_step(None, ConfirmMove::Issue(ask))?;
     let now = ports.now().map_err(|e| cause_of(&e))?;
     let item = ItemId::parse(&hex(ports.bytes16().map_err(|e| cause_of(&e))?))?;
@@ -311,8 +316,9 @@ pub fn tick<P: Owner + Runs + Clock>(
     }
 }
 
-/// The person's answer from `from` (I4.5): `confirm_step` refuses it with `stale`, `presenter`
-/// or `early` and no port is called. Else the answers go to `Runs::answer_confirm`, whose call
+/// The person's answer from `from` (I4.5): an answer for a run that the guard's table holds as
+/// stopped is refused with `state`, and `confirm_step` refuses it with `stale`, `presenter` or
+/// `early`; then no port is called. Else the answers go to `Runs::answer_confirm`, whose call
 /// back stores one `item_answered` row per entry of the port's decision and takes the move
 /// `record` only when the owner acknowledged them. When the call returns success the item is
 /// `released`, its rows count in the guard's table, and `item_released` is stored with the
@@ -329,6 +335,9 @@ pub fn answer<P: Owner + Runs + Clock>(
     from: Presenter,
     limits: &Limits,
 ) -> Result<(), Cause> {
+    if table.is_stopped(held.ask.run()) {
+        return Err(Cause::State);
+    }
     let answered = confirm_step(
         Some(&held.confirmation),
         ConfirmMove::Answer { answer, from },
@@ -361,7 +370,9 @@ pub fn answer<P: Owner + Runs + Clock>(
                 return Err(Cause::State);
             };
             held.confirmation = confirm_step(Some(&rec), ConfirmMove::Release)?;
-            *table = table.record(&item, &decision).release(&item);
+            *table = table
+                .record(&item, held.ask.run(), &decision)
+                .release(&item);
             let released = decision
                 .approvals()
                 .iter()
@@ -375,7 +386,7 @@ pub fn answer<P: Owner + Runs + Clock>(
         }
         (Err(e), Some(rec)) => {
             if let ConfirmState::Recorded(decision) = rec.state() {
-                *table = table.record(&item, decision);
+                *table = table.record(&item, held.ask.run(), decision);
             }
             held.confirmation = rec;
             Err(cause_of(&e))

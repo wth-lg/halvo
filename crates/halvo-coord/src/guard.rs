@@ -137,6 +137,7 @@ impl Refusal {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Row {
     item: ItemId,
+    run: RunId,
     entry: DecisionEntry,
     released: bool,
     used: bool,
@@ -159,12 +160,13 @@ impl Table {
         Table::default()
     }
 
-    /// The table with the rows of `decision`, acknowledged for `item` at the move `record`; they
-    /// count for no record before `release`.
-    pub fn record(&self, item: &ItemId, decision: &Decision) -> Table {
+    /// The table with the rows of `decision`, acknowledged for `item` of `run` at the move
+    /// `record`; they count for no record before `release`.
+    pub fn record(&self, item: &ItemId, run: &RunId, decision: &Decision) -> Table {
         let mut t = self.clone();
         t.rows.extend(decision.approvals().iter().map(|entry| Row {
             item: item.clone(),
+            run: run.clone(),
             entry: entry.clone(),
             released: false,
             used: false,
@@ -214,6 +216,7 @@ impl Table {
     fn matching(&self, record: &EffectRecord, approval: &ApprovalId) -> Option<usize> {
         self.rows.iter().position(|r| {
             r.released
+                && r.run == record.run
                 && r.entry.answer == EffectAnswer::AllowOnce
                 && r.entry.approval == *approval
                 && r.entry.effect == record.effect
@@ -230,8 +233,9 @@ const fn approved_only(class: Class) -> bool {
 
 /// The guard's rule for one effect record (I4.7, L7 to L10): the table after it, or the
 /// refusal `approval`. A record with neither the state `approved` nor `releasing` passes. One
-/// of those two states is refused for a run that was stopped. A record `approved` passes only
-/// on a counted `allow_once` row of its approval id with its effect and its digest, and marks
+/// of those two states is refused for a run that was stopped, and for an approval id that a row
+/// of a `reject_once` decision holds. A record `approved` passes only on a counted
+/// `allow_once` row of its approval id with its run, its effect and its digest, and marks
 /// the row used; a repeat of the record that used the row passes again and marks nothing. A
 /// record `releasing` with an approval passes only on such a row, and of a class of the
 /// presenter `native` only on such a row that a record `approved` used. A record `releasing`
@@ -242,6 +246,15 @@ pub fn guard_step(table: &Table, record: &EffectRecord, gives: Gives) -> Result<
         return Ok(table.clone());
     }
     if table.is_stopped(&record.run) {
+        return Err(Refusal::Approval);
+    }
+    let rejected = record.approval.as_ref().is_some_and(|approval| {
+        table
+            .rows
+            .iter()
+            .any(|r| r.entry.approval == *approval && r.entry.answer == EffectAnswer::RejectOnce)
+    });
+    if rejected {
         return Err(Refusal::Approval);
     }
     let row = record
