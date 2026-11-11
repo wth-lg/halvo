@@ -35,14 +35,14 @@ line does not match, and the lines say which. 2: a refusal, one line
 EOF
 }
 
-here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P) || exit 2
-root=$(CDPATH='' cd -- "$here/../../.." && pwd -P) || exit 2
-cmake_tools=$root/target/r3-tools
-
 refuse() {
   printf 'REFUSED %s: %s\n' "$1" "$2" >&2
   exit 2
 }
+
+here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P) || refuse usage "the directory of fetch.sh cannot be read"
+root=$(CDPATH='' cd -- "$here/../../.." && pwd -P) || refuse usage "the root of the repository cannot be read"
+cmake_tools=$root/target/r3-tools
 
 is_count() {
   case $1 in

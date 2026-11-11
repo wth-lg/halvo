@@ -87,6 +87,9 @@ fn run(argv: &[OsString]) -> Result<(), Failure> {
             .map_err(|e| Failure::Run(format!("request {}: {e}", request.id)))?;
         emit(wire::reply_line(&reply))?;
     }
+    drop(context);
+    drop(model);
+    drop(backend);
     drop(lock);
     Ok(())
 }

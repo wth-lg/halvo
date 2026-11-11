@@ -25,9 +25,13 @@ appended in run i, and prints one line per run:
 and once the line "runtime crate=<version> backend=cpu load=none sampling=greedy
 ctx=<n> batch=<n> threads=<n> cache=f16". tokens_per_s is tokens_out times 1000
 over the time from the first reply token to the end of the reply, rounded down.
-A value that no line of the child gives, because a run did not end by itself, is
-"-". The lines of measure-peak and the child's standard error go to standard
-error. No reply text is printed.
+When a run of a cell did not end by itself, the child's lines of that cell
+cannot be told apart by run, and every run of the cell has "-" for each value
+that the child gives. The lines of measure-peak and the child's standard error
+go to standard error. No reply text is printed. Each cell keeps its temporary
+directory under TMPDIR or /tmp, with the request, the child's replies and the
+raw output, and run.sh removes nothing: the request holds the invented values
+of the prompt file, and the replies the model's text.
 
 It needs, at the root of the repository: target/r3-weights/<file> of the model
 (sh tools/r3-trials/model/fetch.sh TOKEN), target/release/measure-peak (cargo
@@ -42,17 +46,17 @@ the causes are usage and weights.
 EOF
 }
 
-here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P) || exit 2
-root=$(CDPATH='' cd -- "$here/../../.." && pwd -P) || exit 2
-cd "$root" || exit 2
-limit=8589934592
-runs=5
-level=medium
-
 refuse() {
   printf 'REFUSED %s: %s\n' "$1" "$2" >&2
   exit 2
 }
+
+here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P) || refuse usage "the directory of run.sh cannot be read"
+root=$(CDPATH='' cd -- "$here/../../.." && pwd -P) || refuse usage "the root of the repository cannot be read"
+cd "$root" || refuse usage "the root of the repository cannot be entered"
+limit=8589934592
+runs=5
+level=medium
 
 model=
 prompts="action reply"
@@ -87,9 +91,25 @@ case $model in
   *[!abcdefghijklmnopqrstuvwxyz0123456789_]*) refuse usage "$model is no model token" ;;
 esac
 
+case $(uname -s) in
+  Darwin)
+    exe=
+    if [ "${GITHUB_ACTIONS:-}" = true ]; then machine=hosted-mac; else machine=mac; fi
+    ;;
+  MINGW* | MSYS* | CYGWIN*)
+    exe=.exe
+    if [ "${GITHUB_ACTIONS:-}" = true ]; then machine=hosted-win; else machine=windows; fi
+    ;;
+  *)
+    exe=
+    machine=other
+    ;;
+esac
+
 failed=0
-current=
+remaining=$prompts
 measure_pid=
+runtime_done=no
 
 # shellcheck disable=SC2329
 stop() {
@@ -100,7 +120,9 @@ stop() {
     fi
     kill "$measure_pid" 2>/dev/null
   fi
-  echo "notrun model=$model machine=${machine:-unknown} prompt=${current:-$prompts} cause=stopped"
+  for left in $remaining; do
+    echo "notrun model=$model machine=$machine prompt=$left cause=stopped"
+  done
   exit 1
 }
 trap stop INT TERM
@@ -120,20 +142,6 @@ else
 fi
 [ "${sum%% *}" = "$sha256" ] || refuse weights "$weights does not have the SHA-256 of its line"
 
-case $(uname -s) in
-  Darwin)
-    exe=
-    if [ "${GITHUB_ACTIONS:-}" = true ]; then machine=hosted-mac; else machine=mac; fi
-    ;;
-  MINGW* | MSYS* | CYGWIN*)
-    exe=.exe
-    if [ "${GITHUB_ACTIONS:-}" = true ]; then machine=hosted-win; else machine=windows; fi
-    ;;
-  *)
-    exe=
-    machine=other
-    ;;
-esac
 measure=target/release/measure-peak$exe
 child=tools/r3-trials/model/target/release/r3-model$exe
 [ -x "$measure" ] || refuse usage "$measure is missing: build it first"
@@ -214,8 +222,13 @@ join_lines() {
   ' "$2" "$3"
 }
 
+previous=
 for prompt in $prompts; do
-  current=$prompt
+  if [ -n "$previous" ]; then
+    remaining=${remaining#"$previous"}
+    remaining=${remaining# }
+  fi
+  previous=$prompt
   case $machine in
     mac | hosted-win) ;;
     *)
@@ -228,7 +241,11 @@ for prompt in $prompts; do
     action) grammar=action ;;
     reply) grammar=text ;;
   esac
-  dir=$(mktemp -d "${TMPDIR:-/tmp}/r3-model-cell.XXXXXX") || exit 1
+  if ! dir=$(mktemp -d "${TMPDIR:-/tmp}/r3-model-cell.XXXXXX"); then
+    echo "notrun model=$model machine=$machine prompt=$prompt cause=tmp"
+    failed=1
+    continue
+  fi
   if ! request_line "tools/r3-trials/model/prompts/$prompt.txt" "$grammar" >"$dir/requests.txt"; then
     echo "notrun model=$model machine=$machine prompt=$prompt cause=prompt_file"
     failed=1
@@ -250,7 +267,14 @@ for prompt in $prompts; do
   fi
   touch "$dir/replies.txt"
   join_lines "$prompt" "$dir/measure.txt" "$dir/replies.txt" >"$dir/lines.txt"
-  cat "$dir/lines.txt"
+  if [ "$runtime_done" = yes ]; then
+    grep -v '^runtime ' "$dir/lines.txt"
+  else
+    cat "$dir/lines.txt"
+  fi
+  if grep -q '^runtime ' "$dir/lines.txt"; then
+    runtime_done=yes
+  fi
   if grep -q '^notrun ' "$dir/lines.txt"; then
     failed=1
   fi
