@@ -311,4 +311,39 @@ mod tests {
         let table: Vec<&str> = TABLE.lines().collect();
         assert_eq!(code, table);
     }
+
+    fn bytes_named(name: &str) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for word in name.split(' ') {
+            match word {
+                "and" => {}
+                "an" => bytes.extend(bytes_named("A-Z a-z 0-9")),
+                "hex" => bytes.extend(bytes_named("0-9 a-f")),
+                "HEX" => bytes.extend(bytes_named("0-9 a-f A-F")),
+                "url" => bytes.extend(bytes_named("A-Z a-z 0-9 _ -")),
+                range if range.len() == 3 && range.as_bytes()[1] == b'-' => {
+                    let ends = range.as_bytes();
+                    bytes.extend(ends[0]..=ends[2]);
+                }
+                list => bytes.extend(list.bytes()),
+            }
+        }
+        bytes
+    }
+
+    #[test]
+    fn each_alphabet_takes_the_bytes_that_the_table_names() {
+        for row in &ROWS {
+            let named = bytes_named(row.alphabet.name());
+            for byte in 0..=u8::MAX {
+                assert_eq!(
+                    row.alphabet.holds(byte),
+                    named.contains(&byte),
+                    "row {} ({}), byte {byte:#04x}",
+                    row.number,
+                    row.alphabet.name()
+                );
+            }
+        }
+    }
 }
