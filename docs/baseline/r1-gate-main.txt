@@ -1,10 +1,10 @@
-gate head=385927de0f9a3208d6c3846717901e4ff6993bbc tree=2179f245bb76d405aab2b6201db77b3aa5773965 state=clean input=none machine=host
-NO-INPUT timed-run (input=none, so keystroke and pointer are not judged: screen_frame=1199 keystroke=158 pointer=3278 foreground_app=1 over 600s with --switch screen_activity=on and the helper window; bounds: child_deadline_extra_s=25)
+gate head=3885903c5a9c7f7e635ecd1d84d287df2e4fa572 tree=2179f245bb76d405aab2b6201db77b3aa5773965 state=clean input=none machine=host
+NO-INPUT timed-run (input=none, so keystroke and pointer are not judged: screen_frame=1199 keystroke=0 pointer=0 foreground_app=1 over 600s with --switch screen_activity=on and the helper window; bounds: child_deadline_extra_s=25)
 PASS store
 PASS deletion
-FAIL secure-input (a keystroke was recorded while secure input was held, or the line is absent: secure_input_keystrokes=6 over 600s of held secure input; bounds: child_deadline_extra_s=25)
-NO-INPUT cost (input=none, and the bound is defined under input load: cpu=0.08% of one core, growth=0B over 600s, start load1=5.57 pressure=1, end load1=4.27 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 child_deadline_extra_s=25)
-NO-INPUT memory (input=none, and the bound is defined under input load: peak=20824064B (ru_maxrss=20824064B ps_max=20320KiB footprint=6734496B) mean=20077KiB over 569 samples in 600s, start load1=4.27 pressure=1, end load1=3.79 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: rss_max_bytes=50331648 child_deadline_extra_s=25)
+NO-INPUT secure-input (input=none, so no key was typed during the hold: secure_input_keystrokes=0 over 600s of held secure input; bounds: child_deadline_extra_s=25)
+NO-INPUT cost (input=none, and the bound is defined under input load: cpu=0.12% of one core, growth=0B over 600s, start load1=2.88 pressure=1, end load1=3.53 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 child_deadline_extra_s=25)
+NO-INPUT memory (input=none, and the bound is defined under input load: peak=20037632B (ru_maxrss=20037632B ps_max=19552KiB footprint=6095520B) mean=19453KiB over 570 samples in 600s, start load1=3.53 pressure=1, end load1=2.81 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: rss_max_bytes=50331648 child_deadline_extra_s=25)
 FAIL service-run (check script missing)
 FAIL service-memory (check script missing)
 FAIL service-expiry (check script missing)
@@ -14,11 +14,11 @@ FAIL content-floor (check script missing)
 FAIL login-start (check script missing)
 FAIL app-memory (check script missing)
 FAIL ci-results (check script missing)
-PASS windows-ci (commit 385927de0f9a3208d6c3846717901e4ff6993bbc: 1 push runs decide, 1 pull_request runs are listed and do not)
+PASS windows-ci (commit 3885903c5a9c7f7e635ecd1d84d287df2e4fa572: 1 push runs decide, 1 pull_request runs are listed and do not)
 PASS no-ll-hook
 OPEN second-account-read (owner step; no test bed)
-bounds file at 385927d: rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=30 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2
-mutation-test.sh at 385927d:
+bounds file at 3885903: rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=30 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2
+mutation-test.sh at 3885903:
 PASS mutation:required-kinds-weakened (test selftest:timed-run/pointer-zero: the one test failed)
 PASS mutation:missing-line-accepted (test selftest:secure-input/line-absent: the one test failed)
 PASS mutation:cost-sampler-constant (test selftest:cost/standin-short-lived-threads: the one test failed)
