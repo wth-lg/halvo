@@ -1,0 +1,80 @@
+[package]
+name = "r2-probes"
+version = "0.0.0"
+description = "Cost trials of the capture layers on hosted runners: address field, accessibility text, extracted text, input visibility, private windows"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+pp-ocrv6 = ["dep:image", "dep:oar-ocr", "dep:ort"]
+
+[[bin]]
+name = "r2-probes"
+path = "src/main.rs"
+
+[[bin]]
+name = "r2-ocr"
+path = "src/bin/r2-ocr.rs"
+required-features = ["pp-ocrv6"]
+
+[dependencies]
+png = "0.18.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+image = { version = "0.25.10", default-features = false, optional = true }
+oar-ocr = { version = "0.10.2", default-features = false, features = ["simd"], optional = true }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"], optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.191"
+core-foundation = "0.10.1"
+objc2 = "0.6.5"
+block2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSError", "NSString"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "objc2", "CFCGTypes", "CFData"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "objc2", "CGColorSpace", "CGDataProvider", "CGDirectDisplay", "CGImage", "CGWindow"] }
+objc2-screen-capture-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-core-foundation", "objc2-core-graphics", "SCScreenshotManager", "SCShareableContent", "SCStream"] }
+objc2-vision = { version = "0.3.2", default-features = false, features = ["std", "objc2-core-graphics", "VNObservation", "VNRecognizeTextRequest", "VNRequest", "VNRequestHandler", "VNTypes"] }
+
+[target.'cfg(windows)'.dependencies]
+enigo = { version = "0.6.1", default-features = false }
+windows = { version = "0.62.2", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics",
+    "Graphics_Capture",
+    "Graphics_DirectX",
+    "Graphics_DirectX_Direct3D11",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Security_Cryptography",
+    "Storage_Streams",
+    "Wdk_System_SystemServices",
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_System_WinRT_Direct3D11",
+    "Win32_System_WinRT_Graphics_Capture",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Input",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+debug = false
