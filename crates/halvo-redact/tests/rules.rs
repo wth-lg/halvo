@@ -615,3 +615,165 @@ fn titles_built_from_pieces_of_every_rule_keep_the_properties_of_the_scan() {
         assert_eq!(mask(&masked), masked, "mask of the result of {title:?}");
     }
 }
+
+mod boundary {
+    use super::*;
+
+    const KEY_ROWS: [(&str, &str, usize); 28] = [
+        ("AKIA", "Q2", 16),
+        ("A3TA", "Q2", 16),
+        ("ghp_", "Ab3", 36),
+        ("gho_", "Ab3", 36),
+        ("ghu_", "Ab3", 36),
+        ("ghr_", "Ab3", 36),
+        ("github_pat_", "Ab3_", 82),
+        ("glpat-", "Ab3_-", 20),
+        ("glptt-", "b3", 40),
+        ("GR1348941", "Ab3_-", 20),
+        ("sk_test_", "Ab3", 99),
+        ("SG.", "Ab3=_-.", 66),
+        ("pypi-AgEIcHlwaS5vcmc", "Ab3_-", 1000),
+        ("AIza", "Ab3_-", 35),
+        ("dop_v1_", "b3", 64),
+        ("doo_v1_", "b3", 64),
+        ("dp.pt.", "Ab3", 43),
+        ("shpat_", "Bb3", 32),
+        ("shpca_", "Bb3", 32),
+        ("shppa_", "Bb3", 32),
+        ("shpss_", "Bb3", 32),
+        ("pul-", "b3", 40),
+        ("lin_api_", "Ab3", 40),
+        ("AGE-SECRET-KEY-1", "Q9", 58),
+        ("hf_", "Ab", 34),
+        ("rubygems_", "b3", 48),
+        ("dapi", "b3", 32),
+        ("SK", "Bb3", 32),
+    ];
+
+    const ASCII_LETTERS_AND_DIGITS: [(u8, u8); 3] = [(b'0', b'9'), (b'A', b'Z'), (b'a', b'z')];
+    const ASCII_DIGITS: [(u8, u8); 1] = [(b'0', b'9')];
+    const NO_BYTE: [(u8, u8); 0] = [];
+
+    #[derive(Clone, Copy, PartialEq, Debug)]
+    enum Side {
+        Before,
+        After,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Debug)]
+    enum Rule {
+        Card,
+        Iban,
+        Ssn,
+        Key,
+    }
+
+    fn refused(rule: Rule, side: Side) -> &'static [(u8, u8)] {
+        match (rule, side) {
+            (Rule::Key | Rule::Iban, Side::Before) => &ASCII_LETTERS_AND_DIGITS,
+            (Rule::Iban, Side::After) => &ASCII_LETTERS_AND_DIGITS,
+            (Rule::Card | Rule::Ssn, _) => &ASCII_DIGITS,
+            (Rule::Key, Side::After) => &NO_BYTE,
+        }
+    }
+
+    const ANOTHER_READING: [(Rule, Side, u8, &str, &str); 2] = [
+        (
+            Rule::Card,
+            Side::Before,
+            b'0',
+            "[card] x",
+            "a card reading of 17 digits from the 0 before the card passes the Luhn check",
+        ),
+        (
+            Rule::Card,
+            Side::After,
+            b'8',
+            "x [card]",
+            "a card reading of 17 digits up to the 8 after the card passes the Luhn check",
+        ),
+    ];
+
+    fn in_set(set: &[(u8, u8)], byte: u8) -> bool {
+        set.iter().any(|&(low, high)| (low..=high).contains(&byte))
+    }
+
+    fn character_ending_in(byte: u8) -> String {
+        let bytes = if byte < 0x80 {
+            vec![byte]
+        } else {
+            vec![0xC2, byte]
+        };
+        String::from_utf8(bytes).expect("a character that ends in the byte")
+    }
+
+    fn character_starting_with(byte: u8) -> String {
+        let bytes = match byte {
+            0x00..=0x7F => vec![byte],
+            0xC2..=0xDF => vec![byte, 0x80],
+            0xE0 => vec![byte, 0xA0, 0x80],
+            0xE1..=0xEF => vec![byte, 0x80, 0x80],
+            0xF0 => vec![byte, 0x90, 0x80, 0x80],
+            _ => vec![byte, 0x80, 0x80, 0x80],
+        };
+        String::from_utf8(bytes).expect("a character that starts with the byte")
+    }
+
+    #[test]
+    fn the_boundaries_of_each_rule_hold_by_the_bytes_that_the_contract_names() {
+        let mut identifiers = vec![
+            (Rule::Card, luhn_number("123456789012345"), "[card]"),
+            (Rule::Iban, iban("DE", "123456781234567890"), "[iban]"),
+            (Rule::Ssn, "247-61-3058".to_owned(), "[ssn]"),
+        ];
+        for (prefix, pattern, max) in KEY_ROWS {
+            let body: String = pattern.chars().cycle().take(max).collect();
+            identifiers.push((Rule::Key, format!("{prefix}{body}"), "[key]"));
+        }
+        let before: Vec<u8> = (0x00..=0xBF).collect();
+        let after: Vec<u8> = (0x00..=0x7F).chain(0xC2..=0xF4).collect();
+        let mut cases = 0;
+        let mut wrong = Vec::new();
+        for (rule, identifier, token) in &identifiers {
+            for (side, bytes) in [(Side::Before, &before), (Side::After, &after)] {
+                for &byte in bytes {
+                    cases += 1;
+                    let (title, masked) = match side {
+                        Side::Before => {
+                            let c = character_ending_in(byte);
+                            (format!("{c}{identifier} x"), format!("{c}{token} x"))
+                        }
+                        Side::After => {
+                            let c = character_starting_with(byte);
+                            (format!("x {identifier}{c}"), format!("x {token}{c}"))
+                        }
+                    };
+                    let other = ANOTHER_READING
+                        .iter()
+                        .find(|e| e.0 == *rule && e.1 == side && e.2 == byte);
+                    let (want, why) = match other {
+                        Some(&(_, _, _, output, why)) => (output.to_owned(), why),
+                        None if in_set(refused(*rule, side), byte) => {
+                            (title.clone(), "item 2 refuses the byte")
+                        }
+                        None => (masked, "item 2 allows the byte"),
+                    };
+                    let got = mask(&title);
+                    if got != want {
+                        wrong.push(format!(
+                            "{rule:?} {side:?} {byte:#04x} in {title:?}: {got:?}, want {want:?} ({why})"
+                        ));
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, identifiers.len() * (before.len() + after.len()));
+        assert_eq!(cases, 31 * (192 + 179));
+        assert!(
+            wrong.is_empty(),
+            "{} of {cases} cases differ: {}",
+            wrong.len(),
+            wrong.join("; ")
+        );
+    }
+}
