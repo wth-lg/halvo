@@ -1,0 +1,9 @@
+[package]
+name = "r5-drift"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "r5-drift"
+path = "src/main.rs"

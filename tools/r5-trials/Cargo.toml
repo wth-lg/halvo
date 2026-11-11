@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "stat",
+    "routine",
+    "drift",
+]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true

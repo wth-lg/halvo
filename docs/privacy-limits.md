@@ -1,0 +1,112 @@
+# What expiry and delete-all cover, and what capture stores
+
+This file states the limits of Halvo's privacy promises in plain words. It is
+decided that the README (docs-2), the data view and the consent text (app-3 and
+app-4) quote it and do not restate it; at this version none of them quotes it. ADR 0005 states
+the key chain behind it.
+
+A log named in this file is a path under the ledger of run 20261108-halvo-r1-capture
+(`~/.wstack/runs/20261108-halvo-r1-capture/`). A cell that says "not run" is a
+record of what nobody has measured yet, not a pass.
+
+## What expiry and delete-all cover against an earlier copy
+
+Halvo keeps what it records in an encrypted store in its data directory. Window
+expiry and the storage cap destroy the key of a segment when the segment is older
+than the window or the store is over the cap. Delete-all destroys the custody root,
+which every other key of the store depends on. The table says what a reader who
+acts as the same user can still decrypt after each of them.
+
+| What ran | The reader has the live store files | The reader also has a copy of the store files made earlier | The earlier copy also holds the custody root |
+|---|---|---|---|
+| Window expiry or cap eviction of a segment | The segment does not decrypt: 0 of 1,125 shredded keys were left in the raw pages of store.db (evidence/interrogate-rr-store-1/08-raw-pages-pinned.log), and none after any oldest-first pass (evidence/interrogate-rr-store-1/12-oldest-first-pinned.log). Note of 2026-11-11: until store-4 removes the per-event rows (ADR 0009), rows of an expired segment can stay in freed page space of store.db (RR-store-08); docs-2 deletes this note. | The segment decrypts: the older files gave back 66,313 bytes equal to the original plaintext, with the Time Machine exclusion attribute set (evidence/interrogate-rr-store-1/09-rollback.log). | The segment decrypts, as in the column before: expiry destroys no root, and that run read the older files with the root that was still in place (evidence/interrogate-rr-store-1/09-rollback.log). |
+| Delete-all | Nothing decrypts: delete-all destroys the root first (RD-20; store-3 lands the order) and then removes the key file, the database and the segments, and after it even the older files of the next column open Sealed (evidence/interrogate-rr-store-1/09-rollback.log, control line). Note of 2026-11-11: until store-3 lands that order, the code at this version shreds the segment keys before it destroys the store key, and three runs under that order left the root and store.key in place (RD-20); docs-2 deletes this note. | Nothing decrypts: the older files open Sealed, because the root they need is gone (evidence/interrogate-rr-store-1/09-rollback.log, control line). | Everything decrypts, by reading the code on both systems, because both use the same root-file code. Not run: store-6 ports the rollback test and win-5 runs the restore test on Windows. |
+
+Where the custody root lives decides the last column. An unsigned build keeps the
+root in a per-user root file in the `roots` directory of the data directory, on both
+systems: on macOS under `~/Library/Application Support/Halvo/roots/` (store-3 and
+daemon-3 land it), on Windows under `%LOCALAPPDATA%\com.halvo.desktop\data\roots\`
+(control-1 lands the data directory). So a copy of the whole data directory holds
+the root, and a copy of the store directory alone does not. Builds before store-3
+kept the macOS root in the login keychain, which the Time Machine exclusion does not
+cover (`tmutil isexcluded` prints `[Included]` for the login keychain).
+
+R1 records this limit and builds no per-day key. Halvo does not set the Time
+Machine exclusion mark yet, so Time Machine copies the data directory like any
+other. From daemon-3a on, Halvo sets the mark on the data directory when the daemon
+starts. The mark stops Time Machine from copying the data directory and stops no
+other copy.
+
+A Secure Enclave custody would keep the root outside every copy of the directory.
+R1 ships none, and no R1 installer is a build with the `secure-enclave` feature. It
+is decided that such a build creates no store and opens an existing one for
+maintenance only: store-6 removes the Secure Enclave skeleton and daemon-3 lands
+the policy (ADR 0010).
+
+## What else stays after a shred
+
+- Free blocks of the volume. Right after a shred the wrapped key of the segment came
+  back from the raw volume image, in a WAL frame and in a database page, in 6 of 6
+  runs on APFS, and it was gone from both after 5 MiB of further capture
+  (evidence/interrogate-rr-store-3/it14_raw_volume_apfs_run1.log to
+  it14_raw_volume_apfs_run3.log, and the three logs of the same names under
+  rerun/). A reader of those blocks also needs the owner's root.
+- The Time Machine mark. Halvo does not set it yet, so Time Machine copies the data
+  directory like any other. From daemon-3a on, Time Machine skips the data
+  directory. A sync client, another backup tool, Migration Assistant and a copy made
+  by hand are not covered by the mark.
+  Whether a local APFS snapshot holds the directory is not verified.
+- Segment files. From store-4 on, a file name carries no time, because file ids are
+  random. The size of each file, its file times and the segment's number in the
+  clear header remain, and they show when the person was active. R1 accepts this
+  and pads nothing (RR-store-25).
+- Key rows. The ids and times of shredded segments stay in store.db until
+  delete-all, about 124 bytes a row (RD-21). The ids that stay are in
+  evidence/interrogate-rr-store-3/it03_what_a_shred_leaves_inside_store_db.log.
+- Rows of a segment shredded out of order (RR-store-08). store-4 closes this when it
+  removes the per-event rows; until then the note in the table applies.
+
+## What capture stores and does not exclude
+
+Each sentence names the unit that makes it true.
+
+- The title of a private window of Chrome, Edge, Firefox or Safari is not stored when
+  the browser runs with an English interface, and the title of any other private
+  window is stored (macos-4 and win-4). A source tells a private window by the ending
+  that the browser gives its title, and only for the browser that the ending belongs
+  to: on macOS `(Incognito)` for Chrome, `(InPrivate)` for Edge, an em dash and
+  `Private Browsing` for Firefox and `, Private Browsing` for Safari; on Windows
+  `[InPrivate]` for Edge and `Mozilla Firefox Private Browsing` for Firefox. A page
+  whose own title holds the word private is kept, because a source matches the
+  ending and never the word alone.
+- On Windows the title of a Chrome window does not tell a private window (it read
+  `PAGE - Google Chrome` in 3 of 3 runs). win-4 asks the window instead, through UI
+  Automation, and drops the title of every Chrome window that the query does not
+  tell as not private.
+- Limits of that rule. The endings are those of an English interface, measured on
+  the browser versions of the two hosted images: Chrome 157 and 156, Edge 156,
+  Firefox 159 and Safari 27.2. With another interface language, another browser or a
+  title that ends otherwise, the window is not told and its title is stored. On
+  macOS the trial read the title through the accessibility interface, which is how
+  macos-4 reads it; a read from the window list was not tried.
+- A terminal that does not assert secure input gets no protection, so key classes
+  and the window title are recorded while a password is typed there (macos-4).
+- Halvo records no keystroke typed while secure input is held: a key event that
+  reaches it in that time is not recorded and is only counted by type (macos-4).
+  Line (c) of the gate is the check that shows it, and gate-3 builds that line
+  (contract C4 item 13).
+- Characters and key codes are never stored: the types that core-2 builds have no
+  field for them.
+
+The first-run text and the data view quote these three sentences word for word.
+The owner approves them once, in the table of user-visible sentences for each
+system; until then they are the recommended text.
+
+- `Typing is not observed on Windows in this version.` win-3 keeps the Windows
+  keyboard source out of the default source set.
+- `Screen activity is not recorded.` core-2 builds the switch `screen_activity`
+  with the default off; the sentence holds while the switch is off.
+- For an unsigned macOS build: `This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.`
+  store-3 and daemon-3 make it true.
+
+docs-2 confirms each sentence of this section against the merged code.

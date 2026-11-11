@@ -39,7 +39,7 @@ and merge without an entry landing under the heading of another.
 - Added: Add the macOS capture sources for screen, keystroke, pointer, foreground app and window title
 - Added: Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
 - Added: Add the Windows capture backend behind cfg with the logon-task install and unit tests
-- Added: Add a CI grep lint banning low-level input hooks in the capture crate
+- Added: Add a gate lint banning low-level input hooks in the capture crate
 - Added: Reject attribution lines in commit messages with a commit-msg hook and a CI step
 - Added: Add AGENTS.md with the rule table and import it from CLAUDE.md
 - Added: Add failing fixtures for a trailer below scissors text that git keeps
@@ -64,7 +64,6 @@ and merge without an entry landing under the heading of another.
 - Changed: Name the parameters of expect and the one-mode rule of the option parser
 - Changed: Say in the CI log why the commit-message step checks every commit
 - Changed: Say newest exempt commit where the range check said baseline
-- Changed: Remove comments that restate the code in the commit-message check
 - Fixed: Read Windows raw input through an aligned buffer and close the pump start/stop race, carrying decoded payload sizes to an explicit metadata-only placement
 - Fixed: Watch every registry root and path the installed-software scan reads and parse SystemComponent to a bool at the boundary
 - Fixed: Quote every scheduled-task argument token and match the Task Scheduler Command element
@@ -89,11 +88,17 @@ and merge without an entry landing under the heading of another.
 - Fixed: Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
 - Fixed: Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles
 - Added: Refuse attribution lines at push and at merge with a pre-push hook, scripts/merge-pr.sh, a tested CI script and tracked Claude Code settings, and lint line endings, the changelog and help text read by line number
-- Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, and pair each rule in AGENTS.md with its check and its limits
+- Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, pair each rule in AGENTS.md with its check and its limits, and remove comments that restate the code in the commit-message check
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
 - Added: Add the per-run ci.d driver with the nine R1 checks, the bounds file of the R1 gate, its memory check and its mutant rows beside the code
 - Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
 - Fixed: Make the R1 gate checks fail closed when a source did not run, the input counts of a run contradict its input mode, a bound is unreadable, a verify step outlives its deadline, a ci.d entry is not a regular NN-name.sh file, a mutant had no build of its kind, or the tree changed during the run
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
+- Added: Add the page-test harness under tools/r4-page with its pinned packages, the browser builds pinned by address, size and SHA-256 and not committed, the six accessibility checks and a self-test on a sample view
+- Added: Add docs/r2 with its README and the .gitattributes files that give the workflow run's directories LF line ends and keep its fixtures out of line-end conversion
+- Added: Add the learning run's first phase: the r5-stat trial of the gate statistics with the tools/r5-trials workspace, docs/r5/targets.toml and the attribute files of tools/r5-trials, docs/r5 and fixtures/r5; the r5-routine trial, which fixes the three routine constants in docs/r5/targets.toml at 3-60-5, with its seeds file, its result file and the sample of 135 trains in fixtures/r5/trains/sample.jsonl; the r5-drift drift harness and admission trial: the case reader of contracts.md L9, the five counts of the L9.3 paragraph, the page model, the arms none, plain and admit, the 16 development cases under fixtures/r5/cases/dev and docs/r5/cases.md; docs/r5/heldout.txt with the SHA-256 of the archive of the 24 held-out cases, which stay outside the repository until freeze point 2; the result of the admission trial in docs/r5/trials/admission.md, whose verdict is rule=admit, and freeze point 1 in docs/r5/freeze.toml; and docs/r5/README.md and docs/r5/plan-revisions.md, which say what each file of the run's directory holds and which lines of docs/plan.md the run revises
+- Added: Add ADRs 0004 to 0012 for what the capture run decided, docs/privacy-limits.md on what expiry and delete-all cover and which private windows capture tells, and a ci.d check of the ADR headers
+- Changed: Name the capture daemon in docs/plan.md as the only opener of the capture store and the app as its starter, with a dated revision line for each edit
+- Fixed: Cite the research lines that state the facts in ADRs 0001 and 0003 and record the crates of the workspace in ADR 0002, each by a dated amendment
 - Added: Add three units of the agent-setup run: the local fixture sites (utility, payment frame, shop, mail and calendar faces, control) with three invented seeds, nine variants, a state object and a self-test, listed in docs/r3/fixtures.md; the web executor trial (tools/r3-trials/web), a chromiumoxide adapter, nine capability steps run with no model against the fixture sites, a fault proxy that makes each step miss, and the result file docs/r3/trials/web-executor.md; and the sheet trial of U0.4 with its corpus of eight workbooks and its result, which names umya-spreadsheet for U2.3

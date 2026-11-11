@@ -27,3 +27,11 @@ The backend lives in a separate repository.
   rows 9, 10). Same-repo alternatives were considered and rejected (rows 3, 6).
 - Shared types between app and backend, if any appear, go through a published
   schema rather than a shared crate.
+
+## Amendments
+
+- 2026-11-11: The Decision describes the workspace at 08de1f1. The workspace gained
+  crates/halvo-capture in 3771ece, gains crates/halvo-sqlcipher with store-1 and
+  crates/halvo-control with control-1, and lists its members by a glob from gate-1
+  on. ADR 0006 records the layout. The decision that the backend lives in a separate
+  repository stands.

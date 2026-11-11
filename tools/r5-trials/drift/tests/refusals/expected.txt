@@ -1,0 +1,132 @@
+REFUSED case: BAD2.jsonl: the case name is not 1 to 32 bytes of a to z, 0 to 9 and -
+REFUSED case: alternates-early.jsonl: alternates: the change is before the third occurrence
+REFUSED case: alternates-no-return.jsonl: alternates: the page does not show the new and the old form in turn
+REFUSED case: alternates-short-tail.jsonl: alternates: fewer than four occurrences follow the change
+REFUSED case: alternates-third-form.jsonl: alternates: the page does not show the new and the old form in turn
+REFUSED case: compiled-role.jsonl: line 2: the compiled role locator of step 2 does not resolve to its intended control
+REFUSED case: compiled-test-id.jsonl: line 2: the compiled test_id locator of step 1 does not resolve to its intended control
+REFUSED case: control-id-long.jsonl: line 2: control 4: id is not a control id
+REFUSED case: control-id-twice.jsonl: line 2: control 5: id stands twice on the page
+REFUSED case: control-id.jsonl: line 2: control 4: id is not a control id
+REFUSED case: control-name-ascii.jsonl: line 2: control 4: name is not 1 to 64 bytes of printable ASCII
+REFUSED case: control-name-del.jsonl: line 2: control 4: name is not 1 to 64 bytes of printable ASCII
+REFUSED case: control-name-empty.jsonl: line 2: control 4: name is not 1 to 64 bytes of printable ASCII
+REFUSED case: control-name-long.jsonl: line 2: control 4: name is not 1 to 64 bytes of printable ASCII
+REFUSED case: control-passes-big.jsonl: line 2: control 4: passes holds a number outside 1 to 4294967295
+REFUSED case: control-passes-zero.jsonl: line 2: control 4: passes holds a number outside 1 to 4294967295
+REFUSED case: control-role.jsonl: line 2: control 4: role is not one of the six roles
+REFUSED case: control-test-id.jsonl: line 2: control 4: test_id is not 1 to 64 bytes of printable ASCII
+REFUSED case: day-not-rising.jsonl: line 4: day does not rise
+REFUSED case: day-too-big.jsonl: line 9: day is outside 1 to 4294967295
+REFUSED case: day-zero.jsonl: line 2: day is outside 1 to 4294967295
+REFUSED case: decoy-carries.jsonl: decoy: another control carries a test id or a role and name that the intended control has or had
+REFUSED case: decoy-early.jsonl: decoy: the change is before the third occurrence
+REFUSED case: decoy-no-decoy.jsonl: decoy: no decoy of the intended control's role that passes the changed step alone appears on the change day
+REFUSED case: decoy-no-recurrence.jsonl: decoy: the intended control does not change again on a later occurrence
+REFUSED case: decoy-old-name.jsonl: decoy: the decoy's name or test id is not new on the change day
+REFUSED case: decoy-old-test-id.jsonl: decoy: the decoy's name or test id is not new on the change day
+REFUSED case: decoy-passes-long.jsonl: decoy: the decoy does not pass the changed step until the occurrence shows after the change and nothing from it on
+REFUSED case: decoy-passes-other.jsonl: decoy: no decoy of the intended control's role that passes the changed step alone appears on the change day
+REFUSED case: decoy-passes-short.jsonl: decoy: the decoy does not pass the changed step until the occurrence shows after the change and nothing from it on
+REFUSED case: decoy-recurrence-early.jsonl: decoy: the page changes other than the form says
+REFUSED case: decoy-removed.jsonl: decoy: the page changes other than the form says
+REFUSED case: decoy-renamed-later.jsonl: decoy: the page changes other than the form says
+REFUSED case: decoy-repair-first.jsonl: decoy: repair does not name the decoy first on the change day
+REFUSED case: decoy-short-tail.jsonl: decoy: fewer than shows + 2 occurrences follow the change
+REFUSED case: decoy-two-recurrences.jsonl: decoy: the page changes other than the form says
+REFUSED case: decoy-wrong-role.jsonl: decoy: no decoy of the intended control's role that passes the changed step alone appears on the change day
+REFUSED case: file-name.json: the file name is not <name>.jsonl
+REFUSED case: flaky-early.jsonl: flaky: the change is before the third occurrence
+REFUSED case: flaky-extra.jsonl: flaky: flaky is not the changed step alone on the occurrence after the change and empty on every other
+REFUSED case: flaky-missing.jsonl: flaky: flaky is not the changed step alone on the occurrence after the change and empty on every other
+REFUSED case: flaky-short-tail.jsonl: flaky: fewer than three occurrences follow the change
+REFUSED case: flaky-wrong-day.jsonl: flaky: flaky is not the changed step alone on the occurrence after the change and empty on every other
+REFUSED case: flaky-wrong-step.jsonl: flaky: flaky is not the changed step alone on the occurrence after the change and empty on every other
+REFUSED case: flaky-zero.jsonl: line 3: flaky holds a number outside 1 to 4294967295
+REFUSED case: form-added.jsonl: renamed: the page changes other than the form says
+REFUSED case: form-benign-harm.jsonl: renamed: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: form-carries-role-name.jsonl: renamed: another control carries a test id or a role and name that the intended control has or had
+REFUSED case: form-carries-test-id.jsonl: renamed: another control carries a test id or a role and name that the intended control has or had
+REFUSED case: form-change-name-only.jsonl: renamed: a change does not give the control a new test id and a new name alone
+REFUSED case: form-change-passes.jsonl: renamed: a change does not give the control a new test id and a new name alone
+REFUSED case: form-change-role.jsonl: renamed: a change does not give the control a new test id and a new name alone
+REFUSED case: form-extra-change.jsonl: renamed: the page changes other than the form says
+REFUSED case: form-fault-repair.jsonl: decoy: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: form-fault-shows-zero.jsonl: decoy: kind or shows does not fit the form
+REFUSED case: form-flaky-outside.jsonl: renamed: flaky is not empty outside the form flaky
+REFUSED case: form-kind.jsonl: renamed: kind or shows does not fit the form
+REFUSED case: form-removed.jsonl: renamed: the page changes other than the form says
+REFUSED case: form-shows.jsonl: renamed: kind or shows does not fit the form
+REFUSED case: form-value.jsonl: line 1: form is not one of the six forms of L9.3
+REFUSED case: header-name.jsonl: the header case is not the file name without .jsonl
+REFUSED case: intended-missing.jsonl: line 6: the page lacks the intended control of step 2
+REFUSED case: kind-value.jsonl: line 1: kind is not benign or fault
+REFUSED case: long-name-xxxxxxxxxxxxxxxxxxxxxxx.jsonl: the case name is not 1 to 32 bytes of a to z, 0 to 9 and -
+REFUSED case: name_underscore.jsonl: the case name is not 1 to 32 bytes of a to z, 0 to 9 and -
+REFUSED case: occurrences-seven.jsonl: the case has 7 occurrences, not 8 to 16
+REFUSED case: occurrences-seventeen.jsonl: the case has 17 occurrences, not 8 to 16
+REFUSED case: p1-filler-before.jsonl: renamed: the page changes other than the form says
+REFUSED case: p2-alt-filler.jsonl: alternates: the page changes other than the form says
+REFUSED case: p5-decoy-before.jsonl: decoy: the page changes other than the form says
+REFUSED case: p8-reused-tid-filler.jsonl: reused: another control of the case holds or held the test id of the other control
+REFUSED case: page-seventeen.jsonl: line 2: the page holds 17 controls, more than 16
+REFUSED case: renamed-early.jsonl: renamed: the change is before the third occurrence
+REFUSED case: renamed-filler-change.jsonl: renamed: the page changes other than the form says
+REFUSED case: renamed-no-change.jsonl: renamed: the intended control of one step does not change
+REFUSED case: renamed-shared-control.jsonl: renamed: the page changes other than the form says
+REFUSED case: renamed-short-tail.jsonl: renamed: fewer than three occurrences follow the change
+REFUSED case: renamed-twice-back.jsonl: renamed-twice: a change does not give the control a new test id and a new name alone
+REFUSED case: renamed-twice-close.jsonl: renamed-twice: the second change is fewer than three occurrences after the first
+REFUSED case: renamed-twice-early.jsonl: renamed-twice: the change is before the third occurrence
+REFUSED case: renamed-twice-once.jsonl: renamed-twice: the changed control does not change a second time
+REFUSED case: renamed-twice-other.jsonl: renamed-twice: the page changes other than the form says
+REFUSED case: renamed-twice-short-tail.jsonl: renamed-twice: fewer than three occurrences follow the second change
+REFUSED case: renamed-twice-third.jsonl: renamed-twice: the page changes other than the form says
+REFUSED case: renamed-two-changes.jsonl: renamed: the page changes other than the form says
+REFUSED case: repair-absent.jsonl: line 3: repair of step 2 names a control that the page lacks
+REFUSED case: repair-benign-two.jsonl: renamed: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: repair-count-three.jsonl: line 3: repair of step 1 names 3 controls, not 1 or 2
+REFUSED case: repair-count-zero.jsonl: line 3: repair of step 1 names 0 controls, not 1 or 2
+REFUSED case: repair-decoy-other-step.jsonl: decoy: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: repair-fault-two.jsonl: reused: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: repair-key-extra.jsonl: line 3: repair holds a key other than the step numbers in order
+REFUSED case: repair-key-order.jsonl: line 3: repair holds a key other than the step numbers in order
+REFUSED case: repair-lacks.jsonl: line 3: repair lacks step 2
+REFUSED case: repair-last.jsonl: line 3: repair of step 2 does not name the intended control last
+REFUSED case: repair-twice.jsonl: renamed: repair holds two entries for a step other than the changed step on the change day of decoy
+REFUSED case: restart-at-93.jsonl: no occurrence more than 93 days after the first holds restart yes
+REFUSED case: restart-missing.jsonl: no occurrence more than 93 days after the first holds restart yes
+REFUSED case: restart-value.jsonl: line 6: restart is not yes or no
+REFUSED case: reused-early-second.jsonl: reused: the page changes other than the form says
+REFUSED case: reused-early.jsonl: reused: the change is before the third occurrence
+REFUSED case: reused-no-other.jsonl: reused: no other control of the intended control's role that passes nothing takes the change day's name on that occurrence
+REFUSED case: reused-no-second.jsonl: reused: the intended control does not change again on the occurrence shows after the change
+REFUSED case: reused-no-third.jsonl: reused: the intended control does not change a third time on a later occurrence
+REFUSED case: reused-other-name.jsonl: reused: no other control of the intended control's role that passes nothing takes the change day's name on that occurrence
+REFUSED case: reused-other-passes.jsonl: reused: no other control of the intended control's role that passes nothing takes the change day's name on that occurrence
+REFUSED case: reused-other-renamed.jsonl: reused: the page changes other than the form says
+REFUSED case: reused-other-role.jsonl: reused: no other control of the intended control's role that passes nothing takes the change day's name on that occurrence
+REFUSED case: reused-other-test-id.jsonl: reused: another control carries a test id or a role and name that the intended control has or had
+REFUSED case: shape-day-string.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-empty-line.jsonl: line 4 is not the shape of L9.1
+REFUSED case: shape-escape.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-extra-key.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-fraction.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-key-order.jsonl: line 3 is not the shape of L9.1
+REFUSED case: shape-leading-zero.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-missing-key.jsonl: line 4 is not the shape of L9.1
+REFUSED case: shape-negative.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-repair-number.jsonl: line 2 is not the shape of L9.1
+REFUSED case: shape-space.jsonl: line 1 is not the shape of L9.1
+REFUSED case: shows-value.jsonl: line 1: shows is not 0, 1 or 2
+REFUSED case: span-short.jsonl: the case spans 238 days, fewer than 240
+REFUSED case: step-control.jsonl: line 1: step 3: control is not a control id
+REFUSED case: step-gap.jsonl: line 1: step 3 is not numbered 3
+REFUSED case: step-verb.jsonl: line 1: step 2: verb is not click, fill or extract
+REFUSED case: steps-nine.jsonl: line 1: the case has 9 steps, not 1 to 8
+REFUSED case: steps-none.jsonl: line 1: the case has 0 steps, not 1 to 8
+REFUSED case: text-bom.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
+REFUSED case: text-empty.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
+REFUSED case: text-no-final-lf.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
+REFUSED case: text-not-utf8.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
+REFUSED case: text-two-final-lf.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
