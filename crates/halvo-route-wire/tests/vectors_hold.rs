@@ -77,6 +77,7 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         "limit_largest",
         "sixty_four_messages",
         "largest_two_byte_text",
+        "least_as_bytes",
     ];
     for name in valid_canon {
         assert_eq!(stated(name), ("yes".into(), "yes".into(), None), "{name}");
@@ -137,6 +138,11 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         ("effort_number", "malformed"),
         ("role_number", "malformed"),
         ("two_byte_text_too_large", "size"),
+        ("byte_order_mark_bytes", "malformed"),
+        ("invalid_byte", "malformed"),
+        ("overlong_form", "malformed"),
+        ("encoded_surrogate", "malformed"),
+        ("cut_sequence", "malformed"),
     ];
     for (name, error) in invalid {
         assert_eq!(
