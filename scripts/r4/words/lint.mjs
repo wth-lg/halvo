@@ -161,7 +161,7 @@ function parseAllowed(text, terms) {
 }
 
 function countWords(text) {
-  return text.split(' ').filter((w) => w !== '').length;
+  return text.split(/\p{White_Space}+/u).filter((w) => w !== '').length;
 }
 
 function judge(text, wordsKey, ctx, terms) {
@@ -715,12 +715,20 @@ function selfTest(dir, repo) {
     'FAIL:long',
     { lines: [`words sentences=${5 + 18 * 19} never_read=0 long=1 clash=1`] },
   );
-  expect(
-    fixture('a-tab-is-no-space-between-words', {
-      words: (w) => (w['line.time'] = `${Array.from({ length: 19 }, () => 'word').join(' ')} two\twords`),
-    }),
-    'PASS',
-  );
+  for (const [name, space] of [
+    ['a-tab', '\t'],
+    ['a-no-break-space', ' '],
+    ['an-em-space', ' '],
+    ['a-line-break', '\n'],
+  ]) {
+    expect(
+      fixture(`${name}-parts-words`, {
+        words: (w) => (w['line.time'] = `${Array.from({ length: 19 }, () => 'word').join(' ')} two${space}words`),
+      }),
+      'FAIL:long',
+      { findings: [wordsFinding('long', '-', 'line.time')] },
+    );
+  }
   expect(
     fixture('a-term-inside-a-longer-word', {
       words: (w) => {
