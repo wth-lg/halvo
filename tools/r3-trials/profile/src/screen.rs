@@ -290,6 +290,7 @@ pub fn front() -> Option<String> {
     None
 }
 
+/// On a system other than macOS and Windows no front application is read: always `None`.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn front_pid(_token: &str) -> Option<u32> {
     None
