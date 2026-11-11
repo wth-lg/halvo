@@ -14,9 +14,9 @@ heldout_critical = 10
 heldout_cost_budget = 2
 calendar_days_min = 240
 [routine]
-miss_cycles = 0
-stale_floor = 0
-tolerance = 0
+miss_cycles = 3
+stale_floor = 60
+tolerance = 5
 false_stale_max = 30
 detected_min = 45
 detect_days = 120
