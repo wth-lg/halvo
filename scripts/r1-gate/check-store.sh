@@ -67,6 +67,12 @@ cases() {
   t standin-marker-on-stdout FAIL against_the_standin leak-on-stdout none
   t standin-no-store-files FAIL against_the_standin no-store-files none
   t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 none
+  t standin-verify-past-its-deadline FAIL fails_saying 'verify-store ran past its deadline of 1s and was ended' past_the_deadline
+  t term-ends-the-verify-child PASS signal_leaves_no_child sh TERM
+  t hup-ends-the-verify-child PASS signal_leaves_no_child sh HUP
+  if command -v dash > /dev/null 2>&1; then
+    t term-ends-the-verify-child-under-dash PASS signal_leaves_no_child dash TERM
+  fi
   for pair in rows=2000 secure_delete=1 temp_store=2 cipher_provider=libtomcrypt segment_roundtrip=ok; do
     line=$(with "s/ $pair//")
     t "${pair%%=*}-absent" FAIL predicate_store_report "$line"
@@ -92,6 +98,11 @@ cases() {
   t line-printed-twice FAIL predicate_store_report "$good $good"
 }
 
+past_the_deadline() {
+  export GATE_OVERRIDE_child_deadline_extra_s=1
+  against_the_standin hang none
+}
+
 against_the_standin() {
   standin_as_the_binary "$1" "$2"
   measure
@@ -104,7 +115,7 @@ measure() {
   mkdir "$store"
   marker="HALVO_GATE_MARKER_$$"
   export HALVO_STORE_DIR="$store" HALVO_GATE_MARKER="$marker"
-  if watched run_capture_bin --verify-store --store-dir "$store" --marker "$marker" > "$out" 2> "$err"; then
+  if watched "$capture_bin" --verify-store --store-dir "$store" --marker "$marker" > "$out" 2> "$err"; then
     if ! defect=$(marker_defect "$store" "$marker" "$out" "$err"); then
       emit_fail "$name" "$defect"; return 1
     fi
@@ -113,6 +124,7 @@ measure() {
     if [ -z "$defects" ]; then emit_pass "$name"; return 0; fi
     emit_fail "$name" "verify-store measured: ${defects% }"; return 1
   fi
+  [ -z "$watched_defect" ] || { emit_fail "$name" "verify-store $watched_defect"; return 1; }
   first=$(head -1 "$err" 2>/dev/null)
   emit_fail "$name" "verify-store unavailable: $first"; return 1
 }

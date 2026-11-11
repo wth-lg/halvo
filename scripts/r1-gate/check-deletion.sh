@@ -20,6 +20,11 @@ cases() {
   t standin-root-kept FAIL against_the_standin root-kept none
   t standin-binary-fails FAIL against_the_standin exit-1 none
   t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 none
+  t standin-verify-past-its-deadline FAIL fails_saying 'verify-deletion ran past its deadline of 1s and was ended' past_the_deadline
+  t term-ends-the-verify-child PASS signal_leaves_no_child sh TERM
+  if command -v dash > /dev/null 2>&1; then
+    t term-ends-the-verify-child-under-dash PASS signal_leaves_no_child dash TERM
+  fi
   for pair in decryptable=no file_gone=yes sibling_readable=yes wal_bytes=0 root_destroyed=yes; do
     line=$(with "s/ $pair//")
     t "${pair%%=*}-absent" FAIL predicate_deletion_report "$line"
@@ -37,6 +42,11 @@ cases() {
   line=$(with 's/ store_sealed=yes//'); t defects-name-the-key PASS defects_are "$line" "store_sealed "
 }
 
+past_the_deadline() {
+  export GATE_OVERRIDE_child_deadline_extra_s=1
+  against_the_standin hang none
+}
+
 against_the_standin() {
   standin_as_the_binary "$1" "$2"
   measure
@@ -48,12 +58,13 @@ measure() {
   store=$gate_scratch/${capture_label}store; out=$gate_scratch/${capture_label}stdout; err=$gate_scratch/${capture_label}stderr
   mkdir "$store"
   export HALVO_STORE_DIR="$store"
-  if watched run_capture_bin --verify-deletion --store-dir "$store" > "$out" 2> "$err"; then
+  if watched "$capture_bin" --verify-deletion --store-dir "$store" > "$out" 2> "$err"; then
     report=$(cat "$out")
     defects=$(deletion_report_defects "$report")
     if [ -z "$defects" ]; then emit_pass "$name"; return 0; fi
     emit_fail "$name" "verify-deletion measured: ${defects% }"; return 1
   fi
+  [ -z "$watched_defect" ] || { emit_fail "$name" "verify-deletion $watched_defect"; return 1; }
   first=$(head -1 "$err" 2>/dev/null)
   emit_fail "$name" "verify-deletion unavailable: $first"; return 1
 }

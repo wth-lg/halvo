@@ -100,11 +100,34 @@ helper_pid=''
 watched_pid=''
 
 watched() {
+  watched_defect=''
+  if ! use_bound child_deadline_extra_s; then
+    watched_defect="did not start: bound child_deadline_extra_s is not readable: docs/baseline/r1-gate-bounds.txt must hold exactly one child_deadline_extra_s=digits line"
+    return 1
+  fi
+  watched_deadline=$bound
+  watched_start=$(date +%s)
   "$@" &
   watched_pid=$!
+  while kill -0 "$watched_pid" 2> /dev/null; do
+    watched_now=$(date +%s)
+    if [ "$((watched_now - watched_start))" -ge "$watched_deadline" ]; then
+      watched_defect="ran past its deadline of ${watched_deadline}s and was ended"
+      kill -TERM "$watched_pid" 2> /dev/null
+      watched_polls=0
+      while kill -0 "$watched_pid" 2> /dev/null; do
+        watched_polls=$((watched_polls + 1))
+        if [ "$watched_polls" -gt 50 ]; then kill -KILL "$watched_pid" 2> /dev/null; break; fi
+        sleep 0.1
+      done
+      break
+    fi
+    sleep 0.1
+  done
   wait "$watched_pid"
   watched_status=$?
   watched_pid=''
+  [ -z "$watched_defect" ] || return 1
   return "$watched_status"
 }
 
@@ -348,6 +371,29 @@ input_defect() {
   done
 }
 
+signal_leaves_no_child() {
+  command -v "$1" > /dev/null 2>&1 || return 1
+  signal_root=$gate_scratch/signal-$1-$2
+  mkdir -p "$signal_root" || return 1
+  TMPDIR=$signal_root "$1" -c "set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; against_the_standin hang none" "$DIR/check-$name.sh" > "$signal_root.out" 2>&1 &
+  signal_pid=$!
+  signal_polls=0
+  until pgrep -f "$signal_root" > /dev/null; do
+    signal_polls=$((signal_polls + 1))
+    [ "$signal_polls" -lt 100 ] || { kill "$signal_pid" 2> /dev/null; return 1; }
+    sleep 0.1
+  done
+  kill "-$2" "$signal_pid"
+  signal_polls=0
+  while kill -0 "$signal_pid" 2> /dev/null; do
+    signal_polls=$((signal_polls + 1))
+    [ "$signal_polls" -lt 100 ] || return 1
+    sleep 0.1
+  done
+  signal_left=$(pgrep -f "$signal_root")
+  [ -z "$signal_left" ]
+}
+
 fails_saying() {
   said_text=$1; shift
   said=$("$@" 2> /dev/null)
@@ -431,10 +477,6 @@ capture_label=''
 build_for_measure() {
   [ "$capture_builds" = yes ] || return 0
   need_build
-}
-
-run_capture_bin() {
-  "$capture_bin" "$@"
 }
 
 standin_as_the_binary() {

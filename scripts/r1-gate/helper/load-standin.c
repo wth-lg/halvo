@@ -153,6 +153,9 @@ static int capture_standin(int argc, char **argv) {
         fprintf(stderr, "halvo-capture: the stand-in was told to fail\n");
         return 1;
     }
+    if (strcmp(scenario, "hang") == 0 && strcmp(argv[1], "--timed-run") != 0) {
+        idle(40);
+    }
     if (strcmp(argv[1], "--verify-store") == 0) {
         const char *marker = flag_value(argc, argv, "--marker");
         if (marker == NULL) {
