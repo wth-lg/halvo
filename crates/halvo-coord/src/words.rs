@@ -109,7 +109,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.run.declined", "You said no, so it stopped."),
     (
         "line.run.handed_back",
-        "It stopped because it could not go on without you, and it tries again next time.",
+        "It stopped at a step that it could not get past, and it tries again next time.",
     ),
     (
         "line.run.class_mismatch",
