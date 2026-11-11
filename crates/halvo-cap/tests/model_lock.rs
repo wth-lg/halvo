@@ -26,10 +26,95 @@ fn loader() {
                 use std::os::unix::process::CommandExt;
                 writeln!(out, "held {}", lock.path().display()).unwrap();
                 out.flush().unwrap();
+                if let Err(e) = lock.make_inheritable() {
+                    writeln!(out, "error {e}").unwrap();
+                    std::process::exit(4);
+                }
                 let error = Command::new("/bin/sleep").arg("60").exec();
                 writeln!(out, "error {error}").unwrap();
                 4
             }
+            Err(e) => {
+                writeln!(out, "error {e}").unwrap();
+                4
+            }
+        },
+        "start-child-and-exit" => match take_model_lock() {
+            Ok(lock) => match start_loader_child("wait-stdin") {
+                Ok(_) => {
+                    writeln!(out, "held {}", lock.path().display()).unwrap();
+                    0
+                }
+                Err(e) => {
+                    writeln!(out, "error {e}").unwrap();
+                    4
+                }
+            },
+            Err(e) => {
+                writeln!(out, "error {e}").unwrap();
+                4
+            }
+        },
+        #[cfg(target_os = "macos")]
+        "hand-on-start-child-and-exit" => match take_model_lock() {
+            Ok(lock) => match lock
+                .make_inheritable()
+                .map_err(|e| std::io::Error::other(e.to_string()))
+                .and_then(|()| start_loader_child("wait-stdin"))
+            {
+                Ok(_) => {
+                    writeln!(out, "held {}", lock.path().display()).unwrap();
+                    0
+                }
+                Err(e) => {
+                    writeln!(out, "error {e}").unwrap();
+                    4
+                }
+            },
+            Err(e) => {
+                writeln!(out, "error {e}").unwrap();
+                4
+            }
+        },
+        "wait-stdin" => {
+            let mut rest = Vec::new();
+            std::io::stdin().read_to_end(&mut rest).unwrap();
+            0
+        }
+        #[cfg(target_os = "macos")]
+        "hold-and-start-unlocker" => match take_model_lock() {
+            Ok(lock) => {
+                let ended = start_loader_child("unlock-inherited").and_then(|mut c| c.wait());
+                writeln!(out, "unlocker {ended:?}").unwrap();
+                writeln!(out, "held {}", lock.path().display()).unwrap();
+                out.flush().unwrap();
+                let mut rest = Vec::new();
+                std::io::stdin().read_to_end(&mut rest).unwrap();
+                0
+            }
+            Err(e) => {
+                writeln!(out, "error {e}").unwrap();
+                4
+            }
+        },
+        #[cfg(target_os = "macos")]
+        "unlock-inherited" => {
+            for fd in 3..256 {
+                unsafe { libc::flock(fd, libc::LOCK_UN) };
+            }
+            0
+        }
+        "take-twice" => match take_model_lock() {
+            Ok(_first) => match take_model_lock() {
+                Ok(_) => {
+                    writeln!(out, "second taken").unwrap();
+                    0
+                }
+                Err(e) => {
+                    writeln!(out, "second {e}").unwrap();
+                    3
+                }
+            },
             Err(e) => {
                 writeln!(out, "error {e}").unwrap();
                 4
@@ -87,12 +172,22 @@ fn loader() {
     std::process::exit(code);
 }
 
+fn start_loader_child(role: &str) -> std::io::Result<Child> {
+    Command::new(std::env::current_exe().unwrap())
+        .args(["--ignored", "--exact", "loader", "--nocapture", "--quiet"])
+        .env(ROLE, role)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+}
+
 fn fresh_home(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
     let home = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("model-lock-homes")
         .join(format!("{name}-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(&home).unwrap();
     home
@@ -128,6 +223,7 @@ fn loader_line(role: &str, home: &Path) -> (i32, String) {
         .find(|l| {
             l.starts_with("held")
                 || l.starts_with("taken")
+                || l.starts_with("second")
                 || l.starts_with("no-cache-dir")
                 || l.starts_with("path")
                 || l.starts_with("error")
@@ -224,6 +320,95 @@ fn the_take_leaves_the_content_of_the_lock_file_as_it_was() {
         std::fs::read_to_string(&lock).unwrap(),
         "left by an earlier run\n"
     );
+}
+
+#[test]
+fn a_holder_that_starts_a_child_and_ends_leaves_the_lock_free_while_the_child_lives() {
+    let home = fresh_home("model-lock-child");
+    let mut holder = start_holder_as("start-child-and-exit", &home);
+    let child_input = holder.stdin.take().unwrap();
+    holder.wait().unwrap();
+    let (code, line) = loader_line("try", &home);
+    drop(child_input);
+    assert_eq!(
+        code, 0,
+        "a loader after the holder ended, while the child that it started lives: {line}"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_child_of_the_holder_cannot_release_the_lock() {
+    let home = fresh_home("model-lock-unlock");
+    let mut holder = start_holder_as("hold-and-start-unlocker", &home);
+    let (code, line) = loader_line("try", &home);
+    holder.kill().unwrap();
+    holder.wait().unwrap();
+    assert_eq!(
+        code, 3,
+        "a loader while the holder lives, after a child of the holder unlocked what it inherited: {line}"
+    );
+}
+
+#[test]
+fn a_held_lock_is_refused_with_words_that_name_no_other_process() {
+    let home = fresh_home("model-lock-twice");
+    let (code, line) = loader_line("take-twice", &home);
+    assert_eq!(code, 3, "{line}");
+    assert_eq!(
+        line,
+        format!(
+            "second the model lock is held: {}",
+            expected_lock(&home).display()
+        )
+    );
+}
+
+#[test]
+fn a_cache_variable_that_is_empty_or_no_absolute_path_is_refused() {
+    let home = fresh_home("model-lock-relative");
+    for value in ["", "relative-home"] {
+        let output = loader_command("try", &home)
+            .env(CACHE_VAR, value)
+            .current_dir(&home)
+            .output()
+            .unwrap();
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(5), "{value:?}: {text}");
+        assert!(
+            text.lines()
+                .any(|l| l == format!("no-cache-dir {CACHE_VAR}")),
+            "{value:?}: {text}"
+        );
+    }
+    assert!(!home.join("relative-home").exists());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_child_started_after_the_second_call_holds_the_lock_after_the_holder_has_ended() {
+    let home = fresh_home("model-lock-hand-on");
+    let mut holder = start_holder_as("hand-on-start-child-and-exit", &home);
+    let child_input = holder.stdin.take().unwrap();
+    holder.wait().unwrap();
+    let (code, line) = loader_line("try", &home);
+    drop(child_input);
+    assert_eq!(
+        code, 3,
+        "a loader after the holder ended, while the child that it started after the second call lives: {line}"
+    );
+    let begun = Instant::now();
+    loop {
+        let (code, line) = loader_line("try", &home);
+        if code == 0 {
+            break;
+        }
+        assert!(
+            begun.elapsed() < std::time::Duration::from_secs(10),
+            "the lock stayed held after the child ended: {line}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
 }
 
 #[test]

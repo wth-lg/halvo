@@ -3,13 +3,37 @@ use std::fs::{File, OpenOptions, TryLockError};
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// The model lock (contracts.md C23.12), held by this process while the value lives.
+/// The model lock (contracts.md C23.12), held while this value lives.
 ///
-/// The lock is an exclusive lock of the operating system on the open lock file, so the
-/// system frees it when the value is dropped or when the process ends, also when it is
-/// killed. A loader takes it before it reads a weights file and keeps the value until it
-/// exits.
+/// The lock is an exclusive lock of the operating system on the open lock file, and it
+/// belongs to the process that took it. A process that the holder starts does not inherit
+/// it, so the lock is free when the holder has ended, whatever it started, and no process
+/// but the holder can release it. A holder that becomes another program by an exec, or
+/// that hands the loaded model to a process that it starts, first calls
+/// `ModelLock::make_inheritable` (macOS); from then on the processes that it becomes or
+/// starts inherit the lock, the lock is held until the last of them has ended, and each of
+/// them can release it. On Windows nothing hands the lock on.
+///
+/// The lock is free again when this value is dropped, so a loader binds it to a named
+/// variable and keeps it until it exits; a caller who drops it at once gets a warning.
+///
+/// ```no_run
+/// fn load() -> Result<(), halvo_cap::LockError> {
+///     let lock = halvo_cap::take_model_lock()?;
+///     println!("loading under {}", lock.path().display());
+///     Ok(())
+/// }
+/// ```
+///
+/// ```compile_fail
+/// #![deny(unused_must_use)]
+/// fn load() -> Result<(), halvo_cap::LockError> {
+///     halvo_cap::take_model_lock()?;
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug)]
+#[must_use = "the model lock is free again when this value is dropped: bind it to a named variable"]
 pub struct ModelLock {
     _file: File,
     path: PathBuf,
@@ -20,16 +44,39 @@ impl ModelLock {
     pub fn path(&self) -> &Path {
         &self.path
     }
+
+    /// Lets the program that this process becomes by an exec, and every process that it
+    /// starts from now on, inherit the lock: it clears the close-on-exec flag of the lock's
+    /// descriptor. After this call the lock is held until the last of the processes that
+    /// inherited it has ended, and each of them can release it. A holder calls it just
+    /// before it execs the program that reads the weights, or before it starts a process to
+    /// which it hands the loaded model. The call exists on macOS, where an exec exists; on
+    /// Windows nothing hands the lock on.
+    #[cfg(target_os = "macos")]
+    pub fn make_inheritable(&self) -> Result<(), LockError> {
+        use std::os::fd::AsRawFd;
+        let fd = self._file.as_raw_fd();
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+        if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) } < 0 {
+            return Err(LockError::Io {
+                call: "fcntl",
+                path: self.path.clone(),
+                source: io::Error::last_os_error(),
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Why the model lock was not taken.
 #[derive(Debug)]
 pub enum LockError {
-    /// Another process holds the model lock: the loader loads nothing, exits with a
-    /// non-zero status, and its caller starts it again after the holder has ended.
+    /// The model lock is held, by another process or by this one: the loader loads nothing,
+    /// exits with a non-zero status, and its caller starts it again after the holder has
+    /// ended.
     Held(PathBuf),
-    /// The variable that names the user's cache directory is not set or is empty:
-    /// `HOME` on macOS, `LOCALAPPDATA` on Windows.
+    /// The variable that names the user's cache directory is not set to an absolute path:
+    /// it is missing, empty or relative. `HOME` on macOS, `LOCALAPPDATA` on Windows.
     NoCacheDir(&'static str),
     /// This system has no model lock: it is neither macOS nor Windows.
     Unsupported,
@@ -44,13 +91,12 @@ pub enum LockError {
 impl fmt::Display for LockError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LockError::Held(path) => write!(
-                f,
-                "the model lock is held by another process: {}",
-                path.display()
-            ),
+            LockError::Held(path) => write!(f, "the model lock is held: {}", path.display()),
             LockError::NoCacheDir(var) => {
-                write!(f, "no model lock: the variable {var} is not set")
+                write!(
+                    f,
+                    "no model lock: the variable {var} is not set to an absolute path"
+                )
             }
             LockError::Unsupported => write!(f, "no model lock on this system"),
             LockError::Io { call, path, source } => {
@@ -88,12 +134,13 @@ fn lock_path_in(base: &Path) -> PathBuf {
 }
 
 /// The path of this user's model lock: `$HOME/Library/Caches/halvo/model.lock` on macOS
-/// and `%LOCALAPPDATA%\halvo\model.lock` on Windows, read from the environment of this
-/// process.
+/// and `%LOCALAPPDATA%\halvo\model.lock` on Windows, with the variable read from the
+/// environment of this process as its loader gave it. A value that is missing, empty or no
+/// absolute path gives [`LockError::NoCacheDir`], which names the variable.
 #[cfg(any(target_os = "macos", windows))]
 pub fn model_lock_path() -> Result<PathBuf, LockError> {
     match std::env::var_os(CACHE_VAR) {
-        Some(base) if !base.is_empty() => Ok(lock_path_in(Path::new(&base))),
+        Some(base) if Path::new(&base).is_absolute() => Ok(lock_path_in(Path::new(&base))),
         _ => Err(LockError::NoCacheDir(CACHE_VAR)),
     }
 }
@@ -116,41 +163,28 @@ fn lock_file_options() -> OpenOptions {
     options
 }
 
-#[cfg(target_os = "macos")]
-fn keep_across_exec(file: &File, path: &Path) -> Result<(), LockError> {
-    use std::os::fd::AsRawFd;
-    let fd = file.as_raw_fd();
-    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
-    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) } < 0 {
-        return Err(LockError::Io {
-            call: "fcntl",
-            path: path.to_path_buf(),
-            source: io::Error::last_os_error(),
-        });
-    }
-    Ok(())
-}
-
-#[cfg(not(target_os = "macos"))]
-fn keep_across_exec(_file: &File, _path: &Path) -> Result<(), LockError> {
-    Ok(())
-}
-
 /// Takes the model lock at [`model_lock_path`] without waiting.
 ///
 /// Creates the directory and the empty lock file where they are missing, writes nothing
-/// into the file and never removes it. Returns [`LockError::Held`] at once when another
-/// process holds the lock.
+/// into the file and never removes it. Returns [`LockError::Held`] at once when the lock is
+/// held, by another process or by this one.
 ///
-/// The lock binds the open file. On Windows the file is opened without delete sharing, so
-/// while it is held neither the file nor its directory can be renamed or removed. On macOS
-/// they can: a lock file or directory that another program moves away while the lock is
-/// held lets the next loader create a new file and take the lock.
+/// The lock is an exclusive lock of the operating system on the open lock file, and it
+/// belongs to the process that took it. A process that the holder starts does not inherit
+/// it, so the lock is free when the holder has ended, whatever it started, and no process
+/// but the holder can release it. A holder that becomes another program by an exec, or
+/// that hands the loaded model to a process that it starts, first calls
+/// `ModelLock::make_inheritable` (macOS); from then on the processes that it becomes or
+/// starts inherit the lock, the lock is held until the last of them has ended, and each of
+/// them can release it. On Windows nothing hands the lock on.
 ///
-/// On macOS the lock stays held across an exec of the holder, so a loader that takes it and
-/// then execs the program that reads the weights keeps it until that process ends. A
-/// process that the holder starts inherits the open file and holds the lock with it until
-/// both have ended.
+/// The lock is free again when the returned value is dropped, so a loader binds it to a
+/// named variable and keeps it until it exits.
+///
+/// On Windows the file is opened without delete sharing, so while it is held neither the
+/// file nor its directory can be renamed or removed. On macOS they can: a lock file or
+/// directory that another program moves away while the lock is held lets the next loader
+/// create a new file and take the lock.
 pub fn take_model_lock() -> Result<ModelLock, LockError> {
     let path = model_lock_path()?;
     if let Some(dir) = path.parent() {
@@ -168,10 +202,7 @@ pub fn take_model_lock() -> Result<ModelLock, LockError> {
             source,
         })?;
     match file.try_lock() {
-        Ok(()) => {
-            keep_across_exec(&file, &path)?;
-            Ok(ModelLock { _file: file, path })
-        }
+        Ok(()) => Ok(ModelLock { _file: file, path }),
         Err(TryLockError::WouldBlock) => Err(LockError::Held(path)),
         Err(TryLockError::Error(source)) => Err(LockError::Io {
             call: "try_lock",
