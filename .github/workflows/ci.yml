@@ -126,6 +126,9 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Probe of halvo-cap (scratch branch only)
+        shell: pwsh
+        run: pwsh -NoProfile -File scratch/u02-ver/probe.ps1
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows --self-test
