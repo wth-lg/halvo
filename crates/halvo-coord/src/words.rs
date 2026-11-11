@@ -147,11 +147,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.asks.observe", "It only looks and never acts for you."),
     (
         "line.asks.draft_and_confirm",
-        "It asks you before it sends, pays, signs, or removes anything.",
+        "It asks you before it pays, orders, sends, signs, submits, or removes anything.",
     ),
     (
         "line.asks.unattended",
-        "It does its task without asking you first.",
+        "It does what you allowed without asking, and asks you before anything else.",
     ),
     (
         "line.time",
