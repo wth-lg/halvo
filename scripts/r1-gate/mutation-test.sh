@@ -427,6 +427,10 @@ cases() {
   fixture_tree two-statements
   row two-statements/scripts/r1-gate/mutants.rows both b.sh 's{echo}{printf} ; s/two/three/g' leak required X-1
   t two-statements-that-apply PASS fixture_says two-statements 'PASS mutation:both (applies and builds)' yes
+  fixture_tree r-modifier
+  row r-modifier/scripts/r1-gate/mutants.rows returns b.sh 's/two/three/; s/no such text/x/r' leak required X-1
+  t statement-with-the-r-modifier FAIL fixture_run r-modifier yes
+  t statement-with-the-r-modifier-is-named PASS fixture_says r-modifier 'FAIL mutation:returns (statement 2 of the substitution has the r modifier, which changes no file)' yes
   fixture_tree not-a-substitution
   row not-a-substitution/scripts/r1-gate/mutants.rows other b.sh 'tr/a-z/A-Z/' leak required X-1
   t program-that-is-no-substitution FAIL fixture_run not-a-substitution yes

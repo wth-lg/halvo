@@ -53,7 +53,11 @@ while ($at < length $program) {
     } else {
         $at = delimited($program, $at, $open);
     }
+    my $flags = $at;
     $at++ while $at < length $program && substr($program, $at, 1) =~ /[a-z]/;
+    if (substr($program, $flags, $at - $flags) =~ /r/) {
+        refuse(sprintf 'statement %d of the substitution has the r modifier, which changes no file', scalar(@statements) + 1);
+    }
     push @statements, substr($program, $start, $at - $start);
     $at = skip_space($program, $at);
     last if $at >= length $program;
