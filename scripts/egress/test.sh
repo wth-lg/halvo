@@ -338,6 +338,12 @@ test_wfp() {
   printf '[fixed]\n[agent]\nexample.com:443\n' >"$work/name.txt"
   expect_refusal wfp/name-entry entry sh scripts/egress/check.sh "$work/name.txt" -- sh "$pr" none
   expect_refusal wfp/sandbox-on-windows mode sh scripts/egress/check.sh --mode sandbox "$e" -- sh "$pr" none
+  ps_run wfp/command-not-administrator "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 5 }"
+  ps_run wfp/tree-cannot-switch-audit-off "& auditpol.exe /set '/subcategory:{0CCE9226-69AE-11D9-BED3-505054503030}' /success:disable /failure:disable *> \$null; if (\$LASTEXITCODE -eq 0) { exit 0 } else { exit 5 }"
+}
+
+ps_run() {
+  expect_run "$1" 1 5 0 sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- powershell.exe -NoProfile -NonInteractive -Command "$2"
 }
 
 [ $# -gt 0 ] || set -- probe lists
