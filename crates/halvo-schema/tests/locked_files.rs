@@ -768,18 +768,201 @@ fn later_files() -> Vec<(String, String)> {
     files_outside_the_lock(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
 }
 
-fn later_faults(file: &str, text: &str) -> Vec<String> {
-    let t = match lex(text) {
-        Ok(t) => t,
-        Err(cause) => return vec![unread(file, &cause)],
-    };
-    let mut faults = reach_faults(file, &t);
-    faults.extend(
-        t.iter()
-            .filter(|token| is_ident(token) && bare(token) == "macro_export")
-            .map(|_| format!("{file} holds macro_export")),
-    );
+fn locked_names() -> Vec<String> {
+    LOCKED
+        .iter()
+        .flat_map(|file| tokens(&source(file)))
+        .filter(|t| is_ident(t))
+        .map(|t| bare(&t).to_owned())
+        .collect()
+}
+
+fn module_paths(t: &[String], inside: &[bool]) -> Vec<String> {
+    let mut paths = vec![String::new(); t.len()];
+    let mut open: Vec<(String, usize)> = Vec::new();
+    for i in 0..t.len() {
+        while open.last().is_some_and(|(_, close)| i > *close) {
+            open.pop();
+        }
+        paths[i] = open
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        if !inside[i]
+            && t[i] == "mod"
+            && t.get(i + 1).is_some_and(|x| is_name(x))
+            && t.get(i + 2).is_some_and(|x| x == "{")
+        {
+            open.push((bare(&t[i + 1]).to_owned(), matching(t, i + 2)));
+        }
+    }
+    paths
+}
+
+fn named_by_use_or_type(t: &[String], inside: &[bool]) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut in_use = false;
+    for (i, token) in t.iter().enumerate() {
+        if inside[i] {
+            continue;
+        }
+        if token == "use" {
+            in_use = true;
+        } else if token == ";" {
+            in_use = false;
+        } else if is_ident(token) && (in_use || (i > 0 && t[i - 1] == "type")) {
+            names.push(bare(token).to_owned());
+        }
+    }
+    names
+}
+
+fn type_position(before: Option<&str>) -> bool {
+    matches!(
+        before,
+        Some(":" | "," | "<" | ">" | "&" | "mut" | "=" | "(" | "const" | "+" | "dyn" | "*" | "[")
+    )
+}
+
+fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
+    let mut j = at + 1;
+    let mut generics = Vec::new();
+    if t.get(j).is_some_and(|x| x == "<") {
+        let mut depth = 0i32;
+        while j < t.len() {
+            match t[j].as_str() {
+                "<" => depth += 1,
+                ">" if t[j - 1] != "-" => {
+                    depth -= 1;
+                    if depth == 0 {
+                        j += 1;
+                        break;
+                    }
+                }
+                x if is_ident(x) => generics.push(bare(x).to_owned()),
+                _ => {}
+            }
+            j += 1;
+        }
+    }
+    let mut path = Vec::new();
+    let mut self_type: Option<Vec<String>> = None;
+    let mut depth = 0i32;
+    while j < t.len() {
+        let x = t[j].as_str();
+        if depth == 0 && (x == "{" || x == ";" || x == "where") {
+            break;
+        }
+        if depth == 0 && x == "for" && self_type.is_none() && t.get(j + 1).is_none_or(|n| n != "<")
+        {
+            self_type = Some(Vec::new());
+            j += 1;
+            continue;
+        }
+        match x {
+            "<" | "(" | "[" => depth += 1,
+            ">" if t[j - 1] != "-" => depth -= 1,
+            ")" | "]" => depth -= 1,
+            _ => {}
+        }
+        match &mut self_type {
+            Some(s) => s.push(x.to_owned()),
+            None => path.push(x.to_owned()),
+        }
+        j += 1;
+    }
+    (generics, self_type.unwrap_or(path))
+}
+
+fn own_type_name(self_type: &[String]) -> Option<String> {
+    let name = self_type.first().filter(|x| is_name(x))?;
+    if self_type.len() == 1 {
+        return Some(bare(name).to_owned());
+    }
+    if self_type[1] != "<" || self_type.last().is_none_or(|x| x != ">") {
+        return None;
+    }
+    let mut depth = 0i32;
+    for (k, x) in self_type.iter().enumerate().skip(1) {
+        match x.as_str() {
+            "<" => depth += 1,
+            ">" if self_type[k - 1] != "-" => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && k + 1 != self_type.len() {
+            return None;
+        }
+    }
+    Some(bare(name).to_owned())
+}
+
+fn impl_faults(file: &str, t: &[String], named: &[String], locked: &[String]) -> Vec<String> {
+    let inside = in_an_attribute_or_a_macro(t);
+    let paths = module_paths(t, &inside);
+    let declared: Vec<(String, String)> = (0..t.len())
+        .filter(|&i| !inside[i] && matches!(t[i].as_str(), "struct" | "enum" | "union"))
+        .filter_map(|i| {
+            let name = t.get(i + 1).filter(|x| is_name(x))?;
+            Some((paths[i].clone(), bare(name).to_owned()))
+        })
+        .collect();
+    let mut faults = Vec::new();
+    for (i, token) in t.iter().enumerate() {
+        if inside[i] {
+            if matches!(token.as_str(), "impl" | "use" | "type") {
+                faults.push(format!("{file} holds {token} in an attribute or a macro"));
+            }
+            continue;
+        }
+        if token != "impl" || type_position(i.checked_sub(1).map(|j| t[j].as_str())) {
+            continue;
+        }
+        let (generics, self_type) = impl_header(t, i);
+        let own = own_type_name(&self_type).filter(|name| {
+            !generics.contains(name)
+                && declared.contains(&(paths[i].clone(), name.clone()))
+                && !named.contains(name)
+                && !locked.contains(name)
+        });
+        if own.is_none() {
+            faults.push(format!(
+                "{file} holds an impl for `{}`, which is no struct, enum or union of its own module",
+                self_type.join(" ")
+            ));
+        }
+    }
     faults
+}
+
+fn outside_the_lock_faults(files: &[(String, String)]) -> Vec<String> {
+    let locked = locked_names();
+    let mut faults = Vec::new();
+    let mut lexed = Vec::new();
+    for (file, text) in files {
+        match lex(text) {
+            Ok(t) => lexed.push((file, t)),
+            Err(cause) => faults.push(unread(file, &cause)),
+        }
+    }
+    let named: Vec<String> = lexed
+        .iter()
+        .flat_map(|(_, t)| named_by_use_or_type(t, &in_an_attribute_or_a_macro(t)))
+        .collect();
+    for (file, t) in &lexed {
+        faults.extend(reach_faults(file, t));
+        faults.extend(
+            t.iter()
+                .filter(|token| is_ident(token) && bare(token) == "macro_export")
+                .map(|_| format!("{file} holds macro_export")),
+        );
+        faults.extend(impl_faults(file, t, &named, &locked));
+    }
+    faults
+}
+
+fn later_faults(file: &str, text: &str) -> Vec<String> {
+    outside_the_lock_faults(&[(file.to_owned(), text.to_owned())])
 }
 
 #[test]
@@ -792,9 +975,7 @@ fn no_file_of_a_later_run_holds_macro_export() {
             "{names:?}"
         );
     }
-    for (file, text) in &files {
-        assert_eq!(later_faults(file, text), Vec::<String>::new());
-    }
+    assert_eq!(outside_the_lock_faults(&files), Vec::<String>::new());
 }
 
 #[test]
@@ -1023,6 +1204,86 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
             later_faults("learning.rs", text),
             Vec::<String>::new(),
             "{text}"
+        );
+    }
+}
+
+#[test]
+fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
+    let own = "pub struct LaterNote(u32);\n";
+    for text in [
+        "impl crate::kinds::KindEntry {\n    pub(crate) fn later_says_ok(&self) -> bool {\n        self.family == \"never\"\n    }\n}\n",
+        "impl<T: AsRef<str>> PartialEq<T> for crate::kinds::KindEntry {\n    fn eq(&self, other: &T) -> bool {\n        self.family == other.as_ref()\n    }\n}\n",
+        "impl crate::site::AppId {\n    pub(crate) const LATER_MAX: usize = 4096;\n}\n",
+        "impl std::fmt::Display for crate::record::TypedRecord {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.write_str(&self.json)\n    }\n}\n",
+        "use crate::record::TypedRecord;\nimpl std::fmt::Display for TypedRecord {\n    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        Ok(())\n    }\n}\n",
+        "use crate::kinds::KindEntry as LaterNote;\nimpl LaterNote {}\n",
+        "pub type LaterAlias = crate::kinds::KindEntry;\nimpl LaterAlias {}\n",
+        "pub struct LaterNote;\nmod inner {\n    use crate::kinds::KindEntry as LaterNote;\n    impl LaterNote {}\n}\n",
+        "pub struct LaterNote;\npub fn f() {\n    use crate::kinds::KindEntry as LaterNote;\n    impl LaterNote {}\n}\n",
+        "pub struct KindEntry;\npub fn f() {\n    use crate::kinds::*;\n    impl KindEntry {}\n}\n",
+        "pub trait LaterTrait {}\nimpl<T> LaterTrait for T {}\n",
+        "pub trait LaterTrait {}\npub struct LaterNote;\nimpl<LaterNote> LaterTrait for LaterNote {}\n",
+        "impl dyn crate::kinds::Coarse {\n    pub fn later(&self) {}\n}\n",
+        "pub trait LaterTrait {}\nimpl LaterTrait for &crate::kinds::KindEntry {}\n",
+        "pub trait LaterTrait {}\nimpl LaterTrait for Box<crate::kinds::KindEntry> {}\n",
+        "extern crate self as me;\nimpl me::kinds::KindEntry {}\n",
+        "pub struct LaterNote;\nimpl self::LaterNote {}\n",
+        "pub struct LaterNote;\nunsafe impl Send for crate::kinds::KindEntry {}\n",
+        "#[doc = \"x\"]\nimpl crate::kinds::KindEntry {}\n",
+    ] {
+        let faults = later_faults("learning.rs", &format!("{own}{text}"));
+        assert!(
+            faults.iter().any(|f| f.starts_with("learning.rs holds an impl for")),
+            "{text}: {faults:?}"
+        );
+    }
+    for (text, fault) in [
+        (
+            "macro_rules! m {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\nm!(crate::kinds::KindEntry);\n",
+            "learning.rs holds impl in an attribute or a macro",
+        ),
+        (
+            "macro_rules! m {\n    ($n:ident) => {\n        use crate::kinds::KindEntry as $n;\n    };\n}\nm!(LaterNote);\n",
+            "learning.rs holds use in an attribute or a macro",
+        ),
+        (
+            "macro_rules! m {\n    ($n:ident) => {\n        pub type $n = crate::kinds::KindEntry;\n    };\n}\nm!(LaterNote);\n",
+            "learning.rs holds type in an attribute or a macro",
+        ),
+    ] {
+        let faults = later_faults("learning.rs", &format!("{own}{text}"));
+        assert!(faults.iter().any(|f| f == fault), "{text}: {faults:?}");
+    }
+    let across = outside_the_lock_faults(&[
+        (
+            "learning.rs".to_owned(),
+            "pub struct LaterTwin;\npub mod more;\npub fn f() {\n    use self::more::*;\n    impl LaterTwin {}\n}\n".to_owned(),
+        ),
+        (
+            "learning/more.rs".to_owned(),
+            "pub use crate::kinds::KindEntry as LaterTwin;\n".to_owned(),
+        ),
+    ]);
+    assert!(
+        across
+            .iter()
+            .any(|f| f.starts_with("learning.rs holds an impl for `LaterTwin`")),
+        "{across:?}"
+    );
+    for twin in [
+        "pub struct LaterNote(u32);\nimpl LaterNote {\n    pub fn new() -> Self {\n        LaterNote(0)\n    }\n}\nimpl std::fmt::Display for LaterNote {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        write!(f, \"{}\", self.0)\n    }\n}\nimpl<'a> From<&'a str> for LaterNote {\n    fn from(s: &'a str) -> Self {\n        LaterNote(s.len() as u32)\n    }\n}\n",
+        "pub enum LaterMood {\n    Calm,\n}\nimpl Default for LaterMood {\n    fn default() -> Self {\n        LaterMood::Calm\n    }\n}\n",
+        "pub struct LaterWrap<T>(T);\nimpl<T: Clone> LaterWrap<T> {\n    pub fn get(&self) -> T {\n        self.0.clone()\n    }\n}\n",
+        "pub fn f() -> impl Iterator<Item = u8> {\n    0..3\n}\npub fn g(x: impl AsRef<str>) -> usize {\n    x.as_ref().len()\n}\npub fn h(x: &impl AsRef<str>, y: Box<impl AsRef<str>>) -> usize {\n    x.as_ref().len() + y.as_ref().as_ref().len()\n}\n",
+        "pub mod inner {\n    pub struct LaterInner;\n    impl LaterInner {}\n}\n",
+        "pub struct LaterBody {\n    pub n: u32,\n}\nimpl crate::request::RunnerBody for LaterBody {\n    type Reply = u32;\n}\n",
+        "pub struct LaterNote;\n#[doc = \"x\"]\nimpl LaterNote {}\n",
+    ] {
+        assert_eq!(
+            later_faults("learning.rs", twin),
+            Vec::<String>::new(),
+            "{twin}"
         );
     }
 }
