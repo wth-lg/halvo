@@ -75,10 +75,10 @@ impl RowRead for Rows {
 }
 
 const ROUTINE: KindEntry = KindEntry {
-    name: "learn_routine",
+    name: "probe_routine",
     class: RetentionClass::Bounded { days: 30 },
     origin: Origin::Capture,
-    family: "learn",
+    family: "probe",
     workflow_key: Some("workflow"),
     fields: &[
         ("v", FieldType::Version),
@@ -140,7 +140,7 @@ fn a_recurrence_step_reads_the_summaries_through_the_read_trait_and_gives_the_sa
 #[test]
 fn a_writer_step_reads_its_rows_and_returns_typed_records_that_its_kind_reads() {
     let rows = Rows(BTreeMap::from([(
-        "learn_routine",
+        "probe_routine",
         vec![ROUTINE.example.to_owned()],
     )]));
     let steps: Vec<Box<dyn WriterStep>> = vec![Box::new(CountStep)];
@@ -151,7 +151,7 @@ fn a_writer_step_reads_its_rows_and_returns_typed_records_that_its_kind_reads() 
     assert_eq!(
         records,
         [TypedRecord {
-            kind: "learn_routine",
+            kind: "probe_routine",
             json: r#"{"v":1,"workflow":"10000000000000000000000000000001","day":20768,"count":4}"#
                 .to_owned()
         }]
@@ -160,6 +160,6 @@ fn a_writer_step_reads_its_rows_and_returns_typed_records_that_its_kind_reads() 
         assert_eq!(check_record(&ROUTINE, &record.json), Ok(()));
     }
     let mut other = 0;
-    rows.for_each("agent_config", &mut |_| other += 1);
+    rows.for_each("probe_other", &mut |_| other += 1);
     assert_eq!(other, 0);
 }

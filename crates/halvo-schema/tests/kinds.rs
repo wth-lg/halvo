@@ -214,10 +214,10 @@ fn field_type_has_one_variant_per_row_of_the_table() {
 }
 
 const LATER_BOUNDED: KindEntry = KindEntry {
-    name: "learn_routine",
+    name: "probe_bounded",
     class: RetentionClass::Bounded { days: 30 },
     origin: Origin::Capture,
-    family: "learn",
+    family: "probe",
     workflow_key: Some("workflow"),
     fields: &[
         ("v", FieldType::Version),
@@ -229,10 +229,10 @@ const LATER_BOUNDED: KindEntry = KindEntry {
 };
 
 const LATER_OWN: KindEntry = KindEntry {
-    name: "agent_config",
+    name: "probe_own",
     class: RetentionClass::Kept,
     origin: Origin::Own,
-    family: "agent",
+    family: "probe",
     workflow_key: Some("workflow"),
     fields: &[
         ("v", FieldType::Version),
@@ -245,10 +245,10 @@ const LATER_OWN: KindEntry = KindEntry {
 };
 
 const LATER_WINDOW: KindEntry = KindEntry {
-    name: "coord_event",
+    name: "probe_window",
     class: RetentionClass::Window,
     origin: Origin::Capture,
-    family: "coord",
+    family: "probe",
     workflow_key: None,
     fields: &[
         ("v", FieldType::Version),
@@ -272,7 +272,7 @@ fn one_report(entries: &[&KindEntry], fragment: &str) {
 
 #[test]
 fn sound_entries_of_later_runs_give_no_report() {
-    let mut all: Vec<&KindEntry> = registry().collect();
+    let mut all: Vec<&KindEntry> = KINDS.iter().collect();
     all.extend([&LATER_BOUNDED, &LATER_OWN, &LATER_WINDOW]);
     assert_eq!(check_entries(&all), Vec::<String>::new());
     assert_eq!(check_entries(&[]), Vec::<String>::new());
@@ -286,7 +286,7 @@ fn check_entries_reports_a_name_that_stands_twice() {
     );
     let mut all: Vec<&KindEntry> = registry().collect();
     let copy = KindEntry {
-        family: "learn",
+        family: "probe",
         workflow_key: None,
         ..*entry("summary")
     };
@@ -536,7 +536,7 @@ fn check_entries_reports_an_example_that_check_record_refuses_or_whose_keys_are_
             example: r#"{"v":1,"workflow":"10000000000000000000000000000001","day":-1,"count":2}"#,
             ..LATER_BOUNDED
         }],
-        "the example is refused: learn_routine: day: integer_form",
+        "the example is refused: probe_bounded: day: integer_form",
     );
     one_report(
         &[&KindEntry {
@@ -550,7 +550,7 @@ fn check_entries_reports_an_example_that_check_record_refuses_or_whose_keys_are_
             example: "[1]",
             ..LATER_BOUNDED
         }],
-        "the example is refused: learn_routine: the record: not_an_object",
+        "the example is refused: probe_bounded: the record: not_an_object",
     );
 }
 
