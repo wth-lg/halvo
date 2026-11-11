@@ -330,15 +330,20 @@ self_test() {
   make_repo d docs/r3/x scripts/r3/x scripts/r3-gate/x formal/r3-confirm/x tools/r3-trials/x \
     tools/fixture-server/variants/x crates/halvo-policy/x crates/halvo-web/x crates/halvo-connect/x \
     crates/halvo-sheet/x crates/halvo-agent-store/x crates/halvo-agent-gate/x crates/halvo-runner/x \
-    crates/halvo-agent-client/x crates/halvo-model/x tools/fixture-server/x crates/halvo-schema/x
+    crates/halvo-agent-client/x crates/halvo-model/x tools/fixture-server/x crates/halvo-schema/x \
+    docs/r3/y/docs/r3/x
   d_layout=
+  d_rest=
   for r in $roots; do
     d_layout="$d_layout$r** U1.4\n"
+    [ "$r" = docs/r3/ ] || d_rest="$d_rest$r** U1.4\n"
   done
   lay d "$d_layout"
-  check every-root-counts d PASS 'layout patterns=15 files=15 outside=0' --all
+  check every-root-counts d PASS 'layout patterns=15 files=16 outside=0' --all
   lay d 'docs/r3/** U1.4\n'
-  check every-root-is-checked d outside 'layout patterns=1 files=15 outside=14'
+  check every-root-is-checked d outside 'layout patterns=1 files=16 outside=14'
+  lay d "docs/r3/x U1.4\n$d_rest"
+  check pattern-is-anchored-at-the-start d outside 'layout outside=docs/r3/y/docs/r3/x'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
