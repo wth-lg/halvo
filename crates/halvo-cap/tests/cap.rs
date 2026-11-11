@@ -10,17 +10,23 @@ const ROLE: &str = "HALVO_CAP_CHILD";
 const MIB: u64 = 1_048_576;
 const REFUSED: i32 = 7;
 
-fn allocate(mib: u64) -> Vec<Vec<u8>> {
+static FILL: [u8; 65_536] = [0xa5; 65_536];
+
+fn allocate(blocks: u64, block_mib: u64) -> Vec<Vec<u8>> {
+    let size = (block_mib * MIB) as usize;
     let mut held: Vec<Vec<u8>> = Vec::new();
-    if held.try_reserve_exact(mib as usize).is_err() {
+    if held.try_reserve_exact(blocks as usize).is_err() {
         std::process::exit(REFUSED);
     }
-    for _ in 0..mib {
+    for _ in 0..blocks {
         let mut block: Vec<u8> = Vec::new();
-        if block.try_reserve_exact(MIB as usize).is_err() {
+        if block.try_reserve_exact(size).is_err() {
             std::process::exit(REFUSED);
         }
-        block.resize(MIB as usize, 0xa5);
+        while block.len() < size {
+            let n = (size - block.len()).min(FILL.len());
+            block.extend_from_slice(&FILL[..n]);
+        }
         held.push(block);
     }
     std::hint::black_box(held)
@@ -36,12 +42,12 @@ fn child() {
     let number = |i: usize| -> u64 { words[i].parse().unwrap() };
     match words[0] {
         "hold" => {
-            let held = allocate(number(1));
+            let held = allocate(number(1), 1);
             std::thread::sleep(Duration::from_millis(number(2)));
             drop(held);
         }
         "spike" => {
-            drop(allocate(number(1)));
+            drop(allocate(1, number(1)));
             std::thread::sleep(Duration::from_millis(number(2)));
         }
         "exit" => std::process::exit(number(1) as i32),
@@ -97,6 +103,25 @@ fn a_child_under_the_limit_runs_to_its_end() {
     assert!(outcome.peak_bytes >= 32 * MIB, "{outcome:?}");
     assert!(outcome.peak_bytes <= 256 * MIB, "{outcome:?}");
     assert!(elapsed_ms(&outcome) >= 600, "{outcome:?}");
+}
+
+#[test]
+fn a_child_that_ends_before_the_first_poll_has_its_peak_read() {
+    let outcome = run(spec("hold 64 0"), limit(256)).unwrap();
+    assert_eq!(outcome.exit, Exit::Code(0), "{outcome:?}");
+    assert!(outcome.peak_bytes >= 64 * MIB, "{outcome:?}");
+    assert!(!outcome.capped, "{outcome:?}");
+}
+
+#[test]
+fn a_child_that_ends_above_the_limit_before_the_first_poll_is_capped() {
+    let outcome = run(spec("hold 96 0"), limit(64)).unwrap();
+    assert!(outcome.capped, "{outcome:?}");
+    if cfg!(windows) {
+        assert_eq!(outcome.exit, Exit::Code(REFUSED), "{outcome:?}");
+    } else {
+        assert!(outcome.peak_bytes > 64 * MIB, "{outcome:?}");
+    }
 }
 
 #[test]
