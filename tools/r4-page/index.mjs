@@ -171,11 +171,26 @@ async function release() {
 }
 
 const INIT = () => {
+  let opaque = false;
   const attach = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
-    window.__r4shadow = true;
+    opaque = true;
     return attach.call(this, init);
   };
+  const wrap = (owner, key) => {
+    const f = owner && owner[key];
+    if (typeof f !== 'function') return;
+    owner[key] = function (...args) {
+      if (args.some((a) => /shadowrootmode/i.test(String(a)))) opaque = true;
+      return f.apply(this, args);
+    };
+  };
+  wrap(Element.prototype, 'setHTMLUnsafe');
+  wrap(typeof ShadowRoot === 'undefined' ? null : ShadowRoot.prototype, 'setHTMLUnsafe');
+  wrap(Document, 'parseHTMLUnsafe');
+  wrap(Document.prototype, 'write');
+  wrap(Document.prototype, 'writeln');
+  Object.defineProperty(window, '__r4opaque', { get: () => opaque, configurable: false });
   const stub = Object.freeze({ call: (name, args) => window.__r4call(name, args === undefined ? null : args) });
   const halvo = {};
   Object.defineProperty(halvo, 'ipc', { get: () => stub, set: () => {}, enumerable: true });
@@ -445,6 +460,11 @@ async function openWith(options, context, transform) {
     });
     const url = new URL(o.frame || FRAME, o.origin);
     if (Array.isArray(o.views) && o.views.length) url.searchParams.set('views', o.views.join(','));
+    try {
+      h.markupShadow = /shadowrootmode/i.test(await (await fetch(new URL(o.frame || FRAME, o.origin).href)).text());
+    } catch {
+      h.markupShadow = false;
+    }
     await h.page.goto(url.href);
     await settle(h);
     if (await h.page.evaluate(() => Boolean(window.__r4frame && window.__r4frame.failed))) throw new Refusal('fixture', 'a view script of views did not load');
@@ -1046,13 +1066,13 @@ async function markupCheck(h) {
   return { ok, counts: { markup: ok ? 'ok' : 'miss' }, names: ok ? [] : ['elements'] };
 }
 
-const OPAQUE = () => Boolean(window.__r4shadow) || document.querySelector('iframe, frame, object, embed') !== null;
+const OPAQUE = () => window.__r4opaque === true || [...document.querySelectorAll('*')].some((e) => e.shadowRoot) || document.querySelector('iframe, frame, object, embed, fencedframe, portal') !== null;
 
 const UNSEEN = {
   2: { keyboard: 'miss' },
   3: { structure: 'differ' },
   4: { size: 'miss' },
-  5: { modes: 'miss', modes_off: '-' },
+  5: { modes: 'miss', modes_off: MODES.map(([name]) => name).join(',') },
   6: { markup: 'miss' },
 };
 
@@ -1071,7 +1091,7 @@ export async function check(h, n, options = {}) {
   h.kids = [];
   if (UNSEEN[n] && !(options.write && n === 3)) {
     if (h.flags.has('unsettled')) return { ok: false, counts: { ...UNSEEN[n] }, names: ['unsettled'] };
-    if (await h.page.evaluate(OPAQUE)) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
+    if (h.markupShadow || (await h.page.evaluate(OPAQUE))) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
   }
   return taint(h, n, await run(h, n, options));
 }

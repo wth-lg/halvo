@@ -297,6 +297,27 @@
           status.setAttribute('data-socket', 'refused');
         }
       }
+      var hidden = '<button type="button" tabindex="-1" style="height: 10px">Later</button>';
+      if (fault === 'shadow_script') {
+        var host = el('div', null, null);
+        root.appendChild(host);
+        host.attachShadow({ mode: 'closed' }).appendChild(document.createElement('button'));
+      }
+      if (fault === 'shadow_markup') {
+        var holder = el('div', null, null);
+        root.appendChild(holder);
+        holder.setHTMLUnsafe('<div><template shadowrootmode="closed">' + hidden + '</template></div>');
+      }
+      if (fault === 'shadow_parse') {
+        var parsed = Document.parseHTMLUnsafe('<div id="r4s-parsed"><template shadowrootmode="open">' + hidden + '</template></div>');
+        root.appendChild(document.adoptNode(parsed.getElementById('r4s-parsed')));
+      }
+      if (fault === 'frame') {
+        var inner = document.createElement('iframe');
+        inner.title = 'More';
+        inner.src = 'about:blank';
+        root.appendChild(inner);
+      }
       if (fault === 'clipped') {
         var box = el('div', null, null);
         box.style.height = '10px';

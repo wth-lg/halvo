@@ -34,10 +34,15 @@ const FAULTS = {
     { fault: 'focus_behind_image', state: 'a', want: (r) => r.names.includes('focus_contrast') },
     { fault: 'radio_forms', state: 'a', want: (r) => r.names.includes('unreached') },
     { fault: 'radio_arrows', state: 'a', want: (r) => r.names.includes('radio_arrows') },
+    { fault: 'shadow_script', state: 'a', want: (r) => r.names.includes('opaque') },
   ],
-  3: [{ fault: 'renamed', state: 'a', want: (r) => r.counts.structure === 'differ' }],
+  3: [
+    { fault: 'renamed', state: 'a', want: (r) => r.counts.structure === 'differ' },
+    { fault: 'frame_file', state: 'a', frame: '/frame-shadow.html', want: (r) => r.names.includes('opaque') },
+  ],
   4: [
     { fault: 'small', state: 'a', want: (r) => r.names.includes('delete') },
+    { fault: 'shadow_markup', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'never_quiet', state: 'a', want: (r) => r.names.includes('unsettled') },
     { fault: 'dialog_30', state: 'b', want: (r) => r.names.includes('reject') },
     { fault: 'clipped', state: 'a', want: (r) => r.names.includes('more') },
@@ -51,10 +56,12 @@ const FAULTS = {
     { fault: 'outside_mode', state: 'a', mode: 'reduced_motion', engine: true },
     { fault: 'inner_scroll', state: 'a', mode: 'width_320' },
     { fault: 'engine_mode', state: 'a', mode: 'forced_colors', engine: true },
+    { fault: 'shadow_parse', state: 'a', want: (r) => r.names.includes('opaque') && r.counts.modes_off === MODES.join(',') },
   ],
   6: [
     { fault: 'inner_html', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'day_html', state: 'a', want: (r) => r.counts.markup === 'miss' },
+    { fault: 'frame', state: 'a', want: (r) => r.names.includes('opaque') },
   ],
 };
 
@@ -82,9 +89,9 @@ async function listen() {
   reached.port = server.address().port;
 }
 
-async function run(origin, n, state, fault) {
+async function run(origin, n, state, fault, frame) {
   const view = fault ? '/view.js?fault=' + fault + '&port=' + reached.port : '/view.js';
-  const page = await open({ origin, state, views: [view] });
+  const page = await open({ origin, state, views: [view], frame });
   try {
     const result = await check(page, n, { snapshot: structure(state) });
     return { ...result, modes: page.modes };
@@ -95,7 +102,7 @@ async function run(origin, n, state, fault) {
 
 function caught(f, r, before) {
   if (r.ok || reached.count !== before) return 'missed';
-  if (f.mode) {
+  if (f.mode && !f.want) {
     for (const m of MODES) {
       const want = m === f.mode ? 'miss' : r.modes[m] === 'off' ? 'off' : 'ok';
       if (r.modes[m] !== want) return 'missed';
@@ -149,7 +156,7 @@ async function main() {
     for (const f of FAULTS[n]) {
       if (none && f.engine) continue;
       const before = reached.count;
-      const r = await run(origin, n, f.state, f.fault);
+      const r = await run(origin, n, f.state, f.fault, f.frame);
       if (f.mode && r.modes[f.mode] === 'off') continue;
       ran++;
       if (caught(f, r, before) !== 'caught') fault = 'missed';
