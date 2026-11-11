@@ -158,14 +158,15 @@ async fn evaluate(page: &Page, script: &str) -> Res<Value> {
     Ok(r.result.result.value.unwrap_or(Value::Null))
 }
 
-pub(crate) fn temp_of(profile: &Path) -> PathBuf {
-    let mut name = profile.as_os_str().to_owned();
-    name.push("-tmp");
-    PathBuf::from(name)
+pub(crate) fn temp_of(profile: &Path) -> Option<PathBuf> {
+    let name = profile.file_name()?;
+    let mut temp = name.to_owned();
+    temp.push("-tmp");
+    Some(profile.parent()?.join(temp))
 }
 
-pub(crate) fn make_dirs(profile: &Path) -> Res<PathBuf> {
-    let temp = temp_of(profile);
+pub(crate) fn make_dirs(profile: &Path) -> Res<(PathBuf, PathBuf)> {
+    let temp = temp_of(profile).ok_or_else(|| Fault::new("start", "profile path has no name"))?;
     for (dir, what) in [(profile, "profile"), (temp.as_path(), "temporary")] {
         match std::fs::symlink_metadata(dir) {
             Ok(m) if m.file_type().is_symlink() => {
@@ -181,7 +182,14 @@ pub(crate) fn make_dirs(profile: &Path) -> Res<PathBuf> {
         let _ = std::fs::remove_dir(profile);
         return Err(Fault::new("start", e.to_string()));
     }
-    Ok(temp)
+    match (std::fs::canonicalize(profile), std::fs::canonicalize(&temp)) {
+        (Ok(p), Ok(t)) => Ok((p, t)),
+        _ => {
+            let _ = std::fs::remove_dir(profile);
+            let _ = std::fs::remove_dir(&temp);
+            Err(Fault::new("start", "canonical path"))
+        }
+    }
 }
 
 fn gone(dir: &Path) -> bool {
@@ -618,17 +626,57 @@ mod tests {
     #[tokio::test]
     async fn a_dropped_start_removes_both_directories_that_it_made() {
         let dir = scratch("dropped-start");
-        let profile = dir.join("profile");
-        let temp = make_dirs(&profile).unwrap();
+        let (profile, temp) = make_dirs(&dir.join("profile")).unwrap();
         std::fs::write(profile.join("Local State"), b"{}").unwrap();
         std::fs::write(dir.join("beside.txt"), b"caller").unwrap();
         drop(RemoveOnDrop::new(&profile, &temp));
         assert!(gone(&profile) && gone(&temp));
         assert!(dir.join("beside.txt").exists());
-        let kept = dir.join("kept");
-        let kept_temp = make_dirs(&kept).unwrap();
+        let (kept, kept_temp) = make_dirs(&dir.join("kept")).unwrap();
         RemoveOnDrop::new(&kept, &kept_temp).disarm();
         assert!(kept.is_dir() && kept_temp.is_dir());
+    }
+
+    #[tokio::test]
+    async fn a_failed_start_leaves_a_callers_stderr_file_as_it_was() {
+        let dir = scratch("stderr-kept");
+        std::fs::write(dir.join("profile.stderr"), b"caller").unwrap();
+        let failed = Executor::start(&missing_browser(dir.join("profile")))
+            .await
+            .err();
+        assert_eq!(failed.map(|f| f.0), Some("browser_start"));
+        assert_eq!(
+            std::fs::read(dir.join("profile.stderr")).unwrap(),
+            b"caller"
+        );
+    }
+
+    #[test]
+    fn the_temporary_directory_is_beside_a_profile_path_that_ends_in_a_separator() {
+        let dir = scratch("trailing");
+        let mut with_slash = dir.join("profile").into_os_string();
+        with_slash.push("/");
+        let (profile, temp) = make_dirs(Path::new(&with_slash)).unwrap();
+        let real = dir.canonicalize().unwrap();
+        assert_eq!(profile, real.join("profile"));
+        assert_eq!(temp, real.join("profile-tmp"));
+        assert!(make_dirs(Path::new("/")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_removal_takes_the_directory_that_start_made_when_a_link_above_it_moves() {
+        let dir = scratch("moved-link");
+        std::fs::create_dir_all(dir.join("a")).unwrap();
+        std::fs::create_dir_all(dir.join("b").join("profile")).unwrap();
+        std::fs::write(dir.join("b").join("profile").join("caller"), b"x").unwrap();
+        std::os::unix::fs::symlink(dir.join("a"), dir.join("via")).unwrap();
+        let (profile, temp) = make_dirs(&dir.join("via").join("profile")).unwrap();
+        std::os::unix::fs::symlink(dir.join("b"), dir.join("via2")).unwrap();
+        std::fs::rename(dir.join("via2"), dir.join("via")).unwrap();
+        assert!(remove_dirs(&profile, &temp).await);
+        assert!(!dir.join("a").join("profile").exists());
+        assert!(dir.join("b").join("profile").join("caller").exists());
     }
 
     #[tokio::test]
@@ -661,8 +709,7 @@ mod tests {
     #[tokio::test]
     async fn the_removal_takes_the_profile_and_leaves_a_file_beside_it() {
         let dir = scratch("beside");
-        let profile = dir.join("profile");
-        make_dirs(&profile).unwrap();
+        let (profile, _) = make_dirs(&dir.join("profile")).unwrap();
         std::fs::create_dir_all(profile.join("Default")).unwrap();
         std::fs::write(profile.join("Default").join("Cookies"), b"session").unwrap();
         std::fs::write(dir.join("beside.txt"), b"caller").unwrap();
@@ -676,8 +723,7 @@ mod tests {
     async fn the_removal_reports_no_when_a_file_of_the_profile_cannot_be_removed() {
         use std::os::unix::fs::PermissionsExt;
         let dir = scratch("stuck");
-        let profile = dir.join("profile");
-        make_dirs(&profile).unwrap();
+        let (profile, _) = make_dirs(&dir.join("profile")).unwrap();
         let locked = profile.join("locked");
         std::fs::create_dir_all(&locked).unwrap();
         std::fs::write(locked.join("file"), b"x").unwrap();
@@ -744,7 +790,10 @@ mod tests {
         let stopped = a.stop_and_remove().await;
         assert!(stopped.removed);
         assert!(!a_dir.exists());
-        assert_eq!(stopped.temp, Some(scratch.join("a-tmp")));
+        assert_eq!(
+            stopped.temp,
+            Some(scratch.canonicalize().unwrap().join("a-tmp"))
+        );
         assert!(std::fs::symlink_metadata(scratch.join("a-tmp")).is_err());
         assert!(stopped.pids.len() >= 2, "{stopped:?}");
         assert!(stopped.left.is_empty(), "{stopped:?}");

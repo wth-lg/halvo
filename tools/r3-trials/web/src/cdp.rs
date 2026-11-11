@@ -175,7 +175,13 @@ fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
     };
     let mut kept = opts.profile.clone().into_os_string();
     kept.push(".stderr");
-    let _ = std::fs::write(&kept, &stderr);
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&kept)
+    {
+        let _ = std::io::Write::write_all(&mut file, &stderr);
+    }
     Fault::new(
         "browser_start",
         format!("stderr_kept_bytes_{}", stderr.len()),
@@ -192,17 +198,17 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
-        let temp = session::make_dirs(&opts.profile)?;
-        let made = session::RemoveOnDrop::new(&opts.profile, &temp);
+        let (profile, temp) = session::make_dirs(&opts.profile)?;
+        let made = session::RemoveOnDrop::new(&profile, &temp);
         match Executor::launch(opts, &temp).await {
             Ok(mut started) => {
                 made.disarm();
-                started.profile = Some(opts.profile.clone());
+                started.profile = Some(profile);
                 started.temp = Some(temp);
                 Ok(started)
             }
             Err(f) => {
-                session::remove_dirs(&opts.profile, &temp).await;
+                session::remove_dirs(&profile, &temp).await;
                 made.disarm();
                 Err(f)
             }
