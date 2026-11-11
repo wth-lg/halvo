@@ -965,9 +965,13 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
     let outcome = task(&ctx).await;
     server.stop();
     match outcome {
-        Ok(removed) => {
-            report("ok", removed, "-");
+        Ok(true) => {
+            report("ok", true, "-");
             ExitCode::SUCCESS
+        }
+        Ok(false) => {
+            report("miss", false, "profile_kept");
+            ExitCode::from(1)
         }
         Err(f) => {
             let cause = match f.0 {

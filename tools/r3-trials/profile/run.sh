@@ -18,13 +18,15 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   profile B of another name, imports, opens /bill and reads the page it lands on.
                   Prints state, stop, profile, session, watch and keychain lines.
   --item 2        item 1, then searches every file under the parent directory of the profiles and
-                  every entry that appeared in the temporary directory of its process during the
-                  run, and on macOS the files changed during the run in the browser's per-user
-                  places outside the profile (Crashpad, the helper caches), for the page marker of
-                  seed 1 in UTF-8, UTF-16LE and UTF-16BE, and for the name of the cookie that
-                  carries the marker, because the browser stores that cookie's value encrypted.
-                  marker_hits on the disk line sums both. Prints searched, trace (the utility host
-                  name, counted the same way) and disk lines.
+                  of their temporary directories, every entry that appeared in the system's
+                  temporary directory during the run, and on macOS the files changed during the run
+                  in the browser's per-user places outside the profile (Crashpad, the helper
+                  caches), for the page marker of seed 1 in UTF-8, UTF-16LE and UTF-16BE, and for
+                  the name of the cookie that carries the marker, because the browser stores that
+                  cookie's value encrypted. marker_hits on the disk line sums both and adds one for
+                  each profile or temporary directory still on disk. Prints searched, trace (the
+                  utility host name over the parent directory and the new temporary entries) and
+                  disk lines; when the search could not finish, a notrun line in place of disk.
   --item 3        the egress item belongs to the second pull request of U0.3: a notrun line.
   --item 4        two shapes under tree-peak: five runs of the nine steps of tools/r3-trials/web
                   (shape=steps), then five runs of one browser that signs in on the utility fixture
@@ -45,15 +47,19 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   comes from that shape's median alone.
   --scratch DIR   the parent directory of the profiles; default a new mktemp directory.
 
-The keychain line says prompt=yes when the front application changed or a new on-screen window
-of a process of the browser's tree, or of a prompt process of the system, appeared; the watch
-reads both every 250 ms from before the first start until 10 s after the last stop. A read that
-fails makes a notrun line. On macOS the library adds the mock keychain, so the browser does not
-read the system keychain, and the line can show only the other prompts of the system.
+The keychain line says prompt=yes when the front application changed to a process of the
+browser's tree or to a prompt process of the system, or when a new on-screen window of such a
+process appeared; any other change of the front application is counted on standard error and not
+in the line. The watch reads both every 250 ms from before the first start until 10 s after the
+last stop. A read that fails, also of the front application's process, makes a notrun line in place
+of the session line. On macOS the library adds the mock keychain, so the browser does not read the
+system keychain, and the line can show only the other prompts of the system.
 Exit 0 when every cell ran, 1 when a cell could not run (a notrun line ends with its cause),
 2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error.
 run.sh ends by exec of the trial program, so a TERM or INT sent to run.sh reaches the program,
-which stops its browsers, removes their profiles, stops the fixture server and exits 1.
+which stops its browsers, removes their profiles and temporary directories (also of a browser that
+was starting), stops the fixture server and exits 1 with a notrun line, also after the session.
+In item 4 the profiles of the nine steps are made and left by the program of tools/r3-trials/web.
 EOF
 }
 
