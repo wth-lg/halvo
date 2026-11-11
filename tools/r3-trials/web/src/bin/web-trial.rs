@@ -662,7 +662,7 @@ mod driver {
         let t0 = Instant::now();
         let outcome = ctx.stop.or(step(&mut ex, ctx, name, i)).await;
         let ms = t0.elapsed().as_millis();
-        ex.stop().await;
+        ex.stop_and_remove().await;
         if let Err(f) = &outcome {
             if f.0 == "signal" {
                 return Err(NotRun::new("signal", ""));
@@ -775,7 +775,7 @@ mod driver {
             .await?;
         let opened = ctx.stop.or(ex.open(&ctx.u("/signin"))).await;
         let ms = t0.elapsed().as_millis();
-        ex.stop().await;
+        ex.stop_and_remove().await;
         opened.map(|_| ms)
     }
 
@@ -823,7 +823,7 @@ mod driver {
                 }
             })
             .await;
-        ex.stop().await;
+        ex.stop_and_remove().await;
         outcome
     }
 
@@ -847,7 +847,7 @@ mod driver {
                 check(matches!(heading?, Resolved::One { .. }), "heading")
             })
             .await;
-        ex.stop().await;
+        ex.stop_and_remove().await;
         outcome
     }
 
@@ -941,7 +941,7 @@ mod driver {
                 Ok(())
             })
             .await;
-        ex.stop().await;
+        ex.stop_and_remove().await;
         outcome
     }
 
@@ -969,7 +969,7 @@ mod driver {
                 Ok(())
             })
             .await;
-        ex.stop().await;
+        ex.stop_and_remove().await;
         outcome
     }
 
