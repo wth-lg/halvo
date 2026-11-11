@@ -2,7 +2,8 @@ use super::windows_input as input;
 use super::windows_screen as screen;
 use super::windows_uia as uia;
 use super::{
-    marked, AddressRead, Browser, Focused, Own, Usage, WindowFacts, WALK_LEVELS, WALK_NODES,
+    marked, Activation, AddressRead, Browser, Focused, Own, Usage, WindowFacts, WALK_LEVELS,
+    WALK_NODES,
 };
 use crate::frame::Frame;
 use crate::tree::{line, walk, Read, Tree};
@@ -142,7 +143,7 @@ pub const FIRST_QUERY_DECIDES: bool = true;
 
 pub fn address_read(_pid: u32, needle: &str, title: &str, _role_query: bool) -> AddressRead {
     let mut read = AddressRead {
-        activation: "not-readable".to_string(),
+        activation: Activation::NoAttribute,
         ..AddressRead::default()
     };
     let start = Instant::now();

@@ -1,7 +1,8 @@
 use super::macos_ax as ax;
 use super::macos_screen as screen;
 use super::{
-    marked, AddressRead, Browser, Focused, Own, Usage, WindowFacts, WALK_LEVELS, WALK_NODES,
+    activation_of, attribute_read, marked, AddressRead, AttributeRead, Browser, Focused, Own,
+    Usage, WindowFacts, WALK_LEVELS, WALK_NODES,
 };
 use crate::frame::Frame;
 use crate::tree::{line, walk, Read, Tree};
@@ -173,11 +174,15 @@ pub const FIRST_QUERY_DECIDES: bool = false;
 
 pub fn address_read(pid: u32, needle: &str, _title: &str, role_query: bool) -> AddressRead {
     let app = ax::app(pid as i32);
-    let set = ["AXEnhancedUserInterface", "AXManualAccessibility"]
+    let reads: Vec<AttributeRead> = ["AXEnhancedUserInterface", "AXManualAccessibility"]
         .iter()
-        .any(|name| ax::attr_bool(&app, name) == Some(true));
+        .map(|name| {
+            let (error, value) = ax::attr_bool_read(&app, name);
+            attribute_read(error, value)
+        })
+        .collect();
     let mut read = AddressRead {
-        activation: if set { "set" } else { "unset" }.to_string(),
+        activation: activation_of(&reads),
         role_query,
         ..AddressRead::default()
     };

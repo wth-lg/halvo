@@ -66,8 +66,12 @@ profile, so no other cell has touched the process that it reads.
   the read, and `cpu_after_ms` over the 2 s that start with the read; in a run that needed the
   role query the second window starts at the query, so that what the query started is inside
   the figure. `mem_before_bytes` and `mem_after_bytes` are taken at the ends of the two windows. `readable_runs` counts the runs in which the value held
-  `127.0.0.1` and no activation attribute was set; on Windows the first try has to return it,
-  because the unit line counts the first UI Automation query of a new browser process.
+  `127.0.0.1` with `activation` at `unset` or `no-attribute`. On macOS `activation` is `set`
+  when one of the two attributes reads true, `read-failed` when none does and a read returns an
+  error other than the codes for an unsupported attribute and for no value, and `unset` when
+  each is false or absent; a run with `read-failed` does not count. On Windows a client can read
+  no such attribute, and `activation` is `no-attribute`; there the first try has to return the
+  value, because the unit line counts the first UI Automation query of a new browser process.
   `first_try_runs` counts the runs whose first try returned the value.
 - `accessibility.RUNNER.TARGET[.plain|.activated]`: the focused element and the subtree of the
   focused window in the form of contracts.md C11.7 (16 levels, 1,600 lines). The name of a node

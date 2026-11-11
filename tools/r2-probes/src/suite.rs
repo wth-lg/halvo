@@ -1074,10 +1074,10 @@ fn child_address(args: &[String]) -> Result<Record, String> {
     let after = sys::tree_usage(pid, webkit);
     let first_try = read.value.is_some() && read.attempts == 1;
     let readable = read.value.is_some()
-        && read.activation != "set"
+        && read.activation.allows_a_readable_run()
         && (first_try || !sys::FIRST_QUERY_DECIDES);
     let record = Record::new("", 0)
-        .text("activation", &read.activation)
+        .text("activation", read.activation.as_str())
         .number("readable_runs", How::Sum, f64::from(u8::from(readable)))
         .number("first_try_runs", How::Sum, f64::from(u8::from(first_try)))
         .number(

@@ -69,12 +69,23 @@ pub fn app(pid: i32) -> Element {
     unsafe { AXUIElementSetMessagingTimeout(raw, 2.0) };
     Element(unsafe { CFType::wrap_under_create_rule(raw) })
 }
-pub fn attr_bool(e: &Element, name: &str) -> Option<bool> {
-    let v = copy(e, name)?;
-    if let Some(b) = v.downcast::<CFBoolean>() {
-        return Some(b.into());
+pub fn attr_bool_read(e: &Element, name: &str) -> (i32, Option<bool>) {
+    let (key, mut v) = (CFString::new(name), null());
+    let err = unsafe {
+        AXUIElementCopyAttributeValue(e.0.as_CFTypeRef(), key.as_concrete_TypeRef(), &mut v)
+    };
+    if err != 0 || v.is_null() {
+        return (err, None);
     }
-    v.downcast::<CFNumber>()?.to_i64().map(|n| n != 0)
+    let v = unsafe { CFType::wrap_under_create_rule(v) };
+    let value = match v.downcast::<CFBoolean>() {
+        Some(b) => Some(b.into()),
+        None => v
+            .downcast::<CFNumber>()
+            .and_then(|n| n.to_i64())
+            .map(|n| n != 0),
+    };
+    (0, value)
 }
 pub fn set_attr_bool(e: &Element, name: &str, v: bool) -> i32 {
     let key = CFString::new(name);
