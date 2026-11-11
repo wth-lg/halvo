@@ -146,8 +146,11 @@ fn a_workflow_has_a_full_shape_and_a_dismissed_shape() {
     ));
 }
 
-fn refusal<T: serde::de::DeserializeOwned + std::fmt::Debug>(line: &str) -> String {
-    serde_json::from_str::<T>(line).unwrap_err().to_string()
+fn refusal<T: serde::de::DeserializeOwned>(line: &str) -> String {
+    match serde_json::from_str::<T>(line) {
+        Ok(_) => panic!("read although it must be refused"),
+        Err(e) => e.to_string(),
+    }
 }
 
 #[test]

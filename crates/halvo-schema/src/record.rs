@@ -577,7 +577,8 @@ fn next_rule<T: PartialEq>(
 
 strict_struct! {
     /// One workflow of a workflows page, with the ids of its support set in ascending order and its hint.
-    /// A dismissed workflow has no summaries, and a workflow with no summaries has no hint.
+    /// A dismissed workflow has no summaries, a workflow with no summaries has no hint, and a workflow whose site
+    /// is null or a domain has no hint.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct WorkflowItem {
         pub workflow: Workflow,
@@ -593,6 +594,13 @@ strict_struct! {
         }
         if i.summaries.is_empty() && i.hint.is_some() {
             return Err(ParseError::new("WorkflowItem", "hint"));
+        }
+        let site = match &i.workflow {
+            Workflow::Full(w) => &w.site,
+            Workflow::Dismissed(w) => &w.site,
+        };
+        if i.hint.is_some() && !matches!(site, Some(SiteValue::Title { .. })) {
+            return Err(ParseError::new("WorkflowItem", "hint_site"));
         }
         Ok(())
     }
