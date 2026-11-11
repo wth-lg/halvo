@@ -109,6 +109,35 @@ fn answers_cover_each_case_of_t11_6() {
     assert_eq!(expect("usage_unknown_key"), "malformed");
     assert_eq!(expect("usage_missing_key"), "malformed");
     assert_eq!(expect("usage_key_twice"), "malformed");
+    let hex = [
+        "ok_as_bytes",
+        "byte_order_mark_bytes",
+        "invalid_byte_content",
+    ];
+    for name in [
+        "ok",
+        "ok_space_and_other_order",
+        "status_500",
+        "unknown_reason",
+        "key_twice",
+        "refusal_under_200",
+        "usage_largest",
+        "tokens_in_above_u64",
+        "tokens_out_above_u64",
+        "ok_as_bytes",
+        "byte_order_mark_bytes",
+        "invalid_byte_content",
+        "usage_unknown_key",
+        "usage_missing_key",
+        "usage_key_twice",
+    ] {
+        let answer = answers
+            .iter()
+            .find(|answer| answer["name"] == name)
+            .unwrap();
+        let form = if hex.contains(&name) { "hex" } else { "body" };
+        assert!(answer.get(form).is_some(), "{name}: {form}");
+    }
     let refusals: BTreeSet<&str> = answers
         .iter()
         .filter(|answer| answer["status"] == 403)

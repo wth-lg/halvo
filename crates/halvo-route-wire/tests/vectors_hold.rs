@@ -151,6 +151,26 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
             "{name}"
         );
     }
+    let hex = [
+        "least_as_bytes",
+        "byte_order_mark_bytes",
+        "invalid_byte",
+        "overlong_form",
+        "encoded_surrogate",
+        "cut_sequence",
+    ];
+    let required = valid_canon
+        .iter()
+        .chain(&valid_not_canon)
+        .chain(invalid.iter().map(|(name, _)| name));
+    for name in required {
+        let vector = vectors
+            .iter()
+            .find(|vector| vector["name"] == *name)
+            .unwrap();
+        let form = if hex.contains(name) { "hex" } else { "body" };
+        assert!(vector.get(form).is_some(), "{name}: {form}");
+    }
     let errors: BTreeSet<&str> = vectors
         .iter()
         .filter_map(|vector| vector["error"].as_str())
