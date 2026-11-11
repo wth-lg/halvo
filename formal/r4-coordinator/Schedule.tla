@@ -35,7 +35,6 @@ Init0 ==
      fails |-> [a \in Agents |-> 0],
      done |-> [a \in Agents |-> 0],
      slotrun |-> [a \in Agents |-> 0],
-     scount |-> [a \in Agents |-> [d \in Days |-> 0]],
      stale |-> FALSE]
 
 InitH ==
@@ -86,7 +85,7 @@ Ended(s, a, cause, d) ==
     LET n == IF cause \notin FailureClass THEN 0
              ELSE IF s.fails[a] < FailsToPause THEN s.fails[a] + 1
              ELSE s.fails[a]
-    IN [s EXCEPT !.fin = @ \cup {a},
+    IN [s EXCEPT !.fin = IF cause = "completed" THEN @ \cup {a} ELSE @,
                  !.done[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
                  !.fails[a] = n,
                  !.paused = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {a} ELSE @,
@@ -100,8 +99,7 @@ Launch(s, a, trig, port, q) ==
              id == s.nrun + 1
              s1 == [s EXCEPT !.nrun = id,
                              !.starts[a][s.day] = @ + 1,
-                             !.slotrun[a] = IF slot > 0 /\ a \notin NeedsPerson THEN slot ELSE @,
-                             !.scount = IF trig = "schedule" THEN [@ EXCEPT ![a][slot] = @ + 1] ELSE @,
+                             !.slotrun[a] = IF slot > 0 THEN slot ELSE @,
                              !.ready = @ \ {a}]
              e == [k |-> "start", run |-> id, agent |-> a, trig |-> trig, q |-> q,
                    ack |-> port # "no_ack", live |-> port # "no_run"]
@@ -110,8 +108,7 @@ Launch(s, a, trig, port, q) ==
             ELSE [r |-> "ok", run |-> id, ev |-> <<e>>,
                   st |-> [s1 EXCEPT !.runs = @ \cup
                              {[id |-> id, agent |-> a, phase |-> "starting", why |-> "none",
-                               trig |-> trig, day |-> IF a \in Slotted THEN s.day ELSE 0,
-                               life |-> s.life]}]]
+                               day |-> IF a \in Slotted THEN s.day ELSE 0]}]]
 
 Enqueue(q, e) ==
     IF e.trigger = "person"
@@ -374,53 +371,70 @@ View == <<[st EXCEPT !.ready = {},
 
 LiveRuns(a) == {r \in h.live : r.agent = a}
 
-C1 == /\ Cardinality({r \in st.runs : r.agent \in NeedsModel}) <= 1
-      /\ Cardinality(st.runs) <= MaxLive
-
-C2 == \A r \in st.runs : r.life = st.life
-
+C1 == /\ Cardinality({r \in h.live : r.agent \in NeedsModel}) <= 1
+      /\ Cardinality(h.live) <= MaxLive
+C2 == \A r \in h.live : r.life = h.life
 C3 == \A a \in Agents :
         Cardinality(LiveOf(st, a)) + Cardinality({i \in DOMAIN st.queue : st.queue[i].agent = a}) <= 1
 
 C4 == h.heldstarts = 0 /\ h.unacked = 0
-C5 == \A r \in st.runs : r.agent \in NeedsPerson => r.trig = "person"
-
-C6 == \A a \in Agents : \A d \in Days : st.scount[a][d] <= 1
-
+C5 == h.alone = 0 /\ h.extra = 0
+C6 == /\ h.after = 0
+      /\ \A a \in Agents : \A d \in Days : h.sched[a][d] <= 1
 C7 == \A a \in Agents : \A d \in Days : h.count[a][d] <= StartsPerDay
 C8 == /\ ~st.stale
       /\ \A r \in st.runs : r.agent \in st.gone => r.phase = "stopping"
 
-ReachPerson == \A r \in st.runs : ~(r.agent \in NeedsPerson /\ r.trig = "person")
-ReachAuto == \A r \in st.runs : ~(r.agent \notin NeedsPerson /\ r.trig = "schedule")
-ReachHold == [][~(/\ Len(st.queue) > 0
-                  /\ Head(st.queue).agent \in st.off
-                  /\ Len(st'.queue) = 0
-                  /\ st'.life = st.life
-                  /\ st'.gone = st.gone
-                  /\ st'.nrun = st.nrun
-                  /\ Cardinality(st'.runs) < Cardinality(st.runs))]_st
-ReachFailures == \A a \in Agents : ~(st.fails[a] >= FailsToPause /\ Decide(st, a) = "hold")
-ReachSlots == [][~(\E a \in Agents : /\ st.scount[a][FirstSlot] = 1
-                                     /\ st.scount[a][FirstSlot + Period] = 0
-                                     /\ st'.scount[a][FirstSlot + Period] = 1)]_st
+vars == <<st, h>>
+Stopping(c) == {r \in st.runs : r.phase = "stopping" /\ r.why = c}
+KilledAt(r) == st'.day # st.day /\ st'.life = st.life /\ \A x \in st'.runs : x.id # r.id
+
+ReachPerson == \A r \in h.live : r.agent \notin NeedsPerson
+ReachAuto == \A a \in Agents \ NeedsPerson : \A d \in Days : h.sched[a][d] = 0
+ReachDeletableAuto == \A a \in Deletable : \A d \in Days : h.sched[a][d] = 0
+ReachFailures == \A a \in Agents : "failures" \notin h.holds[a]
+ReachFailuresCleared == [][~(\E a \in Agents : "failures" \in h.holds[a] /\ "failures" \notin h'.holds[a])]_vars
+ReachSlots == \A a \in Agents : ~(h.sched[a][FirstSlot] = 1 /\ h.sched[a][FirstSlot + Period] = 1)
 ReachCatchUp == \A a \in Agents \ NeedsPerson :
                     ~(/\ a \in st.fin
                       /\ Open(st, a)
                       /\ st.slotrun[a] # CurSlot(st.day)
                       /\ st.day - CurSlot(st.day) > CatchUpDays)
-ReachQueue == [][~(/\ Len(st.queue) > 0
-                   /\ \E r \in st'.runs : r.id > st.nrun /\ r.agent = Head(st.queue).agent)]_st
+ReachQueue == [][~(\E a \in Agents : /\ h.wait[a]["person"] + h.wait[a]["schedule"] = 1
+                                     /\ \E r \in h'.live : r.agent = a /\ r.id > st.nrun)]_vars
+ReachQueueTwo == Len(st.queue) < 2
+ReachQueueOrder == ~(Len(st.queue) = 2 /\ st.queue[1].trigger = "person" /\ st.queue[2].trigger = "schedule")
 ReachQueueFull == \A a \in Agents : Start(st, a, "person", "ok").r # "queue_full"
+ReachQueueIdle == [][~(/\ st.runs = {}
+                       /\ Len(st.queue) > 0
+                       /\ st'.life = st.life
+                       /\ st'.nrun > st.nrun
+                       /\ Len(st'.queue) < Len(st.queue))]_vars
 ReachBudget == \A a \in Agents : Decide(st, a) # "budget"
-ReachTwoLive == ~(/\ Cardinality(st.runs) = 2
-                  /\ Cardinality({r \in st.runs : r.agent \in NeedsModel}) = 1)
-ReachRestart == [][~(st'.life > st.life /\ st.runs # {} /\ Len(st.queue) > 0)]_st
-ReachDelete == [][~(\E r \in st.runs : r.agent \notin st.gone /\ r.agent \in st'.gone)]_st
-ReachDeleted == [][~(\E r \in st.runs : /\ r.agent \in st.gone
-                                        /\ r.why = "deleted"
-                                        /\ st'.life = st.life
-                                        /\ \A x \in st'.runs : x.id # r.id)]_st
-StaysLive == \A r \in st.runs : r.agent \notin st.gone
+ReachTwoLive == ~(/\ Cardinality(h.live) = 2
+                  /\ Cardinality({r \in h.live : r.agent \in NeedsModel}) = 1)
+ReachRestart == [][~(st'.life > st.life /\ st.runs # {} /\ Len(st.queue) > 0)]_vars
+ReachRestartDay == [][~(st'.life > st.life /\ st'.day > st.day)]_vars
+ReachRestartStopping == [][~(st'.life > st.life /\ \E r \in st.runs : r.phase = "stopping")]_vars
+ReachGoneStart == \A a \in Agents : ~(a \in st.gone /\ Press(st, a, "ok").r = "state")
+ReachGoneSeen == \A r \in h.live : ~(h.gone[r.agent] = "seen" /\ r.stop)
+ReachGoneQueued == [][~(\E a \in Agents : /\ h.gone[a] = "gone"
+                                          /\ h.wait[a]["person"] + h.wait[a]["schedule"] = 1
+                                          /\ h'.gone[a] = "seen"
+                                          /\ h'.wait[a]["person"] + h'.wait[a]["schedule"] = 0)]_vars
+ReachOffLive == [][~(\E r \in h.live : /\ ~r.stop
+                                       /\ "off" \notin h.holds[r.agent]
+                                       /\ "off" \in h'.holds[r.agent])]_vars
+ReachOffQueued == [][~(\E a \in Agents : /\ "off" \in h.holds[a]
+                                         /\ h.wait[a]["person"] = 1
+                                         /\ h'.wait[a]["person"] = 0
+                                         /\ h'.life = h.life
+                                         /\ st'.nrun = st.nrun)]_vars
+ReachKillCancelled == [][~(\E r \in Stopping("cancelled") : r.agent \notin st.off /\ KilledAt(r))]_vars
+ReachKillOff == [][~(\E r \in Stopping("cancelled") : r.agent \in st.off /\ KilledAt(r))]_vars
+ReachKillLapsed == [][~(\E r \in Stopping("lapsed") : KilledAt(r))]_vars
+ReachKillDeleted == [][~(\E r \in Stopping("deleted") : KilledAt(r))]_vars
+ReachRecause == [][~(\E r \in Stopping("cancelled") : \E x \in st'.runs : x.id = r.id /\ x.why = "deleted")]_vars
 
+StaysLive == \A r \in h.live : h.gone[r.agent] = "listed"
 =============================================================================
