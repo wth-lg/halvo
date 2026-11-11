@@ -1,0 +1,29 @@
+- main:
+  - heading "Halvo" [level=1]
+  - region "Your agents":
+    - heading "Your agents" [level=2]
+    - status
+    - list:
+      - listitem:
+        - paragraph: Ready Pay the power bill
+        - paragraph: Runs on the first day of each month.
+        - button "Run now"
+        - button "Switch off"
+        - button "Delete"
+      - listitem:
+        - paragraph: Needs you Order groceries
+        - paragraph: Choose the shop for this agent.
+        - button "Switch off"
+        - button "Delete"
+    - heading "Set up Order groceries" [level=3]
+    - paragraph: Choose a shop and type the name of the list.
+    - group "Shop":
+      - text: Shop
+      - radio "Site1"
+      - text: Site1
+      - radio "Site2"
+      - text: Site2
+    - group "List name":
+      - text: List name Type it here
+      - textbox "Type it here"
+    - button "Not now"

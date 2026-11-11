@@ -1,0 +1,21 @@
+- main:
+  - heading "Halvo" [level=1]
+  - region "Your agents":
+    - heading "Your agents" [level=2]
+    - status
+    - list:
+      - listitem:
+        - paragraph: Needs you Reply to email
+        - paragraph: Waiting for your answer.
+        - button "Stop"
+        - button "Delete"
+    - alertdialog "Send this email?":
+      - heading "Send this email?" [level=3]
+      - term: To (From the site)
+      - definition: Site1
+      - term: Subject (Written by the agent)
+      - definition: Rent for December
+      - term: Body (Written by the agent)
+      - definition: The rent is paid. Thank you.
+      - button "Don't send"
+      - button "Send"

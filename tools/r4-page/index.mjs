@@ -1,0 +1,698 @@
+import { createServer } from 'node:http';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { extname, join, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { HERE, Refusal, browsersDir, installed } from './machine.mjs';
+
+const LICENCES = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Zlib', 'Unicode-3.0'];
+const TEXT_KEYS = new Set(['name', 'word', 'line', 'say', 'level', 'text', 'title', 'label', 'value', 'from_text', 'note']);
+const MARKUP = '<b data-x="1">x</b>&amp;';
+const VIEWPORT = { width: 1024, height: 768 };
+const NEXT_HOLD_MS = 1000;
+const FRAME = '/__r4/frame/index.html';
+const ENGINE = '/__r4/engine/ace.js';
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+};
+const MODES = [
+  ['reduced_motion', { reducedMotion: 'reduce' }, () => matchMedia('(prefers-reduced-motion: reduce)').matches],
+  ['forced_colors', { forcedColors: 'active' }, () => matchMedia('(forced-colors: active)').matches],
+  ['width_320', { viewport: { width: 320, height: 768 } }, () => innerWidth === 320],
+];
+
+class EngineNone extends Error {
+  constructor(reason) {
+    super('the rule engine cannot run: ' + reason);
+    this.code = 'engine';
+    this.reason = reason;
+  }
+}
+
+function engineDir() {
+  return join(browsersDir(), 'node_modules', 'accessibility-checker-engine');
+}
+
+function engineInfo() {
+  let pkg;
+  try {
+    pkg = JSON.parse(readFileSync(join(engineDir(), 'package.json'), 'utf8'));
+  } catch {
+    throw new EngineNone('package');
+  }
+  if (!LICENCES.includes(pkg.license)) throw new EngineNone('licence');
+  if (!existsSync(join(engineDir(), 'ace.js'))) throw new EngineNone('file');
+  return { version: pkg.version, license: pkg.license };
+}
+
+function locate(path, routes) {
+  for (const [prefix, root, exact] of routes) {
+    if (exact) {
+      if (path === prefix) return existsSync(root) ? root : null;
+      continue;
+    }
+    if (!path.startsWith(prefix)) continue;
+    const file = resolve(root, path.slice(prefix.length).replace(/^\/+/, ''));
+    if (file !== root && !file.startsWith(root + sep)) return null;
+    return existsSync(file) && statSync(file).isFile() ? file : null;
+  }
+  return null;
+}
+
+export async function serve({ ui, fixtures } = {}) {
+  if (typeof ui !== 'string' || typeof fixtures !== 'string') throw new Refusal('usage', 'serve({ui, fixtures}) takes two directories');
+  const routes = [
+    [ENGINE, join(engineDir(), 'ace.js'), true],
+    ['/__r4/frame/', join(HERE, 'frame')],
+    ['/__r4/sample/', join(HERE, 'sample')],
+    ['/__fixtures/', resolve(fixtures)],
+    ['/', resolve(ui)],
+  ];
+  const server = createServer((req, res) => {
+    let path;
+    try {
+      path = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
+    } catch {
+      res.writeHead(400).end();
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405).end();
+      return;
+    }
+    const file = locate(path, routes);
+    if (!file) {
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
+    if (req.method === 'HEAD') res.end();
+    else createReadStream(file).pipe(res);
+  });
+  server.on('connection', (socket) => socket.unref());
+  await new Promise((done, fail) => {
+    server.once('error', fail);
+    server.listen(0, '127.0.0.1', done);
+  });
+  server.unref();
+  return 'http://127.0.0.1:' + server.address().port;
+}
+
+let shared = null;
+let announced = false;
+
+async function launch() {
+  const build = installed();
+  const pw = await import(pathToFileURL(build.pkg).href);
+  const browser = await pw[build.browser].launch({ headless: true, executablePath: build.exe });
+  if (!announced) {
+    announced = true;
+    process.stdout.write('browser name=' + build.browser + ' version=' + browser.version() + '\n');
+  }
+  return { browser, build };
+}
+
+async function acquire() {
+  if (!shared) shared = { users: 0, ready: launch() };
+  const mine = shared;
+  mine.users++;
+  try {
+    return await mine.ready;
+  } catch (err) {
+    mine.users--;
+    if (shared === mine && mine.users === 0) shared = null;
+    throw err;
+  }
+}
+
+async function release() {
+  const mine = shared;
+  if (!mine) return;
+  mine.users--;
+  if (mine.users > 0) return;
+  shared = null;
+  const { browser } = await mine.ready;
+  await browser.close();
+}
+
+const INIT = () => {
+  const stub = Object.freeze({ call: (name, args) => window.__r4call(name, args === undefined ? null : args) });
+  const halvo = {};
+  Object.defineProperty(halvo, 'ipc', { get: () => stub, set: () => {}, enumerable: true });
+  Object.defineProperty(window, 'Halvo', {
+    get: () => halvo,
+    set: (value) => {
+      if (value && typeof value === 'object') for (const k of Object.keys(value)) if (k !== 'ipc') halvo[k] = value[k];
+    },
+  });
+};
+
+const QUIET = () =>
+  new Promise((done) => {
+    let timer = 0;
+    const end = () => {
+      observer.disconnect();
+      requestAnimationFrame(() => requestAnimationFrame(() => done(true)));
+    };
+    const observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(end, 80);
+    });
+    observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    timer = setTimeout(end, 80);
+  });
+
+function sleep(ms) {
+  return new Promise((done) => setTimeout(done, ms).unref());
+}
+
+async function settle(h) {
+  await h.page.waitForFunction(() => document.readyState === 'complete' && (!window.__r4frame || window.__r4frame.ready), null, { timeout: 15000 });
+  for (let i = 0; i < 300 && h.inflight > 0; i++) await sleep(10);
+  await h.page.evaluate(QUIET);
+}
+
+function markup(value, key) {
+  if (Array.isArray(value)) return value.map((x) => (typeof x === 'string' ? (TEXT_KEYS.has(key) && x !== '' ? MARKUP : x) : markup(x, key)));
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const k of Object.keys(value)) {
+      const v = value[k];
+      out[k] = typeof v === 'string' ? (TEXT_KEYS.has(k) && v !== '' ? MARKUP : v) : markup(v, k);
+    }
+    return out;
+  }
+  return value;
+}
+
+async function fixture(h, name) {
+  if (h.cache.has(name)) return h.cache.get(name);
+  let res;
+  try {
+    res = await fetch(h.origin + '/__fixtures/' + name);
+  } catch {
+    throw new Refusal('fixture', 'the fixtures directory could not be read at ' + name);
+  }
+  if (!res.ok) throw new Refusal('fixture', 'no fixture ' + name);
+  let value;
+  try {
+    value = JSON.parse(await res.text());
+  } catch {
+    throw new Refusal('fixture', name + ' is no JSON');
+  }
+  h.cache.set(name, value);
+  return value;
+}
+
+function same(a, b) {
+  return JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
+}
+
+function sorted(v) {
+  if (Array.isArray(v)) return v.map(sorted);
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v).sort()) o[k] = sorted(v[k]);
+    return o;
+  }
+  return v;
+}
+
+function flush(h) {
+  const t = h.transcript;
+  const line = t.lines[t.i];
+  if (t.waiting && t.i > 0 && line && 'state' in line) {
+    const wake = t.waiting;
+    t.waiting = null;
+    t.i++;
+    wake(h.transform ? h.transform(line.state) : line.state);
+  }
+}
+
+function fromTranscript(h, name, args) {
+  const t = h.transcript;
+  const line = t.lines[t.i];
+  if (name === 'agents_snapshot') {
+    if (t.i === 0 && line && 'state' in line) {
+      t.i++;
+      return h.transform ? h.transform(line.state) : line.state;
+    }
+    h.mismatch.push(name);
+    return { error: 'malformed' };
+  }
+  if (name === 'agents_next') {
+    return new Promise((wake) => {
+      t.waiting = wake;
+      flush(h);
+    });
+  }
+  if (!line || !('call' in line) || line.call !== name || !same(line.args || {}, args)) {
+    h.mismatch.push(name);
+    return { error: 'malformed' };
+  }
+  t.i++;
+  setImmediate(() => flush(h));
+  return line.reply;
+}
+
+async function stub(h, name, args) {
+  const a = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
+  if (typeof name !== 'string') return { error: 'malformed' };
+  if (name !== 'agents_snapshot' && name !== 'agents_next') {
+    h.calls++;
+    if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  }
+  if (h.transcript) return fromTranscript(h, name, a);
+  if (name === 'agents_next') {
+    await sleep(NEXT_HOLD_MS);
+    return h.closed ? { closed: 'yes' } : fixture(h, 'reply-next-same.json');
+  }
+  h.inflight++;
+  try {
+    if (name === 'agents_snapshot') return h.state.snapshot;
+    if (name === 'agents_card') return h.state.card;
+    return await fixture(h, 'reply-ok.json');
+  } finally {
+    h.inflight--;
+  }
+}
+
+function lines(replies) {
+  return replies.map((line) => {
+    const v = typeof line === 'string' ? JSON.parse(line) : line;
+    if (!v || typeof v !== 'object' || !('state' in v || 'call' in v)) throw new Refusal('fixture', 'a transcript line holds neither state nor call');
+    return v;
+  });
+}
+
+async function openWith(options, context, transform) {
+  const o = options || {};
+  if (typeof o.origin !== 'string' || (typeof o.state !== 'string' && !Array.isArray(o.replies))) {
+    throw new Refusal('usage', 'open({origin, state, views, frame, replies, out}) needs origin and a state or replies');
+  }
+  const { browser, build } = await acquire();
+  let ctx = null;
+  try {
+    ctx = await browser.newContext({ viewport: VIEWPORT, ...context });
+    const h = {
+      origin: o.origin,
+      options: o,
+      context,
+      transform,
+      build,
+      ctx,
+      page: null,
+      out: o.out ? resolve(o.out) : null,
+      cache: new Map(),
+      transcript: Array.isArray(o.replies) ? { i: 0, waiting: null, lines: lines(o.replies) } : null,
+      state: null,
+      blocked: 0,
+      inflight: 0,
+      calls: 0,
+      actions: 0,
+      errors: 0,
+      mismatch: [],
+      closed: false,
+      modes: null,
+    };
+    h.close = () => closeHandle(h);
+    if (typeof o.state === 'string' && !h.transcript) {
+      const raw = await fixture(h, 'state-' + o.state + '.json');
+      if (!raw || typeof raw !== 'object' || !('snapshot' in raw)) throw new Refusal('fixture', 'state-' + o.state + '.json holds no snapshot');
+      h.state = transform ? transform(raw) : raw;
+    }
+    if (h.out) await mkdir(h.out, { recursive: true });
+    await ctx.route('**/*', (route) => {
+      let host = '';
+      try {
+        host = new URL(route.request().url()).hostname;
+      } catch {
+        host = '';
+      }
+      if (host === '127.0.0.1') return route.continue();
+      h.blocked++;
+      return route.abort();
+    });
+    await ctx.exposeBinding('__r4call', (_source, name, args) => stub(h, name, args));
+    await ctx.addInitScript(INIT);
+    h.page = await ctx.newPage();
+    h.page.on('pageerror', () => {
+      h.errors++;
+    });
+    const url = new URL(o.frame || FRAME, o.origin);
+    if (Array.isArray(o.views) && o.views.length) url.searchParams.set('views', o.views.join(','));
+    await h.page.goto(url.href);
+    await settle(h);
+    if (await h.page.evaluate(() => Boolean(window.__r4frame && window.__r4frame.failed))) throw new Refusal('fixture', 'a view script of views did not load');
+    return h;
+  } catch (err) {
+    if (ctx) await ctx.close().catch(() => {});
+    await release();
+    throw err;
+  }
+}
+
+async function closeHandle(h) {
+  if (h.closed) return;
+  h.closed = true;
+  await h.ctx.close().catch(() => {});
+  await release();
+}
+
+export async function open(options) {
+  return openWith(options, {}, null);
+}
+
+function again(h, context, transform) {
+  const o = { ...h.options, out: undefined };
+  return openWith(o, context === undefined ? h.context : context, transform === undefined ? h.transform : transform);
+}
+
+function cssq(s) {
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
+export async function act(h, { act: name, param, n, text } = {}) {
+  if (!h || !h.page || typeof name !== 'string') throw new Refusal('usage', 'act(page, {act, param, n, text}) needs a page and a data-act name');
+  let sel = '[data-act="' + cssq(name) + '"]';
+  if (param !== undefined && param !== null) sel += '[data-param="' + cssq(param) + '"]';
+  if (n !== undefined && n !== null) sel += '[data-n="' + cssq(n) + '"]';
+  const loc = h.page.locator(sel);
+  const count = await loc.count();
+  if (count !== 1) throw new Error('act: ' + count + ' controls match data-act=' + name);
+  const kind = await loc.evaluate((el) => (el.tagName === 'INPUT' ? el.type : el.tagName.toLowerCase()));
+  let type;
+  if (kind === 'radio') {
+    await loc.check();
+    type = 'choose';
+  } else if (name === 'typed') {
+    await loc.pressSequentially(String(text === undefined || text === null ? '' : text));
+    type = 'type';
+  } else {
+    await loc.click();
+    type = 'click';
+  }
+  h.actions++;
+  if (h.out) await appendFile(join(h.out, 'actions.txt'), 'action i=' + h.actions + ' type=' + type + ' act=' + name + '\n');
+  await settle(h);
+  if (h.mismatch.length) throw new Error('act: the page made a call that the transcript does not hold next: ' + h.mismatch.join(','));
+}
+
+const ENGINE_RUN = async () => {
+  for (const s of document.querySelectorAll('script[src$="/__r4/engine/ace.js"]')) s.remove();
+  try {
+    if (typeof ace === 'undefined' || !ace.Checker) return { error: 'file' };
+    const checker = new ace.Checker();
+    const ids = typeof checker.getGuidelineIds === 'function' ? checker.getGuidelineIds() : checker.rulesetIds || [];
+    if (!ids.includes('WCAG_2_2')) return { error: 'ruleset' };
+    const report = await checker.check(document, ['WCAG_2_2']);
+    let violations = 0;
+    let review = 0;
+    const rules = new Set();
+    for (const r of report.results) {
+      const v = r.value || [];
+      if (v[1] === 'PASS') continue;
+      if (v[0] === 'VIOLATION' && v[1] === 'FAIL') {
+        violations++;
+        rules.add(r.ruleId);
+      } else {
+        review++;
+      }
+    }
+    return { executed: report.numExecuted, violations, review, rules: [...rules].sort() };
+  } catch {
+    return { error: 'throws' };
+  }
+};
+
+async function engineCheck(h) {
+  engineInfo();
+  const before = h.blocked;
+  try {
+    await h.page.addScriptTag({ url: h.origin + ENGINE });
+  } catch {
+    throw new EngineNone('file');
+  }
+  const r = await h.page.evaluate(ENGINE_RUN);
+  if (h.blocked !== before) throw new EngineNone('request');
+  if (r.error) throw new EngineNone(r.error);
+  if (!(r.executed > 0)) throw new EngineNone('no_rule');
+  return { ok: r.violations === 0, counts: { violations: r.violations, review: r.review }, names: r.rules };
+}
+
+const HELPER = () => {
+  if (window.__r4w) return;
+  const NATIVE = 'button, input:not([type="hidden"]), select, textarea, a[href], summary, [contenteditable=""], [contenteditable="true"]';
+  const ROLES = new Set(['button', 'link', 'radio', 'checkbox', 'switch', 'tab', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'option', 'textbox', 'combobox', 'slider', 'spinbutton']);
+  const PROPS = ['outline-style', 'outline-width', 'outline-color', 'outline-offset'];
+  for (const side of ['top', 'right', 'bottom', 'left']) for (const p of ['style', 'width', 'color']) PROPS.push('border-' + side + '-' + p);
+  const ids = new WeakMap();
+  const byId = new Map();
+  let next = 1;
+  const idOf = (el) => {
+    if (!ids.has(el)) ids.set(el, next++);
+    const id = ids.get(el);
+    byId.set(id, el);
+    return id;
+  };
+  const rendered = (el) => {
+    if (!el.isConnected) return false;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
+    return el.getClientRects().length > 0;
+  };
+  const isControl = (el) => el.matches(NATIVE) || el.hasAttribute('data-act') || (el.hasAttribute('tabindex') && el.tabIndex >= 0) || ROLES.has((el.getAttribute('role') || '').trim());
+  const dialog = () => {
+    const all = [...document.querySelectorAll('[role="alertdialog"]')].filter(rendered);
+    return all.length ? all[all.length - 1] : null;
+  };
+  const controls = () => [...document.querySelectorAll('*')].filter((el) => isControl(el) && rendered(el) && !el.disabled);
+  const style = (el) => {
+    const s = getComputedStyle(el);
+    return PROPS.map((p) => s.getPropertyValue(p));
+  };
+  const name = (el) => el.getAttribute('data-act') || el.tagName.toLowerCase();
+  window.__r4w = {
+    begin() {
+      const d = dialog();
+      const list = controls().filter((el) => (d ? d.contains(el) : !el.closest('[inert]')));
+      const a = document.activeElement;
+      const active = a && a !== document.body && a !== document.documentElement ? idOf(a) : 0;
+      return {
+        dialog: Boolean(d),
+        taken: d ? d.contains(a) : null,
+        active,
+        activeStyle: active ? style(a) : null,
+        safe: d && list.length ? idOf(list[0]) : 0,
+        controls: list.map((el) => ({ id: idOf(el), group: el.tagName === 'INPUT' && el.type === 'radio' && el.name ? 'radio:' + el.name : null, name: name(el) })),
+      };
+    },
+    step() {
+      const a = document.activeElement;
+      if (!a || a === document.body || a === document.documentElement) return { id: 0 };
+      const d = dialog();
+      return { id: idOf(a), outside: d ? !d.contains(a) : false, style: style(a) };
+    },
+    rest(list) {
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      return list.map((id) => (byId.has(id) && byId.get(id).isConnected ? style(byId.get(id)) : null));
+    },
+    focus(id) {
+      const el = byId.get(id);
+      if (el) el.focus();
+      return Boolean(el) && document.activeElement === el;
+    },
+    open() {
+      return Boolean(dialog());
+    },
+    sizes() {
+      const small = [];
+      for (const el of controls()) {
+        const r = el.getBoundingClientRect();
+        const min = el.closest('[role="alertdialog"]') ? 44 : 24;
+        if (Math.round(r.width * 100) / 100 < min || Math.round(r.height * 100) / 100 < min) small.push(name(el));
+      }
+      return small;
+    },
+  };
+};
+
+function seen(color) {
+  return !(color === 'transparent' || /^rgba\(.*,\s*0\)$/.test(color));
+}
+
+function visibleChange(focused, rest) {
+  if (!focused || !rest) return false;
+  const outlineOn = focused[0] !== 'none' && (focused[0] === 'auto' || parseFloat(focused[1]) > 0) && seen(focused[2]);
+  const outlineChanged = [0, 1, 2, 3].some((i) => focused[i] !== rest[i]);
+  const borderChanged = focused.slice(4).some((v, i) => v !== rest[4 + i]);
+  return (outlineOn && outlineChanged) || borderChanged;
+}
+
+async function walkCheck(h) {
+  const page = h.page;
+  const key = h.build.walkKey;
+  await page.evaluate(HELPER);
+  const b = await page.evaluate(() => window.__r4w.begin());
+  const misses = new Set();
+  if (b.dialog && !b.taken) misses.add('dialog_not_taken');
+  const stops = new Map();
+  const first = b.active;
+  let start = first;
+  let back = false;
+  const max = b.controls.length * 2 + 8;
+  for (let i = 0; i < max; i++) {
+    await page.keyboard.press(key);
+    const s = await page.evaluate(() => window.__r4w.step());
+    if (s.id === 0) continue;
+    if (s.outside) misses.add('dialog_focus_lost');
+    if (!stops.has(s.id)) stops.set(s.id, s.style);
+    if (start === 0) {
+      start = s.id;
+      continue;
+    }
+    if (s.id === start) {
+      back = true;
+      break;
+    }
+  }
+  if (first && !stops.has(first)) stops.set(first, b.activeStyle);
+  const groups = new Map();
+  for (const c of b.controls) {
+    if (c.group) {
+      groups.set(c.group, (groups.get(c.group) || false) || stops.has(c.id));
+    } else if (!stops.has(c.id)) {
+      misses.add('unreached');
+    }
+  }
+  for (const reached of groups.values()) if (!reached) misses.add('unreached');
+  const ids = [...stops.keys()];
+  const rest = await page.evaluate((list) => window.__r4w.rest(list), ids);
+  ids.forEach((id, i) => {
+    if (!visibleChange(stops.get(id), rest[i])) misses.add('focus_unseen');
+  });
+  if (!back && b.controls.length > 0 && stops.size === 0) misses.add('unreached');
+  if (b.dialog) {
+    const fresh = await again(h);
+    try {
+      await fresh.page.evaluate(HELPER);
+      const fb = await fresh.page.evaluate(() => window.__r4w.begin());
+      const focused = fb.safe ? await fresh.page.evaluate((id) => window.__r4w.focus(id), fb.safe) : false;
+      if (!focused) {
+        misses.add('dialog_not_closed');
+      } else {
+        await fresh.page.keyboard.press('Enter');
+        await settle(fresh);
+        if (await fresh.page.evaluate(() => window.__r4w.open())) misses.add('dialog_not_closed');
+      }
+    } finally {
+      await fresh.close();
+    }
+  }
+  return { ok: misses.size === 0, counts: { keyboard: misses.size ? 'miss' : 'ok' }, names: [...misses].sort() };
+}
+
+async function structureCheck(h, { snapshot, write } = {}) {
+  if (typeof snapshot !== 'string') throw new Refusal('usage', 'check 3 needs {snapshot: <path of the structure file>}');
+  const text = (await h.page.locator('body').ariaSnapshot()) + '\n';
+  if (write) {
+    await writeFile(snapshot, text);
+    return { ok: true, counts: { structure: 'same' }, names: [] };
+  }
+  let want;
+  try {
+    want = await readFile(snapshot, 'utf8');
+  } catch {
+    throw new Refusal('fixture', 'no structure file at the path of snapshot');
+  }
+  const ok = want === text;
+  return { ok, counts: { structure: ok ? 'same' : 'differ' }, names: [] };
+}
+
+async function sizeCheck(h) {
+  await h.page.evaluate(HELPER);
+  const small = await h.page.evaluate(() => window.__r4w.sizes());
+  const ok = small.length === 0;
+  return { ok, counts: { size: ok ? 'ok' : 'miss' }, names: [...new Set(small)].sort() };
+}
+
+async function modesCheck(h, { snapshot } = {}) {
+  const off = [];
+  const modes = {};
+  for (const [name, context, probe] of MODES) {
+    const m = await again(h, { ...h.context, ...context });
+    try {
+      if (!(await m.page.evaluate(probe))) {
+        off.push(name);
+        modes[name] = 'off';
+        continue;
+      }
+      const results = [];
+      try {
+        results.push(await engineCheck(m));
+      } catch (err) {
+        if (!(err instanceof EngineNone)) throw err;
+      }
+      results.push(await walkCheck(m), await sizeCheck(m));
+      if (typeof snapshot === 'string') results.push(await structureCheck(m, { snapshot }));
+      const scroll = await m.page.evaluate(() => {
+        const e = document.scrollingElement || document.documentElement;
+        return e.scrollWidth > e.clientWidth;
+      });
+      modes[name] = scroll || results.some((r) => !r.ok) ? 'miss' : 'ok';
+    } finally {
+      await m.close();
+    }
+  }
+  h.modes = modes;
+  const ok = !Object.values(modes).includes('miss');
+  return { ok, counts: { modes: ok ? 'ok' : 'miss', modes_off: off.length ? off.join(',') : '-' }, names: off };
+}
+
+const COUNT = () => ({ elements: document.getElementsByTagName('*').length, injected: document.querySelectorAll('[data-x]').length });
+
+async function markupCheck(h) {
+  const plain = await again(h, h.context, null);
+  let a;
+  try {
+    a = await plain.page.evaluate(COUNT);
+  } finally {
+    await plain.close();
+  }
+  const marked = await again(h, h.context, (state) => markup(state, ''));
+  let b;
+  try {
+    b = await marked.page.evaluate(COUNT);
+  } finally {
+    await marked.close();
+  }
+  const ok = a.elements === b.elements && b.injected === 0;
+  return { ok, counts: { markup: ok ? 'ok' : 'miss' }, names: ok ? [] : ['elements'] };
+}
+
+export async function check(h, n, options = {}) {
+  if (!h || !h.page || h.closed) throw new Refusal('usage', 'check(page, n, {snapshot, write}) needs an open page');
+  switch (n) {
+    case 1:
+      return engineCheck(h);
+    case 2:
+      return walkCheck(h);
+    case 3:
+      return structureCheck(h, options);
+    case 4:
+      return sizeCheck(h);
+    case 5:
+      return modesCheck(h, options);
+    case 6:
+      return markupCheck(h);
+    default:
+      throw new Refusal('usage', 'check(page, n, {snapshot, write}) takes n from 1 to 6');
+  }
+}
