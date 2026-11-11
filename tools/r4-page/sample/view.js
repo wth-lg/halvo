@@ -400,6 +400,11 @@
         inner.src = 'about:blank';
         root.appendChild(inner);
       }
+      if (fault === 'no_act') {
+        var plain = el('button', null, 'Help');
+        plain.type = 'button';
+        root.appendChild(plain);
+      }
       if (fault === 'clipped') {
         var box = el('div', null, null);
         box.style.height = '10px';

@@ -931,6 +931,7 @@ const HELPER = () => {
       };
       const round = (v) => Math.round(v * 100) / 100;
       for (const el of controls()) {
+        if (el.getAttribute('data-act') === null) small.push('no_act');
         let inDialog = false;
         for (let p = el.parentElement; p; p = p.parentElement) if (role(p) === 'alertdialog') inDialog = true;
         const min = inDialog ? 44 : 24;
