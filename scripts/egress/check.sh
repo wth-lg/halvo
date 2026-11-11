@@ -30,7 +30,7 @@ not_observable() {
   esac
 }
 
-built=sandbox
+built="sandbox wfp"
 
 sandbox_entry() {
   case $2:$3 in
@@ -152,45 +152,130 @@ sandbox_reap() {
   done
 }
 
+wfp_ps() {
+  MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+    -File "$wfp_script" "$@"
+}
+
+wfp_entry() {
+  case $2 in
+    v4 | v6) return 0 ;;
+  esac
+  return 1
+}
+
+wfp_rights() {
+  wfp_script=$(cygpath -w "$here/wfp.ps1") || {
+    rights="cygpath is missing"
+    return 1
+  }
+  checker=
+  read -r checker <"/proc/$$/winpid" || {
+    rights="the Windows process id of the check cannot be read"
+    return 1
+  }
+  rights=$(wfp_ps -Action rights 2>&1) || return 1
+  rights=
+}
+
+wfp_program() {
+  found=$(command -v "$1" 2>/dev/null) || return 0
+  case $found in
+    /*) ;;
+    *) return 0 ;;
+  esac
+  [ -f "$found" ] || found=$found.exe
+  [ -f "$found" ] || return 0
+  cygpath -w "$found"
+}
+
+wfp_setup() {
+  wfp_dir=$1
+  wfp_token=$2
+  wfp_deny=$3
+  shift 3
+  {
+    cygpath -w "$runner"
+    cygpath -w "$bin/egress-probe.exe"
+    wfp_program "$1"
+  } >"$wfp_dir/programs" || refuse output "target/egress/$n/programs"
+  win_dir=$(cygpath -w "$wfp_dir") || refuse output "target/egress/$n"
+  out=$(wfp_ps -Action setup -Dir "$win_dir" -Token "$wfp_token" -Deny "$wfp_deny" -CheckPid "$checker" 2>&1) ||
+    refuse mode "${out:-the wfp set-up failed}"
+}
+
+wfp_launch() {
+  shift
+  "$@"
+}
+
+wfp_collect() {
+  root_pid=0
+  if [ -f "$1/runner.pid" ]; then
+    read -r root_pid <"$1/runner.pid" || root_pid=0
+  fi
+  win_dir=$(cygpath -w "$1") || refuse output "target/egress/$n"
+  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "$root_pid" 2>&1) || {
+    wfp_teardown "$1" "$2"
+    refuse mode "${out:-the wfp audit could not be read}"
+  }
+}
+
+wfp_teardown() {
+  win_dir=$(cygpath -w "$1") || win_dir=$1
+  wfp_ps -Action teardown -Dir "$win_dir" -Token "$2" -CheckPid "$checker" >/dev/null 2>&1
+}
+
+wfp_reap() {
+  return 0
+}
+
 mode_entry() {
   case $mode in
     sandbox) sandbox_entry "$@" ;;
+    wfp) wfp_entry "$@" ;;
   esac
 }
 
 mode_rights() {
   case $mode in
     sandbox) sandbox_rights ;;
+    wfp) wfp_rights ;;
   esac
 }
 
 mode_setup() {
   case $mode in
     sandbox) sandbox_setup "$@" ;;
+    wfp) wfp_setup "$@" ;;
   esac
 }
 
 mode_launch() {
   case $mode in
     sandbox) sandbox_launch "$@" ;;
+    wfp) wfp_launch "$@" ;;
   esac
 }
 
 mode_collect() {
   case $mode in
     sandbox) sandbox_collect "$@" ;;
+    wfp) wfp_collect "$@" ;;
   esac
 }
 
 mode_teardown() {
   case $mode in
     sandbox) sandbox_teardown "$@" ;;
+    wfp) wfp_teardown "$@" ;;
   esac
 }
 
 mode_reap() {
   case $mode in
     sandbox) sandbox_reap ;;
+    wfp) wfp_reap ;;
   esac
 }
 

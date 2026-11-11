@@ -294,6 +294,38 @@ test_sandbox() {
   expect_refusal sandbox/wfp-on-macos mode sh scripts/egress/check.sh --mode wfp "$e" -- sh "$pr" none
 }
 
+test_wfp() {
+  e=scripts/egress/lists/empty.txt
+  l=scripts/egress/lists/loopback.txt
+  pr=scripts/egress/probe.sh
+  expect_run wfp/quiet 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
+  got=$(field_of mode) || got=
+  result wfp/quiet-mode wfp "$got"
+  run_check wfp/loopback sh scripts/egress/check.sh "$e" -- sh "$pr" loopback
+  result wfp/loopback-exit 1 "$code"
+  expect_logged wfp/loopback-line ' proto=tcp dest=127.0.0.1:47201 pid=[0-9]* image=egress-probe.exe$'
+  serve 47201
+  serve_first=$served
+  stop_first=$stop
+  serve 47202
+  expect_run wfp/listed-reached 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" loopback
+  run_check wfp/unlisted sh scripts/egress/check.sh "$l" -- sh "$pr" loopback2
+  result wfp/unlisted-exit 1 "$code"
+  expect_logged wfp/unlisted-line ' proto=tcp dest=127.0.0.1:47202 pid=[0-9]* image=egress-probe.exe$'
+  unserve
+  served=$serve_first
+  stop=$stop_first
+  unserve
+  expect_run wfp/listen-inside 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" listen
+  expect_run wfp/exit-code-passes 1 3 0 sh scripts/egress/check.sh "$e" -- sh -c 'exit 3'
+  expect_run wfp/not-started 1 not-started 0 sh scripts/egress/check.sh "$e" -- "$work/no-such-command"
+  printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$work/routable.txt"
+  expect_run wfp/routable-entry-taken 0 0 0 sh scripts/egress/check.sh "$work/routable.txt" -- sh "$pr" none
+  printf '[fixed]\n[agent]\nexample.com:443\n' >"$work/name.txt"
+  expect_refusal wfp/name-entry entry sh scripts/egress/check.sh "$work/name.txt" -- sh "$pr" none
+  expect_refusal wfp/sandbox-on-windows mode sh scripts/egress/check.sh --mode sandbox "$e" -- sh "$pr" none
+}
+
 [ $# -gt 0 ] || set -- probe lists
 for part in "$@"; do
   case $part in
