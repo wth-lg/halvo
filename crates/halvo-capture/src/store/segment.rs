@@ -30,21 +30,21 @@ const SEGMENT_EXT: &str = "seg";
 const PARTIAL_EXT: &str = "seg.tmp";
 
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub(crate) struct SegmentKey([u8; 32]);
+pub(crate) struct SegmentKey(Box<[u8; 32]>);
 
 const _: () = wiped_on_drop::<SegmentKey>();
 
 impl SegmentKey {
     pub(crate) fn random() -> StoreResult<Self> {
-        let mut key = Self([0u8; 32]);
-        getrandom::getrandom(&mut key.0).map_err(rng_error)?;
+        let mut key = Self(Box::new([0u8; 32]));
+        getrandom::getrandom(key.0.as_mut_slice()).map_err(rng_error)?;
         Ok(key)
     }
-    fn expose(&self) -> &[u8; 32] {
+    pub(crate) fn expose(&self) -> &[u8; 32] {
         &self.0
     }
     fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Self(Box::new(bytes))
     }
 }
 

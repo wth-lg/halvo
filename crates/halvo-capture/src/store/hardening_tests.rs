@@ -1714,62 +1714,103 @@ fn every_modified_segment_file_is_rejected_with_no_plaintext() {
     assert_eq!(tally.cases, CASES, "the matrix ran another number of cases");
 }
 
-fn read_from_another_thread(address: usize) -> [u8; 32] {
-    std::thread::scope(|scope| {
-        scope
-            .spawn(move || {
-                let mut bytes = [0u8; 32];
-                for (i, byte) in bytes.iter_mut().enumerate() {
-                    *byte = unsafe { std::ptr::read_volatile((address + i) as *const u8) };
-                }
-                bytes
-            })
-            .join()
-            .unwrap()
-    })
+struct FreedBlockWatch;
+
+static WATCHED_BLOCK: AtomicUsize = AtomicUsize::new(0);
+static NONZERO_AT_FREE_PLUS_ONE: AtomicUsize = AtomicUsize::new(0);
+static WATCH_SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+unsafe impl std::alloc::GlobalAlloc for FreedBlockWatch {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        std::alloc::System.alloc(layout)
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+        std::alloc::System.alloc_zeroed(layout)
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
+        std::alloc::System.realloc(ptr, layout, new_size)
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        let address = ptr as usize;
+        if WATCHED_BLOCK.load(Ordering::SeqCst) == address
+            && WATCHED_BLOCK
+                .compare_exchange(address, 0, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+        {
+            let bytes = std::slice::from_raw_parts(ptr, layout.size());
+            let nonzero = bytes.iter().filter(|&&b| b != 0).count();
+            NONZERO_AT_FREE_PLUS_ONE.store(nonzero + 1, Ordering::SeqCst);
+        }
+        std::alloc::System.dealloc(ptr, layout)
+    }
 }
 
-fn nonzero_bytes(bytes: &[u8; 32]) -> usize {
-    bytes.iter().filter(|&&b| b != 0).count()
-}
+#[global_allocator]
+static FREED_BLOCK_WATCH: FreedBlockWatch = FreedBlockWatch;
 
-fn key_bytes_before_and_after_drop_in_place<T>(
+fn key_bytes_before_and_when_freed<T>(
     value: T,
-    key_offset: impl FnOnce(&T) -> usize,
+    key_block: impl FnOnce(&T) -> *const u8,
 ) -> (usize, usize) {
-    let mut slot = std::mem::MaybeUninit::new(value);
-    let base = slot.as_ptr() as usize;
-    let address = base + key_offset(unsafe { slot.assume_init_ref() });
-    let before = nonzero_bytes(&read_from_another_thread(address));
-    unsafe { std::ptr::drop_in_place(slot.as_mut_ptr()) };
-    let after = nonzero_bytes(&read_from_another_thread(address));
-    (before, after)
+    let _serial = WATCH_SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let block = key_block(&value);
+    let before = unsafe { std::slice::from_raw_parts(block, 32) }
+        .iter()
+        .filter(|&&b| b != 0)
+        .count();
+    NONZERO_AT_FREE_PLUS_ONE.store(0, Ordering::SeqCst);
+    WATCHED_BLOCK.store(block as usize, Ordering::SeqCst);
+    drop(value);
+    WATCHED_BLOCK.store(0, Ordering::SeqCst);
+    let seen = NONZERO_AT_FREE_PLUS_ONE.load(Ordering::SeqCst);
+    assert!(
+        seen > 0,
+        "the block that held the key was not freed when its owner was dropped"
+    );
+    (before, seen - 1)
 }
 
 #[test]
-fn a_dropped_segment_key_leaves_zeros_in_its_slot() {
-    assert_eq!(size_of::<segment::SegmentKey>(), 32);
-    let (before, after) =
-        key_bytes_before_and_after_drop_in_place(segment::SegmentKey::random().unwrap(), |_| 0);
-    assert!(before > 0, "the slot showed no key bytes before the drop");
+fn a_dropped_segment_key_leaves_zeros_in_its_heap_block() {
     assert_eq!(
-        after, 0,
-        "{after} of 32 bytes of a dropped segment key stayed in its slot"
+        size_of::<segment::SegmentKey>(),
+        size_of::<usize>(),
+        "a segment key holds more than a pointer, so a move copies key bytes"
+    );
+    let (before, at_free) =
+        key_bytes_before_and_when_freed(segment::SegmentKey::random().unwrap(), |key| {
+            key.expose().as_ptr()
+        });
+    assert!(before > 0, "the block showed no key bytes before the drop");
+    assert_eq!(
+        at_free, 0,
+        "{at_free} of 32 bytes of a segment key were in its block when it was freed"
     );
 }
 
 #[test]
-fn a_dropped_store_key_leaves_zeros_in_its_slot() {
-    assert_eq!(size_of::<StoreKey>(), 32);
-    let (before, after) =
-        key_bytes_before_and_after_drop_in_place(StoreKey::from_bytes([0xa5; 32]), |_| 0);
+fn a_dropped_store_key_leaves_zeros_in_its_heap_block() {
+    assert_eq!(
+        size_of::<StoreKey>(),
+        size_of::<usize>(),
+        "a store key holds more than a pointer, so a move copies key bytes"
+    );
+    let (before, at_free) =
+        key_bytes_before_and_when_freed(StoreKey::from_bytes([0xa5; 32]), |key| {
+            key.expose().as_ptr()
+        });
     assert_eq!(
         before, 32,
-        "the slot did not show the store key before the drop"
+        "the block did not show the store key before the drop"
     );
     assert_eq!(
-        after, 0,
-        "{after} of 32 bytes of a dropped store key stayed in its slot"
+        at_free, 0,
+        "{at_free} of 32 bytes of a store key were in its block when it was freed"
     );
 
     let dir = tempfile::tempdir().unwrap();
@@ -1780,18 +1821,17 @@ fn a_dropped_store_key_leaves_zeros_in_its_slot() {
         DEFAULT_RETENTION,
     )
     .unwrap();
-    let (before, after) = key_bytes_before_and_after_drop_in_place(store, |store| {
-        store.store_key().unwrap().expose().as_ptr() as usize
-            - (store as *const EncryptedStore as usize)
+    let (before, at_free) = key_bytes_before_and_when_freed(store, |store| {
+        store.store_key().unwrap().expose().as_ptr()
     });
     DevFallbackCustody::new(root_id).destroy_root().unwrap();
     assert!(
         before > 0,
-        "the slot showed no store key bytes before the store was dropped"
+        "the block showed no store key bytes before the store was dropped"
     );
     assert_eq!(
-        after, 0,
-        "{after} of 32 bytes of the store key stayed in a dropped store"
+        at_free, 0,
+        "{at_free} of 32 bytes of the store key were in its block when the store was dropped"
     );
 }
 

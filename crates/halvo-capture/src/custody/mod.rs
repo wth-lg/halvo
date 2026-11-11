@@ -17,7 +17,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// The 32-byte store key, in the clear only in memory and zeroed on drop. It is
 /// never serialized; only its wrapped form leaves memory.
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub struct StoreKey([u8; 32]);
+pub struct StoreKey(Box<[u8; 32]>);
 
 pub(crate) const fn wiped_on_drop<T: ZeroizeOnDrop>() {}
 
@@ -25,13 +25,14 @@ const _: () = wiped_on_drop::<StoreKey>();
 
 impl StoreKey {
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Self(Box::new(bytes))
     }
 
-    /// A fresh random store key.
+    /// A fresh random store key, generated in place on the heap, so that a
+    /// move of the key copies a pointer and no key byte.
     pub fn random() -> Result<Self, CustodyError> {
-        let mut key = Self([0u8; 32]);
-        dev_fallback::fill_random(&mut key.0)?;
+        let mut key = Self(Box::new([0u8; 32]));
+        dev_fallback::fill_random(key.0.as_mut_slice())?;
         Ok(key)
     }
 
