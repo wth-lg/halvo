@@ -521,6 +521,37 @@ fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
 }
 
 #[test]
+fn a_second_prepare_of_the_run_while_the_first_is_held_writes_the_copy_again() {
+    let scratch = Scratch::new("prepare-twice-held");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let b5 = Range::parse("B5").expect("a range");
+    let first = folder
+        .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0))
+        .expect("the first prepare");
+    let second = folder
+        .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(88.0))
+        .expect("the second prepare");
+    let (checkpoint, copy) = names("values.xlsx");
+    let listing = sorted(vec!["values.xlsx".to_string(), checkpoint, copy.clone()]);
+    assert_eq!(scratch.names(""), listing);
+    let read = folder.read(Path::new(&copy), "Values", b5);
+    assert_eq!(read, Ok(vec![vec![halvo_sheet::Cell::Number(88.0)]]));
+    drop(first);
+    assert_eq!(
+        scratch.names(""),
+        listing,
+        "the first drop keeps the second's copy"
+    );
+    drop(second);
+    assert_eq!(
+        scratch.names("").len(),
+        2,
+        "the second drop removes its copy"
+    );
+}
+
+#[test]
 fn a_checkpoint_or_a_prepared_copy_is_taken_as_no_workbook() {
     let scratch = Scratch::new("prepare-own-file");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");

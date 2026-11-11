@@ -35,7 +35,8 @@ impl RunId {
 /// copy of the workbook as it was, and the prepared copy `<name>.halvo-prepared-<run id><ext>`,
 /// the workbook with the new cells, whose content the sameness check of `prepare` read.
 /// Dropping a `Prepared` that no `replace` put in place removes the prepared copy when no
-/// link stands on the way to it, and leaves the checkpoint.
+/// link stands on the way to it and it still holds the bytes that `prepare` checked, and
+/// leaves the checkpoint.
 #[derive(Debug)]
 pub struct Prepared {
     pub(crate) root: PathBuf,
@@ -64,7 +65,9 @@ impl Drop for Prepared {
         if self.answer.get() != Some(&Ok(())) {
             let root = std::slice::from_ref(&self.root);
             if let Ok(copy) = path::file(&self.root, root, &self.copy) {
-                let _ = fs::remove_file(copy);
+                if fs::read(&copy).is_ok_and(|bytes| bytes == self.changed) {
+                    let _ = fs::remove_file(copy);
+                }
             }
         }
     }
