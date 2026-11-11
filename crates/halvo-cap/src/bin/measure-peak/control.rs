@@ -10,6 +10,8 @@ const WAIT_AFTER_ALL: Duration = Duration::from_secs(4);
 const SIGKILL: i32 = 9;
 const STOP_MS_BOUND: u64 = 2000;
 
+static FILL: [u8; 65_536] = [0xa5; 65_536];
+
 pub fn allocate_bytes(limit: Limit) -> Option<u64> {
     limit.bytes().checked_add(EXTRA)
 }
@@ -36,7 +38,10 @@ pub fn child(limit: Limit, target: u64) -> ExitCode {
         if block.try_reserve_exact(size).is_err() {
             return refused(&mut out, total);
         }
-        block.resize(size, 0xa5);
+        while block.len() < size {
+            let n = (size - block.len()).min(FILL.len());
+            block.extend_from_slice(&FILL[..n]);
+        }
         held.push(block);
         total += size as u64;
         if !crossed && total > limit.bytes() {
