@@ -153,7 +153,7 @@ function parseAllowed(text, terms) {
   const pairs = dataLines(text).map((line) => line.split('\t'));
   if (pairs.length !== 1) throw new Stop('allowed', ALLOWED);
   for (const pair of pairs) {
-    if (pair.length !== 2 || pair[0] === '' || !terms.some((t) => t.term === pair[1] && t.run !== THIS_RUN)) {
+    if (pair.length !== 2 || pair[0] === '' || (terms && !terms.some((t) => t.term === pair[1] && t.run !== THIS_RUN))) {
       throw new Stop('allowed', ALLOWED);
     }
   }
@@ -280,8 +280,7 @@ function quotedStrings(text) {
         j += 1;
       }
       if (closed) {
-        const s = text.slice(i + 1, j);
-        if (s.includes(' ')) out.push({ text: s, line });
+        out.push({ text: text.slice(i + 1, j), line, quote: c });
         i = j + 1;
       } else {
         i = j;
@@ -295,12 +294,17 @@ function quotedStrings(text) {
 
 function listViews(repo) {
   const files = [];
+  try {
+    fs.lstatSync(path.join(repo, APP));
+  } catch (e) {
+    if (e.code === 'ENOENT') return files;
+    throw new Stop('input', APP);
+  }
   const walk = (rel) => {
     let entries;
     try {
       entries = fs.readdirSync(path.join(repo, rel), { withFileTypes: true });
-    } catch (e) {
-      if (e.code === 'ENOENT' && rel === APP) return;
+    } catch {
       throw new Stop('input', rel);
     }
     const names = entries.map((e) => e.name).sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
@@ -315,12 +319,11 @@ function listViews(repo) {
   return files;
 }
 
-function check(repo) {
-  const patterns = parseList(readText(repo, LIST, 'list'));
-  const terms = parseGlossary(readText(repo, GLOSSARY, 'glossary'));
-  const allowed = parseAllowed(readText(repo, ALLOWED, 'allowed'), terms);
-  const ctx = { patterns, allowed };
-  const others = terms.filter((t) => t.run !== THIS_RUN);
+function hasSpace(text) {
+  return /\p{White_Space}/u.test(text);
+}
+
+function readSentences(repo) {
   const sentences = [];
   const words = parseJson(repo, WORDS);
   if (!isObject(words)) throw new Stop('input', WORDS);
@@ -332,7 +335,8 @@ function check(repo) {
     const file = `${FIXTURES}/state-${state}.json`;
     for (const s of fixtureSentences(parseJson(repo, file), file)) sentences.push({ file, line: 1, ...s });
   }
-  let heading = false;
+  let headingMissing = false;
+  const viewStrings = [];
   for (const file of VIEWS) {
     let text;
     try {
@@ -341,14 +345,52 @@ function check(repo) {
       if (e.code === 'ENOENT') continue;
       throw new Stop('input', file);
     }
-    const found = [];
-    splitLines(text).forEach((l, n) => {
-      const m = HEADING.exec(l);
-      if (m) found.push({ file, line: n + 1, key: '-', wordsKey: '-', text: m[1] });
-    });
-    if (found.length === 0) heading = true;
-    sentences.push(...found);
+    const lines = splitLines(text);
+    let headings = 0;
+    for (const s of quotedStrings(text)) {
+      const m = HEADING.exec(lines[s.line - 1]);
+      if (m && s.quote === '"' && m[1] === s.text) {
+        headings += 1;
+        sentences.push({ file, line: s.line, key: '-', wordsKey: '-', text: s.text });
+      } else if (hasSpace(s.text)) {
+        viewStrings.push({ file, line: s.line });
+      }
+    }
+    if (headings === 0) headingMissing = true;
   }
+  return { sentences, headingMissing, viewStrings };
+}
+
+const ORDER = ['usage', 'setup', 'node', 'list', 'allowed', 'input', 'glossary', 'heading', 'view', 'never_read', 'long', 'clash'];
+
+function firstCause(causes) {
+  return ORDER.find((c) => causes.has(c)) ?? null;
+}
+
+function check(repo) {
+  const causes = new Set();
+  const problems = [];
+  const attempt = (fn) => {
+    try {
+      return fn();
+    } catch (e) {
+      if (!(e instanceof Stop)) throw e;
+      causes.add(e.why);
+      problems.push(`words problem cause=${e.why} file=${e.file}`);
+      return null;
+    }
+  };
+  const patterns = attempt(() => parseList(readText(repo, LIST, 'list')));
+  const terms = attempt(() => parseGlossary(readText(repo, GLOSSARY, 'glossary')));
+  const allowed = attempt(() => parseAllowed(readText(repo, ALLOWED, 'allowed'), terms));
+  const read = attempt(() => readSentences(repo));
+  const views = attempt(() => listViews(repo));
+  if (causes.size > 0) return { out: problems, findings: [], cause: firstCause(causes) };
+  const ctx = { patterns, allowed };
+  const others = terms.filter((t) => t.run !== THIS_RUN);
+  const { sentences, headingMissing, viewStrings } = read;
+  if (headingMissing) causes.add('heading');
+  if (viewStrings.length > 0) causes.add('view');
   const findings = [];
   const counts = { never_read: 0, long: 0, clash: 0 };
   for (const s of sentences) {
@@ -357,24 +399,23 @@ function check(repo) {
       findings.push(`finding file=${s.file} line=${s.line} rule=${f.rule} class=${f.cls} key=${s.key}`);
     }
   }
-  const views = listViews(repo);
   let viewFindings = 0;
   for (const file of views) {
     for (const s of quotedStrings(readText(repo, file, 'input'))) {
+      if (!hasSpace(s.text)) continue;
       for (const f of judge(s.text, '-', ctx, terms)) {
         viewFindings += 1;
         findings.push(`finding file=${file} line=${s.line} rule=${f.rule} class=${f.cls} key=-`);
       }
     }
   }
+  for (const rule of ['never_read', 'long', 'clash']) if (counts[rule] > 0) causes.add(rule);
   const out = [
     `words sentences=${sentences.length} never_read=${counts.never_read} long=${counts.long} clash=${counts.clash}`,
     `words other_views files=${views.length} findings=${viewFindings}`,
+    ...viewStrings.map((v) => `words view file=${v.file} line=${v.line}`),
   ];
-  let cause = null;
-  if (heading) cause = 'heading';
-  else cause = ['never_read', 'long', 'clash'].find((r) => counts[r] > 0) ?? null;
-  return { out, findings, cause };
+  return { out, findings, cause: firstCause(causes) };
 }
 
 function run(repo, artifacts) {
@@ -685,9 +726,65 @@ function selfTest(dir, repo) {
         f['ui/app/views/needs.js'] = `export const view = {\n  heading: "What needs you",\n  note: "${NEVER}",\n};\n`;
       },
     }),
-    'PASS',
-    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`, 'words other_views files=0 findings=0'] },
+    'FAIL:view',
+    {
+      lines: [
+        `words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`,
+        'words other_views files=0 findings=0',
+        'words view file=ui/app/views/needs.js line=3',
+      ],
+      secret: [NEVER],
+    },
   );
+  const view = (body) => `export const view = {\n  heading: "What needs you",\n${body}};\n`;
+  expect(
+    fixture('a-view-string-without-white-space-passes', {
+      files: (f) => (f['ui/app/views/needs.js'] = view("  id: 'needs',\n  // \"Ask the model now\"\n")),
+    }),
+    'PASS',
+    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`] },
+  );
+  expect(
+    fixture('a-view-string-with-a-no-break-space-ends-with-view', {
+      files: (f) => (f['ui/app/views/agents.js'] = view("  note: 'Two words',\n")),
+    }),
+    'FAIL:view',
+  );
+  expect(
+    fixture('a-heading-inside-a-comment-does-not-count', {
+      files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  // heading: "What needs you",\n  id: `x`,\n};\n'),
+    }),
+    'FAIL:heading',
+  );
+  expect(
+    fixture('a-heading-inside-a-block-comment-does-not-count', {
+      files: (f) => (f['ui/app/views/needs.js'] = '/*\n  heading: "What needs you",\n*/\nexport const view = {};\n'),
+    }),
+    'FAIL:heading',
+  );
+  expect(
+    fixture('a-second-heading-line-is-read', {
+      files: (f) => (f['ui/app/views/needs.js'] = view(`  heading: "${NEVER}",\n`)),
+    }),
+    'FAIL:never_read',
+    { findings: ['finding file=ui/app/views/needs.js line=3 rule=never_read class=model key=-'] },
+  );
+  expect(
+    fixture('a-heading-with-an-escape-is-no-heading', {
+      files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  heading: "What\\\\ needs you",\n};\n'),
+    }),
+    'FAIL:heading',
+  );
+  const twoFaults = [
+    ['list', 'allowed', { files: (f) => { f[LIST] = `${copies[LIST]}model\t(unclosed\n`; f[ALLOWED] = ''; } }],
+    ['allowed', 'input', { files: (f) => { f[ALLOWED] = ''; f[WORDS] = null; } }],
+    ['input', 'glossary', { files: (f) => { f[WORDS] = null; f[GLOSSARY] = '# Glossary\n'; } }],
+    ['glossary', 'heading', { files: (f) => { f[GLOSSARY] = '# Glossary\n'; f['ui/app/views/needs.js'] = 'export const view = {};\n'; } }],
+    ['glossary', 'view', { files: (f) => { f[GLOSSARY] = '# Glossary\n'; f['ui/app/views/agents.js'] = view(`  note: "${NEVER}",\n`); } }],
+    ['heading', 'view', { files: (f) => { f['ui/app/views/needs.js'] = 'export const view = {};\n'; f['ui/app/views/agents.js'] = view(`  note: "${NEVER}",\n`); } }],
+    ['view', 'never_read', { words: (w) => (w['line.time'] = NEVER), files: (f) => (f['ui/app/views/agents.js'] = view("  note: 'two words',\n")) }],
+  ];
+  for (const [a, b, edit] of twoFaults) expect(fixture(`order-${a}-before-${b}`, edit), `FAIL:${a}`);
   expect(
     fixture('heading-line-without-its-comma', {
       files: (f) => {
