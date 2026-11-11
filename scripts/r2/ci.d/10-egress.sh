@@ -97,7 +97,9 @@ measure() {
     if [ "${GITHUB_ACTIONS:-}" != true ] && [ "$mode" != sandbox ]; then
       continue
     fi
-    out=$(sh scripts/egress/test.sh probe lists "$mode" 2>"$CI_D_ARTIFACTS/tests-$mode.err")
+    part=$mode
+    [ "$mode" != wfp ] || part=wfp-rules
+    out=$(sh scripts/egress/test.sh probe lists "$part" 2>"$CI_D_ARTIFACTS/tests-$mode.err")
     code=$?
     printf '%s\n' "$out" >"$CI_D_ARTIFACTS/tests-$mode.out"
     printf '%s\n' "$out" | grep -E '^(not ok |tests passed=)'

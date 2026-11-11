@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tests of the egress check that send nothing off the machine: sh scripts/egress/test.sh [probe|lists|sandbox|wfp]...
+# Tests of the egress check that send nothing off the machine: sh scripts/egress/test.sh [probe|lists|sandbox|wfp|wfp-rules]...
 set -u
 LC_ALL=C
 export LC_ALL
@@ -401,6 +401,11 @@ TREE
 }
 
 test_wfp() {
+  test_wfp_probes
+  test_wfp_rules
+}
+
+test_wfp_probes() {
   e=scripts/egress/lists/empty.txt
   l=scripts/egress/lists/loopback.txt
   pr=scripts/egress/probe.sh
@@ -423,13 +428,19 @@ test_wfp() {
   stop=$stop_first
   unserve
   expect_run wfp/listen-inside 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" listen
+}
+
+test_wfp_rules() {
+  e=scripts/egress/lists/empty.txt
+  l=scripts/egress/lists/loopback.txt
+  pr=scripts/egress/probe.sh
+  ps_run wfp/named-binary-blocked 1 "\$c = New-Object System.Net.Sockets.TcpClient; try { if (\$c.ConnectAsync('192.0.2.1', 443).Wait(5000)) { exit 6 } else { exit 6 } } catch { \$e = \$_.Exception; while (\$null -ne \$e.InnerException) { \$e = \$e.InnerException }; if (\$e -is [System.Net.Sockets.SocketException] -and \$e.NativeErrorCode -eq 10013) { exit 5 } else { exit 6 } }"
   programs=${log%/denied.log}/programs
   if [ -f "$programs" ] && ! grep -qi 'egress-probe' "$programs"; then
     result wfp/no-rule-names-the-probe yes yes
   else
     result wfp/no-rule-names-the-probe yes no
   fi
-  ps_run wfp/named-binary-blocked 1 "\$c = New-Object System.Net.Sockets.TcpClient; try { if (\$c.ConnectAsync('192.0.2.1', 443).Wait(5000)) { exit 6 } else { exit 6 } } catch { \$e = \$_.Exception; while (\$null -ne \$e.InnerException) { \$e = \$e.InnerException }; if (\$e -is [System.Net.Sockets.SocketException] -and \$e.NativeErrorCode -eq 10013) { exit 5 } else { exit 6 } }"
   expect_run wfp/exit-code-passes 1 3 0 sh scripts/egress/check.sh "$e" -- sh -c 'exit 3'
   expect_run wfp/not-started 1 not-started 0 sh scripts/egress/check.sh "$e" -- "$work/no-such-command"
   printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$work/routable.txt"
@@ -500,6 +511,7 @@ for part in "$@"; do
     lists) test_lists ;;
     sandbox) test_sandbox ;;
     wfp) test_wfp ;;
+    wfp-rules) test_wfp_rules ;;
     *)
       printf 'FAIL test (unknown part %s)\n' "$part"
       exit 1
