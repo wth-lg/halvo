@@ -7,7 +7,12 @@ const BLOCK: &str = include_str!("../../../../docs/r5/trials/routine.md");
 const BIN: &str = env!("CARGO_BIN_EXE_r5-routine");
 
 fn root(case: &str, seeds: Option<&str>, targets: Option<&str>) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("r5-routine-binary-{}-{case}", std::process::id()));
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+        .join("r5-routine-binary")
+        .join(case);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).expect("the old case directory");
+    }
     let routine = dir.join("tools/r5-trials/routine");
     let docs = dir.join("docs/r5");
     std::fs::create_dir_all(&routine).expect("the routine directory");
