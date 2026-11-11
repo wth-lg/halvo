@@ -71,6 +71,87 @@ ensure_cargo_release() {
   echo "prerequisites: $version"
 }
 
+cargo_deny_version=0.20.2
+cargo_deny_sha256_aarch64_apple_darwin=fe67d82a10d8597a3549364cb733a3f9cc1bfff9031b7ae46384a9f2a72090c3
+cargo_deny_sha256_x86_64_apple_darwin=248da7f581724e470071990c088ffc55c811981715f4cbdb258621fb79f8b7a6
+cargo_deny_sha256_x86_64_pc_windows_msvc=975a22143262fd27476d19ee00c7af67978426e40e1dee94eed6bbade1cf87dc
+
+cargo_deny_target() {
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) echo aarch64-apple-darwin ;;
+    Darwin-x86_64) echo x86_64-apple-darwin ;;
+    MINGW*|MSYS*|CYGWIN*) echo x86_64-pc-windows-msvc ;;
+    *) return 1 ;;
+  esac
+}
+
+cargo_deny_sha256() {
+  case "$1" in
+    aarch64-apple-darwin) echo "$cargo_deny_sha256_aarch64_apple_darwin" ;;
+    x86_64-apple-darwin) echo "$cargo_deny_sha256_x86_64_apple_darwin" ;;
+    x86_64-pc-windows-msvc) echo "$cargo_deny_sha256_x86_64_pc_windows_msvc" ;;
+    *) return 1 ;;
+  esac
+}
+
+cargo_deny_executable() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) echo cargo-deny.exe ;;
+    *) echo cargo-deny ;;
+  esac
+}
+
+cargo_deny_sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sum=$(sha256sum <"$1") || return 1
+  else
+    sum=$(shasum -a 256 <"$1") || return 1
+  fi
+  echo "${sum%% *}"
+}
+
+install_cargo_deny_prebuilt() {
+  if ! target=$(cargo_deny_target); then
+    echo "prerequisites: no prebuilt cargo-deny matches $(uname -s) $(uname -m)"
+    return 1
+  fi
+  asset="cargo-deny-$cargo_deny_version-$target.tar.gz"
+  executable=$(cargo_deny_executable)
+  url="https://github.com/EmbarkStudios/cargo-deny/releases/download/$cargo_deny_version/$asset"
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites-cargo-deny.XXXXXX") || return 1
+  failed=
+  if ! curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$url"; then
+    failed="downloading the prebuilt cargo-deny from $url"
+  elif ! sum=$(cargo_deny_sha256_of "$tmp/$asset") || [ "$sum" != "$(cargo_deny_sha256 "$target")" ]; then
+    failed="checking the sha256 of the prebuilt cargo-deny $asset"
+  elif ! tar -xzf "$tmp/$asset" -C "$tmp"; then
+    failed="unpacking the prebuilt cargo-deny $asset"
+  elif ! { mkdir -p "$CARGO_HOME/bin" && cp "$tmp/cargo-deny-$cargo_deny_version-$target/$executable" "$CARGO_HOME/bin/$executable"; }; then
+    failed="copying the prebuilt cargo-deny into $CARGO_HOME/bin"
+  fi
+  if [ -n "$failed" ]; then
+    echo "prerequisites: $failed failed"
+    return 1
+  fi
+}
+
+install_cargo_deny() {
+  echo "prerequisites: installing cargo-deny $cargo_deny_version into $CARGO_HOME/bin"
+  install_cargo_deny_prebuilt && return
+  echo "prerequisites: building cargo-deny $cargo_deny_version with cargo install instead"
+  cargo install cargo-deny --version "$cargo_deny_version" --locked
+}
+
+ensure_cargo_deny() {
+  if cargo deny --version 2>/dev/null | grep -q " $cargo_deny_version\$"; then
+    echo "prerequisites: cargo-deny $cargo_deny_version present"
+    return
+  fi
+  install_cargo_deny || return
+  version=$(cargo deny --version) || return
+  echo "prerequisites: $version"
+}
+
 self_test() {
   asset=$(cargo_release_asset) || {
     echo "prerequisites: self-test FAIL: no prebuilt cargo-release matches $(uname -s) $(uname -m), so this platform has no case"
@@ -202,6 +283,66 @@ EOF
   expect_fallback 'no prebuilt cargo-release matches Linux x86_64'
   verdict "$name"
 
+  deny_target=$(cargo_deny_target) || {
+    echo "prerequisites: self-test FAIL: no prebuilt cargo-deny matches $(uname -s) $(uname -m), so this platform has no case"
+    return 1
+  }
+  deny_asset="cargo-deny-$cargo_deny_version-$deny_target.tar.gz"
+  deny_executable=$(cargo_deny_executable)
+  mkdir "$work/deny" "$work/deny/cargo-deny-$cargo_deny_version-$deny_target"
+  echo "cargo-deny $cargo_deny_version" >"$work/deny/cargo-deny-$cargo_deny_version-$deny_target/$deny_executable"
+  tar -czf "$work/deny/$deny_asset" -C "$work/deny" "cargo-deny-$cargo_deny_version-$deny_target"
+  deny_archive_sum=$(cargo_deny_sha256_of "$work/deny/$deny_asset")
+
+  new_deny_case() {
+    new_case "$1"
+    cat >"$case_dir/stubs/cargo" <<EOF
+#!/bin/sh
+echo "cargo \$*" >>'$case_dir/calls'
+case "\$1" in
+  deny) cat '$CARGO_HOME/bin/$deny_executable' ;;
+  install) mkdir -p '$CARGO_HOME/bin' && echo "cargo-deny $cargo_deny_version" >'$CARGO_HOME/bin/$deny_executable' ;;
+  *) exit 2 ;;
+esac
+EOF
+    chmod +x "$case_dir/stubs/cargo"
+    cp "$work/deny/$deny_asset" "$case_dir/assets/$deny_asset"
+  }
+
+  run_ensure_deny() {
+    status=0
+    stub_path=$(printenv PATH)
+    (
+      PATH="$case_dir/stubs:$stub_path"
+      cargo_deny_sha256() { echo "$deny_sum"; }
+      ensure_cargo_deny
+    ) >>"$case_dir/output" 2>&1 || status=$?
+    [ "$status" = 0 ] || problems="$problems; ensure_cargo_deny exited $status"
+  }
+
+  name='a cargo home with no bin directory gets the prebuilt cargo-deny whose sha256 is the pinned one, and a second run finds it and installs nothing'
+  new_deny_case deny-prebuilt
+  deny_sum=$deny_archive_sum
+  run_ensure_deny
+  run_ensure_deny
+  cmp -s "$work/deny/cargo-deny-$cargo_deny_version-$deny_target/$deny_executable" "$case_dir/cargo-home/bin/$deny_executable" || problems="$problems; bin/$deny_executable is not the binary of the archive"
+  [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the download ran $(count 'curl ' "$case_dir/calls") times, not once"
+  [ "$(count 'cargo install' "$case_dir/calls")" = 0 ] || problems="$problems; cargo install ran"
+  [ "$(count "prerequisites: cargo-deny $cargo_deny_version present" "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report the tool present"
+  [ "$(count ' failed' "$case_dir/output")" = 0 ] || problems="$problems; a line reports a failure"
+  verdict "$name"
+
+  name='an archive whose sha256 is not the pinned one is never copied, and cargo install still installs the tool'
+  new_deny_case deny-checksum
+  deny_sum=0000000000000000000000000000000000000000000000000000000000000000
+  run_ensure_deny
+  [ "$(count "prerequisites: checking the sha256 of the prebuilt cargo-deny $deny_asset failed" "$case_dir/output")" = 1 ] || problems="$problems; no line says that the sha256 check failed"
+  [ "$(count 'prerequisites: unpacking' "$case_dir/output")" = 0 ] || problems="$problems; a line names unpacking"
+  [ "$(count "cargo install cargo-deny --version $cargo_deny_version --locked" "$case_dir/calls")" = 1 ] || problems="$problems; cargo install did not run once with the pinned version"
+  [ "$(cat "$CARGO_HOME/bin/$deny_executable" 2>/dev/null)" = "cargo-deny $cargo_deny_version" ] || problems="$problems; bin/$deny_executable is not the one that cargo install wrote"
+  [ "$(tail -n 1 "$case_dir/output")" = "prerequisites: cargo-deny $cargo_deny_version" ] || problems="$problems; the last line does not give the installed version"
+  verdict "$name"
+
   if [ "$failures" -gt 0 ]; then
     echo "prerequisites: self-test FAIL: cases failed: $failures"
     return 1
@@ -247,5 +388,6 @@ echo "prerequisites: installing the Tauri CLI into node_modules/"
 npm ci --no-audit --no-fund
 
 ensure_cargo_release
+ensure_cargo_deny
 
 echo "prerequisites: done"

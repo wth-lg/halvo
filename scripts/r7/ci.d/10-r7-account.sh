@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, account/Cargo.lock holds no package named with sqlite or sqlcipher and no source outside crates.io, no manifest of account/ names another source or a path outside account/, account/deny.toml is the configuration that this script admits, and cargo deny check bans licenses sources, cargo build --locked and cargo test --locked pass for account/.
+# rule: Every vendored file of account/schema/ has its recorded sha256, account/Cargo.lock holds no package named with sqlite or sqlcipher and no source outside crates.io, no manifest of account/ names another source or a path outside account/, account/deny.toml is the configuration that this script admits, and, with the cargo-deny version that scripts/prerequisites.sh pins and installs, cargo deny check bans licenses sources, cargo build --locked and cargo test --locked pass for account/.
 set -u
 name=10-r7-account
 case $0 in
@@ -247,41 +247,23 @@ check_deny_config() {
 
 deny_pin() {
   pin=
-  without_cr account/Cargo.toml workspace.txt
+  without_cr scripts/prerequisites.sh prerequisites.txt
   while IFS= read -r line || [ -n "$line" ]; do
     case $line in
-      'cargo-deny = "'*'"')
-        pin=${line#'cargo-deny = "'}
-        pin=${pin%\"}
-        ;;
+      cargo_deny_version=*) pin=${line#cargo_deny_version=} ;;
     esac
-  done <"$work/workspace.txt"
+  done <"$work/prerequisites.txt"
   case $pin in
-    '' | *[!0-9.]*) fail 'account/Cargo.toml names no cargo-deny version' ;;
+    '' | *[!0-9.]*) fail 'scripts/prerequisites.sh pins no cargo-deny version' ;;
   esac
 }
 
 ensure_deny() {
   deny_pin
   have=$(cargo deny --version 2>/dev/null)
-  if [ "$have" = "cargo-deny $pin" ]; then
-    tool=found
-    printf 'cargo-deny %s found\n' "$pin"
-    return 0
-  fi
-  if [ "${CI:-}" != true ]; then
-    printf 'SKIP %s (cargo-deny %s is not installed, and outside CI this script installs nothing)\n' "$name" "$pin"
-    exit 77
-  fi
-  start=$(date +%s)
-  cargo install --locked cargo-deny --version "$pin"
-  code=$?
-  end=$(date +%s)
-  [ "$code" -eq 0 ] || fail "cargo install --locked cargo-deny --version $pin exited $code"
-  have=$(cargo deny --version 2>/dev/null)
-  [ "$have" = "cargo-deny $pin" ] || fail "cargo-deny $pin is not on the PATH after its install"
-  tool=installed
-  printf 'cargo-deny %s installed in %s s\n' "$pin" "$((end - start))"
+  [ "$have" = "cargo-deny $pin" ] || fail "cargo deny --version is not cargo-deny $pin; sh scripts/prerequisites.sh installs it"
+  tool=found
+  printf 'cargo-deny %s found\n' "$pin"
 }
 
 count_tests() {
@@ -333,6 +315,7 @@ write_stub() {
 #!/bin/sh
 printf '%s\n' "$*" >>"$STUB_LOG"
 if [ "$1" = deny ] && [ "$2" = --version ]; then
+  [ -z "${STUB_DENY_ABSENT:-}" ] || exit 101
   printf 'cargo-deny %s\n' "$STUB_DENY_VERSION"
   exit 0
 fi
@@ -356,6 +339,7 @@ make_fixture() {
   for entry in Cargo.toml Cargo.lock deny.toml schema crates; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
   done
+  mkdir "$fixture/scripts" && cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh"
 }
 
 edit() {
@@ -444,9 +428,8 @@ self_test() {
   stub_case no-test-ran "FAIL $name (cargo test --locked ran no test)" stub STUB_TESTS=0
   stub_case build-fails "FAIL $name (cargo build --locked exited 101)" stub STUB_BUILD_EXIT=101
   stub_case deny-fails "FAIL $name (cargo deny check bans licenses sources exited 2)" stub STUB_DENY_EXIT=2
-  stub_case deny-absent-outside-ci "SKIP $name (cargo-deny $pin is not installed, and outside CI this script installs nothing)" stub STUB_DENY_VERSION=0.0.1 CI=
-  stub_case deny-install-fails-in-ci "FAIL $name (cargo install --locked cargo-deny --version $pin exited 1)" stub STUB_DENY_VERSION=0.0.1 CI=true
-  stub_case deny-absent-after-install "FAIL $name (cargo-deny $pin is not on the PATH after its install)" stub STUB_DENY_VERSION=0.0.1 STUB_INSTALL_EXIT=0 CI=true
+  stub_case deny-other-version "FAIL $name (cargo deny --version is not cargo-deny $pin; sh scripts/prerequisites.sh installs it)" stub STUB_DENY_VERSION=0.0.1
+  stub_case deny-absent "FAIL $name (cargo deny --version is not cargo-deny $pin; sh scripts/prerequisites.sh installs it)" stub STUB_DENY_ABSENT=1
 
   make_fixture vendored-byte && edit schema/routes.v1.json sed '1s/{/[/' &&
     run_case vendored-byte "FAIL $name (account/schema/routes.v1.json differs from its recorded sha256)" stub
@@ -513,19 +496,14 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     run_case extra-line-without-newline "FAIL $name (account/deny.toml differs from the configuration that this script admits)" stub
   make_fixture ban-with-wrappers && edit deny.toml sed 's/^    { crate = "rusqlite", reason = \(.*\) },$/    { crate = "rusqlite", reason = \1, wrappers = ["halvo-wire"] },/' &&
     run_case ban-with-wrappers "FAIL $name (account/deny.toml holds a ban that this script does not admit)" stub
-  make_fixture no-deny-pin && edit Cargo.toml sed '/^cargo-deny = /d' &&
-    run_case no-deny-pin "FAIL $name (account/Cargo.toml names no cargo-deny version)" stub
+  make_fixture no-deny-pin && edit ../scripts/prerequisites.sh sed '/^cargo_deny_version=/d' &&
+    run_case no-deny-pin "FAIL $name (scripts/prerequisites.sh pins no cargo-deny version)" stub
 
-  have=$(cargo deny --version 2>/dev/null)
-  if [ "$have" = "cargo-deny $pin" ] || [ "${CI:-}" = true ]; then
-    make_fixture licence-outside-list && edit crates/halvo-wire/Cargo.toml sed 's/^publish = false$/license = "GPL-3.0-only"/' &&
-      run_case licence-outside-list "FAIL $name (cargo deny check bans licenses sources exited 4)" real
-    make_fixture banned-package-in-graph && edit deny.toml sed 's/^deny = \[$/&\
+  make_fixture licence-outside-list && edit crates/halvo-wire/Cargo.toml sed 's/^publish = false$/license = "GPL-3.0-only"/' &&
+    run_case licence-outside-list "FAIL $name (cargo deny check bans licenses sources exited 4)" real
+  make_fixture banned-package-in-graph && edit deny.toml sed 's/^deny = \[$/&\
     { crate = "itoa", reason = "a fixture of the self-test" },/' &&
-      run_case banned-package-in-graph "FAIL $name (cargo deny check bans licenses sources exited 2)" real
-  else
-    printf 'case %s/licence-outside-list and banned-package-in-graph not run: cargo-deny %s is not installed\n' "$name" "$pin"
-  fi
+    run_case banned-package-in-graph "FAIL $name (cargo deny check bans licenses sources exited 2)" real
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
