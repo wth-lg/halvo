@@ -278,7 +278,9 @@ pub fn check_supported(limit: Limit) -> Result<(), CapError> {
 /// signal or otherwise, the child goes on with no cap. A child of the same user can stop or
 /// end the capping process. On Windows the Job ends every process of the tree when the run
 /// ends and when the caller ends, but for a child whose caller ends between its start and
-/// its entry into the Job.
+/// its entry into the Job. A program whose peak is a measurement starts no helper process,
+/// so its run leaves nothing behind; a gate that wraps a program that does start processes
+/// reads the process table after the run and ends what the run started.
 pub fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     platform::run(spec, limit)
 }
