@@ -239,7 +239,7 @@ self_test() {
   make_repo a docs/r3/README.md docs/r3/trials/sheet.md tools/r3-trials/web/run.sh \
     tools/r3-trials/web/sub/deep/file.txt crates/halvo-runner/tests/injection_one.rs \
     crates/halvo-runner/src/lib.rs scripts/r3-gate/run.sh crates/halvo-schema/src/lib.rs \
-    docs/r2/README.md docs/r3x/notes.md
+    docs/r2/README.md docs/r3x/notes.md x/docs/r3/y.md
   a_head='docs/r3/README.md U1.4\n'
   a_web='tools/r3-trials/web/** U0.2\n'
   a_rest='crates/halvo-runner/** U4.1,U4.2\ncrates/halvo-runner/tests/injection_*.rs U6.2\nscripts/r3-gate/** U10.1\n'
@@ -319,6 +319,10 @@ self_test() {
   check pattern-under-no-root a layout 'layout fault=root line=1'
   lay a "docs/r3x/** U1.4\n$a_good"
   check root-without-its-slash a layout 'layout fault=root line=1'
+  lay a "tools/docs/r3/x.md U1.4\n$a_good"
+  check root-after-the-start-of-a-pattern a layout 'layout fault=root line=1'
+  lay a "$a_good"
+  check root-after-the-start-of-a-path a PASS 'layout patterns=6 files=7 outside=0'
   lay a "docs/r3/README.md 1.4\n$a_tail"
   check unit-without-u a layout 'layout fault=unit line=1'
   lay a "docs/r3/README.md U1.4,\n$a_tail"
