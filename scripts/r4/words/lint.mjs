@@ -445,7 +445,7 @@ function run(repo, artifacts) {
 }
 
 const ID = (n) => n.toString(16).padStart(32, '0');
-const NEVER = 'Ask the model now.';
+const NEVER = 'Ask Claude now.';
 
 function baseState() {
   return {
@@ -991,7 +991,7 @@ function selfTest(dir, repo) {
     fixture('list-with-a-pattern-that-flag-u-refuses', { files: (f) => (f[LIST] = `${copies[LIST]}code\ta\\:b\n`) }),
     'FAIL:list',
   );
-  expect(fixture('letter-case-counts', { words: (w) => (w['line.time'] = 'The MODEL and the TIER are here.') }), 'PASS');
+  expect(fixture('letter-case-counts', { words: (w) => (w['line.time'] = 'The CLAUDE and the TIER are here.') }), 'PASS');
 
   const cases = dataLines(copies[CASES]).map((l) => l.split('\t'));
   const misses = [];
