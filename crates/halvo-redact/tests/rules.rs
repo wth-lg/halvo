@@ -261,6 +261,97 @@ fn other_separators_and_neighbouring_digits_keep_a_social_security_number() {
     }
 }
 
+fn key(prefix: &str, body: char, length: usize) -> String {
+    format!("{prefix}{}", body.to_string().repeat(length))
+}
+
+#[test]
+fn a_key_is_masked_at_the_start_in_the_middle_and_at_the_end() {
+    let token = key("ghp_", 'a', 36);
+    masks_to(&format!("{token} saved"), "[key] saved");
+    masks_to(&format!("key {token} saved"), "key [key] saved");
+    masks_to(&format!("key {token}"), "key [key]");
+    masks_to(&format!("(\"{token}\")"), "(\"[key]\")");
+}
+
+#[test]
+fn an_aws_key_takes_16_characters_of_a_to_z_and_2_to_7() {
+    masks_to(
+        &format!("Key {} saved", key("AKIA", 'Q', 16)),
+        "Key [key] saved",
+    );
+    for prefix in ["ASIA", "ABIA", "ACCA", "A3TA", "A3TZ", "A3T0", "A3T9"] {
+        masks_to(
+            &format!("key {} saved", key(prefix, '7', 16)),
+            "key [key] saved",
+        );
+    }
+    masks_to(
+        &format!("key {}0 saved", key("AKIA", '2', 16)),
+        "key [key]0 saved",
+    );
+    unchanged(&format!("key {} saved", key("AKIA", '9', 16)));
+    unchanged(&format!("key {} saved", key("AKIA", '1', 16)));
+    unchanged(&format!("key {} saved", key("A3T", '9', 17)));
+    unchanged(&format!("key {} saved", key("A3Ta", 'Q', 16)));
+}
+
+#[test]
+fn a_key_longer_than_its_rule_is_masked_up_to_the_rule_and_the_rest_is_kept() {
+    masks_to(
+        &format!("key {} saved", key("sk_live_", 'b', 120)),
+        &format!("key [key]{} saved", "b".repeat(21)),
+    );
+    masks_to(
+        &format!("key {} saved", key("sk_live_", 'b', 10)),
+        "key [key] saved",
+    );
+}
+
+#[test]
+fn a_key_shorter_than_its_rule_is_kept() {
+    unchanged(&format!("key {} saved", key("ghp_", 'a', 35)));
+    unchanged(&format!("key {} saved", key("sk_test_", 'a', 9)));
+    unchanged(&format!("key {} saved", key("glpat-", 'x', 19)));
+}
+
+#[test]
+fn a_key_whose_prefix_follows_a_letter_or_digit_or_differs_in_case_is_kept() {
+    unchanged(&format!("key x{} saved", key("ghp_", 'a', 36)));
+    unchanged(&format!("key 7{} saved", key("ghp_", 'a', 36)));
+    unchanged(&format!("key {} saved", key("GHP_", 'a', 36)));
+    unchanged(&format!("key {} saved", key("Sk_live_", 'a', 20)));
+}
+
+#[test]
+fn two_keys_side_by_side_are_both_masked() {
+    let first = key("ghp_", 'a', 36);
+    let second = key("gho_", 'b', 36);
+    masks_to(&format!("{first} {second}"), "[key] [key]");
+    masks_to(&format!("{first}{second}"), "[key][key]");
+}
+
+#[test]
+fn the_rows_that_the_release_states_otherwise_are_corrected_or_gone() {
+    masks_to(
+        &format!("key {} saved", key("dapi", 'f', 32)),
+        "key [key] saved",
+    );
+    unchanged(&format!("key {} saved", key("dapi", 'g', 32)));
+    unchanged(&format!("key {} saved", key("npm_", 'a', 36)));
+    unchanged(&format!("key {} saved", key("dor_v1_", 'a', 64)));
+    masks_to(
+        &format!("key {} saved", key("dop_v1_", 'a', 64)),
+        "key [key] saved",
+    );
+}
+
+#[test]
+fn a_card_then_a_key_with_no_byte_between_are_both_masked() {
+    let number = card(16);
+    masks_to(&format!("{number}{}", key("AKIA", 'Q', 16)), "[card][key]");
+}
+
 #[test]
 fn titles_with_no_identifier_are_kept_byte_for_byte() {
     for title in [
