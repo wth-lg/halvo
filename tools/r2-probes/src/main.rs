@@ -10,7 +10,7 @@ const USAGE: &str = "usage:
   r2-probes trial layer-cost|input-visibility|private-window [--artifact DIR]... [--records FILE]...
             [--lines FILE] --out FILE
   r2-probes stamp --in FILE --out FILE --cell NAME [--text KEY=VALUE]... [--number KEY=VALUE]...
-  r2-probes lines layer-cost|input-visibility|private-window --crate-dir DIR
+  r2-probes lines layer-cost|input-visibility|private-window --crate-dir DIR [--playwright-files FILE]
   r2-probes known TARGET
   r2-probes display";
 
@@ -201,15 +201,8 @@ fn lines(args: &[String]) -> Result<(), String> {
         for line in crates {
             println!("{line}");
         }
-        let list = std::fs::read_to_string(dir.join("files.tsv"))
-            .map_err(|e| format!("files.tsv: {e}"))?;
-        for line in list.lines() {
-            let fields: Vec<&str> = line.split('\t').collect();
-            if let [set, name, address, size, sha256] = fields[..] {
-                println!(
-                    "file {name} set={set} address={address} size_bytes={size} sha256={sha256}"
-                );
-            }
+        for line in file_lines(&dir.join("files.tsv"))? {
+            println!("{line}");
         }
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
         println!("command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES], one set in one call of the helper for timed runs");
@@ -219,6 +212,14 @@ fn lines(args: &[String]) -> Result<(), String> {
         println!("note version: Chrome on macos-15 updated itself during run 42889376963, so its meta.json names 157.0.8103.39 and the 9 cells address.macos-15.chrome and accessibility.macos-15.* of the four pages name 157.0.8103.40, which the probe read from the build on disk when it listed the browsers before each group of cells, and the extraction runs in Chrome name no build; the figures stand as measured, and the probe now records in each run the build on disk when that run started the browser (browser_version in an extraction run), for a later run");
         println!("note activation: the probe of run 42889376963 wrote activation=unset where no attribute read returned true, a read that failed included, and activation=not-readable on Windows, which reads as the opposite of readable_runs beside it; the figures stand as measured, and the probe now writes activation=read-failed where a read fails, which no longer counts in readable_runs, and activation=no-attribute on Windows, for a later run");
     } else if kind == "input-visibility" {
+        if let Some(list) = value(args, "--playwright-files") {
+            for line in playwright_lines(Path::new(&list))? {
+                println!("{line}");
+            }
+        }
+        for line in file_lines(&dir.join("input").join("installed-files.tsv"))? {
+            println!("{line}");
+        }
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
     } else if kind == "private-window" {
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
@@ -226,8 +227,66 @@ fn lines(args: &[String]) -> Result<(), String> {
     } else {
         return Err("the kind is layer-cost, input-visibility or private-window".to_string());
     }
-    println!("command this file: r2-probes trial {kind} --artifact MACOS --artifact WINDOWS [--records THIS-MAC] --lines LINES --out FILE");
+    if kind == "input-visibility" {
+        println!("command this file: r2-probes trial {kind} --artifact MACOS --artifact WINDOWS --lines LINES --out FILE, where LINES is the output of r2-probes lines {kind} --crate-dir tools/r2-probes --playwright-files WINDOWS/playwright-files.tsv");
+    } else {
+        println!("command this file: r2-probes trial {kind} --artifact MACOS --artifact WINDOWS [--records THIS-MAC] --lines LINES --out FILE");
+    }
     Ok(())
+}
+
+fn underscored(text: &str) -> String {
+    text.replace(' ', "_")
+}
+
+fn file_lines(list: &Path) -> Result<Vec<String>, String> {
+    let text = std::fs::read_to_string(list).map_err(|e| format!("{}: {e}", list.display()))?;
+    let mut lines = Vec::new();
+    for row in text.lines().filter(|row| !row.trim().is_empty()) {
+        let fields: Vec<&str> = row.trim_end_matches('\r').split('\t').collect();
+        let [set, name, address, size, sha256, extra @ ..] = &fields[..] else {
+            return Err(format!("{}: a row has fewer than 5 fields", list.display()));
+        };
+        let mut line =
+            format!("file {name} set={set} address={address} size_bytes={size} sha256={sha256}");
+        for pair in extra {
+            line.push(' ');
+            line.push_str(&underscored(pair));
+        }
+        lines.push(line);
+    }
+    Ok(lines)
+}
+
+fn playwright_lines(list: &Path) -> Result<Vec<String>, String> {
+    let text = std::fs::read_to_string(list).map_err(|e| format!("{}: {e}", list.display()))?;
+    let mut lines = Vec::new();
+    for row in text.lines().filter(|row| !row.trim().is_empty()) {
+        let fields: Vec<&str> = row.trim_end_matches('\r').split('\t').collect();
+        let [address, size, sha256] = fields[..] else {
+            return Err(format!(
+                "{}: a row is not address, size, SHA-256",
+                list.display()
+            ));
+        };
+        let name = address.rsplit('/').next().unwrap_or(address);
+        let served = match address
+            .split("/builds/cft/")
+            .nth(1)
+            .and_then(|rest| rest.split('/').next())
+        {
+            Some(build) => {
+                format!("a Chrome for Testing build {build} that Playwright's CDN serves")
+            }
+            None => "Playwright's CDN".to_string(),
+        };
+        let source = format!("{served}; size and SHA-256 of a second download with curl after Playwright installed its own copy");
+        lines.push(format!(
+            "file {name} set=playwright-1.65.0 address={address} size_bytes={size} sha256={sha256} source={}",
+            underscored(&source)
+        ));
+    }
+    Ok(lines)
 }
 
 fn main() {

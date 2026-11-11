@@ -28,7 +28,12 @@ the first run of every other cell, with the pointer.
 
 `r2-probes trial KIND --artifact DIR... --records FILE... --lines FILE --out FILE` writes a trial
 file from the records, and `r2-probes lines KIND --crate-dir tools/r2-probes` prints the lines
-that stand between the cells and the verdicts (crates, fetched files, commands).
+that stand between the cells and the verdicts (crates, files, commands, notes). A `file` line
+comes from a row of `files.tsv`, which `fetch-files.sh` fetches, or of
+`input/installed-files.tsv`, which lists what the windows job installed with other tools (Node
+by actions/setup-node, the two npm tarballs by `npm ci`); a field after the fifth of a row is a
+`KEY=VALUE` that the line carries, such as `source=`. For `input-visibility`,
+`--playwright-files WINDOWS/playwright-files.tsv` adds a line for each download of Playwright.
 
 ## Cells
 
