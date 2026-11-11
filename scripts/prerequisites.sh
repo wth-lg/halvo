@@ -438,5 +438,6 @@ npm ci --no-audit --no-fund
 
 ensure_cargo_release
 ensure_cargo_deny
+cargo fetch --locked --manifest-path account/Cargo.toml
 
 echo "prerequisites: done"
