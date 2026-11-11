@@ -484,6 +484,79 @@ mod scan_rule {
         );
         masks_to("id 151-14-20044028163578 end", "id [ssn] end");
     }
+
+    #[test]
+    fn a_shorter_reading_at_a_start_holds_where_the_longest_does_not() {
+        masks_to(
+            &format!("pay {} 1070 now", grouped(&card(16), ' ')),
+            "pay [card] 1070 now",
+        );
+        masks_to(
+            &format!("transfer {} 8K0A now", grouped(&de_iban(), ' ')),
+            "transfer [iban] 8K0A now",
+        );
+    }
+
+    #[test]
+    fn a_card_reading_may_start_among_the_digits_of_a_masked_card() {
+        masks_to(
+            &format!("{} 2026", grouped(&luhn_number("531418733333333"), '-')),
+            "[card]",
+        );
+        masks_to(
+            &format!("{} 2026", grouped(&luhn_number("623170586270777"), '-')),
+            "[card] 2026",
+        );
+    }
+}
+
+#[test]
+fn ibans_of_14_and_35_characters_are_not_masked() {
+    unchanged(&format!("ref {} end", iban("NO", "1234567890")));
+    unchanged(&format!(
+        "ref {} end",
+        iban("NO", "ABCD1234EFGH5678IJKL9012MNOP345")
+    ));
+}
+
+#[test]
+fn lower_case_letters_after_an_iban_are_no_part_of_it() {
+    masks_to(
+        &format!("transfer {} yx.", de_iban()),
+        "transfer [iban] yx.",
+    );
+}
+
+#[test]
+fn a_run_that_breaks_one_condition_of_the_iban_form_is_kept() {
+    for run in [
+        "7B34WQ12RT34YU5614",
+        "B734WQ12RT34YU5692",
+        "BBX4WQ12RT34YU5605",
+        "BB3XWQ12RT34YU5665",
+    ] {
+        unchanged(&format!("ref {run} end"));
+    }
+}
+
+#[test]
+fn a_key_or_an_iban_after_an_underscore_or_a_hyphen_is_masked() {
+    let token = key("AKIA", 'Q', 16);
+    masks_to(&format!("id_{token} x"), "id_[key] x");
+    masks_to(&format!("id-{token} x"), "id-[key] x");
+    masks_to(&format!("id_{} x", de_iban()), "id_[iban] x");
+    masks_to(&format!("id-{} x", de_iban()), "id-[iban] x");
+    masks_to(&format!("x {}-ok y", de_iban()), "x [iban]-ok y");
+}
+
+#[test]
+fn a_run_of_13_zeros_passes_the_luhn_check_and_is_masked() {
+    masks_to("x 0000000000000 y", "x [card] y");
+}
+
+#[test]
+fn an_aws_key_body_with_an_8_is_kept() {
+    unchanged(&format!("key AKIA{} saved", "Q8".repeat(8)));
 }
 
 #[test]
