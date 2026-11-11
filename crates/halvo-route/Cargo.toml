@@ -1,0 +1,6 @@
+[package]
+name = "halvo-route"
+version = "0.0.0"
+description = "Halvo router: tiers, call kinds, categories, the line, the price file and the policy table"
+edition = "2021"
+publish = false

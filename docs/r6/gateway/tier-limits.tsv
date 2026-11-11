@@ -1,0 +1,3 @@
+tier	max_body_bytes	max_output_tokens	hold_life_ms	upstream_deadline_ms	status
+low_cost_hosted	131072	2048	120000	90000	provisional
+frontier	131072	2048	120000	90000	provisional

@@ -1405,6 +1405,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-route"
+version = "0.0.0"
+
+[[package]]
+name = "halvo-route-gate"
+version = "0.0.0"
+dependencies = [
+ "halvo-route",
+]
+
+[[package]]
+name = "halvo-route-wire"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
