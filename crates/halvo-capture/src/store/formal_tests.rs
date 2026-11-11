@@ -22,11 +22,14 @@ use proptest::test_runner::{contextualize_config, FileFailurePersistence, TestRu
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::{dev_root_bytes, replace_dev_root, DevFallbackCustody};
-use crate::custody::{custody_for, opens_under_an_all_zero_root, CustodyError, KeyCustody, RootId};
+use crate::custody::{
+    custody_for, opens_under_an_all_zero_root, CustodyError, KeyCustody, RootId, WrappedKey,
+};
 
 use super::db::test_support::pages;
 use super::db::{unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
+use super::verify::{root_state, RootState};
 use super::{SegmentExpiry, SegmentStore, StoreError, DEFAULT_RETENTION};
 
 /// Random operation sequences, each ending in a full invariant check. Every
@@ -570,10 +573,7 @@ impl Harness {
         let wrapped = key_file
             .wrapped_store_key()
             .expect("the retained wrapped key decodes");
-        prop_assert!(
-            custody.unwrap_store_key(&wrapped).is_err(),
-            "the retained wrapped store key still unwraps after delete-all"
-        );
+        require_a_destroyed_root(custody.as_ref(), &wrapped)?;
         for name in [
             "store.key",
             "store.db",
@@ -599,6 +599,21 @@ impl Harness {
             }
         }
         Ok(())
+    }
+}
+
+fn require_a_destroyed_root(
+    custody: &dyn KeyCustody,
+    retained: &WrappedKey,
+) -> Result<(), TestCaseError> {
+    match root_state(custody, retained) {
+        RootState::Destroyed => Ok(()),
+        RootState::Alive => Err(TestCaseError::fail(
+            "after delete-all the root is alive: the retained wrapped store key still unwraps",
+        )),
+        RootState::Unknown(error) => Err(TestCaseError::fail(format!(
+            "after delete-all the state of the root is unknown: the unwrap of the retained wrapped store key failed with {error:?}, which does not say that the root is missing"
+        ))),
     }
 }
 
@@ -689,6 +704,55 @@ fn no_key_of_a_shredded_segment_is_left_when_segments_expire_oldest_first() {
         }
     }
     hold(harness.check_at_scale());
+}
+
+#[test]
+fn the_delete_all_step_takes_only_a_missing_root_as_destroyed() {
+    struct Unwraps(fn() -> Result<crate::custody::StoreKey, CustodyError>);
+
+    impl KeyCustody for Unwraps {
+        fn kind(&self) -> crate::custody::CustodyKind {
+            crate::custody::CustodyKind::DevFallback
+        }
+        fn root_id(&self) -> RootId {
+            RootId::fresh()
+        }
+        fn wrap_store_key(
+            &self,
+            _key: &crate::custody::StoreKey,
+        ) -> Result<WrappedKey, CustodyError> {
+            Ok(WrappedKey(Vec::new()))
+        }
+        fn unwrap_store_key(
+            &self,
+            _wrapped: &WrappedKey,
+        ) -> Result<crate::custody::StoreKey, CustodyError> {
+            (self.0)()
+        }
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            Ok(())
+        }
+    }
+
+    let retained = WrappedKey(vec![0u8; 72]);
+    let answer = |unwrap| match require_a_destroyed_root(&Unwraps(unwrap), &retained) {
+        Ok(()) => "destroyed".to_string(),
+        Err(failure) => failure.to_string(),
+    };
+
+    assert_eq!(answer(|| Err(CustodyError::RootMissing)), "destroyed");
+    let alive = answer(|| Ok(crate::custody::StoreKey::from_bytes([1u8; 32])));
+    assert!(alive.contains("the root is alive"), "{alive}");
+    let transient = answer(|| Err(CustodyError::RootLocked(-25308)));
+    assert!(
+        transient.contains("the state of the root is unknown") && transient.contains("RootLocked"),
+        "{transient}"
+    );
+    let another_error = answer(|| Err(CustodyError::WrapAuthFailed));
+    assert!(
+        another_error.contains("the state of the root is unknown"),
+        "{another_error}"
+    );
 }
 
 // ---------------------------------------------------------------------------
