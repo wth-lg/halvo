@@ -66,9 +66,10 @@ anything of them is left.
   otherwise. A task run whose stop leaves its profile is a miss.
 - A SIGTERM or SIGINT stops the browsers with their trees, removes their profiles and temporary
   directories, also of a browser that was starting, stops the fixture server and ends with
-  `notrun ... cause=signal` and exit 1, also when it comes after the session. In item 4 the profiles
-  of the nine steps are made, and left, by the program of `tools/r3-trials/web`, whose `stop()` does
-  not remove them.
+  `notrun ... cause=signal` and exit 1, also when it comes after the session. In item 4 the program of
+  `tools/r3-trials/web` stops each of its browsers with `stop_and_remove` as well (since 85f255a), so
+  after the steps shape, also after an INT or a TERM, the scratch holds no profile and no temporary
+  directory of a browser; a file beside them stays.
 
 ## Item 4 in numbers (03f4c53)
 
@@ -172,6 +173,8 @@ Builder-8's review (three finders, one skeptic) found the stored cookie that the
 not see, a missing check of profile B, a watch that sampled four times and an adoption rule of
 `tree-peak` that took foreign processes; all were fixed before its cells. Builder-9's review of the
 closed list at af34d80 (three finders, one skeptic, 422 s) found nine points; eight are fixed in
-e8a6093, 89be48d and 03f4c53, and one stands: in item 4 the profiles of the nine steps stay in the
-scratch, after a signal as after a run that ends, because the program of `tools/r3-trials/web` makes
-and leaves them.
+e8a6093, 89be48d and 03f4c53. The ninth, the profiles and temporary directories of the nine steps
+that the program of `tools/r3-trials/web` left in item 4's scratch, is fixed in 85f255a: that program
+now stops each browser with `stop_and_remove`. Before it, a run that ended left 9 profiles and 9
+temporary directories, and an INT or a TERM 2 and 2; after it, 0 in each case (builder-9's evidence
+`addition1/`).

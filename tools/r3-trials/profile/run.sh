@@ -59,7 +59,7 @@ Exit 0 when every cell ran, 1 when a cell could not run (a notrun line ends with
 run.sh ends by exec of the trial program, so a TERM or INT sent to run.sh reaches the program,
 which stops its browsers, removes their profiles and temporary directories (also of a browser that
 was starting), stops the fixture server and exits 1 with a notrun line, also after the session.
-In item 4 the profiles of the nine steps are made and left by the program of tools/r3-trials/web.
+In item 4 the program of tools/r3-trials/web removes the directories of its browsers the same way.
 EOF
 }
 
