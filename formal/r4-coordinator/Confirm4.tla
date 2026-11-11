@@ -13,6 +13,8 @@ Final == {"released", "lapsed"}
 Sources == {"page", "native"}
 Answers == {"allow", "reject"}
 RecStates == {"approved", "releasing", "committed"}
+Table == {"run", "confirm"}
+NoApproval == -1
 Causes == {"digest", "run_ended", "wait_limit", "cancelled", "no_record", "app_ended"}
 
 ASSUME /\ Req1 \subseteq Effects
@@ -40,6 +42,7 @@ InitH ==
      got |-> {},
      released |-> {},
      passed |-> {},
+     refused |-> {},
      stopped |-> FALSE]
 
 OpenItems(s) == {i \in DOMAIN s.items : s.items[i].st \notin Final}
@@ -153,10 +156,13 @@ Guard(s, rec) ==
     IN IF rec.state \notin {"approved", "releasing"} THEN No(s, "ok")
        ELSE IF s.run = "stopped" THEN No(s, "approval")
        ELSE IF rec.state = "approved"
-       THEN IF {t \in m : ~t.used} = {} THEN No(s, "approval")
+       THEN IF m = {} THEN No(s, "approval")
+            ELSE IF {t \in m : ~t.used} = {} THEN [pass EXCEPT !.r = "repeat"]
             ELSE [pass EXCEPT !.st = [s EXCEPT !.table = (@ \ m) \cup {[t EXCEPT !.used = TRUE] : t \in m}]]
        ELSE IF rec.effect \in Native
        THEN IF {t \in m : t.used} = {} THEN No(s, "approval") ELSE pass
+       ELSE IF rec.approval = NoApproval
+       THEN IF rec.policy = "run" THEN pass ELSE No(s, "approval")
        ELSE IF m = {} THEN No(s, "approval") ELSE pass
 
 Step(s, mv) ==
@@ -176,8 +182,14 @@ ItemMoves(s, i) ==
     \cup {[m |-> "lapse", item |-> i, cause |-> "no_record", stored |-> TRUE]}
 
 GuardMoves(s) ==
-    {[m |-> "guard", effect |-> e, state |-> x, digest |-> d, approval |-> p] :
-        e \in Effects, x \in RecStates, d \in Digests, p \in 0..s.nap}
+    {[m |-> "guard", effect |-> e, state |-> x, digest |-> d, approval |-> p, policy |-> "none"] :
+        e \in Effects, x \in RecStates \ {"releasing"}, d \in Digests, p \in 0..s.nap}
+    \cup {[m |-> "guard", effect |-> e, state |-> "releasing", digest |-> d, approval |-> p, policy |-> y] :
+        e \in Effects, d \in Digests, p \in 0..s.nap, y \in Table}
+    \cup {[m |-> "guard", effect |-> e, state |-> "approved", digest |-> Digest(1, e), approval |-> NoApproval,
+           policy |-> "none"] : e \in Effects}
+    \cup {[m |-> "guard", effect |-> e, state |-> "releasing", digest |-> Digest(1, e), approval |-> NoApproval,
+           policy |-> y] : e \in Effects, y \in Table}
 
 Moves(s) ==
     IF s.app = "ended" THEN {}
@@ -224,6 +236,7 @@ HEvent(g, e, mv) ==
       [] e.k = "pass" ->
             [g EXCEPT !.passed = @ \cup
                 {[state |-> mv.state, effect |-> mv.effect, digest |-> mv.digest, approval |-> mv.approval,
+                  policy |-> IF mv.approval = NoApproval THEN mv.policy ELSE "none",
                   first |-> \/ mv.state = "releasing"
                             \/ \A p \in g.passed : ~(p.state = "approved" /\ p.approval = mv.approval),
                   used |-> \E p \in g.passed : /\ p.state = "approved"
@@ -241,13 +254,36 @@ HAfter(g, mv) ==
       [] mv.m = "stop" -> [g EXCEPT !.stopped = TRUE]
       [] OTHER -> g
 
+HPassedOn(out) == \E i \in 1..Len(out) : out[i].k = "pass"
+HRepeat(g, mv) ==
+    /\ mv.state = "approved"
+    /\ ~g.stopped
+    /\ \E p \in g.passed : /\ p.state = "approved"
+                           /\ p.effect = mv.effect
+                           /\ p.digest = mv.digest
+                           /\ p.approval = mv.approval
+
+HGuard(g, mv, res) ==
+    IF HPassedOn(res.out) THEN HFold(g, res.out, 1, mv)
+    ELSE IF HRepeat(g, mv)
+    THEN [g EXCEPT !.refused = @ \cup {[effect |-> mv.effect, digest |-> mv.digest, approval |-> mv.approval]}]
+    ELSE g
+
 Hist(g, mv, res) ==
-    IF res.r = "ok" /\ mv.m # "guard"
-    THEN HAfter(HFold(HBefore(g, mv), res.out, 1, mv), mv)
+    IF mv.m = "guard" THEN HGuard(g, mv, res)
+    ELSE IF res.r = "ok" THEN HAfter(HFold(HBefore(g, mv), res.out, 1, mv), mv)
     ELSE HFold(g, res.out, 1, mv)
 
+GotAllow(g, i, e) == \E d \in g.got : /\ d.via = "release"
+                                      /\ d.item = i
+                                      /\ \E x \in d.entries : x.effect = e /\ x.answer = "allow_once"
+Asks(g) == \A i \in 1..g.n : \A e \in ReqEffects(i) \cap ReqEffects(g.n + 1) : GotAllow(g, i, e)
+Offered(s, g, mv) == mv.m # "issue" \/ Asks(g) \/ Step(s, mv).r # "ok"
+
 Init == st = Init0 /\ h = InitH
-Next == \E mv \in Moves(st) : LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, mv, res)
+Next == \E mv \in Moves(st) :
+            /\ Offered(st, h, mv)
+            /\ LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, mv, res)
 
 Entry(x) == [effect |-> x.effect, digest |-> x.digest, approval |-> x.approval, answer |-> x.answer]
 Released(x) == \E d \in h.got : d.via = "release" /\ d.item = x.item /\ Entry(x) \in d.entries
@@ -285,12 +321,14 @@ L5 == /\ \A d \in h.got : d.via = "release" =>
             \E d \in h.got : d.via = "release" /\ d.item = x.item /\ d.entries = x.entries
 L6 == /\ \A d \in h.got : (d.via = "lapse" \/ d.after) => \A e \in d.entries : e.answer = "reject_once"
       /\ \A x \in h.released : ~Lapsed(x.item)
-L7 == \A p \in h.passed : p.state = "approved" => Row(p) # {} /\ p.first
+L7 == /\ \A p \in h.passed : p.state = "approved" => Row(p) # {} /\ (p.first \/ p.used)
+      /\ h.refused = {}
 L8 == \A p \in h.passed : (p.state = "releasing" /\ p.effect \in Native) => Row(p) # {} /\ p.used
 L9 == \A p \in h.passed :
         /\ ~p.stopped
         /\ \A d \in h.got : \A e \in d.entries : e.answer = "reject_once" => e.approval # p.approval
-L10 == \A p \in h.passed : p.state = "releasing" => Row(p) # {}
+L10 == \A p \in h.passed : p.state = "releasing" =>
+            IF p.approval = NoApproval THEN p.policy = "run" ELSE Row(p) # {}
 
 ReachEffects == \A d \in h.got : ~(/\ d.via = "release"
                                    /\ Cardinality(d.entries) >= 2
@@ -316,22 +354,22 @@ ReachOldApproval ==
             /\ t.live /\ u.live
             /\ t.row.answer = "allow_once" /\ u.row.answer = "allow_once"
             /\ Guard(st, [state |-> "approved", effect |-> t.row.effect, digest |-> u.row.digest,
-                          approval |-> t.row.approval]).r = "approval"
+                          approval |-> t.row.approval, policy |-> "none"]).r = "approval"
             /\ Guard(st, [state |-> "approved", effect |-> u.row.effect, digest |-> u.row.digest,
-                          approval |-> u.row.approval]).r = "ok")
+                          approval |-> u.row.approval, policy |-> "none"]).r = "ok")
 ReachMoney == \A p \in h.passed : ~(p.state = "releasing" /\ p.effect \in Native)
 ReachPageRecord == \A p \in h.passed : ~(p.state = "releasing" /\ p.effect \notin Native)
 ReachOtherEffect ==
     ~(\E t \in st.table : /\ t.live /\ ~t.used /\ t.row.answer = "allow_once"
                           /\ \E e \in Effects \ {t.row.effect} :
                                 Guard(st, [state |-> "approved", effect |-> e, digest |-> t.row.digest,
-                                           approval |-> t.row.approval]).r = "approval")
+                                           approval |-> t.row.approval, policy |-> "none"]).r = "approval")
 ReachOtherApproval ==
     ~(\E t, u \in st.table :
             /\ t.live /\ u.live /\ t.row.effect \notin Native /\ u.row.effect # t.row.effect
             /\ t.row.answer = "allow_once" /\ u.row.answer = "allow_once"
             /\ Guard(st, [state |-> "releasing", effect |-> t.row.effect, digest |-> t.row.digest,
-                          approval |-> u.row.approval]).r = "approval")
+                          approval |-> u.row.approval, policy |-> "confirm"]).r = "approval")
 ReachStopLapse == ~(st.run = "stopped" /\ \E i \in Items : Lapsed(i))
 ReachStopPerson == ~(st.run = "stopped" /\ \A i \in Items : ~Lapsed(i))
 ReachStoppedRequest == ~(st.run = "stopped" /\ Len(st.items) < NRequests /\ Issue(st, TRUE).r = "state")
@@ -339,8 +377,37 @@ ReachStoppedRecord ==
     ~(/\ st.run = "stopped"
       /\ \E t \in st.table : /\ t.live /\ ~t.used /\ t.row.answer = "allow_once"
                              /\ Guard(st, [state |-> "approved", effect |-> t.row.effect,
-                                           digest |-> t.row.digest, approval |-> t.row.approval]).r = "approval")
+                                           digest |-> t.row.digest, approval |-> t.row.approval, policy |-> "none"]).r = "approval")
 ReachRejected == \A d \in h.got : d.via # "release" \/ \A e \in d.entries : e.answer = "allow_once"
+ReachRepeat ==
+    ~(\E t \in st.table : /\ t.live /\ t.used
+                          /\ Guard(st, [state |-> "approved", effect |-> t.row.effect, digest |-> t.row.digest,
+                                        approval |-> t.row.approval, policy |-> "none"]).r = "repeat")
+ReachUsedRowOther ==
+    ~(\E t \in st.table : /\ t.live /\ t.used /\ st.run = "live"
+                          /\ \E d \in Digests \ {t.row.digest} :
+                                Guard(st, [state |-> "approved", effect |-> t.row.effect, digest |-> d,
+                                           approval |-> t.row.approval, policy |-> "none"]).r = "approval")
+ReachNoApprovalRun == \A p \in h.passed : ~(p.state = "releasing" /\ p.approval = NoApproval)
+ReachNoApprovalRefused ==
+    ~(\E e \in Effects \ Native : \E t \in st.table :
+            /\ t.live /\ t.row.effect = e /\ t.row.answer = "allow_once" /\ st.run = "live"
+            /\ Guard(st, [state |-> "releasing", effect |-> e, digest |-> t.row.digest,
+                          approval |-> NoApproval, policy |-> "confirm"]).r = "approval"
+            /\ Guard(st, [state |-> "releasing", effect |-> e, digest |-> t.row.digest,
+                          approval |-> NoApproval, policy |-> "run"]).r = "ok")
+ReachNoApprovalNative ==
+    ~(\E e \in Native : \E t \in st.table :
+            /\ t.live /\ t.row.effect = e /\ t.row.answer = "allow_once" /\ st.run = "live"
+            /\ Guard(st, [state |-> "releasing", effect |-> e, digest |-> t.row.digest,
+                          approval |-> NoApproval, policy |-> "run"]).r = "approval")
+ReachNotAskedAgain ==
+    ~(/\ h.n = 1 /\ OpenItems(st) = {} /\ st.run = "live"
+      /\ \E e \in Req1 \cap Req2 : ~GotAllow(h, 1, e)
+      /\ Issue(st, TRUE).r = "ok")
+
+AskedOnApproval ==
+    \A n \in 2..h.n : \A i \in 1..(n - 1) : \A e \in ReqEffects(i) \cap ReqEffects(n) : GotAllow(h, i, e)
 
 EveryIdHasRow == \A d \in h.got : \A e \in d.entries : \E x \in h.stored : x.approval = e.approval
 RowsAreSent == \A x \in h.stored : x.answer = "allow_once" =>
