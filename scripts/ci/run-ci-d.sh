@@ -447,6 +447,8 @@ own_self_test() {
   own_case package-lock-changed 1 "$guard_line" macos
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; git -C "$CI_D_REPO" add Cargo.lock; printf "PASS 10-a\n"'
   own_case lockfile-changed-and-staged 1 "$guard_line" macos
+  new_repo && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" update-index --assume-unchanged Cargo.lock; printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
+  own_case lockfile-changed-under-assume-unchanged 1 "$guard_line" macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -535,7 +537,14 @@ fi
 if [ "$failed" -gt 0 ] || [ "$passed" -eq 0 ]; then
   status=1
 fi
-if ! git diff --exit-code HEAD -- Cargo.lock package-lock.json; then
+lock_changed=
+for lock in Cargo.lock package-lock.json; do
+  lock_head=$(git rev-parse -q --verify "HEAD:$lock" 2>/dev/null)
+  lock_tree=
+  [ ! -e "$lock" ] || lock_tree=$(git hash-object -- "$lock" 2>/dev/null) || lock_tree=unreadable
+  [ "$lock_head" = "$lock_tree" ] || lock_changed="$lock_changed $lock"
+done
+if ! git diff --exit-code HEAD -- Cargo.lock package-lock.json || [ -n "$lock_changed" ]; then
   printf 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)\n'
   status=1
 fi
