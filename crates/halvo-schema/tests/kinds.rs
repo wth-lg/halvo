@@ -1032,3 +1032,126 @@ fn check_record_holds_v_to_one_value_of_its_type() {
         rule_key(kind, "v", &cases);
     }
 }
+
+fn in_nested_objects(key: &str) -> [(&'static KindEntry, &'static str, String); 4] {
+    let k = serde_json::to_string(key).unwrap();
+    [
+        (
+            entry("workflow"),
+            "recurrence",
+            format!(r#"{{"count":3,"period":31,"first":20705,{k}:20767}}"#),
+        ),
+        (
+            entry("summary"),
+            "keys",
+            format!(r#"{{"printable":42,"editing":3,{k}:0}}"#),
+        ),
+        (
+            entry("evidence"),
+            "steps",
+            format!(
+                r#"[{{"app":{{"value":"com.example.browser","layer":"floor"}},{k}:{{"value":"Pay bill","layer":"floor"}}}}]"#
+            ),
+        ),
+        (&LATER_BOUNDED, "count", format!(r#"[{{"n":1,{k}:2}}]"#)),
+    ]
+}
+
+#[test]
+fn check_record_refuses_a_key_of_a_nested_object_that_is_no_name() {
+    let long = "a".repeat(2044);
+    for key in [
+        long.as_str(),
+        "a23456789012345678901234567890123",
+        "Printable",
+        "printAble",
+        "key-x",
+        "2026-11-11T17:20:00Z",
+        "-1794339000000000000",
+        "",
+        "a b",
+        "\u{e9}",
+        "a\u{0}",
+    ] {
+        for (kind, at, value) in in_nested_objects(key) {
+            rule_key(kind, at, &[(value.as_str(), "key_form")]);
+        }
+    }
+    for key in ["a2345678901234567890123456789012", "a", "wall_s", "0"] {
+        for (kind, at, value) in in_nested_objects(key) {
+            assert_eq!(
+                check_record(kind, &with(kind.example, at, &value)),
+                Ok(()),
+                "{value}"
+            );
+        }
+    }
+}
+
+#[test]
+fn check_record_refuses_a_key_that_stands_twice_in_a_nested_object() {
+    rule_key(
+        entry("workflow"),
+        "recurrence",
+        &[(
+            r#"{"count":3,"period":31,"first":20705,"last":20767,"last":20767}"#,
+            "repeated_key",
+        )],
+    );
+    rule_key(
+        entry("summary"),
+        "keys",
+        &[(
+            r#"{"printable":42,"editing":3,"printable":0}"#,
+            "repeated_key",
+        )],
+    );
+    rule_key(
+        entry("evidence"),
+        "steps",
+        &[(
+            r#"[{"app":{"value":"com.example.browser","layer":"floor","layer":"floor"}}]"#,
+            "repeated_key",
+        )],
+    );
+    rule_key(
+        &LATER_BOUNDED,
+        "count",
+        &[(r#"[{"n":1,"n":2}]"#, "repeated_key")],
+    );
+    rule_key(
+        entry("workflow"),
+        "site",
+        &[(
+            &format!(r#"{{"key":"{HASH}","key":"{HASH}","source":"title"}}"#),
+            "repeated_key",
+        )],
+    );
+}
+
+#[test]
+fn check_record_reads_a_site_value_whole_and_holds_another_object_under_site_to_the_rule_of_keys() {
+    let workflow = entry("workflow");
+    for site in [
+        format!(r#"{{"key":"{HASH}","source":"title"}}"#),
+        r#"{"key":"shop.test","source":"address_field"}"#.to_owned(),
+        r#"{"key":"shop.test","source":"sign_in"}"#.to_owned(),
+    ] {
+        assert_eq!(
+            check_record(workflow, &with(workflow.example, "site", &site)),
+            Ok(()),
+            "{site}"
+        );
+    }
+    rule_key(
+        workflow,
+        "site",
+        &[
+            (
+                &format!(r#"{{"Key":"{HASH}","source":"title"}}"#),
+                "key_form",
+            ),
+            (&format!(r#"{{"key-x":"{HASH}"}}"#), "key_form"),
+        ],
+    );
+}

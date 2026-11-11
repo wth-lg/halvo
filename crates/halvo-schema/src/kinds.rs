@@ -378,6 +378,14 @@ fn walk(value: &RawValue, types: &[FieldType]) -> Result<(), &'static str> {
                 return Ok(());
             }
             let fields = Fields::read(text.as_bytes()).ok_or("not_an_object")?;
+            for (i, (key, _)) in fields.0.iter().enumerate() {
+                if !name_form(key) {
+                    return Err("key_form");
+                }
+                if fields.0[..i].iter().any(|(k, _)| k == key) {
+                    return Err("repeated_key");
+                }
+            }
             fields.0.iter().try_for_each(|(_, v)| walk(v, types))
         }
         Some(b'[') => {
@@ -460,7 +468,9 @@ fn segments(value: &RawValue) -> Result<(), &'static str> {
 /// object in place of the one value is refused with the rule `not_one_value`, a value under `segments` that is no
 /// list with `not_a_list` and an empty list there with `empty_list`. Under every other key the value passes the
 /// walk by the types of that key: `null` passes; an object passes whole when `Site` is among the types and it
-/// reads as a `SiteValue`, else when each of its values passes; a list passes when each of its items passes; a
+/// reads as a `SiteValue`, else when each of its keys is a name of 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`
+/// (rule `key_form`) that stands once in it (rule `repeated_key`) and each of its values passes, at every depth; a
+/// list passes when each of its items passes; a
 /// string or an integer passes when it has the JSON form of one of the types (`App`, `Domain` and `Token` through
 /// their parsers, `Text` and `OwnText` by their length alone, `Name` as 1 to 32 bytes of `a` to `z`, `0` to `9`
 /// and `_`); a boolean, a number with a fraction or an exponent, and `-0`, which serde reads as a float, never
