@@ -1405,6 +1405,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-coord"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "halvo-route"
 version = "0.0.0"
 
