@@ -83,9 +83,13 @@ a signal. The first unit that stops a browser with this library on Windows close
 by taking both values of a row from one handle of the process.
 
 No hosted job of the repository builds or tests the two trial crates: they are not members of the
-root workspace, and the shell lint of the macOS job and the two repository checks of line endings
-and of own-source reads read their scripts alone. The hosted runs that this file cites ran on
-scratch branches whose workflow built and tested both crates.
+root workspace. On the macOS job the shell lint and the two repository checks of line endings and of
+own-source reads read their scripts, and the hook scan `18-hook-scan` reads their Rust files, as it
+reads every tracked `.rs` file. On the Windows job the step that clones the checkout with
+`core.autocrlf=true` reads their scripts. The hosted runs that this file cites ran on scratch
+branches: 42962050772 and 42976989121 built and ran the trial on both systems, and 42995011332 on
+Windows alone, and none of the three ran `cargo test` of either trial crate. Run 43042611636, of the
+scratch branch `scratch/r3-u03-last-4`, ran `cargo test` and clippy of both crates on both systems.
 
 ## Item 4 in numbers (03f4c53 and 85f255a)
 
