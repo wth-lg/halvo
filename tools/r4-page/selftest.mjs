@@ -9,14 +9,21 @@ const FILES = ['state-a.json', 'state-b.json', 'reply-ok.json', 'reply-next-same
 const MODES = ['reduced_motion', 'forced_colors', 'width_320'];
 
 const FAULTS = {
-  1: [{ fault: 'contrast', state: 'a', want: (r) => r.counts.violations > 0 }],
+  1: [
+    { fault: 'contrast', state: 'a', want: (r) => r.counts.violations > 0 },
+    { fault: 'late_next', state: 'a', want: (r) => r.counts.violations > 0 },
+    { fault: 'late_css', state: 'a', want: (r) => r.counts.violations > 0 },
+  ],
   2: [
     { fault: 'unreachable', state: 'a', want: (r) => r.names.includes('unreached') },
     { fault: 'focus_unseen', state: 'a', want: (r) => r.names.includes('focus_unseen') },
     { fault: 'focus_escapes', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
   ],
   3: [{ fault: 'renamed', state: 'a', want: (r) => r.counts.structure === 'differ' }],
-  4: [{ fault: 'small', state: 'a', want: (r) => r.names.includes('delete') }],
+  4: [
+    { fault: 'small', state: 'a', want: (r) => r.names.includes('delete') },
+    { fault: 'never_quiet', state: 'a', want: (r) => r.names.includes('unsettled') },
+  ],
   5: [
     { fault: 'motion_hidden', state: 'a', mode: 'reduced_motion' },
     { fault: 'forced_hidden', state: 'a', mode: 'forced_colors' },

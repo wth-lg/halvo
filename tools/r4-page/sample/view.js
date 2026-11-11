@@ -21,6 +21,7 @@
   if (fault === 'motion_hidden') CSS.push('@media (prefers-reduced-motion: reduce) { .r4s [data-act="delete"] { display: none; } }');
   if (fault === 'forced_hidden') CSS.push('@media (forced-colors: active) { .r4s [data-act="switch_off"] { display: none; } }');
   if (fault === 'narrow_scroll') CSS.push('.r4s-line { min-width: 400px; }');
+  if (fault === 'late_css') CSS.push('@keyframes r4s-late { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-late 0.01s 1.5s forwards; }');
 
   var root = null;
   var status = null;
@@ -211,6 +212,7 @@
     if (!shown) return;
     call('agents_next', { after: seq }).then(function (reply) {
       if (!reply || reply.closed === 'yes') return;
+      if (fault === 'late_next') list.querySelector('.r4s-line').style.color = '#c4c4c4';
       if (reply.seq > seq) apply(reply);
       next();
     });
@@ -241,6 +243,14 @@
         apply(snapshot);
         next();
       });
+      if (fault === 'never_quiet') {
+        var tick = 0;
+        var frame = function () {
+          root.setAttribute('data-tick', String(++tick));
+          requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }
     },
     hide: function () {
       shown = false;

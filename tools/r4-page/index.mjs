@@ -9,7 +9,8 @@ const LICENCES = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Z
 const TEXT_KEYS = new Set(['name', 'word', 'line', 'say', 'level', 'text', 'title', 'label', 'value', 'from_text', 'note']);
 const MARKUP = '<b data-x="1">x</b>&amp;';
 const VIEWPORT = { width: 1024, height: 768 };
-const NEXT_HOLD_MS = 1000;
+const SETTLE_MS = 5000;
+const QUIET_MS = 80;
 const FRAME = '/__r4/frame/index.html';
 const ENGINE = '/__r4/engine/ace.js';
 const TYPES = {
@@ -159,20 +160,62 @@ const INIT = () => {
   });
 };
 
-const QUIET = () =>
+const QUIET = ([quiet, left]) =>
   new Promise((done) => {
     let timer = 0;
+    let changed = false;
+    const limit = setTimeout(() => {
+      observer.disconnect();
+      clearTimeout(timer);
+      done('limit');
+    }, left);
     const end = () => {
       observer.disconnect();
-      requestAnimationFrame(() => requestAnimationFrame(() => done(true)));
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          clearTimeout(limit);
+          observer.disconnect();
+          done(changed ? 'again' : 'quiet');
+        }),
+      );
+      observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
     };
     const observer = new MutationObserver(() => {
+      if (timer === -1) {
+        changed = true;
+        return;
+      }
       clearTimeout(timer);
-      timer = setTimeout(end, 80);
+      timer = setTimeout(() => {
+        timer = -1;
+        end();
+      }, quiet);
     });
     observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-    timer = setTimeout(end, 80);
+    timer = setTimeout(() => {
+      timer = -1;
+      end();
+    }, quiet);
   });
+
+const FINISH = () => {
+  let moving = 0;
+  for (const a of document.getAnimations()) {
+    if (a.playState !== 'running') continue;
+    moving++;
+    const timing = a.effect ? a.effect.getComputedTiming() : null;
+    if (!timing || timing.iterations === Infinity || timing.endTime === Infinity) {
+      a.pause();
+      continue;
+    }
+    try {
+      a.finish();
+    } catch {
+      a.pause();
+    }
+  }
+  return moving;
+};
 
 function sleep(ms) {
   return new Promise((done) => setTimeout(done, ms).unref());
@@ -180,8 +223,21 @@ function sleep(ms) {
 
 async function settle(h) {
   await h.page.waitForFunction(() => document.readyState === 'complete' && (!window.__r4frame || window.__r4frame.ready), null, { timeout: 15000 });
-  for (let i = 0; i < 300 && h.inflight > 0; i++) await sleep(10);
-  await h.page.evaluate(QUIET);
+  const end = Date.now() + SETTLE_MS;
+  for (;;) {
+    const left = end - Date.now();
+    if (left <= 0) break;
+    if (h.inflight > 0) {
+      await sleep(10);
+      continue;
+    }
+    const calls = h.started;
+    const moving = await h.page.evaluate(FINISH);
+    const quiet = await h.page.evaluate(QUIET, [QUIET_MS, Math.max(1, end - Date.now())]);
+    if (quiet === 'limit') break;
+    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
+  }
+  h.flags.add('unsettled');
 }
 
 function markup(value, key) {
@@ -270,19 +326,21 @@ function fromTranscript(h, name, args) {
 async function stub(h, name, args) {
   const a = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   if (typeof name !== 'string') return { error: 'malformed' };
+  h.started++;
   if (name !== 'agents_snapshot' && name !== 'agents_next') {
     h.calls++;
     if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
   }
   if (h.transcript) return fromTranscript(h, name, a);
   if (name === 'agents_next') {
-    await sleep(NEXT_HOLD_MS);
-    return h.closed ? { closed: 'yes' } : fixture(h, 'reply-next-same.json');
+    h.nexts++;
+    if (h.nexts > 1 || h.closed) return h.closed ? { closed: 'yes' } : new Promise((wake) => h.held.push(wake));
   }
   h.inflight++;
   try {
     if (name === 'agents_snapshot') return h.state.snapshot;
     if (name === 'agents_card') return h.state.card;
+    if (name === 'agents_next') return await fixture(h, 'reply-next-same.json');
     return await fixture(h, 'reply-ok.json');
   } finally {
     h.inflight--;
@@ -320,6 +378,11 @@ async function openWith(options, context, transform) {
       state: null,
       blocked: 0,
       inflight: 0,
+      started: 0,
+      nexts: 0,
+      held: [],
+      flags: new Set(),
+      kids: [],
       calls: 0,
       actions: 0,
       errors: 0,
@@ -367,6 +430,7 @@ async function openWith(options, context, transform) {
 async function closeHandle(h) {
   if (h.closed) return;
   h.closed = true;
+  for (const wake of h.held.splice(0)) wake({ closed: 'yes' });
   await h.ctx.close().catch(() => {});
   await release();
 }
@@ -375,9 +439,11 @@ export async function open(options) {
   return openWith(options, {}, null);
 }
 
-function again(h, context, transform) {
+async function again(h, context, transform) {
   const o = { ...h.options, out: undefined };
-  return openWith(o, context === undefined ? h.context : context, transform === undefined ? h.transform : transform);
+  const kid = await openWith(o, context === undefined ? h.context : context, transform === undefined ? h.transform : transform);
+  h.kids.push(kid);
+  return kid;
 }
 
 function cssq(s) {
@@ -568,6 +634,7 @@ async function walkCheck(h) {
   const max = b.controls.length * 2 + 8;
   for (let i = 0; i < max; i++) {
     await page.keyboard.press(key);
+    await page.evaluate(FINISH);
     const s = await page.evaluate(() => window.__r4w.step());
     if (s.id === 0) continue;
     if (s.outside) misses.add('dialog_focus_lost');
@@ -591,6 +658,8 @@ async function walkCheck(h) {
   }
   for (const reached of groups.values()) if (!reached) misses.add('unreached');
   const ids = [...stops.keys()];
+  await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+  await page.evaluate(FINISH);
   const rest = await page.evaluate((list) => window.__r4w.rest(list), ids);
   ids.forEach((id, i) => {
     if (!visibleChange(stops.get(id), rest[i])) misses.add('focus_unseen');
@@ -674,7 +743,7 @@ async function modesCheck(h, { snapshot } = {}) {
         if (main.scrollWidth > main.clientWidth) return true;
         return [document.documentElement, document.body].some((e) => e && ['auto', 'scroll'].includes(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth);
       });
-      modes[name] = scroll || results.some((r) => !r.ok) ? 'miss' : 'ok';
+      modes[name] = scroll || m.flags.size > 0 || results.some((r) => !r.ok) ? 'miss' : 'ok';
     } finally {
       await m.close();
     }
@@ -715,9 +784,27 @@ const UNSEEN = {
   6: { markup: 'miss' },
 };
 
+const MISSWORD = { 2: { keyboard: 'miss' }, 3: { structure: 'differ' }, 4: { size: 'miss' }, 5: { modes: 'miss' }, 6: { markup: 'miss' } };
+
+function taint(h, n, r) {
+  const flags = new Set(h.flags);
+  for (const kid of h.kids) for (const f of kid.flags) flags.add(f);
+  if (!flags.size) return r;
+  return { ok: false, counts: { ...r.counts, ...(MISSWORD[n] || {}) }, names: [...new Set([...r.names, ...flags])].sort() };
+}
+
 export async function check(h, n, options = {}) {
   if (!h || !h.page || h.closed) throw new Refusal('usage', 'check(page, n, {snapshot, write}) needs an open page');
-  if (UNSEEN[n] && !(options.write && n === 3) && (await h.page.evaluate(OPAQUE))) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
+  if (!Number.isInteger(n) || n < 1 || n > 6) throw new Refusal('usage', 'check(page, n, {snapshot, write}) takes n from 1 to 6');
+  h.kids = [];
+  if (UNSEEN[n] && !(options.write && n === 3)) {
+    if (h.flags.has('unsettled')) return { ok: false, counts: { ...UNSEEN[n] }, names: ['unsettled'] };
+    if (await h.page.evaluate(OPAQUE)) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
+  }
+  return taint(h, n, await run(h, n, options));
+}
+
+async function run(h, n, options) {
   switch (n) {
     case 1:
       return engineCheck(h);
