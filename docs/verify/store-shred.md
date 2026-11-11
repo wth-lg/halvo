@@ -730,6 +730,17 @@ it in the plan before weakening an assertion.
   destroyed, so nothing in it can be read.
 - Two creates under one root id at the same instant.
   `CreateUnderTheRootOfThisStore` runs after the first create has returned.
+  The macOS root store reads the keychain and then writes it, in two calls,
+  and the write replaces an item that exists. A probe of the second formal
+  step, which is not in the repository, started two creates under one root
+  id behind a barrier, 200 times: in 115 rounds both returned `Ok`, and in
+  each of those one of the two stores answered `Custody(WrapAuthFailed)`
+  to the `open` that followed; in the other 85 one create answered
+  `Custody(RootExists)`. Every caller in the tree makes a fresh root id for
+  each create, so the race needs a caller that gives one id to two creates.
+  To state it, check 1 would need two creators that share a root id and
+  start together, and the read that at most one of them returns `Ok` and
+  that a store whose create returned `Ok` opens afterwards.
 - An append that fails at its first row, or whose savepoint cannot be
   released.
 - Code that check 1 calls in every case and that no row fails through. A
