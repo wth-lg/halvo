@@ -85,15 +85,18 @@ impl Prices {
             input: 0,
             output: 0,
         }; 3];
-        for (rate, cells) in rates.iter_mut().zip(&rows) {
+        for ((rate, cells), tier) in rates.iter_mut().zip(&rows).zip(Tier::ALL) {
             let (Some(input), Some(output)) = (decimal(cells[1]), decimal(cells[2])) else {
                 return Err(PriceError::Number);
             };
+            if tier == Tier::OnDevice && (input, output) != (0, 0) {
+                return Err(PriceError::Number);
+            }
             *rate = Rate { input, output };
         }
         if rows
             .iter()
-            .any(|cells| cells[3].is_empty() || cells[3] == "-" || cells[3].contains('"'))
+            .any(|cells| cells[3].is_empty() || cells[3] == "-" || cells[3].contains(['"', ' ']))
         {
             return Err(PriceError::Source);
         }
