@@ -232,7 +232,8 @@ impl Executor {
             .user_data_dir(&opts.profile)
             .port(opts.debug_port.unwrap_or(0))
             .launch_timeout(Duration::from_secs(30))
-            .request_timeout(STEP_TIMEOUT);
+            .request_timeout(STEP_TIMEOUT)
+            .respect_https_errors();
         builder = if opts.headless {
             builder.new_headless_mode()
         } else {
@@ -307,7 +308,7 @@ impl Executor {
 
     pub async fn connect(address: &str, url_prefix: &str) -> Res<Executor> {
         let config = HandlerConfig {
-            ignore_https_errors: true,
+            ignore_https_errors: false,
             ..HandlerConfig::default()
         };
         let (mut browser, mut handler) =
