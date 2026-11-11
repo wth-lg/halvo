@@ -6,7 +6,8 @@
 // A window read is repeated, at most 10 times 300 ms apart, until it shows the state that the
 // step expects: on macOS the window list follows the window's own report with a delay.
 // A sync run sends 1,000 changes at 100 a second and hides 2 s in, so that the call of the way
-// get waits at the core when the hide comes.
+// get waits at the core when the hide comes; in arm b it sends 3,000, so that a window made again
+// slowly (8.6 s once on Windows) still gets the end of the send.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -21,6 +22,7 @@ export const ARMS = ['main', 'a', 'a2', 'b'];
 export const WAYS = ['get', 'channel', 'events'];
 export const SYSTEM = process.platform === 'win32' ? 'windows' : 'macos';
 export const SENT = 1000;
+export const SENT_B = 3000;
 export const RATE = 100;
 const START_MS = 60000;
 const CONNECT_MS = 10000;
@@ -93,9 +95,9 @@ export function parseEnd(line) {
  * its send, and for the way `get` nothing that the core sent after a hide reached the page and,
  * after a hide, the page's waiting call got the reply `closed` (`closedAfterHide`, the line
  * `page sync closed last=<n>`; TA-13). */
-export function syncKey(way, end, sendDone, closedAfterHide) {
+export function syncKey(way, end, sendDone, closedAfterHide, sent = SENT) {
   if (!end || !sendDone) return 'miss';
-  if (end.last !== SENT || end.order !== 'ok') return 'miss';
+  if (end.last !== sent || end.order !== 'ok') return 'miss';
   if (way === 'get' && (end.afterHide !== 0 || closedAfterHide !== true)) return 'miss';
   return 'ok';
 }
@@ -396,7 +398,8 @@ async function syncRun(options, arm, way, pages) {
       trace(`sent=${line.replace(/ /g, '_')} answer=${words(result).replace(/ /g, ',')} ms=${result.ms}`);
       return result.answer;
     };
-    const steps = [await send('show'), await send(`send ${SENT} ${RATE}`)];
+    const sent = arm === 'b' ? SENT_B : SENT;
+    const steps = [await send('show'), await send(`send ${sent} ${RATE}`)];
     await sleep(2000);
     const beforeHide = app.lines.length;
     if (arm === 'a' || arm === 'a2') steps.push(await send('hide'));
@@ -405,15 +408,15 @@ async function syncRun(options, arm, way, pages) {
       await sleep(1500);
       steps.push(await send('show'));
     }
-    const endLine = await waitLine(app, (line) => line.startsWith('page sync end '), 30000);
-    const doneLine = await waitLine(app, (line) => line === `core send_done sent=${SENT}`, 5000);
+    const endLine = await waitLine(app, (line) => line.startsWith('page sync end '), 45000);
+    const doneLine = await waitLine(app, (line) => line === `core send_done sent=${sent}`, 5000);
     const end = parseEnd(endLine);
     const closedLines = app.lines.slice(beforeHide).filter((line) => /^page sync closed last=\d+$/.test(line)).length;
     const hidden = arm === 'a' || arm === 'a2';
     trace(`end=${end ? `last=${end.last},order=${end.order},after_hide=${end.afterHide}` : 'none'} send_done=${doneLine ? 'yes' : 'no'} closed_lines_after_hide=${closedLines}`);
     for (const line of app.lines.filter((l) => /^page (sync closed|window shown) /.test(l))) trace(`page_line=${line.slice(5).replace(/ /g, ',')}`);
     const key = steps.every((answer) => typeof answer === 'string' && answer.startsWith('ok'))
-      ? syncKey(way, end, doneLine, hidden ? closedLines > 0 : true) : 'miss';
+      ? syncKey(way, end, doneLine, hidden ? closedLines > 0 : true, sent) : 'miss';
     await send('quit');
     await Promise.race([app.exited, sleep(QUIT_MS)]);
     return key;

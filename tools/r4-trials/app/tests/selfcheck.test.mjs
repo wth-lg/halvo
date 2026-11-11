@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  armLine, checkHosted, parseAnswer, parseArgs, parseEnd, quietKey, Refused, SENT, syncKey, SYSTEM
+  armLine, checkHosted, parseAnswer, parseArgs, parseEnd, quietKey, Refused, SENT, SENT_B, syncKey, SYSTEM
 } from '../selfcheck.mjs';
 
 const script = fileURLToPath(new URL('../selfcheck.mjs', import.meta.url));
@@ -67,6 +67,8 @@ test('a sync key needs every change in order, the end of the send, and for get n
   assert.equal(syncKey('channel', { ...end, order: 'miss' }, 'done', true), 'miss');
   assert.equal(syncKey('get', null, 'done', true), 'miss');
   assert.equal(syncKey('get', end, null, true), 'miss');
+  assert.equal(syncKey('channel', { ...end, last: SENT_B }, 'done', true, SENT_B), 'ok');
+  assert.equal(syncKey('channel', end, 'done', true, SENT_B), 'miss');
 });
 
 test('quiet reads the core quiet lines of arm a2 and wants none elsewhere', () => {
