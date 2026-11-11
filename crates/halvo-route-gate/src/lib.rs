@@ -1,13 +1,14 @@
 //! The library of the gate tool `route-gate`: the outcome table (`table`), its generator
-//! (`generate`), the derivation of the policy (`derive`), the routers under test (`routers`), the
-//! scorer (`score`) and the self-test (`selftest`). `Router` and `Setup` are the seam for the router
-//! `product`.
+//! (`generate`), the derivation of the policy (`derive`), the `--out` file (`out`), the routers
+//! under test (`routers`), the scorer (`score`) and the self-test (`selftest`). `Router` and
+//! `Setup` are the seam for the router `product`.
 
 use halvo_route::policy::PickCell;
 use halvo_route::tier::{CallKind, CategoryId, Tier};
 
 pub mod derive;
 pub mod generate;
+pub mod out;
 pub mod routers;
 pub mod score;
 pub mod selftest;
