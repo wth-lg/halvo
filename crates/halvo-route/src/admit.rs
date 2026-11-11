@@ -479,6 +479,7 @@ mod tests {
         };
         assert_eq!(fifth.left(), 20_000);
         assert_eq!(cap_state(Some(&fifth), false), CapState::Near);
+        assert_eq!(cap_state(Some(&fifth), true), CapState::Reached);
         assert_eq!(
             cap_state(
                 Some(&Room {
@@ -583,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn estimate_dropped_at_the_end_while_a_hold_is_open() {
+    fn fits_beside_an_open_hold() {
         let ruling = open();
         let mut account = Account {
             cap_minor: Some(10),

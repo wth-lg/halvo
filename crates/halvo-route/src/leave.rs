@@ -448,6 +448,11 @@ mod tests {
                 "{tier:?}"
             );
             assert_eq!(
+                hosted(tier, &[], ORIGIN, Consent::Missing),
+                Err(LeaveCause::Consent),
+                "{tier:?}"
+            );
+            assert_eq!(
                 hosted(tier, &[PartKind::Text], ORIGIN, Consent::Recorded),
                 Ok(())
             );
