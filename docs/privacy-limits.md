@@ -91,9 +91,10 @@ Each sentence names the unit that makes it true.
   macos-4 reads it; a read from the window list was not tried.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
-- The record of the gate on main (docs/baseline/r1-gate-main.txt) was made with
-  nobody at the machine. A run with a person at the keyboard recorded no keystroke
-  while secure input was held. What that line proves is decided in a later unit.
+- Halvo records no keystroke typed while secure input is held: a key event that
+  reaches it in that time is not recorded and is only counted by type (macos-4).
+  Line (c) of the gate is the check that shows it, and gate-3 builds that line
+  (contract C4 item 13).
 - Characters and key codes are never stored: the types that core-2 builds have no
   field for them.
 
