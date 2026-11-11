@@ -282,6 +282,33 @@ mod tests {
         for (line, error) in cases {
             assert_eq!(DefaultCap::parse(line), Err(*error), "{line:?}");
         }
+        let word_byte = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_';
+        for byte in 0..=127u8 {
+            let c = char::from(byte);
+            let line = format!("default_cap amount=2{c}00 period=month status=provisional");
+            match DefaultCap::parse(&line) {
+                Ok(cap) => assert!(
+                    byte.is_ascii_digit() && cap.amount == 2000 + 100 * u64::from(byte - b'0'),
+                    "{line:?}"
+                ),
+                Err(error) => assert!(!byte.is_ascii_digit() && error == Form, "{line:?}"),
+            }
+            let line = format!("default_cap amount=2000 period=mo{c}nth status=provisional");
+            let want = if word_byte(byte) { P } else { Form };
+            assert_eq!(DefaultCap::parse(&line), Err(want), "{line:?}");
+            let line = format!("default_cap amount=2000 period=month status=provi{c}sional");
+            let want = if word_byte(byte) { S } else { Form };
+            assert_eq!(DefaultCap::parse(&line), Err(want), "{line:?}");
+        }
+        for c in ['\u{e9}', '\u{ff10}', '\u{0662}'] {
+            for line in [
+                format!("default_cap amount=2{c}00 period=month status=provisional"),
+                format!("default_cap amount=2000 period=mo{c}nth status=provisional"),
+                format!("default_cap amount=2000 period=month status=provi{c}sional"),
+            ] {
+                assert_eq!(DefaultCap::parse(&line), Err(Form), "{line:?}");
+            }
+        }
     }
 
     #[test]
