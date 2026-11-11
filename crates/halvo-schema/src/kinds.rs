@@ -275,31 +275,38 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 ));
             }
         }
+        let capture_stored =
+            entry.origin == Origin::Capture && entry.class != RetentionClass::Window;
         for (key, field_type) in entry.fields {
-            let barred = match (entry.class, entry.origin) {
-                (RetentionClass::Window, _) => matches!(field_type, FieldType::OwnText),
-                (_, Origin::Capture) => matches!(
-                    field_type,
-                    FieldType::Instant
-                        | FieldType::Ordinal
-                        | FieldType::Token
-                        | FieldType::Text
-                        | FieldType::OwnText
+            let rules = [
+                (
+                    capture_stored,
+                    "a bounded or kept kind of origin capture",
+                    &[
+                        FieldType::Instant,
+                        FieldType::Ordinal,
+                        FieldType::Token,
+                        FieldType::Text,
+                        FieldType::OwnText,
+                    ][..],
                 ),
-                (_, Origin::Own) => matches!(
-                    field_type,
-                    FieldType::Ordinal | FieldType::Token | FieldType::Text
+                (
+                    entry.origin == Origin::Own,
+                    "a kind of origin own",
+                    &[FieldType::Ordinal, FieldType::Token, FieldType::Text][..],
                 ),
-            };
-            if barred {
-                let what = match (entry.class, entry.origin) {
-                    (RetentionClass::Window, _) => "a window kind",
-                    (_, Origin::Capture) => "a bounded or kept kind of origin capture",
-                    (_, Origin::Own) => "a kind of origin own",
-                };
-                reports.push(format!(
-                    "{kind}: {what} with the key {key} of the type {field_type:?}"
-                ));
+                (
+                    entry.class == RetentionClass::Window,
+                    "a window kind",
+                    &[FieldType::OwnText][..],
+                ),
+            ];
+            for (applies, what, barred) in rules {
+                if applies && barred.contains(field_type) {
+                    reports.push(format!(
+                        "{kind}: {what} with the key {key} of the type {field_type:?}"
+                    ));
+                }
             }
         }
         match check_record(entry, entry.example) {

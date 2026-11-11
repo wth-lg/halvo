@@ -439,20 +439,30 @@ fn check_entries_reports_a_workflow_key_that_is_no_key_of_the_type_id() {
 
 #[test]
 fn check_entries_reports_a_kind_of_origin_own_that_is_a_window_kind_or_names_no_workflow() {
-    one_report(
-        &[&KindEntry {
-            origin: Origin::Own,
-            workflow_key: Some("workflow"),
-            fields: &[
-                ("v", FieldType::Version),
-                ("workflow", FieldType::Id),
-                ("segments", FieldType::Ordinal),
-                ("expires", FieldType::Instant),
-            ],
-            example: r#"{"v":1,"workflow":"10000000000000000000000000000001","segments":[7],"expires":1795478400000000000}"#,
-            ..LATER_WINDOW
-        }],
-        "a kind of origin own with the class window",
+    let own_window = KindEntry {
+        origin: Origin::Own,
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("segments", FieldType::Ordinal),
+            ("expires", FieldType::Instant),
+            ("note", FieldType::Text),
+            ("hint", FieldType::Token),
+            ("own", FieldType::OwnText),
+        ],
+        example: r#"{"v":1,"workflow":"10000000000000000000000000000001","segments":[7],"expires":1795478400000000000,"note":"Inbox","hint":"shop","own":"Pay"}"#,
+        ..LATER_WINDOW
+    };
+    assert_eq!(
+        check_entries(&[&own_window]),
+        [
+            "kind \"probe_window\": a kind of origin own with the class window",
+            "kind \"probe_window\": a kind of origin own with the key segments of the type Ordinal",
+            "kind \"probe_window\": a kind of origin own with the key note of the type Text",
+            "kind \"probe_window\": a kind of origin own with the key hint of the type Token",
+            "kind \"probe_window\": a window kind with the key own of the type OwnText",
+        ]
     );
     one_report(
         &[&KindEntry {
