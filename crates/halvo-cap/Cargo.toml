@@ -1,0 +1,6 @@
+[package]
+name = "halvo-cap"
+version = "0.0.0"
+description = "Runs one child under a memory cap and reads its peak; the binary measure-peak and the model lock"
+edition = "2021"
+publish = false

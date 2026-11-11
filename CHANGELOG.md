@@ -98,3 +98,4 @@ and merge without an entry landing under the heading of another.
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
 - Added: Add the page-test harness under tools/r4-page with its pinned packages, the browser builds pinned by address, size and SHA-256 and not committed, the six accessibility checks and a self-test on a sample view
 - Added: Add docs/r2 with its README and the .gitattributes files that give the workflow run's directories LF line ends and keep its fixtures out of line-end conversion
+- Added: Add crates/halvo-cap, which runs one child under a memory cap and reads its peak (a Job object on Windows; on macOS a 250 ms poll of the peak physical footprint and a kill on a breach), with the binary measure-peak and its control child, the per-user model lock, scripts/r2/ci.d/11-cap.sh and docs/r2/trials/cap.md
