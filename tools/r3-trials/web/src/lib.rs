@@ -41,17 +41,22 @@ pub fn variants_of(step: &str) -> &'static [&'static str] {
     }
 }
 
+pub const BROWSER_NAMES: [(&str, &str); 7] = [
+    ("Google Chrome", "chrome"),
+    ("Google Chrome for Testing", "chrome"),
+    ("chrome.exe", "chrome"),
+    ("chrome", "chrome"),
+    ("Microsoft Edge", "edge"),
+    ("msedge.exe", "edge"),
+    ("msedge", "edge"),
+];
+
 pub fn browser_kind(path: &str) -> Option<&'static str> {
-    let name = path
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(path)
-        .to_ascii_lowercase();
-    match name.as_str() {
-        "google chrome" | "chrome.exe" | "chrome" | "google chrome for testing" => Some("chrome"),
-        "microsoft edge" | "msedge.exe" | "msedge" => Some("edge"),
-        _ => None,
-    }
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    BROWSER_NAMES
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(name))
+        .map(|(_, kind)| *kind)
 }
 
 pub fn major_of(product: &str) -> Option<u32> {
@@ -108,6 +113,28 @@ mod tests {
             Some("edge")
         );
         assert_eq!(browser_kind("/usr/bin/firefox"), None);
+    }
+
+    #[test]
+    fn run_sh_takes_the_browser_names_of_browser_kind() {
+        let script = include_str!("../run.sh");
+        let line = script
+            .lines()
+            .skip_while(|l| !l.contains(r#"case "$(basename "$browser")" in"#))
+            .nth(1)
+            .unwrap_or_default();
+        let mut taken: Vec<String> = line
+            .trim()
+            .trim_end_matches(";;")
+            .trim()
+            .trim_end_matches(')')
+            .split('|')
+            .map(|n| n.trim().trim_matches('\'').to_string())
+            .collect();
+        taken.sort();
+        let mut known: Vec<String> = BROWSER_NAMES.iter().map(|(n, _)| n.to_string()).collect();
+        known.sort();
+        assert_eq!(taken, known);
     }
 
     #[test]

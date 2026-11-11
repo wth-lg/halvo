@@ -117,7 +117,7 @@ else
 fi
 [ -n "$browser" ] || refuse usage "--browser is required"
 case "$(basename "$browser")" in
-  'Google Chrome' | chrome.exe | chrome | 'Microsoft Edge' | msedge.exe | msedge) ;;
+  'Google Chrome' | 'Google Chrome for Testing' | chrome.exe | chrome | 'Microsoft Edge' | msedge.exe | msedge) ;;
   *) refuse browser "the file name is no Chrome or Edge binary" ;;
 esac
 [ -f "$browser" ] || refuse browser "no file at the path"
