@@ -73,7 +73,6 @@ sandbox_profile() {
   printf '(deny network-outbound (socket-protocol 1) (with message "%s icmp4"))\n' "$1"
   printf '(deny network-outbound (socket-protocol 58) (with message "%s icmp6"))\n' "$1"
   printf '(deny mach-lookup (global-name "com.apple.dnssd.service") (with message "%s dns"))\n' "$1"
-  printf '(deny mach-lookup (global-name "com.apple.lsd.open") (global-name "com.apple.lsd.openurl") (with message "%s open"))\n' "$1"
   printf '(deny mach-lookup (global-name "com.apple.nsurlsessiond") (global-name "com.apple.nsurlsessiond-launchondemand") (with message "%s session"))\n' "$1"
   while read -r number part kind host port; do
     [ -n "$number" ] || continue
@@ -573,7 +572,6 @@ want() {
     udp) printf '%s\n' 'udp 192.0.2.1:9 egress-probe' ;;
     icmp) printf '%s\n' 'icmp * egress-probe' ;;
     resolver) printf '%s\n' 'dns * nscurl' ;;
-    open) printf '%s\n' '- -:- open' ;;
     session) printf '%s\n' '- -:- nscurl' ;;
     loopback2) printf '%s\n' 'tcp 127.0.0.1:47202 egress-probe' ;;
   esac
@@ -664,7 +662,7 @@ else
 fi
 probes=ok
 names="ipv4 ipv6 dns loopback udp icmp"
-[ "$mode" != sandbox ] || names="$names resolver open session"
+[ "$mode" != sandbox ] || names="$names resolver session"
 for name in $names; do
   first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
   result=$(classify "$name" "$name")
