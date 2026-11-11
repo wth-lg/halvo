@@ -40,6 +40,19 @@ fails_naming() {
   [ "$defect" != "$2" ]
 }
 
+measured_from() {
+  ( cd "$gate_scratch/$2" && GATE_ROOT=$1 sh "$DIR/check-no-ll-hook.sh" --measure )
+}
+
+measured_from_says() {
+  out=$(measured_from "$2" "$3" 2> /dev/null)
+  [ "$out" = "$1" ]
+}
+
+scanned_from() {
+  ( cd "$gate_scratch/$1" && predicate_no_ll_hook "$2" )
+}
+
 measured_on() {
   GATE_ROOT=$gate_scratch/$1
   measure
@@ -108,6 +121,9 @@ cases() {
   tree no-app; mv "$gate_scratch/no-app/src-tauri" "$gate_scratch/no-app/moved"; tracked no-app
   t dir-missing FAIL predicate_no_ll_hook "$gate_scratch/no-app"
   t repo-missing FAIL predicate_no_ll_hook "$gate_scratch/no-such-repo"
+  t root-missing-is-not-the-cwd FAIL measured_from "$gate_scratch/no-such-root" listen-only
+  t root-missing-is-named PASS measured_from_says "FAIL no-ll-hook (source scan did not run: $gate_scratch/no-such-root is missing)" "$gate_scratch/no-such-root" listen-only
+  t empty-root-is-not-the-cwd FAIL scanned_from listen-only ""
   mkdir -p "$gate_scratch/no-rs/crates/halvo-capture/src/macos" "$gate_scratch/no-rs/src-tauri/src"
   printf 'CGEventTapOptions::ListenOnly\n' > "$gate_scratch/no-rs/crates/halvo-capture/src/macos/notes.txt"
   git init -q "$gate_scratch/no-rs" && tracked no-rs

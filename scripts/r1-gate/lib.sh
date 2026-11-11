@@ -1,7 +1,7 @@
 # shellcheck shell=sh
 export LC_ALL=C
-GATE_ROOT=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
-GATE_ROOT=$(cd "$GATE_ROOT" && pwd -P)
+gate_root_named=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+GATE_ROOT=$(cd "$gate_root_named" 2> /dev/null && pwd -P) || GATE_ROOT=$gate_root_named
 GATE_REPO=${GATE_REPO:-wth-lg/halvo}
 GATE_DURATION=${GATE_DURATION:-600}
 GATE_TARGET=$GATE_ROOT/target/r1-gate
@@ -798,6 +798,7 @@ source_rule() {
 }
 
 source_scan_defect() {
+  [ -n "$1" ] || { printf 'not scanned: the root to scan is an empty path\n'; return 2; }
   scan_repo=$(cd "$1" 2>/dev/null && pwd -P) || { printf 'not scanned: %s is missing\n' "$1"; return 2; }
   scan_top=$(git -C "$scan_repo" rev-parse --show-toplevel 2>/dev/null)
   [ "$scan_top" = "$scan_repo" ] || { printf 'not scanned: %s is not the top of a git work tree\n' "$1"; return 2; }
