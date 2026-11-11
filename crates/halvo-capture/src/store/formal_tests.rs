@@ -20,8 +20,8 @@ use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
 use uuid::Uuid;
 
-use crate::custody::dev_fallback::DevFallbackCustody;
-use crate::custody::{custody_for, KeyCustody, RootId};
+use crate::custody::dev_fallback::{dev_root_bytes, replace_dev_root, DevFallbackCustody};
+use crate::custody::{custody_for, opens_under_an_all_zero_root, CustodyError, KeyCustody, RootId};
 
 use super::db::test_support::pages;
 use super::db::{unix_secs_now, EncryptedStore, KeyFile};
@@ -102,6 +102,7 @@ enum Op {
     ShredExpired,
     ShredAll,
     Reopen,
+    ReopenUnderAnotherRoot,
     Recreate,
 }
 
@@ -127,6 +128,7 @@ fn op() -> impl Strategy<Value = Op> {
         2 => Just(Op::ShredExpired),
         1 => Just(Op::ShredAll),
         1 => Just(Op::Reopen),
+        1 => Just(Op::ReopenUnderAnotherRoot),
         1 => Just(Op::Recreate),
     ]
 }
@@ -209,7 +211,15 @@ impl Harness {
             DEFAULT_RETENTION,
         )
         .expect("create on a free directory");
-        self.key_file = Some(KeyFile::read(&self.dir).expect("the fresh store's key file"));
+        let key_file = KeyFile::read(&self.dir).expect("the fresh store's key file");
+        let wrapped = key_file
+            .wrapped_store_key()
+            .expect("the fresh store's wrapped key decodes");
+        assert!(
+            !opens_under_an_all_zero_root(key_file.root_id, &wrapped),
+            "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it"
+        );
+        self.key_file = Some(key_file);
         self.store = Some(store);
         self.deleted = false;
     }
@@ -228,6 +238,7 @@ impl Harness {
             Op::ShredExpired => self.shred_expired(),
             Op::ShredAll => self.shred_all(),
             Op::Reopen => self.reopen(),
+            Op::ReopenUnderAnotherRoot => self.reopen_under_another_root(),
             Op::Recreate => self.recreate(),
         }
     }
@@ -370,6 +381,40 @@ impl Harness {
                 prop_assert!(self.deleted, "an existing store reopened as Sealed");
             }
             Err(e) => prop_assert!(false, "reopen failed: {e}"),
+        }
+        Ok(())
+    }
+
+    fn reopen_under_another_root(&mut self) -> Result<(), TestCaseError> {
+        if self.deleted {
+            return Ok(());
+        }
+        let root_id = *self.roots.last().expect("the root id of the store");
+        let root = dev_root_bytes(root_id)
+            .expect("the root of the store reads")
+            .expect("the root of the store exists");
+        let mut another_root = *root;
+        another_root[0] ^= 0x01;
+        self.store = None;
+        replace_dev_root(root_id, &another_root)
+            .expect("other bytes are put under the id of the root");
+        let under_another_root = EncryptedStore::open(&self.dir, DEFAULT_RETENTION).map(drop);
+        replace_dev_root(root_id, &root).expect("the bytes of the root are put back");
+        let under_its_root = EncryptedStore::open(&self.dir, DEFAULT_RETENTION);
+        prop_assert!(
+            matches!(
+                under_another_root,
+                Err(StoreError::Custody(CustodyError::WrapAuthFailed))
+            ),
+            "with other bytes under the id of its root, the store reopened as {:?}",
+            under_another_root
+        );
+        match under_its_root {
+            Ok(store) => self.store = Some(store),
+            Err(e) => prop_assert!(
+                false,
+                "with the bytes of its root put back, the reopen failed: {e}"
+            ),
         }
         Ok(())
     }
