@@ -60,7 +60,10 @@ Directed ==
        moves |-> <<I(TRUE), A(1), N(1, "reject", "native"), R(1), L(1), G(1, "approved", 1, 1)>>],
       [case |-> "reason_releasing_no_row", moves |-> Allowed \o <<G(2, "releasing", 2, 0)>>],
       [case |-> "reason_releasing_unused_row", moves |-> Allowed \o <<G(2, "releasing", 2, 2)>>],
-      [case |-> "reason_stopped_run", moves |-> Allowed \o <<Z, G(1, "approved", 1, 1)>>]>>
+      [case |-> "reason_stopped_run", moves |-> Allowed \o <<Z, G(1, "approved", 1, 1)>>],
+      [case |-> "guard_releasing_other",
+       moves |-> <<I(TRUE), A(1), N(1, "allow", "native"), R(1), G(1, "releasing", 1, 1), L(1),
+                   G(1, "releasing", 1, 1), G(1, "releasing", 3, 1), G(1, "releasing", 1, 2)>>]>>
 
 LapseCands(s, i) ==
     LET x == s.items[i].st

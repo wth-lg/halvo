@@ -7,7 +7,7 @@ usage: sh formal/r4-coordinator/export.sh --jar PATH [--out DIR] [--seed N --cou
 
 Writes traces-schedule.jsonl and traces-confirm.jsonl from the models Schedule and
 Confirm4 of this directory: N random walks of each model and, after them, the directed
-traces, 11 of Schedule and 14 of Confirm4. PATH is tla2tools.jar of the release that
+traces, 11 of Schedule and 15 of Confirm4. PATH is tla2tools.jar of the release that
 README.md names. DIR is an existing directory and defaults to this one. Without --seed
 and --count the export takes both from the first line of the committed
 traces-schedule.jsonl.
@@ -123,7 +123,7 @@ for model in Schedule Confirm4; do
             ;;
         Confirm4)
             file=traces-confirm.jsonl
-            cases=14
+            cases=15
             ;;
     esac
     {
@@ -171,6 +171,7 @@ directed "$c" digest_shown issue ok '"digest_ok":"no"'
 for reason in unknown_id used_row digest effect reject_row releasing_no_row releasing_unused_row stopped_run; do
     directed "$c" "reason_$reason" guard approval
 done
+directed "$c" guard_releasing_other guard approval '"state":"releasing"'
 
 new_s=$out/.traces-schedule.jsonl.new
 new_c=$out/.traces-confirm.jsonl.new

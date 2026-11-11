@@ -10,11 +10,11 @@ and committed. Nobody edits a trace file by hand.
 | File | What it holds |
 |---|---|
 | `Schedule.tla`, `Schedule.cfg` | the schedule model, its configuration and the invariants C1 to C9 |
-| `Confirm4.tla`, `Confirm4.cfg` | the confirmation model, its configuration and the invariants L1 to L9 |
+| `Confirm4.tla`, `Confirm4.cfg` | the confirmation model, its configuration and the invariants L1 to L10 |
 | `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla` | the modules that walk a model and print one JSON line per trace |
 | `limits.json` | the limits of the models, with the field names of the struct `Limits` |
 | `export.sh` | the command that writes the two trace files |
-| `traces-schedule.jsonl`, `traces-confirm.jsonl` | 200 random walks of each model, then 11 and 14 directed traces |
+| `traces-schedule.jsonl`, `traces-confirm.jsonl` | 200 random walks of each model, then 11 and 15 directed traces |
 
 ## The checker
 
@@ -76,7 +76,7 @@ Each model has two variables. `st` is what the coordinator keeps and what its gu
 the live runs, the queue, the counts, the guard's table. `h` is the history: what
 happened, written only by the move that made it happen. `Step(st, move)` never sees `h`,
 so no guard of the start, of the tick or of the link reads it, and a restart leaves it as
-it is. Every one of the eighteen invariants reads `h` alone.
+it is. Every one of the nineteen invariants reads `h` alone.
 
 `Step` returns, beside the answer and the next state, the events of the step in order
 (`ev`): a stored start, an end, a stop, a start that joined or left the queue, a decision
@@ -208,10 +208,10 @@ names effect 1 with another digest, so its presenter is `page`.
 | `moves` | for each item, the moves that were accepted, in order, a lapse with its cause | L4, L6 |
 | `answers` | each accepted `answer`: the item, the answer, the source, and whether the item's last accepted move was `arm` | L1 |
 | `minted` | for each item, the approval ids of its answer's decision | L3 |
-| `stored`, `acked` | the `item_answered` rows in the store, and those whose acknowledgement came, as whole rows | L3, L5, L7, L8 |
-| `got` | every decision that the runner received: the item, `release` or `lapse`, the entries, and whether the run had been stopped before | L1 to L3, L5 to L9 |
+| `stored`, `acked` | the `item_answered` rows in the store, and those whose acknowledgement came, as whole rows | L3, L5, L7, L8, L10 |
+| `got` | every decision that the runner received: the item, `release` or `lapse`, the entries, and whether the run had been stopped before | L1 to L3, L5 to L10 |
 | `released` | the `item_released` rows, which the move `release` stores | L5, L6 |
-| `passed` | every record `approved` or `releasing` that the guard passed (of a `releasing` record of a class that is not native, the effect and the approval id), with whether an earlier record had used its approval id, whether an `approved` record of the same effect, digest and approval id had passed before, and whether the run was stopped | L7, L8, L9 |
+| `passed` | every record `approved` or `releasing` that the guard passed, with whether an earlier record had used its approval id, whether an `approved` record of the same effect, digest and approval id had passed before, and whether the run was stopped | L7 to L10 |
 | `stopped` | whether the run was stopped | L6, L9 |
 
 | Invariant | I5.12 | In the model |
@@ -225,6 +225,7 @@ names effect 1 with another digest, so its presenter is `page`.
 | L7 | the guard passes a record `approved` only with a matching unused acknowledged row of the same effect and digest whose decision was released with `allow_once` | every `approved` record of `h.passed` has such a row in `h.acked` with its release in `h.got`, and no earlier record used its approval id |
 | L8 | the guard passes a record `releasing` of a native class only when such a row was used | every such record of `h.passed` has the row and an earlier `approved` record of the same effect, digest and approval id |
 | L9 | no record `approved` or `releasing` passes for an approval id that the runner received with `reject_once`, or for a run that was stopped | no record of `h.passed` was passed after a stop, and none names an approval id of a `reject_once` entry of `h.got` |
+| L10 | the guard passes a record `releasing`, of any class, only when its approval id is that of an acknowledged row of the same effect and the same digest whose decision was released with `allow_once` | every `releasing` record of `h.passed` has such a row in `h.acked` with its release in `h.got` |
 
 How the model reads I4:
 
@@ -240,12 +241,13 @@ How the model reads I4:
    person's stop while no item is open. A stopped run gets no further item: its request is
    answered `state`. Its records `approved` and `releasing` are answered `approval`;
    every other record passes.
-5. A record `releasing` of a class with the presenter `native` passes only with a used
-   row of the same effect, digest and approval id. A record `releasing` of another class
-   passes only when its approval id is that of a released row with `allow_once`. I4.7
-   lets "every other record" pass, and L9 lets no `releasing` record pass for an approval
-   id of a `reject_once` decision; the table holds no row for the ids of a lapse's
-   decision, so this reading is the one under which both hold.
+5. A record `releasing`, of any class, passes only when the table holds a released row
+   with its approval id, its effect, its digest and the answer `allow_once`. Of a class
+   with the presenter `native` it passes, beside that, only when an `approved` record used
+   that row. So the id of no decision, the id of a row before its release, an id of a
+   `reject_once` decision and the id of another effect's approval are each answered
+   `approval` (I4.7). A record of the class `send` may pass on a row that no `approved`
+   record used.
 6. `confirm_step` takes a lapse with any of the six causes from `shown`, `armed` or
    `answered`, and from `recorded` only with `run_ended` or `app_ended`. The walks hold
    only the causes that can arise: `no_record` after an answer, `digest` at `issue`.
@@ -263,7 +265,7 @@ the line is `PROPERTY <name>`.
 |---|---|
 | `Schedule`, as `INVARIANT` | `ReachPerson`, `ReachAuto`, `ReachDeletableAuto`, `ReachFailures`, `ReachSlots`, `ReachCatchUp`, `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueFull`, `ReachBudget`, `ReachTwoLive`, `ReachGoneStart`, `ReachGoneSeen` |
 | `Schedule`, as `PROPERTY` | `ReachFailuresCleared`, `ReachQueue`, `ReachQueueIdle`, `ReachRestart`, `ReachRestartDay`, `ReachRestartStopping`, `ReachGoneQueued`, `ReachOffLive`, `ReachOffQueued`, `ReachKillCancelled`, `ReachKillOff`, `ReachKillLapsed`, `ReachKillDeleted`, `ReachRecause` |
-| `Confirm4`, as `INVARIANT` | `ReachEffects`, `ReachSecond`, `ReachPresenters`, `ReachLostAck`, `ReachRestart`, `ReachReleasedRestart`, `ReachLapseRecorded`, `ReachOldApproval`, `ReachMoney`, `ReachOtherEffect`, `ReachStopLapse`, `ReachStopPerson`, `ReachStoppedRequest`, `ReachStoppedRecord`, `ReachRejected` |
+| `Confirm4`, as `INVARIANT` | `ReachEffects`, `ReachSecond`, `ReachPresenters`, `ReachLostAck`, `ReachRestart`, `ReachReleasedRestart`, `ReachLapseRecorded`, `ReachOldApproval`, `ReachMoney`, `ReachPageRecord`, `ReachOtherEffect`, `ReachOtherApproval`, `ReachStopLapse`, `ReachStopPerson`, `ReachStoppedRequest`, `ReachStoppedRecord`, `ReachRejected` |
 
 Three more properties are stronger than the contract's sentences, and TLC reports each one
 violated in the model as it stands: `StaysLive` (no run of a workflow outside the list is
@@ -285,7 +287,7 @@ named invariant violated.
 
 Each row is a coordinator or a guard that is wrong by I4 or I5, made from the model by an
 exact replacement in the functions that `Step` calls; `Hist` and the invariants stay as they
-are. TLC was run on each with all nine invariants of its configuration and reports the
+are. TLC was run on each with every invariant of its configuration and reports the
 property of the third column first. The last column counts the committed traces in which a
 replay of that design gives another answer or state at some move.
 
@@ -315,6 +317,9 @@ replay of that design gives another answer or state at some move.
 | 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 55 of 214 |
 | 23 | a lapse is taken from `recorded` with any cause | L4 | 26 of 214 |
 | 24 | the guard's rule for `releasing` records is dropped | L8 | 25 of 214 |
+| 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | - |
+| 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | - |
+| 27 | a `releasing` record of the class `send` passes with another digest | L10 | - |
 
 Row 9 has two more forms: when the lapse's decision also holds the approval ids of the
 answer, TLC reports L3, and when the guard then passes a record with one of those ids, L9.
@@ -496,9 +501,12 @@ the open item with `app_ended`, and no line follows it. The records of a `guard`
 the states `approved`, `releasing` and `committed`, and name any effect with any digest
 and any approval id that was minted.
 
-The directed traces. Each of the eight `reason_` traces ends with a `guard` line that is
-answered `approval`; before it, the first request was allowed and released with the
-approvals `p1` and `p2`, but in `reason_reject_row`, where it was rejected and released.
+The directed traces. Each of the eight `reason_` traces and `guard_releasing_other` ends
+with a `guard` line that is answered `approval`; before it, the first request was allowed
+and released with the approvals `p1` and `p2`, but in `reason_reject_row`, where it was
+rejected and released. `guard_releasing_other` differs from `reason_effect` in the state
+of its record and in what the record takes from the other effect: the approval id alone,
+with its own effect and its own digest.
 
 | `case` | What it holds | Last move | `r` |
 |---|---|---|---|
@@ -516,6 +524,7 @@ approvals `p1` and `p2`, but in `reason_reject_row`, where it was rejected and r
 | `reason_releasing_no_row` | `releasing` of the payment with `p0` | `guard` | `approval` |
 | `reason_releasing_unused_row` | `releasing` of the payment with `p2`, which no `approved` record used | `guard` | `approval` |
 | `reason_stopped_run` | `stop`, then `approved` with the released, unused `p1` | `guard` | `approval` |
+| `guard_releasing_other` | `releasing` of `e1`, of the class `send`: with `p1` before the release (`approval`) and after it (`ok`), with `p1` and the digest `d3` (`approval`), and last with its digest `d1` and `p2`, the approval of `e2` | `guard` | `approval` |
 
 ## Keep the models true to the code
 

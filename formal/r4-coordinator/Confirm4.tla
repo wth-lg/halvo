@@ -150,7 +150,6 @@ Guard(s, rec) ==
                                /\ t.row.digest = rec.digest
                                /\ t.row.answer = "allow_once"
                                /\ t.live}
-        known == {t \in s.table : t.row.approval = rec.approval /\ t.row.answer = "allow_once" /\ t.live}
     IN IF rec.state \notin {"approved", "releasing"} THEN No(s, "ok")
        ELSE IF s.run = "stopped" THEN No(s, "approval")
        ELSE IF rec.state = "approved"
@@ -158,7 +157,7 @@ Guard(s, rec) ==
             ELSE [pass EXCEPT !.st = [s EXCEPT !.table = (@ \ m) \cup {[t EXCEPT !.used = TRUE] : t \in m}]]
        ELSE IF rec.effect \in Native
        THEN IF {t \in m : t.used} = {} THEN No(s, "approval") ELSE pass
-       ELSE IF known = {} THEN No(s, "approval") ELSE pass
+       ELSE IF m = {} THEN No(s, "approval") ELSE pass
 
 Step(s, mv) ==
     CASE mv.m = "issue" -> Issue(s, mv.ok)
@@ -210,7 +209,7 @@ HEvent(g, e) ==
       [] e.k = "pass" ->
             [g EXCEPT !.passed = @ \cup
                 {[state |-> e.rec.state, effect |-> e.rec.effect,
-                  digest |-> IF e.rec.state = "releasing" /\ e.rec.effect \notin Native THEN 0 ELSE e.rec.digest,
+                  digest |-> e.rec.digest,
                   approval |-> e.rec.approval,
                   first |-> \/ e.rec.state = "releasing"
                             \/ \A p \in g.passed : ~(p.state = "approved" /\ p.approval = e.rec.approval),
@@ -268,6 +267,7 @@ L8 == \A p \in h.passed : (p.state = "releasing" /\ p.effect \in Native) => Row(
 L9 == \A p \in h.passed :
         /\ ~p.stopped
         /\ \A d \in h.got : \A e \in d.entries : e.answer = "reject_once" => e.approval # p.approval
+L10 == \A p \in h.passed : p.state = "releasing" => Row(p) # {}
 
 ReachEffects == \A d \in h.got : ~(/\ d.via = "release"
                                    /\ Cardinality(d.entries) >= 2
@@ -297,11 +297,18 @@ ReachOldApproval ==
             /\ Guard(st, [state |-> "approved", effect |-> u.row.effect, digest |-> u.row.digest,
                           approval |-> u.row.approval]).r = "ok")
 ReachMoney == \A p \in h.passed : ~(p.state = "releasing" /\ p.effect \in Native)
+ReachPageRecord == \A p \in h.passed : ~(p.state = "releasing" /\ p.effect \notin Native)
 ReachOtherEffect ==
     ~(\E t \in st.table : /\ t.live /\ ~t.used /\ t.row.answer = "allow_once"
                           /\ \E e \in Effects \ {t.row.effect} :
                                 Guard(st, [state |-> "approved", effect |-> e, digest |-> t.row.digest,
                                            approval |-> t.row.approval]).r = "approval")
+ReachOtherApproval ==
+    ~(\E t, u \in st.table :
+            /\ t.live /\ u.live /\ t.row.effect \notin Native /\ u.row.effect # t.row.effect
+            /\ t.row.answer = "allow_once" /\ u.row.answer = "allow_once"
+            /\ Guard(st, [state |-> "releasing", effect |-> t.row.effect, digest |-> t.row.digest,
+                          approval |-> u.row.approval]).r = "approval")
 ReachStopLapse == ~(st.run = "stopped" /\ \E i \in Items : Lapsed(i))
 ReachStopPerson == ~(st.run = "stopped" /\ \A i \in Items : ~Lapsed(i))
 ReachStoppedRequest == ~(st.run = "stopped" /\ Len(st.items) < NRequests /\ Issue(st, TRUE).r = "state")
