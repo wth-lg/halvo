@@ -1,0 +1,26 @@
+{"v":1,"id":"019b78c9-0000-7000-8000-000000000000","at":1767258000250000000,"seq":0,"kind":"foreground_app","app":"com.example.browser","p":{}}
+{"v":1,"id":"019b78c9-0001-7001-8000-000000000001","at":1767258002250000000,"seq":1,"kind":"window_title","app":"com.example.browser","p":{"text":"Pay bill - Northgrid","cut":false,"why":"app_change","site":{"domain":"northgrid.test","source":"address_field"}}}
+{"v":1,"id":"019b78c9-0002-7002-8000-000000000002","at":1767258004000000000,"seq":2,"kind":"keystroke","app":"com.example.browser","p":{"class":"printable"}}
+{"v":1,"id":"019b78c9-0003-7003-8000-000000000003","at":1767258006000000000,"seq":3,"kind":"keystroke","app":"com.example.browser","p":{"class":"editing"}}
+{"v":1,"id":"019b78c9-0004-7004-8000-000000000004","at":1767258008000000000,"seq":4,"kind":"pointer","app":"com.example.browser","p":{"class":"click","button":"primary"}}
+{"v":1,"id":"019b78c9-0005-7005-8000-000000000005","at":1767258010250000000,"seq":5,"kind":"run_mark","app":null,"p":{"edge":"start"}}
+{"v":1,"id":"019b78c9-0006-7006-8000-000000000006","at":1767258012250000000,"seq":6,"kind":"window_title","app":"com.example.browser","p":{"text":"Payment confirmed","cut":false,"why":"title_change"}}
+{"v":1,"id":"019b78c9-0007-7007-8000-000000000007","at":1767258014000000000,"seq":7,"kind":"keystroke","app":"com.example.browser","p":{"class":"navigation"}}
+{"v":1,"id":"019b78c9-0008-7008-8000-000000000008","at":1767258016250000000,"seq":8,"kind":"pointer","app":"com.example.browser","p":{"class":"scroll","count":14}}
+{"v":1,"id":"019b78c9-0009-7009-8000-000000000009","at":1767258018250000000,"seq":9,"kind":"foreground_app","app":"com.example.sheet","p":{}}
+{"v":1,"id":"019b78c9-000a-700a-8000-00000000000a","at":1767258020250000000,"seq":10,"kind":"window_title","app":"com.example.sheet","p":{"text":"Usage - City Power","cut":false,"why":"app_change","site":{"domain":"city-power.test","source":"address_field"}}}
+{"v":1,"id":"019b78c9-000b-700b-8000-00000000000b","at":1767258022000000000,"seq":11,"kind":"keystroke","app":"com.example.sheet","p":{"class":"enter"}}
+{"v":1,"id":"019b78c9-000c-700c-8000-00000000000c","at":1767258024000000000,"seq":12,"kind":"pointer","app":"com.example.sheet","p":{"class":"click","button":"secondary"}}
+{"v":1,"id":"019b78c9-000d-700d-8000-00000000000d","at":1767258026250000000,"seq":13,"kind":"screen_frame","app":"com.example.sheet","p":{}}
+{"v":1,"id":"019b78c9-000e-700e-8000-00000000000e","at":1767258028000000000,"seq":14,"kind":"keystroke","app":"com.example.sheet","p":{"class":"tab"}}
+{"v":1,"id":"019b78c9-000f-700f-8000-00000000000f","at":1767258030250000000,"seq":15,"kind":"pointer","app":"com.example.sheet","p":{"class":"drag","count":3}}
+{"v":1,"id":"019b78c9-0010-7010-8000-000000000010","at":1767258032250000000,"seq":16,"kind":"foreground_app","app":"com.example.mail","p":{}}
+{"v":1,"id":"019b78c9-0011-7011-8000-000000000011","at":1767258034250000000,"seq":17,"kind":"window_title","app":"com.example.mail","p":{"text":"Inbox (3)","cut":false,"why":"app_change"}}
+{"v":1,"id":"019b78c9-0012-7012-8000-000000000012","at":1767258036000000000,"seq":18,"kind":"keystroke","app":"com.example.mail","p":{"class":"shortcut"}}
+{"v":1,"id":"019b78c9-0013-7013-8000-000000000013","at":1767258038000000000,"seq":19,"kind":"pointer","app":"com.example.mail","p":{"class":"click","button":"other"}}
+{"v":1,"id":"019b78c9-0014-7014-8000-000000000014","at":1767258040250000000,"seq":20,"kind":"window_title","app":"com.example.mail","p":{"text":"Rent due - Rentdesk","cut":false,"why":"title_change","site":{"domain":"rentdesk.test","source":"address_field"}}}
+{"v":1,"id":"019b78c9-0015-7015-8000-000000000015","at":1767258042000000000,"seq":21,"kind":"keystroke","app":"com.example.mail","p":{"class":"other"}}
+{"v":1,"id":"019b78c9-0016-7016-8000-000000000016","at":1767258044250000000,"seq":22,"kind":"pointer","app":"com.example.mail","p":{"class":"move","count":40}}
+{"v":1,"id":"019b78c9-0017-7017-8000-000000000017","at":1767258046250000000,"seq":23,"kind":"run_mark","app":null,"p":{"edge":"end"}}
+{"v":1,"id":"019b78c9-0018-7018-8000-000000000018","at":1767258048250000000,"seq":24,"kind":"foreground_app","app":"com.example.browser","p":{}}
+{"v":1,"id":"019b78c9-0019-7019-8000-000000000019","at":1767258050250000000,"seq":25,"kind":"window_title","app":"com.example.browser","p":{"text":"New tab","cut":false,"why":"app_change"}}
