@@ -34,8 +34,7 @@ Init0 ==
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
      fails |-> [a \in Agents |-> 0],
      done |-> [a \in Agents |-> 0],
-     slotrun |-> [a \in Agents |-> 0],
-     stale |-> FALSE]
+     slotrun |-> [a \in Agents |-> 0]]
 
 InitH ==
     [day |-> 1, life |-> 1,
@@ -70,7 +69,8 @@ Room(s) == Cardinality(s.runs) < MaxLive
 ModelFree(s, a) == a \notin NeedsModel \/ \A r \in s.runs : r.agent \notin NeedsModel
 
 Decide(s, a) ==
-    IF Held(s, a) THEN "hold"
+    IF a \in s.gone THEN "state"
+    ELSE IF Held(s, a) THEN "hold"
     ELSE IF s.starts[a][s.day] >= StartsPerDay THEN "budget"
     ELSE IF LiveOf(s, a) # {} \/ Queued(s, a) THEN "state"
     ELSE IF Room(s) /\ ModelFree(s, a) THEN "go"
@@ -167,6 +167,20 @@ Kill(acc, due, port) ==
                      ev |-> acc.ev \o e.ev],
                     due \ {run.id}, port)
 
+Sweep(s) ==
+    LET hit == {r \in s.runs : r.agent \in s.gone /\ r.phase # "stopping"}
+        Stays(e) == e.agent \notin s.gone
+        Goes(e) == e.agent \in s.gone
+        out == SelectSeq(s.queue, Goes)
+    IN [stopped |-> {r.id : r \in hit},
+        ev |-> StopEvents({r.id : r \in hit})
+               \o [i \in 1..Len(out) |-> [k |-> "left", agent |-> out[i].agent, trig |-> out[i].trigger]],
+        st |-> [s EXCEPT !.runs = {IF r.agent \in s.gone
+                                   THEN [r EXCEPT !.phase = "stopping", !.why = "deleted"]
+                                   ELSE r : r \in @},
+                         !.queue = SelectSeq(@, Stays),
+                         !.ready = @ \ s.gone]]
+
 TickAgent(s, a, port) ==
     IF a \in s.gone \/ Held(s, a) \/ LiveOf(s, a) # {} \/ Queued(s, a)
     THEN [st |-> s, raised |-> <<>>, started |-> <<>>, ev |-> <<>>]
@@ -191,11 +205,13 @@ TickFrom(acc, a, port) ==
 
 Tick(s, d, o, g, port) ==
     LET s0 == [s EXCEPT !.day = d, !.off = o]
-        k == Kill([st |-> s0, ended |-> <<>>, ev |-> <<>>], IF g THEN Due(s0) ELSE {}, port)
+        due == IF g THEN Due(s0) ELSE {}
+        v == Sweep(s0)
+        k == Kill([st |-> v.st, ended |-> <<>>, ev |-> <<>>], due, port)
         t == TickFrom([st |-> k.st, raised |-> <<>>, started |-> <<>>, ev |-> <<>>], 1, port)
-    IN [r |-> "ok", ended |-> k.ended, raised |-> t.raised, started |-> t.started,
-        ev |-> k.ev \o t.ev,
-        st |-> [t.st EXCEPT !.stale = @ \/ (g /\ \E r \in t.st.runs : r.agent \in t.st.gone)]]
+    IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended,
+        raised |-> t.raised, started |-> t.started, st |-> t.st,
+        ev |-> v.ev \o k.ev \o t.ev]
 
 RECURSIVE Recover(_, _, _)
 Recover(s, out, ev) ==
@@ -211,19 +227,8 @@ Restart(s) ==
         st |-> [v.st EXCEPT !.life = @ + 1, !.queue = <<>>, !.ready = {}]]
 
 Delete(s, a) ==
-    LET hit == {r \in s.runs : r.agent = a /\ r.phase # "stopping"}
-        Stays(e) == e.agent # a
-        Goes(e) == e.agent = a
-        out == SelectSeq(s.queue, Goes)
-    IN [r |-> "ok",
-        stopped |-> {r.id : r \in LiveOf(s, a)},
-        ev |-> StopEvents({r.id : r \in hit})
-               \o [i \in 1..Len(out) |-> [k |-> "left", agent |-> out[i].agent, trig |-> out[i].trigger]],
-        st |-> [s EXCEPT !.gone = @ \cup {a},
-                         !.dels = @ + 1,
-                         !.ready = @ \ {a},
-                         !.queue = SelectSeq(@, Stays),
-                         !.runs = {IF r.agent = a THEN [r EXCEPT !.phase = "stopping", !.why = "deleted"] ELSE r : r \in @}]]
+    [r |-> "ok", ev |-> <<>>,
+     st |-> [s EXCEPT !.gone = @ \cup {a}, !.dels = @ + 1]]
 
 RunStep(s, mv) ==
     IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, ev |-> <<>>]
@@ -268,7 +273,7 @@ RunMoves(s, r) ==
             f \in Frames \cup {"none"}, p \in IF Len(s.queue) = 0 THEN {"ok"} ELSE Ports}
 
 Moves(s) ==
-    {[m |-> "start", agent |-> a, port |-> p] : a \in Agents \ s.gone, p \in Ports}
+    {[m |-> "start", agent |-> a, port |-> p] : a \in Agents, p \in Ports}
     \cup UNION {RunMoves(s, r) : r \in s.runs}
     \cup {[m |-> "tick", day |-> d, off |-> o, grace |-> g, port |-> p] :
             d \in {s.day, s.day + 1} \cap Days, o \in SUBSET OffAgents,
@@ -382,9 +387,8 @@ C5 == h.alone = 0 /\ h.extra = 0
 C6 == /\ h.after = 0
       /\ \A a \in Agents : \A d \in Days : h.sched[a][d] <= 1
 C7 == \A a \in Agents : \A d \in Days : h.count[a][d] <= StartsPerDay
-C8 == /\ ~st.stale
-      /\ \A r \in st.runs : r.agent \in st.gone => r.phase = "stopping"
-
+C8 == /\ h.gonestarts = 0
+      /\ \A r \in h.live : h.gone[r.agent] = "seen" => r.stop /\ ~r.late
 vars == <<st, h>>
 Stopping(c) == {r \in st.runs : r.phase = "stopping" /\ r.why = c}
 KilledAt(r) == st'.day # st.day /\ st'.life = st.life /\ \A x \in st'.runs : x.id # r.id
