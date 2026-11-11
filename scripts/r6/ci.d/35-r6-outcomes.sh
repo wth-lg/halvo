@@ -31,6 +31,18 @@ source_row() {
   sed -n "$1p" "$outcomes/sources.tsv" | grep -Eq "^$2${tab}[^${tab}]+${tab}[0-9a-f]{40}${tab}${date_form}${tab}$3${tab}$4\$"
 }
 
+calendar_date() {
+  printf '%s\n' "$1" | awk -F- '
+    !/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ { bad = 1; exit }
+    {
+      y = $1 + 0; m = $2 + 0; d = $3 + 0
+      split("31 28 31 30 31 30 31 31 30 31 30 31", last, " ")
+      if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) last[2] = 29
+      if (m < 1 || m > 12 || d < 1 || d > last[m]) bad = 1
+    }
+    END { exit bad }'
+}
+
 committed_form() {
   [ -f "$outcomes/models.tsv" ] && [ -f "$outcomes/sources.tsv" ] && [ -f "$outcomes/freeze.txt" ] || return 1
   [ "$(sed -n 1p "$outcomes/models.tsv")" = "$models_header" ] || return 1
@@ -39,9 +51,11 @@ committed_form() {
   source_row 2 s1 driver_trial_attempts 3_seeds_2_machines_team_fixtures || return 1
   source_row 3 s2 footprint_bounds 5_runs_a_cell_no_16gb_laptop || return 1
   [ "$(cell 2 2)" = "$driver_path" ] && [ "$(cell 3 2)" = "$cells_path" ] || return 1
+  calendar_date "$(cell 2 4)" && calendar_date "$(cell 3 4)" || return 1
   [ "$(grep -c '' "$outcomes/freeze.txt")" = 2 ] || return 1
   sed -n 1p "$outcomes/freeze.txt" |
     grep -Eq "^freeze rows=${count_form} models=${count_form} sources=2 date=${date_form}\$" || return 1
+  calendar_date "$(sed -n 1p "$outcomes/freeze.txt" | sed 's/^.* date=//')" || return 1
   sed -n 2p "$outcomes/freeze.txt" | grep -Eq "^on_device driver=${token_form} writer=${token_form}\$"
 }
 
@@ -236,6 +250,9 @@ PASS $name"
   check no-writer-holds PASS "outcomes rows=132 models=6 sources=2 same=yes stale=0"
   fixture no-driver-holds no_driver
   check no-driver-holds PASS "outcomes rows=1 models=1 sources=2 same=yes stale=0"
+  fixture full-imported-with-two-days-holds full
+  edit "$outcomes/sources.tsv" "2s/${tab}2026-11-10${tab}/${tab}2026-11-09${tab}/"
+  check full-imported-with-two-days-holds PASS "outcomes rows=132 models=6 sources=2 same=yes stale=0"
 
   fixture recorded-pass-flipped full
   edit "$outcomes/recorded.tsv" "2s/${tab}yes${tab}/${tab}no${tab}/"
@@ -318,6 +335,30 @@ FAIL $name (differs)"
   fixture freeze-third-line full
   printf 'extra\n' >>"$case_repo/$outcomes/freeze.txt" || exit 2
   check freeze-third-line FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
+  fixture sources-fourth-line full
+  printf 's3%sx\n' "$tab" >>"$case_repo/$outcomes/sources.tsv" || exit 2
+  check sources-fourth-line FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
+  fixture freeze-rows-with-a-leading-zero full
+  edit "$outcomes/freeze.txt" '1s/ rows=132 / rows=0132 /'
+  check freeze-rows-with-a-leading-zero FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
+  fixture freeze-writer-upper-case full
+  edit "$outcomes/freeze.txt" '2s/ writer=m_small$/ writer=M_small/'
+  check freeze-writer-upper-case FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
+  fixture sources-measures-changed full
+  edit "$outcomes/sources.tsv" "2s/${tab}driver_trial_attempts${tab}/${tab}driver_trial_attempt${tab}/"
+  check sources-measures-changed FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
+  fixture sources-date-not-a-calendar-day full
+  edit "$outcomes/sources.tsv" "2s/${tab}2026-11-10${tab}/${tab}2026-02-29${tab}/"
+  check sources-date-not-a-calendar-day FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
+FAIL $name (differs)"
+  fixture freeze-date-not-a-calendar-day full
+  edit "$outcomes/freeze.txt" '1s/ date=2026-11-10$/ date=2026-11-31/'
+  check freeze-date-not-a-calendar-day FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
   fixture tests-fail full
   STUB_TEST_EXIT=101
