@@ -182,15 +182,14 @@ check() {
     cd "$case_repo" || exit 2
     PATH=$work/bin:$PATH
     CI_D_REPO=$case_repo
-    CI_D_ARTIFACTS=$work/artifacts/$1
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_TEST_PASSED R6_OUTCOMES_TOOL
+    export PATH CI_D_REPO STUB_TEST_EXIT STUB_TEST_PASSED R6_OUTCOMES_TOOL
     if [ -n "$crlf_filter" ]; then
       GIT_CONFIG_COUNT=1
       GIT_CONFIG_KEY_0=core.autocrlf
       GIT_CONFIG_VALUE_0=true
       export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
     fi
-    sh "$self" 2>&1
+    CI_D_ARTIFACTS=$work/artifacts/$1 sh "$self" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -222,7 +221,9 @@ self_test() {
   enter_repo || broken "cannot enter the repository"
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken "cannot make a temporary directory"
   mkdir -p "$work/bin" "$work/artifacts" || broken "cannot make a directory"
-  if ! cargo build -q --locked -p halvo-route-gate --bin route-gate >"$work/build.txt" 2>&1; then
+  artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
+  mkdir -p "$artifacts" || broken "cannot make the artifacts directory"
+  if ! cargo build -q --locked -p halvo-route-gate --bin route-gate >"$artifacts/self-test-build.txt" 2>&1; then
     printf 'FAIL self-test:%s (the tool did not build)\n' "$name"
     exit 1
   fi
