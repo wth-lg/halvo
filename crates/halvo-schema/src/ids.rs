@@ -441,3 +441,53 @@ strict_struct! {
 }
 
 pub(crate) const MAX_ORDINAL: u64 = i64::MAX as u64;
+
+macro_rules! store_id_case {
+    ($fence:literal, $id:literal, $bound:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::{RequestId, StoreId};\n",
+            "fn bound<T: ",
+            $bound,
+            ">(_: &T) {}\n",
+            "let id = ",
+            $id,
+            "::parse(\"0123456789abcdef0123456789abcdef\").unwrap();\n",
+            "bound(&id);\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: `StoreId` has no `Ord`, no `PartialOrd` and no `Hash`, so no map is keyed by a store
+/// id and no list of store ids is sorted. Each case differs from its twin in `compiles` in the id type alone.
+pub mod compile_fail {
+    /// `StoreId` is not `Ord`. Twin: `compiles::request_id_ord`.
+    #[doc = store_id_case!("compile_fail", "StoreId", "Ord")]
+    pub mod store_id_ord {}
+
+    /// `StoreId` is not `PartialOrd`. Twin: `compiles::request_id_partial_ord`.
+    #[doc = store_id_case!("compile_fail", "StoreId", "PartialOrd")]
+    pub mod store_id_partial_ord {}
+
+    /// `StoreId` is not `Hash`. Twin: `compiles::request_id_hash`.
+    #[doc = store_id_case!("compile_fail", "StoreId", "std::hash::Hash")]
+    pub mod store_id_hash {}
+}
+
+/// The twins of the cases of `compile_fail`, which compile and run.
+pub mod compiles {
+    /// A `RequestId` is `Ord`.
+    #[doc = store_id_case!("", "RequestId", "Ord")]
+    pub mod request_id_ord {}
+
+    /// A `RequestId` is `PartialOrd`.
+    #[doc = store_id_case!("", "RequestId", "PartialOrd")]
+    pub mod request_id_partial_ord {}
+
+    /// A `RequestId` is `Hash`.
+    #[doc = store_id_case!("", "RequestId", "std::hash::Hash")]
+    pub mod request_id_hash {}
+}

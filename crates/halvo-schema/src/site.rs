@@ -276,3 +276,38 @@ impl Serialize for ObservedSite {
         }
     }
 }
+
+macro_rules! conversion_case {
+    ($fence:literal, $from:literal, $into:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::{Domain, SiteDomain};\n",
+            "let from = ",
+            $from,
+            "::parse(\"shop.test\").unwrap();\n",
+            "let into = ",
+            $into,
+            "::from(from);\n",
+            "assert_eq!(into.as_str(), \"shop.test\");\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: no conversion runs from a stored `SiteDomain` to a `Domain`, because a stored key need
+/// not hold rule 5 under the list of this build. The case differs from its twin in `compiles` in the direction
+/// alone.
+pub mod compile_fail {
+    /// No `Domain::from` of a `SiteDomain`. Twin: `compiles::site_domain_from_domain`.
+    #[doc = conversion_case!("compile_fail", "SiteDomain", "Domain")]
+    pub mod domain_from_site_domain {}
+}
+
+/// The twin of the case of `compile_fail`, which compiles and runs.
+pub mod compiles {
+    /// A `SiteDomain` is built from a `Domain`.
+    #[doc = conversion_case!("", "Domain", "SiteDomain")]
+    pub mod site_domain_from_domain {}
+}
