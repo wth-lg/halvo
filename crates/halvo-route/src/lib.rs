@@ -6,4 +6,5 @@ pub mod policy;
 pub mod prices;
 pub mod release;
 pub mod ruling;
+pub mod spend;
 pub mod tier;
