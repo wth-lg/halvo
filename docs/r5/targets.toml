@@ -1,0 +1,25 @@
+[rule]
+k_clean = 2
+locators_max = 4
+edits_max = 8
+value_min = 4
+[gate]
+dev_benign = 8
+dev_fault = 8
+dev_critical = 7
+dev_cost_budget = 1
+heldout_benign = 12
+heldout_fault = 12
+heldout_critical = 10
+heldout_cost_budget = 2
+calendar_days_min = 240
+[routine]
+miss_cycles = 0
+stale_floor = 0
+tolerance = 0
+false_stale_max = 30
+detected_min = 45
+detect_days = 120
+[memory]
+increment_bytes_max = 8388608
+host_bytes_max = 67108864
