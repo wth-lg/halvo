@@ -333,11 +333,11 @@ pub fn answer<P: Owner + Runs + Clock>(
         Some(&held.confirmation),
         ConfirmMove::Answer { answer, from },
     )?;
-    held.confirmation = answered.clone();
     let (now, today) = match (ports.now(), ports.today()) {
         (Ok(now), Ok(today)) => (now, today),
         (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
     };
+    held.confirmation = answered.clone();
     let item = held.item.clone();
     let mut recorded: Option<Confirmation> = None;
     let sent = ports.answer_confirm(held.ask.run(), &answered.answers(answer), &mut |decision| {

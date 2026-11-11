@@ -524,6 +524,25 @@ fn no_sequence_of_arm_and_lapse_moves_reaches_an_answer() {
     assert!(seen > 0);
 }
 
+/// `needs_you` counts a confirmation while it is `shown` or `armed`; an answered item is still
+/// open and no longer counts (I4.2, ruling H-5).
+#[test]
+fn an_item_waits_for_the_person_only_while_shown_or_armed() {
+    let a = ask(PAGE);
+    for (state, waits, open) in [
+        ("shown", true, true),
+        ("armed", true, true),
+        ("answered", false, true),
+        ("recorded", false, true),
+        ("released", false, false),
+        ("lapsed", false, false),
+    ] {
+        let item = at(&a, state, Presenter::Page);
+        assert_eq!(item.state().waits_for_person(), waits, "{state} waits");
+        assert_eq!(item.state().is_open(), open, "{state} is open");
+    }
+}
+
 #[test]
 fn the_answers_of_an_item_cover_each_effect_with_its_digest() {
     let a = ask(NATIVE);

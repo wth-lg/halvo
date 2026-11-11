@@ -259,6 +259,7 @@ struct Faulty<'a> {
     inner: &'a Ports<Config>,
     silent: Cell<bool>,
     send_fails: Cell<bool>,
+    clock_fails: Cell<bool>,
     minted: Cell<u32>,
     sent: RefCell<Vec<Decision>>,
 }
@@ -269,6 +270,7 @@ impl<'a> Faulty<'a> {
             inner,
             silent: Cell::new(false),
             send_fails: Cell::new(false),
+            clock_fails: Cell::new(false),
             minted: Cell::new(100),
             sent: RefCell::new(Vec::new()),
         }
@@ -363,6 +365,9 @@ impl Runs for Faulty<'_> {
 
 impl Clock for Faulty<'_> {
     fn now(&self) -> Result<u64, PortError> {
+        if self.clock_fails.get() {
+            return Err(PortError::NoService);
+        }
         self.inner.now()
     }
     fn today(&self) -> Result<u32, PortError> {
@@ -476,6 +481,43 @@ fn rows_acknowledged_before_a_release_that_failed_pass_nothing() {
         ),
         Err(Cause::State)
     );
+}
+
+#[test]
+fn an_answer_with_no_clock_leaves_the_item_armed_and_calls_no_port() {
+    let inner = ports();
+    let p = Faulty::new(&inner);
+    let (mut l, mut t) = (ledger(), Table::new());
+    let a = ask(PAGE);
+    let mut held = armed(&p, &|n| inner.set_clock(n, TODAY), &mut l, &mut t, &a);
+    let before = inner.calls.borrow().len();
+    p.clock_fails.set(true);
+    assert_eq!(
+        answer(
+            &p,
+            &mut l,
+            &mut t,
+            &mut held,
+            ConfirmAnswer::Allow,
+            Presenter::Page,
+            &LIMITS
+        ),
+        Err(Cause::NoService)
+    );
+    assert_eq!(held.confirmation().state(), &ConfirmState::Armed);
+    assert_eq!(inner.calls.borrow().len(), before);
+    assert!(p.sent.borrow().is_empty());
+    p.clock_fails.set(false);
+    answer(
+        &p,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Allow,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .expect("the answer once the clock is back");
 }
 
 #[test]

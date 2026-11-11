@@ -347,6 +347,19 @@ fn a_row_counts_only_from_the_release_of_its_decision() {
     assert!(step(&released, &releasing(4, 4, 4)).is_ok());
 }
 
+/// The release of one item's decision counts that item's rows and no other item's.
+#[test]
+fn a_release_counts_the_rows_of_its_own_item_alone() {
+    let later = Decision::new(vec![entry(5, 5, 5, EffectAnswer::AllowOnce)]).unwrap();
+    let t = table().record(&item_id(4), &later).release(&item_id(4));
+    assert!(step(&t, &approved(5, 5, 5)).is_ok(), "item 4's own row");
+    assert_eq!(
+        step(&t, &approved(4, 4, 4)).err(),
+        Some(Refusal::Approval),
+        "item 3's row, recorded and not released"
+    );
+}
+
 #[test]
 fn the_ids_of_a_reject_once_decision_pass_nothing() {
     let t = table();
