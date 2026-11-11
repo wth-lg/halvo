@@ -104,11 +104,28 @@ pub fn model_lock_path() -> Result<PathBuf, LockError> {
     Err(LockError::Unsupported)
 }
 
+fn lock_file_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true).truncate(false);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+        options.share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE);
+    }
+    options
+}
+
 /// Takes the model lock at [`model_lock_path`] without waiting.
 ///
 /// Creates the directory and the empty lock file where they are missing, writes nothing
 /// into the file and never removes it. Returns [`LockError::Held`] at once when another
 /// process holds the lock.
+///
+/// The lock binds the open file. On Windows the file is opened without delete sharing, so
+/// while it is held neither the file nor its directory can be renamed or removed. On macOS
+/// they can: a lock file or directory that another program moves away while the lock is
+/// held lets the next loader create a new file and take the lock.
 pub fn take_model_lock() -> Result<ModelLock, LockError> {
     let path = model_lock_path()?;
     if let Some(dir) = path.parent() {
@@ -118,11 +135,7 @@ pub fn take_model_lock() -> Result<ModelLock, LockError> {
             source,
         })?;
     }
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
+    let file = lock_file_options()
         .open(&path)
         .map_err(|source| LockError::Io {
             call: "open",
