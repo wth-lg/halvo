@@ -327,6 +327,9 @@ measure() {
       learner=miss
     fi
   fi
+  if [ "$targets" = none ]; then
+    refused=yes
+  fi
 
   harness=none
   tree_failed=no
@@ -557,7 +560,11 @@ layout unmatched=1" --all
   fixture no-freeze-no-heldout
   mv "$work/no-freeze-no-heldout/docs/r5/freeze.toml" "$work/no-freeze-no-heldout/freeze.toml.moved" || exit 2
   mv "$work/no-freeze-no-heldout/docs/r5/heldout.txt" "$work/no-freeze-no-heldout/heldout.txt.moved" || exit 2
-  check no-freeze-no-heldout PASS "$line targets=none learner=none harness=none"
+  check no-freeze-no-heldout FAIL-freeze "$line targets=none learner=none harness=none"
+
+  fixture freeze-with-learner-alone
+  printf '[learner]\ncrates = "%s"\n' "$d_crates" >"$work/freeze-with-learner-alone/docs/r5/freeze.toml"
+  check freeze-with-learner-alone FAIL-freeze "$line targets=none learner=miss harness=same"
 
   fixture git-fails
   mkdir -p "$work/stub" || exit 2

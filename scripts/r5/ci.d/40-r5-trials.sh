@@ -92,9 +92,7 @@ result_of() {
 
 compare_trial() {
   md=$(result_of "$1")
-  if [ ! -d "tools/r5-trials/$1" ] || [ ! -e "$md" ]; then
-    printf 'absent\n'
-  elif block_of "$md" >"$art/$1.expected" && cmp -s "$art/$1.expected" "$art/$1.out"; then
+  if [ -d "tools/r5-trials/$1" ] && [ -f "$md" ] && block_of "$md" >"$art/$1.expected" && cmp -s "$art/$1.expected" "$art/$1.out"; then
     printf 'same\n'
   else
     printf 'differ\n'
@@ -360,7 +358,7 @@ self_test() {
 
   fixture result-file-absent
   mv "$work/result-file-absent/docs/r5/trials/stat.md" "$work/result-file-absent/stat.md.moved" || exit 2
-  check result-file-absent PASS 'trials routine=same stat=absent admission=same sample=same'
+  check result-file-absent FAIL-differ 'trials routine=same stat=differ admission=same sample=same'
 
   fixture sample-absent-and-not-run
   mv "$work/sample-absent-and-not-run/fixtures/r5/trains/sample.jsonl" "$work/sample-absent-and-not-run/sample.jsonl.moved" || exit 2
@@ -368,7 +366,7 @@ self_test() {
 
   fixture trial-directory-absent
   mv "$work/trial-directory-absent/tools/r5-trials/drift" "$work/trial-directory-absent/drift.moved" || exit 2
-  check trial-directory-absent PASS 'trials routine=same stat=same admission=absent sample=same'
+  check trial-directory-absent FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
