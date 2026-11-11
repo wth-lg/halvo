@@ -11,6 +11,21 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Web executor trial (scratch branch of U0.2, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for a in /Applications/*; do
+            case "$a" in *[Cc]hrom* | *[Ee]dge*) echo "app $(basename "$a" | tr ' ' '_')" ;; esac
+          done
+          for b in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" ; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b" | tr ' ' '_')"; code=1; continue; }
+            echo "browser before $("$b" --version | tr ' ' '_')"
+            sh tools/r3-trials/web/run.sh --candidate cdp --browser "$b" --port 18190 --runs 10  || code=1
+            echo "browser after $("$b" --version | tr ' ' '_')"
+          done
+          exit $code
       - name: Commit messages
         shell: bash
         env:
@@ -97,6 +112,19 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
+      - name: Web executor trial (scratch branch of U0.2, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for d in "C:/Program Files/Google/Chrome/Application" "C:/Program Files (x86)/Google/Chrome/Application" "C:/Program Files (x86)/Microsoft/Edge/Application" "C:/Program Files/Google"; do
+            [ -d "$d" ] && for e in "$d"/*; do echo "entry $(basename "$d" | tr ' ' '_') $(basename "$e" | tr ' ' '_')"; done
+          done
+          for b in "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" ; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b")"; code=1; continue; }
+            sh tools/r3-trials/web/run.sh --candidate cdp --browser "$b" --port 18190 --runs 10  || code=1
+          done
+          exit $code
       - uses: actions/setup-node@v7
         with:
           node-version: 26
