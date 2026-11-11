@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use halvo_sqlcipher::rusqlite::types::ValueRef;
 use halvo_sqlcipher::rusqlite::Connection;
 use proptest::prelude::*;
 use proptest::test_runner::{contextualize_config, FileFailurePersistence, TestRunner};
@@ -29,7 +30,7 @@ use crate::custody::{
 use super::db::test_support::pages;
 use super::db::{unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
-use super::verify::{root_state, RootState};
+use super::verify::{raw_key_at_rest, root_state, RootState};
 use super::{SegmentExpiry, SegmentStore, StoreError, DEFAULT_RETENTION};
 
 /// Random operation sequences, each ending in a full invariant check. Every
@@ -46,6 +47,15 @@ const OLDEST_FIRST_PER_PASS: usize = 7;
 const OLDEST_FIRST_PASSES: usize = 50;
 const A_SOURCE_DIES_AFTER_EVERY: usize = 3;
 const WRAPPED_KEY_MIDDLE: Range<usize> = 24..56;
+const FILES_OF_A_STORE: [&str; 7] = [
+    "segments",
+    "store.db",
+    "store.db-journal",
+    "store.db-shm",
+    "store.db-wal",
+    "store.key",
+    "writer.lock",
+];
 
 /// Random multi-process races. Each case spawns up to [`MAX_CONTENDERS`]
 /// copies of the test binary, so the count is small and shrinking is short.
@@ -222,6 +232,21 @@ impl Harness {
         assert!(
             !opens_under_an_all_zero_root(key_file.root_id, &wrapped),
             "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it"
+        );
+        let key_file_aside = tempfile::tempdir().expect("a temp dir for a copy of store.key");
+        std::fs::copy(
+            KeyFile::path(&self.dir),
+            key_file_aside.path().join("store.key"),
+        )
+        .expect("store.key copies");
+        let raw_key_at_rest = raw_key_at_rest(
+            key_file_aside.path(),
+            store.store_key().expect("the fresh store's key").expose(),
+        )
+        .expect("the copy of store.key reads");
+        assert!(
+            !raw_key_at_rest,
+            "store.key of the fresh store holds the raw store key"
         );
         self.key_file = Some(key_file);
         self.store = Some(store);
@@ -445,16 +470,16 @@ impl Harness {
         Ok(())
     }
 
-    /// Every segment key still usable through the store: the non-NULL
-    /// `segment_keys` rows of the live connection, each unwrapped with the
-    /// store key.
     fn remaining_keys(&self, store: &EncryptedStore) -> Vec<SegmentKey> {
         let store_key = store.store_key().expect("the open store's key");
-        wrapped_rows(store.db().expect("the open store's db").connection())
+        let conn = store.db().expect("the open store's db").connection();
+        for wrapped in wrapped_rows(conn) {
+            segment::unwrap_segment_key(store_key.expose(), &wrapped)
+                .expect("a remaining key unwraps");
+        }
+        blobs_of_every_table(conn)
             .iter()
-            .map(|w| {
-                segment::unwrap_segment_key(store_key.expose(), w).expect("a remaining key unwraps")
-            })
+            .filter_map(|blob| segment::unwrap_segment_key(store_key.expose(), blob).ok())
             .collect()
     }
 
@@ -465,6 +490,7 @@ impl Harness {
         let Some(store) = self.open_store() else {
             return Ok(());
         };
+        self.check_directory()?;
         self.check_remaining_keys(store)?;
         self.check_reads(store)?;
         self.check_store_files(store)
@@ -472,8 +498,19 @@ impl Harness {
 
     fn check_at_scale(&self) -> Result<(), TestCaseError> {
         let store = self.open_store().expect("an open store");
+        self.check_directory()?;
         self.check_reads(store)?;
         self.check_store_files(store)
+    }
+
+    fn check_directory(&self) -> Result<(), TestCaseError> {
+        for name in names_in(&self.dir) {
+            prop_assert!(
+                FILES_OF_A_STORE.contains(&name.as_str()),
+                "the store directory holds {name}, which is no file of a store"
+            );
+        }
+        Ok(())
     }
 
     fn check_remaining_keys(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
@@ -574,16 +611,9 @@ impl Harness {
             .wrapped_store_key()
             .expect("the retained wrapped key decodes");
         require_a_destroyed_root(custody.as_ref(), &wrapped)?;
-        for name in [
-            "store.key",
-            "store.db",
-            "store.db-wal",
-            "store.db-shm",
-            "store.db-journal",
-            "segments",
-        ] {
+        for name in names_in(&self.dir) {
             prop_assert!(
-                !self.dir.join(name).exists(),
+                name == "writer.lock",
                 "delete-all left {name} in the store directory"
             );
         }
@@ -628,6 +658,48 @@ fn wrapped_key_row(store: &EncryptedStore, segment_id: Uuid) -> Option<Vec<u8>> 
             |r| r.get(0),
         )
         .expect("the key row of the segment")
+}
+
+fn names_in(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("the store directory lists")
+        .map(|entry| {
+            entry
+                .expect("an entry of the store directory")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+fn blobs_of_every_table(conn: &Connection) -> Vec<Vec<u8>> {
+    let mut tables = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .expect("the schema reads");
+    let tables: Vec<String> = tables
+        .query_map([], |row| row.get(0))
+        .expect("the names of the tables read")
+        .map(|name| name.expect("the name of a table"))
+        .collect();
+    let mut blobs = Vec::new();
+    for table in tables {
+        let mut rows = conn
+            .prepare(&format!("SELECT * FROM \"{table}\""))
+            .expect("a table of the store reads");
+        let columns = rows.column_count();
+        let mut rows = rows.query([]).expect("the rows of a table read");
+        while let Some(row) = rows.next().expect("a row of a table") {
+            for column in 0..columns {
+                if let ValueRef::Blob(blob) = row.get_ref(column).expect("a value of a row") {
+                    blobs.push(blob.to_vec());
+                }
+            }
+        }
+    }
+    blobs
 }
 
 fn wrapped_rows(conn: &Connection) -> Vec<Vec<u8>> {

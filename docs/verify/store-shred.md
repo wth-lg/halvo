@@ -80,9 +80,9 @@ checks call and that no row fails through stands under Not covered.
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
 | 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key` | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing` |
-| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `journal_mode` pragma), `Db::checkpoint_truncate` | `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified` |
+| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `secure_delete` pragma with `require_secure_delete`, and the `journal_mode` pragma), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file` |
 | 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | the macOS root store: `wrap` and `unwrap` (the `aead_seal` and `aead_open` calls under the root) and `existing_or_new_root` (the random fill of a new root) | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
-| 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (the mapping of `DatabaseBusy` and `DatabaseLocked` to `Locked`) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked` |
+| 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (the mapping of `DatabaseBusy` to `Locked`) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked` |
 
 A change to any function in the table, or to the schema of `segment_keys`,
 touches verified code. A change to the text that a row's substitution
@@ -106,10 +106,13 @@ a random sequence of these operations, checking the invariants after each:
 
 At every create the harness reads `store.key` and requires that the wrapped
 store key does not open under an all-zero key with the root id as
-associated data. With `ReopenUnderAnotherRoot` this is what check 1 tests of
-the custody wrap: the store key is sealed under the root's bytes, the
-unwrap fails under other bytes, and it fails with `RootMissing` once
-delete-all has destroyed the root.
+associated data, and that `store.key` does not hold the raw store key, as
+bytes, as hex or as base64 (`store::verify::raw_key_at_rest`, the scan of
+`--verify-store`, on a copy of the file). With `ReopenUnderAnotherRoot` this is what
+check 1 tests of the custody wrap: the store key is sealed under the root's
+bytes and stands nowhere beside its sealed form, the unwrap fails under
+other bytes, and it fails with `RootMissing` once delete-all has destroyed
+the root.
 
 `Reopen`, and `Recreate` after delete-all, call `open` or `create` right
 after they drop the store, so both need the drop to have released the file
@@ -121,11 +124,19 @@ contenders from the same test process. Before the unlock, check 1 failed
 that way on the macOS CI job: "reopen failed: another writer holds the
 store".
 
-After every operation the check asks which keys remain, in two ways.
+After every operation the store directory may hold only the files of a
+store: `store.key`, `store.db`, `store.db-wal`, `store.db-shm`,
+`store.db-journal`, `writer.lock` and `segments`. Any other name fails the
+case, so a file that the check does not read cannot hold a key or a copy of
+a segment.
 
-Through SQL: every non-NULL `segment_keys.wrapped_key` row that the live
-connection returns is unwrapped with the store key and tried against the
-saved ciphertext of every shredded segment.
+After every operation the check also asks which keys remain, in two ways.
+
+Through SQL: every blob of every table that the live connection returns,
+in whatever column it stands, is a key that remains when it unwraps under
+the store key, and each such key is tried against the saved ciphertext of
+every shredded segment. Every non-NULL `segment_keys.wrapped_key` must
+unwrap.
 
 In the store files: the page reader of the store's test support
 (`store/test_support/pages.rs`) decrypts every page of `store.db`, every
@@ -148,9 +159,8 @@ After delete-all the check asks the classifier that `--verify-deletion`
 uses, `store::verify::root_state`, with the wrapped store key retained from
 the create: the root counts as destroyed only when the unwrap fails with
 `RootMissing`. An unwrap that succeeds, or that fails with any other error,
-fails the case. Then `store.key`, `store.db`, `store.db-wal`,
-`store.db-shm`, `store.db-journal` and `segments` must be gone, and every
-segment must read as `Sealed`.
+fails the case. Then the store directory must hold nothing but
+`writer.lock`, and every segment must read as `Sealed`.
 
 The two scaled cases run the same harness on a fixed input, without the
 random operations:
@@ -166,7 +176,8 @@ random operations:
   connection in place of the clock, calls `crypto_shred_expired` and scans
   the store files.
 
-Both scan the store files and read every segment before the first pass and
+Both list the store directory, scan the store files and read every segment
+before the first pass and
 after the last. They skip the trial of every remaining key against every
 shredded segment, which the random test makes on its small stores and which
 would be 270,000 trials after the one pass.
@@ -290,7 +301,10 @@ the words of the code:
   page format; "reads as ... instead of Sealed" means `read_segment` found a
   key; "still has its file" means `remove_keyless_files` left it; "does not
   read" or "read back different bytes" means a live segment was damaged;
-  "opens under an all-zero key" means that no root seals the store key;
+  "opens under an all-zero key" means that no root seals the store key; "store.key
+  of the fresh store holds the raw store key" means what it says; "the
+  store directory holds ..., which is no file of a store" means that the
+  store wrote a file that the check does not read;
   "with other bytes under the id of its root, the store reopened" means that
   the unwrap does not depend on the root's bytes; the delete-all messages
   say that the root is alive, that its state is unknown with the error of
@@ -343,7 +357,11 @@ row cannot go stale unseen.
 | `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-journal-mode-not-wal` | `Db::open` sets `journal_mode = DELETE` | the random test of check 1 | the same, in a record of `store.db-journal` |
+| `formal-secure-delete-off` | `Db::open` switches `secure_delete` off and does not read it back | the one-pass scaled case | the same, in a page of `store.db` |
+| `formal-wrapped-key-in-a-side-file` | `write_segment_with_expiry` also writes the wrapped key into `keys.log` in the store directory | the random test of check 1 | "the store directory holds keys.log, which is no file of a store" |
+| `formal-second-wrap-in-another-table` | `write_segment_with_expiry` wraps the segment key a second time and keeps that wrap in a table that no shred clears | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
 | `formal-reader-keyed-with-zeros` | the harness gives the page reader an all-zero key | the random test of check 1 | panic "page 1 does not decrypt to a SQLite header" |
+| `formal-raw-store-key-in-key-file` | `store.key` also holds the raw store key, as base64 | the random test of check 1 | "store.key of the fresh store holds the raw store key" |
 | `formal-delete-all-destroys-nothing` | `destroy_store_key` returns at once | the random test of check 1 | "after delete-all the root is alive: the retained wrapped store key still unwraps" |
 | `formal-custody-wrap-under-constant-key` | the macOS root store seals and opens the store key under an all-zero key, not under the root | the random test of check 1 | "the wrapped store key of a fresh store opens under an all-zero key, so no root seals it" |
 | `formal-custody-root-is-all-zero` | a new root is never filled with random bytes | the random test of check 1 | the same |
@@ -355,26 +373,37 @@ The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
 `[Write { len: 0, expiry: Past }, ShredExpired]`.
 
-Six rows share their substitution with a row of the same file that has
+Seven rows share their substitution with a row of the same file that has
 another verdict: `shredded-key-survives`, `key-row-deleted`,
-`checkpoint-not-verified`, `delete-all-destroys-nothing`,
-`custody-wrap-under-constant-key` and `custody-root-is-all-zero`. A row has
+`checkpoint-not-verified`, `raw-store-key-in-key-file`,
+`delete-all-destroys-nothing`, `custody-wrap-under-constant-key` and
+`custody-root-is-all-zero`. A row has
 one verdict, and the covered table needs the formal check to fail, so each
-substitution stands twice under two names.
+of these substitutions stands under two names, and that of `key-row-deleted`
+under three, once for each scaled case.
 
 The rows of check 1 on the random test need a case with their pattern (see
 Bounds). The three rows of check 2 depend on timing: a case shows
 `formal-single-writer` or `formal-busy-not-mapped-to-locked` only when two
 contenders meet while the lock file is unlinked. On the Mac of this pass,
-30 runs of each of the two rows were given up to 200 cases, and each ended
-at its first failing case: 30 failing cases among 38 for each row, 0.79 a
-case, at a 1-minute load of 15 to 400. With the contender as it was before
-this pass, `formal-single-writer` failed in 30 of 49 cases, 0.61 a case, at
-a load of 9 to 15. `RACE_CASES` is 30 so that a run still fails when the
-share is a third of the measured one: at 0.26 a case, 30 cases all pass
-once in about 8,000 runs, and at 0.79 never in practice. A machine on which
-contenders rarely meet needs more cases, and the line that check 2 prints
-on a pass shows it: its last count falls towards 0.
+runs of these two rows were given up to 200 cases, so that each run ended
+at its first failing case, and the share of failing cases followed the load
+of the machine. `formal-single-writer`, with the contender as it was before
+this pass: 30 failing cases among 49 at a 1-minute load of 9 to 15. The
+same row in 30 pairs of runs at a load of 24 to 128: 30 among 38 with the
+contender as it was, 30 among 42 with the contender of today.
+`formal-busy-not-mapped-to-locked`, which passed the contender as it was:
+30 among 38 at a load of 114 to 402. `RACE_CASES` is 30 for the lowest
+share measured, 0.61 a case: 30 such cases all pass with a chance below 1
+in a million million, and at half that share once in about 55,000 runs. A
+machine on which contenders rarely meet needs more cases, and the line
+that check 2 prints on a pass shows it: its last count falls towards 0.
+
+`formal-secure-delete-off` is judged by the one-pass case, because the
+random test shows it only in a case with two due writes before one
+`ShredExpired`: with one, the store writes the row without its key over a
+part of the freed key. A simulation gives such a case a share of 0.14, so 1
+run in about 1,300 would hold none.
 
 `formal-reader-keyed-with-zeros` mutates the harness, not the store: it is
 the control that the file scan cannot pass blind.
@@ -604,9 +633,16 @@ it in the plan before weakening an assertion.
   `segment_ids_with_keys`, `remove_keyless_files`, `shred_segments`,
   `crypto_shred_expired` and `crypto_shred_all`; in `db.rs`
   `reserve_segment_key`, `commit_segment_key`, `KeyFile::destroy`,
-  `Db::destroy`, the `secure_delete` pragma of `Db::open`, and
-  `EncryptedStore::{create, open, seal, read_segment, write_segment_with_expiry}`;
+  `Db::destroy` and `EncryptedStore::{create, open, seal, read_segment}`;
   every function of `segment.rs`; `DevFallbackCustody::destroy_root`.
+- A key that can be computed from bytes that stay. Two such stores pass
+  check 1: one whose root is made of the root id, which `store.key` holds,
+  and one whose segment keys are made of the store key and the segment id.
+  The checks try the keys that the store holds and look for the bytes of
+  keys that it held. They cannot try every rule that gives a key back.
+- A copy of a key in a form that neither question reads: as text in a
+  table, or in a file below `segments`, where the next shred removes every
+  file that is no live segment.
 - The header of a segment file as associated data, and its last-chunk
   flag. With either removed, the formal checks pass.
   `store::hardening_tests::every_modified_segment_file_is_rejected_with_no_plaintext`
@@ -616,6 +652,11 @@ it in the plan before weakening an assertion.
   Break proofs shows.
   `db::tests::a_second_take_of_the_writer_lock_is_refused_until_the_first_is_dropped`
   fails on it.
+- The `DatabaseLocked` half of the mapping in `verify_key`. With that half
+  alone removed, check 2 passes: a second process gets `DatabaseBusy`.
+- `create` beside a store that another process holds. The contenders of
+  check 2 only `open`; check 1 tries `create` beside the live store of its
+  own process.
 - Two writers in different user accounts, or over a network filesystem.
 - The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
   the lock. Check 1 fails when the lock outlives the store, and check 2
