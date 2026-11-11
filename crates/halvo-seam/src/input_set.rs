@@ -1,5 +1,5 @@
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use crate::record::{names, CaptureRecord, Payload, Pointer, PointerDetail, Title};
@@ -53,6 +53,9 @@ pub enum SetError {
     Unreadable { path: PathBuf, kind: io::ErrorKind },
     Form { path: PathBuf, line: usize },
 }
+
+/// The most bytes of a set file (C6.4). A file of C6.2 has at most 7 lines and about 200 bytes.
+pub const SET_MAX: usize = 1_024;
 
 const LAYERS: [&str; 2] = ["accessibility_text", "extracted_text"];
 const TITLE: [&str; 4] = ["text", "cut", "why", "site"];
@@ -108,12 +111,34 @@ impl<'a> SetLines<'a> {
 }
 
 impl InputSet {
-    /// Reads a set file by `parse`, reporting the path with the defect.
+    /// Reads a set file by `parse`, reporting the path with the defect (C6.4). A path that is no regular
+    /// file is unreadable, and it is not opened when the system says so before the open. The reader takes at
+    /// most `SET_MAX` bytes and one more, so that a longer file is refused, as no file of C6.2, with the
+    /// number of the line that holds its byte `SET_MAX + 1`, and is not read further.
     pub fn read(path: &Path) -> Result<InputSet, SetError> {
-        let bytes = fs::read(path).map_err(|e| SetError::Unreadable {
+        let unreadable = |kind: io::ErrorKind| SetError::Unreadable {
             path: path.to_owned(),
-            kind: e.kind(),
-        })?;
+            kind,
+        };
+        let regular = |meta: io::Result<fs::Metadata>| match meta {
+            Ok(m) if m.is_file() => Ok(()),
+            Ok(_) => Err(unreadable(io::ErrorKind::InvalidInput)),
+            Err(e) => Err(unreadable(e.kind())),
+        };
+        regular(fs::metadata(path))?;
+        let file = File::open(path).map_err(|e| unreadable(e.kind()))?;
+        regular(file.metadata())?;
+        let mut bytes = Vec::with_capacity(SET_MAX + 1);
+        file.take(SET_MAX as u64 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| unreadable(e.kind()))?;
+        if bytes.len() > SET_MAX {
+            let line = bytes[..SET_MAX].iter().filter(|b| **b == b'\n').count() + 1;
+            return Err(SetError::Form {
+                path: path.to_owned(),
+                line,
+            });
+        }
         InputSet::parse(&bytes).map_err(|line| SetError::Form {
             path: path.to_owned(),
             line,
