@@ -9,10 +9,51 @@ problem() {
   problems=$((problems + 1))
 }
 
-amendment_lines_without_a_date() {
+header_problems() {
   awk '
-    /^## / { section = ($0 == "## Amendments"); next }
-    section && $0 != "" && $0 !~ /^  / && $0 !~ /^- [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][: ]/ { print NR }
+    function real_date(s, y, m, d, days) {
+      y = substr(s, 1, 4) + 0
+      m = substr(s, 6, 2) + 0
+      d = substr(s, 9, 2) + 0
+      if (m < 1 || m > 12 || d < 1) return 0
+      days = substr("312831303130313130313031", 2 * m - 1, 2) + 0
+      if (m == 2 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)) days = 29
+      return d <= days
+    }
+    function real_time(s) {
+      return substr(s, 1, 2) + 0 <= 23 && substr(s, 4, 2) + 0 <= 59 && substr(s, 7, 2) + 0 <= 59
+    }
+    NR == 3 && /^decision: [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$/ {
+      if (!real_date(substr($0, 11, 10)) || !real_time(substr($0, 22, 8)))
+        print "line 3 holds " substr($0, 11) ", a date or a time that no calendar has"
+    }
+    /^#/ {
+      title = $0
+      sub(/^#+[ \t]*/, "", title)
+      sub(/[ \t]+$/, "", title)
+      if (tolower(title) == "amendments") {
+        section = 1
+        entry = 0
+        if ($0 != "## Amendments") print "line " NR " '\''" $0 "'\'' is not the heading '\''## Amendments'\''"
+        next
+      }
+      if ($0 ~ /^## /) { section = 0; next }
+    }
+    !section { next }
+    $0 == "" { entry = 0; next }
+    /^  / {
+      if (!entry) print "line " NR " under '\''## Amendments'\'' is indented and continues no dated entry"
+      next
+    }
+    /^- [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][: ]/ {
+      entry = 1
+      if (!real_date(substr($0, 3, 10))) print "line " NR " under '\''## Amendments'\'' has the date " substr($0, 3, 10) ", which no calendar has"
+      next
+    }
+    {
+      entry = 0
+      print "line " NR " under '\''## Amendments'\'' does not start with '\''- YYYY-MM-DD'\''"
+    }
   ' "$1"
 }
 
@@ -49,9 +90,13 @@ check_file() {
     'decision: '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
     *) problem "$base" "line 3 is not 'decision: YYYY-MM-DDTHH:MM:SSZ'" ;;
   esac
-  for n in $(amendment_lines_without_a_date "$1"); do
-    problem "$base" "line $n under '## Amendments' does not start with '- YYYY-MM-DD'"
-  done
+  found=$(header_problems "$1") || exit 2
+  [ -n "$found" ] || return
+  while IFS= read -r line; do
+    problem "$base" "$line"
+  done <<EOF
+$found
+EOF
 }
 
 measure() {
