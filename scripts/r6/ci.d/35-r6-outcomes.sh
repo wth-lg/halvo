@@ -17,14 +17,25 @@ sources_header="id${tab}path${tab}blob${tab}date${tab}measures${tab}limits"
 date_form='[0-9]{4}-[0-9]{2}-[0-9]{2}'
 count_form='(0|[1-9][0-9]*)'
 token_form='[a-z0-9_]{1,32}'
+golden_tests=2
 
 enter_repo() {
   if [ -n "${CI_D_REPO:-}" ]; then
     repo=$CI_D_REPO
   else
-    repo=$(git rev-parse --show-toplevel) || exit 2
+    repo=$(git rev-parse --show-toplevel) || return 1
   fi
-  cd "$repo" || exit 2
+  cd "$repo" || return 1
+}
+
+broken() {
+  printf 'FAIL self-test:%s (%s)\n' "$name" "$1"
+  exit 1
+}
+
+setup_failed() {
+  printf 'FAIL %s (setup)\n' "$name"
+  exit 1
 }
 
 source_row() {
@@ -64,12 +75,13 @@ cell() {
 }
 
 measure() {
-  enter_repo
+  enter_repo || setup_failed
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
-  mkdir -p "$artifacts" || exit 2
-  scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  mkdir -p "$artifacts" || setup_failed
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || setup_failed
 
-  if ! cargo test --locked -p halvo-route-gate import_golden >"$artifacts/cargo-test.txt" 2>&1; then
+  if ! cargo test --locked -p halvo-route-gate --test import_golden >"$artifacts/cargo-test.txt" 2>&1 ||
+    ! grep -q "^test result: ok\\. $golden_tests passed; " "$artifacts/cargo-test.txt"; then
     printf 'FAIL %s (tests)\n' "$name"
     exit 1
   fi
@@ -95,7 +107,7 @@ measure() {
   done
 
   fresh=$scratch/import
-  mkdir "$fresh" || exit 2
+  mkdir "$fresh" || setup_failed
   cargo run -q --locked -p halvo-route-gate --bin route-gate -- import \
     --driver "$(cell 2 2)" --cells "$(cell 3 2)" \
     --date "s1=$(cell 2 4)" --date "s2=$(cell 3 4)" --out "$fresh" \
@@ -139,27 +151,29 @@ measure() {
 }
 
 fixture() {
+  case_name=$1
   case_repo=$work/$1/repo
-  mkdir -p "$case_repo/$outcomes" || exit 2
+  mkdir -p "$case_repo/$outcomes" || broken "cannot make the fixture $1"
   if [ "$2" = - ]; then
     return 0
   fi
-  mkdir -p "$case_repo/docs/r3/trials" || exit 2
-  cp "$golden/$2/driver.md" "$case_repo/$driver_path" || exit 2
-  cp "$golden/$2/model-cells.md" "$case_repo/$cells_path" || exit 2
+  mkdir -p "$case_repo/docs/r3/trials" || broken "cannot make the fixture $1"
+  cp "$golden/$2/driver.md" "$case_repo/$driver_path" || broken "cannot copy the golden case $2 into the fixture $1"
+  cp "$golden/$2/model-cells.md" "$case_repo/$cells_path" || broken "cannot copy the golden case $2 into the fixture $1"
   cp "$golden/$2/expected/recorded.tsv" "$golden/$2/expected/models.tsv" \
-    "$golden/$2/expected/sources.tsv" "$golden/$2/expected/freeze.txt" "$case_repo/$outcomes/" || exit 2
+    "$golden/$2/expected/sources.tsv" "$golden/$2/expected/freeze.txt" "$case_repo/$outcomes/" ||
+    broken "cannot copy the golden case $2 into the fixture $1"
   edit "$outcomes/sources.tsv" "s|^s1${tab}driver\\.md${tab}|s1${tab}${driver_path}${tab}|;s|^s2${tab}model-cells\\.md${tab}|s2${tab}${cells_path}${tab}|"
 }
 
 edit() {
-  sed "$2" "$case_repo/$1" >"$work/edited" || exit 2
-  cmp -s "$work/edited" "$case_repo/$1" && exit 2
-  cp "$work/edited" "$case_repo/$1" || exit 2
+  sed "$2" "$case_repo/$1" >"$work/edited" || broken "cannot edit $1 in the fixture $case_name"
+  cmp -s "$work/edited" "$case_repo/$1" && broken "the edit of $1 in the fixture $case_name changed nothing"
+  cp "$work/edited" "$case_repo/$1" || broken "cannot write $1 in the fixture $case_name"
 }
 
 rehash() {
-  blob=$(git hash-object --no-filters -- "$case_repo/$1") || exit 2
+  blob=$(git hash-object --no-filters -- "$case_repo/$1") || broken "cannot hash $1 in the fixture $case_name"
   edit "$outcomes/sources.tsv" "$2s/^\\(s[12]${tab}[^${tab}]*${tab}\\)[0-9a-f]*${tab}/\\1${blob}${tab}/"
 }
 
@@ -169,7 +183,7 @@ check() {
     PATH=$work/bin:$PATH
     CI_D_REPO=$case_repo
     CI_D_ARTIFACTS=$work/artifacts/$1
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT R6_OUTCOMES_TOOL
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_TEST_PASSED R6_OUTCOMES_TOOL
     if [ -n "$crlf_filter" ]; then
       GIT_CONFIG_COUNT=1
       GIT_CONFIG_KEY_0=core.autocrlf
@@ -200,13 +214,14 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_TEST_EXIT=0
+  STUB_TEST_PASSED=$golden_tests
   crlf_filter=
 }
 
 self_test() {
-  enter_repo
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/bin" "$work/artifacts" || exit 2
+  enter_repo || broken "cannot enter the repository"
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken "cannot make a temporary directory"
+  mkdir -p "$work/bin" "$work/artifacts" || broken "cannot make a directory"
   if ! cargo build -q --locked -p halvo-route-gate --bin route-gate >"$work/build.txt" 2>&1; then
     printf 'FAIL self-test:%s (the tool did not build)\n' "$name"
     exit 1
@@ -221,7 +236,8 @@ self_test() {
   cat >"$work/bin/cargo" <<'EOF'
 #!/bin/sh
 case $* in
-  'test --locked -p halvo-route-gate import_golden')
+  'test --locked -p halvo-route-gate --test import_golden')
+    printf 'test result: ok. %s passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n' "$STUB_TEST_PASSED"
     exit "$STUB_TEST_EXIT"
     ;;
   'run -q --locked -p halvo-route-gate --bin route-gate -- import '*)
@@ -234,10 +250,11 @@ case $* in
     ;;
 esac
 EOF
-  chmod +x "$work/bin/cargo"
+  chmod +x "$work/bin/cargo" || broken "cannot make the stub cargo"
   rejected=0
   wrong=
   STUB_TEST_EXIT=0
+  STUB_TEST_PASSED=$golden_tests
   crlf_filter=
 
   fixture waiting -
@@ -272,7 +289,7 @@ FAIL $name (stale)"
   check both-files-changed FAIL "same=no stale=2
 FAIL $name (stale)"
   fixture source-file-missing full
-  mv "$case_repo/$cells_path" "$case_repo/moved.md" || exit 2
+  mv "$case_repo/$cells_path" "$case_repo/moved.md" || broken "cannot change the fixture $case_name"
   check source-file-missing FAIL "stale=1
 FAIL $name (stale)"
   fixture driver-pass-flipped-table-not-imported full
@@ -294,8 +311,8 @@ FAIL $name (stale)"
   check stale-and-the-import-refused FAIL "outcomes rows=132 models=6 sources=2 same=no stale=1
 FAIL $name (stale)"
   fixture crlf-that-a-filter-hides full
-  awk '{ printf "%s\r\n", $0 }' "$case_repo/$driver_path" >"$work/crlf" || exit 2
-  cp "$work/crlf" "$case_repo/$driver_path" || exit 2
+  awk '{ printf "%s\r\n", $0 }' "$case_repo/$driver_path" >"$work/crlf" || broken "cannot change the fixture $case_name"
+  cp "$work/crlf" "$case_repo/$driver_path" || broken "cannot change the fixture $case_name"
   crlf_filter=1
   check crlf-that-a-filter-hides FAIL "outcomes rows=132 models=6 sources=2 same=no stale=1
 FAIL $name (stale)"
@@ -312,7 +329,7 @@ FAIL $name (differs)"
   check source-date-changed FAIL "same=no stale=0
 FAIL $name (differs)"
   fixture freeze-missing full
-  mv "$case_repo/$outcomes/freeze.txt" "$work/freeze-missing/freeze.txt" || exit 2
+  mv "$case_repo/$outcomes/freeze.txt" "$work/freeze-missing/freeze.txt" || broken "cannot change the fixture $case_name"
   check freeze-missing FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
   fixture sources-one-row full
@@ -324,7 +341,7 @@ FAIL $name (differs)"
   check sources-rows-swapped FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
   fixture sources-names-a-copy full
-  cp "$case_repo/$driver_path" "$case_repo/driver-copy.md" || exit 2
+  cp "$case_repo/$driver_path" "$case_repo/driver-copy.md" || broken "cannot change the fixture $case_name"
   edit "$outcomes/sources.tsv" "2s|${tab}${driver_path}${tab}|${tab}driver-copy.md${tab}|"
   check sources-names-a-copy FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
@@ -333,11 +350,11 @@ FAIL $name (differs)"
   check models-header-wrong FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
   fixture freeze-third-line full
-  printf 'extra\n' >>"$case_repo/$outcomes/freeze.txt" || exit 2
+  printf 'extra\n' >>"$case_repo/$outcomes/freeze.txt" || broken "cannot change the fixture $case_name"
   check freeze-third-line FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
   fixture sources-fourth-line full
-  printf 's3%sx\n' "$tab" >>"$case_repo/$outcomes/sources.tsv" || exit 2
+  printf 's3%sx\n' "$tab" >>"$case_repo/$outcomes/sources.tsv" || broken "cannot change the fixture $case_name"
   check sources-fourth-line FAIL "outcomes rows=0 models=0 sources=0 same=no stale=0
 FAIL $name (differs)"
   fixture freeze-rows-with-a-leading-zero full
@@ -367,6 +384,12 @@ FAIL $name (differs)"
   edit "$driver_path" 's/^verdict driver=m_small path=A writer=m_small$/verdict driver=m_tiny path=A writer=m_tiny/'
   STUB_TEST_EXIT=101
   check tests-fail-and-stale FAIL "FAIL $name (tests)" "outcomes rows="
+  fixture golden-test-emptied full
+  STUB_TEST_PASSED=0
+  check golden-test-emptied FAIL "FAIL $name (tests)" "outcomes rows="
+  fixture golden-test-count-changed full
+  STUB_TEST_PASSED=3
+  check golden-test-count-changed FAIL "FAIL $name (tests)" "outcomes rows="
 
   usage=$(sh "$self" --all 2>&1)
   code=$?
@@ -376,6 +399,17 @@ FAIL $name (differs)"
   else
     printf 'case %s/unknown-argument want=FAIL got=exit-%s\n' "$name" "$code"
     wrong="$wrong unknown-argument"
+  fi
+
+  setup=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
+  code=$?
+  last=$(printf '%s\n' "$setup" | tail -n 1)
+  if [ "$code:$last" = "1:FAIL $name (setup)" ]; then
+    printf 'case %s/repository-missing want=FAIL got=FAIL\n' "$name"
+    rejected=$((rejected + 1))
+  else
+    printf 'case %s/repository-missing want=FAIL got=exit-%s\n' "$name" "$code"
+    wrong="$wrong repository-missing"
   fi
 
   if [ -z "${R6_OUTCOMES_NESTED:-}" ]; then
