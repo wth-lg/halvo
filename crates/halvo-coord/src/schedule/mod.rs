@@ -4,14 +4,20 @@
 //! `tick_step` take values and return values; `drive` is the one function of this module that
 //! calls a port.
 
+mod board;
+mod drive;
 mod hold;
 mod queue;
 mod slot;
 mod start;
+mod tick;
 
+pub use board::{Board, Dying, LiveRun, Member, Stop};
+pub use drive::{drive, Answer, Ended, Move, Report, Served};
 pub use hold::{holds, params, Hold};
 pub use queue::{Queue, Waiting};
 pub use slot::{current_slot, finished, next_slot, slot_due, slot_open};
 pub use start::{
     active_state, needs_model, needs_person, start_step, Around, Clear, Go, StartStep, Verdict,
 };
+pub use tick::{tick_plan, tick_step, Ask, Plan};
