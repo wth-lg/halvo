@@ -157,6 +157,7 @@ MoveJson(mv, res) ==
 
 TraceInit ==
     /\ st = Init0
+    /\ h = InitH
     /\ w = [n |-> 1, k |-> 0, x |-> 1 + (Seed % 2147483646), acc |-> <<>>]
 
 TraceNext ==
@@ -164,9 +165,11 @@ TraceNext ==
     /\ IF w.k = Depth
        THEN /\ PrintT(Obj(<<KV("n", ToString(w.n)), KV("moves", Arr(w.acc))>>))
             /\ st' = Init0
+            /\ h' = InitH
             /\ w' = [w EXCEPT !.n = @ + 1, !.k = 0, !.acc = <<>>]
        ELSE LET c == Choose(st, w.x)
             IN /\ st' = c.res.st
+               /\ h' = Hist(h, c.mv, c.res)
                /\ w' = [w EXCEPT !.k = @ + 1, !.x = c.x,
                                  !.acc = Append(@, MoveJson(c.mv, c.res))]
 =============================================================================

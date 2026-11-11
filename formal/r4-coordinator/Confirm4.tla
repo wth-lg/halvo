@@ -3,10 +3,11 @@ EXTENDS Integers, Sequences, FiniteSets
 
 CONSTANTS NEffects, Req1, Req2, Native
 
-VARIABLE st
+VARIABLES st, h
 
 Effects == 1..NEffects
 NRequests == 2
+Items == 1..NRequests
 Final == {"released", "lapsed"}
 Sources == {"page", "native"}
 Answers == {"allow", "reject"}
@@ -28,6 +29,18 @@ Init0 ==
     [items |-> <<>>, nap |-> 0, rows |-> {}, table |-> {}, sent |-> {}, passed |-> <<>>,
      run |-> "live", app |-> "live"]
 
+InitH ==
+    [shown |-> [i \in Items |-> {}],
+     moves |-> [i \in Items |-> <<>>],
+     answers |-> {},
+     minted |-> [i \in Items |-> {}],
+     stored |-> {},
+     acked |-> {},
+     got |-> {},
+     released |-> {},
+     passed |-> {},
+     stopped |-> FALSE]
+
 OpenItems(s) == {i \in DOMAIN s.items : s.items[i].st \notin Final}
 
 Mint(s, n) ==
@@ -42,6 +55,9 @@ Rows(i, it) ==
     {[item |-> i, effect |-> e.effect, digest |-> e.digest, approval |-> e.approval,
       answer |-> e.answer] : e \in Entries(it, Once(it.ans))}
 
+Mv(i, m, cause) == [k |-> "move", item |-> i, m |-> m, cause |-> cause]
+No(s, r) == [r |-> r, st |-> s, ev |-> <<>>]
+
 Issue(s, ok) ==
     LET n == Len(s.items) + 1
         it == [req |-> n, st |-> "shown", ans |-> "none", by |-> "none", was |-> "none",
@@ -49,63 +65,75 @@ Issue(s, ok) ==
                shown |-> {[effect |-> e, digest |-> IF ok THEN Digest(n, e) ELSE 0] : e \in ReqEffects(n)}]
         no == [it EXCEPT !.st = "lapsed", !.cause = "digest", !.dec = Mint(s, n),
                          !.final = "lapsed", !.shown = {}]
-    IN IF OpenItems(s) # {} THEN [r |-> "state", st |-> [s EXCEPT !.run = "ended"]]
-       ELSE IF ok THEN [r |-> "ok", st |-> [s EXCEPT !.items = Append(@, it)]]
+    IN IF OpenItems(s) # {} THEN No([s EXCEPT !.run = "ended"], "state")
+       ELSE IF ok
+       THEN [r |-> "ok", st |-> [s EXCEPT !.items = Append(@, it)],
+             ev |-> <<[k |-> "shown", item |-> n, shown |-> it.shown], Mv(n, "issue", "none")>>]
        ELSE [r |-> "ok",
              st |-> [s EXCEPT !.items = Append(@, no),
                               !.nap = @ + Cardinality(ReqEffects(n)),
                               !.sent = @ \cup {[item |-> n, via |-> "lapse", acked |-> FALSE,
-                                                entries |-> Entries(no, "reject_once")]}]]
+                                                entries |-> Entries(no, "reject_once")]}],
+             ev |-> <<Mv(n, "issue", "none"),
+                      [k |-> "sent", item |-> n, via |-> "lapse", entries |-> Entries(no, "reject_once")],
+                      Mv(n, "lapse", "digest")>>]
 
 Arm(s, i) ==
-    IF i \notin DOMAIN s.items THEN [r |-> "state", st |-> s]
-    ELSE IF s.items[i].st # "shown" THEN [r |-> "state", st |-> s]
-    ELSE [r |-> "ok", st |-> [s EXCEPT !.items[i].st = "armed"]]
+    IF i \notin DOMAIN s.items THEN No(s, "state")
+    ELSE IF s.items[i].st # "shown" THEN No(s, "state")
+    ELSE [r |-> "ok", st |-> [s EXCEPT !.items[i].st = "armed"], ev |-> <<Mv(i, "arm", "none")>>]
 
 Answer(s, i, ans, from) ==
-    IF i \notin DOMAIN s.items THEN [r |-> "state", st |-> s]
+    IF i \notin DOMAIN s.items THEN No(s, "state")
     ELSE LET it == s.items[i]
-         IN IF it.st \in {"answered", "recorded", "released", "lapsed"} THEN [r |-> "stale", st |-> s]
-            ELSE IF from # Presenter(it.req) THEN [r |-> "presenter", st |-> s]
-            ELSE IF it.st = "shown" THEN [r |-> "early", st |-> s]
+         IN IF it.st \in {"answered", "recorded", "released", "lapsed"} THEN No(s, "stale")
+            ELSE IF from # Presenter(it.req) THEN No(s, "presenter")
+            ELSE IF it.st = "shown" THEN No(s, "early")
             ELSE [r |-> "ok",
                   st |-> [s EXCEPT !.items[i] = [it EXCEPT !.st = "answered", !.ans = ans,
                                                            !.by = from, !.was = it.st,
                                                            !.dec = Mint(s, it.req)],
-                                   !.nap = @ + Cardinality(ReqEffects(it.req))]]
+                                   !.nap = @ + Cardinality(ReqEffects(it.req))],
+                  ev |-> <<[k |-> "answer", item |-> i, answer |-> ans, from |-> from,
+                            ids |-> {d.approval : d \in Mint(s, it.req)}],
+                           Mv(i, "answer", "none")>>]
 
 Record(s, i) ==
-    IF i \notin DOMAIN s.items THEN [r |-> "state", st |-> s]
-    ELSE IF s.items[i].st # "answered" THEN [r |-> "state", st |-> s]
+    IF i \notin DOMAIN s.items THEN No(s, "state")
+    ELSE IF s.items[i].st # "answered" THEN No(s, "state")
     ELSE [r |-> "ok",
           st |-> [s EXCEPT !.items[i].st = "recorded",
                            !.rows = @ \cup Rows(i, s.items[i]),
                            !.table = @ \cup {[item |-> x.item, effect |-> x.effect,
                                               digest |-> x.digest, approval |-> x.approval,
                                               answer |-> x.answer, used |-> FALSE] :
-                                                x \in Rows(i, s.items[i])}]]
+                                                x \in Rows(i, s.items[i])}],
+          ev |-> <<[k |-> "rows", rows |-> Rows(i, s.items[i]), acked |-> TRUE], Mv(i, "record", "none")>>]
 
 Release(s, i) ==
-    IF i \notin DOMAIN s.items THEN [r |-> "state", st |-> s]
-    ELSE IF s.items[i].st # "recorded" THEN [r |-> "state", st |-> s]
+    IF i \notin DOMAIN s.items THEN No(s, "state")
+    ELSE IF s.items[i].st # "recorded" THEN No(s, "state")
     ELSE LET es == Entries(s.items[i], Once(s.items[i].ans))
          IN [r |-> "ok",
              st |-> [s EXCEPT !.items[i].st = "released",
                               !.items[i].final = IF @ = "none" THEN "released" ELSE @,
                               !.sent = @ \cup {[item |-> i, via |-> "release", entries |-> es,
                                                 acked |-> \A e \in es : \E t \in s.table :
-                                                            t.approval = e.approval]}]]
+                                                            t.approval = e.approval]}],
+             ev |-> <<[k |-> "sent", item |-> i, via |-> "release", entries |-> es],
+                      Mv(i, "release", "none")>>]
 
 LapseOk(it, cause) ==
     \/ it.st \in {"shown", "armed", "answered"}
     \/ it.st = "recorded" /\ cause \in {"run_ended", "app_ended"}
 
 Lapse(s, i, cause, stored) ==
-    IF i \notin DOMAIN s.items THEN [r |-> "state", st |-> s]
-    ELSE IF ~LapseOk(s.items[i], cause) THEN [r |-> "state", st |-> s]
+    IF i \notin DOMAIN s.items THEN No(s, "state")
+    ELSE IF ~LapseOk(s.items[i], cause) THEN No(s, "state")
     ELSE LET it == s.items[i]
              gone == cause \in {"run_ended", "app_ended"}
              fresh == ~gone /\ it.dec = {}
+             kept == cause = "no_record" /\ stored
              it1 == [it EXCEPT !.st = "lapsed", !.cause = cause,
                                !.dec = IF fresh THEN Mint(s, it.req) ELSE @,
                                !.final = IF @ = "none" THEN "lapsed" ELSE @]
@@ -114,10 +142,15 @@ Lapse(s, i, cause, stored) ==
                               !.nap = IF fresh THEN @ + Cardinality(ReqEffects(it.req)) ELSE @,
                               !.run = IF gone THEN "ended" ELSE @,
                               !.app = IF cause = "app_ended" THEN "ended" ELSE @,
-                              !.rows = IF cause = "no_record" /\ stored THEN @ \cup Rows(i, it) ELSE @,
+                              !.rows = IF kept THEN @ \cup Rows(i, it) ELSE @,
                               !.sent = IF gone THEN @
                                        ELSE @ \cup {[item |-> i, via |-> "lapse", acked |-> FALSE,
-                                                     entries |-> Entries(it1, "reject_once")]}]]
+                                                     entries |-> Entries(it1, "reject_once")]}],
+             ev |-> (IF kept THEN <<[k |-> "rows", rows |-> Rows(i, it), acked |-> FALSE]>> ELSE <<>>)
+                    \o (IF gone THEN <<>>
+                        ELSE <<[k |-> "sent", item |-> i, via |-> "lapse",
+                                entries |-> Entries(it1, "reject_once")]>>)
+                    \o <<Mv(i, "lapse", cause)>>]
 
 Match(s, rec, used) ==
     {x \in s.table : /\ x.effect = rec.effect
@@ -138,17 +171,18 @@ Released(s, rec) ==
                       /\ \E e \in d.entries : e.approval = rec.approval /\ e.answer = "allow_once"
 
 Guard(s, rec) ==
-    IF rec.state = "approved"
-    THEN LET m == Match(s, rec, FALSE)
-         IN IF m = {} THEN [r |-> "approval", st |-> s]
-            ELSE [r |-> "ok",
-                  st |-> [s EXCEPT !.table = (@ \ m) \cup {[t EXCEPT !.used = TRUE] : t \in m},
-                                   !.passed = Append(@, [approval |-> rec.approval,
-                                                         good |-> Good(s, rec),
-                                                         rel |-> Released(s, rec)])]]
-    ELSE IF rec.state = "releasing" /\ rec.effect \in Native
-    THEN IF Match(s, rec, TRUE) = {} THEN [r |-> "approval", st |-> s] ELSE [r |-> "ok", st |-> s]
-    ELSE [r |-> "ok", st |-> s]
+    LET pass == <<[k |-> "pass", rec |-> rec]>>
+    IN IF rec.state = "approved"
+       THEN LET m == Match(s, rec, FALSE)
+            IN IF m = {} THEN No(s, "approval")
+               ELSE [r |-> "ok", ev |-> pass,
+                     st |-> [s EXCEPT !.table = (@ \ m) \cup {[t EXCEPT !.used = TRUE] : t \in m},
+                                      !.passed = Append(@, [approval |-> rec.approval,
+                                                            good |-> Good(s, rec),
+                                                            rel |-> Released(s, rec)])]]
+       ELSE IF rec.state = "releasing" /\ rec.effect \in Native
+       THEN IF Match(s, rec, TRUE) = {} THEN No(s, "approval") ELSE [r |-> "ok", st |-> s, ev |-> pass]
+       ELSE No(s, "ok")
 
 Step(s, mv) ==
     CASE mv.m = "issue" -> Issue(s, mv.ok)
@@ -181,8 +215,43 @@ Moves(s) ==
          \cup UNION {ItemMoves(s, i) : i \in DOMAIN s.items}
          \cup GuardMoves(s)
 
-Init == st = Init0
-Next == \E mv \in Moves(st) : st' = Step(st, mv).st
+HLast(g, i) == IF Len(g.moves[i]) = 0 THEN "none" ELSE g.moves[i][Len(g.moves[i])].m
+
+HEvent(g, e) ==
+    CASE e.k = "shown" -> [g EXCEPT !.shown[e.item] = e.shown]
+      [] e.k = "move" -> [g EXCEPT !.moves[e.item] = Append(@, [m |-> e.m, cause |-> e.cause])]
+      [] e.k = "answer" ->
+            [g EXCEPT !.answers = @ \cup {[item |-> e.item, answer |-> e.answer, from |-> e.from,
+                                           armed |-> HLast(g, e.item) = "arm"]},
+                      !.minted[e.item] = @ \cup e.ids]
+      [] e.k = "rows" ->
+            [g EXCEPT !.stored = @ \cup e.rows,
+                      !.acked = IF e.acked THEN @ \cup e.rows ELSE @]
+      [] e.k = "sent" ->
+            [g EXCEPT !.got = @ \cup {[item |-> e.item, via |-> e.via, entries |-> e.entries,
+                                       after |-> g.stopped]}]
+      [] e.k = "released" -> [g EXCEPT !.released = @ \cup {[item |-> e.item, entries |-> e.entries]}]
+      [] e.k = "pass" ->
+            [g EXCEPT !.passed = @ \cup
+                {[state |-> e.rec.state, effect |-> e.rec.effect,
+                  digest |-> IF e.rec.state = "releasing" /\ e.rec.effect \notin Native THEN 0 ELSE e.rec.digest,
+                  approval |-> e.rec.approval,
+                  first |-> \/ e.rec.state = "releasing"
+                            \/ \A p \in g.passed : ~(p.state = "approved" /\ p.approval = e.rec.approval),
+                  used |-> \E p \in g.passed : /\ p.state = "approved"
+                                               /\ p.effect = e.rec.effect
+                                               /\ p.digest = e.rec.digest
+                                               /\ p.approval = e.rec.approval,
+                  stopped |-> g.stopped]}]
+      [] e.k = "stop" -> [g EXCEPT !.stopped = TRUE]
+
+RECURSIVE HFold(_, _, _)
+HFold(g, evs, i) == IF i > Len(evs) THEN g ELSE HFold(HEvent(g, evs[i]), evs, i + 1)
+
+Hist(g, res) == HFold(g, res.ev, 1)
+
+Init == st = Init0 /\ h = InitH
+Next == \E mv \in Moves(st) : LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, res)
 
 Provenance(i) ==
     LET it == st.items[i]
