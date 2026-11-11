@@ -9,7 +9,8 @@ and committed. Nobody edits a trace file by hand.
 
 | File | What it holds |
 |---|---|
-| `Schedule.tla`, `Schedule.cfg` | the schedule model, its configuration and the invariants C1 to C10 |
+| `Schedule.tla`, `Schedule.cfg` | the schedule model, its full configuration and the invariants C1 to C10 |
+| `Schedule-days.cfg`, `Schedule-queue.cfg` | the two small configurations of the schedule model that CI runs |
 | `Confirm4.tla`, `Confirm4.cfg` | the confirmation model, its configuration and the invariants L1 to L10 |
 | `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla` | the modules that walk a model and print one JSON line per trace |
 | `limits.json` | the limits of the models, with the field names of the struct `Limits` |
@@ -57,18 +58,32 @@ java -Xmx2g -XX:+UseParallelGC -cp PATH tlc2.TLC -workers 1 -metadir "$d/meta" -
 Each run must print `Model checking completed. No error has been found.` `Confirm4` runs
 with `-deadlock`, because a state after the app ended has no next state on purpose.
 
-| Model | Distinct states | States generated | Depth | Time, one worker | Largest resident size |
-|---|---|---|---|---|---|
-| `Schedule` | 440,596 | 12,815,356 | 14 | 292.99 s | 1,106,968,576 bytes |
-| `Confirm4` | 3,106 | 349,199 | 21 | 4.10 s | 434,634,752 bytes |
+A model has two kinds of configuration. The full one is the model's own bound. Whoever
+changes a file of this directory runs it, through the machine's helper for timed runs, the
+verifier runs it at the gate of the phase in which the change lands, and this table
+records its states and the commit. CI runs the small ones alone: `30-r4-formal.sh` runs
+`days` and `queue` of `Schedule` and the one configuration of `Confirm4`, which is small
+enough, and prints their names, so that its PASS is never read as the full bound. To run
+a small configuration, name its file after `-config` in the command above.
 
-The counts are TLC's own lines. The times and sizes are from one run each on the
-development Mac (arm64, JDK 17.0.20.1) on 2026-11-11, through the machine's helper for
-timed runs, read with `/usr/bin/time -l`, under a 1-minute load of 8.55. The heap
-bound `-Xmx2g` keeps a run far below the machine's cap of 8,589,934,592 bytes. The time
-follows the load of the machine: under a load of 84.42 the `Schedule` run took 559.44 s
-with one worker and 112.59 s with `-workers 8`. More workers find the same states; the
-depth that TLC prints can then differ.
+| Model | Configuration | File | What it holds | Distinct states | States generated | Depth |
+|---|---|---|---|---|---|---|
+| `Schedule` | `full` | `Schedule.cfg` | five agents, three days, a queue of two, one restart, one deleted workflow | 440,596 | 12,867,673 | 14 |
+| `Schedule` | `days` | `Schedule-days.cfg` | the full one without `a5` and with a queue of one | 100,610 | 2,425,483 | 12 |
+| `Schedule` | `queue` | `Schedule-queue.cfg` | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
+| `Confirm4` | `full` | `Confirm4.cfg` | one run, two requests, two effects | 1,954 | 224,423 | 20 |
+
+| Configuration | Rows of the table of wrong designs that TLC reports in it | `Reach` properties that TLC reports violated in it |
+|---|---|---|
+| `full` of `Schedule` | 1 to 8, 17 to 21, 28 and 29 | all of `Schedule` |
+| `days` | 1 to 8, 18 to 21, 28 and 29 | all of `Schedule` but `ReachQueueTwo`, `ReachQueueOrder` and `ReachQueueIdle`, which need a queue of two |
+| `queue` | 17 | `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueIdle` |
+| `full` of `Confirm4` | 9 to 16 and 22 to 27 | all of `Confirm4` |
+
+The counts are TLC's own lines, with one worker, for `Schedule.tla` and `Confirm4.tla` as
+they stand since commit baa4190. The heap bound `-Xmx2g` keeps a run far
+below the machine's cap of 8,589,934,592 bytes of resident size. More workers find the
+same states; the depth that TLC prints can then differ.
 
 ## What a property is read from
 
