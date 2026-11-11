@@ -1,8 +1,48 @@
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 const BIN: &str = env!("CARGO_BIN_EXE_measure-peak");
 const LIMIT: &str = "268435456";
+const ROLE: &str = "HALVO_CAP_MEASURE_PEAK_CHILD";
+
+#[test]
+#[ignore = "a command that the other tests start under measure-peak"]
+fn child() {
+    let Ok(role) = std::env::var(ROLE) else {
+        return;
+    };
+    if role == "read-stdin" {
+        let mut text = Vec::new();
+        std::io::stdin().read_to_end(&mut text).unwrap();
+        println!("stdin bytes={}", text.len());
+        std::io::stdout().write_all(&text).unwrap();
+    }
+}
+
+fn this_test_as_a_command() -> Vec<String> {
+    vec![
+        std::env::current_exe().unwrap().display().to_string(),
+        "--ignored".into(),
+        "--exact".into(),
+        "child".into(),
+        "--nocapture".into(),
+        "--quiet".into(),
+    ]
+}
+
+fn expected_mode() -> &'static str {
+    if cfg!(windows) {
+        return "job";
+    }
+    let trials = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/r2/trials/cap.md");
+    let text = std::fs::read_to_string(trials).unwrap();
+    match text.lines().find(|l| l.starts_with("verdict taskpolicy: ")) {
+        Some("verdict taskpolicy: enforced") => "taskpolicy",
+        Some("verdict taskpolicy: not-enforced") => "poll",
+        other => panic!("cap.md has no verdict line of taskpolicy: {other:?}"),
+    }
+}
 
 struct Ran {
     code: i32,
@@ -114,7 +154,7 @@ fn three_runs_print_their_lines_the_median_and_the_checks() {
         format!(
             "measure-peak platform={} mode={} limit_bytes={LIMIT} runs=3",
             platform(),
-            halvo_cap::MODE.as_str()
+            expected_mode()
         )
     );
     let mut peaks = Vec::new();
@@ -209,6 +249,35 @@ fn the_output_of_a_command_goes_to_standard_error() {
 }
 
 #[test]
+fn the_command_reads_the_null_device_and_not_the_standard_input_of_measure_peak() {
+    let mut args = vec![
+        "--limit".to_string(),
+        LIMIT.into(),
+        "--runs".into(),
+        "1".into(),
+        "--".into(),
+    ];
+    args.extend(this_test_as_a_command());
+    let mut started = Command::new(BIN)
+        .args(&args)
+        .env(ROLE, "read-stdin")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = started.stdin.take().unwrap();
+    input.write_all(b"marker-of-the-standard-input\n").unwrap();
+    drop(input);
+    let output = started.wait_with_output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(output.status.code(), Some(0), "{stdout}{stderr}");
+    assert!(stderr.lines().any(|l| l == "stdin bytes=0"), "{stderr}");
+    assert!(!stderr.contains("marker-of-the-standard-input"), "{stderr}");
+}
+
+#[test]
 fn the_control_is_caught_at_the_limit() {
     let ran = measure(&["--limit", LIMIT, "--control"]);
     assert_eq!(ran.code, 0, "{}{}", ran.stdout, ran.stderr);
@@ -219,7 +288,7 @@ fn the_control_is_caught_at_the_limit() {
         format!(
             "measure-peak platform={} mode={} limit_bytes={LIMIT} control=yes",
             platform(),
-            halvo_cap::MODE.as_str()
+            expected_mode()
         )
     );
     assert!(

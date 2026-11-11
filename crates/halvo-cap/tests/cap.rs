@@ -69,6 +69,11 @@ fn child() {
         }
         "exit" => std::process::exit(number(1) as i32),
         "echo" => println!("hello from the child"),
+        "env-names" => {
+            for (name, _) in std::env::vars_os() {
+                println!("name {}", name.to_string_lossy());
+            }
+        }
         "grandchild" => {
             let status = std::process::Command::new(std::env::current_exe().unwrap())
                 .args(child_args())
@@ -261,6 +266,39 @@ fn the_environment_is_the_one_the_caller_gives() {
         .push((OsString::from(ROLE), OsString::from("exit 4")));
     let outcome = run(spec, limit(256)).unwrap();
     assert_eq!(outcome.exit, Exit::Code(4), "{outcome:?}");
+}
+
+#[test]
+fn the_child_gets_no_variable_of_this_process_that_the_caller_does_not_give() {
+    let mut spec = spec("env-names");
+    spec.env
+        .retain(|(name, _)| name == ROLE || name == "SystemRoot");
+    spec.env
+        .push((OsString::from("HALVO_CAP_GIVEN"), OsString::from("1")));
+    let given: Vec<OsString> = spec.env.iter().map(|(name, _)| name.clone()).collect();
+    assert!(std::env::vars_os().any(|(name, _)| !given.contains(&name)));
+    let (mut reader, writer) = std::io::pipe().unwrap();
+    spec.stdout = Stdio::from(writer);
+    let read = std::thread::spawn(move || {
+        let mut text = String::new();
+        reader.read_to_string(&mut text).unwrap();
+        text
+    });
+    let outcome = run(spec, limit(256)).unwrap();
+    assert_eq!(outcome.exit, Exit::Code(0), "{outcome:?}");
+    let text = read.join().unwrap();
+    let seen: Vec<&str> = text
+        .lines()
+        .filter_map(|l| l.strip_prefix("name "))
+        .collect();
+    assert!(seen.contains(&"HALVO_CAP_GIVEN"), "{text}");
+    let leaked: Vec<String> = std::env::vars_os()
+        .map(|(name, _)| name)
+        .filter(|name| !given.contains(name))
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| seen.contains(&name.as_str()))
+        .collect();
+    assert!(leaked.is_empty(), "variables not given: {leaked:?}");
 }
 
 #[cfg(windows)]

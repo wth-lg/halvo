@@ -213,6 +213,20 @@ fn without_the_cache_variable_no_lock_is_taken() {
 }
 
 #[test]
+fn the_take_leaves_the_content_of_the_lock_file_as_it_was() {
+    let home = fresh_home("model-lock-content");
+    let lock = expected_lock(&home);
+    std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    std::fs::write(&lock, "left by an earlier run\n").unwrap();
+    let (code, line) = loader_line("try", &home);
+    assert_eq!(code, 0, "{line}");
+    assert_eq!(
+        std::fs::read_to_string(&lock).unwrap(),
+        "left by an earlier run\n"
+    );
+}
+
+#[test]
 fn a_loader_that_exits_frees_the_lock() {
     let home = fresh_home("model-lock-exit");
     let (code, line) = loader_line("try", &home);

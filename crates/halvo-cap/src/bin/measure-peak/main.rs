@@ -63,6 +63,10 @@ fn measure(limit: Limit, runs: u64, command: Vec<OsString>) -> ExitCode {
     status(checks.all_ok())
 }
 
+fn control_checks_line(ok: bool) -> String {
+    format!("checks control={}", report::word(ok))
+}
+
 fn control(limit: Limit) -> ExitCode {
     let Some(allocate) = control::allocate_bytes(limit) else {
         return refuse("usage", "--limit plus 16 MiB is above 2^64 - 1");
@@ -89,7 +93,7 @@ fn control(limit: Limit) -> ExitCode {
         verdict.word.as_str(),
         verdict.peak_bytes
     );
-    let _ = writeln!(out, "checks control={}", report::word(ok));
+    let _ = writeln!(out, "{}", control_checks_line(ok));
     let _ = out.flush();
     status(ok)
 }
@@ -108,5 +112,16 @@ fn main() -> ExitCode {
             runs,
             command,
         }) => measure(limit, runs, command),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_checks_line_of_the_control_follows_its_verdict() {
+        assert_eq!(control_checks_line(true), "checks control=ok");
+        assert_eq!(control_checks_line(false), "checks control=miss");
     }
 }
