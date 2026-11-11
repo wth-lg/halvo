@@ -76,7 +76,7 @@ measure() {
   for row in 2 3; do
     path=$(cell "$row" 2)
     blob=$(cell "$row" 3)
-    now=$(git hash-object -- "$path" 2>>"$artifacts/hash-object.err") || now=
+    now=$(git hash-object --no-filters -- "$path" 2>>"$artifacts/hash-object.err") || now=
     [ "$now" = "$blob" ] || stale=$((stale + 1))
   done
 
@@ -156,6 +156,12 @@ check() {
     CI_D_REPO=$case_repo
     CI_D_ARTIFACTS=$work/artifacts/$1
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT R6_OUTCOMES_TOOL
+    if [ -n "$crlf_filter" ]; then
+      GIT_CONFIG_COUNT=1
+      GIT_CONFIG_KEY_0=core.autocrlf
+      GIT_CONFIG_VALUE_0=true
+      export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+    fi
     sh "$self" 2>&1
   )
   code=$?
@@ -180,6 +186,7 @@ check() {
     rejected=$((rejected + 1))
   fi
   STUB_TEST_EXIT=0
+  crlf_filter=
 }
 
 self_test() {
@@ -217,6 +224,7 @@ EOF
   rejected=0
   wrong=
   STUB_TEST_EXIT=0
+  crlf_filter=
 
   fixture waiting -
   check waiting PASS "outcomes rows=0 models=0 sources=0 same=- stale=-
@@ -260,6 +268,20 @@ FAIL $name (differs)"
   rehash "$driver_path" 2
   check import-refused FAIL "outcomes rows=132 models=6 sources=2 same=no stale=0
 FAIL $name (import)"
+  fixture stale-and-the-import-ran full
+  edit "$driver_path" '/^attempt model=m_tiny machine=mac task=bill seed=1 kind=replay i=3 /d'
+  check stale-and-the-import-ran FAIL "outcomes rows=131 models=6 sources=2 same=no stale=1
+FAIL $name (stale)"
+  fixture stale-and-the-import-refused full
+  edit "$driver_path" 's/^\(attempt model=m_small machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=maybe /'
+  check stale-and-the-import-refused FAIL "outcomes rows=132 models=6 sources=2 same=no stale=1
+FAIL $name (stale)"
+  fixture crlf-that-a-filter-hides full
+  awk '{ printf "%s\r\n", $0 }' "$case_repo/$driver_path" >"$work/crlf" || exit 2
+  cp "$work/crlf" "$case_repo/$driver_path" || exit 2
+  crlf_filter=1
+  check crlf-that-a-filter-hides FAIL "outcomes rows=132 models=6 sources=2 same=no stale=1
+FAIL $name (stale)"
   fixture models-fits-flipped full
   edit "$outcomes/models.tsv" "2s/${tab}not-measured${tab}/${tab}no${tab}/"
   check models-fits-flipped FAIL "same=no stale=0
