@@ -311,21 +311,18 @@ fn tree_pids(roots: &[u32]) -> Vec<u32> {
     let table = procs::table().unwrap_or_default();
     let mut pids = Vec::new();
     for root in roots {
-        let mut tree = procs::descendants(&table, &[*root]);
-        let since = table
-            .iter()
-            .find(|p| p.pid == *root)
-            .map(|p| p.started_us)
-            .unwrap_or(u64::MAX);
-        let bundles: Vec<PathBuf> = table
-            .iter()
-            .find(|p| p.pid == *root)
-            .and_then(|p| p.exe.as_deref().map(procs::bundle_root))
+        let Some(r) = table.iter().find(|p| p.pid == *root) else {
+            continue;
+        };
+        let tree = procs::descendants(&table, std::slice::from_ref(r));
+        let bundles: Vec<PathBuf> = r
+            .exe
+            .as_deref()
+            .map(procs::bundle_root)
             .into_iter()
             .collect();
-        let adopted = procs::adopted(&table, &tree, since, &bundles);
-        tree.extend(adopted);
-        pids.extend(tree);
+        let adopted = procs::adopted(&table, &tree, r.started_us, &bundles);
+        pids.extend(tree.iter().chain(adopted.iter()).map(|p| p.pid));
     }
     pids
 }

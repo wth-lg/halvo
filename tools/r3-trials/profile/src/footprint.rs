@@ -88,17 +88,18 @@ pub trait Stopper {
 
 #[cfg(target_os = "macos")]
 pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measured> {
-    use r3_web::procs::{adopted, descendants, table, Proc};
+    use r3_web::procs::{adopted, descendants, running, same, table, Proc};
     let start = now_us();
     let mut child: Child = cmd.spawn()?;
     let root = child.id();
-    let command_exe = table()?
-        .into_iter()
+    let first = table()?;
+    let command_exe = first
+        .iter()
         .find(|p| p.pid == root)
-        .and_then(|p| p.exe);
+        .and_then(|p| p.exe.clone());
     let mut m = Measured::default();
-    let mut seen: Vec<u32> = vec![root];
-    let mut taken: Vec<u32> = Vec::new();
+    let mut seen: Vec<Proc> = first.into_iter().filter(|p| p.pid == root).collect();
+    let mut taken: Vec<Proc> = Vec::new();
     let mut lifetime: std::collections::BTreeMap<u32, u64> = std::collections::BTreeMap::new();
     let mut exited: Option<(ExitStatus, Instant)> = None;
     let mut signalled = false;
@@ -107,25 +108,28 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
             .into_iter()
             .filter(|p| p.started_us >= start)
             .collect();
-        for pid in descendants(&fresh, &seen) {
-            if !seen.contains(&pid) {
-                seen.push(pid);
+        if seen.is_empty() {
+            seen.extend(fresh.iter().filter(|p| p.pid == root).cloned());
+        }
+        for p in descendants(&fresh, &seen) {
+            if !seen.iter().any(|s| same(s, &p)) {
+                seen.push(p);
             }
         }
         let exes: Vec<PathBuf> = fresh
             .iter()
-            .filter(|p| seen.contains(&p.pid))
+            .filter(|p| seen.iter().any(|s| same(s, p)))
             .filter_map(|p| p.exe.clone())
             .collect();
         let roots = adoption_roots(command_exe.as_deref(), &exes);
-        for pid in adopted(&fresh, &seen, start, &roots) {
-            if !taken.contains(&pid) {
-                taken.push(pid);
+        for p in adopted(&fresh, &seen, start, &roots) {
+            if !taken.iter().any(|t| same(t, &p)) {
+                taken.push(p);
             }
         }
         let members: Vec<&Proc> = fresh
             .iter()
-            .filter(|p| seen.contains(&p.pid) || taken.contains(&p.pid))
+            .filter(|p| seen.iter().any(|s| same(s, p)) || taken.iter().any(|t| same(t, p)))
             .collect();
         let mut sum = 0u64;
         let mut parts: Vec<(String, u64)> = Vec::new();
@@ -163,10 +167,7 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
             unsafe { libc::kill(root as libc::c_int, libc::SIGTERM) };
         }
         if let Some((_, at)) = exited {
-            let living = members
-                .iter()
-                .filter(|p| r3_web::procs::alive(p.pid))
-                .count() as u64;
+            let living = members.iter().filter(|p| running(p)).count() as u64;
             if living == 0 || at.elapsed() > ORPHAN_WAIT {
                 m.left = living;
                 break;

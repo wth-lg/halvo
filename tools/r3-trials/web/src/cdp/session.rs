@@ -151,12 +151,18 @@ async fn remove_profile(dir: &Path) -> bool {
     }
 }
 
-fn push_new(into: &mut Vec<u32>, from: impl IntoIterator<Item = u32>) {
-    for pid in from {
-        if !into.contains(&pid) {
-            into.push(pid);
+fn push_new(into: &mut Vec<procs::Proc>, from: Vec<procs::Proc>) {
+    for p in from {
+        if !into.iter().any(|q| procs::same(q, &p)) {
+            into.push(p);
         }
     }
+}
+
+fn pids(list: &[procs::Proc]) -> Vec<u32> {
+    let mut v: Vec<u32> = list.iter().map(|p| p.pid).collect();
+    v.sort_unstable();
+    v
 }
 
 impl Executor {
@@ -235,18 +241,16 @@ impl Executor {
     pub async fn stop_and_remove(self) -> Stopped {
         let profile = self.profile.clone();
         let before = procs::table().unwrap_or_default();
-        let mut tree: Vec<u32> = self
+        let root = self
             .pid
-            .map(|root| procs::descendants(&before, &[root]))
-            .unwrap_or_default();
-        let since = self
-            .pid
-            .and_then(|root| before.iter().find(|p| p.pid == root))
-            .map(|p| p.started_us)
-            .unwrap_or(u64::MAX);
-        let roots: Vec<PathBuf> = self
-            .pid
-            .and_then(|root| before.iter().find(|p| p.pid == root))
+            .and_then(|pid| before.iter().find(|p| p.pid == pid).cloned());
+        let mut tree: Vec<procs::Proc> = root
+            .iter()
+            .flat_map(|r| procs::descendants(&before, std::slice::from_ref(r)))
+            .collect();
+        let since = root.as_ref().map(|p| p.started_us).unwrap_or(u64::MAX);
+        let roots: Vec<PathBuf> = root
+            .as_ref()
             .and_then(|p| p.exe.as_deref().map(procs::bundle_root))
             .into_iter()
             .collect();
@@ -257,19 +261,23 @@ impl Executor {
             let now = procs::table().unwrap_or_default();
             let grown = procs::descendants(&now, &tree);
             push_new(&mut tree, grown);
-            push_new(&mut adopted, procs::adopted(&now, &tree, since, &roots));
-            let living: Vec<u32> = tree
+            let more = procs::adopted(&now, &tree, since, &roots);
+            push_new(&mut adopted, more);
+            let living: Vec<procs::Proc> = tree
                 .iter()
                 .chain(adopted.iter())
-                .copied()
-                .filter(|p| procs::alive(*p))
+                .filter(|p| procs::running(p))
+                .cloned()
                 .collect();
             if living.is_empty() || stopped_at.elapsed() > STOP_WAIT {
                 break living;
             }
             if stopped_at.elapsed() > KILL_AFTER {
-                for pid in living.iter().filter(|p| tree.contains(p)) {
-                    procs::kill(*pid);
+                for p in living
+                    .iter()
+                    .filter(|p| tree.iter().any(|t| procs::same(t, p)))
+                {
+                    procs::kill(p);
                 }
             }
             tokio::time::sleep(POLL).await;
@@ -278,12 +286,10 @@ impl Executor {
             Some(dir) => remove_profile(dir).await,
             None => false,
         };
-        tree.sort_unstable();
-        adopted.sort_unstable();
         Stopped {
-            pids: tree,
-            adopted,
-            left,
+            pids: pids(&tree),
+            adopted: pids(&adopted),
+            left: pids(&left),
             profile,
             removed,
         }
@@ -502,8 +508,9 @@ mod tests {
         assert!(!a_dir.exists());
         assert!(stopped.pids.len() >= 2, "{stopped:?}");
         assert!(stopped.left.is_empty(), "{stopped:?}");
+        let table = procs::table().unwrap();
         assert!(
-            stopped.pids.iter().all(|p| !procs::alive(*p)),
+            table.iter().all(|p| !stopped.pids.contains(&p.pid)),
             "{stopped:?}"
         );
         let b_dir = scratch.join("b");

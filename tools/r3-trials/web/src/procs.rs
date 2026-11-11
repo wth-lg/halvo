@@ -8,22 +8,36 @@ pub struct Proc {
     pub exe: Option<PathBuf>,
 }
 
-pub fn descendants(table: &[Proc], roots: &[u32]) -> Vec<u32> {
-    let mut tree: Vec<u32> = Vec::new();
+pub fn same(a: &Proc, b: &Proc) -> bool {
+    a.pid == b.pid && a.started_us == b.started_us
+}
+
+pub fn descendants(table: &[Proc], roots: &[Proc]) -> Vec<Proc> {
+    let mut tree: Vec<Proc> = Vec::new();
     for r in roots {
-        if !tree.contains(r) {
-            tree.push(*r);
+        if !tree.iter().any(|t| same(t, r)) {
+            tree.push(r.clone());
         }
     }
     let mut i = 0;
     while i < tree.len() {
-        let parent = tree[i];
+        let parent = tree[i].clone();
+        i += 1;
+        if table
+            .iter()
+            .any(|p| p.pid == parent.pid && p.started_us != parent.started_us)
+        {
+            continue;
+        }
         for p in table {
-            if p.ppid == parent && p.pid != parent && !tree.contains(&p.pid) {
-                tree.push(p.pid);
+            let child = p.ppid == parent.pid
+                && p.pid != parent.pid
+                && p.started_us != 0
+                && p.started_us >= parent.started_us;
+            if child && !tree.iter().any(|t| t.pid == p.pid) {
+                tree.push(p.clone());
             }
         }
-        i += 1;
     }
     tree
 }
@@ -41,10 +55,10 @@ pub fn bundle_root(exe: &Path) -> PathBuf {
     exe.parent().map(Path::to_path_buf).unwrap_or_default()
 }
 
-pub fn adopted(table: &[Proc], tree: &[u32], since_us: u64, roots: &[PathBuf]) -> Vec<u32> {
+pub fn adopted(table: &[Proc], tree: &[Proc], since_us: u64, roots: &[PathBuf]) -> Vec<Proc> {
     table
         .iter()
-        .filter(|p| p.ppid == 1 && !tree.contains(&p.pid) && p.started_us >= since_us)
+        .filter(|p| p.ppid == 1 && !tree.iter().any(|t| same(t, p)) && p.started_us >= since_us)
         .filter(|p| {
             p.exe.as_ref().is_some_and(|e| {
                 roots
@@ -52,8 +66,32 @@ pub fn adopted(table: &[Proc], tree: &[u32], since_us: u64, roots: &[PathBuf]) -
                     .any(|r| !r.as_os_str().is_empty() && e.starts_with(r))
             })
         })
-        .map(|p| p.pid)
+        .cloned()
         .collect()
+}
+
+#[cfg(target_os = "macos")]
+const SZOMB: u32 = 5;
+
+#[cfg(target_os = "macos")]
+fn bsd_info(pid: u32) -> Option<libc::proc_bsdinfo> {
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    let r = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            (&mut info as *mut libc::proc_bsdinfo).cast(),
+            size,
+        )
+    };
+    (r == size).then_some(info)
+}
+
+#[cfg(target_os = "macos")]
+fn started_of(info: &libc::proc_bsdinfo) -> u64 {
+    info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec
 }
 
 #[cfg(target_os = "macos")]
@@ -72,20 +110,9 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     pids.truncate(got as usize);
     let mut out = Vec::with_capacity(pids.len());
     for pid in pids.into_iter().filter(|p| *p > 0) {
-        let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
-        let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
-        let r = unsafe {
-            libc::proc_pidinfo(
-                pid,
-                libc::PROC_PIDTBSDINFO,
-                0,
-                (&mut info as *mut libc::proc_bsdinfo).cast(),
-                size,
-            )
-        };
-        if r != size {
+        let Some(info) = bsd_info(pid as u32) else {
             continue;
-        }
+        };
         let mut buf = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
         let n = unsafe { libc::proc_pidpath(pid, buf.as_mut_ptr().cast(), buf.len() as u32) };
         let exe = (n > 0).then(|| {
@@ -95,11 +122,59 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
         out.push(Proc {
             pid: pid as u32,
             ppid: info.pbi_ppid,
-            started_us: info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec,
+            started_us: started_of(&info),
             exe,
         });
     }
     Ok(out)
+}
+
+#[cfg(target_os = "macos")]
+pub fn running(p: &Proc) -> bool {
+    bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us && i.pbi_status != SZOMB)
+}
+
+#[cfg(target_os = "macos")]
+pub fn kill(p: &Proc) -> bool {
+    if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
+        return false;
+    }
+    unsafe { libc::kill(p.pid as libc::c_int, libc::SIGKILL) == 0 }
+}
+
+#[cfg(windows)]
+fn open(pid: u32, access: u32) -> Option<windows_sys::Win32::Foundation::HANDLE> {
+    let h = unsafe { windows_sys::Win32::System::Threading::OpenProcess(access, 0, pid) };
+    (!h.is_null()).then_some(h)
+}
+
+#[cfg(windows)]
+fn created_us(h: windows_sys::Win32::Foundation::HANDLE) -> Option<u64> {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::System::Threading::GetProcessTimes;
+    let zero = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let (mut created, mut exited, mut kernel, mut user) = (zero, zero, zero, zero);
+    let ok = unsafe { GetProcessTimes(h, &mut created, &mut exited, &mut kernel, &mut user) };
+    if ok == 0 {
+        return None;
+    }
+    let ticks = ((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64;
+    ticks.checked_sub(116_444_736_000_000_000).map(|t| t / 10)
+}
+
+#[cfg(windows)]
+fn started_of_pid(pid: u32) -> u64 {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION;
+    let Some(h) = open(pid, PROCESS_QUERY_LIMITED_INFORMATION) else {
+        return 0;
+    };
+    let t = created_us(h);
+    unsafe { CloseHandle(h) };
+    t.unwrap_or(0)
 }
 
 #[cfg(windows)]
@@ -126,7 +201,7 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
         out.push(Proc {
             pid: entry.th32ProcessID,
             ppid: entry.th32ParentProcessID,
-            started_us: 0,
+            started_us: started_of_pid(entry.th32ProcessID),
             exe: Some(PathBuf::from(String::from_utf16_lossy(
                 &entry.szExeFile[..len],
             ))),
@@ -137,6 +212,37 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     Ok(out)
 }
 
+#[cfg(windows)]
+pub fn running(p: &Proc) -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    let Some(h) = open(p.pid, PROCESS_QUERY_LIMITED_INFORMATION) else {
+        return false;
+    };
+    let same_process = created_us(h) == Some(p.started_us);
+    let mut code = 0u32;
+    let ok = unsafe { GetExitCodeProcess(h, &mut code) };
+    unsafe { CloseHandle(h) };
+    same_process && ok != 0 && code == STILL_ACTIVE as u32
+}
+
+#[cfg(windows)]
+pub fn kill(p: &Proc) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        TerminateProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
+    };
+    let Some(h) = open(p.pid, PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION) else {
+        return false;
+    };
+    let same_process = created_us(h) == Some(p.started_us);
+    let killed = same_process && unsafe { TerminateProcess(h, 1) } != 0;
+    unsafe { CloseHandle(h) };
+    killed
+}
+
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     Err(std::io::Error::new(
@@ -145,50 +251,14 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     ))
 }
 
-#[cfg(unix)]
-pub fn alive(pid: u32) -> bool {
-    let r = unsafe { libc_kill(pid as i32, 0) };
-    r == 0 || std::io::Error::last_os_error().raw_os_error() == Some(1)
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn running(_p: &Proc) -> bool {
+    false
 }
 
-#[cfg(unix)]
-pub fn kill(pid: u32) {
-    unsafe { libc_kill(pid as i32, 9) };
-}
-
-#[cfg(unix)]
-extern "C" {
-    #[link_name = "kill"]
-    fn libc_kill(pid: i32, sig: i32) -> i32;
-}
-
-#[cfg(windows)]
-pub fn alive(pid: u32) -> bool {
-    use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
-    use windows_sys::Win32::System::Threading::{
-        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-    };
-    let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if h.is_null() {
-        return false;
-    }
-    let mut code = 0u32;
-    let ok = unsafe { GetExitCodeProcess(h, &mut code) };
-    unsafe { CloseHandle(h) };
-    ok != 0 && code == STILL_ACTIVE as u32
-}
-
-#[cfg(windows)]
-pub fn kill(pid: u32) {
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
-    let h = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
-    if !h.is_null() {
-        unsafe {
-            TerminateProcess(h, 1);
-            CloseHandle(h);
-        }
-    }
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn kill(_p: &Proc) -> bool {
+    false
 }
 
 #[cfg(test)]
@@ -204,6 +274,12 @@ mod tests {
         }
     }
 
+    fn pids(tree: &[Proc]) -> Vec<u32> {
+        let mut v: Vec<u32> = tree.iter().map(|p| p.pid).collect();
+        v.sort_unstable();
+        v
+    }
+
     #[test]
     fn descendants_walk_every_generation_once() {
         let t = vec![
@@ -214,10 +290,39 @@ mod tests {
             p(13, 1, 8, "/x/other"),
             p(14, 12, 9, "/x/great"),
         ];
-        let mut d = descendants(&t, &[10]);
-        d.sort_unstable();
-        assert_eq!(d, vec![10, 11, 12, 14]);
-        assert_eq!(descendants(&t, &[13]), vec![13]);
+        assert_eq!(
+            pids(&descendants(&t, &[t[1].clone()])),
+            vec![10, 11, 12, 14]
+        );
+        assert_eq!(pids(&descendants(&t, &[t[4].clone()])), vec![13]);
+    }
+
+    #[test]
+    fn a_stale_parent_pid_brings_no_foreign_process_into_the_tree() {
+        let t = vec![
+            p(500, 9, 1_000, "/b/browser"),
+            p(501, 500, 1_100, "/b/helper"),
+            p(777, 501, 50, "/other/program"),
+            p(778, 777, 60, "/other/child"),
+        ];
+        assert_eq!(pids(&descendants(&t, &[t[0].clone()])), vec![500, 501]);
+    }
+
+    #[test]
+    fn a_reused_pid_is_neither_walked_nor_taken_for_the_recorded_process() {
+        let recorded = vec![
+            p(500, 9, 1_000, "/b/browser"),
+            p(501, 500, 1_100, "/b/helper"),
+        ];
+        let now = vec![
+            p(500, 9, 1_000, "/b/browser"),
+            p(501, 3, 5_000, "/other/program"),
+            p(779, 501, 5_100, "/other/child"),
+        ];
+        let tree = descendants(&now, &recorded);
+        assert_eq!(pids(&tree), vec![500, 501]);
+        assert!(tree.iter().all(|m| recorded.iter().any(|r| same(r, m))));
+        assert_eq!(pids(&descendants(&now, &[now[0].clone()])), vec![500]);
     }
 
     #[test]
@@ -256,10 +361,54 @@ mod tests {
             p(24, 20, 103, &format!("{app}/Contents/Frameworks/H/Helper")),
         ];
         let roots = vec![PathBuf::from(app)];
-        assert_eq!(adopted(&t, &[20, 24], 100, &roots), vec![21]);
+        let tree = vec![t[1].clone(), t[5].clone()];
+        assert_eq!(pids(&adopted(&t, &tree, 100, &roots)), vec![21]);
     }
 
-    #[cfg(unix)]
+    fn found(pid: u32) -> Option<Proc> {
+        table().unwrap().into_iter().find(|p| p.pid == pid)
+    }
+
+    fn wait_for(cond: impl Fn() -> bool) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !cond() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        cond()
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn kill_reads_the_creation_time_again_and_acts_only_on_the_recorded_process() {
+        let mut child = if cfg!(windows) {
+            std::process::Command::new("ping")
+                .args(["-n", "30", "127.0.0.1"])
+                .stdout(std::process::Stdio::null())
+                .spawn()
+                .unwrap()
+        } else {
+            std::process::Command::new("/bin/sleep")
+                .arg("30")
+                .spawn()
+                .unwrap()
+        };
+        let real = found(child.id()).expect("the child is in the table");
+        assert!(real.started_us > 0, "{real:?}");
+        let other = Proc {
+            started_us: real.started_us + 1,
+            ..real.clone()
+        };
+        assert!(!running(&other));
+        assert!(!kill(&other));
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(running(&real));
+        assert!(child.try_wait().unwrap().is_none());
+        assert!(kill(&real));
+        let _ = child.wait();
+        assert!(wait_for(|| !running(&real)));
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn table_sees_a_grandchild_and_kill_ends_it() {
         let mut child = std::process::Command::new("/bin/sh")
@@ -269,23 +418,24 @@ mod tests {
         let root = child.id();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let tree = loop {
-            let tree = descendants(&table().unwrap(), &[root]);
+            let table = table().unwrap();
+            let tree = table
+                .iter()
+                .find(|p| p.pid == root)
+                .map(|r| descendants(&table, std::slice::from_ref(r)))
+                .unwrap_or_default();
             if tree.len() >= 3 || std::time::Instant::now() > deadline {
                 break tree;
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         };
         assert_eq!(tree.len(), 3, "{tree:?}");
-        assert!(tree.iter().all(|pid| alive(*pid)));
-        for pid in &tree {
-            kill(*pid);
+        assert!(tree.iter().all(running));
+        for p in &tree {
+            assert!(kill(p));
         }
         let _ = child.wait();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while tree.iter().any(|pid| alive(*pid)) && std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-        assert!(tree.iter().all(|pid| !alive(*pid)), "{tree:?}");
+        assert!(wait_for(|| !tree.iter().any(running)), "{tree:?}");
     }
 
     #[cfg(windows)]
@@ -298,21 +448,22 @@ mod tests {
         let root = child.id();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let tree = loop {
-            let tree = descendants(&table().unwrap(), &[root]);
+            let table = table().unwrap();
+            let tree = table
+                .iter()
+                .find(|p| p.pid == root)
+                .map(|r| descendants(&table, std::slice::from_ref(r)))
+                .unwrap_or_default();
             if tree.len() >= 2 || std::time::Instant::now() > deadline {
                 break tree;
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         };
         assert!(tree.len() >= 2, "{tree:?}");
-        for pid in &tree {
-            kill(*pid);
+        for p in &tree {
+            assert!(kill(p));
         }
         let _ = child.wait();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while tree.iter().any(|pid| alive(*pid)) && std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-        assert!(tree.iter().all(|pid| !alive(*pid)), "{tree:?}");
+        assert!(wait_for(|| !tree.iter().any(running)), "{tree:?}");
     }
 }
