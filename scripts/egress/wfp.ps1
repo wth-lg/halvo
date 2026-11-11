@@ -226,6 +226,8 @@ switch ($Action) {
     'setup' {
         try {
             Remove-Left
+            $null = & icacls.exe $Dir /setintegritylevel '(OI)(CI)H'
+            if ($LASTEXITCODE -ne 0) { throw 'icacls could not keep the tree from writing the run directory' }
             $null = & auditpol.exe /set "/subcategory:$FilteringPlatformConnection" /success:enable /failure:enable
             if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Filtering Platform Connection audit' }
             $null = & auditpol.exe /set "/subcategory:$ProcessCreation" /success:enable

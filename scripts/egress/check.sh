@@ -53,7 +53,7 @@ sandbox_rights() {
 
 sandbox_profile() {
   printf '(version 1)\n(allow default)\n'
-  printf '(deny file-write* (subpath "%s"))\n(allow file-write* (subpath "%s/run"))\n' "$real_dir" "$real_dir"
+  printf '(deny file-write* (subpath "%s"))\n' "$real_dir"
   [ "$2" -eq 1 ] || return 0
   printf '(deny network-outbound (with message "%s other"))\n' "$1"
   printf '(allow network-outbound (remote unix-socket))\n'
@@ -112,8 +112,10 @@ sandbox_setup() {
 
 sandbox_launch() {
   run_dir=$1
-  shift
-  /usr/bin/sandbox-exec -f "$run_dir/profile.sb" "$@"
+  shift 2
+  {
+    run_reported=$(/usr/bin/sandbox-exec -f "$run_dir/profile.sb" "$runner" run fd3 "$@" 3>&1 1>&4 4>&-)
+  } 4>&1
 }
 
 sandbox_collect() {
@@ -216,12 +218,19 @@ wfp_setup() {
 }
 
 wfp_launch() {
-  shift
-  "$@" <&0 &
+  run_dir=$1
+  shift 2
+  "$runner" run "$run_dir/status" "$@" <&0 &
   launched_pid=$!
   root_pid=0
   read -r root_pid <"/proc/$launched_pid/winpid" || root_pid=0
   wait "$launched_pid"
+  launched=$?
+  run_reported=
+  if [ -f "$run_dir/status" ]; then
+    read -r run_reported <"$run_dir/status" || run_reported=
+  fi
+  return "$launched"
 }
 
 wfp_collect() {
@@ -434,7 +443,6 @@ new_run() {
   token=halvo-egress-$n-$$-$(date +%s) || refuse output "target/egress/$n"
   printf 'pid=%s\ntoken=%s\n' "$$" "$token" >"$dir/state" || refuse output "target/egress/$n/state"
   : >"$dir/denied.log" || refuse output "target/egress/$n/denied.log"
-  mkdir "$dir/run" || refuse output "target/egress/$n/run"
 }
 
 # first_form LISTFILE DENY COMMAND...: one run of the first form; sets run_status, run_denied and run_code.
@@ -445,11 +453,14 @@ first_form() {
   new_run
   printf '%s\n' "$entries" >"$dir/entries" || refuse output "target/egress/$n/entries"
   mode_setup "$dir" "$token" "$run_deny" "$@"
-  mode_launch "$dir" "$runner" run "$dir/run/status" "$dir/run/runner.pid" -- "$@"
+  run_reported=
+  mode_launch "$dir" "$runner" -- "$@"
   launched=$?
   run_status=
-  if [ -f "$dir/run/status" ]; then
-    read -r run_status <"$dir/run/status"
+  if [ "$launched" -eq 0 ]; then
+    case $run_reported in
+      not-started | signal-[0-9]* | [0-9]* | -[0-9]*) run_status=$run_reported ;;
+    esac
   fi
   if [ -z "$run_status" ]; then
     if [ "$launched" -gt 128 ]; then

@@ -7,15 +7,17 @@
 //!   so that the probe is a grandchild of the shell of probe.sh under another image name.
 //! - `connect NAME`: makes the connect, send or lookup of probe NAME and exits 0 when it
 //!   succeeded, 1 when it failed or 5 s passed.
-//! - `run STATUS PID -- COMMAND [ARG...]`: starts COMMAND with the caller's standard streams,
-//!   environment and directory, writes its own process id to PID before the start, and writes
-//!   to STATUS the exit code, `signal-<n>` or `not-started`; it exits 0 once STATUS is written.
+//! - `run STATUS -- COMMAND [ARG...]`: starts COMMAND with the caller's standard streams,
+//!   environment and directory, and writes to STATUS the exit code, `signal-<n>` or
+//!   `not-started`; it exits 0 once STATUS is written. STATUS `fd3` is the descriptor 3 that the
+//!   caller passes, which COMMAND does not inherit. On Windows COMMAND runs with a token that
+//!   holds no administrator rights.
 //! - `serve PORT STOP READY`: listens on 127.0.0.1:PORT, writes READY once bound, accepts and
 //!   closes connections until the file STOP exists or 120 s pass; it exits 3 when the bind fails.
 
 use std::env;
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Write};
 use std::net::{
     Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener, TcpStream,
     ToSocketAddrs, UdpSocket,
@@ -48,7 +50,7 @@ fn main() {
     let code = match role {
         "spawn" if args.len() == 3 && NAMES.contains(&args[2].as_str()) => spawn(&args[2]),
         "connect" if args.len() == 3 && NAMES.contains(&args[2].as_str()) => connect(&args[2]),
-        "run" if args.len() >= 6 && args[4] == "--" => run(&args[2], &args[3], &args[5..]),
+        "run" if args.len() >= 5 && args[3] == "--" => run(&args[2], &args[4..]),
         "serve" if args.len() == 5 => serve(&args[2], &args[3], &args[4]),
         _ => {
             eprintln!("REFUSED usage: {}", args[1..].join(" "));
@@ -249,15 +251,35 @@ fn listen() -> bool {
     listener.accept().is_ok()
 }
 
-fn run(status_path: &str, pid_path: &str, command: &[String]) -> i32 {
-    if fs::write(pid_path, format!("{}\n", std::process::id())).is_err() {
+fn run(status_path: &str, command: &[String]) -> i32 {
+    let Some(mut sink) = status_sink(status_path) else {
         return 2;
-    }
+    };
     let status = start(command);
-    match fs::write(status_path, format!("{status}\n")) {
+    match sink.write_all(format!("{status}\n").as_bytes()) {
         Ok(()) => 0,
         Err(_) => 2,
     }
+}
+
+#[cfg(unix)]
+fn status_sink(path: &str) -> Option<fs::File> {
+    use std::os::unix::io::FromRawFd;
+    extern "C" {
+        fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+    }
+    if path != "fd3" {
+        return fs::File::create(path).ok();
+    }
+    if unsafe { fcntl(3, 2, 1) } == -1 {
+        return None;
+    }
+    Some(unsafe { fs::File::from_raw_fd(3) })
+}
+
+#[cfg(not(unix))]
+fn status_sink(path: &str) -> Option<fs::File> {
+    fs::File::create(path).ok()
 }
 
 #[cfg(not(windows))]
