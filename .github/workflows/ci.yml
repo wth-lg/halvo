@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,23 +71,249 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Reader 13 launch-service probes
+        shell: bash
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/reader13.sh" <<'READER13'
+          # mac-probe.sh: the reader's probes of the launch service on the hosted macOS runner (claim 8).
+          # It runs as one step of a scratch workflow. For each candidate rule it runs the check of a patched
+          # copy of the head (one more line in the profile, taken from EGRESS_EXTRA) around six opens through
+          # the launch service, and counts what reached a listener that this step started on 127.0.0.1:47203.
+          # Every line that matters starts with "v13 ".
+          set +e
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 0
+          out=$RUNNER_TEMP/v13
+          mkdir -p "$out/site"
+          : >"$out/recorded"
+          p() {
+            printf 'v13 %s\n' "$*"
+          }
+          p "system $(sw_vers -productVersion) $(sw_vers -buildVersion) head $(git rev-parse HEAD)"
+          wt=$RUNNER_TEMP/v13-wt
+          git worktree add -q --detach "$wt" HEAD || {
+            p "worktree failed"
+            exit 0
+          }
+          python3 -I - "$wt/scripts/egress/check.sh" <<'PY'
+          import sys
+          path = sys.argv[1]
+          text = open(path).read()
+          old = """  printf '(deny mach-lookup (global-name "com.apple.nsurlsessiond") (global-name "com.apple.nsurlsessiond-launchondemand") (with message "%s session"))\\n' "$1"\n"""
+          new = old + """  [ -z "${EGRESS_EXTRA:-}" ] || printf '%s\\n' "$EGRESS_EXTRA" | sed "s/TOKEN/$1/g"\n"""
+          assert text.count(old) == 1, text.count(old)
+          open(path, "w").write(text.replace(old, new))
+          print("v13 patched the copy of check.sh: one line added to sandbox_profile")
+          PY
+          python3 -I - "$out/recorded" <<'PY' &
+          import socket, sys, threading
+          s = socket.socket()
+          s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          s.bind(("127.0.0.1", 47203))
+          s.listen(32)
+          def one(c):
+              c.settimeout(3)
+              data = b""
+              try:
+                  data = c.recv(4096)
+              except Exception:
+                  pass
+              try:
+                  c.sendall(b"HTTP/1.0 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+              except Exception:
+                  pass
+              c.close()
+              text = data.decode("latin-1")
+              agent = ""
+              for header in text.split("\r\n"):
+                  if header.lower().startswith("user-agent:"):
+                      agent = header[11:].strip()[-48:]
+              with open(sys.argv[1], "a") as f:
+                  f.write("%s | %s\n" % (text.split("\r\n", 1)[0], agent))
+          while True:
+              c, _ = s.accept()
+              threading.Thread(target=one, args=(c,), daemon=True).start()
+          PY
+          recorder=$!
+          sleep 1
+          app=$out/V13Probe.app
+          mkdir -p "$app/Contents/MacOS"
+          cat >"$app/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleIdentifier</key><string>invalid.example.v13probe</string>
+          <key>CFBundleName</key><string>V13Probe</string>
+          <key>CFBundleExecutable</key><string>v13probe</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>LSUIElement</key><true/>
+          <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>v13probe</string><key>CFBundleURLSchemes</key><array><string>v13probe</string></array></dict></array>
+          </dict></plist>
+          PLIST
+          printf '#!/bin/sh\n/usr/bin/curl -s -m 5 http://127.0.0.1:47203/v13-app >/dev/null 2>&1\nexit 0\n' >"$app/Contents/MacOS/v13probe"
+          chmod +x "$app/Contents/MacOS/v13probe"
+          /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$app"
+          p "registered a probe application for the scheme v13probe: exit=$?"
+          cat >"$out/opens.sh" <<'OPENS'
+          #!/bin/sh
+          tag=$1
+          out=$2
+          app=$3
+          r() {
+            label=$1
+            shift
+            "$@" >"$out/$tag-$label.o" 2>&1
+            printf 'v13 open %s %s exit=%s %s\n' "$tag" "$label" "$?" "$(head -n 1 "$out/$tag-$label.o" | cut -c1-150)"
+          }
+          r scheme /usr/bin/open -g "v13probe://$tag"
+          sleep 2
+          r url /usr/bin/open -g "http://127.0.0.1:47203/$tag-url"
+          r file /usr/bin/open -g "$out/$tag.html"
+          r osa /usr/bin/osascript -e "open location \"http://127.0.0.1:47203/$tag-osa\""
+          r jxa /usr/bin/osascript -l JavaScript -e "ObjC.import('AppKit'); \$.NSWorkspace.sharedWorkspace.openURL(\$.NSURL.URLWithString('http://127.0.0.1:47203/$tag-jxa'))"
+          sleep 2
+          r app /usr/bin/open -g -a "$app"
+          exit 0
+          OPENS
+          one_rule() {
+            tag=$1
+            rule=$2
+            wait=$3
+            printf '<html><body><img src="http://127.0.0.1:47203/%s-file"></body></html>\n' "$tag" >"$out/$tag.html"
+            before=$(grep -c 'GET /v13-app' "$out/recorded")
+            before=${before:-0}
+            start=$(date '+%Y-%m-%d %H:%M:%S')
+            p "== rule $tag: ${rule:-none, the profile of the head}"
+            (cd "$wt" && EGRESS_EXTRA="$rule" sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh "$out/opens.sh" "$tag" "$out" "$app" 2>"$out/$tag.err")
+            code=$?
+            last=$(tail -n 1 "$out/$tag.err")
+            p "check $tag exit=$code | $last"
+            case $last in
+              "egress mode="*)
+                log=${last##* log=}
+                sed -e 's/^denied at=[0-9]* //' -e 's/ pid=[0-9]*//' "$wt/$log" | sort | uniq -c | head -n 12 | sed "s/^/v13 log $tag: /"
+                ;;
+              *) tail -n 3 "$out/$tag.err" | cut -c1-200 | sed "s/^/v13 err $tag: /" ;;
+            esac
+            waited=0
+            while [ "$waited" -lt "$wait" ]; do
+              sleep 2
+              waited=$((waited + 2))
+              if [ "$wait" -gt 20 ] && grep -q "GET /$tag-url" "$out/recorded" && [ "$waited" -ge 14 ]; then
+                break
+              fi
+            done
+            after=$(grep -c 'GET /v13-app' "$out/recorded")
+            after=${after:-0}
+            total=$((after - before))
+            line="counts $tag waited=${waited}s app-launches=$total"
+            for k in url file osa jxa; do
+              n=$(grep -c "GET /$tag-$k" "$out/recorded")
+              n=${n:-0}
+              total=$((total + n))
+              line="$line $k=$n"
+            done
+            p "$line total=$total"
+            /usr/bin/log show --start "$start" --style compact --predicate 'senderImagePath ENDSWITH "/Sandbox" AND eventMessage CONTAINS " deny("' 2>/dev/null |
+              grep -E 'lsopen|appleevent|mach-lookup' |
+              sed -E -e 's/^.*Sandbox: /Sandbox: /' -e 's/\([0-9]+\) deny/(pid) deny/' -e 's/halvo-egress-[0-9-]+/TOKEN/' |
+              sort | uniq -c | sort -rn | head -n 10 | sed "s/^/v13 kernel $tag: /"
+            last_total=$total
+          }
+          chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+          printf '<!doctype html><title>t</title><p id="m">egress-v13-page-loaded</p>\n' >"$out/site/index.html"
+          follow() {
+            tag=$1
+            rule=$2
+            p "== follow-up $tag: the self-test and a headless browser with this rule in the profile"
+            (cd "$wt" && EGRESS_EXTRA="$rule" sh scripts/egress/check.sh --mode sandbox --self-test >"$out/$tag.st" 2>"$out/$tag.st.err")
+            code=$?
+            p "self-test $tag exit=$code | $(grep '^checks ' "$out/$tag.st") | $(grep -E '^(quiet |probe name=[a-z0-9]* result=missed)' "$out/$tag.st" | tr '\n' ' ')"
+            [ "$code" -eq 0 ] || tail -n 2 "$out/$tag.st.err" | cut -c1-200 | sed "s/^/v13 self-test err $tag: /"
+            if [ ! -x "$chrome" ]; then
+              p "browser $tag: no Google Chrome on this runner"
+              return
+            fi
+            python3 -I -m http.server 47201 --bind 127.0.0.1 --directory "$out/site" >"$out/$tag.server" 2>&1 &
+            server=$!
+            sleep 2
+            (cd "$wt" && EGRESS_EXTRA="$rule" sh scripts/egress/check.sh scripts/egress/lists/loopback.txt -- "$chrome" --headless=new --no-sandbox --disable-gpu --no-first-run \
+              --disable-background-networking --disable-component-update --disable-sync --user-data-dir="$out/prof-$tag" \
+              --dump-dom http://127.0.0.1:47201/ >"$out/$tag.dom" 2>"$out/$tag.chrome.err") &
+            cpid=$!
+            n=0
+            while kill -0 "$cpid" 2>/dev/null && [ "$n" -lt 90 ]; do
+              sleep 1
+              n=$((n + 1))
+            done
+            if kill -0 "$cpid" 2>/dev/null; then
+              p "browser $tag: still running after 90 s, ended"
+              pkill -f "prof-$tag"
+            fi
+            wait "$cpid"
+            code=$?
+            last=$(tail -n 1 "$out/$tag.chrome.err" | cut -c1-200)
+            p "browser $tag exit=$code seconds=$n marker-in-dom=$(grep -c egress-v13-page-loaded "$out/$tag.dom") server-requests=$(grep -c 'GET /' "$out/$tag.server") | $last"
+            case $last in
+              "egress mode="*)
+                log=${last##* log=}
+                sed -e 's/^denied at=[0-9]* //' -e 's/ pid=[0-9]*//' "$wt/$log" | sort | uniq -c | sort -rn | head -n 8 | sed "s/^/v13 browser log $tag: /"
+                ;;
+            esac
+            kill "$server"
+            wait "$server" 2>/dev/null
+          }
+          names=(none lsopen lsd-open launchservicesd lsd-db coreservices-other appleevent all-names lsopen-and-lsd-open)
+          rules=(
+            ''
+            '(deny lsopen (with message "TOKEN open"))'
+            '(deny mach-lookup (global-name "com.apple.lsd.open") (global-name "com.apple.lsd.openurl") (with message "TOKEN open"))'
+            '(deny mach-lookup (global-name "com.apple.coreservices.launchservicesd") (with message "TOKEN open"))'
+            '(deny mach-lookup (global-name "com.apple.lsd.mapdb") (global-name "com.apple.lsd.modifydb") (global-name "com.apple.lsd.xpc") (with message "TOKEN open"))'
+            '(deny mach-lookup (global-name "com.apple.coreservices.quarantine-resolver") (global-name "com.apple.coreservices.launcherror-handler") (global-name "com.apple.LaunchServices") (global-name "com.apple.coreservices.appleevents") (with message "TOKEN open"))'
+            '(deny appleevent-send (with message "TOKEN open"))'
+            '(deny mach-lookup (global-name-regex #"^com\.apple\.(lsd|coreservices)\.") (global-name "com.apple.LaunchServices") (with message "TOKEN open"))'
+            '(deny lsopen (with message "TOKEN open"))(deny mach-lookup (global-name "com.apple.lsd.open") (global-name "com.apple.lsd.openurl") (with message "TOKEN open"))'
+          )
+          totals=()
+          i=0
+          while [ "$i" -lt "${#names[@]}" ]; do
+            wait=12
+            [ "$i" -ne 0 ] || wait=60
+            one_rule "${names[$i]}" "${rules[$i]}" "$wait"
+            totals[$i]=$last_total
+            i=$((i + 1))
+          done
+          one_rule z-none-again '' 14
+          p "the opens with no rule, at the end: total=$last_total"
+          follow none ''
+          done_follow=0
+          i=1
+          while [ "$i" -lt "${#names[@]}" ]; do
+            if [ "${totals[$i]}" -eq 0 ] && [ "${totals[0]}" -gt 0 ] && [ "$done_follow" -lt 4 ]; then
+              follow "${names[$i]}" "${rules[$i]}"
+              done_follow=$((done_follow + 1))
+            fi
+            i=$((i + 1))
+          done
+          p "rules that stopped every open: $(i=1; while [ "$i" -lt "${#names[@]}" ]; do [ "${totals[$i]}" -ne 0 ] || printf '%s ' "${names[$i]}"; i=$((i + 1)); done)"
+          p "requests by path and agent:"
+          sed -E 's/GET \/(z-none-again|[a-z-]+)-(url|file|osa|jxa) .*\| /\2 | /; s/GET \/v13-app .*\| /app | /' "$out/recorded" | sort | uniq -c | sed 's/^/v13 agent: /' | head -n 20
+          kill "$recorder" 2>/dev/null
+          p "done"
+          exit 0
+          READER13
+          bash "$RUNNER_TEMP/reader13.sh"
+          exit 0
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-egress
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -128,21 +343,10 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-egress
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
