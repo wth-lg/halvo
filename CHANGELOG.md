@@ -93,3 +93,4 @@ and merge without an entry landing under the heading of another.
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
 - Added: Add the local fixture sites of the agent-setup run (utility, payment frame, shop, mail and calendar faces, control) with three invented seeds, nine variants, a state object and a self-test, and list their names in docs/r3/fixtures.md
+- Added: Add the web executor trial of the agent-setup run (tools/r3-trials/web): a chromiumoxide adapter, nine capability steps run with no model against the fixture sites, a fault proxy that makes each step miss, and the result file docs/r3/trials/web-executor.md

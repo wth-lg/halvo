@@ -1,0 +1,10 @@
+e1 heading "Pay your bill"
+e2 frame "Payment"
+e3 heading "Payment" frame=http://pay.agent.test:18090
+e4 text "Amount" frame=http://pay.agent.test:18090
+e5 text "84.37" frame=http://pay.agent.test:18090
+e6 text "Payment method" frame=http://pay.agent.test:18090
+e7 combobox "Payment method" value="Card ending 4417" frame=http://pay.agent.test:18090
+e8 option "Card ending 4417" frame=http://pay.agent.test:18090
+e9 option "Bank account ending 0912" frame=http://pay.agent.test:18090
+e10 button "Pay now" frame=http://pay.agent.test:18090
