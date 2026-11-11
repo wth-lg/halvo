@@ -43,7 +43,41 @@ impl ActionClass {
             ActionClass::Submit | ActionClass::Purchase | ActionClass::Payment | ActionClass::Sign
         )
     }
+
+    /// The bound fields of the class in their order; empty for `read`, `prepare` and `credential`, which make no
+    /// effect.
+    pub fn bound_fields(self) -> &'static [FieldName] {
+        match self {
+            ActionClass::Payment => PAYMENT,
+            ActionClass::Purchase => PURCHASE,
+            ActionClass::Send => SEND,
+            ActionClass::Delete => DELETE,
+            ActionClass::Submit => SUBMIT,
+            ActionClass::Sign => SIGN,
+            ActionClass::LocalEdit => LOCAL_EDIT,
+            ActionClass::Read | ActionClass::Prepare | ActionClass::Credential => &[],
+        }
+    }
 }
+
+const PAYMENT: &[FieldName] = &[
+    FieldName::Payee,
+    FieldName::Amount,
+    FieldName::Instrument,
+    FieldName::Origin,
+];
+const PURCHASE: &[FieldName] = &[
+    FieldName::Seller,
+    FieldName::Items,
+    FieldName::Amount,
+    FieldName::Instrument,
+    FieldName::Origin,
+];
+const SEND: &[FieldName] = &[FieldName::To, FieldName::Subject, FieldName::Body];
+const DELETE: &[FieldName] = &[FieldName::Items];
+const SUBMIT: &[FieldName] = &[FieldName::Origin, FieldName::Fields];
+const SIGN: &[FieldName] = &[FieldName::Document, FieldName::Party];
+const LOCAL_EDIT: &[FieldName] = &[FieldName::File, FieldName::Range];
 
 names! {
     /// The classes that the list `allow` of a configuration may hold: `send`, `delete` and `submit`, and no other,

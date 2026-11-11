@@ -7,6 +7,7 @@ mod json;
 
 pub mod config;
 pub mod names;
+pub mod step;
 pub mod text;
 
 pub use config::{AgentConfig, Budget, Caps, Limits};
@@ -14,6 +15,7 @@ pub use json::{Refusal, RefusalCause};
 pub use names::{
     ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning, Runtime,
 };
+pub use step::{ExecutableStep, Playbook};
 pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, WebOrigin};
 
 pub const KINDS: &[crate::kinds::KindEntry] = &[];

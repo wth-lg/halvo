@@ -48,6 +48,15 @@ impl Refusal {
         }
     }
 
+    pub(in crate::executable) fn length(type_name: &'static str, rule: &'static str) -> Self {
+        Refusal {
+            cause: RefusalCause::Length,
+            type_name,
+            key: None,
+            rule,
+        }
+    }
+
     pub(in crate::executable) fn at(mut self, key: &'static str) -> Self {
         if self.key.is_none() {
             self.key = Some(key);
@@ -279,6 +288,14 @@ pub(in crate::executable) fn seed_category(raw: &RawValue) -> Result<SeedCategor
 
 pub(in crate::executable) trait WriteFields {
     fn write_fields<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
+}
+
+pub(in crate::executable) struct Plain<'a, T>(pub(in crate::executable) &'a T);
+
+impl<T: WriteFields> serde::Serialize for Plain<'_, T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.write_fields(serializer)
+    }
 }
 
 thread_local! {
