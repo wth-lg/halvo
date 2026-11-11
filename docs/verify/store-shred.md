@@ -93,7 +93,7 @@ checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
-| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows` |
+| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, and the checkpoint after its commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `crypto_shred_all` (its branch for a handle that delete-all sealed) | `formal-shredded-key-survives`, `formal-key-row-deleted`, `formal-key-row-deleted-oldest-first`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
 | 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `secure_delete` pragma with `require_secure_delete`, and the `journal_mode` pragma), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and `EncryptedStore::write_key_file` (what `store.key` holds, and the call of `wrap_store_key_under_new_root`), `EncryptedStore::create` (the removal of the database when `Db::open` fails, the database before the key file and its root, and the arm for `RootExists`), `Db::insert_event` (the rollback to its savepoint) | `formal-secure-delete-off`, `formal-journal-mode-not-wal`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-failed-append-leaves-the-event-row` |
 | 1 | `crates/halvo-capture/src/custody/dev_fallback.rs` | the macOS root store: `seal`, which `wrap` and `wrap_under_new_root` call, and `unwrap` (the `aead_seal` and `aead_open` calls under the root), and `make_root` (the random fill of a new root) | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
 | 2 | `crates/halvo-capture/src/store/db.rs` | `Db::open` (the `locking_mode = EXCLUSIVE` pragma and `require_exclusive_locking`), `verify_key` (the mapping of `DatabaseBusy` to `Locked`) | `formal-single-writer`, `formal-single-writer-both-locks`, `formal-busy-not-mapped-to-locked` |
@@ -435,6 +435,8 @@ row cannot go stale unseen.
 | `formal-refused-create-destroys-the-root` | `create` has no arm for `RootExists`, so a refused create runs `abandon_create`, which destroys the root | the fixed order | "at move 6 of 23, CreateUnderTheRootOfThisStore: ... after a create under its root was refused, the store did not reopen" |
 | `formal-failed-append-leaves-the-event-row` | `insert_event` releases its savepoint without the rollback | the fixed order | "at move 3 of 23, Append { index_row_fails: true }: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
 | `formal-shred-leaves-the-event-rows` | `delete_events_and_index` deletes the index rows and leaves the event rows | the fixed order | "at move 7 of 23, ShredExpired: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
+| `formal-second-delete-all-is-refused` | `crypto_shred_all` answers `Sealed` on a handle that delete-all sealed, and finishes nothing | the fixed order | "at move 12 of 23, ShredAll: ... a second delete-all did not finish with nothing left to shred: Err(Sealed)" |
+| `formal-second-delete-all-finishes-nothing` | `crypto_shred_all` returns `Ok` with an empty report on a handle that delete-all sealed, and removes nothing | the fixed order | "at move 12 of 23, ShredAll: ... delete-all left segments in the store directory" |
 
 The shortest failing input of the four rows on the key statement, the
 checkpoint and the journal mode is
@@ -483,6 +485,17 @@ mutates it. Its read has a control in place of a row:
 `a_destroyed_root_destroys_again_only_when_its_custody_returns_ok` gives
 the read a stand-in custody whose `destroy_root` answers `RootMissing` and
 requires the message of the failure.
+
+The read of a second delete-all has two rows, because it has two halves:
+what the call returns, and what it finishes. The first random test reads
+the first half. It reports `formal-second-delete-all-is-refused` in a case
+with two `ShredAll` and no `Recreate` between them; three runs with three
+seeds each ended at such a case, the shortest `[ShredAll, ShredAll]`. It
+passes `formal-second-delete-all-finishes-nothing` (three seeds, 48 cases
+each), because in its cases the first delete-all has left nothing to
+finish. A second call that returns `Ok` and removes nothing shows only
+after a delete-all that stopped, and the fixed order holds that pair at its
+moves 9 and 12.
 
 ### What patches showed about the file lock, before the rows
 
@@ -722,7 +735,8 @@ it in the plan before weakening an assertion.
 - Code that check 1 calls in every case and that no row fails through. A
   change there can fail the check, and no row shows it: in `expiry.rs`
   `segment_ids_with_keys`, `remove_keyless_files`, `shred_segments`,
-  `crypto_shred_expired` and `crypto_shred_all`; in `db.rs`
+  `crypto_shred_expired`, and `crypto_shred_all` outside its branch for a
+  sealed handle; in `db.rs`
   `reserve_segment_key`, `commit_segment_key`, `KeyFile::destroy`,
   `Db::destroy` and `EncryptedStore::{open, seal, read_segment}`;
   every function of `segment.rs`; `DevFallbackCustody::destroy_root`, which
