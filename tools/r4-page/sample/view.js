@@ -26,6 +26,7 @@
   if (fault === 'dialog_30') CSS.push('.r4s .r4s-dialog button { min-width: 30px; min-height: 30px; width: 30px; height: 30px; padding: 0; overflow: hidden; }');
   if (fault === 'focus_pale') CSS.push('.r4s button:focus { outline-color: #d8d8d8; }');
   if (fault === 'focus_behind_image') CSS.push('.r4s { background-image: linear-gradient(#ffffff, #f8f8f8); }');
+  if (fault === 'late_long') CSS.push('@keyframes r4s-long { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-long 0.01s 6s forwards; }');
   if (fault === 'late_css') CSS.push('@keyframes r4s-late { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-late 0.01s 1.5s forwards; }');
 
   if (fault === 'engine_mode' && matchMedia('(forced-colors: active)').matches) {

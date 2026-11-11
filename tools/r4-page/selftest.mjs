@@ -14,6 +14,7 @@ const FAULTS = {
     { fault: 'contrast', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'late_next', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'late_css', state: 'a', want: (r) => r.counts.violations > 0 },
+    { fault: 'late_long', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'outside_request', state: 'a', want: (r) => r.names.includes('outside_request') },
     { fault: 'outside_fetch', state: 'a', want: (r) => r.names.includes('outside_request') },
     { fault: 'port_fetch', state: 'a', want: (r) => r.names.includes('outside_request') },
