@@ -7,7 +7,7 @@ use crate::fixture::FixtureTransport;
 use crate::frame::{read_frame, write_frame, FrameError, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use crate::message::{
     decode_server, Batch, Cause, ClientMessage, KindFilter, OpenCursor, ServerError, ServerMessage,
-    TimeRange,
+    TimeRange, ZERO,
 };
 use crate::record::Kind;
 
@@ -22,8 +22,8 @@ pub enum Failure {
     Frame,
     /// The reply's payload is no message of C5.5, or a served record fails the reader of C4.6.
     Message,
-    /// The reply is a message of C5.5 that breaks the order of C5.6 or a rule of C5.7 or C5.8; the text
-    /// names the rule.
+    /// The reply is a message of C5.5 that breaks the order of C5.6 or a rule of C5.7 or C5.8, or an error
+    /// that cannot answer the message sent (C5.10); the text names the rule.
     Order(&'static str),
     /// The server answered `bad-frame`, after which it closes the stream.
     BadFrame,
@@ -34,9 +34,13 @@ pub enum Failure {
 /// Why a call of the client returned no reply.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClientError {
-    /// The server answered with an error of C5.10 other than `bad-frame`. After `bad-request` the cursor is as
-    /// it was; after `store-changed`, `bad-position` and `store-error` no cursor is open. `store-changed`
-    /// holds the id of the server's current store, which the reader reads from the zero position.
+    /// The server answered with an error of C5.10 other than `bad-frame` that can answer the message sent:
+    /// `store-changed` with another store than the one named, to an `open_cursor` that named a store or to a
+    /// `read_batch`; `bad-position` to an `open_cursor` at a position other than the zero position;
+    /// `bad-request` to an `open_cursor` or an `analysis_write`; `store-error`. After `bad-request` the cursor
+    /// is as it was; after `store-changed`, `bad-position` and `store-error` no cursor is open.
+    /// `store-changed` holds the id of the server's current store, which the reader reads from the zero
+    /// position. Any other error is the failure `Order`.
     Refused(Cause),
     /// The read failed; the client sends nothing more.
     Failed(Failure),
@@ -108,6 +112,13 @@ pub struct Opened {
     pub watermark: Position,
 }
 
+enum Sent<'a> {
+    Open(&'a OpenCursor),
+    Read,
+    Close,
+    Write,
+}
+
 struct Open {
     store: StoreId,
     position: Position,
@@ -158,9 +169,26 @@ impl<L: Link> Client<L> {
         ClientError::Failed(failure)
     }
 
-    fn refused(&mut self, error: ServerError) -> ClientError {
+    fn refused(&mut self, error: ServerError, sent: Sent<'_>) -> ClientError {
+        let cursor_store = match &self.state {
+            State::Open(open) => Some(&open.store),
+            _ => None,
+        };
+        let answers = match (error.cause(), sent) {
+            (Cause::BadFrame, _) => return self.fail(Failure::BadFrame),
+            (Cause::StoreChanged(id), Sent::Open(open)) => open.store().is_some_and(|s| s != id),
+            (Cause::StoreChanged(id), Sent::Read) => cursor_store.is_some_and(|s| s != id),
+            (Cause::BadPosition, Sent::Open(open)) => open.position() != ZERO,
+            (Cause::StoreChanged(_) | Cause::BadPosition, _) => false,
+            (Cause::BadRequest, Sent::Read | Sent::Close) => false,
+            (Cause::BadRequest | Cause::StoreError, _) => true,
+        };
+        if !answers {
+            return self.fail(Failure::Order(
+                "an error that cannot answer the message sent",
+            ));
+        }
         match error.cause() {
-            Cause::BadFrame => self.fail(Failure::BadFrame),
             Cause::BadRequest => ClientError::Refused(Cause::BadRequest),
             cause => {
                 self.state = State::Idle;
@@ -212,7 +240,7 @@ impl<L: Link> Client<L> {
                     watermark: b.watermark,
                 })
             }
-            ServerMessage::Error(e) => Err(self.refused(e)),
+            ServerMessage::Error(e) => Err(self.refused(e, Sent::Open(&open))),
             _ => Err(self.fail(Failure::Order("a reply other than batch or error"))),
         }
     }
@@ -228,7 +256,7 @@ impl<L: Link> Client<L> {
         let reply = self.send(&ClientMessage::ReadBatch)?;
         let b = match reply {
             ServerMessage::Batch(b) => b,
-            ServerMessage::Error(e) => return Err(self.refused(e)),
+            ServerMessage::Error(e) => return Err(self.refused(e, Sent::Read)),
             _ => return Err(self.fail(Failure::Order("a reply other than batch or error"))),
         };
         let State::Open(open) = &self.state else {
@@ -254,7 +282,7 @@ impl<L: Link> Client<L> {
                 self.state = State::Idle;
                 Ok(())
             }
-            ServerMessage::Error(e) => Err(self.refused(e)),
+            ServerMessage::Error(e) => Err(self.refused(e, Sent::Close)),
             _ => Err(self.fail(Failure::Order("a reply other than closed or error"))),
         }
     }
@@ -270,7 +298,7 @@ impl<L: Link> Client<L> {
             ServerMessage::WriteAck(reply) => {
                 decode_reply(reply.get().as_bytes()).map_err(|_| self.fail(Failure::Message))
             }
-            ServerMessage::Error(e) => Err(self.refused(e)),
+            ServerMessage::Error(e) => Err(self.refused(e, Sent::Write)),
             _ => Err(self.fail(Failure::Order("a reply other than write_ack or error"))),
         }
     }

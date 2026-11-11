@@ -433,8 +433,8 @@ fn the_errors_of_c5_10_leave_the_state_that_their_table_gives() {
     let mut client = scripted(&[
         changed.clone(),
         bad_position,
-        opened(STORE, w, pos(0, 0)),
         bad_request.clone(),
+        opened(STORE, w, pos(0, 0)),
         batch_json(STORE, w, &[], pos(1, 0)),
         store_error,
         opened(STORE, w, pos(1, 0)),
@@ -453,14 +453,14 @@ fn the_errors_of_c5_10_leave_the_state_that_their_table_gives() {
         client.open(OpenCursor::at(store(), pos(9, 0), None, None).unwrap()),
         Err(ClientError::Refused(Cause::BadPosition))
     ));
+    assert!(matches!(
+        client.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Refused(Cause::BadRequest))
+    ));
     client.open(OpenCursor::fresh(None, None)).unwrap();
     assert!(matches!(
         client.open(OpenCursor::fresh(None, None)),
         Err(ClientError::NotNow)
-    ));
-    assert!(matches!(
-        client.read(),
-        Err(ClientError::Refused(Cause::BadRequest))
     ));
     client.read().unwrap();
     assert!(matches!(
@@ -479,13 +479,13 @@ fn the_errors_of_c5_10_leave_the_state_that_their_table_gives() {
     assert!(matches!(client.read(), Err(ClientError::NotNow)));
     client.open(OpenCursor::fresh(None, None)).unwrap();
     assert!(matches!(
-        client.close(),
+        client.analysis_write(&a_write()),
         Err(ClientError::Refused(Cause::BadRequest))
     ));
     client.close().unwrap();
     let messages = sent(client);
     assert_eq!(messages.len(), 11);
-    assert!(messages.iter().filter(|m| m.contains("read_batch")).count() == 4);
+    assert!(messages.iter().filter(|m| m.contains("read_batch")).count() == 3);
 }
 
 #[test]
@@ -585,4 +585,172 @@ fn a_batch_outside_the_form_of_c5_3_stops_the_client_on_any_link() {
     ]));
     good.open(OpenCursor::fresh(None, None)).unwrap();
     assert_eq!(good.read().unwrap().records.len(), 1);
+}
+
+const OUT_OF_PLACE: ClientError = ClientError::Failed(Failure::Order(
+    "an error that cannot answer the message sent",
+));
+
+fn error_json(cause: &str, store: Option<&str>) -> String {
+    let store = store.map_or("null".to_owned(), |s| format!("\"{s}\""));
+    format!(r#"{{"msg":"error","cause":"{cause}","store":{store},"detail":"x"}}"#)
+}
+
+fn a_write() -> AnalysisWrite {
+    AnalysisWrite::new(
+        &AnalysisRole::claim(),
+        RequestId::from_random([3; 16]),
+        store(),
+    )
+}
+
+fn open_then(reply: String) -> Client<StreamLink<Cursor<Vec<u8>>, Vec<u8>>> {
+    let mut client = scripted(&[opened(STORE, pos(3, 0), pos(0, 0)), reply]);
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    client
+}
+
+fn stopped_after_one_failure(
+    mut client: Client<StreamLink<Cursor<Vec<u8>>, Vec<u8>>>,
+    sent_before: usize,
+) {
+    assert_eq!(client.read(), Err(ClientError::Failed(Failure::Stopped)));
+    assert_eq!(
+        client.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Failed(Failure::Stopped))
+    );
+    assert_eq!(sent(client).len(), sent_before);
+}
+
+#[test]
+fn store_changed_that_names_the_store_its_open_named_is_a_failed_read() {
+    let mut client = scripted(&[error_json("store-changed", Some(STORE))]);
+    let got = client.open(OpenCursor::at(store(), pos(1, 0), None, None).unwrap());
+    assert_eq!(got, Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 1);
+}
+
+#[test]
+fn store_changed_that_answers_an_open_with_a_null_store_is_a_failed_read() {
+    let mut client = scripted(&[error_json("store-changed", Some(OTHER))]);
+    assert_eq!(
+        client.open(OpenCursor::fresh(None, None)),
+        Err(OUT_OF_PLACE)
+    );
+    stopped_after_one_failure(client, 1);
+}
+
+#[test]
+fn store_changed_that_answers_a_close_is_a_failed_read() {
+    let mut client = open_then(error_json("store-changed", Some(OTHER)));
+    assert_eq!(client.close(), Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 2);
+}
+
+#[test]
+fn store_changed_that_names_the_store_of_the_open_cursor_to_a_read_is_a_failed_read() {
+    let mut client = open_then(error_json("store-changed", Some(STORE)));
+    assert_eq!(client.read(), Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 2);
+}
+
+#[test]
+fn store_changed_or_bad_position_that_answers_an_analysis_write_is_a_failed_read() {
+    for reply in [
+        error_json("store-changed", Some(OTHER)),
+        error_json("bad-position", None),
+    ] {
+        let mut client = scripted(&[reply]);
+        assert_eq!(client.analysis_write(&a_write()).err(), Some(OUT_OF_PLACE));
+        stopped_after_one_failure(client, 1);
+    }
+}
+
+#[test]
+fn bad_position_that_answers_a_read_is_a_failed_read() {
+    let mut client = open_then(error_json("bad-position", None));
+    assert_eq!(client.read(), Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 2);
+}
+
+#[test]
+fn bad_position_that_answers_an_open_at_the_zero_position_is_a_failed_read() {
+    for open in [
+        OpenCursor::fresh(None, None),
+        OpenCursor::at(store(), pos(0, 0), None, None).unwrap(),
+    ] {
+        let mut client = scripted(&[error_json("bad-position", None)]);
+        assert_eq!(client.open(open), Err(OUT_OF_PLACE));
+        stopped_after_one_failure(client, 1);
+    }
+}
+
+#[test]
+fn bad_position_that_answers_a_close_is_a_failed_read() {
+    let mut client = open_then(error_json("bad-position", None));
+    assert_eq!(client.close(), Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 2);
+}
+
+#[test]
+fn bad_request_that_answers_a_read_of_an_open_cursor_is_a_failed_read() {
+    let mut client = open_then(error_json("bad-request", None));
+    assert_eq!(client.read(), Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 2);
+}
+
+#[test]
+fn bad_request_that_answers_a_close_of_an_open_cursor_is_a_failed_read() {
+    let mut client = open_then(error_json("bad-request", None));
+    assert_eq!(client.close(), Err(OUT_OF_PLACE));
+    stopped_after_one_failure(client, 2);
+}
+
+#[test]
+fn a_refusal_that_c5_9_allows_for_the_message_sent_stays_a_refusal() {
+    let w = pos(3, 0);
+    let mut client = scripted(&[
+        error_json("store-changed", Some(OTHER)),
+        error_json("bad-position", None),
+        error_json("bad-request", None),
+        error_json("store-error", None),
+        opened(STORE, w, pos(0, 0)),
+        error_json("store-changed", Some(OTHER)),
+        opened(STORE, w, pos(0, 0)),
+        error_json("store-error", None),
+        error_json("bad-request", None),
+    ]);
+    let at = |p| OpenCursor::at(store(), p, None, None).unwrap();
+    assert_eq!(
+        client.open(at(pos(1, 0))),
+        Err(ClientError::Refused(Cause::StoreChanged(
+            StoreId::parse(OTHER).unwrap()
+        )))
+    );
+    assert_eq!(
+        client.open(at(pos(9, 0))),
+        Err(ClientError::Refused(Cause::BadPosition))
+    );
+    assert_eq!(
+        client.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Refused(Cause::BadRequest))
+    );
+    assert_eq!(
+        client.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Refused(Cause::StoreError))
+    );
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    assert_eq!(
+        client.read(),
+        Err(ClientError::Refused(Cause::StoreChanged(
+            StoreId::parse(OTHER).unwrap()
+        )))
+    );
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    assert_eq!(client.read(), Err(ClientError::Refused(Cause::StoreError)));
+    assert_eq!(
+        client.analysis_write(&a_write()).err(),
+        Some(ClientError::Refused(Cause::BadRequest))
+    );
+    assert_eq!(sent(client).len(), 9);
 }
