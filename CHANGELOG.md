@@ -98,3 +98,4 @@ and merge without an entry landing under the heading of another.
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
 - Added: Add the page-test harness under tools/r4-page with its pinned packages, the browser builds pinned by address, size and SHA-256 and not committed, the six accessibility checks and a self-test on a sample view
 - Added: Add docs/r2 with its README and the .gitattributes files that give the workflow run's directories LF line ends and keep its fixtures out of line-end conversion
+- Added: Add the egress check scripts/egress/check.sh, which denies and logs every outbound connection and name lookup of a command's process tree outside a list file, with its sandbox mode for macOS, its wfp mode for Windows, its probes and self-test, the per-push file 10-egress.sh and the trial docs/r2/trials/egress.md

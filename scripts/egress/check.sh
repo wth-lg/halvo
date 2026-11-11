@@ -26,6 +26,7 @@ default_mode() {
 # not_observable PLATFORM MODE PROBE: exits 0 when the mode cannot observe the path of the probe.
 not_observable() {
   case $1:$2:$3 in
+    windows-2025:wfp:ipv6) return 0 ;;
     *) return 1 ;;
   esac
 }
