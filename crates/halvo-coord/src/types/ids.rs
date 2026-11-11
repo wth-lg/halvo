@@ -126,8 +126,9 @@ impl Name {
 pub struct Origin(String);
 
 impl Origin {
-    /// Reads an origin of that form: a scheme and a host of lower-case letters, digits, `.`,
-    /// `-` and `+`, and a port from 0 to 65535; anything else is `malformed`.
+    /// Reads an origin of that form, which has one written form for one origin: a scheme and a
+    /// host of lower-case letters, digits, `.`, `-` and `+`, the host holding a letter or a
+    /// digit, and a port from 0 to 65535 with no leading zero; anything else is `malformed`.
     pub fn parse(text: &str) -> Result<Origin, Cause> {
         let (scheme, rest) = text.split_once("://").ok_or(Cause::Malformed)?;
         let (host, port) = rest.rsplit_once(':').ok_or(Cause::Malformed)?;
@@ -138,9 +139,11 @@ impl Origin {
         };
         let port_ok = !port.is_empty()
             && port.len() <= 5
+            && (port == "0" || !port.starts_with('0'))
             && port.bytes().all(|b| b.is_ascii_digit())
             && port.parse::<u32>().is_ok_and(|p| p <= 65_535);
-        if word(scheme, b"+.-") && word(host, b".-") && port_ok {
+        let host_ok = word(host, b".-") && host.bytes().any(|b| b.is_ascii_alphanumeric());
+        if word(scheme, b"+.-") && host_ok && port_ok {
             Ok(Origin(text.to_owned()))
         } else {
             Err(Cause::Malformed)

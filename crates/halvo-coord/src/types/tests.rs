@@ -81,6 +81,28 @@ fn origins_are_lower_case_with_the_port_written() {
 }
 
 #[test]
+fn an_origin_has_one_written_form() {
+    for bad in [
+        "https://pay.site1.example:0443",
+        "https://pay.site1.example:00443",
+        "http://127.0.0.1:08080",
+        "https://pay.site1.example:00",
+        "https://.:443",
+        "https://-:443",
+    ] {
+        assert_eq!(Origin::parse(bad), Err(Cause::Malformed), "{bad:?}");
+    }
+    for good in [
+        "https://pay.site1.example:443",
+        "http://127.0.0.1:8080",
+        "http://localhost:0",
+        "https://a-b.example:65535",
+    ] {
+        assert_eq!(Origin::parse(good).unwrap().as_str(), good);
+    }
+}
+
+#[test]
 fn closed_lists_have_the_contract_names_in_order() {
     let names = |all: &[&str]| all.join(",");
     assert_eq!(
