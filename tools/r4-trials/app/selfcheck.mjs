@@ -3,6 +3,8 @@
 // usage: node tools/r4-trials/app/selfcheck.mjs [--bin PATH] [--arm main|a|a2|b]... [--trace]
 // Refuses with not_hosted where neither CI nor R4_GUEST is set (contracts I11.1, I0.3).
 // Exit: 0 when no key is miss, 1 when a key is miss or the binary is missing, 2 on a refusal.
+// A window read is repeated, at most 10 times 300 ms apart, until it shows the state that the
+// step expects: on macOS the window list follows the window's own report with a delay.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -19,6 +21,8 @@ export const SYSTEM = process.platform === 'win32' ? 'windows' : 'macos';
 export const SENT = 10000;
 const START_MS = 60000;
 const CONNECT_MS = 10000;
+const READ_TRIES = 10;
+const READ_EVERY_MS = 300;
 const ANSWER_MS = 45000;
 const QUIT_MS = 10000;
 const SLOW_FRAME_MS = 1400;
@@ -291,9 +295,16 @@ async function windowRun(options, arm, pages) {
       trace(`sent=${line.replace(/ /g, '_')} answer=${words(result).replace(/ /g, ',')} ms=${result.ms}`);
       return { ...result, parsed: parseAnswer(result.answer) };
     };
-    const look = () => {
-      const state = readWindow(app.pid);
-      trace(`read=window state=${state}`);
+    const look = async (expected) => {
+      let state = null;
+      let tries = 0;
+      while (tries < READ_TRIES) {
+        tries += 1;
+        state = readWindow(app.pid);
+        if (state === expected) break;
+        await sleep(READ_EVERY_MS);
+      }
+      trace(`read=window state=${state} tries=${tries}`);
       return state;
     };
     const shows = [];
@@ -301,7 +312,7 @@ async function windowRun(options, arm, pages) {
     const firstMs = Number(first.parsed?.pairs.show_ms);
     shows.push(/^control port=\d+$/.test(app.firstLine ?? '') && first.parsed?.word === 'ok'
       && Number.isFinite(firstMs) && first.ms <= firstMs + 1500);
-    shows.push(look() === 'onscreen');
+    shows.push((await look('onscreen')) === 'onscreen');
     const tree = readTree(app.pid);
     trace(`read=tree count=${tree.count} webview=${tree.webview}`);
     const s1 = (await send('sample')).parsed;
@@ -314,14 +325,14 @@ async function windowRun(options, arm, pages) {
     let hides = 0;
     if (arm === 'b') {
       const d = await send('destroy');
-      const gone = look() === 'absent';
+      const gone = (await look('absent')) === 'absent';
       const after = (await send('sample')).parsed;
       keys.destroy = d.answer === 'ok' && gone && after?.word === 'ok'
         && after.pairs.ticks === '-' && after.pairs.frames === '-' ? 'ok' : 'miss';
     } else {
       const h = await send('hide');
       hides += 1;
-      keys.hide = h.answer === 'ok' && look() === 'hidden' ? 'ok' : 'miss';
+      keys.hide = h.answer === 'ok' && (await look('hidden')) === 'hidden' ? 'ok' : 'miss';
       if (arm === 'a' || arm === 'a2') {
         const s3 = (await send('sample')).parsed;
         await sleep(3000);
@@ -333,7 +344,7 @@ async function windowRun(options, arm, pages) {
     keys.counts = counts ? 'ok' : 'miss';
     const second = await send('show');
     shows.push(second.parsed?.word === 'ok' && second.parsed.pairs.show_ms !== undefined);
-    shows.push(look() === 'onscreen');
+    shows.push((await look('onscreen')) === 'onscreen');
     const load = await send('load slow.html');
     shows.push(load.answer === 'ok');
     await sleep(1000);
