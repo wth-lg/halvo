@@ -146,6 +146,32 @@ fn a_workflow_has_a_full_shape_and_a_dismissed_shape() {
     ));
 }
 
+fn refusal<T: serde::de::DeserializeOwned + std::fmt::Debug>(line: &str) -> String {
+    serde_json::from_str::<T>(line).unwrap_err().to_string()
+}
+
+#[test]
+fn a_refused_workflow_names_the_rule_of_its_shape() {
+    let full = with(
+        PROPOSED,
+        "recurrence",
+        r#"{"count":3,"period":31,"first":20767,"last":20705}"#,
+    );
+    let dismissed = with(&dismissed(), "app", "\"/Applications/Chrome.app\"");
+    let unknown_state = with(PROPOSED, "state", "\"deleted\"");
+    for (line, rule) in [
+        (&full, "Recurrence: first_last"),
+        (&dismissed, "AppId: separator"),
+        (&unknown_state, "WorkflowState: unknown_name"),
+    ] {
+        let error = refusal::<Workflow>(line);
+        assert!(error.starts_with(rule), "{rule}: {error}");
+        let item = format!(r#"{{"workflow":{line},"summaries":[],"hint":null}}"#);
+        let error = refusal::<WorkflowItem>(&item);
+        assert!(error.starts_with(rule), "{rule}: {error}");
+    }
+}
+
 #[test]
 fn recurrence_and_confidence_keep_their_ranges() {
     let base = r#"{"count":3,"period":31,"first":20705,"last":20767}"#;
