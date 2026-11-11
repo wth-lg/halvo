@@ -143,9 +143,22 @@ function own(url) {
   }
 }
 
-async function guard(ctx, count) {
+async function pass(route, hit) {
+  if (new URL(route.request().url()).pathname === ENGINE) return route.continue();
+  let res;
+  try {
+    res = await route.fetch();
+  } catch {
+    return route.abort().catch(() => {});
+  }
+  const body = await res.body();
+  if (/shadowrootmode/i.test(body.toString('latin1'))) hit();
+  return route.fulfill({ response: res, body });
+}
+
+async function guard(ctx, count, hit) {
   await ctx.route('**/*', (route) => {
-    if (own(route.request().url())) return route.continue();
+    if (own(route.request().url())) return pass(route, hit);
     count();
     return route.abort();
   });
@@ -210,7 +223,7 @@ const INIT = () => {
     const f = owner && owner[key];
     if (typeof f !== 'function') return;
     owner[key] = function (...args) {
-      if (args.some((a) => /<template[^>]*\sshadowrootmode\s*=/i.test(String(a)))) opaque = true;
+      if (args.some((a) => /shadowrootmode/i.test(String(a)))) opaque = true;
       return f.apply(this, args);
     };
   };
@@ -488,6 +501,7 @@ async function openWith(options, context, transform, inner) {
       mismatch: [],
       closed: false,
       modes: null,
+      word: false,
     };
     h.close = () => closeHandle(h);
     if (typeof o.state === 'string' && !h.transcript) {
@@ -496,9 +510,22 @@ async function openWith(options, context, transform, inner) {
       h.state = transform ? transform(raw) : raw;
     }
     if (h.out) await mkdir(h.out, { recursive: true });
-    await guard(ctx, () => {
-      h.blocked++;
-    });
+    let text = '';
+    try {
+      text = await (await fetch(new URL(o.frame || FRAME, o.origin).href)).text();
+    } catch {
+      text = '';
+    }
+    if (/shadowrootmode/i.test(text)) throw new Refusal('fixture', 'the frame file holds the word shadowrootmode');
+    await guard(
+      ctx,
+      () => {
+        h.blocked++;
+      },
+      () => {
+        h.word = true;
+      },
+    );
     await ctx.exposeBinding('__r4call', (_source, name, args) => stub(h, name, args));
     await ctx.addInitScript(INIT);
     h.page = await ctx.newPage();
@@ -508,11 +535,6 @@ async function openWith(options, context, transform, inner) {
     });
     const url = new URL(o.frame || FRAME, o.origin);
     if (Array.isArray(o.views) && o.views.length) url.searchParams.set('views', o.views.join(','));
-    try {
-      h.markupShadow = /<template[^>]*\sshadowrootmode\s*=/i.test((await (await fetch(new URL(o.frame || FRAME, o.origin).href)).text()).replace(/<!--[\s\S]*?-->/g, ''));
-    } catch {
-      h.markupShadow = false;
-    }
     await h.page.goto(url.href);
     await settle(h);
     if (await h.page.evaluate(() => Boolean(window.__r4frame && window.__r4frame.failed))) throw new Refusal('fixture', 'a view script of views did not load');
@@ -612,9 +634,13 @@ function alone(h) {
       let count = 0;
       const ctx = await h.ctx.browser().newContext({ viewport: VIEWPORT });
       try {
-        await guard(ctx, () => {
-          count++;
-        });
+        await guard(
+          ctx,
+          () => {
+            count++;
+          },
+          () => {},
+        );
         const page = await ctx.newPage();
         await page.goto(new URL(FRAME, h.origin).href);
         let r;
@@ -1145,7 +1171,7 @@ export async function check(h, n, options = {}) {
   h.kids = [];
   if (UNSEEN[n] && !(options.write && n === 3)) {
     if (h.flags.has('unsettled')) return { ok: false, counts: { ...UNSEEN[n] }, names: ['unsettled'] };
-    if (h.markupShadow || (await h.page.evaluate(OPAQUE))) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
+    if (h.word || (await h.page.evaluate(OPAQUE))) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
   }
   const result = taint(h, n, await run(h, n, options));
   unheld(h, 'check');

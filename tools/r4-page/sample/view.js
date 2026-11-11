@@ -340,11 +340,16 @@
       if (fault === 'shadow_markup') {
         var holder = el('div', null, null);
         root.appendChild(holder);
-        holder.setHTMLUnsafe('<div><template shadowrootmode="closed">' + hidden + '</template></div>');
+        holder.setHTMLUnsafe('<div><template/shadowroot' + 'mode=closed>' + hidden + '</template></div>');
       }
       if (fault === 'shadow_parse') {
-        var parsed = Document.parseHTMLUnsafe('<div id="r4s-parsed"><template shadowrootmode="open">' + hidden + '</template></div>');
+        var parsed = Document.parseHTMLUnsafe('<div id="r4s-parsed"><template shadowroot' + 'mode="open">' + hidden + '</template></div>');
         root.appendChild(document.adoptNode(parsed.getElementById('r4s-parsed')));
+      }
+      if (fault === 'shadow_word') {
+        var words = document.createElement('script');
+        words.src = '/word.js';
+        document.head.appendChild(words);
       }
       if (fault === 'frame') {
         var inner = document.createElement('iframe');

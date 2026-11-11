@@ -43,11 +43,13 @@ const FAULTS = {
   ],
   3: [
     { fault: 'renamed', state: 'a', want: (r) => r.counts.structure === 'differ' },
-    { fault: 'frame_file', state: 'a', frame: '/frame-shadow.html', want: (r) => r.names.includes('opaque') },
+    { fault: 'frame_file', state: 'a', frame: '/frame-shadow.html', refused: true },
+    { fault: 'frame_slash', state: 'a', frame: '/frame-shadow-slash.html', refused: true },
   ],
   4: [
     { fault: 'small', state: 'a', want: (r) => r.names.includes('delete') },
     { fault: 'shadow_markup', state: 'a', want: (r) => r.names.includes('opaque') },
+    { fault: 'shadow_word', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'never_quiet', state: 'a', want: (r) => r.names.includes('unsettled') },
     { fault: 'dialog_30', state: 'b', want: (r) => r.names.includes('reject') },
     { fault: 'clipped', state: 'a', want: (r) => r.names.includes('more') },
@@ -108,6 +110,7 @@ async function run(origin, n, state, fault, frame) {
 }
 
 function caught(f, r, before) {
+  if (f.refused) return r.refused && reached.count === before ? 'caught' : 'missed';
   if (r.ok || reached.count !== before) return 'missed';
   if (f.mode && !f.want) {
     for (const m of MODES) {
@@ -163,7 +166,10 @@ async function main() {
     for (const f of FAULTS[n]) {
       if (none && f.engine) continue;
       const before = reached.count;
-      const r = await run(origin, n, f.state, f.fault, f.frame);
+      const r = await run(origin, n, f.state, f.fault, f.frame).catch((err) => {
+        if (f.refused && err instanceof Refusal && err.code === 'fixture') return { refused: true };
+        throw err;
+      });
       if (f.mode && r.modes[f.mode] === 'off') continue;
       ran++;
       if (caught(f, r, before) !== 'caught') fault = 'missed';
