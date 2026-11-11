@@ -388,6 +388,10 @@
         var parsed = Document.parseHTMLUnsafe('<div id="r4s-parsed"><template shadowroot' + 'mode="open">' + hidden + '</template></div>');
         root.appendChild(document.adoptNode(parsed.getElementById('r4s-parsed')));
       }
+      if (fault === 'parse_closed') {
+        var closed = Document.parseHTMLUnsafe('<div id="r4s-closed"><template shadowroot' + 'mode="closed">' + hidden + '</template></div>');
+        root.appendChild(document.adoptNode(closed.getElementById('r4s-closed')));
+      }
       if (fault === 'shadow_word') {
         var words = document.createElement('script');
         words.src = '/word.js';

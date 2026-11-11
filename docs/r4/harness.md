@@ -134,7 +134,7 @@ Playwright drives the browser through the browser's own protocol. Its documentat
 node tools/r4-page/selftest.mjs
 ```
 
-The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`, and the choices of each item carry the item id. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own that misses only while the condition holds: check 1 holds 8, check 2 holds 23, check 3 holds 3, check 4 holds 9, check 5 holds 8 and check 6 holds 8.
+The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`, and the choices of each item carry the item id. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own that misses only while the condition holds: check 1 holds 8, check 2 holds 23, check 3 holds 3, check 4 holds 10, check 5 holds 8 and check 6 holds 8.
 
 | check | fault | state | what the fault does | what must miss |
 |---|---|---|---|---|
@@ -181,6 +181,7 @@ The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view
 | 4 | `no_act` | a | a button of 44 pixels with no `data-act` | `no_act` |
 | 4 | `shadow_markup` | a | a closed shadow root made by `setHTMLUnsafe` from `<template/shadowrootmode=closed>` | `opaque` |
 | 4 | `shadow_word` | a | the script `sample/word.js`, whose text holds the word `shadowrootmode` in a string and makes no root | `opaque` |
+| 4 | `parse_closed` | a | a closed shadow root made by `Document.parseHTMLUnsafe`, with the word split in the served text, and adopted into the page | `opaque` |
 | 5 | `motion_hidden` | a | a control hidden with reduced motion | the mode `reduced_motion` alone |
 | 5 | `forced_hidden` | a | a control hidden in forced colours | the mode `forced_colors` alone |
 | 5 | `narrow_scroll` | a | a line at least 400 pixels wide | the mode `width_320` alone |
