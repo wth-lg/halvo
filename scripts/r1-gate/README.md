@@ -5,6 +5,30 @@ by its letter of the done-when. `lib.sh` holds the predicates, and each
 `check-<name>.sh` holds the cases that prove them (`--self-test -v`) and the
 measured run (`--measure`). The bounds stand in `docs/baseline/r1-gate-bounds.txt`.
 
+## What a line reads
+
+- The timed-run, secure-input, cost and memory lines each read the report of
+  their own run. Each fails when a source did not start: a line
+  `halvo-capture: source <name> did not start` on standard error, a
+  `failed_source=` line, or no screen frame or foreground app.
+- Under `--input operator` the timed-run, cost and memory lines fail when that
+  report holds no keystroke or no pointer event, and the secure-input line fails
+  when it holds no pointer event; the sentence says that the operator gave no
+  input. Under `--input none` each of the four lines fails when the report holds
+  a keystroke or a pointer count above 0, and gives both counts; with both counts
+  0 it ends NO-INPUT. Under either input mode a report without one line
+  `modality=keystroke count=<digits>` and one line `modality=pointer count=<digits>`
+  fails the line, because it shows neither input nor its absence.
+- A secure-input count above 0 is the number of key events that reached the tap
+  while secure input was held and that the product suppressed. The line prints
+  the keystroke count of the same report beside it.
+- `run.sh` requires exactly one line `<WORD> <name>` from each check, with the
+  word that its exit status gives.
+- Every child that a check starts gets its duration plus `child_deadline_extra_s`
+  seconds: each timed run, and the `--verify-store` and `--verify-deletion` runs,
+  whose duration is 0. A child past its deadline is ended, and the line is FAIL.
+  A TERM or a HUP to the check ends the child too.
+
 ## Mutant rows
 
 `mutation-test.sh` discovers every tracked file named `mutants.rows` and runs
@@ -22,8 +46,10 @@ empty, and a line that is empty is skipped.
 - **file**: the file to mutate, relative to the directory of the row file, with
   no `..` in it. For a `transitional` or a `control` row it is relative to the
   repository root.
-- **substitution**: a perl program for `perl -0pi -e`, so `\n` matches a line
-  end. A substitution that changes nothing fails the row.
+- **substitution**: one or more perl `s///` statements, separated by `;`. The
+  runner applies each to the whole file, so `\n` matches a line end. A
+  statement that matches nothing fails the row, and so does a substitution
+  that changes nothing.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and
@@ -54,7 +80,22 @@ empty, and a line that is empty is skipped.
   - `retired REASON`: the code is gone; REASON names the test that replaced the row.
 - **item**: the id of the plan item that owns the row.
 
-The runner builds every mutant before it judges it:
+The runner builds every mutant before it judges it, with the build of its kind:
+cargo for a file that cargo builds, `sh -n` for a `.sh` file, `cc -fsyntax-only`
+for a `.c` file, `perl -c` for a `.pl` file and `swiftc -parse` for a `.swift`
+file. It refuses a row on a file of any other kind.
 `FAIL mutation:<name> (the mutant does not build)` is never a caught mutant.
 `mutants.expected` lists one name for each mutant that a review applied; under
-`--strict` a name that no row file holds or retires is a FAIL.
+`--strict` a name that no row file holds or retires is a FAIL, and so is a
+missing `mutants.expected`.
+
+## Limits
+
+- The source scan of `check-no-ll-hook.sh` reads the text of the tracked files
+  whose names end in `.rs`, in lower case, one line at a time. It does not see
+  an alias of a banned name (`use ... as`), a path that is split over lines, code
+  that `include!` or `#[path]` brings in from another file, or a file whose
+  extension is not `.rs` in lower case.
+- During the secure-input run the product withholds every key event by design,
+  so a pointer count above 0 shows that a person was at the machine during the
+  hold, not that a key was typed.

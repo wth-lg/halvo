@@ -100,3 +100,6 @@ and merge without an entry landing under the heading of another.
 - Added: Keep LF line ends under docs/r6/ and scripts/r6/ in every clone, and say in docs/r6/README.md what its directories hold
 - Added: Add the gateway request crate halvo-route-wire, which reads and writes the body of a hosted model call and reads its two answers, with its limits, schema and vectors under docs/r6/gateway/ and the check 20-r6-gateway
 - Added: Record which of the four routing models may enter the model trials, with their licence lines and the size and SHA-256 of each 4-bit file that enters
+- Fixed: Make the R1 gate checks fail closed when a source did not run, the input counts of a run contradict its input mode, a bound is unreadable, a verify step outlives its deadline, a ci.d entry is not a regular NN-name.sh file, a mutant had no build of its kind, or the tree changed during the run
+- Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
+- Added: Add the page-test harness under tools/r4-page with its pinned packages, the browser builds pinned by address, size and SHA-256 and not committed, the six accessibility checks and a self-test on a sample view

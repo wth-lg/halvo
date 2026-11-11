@@ -49,7 +49,7 @@ cases() {
   pull="run 42619929912 pull_request $sha completed failure"
   t push-run-green PASS verdict "$sha" "$push" "job macos success 21" "job windows success 18"
   t failed-pull-request-run-beside-a-green-push-run PASS verdict "$sha" "$pull" "$push" "job macos success 21" "job windows success 18"
-  t pull-request-run-only FAIL verdict "$sha" "$pull"
+  t pull-request-run-only FAIL verdict "$sha" "$pull" "job macos success 21" "job windows success 18"
   t no-push-run FAIL verdict "$sha"
   t sha-empty FAIL verdict "" "$push" "job windows success 18"
   t sha-HEAD FAIL verdict HEAD "$push" "job windows success 18"

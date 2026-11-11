@@ -1,9 +1,18 @@
 # shellcheck shell=sh
 export LC_ALL=C
-GATE_ROOT=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
-GATE_ROOT=$(cd "$GATE_ROOT" && pwd -P)
+gate_root_named=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
+GATE_ROOT=$(cd "$gate_root_named" 2> /dev/null && pwd -P) || GATE_ROOT=$gate_root_named
 GATE_REPO=${GATE_REPO:-wth-lg/halvo}
 GATE_DURATION=${GATE_DURATION:-600}
+
+predicate_duration() {
+  case $1 in ''|*[!0-9]*|0*) return 1 ;; esac
+}
+
+if ! predicate_duration "$GATE_DURATION"; then
+  printf '%s: GATE_DURATION=%s is no positive integer without a leading zero\n' "${0##*/}" "$GATE_DURATION" >&2
+  exit 64
+fi
 GATE_TARGET=$GATE_ROOT/target/r1-gate
 GATE_BIN=$GATE_TARGET/debug/halvo-capture
 
@@ -91,11 +100,34 @@ helper_pid=''
 watched_pid=''
 
 watched() {
+  watched_defect=''
+  if ! use_bound child_deadline_extra_s; then
+    watched_defect="did not start: bound child_deadline_extra_s is not readable: docs/baseline/r1-gate-bounds.txt must hold exactly one child_deadline_extra_s=digits line"
+    return 1
+  fi
+  watched_deadline=$bound
+  watched_start=$(date +%s)
   "$@" &
   watched_pid=$!
+  while kill -0 "$watched_pid" 2> /dev/null; do
+    watched_now=$(date +%s)
+    if [ "$((watched_now - watched_start))" -ge "$watched_deadline" ]; then
+      watched_defect="ran past its deadline of ${watched_deadline}s and was ended"
+      kill -TERM "$watched_pid" 2> /dev/null
+      watched_polls=0
+      while kill -0 "$watched_pid" 2> /dev/null; do
+        watched_polls=$((watched_polls + 1))
+        if [ "$watched_polls" -gt 50 ]; then kill -KILL "$watched_pid" 2> /dev/null; break; fi
+        sleep 0.1
+      done
+      break
+    fi
+    sleep 0.1
+  done
   wait "$watched_pid"
   watched_status=$?
   watched_pid=''
+  [ -z "$watched_defect" ] || return 1
   return "$watched_status"
 }
 
@@ -246,12 +278,11 @@ marker_defect() {
 }
 
 report_has_key() {
-  case " $1 " in *" $2="*) return 0 ;; esac
-  return 1
+  printf '%s\n' "$1" | tr '\t' ' ' | tr ' ' '\n' | grep -q -e "^$2="
 }
 
 report_values() {
-  printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"
+  printf '%s\n' "$1" | tr '\t' ' ' | tr ' ' '\n' | sed -n "s/^$2=//p"
 }
 
 report_defects() {
@@ -318,6 +349,59 @@ predicate_sources_ran() {
   sources_defect "$1" "$2" > /dev/null
 }
 
+input_defect() {
+  input_report=$1; shift
+  input_keys=$(modality_count "$input_report" keystroke)
+  input_points=$(modality_count "$input_report" pointer)
+  input_counts="keystroke=${input_keys:-absent} pointer=${input_points:-absent}"
+  case $input_keys:$input_points in
+    *[!0-9:]*|:*|*:)
+      printf 'the report holds no one line modality=keystroke count and one line modality=pointer count, so it does not show the input of the run: %s\n' "$input_counts"
+      return 1 ;;
+  esac
+  if [ "$gate_input" = none ]; then
+    [ "$input_keys" -eq 0 ] && [ "$input_points" -eq 0 ] && return 0
+    printf 'input reached a run that was started with --input none: %s\n' "$input_counts"
+    return 1
+  fi
+  for input_kind in "$@"; do
+    case $input_kind in keystroke) input_count=$input_keys ;; *) input_count=$input_points ;; esac
+    [ "$input_count" -eq 0 ] || continue
+    printf 'the operator gave no input: the report of this run holds %s under --input operator\n' "$input_counts"
+    return 1
+  done
+}
+
+signal_leaves_no_child() {
+  command -v "$1" > /dev/null 2>&1 || return 1
+  signal_root=$gate_scratch/signal-$1-$2
+  mkdir -p "$signal_root" || return 1
+  TMPDIR=$signal_root "$1" -c "set -- --self-test --case no-such-case; . \"\$0\" > /dev/null 2>&1; against_the_standin hang none" "$DIR/check-$name.sh" > "$signal_root.out" 2>&1 &
+  signal_pid=$!
+  signal_polls=0
+  until pgrep -f "$signal_root" > /dev/null; do
+    signal_polls=$((signal_polls + 1))
+    [ "$signal_polls" -lt 100 ] || { kill "$signal_pid" 2> /dev/null; return 1; }
+    sleep 0.1
+  done
+  kill "-$2" "$signal_pid"
+  signal_polls=0
+  while kill -0 "$signal_pid" 2> /dev/null; do
+    signal_polls=$((signal_polls + 1))
+    [ "$signal_polls" -lt 100 ] || return 1
+    sleep 0.1
+  done
+  signal_left=$(pgrep -f "$signal_root")
+  [ -z "$signal_left" ]
+}
+
+fails_saying() {
+  said_text=$1; shift
+  said=$("$@" 2> /dev/null)
+  case $said in *"FAIL $name ("*"$said_text"*) return 1 ;; esac
+  return 0
+}
+
 predicate_zero_secure_keystrokes() {
   count=$(sed -n 's/^secure_input_keystrokes=\([0-9][0-9]*\)$/\1/p' "$1" 2>/dev/null)
   [ "$count" = 0 ]
@@ -351,9 +435,14 @@ tree_id() {
 head_read() {
   head_sha=$(git -C "$GATE_ROOT" rev-parse HEAD 2>/dev/null) || return 1
   head_tree=$(tree_id "$GATE_ROOT" HEAD) || return 1
-  head_porcelain=$(git -C "$GATE_ROOT" status --porcelain 2>/dev/null) || return 1
+  head_porcelain=$(git -C "$GATE_ROOT" -c core.fileMode=true status --porcelain --untracked-files=no --ignore-submodules=none 2>/dev/null) || return 1
+  head_untracked=$(git -C "$GATE_ROOT" ls-files --others --exclude-per-directory=.gitignore 2>/dev/null) || return 1
+  head_index=$(git -C "$GATE_ROOT" ls-files -v 2>/dev/null) || return 1
+  head_flagged=$(printf '%s\n' "$head_index" | awk 'NF > 0 && $1 != "H" { print; exit }')
   head_state=clean
   predicate_tree_clean "$head_porcelain" || head_state=dirty
+  predicate_tree_clean "$head_untracked" || head_state=dirty
+  predicate_tree_clean "$head_flagged" || head_state=dirty
   printf '%s %s %s\n' "$head_sha" "$head_tree" "$head_state"
 }
 
@@ -391,10 +480,6 @@ capture_label=''
 build_for_measure() {
   [ "$capture_builds" = yes ] || return 0
   need_build
-}
-
-run_capture_bin() {
-  "$capture_bin" "$@"
 }
 
 standin_as_the_binary() {
@@ -770,6 +855,7 @@ source_rule() {
 }
 
 source_scan_defect() {
+  [ -n "$1" ] || { printf 'not scanned: the root to scan is an empty path\n'; return 2; }
   scan_repo=$(cd "$1" 2>/dev/null && pwd -P) || { printf 'not scanned: %s is missing\n' "$1"; return 2; }
   scan_top=$(git -C "$scan_repo" rev-parse --show-toplevel 2>/dev/null)
   [ "$scan_top" = "$scan_repo" ] || { printf 'not scanned: %s is not the top of a git work tree\n' "$1"; return 2; }
@@ -782,7 +868,7 @@ source_scan_defect() {
       { printf 'not scanned: no tracked .rs file under %s\n' "${scan_root%/}"; return 2; }
   done
   source_rule windows-hook 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' 's/^//' "$scan_repo" || return $?
-  source_rule active-tap 'CGEventTapOptions::|kCGEventTapOptionDefault|CGEventTapCreate|CGEventPost' 's/CGEventTapOptions::ListenOnly\([^A-Za-z0-9_]\)/\1/g; s/CGEventTapOptions::ListenOnly$//' "$scan_repo" || return $?
+  source_rule active-tap 'CGEventTapOptions::|kCGEventTapOptionDefault|CGEventTapCreate|CGEventPost|post\([^)]*CGEventTapLocation|post_to_pid|post_from_tap|new_keyboard_event|new_mouse_event|new_scroll_event' 's/CGEventTapOptions::ListenOnly\([^A-Za-z0-9_]\)/\1/g; s/CGEventTapOptions::ListenOnly$//' "$scan_repo" || return $?
   source_rule audio-capture 'setCapturesAudio|setCaptureMicrophone|SCStreamOutputType::' 's/SCStreamOutputType::Screen\([^A-Za-z0-9_]\)/\1/g; s/SCStreamOutputType::Screen$//' "$scan_repo" || return $?
   source_rule local-machine-key 'CRYPTPROTECT_LOCAL_MACHINE' 's/^//' "$scan_repo" || return $?
   git -C "$scan_repo" grep --cached -q -a -F -e 'CGEventTapOptions::ListenOnly' -- 'crates/halvo-capture/src/macos/*.rs' 2>/dev/null

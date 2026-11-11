@@ -153,6 +153,9 @@ static int capture_standin(int argc, char **argv) {
         fprintf(stderr, "halvo-capture: the stand-in was told to fail\n");
         return 1;
     }
+    if (strcmp(scenario, "hang") == 0 && strcmp(argv[1], "--timed-run") != 0) {
+        idle(40);
+    }
     if (strcmp(argv[1], "--verify-store") == 0) {
         const char *marker = flag_value(argc, argv, "--marker");
         if (marker == NULL) {
@@ -185,6 +188,7 @@ static int capture_standin(int argc, char **argv) {
         int held = has_word(argc, argv, "--hold-secure-input");
         int screen_on = has_word(argc, argv, "screen_activity=on") && has_word(argc, argv, "--switch");
         int screen_failed = strcmp(scenario, "screen-failed") == 0;
+        int input_failed = strcmp(scenario, "input-failed") == 0;
         int typed = strcmp(scenario, "typed") == 0;
         if (getenv("STANDIN_NEEDS_HOLD") != NULL && !held) {
             fprintf(stderr, "usage: halvo-capture --timed-run SECONDS --store-dir DIR --hold-secure-input\n");
@@ -220,6 +224,9 @@ static int capture_standin(int argc, char **argv) {
         }
         if (screen_failed) {
             fprintf(stderr, "halvo-capture: source screen did not start: the capture permission for ScreenFrame is not granted\n");
+        }
+        if (input_failed) {
+            fprintf(stderr, "halvo-capture: source input did not start: event tap creation failed\n");
         }
         printf("modality=screen_frame count=%d\n", screen_on && !screen_failed ? 12 : 0);
         printf("modality=keystroke count=%d\n", typed && !held ? 5 : 0);

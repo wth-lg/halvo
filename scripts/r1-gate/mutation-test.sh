@@ -98,8 +98,16 @@ mutant_builds() {
   case $1 in
     *.sh) sh -n "$tree/$1" > "$work/build.out" 2>&1 ;;
     *.c) cc -fsyntax-only "$tree/$1" > "$work/build.out" 2>&1 ;;
-    *) return 0 ;;
+    *.pl) perl -c "$tree/$1" > "$work/build.out" 2>&1 ;;
+    *.swift) swiftc -parse "$tree/$1" > "$work/build.out" 2>&1 ;;
+    *) return 1 ;;
   esac
+}
+
+buildable() {
+  needs_cargo "$1" && return 0
+  case $1 in *.sh|*.c|*.pl|*.swift) return 0 ;; esac
+  return 1
 }
 
 gate_lines() {
@@ -181,6 +189,7 @@ run_rows() {
     esac
     mutated=$(row_path)
     if [ ! -f "$tree/$mutated" ]; then say FAIL "$row_name" "the file $mutated is not in the copy"; failures=$((failures + 1)); continue; fi
+    if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
       if ! tree_build > "$work/unmutated.out" 2>&1; then
         first=$(head -1 "$work/unmutated.out")
@@ -207,9 +216,9 @@ run_rows() {
       esac
     fi
     cp "$tree/$mutated" "$work/pristine" || return 2
-    if ! perl -0pi -e "$row_subst" "$tree/$mutated" 2> "$work/perl.err"; then
+    if ! applied=$(ROW_SUBST=$row_subst perl "$DIR/helper/apply-row.pl" "$tree/$mutated" 2> "$work/perl.err"); then
       cp "$work/pristine" "$tree/$mutated"
-      say FAIL "$row_name" "the substitution is no valid perl"; failures=$((failures + 1)); continue
+      say FAIL "$row_name" "${applied:-the substitution could not be applied}"; failures=$((failures + 1)); continue
     fi
     if cmp -s "$work/pristine" "$tree/$mutated"; then
       say FAIL "$row_name" "the substitution did not apply"; failures=$((failures + 1)); continue
@@ -248,6 +257,8 @@ run_rows() {
       missing=$((missing + 1))
       [ "$strict" = no ] || say FAIL "$expected_name" "named in mutants.expected, and no row file holds or retires it"
     done < "$tree/scripts/r1-gate/mutants.expected"
+  elif [ "$strict" = yes ]; then
+    say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1))
   fi
   printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing"
   [ "$failures" -eq 0 ] || return 1
@@ -261,6 +272,7 @@ fixture_tree() {
   printf 'echo one\n' > "$made/code/a.sh"
   printf 'echo two\n' > "$made/scripts/r1-gate/b.sh"
   : > "$made/scripts/r1-gate/mutants.rows"
+  : > "$made/scripts/r1-gate/mutants.expected"
 }
 
 row() {
@@ -405,6 +417,46 @@ cases() {
   row unapplied/scripts/r1-gate/mutants.rows stale b.sh 's/no such text/x/' leak required X-1
   t substitution-did-not-apply FAIL fixture_run unapplied yes
   t substitution-did-not-apply-is-named PASS fixture_says unapplied 'FAIL mutation:stale (the substitution did not apply)' yes
+  fixture_tree half-stale
+  row half-stale/scripts/r1-gate/mutants.rows half b.sh 's/two/three/; s/no such text/x/' leak required X-1
+  t second-statement-did-not-apply FAIL fixture_run half-stale yes
+  t second-statement-did-not-apply-is-named PASS fixture_says half-stale 'FAIL mutation:half (statement 2 of 2 of the substitution did not apply)' yes
+  fixture_tree first-stale
+  row first-stale/scripts/r1-gate/mutants.rows first b.sh 's/no such text/x/; s/two/three/' leak required X-1
+  t first-statement-did-not-apply FAIL fixture_run first-stale yes
+  fixture_tree two-statements
+  row two-statements/scripts/r1-gate/mutants.rows both b.sh 's{echo}{printf} ; s/two/three/g' leak required X-1
+  t two-statements-that-apply PASS fixture_says two-statements 'PASS mutation:both (applies and builds)' yes
+  fixture_tree r-modifier
+  row r-modifier/scripts/r1-gate/mutants.rows returns b.sh 's/two/three/; s/no such text/x/r' leak required X-1
+  t statement-with-the-r-modifier FAIL fixture_run r-modifier yes
+  t statement-with-the-r-modifier-is-named PASS fixture_says r-modifier 'FAIL mutation:returns (statement 2 of the substitution has the r modifier, which changes no file)' yes
+  fixture_tree not-a-substitution
+  row not-a-substitution/scripts/r1-gate/mutants.rows other b.sh 'tr/a-z/A-Z/' leak required X-1
+  t program-that-is-no-substitution FAIL fixture_run not-a-substitution yes
+  fixture_tree perl
+  printf 'use strict;\nprint 1;\n' > "$gate_scratch/perl/scripts/r1-gate/x.pl"
+  row perl/scripts/r1-gate/mutants.rows perl-broken x.pl 's/print 1;/print (;/' leak required X-1
+  t perl-mutant-with-a-syntax-error FAIL fixture_run perl yes
+  t perl-mutant-with-a-syntax-error-is-named PASS fixture_says perl 'FAIL mutation:perl-broken (the mutant does not build)' yes
+  fixture_tree perl-good
+  printf 'use strict;\nprint 1;\n' > "$gate_scratch/perl-good/scripts/r1-gate/x.pl"
+  row perl-good/scripts/r1-gate/mutants.rows perl-two x.pl 's/print 1;/print 2;/' leak required X-1
+  t perl-mutant-that-builds PASS fixture_says perl-good 'PASS mutation:perl-two (applies and builds)' yes
+  fixture_tree swift
+  printf 'let x = 1\n' > "$gate_scratch/swift/scripts/r1-gate/w.swift"
+  row swift/scripts/r1-gate/mutants.rows swift-broken w.swift 's/let x = 1/let x = (/' leak required X-1
+  t swift-mutant-with-a-syntax-error FAIL fixture_run swift yes
+  t swift-mutant-with-a-syntax-error-is-named PASS fixture_says swift 'FAIL mutation:swift-broken (the mutant does not build)' yes
+  fixture_tree swift-good
+  printf 'let x = 1\n' > "$gate_scratch/swift-good/scripts/r1-gate/w.swift"
+  row swift-good/scripts/r1-gate/mutants.rows swift-two w.swift 's/let x = 1/let x = 2/' leak required X-1
+  t swift-mutant-that-builds PASS fixture_says swift-good 'PASS mutation:swift-two (applies and builds)' yes
+  fixture_tree data
+  printf 'limit=1\n' > "$gate_scratch/data/scripts/r1-gate/data.txt"
+  row data/scripts/r1-gate/mutants.rows data-row data.txt 's/limit=1/limit=2/' leak required X-1
+  t row-on-a-file-of-another-kind FAIL fixture_run data yes
+  t row-on-a-file-of-another-kind-is-named PASS fixture_says data 'FAIL mutation:data-row (the runner has no build for scripts/r1-gate/data.txt: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file)' yes
   fixture_tree outside
   row outside/scripts/r1-gate/mutants.rows outside ../../code/a.sh 's/one/1/' leak required X-1
   t file-outside-row-directory FAIL fixture_run outside yes
@@ -456,6 +508,12 @@ cases() {
   t expected-name-with-no-row PASS fixture_run expected yes
   t expected-name-with-no-row-fails-strict FAIL fixture_run expected yes yes
   t expected-name-is-named PASS fixture_says expected 'FAIL mutation:never-written (named in mutants.expected' yes yes
+  fixture_tree no-expected
+  row no-expected/scripts/r1-gate/mutants.rows gone b.sh 's/two/2/' leak 'retired replaced by the test store::x' X-9
+  mv "$gate_scratch/no-expected/scripts/r1-gate/mutants.expected" "$gate_scratch/no-expected/expected-moved-away"
+  t expected-file-missing-fails-strict FAIL fixture_run no-expected yes yes
+  t expected-file-missing-is-named PASS fixture_says no-expected 'FAIL mutation:expected (scripts/r1-gate/mutants.expected is missing, and --strict needs it)' yes yes
+  t expected-file-missing-passes-without-strict PASS fixture_run no-expected yes
   fixture_tree empty
   t no-row-at-all FAIL fixture_run empty yes
   fixture_tree missing-file
@@ -518,7 +576,7 @@ main() {
   work=$gate_scratch/work; tree=$gate_scratch/tree
   mkdir "$work" "$tree" || return 2
   git -C "$GATE_ROOT" archive -o "$work/head.tar" HEAD || { say FAIL copy "git archive of HEAD failed"; return 2; }
-  tar -xf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
+  tar -xmf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
   if [ -d "$GATE_TARGET" ]; then
     mkdir "$tree/target" || return 2
     cp -Rpc "$GATE_TARGET" "$tree/target/r1-gate" 2> /dev/null || cp -Rp "$GATE_TARGET" "$tree/target/r1-gate" || return 2

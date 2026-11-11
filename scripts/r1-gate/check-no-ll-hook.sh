@@ -35,6 +35,24 @@ defect_is() {
   [ "$defect" = "$2" ]
 }
 
+fails_naming() {
+  defect=$(source_scan_defect "$1")
+  [ "$defect" != "$2" ]
+}
+
+measured_from() {
+  ( cd "$gate_scratch/$2" && GATE_ROOT=$1 sh "$DIR/check-no-ll-hook.sh" --measure )
+}
+
+measured_from_says() {
+  out=$(measured_from "$2" "$3" 2> /dev/null)
+  [ "$out" = "$1" ]
+}
+
+scanned_from() {
+  ( cd "$gate_scratch/$1" && predicate_no_ll_hook "$2" )
+}
+
 measured_on() {
   GATE_ROOT=$gate_scratch/$1
   measure
@@ -69,6 +87,23 @@ cases() {
   t raw-tap-create FAIL predicate_no_ll_hook "$gate_scratch/tap-raw"
   tree event-post crates/halvo-capture/src/macos/tap.rs 'unsafe { CGEventPost(tap, event) };'
   t event-post FAIL predicate_no_ll_hook "$gate_scratch/event-post"
+  posted=crates/halvo-capture/src/macos/post.rs
+  tree post-to-a-location "$posted" 'ev.post(CGEventTapLocation::HID);'
+  t post-to-a-tap-location FAIL fails_naming "$gate_scratch/post-to-a-location" "active-tap at $posted:1"
+  tree post-with-a-module-path "$posted" 'ev.post(core_graphics::event::CGEventTapLocation::HID);'
+  t post-to-a-location-with-its-module-path FAIL fails_naming "$gate_scratch/post-with-a-module-path" "active-tap at $posted:1"
+  tree post-on-the-type "$posted" 'CGEvent::post(&ev, CGEventTapLocation::HID);'
+  t post-called-on-the-type FAIL fails_naming "$gate_scratch/post-on-the-type" "active-tap at $posted:1"
+  tree post-to-a-pid "$posted" 'ev.post_to_pid(pid);'
+  t post-to-a-pid FAIL fails_naming "$gate_scratch/post-to-a-pid" "active-tap at $posted:1"
+  tree post-from-a-tap "$posted" 'ev.post_from_tap(proxy);'
+  t post-from-a-tap FAIL fails_naming "$gate_scratch/post-from-a-tap" "active-tap at $posted:1"
+  tree keyboard-event "$posted" 'let ev = CGEvent::new_keyboard_event(source, 0, true).unwrap();'
+  t new-keyboard-event FAIL fails_naming "$gate_scratch/keyboard-event" "active-tap at $posted:1"
+  tree mouse-event "$posted" 'let ev = CGEvent::new_mouse_event(source, kind, at, button).unwrap();'
+  t new-mouse-event FAIL fails_naming "$gate_scratch/mouse-event" "active-tap at $posted:1"
+  tree scroll-event "$posted" 'let ev = CGEvent::new_scroll_event(source, unit, 1, 3, 0, 0).unwrap();'
+  t new-scroll-event FAIL fails_naming "$gate_scratch/scroll-event" "active-tap at $posted:1"
   tree audio crates/halvo-capture/src/macos/audio.rs 'config.setCapturesAudio(true);'
   t audio-captured FAIL predicate_no_ll_hook "$gate_scratch/audio"
   tree microphone crates/halvo-capture/src/macos/mic.rs 'config.setCaptureMicrophone(true);'
@@ -90,6 +125,9 @@ cases() {
   tree no-app; mv "$gate_scratch/no-app/src-tauri" "$gate_scratch/no-app/moved"; tracked no-app
   t dir-missing FAIL predicate_no_ll_hook "$gate_scratch/no-app"
   t repo-missing FAIL predicate_no_ll_hook "$gate_scratch/no-such-repo"
+  t root-missing-is-not-the-cwd FAIL measured_from "$gate_scratch/no-such-root" listen-only
+  t root-missing-is-named PASS measured_from_says "FAIL no-ll-hook (source scan did not run: $gate_scratch/no-such-root is missing)" "$gate_scratch/no-such-root" listen-only
+  t empty-root-is-not-the-cwd FAIL scanned_from listen-only ""
   mkdir -p "$gate_scratch/no-rs/crates/halvo-capture/src/macos" "$gate_scratch/no-rs/src-tauri/src"
   printf 'CGEventTapOptions::ListenOnly\n' > "$gate_scratch/no-rs/crates/halvo-capture/src/macos/notes.txt"
   git init -q "$gate_scratch/no-rs" && tracked no-rs

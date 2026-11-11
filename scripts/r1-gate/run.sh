@@ -51,7 +51,8 @@ R1 gate driver. One line for each sub-check of the done-when.
         git ls-tree -r HEAD | awk -F '\t' 'index(\$2, "docs/baseline/") != 1' | git hash-object --stdin
       A dirty tree is refused unless --allow-dirty is given,
       and then every line says so. N is the length of each timed run in seconds,
-      a positive integer (default $GATE_DURATION). --input says who gives keyboard and
+      a positive integer with no leading zero (default $GATE_DURATION, which
+      GATE_DURATION sets and the same rule checks). --input says who gives keyboard and
       pointer input during the timed runs: none (the default) or operator, a
       person. With none the lines that need input print their figures and end
       NO-INPUT, never PASS. Exit status: 0 when every line is PASS, 1 on any
@@ -77,11 +78,35 @@ run_check() {
   sh "$DIR/check-$check_name.sh" "$@"
 }
 
+measured_check() {
+  check_out=$(run_check "$@")
+  check_status=$?
+  [ -z "$check_out" ] || printf '%s\n' "$check_out"
+  check_found=$(printf '%s\n' "$check_out" | awk -v n="$1" '($1 == "PASS" || $1 == "FAIL" || $1 == "NO-INPUT") && $2 == n { c++; w = $1 } END { print c + 0, w }')
+  check_count=${check_found%% *}
+  check_word=${check_found#* }
+  case $check_status in
+    0) check_want=PASS ;;
+    1) check_want=FAIL ;;
+    3) check_want=NO-INPUT ;;
+    *) emit_fail "$1" "the check exited $check_status, and a check exits 0, 1 or 3"; return 1 ;;
+  esac
+  if [ "$check_count" != 1 ]; then
+    emit_fail "$1" "the check exited $check_status and printed $check_count lines PASS $1, FAIL $1 or NO-INPUT $1; it must print exactly one, and its word must match the exit status"
+    return 1
+  fi
+  if [ "$check_word" != "$check_want" ]; then
+    emit_fail "$1" "the check printed $check_word $1 and exited $check_status"
+    return 1
+  fi
+  return "$check_status"
+}
+
 measure_all() {
   all_status=0
   for entry in $CHECKS; do
     check_of "$entry"
-    run_check "$entry_check" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
+    measured_check "$entry_check" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
     all_status=$(worst_status "$all_status" "$?")
   done
   return "$all_status"
@@ -97,7 +122,14 @@ stub_checks() {
 printf '%s\n' "$*" > "$0.args"
 read -r verdict < "$0.verdict"
 stub=${0##*/check-}
-printf '%s %s\n' "$verdict" "${stub%.sh}"
+stub=${stub%.sh}
+case $verdict in
+  SILENT) exit 0 ;;
+  TWICE) printf 'PASS %s\nPASS %s\n' "$stub" "$stub"; exit 0 ;;
+  MISMATCH) printf 'FAIL %s (a stub)\n' "$stub"; exit 0 ;;
+  DIRTY) : > "$GATE_ROOT/changed-during-the-run"; printf 'PASS %s\n' "$stub"; exit 0 ;;
+esac
+printf '%s %s\n' "$verdict" "$stub"
 case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
 exit 1
 STUB
@@ -114,6 +146,13 @@ all_checks_exit() {
   stub_checks "$@"
   measure_all 5 operator 0123456789abcdef0123456789abcdef01234567 > /dev/null
   [ "$?" -eq "$all_want" ]
+}
+
+measured_says() {
+  measured_line=$1; shift
+  stub_checks "$@"
+  measured_out=$(measure_all 5 operator 0123456789abcdef0123456789abcdef01234567)
+  printf '%s\n' "$measured_out" | grep -qxF -e "$measured_line"
 }
 
 checks_get_their_arguments() {
@@ -168,6 +207,37 @@ head_of() {
   head_read
 }
 
+real_repository() {
+  repo=$gate_scratch/$1
+  git init -q "$repo" > /dev/null 2>&1 || return 1
+  printf 'one\n' > "$repo/a.txt"
+  git -C "$repo" add -A || return 1
+  repo_tree=$(git -C "$repo" write-tree) || return 1
+  repo_commit=$(printf 'tree %s\nauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$repo_tree" | git -C "$repo" hash-object -t commit -w --stdin) || return 1
+  git -C "$repo" update-ref HEAD "$repo_commit"
+}
+
+measured_run_says() {
+  run_line=$1; run_repo=$gate_scratch/$2; shift 2
+  gate_dir=$DIR
+  stub_checks "$@"
+  cp "$gate_dir/run.sh" "$gate_dir/lib.sh" "$stubs/" || return 1
+  GATE_ROOT=$run_repo sh "$stubs/run.sh" --duration 1 > "$stubs/run.out" 2> /dev/null
+  run_status=$?
+  [ "$run_status" -eq 1 ] || return 1
+  grep -qF -e "$run_line" "$stubs/run.out"
+}
+
+dirty_run_is_refused() {
+  measured_run_says "FAIL run (the work tree is dirty: commit first, or pass --allow-dirty for a run that is no done-when run)" "$1" || return 1
+  ! grep -q '^PASS ' "$stubs/run.out"
+}
+
+head_state_is() {
+  head_line=$(head_of "$gate_scratch/$2") || return 1
+  [ "${head_line##* }" = "$1" ]
+}
+
 status_is() {
   status=$(worst_status "$2" "$3")
   [ "$status" = "$1" ]
@@ -179,6 +249,10 @@ input_accepted() {
 
 duration_accepted() {
   sh "$DIR/run.sh" --duration "$1" --help
+}
+
+duration_from_the_environment() {
+  GATE_DURATION=$1 sh "$DIR/run.sh" --help
 }
 
 standin_helper() {
@@ -254,6 +328,29 @@ cases_run() {
   t porcelain-holds-a-change FAIL predicate_tree_clean " M scripts/r1-gate/run.sh"
   t porcelain-holds-an-untracked-file FAIL predicate_tree_clean "?? notes.txt"
   t head-of-no-repository FAIL head_of "$gate_scratch"
+  real_repository clean-repo || { emit_fail "self-test:run" "git could not make the scratch repository"; return 1; }
+  t clean-repository-is-clean PASS head_state_is clean clean-repo
+  real_repository hidden-untracked && git -C "$gate_scratch/hidden-untracked" config status.showUntrackedFiles no && printf 'new\n' > "$gate_scratch/hidden-untracked/notes.txt"
+  t untracked-file-under-show-untracked-files-no-is-dirty PASS head_state_is dirty hidden-untracked
+  real_repository assumed && git -C "$gate_scratch/assumed" update-index --assume-unchanged a.txt && printf 'changed\n' > "$gate_scratch/assumed/a.txt"
+  t assume-unchanged-entry-is-dirty PASS head_state_is dirty assumed
+  real_repository skipped && git -C "$gate_scratch/skipped" update-index --skip-worktree a.txt
+  t skip-worktree-entry-is-dirty PASS head_state_is dirty skipped
+  real_repository excluded && printf 'notes.txt\n' >> "$gate_scratch/excluded/.git/info/exclude" && printf 'new\n' > "$gate_scratch/excluded/notes.txt"
+  t untracked-file-in-info-exclude-is-dirty PASS head_state_is dirty excluded
+  real_repository excludes-file && printf 'notes.txt\n' > "$gate_scratch/excludes-file.list" && git -C "$gate_scratch/excludes-file" config core.excludesFile "$gate_scratch/excludes-file.list" && printf 'new\n' > "$gate_scratch/excludes-file/notes.txt"
+  t untracked-file-in-an-excludes-file-is-dirty PASS head_state_is dirty excludes-file
+  real_repository mode-changed && git -C "$gate_scratch/mode-changed" config core.fileMode false && chmod 755 "$gate_scratch/mode-changed/a.txt"
+  t mode-change-under-core-filemode-false-is-dirty PASS head_state_is dirty mode-changed
+  mkdir -p "$gate_scratch/ignored" && printf 'notes.txt\n' > "$gate_scratch/ignored/.gitignore" && real_repository ignored && printf 'new\n' > "$gate_scratch/ignored/notes.txt"
+  t file-that-a-tracked-gitignore-names-is-clean PASS head_state_is clean ignored
+  real_repository untracked && printf 'new\n' > "$gate_scratch/untracked/notes.txt"
+  t untracked-file-makes-the-head-dirty PASS head_state_is dirty untracked
+  t measured-run-on-a-dirty-tree-is-refused PASS dirty_run_is_refused untracked
+  real_repository changing
+  t measured-run-whose-tree-changes-fails PASS measured_run_says "FAIL run (the commit or the state of the work tree changed during the run: " changing timed-run=DIRTY
+  real_repository steady
+  t measured-run-on-a-steady-tree-has-no-change-line FAIL measured_run_says "FAIL run (the commit or the state of the work tree changed during the run: " steady memory=FAIL
   scratch_trees || { emit_fail "self-test:run" "git could not write the scratch trees"; return 1; }
   t tree-id-moves-with-a-source-file PASS tree_ids differ "$tree_new_record" "$tree_new_source"
   t tree-id-holds-under-docs-baseline PASS tree_ids same "$tree_first" "$tree_new_record"
@@ -274,6 +371,12 @@ cases_run() {
   t a-fail-of-the-first-check-exits-1 PASS all_checks_exit 1 timed-run=FAIL
   t a-fail-of-the-last-check-exits-1 PASS all_checks_exit 1 no-ll-hook=FAIL
   t checks-get-duration-input-sha-and-strict PASS checks_get_their_arguments
+  t a-check-with-no-line-exits-1 PASS all_checks_exit 1 store=SILENT
+  t a-check-with-no-line-is-named PASS measured_says "FAIL store (the check exited 0 and printed 0 lines PASS store, FAIL store or NO-INPUT store; it must print exactly one, and its word must match the exit status)" store=SILENT
+  t a-check-with-two-lines-exits-1 PASS all_checks_exit 1 store=TWICE
+  t a-check-with-two-lines-is-named PASS measured_says "FAIL store (the check exited 0 and printed 2 lines PASS store, FAIL store or NO-INPUT store; it must print exactly one, and its word must match the exit status)" store=TWICE
+  t a-line-against-its-exit-status-exits-1 PASS all_checks_exit 1 store=MISMATCH
+  t a-line-against-its-exit-status-is-named PASS measured_says "FAIL store (the check printed FAIL store and exited 0)" store=MISMATCH
   t exit-0-when-every-line-passes PASS status_is 0 0 0
   t exit-3-on-a-no-input-line PASS status_is 3 0 3
   t exit-3-stays-after-a-pass PASS status_is 3 3 0
@@ -291,6 +394,12 @@ cases_run() {
   t duration-letters FAIL duration_accepted abc
   t duration-empty FAIL duration_accepted ""
   t duration-negative FAIL duration_accepted -5
+  t duration-00 FAIL duration_accepted 00
+  t duration-with-a-leading-zero FAIL duration_accepted 010
+  t duration-from-the-environment PASS duration_from_the_environment 600
+  t duration-from-the-environment-00 FAIL duration_from_the_environment 00
+  t duration-from-the-environment-letters FAIL duration_from_the_environment abc
+  t duration-from-the-environment-reaches-a-check FAIL env GATE_DURATION=00 sh "$DIR/check-windows-ci.sh" --self-test --case sha-empty
 }
 
 
@@ -313,9 +422,7 @@ main() {
         esac ;;
       --duration)
         shift
-        case ${1:-} in
-          ''|*[!0-9]*|0) usage >&2; return 64 ;;
-        esac
+        predicate_duration "${1:-}" || { usage >&2; return 64; }
         duration=$1 ;;
       -h|--help) usage; return 0 ;;
       *) printf 'run.sh: unknown argument: %s\n' "$1" >&2; usage >&2; return 64 ;;

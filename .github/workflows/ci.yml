@@ -149,7 +149,7 @@ jobs:
           clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
           cd "$clone"
-          line_endings=$(git ls-files --eol -- '*.sh' '.githooks/*')
+          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
           echo "$line_endings"
           test -n "$line_endings"
           crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')

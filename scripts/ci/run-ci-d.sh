@@ -70,6 +70,17 @@ inspect() {
   script_name=${script_name%.sh}
   script_jobs=
   script_rule=
+  if [ -L "$script_file" ] || [ ! -f "$script_file" ]; then
+    refusal="it is not a regular file"
+    return 1
+  fi
+  case ${script_file##*/} in
+    *.sh) ;;
+    *)
+      refusal="the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -"
+      return 1
+      ;;
+  esac
   case ${script_name#[0-9][0-9]-} in
     "$script_name" | '' | *[!a-z0-9-]*)
       refusal="the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -"
@@ -114,6 +125,13 @@ inspect() {
   return 0
 }
 
+is_entry() {
+  case ${1##*/} in
+    . | ..) return 1 ;;
+  esac
+  [ -e "$1" ] || [ -L "$1" ]
+}
+
 names_job() {
   case " $script_jobs " in
     *" $1 "*) return 0 ;;
@@ -124,8 +142,8 @@ names_job() {
 if [ "$mode" = list ] || [ "$mode" = rules ]; then
   status=0
   count=0
-  for file in "$root"/*/ci.d/*.sh; do
-    [ -f "$file" ] || continue
+  for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
+    is_entry "$file" || continue
     if ! inspect "$file"; then
       printf 'FAIL %s (%s)\n' "$script_name" "$refusal"
       status=1
@@ -250,7 +268,13 @@ new_repo() {
   fixture=$(mktemp -d "$tmp/repo.XXXXXX") || return 1
   git -C "$fixture" init -q >/dev/null 2>&1 || return 1
   printf 'version = 4\n' >"$fixture/Cargo.lock"
-  git -C "$fixture" add Cargo.lock >/dev/null 2>&1
+  git -C "$fixture" add Cargo.lock >/dev/null 2>&1 && fixture_commit
+}
+
+fixture_commit() {
+  fixture_tree=$(git -C "$fixture" write-tree) || return 1
+  fixture_head=$(printf 'tree %s\nauthor ci.d fixture <fixture@example.invalid> 1 +0000\ncommitter ci.d fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_tree" | git -C "$fixture" hash-object -t commit -w --stdin) || return 1
+  git -C "$fixture" update-ref HEAD "$fixture_head"
 }
 
 add_script() {
@@ -314,7 +338,7 @@ own_self_test() {
   tab=$(printf '\t')
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
-  guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)'
+  guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
 
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
@@ -360,6 +384,19 @@ own_self_test() {
   own_case unknown-job-word 1 "FAIL 10-a (its '# jobs:' line names linux; a job is macos or windows)" macos
   new_repo && add_script r1 format.sh "$good" 'printf "PASS format\n"'
   own_case file-name 1 "FAIL format ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-nosuffix "$good" 'printf "PASS 20-nosuffix\n"'
+  own_case file-name-without-a-suffix 1 "FAIL 20-nosuffix ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 30-upper.SH "$good" 'printf "PASS 30-upper\n"'
+  own_case file-name-with-an-upper-case-suffix 1 "FAIL 30-upper.SH ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && mkdir "$fixture/scripts/r1/ci.d/40-dir.sh"
+  own_case directory-with-a-script-name 1 'FAIL 40-dir (it is not a regular file)' macos
+  own_case directory-fails-the-other-job 1 'FAIL 40-dir (it is not a regular file)' windows
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
+  if ln -s no-such-file "$fixture/scripts/r1/ci.d/50-dangling.sh" 2>/dev/null && [ -L "$fixture/scripts/r1/ci.d/50-dangling.sh" ]; then
+    own_case dangling-link-with-a-script-name 1 'FAIL 50-dangling (it is not a regular file)' macos
+  fi
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 .20-hidden.sh "$good" 'printf "PASS .20-hidden\n"'
+  own_case hidden-entry 1 "FAIL .20-hidden ($name_refusal)" macos
   new_repo && add_script r1 10-.sh "$good" 'printf "PASS 10-\n"'
   own_case file-name-without-a-name 1 "FAIL 10- ($name_refusal)" macos
   new_repo && add_script r1 10-A.sh "$good" 'printf "PASS 10-A\n"'
@@ -406,8 +443,12 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
   own_case lockfile-changed 1 "$guard_line" macos
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/package-lock.json"; printf "PASS 10-a\n"' &&
-    printf '{}\n' >"$fixture/package-lock.json" && git -C "$fixture" add package-lock.json >/dev/null 2>&1
+    printf '{}\n' >"$fixture/package-lock.json" && git -C "$fixture" add package-lock.json >/dev/null 2>&1 && fixture_commit
   own_case package-lock-changed 1 "$guard_line" macos
+  new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; git -C "$CI_D_REPO" add Cargo.lock; printf "PASS 10-a\n"'
+  own_case lockfile-changed-and-staged 1 "$guard_line" macos
+  new_repo && add_script r1 10-a.sh "$good" 'git -C "$CI_D_REPO" update-index --assume-unchanged Cargo.lock; printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
+  own_case lockfile-changed-under-assume-unchanged 1 "$guard_line" macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -454,8 +495,8 @@ if [ "$mode" = self-test ]; then
   esac
 fi
 
-for file in "$root"/*/ci.d/*.sh; do
-  [ -f "$file" ] || continue
+for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
+  is_entry "$file" || continue
   if ! inspect "$file"; then
     record FAIL "FAIL $script_name ($refusal)"
     continue
@@ -496,8 +537,15 @@ fi
 if [ "$failed" -gt 0 ] || [ "$passed" -eq 0 ]; then
   status=1
 fi
-if ! git diff --exit-code -- Cargo.lock package-lock.json; then
-  printf 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)\n'
+lock_changed=
+for lock in Cargo.lock package-lock.json; do
+  lock_head=$(git rev-parse -q --verify "HEAD:$lock" 2>/dev/null)
+  lock_tree=
+  [ ! -e "$lock" ] || lock_tree=$(git hash-object -- "$lock" 2>/dev/null) || lock_tree=unreadable
+  [ "$lock_head" = "$lock_tree" ] || lock_changed="$lock_changed $lock"
+done
+if ! git diff --exit-code HEAD -- Cargo.lock package-lock.json || [ -n "$lock_changed" ]; then
+  printf 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)\n'
   status=1
 fi
 exit "$status"

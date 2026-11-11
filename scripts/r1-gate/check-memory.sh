@@ -99,8 +99,10 @@ cases() {
   t standin-spike FAIL live_verdict spike 64 0.2 1
   t standin-leak FAIL live_verdict leak 16 5 0.3
   sources_cases
-  t standin-run-with-sources PASS against_the_standin ok operator
+  t standin-run-with-sources PASS against_the_standin typed operator
+  t standin-operator-gave-no-input FAIL fails_saying 'the operator gave no input: the report of this run holds keystroke=0 pointer=0' against_the_standin ok operator
   t standin-run-with-no-input NO-INPUT against_the_standin ok none
+  t standin-input-under-none FAIL fails_saying 'input reached a run that was started with --input none: keystroke=5 pointer=7' against_the_standin typed none
   t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
   t standin-binary-hangs FAIL hanging_standin
@@ -167,6 +169,18 @@ cases() {
   t strict-pressure-unread FAIL strict_verdict yes pressure=unread pressure=1 no
   t strict-other-capture FAIL strict_verdict yes pressure=1 pressure=1 yes
   t pressure-2-without-strict PASS strict_verdict no pressure=2 pressure=2 yes
+  t machine-state-reads-the-pressure-level PASS machine_state_reads 4 'load1=1.50 pressure=4'
+  t machine-state-names-an-unread-level PASS machine_state_reads fail 'load1=1.50 pressure=unread'
+}
+
+machine_state_reads() {
+  stub_bin=$gate_scratch/sysctl-$1
+  mkdir -p "$stub_bin"
+  printf '#!/bin/sh\ncase "$*" in\n  "-n vm.loadavg") printf "{ 1.50 1.40 1.30 }\\n" ;;\n  "-n kern.memorystatus_vm_pressure_level") [ %s != fail ] || exit 1; printf "%s\\n" ;;\n  *) exit 1 ;;\nesac\n' "$1" "$1" > "$stub_bin/sysctl"
+  chmod 755 "$stub_bin/sysctl"
+  PATH="$stub_bin:$PATH"
+  state=$(machine_state)
+  [ "$state" = "$2" ]
 }
 
 hanging_standin() {
@@ -186,7 +200,7 @@ with_an_unreadable_deadline() {
 }
 
 strict_beside() {
-  standin_as_the_binary ok operator
+  standin_as_the_binary typed operator
   gate_strict=yes
   # shellcheck disable=SC2329
   machine_state() { printf 'load1=0.00 pressure=1\n'; }
@@ -227,6 +241,7 @@ FIGURES
   if ! strict_run_ok; then
     emit_fail "$name" "$line: --strict needs pressure level 1 at both ends and no other halvo-capture"; return 1
   fi
+  defect=$(input_defect "$run_dir/stdout" keystroke pointer) || { emit_fail "$name" "$defect; $line"; return 1; }
   verdict_under_input "and the bound is defined under input load" "$line"
 }
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint accepts it, every action is pinned to a 40-hex commit, permissions are set at the top level, and the timeout of each job is the bound ci_job_timeout_min.
+# rule: ci.yml is the only workflow file, actionlint accepts it, every action is pinned to a 40-hex commit, the permissions at the top level grant contents: read and nothing else, the jobs are macos and windows, and the timeout of each job is the bound ci_job_timeout_min.
 set -u
 name=17-workflow-lint
 nl='
@@ -42,36 +42,67 @@ measure() {
     finding ".github/workflows must hold ci.yml and no other file; to add a check, add a script under scripts/<run>/ci.d/, not a workflow file"
   actionlint "$file" || finding "actionlint reports a finding in ci.yml"
 
-  uses=$(grep -c 'uses:' "$file")
-  pinned=$(grep -c -E 'uses: [^ ]+@[0-9a-f]{40}( |$)' "$file")
+  uses_key="(^|[[:space:]{,-])[\"']?uses[\"']?[[:space:]]*:"
+  uses=$(grep -o -E "$uses_key" "$file" | wc -l | tr -d ' ')
+  pinned=$(grep -o -E "${uses_key}[[:space:]]*[\"']?[^ \"',}]+@[0-9a-f]{40}[\"']?([[:space:],}]|\$)" "$file" | wc -l | tr -d ' ')
   [ "$uses" -gt 0 ] || finding "ci.yml holds no uses line"
   [ "$uses" -eq "$pinned" ] ||
-    finding "$((uses - pinned)) of $uses uses lines of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment"
+    finding "$((uses - pinned)) of $uses uses keys of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment"
 
-  permissions=$(grep -c '^permissions:' "$file")
-  [ "$permissions" -eq 1 ] ||
-    finding "ci.yml must set permissions once at the top level, and it does so $permissions times"
+  permissions=$(awk -v q="'" '
+    BEGIN { key = "^[\"" q "]?permissions[\"" q "]?[[:space:]]*:" }
+    in_block && /^[^[:space:]#]/ { in_block = 0 }
+    in_block && /^[[:space:]]+[^[:space:]#]/ { grants++; if ($0 != "  contents: read") other = 1; next }
+    $0 ~ key { tops++; rest = $0; sub(key, "", rest); if (rest !~ /^[[:space:]]*(#.*)?$/) other = 1; in_block = 1 }
+    END { print tops + 0, grants + 0, other + 0 }' "$file")
+  read -r tops grants other <<EOF
+$permissions
+EOF
+  if [ "$tops" -ne 1 ]; then
+    finding "ci.yml must set permissions once at the top level, and it does so $tops times"
+  elif [ "$other" -ne 0 ] || [ "$grants" -ne 1 ]; then
+    finding "the top-level permissions of ci.yml must grant contents: read and nothing else"
+  fi
 
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
   GATE_ROOT=$CI_D_REPO
   export GATE_ROOT
   . scripts/r1-gate/lib.sh
-  jobs=$(grep -c '^    runs-on: ' "$file")
-  [ "$jobs" -gt 0 ] || finding "ci.yml holds no job with runs-on at four spaces"
-  if bound=$(gate_bound ci_job_timeout_min); then
-    case $bound in
-      '' | *[!0-9]*) finding "the bound ci_job_timeout_min is no number" ;;
-      *)
-        timed=$(grep -c -x "    timeout-minutes: $bound" "$file")
-        [ "$jobs" -eq "$timed" ] ||
-          finding "$timed of $jobs jobs of ci.yml set timeout-minutes: $bound, the bound ci_job_timeout_min"
-        ;;
-    esac
-  else
-    finding "the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh"
+  bound=$(gate_bound ci_job_timeout_min) || bound=
+  job_facts=$(awk -v q="'" -v bound="$bound" '
+    function finish() {
+      if (job == "") return
+      jobs++; names = names " " job
+      if (job == "macos") macos++; else if (job == "windows") windows++; else others++
+      if (timed == 1) good++
+      job = ""
+    }
+    BEGIN { key = "^[\"" q "]?jobs[\"" q "]?[[:space:]]*:" }
+    in_jobs && /^[^[:space:]#]/ { finish(); in_jobs = 0 }
+    $0 ~ key { blocks++; rest = $0; sub(key, "", rest); if (rest !~ /^[[:space:]]*(#.*)?$/) inline = 1; in_jobs = 1; next }
+    in_jobs && /^  [^[:space:]#]/ { finish(); job = $0; sub(/^  /, "", job); sub(/[[:space:]]*:.*$/, "", job); gsub(q, "", job); gsub(/"/, "", job); timed = 0; next }
+    in_jobs && job != "" && bound != "" && $0 == "    timeout-minutes: " bound { timed++ }
+    END { finish(); print blocks + 0, inline + 0, jobs + 0, good + 0, macos + 0, windows + 0, others + 0, names }' "$file")
+  read -r blocks inline jobs timed macos windows others names <<EOF
+$job_facts
+EOF
+  if [ "$blocks" -ne 1 ] || [ "$inline" -ne 0 ]; then
+    finding "ci.yml must hold one block of jobs under a jobs key at the top level"
+  elif [ "$jobs" -eq 0 ]; then
+    finding "ci.yml holds no job key at two spaces under jobs:"
+  elif [ "$macos" -ne 1 ] || [ "$windows" -ne 1 ] || [ "$others" -ne 0 ]; then
+    finding "the jobs of ci.yml must be exactly macos and windows, and it holds: $names"
   fi
+  case $bound in
+    '') finding "the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh" ;;
+    *[!0-9]*) finding "the bound ci_job_timeout_min is no number" ;;
+    *)
+      [ "$jobs" -eq "$timed" ] ||
+        finding "$timed of $jobs jobs of ci.yml set timeout-minutes: $bound, the bound ci_job_timeout_min"
+      ;;
+  esac
 
-  printf 'jobs: %s, uses lines: %s, findings: %s\n' "$jobs" "$uses" "$findings"
+  printf 'jobs: %s, uses keys: %s, findings: %s\n' "$jobs" "$uses" "$findings"
   [ "$findings" -le 1 ] || first="$first; and $((findings - 1)) more above"
   [ "$findings" -eq 0 ] || fail "$first"
   printf 'PASS %s\n' "$name"
@@ -158,15 +189,15 @@ EOF
   ci=
 
   tree pinned-and-timed ''
-  check pinned-and-timed PASS 'jobs: 2, uses lines: 2, findings: 0'
+  check pinned-and-timed PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree action-on-a-tag '10s/@[0-9a-f]* # v7.0.1/@v7/'
-  check action-on-a-tag FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check action-on-a-tag FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree action-on-a-short-commit '15s/@[0-9a-f]\{33\}/@/'
-  check action-on-a-short-commit FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check action-on-a-short-commit FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree action-on-41-hex '15s/ # v7.0.1/a # v7.0.1/'
-  check action-on-41-hex FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check action-on-41-hex FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree named-step-on-a-tag "10s/.*/      - name: Checkout\\${nl}        uses: actions\\/checkout@v7/"
-  check named-step-on-a-tag FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check named-step-on-a-tag FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree no-uses-line '10s/.*/      - run: "true"/;15s/.*/      - run: "true"/'
   check no-uses-line FAIL 'FAIL 17-workflow-lint (ci.yml holds no uses line)'
   tree second-workflow-file ''
@@ -184,7 +215,7 @@ EOF
   tree step-timeout-in-place-of-the-job-timeout "13d;15s/\$/\\${nl}        timeout-minutes: 30/"
   check step-timeout-in-place-of-the-job-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree job-keys-at-another-indent '6,15s/^/  /;8d;13d'
-  check job-keys-at-another-indent FAIL 'FAIL 17-workflow-lint (ci.yml holds no job with runs-on at four spaces)'
+  check job-keys-at-another-indent FAIL 'FAIL 17-workflow-lint (ci.yml holds no job key at two spaces under jobs:)'
   tree timeout-above-the-bound '8s/30/31/'
   check timeout-above-the-bound FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree timeout-ten-times-the-bound '8s/30/300/'
@@ -204,14 +235,28 @@ EOF
   tree actionlint-finding '2s/push/pushed/'
   check actionlint-finding FAIL 'actionlint reports a finding in ci.yml)'
   tree two-findings '10s/@[0-9a-f]* # v7.0.1/@v7/;3,4d'
-  check two-findings FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment; and 1 more above)'
+  check two-findings FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment; and 1 more above)'
+  tree quoted-uses-key '10s/.*/      - "uses": actions\/checkout@v7/'
+  check quoted-uses-key FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
+  tree flow-steps-with-an-unpinned-action '9s/.*/    steps: [{uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: actions\/setup-node@v4}]/;10d'
+  check flow-steps-with-an-unpinned-action FAIL '1 of 3 uses keys of ci.yml take no 40-hex commit'
+  tree runs-on-block-list-without-timeout "12s/.*/    runs-on:\\${nl}      - windows-2025/;13d"
+  check runs-on-block-list-without-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  tree third-job "\$s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 30\\${nl}    steps:\\${nl}      - run: \"true\"/"
+  check third-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows linux)'
+  tree permissions-write-all '3s/.*/permissions: write-all/;4d'
+  check permissions-write-all FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
+  tree permissions-contents-write '4s/read/write/'
+  check permissions-contents-write FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
+  tree permissions-read-and-more "4s/\$/\\${nl}  actions: write/"
+  check permissions-read-and-more FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
   tree actionlint-missing ''
   path=$work/no-tools
   check actionlint-missing SKIP 'SKIP 17-workflow-lint (actionlint is not installed)'
   tree actionlint-installed-in-ci ''
   path=$work/tools:/usr/bin:/bin
   ci=true
-  check actionlint-installed-in-ci PASS 'jobs: 2, uses lines: 2, findings: 0'
+  check actionlint-installed-in-ci PASS 'jobs: 2, uses keys: 2, findings: 0'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
