@@ -1,3 +1,4 @@
+use halvo_route::line::LINE_DEV_MIN;
 use halvo_route::policy::{cells, Basis, PickCell, Policy, PolicyError, Row};
 use halvo_route::tier::{CallKind, CategoryId, Level, Tier};
 
@@ -366,6 +367,84 @@ fn policy_refusals() {
             PolicyError::Shape,
         ),
         (
+            "a tier on other",
+            with_row(40, "other\tcompile\tfrontier\thigh\tline_met\t4\t4"),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "other with a basis but not_seed",
+            with_row(40, "other\tcompile\thand_back\t-\tuntested\t0\t0"),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "line_met with a miss",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\ton_device\tmedium\tline_met\t0\t4",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "line_met under the least number",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\ton_device\tmedium\tline_met\t3\t3",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "line_missed with no miss",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\thand_back\t-\tline_missed\t4\t4",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "line_missed under the least number",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\thand_back\t-\tline_missed\t1\t3",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "untested at the least number",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\thand_back\t-\tuntested\t4\t4",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "no_runtime on a category with a runtime",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\thand_back\t-\tno_runtime\t0\t0",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "no_runtime with counts",
+            with_row(4, "tenant_rent\tcompile\thand_back\t-\tno_runtime\t1\t1"),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "not_seed with counts",
+            with_row(40, "other\tcompile\thand_back\t-\tnot_seed\t1\t1"),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
             "on_device that the ruling does not allow",
             with_row(
                 0,
@@ -476,7 +555,7 @@ fn policy_round_trip() {
                     k: 0,
                     n: 0,
                 }
-            } else if category == CategoryId::Other && next(2) == 0 {
+            } else if category == CategoryId::Other {
                 Row {
                     pick: PickCell::HandBack,
                     level: None,
@@ -492,19 +571,26 @@ fn policy_round_trip() {
                         level: None,
                         basis: Basis::Untested,
                         k: 0,
-                        n,
+                        n: n % LINE_DEV_MIN,
                     },
                     1 => Row {
                         pick: PickCell::HandBack,
                         level: None,
                         basis: Basis::LineMissed,
-                        k: n / 2,
-                        n,
+                        k: n.max(LINE_DEV_MIN) / 2,
+                        n: n.max(LINE_DEV_MIN),
+                    },
+                    2 if !category.has_runtime() => Row {
+                        pick: PickCell::HandBack,
+                        level: None,
+                        basis: Basis::NoRuntime,
+                        k: 0,
+                        n: 0,
                     },
                     2 => Row {
                         pick: PickCell::HandBack,
                         level: None,
-                        basis: Basis::NoRuntime,
+                        basis: Basis::Untested,
                         k: 0,
                         n: 0,
                     },
@@ -512,8 +598,8 @@ fn policy_round_trip() {
                         pick: PickCell::Tier(Tier::ALL[usize::try_from(next(3)).expect("small")]),
                         level: Some(Level::ALL[usize::try_from(next(3)).expect("small")]),
                         basis: Basis::LineMet,
-                        k: n,
-                        n,
+                        k: n.max(LINE_DEV_MIN),
+                        n: n.max(LINE_DEV_MIN),
                     },
                 }
             };

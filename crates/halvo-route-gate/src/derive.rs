@@ -44,17 +44,22 @@ impl Counts {
 
 /// The derivation of contract T2.2 on the development rows with `LINE_DEV_MIN`.
 pub fn derive(table: &Table, setup: &Setup) -> Policy {
-    derive_on(table, setup, Split::Dev, LINE_DEV_MIN)
+    Policy::from_rows(
+        derive_on(table, setup, Split::Dev, LINE_DEV_MIN),
+        &setup.allowed,
+    )
+    .expect("the derivation makes rows of the policy form")
 }
 
-/// The rule of the derivation on the rows of one split with one least number of attempts; the
-/// router `peek` reads it on the held-out rows with `LINE_HELD_MIN`.
-pub fn derive_on(table: &Table, setup: &Setup, split: Split, min: u32) -> Policy {
+/// The rule of the derivation on the rows of one split with one least number of attempts, as rows
+/// in the order of `cells()`; the router `peek` reads it on the held-out rows with
+/// `LINE_HELD_MIN`. Its rows are no policy text: only those of `derive` make a `Policy`.
+pub fn derive_on(table: &Table, setup: &Setup, split: Split, min: u32) -> [PolicyRow; CELL_COUNT] {
     let mut rows = *Policy::hand_back_all().rows();
     for (row, (category, kind)) in rows.iter_mut().zip(cells()) {
         *row = derive_cell(table, setup, category, kind, split, min).0;
     }
-    Policy::from_rows(rows, &setup.allowed).expect("the derivation makes rows of the policy form")
+    rows
 }
 
 /// For each cell in the order of `cells()`, the tier whose development rows give the `k` and `n`

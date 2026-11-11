@@ -1,5 +1,6 @@
 //! The policy table of contract T2: one row for each of the 44 cells, its parser and its writer.
 
+use crate::line::LINE_DEV_MIN;
 use crate::tier::{CallKind, CategoryId, Level, ParseError, Tier};
 
 const HEADER: &str = "category\tkind\tpick\tlevel\tbasis\tk\tn";
@@ -136,6 +137,14 @@ const REPLAY: Row = Row {
     pick: PickCell::None,
     level: None,
     basis: Basis::NoModel,
+    k: 0,
+    n: 0,
+};
+
+const NOT_SEED: Row = Row {
+    pick: PickCell::HandBack,
+    level: None,
+    basis: Basis::NotSeed,
     k: 0,
     n: 0,
 };
@@ -288,7 +297,23 @@ fn check_row(
     let replay_fits = (kind == CallKind::Replay) == (row.pick == PickCell::None)
         && (kind != CallKind::Replay || *row == REPLAY);
     let seed_fits = row.basis != Basis::NotSeed || category == CategoryId::Other;
-    if row.k > row.n || !replay_fits || !level_fits || !basis_fits || !seed_fits {
+    let other_fits = category != CategoryId::Other || kind == CallKind::Replay || *row == NOT_SEED;
+    let counts_fit = match row.basis {
+        Basis::NoModel => true,
+        Basis::LineMet => row.k == row.n && row.n >= LINE_DEV_MIN,
+        Basis::LineMissed => row.k < row.n && row.n >= LINE_DEV_MIN,
+        Basis::Untested => row.n < LINE_DEV_MIN,
+        Basis::NoRuntime => !category.has_runtime() && (row.k, row.n) == (0, 0),
+        Basis::NotSeed => (row.k, row.n) == (0, 0),
+    };
+    if row.k > row.n
+        || !replay_fits
+        || !level_fits
+        || !basis_fits
+        || !seed_fits
+        || !other_fits
+        || !counts_fit
+    {
         return Err(PolicyError::Shape);
     }
     match row.pick {

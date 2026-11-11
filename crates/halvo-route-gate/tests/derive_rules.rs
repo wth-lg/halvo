@@ -236,16 +236,22 @@ fn held_out_rows_decide_nothing_and_peek_reads_them() {
     let setup = Setup::generated();
     let dev = derive(&table, &setup);
     let held = derive_on(&table, &setup, Split::Held, LINE_HELD_MIN);
+    let row = |category, kind| {
+        let at = halvo_route::policy::cells()
+            .position(|cell| cell == (category, kind))
+            .expect("a cell");
+        held[at]
+    };
     assert_eq!(
-        *held.row(CalendarCleanup, Compile),
+        row(CalendarCleanup, Compile),
         met(OnDevice, Level::Medium, 2, 2)
     );
     assert_eq!(
-        *held.row(CalendarCleanup, Recover),
+        row(CalendarCleanup, Recover),
         met(OnDevice, Level::Medium, 2, 2)
     );
-    assert_eq!(*held.row(Email, Recover), hand_back(Basis::Untested, 0, 0));
-    assert_ne!(dev, held);
+    assert_eq!(row(Email, Recover), hand_back(Basis::Untested, 0, 0));
+    assert_ne!(*dev.rows(), held);
 }
 
 #[test]
@@ -284,4 +290,22 @@ fn derivation_of_generated_tables_meets_the_traps() {
             }
         }
     }
+}
+
+#[test]
+fn the_policies_and_tables_of_a_thousand_seeds_parse() {
+    let setup = Setup::generated();
+    let mut parsed = 0;
+    for seed in 1..=1_000 {
+        let table = generate(seed);
+        assert_eq!(
+            Table::parse(&table.to_text()).as_ref(),
+            Ok(&table),
+            "seed {seed}"
+        );
+        let text = derive(&table, &setup).to_text();
+        assert!(Policy::parse_for(&text, &Tier::ALL).is_ok(), "seed {seed}");
+        parsed += 1;
+    }
+    assert_eq!(parsed, 1_000);
 }

@@ -5,7 +5,7 @@
 use std::num::NonZeroU64;
 
 use halvo_route::line::LINE_HELD_MIN;
-use halvo_route::policy::{cells, PickCell, Policy, CELL_COUNT};
+use halvo_route::policy::{cells, PickCell, CELL_COUNT};
 use halvo_route::tier::{CallKind, CategoryId, Tier};
 
 use crate::derive::{derive, derive_on, tier_rows};
@@ -28,11 +28,11 @@ pub const fn fixed(category: CategoryId, kind: CallKind, recorded: bool) -> Opti
     }
 }
 
-/// A router that picks what a policy says.
+/// A router that picks what the rows of a derivation say.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PolicyRouter {
     name: &'static str,
-    policy: Policy,
+    picks: [PickCell; CELL_COUNT],
 }
 
 impl PolicyRouter {
@@ -40,7 +40,7 @@ impl PolicyRouter {
     pub fn derived(table: &Table, setup: &Setup) -> PolicyRouter {
         PolicyRouter {
             name: "derived",
-            policy: derive(table, setup),
+            picks: derive(table, setup).rows().map(|row| row.pick),
         }
     }
 
@@ -48,12 +48,8 @@ impl PolicyRouter {
     pub fn peek(table: &Table, setup: &Setup) -> PolicyRouter {
         PolicyRouter {
             name: "peek",
-            policy: derive_on(table, setup, Split::Held, LINE_HELD_MIN),
+            picks: derive_on(table, setup, Split::Held, LINE_HELD_MIN).map(|row| row.pick),
         }
-    }
-
-    pub const fn policy(&self) -> &Policy {
-        &self.policy
     }
 }
 
@@ -63,7 +59,10 @@ impl Router for PolicyRouter {
     }
 
     fn pick(&self, category: CategoryId, kind: CallKind) -> PickCell {
-        self.policy.row(category, kind).pick
+        let at = cells()
+            .position(|cell| cell == (category, kind))
+            .expect("every cell is in the list");
+        self.picks[at]
     }
 }
 

@@ -7,6 +7,7 @@ use halvo_route::policy::Policy;
 use halvo_route::prices::Prices;
 use halvo_route::tier::Tier;
 
+use crate::derive::derive;
 use crate::generate::generate;
 use crate::routers::{OneTier, PolicyRouter, Random};
 use crate::score::{score, DEFAULT_DRAWS};
@@ -97,7 +98,8 @@ pub fn self_test(
             result.misses.push(("derived", table_seed));
         }
         if let (Some(build), Some(product_pass)) = (product, result.product_pass.as_mut()) {
-            let product_passes = match Policy::parse_for(&derived.policy().to_text(), &Tier::ALL) {
+            let text = derive(&table, &setup).to_text();
+            let product_passes = match Policy::parse_for(&text, &Tier::ALL) {
                 Ok(policy) => passes(build(policy).as_ref()),
                 Err(_) => false,
             };
