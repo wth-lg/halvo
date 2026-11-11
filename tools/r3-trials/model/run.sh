@@ -87,6 +87,24 @@ case $model in
   *[!abcdefghijklmnopqrstuvwxyz0123456789_]*) refuse usage "$model is no model token" ;;
 esac
 
+failed=0
+current=
+measure_pid=
+
+# shellcheck disable=SC2329
+stop() {
+  if [ -n "$measure_pid" ]; then
+    if command -v pgrep >/dev/null 2>&1; then
+      kids=$(pgrep -P "$measure_pid") || kids=
+      for kid in $kids; do kill "$kid" 2>/dev/null; done
+    fi
+    kill "$measure_pid" 2>/dev/null
+  fi
+  echo "notrun model=$model machine=${machine:-unknown} prompt=${current:-$prompts} cause=stopped"
+  exit 1
+}
+trap stop INT TERM
+
 line=$(grep "^weights model=$model " tools/r3-trials/model/weights.txt) ||
   refuse weights "weights.txt has no line for the model $model"
 file=${line#* file=}
@@ -123,23 +141,6 @@ child=tools/r3-trials/model/target/release/r3-model$exe
 
 crate=$(sed -n '/^name = "llama-cpp-2"$/{n;s/^version = "\(.*\)"$/\1/p;}' tools/r3-trials/model/Cargo.lock)
 
-failed=0
-current=
-measure_pid=
-
-# shellcheck disable=SC2329
-stop() {
-  if [ -n "$measure_pid" ]; then
-    if command -v pgrep >/dev/null 2>&1; then
-      kids=$(pgrep -P "$measure_pid") || kids=
-      for kid in $kids; do kill "$kid" 2>/dev/null; done
-    fi
-    kill "$measure_pid" 2>/dev/null
-  fi
-  echo "notrun model=$model machine=$machine prompt=${current:-$prompts} cause=stopped"
-  exit 1
-}
-trap stop INT TERM
 
 request_line() {
   awk -v grammar="$2" -v level="$level" '
