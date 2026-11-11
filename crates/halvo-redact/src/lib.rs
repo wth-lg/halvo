@@ -59,6 +59,7 @@ impl Rule {
         match self {
             Rule::Key => key::end_of_match(text, start),
             Rule::Iban => iban::end_of_match(text, start),
+            Rule::Card if cfg!(feature = "control-card-off") => None,
             Rule::Card => card::end_of_match(text, start),
             Rule::Ssn => ssn::end_of_match(text, start),
         }
