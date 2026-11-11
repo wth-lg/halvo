@@ -563,6 +563,10 @@ self_test() {
   result_text drift | sed '2s/mac/laptop/' >"$work/result-with-another-machine/docs/r5/trials/admission.md"
   check result-with-another-machine FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 
+  fixture result-with-text-in-place-of-the-empty-line
+  result_text drift | sed '3s/.*/a note/' >"$work/result-with-text-in-place-of-the-empty-line/docs/r5/trials/admission.md"
+  check result-with-text-in-place-of-the-empty-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
   fixture result-without-the-empty-line
   result_text drift | sed '3d' >"$work/result-without-the-empty-line/docs/r5/trials/admission.md"
   check result-without-the-empty-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'

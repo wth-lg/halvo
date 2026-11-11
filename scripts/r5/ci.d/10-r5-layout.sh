@@ -779,7 +779,8 @@ layout unmatched=1" --all
   check heldout-line-with-a-nul-byte FAIL-targets "$line targets=miss learner=none harness=same"
 
   fixture freeze-line-with-a-nul-byte
-  freeze_text "$d_targets" | awk 'NR == 2 { printf "%s\000 changed\n", $0; next } { print }' >"$work/freeze-line-with-a-nul-byte/docs/r5/freeze.toml"
+  printf '[targets]\ntargets = "%s"\000 changed\ncases = "%s"\nstat = "%s"\ndrift = "%s"\nheldout = "%s"\n' \
+    "$d_targets" "$d_cases" "$d_stat" "$d_drift" "$archive" >"$work/freeze-line-with-a-nul-byte/docs/r5/freeze.toml"
   check freeze-line-with-a-nul-byte FAIL-freeze "$line targets=miss learner=miss harness=same"
 
   fixture layout-line-with-a-nul-byte
