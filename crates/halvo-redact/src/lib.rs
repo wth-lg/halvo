@@ -1,9 +1,11 @@
 mod card;
 mod iban;
+mod ssn;
 
 /// Returns `title` with every identifier that a rule of this crate finds replaced by the token
-/// of its rule: `[iban]` for an IBAN that passes the mod 97 check and `[card]` for a card
-/// number that passes the Luhn check.
+/// of its rule: `[iban]` for an IBAN that passes the mod 97 check, `[card]` for a card number
+/// that passes the Luhn check and `[ssn]` for a US Social Security number of the form
+/// `DDD-DD-DDDD` whose groups are not excluded.
 ///
 /// The text is scanned from the start; at each byte the rules are tried in a fixed order and
 /// the first match is replaced, and scans repeat until one changes nothing, so
@@ -25,22 +27,24 @@ pub fn mask(title: &str) -> String {
 enum Rule {
     Iban,
     Card,
+    Ssn,
 }
 
 impl Rule {
-    const ORDER: [Rule; 2] = [Rule::Iban, Rule::Card];
+    const ORDER: [Rule; 3] = [Rule::Iban, Rule::Card, Rule::Ssn];
 
     fn token(self) -> &'static str {
         match self {
             Rule::Iban => "[iban]",
             Rule::Card => "[card]",
+            Rule::Ssn => "[ssn]",
         }
     }
 
     fn may_follow(self, before: u8) -> bool {
         match self {
             Rule::Iban => !before.is_ascii_alphanumeric(),
-            Rule::Card => !before.is_ascii_digit(),
+            Rule::Card | Rule::Ssn => !before.is_ascii_digit(),
         }
     }
 
@@ -51,6 +55,7 @@ impl Rule {
         match self {
             Rule::Iban => iban::end_of_match(text, start),
             Rule::Card => card::end_of_match(text, start),
+            Rule::Ssn => ssn::end_of_match(text, start),
         }
     }
 }

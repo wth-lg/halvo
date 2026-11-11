@@ -217,6 +217,51 @@ fn lower_case_other_separators_and_neighbours_keep_an_iban() {
 }
 
 #[test]
+fn a_social_security_number_is_masked_at_the_start_in_the_middle_and_at_the_end() {
+    masks_to("SSN 123-45-6789 on file", "SSN [ssn] on file");
+    masks_to("123-45-6789 on file", "[ssn] on file");
+    masks_to("file 123-45-6789", "file [ssn]");
+    masks_to("x123-45-6789y", "x[ssn]y");
+    masks_to("123-45-6789, 234-56-7890", "[ssn], [ssn]");
+}
+
+#[test]
+fn the_highest_and_lowest_groups_that_the_rule_allows_are_masked() {
+    for ssn in ["001-01-0001", "665-99-9999", "667-01-0001", "899-99-9999"] {
+        masks_to(&format!("ssn {ssn} kept"), "ssn [ssn] kept");
+    }
+}
+
+#[test]
+fn numbers_with_a_group_that_the_rule_excludes_are_kept() {
+    for ssn in [
+        "000-12-3456",
+        "666-12-3456",
+        "900-12-3456",
+        "999-12-3456",
+        "123-00-4567",
+        "123-45-0000",
+    ] {
+        unchanged(&format!("ssn {ssn} kept"));
+    }
+}
+
+#[test]
+fn other_separators_and_neighbouring_digits_keep_a_social_security_number() {
+    for title in [
+        "ssn 123456789 kept",
+        "ssn 123 45 6789 kept",
+        "ssn 123.45.6789 kept",
+        "ssn 123--45-6789 kept",
+        "ssn 7123-45-6789 kept",
+        "ssn 123-45-67897 kept",
+        "ssn 12-345-6789 kept",
+    ] {
+        unchanged(title);
+    }
+}
+
+#[test]
 fn titles_with_no_identifier_are_kept_byte_for_byte() {
     for title in [
         "",
