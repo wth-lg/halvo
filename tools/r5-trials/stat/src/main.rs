@@ -18,6 +18,7 @@ fn main() -> ExitCode {
                 .and_then(|()| out.flush())
                 .is_err()
             {
+                eprintln!("{}", Refusal::Output);
                 return ExitCode::from(2);
             }
             if block.verdict.ok() {
