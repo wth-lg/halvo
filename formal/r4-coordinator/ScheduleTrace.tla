@@ -6,7 +6,7 @@ CONSTANTS Seed, Count, Depth
 VARIABLE w
 
 RefusePct == 12
-PortSeq == <<"ok", "no_ack", "no_run">>
+PortSeq == <<"ok", "no_ack", "no_store", "no_run">>
 FrameSeq == <<"completed", "nothing_to_do", "declined", "handed_back", "class_mismatch",
               "refused", "limit", "effect_unknown", "failed", "none">>
 KindSeq == <<"start", "hello", "wait", "resume", "stop", "end", "tick", "restart", "delete", "off",
@@ -52,8 +52,9 @@ Directed ==
     <<[case |-> "two_models", moves |-> <<S(1, "ok"), H(1), S(2, "ok")>>],
       [case |-> "two_runs_agent", moves |-> <<S(1, "ok"), S(2, "ok"), S(2, "ok"), S(1, "ok")>>],
       [case |-> "hold_start",
-       moves |-> <<T(1, TRUE, "no_run"), S(2, "no_run"), T(2, TRUE, "ok"), T(3, TRUE, "ok"), S(2, "ok"),
-                   O(3), S(3, "ok"), S(4, "ok"), E(4, "effect_unknown", "ok"), S(4, "ok")>>],
+       moves |-> <<T(1, TRUE, "no_run"), S(2, "ok"), K(2), S(2, "no_store"), K(2), T(2, TRUE, "ok"),
+                   T(3, TRUE, "ok"), S(2, "ok"), O(3), S(3, "ok"), S(4, "ok"), E(4, "effect_unknown", "ok"),
+                   S(4, "ok")>>],
       [case |-> "unrecorded_start", moves |-> <<S(1, "no_ack")>>],
       [case |-> "second_slot_run", moves |-> <<T(1, TRUE, "ok"), B(1), K(2), T(1, TRUE, "ok")>>],
       [case |-> "auto_needs_person", moves |-> <<T(1, TRUE, "ok")>>],
@@ -72,7 +73,7 @@ Directed ==
        moves |-> <<S(1, "ok"), S(5, "ok"), B2(1, {1}, TRUE), S(1, "ok"), K(5), S(5, "ok"),
                    B2(1, {}, FALSE)>>]>>
 
-StartCands(s) == Cat([a \in 1..NAgents |-> [i \in 1..3 |-> S(a, PortSeq[i])]])
+StartCands(s) == Cat([a \in 1..NAgents |-> [i \in 1..4 |-> S(a, PortSeq[i])]])
 
 LiveCands(s, id) ==
     <<H(id), [m |-> "wait", run |-> id], [m |-> "resume", run |-> id], X(id, "cancelled")>>
@@ -134,8 +135,8 @@ Choose(s, x0) ==
         OfKind(i) == cs[i].m = kind
         pool == IF refuse THEN SelectSeq(bad, WithAnswer) ELSE SelectSeq(good, OfKind)
         base == cs[pool[1 + Draw(x3, Len(pool))]]
-        port == LET d == Draw(x4, 8)
-                IN IF d < 6 THEN "ok" ELSE IF d = 6 THEN "no_ack" ELSE "no_run"
+        port == LET d == Draw(x4, 9)
+                IN IF d < 6 THEN "ok" ELSE IF d = 6 THEN "no_ack" ELSE IF d = 7 THEN "no_store" ELSE "no_run"
         grace == ~stopping \/ Draw(x6, 3) # 0
         mv == IF base.m = "tick"
               THEN [base EXCEPT !.port = port, !.grace = grace,

@@ -4,7 +4,7 @@ EXTENDS Integers, Sequences, FiniteSets
 CONSTANTS NAgents, NeedsPerson, NeedsModel, Slotted, Finished, OffAgents, Deletable,
           FirstSlot, Period, MaxDay, Frames, StopCauses,
           MaxLive, QueueMax, StartsPerDay, FailsToPause, CatchUpDays,
-          MaxRestarts, MaxDeletes, MaxRuns, Lefts, MaxAlive, StoreWaits
+          MaxRestarts, MaxDeletes, MaxRuns, Lefts, MaxAlive, StoreWaits, Ports
 
 VARIABLES st, h
 
@@ -15,7 +15,6 @@ Outcomes == {"completed", "nothing_to_do", "declined", "handed_back", "class_mis
              "refused", "limit", "effect_unknown", "failed"}
 FailureClass == {"failed", "limit", "class_mismatch", "refused", "budget", "kind"}
 Served == {"completed", "nothing_to_do"}
-Ports == {"ok", "no_ack", "no_run"}
 
 ASSUME /\ NeedsPerson \subseteq Agents
        /\ NeedsModel \subseteq Agents
@@ -28,6 +27,8 @@ ASSUME /\ NeedsPerson \subseteq Agents
        /\ Lefts \subseteq BOOLEAN
        /\ Lefts # {}
        /\ StoreWaits \in BOOLEAN
+       /\ Ports \subseteq {"ok", "no_ack", "no_store", "no_run"}
+       /\ "ok" \in Ports
 
 NoFacts == [open |-> [a \in Agents |-> 0], unknown |-> [a \in Agents |-> 0]]
 NoMark == [run |-> 0, dead |-> FALSE, left |-> FALSE, sent |-> FALSE, by |-> "none"]
@@ -134,13 +135,16 @@ Launch(s, a, trig, port, q) ==
                              !.slotrun[a] = IF slot > 0 THEN slot ELSE @,
                              !.f = [@ EXCEPT !.open[a] = id, !.unknown[a] = 0],
                              !.ready = @ \ {a}]
-             begin == <<[k |-> "defer"],
+             asked == <<[k |-> "defer"],
                         [k |-> "run_started", run |-> id, agent |-> a, trig |-> trig, slot |-> slot],
-                        [k |-> "start_run", run |-> id],
-                        [k |-> "start", run |-> id, agent |-> a]>>
-         IN IF port = "no_run"
-            THEN [r |-> "no_service", st |-> Ended([s1 EXCEPT !.f.open[a] = 0], a, "failed", s.day), run |-> id,
-                  out |-> begin \o EndOut(s1, id, a, "failed")]
+                        [k |-> "start_run", run |-> id]>>
+             begin == asked \o <<[k |-> "start", run |-> id, agent |-> a]>>
+             owe == <<[k |-> "end_run", run |-> id]>>
+         IN IF port \in {"no_store", "no_run"}
+            THEN [r |-> "no_service", st |-> Ended([s1 EXCEPT !.owing = @ \cup {id}], a, "failed", s.day), run |-> id,
+                  out |-> (IF port = "no_store" THEN asked ELSE begin) \o EndOut(s1, id, a, "failed")
+                          \o (IF port = "no_store" THEN owe ELSE <<>>)
+                          \o (IF port = "no_run" THEN owe ELSE <<>>)]
             ELSE [r |-> "ok", run |-> id, out |-> begin,
                   st |-> [s1 EXCEPT !.runs = @ \cup
                              {[id |-> id, agent |-> a, phase |-> "starting", why |-> "none",
@@ -259,7 +263,7 @@ Owed(s) == {id \in s.owing : \E a \in Agents : s.f.open[a] = id}
 
 Tick(s, d, g, port) ==
     LET s0 == [s EXCEPT !.day = d, !.owing = Owed(s)]
-        again == (IF s.runs = {} THEN <<>> ELSE <<[k |-> "defer"]>>) \o Sends(Owed(s))
+        again == IF s.runs = {} THEN <<>> ELSE <<[k |-> "defer"]>>
         due == IF g THEN Due(s0) ELSE {}
         dead == IF g THEN s.dying ELSE {}
         v == Sweep(s0)
@@ -270,7 +274,7 @@ Tick(s, d, g, port) ==
         t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, out |-> <<>>], 1, port)
     IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended, next |-> i.next,
         raised |-> t.raised, started |-> t.started, st |-> t.st,
-        out |-> again \o v.out \o k.out \o i.out \o t.out]
+        out |-> again \o v.out \o k.out \o Sends(Owed(s)) \o i.out \o t.out]
 
 RECURSIVE Recover(_, _, _)
 Recover(s, ended, out) ==
@@ -478,8 +482,12 @@ HStarted(acc, e, mv) ==
          IN [acc EXCEPT
                !.press = FALSE,
                !.acked = @ \cup {e.run},
+               !.owed = IF PortOf(mv) = "no_store"
+                        THEN @ \cup {HOwes([id |-> e.run, agent |-> a, day |-> g.day], "failed")} ELSE @,
                !.h = [g EXCEPT
                         !.count[a][g.day] = @ + 1,
+                        !.store[a] = [NoMark EXCEPT !.run = e.run, !.dead = PortOf(mv) = "no_store"],
+                        !.unknown[a] = 0,
                         !.heldstarts = IF g.holds[a] # {} \/ HCheck(g, a) THEN @ + 1 ELSE @,
                         !.openstarts = IF g.store[a].run # 0 THEN @ + 1 ELSE @,
                         !.alone = IF ~person /\ (a \in NeedsPerson \/ a \notin g.done) THEN @ + 1 ELSE @,
@@ -496,11 +504,10 @@ HSpawned(acc, e, mv) ==
         r == [id |-> e.run, agent |-> e.agent, life |-> g.life,
               day |-> IF e.agent \in Slotted THEN g.day ELSE 0,
               stop |-> FALSE, late |-> FALSE, why |-> "none"]
-        mark == [NoMark EXCEPT !.run = e.run]
     IN IF PortOf(mv) = "no_run"
-       THEN [acc EXCEPT !.h = [g EXCEPT !.store[e.agent] = NoMark, !.unknown[e.agent] = 0],
+       THEN [acc EXCEPT !.h = [g EXCEPT !.store[e.agent].dead = TRUE],
                         !.owed = @ \cup {HOwes([r EXCEPT !.day = g.day], "failed")}]
-       ELSE [acc EXCEPT !.h = [g EXCEPT !.live = @ \cup {r}, !.store[e.agent] = mark, !.unknown[e.agent] = 0]]
+       ELSE [acc EXCEPT !.h = [g EXCEPT !.live = @ \cup {r}]]
 
 HStored(acc, e) ==
     LET O == {o \in acc.owed : o.id = e.run}
@@ -585,7 +592,7 @@ Next == \E mv \in Moves(st) \cup EnvMoves(h) :
             LET res == Step(st, mv, Facts(h)) IN st' = res.st /\ h' = Hist(h, mv, res)
 Now == [st EXCEPT !.f = Facts(h)]
 Bound == st.nrun <= MaxRuns
-View == <<[st EXCEPT !.ready = {}, !.dying = {},
+View == <<[st EXCEPT !.ready = {}, !.dying = {}, !.owing = IF StoreWaits THEN @ ELSE {},
                      !.runs = {[r EXCEPT !.phase = IF @ = "stopping" THEN @ ELSE "live"] : r \in @}],
           h>>
 
@@ -606,7 +613,7 @@ C8 == /\ h.gonestarts = 0
 C9 == \A r \in h.live : ~r.late
 C10 == h.wrongend = 0
 C11 == h.noslot = 0
-C12 == h.wrongsend = 0 /\ h.forgotten = 0
+C12 == h.wrongsend = 0 /\ h.forgotten = 0 /\ HUnsent(h) = 0
 
 vars == <<st, h>>
 Stopping(c) == {r \in st.runs : r.phase = "stopping" /\ r.why = c}
@@ -683,6 +690,8 @@ ReachOwedAgain == [][~(st'.life > st.life /\ \E a \in Agents : /\ h.store[a].run
                                                              /\ h'.store[a].run = h.store[a].run
                                                              /\ h'.store[a].sent)]_vars
 ReachSentAgain == [][~(st.owing # {} /\ st'.owing = st.owing /\ st'.life = st.life /\ h'.day # h.day)]_vars
+ReachFailedOwed == ~(st.life = 1 /\ st.owing # {})
+ReachFailedSentAgain == [][~(st.life = 1 /\ st.owing # {} /\ st'.owing = st.owing /\ h'.day # h.day)]_vars
 ReachOwingEnds == [][~(st.owing # {} /\ st'.owing = {} /\ st'.life = st.life)]_vars
 
 StaysLive == \A r \in h.live : h.gone[r.agent] = "listed"
