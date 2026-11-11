@@ -4,6 +4,15 @@ gate_root_named=${GATE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
 GATE_ROOT=$(cd "$gate_root_named" 2> /dev/null && pwd -P) || GATE_ROOT=$gate_root_named
 GATE_REPO=${GATE_REPO:-wth-lg/halvo}
 GATE_DURATION=${GATE_DURATION:-600}
+
+predicate_duration() {
+  case $1 in ''|*[!0-9]*|0*) return 1 ;; esac
+}
+
+if ! predicate_duration "$GATE_DURATION"; then
+  printf '%s: GATE_DURATION=%s is no positive integer without a leading zero\n' "${0##*/}" "$GATE_DURATION" >&2
+  exit 64
+fi
 GATE_TARGET=$GATE_ROOT/target/r1-gate
 GATE_BIN=$GATE_TARGET/debug/halvo-capture
 

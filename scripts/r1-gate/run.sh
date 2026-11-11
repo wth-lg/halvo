@@ -51,7 +51,8 @@ R1 gate driver. One line for each sub-check of the done-when.
         git ls-tree -r HEAD | awk -F '\t' 'index(\$2, "docs/baseline/") != 1' | git hash-object --stdin
       A dirty tree is refused unless --allow-dirty is given,
       and then every line says so. N is the length of each timed run in seconds,
-      a positive integer (default $GATE_DURATION). --input says who gives keyboard and
+      a positive integer with no leading zero (default $GATE_DURATION, which
+      GATE_DURATION sets and the same rule checks). --input says who gives keyboard and
       pointer input during the timed runs: none (the default) or operator, a
       person. With none the lines that need input print their figures and end
       NO-INPUT, never PASS. Exit status: 0 when every line is PASS, 1 on any
@@ -233,6 +234,10 @@ duration_accepted() {
   sh "$DIR/run.sh" --duration "$1" --help
 }
 
+duration_from_the_environment() {
+  GATE_DURATION=$1 sh "$DIR/run.sh" --help
+}
+
 standin_helper() {
   printf '#!/bin/sh\n%s\n' "$2" > "$gate_scratch/$1"
   chmod 755 "$gate_scratch/$1"
@@ -357,6 +362,12 @@ cases_run() {
   t duration-letters FAIL duration_accepted abc
   t duration-empty FAIL duration_accepted ""
   t duration-negative FAIL duration_accepted -5
+  t duration-00 FAIL duration_accepted 00
+  t duration-with-a-leading-zero FAIL duration_accepted 010
+  t duration-from-the-environment PASS duration_from_the_environment 600
+  t duration-from-the-environment-00 FAIL duration_from_the_environment 00
+  t duration-from-the-environment-letters FAIL duration_from_the_environment abc
+  t duration-from-the-environment-reaches-a-check FAIL env GATE_DURATION=00 sh "$DIR/check-windows-ci.sh" --self-test --case sha-empty
 }
 
 
@@ -379,9 +390,7 @@ main() {
         esac ;;
       --duration)
         shift
-        case ${1:-} in
-          ''|*[!0-9]*|0) usage >&2; return 64 ;;
-        esac
+        predicate_duration "${1:-}" || { usage >&2; return 64; }
         duration=$1 ;;
       -h|--help) usage; return 0 ;;
       *) printf 'run.sh: unknown argument: %s\n' "$1" >&2; usage >&2; return 64 ;;
