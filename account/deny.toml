@@ -1,0 +1,56 @@
+[graph]
+all-features = true
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.93
+unused-allowed-license = "allow"
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "allow"
+deny = [
+    { crate = "rusqlite", reason = "SQLite: bindings to the SQLite library" },
+    { crate = "libsqlite3-sys", reason = "SQLite: builds or links the SQLite or SQLCipher library under every Rust wrapper of it" },
+    { crate = "sqlite", reason = "SQLite: bindings to the SQLite library" },
+    { crate = "sqlite3-sys", reason = "SQLite: raw bindings to the SQLite library" },
+    { crate = "sqlite3-src", reason = "SQLite: the SQLite C sources" },
+    { crate = "sqlx-sqlite", reason = "SQLite: the SQLite driver of sqlx" },
+    { crate = "libsql", reason = "SQLite: libSQL, a fork of SQLite" },
+    { crate = "libsql-sys", reason = "SQLite: raw bindings to libSQL, a fork of SQLite" },
+    { crate = "libsql-ffi", reason = "SQLite: the C library of libSQL, a fork of SQLite" },
+    { crate = "limbo", reason = "SQLite: an SQLite-compatible database in Rust" },
+    { crate = "limbo_core", reason = "SQLite: the core of an SQLite-compatible database in Rust" },
+    { crate = "turso", reason = "SQLite: an SQLite-compatible database in Rust" },
+    { crate = "turso_core", reason = "SQLite: the core of an SQLite-compatible database in Rust" },
+    { crate = "sentry", reason = "error tracking: sends errors and panics to Sentry" },
+    { crate = "sentry-core", reason = "error tracking: the client under every Sentry integration" },
+    { crate = "sentry-types", reason = "error tracking: the event types that every Sentry integration sends" },
+    { crate = "sentry-rust-minidump", reason = "error tracking: uploads crash dumps to Sentry" },
+    { crate = "tauri-plugin-sentry", reason = "error tracking: sends a Tauri app's errors to Sentry" },
+    { crate = "bugsnag", reason = "error tracking: sends errors to Bugsnag" },
+    { crate = "rollbar", reason = "error tracking: sends errors to Rollbar" },
+    { crate = "honeybadger", reason = "error tracking: sends errors to Honeybadger" },
+    { crate = "airbrake", reason = "error tracking: sends errors to Airbrake" },
+    { crate = "posthog-rs", reason = "analytics: sends events to PostHog" },
+    { crate = "segment", reason = "analytics: sends events to Segment" },
+    { crate = "aptabase", reason = "analytics: sends events to Aptabase" },
+    { crate = "tauri-plugin-aptabase", reason = "analytics: sends a Tauri app's events to Aptabase" },
+    { crate = "opentelemetry-otlp", reason = "telemetry: exports traces, metrics and logs to a remote collector" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
