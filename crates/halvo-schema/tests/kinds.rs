@@ -1,6 +1,6 @@
 mod common;
 
-use common::values;
+use common::{values, with};
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, FieldType, KindEntry, Origin,
     RetentionClass, KINDS,
@@ -421,12 +421,15 @@ fn check_entries_reports_a_window_kind_without_expires_or_segments() {
 
 #[test]
 fn check_entries_reports_a_workflow_key_that_is_no_key_of_the_type_id() {
-    one_report(
-        &[&KindEntry {
+    assert_eq!(
+        check_entries(&[&KindEntry {
             workflow_key: Some("count"),
             ..LATER_BOUNDED
-        }],
-        "the workflow_key count is no key of the fields with the type Id",
+        }]),
+        [
+            "kind \"probe_bounded\": the workflow_key count is no key of the fields with the type Id",
+            "kind \"probe_bounded\": the example is refused: probe_bounded: count: integer_form",
+        ]
     );
     one_report(
         &[&KindEntry {
@@ -876,5 +879,156 @@ fn a_refusal_of_check_record_names_the_kind_the_key_and_the_rule_and_never_a_val
         assert!(error.starts_with("support: "), "{error}");
         assert!(!error.contains(secret_like), "{error}");
         assert!(!error.contains("Jane"), "{error}");
+    }
+}
+
+const W2: &str = "10000000000000000000000000000002";
+
+fn rule_key(kind: &KindEntry, key: &str, cases: &[(&str, &str)]) {
+    assert_eq!(check_record(kind, kind.example), Ok(()), "{}", kind.name);
+    for (value, rule) in cases {
+        let record = with(kind.example, key, value);
+        assert_eq!(
+            check_record(kind, &record),
+            Err(format!("{}: {key}: {rule}", kind.name)),
+            "{record}"
+        );
+    }
+}
+
+#[test]
+fn check_record_holds_the_day_of_a_bounded_kind_to_one_day() {
+    let cases = [
+        ("null", "not_one_value"),
+        ("[20767]", "not_one_value"),
+        ("[1,4294967295]", "not_one_value"),
+        ("[]", "not_one_value"),
+        (r#"{"x":null}"#, "not_one_value"),
+        (r#"{"day":20767}"#, "not_one_value"),
+        (r#""com.example.app""#, "string_form"),
+    ];
+    for kind in [entry("summary"), entry("support"), &LATER_BOUNDED] {
+        rule_key(kind, "day", &cases);
+    }
+    let second_type = KindEntry {
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("day", FieldType::Day),
+            ("day", FieldType::App),
+            ("count", FieldType::Count),
+        ],
+        ..LATER_BOUNDED
+    };
+    rule_key(&second_type, "day", &cases);
+}
+
+#[test]
+fn check_record_holds_expires_of_a_window_kind_to_one_instant() {
+    let cases = [
+        ("null", "not_one_value"),
+        ("[1795478400000000000]", "not_one_value"),
+        ("[]", "not_one_value"),
+        (r#"{"at":1795478400000000000}"#, "not_one_value"),
+        (r#""never""#, "string_form"),
+    ];
+    for kind in [entry("evidence"), &LATER_WINDOW] {
+        rule_key(kind, "expires", &cases);
+    }
+    let second_type = KindEntry {
+        fields: &[
+            ("v", FieldType::Version),
+            ("segments", FieldType::Ordinal),
+            ("expires", FieldType::Instant),
+            ("expires", FieldType::Name),
+            ("hint", FieldType::Token),
+            ("title", FieldType::Text),
+        ],
+        ..LATER_WINDOW
+    };
+    rule_key(&second_type, "expires", &cases);
+}
+
+#[test]
+fn check_record_holds_segments_of_a_window_kind_to_a_list_of_one_or_more_ordinals() {
+    let cases = [
+        ("null", "not_a_list"),
+        ("[]", "empty_list"),
+        ("7", "not_a_list"),
+        (r#"{"a":7}"#, "not_a_list"),
+        (r#""7""#, "not_a_list"),
+        ("[null]", "not_one_value"),
+        ("[7,null]", "not_one_value"),
+        ("[[7]]", "not_one_value"),
+        (r#"[7,{"a":8}]"#, "not_one_value"),
+        (r#"[7,"x"]"#, "string_form"),
+        ("[-1]", "integer_form"),
+    ];
+    for kind in [entry("evidence"), &LATER_WINDOW] {
+        rule_key(kind, "segments", &cases);
+        assert_eq!(
+            check_record(kind, &with(kind.example, "segments", "[0]")),
+            Ok(())
+        );
+    }
+    let second_type = KindEntry {
+        fields: &[
+            ("v", FieldType::Version),
+            ("segments", FieldType::Ordinal),
+            ("segments", FieldType::Name),
+            ("expires", FieldType::Instant),
+            ("hint", FieldType::Token),
+            ("title", FieldType::Text),
+        ],
+        ..LATER_WINDOW
+    };
+    rule_key(&second_type, "segments", &[(r#"["never"]"#, "string_form")]);
+}
+
+#[test]
+fn check_record_holds_the_workflow_key_to_one_id() {
+    let one = format!(r#"["{W1}"]"#);
+    let two = format!(r#"["{W1}","{W2}"]"#);
+    let object = format!(r#"{{"id":"{W1}"}}"#);
+    let cases = [
+        ("null", "not_one_value"),
+        (one.as_str(), "not_one_value"),
+        (two.as_str(), "not_one_value"),
+        ("[]", "not_one_value"),
+        (object.as_str(), "not_one_value"),
+        (r#""never_deleted""#, "string_form"),
+    ];
+    rule_key(entry("workflow"), "id", &cases);
+    rule_key(entry("support"), "workflow", &cases);
+    rule_key(&LATER_BOUNDED, "workflow", &cases);
+    rule_key(&LATER_OWN, "workflow", &cases);
+    let second_type = KindEntry {
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("workflow", FieldType::Name),
+            ("at", FieldType::Instant),
+            ("note", FieldType::OwnText),
+            ("site", FieldType::Site),
+        ],
+        ..LATER_OWN
+    };
+    rule_key(&second_type, "workflow", &cases);
+}
+
+#[test]
+fn check_record_holds_v_to_one_value_of_its_type() {
+    let cases = [
+        ("null", "not_one_value"),
+        ("[1]", "not_one_value"),
+        ("[]", "not_one_value"),
+        (r#"{"v":1}"#, "not_one_value"),
+        ("2", "integer_form"),
+    ];
+    for kind in KINDS
+        .iter()
+        .chain([&LATER_BOUNDED, &LATER_OWN, &LATER_WINDOW])
+    {
+        rule_key(kind, "v", &cases);
     }
 }

@@ -406,9 +406,60 @@ fn walk(value: &RawValue, types: &[FieldType]) -> Result<(), &'static str> {
     }
 }
 
+enum Rule {
+    One(Vec<FieldType>),
+    Segments,
+}
+
+fn rule_of(entry: &KindEntry, key: &str) -> Option<Rule> {
+    if entry.workflow_key == Some(key) {
+        return Some(Rule::One(vec![FieldType::Id]));
+    }
+    match (entry.class, key) {
+        (RetentionClass::Bounded { .. }, "day") => Some(Rule::One(vec![FieldType::Day])),
+        (RetentionClass::Window, "expires") => Some(Rule::One(vec![FieldType::Instant])),
+        (RetentionClass::Window, "segments") => Some(Rule::Segments),
+        (_, "v") => Some(Rule::One(
+            entry
+                .fields
+                .iter()
+                .filter(|(k, _)| *k == "v")
+                .map(|(_, t)| *t)
+                .collect(),
+        )),
+        _ => None,
+    }
+}
+
+fn one_value(value: &RawValue, types: &[FieldType]) -> Result<(), &'static str> {
+    match value.get().as_bytes().first() {
+        Some(b'n' | b'[' | b'{') => Err("not_one_value"),
+        _ => walk(value, types),
+    }
+}
+
+fn segments(value: &RawValue) -> Result<(), &'static str> {
+    if !value.get().starts_with('[') {
+        return Err("not_a_list");
+    }
+    let items: Vec<&RawValue> = serde_json::from_str(value.get()).map_err(|_| "not_a_list")?;
+    if items.is_empty() {
+        return Err("empty_list");
+    }
+    items
+        .iter()
+        .try_for_each(|item| one_value(item, &[FieldType::Ordinal]))
+}
+
 /// The one parser of a record against an entry: `Ok` when the text is one JSON object whose top-level keys are
-/// the keys of the entry's fields, each once, in any order, and no other, and whose value under each key passes
-/// the walk by the types of that key: `null` passes; an object passes whole when `Site` is among the types and it
+/// the keys of the entry's fields, each once, in any order, and no other, and whose value under each key passes.
+/// The rule keys, read from the entry, hold what the store's rules read: under the key `day` of a bounded kind one
+/// value of the type `Day`, under `expires` of a window kind one value of the type `Instant`, under `segments` of a
+/// window kind a list of one or more values of the type `Ordinal`, under the key that `workflow_key` names one
+/// value of the type `Id`, and under `v`, where the fields list it, one value of its type; `null`, a list or an
+/// object in place of the one value is refused with the rule `not_one_value`, a value under `segments` that is no
+/// list with `not_a_list` and an empty list there with `empty_list`. Under every other key the value passes the
+/// walk by the types of that key: `null` passes; an object passes whole when `Site` is among the types and it
 /// reads as a `SiteValue`, else when each of its values passes; a list passes when each of its items passes; a
 /// string or an integer passes when it has the JSON form of one of the types (`App`, `Domain` and `Token` through
 /// their parsers, `Text` and `OwnText` by their length alone, `Name` as 1 to 32 bytes of `a` to `z`, `0` to `9`
@@ -441,7 +492,12 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
             .map(|(_, t)| *t)
             .collect();
         if let Some((_, value)) = fields.0.iter().find(|(k, _)| k == key) {
-            if let Err(rule) = walk(value, &types) {
+            let checked = match rule_of(entry, key) {
+                Some(Rule::One(types)) => one_value(value, &types),
+                Some(Rule::Segments) => segments(value),
+                None => walk(value, &types),
+            };
+            if let Err(rule) = checked {
                 return fail(key, rule);
             }
         }
