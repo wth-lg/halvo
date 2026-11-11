@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verifier probes of the egress check
         shell: bash
-        run: sh verifier-probes/hosted.sh macos
+        run: sh verifier-probes/hosted2.sh macos
   windows:
     runs-on: windows-2025
     timeout-minutes: 30
@@ -22,4 +22,4 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verifier probes of the egress check
         shell: bash
-        run: sh verifier-probes/hosted.sh windows
+        run: sh verifier-probes/hosted2.sh windows
