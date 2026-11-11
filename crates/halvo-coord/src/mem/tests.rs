@@ -271,9 +271,201 @@ fn event(seq: u32, agent: u8) -> Event {
     }
 }
 
+fn listed(p: &Ports<Config>, workflow: u8, agent: Option<u8>) {
+    p.workflows.borrow_mut().push(Workflow::Full(FullWorkflow {
+        id: id(WorkflowId::parse, workflow),
+        state: WorkflowState::Active,
+        category: Category::UtilityBillPayment,
+        site: None,
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: 20_700,
+        agent: agent.map(|a| id(AgentId::parse, a)),
+    }));
+}
+
+fn refused<T>(name: &str) -> Result<T, PortError> {
+    Err(PortError::Refused(Name::parse(name).unwrap()))
+}
+
+#[test]
+fn log_refuses_a_seq_that_is_not_the_stored_last_plus_one() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(2));
+    assert_eq!(p.log(&[event(2, 2)]), refused("seq"), "the first seq is 1");
+    p.log(&[event(1, 2)]).unwrap();
+    assert_eq!(p.log(&[event(1, 2)]), refused("seq"), "a repeat");
+    assert_eq!(p.log(&[event(5, 2)]), refused("seq"), "a gap");
+    assert_eq!(
+        p.log(&[event(2, 2), event(4, 2)]),
+        refused("seq"),
+        "a gap inside one body"
+    );
+    assert_eq!(p.events.borrow().len(), 1, "a refusal stores nothing");
+    assert_eq!(p.calls.borrow().len(), 1, "a refusal records no call");
+    p.log(&[event(2, 2), event(3, 2)]).unwrap();
+    assert_eq!(p.events.borrow().len(), 3);
+}
+
+#[test]
+fn log_refuses_a_workflow_that_is_not_in_the_owner_s_list() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 3, Some(4));
+    assert_eq!(p.log(&[event(1, 2)]), refused("no_workflow"));
+    assert_eq!(
+        p.log(&[event(1, 4), event(1, 2)]),
+        refused("no_workflow"),
+        "one record of an unlisted workflow refuses the body"
+    );
+    assert!(p.events.borrow().is_empty());
+    assert!(p.calls.borrow().is_empty());
+}
+
+#[test]
+fn log_refuses_an_agent_that_is_not_the_workflow_s() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(6));
+    listed(&p, 3, None);
+    assert_eq!(p.log(&[event(1, 2)]), refused("binding"));
+    assert_eq!(
+        p.log(&[event(1, 4)]),
+        refused("binding"),
+        "a workflow with no agent"
+    );
+    assert!(p.events.borrow().is_empty());
+    p.agents.borrow_mut().push(Agent {
+        workflow: id(WorkflowId::parse, 1),
+        agent: id(AgentId::parse, 2),
+        config: Config::parse(BILL).unwrap(),
+        state: AgentState::Approved,
+        slots: vec![],
+        session: false,
+        last: None,
+        unknown: vec![],
+    });
+    p.log(&[event(1, 2)]).unwrap();
+    p.send(&Body::CreateAgent {
+        workflow: id(WorkflowId::parse, 3),
+        agent: id(AgentId::parse, 4),
+    })
+    .unwrap();
+    p.log(&[event(1, 4)]).unwrap();
+    assert_eq!(p.events.borrow().len(), 2);
+}
+
+#[test]
+fn log_refuses_more_than_request_records_records_in_one_body() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(2));
+    let nine: Vec<Event> = (1..=9).map(|s| event(s, 2)).collect();
+    assert_eq!(p.log(&nine), refused("malformed"));
+    assert!(p.events.borrow().is_empty());
+    p.log(&nine[..8]).unwrap();
+    assert_eq!(p.events.borrow().len(), 8);
+}
+
+#[test]
+fn ports_keep_the_request_records_of_the_limits_that_they_are_given() {
+    let p: Ports<Config> = Ports::with_limits(
+        0,
+        0,
+        Limits {
+            request_records: 2,
+            ..Limits::PRODUCT
+        },
+    );
+    listed(&p, 1, Some(2));
+    assert_eq!(
+        p.log(&[event(1, 2), event(2, 2), event(3, 2)]),
+        refused("malformed")
+    );
+    p.log(&[event(1, 2), event(2, 2)]).unwrap();
+    assert_eq!(p.events.borrow().len(), 2);
+}
+
+#[test]
+fn reap_ends_and_counts_the_trees_of_an_earlier_life() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    assert_eq!(p.reap(), Ok(0));
+    p.leave_trees(2);
+    assert_eq!(p.reap(), Ok(2));
+    assert_eq!(p.reap(), Ok(0), "a reaped tree is gone");
+}
+
+#[test]
+fn send_refuses_set_state_active_for_a_web_agent_with_no_playbook() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let agent = |a: u8, record: String| Agent {
+        workflow: id(WorkflowId::parse, a - 1),
+        agent: id(AgentId::parse, a),
+        config: Config::parse(&record).unwrap(),
+        state: AgentState::Approved,
+        slots: vec![],
+        session: false,
+        last: None,
+        unknown: vec![],
+    };
+    let record = |a: u8| {
+        BILL.replace(
+            "\"workflow\":\"00000000000000000000000000000001\",\"agent\":\"00000000000000000000000000000002\"",
+            &format!(
+                "\"workflow\":\"{:032x}\",\"agent\":\"{:032x}\"",
+                a - 1,
+                a
+            ),
+        )
+    };
+    p.agents.borrow_mut().push(agent(2, record(2)));
+    p.agents.borrow_mut().push(agent(
+        4,
+        record(4).replace("\"playbook\":null", "\"playbook\":3"),
+    ));
+    p.agents.borrow_mut().push(agent(
+        6,
+        record(6).replace("\"runtime\":\"web\"", "\"runtime\":\"graph_mail\""),
+    ));
+    let set = |a: u8, state: AgentState| Body::SetState {
+        workflow: id(WorkflowId::parse, a - 1),
+        agent: id(AgentId::parse, a),
+        state,
+    };
+    assert_eq!(p.send(&set(2, AgentState::Active)), refused("playbook"));
+    assert!(p.calls.borrow().is_empty(), "a refusal records no call");
+    assert_eq!(
+        p.send(&set(2, AgentState::Approved)).unwrap(),
+        serde_json::json!({"state": "approved"})
+    );
+    assert_eq!(
+        p.send(&set(4, AgentState::Active)).unwrap(),
+        serde_json::json!({"state": "active"})
+    );
+    assert_eq!(
+        p.send(&set(6, AgentState::Active)).unwrap(),
+        serde_json::json!({"state": "active"})
+    );
+}
+
+#[test]
+fn history_answers_at_most_64_events_a_call() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(2));
+    let all: Vec<Event> = (1..=100).map(|s| event(s, 2)).collect();
+    for body in all.chunks(8) {
+        p.log(body).unwrap();
+    }
+    let first = p.history(&id(AgentId::parse, 2), 0).unwrap();
+    assert_eq!(first.len(), 64);
+    assert_eq!((first[0].seq, first[63].seq), (1, 64));
+    let rest = p.history(&id(AgentId::parse, 2), 64).unwrap();
+    assert_eq!(rest.len(), 36);
+    assert_eq!((rest[0].seq, rest[35].seq), (65, 100));
+}
+
 #[test]
 fn history_gives_the_logged_events_of_an_agent_above_a_seq() {
     let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(2));
+    listed(&p, 3, Some(4));
     p.log(&[event(1, 2), event(1, 4), event(2, 2), event(3, 2)])
         .unwrap();
     let h = p.history(&id(AgentId::parse, 2), 1).unwrap();

@@ -1,9 +1,16 @@
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::types::{
-    hex, Agent, AgentId, Answer, ApprovalId, Body, ConfigView, Decision, DecisionEntry,
-    EffectAnswer, Event, HandbackResult, Reply, RunId, RunSpec, Workflow,
+    hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, ConfigView, Decision, DecisionEntry,
+    EffectAnswer, Event, HandbackResult, Limits, Name, Reply, RunId, RunSpec, Runtime, Workflow,
+    WorkflowId,
 };
 use std::cell::{Cell, RefCell};
+
+const HISTORY_MAX: usize = 64;
+
+fn refusal(name: &str) -> PortError {
+    PortError::Refused(Name::parse(name).expect("an error name of I0.6's form"))
+}
 
 /// A port method, by which a test makes it refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -104,10 +111,22 @@ pub struct Timed {
 }
 
 /// Every port in memory, one value for `Coordinator<P>` and the `drive` functions (I5.10). The
-/// clock gives what the test set; the random bytes count up from 1; the owner stores what
-/// `log` hands it, lists what the test put into `workflows` and `agents`, and answers each body
-/// as A-A7.2 says; `Runs` mints approval ids from a counter of its own and starts no process;
-/// a method that the test named in `refuse` answers that error and does nothing else.
+/// clock gives what the test set; the random bytes count up from 1; the owner lists what the
+/// test put into `workflows` and `agents` and answers each body as A-A7.2 says; `Runs` mints
+/// approval ids from a counter of its own, starts no process, and `reap` ends the trees that
+/// the test left with `leave_trees`; a method that the test named in `refuse` answers that
+/// error and does nothing else.
+///
+/// The owner keeps the refusals that the real one gives (I7.2, A-A7.2), each as
+/// `PortError::Refused` with the error name, and a refusal stores nothing, records no call and
+/// changes no state of the port. `log` refuses a body of more than `request_records` records
+/// with `malformed`, and then, record by record, a workflow that is not in `workflows` with
+/// `no_workflow`, an agent that is not the workflow's with `binding`, and a `seq` that is not
+/// the last stored `seq` of its agent plus 1, the records before it in the same body counted,
+/// with `seq`. An agent is the workflow's when the workflow of `workflows` names it, when an
+/// entry of `agents` pairs the two, or once `send` acknowledged `create_agent` for the pair.
+/// `send` refuses `set_state` `active` for an agent of `agents` whose runtime is `web` and
+/// which has no playbook with `playbook`. `history` answers at most 64 events for one call.
 pub struct Ports<C> {
     /// The owner's list of workflows.
     pub workflows: RefCell<Vec<Workflow>>,
@@ -123,11 +142,20 @@ pub struct Ports<C> {
     approvals: Cell<u128>,
     bindings_rev: Cell<u32>,
     refusals: RefCell<Vec<(Method, PortError)>>,
+    limits: Limits,
+    created: RefCell<Vec<(WorkflowId, AgentId)>>,
+    trees: Cell<u32>,
 }
 
 impl<C> Ports<C> {
-    /// Memory ports with the clock at `now` milliseconds and on the day `today`.
+    /// Memory ports with the clock at `now` milliseconds and on the day `today`, and the
+    /// product's limits.
     pub fn new(now: u64, today: u32) -> Ports<C> {
+        Ports::with_limits(now, today, Limits::PRODUCT)
+    }
+
+    /// Memory ports as `new` makes them, whose owner keeps the `request_records` of `limits`.
+    pub fn with_limits(now: u64, today: u32, limits: Limits) -> Ports<C> {
         Ports {
             workflows: RefCell::new(Vec::new()),
             agents: RefCell::new(Vec::new()),
@@ -139,7 +167,16 @@ impl<C> Ports<C> {
             approvals: Cell::new(0),
             bindings_rev: Cell::new(1),
             refusals: RefCell::new(Vec::new()),
+            limits,
+            created: RefCell::new(Vec::new()),
+            trees: Cell::new(0),
         }
+    }
+
+    /// Leaves `count` runner trees of an earlier life of the app, which the next `Runs::reap`
+    /// ends and counts.
+    pub fn leave_trees(&self, count: u32) {
+        self.trees.set(self.trees.get().saturating_add(count));
     }
 
     /// Sets the clock.
@@ -186,6 +223,59 @@ impl<C> Ports<C> {
         });
     }
 
+    fn bound(&self, workflow: &WorkflowId, agent: &AgentId) -> bool {
+        let named = self.workflows.borrow().iter().any(|w| match w {
+            Workflow::Full(f) => &f.id == workflow && f.agent.as_ref() == Some(agent),
+            Workflow::Dismissed(_) => false,
+        });
+        named
+            || self
+                .agents
+                .borrow()
+                .iter()
+                .any(|a| &a.workflow == workflow && &a.agent == agent)
+            || self
+                .created
+                .borrow()
+                .iter()
+                .any(|(w, a)| w == workflow && a == agent)
+    }
+
+    fn log_refusal(&self, events: &[Event]) -> Option<&'static str> {
+        if events.len() > self.limits.request_records as usize {
+            return Some("malformed");
+        }
+        let stored = self.events.borrow();
+        let mut last: Vec<(&AgentId, u32)> = Vec::new();
+        for e in events {
+            if !self
+                .workflows
+                .borrow()
+                .iter()
+                .any(|w| w.id() == &e.workflow)
+            {
+                return Some("no_workflow");
+            }
+            if !self.bound(&e.workflow, &e.agent) {
+                return Some("binding");
+            }
+            let before = match last.iter().rev().find(|(a, _)| *a == &e.agent) {
+                Some((_, seq)) => *seq,
+                None => stored
+                    .iter()
+                    .filter(|s| s.agent == e.agent)
+                    .map(|s| s.seq)
+                    .max()
+                    .unwrap_or(0),
+            };
+            if before.checked_add(1) != Some(e.seq) {
+                return Some("seq");
+            }
+            last.push((&e.agent, e.seq));
+        }
+        None
+    }
+
     fn approval(&self) -> ApprovalId {
         let n = self.approvals.get() + 1;
         self.approvals.set(n);
@@ -212,6 +302,9 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
         self.refused(Method::Log)?;
+        if let Some(name) = self.log_refusal(events) {
+            return Err(refusal(name));
+        }
         self.record(Call::Log(events.to_vec()));
         self.events.borrow_mut().extend_from_slice(events);
         Ok(())
@@ -228,6 +321,7 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             .cloned()
             .collect();
         found.sort_by_key(|e| e.seq);
+        found.truncate(HISTORY_MAX);
         Ok(found)
     }
 
@@ -245,9 +339,31 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.refused(Method::Send)?;
+        if let Body::SetState {
+            agent,
+            state: AgentState::Active,
+            ..
+        } = body
+        {
+            let no_playbook = self.agents.borrow().iter().any(|a| {
+                &a.agent == agent
+                    && a.config.runtime() == Runtime::Web
+                    && a.config.playbook().is_none()
+            });
+            if no_playbook {
+                return Err(refusal("playbook"));
+            }
+        }
         self.record(Call::Send(body.clone()));
         Ok(match body {
-            Body::CreateAgent { .. } => serde_json::json!({ "rev": 1 }),
+            Body::CreateAgent { workflow, agent } => {
+                let pair = (workflow.clone(), agent.clone());
+                let mut created = self.created.borrow_mut();
+                if !created.contains(&pair) {
+                    created.push(pair);
+                }
+                serde_json::json!({ "rev": 1 })
+            }
             Body::SetBindings { .. } => {
                 let rev = self.bindings_rev.get() + 1;
                 self.bindings_rev.set(rev);
@@ -308,7 +424,7 @@ impl<C> Runs for Ports<C> {
     fn reap(&self) -> Result<u32, PortError> {
         self.refused(Method::Reap)?;
         self.record(Call::Reap);
-        Ok(0)
+        Ok(self.trees.replace(0))
     }
 }
 

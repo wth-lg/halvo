@@ -23,9 +23,13 @@ pub enum PortError {
 pub trait Owner {
     /// The configuration type of the agents that `agents` lists.
     type Config: ConfigView;
-    /// Stores the events; success is the acknowledgement.
+    /// Stores the events; success is the acknowledgement. The owner refuses a body with the
+    /// error names of I7.2 (`no_workflow`, `binding`, `seq`, `malformed`, `internal`) and then
+    /// stores none of its events.
     fn log(&self, events: &[Event]) -> Result<(), PortError>;
-    /// The events of the agent with a `seq` above `after`, in ascending `seq`.
+    /// The events of the agent with a `seq` above `after`, in ascending `seq`, at most 64 for
+    /// one call, as `coord_history` answers (I7.2); the caller asks again from the last `seq`
+    /// that it holds.
     fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError>;
     /// The owner's list of workflows.
     fn workflows(&self) -> Result<Vec<Workflow>, PortError>;
