@@ -20,7 +20,7 @@ starts the browser headless with a new profile for every run, and stops both at 
   --browser PATH    the Chrome or Edge binary (the file name says which).
   --port N          the fixture port. --extras also uses N+1 for the debugging port;
                     --fault also uses N+2 for the fixture behind the fault proxy.
-  --runs N          runs per step; a cell of A13.2 is 10.
+  --runs N          runs per step, from 1 to 4294967295; a cell of A13.2 is 10.
   --step NAME       one of the nine steps; without it, all nine in the order of A13.2.
   --driver PATH     taken by the webdriver candidate only; refused here.
   --extras          prints the extras line: added_bytes (release binary with the driver crate
@@ -82,8 +82,10 @@ esac
 [ "$port" -ge 1 ] && [ "$port" -le 65532 ] || refuse usage "--port takes an integer from 1 to 65532"
 if [ "$mode" = cells ]; then
   case "$runs" in
-    '' | *[!0-9]* | 0*) refuse usage "--runs takes a count from 1" ;;
+    '' | *[!0-9]* | 0*) refuse usage "--runs takes a count from 1 to 4294967295" ;;
   esac
+  [ "${#runs}" -le 10 ] && [ "$runs" -le 4294967295 ] ||
+    refuse usage "--runs takes a count from 1 to 4294967295"
 fi
 case "$step" in
   '' | signin_form | table_read | form_fill | payment_frame | file_upload | session_expiry | \
