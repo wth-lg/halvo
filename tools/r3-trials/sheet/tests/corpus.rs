@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use calamine::Data;
@@ -92,6 +93,85 @@ fn rows_5000_has_five_thousand_data_rows() {
         .collect();
     assert_eq!(data_rows.len(), 5000);
     assert_eq!(data_rows.last(), Some(&5000));
+}
+
+type At = (String, (u32, u32));
+
+fn references(formula: &str, sheet: &str, names: &BTreeMap<String, String>) -> Vec<(At, At)> {
+    let mut found = Vec::new();
+    let part = |c: char| c.is_ascii_alphanumeric() || "$!:_.'".contains(c);
+    for token in formula.split(|c: char| !part(c)).filter(|t| !t.is_empty()) {
+        if let Some(text) = names.get(token) {
+            found.extend(references(text, sheet, &BTreeMap::new()));
+            continue;
+        }
+        let (on, range) = match token.rsplit_once('!') {
+            Some((on, range)) => (on.trim_matches('\'').to_string(), range),
+            None => (sheet.to_string(), token),
+        };
+        let range = range.replace('$', "");
+        let (first, last) = range.split_once(':').unwrap_or((&range, &range));
+        if let (Some(a), Some(b)) = (book::parse_ref(first), book::parse_ref(last)) {
+            found.push(((on.clone(), a), (on, b)));
+        }
+    }
+    found
+}
+
+fn defined_names(path: &Path) -> BTreeMap<String, String> {
+    let entries = parts::read_entries(path).unwrap();
+    let rule = parts::element_rule(Kind::DefinedName).unwrap();
+    let xml = entries.get("xl/workbook.xml").unwrap();
+    parts::element_instances(xml, &rule)
+        .unwrap()
+        .into_iter()
+        .map(|key| {
+            let mut fields = key.splitn(3, '|');
+            let name = fields.next().unwrap().to_string();
+            (name, fields.nth(1).unwrap().to_string())
+        })
+        .collect()
+}
+
+#[test]
+fn every_formula_cell_that_reads_the_changed_cell_is_named() {
+    for spec in corpus::specs() {
+        let path = corpus_dir().join(spec.file);
+        let read = book::read(&path).unwrap();
+        let names = defined_names(&path);
+        let target: At = (spec.sheet.to_string(), book::parse_ref(spec.cell).unwrap());
+        let mut reads = BTreeSet::from([target.clone()]);
+        loop {
+            let before = reads.len();
+            for (sheet, cells) in &read.sheets {
+                for (pos, cell) in cells {
+                    let Some(formula) = &cell.formula else {
+                        continue;
+                    };
+                    let hit = references(formula, sheet, &names)
+                        .iter()
+                        .any(|((s, a), (_, b))| {
+                            reads.iter().any(|(on, (row, col))| {
+                                on == s && (a.0..=b.0).contains(row) && (a.1..=b.1).contains(col)
+                            })
+                        });
+                    if hit {
+                        reads.insert((sheet.clone(), *pos));
+                    }
+                }
+            }
+            if reads.len() == before {
+                break;
+            }
+        }
+        reads.remove(&target);
+        let named: BTreeSet<At> = spec
+            .dependents
+            .iter()
+            .map(|d| (d.sheet.to_string(), book::parse_ref(d.cell).unwrap()))
+            .collect();
+        assert_eq!(reads, named, "{}", spec.file);
+    }
 }
 
 #[test]
