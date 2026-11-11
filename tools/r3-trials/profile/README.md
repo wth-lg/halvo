@@ -71,25 +71,32 @@ anything of them is left.
   after the steps shape, also after an INT or a TERM, the scratch holds no profile and no temporary
   directory of a browser; a file beside them stays.
 
-## Item 4 in numbers (03f4c53)
+## Item 4 in numbers (03f4c53 and 85f255a)
 
-- `mac`, Chrome, through the timed-run helper. `shape=steps` ran 2026-11-11T09:10:31Z to 09:11:20Z,
-  with the 1-minute load average 29.55 before and 25.54 after (other workers' runs). Its five peaks
-  lie between 931,302,864 and 955,682,088 bytes, median 934,693,560. Each run took 136 to 143 samples
-  and adopted 17 or 18 processes, the crash handlers of its nine browsers. `shape=task` ran 09:11:20Z
+- `mac`, Chrome, through the timed-run helper. `shape=steps` ran at 85f255a, 2026-11-11T11:56:17Z to
+  11:57:19Z, with the 1-minute load average 10.09 before and 17.07 after. Its five peaks lie between
+  951,979,016 and 1,003,197,512 bytes, median 969,575,432. Each run took 152 to 182 samples and
+  adopted 9 processes, one crash handler per browser, which the session's stop now waits for. At
+  03f4c53, when the program of the nine steps used `stop()` and left its profiles, the same shape read
+  931,302,864 to 955,682,088, median 934,693,560, with 17 or 18 adopted, 2026-11-11T09:10:31Z to
+  09:11:20Z at a load of 29.55 before and 25.54 after. `shape=task` ran at 03f4c53, 09:11:20Z
   to 09:13:12Z, with the load at 25.54 before and 16.35 after. One task run took 21.4 to 21.6 s, 20 s
   of it the held page, and 352 to 359 samples. Its peaks lie between 965,299,592 and 977,227,432,
   median 971,787,872. That median is the larger, so the bound of `mac` is 1,216,348,160.
 - At the peak of the median task run (run 4), the `treepart` lines give the GPU and utility helpers
   580.3 MB, the renderers 277.5 MB, the browser's main process 84.5 MB, the fixture server 22.4 MB,
   the trial program 3.9 MB and the crash handler 3.1 MB. At the peak of the median run of the nine
-  steps (run 5) the renderers held 237.3 MB, the helpers 580.5 MB and the main process 85.0 MB.
-- `hosted-win`, run 42976989121: Chrome's medians are 312,881,152 (steps) and 321,466,368 (task),
-  Edge's 356,491,264 and 367,390,720. The bound of `hosted-win` comes from Edge's task shape:
-  461,373,440.
+  steps at 85f255a (run 4) the renderers held 265.7 MB, the helpers 579.7 MB, the main process
+  81.4 MB and the program of the nine steps 14.9 MB, against 237.3, 580.5, 85.0 and 4.4 MB at
+  03f4c53; that program now reads the process table every 50 ms while it stops each browser.
+- `hosted-win`: in run 42976989121 (03f4c53) the task medians are 321,466,368 (Chrome) and 367,390,720
+  (Edge); in run 42995011332 (85f255a) the steps medians are 328,142,848 and 370,241,536, against
+  312,881,152 and 356,491,264 at 03f4c53. The bound of `hosted-win` comes from Edge's steps shape:
+  469,762,048. After the steps shape there, as on `mac`, the scratch held no profile and no
+  temporary directory, and a file beside them stayed.
 - Builder-8's cells at 21b88ee measured the nine steps alone, with a median of 974,098,160 on `mac`.
-  The median of the nine steps here is 4.0 % lower and the task median 0.2 % lower; the bound falls by
-  one step of 8 MiB, to 1,216,348,160. Each shape is one call of five runs on a loaded machine, a peak
+  The median of the nine steps at 85f255a is 0.5 % lower and the task median 0.2 % lower; the bound
+  falls by one step of 8 MiB, to 1,216,348,160. Each shape is one call of five runs on a loaded machine, a peak
   between two samples is missed, and memory that a daemon of the system holds for the browser lies
   outside the tree.
 
