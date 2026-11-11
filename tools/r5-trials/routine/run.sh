@@ -21,8 +21,12 @@ Arguments:
                   is taken from the current directory
   --help          print this text
 
+Every form of call needs an open standard output, also --sample, which
+prints nothing to it.
+
 Exit status:
-  0  the block was printed, whatever the verdict says, or the sample written
+  0  the block was printed, whatever the verdict says, the sample written,
+     or this text printed
   2  refused: one line "REFUSED <cause>: <detail>" on standard error and
      nothing on standard output; <cause> is usage, build, seed, input or
      output (standard output is closed or cannot be written)
@@ -33,6 +37,8 @@ refuse() {
   printf 'REFUSED %s: %s\n' "$1" "$2" >&2
   exit 2
 }
+
+true 2>/dev/null 3>&1 || refuse output "standard output cannot be written"
 
 wrong="the trial takes no argument, --help or --sample FILE"
 sample=
@@ -56,10 +62,6 @@ case $# in
   ;;
 *) refuse usage "$wrong" ;;
 esac
-
-if [ -z "$sample" ]; then
-  { true 3>&1; } 2>/dev/null || refuse output "standard output cannot be written"
-fi
 
 unset CDPATH
 export PATH="${CARGO_HOME:-${HOME:-}/.cargo}/bin:$PATH"
