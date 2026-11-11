@@ -36,6 +36,11 @@ Each job of `ci.yml` has the steps `ci.d self-test` and `ci.d`, which run the fi
 - It prints counts, sizes, times and booleans only, because the logs of CI are public.
 - It does not depend on another script having run.
 
+## Limits that a script meets
+
+- The windows job checks out the repository with depth 1, and the macos job checks it out with its whole history. A script that names the job `windows` reads no history: `git log` shows one commit, and a merge base or a diff against another commit fails there.
+- The case `standin-strict-run-alone` of `check-cost.sh` and `check-memory.sh` counts the processes named `halvo-capture` on the whole machine with `pgrep`. It fails when another self-test of the R1 gate runs beside it, because that self-test starts its own stand-in under the same name. Run the gate's self-tests one at a time on one machine.
+
 ## What the driver prints
 
 1. The output of each script while it runs, then `seconds <NN-name> <n>`.
