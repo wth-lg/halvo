@@ -145,15 +145,23 @@ fn read_table(path: &str) -> Result<Table, Refusal> {
 }
 
 fn write_new(path: &str, text: &str) -> Result<(), Refusal> {
-    let file = OpenOptions::new().write(true).create_new(true).open(path);
-    let written =
-        file.and_then(|mut file| file.write_all(text.as_bytes()).and_then(|()| file.flush()));
+    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return refuse("file", "--out exists")
+        }
+        Err(_) => return refuse("file", "--out cannot be written"),
+    };
+    let written = file
+        .write_all(text.as_bytes())
+        .and_then(|()| file.sync_all());
+    drop(file);
     match written {
         Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            refuse("file", "--out exists")
+        Err(_) => {
+            let _ = std::fs::remove_file(path);
+            refuse("file", "--out cannot be written")
         }
-        Err(_) => refuse("file", "--out cannot be written"),
     }
 }
 

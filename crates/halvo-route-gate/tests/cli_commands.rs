@@ -181,6 +181,76 @@ fn generate_writes_a_new_file_only() {
     );
 }
 
+#[cfg(unix)]
+fn run_under_a_size_limit(args: &[&str]) -> Run {
+    let output = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("trap '' XFSZ; ulimit -f 1; exec \"$0\" \"$@\"")
+        .arg(env!("CARGO_BIN_EXE_route-gate"))
+        .args(args)
+        .output()
+        .expect("sh runs");
+    Run {
+        code: output.status.code(),
+        stdout: String::from_utf8(output.stdout).expect("utf-8"),
+        stderr: String::from_utf8(output.stderr).expect("utf-8"),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_write_that_fails_leaves_no_file_at_out() {
+    let dir = scratch();
+    let table = path(&dir, "table.tsv");
+    std::fs::write(&table, SPECIMEN).expect("fixture");
+    let generated = path(&dir, "generated.tsv");
+    let policy = path(&dir, "policy.tsv");
+    let calls = [
+        vec!["generate", "--seed", "1", "--out", &generated],
+        vec!["derive", "--table", &table, "--out", &policy],
+    ];
+    for args in calls {
+        let run = run_under_a_size_limit(&args);
+        assert_eq!(
+            (run.code, run.stdout.as_str(), run.stderr.as_str()),
+            (Some(2), "", "REFUSED file: --out cannot be written\n"),
+            "{args:?}"
+        );
+        assert!(!Path::new(args[args.len() - 1]).exists(), "{args:?}");
+    }
+    let kept = path(&dir, "kept.tsv");
+    std::fs::write(&kept, "bytes of another call\n").expect("fixture");
+    let run = run_under_a_size_limit(&["generate", "--seed", "1", "--out", &kept]);
+    assert_eq!(
+        (run.code, run.stderr.as_str()),
+        (Some(2), "REFUSED file: --out exists\n")
+    );
+    assert_eq!(
+        std::fs::read_to_string(&kept).expect("kept"),
+        "bytes of another call\n"
+    );
+}
+
+#[test]
+fn a_file_at_out_before_the_call_keeps_its_bytes() {
+    let dir = scratch();
+    let table = path(&dir, "table.tsv");
+    std::fs::write(&table, SPECIMEN).expect("fixture");
+    let kept = path(&dir, "kept.tsv");
+    std::fs::write(&kept, "bytes of another call\n").expect("fixture");
+    for args in [
+        vec!["generate", "--seed", "1", "--out", &kept],
+        vec!["derive", "--table", &table, "--out", &kept],
+    ] {
+        assert_refused(&args, "REFUSED file: --out exists");
+        assert_eq!(
+            std::fs::read_to_string(&kept).expect("kept"),
+            "bytes of another call\n",
+            "{args:?}"
+        );
+    }
+}
+
 #[test]
 fn derive_writes_the_policy_of_a_generated_table() {
     let dir = scratch();
