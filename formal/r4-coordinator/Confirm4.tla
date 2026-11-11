@@ -125,17 +125,23 @@ Lapse(s, i, cause, stored) ==
     ELSE IF ~LapseOk(s.items[i], cause) THEN No(s, "state")
     ELSE LET it == s.items[i]
              gone == cause \in {"run_ended", "app_ended"}
+             stop == cause \in {"wait_limit", "cancelled"}
              kept == cause = "no_record" /\ stored /\ it.st = "answered"
              es == Entries(it.req, Mint(s, it.req), "reject_once")
          IN [r |-> "ok",
              st |-> [s EXCEPT !.items[i].st = "lapsed",
                               !.nap = IF gone THEN @ ELSE @ + Cardinality(ReqEffects(it.req)),
                               !.table = {t \in @ : t.row.item # i},
-                              !.run = IF gone THEN "ended" ELSE @,
+                              !.run = IF gone THEN "ended" ELSE IF stop THEN "stopped" ELSE @,
                               !.app = IF cause = "app_ended" THEN "ended" ELSE @],
              ev |-> (IF kept THEN <<[k |-> "rows", rows |-> Rows(i, ItemEntries(it)), acked |-> FALSE]>> ELSE <<>>)
                     \o (IF gone THEN <<>> ELSE <<[k |-> "sent", item |-> i, via |-> "lapse", entries |-> es]>>)
-                    \o <<Mv(i, "lapse", cause)>>]
+                    \o <<Mv(i, "lapse", cause)>>
+                    \o (IF stop THEN <<[k |-> "stop"]>> ELSE <<>>)]
+
+Stop(s) ==
+    IF s.run # "live" \/ OpenItems(s) # {} THEN No(s, "state")
+    ELSE [r |-> "ok", st |-> [s EXCEPT !.run = "stopped"], ev |-> <<[k |-> "stop"]>>]
 
 Guard(s, rec) ==
     LET pass == [r |-> "ok", st |-> s, ev |-> <<[k |-> "pass", rec |-> rec]>>]
@@ -144,13 +150,15 @@ Guard(s, rec) ==
                                /\ t.row.digest = rec.digest
                                /\ t.row.answer = "allow_once"
                                /\ t.live}
+        known == {t \in s.table : t.row.approval = rec.approval /\ t.row.answer = "allow_once" /\ t.live}
     IN IF rec.state \notin {"approved", "releasing"} THEN No(s, "ok")
+       ELSE IF s.run = "stopped" THEN No(s, "approval")
        ELSE IF rec.state = "approved"
        THEN IF {t \in m : ~t.used} = {} THEN No(s, "approval")
             ELSE [pass EXCEPT !.st = [s EXCEPT !.table = (@ \ m) \cup {[t EXCEPT !.used = TRUE] : t \in m}]]
        ELSE IF rec.effect \in Native
        THEN IF {t \in m : t.used} = {} THEN No(s, "approval") ELSE pass
-       ELSE No(s, "ok")
+       ELSE IF known = {} THEN No(s, "approval") ELSE pass
 
 Step(s, mv) ==
     CASE mv.m = "issue" -> Issue(s, mv.ok)
@@ -159,6 +167,7 @@ Step(s, mv) ==
       [] mv.m = "record" -> Record(s, mv.item)
       [] mv.m = "release" -> Release(s, mv.item)
       [] mv.m = "lapse" -> Lapse(s, mv.item, mv.cause, mv.stored)
+      [] mv.m = "stop" -> Stop(s)
       [] mv.m = "guard" -> Guard(s, mv)
 
 ItemMoves(s, i) ==
@@ -168,9 +177,8 @@ ItemMoves(s, i) ==
     \cup {[m |-> "lapse", item |-> i, cause |-> "no_record", stored |-> TRUE]}
 
 GuardMoves(s) ==
-    UNION {{[m |-> "guard", effect |-> e, state |-> x, digest |-> d, approval |-> p] :
-                x \in RecStates, d \in {Digest(1, e), Digest(2, e)}, p \in 0..s.nap} :
-           e \in Effects}
+    {[m |-> "guard", effect |-> e, state |-> x, digest |-> d, approval |-> p] :
+        e \in Effects, x \in RecStates, d \in Digests, p \in 0..s.nap}
 
 Moves(s) ==
     IF s.app = "ended" THEN {}
@@ -180,6 +188,7 @@ Moves(s) ==
          ELSE UNION {ItemMoves(s, i) : i \in DOMAIN s.items}
     ELSE (IF Len(s.items) < NRequests THEN {[m |-> "issue", ok |-> b] : b \in BOOLEAN} ELSE {})
          \cup UNION {ItemMoves(s, i) : i \in DOMAIN s.items}
+         \cup {[m |-> "stop"]}
          \cup GuardMoves(s)
 
 HLast(g, i) == IF Len(g.moves[i]) = 0 THEN "none" ELSE g.moves[i][Len(g.moves[i])].m
@@ -254,12 +263,11 @@ L5 == /\ \A d \in h.got : d.via = "release" =>
             \E d \in h.got : d.via = "release" /\ d.item = x.item /\ d.entries = x.entries
 L6 == /\ \A d \in h.got : (d.via = "lapse" \/ d.after) => \A e \in d.entries : e.answer = "reject_once"
       /\ \A x \in h.released : ~Lapsed(x.item)
-L7 == \A p \in h.passed : p.state = "approved" =>
-        /\ p.first
-        /\ \E x \in h.acked : /\ x.approval = p.approval
-                              /\ x.effect = p.effect
-                              /\ x.digest = p.digest
-                              /\ x.answer = "allow_once"
+L7 == \A p \in h.passed : p.state = "approved" => Row(p) # {} /\ p.first
+L8 == \A p \in h.passed : (p.state = "releasing" /\ p.effect \in Native) => Row(p) # {} /\ p.used
+L9 == \A p \in h.passed :
+        /\ ~p.stopped
+        /\ \A d \in h.got : \A e \in d.entries : e.answer = "reject_once" => e.approval # p.approval
 
 ReachEffects == \A d \in h.got : ~(/\ d.via = "release"
                                    /\ Cardinality(d.entries) >= 2
