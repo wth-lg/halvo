@@ -151,10 +151,10 @@
   function confirm(item) {
     var d = document.createElement('dialog');
     d.className = 'r4s-dialog';
-    d.setAttribute('role', 'alertdialog');
-    d.setAttribute('aria-modal', 'true');
-    d.setAttribute('aria-labelledby', 'r4s-title-' + item.item);
-    d.setAttribute('aria-describedby', 'r4s-fields-' + item.item);
+    if (fault !== 'dialog_plain') d.setAttribute('role', 'alertdialog');
+    if (fault !== 'dialog_no_modal') d.setAttribute('aria-modal', 'true');
+    if (fault !== 'dialog_no_label') d.setAttribute('aria-labelledby', 'r4s-title-' + item.item);
+    if (fault !== 'dialog_no_description') d.setAttribute('aria-describedby', 'r4s-fields-' + item.item);
     var title = el('h3', null, item.title);
     title.id = 'r4s-title-' + item.item;
     d.appendChild(title);
@@ -175,12 +175,18 @@
     });
     d.appendChild(fields);
     var controls = el('div', 'r4s-controls', null);
-    item.choices.forEach(function (c) {
+    var choices = fault === 'safe_second' ? item.choices.slice().reverse() : item.choices;
+    choices.forEach(function (c) {
       var b = el('button', null, c.text);
       b.type = 'button';
       b.setAttribute('data-act', c.choice);
       if (c.safe === 'yes') b.autofocus = true;
       b.addEventListener('click', function () {
+        if (c.safe === 'yes' && fault === 'dialog_role') {
+          d.setAttribute('role', 'group');
+          return;
+        }
+        if (c.safe === 'yes' && fault === 'dialog_noclose') return;
         answered[item.item] = true;
         call('agents_answer', { item: item.item, choice: c.choice }).then(function () {
           if (d.open) d.close();
@@ -189,6 +195,20 @@
       });
       controls.appendChild(b);
     });
+    var buttons = controls.querySelectorAll('button');
+    var last = buttons[buttons.length - 1];
+    last.addEventListener('keydown', function (event) {
+      if (event.key === 'Tab' && fault === 'dialog_not_inert') {
+        event.preventDefault();
+        buttons[0].focus();
+      }
+    });
+    if (fault === 'body_stays') {
+      var held = 0;
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Tab' && document.activeElement === document.body && !held++) event.preventDefault();
+      });
+    }
     d.appendChild(controls);
     d.addEventListener('cancel', function (event) {
       event.preventDefault();
@@ -213,12 +233,13 @@
       if (item.kind === 'confirm' && item.presenter === 'page') {
         var d = confirm(item);
         items.appendChild(d);
-        if (fault === 'focus_escapes') {
+        if (fault === 'focus_escapes' || fault === 'dialog_not_inert') {
           d.show();
-          d.querySelector('button').focus();
+          d.querySelector('[autofocus]').focus();
         } else {
           d.showModal();
         }
+        if (fault === 'dialog_blur') document.activeElement.blur();
       } else {
         items.appendChild(setup(item));
       }

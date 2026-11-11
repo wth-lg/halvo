@@ -320,7 +320,8 @@ function flush(h) {
     const wake = t.waiting;
     t.waiting = null;
     t.i++;
-    wake(h.transform ? h.transform(line.state) : line.state);
+    h.current = h.transform ? h.transform(line.state) : line.state;
+    wake(h.current);
   }
 }
 
@@ -330,7 +331,8 @@ function fromTranscript(h, name, args) {
   if (name === 'agents_snapshot') {
     if (t.i === 0 && line && 'state' in line) {
       t.i++;
-      return h.transform ? h.transform(line.state) : line.state;
+      h.current = h.transform ? h.transform(line.state) : line.state;
+      return h.current;
     }
     h.mismatch.push(name);
     return { error: 'malformed' };
@@ -365,9 +367,16 @@ async function stub(h, name, args) {
   }
   h.inflight++;
   try {
-    if (name === 'agents_snapshot') return h.state.snapshot;
+    if (name === 'agents_snapshot') {
+      h.current = h.state.snapshot;
+      return h.current;
+    }
     if (name === 'agents_card') return h.state.card;
-    if (name === 'agents_next') return await fixture(h, 'reply-next-same.json');
+    if (name === 'agents_next') {
+      const reply = await fixture(h, 'reply-next-same.json');
+      if (reply && typeof reply === 'object' && !(h.current && reply.seq <= h.current.seq)) h.current = reply;
+      return reply;
+    }
     return await fixture(h, 'reply-ok.json');
   } finally {
     h.inflight--;
@@ -403,6 +412,7 @@ async function openWith(options, context, transform) {
       cache: new Map(),
       transcript: Array.isArray(o.replies) ? { i: 0, waiting: null, lines: lines(o.replies) } : null,
       state: null,
+      current: null,
       blocked: 0,
       inflight: 0,
       started: 0,
@@ -647,6 +657,41 @@ const HELPER = () => {
       borders: ['top', 'right', 'bottom', 'left'].map((side) => contrast(s.getPropertyValue('border-' + side + '-color'), el.parentElement)),
     };
   };
+  const textOf = (ids) =>
+    (ids || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => document.getElementById(id))
+      .filter(Boolean)
+      .map((e) => e.textContent.trim())
+      .join(' ')
+      .trim();
+  const isModal = (el) => {
+    try {
+      return el.matches(':modal');
+    } catch {
+      return false;
+    }
+  };
+  const SKIP = ['SCRIPT', 'STYLE', 'TEMPLATE', 'LINK', 'META', 'NOSCRIPT'];
+  const restInert = (d) => {
+    for (let e = d; e && e !== document.documentElement; e = e.parentElement) if (isModal(e)) return true;
+    for (let e = d; e && e.parentElement && e !== document.body; e = e.parentElement) {
+      for (const sib of e.parentElement.children) {
+        if (sib === e || SKIP.includes(sib.tagName) || sib.closest('[inert]') || !rendered(sib)) continue;
+        return false;
+      }
+    }
+    return true;
+  };
+  const props = (d) => ({
+    modal: d.getAttribute('aria-modal') === 'true',
+    label: Boolean((d.getAttribute('aria-label') || '').trim() || textOf(d.getAttribute('aria-labelledby'))),
+    description: Boolean((d.getAttribute('aria-description') || '').trim() || textOf(d.getAttribute('aria-describedby'))),
+    inert: restInert(d),
+  });
+  const dialogs = () => [...document.querySelectorAll('[role]')].filter((el) => role(el) === 'alertdialog' && rendered(el));
   window.__r4w = {
     begin() {
       const d = dialog();
@@ -655,10 +700,8 @@ const HELPER = () => {
       const active = a && a !== document.body && a !== document.documentElement ? idOf(a) : 0;
       return {
         dialog: Boolean(d),
-        taken: d ? d.contains(a) : null,
+        dialogs: dialogs().map(props),
         active,
-        activeStyle: active ? style(a) : null,
-        safe: d && list.length ? idOf(list[0]) : 0,
         controls: list.map((el) => ({ id: idOf(el), group: el.tagName === 'INPUT' && el.type === 'radio' && el.name ? 'radio:' + (el.form ? idOf(el.form) : 0) + ':' + el.name : null, name: name(el) })),
       };
     },
@@ -666,7 +709,7 @@ const HELPER = () => {
       const a = document.activeElement;
       if (!a || a === document.body || a === document.documentElement) return { id: 0 };
       const d = dialog();
-      return { id: idOf(a), outside: d ? !d.contains(a) : false, style: style(a), ring: ring(a) };
+      return { id: idOf(a), outside: d ? !d.contains(a) : false, self: a === d, style: style(a), ring: ring(a) };
     },
     rest(list) {
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -681,8 +724,22 @@ const HELPER = () => {
       const on = ids.find((id) => byId.has(id) && byId.get(id).checked);
       return on === undefined ? 0 : on;
     },
-    open() {
-      return Boolean(dialog());
+    mark() {
+      const d = dialog();
+      return d ? [d, ...d.querySelectorAll('*')].map(idOf) : [];
+    },
+    closed(ids) {
+      const gone = ids.every((id) => {
+        const el = byId.get(id);
+        return !el || !el.isConnected || !rendered(el);
+      });
+      let modal = false;
+      try {
+        modal = document.querySelector(':modal') !== null;
+      } catch {
+        modal = false;
+      }
+      return gone && !modal && document.querySelector('[inert]') === null;
     },
     sizes() {
       const small = [];
@@ -722,24 +779,56 @@ function shownFocus(stop, rest) {
   return shown.some((c) => c !== null && c >= 3) ? null : 'focus_contrast';
 }
 
+function confirmItems(h) {
+  const s = h.current;
+  return s && Array.isArray(s.items) ? s.items.filter((i) => i && i.kind === 'confirm' && i.presenter === 'page') : [];
+}
+
+function safeChoice(item) {
+  if (!item) return null;
+  const c = (Array.isArray(item.choices) ? item.choices : []).find((x) => x && x.safe === 'yes');
+  return c && typeof c.choice === 'string' ? c.choice : '';
+}
+
 async function walkCheck(h) {
   const page = h.page;
   const key = h.build.walkKey;
   await page.evaluate(HELPER);
   const b = await page.evaluate(() => window.__r4w.begin());
   const misses = new Set();
-  if (b.dialog && !b.taken) misses.add('dialog_not_taken');
+  const confirms = confirmItems(h);
+  if (confirms.length > b.dialogs.length) misses.add('dialog_missing');
+  for (const p of b.dialogs) {
+    if (!p.modal) misses.add('dialog_not_modal');
+    if (!p.label) misses.add('dialog_no_label');
+    if (!p.description) misses.add('dialog_no_description');
+    if (!p.inert) misses.add('dialog_not_inert');
+  }
+  const safeAct = safeChoice(confirms[b.dialogs.length - 1]);
+  if (b.dialog) {
+    const idx = safeAct === null ? 0 : b.controls.findIndex((c) => c.name === safeAct);
+    if (idx !== 0) misses.add('dialog_safe_not_first');
+    if (idx < 0 || b.active !== b.controls[idx].id) misses.add('dialog_not_taken');
+  }
   const stops = new Map();
   const first = b.active;
   let start = first;
   let back = false;
+  let body = false;
   const max = b.controls.length * 2 + 8;
   for (let i = 0; i < max; i++) {
     await page.keyboard.press(key);
     await page.evaluate(FINISH);
     const s = await page.evaluate(() => window.__r4w.step());
-    if (s.id === 0) continue;
+    if (s.id === 0) {
+      if (b.dialog && body) misses.add('dialog_focus_lost');
+      body = true;
+      continue;
+    }
+    if (b.dialog && s.self && body) continue;
     if (s.outside) misses.add('dialog_focus_lost');
+    if (b.dialog && body && b.controls.length && s.id !== b.controls[0].id) misses.add('dialog_focus_lost');
+    body = false;
     if (!stops.has(s.id)) stops.set(s.id, { style: s.style, ring: s.ring });
     if (start === 0) {
       start = s.id;
@@ -794,18 +883,21 @@ async function walkCheck(h) {
     if (word) misses.add(word);
   });
   if (!back && b.controls.length > 0 && stops.size === 0) misses.add('unreached');
+  if (b.dialog && body) misses.add('dialog_focus_lost');
   if (b.dialog) {
     const fresh = await again(h);
     try {
       await fresh.page.evaluate(HELPER);
       const fb = await fresh.page.evaluate(() => window.__r4w.begin());
-      const focused = fb.safe ? await fresh.page.evaluate((id) => window.__r4w.focus(id), fb.safe) : false;
+      const target = safeAct === null ? fb.controls[0] : fb.controls.find((c) => c.name === safeAct);
+      const focused = fb.dialog && target ? await fresh.page.evaluate((id) => window.__r4w.focus(id), target.id) : false;
       if (!focused) {
         misses.add('dialog_not_closed');
       } else {
+        const marks = await fresh.page.evaluate(() => window.__r4w.mark());
         await fresh.page.keyboard.press('Enter');
         await settle(fresh);
-        if (await fresh.page.evaluate(() => window.__r4w.open())) misses.add('dialog_not_closed');
+        if (!(await fresh.page.evaluate((ids) => window.__r4w.closed(ids), marks))) misses.add('dialog_not_closed');
       }
     } finally {
       await fresh.close();
