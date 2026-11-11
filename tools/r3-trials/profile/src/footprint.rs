@@ -14,6 +14,7 @@ pub struct Measured {
     pub samples: u64,
     pub parts: Vec<(String, u64)>,
     pub left: u64,
+    pub lifetime_max_sum: u64,
 }
 
 pub fn exit_text(status: ExitStatus) -> String {
@@ -37,14 +38,26 @@ pub fn now_us() -> u64 {
         .unwrap_or(0)
 }
 
+pub const SYSTEM_DIRS: [&str; 6] = [
+    "/bin/",
+    "/sbin/",
+    "/usr/bin/",
+    "/usr/sbin/",
+    "/usr/libexec/",
+    "/System/",
+];
+
 pub fn adoption_roots(command_exe: Option<&std::path::Path>, exes: &[PathBuf]) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = exes
         .iter()
         .map(|e| r3_web::procs::bundle_root(e))
         .filter(|r| r.to_string_lossy().ends_with(".app"))
         .collect();
-    if let Some(dir) = command_exe.and_then(|e| e.parent()) {
-        roots.push(dir.to_path_buf());
+    if let Some(exe) = command_exe {
+        let text = exe.to_string_lossy();
+        if !SYSTEM_DIRS.iter().any(|d| text.starts_with(d)) {
+            roots.push(exe.to_path_buf());
+        }
     }
     roots.sort();
     roots.dedup();
@@ -52,16 +65,21 @@ pub fn adoption_roots(command_exe: Option<&std::path::Path>, exes: &[PathBuf]) -
 }
 
 #[cfg(target_os = "macos")]
-pub fn phys_footprint(pid: u32) -> Option<u64> {
-    let mut info: libc::rusage_info_v2 = unsafe { std::mem::zeroed() };
+pub fn footprints(pid: u32) -> Option<(u64, u64)> {
+    let mut info: libc::rusage_info_v4 = unsafe { std::mem::zeroed() };
     let r = unsafe {
         libc::proc_pid_rusage(
             pid as libc::c_int,
-            libc::RUSAGE_INFO_V2,
-            (&mut info as *mut libc::rusage_info_v2).cast::<libc::rusage_info_t>(),
+            libc::RUSAGE_INFO_V4,
+            (&mut info as *mut libc::rusage_info_v4).cast::<libc::rusage_info_t>(),
         )
     };
-    (r == 0).then_some(info.ri_phys_footprint)
+    (r == 0).then_some((info.ri_phys_footprint, info.ri_lifetime_max_phys_footprint))
+}
+
+#[cfg(target_os = "macos")]
+pub fn phys_footprint(pid: u32) -> Option<u64> {
+    footprints(pid).map(|(now, _)| now)
 }
 
 pub trait Stopper {
@@ -70,7 +88,7 @@ pub trait Stopper {
 
 #[cfg(target_os = "macos")]
 pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measured> {
-    use r3_web::procs::{adopted, descendants, table};
+    use r3_web::procs::{adopted, descendants, table, Proc};
     let start = now_us();
     let mut child: Child = cmd.spawn()?;
     let root = child.id();
@@ -81,47 +99,41 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
     let mut m = Measured::default();
     let mut seen: Vec<u32> = vec![root];
     let mut taken: Vec<u32> = Vec::new();
+    let mut lifetime: std::collections::BTreeMap<u32, u64> = std::collections::BTreeMap::new();
     let mut exited: Option<(ExitStatus, Instant)> = None;
     let mut signalled = false;
     loop {
-        let t = table()?;
-        let fresh: Vec<&r3_web::procs::Proc> = t.iter().filter(|p| p.started_us >= start).collect();
-        let fresh_table: Vec<r3_web::procs::Proc> = fresh.iter().map(|p| (*p).clone()).collect();
-        for pid in descendants(&fresh_table, &seen) {
+        let fresh: Vec<Proc> = table()?
+            .into_iter()
+            .filter(|p| p.started_us >= start)
+            .collect();
+        for pid in descendants(&fresh, &seen) {
             if !seen.contains(&pid) {
                 seen.push(pid);
             }
         }
-        let exes: Vec<PathBuf> = fresh_table
+        let exes: Vec<PathBuf> = fresh
             .iter()
             .filter(|p| seen.contains(&p.pid))
             .filter_map(|p| p.exe.clone())
             .collect();
         let roots = adoption_roots(command_exe.as_deref(), &exes);
-        for pid in adopted(&fresh_table, &seen, start, &roots) {
+        for pid in adopted(&fresh, &seen, start, &roots) {
             if !taken.contains(&pid) {
                 taken.push(pid);
             }
         }
-        let mut all = seen.clone();
-        all.extend(taken.iter().copied());
-        for pid in descendants(&fresh_table, &all) {
-            if !all.contains(&pid) {
-                all.push(pid);
-            }
-            if !seen.contains(&pid) && !taken.contains(&pid) {
-                taken.push(pid);
-            }
-        }
-        let members: Vec<&r3_web::procs::Proc> = fresh_table
+        let members: Vec<&Proc> = fresh
             .iter()
-            .filter(|p| all.contains(&p.pid))
+            .filter(|p| seen.contains(&p.pid) || taken.contains(&p.pid))
             .collect();
         let mut sum = 0u64;
         let mut parts: Vec<(String, u64)> = Vec::new();
         for p in &members {
-            if let Some(bytes) = phys_footprint(p.pid) {
+            if let Some((bytes, max)) = footprints(p.pid) {
                 sum += bytes;
+                let slot = lifetime.entry(p.pid).or_insert(0);
+                *slot = (*slot).max(max);
                 let name = p
                     .exe
                     .as_ref()
@@ -160,9 +172,10 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
                 break;
             }
         }
-        std::thread::sleep(super::footprint::PERIOD);
+        std::thread::sleep(PERIOD);
     }
     m.adopted = taken.len() as u64;
+    m.lifetime_max_sum = lifetime.values().sum();
     m.exit = exited.map(|(s, _)| exit_text(s)).unwrap_or_default();
     Ok(m)
 }
@@ -290,7 +303,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn adoption_roots_take_app_bundles_and_the_command_directory() {
+    fn adoption_roots_take_app_bundles_and_the_command_binary_only() {
         let exes = vec![
             PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
             PathBuf::from("/usr/bin/profiles"),
@@ -303,8 +316,12 @@ mod tests {
             ),
             vec![
                 PathBuf::from("/Applications/Google Chrome.app"),
-                PathBuf::from("/w/target/release"),
+                PathBuf::from("/w/target/release/web-trial"),
             ]
+        );
+        assert_eq!(
+            adoption_roots(Some(std::path::Path::new("/bin/sh")), &exes),
+            vec![PathBuf::from("/Applications/Google Chrome.app")]
         );
     }
 }

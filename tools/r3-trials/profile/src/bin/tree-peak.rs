@@ -105,8 +105,8 @@ fn main() -> ExitCode {
             m.exit, m.peak
         ));
         out(&format!(
-            "treeinfo run={i} processes_max={} adopted={} samples={} left={}",
-            m.processes_max, m.adopted, m.samples, m.left
+            "treeinfo run={i} processes_max={} adopted={} samples={} left={} lifetime_max_sum={}",
+            m.processes_max, m.adopted, m.samples, m.left, m.lifetime_max_sum
         ));
         for (exe, bytes) in &m.parts {
             out(&format!("treepart run={i} exe={exe} bytes={bytes}"));

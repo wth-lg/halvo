@@ -2,10 +2,15 @@ use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use r3_profile::screen::{self, Window};
-use r3_profile::{bound_bytes, encode, entry_names, landing, new_entries, search, LEAVE_OUT_ALL};
+use r3_profile::{
+    bound_bytes, encode, entry_names, landing, marker_needles, new_entries, outside_roots, search,
+    search_with, LEAVE_OUT_ALL,
+};
 use r3_web::cdp::{Executor, Fault, Locator, Res, SessionState, StartOptions, Stopped};
 use r3_web::fixture::{fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
 use r3_web::{browser_kind, procs, FIRST_FLAGS, RESOLVER_RULE};
@@ -198,75 +203,130 @@ fn watch_signals() -> std::io::Result<Stop> {
     Ok(Stop(rx))
 }
 
-struct Watch {
+#[derive(Default)]
+struct Seen {
     front: Option<String>,
     windows: Option<Vec<Window>>,
     changed_front: bool,
     raised: Vec<Window>,
     reads: u32,
     failed_reads: u32,
+    roots: Vec<u32>,
 }
+
+impl Seen {
+    fn prompt(&self) -> bool {
+        self.changed_front || !self.raised.is_empty()
+    }
+}
+
+struct Watch {
+    seen: Arc<Mutex<Seen>>,
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+const WATCH_PERIOD: Duration = Duration::from_millis(250);
+const WATCH_TAIL: Duration = Duration::from_secs(10);
 
 impl Watch {
     fn start() -> Watch {
         let front = screen::front();
         let windows = screen::windows();
         let failed = u32::from(front.is_none()) + u32::from(windows.is_none());
-        Watch {
+        let seen = Arc::new(Mutex::new(Seen {
             front,
             windows,
-            changed_front: false,
-            raised: Vec::new(),
             reads: 1,
             failed_reads: failed,
+            ..Seen::default()
+        }));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (shared, stopping) = (seen.clone(), stop.clone());
+        let thread = std::thread::spawn(move || {
+            while !stopping.load(Ordering::SeqCst) {
+                sample(&shared);
+                std::thread::sleep(WATCH_PERIOD);
+            }
+            sample(&shared);
+        });
+        Watch {
+            seen,
+            stop,
+            thread: Some(thread),
         }
     }
 
-    fn check(&mut self, browser_pids: &[u32]) {
-        self.reads += 1;
-        match screen::front() {
-            Some(f) => {
-                if self.front.as_ref().is_some_and(|b| *b != f) {
-                    self.changed_front = true;
-                }
-            }
-            None => self.failed_reads += 1,
-        }
-        match (&self.windows, screen::windows()) {
-            (Some(before), Some(now)) => {
-                for w in screen::raised(before, &now, browser_pids) {
-                    if !self.raised.contains(&w) {
-                        self.raised.push(w);
-                    }
-                }
-            }
-            _ => self.failed_reads += 1,
+    fn add_browser(&self, root: Option<u32>) {
+        if let (Some(r), Ok(mut s)) = (root, self.seen.lock()) {
+            s.roots.push(r);
         }
     }
 
-    fn prompt(&self) -> bool {
-        self.changed_front || !self.raised.is_empty()
+    async fn finish(mut self) -> Seen {
+        tokio::time::sleep(WATCH_TAIL).await;
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+        self.seen
+            .lock()
+            .map(|mut s| std::mem::take(&mut *s))
+            .unwrap_or_default()
     }
 }
 
-fn browser_pids(ex: &Executor) -> Vec<u32> {
-    let table = procs::table().unwrap_or_default();
-    let Some(root) = ex.pid() else {
-        return Vec::new();
+fn sample(seen: &Mutex<Seen>) {
+    let roots = seen.lock().map(|s| s.roots.clone()).unwrap_or_default();
+    let pids = tree_pids(&roots);
+    let front = screen::front();
+    let windows = screen::windows();
+    let Ok(mut s) = seen.lock() else {
+        return;
     };
-    let mut pids = procs::descendants(&table, &[root]);
-    let since = table
-        .iter()
-        .find(|p| p.pid == root)
-        .map(|p| p.started_us)
-        .unwrap_or(u64::MAX);
-    let roots: Vec<PathBuf> = table
-        .iter()
-        .find(|p| p.pid == root)
-        .and_then(|p| p.exe.as_deref().map(procs::bundle_root))
-        .into_iter()
-        .collect();
-    pids.extend(procs::adopted(&table, &pids, since, &roots));
+    s.reads += 1;
+    match front {
+        Some(f) => {
+            if s.front.as_ref().is_some_and(|b| *b != f) {
+                s.changed_front = true;
+            }
+        }
+        None => s.failed_reads += 1,
+    }
+    let raised = match (&s.windows, windows) {
+        (Some(before), Some(now)) => screen::raised(before, &now, &pids),
+        _ => {
+            s.failed_reads += 1;
+            Vec::new()
+        }
+    };
+    for w in raised {
+        if !s.raised.contains(&w) {
+            s.raised.push(w);
+        }
+    }
+}
+
+fn tree_pids(roots: &[u32]) -> Vec<u32> {
+    let table = procs::table().unwrap_or_default();
+    let mut pids = Vec::new();
+    for root in roots {
+        let mut tree = procs::descendants(&table, &[*root]);
+        let since = table
+            .iter()
+            .find(|p| p.pid == *root)
+            .map(|p| p.started_us)
+            .unwrap_or(u64::MAX);
+        let bundles: Vec<PathBuf> = table
+            .iter()
+            .find(|p| p.pid == *root)
+            .and_then(|p| p.exe.as_deref().map(procs::bundle_root))
+            .into_iter()
+            .collect();
+        let adopted = procs::adopted(&table, &tree, since, &bundles);
+        tree.extend(adopted);
+        pids.extend(tree);
+    }
     pids
 }
 
@@ -392,9 +452,10 @@ struct Session {
     stopped_a: Stopped,
     stopped_b: Option<Stopped>,
     b_was_empty: bool,
+    marker_cookies: Vec<String>,
 }
 
-async fn session(ctx: &Ctx, leave: &[String], watch: &mut Watch) -> Res<Session> {
+async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
     let pid = std::process::id();
     let a_dir = ctx.scratch.join(format!("{pid}-profile-a"));
     let b_dir = ctx.scratch.join(format!("{pid}-profile-b"));
@@ -402,8 +463,8 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &mut Watch) -> Res<Session>
         .stop
         .or(Executor::start(&ctx.options(a_dir.clone())))
         .await?;
+    watch.add_browser(a.pid());
     let signed = ctx.stop.or(sign_in_with_second_factor(&mut a, ctx)).await;
-    watch.check(&browser_pids(&a));
     let exported = match signed {
         Ok(()) => ctx.stop.or(a.export_state(&ctx.origins())).await,
         Err(f) => Err(f),
@@ -423,6 +484,13 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &mut Watch) -> Res<Session>
         exported.item_count(),
         exported.to_json().len()
     ));
+    let marker = ctx.seed.str(&["page_marker"]);
+    let marker_cookies: Vec<String> = exported
+        .cookies
+        .iter()
+        .filter(|c| !marker.is_empty() && c.value == marker)
+        .map(|c| c.name.clone())
+        .collect();
     let state = leave_out(&exported, leave);
     drop(exported);
     if !leave.is_empty() {
@@ -438,6 +506,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &mut Watch) -> Res<Session>
         .map(|mut e| e.next().is_none())
         .unwrap_or(false);
     let mut b = ctx.stop.or(Executor::start(&ctx.options(b_dir))).await?;
+    watch.add_browser(b.pid());
     let landed = ctx
         .stop
         .or(async {
@@ -446,14 +515,13 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &mut Watch) -> Res<Session>
             path_now(&b).await
         })
         .await;
-    watch.check(&browser_pids(&b));
     let stopped_b = b.stop_and_remove().await;
-    watch.check(&[]);
     Ok(Session {
         landing: landed?,
         stopped_a,
         stopped_b: Some(stopped_b),
         b_was_empty,
+        marker_cookies,
     })
 }
 
@@ -480,6 +548,7 @@ async fn items12(args: &Args, kind: &'static str) -> ExitCode {
     let cell = format!("machine={} browser={kind}", args.machine);
     let temp = std::env::temp_dir();
     let temp_before: BTreeSet<String> = entry_names(&temp);
+    let started = std::time::SystemTime::now();
     let stop = match watch_signals() {
         Ok(s) => s,
         Err(_) => {
@@ -515,7 +584,7 @@ async fn items12(args: &Args, kind: &'static str) -> ExitCode {
         scratch: args.scratch.clone(),
         stop,
     };
-    let code = run_items12(args, &ctx, &temp, &temp_before).await;
+    let code = run_items12(args, &ctx, &temp, &temp_before, started).await;
     server.stop();
     out("stop fixture=stopped");
     code
@@ -526,14 +595,16 @@ async fn run_items12(
     ctx: &Ctx,
     temp: &Path,
     temp_before: &BTreeSet<String>,
+    started: std::time::SystemTime,
 ) -> ExitCode {
     let cell = ctx.cell();
     if ctx.control.reset(&["second_factor"]).is_err() {
         out(&format!("notrun item={} {cell} cause=fixture", args.item));
         return ExitCode::from(1);
     }
-    let mut watch = Watch::start();
-    let outcome = session(ctx, &args.leave_out, &mut watch).await;
+    let watcher = Watch::start();
+    let outcome = session(ctx, &args.leave_out, &watcher).await;
+    let watch = watcher.finish().await;
     let s = match outcome {
         Ok(s) => s,
         Err(f) => {
@@ -549,14 +620,18 @@ async fn run_items12(
         }
     };
     stop_line(ctx, "a", &s.stopped_a);
-    let a_gone = s.stopped_a.profile.as_ref().is_some_and(|p| !p.exists());
+    let gone = |st: &Stopped| st.profile.as_ref().is_some_and(|p| !p.exists());
+    let a_gone = gone(&s.stopped_a);
+    let b_gone = s.stopped_b.as_ref().is_some_and(gone);
     if let Some(b) = &s.stopped_b {
         stop_line(ctx, "b", b);
     }
+    let yes_no = |v: bool| if v { "yes" } else { "no" };
     out(&format!(
-        "profile {cell} a_gone={} b_other_name=yes b_empty_at_start={}",
-        if a_gone { "yes" } else { "no" },
-        if s.b_was_empty { "yes" } else { "no" }
+        "profile {cell} a_gone={} b_gone={} b_other_name=yes b_empty_at_start={}",
+        yes_no(a_gone),
+        yes_no(b_gone),
+        yes_no(s.b_was_empty)
     ));
     if s.stopped_b.is_none() {
         out(&format!(
@@ -619,21 +694,39 @@ async fn run_items12(
     }
     let mut roots = vec![ctx.scratch.clone()];
     roots.extend(fresh.iter().cloned());
-    let found = search(&roots, &marker);
+    let mut needles = marker_needles(&marker);
+    for name in &s.marker_cookies {
+        needles.push(name.as_bytes().to_vec());
+    }
+    let mut found = search_with(&roots, &needles, None);
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let outside = search_with(&outside_roots(&home, temp), &needles, Some(started));
+    found.add(&outside);
     let host = search(&roots, UTILITY);
+    let cookie_store: u64 = found.hits.iter().skip(3).sum();
     out(&format!(
-        "searched {cell} roots={} temp_entries={} files={} bytes={} unreadable={} utf8={} utf16le={} utf16be={}",
+        "searched {cell} roots={} temp_entries={} outside_files={} files={} bytes={} unreadable={} skipped={} utf8={} utf16le={} utf16be={} marker_cookies={} cookie_store={}",
         roots.len(),
         fresh.len(),
+        outside.files,
         found.files,
         found.bytes,
         found.unreadable,
+        found.skipped,
         found.hits[0],
         found.hits[1],
-        found.hits[2]
+        found.hits[2],
+        s.marker_cookies.len(),
+        cookie_store
     ));
     out(&format!("trace {cell} host_hits={}", host.total()));
     out(&format!("disk {cell} marker_hits={}", found.total()));
+    if s.marker_cookies.is_empty() && args.leave_out.is_empty() {
+        out(&format!("notrun item=2 {cell} cause=marker_cookie"));
+        return ExitCode::from(1);
+    }
     if found.unreadable > 0 {
         out(&format!("notrun item=2 {cell} cause=unreadable"));
         return ExitCode::from(1);

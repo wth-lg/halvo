@@ -44,7 +44,8 @@ pub struct Search {
     pub files: u64,
     pub bytes: u64,
     pub unreadable: u64,
-    pub hits: [u64; 3],
+    pub skipped: u64,
+    pub hits: Vec<u64>,
 }
 
 impl Search {
@@ -52,27 +53,68 @@ impl Search {
         self.hits.iter().sum()
     }
 
-    fn add(&mut self, other: &Search) {
+    pub fn add(&mut self, other: &Search) {
         self.files += other.files;
         self.bytes += other.bytes;
         self.unreadable += other.unreadable;
-        for (a, b) in self.hits.iter_mut().zip(other.hits) {
+        self.skipped += other.skipped;
+        if self.hits.len() < other.hits.len() {
+            self.hits.resize(other.hits.len(), 0);
+        }
+        for (a, b) in self.hits.iter_mut().zip(&other.hits) {
             *a += b;
         }
     }
 }
 
+pub fn marker_needles(text: &str) -> Vec<Vec<u8>> {
+    ENCODINGS.iter().filter_map(|e| encode(text, e)).collect()
+}
+
 pub fn search(roots: &[PathBuf], text: &str) -> Search {
-    let needles: Vec<Vec<u8>> = ENCODINGS.iter().filter_map(|e| encode(text, e)).collect();
-    let mut total = Search::default();
+    search_with(roots, &marker_needles(text), None)
+}
+
+pub fn search_with(
+    roots: &[PathBuf],
+    needles: &[Vec<u8>],
+    since: Option<std::time::SystemTime>,
+) -> Search {
+    let mut total = Search {
+        hits: vec![0; needles.len()],
+        ..Search::default()
+    };
     for root in roots {
-        total.add(&search_one(root, &needles));
+        total.add(&search_one(root, needles, since));
     }
     total
 }
 
-fn search_one(root: &Path, needles: &[Vec<u8>]) -> Search {
-    let mut s = Search::default();
+pub fn outside_roots(home: &Path, temp: &Path) -> Vec<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return Vec::new();
+    }
+    let support = home.join("Library").join("Application Support");
+    let user_dir = temp
+        .components()
+        .collect::<PathBuf>()
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
+    let cache = user_dir.join("C");
+    vec![
+        support.join("Google").join("Chrome").join("Crashpad"),
+        support.join("Microsoft Edge").join("Crashpad"),
+        cache.join("com.google.Chrome.helper"),
+        cache.join("com.microsoft.edgemac.helper"),
+    ]
+}
+
+fn search_one(root: &Path, needles: &[Vec<u8>], since: Option<std::time::SystemTime>) -> Search {
+    let mut s = Search {
+        hits: vec![0; needles.len()],
+        ..Search::default()
+    };
     let mut stack = vec![root.to_path_buf()];
     while let Some(path) = stack.pop() {
         let meta = match std::fs::symlink_metadata(&path) {
@@ -96,6 +138,11 @@ fn search_one(root: &Path, needles: &[Vec<u8>]) -> Search {
                 Err(_) => s.unreadable += 1,
             }
         } else if meta.is_file() {
+            if let (Some(t), Ok(m)) = (since, meta.modified()) {
+                if m < t {
+                    continue;
+                }
+            }
             match std::fs::read(&path) {
                 Ok(data) => {
                     s.files += 1;
@@ -107,6 +154,8 @@ fn search_one(root: &Path, needles: &[Vec<u8>]) -> Search {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(_) => s.unreadable += 1,
             }
+        } else {
+            s.skipped += 1;
         }
     }
     s
@@ -194,9 +243,23 @@ mod tests {
         std::fs::write(nested.join("three"), b"nothing here").unwrap();
         let s = search(std::slice::from_ref(&root), word);
         assert_eq!(s.files, 3);
-        assert_eq!(s.hits, [1, 1, 1]);
+        assert_eq!(s.hits, vec![1, 1, 1]);
         assert_eq!(s.total(), 3);
-        assert_eq!(search(&[root.join("missing")], word), Search::default());
+        assert_eq!(search(&[root.join("missing")], word).total(), 0);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(root.join("one"), root.join("link")).unwrap();
+        #[cfg(unix)]
+        assert_eq!(search(std::slice::from_ref(&root), word).skipped, 1);
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(3600);
+        assert_eq!(
+            search_with(
+                std::slice::from_ref(&root),
+                &marker_needles(word),
+                Some(later)
+            )
+            .files,
+            0
+        );
     }
 
     #[test]
