@@ -143,6 +143,8 @@ fn a_directory_turned_into_a_link_after_prepare_is_not_written_through() {
         before
     );
     assert_eq!(scratch.names("real"), sorted(&[FILE, CHECKPOINT, COPY]));
+    drop(prepared);
+    assert_eq!(scratch.names("real"), sorted(&[FILE, CHECKPOINT, COPY]));
 }
 
 #[test]

@@ -226,59 +226,75 @@ mod tests {
         );
     }
 
-    type Case = (
-        &'static str,
-        &'static str,
-        &'static str,
-        &'static str,
-        (&'static str, &'static str, &'static str),
-    );
+    type Edit = (&'static str, &'static str, &'static str);
+
+    struct Case {
+        file: &'static str,
+        sheet: &'static str,
+        target: &'static str,
+        new: f64,
+        written: Edit,
+        other: Edit,
+    }
 
     #[test]
     fn another_value_another_formula_text_or_another_sheet_order_is_not_the_same() {
-        let cases: [Case; 3] = [
-            (
-                "values.xlsx",
-                "Values",
-                "B5",
-                "B6",
-                (
+        let cases = [
+            Case {
+                file: "values.xlsx",
+                sheet: "Values",
+                target: "B5",
+                new: 77.0,
+                written: (
+                    SHEET,
+                    r#"<c r="B5"><v>12</v></c>"#,
+                    r#"<c r="B5"><v>77</v></c>"#,
+                ),
+                other: (
                     SHEET,
                     r#"<c r="B6"><v>15</v></c>"#,
                     r#"<c r="B6"><v>16</v></c>"#,
                 ),
-            ),
-            (
-                "formulas.xlsx",
-                "Ledger",
-                "D2",
-                "D7",
-                (SHEET, "<f>SUM(D2:D6)</f>", "<f>SUM(D2:D5)</f>"),
-            ),
-            (
-                "two-sheets.xlsx",
-                "Input",
-                "B3",
-                "the sheet order",
-                (
+            },
+            Case {
+                file: "chart.xlsx",
+                sheet: "Sales",
+                target: "B3",
+                new: 640.0,
+                written: (
+                    SHEET,
+                    r#"<c r="B3"><v>135</v></c>"#,
+                    r#"<c r="B3"><v>640</v></c>"#,
+                ),
+                other: (SHEET, "<f>SUM(B2:B7)</f>", "<f>SUM(B2:B6)</f>"),
+            },
+            Case {
+                file: "two-sheets.xlsx",
+                sheet: "Input",
+                target: "B3",
+                new: 25.0,
+                written: (
+                    SHEET,
+                    r#"<c r="B3"><v>20</v></c>"#,
+                    r#"<c r="B3"><v>25</v></c>"#,
+                ),
+                other: (
                     "xl/workbook.xml",
                     r#"<sheet name="Input" sheetId="1" r:id="rId1"/><sheet name="Summary" sheetId="2" r:id="rId2"/>"#,
                     r#"<sheet name="Summary" sheetId="2" r:id="rId2"/><sheet name="Input" sheetId="1" r:id="rId1"/>"#,
                 ),
-            ),
+            },
         ];
-        for (file, sheet, target, what, change) in cases {
-            let original = bytes(file, &[]);
-            let changed = bytes(file, &[change]);
-            let values = one(Value::Number(1.0));
-            let control = bytes(file, &[]);
-            assert_eq!(
-                same(&original, &changed, sheet, at(target), &values),
-                Ok(false),
-                "{file} {what}"
-            );
-            let blank = same(&original, &control, sheet, at(target), &values);
-            assert_eq!(blank, Ok(false), "{file}: the target holds no new value");
+        for case in cases {
+            let original = bytes(case.file, &[]);
+            let values = one(Value::Number(case.new));
+            let target = at(case.target);
+            let written = bytes(case.file, &[case.written]);
+            let both = bytes(case.file, &[case.written, case.other]);
+            let control = same(&original, &written, case.sheet, target, &values);
+            assert_eq!(control, Ok(true), "{}: the written cell alone", case.file);
+            let other = same(&original, &both, case.sheet, target, &values);
+            assert_eq!(other, Ok(false), "{}: one more change", case.file);
         }
     }
 
