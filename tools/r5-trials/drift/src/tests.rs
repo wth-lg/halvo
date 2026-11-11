@@ -131,6 +131,31 @@ fn the_targets_reader_refuses_a_value_that_is_not_an_integer_of_the_line_form() 
 }
 
 #[test]
+fn the_targets_reader_refuses_a_table_line_that_is_not_its_header() {
+    assert_eq!(
+        refused_input(&edited("[gate]\n", "[gates]\n")),
+        "targets line 6 is not [gate]"
+    );
+}
+
+#[test]
+fn the_targets_reader_refuses_a_value_above_the_largest_u64() {
+    assert_eq!(
+        refused_input(&edited(
+            "dev_benign = 8\n",
+            "dev_benign = 18446744073709551616\n"
+        )),
+        "targets line 7 is not dev_benign = <integer> of [gate]"
+    );
+    let largest = parse(&edited(
+        "dev_benign = 8\n",
+        "dev_benign = 18446744073709551615\n",
+    ))
+    .expect("the largest u64 parses");
+    assert_eq!(largest.dev_benign, u64::MAX);
+}
+
+#[test]
 fn the_targets_reader_refuses_text_that_is_not_lf_text() {
     refused_input(&REPO_TARGETS.replace('\n', "\r\n"));
     refused_input(REPO_TARGETS.trim_end_matches('\n'));
