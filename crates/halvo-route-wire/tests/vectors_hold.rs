@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use halvo_route_wire::{Body, BodyError};
+use halvo_route_wire::{Body, BodyError, MAX_BODY_BYTES, MAX_MESSAGES, MAX_OUTPUT_TOKENS};
 use serde_json::Value;
 
 mod common;
@@ -157,4 +157,74 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         .collect();
     let all: BTreeSet<&str> = BodyError::ALL.iter().map(|error| error.as_str()).collect();
     assert_eq!(errors, all);
+}
+
+enum Edge {
+    Bytes(usize),
+    FewerCharacters(usize),
+    Tokens(u64),
+    Messages(usize),
+}
+
+fn edges() -> Vec<(&'static str, Edge)> {
+    let tokens = u64::from(MAX_OUTPUT_TOKENS);
+    let u32_max = u64::from(u32::MAX);
+    vec![
+        ("largest", Edge::Bytes(MAX_BODY_BYTES)),
+        ("largest_two_byte_text", Edge::Bytes(MAX_BODY_BYTES)),
+        ("one_byte_too_large", Edge::Bytes(MAX_BODY_BYTES + 1)),
+        ("space_after_largest", Edge::Bytes(MAX_BODY_BYTES + 1)),
+        ("two_byte_text_too_large", Edge::Bytes(MAX_BODY_BYTES + 1)),
+        (
+            "two_byte_text_too_large",
+            Edge::FewerCharacters(MAX_BODY_BYTES),
+        ),
+        ("least", Edge::Tokens(1)),
+        ("limit_zero", Edge::Tokens(0)),
+        ("limit_largest", Edge::Tokens(tokens)),
+        ("limit_above", Edge::Tokens(tokens + 1)),
+        ("limit_u32_max", Edge::Tokens(u32_max)),
+        ("limit_above_u32", Edge::Tokens(u32_max + 1)),
+        ("least", Edge::Messages(1)),
+        ("no_messages", Edge::Messages(0)),
+        ("sixty_four_messages", Edge::Messages(MAX_MESSAGES)),
+        ("too_many_messages", Edge::Messages(MAX_MESSAGES + 1)),
+    ]
+}
+
+fn spelled_after(bytes: &[u8], key: &str) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let at = text.find(key).map_or(text.len(), |at| at + key.len());
+    text[at..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect()
+}
+
+#[test]
+fn each_edge_vector_holds_its_edge() {
+    let vectors = read_lines("vectors.jsonl");
+    let mut misses = Vec::new();
+    for (name, edge) in edges() {
+        let vector = vectors
+            .iter()
+            .find(|vector| vector["name"] == name)
+            .unwrap_or_else(|| panic!("no vector {name}"));
+        let bytes = common::bytes_of(vector);
+        let holds = match edge {
+            Edge::Bytes(count) => bytes.len() == count,
+            Edge::FewerCharacters(count) => String::from_utf8_lossy(&bytes).chars().count() < count,
+            Edge::Tokens(count) => {
+                spelled_after(&bytes, "\"max_output_tokens\":") == count.to_string()
+            }
+            Edge::Messages(count) => {
+                let body: Value = serde_json::from_slice(&bytes).unwrap();
+                body["messages"].as_array().map(Vec::len) == Some(count)
+            }
+        };
+        if !holds {
+            misses.push(name);
+        }
+    }
+    assert!(misses.is_empty(), "{misses:?}");
 }

@@ -107,3 +107,38 @@ fn answers_cover_each_case_of_t11_6() {
         assert!(outcomes.contains(error.as_str()), "{}", error.as_str());
     }
 }
+
+fn spelled_after(bytes: &[u8], key: &str) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let at = text.find(key).map_or(text.len(), |at| at + key.len());
+    text[at..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect()
+}
+
+#[test]
+fn each_edge_answer_holds_its_edge() {
+    let largest = u64::MAX.to_string();
+    let above = (u128::from(u64::MAX) + 1).to_string();
+    let edges = [
+        ("usage_largest", "\"input\":", &largest),
+        ("usage_largest", "\"output\":", &largest),
+        ("cost_largest", "\"cost\":", &largest),
+        ("tokens_in_above_u64", "\"input\":", &above),
+        ("tokens_out_above_u64", "\"output\":", &above),
+        ("cost_above_u64", "\"cost\":", &above),
+    ];
+    let answers = read_lines("answers.jsonl");
+    let mut misses = Vec::new();
+    for (name, key, digits) in edges {
+        let answer = answers
+            .iter()
+            .find(|answer| answer["name"] == name)
+            .unwrap_or_else(|| panic!("no answer {name}"));
+        if spelled_after(&common::bytes_of(answer), key) != *digits {
+            misses.push(name);
+        }
+    }
+    assert!(misses.is_empty(), "{misses:?}");
+}
