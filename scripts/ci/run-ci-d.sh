@@ -70,6 +70,17 @@ inspect() {
   script_name=${script_name%.sh}
   script_jobs=
   script_rule=
+  if [ -L "$script_file" ] || [ ! -f "$script_file" ]; then
+    refusal="it is not a regular file"
+    return 1
+  fi
+  case ${script_file##*/} in
+    *.sh) ;;
+    *)
+      refusal="the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -"
+      return 1
+      ;;
+  esac
   case ${script_name#[0-9][0-9]-} in
     "$script_name" | '' | *[!a-z0-9-]*)
       refusal="the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -"
@@ -114,6 +125,13 @@ inspect() {
   return 0
 }
 
+is_entry() {
+  case ${1##*/} in
+    . | ..) return 1 ;;
+  esac
+  [ -e "$1" ] || [ -L "$1" ]
+}
+
 names_job() {
   case " $script_jobs " in
     *" $1 "*) return 0 ;;
@@ -124,8 +142,8 @@ names_job() {
 if [ "$mode" = list ] || [ "$mode" = rules ]; then
   status=0
   count=0
-  for file in "$root"/*/ci.d/*.sh; do
-    [ -f "$file" ] || continue
+  for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
+    is_entry "$file" || continue
     if ! inspect "$file"; then
       printf 'FAIL %s (%s)\n' "$script_name" "$refusal"
       status=1
@@ -360,6 +378,19 @@ own_self_test() {
   own_case unknown-job-word 1 "FAIL 10-a (its '# jobs:' line names linux; a job is macos or windows)" macos
   new_repo && add_script r1 format.sh "$good" 'printf "PASS format\n"'
   own_case file-name 1 "FAIL format ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-nosuffix "$good" 'printf "PASS 20-nosuffix\n"'
+  own_case file-name-without-a-suffix 1 "FAIL 20-nosuffix ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 30-upper.SH "$good" 'printf "PASS 30-upper\n"'
+  own_case file-name-with-an-upper-case-suffix 1 "FAIL 30-upper.SH ($name_refusal)" macos
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && mkdir "$fixture/scripts/r1/ci.d/40-dir.sh"
+  own_case directory-with-a-script-name 1 'FAIL 40-dir (it is not a regular file)' macos
+  own_case directory-fails-the-other-job 1 'FAIL 40-dir (it is not a regular file)' windows
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a"
+  if ln -s no-such-file "$fixture/scripts/r1/ci.d/50-dangling.sh" 2>/dev/null && [ -L "$fixture/scripts/r1/ci.d/50-dangling.sh" ]; then
+    own_case dangling-link-with-a-script-name 1 'FAIL 50-dangling (it is not a regular file)' macos
+  fi
+  new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 .20-hidden.sh "$good" 'printf "PASS .20-hidden\n"'
+  own_case hidden-entry 1 "FAIL .20-hidden ($name_refusal)" macos
   new_repo && add_script r1 10-.sh "$good" 'printf "PASS 10-\n"'
   own_case file-name-without-a-name 1 "FAIL 10- ($name_refusal)" macos
   new_repo && add_script r1 10-A.sh "$good" 'printf "PASS 10-A\n"'
@@ -454,8 +485,8 @@ if [ "$mode" = self-test ]; then
   esac
 fi
 
-for file in "$root"/*/ci.d/*.sh; do
-  [ -f "$file" ] || continue
+for file in "$root"/*/ci.d/* "$root"/*/ci.d/.*; do
+  is_entry "$file" || continue
   if ! inspect "$file"; then
     record FAIL "FAIL $script_name ($refusal)"
     continue
