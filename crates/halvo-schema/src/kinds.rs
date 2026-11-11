@@ -447,7 +447,7 @@ fn walk(value: &RawValue, types: &[FieldType]) -> Result<(), &'static str> {
             }
             let fields = Fields::read(text.as_bytes()).ok_or("not_an_object")?;
             for (i, (key, _)) in fields.0.iter().enumerate() {
-                if !name_form(key) {
+                if !name_form(key) || key.bytes().all(|b| b.is_ascii_digit()) {
                     return Err("key_form");
                 }
                 if fields.0[..i].iter().any(|(k, _)| k == key) {
@@ -569,7 +569,8 @@ fn segments(value: &RawValue) -> Result<(), &'static str> {
 /// list with `not_a_list` and an empty list there with `empty_list`. Under every other key the value passes the
 /// walk by the types of that key: `null` passes; an object passes whole when `Site` is among the types and it
 /// reads as a `SiteValue`, else when each of its keys is a name of 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`
-/// (rule `key_form`) that stands once in it (rule `repeated_key`) and each of its values passes, at every depth; a
+/// and not of digits alone (rule `key_form`), so that no map is keyed by a time or a count, that stands once in it
+/// (rule `repeated_key`) and each of its values passes, at every depth; a
 /// list passes when each of its items passes; a
 /// string or an integer passes when it has the JSON form of one of the types (`App`, `Domain` and `Token` through
 /// their parsers, `Text` and `OwnText` by their length alone, `Name` as 1 to 32 bytes of `a` to `z`, `0` to `9`

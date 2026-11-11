@@ -1081,7 +1081,7 @@ fn check_record_refuses_a_key_of_a_nested_object_that_is_no_name() {
             rule_key(kind, at, &[(value.as_str(), "key_form")]);
         }
     }
-    for key in ["a2345678901234567890123456789012", "a", "wall_s", "0"] {
+    for key in ["a2345678901234567890123456789012", "a", "wall_s", "0a"] {
         for (kind, at, value) in in_nested_objects(key) {
             assert_eq!(
                 check_record(kind, &with(kind.example, at, &value)),
@@ -1416,4 +1416,48 @@ fn check_record_refuses_a_record_that_nests_deeper_than_128_levels_and_answers_a
         .example
         .replacen(r#""Pay on the first of the month""#, &note, 1);
     assert_eq!(check_record(&LATER_OWN, &own), Ok(()), "{own}");
+}
+
+#[test]
+fn check_record_refuses_a_key_of_digits_alone_in_a_nested_object() {
+    rule_key(
+        entry("summary"),
+        "pointer",
+        &[(
+            r#"{"1794339000000000000":2,"click":7,"scroll":12,"drag":0,"move":30}"#,
+            "key_form",
+        )],
+    );
+    rule_key(
+        entry("workflow"),
+        "recurrence",
+        &[(r#"{"20767":3}"#, "key_form"), (r#"{"0":1}"#, "key_form")],
+    );
+    rule_key(
+        &LATER_BOUNDED,
+        "count",
+        &[
+            (r#"[{"n":{"0":1}}]"#, "key_form"),
+            (r#"{"a":{"b":{"1794339000000000000":2}}}"#, "key_form"),
+        ],
+    );
+    rule_key(
+        entry("summary"),
+        "keys",
+        &[(r#"{"printable":42,"20767":3,"editing":1}"#, "key_form")],
+    );
+    for key in ["a1", "1a", "day2", "0x", "_1", "1_", "2026_11"] {
+        let record = with(LATER_BOUNDED.example, "count", &format!(r#"{{"{key}":1}}"#));
+        assert_eq!(check_record(&LATER_BOUNDED, &record), Ok(()), "{record}");
+    }
+    passes("name", "\"20767\"");
+    passes("name", "\"0\"");
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            name: "123",
+            family: "456",
+            ..LATER_BOUNDED
+        }]),
+        Vec::<String>::new()
+    );
 }
