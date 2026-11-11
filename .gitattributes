@@ -1,3 +1,6 @@
 CHANGELOG.md merge=union
 *.sh text eol=lf
 .githooks/** text eol=lf
+docs/baseline/r1-gate-bounds.txt text eol=lf
+mutants.rows text eol=lf
+mutants.expected text eol=lf

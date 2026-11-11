@@ -98,3 +98,7 @@ and merge without an entry landing under the heading of another.
 - Added: Add the r5-routine trial of the learning run, which fixes the three routine constants in docs/r5/targets.toml at 3-60-5, with its seeds file, its result file and the sample of 135 trains in fixtures/r5/trains/sample.jsonl
 - Added: Add the result of the learning run's admission trial in docs/r5/trials/admission.md, whose verdict is rule=admit, and freeze point 1 in docs/r5/freeze.toml: the SHA-256 of the targets file, of the development cases, of the stat and drift trial directories and of the held-out archive
 - Added: Add docs/r5/README.md, which says what each file of the learning run's directory holds, and docs/r5/plan-revisions.md, which lists the six lines of docs/plan.md that the learning run revises and what it does in their place
+- Added: Add the per-run ci.d driver with the nine R1 checks, the bounds file of the R1 gate, its memory check and its mutant rows beside the code
+- Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
+- Fixed: Make the R1 gate checks fail closed when a source did not run, the input counts of a run contradict its input mode, a bound is unreadable, a verify step outlives its deadline, a ci.d entry is not a regular NN-name.sh file, a mutant had no build of its kind, or the tree changed during the run
+- Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
