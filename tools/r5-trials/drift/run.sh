@@ -20,7 +20,9 @@ Arguments:
   --case FILE --arm ARM  print the one line of the case file FILE, at any
                          path, for the arm ARM, which is none or plain
   --count DIR            print one spread line per form, in the order of
-                         L9.3, for the case files of the directory DIR
+                         L9.3, for the case files of the directory DIR;
+                         DIR holds files <name>.jsonl alone, and another
+                         entry refuses the call with case
   --help                 print this text
 
 Exit status:
