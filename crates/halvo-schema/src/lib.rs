@@ -17,7 +17,7 @@ pub use record::{
 pub use request::{
     AnalysisRole, AnalysisWrite, CoordinatorBody, CoordinatorRole, CoordinatorWrite, Decision,
     DecodeError, Decoded, ErrorName, ExtBody, ExtRequest, ExtRole, InterfaceDecision,
-    InterfaceRead, InterfaceRole, RawRequest, Read, Reply, ReplyResult, Role, RunnerBody,
-    RunnerRequest, RunnerRole,
+    InterfaceRead, InterfaceRole, PushRefused, RawRequest, Read, Reply, ReplyResult, Role,
+    RunnerBody, RunnerRequest, RunnerRole,
 };
 pub use site::{AppId, Domain, DomainSource, ObservedSite, SiteHash, SiteToken, SiteValue};

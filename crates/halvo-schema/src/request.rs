@@ -177,6 +177,32 @@ fn counted(id: &RequestId, body: &AnalysisWriteBody) -> usize {
     base.saturating_add(episodes).saturating_add(commas)
 }
 
+/// The answer of `push` that refuses an episode, with the episode; the write is unchanged.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PushRefused {
+    /// The episode holds a value that its reader would refuse. No cut of its steps mends it.
+    Malformed(Episode),
+    /// The episode would take the write over `ANALYSIS_WRITE_MAX` bytes.
+    TooLarge(Episode),
+}
+
+impl PushRefused {
+    /// The episode that `push` handed back.
+    pub fn into_episode(self) -> Episode {
+        match self {
+            PushRefused::Malformed(episode) | PushRefused::TooLarge(episode) => episode,
+        }
+    }
+
+    /// The error name: `malformed` or `too_large`.
+    pub fn name(&self) -> ErrorName {
+        match self {
+            PushRefused::Malformed(_) => ErrorName::Malformed,
+            PushRefused::TooLarge(_) => ErrorName::TooLarge,
+        }
+    }
+}
+
 /// The analysis write, the one request of the role `analysis`: a store id, episodes and an optional commit
 /// position. It has no key for a state, a decision or a configuration.
 #[derive(Debug)]
@@ -198,17 +224,21 @@ impl AnalysisWrite {
         AnalysisWrite { id, body, counted }
     }
 
-    /// Adds the episode, or returns it and leaves the write unchanged when it would take the write over
-    /// `ANALYSIS_WRITE_MAX` bytes, counted as if `commit` held the longest position (53 bytes).
+    /// Adds the episode, or hands it back and leaves the write unchanged: as `PushRefused::Malformed` when it
+    /// holds a value that its reader would refuse, else as `PushRefused::TooLarge` when it would take the write
+    /// over `ANALYSIS_WRITE_MAX` bytes, counted as if `commit` held the longest position (53 bytes).
     #[allow(clippy::result_large_err)]
-    pub fn push(&mut self, episode: Episode) -> Result<(), Episode> {
+    pub fn push(&mut self, episode: Episode) -> Result<(), PushRefused> {
+        let Ok(bytes) = serde_json::to_vec(&episode) else {
+            return Err(PushRefused::Malformed(episode));
+        };
         let comma = usize::from(!self.body.episodes.is_empty());
         let after = self
             .counted
-            .saturating_add(episode_len(&episode))
+            .saturating_add(bytes.len())
             .saturating_add(comma);
         if after > ANALYSIS_WRITE_MAX {
-            return Err(episode);
+            return Err(PushRefused::TooLarge(episode));
         }
         self.counted = after;
         self.body.episodes.push(episode);

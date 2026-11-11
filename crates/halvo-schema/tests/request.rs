@@ -4,8 +4,9 @@ use common::{entries, read, refused, refused_as_array, values, with, HEX_A, HEX_
 use halvo_schema::request::{
     decode, decode_reply, write_reply, AnalysisRole, AnalysisWrite, CoordinatorBody,
     CoordinatorRole, CoordinatorWrite, Decision, DecodeError, Decoded, ErrorName, ExtBody,
-    ExtRequest, ExtRole, InterfaceDecision, InterfaceRead, InterfaceRole, Read, Reply, ReplyResult,
-    Role, RunnerBody, RunnerRequest, RunnerRole, ANALYSIS_WRITE_MAX, INTERFACE_REQUEST_MAX,
+    ExtRequest, ExtRole, InterfaceDecision, InterfaceRead, InterfaceRole, PushRefused, Read, Reply,
+    ReplyResult, Role, RunnerBody, RunnerRequest, RunnerRole, ANALYSIS_WRITE_MAX,
+    INTERFACE_REQUEST_MAX,
 };
 use halvo_schema::{
     Episode, EvidencePage, Position, RequestId, StoreId, SummaryId, Text, WorkflowId, WorkflowsPage,
@@ -306,7 +307,7 @@ fn push_counts_the_longest_position_and_never_lets_a_write_pass_its_bound() {
     let over = episode_of_len(room + 1);
     let before = write.to_bytes().unwrap();
     let returned = write.push(over.clone()).unwrap_err();
-    assert_eq!(returned, over);
+    assert_eq!(returned, PushRefused::TooLarge(over));
     assert_eq!(write.to_bytes().unwrap(), before);
     assert_eq!(write.episodes().len(), 2);
     write.push(episode_of_len(room)).unwrap();
@@ -314,12 +315,15 @@ fn push_counts_the_longest_position_and_never_lets_a_write_pass_its_bound() {
     write.commit(LONGEST);
     assert_eq!(write.to_bytes().unwrap().len(), ANALYSIS_WRITE_MAX);
     let last = read::<Episode>(EPISODE);
-    assert_eq!(write.push(last.clone()).unwrap_err(), last);
+    assert_eq!(write.push(last.clone()), Err(PushRefused::TooLarge(last)));
     let bytes = write.to_bytes().unwrap();
     match decode(&bytes).unwrap() {
         Decoded::AnalysisWrite(mut w) => {
             assert_eq!(w.to_bytes().unwrap(), bytes);
-            assert!(w.push(read::<Episode>(EPISODE)).is_err());
+            assert!(matches!(
+                w.push(read::<Episode>(EPISODE)),
+                Err(PushRefused::TooLarge(_))
+            ));
         }
         other => panic!("{other:?}"),
     }
@@ -329,7 +333,7 @@ fn push_counts_the_longest_position_and_never_lets_a_write_pass_its_bound() {
     let step = huge.steps[0].clone();
     huge.steps = vec![step; 1000];
     assert!(episode_len(&huge) + base > ANALYSIS_WRITE_MAX);
-    assert!(alone.push(huge).is_err());
+    assert!(matches!(alone.push(huge), Err(PushRefused::TooLarge(_))));
     assert!(alone.episodes().is_empty());
 }
 
@@ -350,8 +354,36 @@ fn a_value_that_its_reader_refuses_is_not_written() {
     assert!(write.to_bytes().is_ok());
     let mut bad = read::<Episode>(EPISODE);
     bad.minutes = 7;
-    write.push(bad).unwrap();
-    assert_eq!(write.to_bytes(), Err(ErrorName::Malformed));
+    assert_eq!(write.push(bad.clone()), Err(PushRefused::Malformed(bad)));
+    assert!(write.to_bytes().is_ok());
+}
+
+#[test]
+fn push_hands_back_an_episode_that_its_reader_refuses_or_that_does_not_fit() {
+    let mut write = example_write();
+    let before = write.to_bytes().unwrap();
+    let mut minutes = read::<Episode>(EPISODE);
+    minutes.minutes = 7;
+    let mut backwards = read::<Episode>(EPISODE);
+    backwards.end = backwards.start;
+    let huge = episode_of_len(ANALYSIS_WRITE_MAX);
+    let mut both = huge.clone();
+    both.minutes = 7;
+    for (episode, name) in [
+        (minutes, ErrorName::Malformed),
+        (backwards, ErrorName::Malformed),
+        (both, ErrorName::Malformed),
+        (huge, ErrorName::TooLarge),
+    ] {
+        let refused = write.push(episode.clone()).unwrap_err();
+        assert_eq!(refused.name(), name);
+        assert_eq!(refused.into_episode(), episode);
+        assert_eq!(write.episodes().len(), 1);
+    }
+    assert_eq!(write.to_bytes().unwrap(), before);
+    write.push(read::<Episode>(EPISODE)).unwrap();
+    assert_eq!(write.episodes().len(), 2);
+    assert!(write.to_bytes().is_ok());
 }
 
 fn line(request: &str, body: &str) -> String {
