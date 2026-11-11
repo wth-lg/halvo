@@ -58,13 +58,15 @@ test('answer and end lines are read as the app prints them', () => {
 
 test('a sync key needs every change in order, the end of the send, and for get nothing after the hide', () => {
   const end = { last: SENT, order: 'ok', afterHide: 0 };
-  for (const way of ['get', 'channel', 'events']) assert.equal(syncKey(way, end, 'done'), 'ok');
-  assert.equal(syncKey('get', { ...end, afterHide: 1 }, 'done'), 'miss');
-  assert.equal(syncKey('channel', { ...end, afterHide: 40 }, 'done'), 'ok');
-  assert.equal(syncKey('events', { ...end, last: SENT - 1 }, 'done'), 'miss');
-  assert.equal(syncKey('channel', { ...end, order: 'miss' }, 'done'), 'miss');
-  assert.equal(syncKey('get', null, 'done'), 'miss');
-  assert.equal(syncKey('get', end, null), 'miss');
+  for (const way of ['get', 'channel', 'events']) assert.equal(syncKey(way, end, 'done', true), 'ok');
+  assert.equal(syncKey('get', end, 'done', false), 'miss');
+  assert.equal(syncKey('channel', end, 'done', false), 'ok');
+  assert.equal(syncKey('get', { ...end, afterHide: 1 }, 'done', true), 'miss');
+  assert.equal(syncKey('channel', { ...end, afterHide: 40 }, 'done', true), 'ok');
+  assert.equal(syncKey('events', { ...end, last: SENT - 1 }, 'done', true), 'miss');
+  assert.equal(syncKey('channel', { ...end, order: 'miss' }, 'done', true), 'miss');
+  assert.equal(syncKey('get', null, 'done', true), 'miss');
+  assert.equal(syncKey('get', end, null, true), 'miss');
 });
 
 test('quiet reads the core quiet lines of arm a2 and wants none elsewhere', () => {

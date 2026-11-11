@@ -191,10 +191,66 @@ test('the get way waits, stops at closed and calls again after the show', async 
   await settle();
   assert.deepEqual(page.reports(), [
     'sync mark=10000',
+    'sync closed last=10000',
     'window shown after_hide=0 hidden_ticks=0',
     'sync mark=30000',
     'sync end last=30000 order=ok after_hide=0 hidden_ticks=0'
   ]);
+});
+
+test('a reply in flight at the hide is followed by one more call, whose closed reply is reported', async () => {
+  const pending = [];
+  const page = makePage({
+    config: { sync: 'get' },
+    next: () => new Promise((resolve) => pending.push(resolve))
+  });
+  page.load();
+  await settle();
+  page.ctx.__r4Window('hide');
+  pending.shift()({ seq: 5, of: 9, payload: 'x', hidden: false });
+  await settle();
+  assert.deepEqual(page.named('next').map((c) => c.args.seq), [0, 5]);
+  pending.shift()({ closed: 'yes' });
+  await settle();
+  assert.equal(page.named('next').length, 2);
+  assert.deepEqual(page.reports(), ['sync closed last=5']);
+});
+
+test('a hidden page whose call never gets closed prints no closed line', async () => {
+  const pending = [];
+  const page = makePage({
+    config: { sync: 'get' },
+    next: () => new Promise((resolve) => pending.push(resolve))
+  });
+  page.load();
+  await settle();
+  page.ctx.__r4Window('hide');
+  pending.shift()({ seq: 1, of: 3, payload: 'x', hidden: true });
+  await settle();
+  pending.shift()({ seq: 2, of: 3, payload: 'x', hidden: true });
+  await settle();
+  page.ctx.__r4Window('show');
+  await settle();
+  pending.shift()({ seq: 3, of: 3, payload: 'x', hidden: false });
+  await settle();
+  assert.deepEqual(page.reports(), [
+    'window shown after_hide=2 hidden_ticks=0',
+    'sync end last=3 order=ok after_hide=2 hidden_ticks=0'
+  ]);
+});
+
+test('a page hidden by its own visibility alone makes no call', async () => {
+  const pending = [];
+  const page = makePage({
+    config: { sync: 'get' },
+    next: () => new Promise((resolve) => pending.push(resolve))
+  });
+  page.load();
+  await settle();
+  page.setVisibility('hidden');
+  pending.shift()({ seq: 1, of: 3, payload: 'x', hidden: false });
+  await settle();
+  assert.equal(page.named('next').length, 1);
 });
 
 test('the channel way counts what came while hidden and a step back as a miss', async () => {

@@ -89,12 +89,14 @@ export function parseEnd(line) {
   return m ? { last: Number(m[1]), order: m[2], afterHide: Number(m[3]) } : null;
 }
 
-/** The key of a sync run: the page's end line holds every change in order, the core ended its
- * send, and for the way `get` nothing that the core sent after a hide reached the page. */
-export function syncKey(way, end, sendDone) {
+/** The key of a sync run: the page's end line holds the last change in order, the core ended
+ * its send, and for the way `get` nothing that the core sent after a hide reached the page and,
+ * after a hide, the page's waiting call got the reply `closed` (`closedAfterHide`, the line
+ * `page sync closed last=<n>`; TA-13). */
+export function syncKey(way, end, sendDone, closedAfterHide) {
   if (!end || !sendDone) return 'miss';
   if (end.last !== SENT || end.order !== 'ok') return 'miss';
-  if (way === 'get' && end.afterHide !== 0) return 'miss';
+  if (way === 'get' && (end.afterHide !== 0 || closedAfterHide !== true)) return 'miss';
   return 'ok';
 }
 
@@ -396,6 +398,7 @@ async function syncRun(options, arm, way, pages) {
     };
     const steps = [await send('show'), await send(`send ${SENT} ${RATE}`)];
     await sleep(2000);
+    const beforeHide = app.lines.length;
     if (arm === 'a' || arm === 'a2') steps.push(await send('hide'));
     if (arm === 'b') steps.push(await send('destroy'));
     if (arm !== 'main') {
@@ -405,8 +408,12 @@ async function syncRun(options, arm, way, pages) {
     const endLine = await waitLine(app, (line) => line.startsWith('page sync end '), 30000);
     const doneLine = await waitLine(app, (line) => line === `core send_done sent=${SENT}`, 5000);
     const end = parseEnd(endLine);
-    trace(`end=${end ? `last=${end.last},order=${end.order},after_hide=${end.afterHide}` : 'none'} send_done=${doneLine ? 'yes' : 'no'}`);
-    const key = steps.every((answer) => typeof answer === 'string' && answer.startsWith('ok')) ? syncKey(way, end, doneLine) : 'miss';
+    const closedLines = app.lines.slice(beforeHide).filter((line) => /^page sync closed last=\d+$/.test(line)).length;
+    const hidden = arm === 'a' || arm === 'a2';
+    trace(`end=${end ? `last=${end.last},order=${end.order},after_hide=${end.afterHide}` : 'none'} send_done=${doneLine ? 'yes' : 'no'} closed_lines_after_hide=${closedLines}`);
+    for (const line of app.lines.filter((l) => /^page (sync closed|window shown) /.test(l))) trace(`page_line=${line.slice(5).replace(/ /g, ',')}`);
+    const key = steps.every((answer) => typeof answer === 'string' && answer.startsWith('ok'))
+      ? syncKey(way, end, doneLine, hidden ? closedLines > 0 : true) : 'miss';
     await send('quit');
     await Promise.race([app.exited, sleep(QUIT_MS)]);
     return key;

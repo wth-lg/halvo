@@ -9,6 +9,7 @@
   var viewHidden = false;
   var way = null;
   var waiting = false;
+  var closedSeen = false;
   var sync = { last: 0, order: 'ok', afterHide: 0, hiddenTicks: 0, mark: 0, ended: false };
 
   function tick() {
@@ -71,13 +72,18 @@
   }
 
   function getNext() {
-    if (way !== 'get' || hidden || waiting) {
+    if (way !== 'get' || waiting) {
+      return;
+    }
+    if (hidden && !(windowHidden && !closedSeen)) {
       return;
     }
     waiting = true;
     app.call('next', { seq: sync.last }).then(function (reply) {
       waiting = false;
       if (reply.closed === 'yes') {
+        closedSeen = true;
+        app.report('sync closed last=' + sync.last);
         return;
       }
       accept(reply);
@@ -103,8 +109,10 @@
       windowHidden = true;
       setHidden();
       stop();
+      getNext();
     } else if (event.detail === 'show') {
       windowHidden = false;
+      closedSeen = false;
       setHidden();
       start();
       app.report('window shown after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks);
