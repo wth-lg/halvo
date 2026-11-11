@@ -44,12 +44,15 @@ root=$(cd "$here" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) ||
   refuse input "the script is not in a git work tree"
 cd "$root" || refuse input "the root of the work tree cannot be entered"
 
+host=$(rustc -vV 2>/dev/null | sed -n 's/^host: \([^[:space:]]*\).*/\1/p')
+[ -n "$host" ] || refuse build "rustc -vV names no host"
+
 target=target/r5-trials
 mkdir -p "$target" 2>/dev/null || refuse build "the target directory cannot be made"
-cargo build --release --locked --manifest-path tools/r5-trials/Cargo.toml -p r5-stat --target-dir "$target" >"$target/build.log" 2>&1
+cargo build --release --locked --manifest-path tools/r5-trials/Cargo.toml -p r5-stat --target "$host" --target-dir "$target" >"$target/build.log" 2>&1
 code=$?
 [ "$code" -eq 0 ] || refuse build "cargo exited $code; its output is in the build log"
 
-bin=$target/release/r5-stat
+bin=$target/$host/release/r5-stat
 [ -f "$bin.exe" ] && bin=$bin.exe
 exec "$bin"
