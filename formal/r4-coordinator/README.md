@@ -272,6 +272,46 @@ named invariant violated.
   `ELSE IF s.items[i].st # "recorded" THEN No(s, "state")` by
   `ELSE IF s.items[i].st \notin {"answered", "recorded"} THEN No(s, "state")`.
 
+## Wrong designs and the property that reports each
+
+Each row is a coordinator or a guard that is wrong by I4 or I5, made from the model by an
+exact replacement in the functions that `Step` calls; `Hist` and the invariants stay as they
+are. TLC was run on each with all nine invariants of its configuration and reports the
+property of the third column first. The last column counts the committed traces in which a
+replay of that design gives another answer or state at some move.
+
+| # | Wrong design | TLC reports | Traces that differ |
+|---|---|---|---|
+| 1 | a restart rebuilds the day's count of starts from this life only | C7 | 38 of 211 |
+| 2 | a start that failed at step 7 or 8 is not counted | C7 | 74 of 211 |
+| 3 | the budget counts only the person's starts | C7 | 92 of 211 |
+| 4 | the budget counts only the scheduler's starts | C7 | 208 of 211 |
+| 5 | the holds `failures` and `check` are lost at a restart | C4 | 4 of 211 |
+| 6 | the scheduler starts an agent that never had a completed run | C5 | 149 of 211 |
+| 7 | a restart forgets which workflows are gone | C8 | 13 of 211 |
+| 8 | the kill comes only for runs stopped for `deleted` | C9 | 60 of 211 |
+| 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4 | 26 of 214 |
+| 10 | the table takes the stored rows of a `no_record` lapse | L7 | 2 of 214 |
+| 11 | the guard passes every `releasing` record | L8 | 25 of 214 |
+| 12 | a `releasing` record passes on an unused row | L8 | 2 of 214 |
+| 13 | the table pairs each approval id with the other effect | L7 | 26 of 214 |
+| 14 | the `approved` match does not ask for `allow_once` | L7 | 1 of 214 |
+| 15 | a `releasing` record with an unused row passes | L8 | 2 of 214 |
+| 16 | the `approved` match drops the effect id | L7 | 2 of 214 |
+| 17 | step 3 asks only the live run, not the queue | C3 | 25 of 211 |
+| 18 | the tick asks "needs the person" only | C5 | 149 of 211 |
+| 19 | a person's start names no slot | C6 | 181 of 211 |
+| 20 | a failed start is not counted | C7 | 74 of 211 |
+| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0 | C8 | 11 of 211 |
+| 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 55 of 214 |
+| 23 | a lapse is taken from `recorded` with any cause | L4 | 26 of 214 |
+| 24 | the guard's rule for `releasing` records is dropped | L8 | 25 of 214 |
+
+Row 9 has two more forms: when the lapse's decision also holds the approval ids of the
+answer, TLC reports L3, and when the guard then passes a record with one of those ids, L9.
+Row 21 needs both halves: with step 0 in place the start that the tick offers for a gone
+workflow is answered `state`, and no invariant is broken.
+
 ## Limits
 
 `limits.json` holds every field of `Limits`. A field that a model reads is smaller than
