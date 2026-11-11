@@ -572,6 +572,7 @@ want() {
     udp) printf '%s\n' 'udp 192.0.2.1:9 egress-probe' ;;
     icmp) printf '%s\n' 'icmp * egress-probe' ;;
     resolver) printf '%s\n' 'dns * nscurl' ;;
+    open) printf '%s\n' '- -:- open' ;;
     session) printf '%s\n' '- -:- nscurl' ;;
     loopback2) printf '%s\n' 'tcp 127.0.0.1:47202 egress-probe' ;;
   esac
@@ -663,6 +664,7 @@ fi
 probes=ok
 names="ipv4 ipv6 dns loopback udp icmp"
 [ "$mode" != sandbox ] || names="$names resolver session"
+[ "$mode" != sandbox ] || [ "$platform" = this-mac ] || names="$names open"
 for name in $names; do
   first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
   result=$(classify "$name" "$name")

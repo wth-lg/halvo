@@ -29,7 +29,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const LIMIT: Duration = Duration::from_secs(5);
-const NAMES: [&str; 11] = [
+const NAMES: [&str; 12] = [
     "ipv4",
     "ipv6",
     "dns",
@@ -37,6 +37,7 @@ const NAMES: [&str; 11] = [
     "udp",
     "icmp",
     "resolver",
+    "open",
     "session",
     "loopback2",
     "none",
@@ -123,6 +124,10 @@ fn attempt(name: &str) -> bool {
         "resolver" => tool(
             "/usr/bin/nscurl",
             &["-m", "4", "https://egress-probe-resolver.invalid/"],
+        ),
+        "open" => tool(
+            "/usr/bin/open",
+            &["-g", "http://127.0.0.1:47202/egress-probe-open"],
         ),
         "session" => tool(
             "/usr/bin/nscurl",
