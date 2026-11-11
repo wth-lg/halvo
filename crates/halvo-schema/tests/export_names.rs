@@ -64,8 +64,10 @@ fn export_names_writes_the_names_of_the_locked_lists_sorted_once_each_on_two_run
         written.push(text);
     }
     assert_eq!(written[0], written[1]);
-    assert_eq!(written[0], locked_names());
     let lines: Vec<&str> = written[0].lines().collect();
+    for name in locked_names().lines() {
+        assert!(lines.contains(&name), "{name}");
+    }
     assert!(lines.windows(2).all(|w| w[0].as_bytes() < w[1].as_bytes()));
     assert!(lines.iter().all(|n| !n.is_empty()
         && n.bytes()

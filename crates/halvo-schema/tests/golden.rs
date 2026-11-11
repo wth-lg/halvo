@@ -729,14 +729,15 @@ fn golden_names() {
     for error in ErrorName::ALL {
         let name = error.as_str();
         assert_eq!(
-            file.contains(name),
+            locked.contains(name),
             name == "store" || name == "state",
             "{name}"
         );
     }
-    for absent in [
-        "role", "days", "probe", "instant", "ordinal", "own_text", "capture", "own",
-    ] {
+    for absent in ["probe", "instant", "ordinal", "own_text", "hash", "version"] {
+        assert!(!locked.contains(absent), "{absent}");
+    }
+    for absent in ["role", "days", "capture", "own"] {
         assert!(!file.contains(absent), "{absent}");
     }
 }
