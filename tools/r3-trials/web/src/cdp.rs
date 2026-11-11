@@ -28,11 +28,13 @@ use chromiumoxide::cdp::js_protocol::runtime::{
     ExecutionContextId, RemoteObjectId,
 };
 use chromiumoxide::error::CdpError;
+use chromiumoxide::handler::HandlerConfig;
 use chromiumoxide::{Browser, Page};
 use futures::StreamExt;
 use tokio::task::JoinHandle;
 
 mod session;
+mod wire;
 pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
@@ -61,10 +63,17 @@ pub struct StartOptions {
     pub debug_port: Option<u16>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Place {
+    Page,
+    Frame(String),
+}
+
 #[derive(Clone, Debug)]
 struct Target {
     frame: FrameId,
     node: BackendNodeId,
+    place: Place,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,6 +173,10 @@ pub struct Executor {
     owns_process: bool,
     profile: Option<PathBuf>,
     temp: Option<PathBuf>,
+    wire: wire::Wire,
+    wire_task: JoinHandle<()>,
+    places: Mutex<HashMap<String, Place>>,
+    owners: Mutex<HashMap<String, (Place, BackendNodeId)>>,
 }
 
 fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
@@ -247,21 +260,69 @@ impl Executor {
             .map_err(|e| start_failed(opts, e))?;
         let pid = browser.get_mut_child().and_then(|c| c.inner.id());
         let handler = tokio::spawn(async move { while handler.next().await.is_some() {} });
+        let address = browser.websocket_address().clone();
+        let (wire, wire_task) = match wire::Wire::open(&address).await {
+            Ok(w) => w,
+            Err(f) => {
+                let _ = browser.kill().await;
+                handler.abort();
+                return Err(Fault::new("start", f.1));
+            }
+        };
         let page = match browser.new_page("about:blank").await {
             Ok(p) => p,
             Err(e) => {
+                wire_task.abort();
                 let _ = browser.kill().await;
                 return Err(Fault::new("start", e.to_string()));
             }
         };
-        Ok(Executor::wrap(browser, page, handler, pid, true))
+        Ok(Executor::wrap(
+            browser,
+            page,
+            handler,
+            pid,
+            true,
+            (wire, wire_task),
+        ))
     }
 
     pub async fn connect(address: &str, url_prefix: &str) -> Res<Executor> {
-        let (mut browser, mut handler) = Browser::connect(format!("http://{address}"))
-            .await
-            .map_err(cdp("attach"))?;
+        let config = HandlerConfig {
+            ignore_https_errors: true,
+            request_timeout: STEP_TIMEOUT,
+            ..HandlerConfig::default()
+        };
+        let (mut browser, mut handler) =
+            Browser::connect_with_config(format!("http://{address}"), config)
+                .await
+                .map_err(cdp("attach"))?;
         let handler = tokio::spawn(async move { while handler.next().await.is_some() {} });
+        let (wire, wire_task) = match wire::Wire::open(browser.websocket_address()).await {
+            Ok(w) => w,
+            Err(f) => {
+                handler.abort();
+                return Err(Fault::new("attach", f.1));
+            }
+        };
+        match Executor::page_of(&mut browser, url_prefix).await {
+            Ok(page) => Ok(Executor::wrap(
+                browser,
+                page,
+                handler,
+                None,
+                false,
+                (wire, wire_task),
+            )),
+            Err(f) => {
+                wire_task.abort();
+                handler.abort();
+                Err(f)
+            }
+        }
+    }
+
+    async fn page_of(browser: &mut Browser, url_prefix: &str) -> Res<Page> {
         let targets = browser.fetch_targets().await.map_err(cdp("attach"))?;
         let pages: Vec<TargetId> = targets
             .into_iter()
@@ -274,16 +335,15 @@ impl Executor {
             _ => return Err(Fault::new("attach", "many")),
         };
         let deadline = Instant::now() + STEP_TIMEOUT;
-        let page = loop {
+        loop {
             match browser.get_page(target.clone()).await {
-                Ok(p) => break p,
+                Ok(p) => return Ok(p),
                 Err(e) if Instant::now() > deadline => {
                     return Err(Fault::new("attach", e.to_string()))
                 }
                 Err(_) => tokio::time::sleep(POLL).await,
             }
-        };
-        Ok(Executor::wrap(browser, page, handler, None, false))
+        }
     }
 
     fn wrap(
@@ -292,6 +352,7 @@ impl Executor {
         handler: JoinHandle<()>,
         pid: Option<u32>,
         owns_process: bool,
+        wired: (wire::Wire, JoinHandle<()>),
     ) -> Executor {
         Executor {
             browser,
@@ -306,6 +367,10 @@ impl Executor {
             owns_process,
             profile: None,
             temp: None,
+            wire: wired.0,
+            wire_task: wired.1,
+            places: Mutex::new(HashMap::new()),
+            owners: Mutex::new(HashMap::new()),
         }
     }
 
@@ -316,6 +381,12 @@ impl Executor {
     pub async fn version(&self) -> Res<String> {
         let v = self.browser.version().await.map_err(cdp("version"))?;
         Ok(v.product)
+    }
+
+    /// The faults of the library's own connection, which attaches to every target of the browser
+    /// before it runs: a target that it could not prepare is left waiting, and named here.
+    pub fn attach_faults(&self) -> Vec<String> {
+        self.wire.faults()
     }
 
     pub async fn stop(mut self) -> Vec<u32> {
@@ -332,17 +403,78 @@ impl Executor {
                 let _ = self.browser.kill().await;
             }
         }
+        self.wire_task.abort();
         self.handler.abort();
         self.pid.into_iter().collect()
     }
 
+    async fn exec<C: chromiumoxide::types::Command>(
+        &self,
+        place: &Place,
+        cause: &'static str,
+        cmd: C,
+    ) -> Res<C::Response> {
+        match place {
+            Place::Page => self
+                .page
+                .execute(cmd)
+                .await
+                .map(|r| r.result)
+                .map_err(cdp(cause)),
+            Place::Frame(session) => self
+                .wire
+                .call(Some(session), cmd)
+                .await
+                .map_err(|f| Fault::new(cause, f.1)),
+        }
+    }
+
+    fn place_of(&self, frame: &FrameId) -> Place {
+        if let Some((session, kind)) = self.wire.session_of(frame.inner()) {
+            if kind == "iframe" {
+                return Place::Frame(session);
+            }
+        }
+        self.places
+            .lock()
+            .ok()
+            .and_then(|p| p.get(frame.inner()).cloned())
+            .unwrap_or(Place::Page)
+    }
+
+    fn enter_frame(&self, child: &FrameId, parent: &Place, owner: BackendNodeId) -> Place {
+        let place = match self.wire.session_of(child.inner()) {
+            Some((session, kind)) if kind == "iframe" => Place::Frame(session),
+            _ => parent.clone(),
+        };
+        if let Place::Frame(session) = &place {
+            if &place != parent {
+                if let Ok(mut o) = self.owners.lock() {
+                    o.insert(session.clone(), (parent.clone(), owner));
+                }
+            }
+        }
+        if let Ok(mut p) = self.places.lock() {
+            p.insert(child.inner().clone(), place.clone());
+        }
+        place
+    }
+
+    /// Whether the frame runs as a target of its own, out of the process of the page that holds
+    /// it, as the library's own connection sees it.
+    pub fn runs_apart(&self, frame: &FrameId) -> bool {
+        matches!(self.place_of(frame), Place::Frame(_))
+    }
+
     async fn frame_tree(&self) -> Res<FrameTree> {
+        self.frame_tree_at(&Place::Page).await
+    }
+
+    async fn frame_tree_at(&self, place: &Place) -> Res<FrameTree> {
         let r = self
-            .page
-            .execute(GetFrameTreeParams::default())
-            .await
-            .map_err(cdp("frame"))?;
-        Ok(r.result.frame_tree)
+            .exec(place, "frame", GetFrameTreeParams::default())
+            .await?;
+        Ok(r.frame_tree)
     }
 
     pub async fn main_frame(&self) -> Res<FrameId> {
@@ -360,7 +492,7 @@ impl Executor {
             }
             t.child_frames.iter().flatten().find_map(|c| find(c, id))
         }
-        let tree = self.frame_tree().await?;
+        let tree = self.frame_tree_at(&self.place_of(frame)).await?;
         find(&tree, frame).ok_or_else(|| Fault::new("frame", "frame is gone"))
     }
 
@@ -374,11 +506,13 @@ impl Executor {
 
     async fn world(&self, frame: &FrameId) -> Res<ExecutionContextId> {
         let r = self
-            .page
-            .execute(CreateIsolatedWorldParams::new(frame.clone()))
-            .await
-            .map_err(cdp("frame"))?;
-        Ok(r.result.execution_context_id)
+            .exec(
+                &self.place_of(frame),
+                "frame",
+                CreateIsolatedWorldParams::new(frame.clone()),
+            )
+            .await?;
+        Ok(r.execution_context_id)
     }
 
     async fn eval_value(&self, frame: &FrameId, expression: &str) -> Res<serde_json::Value> {
@@ -389,11 +523,11 @@ impl Executor {
             .return_by_value(true)
             .build()
             .map_err(|e| Fault::new("eval", e))?;
-        let r = self.page.execute(params).await.map_err(cdp("eval"))?;
-        if r.result.exception_details.is_some() {
+        let r = self.exec(&self.place_of(frame), "eval", params).await?;
+        if r.exception_details.is_some() {
             return Err(Fault::new("eval", "exception"));
         }
-        Ok(r.result.result.value.unwrap_or(serde_json::Value::Null))
+        Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
     async fn ready(&self, frame: &FrameId) -> bool {
@@ -448,36 +582,38 @@ impl Executor {
 
     async fn ax_tree(&self, frame: &FrameId) -> Res<Vec<AxNode>> {
         let r = self
-            .page
-            .execute(
+            .exec(
+                &self.place_of(frame),
+                "snapshot",
                 GetFullAxTreeParams::builder()
                     .frame_id(frame.clone())
                     .build(),
             )
-            .await
-            .map_err(cdp("snapshot"))?;
-        Ok(r.result.nodes)
+            .await?;
+        Ok(r.nodes)
     }
 
-    async fn object_of(&self, node: &BackendNodeId) -> Res<RemoteObjectId> {
+    async fn object_of(&self, place: &Place, node: &BackendNodeId) -> Res<RemoteObjectId> {
         let r = self
-            .page
-            .execute(ResolveNodeParams::builder().backend_node_id(*node).build())
-            .await
-            .map_err(cdp("node"))?;
-        r.result
-            .object
+            .exec(
+                place,
+                "node",
+                ResolveNodeParams::builder().backend_node_id(*node).build(),
+            )
+            .await?;
+        r.object
             .object_id
             .ok_or_else(|| Fault::new("node", "no object"))
     }
 
     async fn call_on(
         &self,
+        place: &Place,
         node: &BackendNodeId,
         function: &str,
         args: Vec<serde_json::Value>,
     ) -> Res<serde_json::Value> {
-        let object = self.object_of(node).await?;
+        let object = self.object_of(place, node).await?;
         let mut builder = CallFunctionOnParams::builder()
             .function_declaration(function)
             .object_id(object)
@@ -486,30 +622,29 @@ impl Executor {
             builder = builder.argument(CallArgument::builder().value(a).build());
         }
         let params = builder.build().map_err(|e| Fault::new("call", e))?;
-        let r = self.page.execute(params).await.map_err(cdp("call"))?;
-        if r.result.exception_details.is_some() {
+        let r = self.exec(place, "call", params).await?;
+        if r.exception_details.is_some() {
             return Err(Fault::new("call", "exception"));
         }
-        Ok(r.result.result.value.unwrap_or(serde_json::Value::Null))
+        Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
-    async fn is_credential(&self, node: &BackendNodeId) -> Res<bool> {
-        let v = self.call_on(node, CREDENTIAL_FN, Vec::new()).await?;
+    async fn is_credential(&self, place: &Place, node: &BackendNodeId) -> Res<bool> {
+        let v = self.call_on(place, node, CREDENTIAL_FN, Vec::new()).await?;
         Ok(v == serde_json::Value::Bool(true))
     }
 
-    async fn child_frame_of(&self, owner: &BackendNodeId) -> Res<FrameId> {
+    async fn child_frame_of(&self, place: &Place, owner: &BackendNodeId) -> Res<FrameId> {
         let r = self
-            .page
-            .execute(
+            .exec(
+                place,
+                "frame",
                 DescribeNodeParams::builder()
                     .backend_node_id(*owner)
                     .build(),
             )
-            .await
-            .map_err(cdp("frame"))?;
-        r.result
-            .node
+            .await?;
+        r.node
             .frame_id
             .ok_or_else(|| Fault::new("frame", "owner has no frame"))
     }
@@ -571,6 +706,7 @@ impl Executor {
         label: Option<String>,
         lines: &mut Vec<SnapshotLine>,
     ) -> Res<()> {
+        let place = self.place_of(frame);
         let index: HashMap<String, usize> = nodes
             .iter()
             .enumerate()
@@ -604,6 +740,7 @@ impl Executor {
                             let r = self.add_ref(Target {
                                 frame: frame.clone(),
                                 node: b,
+                                place: place.clone(),
                             });
                             lines.push(SnapshotLine {
                                 reference: r,
@@ -622,7 +759,7 @@ impl Executor {
                         continue;
                     };
                     let credential = if CONTROL_ROLES.contains(&role) {
-                        self.is_credential(&b).await?
+                        self.is_credential(&place, &b).await?
                     } else {
                         false
                     };
@@ -635,6 +772,7 @@ impl Executor {
                     let r = self.add_ref(Target {
                         frame: frame.clone(),
                         node: b,
+                        place: place.clone(),
                     });
                     lines.push(SnapshotLine {
                         reference: r,
@@ -645,7 +783,8 @@ impl Executor {
                         frame: label.clone(),
                     });
                     if role == "frame" {
-                        let child = self.child_frame_of(&b).await?;
+                        let child = self.child_frame_of(&place, &b).await?;
+                        self.enter_frame(&child, &place, b);
                         let origin = self.frame_origin(&child).await?;
                         Box::pin(self.snapshot_frame(&child, Some(origin), lines)).await?;
                     } else {
@@ -660,6 +799,7 @@ impl Executor {
     async fn frame_by_path(&self, path: &[&str]) -> Res<Result<FrameId, Resolved>> {
         let mut frame = self.main_frame().await?;
         for (i, name) in path.iter().enumerate() {
+            let place = self.place_of(&frame);
             let owners: Vec<BackendNodeId> = self
                 .ax_tree(&frame)
                 .await?
@@ -674,7 +814,8 @@ impl Executor {
                 1 => {}
                 _ => return Ok(Err(Resolved::Many { locator: i })),
             }
-            frame = self.child_frame_of(&owners[0]).await?;
+            frame = self.child_frame_of(&place, &owners[0]).await?;
+            self.enter_frame(&frame, &place, owners[0]);
             if !self.ready(&frame).await {
                 return Ok(Err(Resolved::None));
             }
@@ -683,6 +824,7 @@ impl Executor {
     }
 
     async fn by_test_id(&self, frame: &FrameId, id: &str) -> Res<Vec<BackendNodeId>> {
+        let place = self.place_of(frame);
         let ctx = self.world(frame).await?;
         let selector = format!("[data-testid=\"{}\"]", id.replace('"', "\\\""));
         let count_expr = format!(
@@ -705,18 +847,19 @@ impl Executor {
             .context_id(ctx)
             .build()
             .map_err(|e| Fault::new("eval", e))?;
-        let r = self.page.execute(params).await.map_err(cdp("eval"))?;
+        let r = self.exec(&place, "eval", params).await?;
         let object = r
-            .result
             .result
             .object_id
             .ok_or_else(|| Fault::new("eval", "no element"))?;
         let d = self
-            .page
-            .execute(DescribeNodeParams::builder().object_id(object).build())
-            .await
-            .map_err(cdp("node"))?;
-        Ok(vec![d.result.node.backend_node_id])
+            .exec(
+                &place,
+                "node",
+                DescribeNodeParams::builder().object_id(object).build(),
+            )
+            .await?;
+        Ok(vec![d.node.backend_node_id])
     }
 
     async fn by_role(&self, frame: &FrameId, role: &str, name: &str) -> Res<Vec<BackendNodeId>> {
@@ -736,6 +879,7 @@ impl Executor {
             Ok(frame) => frame,
             Err(unresolved) => return Ok(unresolved),
         };
+        let place = self.place_of(&frame);
         for (i, locator) in locators.iter().enumerate() {
             let found = match locator {
                 Locator::TestId(id) => self.by_test_id(&frame, id).await?,
@@ -747,6 +891,7 @@ impl Executor {
                     let reference = self.add_ref(Target {
                         frame: frame.clone(),
                         node: found[0],
+                        place: place.clone(),
                     });
                     return Ok(Resolved::One {
                         reference,
@@ -781,34 +926,62 @@ impl Executor {
         Ok(self.target(reference)?.frame)
     }
 
+    async fn offset_of(&self, place: &Place) -> Res<(f64, f64)> {
+        let mut x = 0.0;
+        let mut y = 0.0;
+        let mut here = place.clone();
+        for _ in 0..MAX_FRAME_DEPTH {
+            let Place::Frame(session) = &here else {
+                return Ok((x, y));
+            };
+            let (parent, owner) = self
+                .owners
+                .lock()
+                .ok()
+                .and_then(|o| o.get(session).cloned())
+                .ok_or_else(|| Fault::new("click", "frame owner"))?;
+            let corner = self
+                .call_on(&parent, &owner, CONTENT_CORNER_FN, Vec::new())
+                .await?;
+            let at = |i: usize| corner.get(i).and_then(|v| v.as_f64());
+            let (Some(dx), Some(dy)) = (at(0), at(1)) else {
+                return Err(Fault::new("click", "frame corner"));
+            };
+            x += dx;
+            y += dy;
+            here = parent;
+        }
+        Err(Fault::new("click", "frame depth"))
+    }
+
     pub async fn click(&self, reference: &str) -> Res<()> {
         let t = self.target(reference)?;
-        self.page
-            .execute(
-                ScrollIntoViewIfNeededParams::builder()
-                    .backend_node_id(t.node)
-                    .build(),
-            )
-            .await
-            .map_err(cdp("click"))?;
+        self.exec(
+            &t.place,
+            "click",
+            ScrollIntoViewIfNeededParams::builder()
+                .backend_node_id(t.node)
+                .build(),
+        )
+        .await?;
         let quads = self
-            .page
-            .execute(
+            .exec(
+                &t.place,
+                "click",
                 GetContentQuadsParams::builder()
                     .backend_node_id(t.node)
                     .build(),
             )
-            .await
-            .map_err(cdp("click"))?;
+            .await?;
         let q = quads
-            .result
             .quads
             .first()
             .map(|q| q.inner().clone())
             .filter(|q| q.len() == 8)
             .ok_or_else(|| Fault::new("click", "no box"))?;
-        let x = (q[0] + q[2] + q[4] + q[6]) / 4.0;
-        let y = (q[1] + q[3] + q[5] + q[7]) / 4.0;
+        let (dx, dy) = self.offset_of(&t.place).await?;
+        let x = (q[0] + q[2] + q[4] + q[6]) / 4.0 + dx;
+        let y = (q[1] + q[3] + q[5] + q[7]) / 4.0 + dy;
         for kind in [
             DispatchMouseEventType::MouseMoved,
             DispatchMouseEventType::MousePressed,
@@ -828,10 +1001,12 @@ impl Executor {
     }
 
     async fn focus(&self, t: &Target) -> Res<()> {
-        self.page
-            .execute(FocusParams::builder().backend_node_id(t.node).build())
-            .await
-            .map_err(cdp("focus"))?;
+        self.exec(
+            &t.place,
+            "focus",
+            FocusParams::builder().backend_node_id(t.node).build(),
+        )
+        .await?;
         Ok(())
     }
 
@@ -839,15 +1014,14 @@ impl Executor {
         let t = self.target(reference)?;
         self.focus(&t).await?;
         self.call_on(
+            &t.place,
             &t.node,
             "function () { if (this.select) this.select(); }",
             Vec::new(),
         )
         .await?;
-        self.page
-            .execute(InsertTextParams::new(text))
-            .await
-            .map_err(cdp("fill"))?;
+        self.exec(&t.place, "fill", InsertTextParams::new(text))
+            .await?;
         Ok(())
     }
 
@@ -855,6 +1029,7 @@ impl Executor {
         let t = self.target(reference)?;
         let v = self
             .call_on(
+                &t.place,
                 &t.node,
                 SELECT_FN,
                 vec![serde_json::Value::String(label.into())],
@@ -885,29 +1060,29 @@ impl Executor {
                 b = b.text(text);
             }
             let params = b.build().map_err(|e| Fault::new("press", e))?;
-            self.page.execute(params).await.map_err(cdp("press"))?;
+            self.exec(&t.place, "press", params).await?;
         }
         Ok(())
     }
 
     pub async fn upload(&self, reference: &str, file: &Path) -> Res<()> {
         let t = self.target(reference)?;
-        self.page
-            .execute(
-                SetFileInputFilesParams::builder()
-                    .file(file.display().to_string())
-                    .backend_node_id(t.node)
-                    .build()
-                    .map_err(|e| Fault::new("upload", e))?,
-            )
-            .await
-            .map_err(cdp("upload"))?;
+        self.exec(
+            &t.place,
+            "upload",
+            SetFileInputFilesParams::builder()
+                .file(file.display().to_string())
+                .backend_node_id(t.node)
+                .build()
+                .map_err(|e| Fault::new("upload", e))?,
+        )
+        .await?;
         Ok(())
     }
 
     pub async fn read(&self, reference: &str) -> Res<String> {
         let t = self.target(reference)?;
-        let v = self.call_on(&t.node, READ_FN, Vec::new()).await?;
+        let v = self.call_on(&t.place, &t.node, READ_FN, Vec::new()).await?;
         v.as_str()
             .map(squeeze)
             .ok_or_else(|| Fault::new("read", "not text"))
@@ -917,6 +1092,7 @@ impl Executor {
         let t = self.target(reference)?;
         let v = self
             .call_on(
+                &t.place,
                 &t.node,
                 "function () { return Array.from(this.files || []).map((f) => f.size); }",
                 Vec::new(),
@@ -1104,6 +1280,13 @@ const CONTROL_ROLES: [&str; 7] = [
     "button", "link", "textbox", "checkbox", "radio", "combobox", "option",
 ];
 const VALUE_ROLES: [&str; 2] = ["textbox", "combobox"];
+const MAX_FRAME_DEPTH: usize = 8;
+
+const CONTENT_CORNER_FN: &str = "function () {
+  const r = this.getBoundingClientRect();
+  const s = getComputedStyle(this);
+  return [r.left + this.clientLeft + parseFloat(s.paddingLeft), r.top + this.clientTop + parseFloat(s.paddingTop)];
+}";
 
 const CREDENTIAL_FN: &str = "function () {
   const type = (this.getAttribute('type') || '').toLowerCase();
