@@ -15,8 +15,10 @@ measured run (`--measure`). The bounds stand in `docs/baseline/r1-gate-bounds.tx
   report holds no keystroke or no pointer event, and the secure-input line fails
   when it holds no pointer event; the sentence says that the operator gave no
   input. Under `--input none` each of the four lines fails when the report holds
-  a keystroke or a pointer count above 0, and gives both counts; otherwise it
-  ends NO-INPUT.
+  a keystroke or a pointer count above 0, and gives both counts; with both counts
+  0 it ends NO-INPUT. Under either input mode a report without one line
+  `modality=keystroke count=<digits>` and one line `modality=pointer count=<digits>`
+  fails the line, because it shows neither input nor its absence.
 - A secure-input count above 0 is the number of key events that reached the tap
   while secure input was held and that the product suppressed. The line prints
   the keystroke count of the same report beside it.
