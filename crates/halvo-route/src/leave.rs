@@ -516,22 +516,124 @@ mod tests {
 
     #[test]
     fn grant_is_the_only_maker() {
-        let code: String = include_str!("leave.rs")
-            .split("\n#[cfg(test)]\nmod tests {")
+        let field = ["_", "sealed"].concat();
+        let include_word = ["incl", "ude"].concat();
+        let files = crate_sources();
+        let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
+        assert!(
+            names.contains(&"leave.rs") && names.contains(&"lib.rs"),
+            "{names:?}"
+        );
+        for (name, text) in &files {
+            for attribute in attributes(text) {
+                assert!(
+                    !words(&attribute).any(|word| word == "path"),
+                    "{name}: #[{attribute}]"
+                );
+            }
+            assert!(!words(text).any(|word| word == include_word), "{name}");
+            if name != "leave.rs" {
+                assert!(!text.contains(&field), "{name} names the private field");
+            }
+        }
+        let leave = &files[names
+            .iter()
+            .position(|name| *name == "leave.rs")
+            .expect("leave.rs")]
+        .1;
+        let mark = "\n#[cfg(test)]\nmod tests {";
+        assert_eq!(leave.matches(mark).count(), 1);
+        let code: Vec<&str> = leave
+            .split(mark)
             .next()
-            .expect("the code before the tests")
+            .expect("the code above the tests")
             .lines()
             .filter(|line| !line.trim_start().starts_with("//"))
-            .map(|line| format!("{line}\n"))
             .collect();
-        assert_eq!(code.matches("_sealed").count(), 2, "{code}");
-        let body = code
+        for line in &code {
+            assert!(!words(line).any(|word| word == "mod"), "a module: {line}");
+        }
+        let named: usize = code
+            .iter()
+            .map(|line| words(line).filter(|word| *word == field).count())
+            .sum();
+        assert_eq!(named, 2);
+        let joined = code.join("\n");
+        let body = joined
             .split("\npub fn grant(")
             .nth(1)
             .and_then(|rest| rest.split("\n}\n").next())
             .expect("the body of grant");
-        assert_eq!(body.matches("LeaveGrant { _sealed: () }").count(), 1);
-        assert!(!code.contains("unsafe"));
+        assert_eq!(
+            body.matches(&format!("LeaveGrant {{ {field}: () }}"))
+                .count(),
+            1
+        );
+        let item = code
+            .iter()
+            .position(|line| *line == "pub struct LeaveGrant {")
+            .expect("the item LeaveGrant");
+        let attributes: Vec<&str> = code[..item]
+            .iter()
+            .rev()
+            .take_while(|line| **line != "}" && !line.ends_with(';'))
+            .filter(|line| !line.trim().is_empty())
+            .copied()
+            .collect();
+        assert_eq!(attributes, ["#[derive(Debug)]"]);
+        assert!(!joined.contains("unsafe"));
+    }
+
+    fn crate_sources() -> Vec<(String, String)> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut dirs = vec![root.clone()];
+        let mut files = Vec::new();
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).expect("a directory under src") {
+                let file = entry.expect("an entry under src").path();
+                if file.is_dir() {
+                    dirs.push(file);
+                } else if file.extension().is_some_and(|ext| ext == "rs") {
+                    let name = file.strip_prefix(&root).expect("under src");
+                    let text = std::fs::read_to_string(&file).expect("a source file");
+                    files.push((name.to_string_lossy().replace('\\', "/"), text));
+                }
+            }
+        }
+        files.sort();
+        files
+    }
+
+    fn words(text: &str) -> impl Iterator<Item = &str> {
+        text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .filter(|word| !word.is_empty())
+    }
+
+    fn attributes(text: &str) -> Vec<String> {
+        let packed: Vec<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
+        let mut found = Vec::new();
+        for start in 0..packed.len() {
+            let open = match (packed[start], packed.get(start + 1), packed.get(start + 2)) {
+                ('#', Some('['), _) => start + 1,
+                ('#', Some('!'), Some('[')) => start + 2,
+                _ => continue,
+            };
+            let mut depth = 0;
+            for (at, c) in packed.iter().enumerate().skip(open) {
+                match c {
+                    '[' => depth += 1,
+                    ']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            found.push(packed[open + 1..at].iter().collect());
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        found
     }
 
     #[test]
