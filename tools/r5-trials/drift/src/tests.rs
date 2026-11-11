@@ -538,6 +538,31 @@ fn a_served_locator_that_matches_two_controls_resolves_to_none_in_a_run() {
     assert_eq!((none.assisted, none.harm, none.failed), (1, 0, 0));
 }
 
+fn renamed_pay_with_help_named(name: &str) -> Result<case::Case, String> {
+    let bytes = std::fs::read(dev_dir().join("renamed-pay.jsonl")).expect("a development case");
+    let text = String::from_utf8(bytes).expect("UTF-8");
+    let from = "\"name\":\"Help\"";
+    assert_eq!(text.matches(from).count(), 8);
+    let edited = text.replace(from, &format!("\"name\":\"{name}\""));
+    case::read_case("renamed-pay.jsonl", edited.as_bytes(), 240)
+}
+
+#[test]
+fn a_string_escapes_only_a_quote_and_a_backslash() {
+    for name in ["He\\/lp", "He\\nlp", "He\\u0041lp", "He\tlp", "He\u{1f}lp"] {
+        assert_eq!(
+            renamed_pay_with_help_named(name).map(|_| ()),
+            Err("line 2 is not the shape of L9.1".to_owned()),
+            "{name:?}"
+        );
+    }
+    for (written, read) in [("He\\\"lp", "He\"lp"), ("He\\\\lp", "He\\lp")] {
+        let case = renamed_pay_with_help_named(written).expect("the reader accepts the escape");
+        let help = case.occurrences[0].control("help").expect("the help link");
+        assert_eq!(help.name, read);
+    }
+}
+
 #[test]
 fn a_case_file_with_a_carriage_return_is_refused_as_not_lf_text() {
     let bytes = std::fs::read(dev_dir().join("renamed-pay.jsonl")).expect("a development case");
