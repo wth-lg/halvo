@@ -582,7 +582,7 @@ ps_run() {
 
 [ $# -gt 0 ] || set -- probe lists
 for part in "$@"; do
-  before=$((passed + failed))
+  part_start=$((passed + failed))
   case $part in
     probe) test_probe ;;
     lists) test_lists ;;
@@ -594,7 +594,7 @@ for part in "$@"; do
       exit 1
       ;;
   esac
-  printf 'part %s ran=%s\n' "$part" "$((passed + failed - before))"
+  printf 'part %s ran=%s\n' "$part" "$((passed + failed - part_start))"
 done
 printf 'tests passed=%s failed=%s\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]
