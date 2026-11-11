@@ -630,6 +630,34 @@ fn each_call_goes_to_the_route_that_contract_8_names() {
     }
 }
 
+fn with_wide_character(text: &str, at: usize, wide: char) -> String {
+    let width = wide.len_utf8();
+    format!("{}{wide}{}", &text[..at], &text[at + width..])
+}
+
+#[test]
+fn ids_and_credentials_with_a_character_outside_ascii_are_refused() {
+    let mut draw = Draw(SEED + 6);
+    let account = AccountId::from_random(draw.bytes());
+    let credential = Credential::from_random(draw.bytes());
+    let mut cases = 0;
+    for wide in ['\u{80}', 'é', 'ÿ', 'ā', '€', '\u{ffff}'] {
+        for at in 0..=36 - wide.len_utf8() {
+            let text = with_wide_character(account.as_str(), at, wide);
+            assert_eq!(text.len(), 36);
+            assert!(AccountId::parse(&text).is_none(), "{text:?} was read");
+            cases += 1;
+        }
+        for at in 0..=64 - wide.len_utf8() {
+            let text = with_wide_character(credential.as_str(), at, wide);
+            assert_eq!(text.len(), 64);
+            assert!(Credential::parse(&text).is_none(), "{text:?} was read");
+            cases += 1;
+        }
+    }
+    assert_eq!(cases, 4 * (35 + 63) + 2 * (34 + 62));
+}
+
 #[test]
 fn the_pattern_matcher_reads_the_three_vendored_patterns() {
     assert!(matches("^[0-9a-f]{2}-x$", "a9-x"));
