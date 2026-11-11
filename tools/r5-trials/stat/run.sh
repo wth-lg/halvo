@@ -37,12 +37,11 @@ case $# in
 *) refuse usage "the trial takes no argument but --help" ;;
 esac
 
-export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+unset CDPATH
+export PATH="${CARGO_HOME:-${HOME:-}/.cargo}/bin:$PATH"
 
 here=$(dirname "$0")
-root=$(cd "$here" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) ||
-  refuse input "the script is not in a git work tree"
-cd "$root" || refuse input "the root of the work tree cannot be entered"
+cd -P "$here/../../.." 2>/dev/null || refuse input "the root of the work tree cannot be entered"
 
 host=$(rustc -vV 2>/dev/null | sed -n 's/^host: \([^[:space:]]*\).*/\1/p')
 [ -n "$host" ] || refuse build "rustc -vV names no host"
