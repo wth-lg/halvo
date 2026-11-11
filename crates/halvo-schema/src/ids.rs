@@ -11,6 +11,8 @@ pub const VERSION: u32 = 1;
 /// The one error of every parser of this crate. It holds the Rust name of the type that refused the input
 /// and the token of the rule that refused it, and never the refused input.
 /// `Display` prints `<type name>: <rule token>`.
+/// Only `ErrorName` and `ParseError` may be logged: the text of serde's own error (`serde_json::Error`), which a
+/// reader of a record returns, can hold a refused value or a key of the input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParseError {
     type_name: &'static str,
