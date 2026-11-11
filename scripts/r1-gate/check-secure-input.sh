@@ -21,6 +21,9 @@ cases() {
   t standin-keystroke-while-held-with-no-input FAIL against_the_standin keystroke-while-held none
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
   t standin-keystroke-while-held FAIL against_the_standin keystroke-while-held operator
+  t standin-suppressed-keys-are-counted FAIL fails_saying '3 key events reached the tap while secure input was held, and the product suppressed them; the same report holds keystroke=0: ' against_the_standin keystroke-while-held operator
+  t standin-input-source-failed-with-no-input FAIL fails_saying 'source input did not start: event tap creation failed; ' against_the_standin input-failed none
+  t standin-input-source-failed FAIL fails_saying 'source input did not start: event tap creation failed; ' against_the_standin input-failed operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
   t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 operator
   t standin-run-ends-early FAIL against_the_standin ends-early operator
@@ -45,9 +48,16 @@ measure() {
   capture_prepare || { fail_defect; return 1; }
   capture_run "$1" --hold-secure-input --switch screen_activity=on || { fail_defect; return 1; }
   held=$(sed -n 's/^secure_input_keystrokes=//p' "$run_dir/stdout")
-  line="secure_input_keystrokes=${held:-absent} over ${1}s of held secure input"
+  keys=$(modality_count "$run_dir/stdout" keystroke)
+  points=$(modality_count "$run_dir/stdout" pointer)
+  line="secure_input_keystrokes=${held:-absent} keystroke=${keys:-absent} pointer=${points:-absent} over ${1}s of held secure input"
+  defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
   if ! predicate_zero_secure_keystrokes "$run_dir/stdout"; then
-    emit_fail "$name" "a keystroke was recorded while secure input was held, or the line is absent: $line"; return 1
+    case $held in
+      ''|*[!0-9]*|0*) emit_fail "$name" "the report holds no one line secure_input_keystrokes=<digits>: $line" ;;
+      *) emit_fail "$name" "$held key events reached the tap while secure input was held, and the product suppressed them; the same report holds keystroke=${keys:-absent}: $line" ;;
+    esac
+    return 1
   fi
   defect=$(input_defect "$run_dir/stdout" pointer) || { emit_fail "$name" "$defect; $line"; return 1; }
   verdict_under_input "so no key was typed during the hold" "$line"
