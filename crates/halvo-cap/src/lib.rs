@@ -12,9 +12,9 @@
 //!
 //! The cap bounds and measures a program that Halvo builds or chooses. It is no sandbox: a
 //! program that works against it passes it. `capped=no` says that no read was above the
-//! limit; it never says that the program held no more than the limit. The reading is one
-//! quantity on each system, and the two lists below name, as a closed list, what that
-//! quantity does not count.
+//! limit, and on Windows that no report of a refused allocation arrived; it never says that
+//! the program held no more than the limit. The reading is one quantity on each system, and
+//! the two lists below name, as a closed list, what that quantity does not count.
 //!
 //! On macOS, the lifetime peak physical footprint of the started process does not count:
 //! - `child-process`: the memory of any other process, also of a process that the started
@@ -154,14 +154,14 @@ pub struct Outcome {
     /// Whether the cap stopped it: on macOS a read above the limit, on Windows an
     /// allocation that the Job refused.
     ///
-    /// `capped=no` says that no read was above the limit; it never says that the program
-    /// held no more than the limit, because the reading does not count what the crate's
-    /// documentation lists. On Windows `capped=yes` says that the Job's report of a refused
-    /// allocation arrived. Windows does not guarantee that report: a refusal whose report is
-    /// lost reads `capped=no` and shows in the exit status of the run, and the control then
-    /// prints `miss`. A runtime that reads the Job's limit and refuses its own allocation
-    /// below it reads `capped=no` too. A child that survives a refused allocation runs to its
-    /// own end.
+    /// `capped=no` says that no read was above the limit, and on Windows that no report of a
+    /// refused allocation arrived; it never says that the program held no more than the
+    /// limit, because the reading does not count what the crate's documentation lists. On
+    /// Windows `capped=yes` says that the Job's report of a refused allocation arrived.
+    /// Windows does not guarantee that report: a refusal whose report is lost reads
+    /// `capped=no` and shows in the exit status of the run, and the control then prints
+    /// `miss`. A runtime that reads the Job's limit and refuses its own allocation below it
+    /// reads `capped=no` too. A child that survives a refused allocation runs to its own end.
     pub capped: bool,
     /// When it was started.
     pub start: UnixNanos,

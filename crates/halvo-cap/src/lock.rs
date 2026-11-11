@@ -7,12 +7,14 @@ use std::path::{Path, PathBuf};
 ///
 /// The lock is an exclusive lock of the operating system on the open lock file, and it
 /// belongs to the process that took it. A process that the holder starts does not inherit
-/// it, so the lock is free when the holder has ended, whatever it started, and no process
-/// but the holder can release it. A holder that becomes another program by an exec, or
-/// that hands the loaded model to a process that it starts, first calls
-/// `ModelLock::make_inheritable` (macOS); from then on the processes that it becomes or
-/// starts inherit the lock, the lock is held until the last of them has ended, and each of
-/// them can release it. On Windows nothing hands the lock on.
+/// it, so the lock is free when the holder has ended, also when it is killed and whatever it
+/// started, and no process but the holder can release it. A holder that becomes another
+/// program by an exec, or that hands the loaded model to a process that it starts, first
+/// calls `ModelLock::make_inheritable` (macOS); from then on the processes that it becomes
+/// or starts inherit the lock, and the lock is held until the last of them has ended or one
+/// of them releases it, which frees it for all of them. A process stays the holder when it
+/// becomes another program, and a process that one of them starts inherits the lock in
+/// turn. On Windows nothing hands the lock on.
 ///
 /// The lock is free again when this value is dropped, so a loader binds it to a named
 /// variable and keeps it until it exits; a caller who drops it at once gets a warning.
@@ -48,7 +50,8 @@ impl ModelLock {
     /// Lets the program that this process becomes by an exec, and every process that it
     /// starts from now on, inherit the lock: it clears the close-on-exec flag of the lock's
     /// descriptor. After this call the lock is held until the last of the processes that
-    /// inherited it has ended, and each of them can release it. A holder calls it just
+    /// inherited it has ended or one of them releases it, which frees it for all of them; a
+    /// process that one of them starts inherits it in turn. A holder calls it just
     /// before it execs the program that reads the weights, or before it starts a process to
     /// which it hands the loaded model. The call exists on macOS, where an exec exists; on
     /// Windows nothing hands the lock on.
@@ -171,12 +174,14 @@ fn lock_file_options() -> OpenOptions {
 ///
 /// The lock is an exclusive lock of the operating system on the open lock file, and it
 /// belongs to the process that took it. A process that the holder starts does not inherit
-/// it, so the lock is free when the holder has ended, whatever it started, and no process
-/// but the holder can release it. A holder that becomes another program by an exec, or
-/// that hands the loaded model to a process that it starts, first calls
-/// `ModelLock::make_inheritable` (macOS); from then on the processes that it becomes or
-/// starts inherit the lock, the lock is held until the last of them has ended, and each of
-/// them can release it. On Windows nothing hands the lock on.
+/// it, so the lock is free when the holder has ended, also when it is killed and whatever it
+/// started, and no process but the holder can release it. A holder that becomes another
+/// program by an exec, or that hands the loaded model to a process that it starts, first
+/// calls `ModelLock::make_inheritable` (macOS); from then on the processes that it becomes
+/// or starts inherit the lock, and the lock is held until the last of them has ended or one
+/// of them releases it, which frees it for all of them. A process stays the holder when it
+/// becomes another program, and a process that one of them starts inherits the lock in
+/// turn. On Windows nothing hands the lock on.
 ///
 /// The lock is free again when the returned value is dropped, so a loader binds it to a
 /// named variable and keeps it until it exits.
