@@ -29,6 +29,7 @@ ASSUME /\ NeedsPerson \subseteq Agents
 Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
      runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, check |-> {},
+     paused |-> {},
      fin |-> Finished,
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
      fails |-> [a \in Agents |-> 0],
@@ -61,7 +62,7 @@ Open(s, a) ==
     /\ \/ s.done[a] = 0
        \/ s.done[a] < CurSlot(s.day) - (Period \div 2)
 
-Held(s, a) == a \in s.off \/ s.fails[a] >= FailsToPause \/ a \in s.check
+Held(s, a) == a \in s.off \/ a \in s.paused \/ a \in s.check
 
 LiveOf(s, a) == {r \in s.runs : r.agent = a}
 Queued(s, a) == \E i \in DOMAIN s.queue : s.queue[i].agent = a
@@ -82,12 +83,14 @@ SlotOf(s, a, trig) ==
     ELSE 0
 
 Ended(s, a, cause, d) ==
-    [s EXCEPT !.fin = @ \cup {a},
-              !.done[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
-              !.fails[a] = IF cause \in FailureClass
-                           THEN (IF @ < FailsToPause THEN @ + 1 ELSE @)
-                           ELSE 0,
-              !.check = IF cause = "effect_unknown" THEN @ \cup {a} ELSE @]
+    LET n == IF cause \notin FailureClass THEN 0
+             ELSE IF s.fails[a] < FailsToPause THEN s.fails[a] + 1
+             ELSE s.fails[a]
+    IN [s EXCEPT !.fin = @ \cup {a},
+                 !.done[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
+                 !.fails[a] = n,
+                 !.paused = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {a} ELSE @,
+                 !.check = IF cause = "effect_unknown" THEN @ \cup {a} ELSE @]
 
 Launch(s, a, trig, port, q) ==
     IF port = "no_ack"
@@ -108,8 +111,7 @@ Launch(s, a, trig, port, q) ==
                   st |-> [s1 EXCEPT !.runs = @ \cup
                              {[id |-> id, agent |-> a, phase |-> "starting", why |-> "none",
                                trig |-> trig, day |-> IF a \in Slotted THEN s.day ELSE 0,
-                               life |-> s.life,
-                               ack |-> port # "no_ack", held |-> Held(s, a)]}]]
+                               life |-> s.life]}]]
 
 Enqueue(q, e) ==
     IF e.trigger = "person"
@@ -126,6 +128,9 @@ Start(s, a, trig, port) ==
              ev |-> <<[k |-> "queued", agent |-> a, trig |-> trig]>>,
              st |-> [s EXCEPT !.queue = Enqueue(@, [agent |-> a, trigger |-> trig]),
                               !.ready = @ \ {a}]]
+
+Press(s, a, port) ==
+    Start(IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}], a, "person", port)
 
 Dequeue(s, port) ==
     IF Len(s.queue) = 0 THEN [st |-> s, next |-> <<>>, ev |-> <<>>]
@@ -249,7 +254,7 @@ End(s, mv) ==
          IN [r |-> "ok", st |-> e.st, cause |-> cause, next |-> e.next, ev |-> e.ev]
 
 Step(s, mv) ==
-    CASE mv.m = "start" -> Start(s, mv.agent, "person", mv.port)
+    CASE mv.m = "start" -> Press(s, mv.agent, mv.port)
       [] mv.m = "tick" -> Tick(s, mv.day, mv.off, mv.grace, mv.port)
       [] mv.m = "restart" -> Restart(s)
       [] mv.m = "delete" -> Delete(s, mv.agent)
@@ -377,14 +382,12 @@ C2 == \A r \in st.runs : r.life = st.life
 C3 == \A a \in Agents :
         Cardinality(LiveOf(st, a)) + Cardinality({i \in DOMAIN st.queue : st.queue[i].agent = a}) <= 1
 
-C4 == \A r \in st.runs : r.ack /\ ~r.held
-
+C4 == h.heldstarts = 0 /\ h.unacked = 0
 C5 == \A r \in st.runs : r.agent \in NeedsPerson => r.trig = "person"
 
 C6 == \A a \in Agents : \A d \in Days : st.scount[a][d] <= 1
 
-C7 == \A a \in Agents : \A d \in Days : st.starts[a][d] <= StartsPerDay
-
+C7 == \A a \in Agents : \A d \in Days : h.count[a][d] <= StartsPerDay
 C8 == /\ ~st.stale
       /\ \A r \in st.runs : r.agent \in st.gone => r.phase = "stopping"
 
