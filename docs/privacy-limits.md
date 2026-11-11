@@ -1,7 +1,8 @@
 # What expiry and delete-all cover, and what capture stores
 
-This file states the limits of Halvo's privacy promises in plain words. The README,
-the data view and the consent text quote it and do not restate it. ADR 0005 states
+This file states the limits of Halvo's privacy promises in plain words. It is
+decided that the README (docs-2), the data view and the consent text (app-3 and
+app-4) quote it and do not restate it; at this version none of them quotes it. ADR 0005 states
 the key chain behind it.
 
 A log named in this file is a path under the ledger of run 20261108-halvo-r1-capture
@@ -37,8 +38,10 @@ starts. The mark stops Time Machine from copying the data directory and stops no
 other copy.
 
 A Secure Enclave custody would keep the root outside every copy of the directory.
-R1 ships none: a build with the `secure-enclave` feature creates no store and opens
-an existing one for maintenance only, and no R1 installer is such a build.
+R1 ships none, and no R1 installer is a build with the `secure-enclave` feature. It
+is decided that such a build creates no store and opens an existing one for
+maintenance only: store-6 removes the Secure Enclave skeleton and daemon-3 lands
+the policy (ADR 0010).
 
 ## What else stays after a shred
 

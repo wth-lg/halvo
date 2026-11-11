@@ -24,8 +24,8 @@ cfg, and one daemon is the sole writer of what capture records.
 ## Consequences
 
 - What a default run stores is the content floor of ADR 0008, which narrows this
-  stack: microphone, camera and system audio stay off in R1 (row 13), and the record
-  has no constructor for those kinds.
+  stack: microphone, camera and system audio stay off in R1 (row 13), and from core-2 on
+  the record has no constructor for those kinds (contract C13.2).
 - ADR 0006 records who opens the store that the daemon writes, and ADR 0007 how the
   daemon starts.
 - At 685d846 an event holds an id, the time, a sequence number, the event type, the

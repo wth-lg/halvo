@@ -32,7 +32,8 @@ Window expiry and cap eviction destroy a segment key. Delete-all destroys the ro
 - The limit, in one sentence: window expiry does not reach an earlier copy of the
   store files or free blocks of the volume; delete-all does, unless the copy holds
   the root. docs/privacy-limits.md holds the coverage table and the measured bounds,
-  and the README and the view quote that file.
+  and it is decided that the README (docs-2) and the view (app-3 and app-4) quote
+  that file.
 - R1 records the limit and builds no per-day key (the default answer of RD-03, an
   owner ask; another answer is a dated line here). The Time Machine mark on the data
   directory is the mitigation, and daemon-3a sets it when the daemon starts
