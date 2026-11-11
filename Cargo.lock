@@ -1530,6 +1530,8 @@ name = "halvo-sheet"
 version = "0.0.0"
 dependencies = [
  "calamine",
+ "quick-xml",
+ "zip",
 ]
 
 [[package]]

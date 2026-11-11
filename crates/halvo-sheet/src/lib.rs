@@ -2,6 +2,8 @@
 
 mod book;
 mod error;
+#[allow(dead_code)]
+mod parts;
 mod path;
 mod range;
 mod source;
@@ -10,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 pub use book::Cell;
 pub use error::{Cause, Error, PathRefusal, Refusal, SourceRefusal};
+pub use parts::Kind;
 pub use range::Range;
 pub use source::Value;
 
