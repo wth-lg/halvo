@@ -8,7 +8,7 @@ evidence: row 12 of decisions.tsv of run 20261108-halvo-r1-capture; docs/privacy
 ## Context
 
 Halvo records activity on the person's machine and keeps it there, encrypted, for
-the observation window. The person can delete all of it at any time. Row 12 chose
+the observation window. The person can delete all of it. Row 12 chose
 how: SQLCipher for the metadata, one file for each segment under a random key with
 XChaCha20-Poly1305, a store key wrapped by a custody of each system, and deletion by
 crypto-shred with zero-fill.
