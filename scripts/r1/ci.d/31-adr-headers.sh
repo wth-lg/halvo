@@ -161,6 +161,44 @@ self_test() {
   adr no-heading-on-line-1 0001-first.md "$text"
   check no-heading-on-line-1 FAIL "problem 0001-first.md: line 1 is not a heading '# <decision label>'"
 
+  adr indented-after-blank 0001-first.md "$good
+
+## Amendments
+
+- 2026-11-11: dated.
+
+  an undated line."
+  check indented-after-blank FAIL "problem 0001-first.md: line 15 under '## Amendments' is indented and continues no dated entry"
+
+  text=$(printf '%s\n\n## Amendments\n\n- 2026-11-11: dated.\n' "$good" | sed 's/^## Amendments$/& /') || exit 2
+  adr heading-trailing-space 0001-first.md "$text"
+  check heading-trailing-space FAIL "problem 0001-first.md: line 11 '## Amendments ' is not the heading '## Amendments'"
+
+  adr heading-lower-case 0001-first.md "$good
+
+## amendments
+
+- 2026-11-11: dated."
+  check heading-lower-case FAIL "problem 0001-first.md: line 11 '## amendments' is not the heading '## Amendments'"
+
+  adr heading-other-level 0001-first.md "$good
+
+### Amendments
+
+- 2026-11-11: dated."
+  check heading-other-level FAIL "problem 0001-first.md: line 11 '### Amendments' is not the heading '## Amendments'"
+
+  adr amendment-date-no-calendar-has 0001-first.md "$good
+
+## Amendments
+
+- 2026-02-29: dated on a day that 2026 does not have."
+  check amendment-date-no-calendar-has FAIL "problem 0001-first.md: line 13 under '## Amendments' has the date 2026-02-29, which no calendar has"
+
+  text=$(printf '%s\n' "$good" | sed 's/^decision: .*/decision: 2026-11-31T24:51:36Z/') || exit 2
+  adr decision-time-no-calendar-has 0001-first.md "$text"
+  check decision-time-no-calendar-has FAIL "problem 0001-first.md: line 3 holds 2026-11-31T24:51:36Z, a date or a time that no calendar has"
+
   adr name-without-number 0001-first.md "$good"
   adr name-without-number README.md "$good"
   check name-without-number FAIL 'problem README.md: the name is not NNNN-name.md'
