@@ -51,18 +51,35 @@ measure() {
 head_macos='measure-peak platform=macos mode=poll limit_bytes=268435456 control=yes'
 head_windows='measure-peak platform=windows mode=job limit_bytes=268435456 control=yes'
 
+repository_verdict() {
+  entered=$(
+    if [ "$1" = unset ]; then unset CI_D_REPO; else CI_D_REPO=$1; fi
+    enter_repository 2>/dev/null
+  )
+  entered_status=$?
+  if [ "$entered_status" -eq 0 ] && [ -z "$entered" ]; then
+    printf PASS
+  elif [ "$entered_status" -ne 0 ] && [ "$entered" = "FAIL $name (cannot enter the repository that CI_D_REPO names)" ]; then
+    printf FAIL
+  else
+    printf 'status-%s-with-%s-lines' "$entered_status" "$(printf '%s' "$entered" | grep -c .)"
+  fi
+}
+
 check() {
   case=$1
   want=$2
   shift 2
-  if [ "$1" = test ]; then
-    cause=$(judge_test "$2")
-  elif [ "$1" = repository ]; then
-    cause=$(CI_D_REPO=$2 enter_repository 2>/dev/null)
+  if [ "$1" = repository ]; then
+    got=$(repository_verdict "$2")
   else
-    cause=$(judge_control "$2" "$3")
+    if [ "$1" = test ]; then
+      cause=$(judge_test "$2")
+    else
+      cause=$(judge_control "$2" "$3")
+    fi
+    if [ -z "$cause" ]; then got=PASS; else got=FAIL; fi
   fi
-  if [ -z "$cause" ]; then got=PASS; else got=FAIL; fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case"
@@ -75,7 +92,9 @@ self_test() {
   rejected=0
   wrong=
   check repository-entered PASS repository "$PWD"
-  check no-repository FAIL repository "$(mktemp -d)/missing"
+  check no-repository FAIL repository "${CI_D_ARTIFACTS:-$PWD}/no-such-repository"
+  check repository-unset FAIL repository unset
+  check repository-empty FAIL repository ""
   check tests-pass PASS test 0
   check tests-fail FAIL test 101
   check stopped-on-macos PASS control 0 "$head_macos${nl}control allocate_bytes=285212672 outcome=stopped stop_ms=212 peak_bytes=287309824${nl}checks control=ok"
