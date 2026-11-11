@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -84,21 +73,73 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-egress
+      - name: Reader 13 open probe
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/reader13a.sh" <<'READER13A'
+          # a1-mac-step.sh: the reader's step in the macos job of the scratch run for Addition 1. It runs after
+          # the driver. One run of the check at the head around the probe open, with a listener of this step on
+          # 127.0.0.1:47202 that counts what arrives, and the facts of the push event that 10-egress.sh reads.
+          # Every line that matters starts with "v13 ".
+          set +e
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 0
+          out=$RUNNER_TEMP/v13a
+          mkdir -p "$out"
+          : >"$out/recorded"
+          p() {
+            printf 'v13 %s\n' "$*"
+          }
+          p "system $(sw_vers -productVersion) head $(git rev-parse HEAD) stamp $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 -I - "$out/recorded" <<'PY' &
+          import socket, sys, threading
+          s = socket.socket()
+          s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          s.bind(("127.0.0.1", 47202))
+          s.listen(16)
+          def one(c):
+              c.settimeout(3)
+              data = b""
+              try:
+                  data = c.recv(2048)
+              except Exception:
+                  pass
+              c.close()
+              with open(sys.argv[1], "a") as f:
+                  f.write(data.split(b"\r\n", 1)[0].decode("latin-1") + "\n")
+          while True:
+              c, _ = s.accept()
+              threading.Thread(target=one, args=(c,), daemon=True).start()
+          PY
+          recorder=$!
+          sleep 1
+          sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh open >"$out/open.out" 2>"$out/open.err"
+          code=$?
+          last=$(tail -n 1 "$out/open.err")
+          p "probe open under the check: exit=$code | $last"
+          case $last in
+            "egress mode="*)
+              log=${last##* log=}
+              sed -e 's/^denied at=[0-9]* //' -e 's/ pid=[0-9]*//' "$log" | sort | uniq -c | sed 's/^/v13 open log: /'
+              ;;
+          esac
+          sleep 8
+          p "requests at the listener on 47202 after 8 s: $(grep -c '' "$out/recorded")"
+          kill "$recorder" 2>/dev/null
+          p "event name=${GITHUB_EVENT_NAME:-} lines with created true=$(grep -c -E '"created": *true' "$GITHUB_EVENT_PATH") lines with added, removed or modified and a bracket=$(grep -c -E '"(added|removed|modified)": *\[' "$GITHUB_EVENT_PATH") lines with one of the three keys=$(grep -c -E '"(added|removed|modified)"' "$GITHUB_EVENT_PATH")"
+          p "done"
+          exit 0
+          READER13A
+          bash "$RUNNER_TEMP/reader13a.sh"
+          exit 0
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -128,21 +169,67 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-egress
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-egress
+      - name: Reader 13 event facts and the skip form
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/reader13a.sh" <<'READER13A'
+          # a1-win-step.sh: the reader's step in the windows job of the scratch run for Addition 1. It runs
+          # after the driver. It prints the facts of the real push event that 10-egress.sh reads to decide
+          # whether the long cases run, what the script's rule gives for that event and for the same event
+          # with "created" set to false (a later push to the branch), and then runs the driver's 10-egress
+          # once more with a hand-made push event that changes docs/r2/README.md alone, with its seconds.
+          # Every line that matters starts with "v13 ".
+          set +e
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 0
+          out=$RUNNER_TEMP/v13a
+          mkdir -p "$out"
+          p() {
+            printf 'v13 %s\n' "$*"
+          }
+          decision() {
+            if grep -Eq '"(created|forced)": *true' "$1"; then
+              printf '%s\n' 'run (the push creates or rewrites its branch)'
+            elif ! grep -Eq '"(added|removed|modified)": *\[' "$1"; then
+              printf '%s\n' 'run (the push lists no changed files)'
+            elif grep -Eq '"scripts/egress/[^"]*"|"scripts/r2/ci\.d/10-egress\.sh"' "$1"; then
+              printf '%s\n' 'run (the push changes a file of the check)'
+            else
+              printf '%s\n' skip
+            fi
+          }
+          p "head $(git rev-parse HEAD) stamp $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          p "event name=${GITHUB_EVENT_NAME:-} lines=$(grep -c '' "$GITHUB_EVENT_PATH") lines with created true=$(grep -c -E '"created": *true' "$GITHUB_EVENT_PATH") lines with added, removed or modified and a bracket=$(grep -c -E '"(added|removed|modified)": *\[' "$GITHUB_EVENT_PATH") lines with one of the three keys=$(grep -c -E '"(added|removed|modified)"' "$GITHUB_EVENT_PATH")"
+          python - "$GITHUB_EVENT_PATH" <<'PY'
+          import json, sys
+          e = json.load(open(sys.argv[1], encoding="utf-8"))
+          c = e.get("commits") or []
+          print("v13 event commits=%d keys of the first commit=%s" % (len(c), ",".join(sorted(c[0].keys())) if c else "-"))
+          print("v13 event keys of head_commit=%s" % ",".join(sorted((e.get("head_commit") or {}).keys())))
+          PY
+          p "the script's rule on the real event: $(decision "$GITHUB_EVENT_PATH")"
+          sed -E 's/"(created|forced)": *true/"\1": false/' "$GITHUB_EVENT_PATH" >"$out/later.json"
+          p "the script's rule on the real event with created and forced false: $(decision "$out/later.json")"
+          printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["docs/r2/README.md"]}]}' >"$out/docs.json"
+          p "the script's rule on the hand-made event: $(decision "$out/docs.json")"
+          start=$(date +%s)
+          GITHUB_EVENT_PATH=$out/docs.json sh scripts/ci/run-ci-d.sh windows 10-egress >"$out/skip.out" 2>&1
+          code=$?
+          p "driver with the hand-made event: exit=$code seconds=$(($(date +%s) - start))"
+          grep -E '^(long cases|PASS|FAIL|SKIP|seconds|checks |self-test mode|control mode|tests |not ok )' "$out/skip.out" | tr -d '\r' | cut -c1-200 | sed 's/^/v13 skip: /'
+          p "done"
+          exit 0
+          READER13A
+          bash "$RUNNER_TEMP/reader13a.sh"
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
