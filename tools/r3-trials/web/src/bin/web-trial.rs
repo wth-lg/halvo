@@ -212,7 +212,9 @@ mod driver {
         fn options(&self, profile: &str, debug_port: Option<u16>) -> StartOptions {
             StartOptions {
                 browser: self.browser.clone(),
-                profile: self.scratch.join(profile),
+                profile: self
+                    .scratch
+                    .join(format!("{}-{profile}", std::process::id())),
                 headless: self.headless,
                 flags: flags(),
                 debug_port,

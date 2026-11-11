@@ -170,6 +170,12 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
+        let used = std::fs::read_dir(&opts.profile)
+            .map(|mut entries| entries.next().is_some())
+            .unwrap_or(false);
+        if used {
+            return Err(Fault::new("start", "profile directory is not empty"));
+        }
         let mut builder = BrowserConfig::builder()
             .chrome_executable(&opts.browser)
             .disable_default_args()
