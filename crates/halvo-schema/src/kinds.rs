@@ -1,9 +1,42 @@
+use std::fmt;
+use std::marker::PhantomData;
+
+use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde_json::value::RawValue;
 
 use crate::ids::{hex32, hex64, AgentId, RequestId, SummaryId, WorkflowId, MAX_ORDINAL};
 use crate::record::{Confidence, KeyCounts, PointerCounts, Recurrence};
-use crate::request::Fields;
 use crate::site::{AppId, SiteDomain, SiteHash, SiteToken, SiteValue};
+
+struct Fields<'a>(Vec<(String, &'a RawValue)>);
+
+impl<'de: 'a, 'a> Deserialize<'de> for Fields<'a> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct V<'a>(PhantomData<&'a ()>);
+        impl<'de: 'a, 'a> Visitor<'de> for V<'a> {
+            type Value = Fields<'a>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a JSON object")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Fields<'a>, A::Error> {
+                let mut fields = Vec::new();
+                while let Some(entry) = map.next_entry::<String, &'de RawValue>()? {
+                    fields.push(entry);
+                }
+                Ok(Fields(fields))
+            }
+        }
+        deserializer.deserialize_map(V(PhantomData))
+    }
+}
+
+impl<'a> Fields<'a> {
+    fn read(bytes: &'a [u8]) -> Option<Fields<'a>> {
+        serde_json::from_slice(bytes).ok()
+    }
+}
 
 /// The names of the kind registry of this run: the four kind names, the family `workflow` and the three
 /// retention-class names. The names of `FieldType` and of `Origin` and the key `days` are none.

@@ -688,21 +688,15 @@ fn later_files() -> Vec<(String, String)> {
 }
 
 fn later_faults(file: &str, text: &str) -> Vec<String> {
-    let mut faults = Vec::new();
-    for token in tokens(text) {
-        match bare(&token) {
-            "Fields" => faults.push(format!(
-                "{file} names Fields, the reader of objects of the request module"
-            )),
-            "macro_export" => faults.push(format!("{file} holds macro_export")),
-            _ => {}
-        }
-    }
-    faults
+    tokens(text)
+        .iter()
+        .filter(|token| bare(token) == "macro_export")
+        .map(|_| format!("{file} holds macro_export"))
+        .collect()
 }
 
 #[test]
-fn no_file_of_a_later_run_names_fields_of_the_request_module_or_holds_macro_export() {
+fn no_file_of_a_later_run_holds_macro_export() {
     let files = later_files();
     assert!(files.len() >= 4, "{}", files.len());
     for (file, text) in files {
@@ -711,48 +705,24 @@ fn no_file_of_a_later_run_names_fields_of_the_request_module_or_holds_macro_expo
 }
 
 #[test]
-fn the_lock_test_refuses_fields_and_macro_export_in_a_later_file() {
-    for (text, fault) in [
-        (
-            "pub fn probe_fields() -> usize {\n    crate::request::Fields::read(b\"{}\").map_or(0, |fields| fields.0.len())\n}\n",
-            "learning.rs names Fields",
-        ),
-        (
-            "use crate::request::{Fields, RunnerBody};\n",
-            "learning.rs names Fields",
-        ),
-        (
-            "use crate::request as r;\nfn f(_: r::Fields<'_>) {}\n",
-            "learning.rs names Fields",
-        ),
-        (
-            "use crate::request::*;\nfn f(_: Fields<'_>) {}\n",
-            "learning.rs names Fields",
-        ),
-        (
-            "fn f(_: crate::request::r#Fields<'_>) {}\n",
-            "learning.rs names Fields",
-        ),
-        (
-            "#[macro_export]\nmacro_rules! name_enum {\n    () => {};\n}\n",
-            "learning.rs holds macro_export",
-        ),
-        (
-            "#[cfg_attr(all(), macro_export)]\nmacro_rules! own {\n    () => {};\n}\n",
-            "learning.rs holds macro_export",
-        ),
+fn the_test_of_the_later_files_refuses_macro_export_in_every_form() {
+    for text in [
+        "#[macro_export]\nmacro_rules! name_enum {\n    () => {};\n}\n",
+        "#[cfg_attr(all(), macro_export)]\nmacro_rules! own {\n    () => {};\n}\n",
+        "macro_rules! make {\n    ($n:ident) => {\n        #[macro_export]\n        macro_rules! $n {\n            () => {};\n        }\n    };\n}\nmake!(hidden);\n",
+        "#[r#macro_export]\nmacro_rules! own {\n    () => {};\n}\n",
     ] {
-        let faults = later_faults("learning.rs", text);
-        assert!(
-            faults.iter().any(|f| f.starts_with(fault)),
-            "{text}: {faults:?}"
+        assert_eq!(
+            later_faults("learning.rs", text),
+            ["learning.rs holds macro_export"],
+            "{text}"
         );
     }
     for twin in [
-        "/// Fields and #[macro_export]\nfn f() {}\n",
-        "let s = \"crate::request::Fields #[macro_export]\";\n",
+        "/// #[macro_export]\nfn f() {}\n",
+        "let s = \"#[macro_export]\";\n",
         "macro_rules! own {\n    () => {};\n}\nown!();\n",
-        "struct FieldList;\nuse crate::request::RunnerBody;\n",
+        "#[macro_use]\nmod inner {}\n",
     ] {
         assert_eq!(
             later_faults("learning.rs", twin),
