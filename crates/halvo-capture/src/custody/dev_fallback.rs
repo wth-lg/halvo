@@ -405,6 +405,48 @@ mod tests {
         );
     }
 
+    fn no_all_zero_root_and_no_other_store_root(first: &dyn RootHooks, second: &dyn RootHooks) {
+        let _first = DestroyedAtTheEnd(first);
+        let _second = DestroyedAtTheEnd(second);
+        let wrapped = first
+            .wrap_store_key(&StoreKey::from_bytes([0x3c; 32]))
+            .unwrap();
+        second
+            .wrap_store_key(&StoreKey::from_bytes([0x4d; 32]))
+            .unwrap();
+        let (root, other_store_root) = (first.root(), second.root());
+        let label = first.root_id();
+        assert!(root.iter().any(|&b| b != 0), "the root is all zero");
+        assert!(*root != *other_store_root, "two stores have one root");
+        assert!(
+            aead_open(&[0u8; 32], &wrapped.0, label.as_bytes()).is_err(),
+            "the wrapped store key opens under an all-zero root"
+        );
+        assert!(
+            aead_open(&other_store_root, &wrapped.0, label.as_bytes()).is_err(),
+            "the wrapped store key opens under the root of a second store"
+        );
+        first.replace(&[0u8; 32]);
+        assert!(
+            first.unwrap_store_key(&wrapped).is_err(),
+            "the wrapped store key unwraps with an all-zero root in place"
+        );
+    }
+
+    #[test]
+    fn a_wrapped_store_key_opens_under_no_all_zero_root_and_no_other_store_root() {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        no_all_zero_root_and_no_other_store_root(
+            &DevFallbackCustody::new(RootId::fresh()),
+            &DevFallbackCustody::new(RootId::fresh()),
+        );
+        let dir = tempfile::tempdir().unwrap();
+        no_all_zero_root_and_no_other_store_root(
+            &file_root_custody(dir.path()),
+            &file_root_custody(dir.path()),
+        );
+    }
+
     #[test]
     fn the_store_key_wrap_opens_under_its_root_and_under_no_other_key() {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
