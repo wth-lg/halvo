@@ -116,17 +116,31 @@ overflow_ok() {
   root=$(pwd -W 2>/dev/null || pwd -P) || return 1
   while read -r member; do
     mir=target/r5-trials/overflow-$member.mir
+    reference=target/r5-trials/overflow-reference-$member.mir
     cargo rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p "$member" --lib --target "$host" --target-dir target/r5-trials -- --emit=mir="$root/$mir" >"$art/overflow-$member.txt" 2>&1 </dev/null || {
       note "test overflow member=$member build=failed"
       return 1
     }
-    asserts=$(awk '
-      index($0, "{} + {}`, which would overflow") || index($0, "{} - {}`, which would overflow") || index($0, "{} * {}`, which would overflow") { n++ }
-      END { print n + 0 }
-    ' "$mir") || return 1
-    note "test overflow member=$member asserts=$asserts"
+    (
+      unset RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER
+      cargo rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p "$member" --lib --target "$host" --target-dir target/r5-trials -- -C overflow-checks=on --emit=mir="$root/$reference"
+    ) >"$art/overflow-reference-$member.txt" 2>&1 </dev/null || {
+      note "test overflow member=$member reference=failed"
+      return 1
+    }
+    asserts=$(overflow_asserts "$mir") || return 1
+    expected=$(overflow_asserts "$reference") || return 1
+    note "test overflow member=$member asserts=$asserts reference=$expected"
     [ "$asserts" -gt 0 ] || return 1
+    [ "$asserts" -eq "$expected" ] || return 1
   done <"$art/members.txt"
+}
+
+overflow_asserts() {
+  awk '
+    index($0, "{} + {}`, which would overflow") || index($0, "{} - {}`, which would overflow") || index($0, "{} * {}`, which would overflow") { n++ }
+    END { print n + 0 }
+  ' "$1"
 }
 
 refusal_ok() {
@@ -362,18 +376,30 @@ case $* in
     elif [ "${STUB_ODD_MEMBER:-}" = yes ]; then
       printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5 stat@0.0.0"],"resolve":null}\n'
     else
-      printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
+      printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/routine#r5-routine@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
     fi
     exit "${STUB_METADATA_EXIT:-0}"
     ;;
   "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir target/r5-trials -- --emit=mir=$(pwd -W 2>/dev/null || pwd -P)/target/r5-trials/overflow-$7.mir")
     mkdir -p target/r5-trials || exit 92
-    if [ "${STUB_OVERFLOW_OFF:-}" = "$7" ]; then
+    if [ "${STUB_OVERFLOW_OFF:-}" = "$7" ] || [ "${STUB_NO_ARITHMETIC:-}" = "$7" ]; then
       printf '        _0 = Add(copy _1, const 1_u32);\n' >"target/r5-trials/overflow-$7.mir"
+    elif [ "${STUB_OVERFLOW_ONE_LEFT:-}" = "$7" ]; then
+      printf '        assert(!move (_2.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _1, const 48_u8) -> [success: bb1, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
     else
-      printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
+      printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n        assert(!move (_4.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _3, const 48_u8) -> [success: bb2, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
     fi
     exit "${STUB_RUSTC_EXIT:-0}"
+    ;;
+  "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir target/r5-trials -- -C overflow-checks=on --emit=mir=$(pwd -W 2>/dev/null || pwd -P)/target/r5-trials/overflow-reference-$7.mir")
+    [ -z "${RUSTC_WRAPPER+set}${RUSTC_WORKSPACE_WRAPPER+set}" ] || { printf 'stub cargo: a wrapper is set for the reference build\n'; exit 90; }
+    mkdir -p target/r5-trials || exit 92
+    if [ "${STUB_NO_ARITHMETIC:-}" = "$7" ]; then
+      printf '        _0 = Add(copy _1, const 1_u32);\n' >"target/r5-trials/overflow-reference-$7.mir"
+    else
+      printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n        assert(!move (_4.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _3, const 48_u8) -> [success: bb2, unwind continue];\n' >"target/r5-trials/overflow-reference-$7.mir"
+    fi
+    exit "${STUB_REFERENCE_EXIT:-0}"
     ;;
 esac
 printf 'stub cargo: got the arguments: %s\n' "$*"
@@ -484,8 +510,23 @@ self_test() {
   printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release.package.r5-stat]\noverflow-checks = true\n' >"$work/profile-line-under-a-package-header/tools/r5-trials/Cargo.toml"
   check profile-line-under-a-package-header FAIL-profile 'FAIL 40-r5-trials (profile)'
 
-  fixture overflow-checks-off-in-one-member
-  check overflow-checks-off-in-one-member FAIL-test 'FAIL 40-r5-trials (test)' STUB_OVERFLOW_OFF=drift
+  fixture package-table-turns-the-checks-off-in-r5-stat
+  check package-table-turns-the-checks-off-in-r5-stat FAIL-test 'FAIL 40-r5-trials (test)' STUB_OVERFLOW_OFF=r5-stat
+
+  fixture package-table-turns-the-checks-off-in-r5-routine
+  check package-table-turns-the-checks-off-in-r5-routine FAIL-test 'FAIL 40-r5-trials (test)' STUB_OVERFLOW_OFF=r5-routine
+
+  fixture package-table-turns-the-checks-off-in-r5-drift-with-one-assert-left
+  check package-table-turns-the-checks-off-in-r5-drift-with-one-assert-left FAIL-test 'FAIL 40-r5-trials (test)' STUB_OVERFLOW_ONE_LEFT=drift
+
+  fixture member-without-overflow-asserts
+  check member-without-overflow-asserts FAIL-test 'FAIL 40-r5-trials (test)' STUB_NO_ARITHMETIC=r5-routine
+
+  fixture reference-build-fails
+  check reference-build-fails FAIL-test 'FAIL 40-r5-trials (test)' STUB_REFERENCE_EXIT=101
+
+  fixture wrapper-variables-reach-no-reference-build
+  check wrapper-variables-reach-no-reference-build PASS "$all_same" RUSTC_WRAPPER= RUSTC_WORKSPACE_WRAPPER=
 
   fixture flag-variables-are-unset
   check flag-variables-are-unset PASS "$all_same" RUSTFLAGS=x CARGO_BUILD_RUSTFLAGS=x CARGO_ENCODED_RUSTFLAGS=x CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS=false
