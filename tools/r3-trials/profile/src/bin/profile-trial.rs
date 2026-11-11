@@ -385,18 +385,6 @@ impl Ctx {
     }
 }
 
-fn printable(text: &str) -> String {
-    let safe = text.len() <= 64
-        && text
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"_:.-".contains(&b));
-    if safe {
-        text.to_string()
-    } else {
-        format!("text_of_{}_bytes", text.len())
-    }
-}
-
 fn role(r: &'static str, name: &str) -> Locator {
     Locator::Role(r, name.to_string())
 }
@@ -711,13 +699,7 @@ async fn run_items12(
     }
     let temp_after = entry_names(temp);
     let fresh = new_entries(temp, temp_before, &temp_after, &ctx.scratch);
-    for entry in &fresh {
-        let name = entry
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        eprintln!("temp_entry name={}", printable(&name));
-    }
+    eprintln!("temp_entries {cell} count={}", fresh.len());
     let mut roots = vec![ctx.scratch.clone()];
     roots.extend(fresh.iter().cloned());
     let mut needles = marker_needles(&marker);
