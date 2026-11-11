@@ -73,6 +73,7 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         "control_characters",
         "limit_largest",
         "sixty_four_messages",
+        "largest_two_byte_text",
     ];
     for name in valid_canon {
         assert_eq!(stated(name), ("yes".into(), "yes".into(), None), "{name}");
@@ -132,6 +133,7 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         ("unknown_key_fraction", "key"),
         ("effort_number", "malformed"),
         ("role_number", "malformed"),
+        ("two_byte_text_too_large", "size"),
     ];
     for (name, error) in invalid {
         assert_eq!(
