@@ -837,3 +837,172 @@ pub fn write_reply(
         .map_err(|_| ErrorName::Malformed),
     }
 }
+
+macro_rules! decision_case {
+    ($fence:literal, $role:literal, $verb:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::request::{InterfaceDecision, ",
+            $role,
+            "};\n",
+            "use halvo_schema::{RequestId, WorkflowId};\n",
+            "let role = ",
+            $role,
+            "::claim();\n",
+            "let id = RequestId::from_random([1; 16]);\n",
+            "let workflow = WorkflowId::from_random([2; 16]);\n",
+            "let decision = InterfaceDecision::",
+            $verb,
+            "(&role, id, workflow);\n",
+            "assert!(decision.to_bytes().is_ok());\n",
+            "```"
+        )
+    };
+}
+
+macro_rules! coordinator_case {
+    ($fence:literal, $role:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::request::{CoordinatorBody, CoordinatorWrite, ",
+            $role,
+            "};\n",
+            "use halvo_schema::RequestId;\n",
+            "#[derive(serde::Serialize, serde::Deserialize)]\n",
+            "struct Probe {\n",
+            "    probe: u32,\n",
+            "}\n",
+            "impl CoordinatorBody for Probe {\n",
+            "    type Reply = ();\n",
+            "}\n",
+            "let role = ",
+            $role,
+            "::claim();\n",
+            "let write = CoordinatorWrite::new(&role, RequestId::from_random([1; 16]), Probe { probe: 1 });\n",
+            "assert!(write.to_bytes().is_ok());\n",
+            "```"
+        )
+    };
+}
+
+macro_rules! analysis_conversion_case {
+    ($fence:literal, $convert:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::request::{AnalysisRole, AnalysisWrite, InterfaceDecision};\n",
+            "use halvo_schema::{RequestId, StoreId};\n",
+            "let role = AnalysisRole::claim();\n",
+            "let store = StoreId::parse(\"0123456789abcdef0123456789abcdef\").unwrap();\n",
+            "let write = AnalysisWrite::new(&role, RequestId::from_random([1; 16]), store);\n",
+            "let built = ",
+            $convert,
+            "(write);\n",
+            "assert!(built.to_bytes().is_ok());\n",
+            "```"
+        )
+    };
+}
+
+macro_rules! runner_conversion_case {
+    ($fence:literal, $convert:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::request::{InterfaceDecision, RunnerBody, RunnerRequest, RunnerRole};\n",
+            "use halvo_schema::RequestId;\n",
+            "#[derive(serde::Serialize, serde::Deserialize)]\n",
+            "struct Probe {\n",
+            "    probe: u32,\n",
+            "}\n",
+            "impl RunnerBody for Probe {\n",
+            "    type Reply = ();\n",
+            "}\n",
+            "let role = RunnerRole::claim();\n",
+            "let request = RunnerRequest::new(&role, RequestId::from_random([1; 16]), Probe { probe: 1 });\n",
+            "let built = ",
+            $convert,
+            "(request);\n",
+            "assert!(built.to_bytes().is_ok());\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: an analysis or a runner value builds no approval, dismissal or deletion, no coordinator
+/// write (which stands for every other state change and every configuration change) and no decision by
+/// conversion. Each case differs from its twin in `compiles` in the role value alone or in the one conversion call.
+pub mod compile_fail {
+    /// `InterfaceDecision::approve` does not take `&AnalysisRole`. Twin: `compiles::interface_approve`.
+    #[doc = decision_case!("compile_fail", "AnalysisRole", "approve")]
+    pub mod analysis_approve {}
+
+    /// `InterfaceDecision::dismiss` does not take `&AnalysisRole`. Twin: `compiles::interface_dismiss`.
+    #[doc = decision_case!("compile_fail", "AnalysisRole", "dismiss")]
+    pub mod analysis_dismiss {}
+
+    /// `InterfaceDecision::delete` does not take `&AnalysisRole`. Twin: `compiles::interface_delete`.
+    #[doc = decision_case!("compile_fail", "AnalysisRole", "delete")]
+    pub mod analysis_delete {}
+
+    /// `InterfaceDecision::approve` does not take `&RunnerRole`. Twin: `compiles::interface_approve`.
+    #[doc = decision_case!("compile_fail", "RunnerRole", "approve")]
+    pub mod runner_approve {}
+
+    /// `InterfaceDecision::dismiss` does not take `&RunnerRole`. Twin: `compiles::interface_dismiss`.
+    #[doc = decision_case!("compile_fail", "RunnerRole", "dismiss")]
+    pub mod runner_dismiss {}
+
+    /// `InterfaceDecision::delete` does not take `&RunnerRole`. Twin: `compiles::interface_delete`.
+    #[doc = decision_case!("compile_fail", "RunnerRole", "delete")]
+    pub mod runner_delete {}
+
+    /// `CoordinatorWrite::new` does not take `&AnalysisRole`. Twin: `compiles::coordinator_write`.
+    #[doc = coordinator_case!("compile_fail", "AnalysisRole")]
+    pub mod analysis_coordinator_write {}
+
+    /// `CoordinatorWrite::new` does not take `&RunnerRole`. Twin: `compiles::coordinator_write`.
+    #[doc = coordinator_case!("compile_fail", "RunnerRole")]
+    pub mod runner_coordinator_write {}
+
+    /// No `InterfaceDecision::from` of an `AnalysisWrite`. Twin: `compiles::analysis_write_builds`.
+    #[doc = analysis_conversion_case!("compile_fail", "InterfaceDecision::from")]
+    pub mod analysis_into_decision {}
+
+    /// No `InterfaceDecision::from` of a `RunnerRequest`. Twin: `compiles::runner_request_builds`.
+    #[doc = runner_conversion_case!("compile_fail", "InterfaceDecision::from")]
+    pub mod runner_into_decision {}
+}
+
+/// The twins of the cases of `compile_fail`, which compile and run.
+pub mod compiles {
+    /// An interface value builds an approval.
+    #[doc = decision_case!("", "InterfaceRole", "approve")]
+    pub mod interface_approve {}
+
+    /// An interface value builds a dismissal.
+    #[doc = decision_case!("", "InterfaceRole", "dismiss")]
+    pub mod interface_dismiss {}
+
+    /// An interface value builds a deletion.
+    #[doc = decision_case!("", "InterfaceRole", "delete")]
+    pub mod interface_delete {}
+
+    /// A coordinator value builds a coordinator write.
+    #[doc = coordinator_case!("", "CoordinatorRole")]
+    pub mod coordinator_write {}
+
+    /// An analysis value builds an analysis write.
+    #[doc = analysis_conversion_case!("", "std::convert::identity")]
+    pub mod analysis_write_builds {}
+
+    /// A runner value builds a runner request.
+    #[doc = runner_conversion_case!("", "std::convert::identity")]
+    pub mod runner_request_builds {}
+}
