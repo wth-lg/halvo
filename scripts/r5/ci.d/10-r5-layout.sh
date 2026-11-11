@@ -397,7 +397,18 @@ freeze_text() {
 }
 
 fixture() {
+  if [ ! -d "$work/template" ]; then
+    template "$work/template"
+  fi
   r=$work/$1
+  cp -R "$work/template" "$r" || broken
+  if [ "${2:-}" = no-commit ]; then
+    git -C "$r" update-ref -d HEAD || broken
+  fi
+}
+
+template() {
+  r=$1
   mkdir -p "$r/docs/r5" "$r/fixtures/r5/cases/dev" "$r/tools/r5-trials/stat" "$r/tools/r5-trials/drift" "$r/scripts/r5" || broken
   git init -q "$r" || broken
   git -C "$r" config core.autocrlf false || broken
@@ -415,11 +426,7 @@ fixture() {
     'U0.2	docs/r5/targets.toml' 'U0.3	docs/r5/cases.md' 'U0.3	fixtures/r5/cases/dev/**' \
     'U0.2	tools/r5-trials/stat/**' 'U0.3	tools/r5-trials/drift/*' 'U0.4	docs/r5/freeze.toml' \
     'U0.5	docs/r5/heldout.txt' 'U1.4	scripts/r5/layout.txt' 'U9.1	docs/r5/gate.md' >"$r/scripts/r5/layout.txt"
-  if [ "${2:-}" != no-commit ]; then
-    commit_all "$r"
-  else
-    git -C "$r" add -A || broken
-  fi
+  commit_all "$r"
 }
 
 check() {
