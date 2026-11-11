@@ -14,6 +14,11 @@ finish() {
   exit 1
 }
 
+broken() {
+  printf 'FAIL self-test:%s (scratch)\n' "$name"
+  exit 1
+}
+
 note() {
   printf '%s\n' "$*" >>"$art/checks.txt"
 }
@@ -182,12 +187,12 @@ measure() {
     repo=$CI_D_REPO
   else
     here=$(dirname "$0")
-    repo=$(cd -P "$here/../../.." && pwd -P) || exit 2
+    repo=$(cd -P -- "$here/../../.." && pwd -P) || finish scratch
   fi
   art=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
-  mkdir -p "$art" || exit 2
-  art=$(cd -P "$art" && pwd -P) || exit 2
-  cd "$repo" || exit 2
+  mkdir -p -- "$art" || finish scratch
+  art=$(cd -P -- "$art" && pwd -P) || finish scratch
+  cd -- "$repo" || finish scratch
   : >"$art/checks.txt"
 
   if ! profile_ok tools/r5-trials/Cargo.toml; then
@@ -198,7 +203,10 @@ measure() {
 
   for trial in $trials; do
     [ -d "tools/r5-trials/$trial" ] || continue
-    d=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+    if ! d=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX"); then
+      note "refusal trial=$trial directory=no"
+      finish refusal
+    fi
     copy=$d/tools/r5-trials/$trial/run.sh
     if ! { mkdir -p "$d/tools/r5-trials/$trial" && cp "tools/r5-trials/$trial/run.sh" "$copy"; }; then
       note "refusal trial=$trial copy=no"
@@ -342,14 +350,14 @@ result_text() {
 
 fixture() {
   r=$work/$1
-  mkdir -p "$r/docs/r5/trials" "$r/fixtures/r5/trains" || exit 2
+  mkdir -p "$r/docs/r5/trials" "$r/fixtures/r5/trains" || broken
   : >"$r/fixture-root"
   printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\noverflow-checks = true\n' >"$r/Cargo.toml.fixture"
   for trial in $trials; do
-    mkdir -p "$r/tools/r5-trials/$trial" || exit 2
+    mkdir -p "$r/tools/r5-trials/$trial" || broken
     stub_trial >"$r/tools/r5-trials/$trial/run.sh"
   done
-  cp "$r/Cargo.toml.fixture" "$r/tools/r5-trials/Cargo.toml" || exit 2
+  cp "$r/Cargo.toml.fixture" "$r/tools/r5-trials/Cargo.toml" || broken
   result_text routine >"$r/docs/r5/trials/routine.md"
   result_text stat >"$r/docs/r5/trials/stat.md"
   result_text drift >"$r/docs/r5/trials/admission.md"
@@ -361,7 +369,7 @@ check() {
   want=$2
   text=$3
   shift 3
-  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="$work/artifacts-$case_name" sh "$self" 2>&1)
+  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="$work/artifacts-$case_name" sh "$self" ${argument:+"$argument"} 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -382,15 +390,17 @@ check() {
   elif [ "$want" != PASS ]; then
     rejected=$((rejected + 1))
   fi
+  argument=
 }
 
 self_test() {
+  argument=
   self=$0
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/bin" || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken
+  mkdir -p "$work/bin" || broken
   stub_cargo >"$work/bin/cargo"
   stub_rustc >"$work/bin/rustc"
-  chmod +x "$work/bin/cargo" "$work/bin/rustc" || exit 2
+  chmod +x "$work/bin/cargo" "$work/bin/rustc" || broken
   rejected=0
   wrong=
   case_path=
@@ -466,6 +476,18 @@ self_test() {
   check cargo-missing FAIL-test 'FAIL 40-r5-trials (test)'
   case_path=
 
+  fixture unknown-argument
+  argument=--no-such-argument
+  check unknown-argument FAIL-usage 'FAIL 40-r5-trials (usage)'
+
+  fixture artifacts-directory-cannot-be-made
+  printf 'a file\n' >"$work/artifacts-artifacts-directory-cannot-be-made"
+  check artifacts-directory-cannot-be-made FAIL-scratch 'FAIL 40-r5-trials (scratch)'
+
+  fixture temporary-directory-cannot-be-made
+  printf 'a file\n' >"$work/not-a-directory"
+  check temporary-directory-cannot-be-made FAIL-refusal 'FAIL 40-r5-trials (refusal)' TMPDIR="$work/not-a-directory"
+
   fixture trial-refuses-its-run
   check trial-refuses-its-run FAIL-run 'FAIL 40-r5-trials (run)' STUB_RUN_REFUSES=drift
 
@@ -503,15 +525,15 @@ self_test() {
   check sample-differs FAIL-differ 'trials routine=same stat=same admission=same sample=differ'
 
   fixture result-file-absent
-  mv "$work/result-file-absent/docs/r5/trials/stat.md" "$work/result-file-absent/stat.md.moved" || exit 2
+  mv "$work/result-file-absent/docs/r5/trials/stat.md" "$work/result-file-absent/stat.md.moved" || broken
   check result-file-absent FAIL-differ 'trials routine=same stat=differ admission=same sample=same'
 
   fixture sample-absent-and-not-run
-  mv "$work/sample-absent-and-not-run/fixtures/r5/trains/sample.jsonl" "$work/sample-absent-and-not-run/sample.jsonl.moved" || exit 2
+  mv "$work/sample-absent-and-not-run/fixtures/r5/trains/sample.jsonl" "$work/sample-absent-and-not-run/sample.jsonl.moved" || broken
   check sample-absent-and-not-run PASS 'trials routine=same stat=same admission=same sample=absent' STUB_SAMPLE_EXIT=2
 
   fixture trial-directory-absent
-  mv "$work/trial-directory-absent/tools/r5-trials/drift" "$work/trial-directory-absent/drift.moved" || exit 2
+  mv "$work/trial-directory-absent/tools/r5-trials/drift" "$work/trial-directory-absent/drift.moved" || broken
   check trial-directory-absent FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 
   if [ -n "$wrong" ]; then
@@ -524,5 +546,5 @@ self_test() {
 case ${1:-} in
   --self-test) self_test ;;
   '') measure ;;
-  *) exit 64 ;;
+  *) finish usage ;;
 esac

@@ -12,6 +12,11 @@ finish() {
   exit 1
 }
 
+broken() {
+  printf 'FAIL self-test:%s (scratch)\n' "$name"
+  exit 1
+}
+
 ends_in_lf() {
   [ -f "$1" ] && [ -s "$1" ] || return 1
   last=$(tail -c 1 "$1" && printf x) || return 1
@@ -34,9 +39,9 @@ digest_stdin() {
 }
 
 regular_in_index() {
-  awk -v path="$1" '
+  R5_PATH=$1 awk '
     BEGIN { FS = "\t" }
-    $2 == path {
+    $2 == ENVIRON["R5_PATH"] {
       n++
       if ($1 !~ /^100(644|755) [0-9a-f]+ 0$/) bad = 1
     }
@@ -63,7 +68,8 @@ list_digest() {
   : >"$art/digest-lines.txt"
   if [ "$#" -gt 0 ]; then
     sha_tool "$@" >"$art/digest-sums.txt" || return 1
-    awk -v list="$sorted_list" '
+    R5_LIST=$sorted_list awk '
+      BEGIN { list = ENVIRON["R5_LIST"] }
       {
         if (length($1) != 64 || $1 ~ /[^0-9a-f]/) exit 1
         if ((getline path < list) <= 0) exit 1
@@ -76,8 +82,8 @@ list_digest() {
 }
 
 paths_under() {
-  awk -v prefixes="$*" '
-    BEGIN { FS = "\t"; n = split(prefixes, prefix, " ") }
+  R5_PREFIXES=$* awk '
+    BEGIN { FS = "\t"; n = split(ENVIRON["R5_PREFIXES"], prefix, " ") }
     {
       probe = $2
       if (substr(probe, 1, 1) == "\"") probe = substr(probe, 2)
@@ -207,7 +213,7 @@ compare_table() {
 }
 
 match_layout() {
-  awk -v tracked="$art/tracked.txt" -v outside="$art/outside.txt" -v unmatched="$1" '
+  R5_TRACKED=$art/tracked.txt R5_OUTSIDE=$art/outside.txt R5_UNMATCHED=$1 awk '
     function bad(why) { printf "line %d: %s\n", NR, why > "/dev/stderr"; failed = 1; exit 1 }
     function regex(p,   r, i, c) {
       r = "^"
@@ -235,6 +241,9 @@ match_layout() {
     }
     BEGIN {
       FS = "\t"
+      tracked = ENVIRON["R5_TRACKED"]
+      outside = ENVIRON["R5_OUTSIDE"]
+      unmatched = ENVIRON["R5_UNMATCHED"]
       known = split("docs/r5/ scripts/r5/ scripts/r5-gate/ formal/r5-admit/ tools/r5-trials/ fixtures/r5/ crates/halvo-learn/ crates/halvo-learn-store/ crates/halvo-learn-gate/", l13, " ")
       for (i = 1; i <= known; i++) of_l13[l13[i]] = 1
     }
@@ -293,12 +302,12 @@ measure() {
     repo=$CI_D_REPO
   else
     here=$(dirname "$0")
-    repo=$(cd -P "$here/../../.." && pwd -P) || exit 2
+    repo=$(cd -P -- "$here/../../.." && pwd -P) || finish scratch
   fi
   art=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
-  mkdir -p "$art" || exit 2
-  art=$(cd -P "$art" && pwd -P) || exit 2
-  cd "$repo" || exit 2
+  mkdir -p -- "$art" || finish scratch
+  art=$(cd -P -- "$art" && pwd -P) || finish scratch
+  cd -- "$repo" || finish scratch
 
   command -v git >/dev/null 2>&1 || finish git
   git -c core.quotepath=on ls-files >"$art/tracked.txt" 2>"$art/git-error.txt" || finish git
@@ -378,11 +387,11 @@ d_crates=02f94b0a4459fffc17c91782e0e4f79ff6cc18d459add74ff41ce3f1da4f9f37
 d_tree=09784fa0279a0512247c46f7747fe60f2bed374e
 
 commit_all() {
-  git -C "$1" add -A || exit 2
-  t=$(git -C "$1" write-tree) || exit 2
+  git -C "$1" add -A || broken
+  t=$(git -C "$1" write-tree) || broken
   c=$(printf 'tree %s\nauthor fixture <fixture@example.invalid> 1 +0000\ncommitter fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$t" |
-    git -C "$1" hash-object -t commit -w --stdin) || exit 2
-  git -C "$1" update-ref HEAD "$c" || exit 2
+    git -C "$1" hash-object -t commit -w --stdin) || broken
+  git -C "$1" update-ref HEAD "$c" || broken
 }
 
 freeze_text() {
@@ -392,9 +401,9 @@ freeze_text() {
 
 fixture() {
   r=$work/$1
-  mkdir -p "$r/docs/r5" "$r/fixtures/r5/cases/dev" "$r/tools/r5-trials/stat" "$r/tools/r5-trials/drift" "$r/scripts/r5" || exit 2
-  git init -q "$r" || exit 2
-  git -C "$r" config core.autocrlf false || exit 2
+  mkdir -p "$r/docs/r5" "$r/fixtures/r5/cases/dev" "$r/tools/r5-trials/stat" "$r/tools/r5-trials/drift" "$r/scripts/r5" || broken
+  git init -q "$r" || broken
+  git -C "$r" config core.autocrlf false || broken
   printf '[gate]\ndev_critical = 7\n' >"$r/docs/r5/targets.toml"
   printf '# cases\n' >"$r/docs/r5/cases.md"
   printf 'case a\n' >"$r/fixtures/r5/cases/dev/a.jsonl"
@@ -412,7 +421,7 @@ fixture() {
   if [ "${2:-}" != no-commit ]; then
     commit_all "$r"
   else
-    git -C "$r" add -A || exit 2
+    git -C "$r" add -A || broken
   fi
 }
 
@@ -421,7 +430,7 @@ check() {
   want=$2
   text=$3
   shift 3
-  out=$(PATH=$path CI_D_REPO=$work/$case_name CI_D_ARTIFACTS=$work/artifacts-$case_name sh "$self" "$@" 2>&1)
+  out=$(PATH=$path CI_D_REPO=$work/$case_name CI_D_ARTIFACTS=${artifacts:-$work/artifacts-$case_name} sh "$self" "$@" 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -443,12 +452,14 @@ check() {
     rejected=$((rejected + 1))
   fi
   path=$PATH
+  artifacts=
 }
 
 self_test() {
   self=$0
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken
   path=$PATH
+  artifacts=
   rejected=0
   wrong=
   line='layout roots=9 patterns=9 files=8 outside=0'
@@ -460,13 +471,13 @@ layout unmatched=1" --all
 
   fixture stray-path
   printf 'stray\n' >"$work/stray-path/docs/r5/stray.txt"
-  git -C "$work/stray-path" add docs/r5/stray.txt || exit 2
+  git -C "$work/stray-path" add docs/r5/stray.txt || broken
   check stray-path FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
 
   fixture stray-below-a-star
-  mkdir -p "$work/stray-below-a-star/tools/r5-trials/drift/sub" || exit 2
+  mkdir -p "$work/stray-below-a-star/tools/r5-trials/drift/sub" || broken
   printf 'stray\n' >"$work/stray-below-a-star/tools/r5-trials/drift/sub/x.txt"
-  git -C "$work/stray-below-a-star" add tools/r5-trials/drift/sub/x.txt || exit 2
+  git -C "$work/stray-below-a-star" add tools/r5-trials/drift/sub/x.txt || broken
   check stray-below-a-star FAIL-outside 'files=9 outside=1 targets=miss'
 
   fixture freeze-targets-differs
@@ -475,9 +486,9 @@ layout unmatched=1" --all
 
   fixture freeze-differs-and-grep-cannot-run
   freeze_text "0${d_targets#?}" >"$work/freeze-differs-and-grep-cannot-run/docs/r5/freeze.toml"
-  mkdir -p "$work/stub-grep" || exit 2
+  mkdir -p "$work/stub-grep" || broken
   printf '#!/bin/sh\nexit 2\n' >"$work/stub-grep/grep"
-  chmod +x "$work/stub-grep/grep" || exit 2
+  chmod +x "$work/stub-grep/grep" || broken
   path=$work/stub-grep:$PATH
   check freeze-differs-and-grep-cannot-run FAIL-targets "$line targets=miss learner=none harness=same"
 
@@ -490,13 +501,13 @@ layout unmatched=1" --all
   check drift-file-one-byte FAIL-targets 'targets=miss learner=none harness=same'
 
   fixture frozen-file-is-a-link-in-the-index
-  link=$(printf '%s' '../../../README.md' | git -C "$work/frozen-file-is-a-link-in-the-index" hash-object -w --stdin) || exit 2
-  git -C "$work/frozen-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,tools/r5-trials/stat/s.txt" || exit 2
+  link=$(printf '%s' '../../../README.md' | git -C "$work/frozen-file-is-a-link-in-the-index" hash-object -w --stdin) || broken
+  git -C "$work/frozen-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,tools/r5-trials/stat/s.txt" || broken
   check frozen-file-is-a-link-in-the-index FAIL-targets "$line targets=miss learner=none harness=same"
 
   fixture freeze-file-is-a-link-in-the-index
-  link=$(printf '%s' '../../README.md' | git -C "$work/freeze-file-is-a-link-in-the-index" hash-object -w --stdin) || exit 2
-  git -C "$work/freeze-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,docs/r5/freeze.toml" || exit 2
+  link=$(printf '%s' '../../README.md' | git -C "$work/freeze-file-is-a-link-in-the-index" hash-object -w --stdin) || broken
+  git -C "$work/freeze-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,docs/r5/freeze.toml" || broken
   check freeze-file-is-a-link-in-the-index FAIL-freeze "$line targets=miss learner=miss harness=same"
 
   fixture heldout-digits-differ
@@ -521,7 +532,7 @@ layout unmatched=1" --all
   check freeze-keys-out-of-order FAIL-freeze 'targets=miss learner=miss harness=same'
 
   fixture learner-same
-  mkdir -p "$work/learner-same/crates/halvo-learn/src" || exit 2
+  mkdir -p "$work/learner-same/crates/halvo-learn/src" || broken
   printf 'pub fn f() {}\n' >"$work/learner-same/crates/halvo-learn/src/lib.rs"
   printf '[learner]\ncrates = "%s"\n' "$d_crates" >>"$work/learner-same/docs/r5/freeze.toml"
   printf 'U1.2\tcrates/halvo-learn/**\n' >>"$work/learner-same/scripts/r5/layout.txt"
@@ -529,7 +540,7 @@ layout unmatched=1" --all
   check learner-same PASS 'layout roots=9 patterns=10 files=9 outside=0 targets=ok learner=ok harness=same'
 
   fixture learner-differs
-  mkdir -p "$work/learner-differs/crates/halvo-learn/src" || exit 2
+  mkdir -p "$work/learner-differs/crates/halvo-learn/src" || broken
   printf 'pub fn g() {}\n' >"$work/learner-differs/crates/halvo-learn/src/lib.rs"
   printf '[learner]\ncrates = "%s"\n' "$d_crates" >>"$work/learner-differs/docs/r5/freeze.toml"
   printf 'U1.2\tcrates/halvo-learn/**\n' >>"$work/learner-differs/scripts/r5/layout.txt"
@@ -544,7 +555,7 @@ layout unmatched=1" --all
   check harness-differs FAIL-harness "$line targets=ok learner=none harness=differ"
 
   fixture layout-missing
-  mv "$work/layout-missing/scripts/r5/layout.txt" "$work/layout-missing/layout.txt.moved" || exit 2
+  mv "$work/layout-missing/scripts/r5/layout.txt" "$work/layout-missing/layout.txt.moved" || broken
   check layout-missing FAIL-layout 'FAIL 10-r5-layout (layout)'
 
   fixture layout-pattern-under-no-root
@@ -556,40 +567,53 @@ layout unmatched=1" --all
   check layout-root-after-pattern FAIL-layout 'FAIL 10-r5-layout (layout)'
 
   fixture layout-tenth-root
-  awk 'NR == 9 { print; print "root\tnowhere/"; next } { print }' "$work/layout-tenth-root/scripts/r5/layout.txt" >"$work/layout-tenth-root.txt" || exit 2
-  cp "$work/layout-tenth-root.txt" "$work/layout-tenth-root/scripts/r5/layout.txt" || exit 2
+  awk 'NR == 9 { print; print "root\tnowhere/"; next } { print }' "$work/layout-tenth-root/scripts/r5/layout.txt" >"$work/layout-tenth-root.txt" || broken
+  cp "$work/layout-tenth-root.txt" "$work/layout-tenth-root/scripts/r5/layout.txt" || broken
   check layout-tenth-root FAIL-layout 'FAIL 10-r5-layout (layout)'
 
   fixture quoted-name-under-a-double-star
   printf 'U6.1\ttools/r5-trials/driver/**\n' >>"$work/quoted-name-under-a-double-star/scripts/r5/layout.txt"
-  mkdir -p "$work/quoted-name-under-a-double-star/tools/r5-trials/driver" || exit 2
+  mkdir -p "$work/quoted-name-under-a-double-star/tools/r5-trials/driver" || broken
   printf 'x\n' >"$work/quoted-name-under-a-double-star/tools/r5-trials/driver/$(printf 'caf\303\251').txt"
-  git -C "$work/quoted-name-under-a-double-star" add -A || exit 2
+  git -C "$work/quoted-name-under-a-double-star" add -A || broken
   check quoted-name-under-a-double-star PASS 'layout roots=9 patterns=10 files=9 outside=0 targets=ok'
 
   fixture quoted-name-under-no-pattern
   printf 'x\n' >"$work/quoted-name-under-no-pattern/docs/r5/$(printf 'caf\303\251').md"
-  git -C "$work/quoted-name-under-no-pattern" add -A || exit 2
+  git -C "$work/quoted-name-under-no-pattern" add -A || broken
   check quoted-name-under-no-pattern FAIL-outside 'files=9 outside=1 targets=ok'
 
   fixture root-spelled-in-another-case
-  blob=$(printf 'x\n' | git -C "$work/root-spelled-in-another-case" hash-object -w --stdin) || exit 2
-  git -C "$work/root-spelled-in-another-case" update-index --add --cacheinfo "100644,$blob,Docs/r5/targets.toml" || exit 2
+  blob=$(printf 'x\n' | git -C "$work/root-spelled-in-another-case" hash-object -w --stdin) || broken
+  git -C "$work/root-spelled-in-another-case" update-index --add --cacheinfo "100644,$blob,Docs/r5/targets.toml" || broken
   check root-spelled-in-another-case FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
 
   fixture no-freeze-no-heldout
-  mv "$work/no-freeze-no-heldout/docs/r5/freeze.toml" "$work/no-freeze-no-heldout/freeze.toml.moved" || exit 2
-  mv "$work/no-freeze-no-heldout/docs/r5/heldout.txt" "$work/no-freeze-no-heldout/heldout.txt.moved" || exit 2
+  mv "$work/no-freeze-no-heldout/docs/r5/freeze.toml" "$work/no-freeze-no-heldout/freeze.toml.moved" || broken
+  mv "$work/no-freeze-no-heldout/docs/r5/heldout.txt" "$work/no-freeze-no-heldout/heldout.txt.moved" || broken
   check no-freeze-no-heldout FAIL-freeze "$line targets=none learner=none harness=none"
 
   fixture freeze-with-learner-alone
   printf '[learner]\ncrates = "%s"\n' "$d_crates" >"$work/freeze-with-learner-alone/docs/r5/freeze.toml"
   check freeze-with-learner-alone FAIL-freeze "$line targets=none learner=miss harness=same"
 
+  fixture unknown-argument
+  check unknown-argument FAIL-usage 'FAIL 10-r5-layout (usage)' --no-such-argument
+
+  fixture artifacts-directory-cannot-be-made
+  printf 'a file\n' >"$work/artifacts-artifacts-directory-cannot-be-made"
+  check artifacts-directory-cannot-be-made FAIL-scratch 'FAIL 10-r5-layout (scratch)'
+
+  fixture stray-path-with-a-backslash-in-the-artifacts-path
+  printf 'stray\n' >"$work/stray-path-with-a-backslash-in-the-artifacts-path/docs/r5/stray.txt"
+  git -C "$work/stray-path-with-a-backslash-in-the-artifacts-path" add docs/r5/stray.txt || broken
+  artifacts=$work/back\\slash
+  check stray-path-with-a-backslash-in-the-artifacts-path FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
+
   fixture git-fails
-  mkdir -p "$work/stub" || exit 2
+  mkdir -p "$work/stub" || broken
   printf '#!/bin/sh\nexit 1\n' >"$work/stub/git"
-  chmod +x "$work/stub/git" || exit 2
+  chmod +x "$work/stub/git" || broken
   path=$work/stub:$PATH
   check git-fails FAIL-git 'FAIL 10-r5-layout (git)'
 
@@ -604,5 +628,5 @@ case ${1:-} in
   --self-test) self_test ;;
   --all) measure yes ;;
   '') measure no ;;
-  *) exit 64 ;;
+  *) finish usage ;;
 esac
