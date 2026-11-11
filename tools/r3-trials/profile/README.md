@@ -127,7 +127,7 @@ temporary directory; other new entries are counted, not named; builder-9's evide
 
 These runs on this Mac each gave the other result (one run each): those of the first three bullets
 at commit 03f4c53, the commit of the counted cells (builder-9's evidence `other-way/`), and the
-others at the commit that their bullet names:
+others where their bullet says:
 
 - `--leave-out all` and `--leave-out halvo_fx_session` gave `import=miss`; `--leave-out
   halvo_fx_device` gave `import=ok second_factor_asked_again=yes`.
@@ -145,8 +145,10 @@ others at the commit that their bullet names:
   (at af34d80).
 - A SIGTERM during browser B's start (0 and 75 files in profile B at the signal), during the sign-in,
   during the watch's tail and during the wait before the search each ended with
-  `notrun ... cause=signal`, exit 1, an empty scratch and no process (at e7c8f81). A file of mode 000
-  in the scratch gave `notrun ... cause=unreadable` and no `disk` line.
+  `notrun ... cause=signal`, exit 1, an empty scratch and no process. A file of mode 000 in the
+  scratch gave `notrun ... cause=unreadable` and no `disk` line. These runs ran in the work tree of
+  point 4 before its commit e7c8f81 was made: 52f8625 with the three files that e7c8f81 changes
+  (`profile-trial.rs`, `cdp.rs` and `cdp/session.rs`) changed.
 - A browser path that exits at once gave `notrun item=4 ... cause=browser_start` (at fd908e2).
 
 ## tree-peak on trees of known allocations
