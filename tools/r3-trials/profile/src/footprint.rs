@@ -92,28 +92,45 @@ pub trait Stopper {
 
 #[cfg(target_os = "macos")]
 pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measured> {
-    use r3_web::procs::{adopted, descendants, running, same, table, Proc};
     let start = now_us();
-    let mut child: Child = cmd.spawn()?;
-    let root = child.id();
+    let child: Child = cmd.spawn()?;
+    follow(child, start, stop, &mut |pid| unsafe {
+        libc::kill(pid as libc::c_int, libc::SIGTERM);
+    })
+}
+
+#[cfg(target_os = "macos")]
+enum Run {
+    Live(Child),
+    Ended(ExitStatus, Instant),
+}
+
+#[cfg(target_os = "macos")]
+fn follow(
+    child: Child,
+    start: u64,
+    stop: &dyn Stopper,
+    term: &mut dyn FnMut(u32),
+) -> std::io::Result<Measured> {
+    use r3_web::procs::{adopted, descendants, running, same, table, Proc};
     let first = table()?;
     let command_exe = first
         .iter()
-        .find(|p| p.pid == root)
+        .find(|p| p.pid == child.id())
         .and_then(|p| p.exe.clone());
     let mut m = Measured::default();
-    let mut seen: Vec<Proc> = first.into_iter().filter(|p| p.pid == root).collect();
+    let mut seen: Vec<Proc> = first.into_iter().filter(|p| p.pid == child.id()).collect();
     let mut taken: Vec<Proc> = Vec::new();
     let mut lifetime: std::collections::BTreeMap<u32, u64> = std::collections::BTreeMap::new();
-    let mut exited: Option<(ExitStatus, Instant)> = None;
+    let mut run = Run::Live(child);
     let mut signalled = false;
-    loop {
+    let status = loop {
         let fresh: Vec<Proc> = table()?
             .into_iter()
             .filter(|p| p.started_us >= start)
             .collect();
-        if seen.is_empty() {
-            seen.extend(fresh.iter().filter(|p| p.pid == root).cloned());
+        if let (true, Run::Live(child)) = (seen.is_empty(), &run) {
+            seen.extend(fresh.iter().filter(|p| p.pid == child.id()).cloned());
         }
         for p in descendants(&fresh, &seen) {
             if !seen.iter().any(|s| same(s, &p)) {
@@ -161,27 +178,37 @@ pub fn measure(cmd: &mut Command, stop: &dyn Stopper) -> std::io::Result<Measure
             parts.sort();
             m.parts = parts;
         }
-        if exited.is_none() {
-            if let Some(status) = child.try_wait()? {
-                exited = Some((status, Instant::now()));
-            }
+        let reaped = match &mut run {
+            Run::Live(child) => child.try_wait()?.map(|status| (status, child.id())),
+            Run::Ended(..) => None,
+        };
+        if let Some((status, pid)) = reaped {
+            seen.retain(|p| p.pid != pid);
+            run = Run::Ended(status, Instant::now());
         }
         if stop.stopped() && !signalled {
             signalled = true;
-            unsafe { libc::kill(root as libc::c_int, libc::SIGTERM) };
+            match &run {
+                Run::Live(child) => term(child.id()),
+                Run::Ended(..) => {
+                    for p in seen.iter().filter(|p| running(p)) {
+                        term(p.pid);
+                    }
+                }
+            }
         }
-        if let Some((_, at)) = exited {
+        if let Run::Ended(status, at) = &run {
             let living = members.iter().filter(|p| running(p)).count() as u64;
             if living == 0 || at.elapsed() > ORPHAN_WAIT {
                 m.left = living;
-                break;
+                break *status;
             }
         }
         std::thread::sleep(PERIOD);
-    }
+    };
     m.adopted = taken.len() as u64;
     m.lifetime_max_sum = lifetime.values().sum();
-    m.exit = exited.map(|(s, _)| exit_text(s)).unwrap_or_default();
+    m.exit = exit_text(status);
     Ok(m)
 }
 
@@ -328,5 +355,54 @@ mod tests {
             adoption_roots(Some(std::path::Path::new("/bin/sh")), &exes),
             vec![PathBuf::from("/Applications/Google Chrome.app")]
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    struct AfterEnd {
+        command: r3_web::procs::Proc,
+        ended: std::cell::Cell<Option<Instant>>,
+    }
+
+    #[cfg(target_os = "macos")]
+    impl Stopper for AfterEnd {
+        fn stopped(&self) -> bool {
+            if r3_web::procs::running(&self.command) {
+                return false;
+            }
+            let at = self.ended.get().unwrap_or_else(Instant::now);
+            self.ended.set(Some(at));
+            at.elapsed() > Duration::from_millis(500)
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_stop_after_the_command_ended_signals_the_living_member_and_not_the_command() {
+        let start = now_us();
+        let child = Command::new("/bin/sh")
+            .args(["-c", "/bin/sleep 30 & /bin/sleep 1"])
+            .spawn()
+            .unwrap();
+        let root = child.id();
+        let command = r3_web::procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == root)
+            .expect("the command is in the table");
+        let stop = AfterEnd {
+            command,
+            ended: std::cell::Cell::new(None),
+        };
+        let mut sent: Vec<u32> = Vec::new();
+        let m = follow(child, start, &stop, &mut |pid| {
+            sent.push(pid);
+            if pid != root {
+                unsafe { libc::kill(pid as libc::c_int, libc::SIGTERM) };
+            }
+        })
+        .unwrap();
+        assert!(!sent.contains(&root), "sent={sent:?} root={root}");
+        assert!(!sent.is_empty(), "{m:?}");
+        assert_eq!((m.exit.as_str(), m.left), ("0", 0), "sent={sent:?} {m:?}");
     }
 }
