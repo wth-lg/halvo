@@ -28,16 +28,51 @@ pub enum RunEvent {
     /// A handback request.
     Handback(HandbackAsk),
     /// A progress frame: the step and the count of steps.
-    Progress {
-        /// `step`.
-        step: u32,
-        /// `of`.
-        of: u32,
-    },
+    Progress(Progress),
     /// A request of a type that A-A6.2 does not list.
     Other,
     /// The runner's end.
     Ended(Option<Outcome>),
+}
+
+/// The `step` and the `of` of a progress frame (A-A6.2), the step at most the total.
+///
+/// ```
+/// use halvo_coord::types::{Progress, RunEvent};
+/// let event = RunEvent::Progress(Progress::new(3, 3).unwrap());
+/// ```
+///
+/// A progress is made only by `new`, so a step above its total cannot be written:
+///
+/// ```compile_fail,E0451
+/// use halvo_coord::types::{Progress, RunEvent};
+/// let event = RunEvent::Progress(Progress { step: 9, of: 3 });
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Progress {
+    step: u32,
+    of: u32,
+}
+
+impl Progress {
+    /// The progress of `step` of `of`; `malformed` for a step above `of`.
+    pub fn new(step: u32, of: u32) -> Result<Progress, Cause> {
+        if step <= of {
+            Ok(Progress { step, of })
+        } else {
+            Err(Cause::Malformed)
+        }
+    }
+
+    /// `step`.
+    pub fn step(self) -> u32 {
+        self.step
+    }
+
+    /// `of`.
+    pub fn of(self) -> u32 {
+        self.of
+    }
 }
 
 /// A confirm request of A-A6.3 with the comparison of I4.4 added (I5.10): one entry per

@@ -348,6 +348,15 @@ fn an_item_that_a_run_raises_names_its_run() {
 }
 
 #[test]
+fn a_progress_has_its_step_at_most_its_total() {
+    assert_eq!(Progress::new(4, 3), Err(Cause::Malformed));
+    assert_eq!(Progress::new(u32::MAX, 0), Err(Cause::Malformed));
+    let p = Progress::new(3, 3).unwrap();
+    assert_eq!((p.step(), p.of()), (3, 3));
+    assert!(Progress::new(1, 3).is_ok());
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),

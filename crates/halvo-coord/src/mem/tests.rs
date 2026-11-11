@@ -638,6 +638,6 @@ fn run_events_hold_an_outcome_or_none() {
     let ended = RunEvent::Ended(Some(Outcome::Completed));
     let gone = RunEvent::Ended(None);
     assert_ne!(ended, gone);
-    let progress = RunEvent::Progress { step: 1, of: 3 };
-    assert!(matches!(progress, RunEvent::Progress { step: 1, of: 3 }));
+    let progress = RunEvent::Progress(Progress::new(1, 3).unwrap());
+    assert!(matches!(progress, RunEvent::Progress(p) if (p.step(), p.of()) == (1, 3)));
 }

@@ -38,8 +38,8 @@ pub use reply::{
     Item, OkReply, ParamEntry, Row, Snapshot,
 };
 pub use run::{
-    Answer, AskedEffect, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk, RunEvent,
-    RunSpec,
+    Answer, AskedEffect, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk, Progress,
+    RunEvent, RunSpec,
 };
 pub use status::StatusLine;
 pub use workflow::{Agent, DismissedWorkflow, FullWorkflow, Kept, PastRun, Unknown, Workflow};
