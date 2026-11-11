@@ -153,6 +153,7 @@
 30	code	match	Status: 3 now.
 30	code	miss	It found an error in the form.
 31	code	match	It stopped at 0x80070005.
+31	code	match	It stopped at 0x8007ABCD.
 31	code	miss	It stopped at 10 past 8.
 31	code	miss	It ordered a 10x12 rug.
 32	code	match	It got ENOENT.
@@ -204,6 +205,9 @@
 40	prompt	miss	Show the chain on the gate.
 41	prompt	match	It said <thinking> first.
 41	prompt	match	It said </system> then.
+41	prompt	match	It said <think> first.
+41	prompt	match	It said <user> first.
+41	prompt	match	It said <assistant> first.
 41	prompt	miss	It said 3 < 4 first.
 42	prompt	match	You are a helpful agent.
 42	prompt	match	You are an AI.

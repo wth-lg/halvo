@@ -721,6 +721,7 @@ function selfTest(dir, repo) {
           `// "${NEVER}"`,
           `const d = \`say "${NEVER}" here\`;`,
           `/* "${NEVER}" */ const e = "It is paused here";`,
+          'const g = "The agent needs you now";',
           '',
         ].join('\n');
         f['ui/app/index.html'] = `<p title='${NEVER}'>Hello</p>\n`;
@@ -729,11 +730,12 @@ function selfTest(dir, repo) {
     }),
     'PASS',
     {
-      lines: ['words other_views files=2 findings=3'],
+      lines: ['words other_views files=2 findings=4'],
       findings: [
         'finding file=ui/app/index.html line=1 rule=never_read class=model key=-',
         'finding file=ui/app/main.js line=1 rule=never_read class=model key=-',
         'finding file=ui/app/main.js line=6 rule=clash class=- key=-',
+        'finding file=ui/app/main.js line=7 rule=clash class=- key=-',
       ],
     },
   );
@@ -849,6 +851,74 @@ function selfTest(dir, repo) {
     'FAIL:setup',
     blocked,
   );
+  const row = (r) => (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| paused |', `${r}\n| paused |`));
+  const say = (text) => (w) => (w['line.time'] = text);
+  expect(fixture('list-with-an-empty-pattern', { files: (f) => (f[LIST] = `${copies[LIST]}model\t\n`) }), 'FAIL:list');
+  expect(fixture('a-term-with-a-point-matches-only-itself', { files: row('| a.m. | A test term. | billing | yes |'), words: say('Take aim. Then go.') }), 'PASS');
+  expect(fixture('a-term-with-a-point-clashes', { files: row('| a.m. | A test term. | billing | yes |'), words: say('It opens at 9 a.m. today.') }), 'FAIL:clash');
+  expect(fixture('a-digit-before-a-term-is-no-boundary', { words: say('Ref 1paused now.') }), 'PASS');
+  expect(fixture('an-underscore-after-a-term-is-no-boundary', { words: say('It is paused_ now.') }), 'PASS');
+  expect(fixture('a-duplicate-glossary-term', { files: row('| Paused | Twice. | capture | yes |') }), 'FAIL:glossary');
+  expect(fixture('a-glossary-term-in-code-font', { files: row('| `zzz` | A test term. | capture | yes |') }), 'FAIL:glossary');
+  expect(fixture('a-glossary-run-outside-the-list', { files: row('| zzz | A test term. | captur | yes |') }), 'FAIL:glossary');
+  expect(fixture('a-glossary-reserved-value-outside-yes-and-no', { files: row('| zzz | A test term. | capture | Yes |') }), 'FAIL:glossary');
+  expect(
+    fixture('glossary-rows-after-the-table-are-not-read', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n\n| a | b |\n`) }),
+    'PASS',
+  );
+  expect(fixture('an-empty-allowed-list', { files: (f) => (f[ALLOWED] = '') }), 'FAIL:allowed');
+  expect(fixture('an-allowed-term-of-this-run', { files: (f) => (f[ALLOWED] = 'control.delete\tNeeds you\n') }), 'FAIL:allowed');
+  expect(
+    fixture('a-number-where-a-fixture-sentence-stands', {
+      state: (s, doc) => {
+        if (s === 'ten') doc.snapshot.rows[0].line = 5;
+      },
+    }),
+    'FAIL:input',
+  );
+  expect(
+    fixture('a-list-where-a-fixture-sentence-stands', {
+      state: (s, doc) => {
+        if (s === 'ten') doc.snapshot.rows[0].name = [NEVER];
+      },
+    }),
+    'FAIL:input',
+  );
+  expect(fixture('a-number-in-the-table', { words: (w) => (w['line.time'] = 5) }), 'FAIL:input');
+  expect(
+    fixture('an-object-where-a-list-stands', {
+      state: (s, doc) => {
+        if (s === 'ten') doc.snapshot.rows[0].controls = {};
+      },
+    }),
+    'FAIL:input',
+  );
+  const crlf = (t) => t.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
+  expect(
+    fixture('lists-and-a-view-with-crlf-line-ends-pass', {
+      files: (f) => {
+        for (const rel of [LIST, ALLOWED, GLOSSARY]) f[rel] = crlf(copies[rel]);
+        f['ui/app/views/needs.js'] = crlf(view(''));
+      },
+    }),
+    'PASS',
+    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`] },
+  );
+  expect(
+    fixture('two-classes-in-one-sentence-count-twice', { words: say('Claude saved it to /Users/ann/x.') }),
+    'FAIL:never_read',
+    { lines: [`words sentences=${5 + 18 * 19} never_read=2 long=0 clash=0`] },
+  );
+  expect(fixture('ui-app-that-is-a-file', { files: (f) => (f['ui/app'] = 'x\n') }), 'FAIL:input');
+  expect(
+    fixture('delete-in-a-row-line-clashes', {
+      state: (s, doc) => {
+        if (s === 'off') doc.snapshot.rows[0].line = 'It will delete your workflow.';
+      },
+    }),
+    'FAIL:clash',
+  );
+  expect(fixture('a-lone-point-is-a-word', { words: say(`${Array.from({ length: 20 }, () => 'word').join(' ')} .`) }), 'FAIL:long');
   expect(
     fixture('heading-line-without-its-comma', {
       files: (f) => {
