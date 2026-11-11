@@ -1370,6 +1370,10 @@ dependencies = [
 [[package]]
 name = "halvo-cap"
 version = "0.0.0"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "halvo-capture"
