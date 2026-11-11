@@ -17,8 +17,9 @@ pub use kinds::{Coarse, FieldType, KindEntry, Origin, RetentionClass};
 pub use record::{
     AddressFieldLayer, Confidence, DismissedWorkflow, Episode, Evidence, EvidencePage, FloorLayer,
     FullWorkflow, InputClass, Instant, KeyCounts, ObservedStep, Ordinal, Part, PointerCounts,
-    Recurrence, Summary, Support, Tagged, Text, TextLayer, Trigger, Workflow, WorkflowItem,
-    WorkflowState, WorkflowsPage,
+    Proposal, Recurrence, RecurrenceStep, RowRead, Summary, SummaryRead, Support, Tagged, Text,
+    TextLayer, Trigger, TypedRecord, Workflow, WorkflowItem, WorkflowState, WorkflowsPage,
+    WriterStep,
 };
 pub use request::{
     AnalysisRole, AnalysisWrite, CoordinatorBody, CoordinatorRole, CoordinatorWrite, Decision,

@@ -646,6 +646,52 @@ strict_struct! {
     }
 }
 
+/// The read trait over bounded summaries. `for_each` visits every stored summary inside its bound once, in
+/// ascending order of `day`, then of summary id. The recurrence step reads summaries through it and nothing else.
+pub trait SummaryRead {
+    fn for_each(&self, visit: &mut dyn FnMut(&Summary));
+}
+
+/// A proposal of the recurrence step: a workflow with no id, which halvo-derived mints when it stores one, and the
+/// ids of the summaries that support it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Proposal {
+    pub category: SeedCategory,
+    pub site: Option<SiteValue>,
+    pub app: AppId,
+    pub trigger: Trigger,
+    pub recurrence: Recurrence,
+    pub confidence: Confidence,
+    pub summaries: Vec<SummaryId>,
+}
+
+/// The recurrence step, a pure function: it reads summaries through `SummaryRead` alone, with no evidence, no
+/// clock and no workflow, so the same summaries give the same proposals in the same order. A host puts it first.
+pub trait RecurrenceStep {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal>;
+}
+
+/// A record of a registered kind as a step or a handler returns it: the kind name and the serialized record, which
+/// the store commits by the typed commit after `kinds::check_record`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypedRecord {
+    pub kind: &'static str,
+    pub json: String,
+}
+
+/// The read of the rows of the own family of a step or of a handler, as they stand at its call: `for_each` visits
+/// the serialized rows of one registered kind of that family, each once, in ascending byte order of the
+/// serialized rows, and nothing for a kind that is not registered or belongs to another family.
+pub trait RowRead {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str));
+}
+
+/// A step after the recurrence step: after each committed batch it reads the summaries and the rows of its own
+/// family and returns records that the store commits by the typed commit in one further transaction.
+pub trait WriterStep {
+    fn after_commit(&self, summaries: &dyn SummaryRead, rows: &dyn RowRead) -> Vec<TypedRecord>;
+}
+
 fn coarse<T: Coarse>(_: &T) {
     assert_coarse::<T>()
 }
