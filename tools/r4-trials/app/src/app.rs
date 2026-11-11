@@ -15,7 +15,7 @@ use tauri::{Webview, Window, WindowEvent, Wry};
 use crate::control::{self, Answer, ErrCause, Line, SHOW_BOUND, WINDOW_BOUND};
 use crate::pages::{self, SCHEME};
 use crate::sync::{self, Change, Hub};
-use crate::waits::{self, Reports, Waited};
+use crate::waits::{self, Reports};
 use crate::{Arm, Options, SyncWay};
 
 /// The label of the trial's one window.
@@ -32,7 +32,6 @@ struct PageState {
     alive: bool,
     loaded: bool,
     pending_show: Option<u64>,
-    last_counts: Option<(u64, u64)>,
 }
 
 /// The core of the trial app: it answers the control lines and the page's calls.
@@ -41,7 +40,7 @@ pub struct TrialCore {
     options: Options,
     page: Mutex<PageState>,
     frames: Reports<()>,
-    counts: Reports<(u64, u64)>,
+    counts: waits::Counts,
     hub: Hub,
     channel: Mutex<Option<Channel<Change>>>,
     sending: AtomicBool,
@@ -83,10 +82,9 @@ pub(crate) fn make(options: Options, listener: std::net::TcpListener) -> tauri::
                     alive: false,
                     loaded: false,
                     pending_show: None,
-                    last_counts: None,
                 }),
                 frames: Reports::default(),
-                counts: Reports::default(),
+                counts: waits::Counts::default(),
                 hub: Hub::default(),
                 channel: Mutex::new(None),
                 sending: AtomicBool::new(false),
@@ -144,9 +142,8 @@ impl TrialCore {
             thread::sleep(Duration::from_millis(10));
         }
         {
-            let mut page = self.page();
-            page.loaded = false;
-            page.last_counts = None;
+            self.page().loaded = false;
+            self.counts.forget();
         }
         let window = builder.build()?;
         self.page().alive = true;
@@ -256,9 +253,8 @@ impl TrialCore {
     }
 
     fn forget_page(&self) {
-        let mut page = self.page();
-        page.loaded = false;
-        page.last_counts = None;
+        self.page().loaded = false;
+        self.counts.forget();
         *self.channel.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
@@ -296,16 +292,15 @@ impl TrialCore {
     }
 
     fn read_counts(&self, window: &WebviewWindow) -> Option<(u64, u64)> {
-        let token = self.counts.begin();
-        Self::eval(
-            window,
-            &format!("window.__r4AppCounts && window.__r4AppCounts({token})"),
-        );
-        match self.counts.wait(token, COUNTS_WAIT) {
-            Waited::Reported(counts) => Some(counts),
-            Waited::Ended | Waited::TimedOut => None,
-        }
-        .or_else(|| self.page().last_counts)
+        self.counts.read(
+            |token| {
+                Self::eval(
+                    window,
+                    &format!("window.__r4AppCounts && window.__r4AppCounts({token})"),
+                )
+            },
+            COUNTS_WAIT,
+        )
     }
 
     fn send(self: &Arc<Self>, count: u64, per_second: u64) -> Answer {
@@ -362,7 +357,7 @@ impl TrialCore {
         match event {
             PageLoadEvent::Started => {
                 page.loaded = false;
-                page.last_counts = None;
+                self.counts.forget();
             }
             PageLoadEvent::Finished => {
                 page.loaded = true;
@@ -480,7 +475,6 @@ fn frame(core: State<'_, Arc<TrialCore>>, gen: u64) {
 
 #[tauri::command]
 fn counts(core: State<'_, Arc<TrialCore>>, token: u64, ticks: u64, frames: u64) {
-    core.page().last_counts = Some((ticks, frames));
     core.counts.deliver(token, (ticks, frames));
 }
 

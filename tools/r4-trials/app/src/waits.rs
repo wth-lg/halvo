@@ -113,6 +113,39 @@ impl<T: Clone> Reports<T> {
     }
 }
 
+/// The page's two counters, `ticks` and `frames`, as the core reads them for `sample`: one
+/// request under a token, and the page's report of that token.
+#[derive(Default)]
+pub struct Counts {
+    reports: Reports<(u64, u64)>,
+    last: Mutex<Option<(u64, u64)>>,
+}
+
+impl Counts {
+    /// Asks the page for its counts with `ask(token)` and waits for the report of that token
+    /// for at most `bound`.
+    pub fn read(&self, ask: impl FnOnce(u64), bound: Duration) -> Option<(u64, u64)> {
+        let token = self.reports.begin();
+        ask(token);
+        match self.reports.wait(token, bound) {
+            Waited::Reported(counts) => Some(counts),
+            Waited::Ended | Waited::TimedOut => None,
+        }
+        .or_else(|| *self.last.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+
+    /// Takes the page's report of `token`; returns whether `token` was the newest.
+    pub fn deliver(&self, token: u64, counts: (u64, u64)) -> bool {
+        *self.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(counts);
+        self.reports.deliver(token, counts)
+    }
+
+    /// Drops what the core knows of a page that went.
+    pub fn forget(&self) {
+        *self.last.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+}
+
 /// Calls `done` every 20 ms until it returns `true` or `bound` has passed since the first call;
 /// returns whether it returned `true`.
 pub fn until(bound: Duration, mut done: impl FnMut() -> bool) -> bool {
