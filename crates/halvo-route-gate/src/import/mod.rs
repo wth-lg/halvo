@@ -59,7 +59,8 @@ pub enum SourceError {
     /// The file does not hold exactly two fence lines, an opening and then a closing.
     Block(Input),
     /// The driver block holds no line or more than one line that starts `verdict`, or the
-    /// verdict's driver or writer lacks an attempt line of the set or has a further one.
+    /// verdict's driver or writer lacks an attempt line of the set or has a further one, or lacks
+    /// one of its `drive` or `reply` lines.
     Verdict,
 }
 
@@ -136,7 +137,8 @@ impl Imported {
 
 /// Parses both trial files and makes the four files, or names the first fault: the driver file
 /// before the cells file, each in line order; after the lines of the driver block a gap of the
-/// numbering, the count of verdict lines and the set of the verdict's driver and writer.
+/// numbering, the count of verdict lines, the set of the verdict's driver and writer and their
+/// `drive` and `reply` lines.
 pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceError> {
     let block_of = |input: Input, bytes| {
         block(bytes).map_err(|fault| match fault {
@@ -148,6 +150,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     let mut attempts = set::Attempts::new();
     let mut replays = Vec::new();
     let mut verdicts = Vec::new();
+    let mut said = Vec::new();
     for line in block_of(Input::Driver, driver.bytes)? {
         let fault = SourceError::Line(Input::Driver, line.number);
         if line.bytes.starts_with(lines::ATTEMPT) {
@@ -166,6 +169,8 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
             verdicts.push(lines::verdict(line.bytes).ok_or(fault)?);
         } else if line.bytes.starts_with(lines::BOUND) {
             return Err(fault);
+        } else if line.bytes.starts_with(lines::DRIVE) || line.bytes.starts_with(lines::REPLY) {
+            said.push((line.number, line.bytes));
         }
     }
     if let Some(number) = set::gap(&replays, &attempts) {
@@ -175,6 +180,10 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     if !set::holds(&verdict, &attempts) {
         return Err(SourceError::Verdict);
     }
+    set::verdict_lines(&verdict, &said, &attempts).map_err(|unsaid| match unsaid {
+        set::Unsaid::Line(number) => SourceError::Line(Input::Driver, number),
+        set::Unsaid::Missing => SourceError::Verdict,
+    })?;
     let mut bounds = Vec::new();
     let mut pairs: HashSet<(Model, Machine)> = HashSet::new();
     for line in block_of(Input::Cells, cells.bytes)? {

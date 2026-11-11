@@ -255,3 +255,115 @@ pub fn bound(line: &[u8]) -> Option<Bound> {
         fits,
     })
 }
+
+/// The start of a `drive` line of AS-A13.6.
+pub const DRIVE: &[u8] = b"drive model=";
+/// The start of a `reply` line of AS-A13.6.
+pub const REPLY: &[u8] = b"reply model=";
+
+/// The model that a line which starts with `head` names, the bytes after `head` up to the next
+/// space or the end of the line.
+pub fn named<'a>(line: &'a [u8], head: &[u8]) -> Option<&'a [u8]> {
+    let rest = line.strip_prefix(head)?;
+    Some(rest.split(|byte| *byte == b' ').next().unwrap_or(rest))
+}
+
+/// A `drive` line: one cell of the driver trial, the five runs of one task, machine and seed.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Drive {
+    pub machine: Machine,
+    pub task: Task,
+    pub seed: Seed,
+    pub compile: bool,
+    pub replays_ok: u64,
+    pub recover: bool,
+    pub typed_credential: u64,
+    pub effects_without_confirm: u64,
+}
+
+fn ok_or_miss(text: &str) -> Option<bool> {
+    match text {
+        "ok" => Some(true),
+        "miss" => Some(false),
+        _ => None,
+    }
+}
+
+/// `drive model=<token> machine=<m> task=<t> seed=<n> compile=<ok|miss> replays_ok=<n> of=3
+/// recover=<ok|miss> steps=<n> wall_s=<n> model_tokens=<n> typed_credential=<n>
+/// effects_without_confirm=<n>` (AS-A13.6), read key by key as an attempt line is.
+pub fn drive(line: &[u8]) -> Option<Drive> {
+    let v = values(
+        line,
+        "drive ",
+        &[
+            "model",
+            "machine",
+            "task",
+            "seed",
+            "compile",
+            "replays_ok",
+            "of",
+            "recover",
+            "steps",
+            "wall_s",
+            "model_tokens",
+            "typed_credential",
+            "effects_without_confirm",
+        ],
+    )?;
+    model(v[0])?;
+    let task = match Task::parse(v[2]).ok()? {
+        Task::Gen => return None,
+        task => task,
+    };
+    (v[6] == "3").then_some(())?;
+    figure(v[8])?;
+    figure(v[9])?;
+    figure(v[10])?;
+    Some(Drive {
+        machine: machine(v[1])?,
+        task,
+        seed: Seed::parse(v[3]).ok()?,
+        compile: ok_or_miss(v[4])?,
+        replays_ok: figure(v[5])?,
+        recover: ok_or_miss(v[7])?,
+        typed_credential: figure(v[11])?,
+        effects_without_confirm: figure(v[12])?,
+    })
+}
+
+/// A `reply` line: the reply run of one machine and seed.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Reply {
+    pub machine: Machine,
+    pub seed: Seed,
+    pub bodies: u64,
+}
+
+/// `reply model=<token> machine=<m> seed=<n> bodies=<n> of=2 wall_s=<n> model_tokens=<n>`
+/// (AS-A13.6), read key by key as an attempt line is.
+pub fn reply(line: &[u8]) -> Option<Reply> {
+    let v = values(
+        line,
+        "reply ",
+        &[
+            "model",
+            "machine",
+            "seed",
+            "bodies",
+            "of",
+            "wall_s",
+            "model_tokens",
+        ],
+    )?;
+    model(v[0])?;
+    (v[4] == "2").then_some(())?;
+    figure(v[5])?;
+    figure(v[6])?;
+    Some(Reply {
+        machine: machine(v[1])?,
+        seed: Seed::parse(v[2]).ok()?,
+        bodies: figure(v[3])?,
+    })
+}

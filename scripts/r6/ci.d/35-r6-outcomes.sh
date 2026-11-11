@@ -245,7 +245,7 @@ FAIL $name (stale)"
   check source-file-missing FAIL "stale=1
 FAIL $name (stale)"
   fixture driver-pass-flipped-table-not-imported full
-  edit driver.md 's/^\(attempt model=m_small machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=no /'
+  edit driver.md 's/^\(attempt model=m_tiny machine=mac task=bill seed=1 kind=compile i=1 \)pass=yes /\1pass=no /'
   rehash driver.md 2
   check driver-pass-flipped-table-not-imported FAIL "outcomes rows=132 models=6 sources=2 same=no stale=0
 FAIL $name (differs)"

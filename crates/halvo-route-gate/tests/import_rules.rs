@@ -974,6 +974,171 @@ fn a_model_that_is_neither_driver_nor_writer_may_have_compile_lines_alone() {
     assert_eq!(got.stdout, "import rows=66 models=1 sources=2\n");
 }
 
+fn changed(lines: &[String], n: usize, from: &str, to: &str) -> Vec<String> {
+    let mut lines = lines.to_vec();
+    assert!(lines[n].contains(from), "{} holds no {from}", lines[n]);
+    lines[n] = lines[n].replacen(from, to, 1);
+    lines
+}
+
+#[test]
+fn the_verdict_rests_on_the_drive_and_reply_lines_of_its_driver_and_writer() {
+    let verdict = "verdict driver=m_d path=A writer=m_d";
+    let lines = [driver_lines("m_d"), writer_lines("m_d")].concat();
+    assert!(lines[5].starts_with("drive model=m_d machine=mac task=bill seed=1 "));
+    assert!(lines[73].starts_with("reply model=m_d machine=mac seed=1 "));
+    run(&refs(&with(lines.clone(), verdict)), &[BOUND]).passed();
+    let mut dropped = lines.clone();
+    dropped.remove(5);
+    let mut no_reply = lines.clone();
+    no_reply.remove(73);
+    let mut wrong = Vec::new();
+    for (what, lines, want) in [
+        (
+            "compile=miss",
+            changed(&lines, 5, "compile=ok", "compile=miss"),
+            "driver:8",
+        ),
+        (
+            "replays_ok=2",
+            changed(&lines, 5, "replays_ok=3", "replays_ok=2"),
+            "driver:8",
+        ),
+        (
+            "recover=miss",
+            changed(&lines, 5, "recover=ok", "recover=miss"),
+            "driver:8",
+        ),
+        (
+            "typed_credential=1",
+            changed(&lines, 5, "typed_credential=0", "typed_credential=1"),
+            "driver:8",
+        ),
+        (
+            "effects_without_confirm=1",
+            changed(
+                &lines,
+                5,
+                "effects_without_confirm=0",
+                "effects_without_confirm=1",
+            ),
+            "driver:8",
+        ),
+        ("a drive line missing", dropped, "driver:verdict"),
+        (
+            "compile=ok beside a compile attempt with pass=no",
+            changed(&lines, 0, "pass=yes", "pass=no"),
+            "driver:8",
+        ),
+        (
+            "compile=miss beside a compile attempt with pass=yes",
+            changed(&lines, 5, "compile=ok", "compile=miss"),
+            "driver:8",
+        ),
+        (
+            "replays_ok=3 beside two passing replays",
+            changed(&lines, 2, "pass=yes", "pass=no"),
+            "driver:8",
+        ),
+        (
+            "recover=ok beside a recover attempt with pass=no",
+            changed(&lines, 4, "pass=yes", "pass=no"),
+            "driver:8",
+        ),
+        (
+            "a reply line with bodies=1",
+            changed(&lines, 73, "bodies=2", "bodies=1"),
+            "driver:76",
+        ),
+        ("a reply line missing", no_reply, "driver:verdict"),
+        (
+            "a drive line with a further key",
+            changed(
+                &lines,
+                5,
+                " effects_without_confirm=0",
+                " effects_without_confirm=0 x=1",
+            ),
+            "driver:8",
+        ),
+        (
+            "a drive line with of=2",
+            changed(&lines, 5, " of=3 ", " of=2 "),
+            "driver:8",
+        ),
+        (
+            "a drive line with steps=03",
+            changed(&lines, 5, " steps=3 ", " steps=03 "),
+            "driver:8",
+        ),
+        (
+            "a drive line with the task reply",
+            with(lines.clone(), &lines[5].replace("task=bill", "task=reply")),
+            "driver:87",
+        ),
+        (
+            "a drive line twice",
+            with(lines.clone(), &lines[5]),
+            "driver:87",
+        ),
+        (
+            "a drive line named alone",
+            with(lines.clone(), "drive model=m_d"),
+            "driver:87",
+        ),
+        (
+            "a reply line with of=3",
+            changed(&lines, 73, " of=2 ", " of=3 "),
+            "driver:76",
+        ),
+        (
+            "a reply line twice",
+            with(lines.clone(), &lines[73]),
+            "driver:87",
+        ),
+    ] {
+        let got = run(&refs(&with(lines, verdict)), &[BOUND]);
+        let want = format!("REFUSED source: {want}\n");
+        if got.code != Some(2) || got.stderr != want {
+            wrong.push(format!("{what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+
+    let mut others = driver_lines("m_d");
+    others.extend([
+        "drive model=m_x machine=mac task=bill seed=1 compile=miss".to_owned(),
+        "drive model=m_dd machine=mac task=bill seed=1 compile=miss".to_owned(),
+        "reply model=m_d machine=mac seed=1 bodies=0 of=2".to_owned(),
+        "reply model=m_x machine=mac seed=9".to_owned(),
+        "drive  model=m_d machine=mac".to_owned(),
+    ]);
+    run(
+        &refs(&with(others, "verdict driver=m_d path=A writer=none")),
+        &[BOUND],
+    )
+    .passed();
+}
+
+#[test]
+fn a_verdict_naming_a_driver_whose_own_lines_failed_is_refused() {
+    let full = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/r3/full");
+    let text = std::fs::read_to_string(full.join("driver.md")).expect("the golden driver file");
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(lines[169]
+        .starts_with("drive model=m_tiny machine=hosted-win task=order seed=2 compile=miss "));
+    let driver = text.replace(
+        "verdict driver=m_small path=A writer=m_small\n",
+        "verdict driver=m_tiny path=A writer=m_tiny\n",
+    );
+    assert_ne!(driver, text);
+    let cells = std::fs::read(full.join("model-cells.md")).expect("the golden cells file");
+    let got = run_files(driver.into_bytes(), cells);
+    assert_eq!(got.refused(), "REFUSED source: driver:170");
+}
+
 #[test]
 fn the_verdict_line_is_required_once() {
     let got = run(&[ATTEMPT], &[BOUND]);
