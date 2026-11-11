@@ -99,3 +99,4 @@ and merge without an entry landing under the heading of another.
 - Added: Add the router crate halvo-route with its tiers, call kinds, categories, line, price file and policy types, and the gate tool route-gate with its generator, scorer, self-test and the check 30-r6-table
 - Added: Keep LF line ends under docs/r6/ and scripts/r6/ in every clone, and say in docs/r6/README.md what its directories hold
 - Added: Add the gateway request crate halvo-route-wire, which reads and writes the body of a hosted model call and reads its two answers, with its limits, schema and vectors under docs/r6/gateway/ and the check 20-r6-gateway
+- Added: Record which of the four routing models may enter the model trials, with their licence lines and the size and SHA-256 of each 4-bit file that enters
