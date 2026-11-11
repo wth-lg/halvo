@@ -253,6 +253,7 @@ cases() {
   t standin-run-with-sources PASS against_the_standin typed operator
   t standin-operator-gave-no-input FAIL fails_saying 'the operator gave no input: the report of this run holds keystroke=0 pointer=0' against_the_standin ok operator
   t standin-run-with-no-input NO-INPUT against_the_standin ok none
+  t standin-input-under-none FAIL fails_saying 'input reached a run that was started with --input none: keystroke=5 pointer=7' against_the_standin typed none
   t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
   t standin-binary-hangs FAIL hanging_standin

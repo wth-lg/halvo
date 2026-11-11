@@ -319,11 +319,18 @@ predicate_sources_ran() {
 }
 
 input_defect() {
-  [ "$gate_input" = operator ] || return 0
   input_report=$1; shift
   input_keys=$(modality_count "$input_report" keystroke)
   input_points=$(modality_count "$input_report" pointer)
   input_counts="keystroke=${input_keys:-absent} pointer=${input_points:-absent}"
+  if [ "$gate_input" = none ]; then
+    case $input_keys:$input_points in
+      0:0) return 0 ;;
+      *[!0-9:]*|:*|*:) printf 'the report holds no one line modality=keystroke count and one line modality=pointer count, so it does not show that no input reached the run: %s\n' "$input_counts" ;;
+      *) printf 'input reached a run that was started with --input none: %s\n' "$input_counts" ;;
+    esac
+    return 1
+  fi
   for input_kind in "$@"; do
     case $input_kind in keystroke) input_count=$input_keys ;; *) input_count=$input_points ;; esac
     case $input_count in ''|*[!0-9]*|0) ;; *) continue ;; esac
