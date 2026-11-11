@@ -64,6 +64,25 @@ decide() {
   esac
 }
 
+long_cases() {
+  if [ "${CI_D_JOB:-}" != windows ]; then
+    printf '%s\n' run
+    return 0
+  fi
+  event=${GITHUB_EVENT_PATH:-}
+  if [ "${GITHUB_EVENT_NAME:-}" != push ] || [ -z "$event" ] || [ ! -f "$event" ]; then
+    printf '%s\n' 'run (no list of the changed files for this event)'
+  elif grep -Eq '"(created|forced)": *true' "$event"; then
+    printf '%s\n' 'run (the push creates or rewrites its branch)'
+  elif ! grep -Eq '"(added|removed|modified)": *\[' "$event"; then
+    printf '%s\n' 'run (the push lists no changed files)'
+  elif grep -Eq '"scripts/egress/[^"]*"|"scripts/r2/ci\.d/10-egress\.sh"' "$event"; then
+    printf '%s\n' 'run (the push changes a file of the check)'
+  else
+    printf '%s\n' skip
+  fi
+}
+
 run_one() {
   kind=$1
   mode=$2
@@ -101,6 +120,12 @@ measure() {
       run_one control "$mode" --control-no-deny
     done
   fi
+  cases=$(long_cases)
+  if [ "$cases" = skip ]; then
+    printf 'long cases skipped: the push changes no file under scripts/egress and not scripts/r2/ci.d/10-egress.sh\n'
+    printf 'PASS %s\n' "$name"
+    return 0
+  fi
   for mode in $modes; do
     if [ "${GITHUB_ACTIONS:-}" != true ] && [ "$mode" != sandbox ]; then
       continue
@@ -116,6 +141,17 @@ measure() {
     [ "$verdict" = pass ] || fail "test.sh $mode: $verdict"
   done
   printf 'PASS %s\n' "$name"
+}
+
+long_case() {
+  got=$(CI_D_JOB=$2 GITHUB_EVENT_NAME=$3 GITHUB_EVENT_PATH=$4 long_cases) || got=failed
+  got=${got%% *}
+  printf 'case %s/long-cases-%s want=%s got=%s\n' "$name" "$1" "$5" "$got"
+  if [ "$got" != "$5" ]; then
+    wrong="$wrong long-cases-$1"
+  elif [ "$5" = skip ]; then
+    rejected=$((rejected + 1))
+  fi
 }
 
 fixture() {
@@ -160,6 +196,20 @@ tests passed=15 failed=0' fail
   fixture tests-fail tests 1 'not ok sandbox/quiet: want 0 0 0, got 1 0 1
 tests passed=39 failed=1' fail
   fixture tests-exit-0-with-a-failure tests 0 'tests passed=39 failed=1' fail
+  events=$(mktemp -d "${TMPDIR:-/tmp}/egress-events.XXXXXX") || exit 1
+  printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["docs/r2/README.md"]}]}' >"$events/docs.json"
+  printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["scripts/egress/check.sh"]}]}' >"$events/egress.json"
+  printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["scripts/r2/ci.d/10-egress.sh"]}]}' >"$events/script.json"
+  printf '%s\n' '{"created": true, "forced": false, "commits": []}' >"$events/created.json"
+  printf '%s\n' '{"created": false, "forced": false, "commits": []}' >"$events/empty.json"
+  long_case docs-only windows push "$events/docs.json" skip
+  long_case check-changed windows push "$events/egress.json" run
+  long_case script-changed windows push "$events/script.json" run
+  long_case branch-created windows push "$events/created.json" run
+  long_case no-file-list windows push "$events/empty.json" run
+  long_case pull-request windows pull_request "$events/docs.json" run
+  long_case no-event windows push "$events/none.json" run
+  long_case macos-job macos push "$events/docs.json" run
   modes=$(modes_of macos) || modes=
   [ "$modes" = sandbox ] || wrong="$wrong modes-macos"
   modes=$(modes_of windows) || modes=

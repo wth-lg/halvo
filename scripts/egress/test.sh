@@ -549,6 +549,23 @@ test_wfp_rules() {
   left=$(wfp_rules)
   expect_run wfp/next-run-after-a-signal 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   result wfp/next-run-restores-what-a-signal-left "$before 0 left-before-next=yes" "$(wfp_state) $(wfp_rules) left-before-next=$([ "$left" != 0 ] && printf yes || printf no)"
+  wfp_reap_case
+}
+
+wfp_reap_case() {
+  sh scripts/egress/check.sh "$e" -- powershell.exe -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 12" >"$work/reap.out" 2>"$work/reap.err" &
+  reap_check=$!
+  n=0
+  while [ "$(wfp_rules)" = 0 ] && [ $n -lt 60 ]; do
+    sleep 0.5
+    n=$((n + 1))
+  done
+  kill -TERM "$reap_check"
+  wait "$reap_check"
+  left=$(wfp_rules)
+  MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/egress/wfp.ps1 -Action reap >/dev/null 2>&1
+  code=$?
+  result wfp/reap-call-restores-what-a-signal-left "$before 0 0 left-before-reap=yes" "$(wfp_state) $(wfp_rules) $code left-before-reap=$([ "$left" != 0 ] && printf yes || printf no)"
 }
 
 wfp_state() {
