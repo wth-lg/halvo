@@ -73,10 +73,13 @@ self_test() {
   scan scan-missing
   check scan-missing FAIL 'scripts/r1-gate/check-no-ll-hook.sh is missing)'
 
-  mkdir -p "$work/hook-line-in-the-tree/scripts" "$work/hook-line-in-the-tree/crates/halvo-capture/src/windows" || exit 2
+  mkdir -p "$work/hook-line-in-the-tree/scripts" "$work/hook-line-in-the-tree/crates/halvo-capture/src/windows" "$work/hook-line-in-the-tree/crates/halvo-capture/src/macos" "$work/hook-line-in-the-tree/src-tauri/src" || exit 2
+  printf 'let tap = CGEventTap::new(loc, place, CGEventTapOptions::ListenOnly, mask, cb);\n' >"$work/hook-line-in-the-tree/crates/halvo-capture/src/macos/input.rs"
+  printf 'fn main() {}\n' >"$work/hook-line-in-the-tree/src-tauri/src/main.rs"
   cp -R "$CI_D_REPO/scripts/r1-gate" "$work/hook-line-in-the-tree/scripts/" || exit 2
   printf 'let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(callback), module, 0);\n' >"$work/hook-line-in-the-tree/crates/halvo-capture/src/windows/input.rs"
-  check hook-line-in-the-tree FAIL 'FAIL no-ll-hook'
+  git init -q "$work/hook-line-in-the-tree" && git -C "$work/hook-line-in-the-tree" add -A || exit 2
+  check hook-line-in-the-tree FAIL 'FAIL no-ll-hook (source scan measured: windows-hook at crates/halvo-capture/src/windows/input.rs:1)'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

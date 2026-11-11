@@ -756,33 +756,38 @@ predicate_tree_lines() {
 
 source_rule() {
   rule=$1; rule_pattern=$2; rule_allowed=$3; rule_repo=$4
-  hits=$(grep -rnE --include='*.rs' -e "$rule_pattern" -- "$rule_repo/crates" "$rule_repo/src-tauri/src" 2>/dev/null)
-  case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: grep could not read the sources for rule %s\n' "$rule"; return 2 ;; esac
+  hits=$(git -C "$rule_repo" -c core.quotepath=off grep --cached -a -n -E -e "$rule_pattern" -- '*.rs' 2>/dev/null)
+  case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: git grep could not read the index for rule %s\n' "$rule"; return 2 ;; esac
   code_hits=$(printf '%s\n' "$hits" | grep -vE '^[^:]*:[0-9]+:[[:space:]]*//')
   case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: the comment filter failed for rule %s\n' "$rule"; return 2 ;; esac
   left=$(printf '%s\n' "$code_hits" | sed -e "$rule_allowed" | grep -E -e "$rule_pattern")
   case $? in 1) return 0 ;; 0) ;; *) printf 'not scanned: the second read failed for rule %s\n' "$rule"; return 2 ;; esac
   where=$(printf '%s\n' "$left" | sed -n '1s/^\([^:]*:[0-9]*\):.*/\1/p')
-  printf '%s at %s\n' "$rule" "${where#"$rule_repo"/}"
+  printf '%s at %s\n' "$rule" "$where"
   return 1
 }
 
 source_scan_defect() {
-  scan_repo=$1
-  for scan_root in crates src-tauri/src crates/halvo-capture/src/macos; do
-    [ -d "$scan_repo/$scan_root" ] || { printf 'not scanned: %s is missing\n' "$scan_root"; return 2; }
+  scan_repo=$(cd "$1" 2>/dev/null && pwd -P) || { printf 'not scanned: %s is missing\n' "$1"; return 2; }
+  scan_top=$(git -C "$scan_repo" rev-parse --show-toplevel 2>/dev/null)
+  [ "$scan_top" = "$scan_repo" ] || { printf 'not scanned: %s is not the top of a git work tree\n' "$1"; return 2; }
+  scan_index=$(git -C "$scan_repo" -c core.quotepath=off ls-files -s -- '*.rs' 2>/dev/null) || { printf 'not scanned: git could not read the index\n'; return 2; }
+  [ -n "$scan_index" ] || { printf 'not scanned: no .rs file\n'; return 2; }
+  scan_link=$(printf '%s\n' "$scan_index" | awk -F '\t' 'substr($1, 1, 7) == "120000 " { print $2; exit }')
+  [ -z "$scan_link" ] || { printf 'tracked symbolic link: %s\n' "$scan_link"; return 1; }
+  for scan_root in crates/ src-tauri/src/ crates/halvo-capture/src/macos/; do
+    printf '%s\n' "$scan_index" | awk -F '\t' -v root="$scan_root" 'index($2, root) == 1 { found = 1 } END { exit !found }' ||
+      { printf 'not scanned: no tracked .rs file under %s\n' "${scan_root%/}"; return 2; }
   done
-  first_rs=$(find "$scan_repo/crates" "$scan_repo/src-tauri/src" -type f -name '*.rs' 2>/dev/null | head -1)
-  [ -n "$first_rs" ] || { printf 'not scanned: no .rs file\n'; return 2; }
   source_rule windows-hook 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' 's/^//' "$scan_repo" || return $?
   source_rule active-tap 'CGEventTapOptions::|kCGEventTapOptionDefault|CGEventTapCreate|CGEventPost' 's/CGEventTapOptions::ListenOnly\([^A-Za-z0-9_]\)/\1/g; s/CGEventTapOptions::ListenOnly$//' "$scan_repo" || return $?
   source_rule audio-capture 'setCapturesAudio|setCaptureMicrophone|SCStreamOutputType::' 's/SCStreamOutputType::Screen\([^A-Za-z0-9_]\)/\1/g; s/SCStreamOutputType::Screen$//' "$scan_repo" || return $?
   source_rule local-machine-key 'CRYPTPROTECT_LOCAL_MACHINE' 's/^//' "$scan_repo" || return $?
-  grep -rqF --include='*.rs' -e 'CGEventTapOptions::ListenOnly' -- "$scan_repo/crates/halvo-capture/src/macos" 2>/dev/null
+  git -C "$scan_repo" grep --cached -q -a -F -e 'CGEventTapOptions::ListenOnly' -- 'crates/halvo-capture/src/macos/*.rs' 2>/dev/null
   case $? in
     0) return 0 ;;
     1) printf 'listen-only-absent under crates/halvo-capture/src/macos\n'; return 1 ;;
-    *) printf 'not scanned: grep could not read crates/halvo-capture/src/macos\n'; return 2 ;;
+    *) printf 'not scanned: git grep could not read crates/halvo-capture/src/macos\n'; return 2 ;;
   esac
 }
 

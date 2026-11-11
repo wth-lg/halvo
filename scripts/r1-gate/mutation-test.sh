@@ -104,6 +104,7 @@ mutant_builds() {
 
 gate_lines() {
   : > "$work/gate.out"
+  git -C "$tree" add -A > "$work/gate.err" 2>&1 || { printf 'FAIL copy (git add in the copy failed)\n' > "$work/gate.out"; return 1; }
   for gate_check in store deletion no-ll-hook; do
     env GATE_ROOT="$tree" sh "$tree/scripts/r1-gate/check-$gate_check.sh" --measure >> "$work/gate.out" 2> "$work/gate.err"
   done
@@ -518,6 +519,7 @@ main() {
   mkdir "$work" "$tree" || return 2
   git -C "$GATE_ROOT" archive -o "$work/head.tar" HEAD || { say FAIL copy "git archive of HEAD failed"; return 2; }
   tar -xf "$work/head.tar" -C "$tree" || { say FAIL copy "the archive of HEAD could not be unpacked"; return 2; }
+  git init -q "$tree" || { say FAIL copy "git init of the copy failed"; return 2; }
   if [ -d "$GATE_TARGET" ]; then
     mkdir "$tree/target" || return 2
     cp -Rpc "$GATE_TARGET" "$tree/target/r1-gate" 2> /dev/null || cp -Rp "$GATE_TARGET" "$tree/target/r1-gate" || return 2

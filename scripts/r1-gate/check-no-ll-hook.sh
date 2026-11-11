@@ -11,9 +11,23 @@ tree() {
   printf 'if ty != SCStreamOutputType::Screen {\n    return;\n}\n' > "$made/crates/halvo-capture/src/macos/screen.rs"
   printf 'let ok = RegisterRawInputDevices(&[dev], n).is_ok();\n' > "$made/crates/halvo-capture/src/windows/input.rs"
   printf 'fn main() {}\n' > "$made/src-tauri/src/main.rs"
-  [ $# -ge 3 ] || return 0
-  mkdir -p "$made/${2%/*}"
-  printf '%s\n' "$3" > "$made/$2"
+  if [ $# -ge 3 ]; then
+    mkdir -p "$made/${2%/*}"
+    printf '%s\n' "$3" > "$made/$2"
+  fi
+  git init -q "$made" && tracked "$1"
+}
+
+tracked() {
+  git -C "$gate_scratch/$1" add -A
+}
+
+linked() {
+  tree "$1"
+  mkdir -p "$made/vendor"
+  printf 'let h = SetWindowsHookExW(WH_KEYBOARD_LL, Some(cb), hmod, 0);\n' > "$made/vendor/hook.txt"
+  ln -s ../../../../vendor/hook.txt "$made/$2"
+  tracked "$1"
 }
 
 defect_is() {
@@ -65,11 +79,20 @@ cases() {
   t local-machine-key FAIL predicate_no_ll_hook "$gate_scratch/machine-key"
   tree comment crates/halvo-capture/src/windows/note.rs '    // SetWindowsHookExW and CGEventPost are never called here'
   t comment-only-match PASS predicate_no_ll_hook "$gate_scratch/comment"
-  tree no-app; mv "$gate_scratch/no-app/src-tauri" "$gate_scratch/no-app/moved"
+  tree build-script src-tauri/build.rs 'fn main() { let id = WH_KEYBOARD_LL; }'
+  t hook-in-a-build-script FAIL predicate_no_ll_hook "$gate_scratch/build-script"
+  t build-script-is-named PASS defect_is "$gate_scratch/build-script" "windows-hook at src-tauri/build.rs:1"
+  tree other-dir src-tauri/tests/hook.rs 'let h = SetWindowsHookExW(WH_MOUSE_LL, Some(cb), hmod, 0);'
+  t hook-outside-crates-and-src-tauri-src FAIL predicate_no_ll_hook "$gate_scratch/other-dir"
+  linked link crates/halvo-capture/src/windows/hook.rs
+  t hook-behind-a-tracked-link FAIL predicate_no_ll_hook "$gate_scratch/link"
+  t tracked-link-is-named PASS defect_is "$gate_scratch/link" "tracked symbolic link: crates/halvo-capture/src/windows/hook.rs"
+  tree no-app; mv "$gate_scratch/no-app/src-tauri" "$gate_scratch/no-app/moved"; tracked no-app
   t dir-missing FAIL predicate_no_ll_hook "$gate_scratch/no-app"
   t repo-missing FAIL predicate_no_ll_hook "$gate_scratch/no-such-repo"
   mkdir -p "$gate_scratch/no-rs/crates/halvo-capture/src/macos" "$gate_scratch/no-rs/src-tauri/src"
   printf 'CGEventTapOptions::ListenOnly\n' > "$gate_scratch/no-rs/crates/halvo-capture/src/macos/notes.txt"
+  git init -q "$gate_scratch/no-rs" && tracked no-rs
   t no-rs-file FAIL predicate_no_ll_hook "$gate_scratch/no-rs"
   t no-rs-file-is-named PASS defect_is "$gate_scratch/no-rs" "not scanned: no .rs file"
   tree no-control crates/halvo-capture/src/macos/input.rs 'let tap = make_tap();'
@@ -81,9 +104,16 @@ cases() {
   t measured-windows-hook FAIL measured_on windows-hook
   t measured-tree-not-scanned FAIL measured_on no-rs
   t measured-line-names-the-rule PASS measured_line_is "FAIL no-ll-hook (source scan measured: active-tap at crates/halvo-capture/src/macos/tap.rs:1)" tap-default
-  tree unreadable crates/halvo-capture/src/windows/locked.rs 'let h = 1;'
-  chmod 000 "$gate_scratch/unreadable/crates/halvo-capture/src/windows/locked.rs"
-  t unreadable-source FAIL predicate_no_ll_hook "$gate_scratch/unreadable"
+  tree untracked
+  printf 'let id = WH_KEYBOARD_LL;\n' > "$gate_scratch/untracked/crates/halvo-capture/src/windows/hook.rs"
+  t untracked-file-is-not-read PASS predicate_no_ll_hook "$gate_scratch/untracked"
+  tree staged crates/halvo-capture/src/windows/hook.rs 'let id = WH_KEYBOARD_LL;'
+  printf 'let id = 1;\n' > "$gate_scratch/staged/crates/halvo-capture/src/windows/hook.rs"
+  t index-is-read-not-the-work-tree FAIL predicate_no_ll_hook "$gate_scratch/staged"
+  tree broken-index
+  printf 'not an index\n' > "$gate_scratch/broken-index/.git/index"
+  t index-unreadable FAIL predicate_no_ll_hook "$gate_scratch/broken-index"
+  t directory-inside-another-repository FAIL predicate_no_ll_hook "$gate_scratch/listen-only/crates"
 }
 
 measure() {
