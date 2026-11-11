@@ -134,7 +134,7 @@ Playwright drives the browser through the browser's own protocol. Its documentat
 node tools/r4-page/selftest.mjs
 ```
 
-The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`, and the choices of each item carry the item id. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own that misses only while the condition holds, with one exception that the mutants of verifier-3 of the run found: the flags of a mode in check 5 (`c5_flags`), which no fault of check 5 raises in one mode alone. The fault counts are: check 1 holds 8, check 2 holds 23, check 3 holds 3, check 4 holds 9, check 5 holds 7 and check 6 holds 8.
+The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`, and the choices of each item carry the item id. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own that misses only while the condition holds: check 1 holds 8, check 2 holds 23, check 3 holds 3, check 4 holds 9, check 5 holds 8 and check 6 holds 8.
 
 | check | fault | state | what the fault does | what must miss |
 |---|---|---|---|---|
@@ -186,6 +186,7 @@ The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view
 | 5 | `narrow_scroll` | a | a line at least 400 pixels wide | the mode `width_320` alone |
 | 5 | `outside_mode` | a | a request to `localhost` with reduced motion only | the mode `reduced_motion` alone |
 | 5 | `inner_scroll` | a | a row of controls that scrolls sideways at 320 pixels | the mode `width_320` alone |
+| 5 | `error_mode` | a | a key press throws an error in forced colours only | the mode `forced_colors` alone |
 | 5 | `engine_mode` | a | a page that hides the engine in forced colours only, behind a property `ace` that holds no checker, and reports no error | the mode `forced_colors` alone |
 | 5 | `shadow_parse` | a | an open shadow root made by `Document.parseHTMLUnsafe` | `opaque` with the three modes in `modes_off` |
 | 6 | `inner_html` | a | the first line set as markup | `miss` |

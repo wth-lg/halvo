@@ -374,6 +374,11 @@
           throw new Error('sample fault key_error');
         });
       }
+      if (fault === 'error_mode' && matchMedia('(forced-colors: active)').matches) {
+        document.addEventListener('keydown', function () {
+          throw new Error('sample fault error_mode');
+        });
+      }
       if (fault === 'shadow_markup') {
         var holder = el('div', null, null);
         root.appendChild(holder);

@@ -68,6 +68,7 @@ const FAULTS = {
     { fault: 'outside_mode', state: 'a', mode: 'reduced_motion', engine: true },
     { fault: 'inner_scroll', state: 'a', mode: 'width_320' },
     { fault: 'engine_mode', state: 'a', mode: 'forced_colors', engine: true },
+    { fault: 'error_mode', state: 'a', mode: 'forced_colors' },
     { fault: 'shadow_parse', state: 'a', want: (r) => r.names.includes('opaque') && r.counts.modes_off === MODES.join(',') },
   ],
   6: [
