@@ -45,10 +45,19 @@ impl std::fmt::Debug for SessionState {
 }
 
 /// The localStorage items of one origin, sorted by key.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct OriginStorage {
     pub origin: String,
     pub items: Vec<(String, String)>,
+}
+
+/// Writes the count of items and no origin, key or stored value, so a logged state holds none.
+impl std::fmt::Debug for OriginStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OriginStorage")
+            .field("items", &self.items.len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// What `stop_and_remove` did: the pids of the browser's process tree (`pids`); the processes that
@@ -587,6 +596,13 @@ mod tests {
         assert_eq!(s.cookies[0].value, "value-of-a");
         assert!(s.cookies.iter().all(|c| !text.contains(&c.value)), "{text}");
         assert_eq!(text, "SessionState { origins: 2, cookies: 3, storage: 1 }");
+        let stored = format!("{:?} {:?}", s.storage, s.storage[0]);
+        assert_eq!(s.storage[0].items[0].1, "v \"quoted\"");
+        assert!(!stored.contains("quoted"), "{stored}");
+        assert_eq!(
+            stored,
+            "[OriginStorage { items: 2, .. }] OriginStorage { items: 2, .. }"
+        );
     }
 
     fn scratch(name: &str) -> PathBuf {
