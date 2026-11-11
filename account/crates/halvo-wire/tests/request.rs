@@ -483,6 +483,42 @@ fn ids_and_credentials_parse_exactly_what_the_vendored_patterns_match() {
 }
 
 #[test]
+fn each_call_goes_to_the_route_that_contract_8_names() {
+    let mut draw = Draw(SEED + 3);
+    let account = AccountId::from_random(draw.bytes());
+    let credential = Credential::from_random(draw.bytes());
+    let cases = [
+        (Call::Status, "status", "GET", "/v1/subscription"),
+        (
+            Call::CheckoutStart(cap(1, Period::Week)),
+            "checkout-start",
+            "POST",
+            "/v1/checkout",
+        ),
+        (
+            Call::CapSet(cap(1, Period::Month)),
+            "cap-set",
+            "PUT",
+            "/v1/cap",
+        ),
+        (Call::CapGet, "cap-get", "GET", "/v1/cap"),
+        (Call::Manage, "manage", "POST", "/v1/manage"),
+        (
+            Call::AccountDelete,
+            "account-delete",
+            "DELETE",
+            "/v1/account",
+        ),
+    ];
+    for (call, name, method, path) in cases {
+        assert_eq!(call.route().name, name);
+        let request =
+            build(&call, &account, &credential).expect("a call within the bounds is built");
+        assert_eq!((request.method, request.path), (method, path), "{name}");
+    }
+}
+
+#[test]
 fn the_pattern_matcher_reads_the_three_vendored_patterns() {
     assert!(matches("^[0-9a-f]{2}-x$", "a9-x"));
     assert!(!matches("^[0-9a-f]{2}-x$", "a9-xx"));

@@ -416,6 +416,8 @@ self_test() {
     run_case record-without-a-file "FAIL $name (account/schema/vendored.txt does not name the four vendored files)" stub
   make_fixture record-with-another-commit-line && edit schema/vendored.txt sed '1s/^commit /commit: /' &&
     run_case record-with-another-commit-line "FAIL $name (account/schema/vendored.txt does not start with the line of its commit)" stub
+  make_fixture record-with-a-fifth-line && edit schema/vendored.txt awk '{ print } END { print "0000000000000000000000000000000000000000000000000000000000000000 names.json contract/names/forbidden-names.json" }' &&
+    run_case record-with-a-fifth-line "FAIL $name (account/schema/vendored.txt does not name the four vendored files)" stub
   make_fixture sqlite-in-lock && edit Cargo.lock awk '{ print } END { print ""; print "[[package]]"; print "name = \"libsqlite3-sys\""; print "version = \"0.35.0\""; print "source = \"registry+https://github.com/rust-lang/crates.io-index\"" }' &&
     run_case sqlite-in-lock "FAIL $name (account/Cargo.lock holds 1 packages whose names contain sqlite or sqlcipher)" stub
   make_fixture sqlcipher-in-lock && edit Cargo.lock sed 's/^name = "itoa"$/name = "SQLCipher-sys"/' &&

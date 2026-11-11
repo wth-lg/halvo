@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const FILES: [(&str, &str); 4] = [
     ("schema.v1.json", "contract/schema/v1.json"),
@@ -76,6 +79,7 @@ fn schema_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../schema")
 }
 
+#[derive(Clone)]
 struct Record {
     commit: String,
     lines: Vec<(String, String, String)>,
@@ -157,20 +161,50 @@ fn the_record_names_one_commit_and_the_four_vendored_files() {
     assert_eq!(record.commit.len(), 40);
 }
 
-#[test]
-fn each_vendored_file_has_its_recorded_sha256() {
-    let record = record();
-    let differ: Vec<String> = record
+fn differing(record: &Record, dir: &Path) -> Vec<String> {
+    record
         .lines
         .iter()
         .filter_map(|(sum, name, _)| {
-            let path = schema_dir().join(name);
+            let path = dir.join(name);
             let bytes = fs::read(&path)
                 .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
             let actual = sha256_hex(&bytes);
             (actual != *sum).then(|| format!("{name}: recorded {sum}, file has {actual}"))
         })
-        .collect();
+        .collect()
+}
+
+#[test]
+fn each_vendored_file_has_its_recorded_sha256() {
+    let record = record();
+    let differ = differing(&record, &schema_dir());
     assert!(differ.is_empty(), "{differ:#?}");
     assert_eq!(record.lines.len(), FILES.len());
+}
+
+#[test]
+fn a_changed_byte_or_a_changed_sum_is_reported() {
+    let record = record();
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("vendored-copy");
+    fs::create_dir_all(&dir).expect("the copy's directory is made");
+    for (_, name, _) in &record.lines {
+        fs::copy(schema_dir().join(name), dir.join(name)).expect("a vendored file is copied");
+    }
+    assert!(differing(&record, &dir).is_empty());
+    let routes = dir.join("routes.v1.json");
+    let mut bytes = fs::read(&routes).expect("the copy is read");
+    bytes[0] ^= 1;
+    fs::write(&routes, &bytes).expect("the copy is written");
+    let reported = differing(&record, &dir);
+    assert_eq!(reported.len(), 1, "{reported:#?}");
+    assert!(reported[0].starts_with("routes.v1.json: "));
+    fs::copy(schema_dir().join("routes.v1.json"), &routes).expect("the copy is restored");
+    let mut changed = record.clone();
+    let sum = &mut changed.lines[2].0;
+    let first = if sum.starts_with('0') { "1" } else { "0" };
+    sum.replace_range(0..1, first);
+    let reported = differing(&changed, &dir);
+    assert_eq!(reported.len(), 1, "{reported:#?}");
+    assert!(reported[0].starts_with("samples.v1.json: "));
 }
