@@ -340,7 +340,7 @@ mod driver {
     async fn table_read(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
         signin(ex, ctx).await?;
         check(path_now(ex).await? == "/bill", "page")?;
-        let lines = ex.snapshot().await?;
+        let lines = ex.table("Bill history").await?;
         let cells: Vec<&SnapshotLine> = lines.iter().filter(|l| l.role == "cell").collect();
         let history = ctx.seed.0["utility"]["history"]
             .as_array()

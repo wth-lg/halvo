@@ -491,6 +491,28 @@ impl Executor {
         Ok(lines)
     }
 
+    pub async fn table(&mut self, name: &str) -> Res<Vec<SnapshotLine>> {
+        let main = self.main_frame().await?;
+        let nodes = self.ax_tree(&main).await?;
+        let tables: Vec<usize> = nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| !n.ignored)
+            .filter(|(_, n)| matches!(ax_text(&n.role).as_str(), "table" | "grid"))
+            .filter(|(_, n)| squeeze(&ax_text(&n.name)) == name)
+            .map(|(i, _)| i)
+            .collect();
+        let root = match tables.as_slice() {
+            [one] => *one,
+            [] => return Err(Fault::new("resolve", "none")),
+            _ => return Err(Fault::new("resolve", "many")),
+        };
+        let mut lines = Vec::new();
+        self.lines_under(&main, &nodes, root, None, &mut lines)
+            .await?;
+        Ok(lines)
+    }
+
     fn add_ref(&mut self, target: Target) -> String {
         self.refs.push(target);
         format!("e{}", self.refs.len())
@@ -503,15 +525,26 @@ impl Executor {
         lines: &mut Vec<SnapshotLine>,
     ) -> Res<()> {
         let nodes = self.ax_tree(frame).await?;
+        let root = nodes
+            .iter()
+            .position(|n| n.parent_id.is_none())
+            .ok_or_else(|| Fault::new("snapshot", "no root"))?;
+        self.lines_under(frame, &nodes, root, label, lines).await
+    }
+
+    async fn lines_under(
+        &mut self,
+        frame: &FrameId,
+        nodes: &[AxNode],
+        root: usize,
+        label: Option<String>,
+        lines: &mut Vec<SnapshotLine>,
+    ) -> Res<()> {
         let index: HashMap<String, usize> = nodes
             .iter()
             .enumerate()
             .map(|(i, n)| (n.node_id.inner().clone(), i))
             .collect();
-        let root = nodes
-            .iter()
-            .position(|n| n.parent_id.is_none())
-            .ok_or_else(|| Fault::new("snapshot", "no root"))?;
         let mut stack: Vec<(usize, bool)> = vec![(root, false)];
         while let Some((i, inside)) = stack.pop() {
             let node = &nodes[i];
