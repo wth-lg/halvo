@@ -1,0 +1,212 @@
+# The page-test harness
+
+`tools/r4-page/` is the instrument that runs the six accessibility checks of the interface run (contracts.md I9.3) in a real browser engine. This file says how to call it, and records what was read before the first fetch and every choice that the contract leaves to the harness.
+
+## Fetch
+
+```sh
+sh tools/r4-page/fetch.sh DIR [--browser webkit|chromium]
+```
+
+The script copies `tools/r4-page/package.json` and `tools/r4-page/package-lock.json` into DIR and runs `npm ci --ignore-scripts` there, with the npm cache under `DIR/npm-cache`. It downloads the archive of one browser build, compares the archive with the size and SHA-256 of its line in `tools/r4-page/files.tsv`, and only then writes it to `DIR/archives/` and unpacks it. The build is the one that `tools/r4-page/browser.txt` names for the machine, or the one of `--browser`. The machine is `hosted-mac` or `hosted-win` by the system when `CI` is set, and `mac` otherwise.
+
+The download follows redirects itself, at most 10, and fails when an address of the chain is not https. It reads the body as a stream and refuses with `hash` as soon as the body is larger than the size of its line, so it holds at most that many bytes. It fails after 60 s with no byte, or after 30 minutes in all. The unpack goes into a new directory under `DIR/builds/`, which receives the marker file `.r4-sha256` with the hash of the line and then takes the place of `DIR/builds/<build>-<system>/`; a directory that stood there before is kept as `<build>-<system>.old-<n>`. A second call keeps an archive whose hash is right, a build whose marker holds the hash of its line, and a package that it installed from the same lock. An unpacked build is trusted by its marker: the files of the build are not hashed again, so a change made inside it after the unpack is not seen. The script writes nothing outside DIR. It is the only step of the harness that reaches a network: the npm registry and the addresses of `files.tsv` on `cdn.playwright.dev`, which redirect, the WebKit ones to `playwright.download.prss.microsoft.com` and the Chromium ones to `storage.googleapis.com` (evidence of verifier-1 of the run, `download4-follow.txt`).
+
+On success it prints one line, for example `fetch browser=webkit build=webkit-2388 system=mac26-arm64 bytes=85789503 archive=kept extracted=no package=kept`, and exits 0. It exits 1 with a line `fetch failed step=<download|extract|package|internal> ...` when a step fails; a download fails with `error=redirect_not_https`, `error=redirects`, `error=timeout`, `status=<code>` or the code of a network error. It refuses with exit 2 and one line on standard error:
+
+| cause | when |
+|---|---|
+| `usage` | no DIR, a second DIR, or a flag other than `--browser webkit` or `--browser chromium` |
+| `browser` | `browser.txt` names no browser for the machine, holds a malformed line, or Playwright 1.65.0 has no build for the system |
+| `files` | `files.tsv` has no line for the browser on the system, or holds a malformed line |
+| `hash` | the downloaded archive is larger than its line says, or differs from it in size or SHA-256; nothing is written |
+
+On this Mac the fetch goes to `tools/r4-page/.browsers/`, which `tools/r4-page/.gitignore` leaves untracked. In the hosted jobs of the scratch runs it goes to `$RUNNER_TEMP/r4-page-browsers`. The library and the self-test read the directory in `R4_PAGE_BROWSERS`, else `tools/r4-page/.browsers/`.
+
+## The four functions
+
+`tools/r4-page/index.mjs` exports four functions.
+
+- `serve({ui, fixtures})` serves, from 127.0.0.1 on a free port, the directory `ui` at `/`, the directory `fixtures` at `/__fixtures/`, the harness frame at `/__r4/frame/`, the harness sample at `/__r4/sample/` and the engine's `ace.js` at `/__r4/engine/ace.js`. It returns the origin, for example `http://127.0.0.1:52011`. It answers a file only when the real path of the file lies under the real path of the directory of its route, so a link inside a served directory to a file outside it gives 404. A file that it cannot read gives 500, and the server stays up. A request whose `Host` is not the server's own `127.0.0.1:<port>` gives 403. Every answer carries `X-Content-Type-Options: nosniff`. The server does not keep the process alive.
+- `open({origin, state, views, frame, replies, acts, out})` starts the browser of the machine headless, at a viewport of 1024 by 768 CSS pixels, and returns a page handle once the page has settled (see "When a check reads the page"). `state` is the name of a state: the stub reads `state-<state>.json` from the fixtures directory. `views` is a list of script paths on the origin, for example `['/app/views/needs.js']` when `ui` is the repository's `ui/` directory. `frame` is a path on the origin and defaults to `/__r4/frame/index.html`. `replies` is a list of transcript lines (I13.3), as strings or as objects, and replaces `state`. `acts` is a list of `act` arguments that `open` applies, in order, once the page has settled; every page that a check opens again applies the same acts. `out` is a directory for `calls.jsonl` and `actions.txt`. `open` throws when the page reported an uncaught error, and when the page made a call that the transcript does not hold next. It refuses, with `fixture`, a frame file whose text holds the word `shadowrootmode` in any case. The handle has `close()`, which closes the page and, after the last open page, the browser.
+- `act(page, {act, param, n, text})` activates the one control that has that `data-act` (and that `data-param` and `data-n`): a click for a button, a choice for a radio input, and `text` typed key by key for the control `typed`. A control that stands in a row carries the row's id as `data-param`, so `{act, param}` picks the control of one row. It throws when no control or more than one control matches, and when the page made a call that the transcript does not hold next.
+- `check(page, n, {snapshot, write})` runs check `n` and returns `{ok, counts, names}`. `snapshot` is the path of the structure file, which checks 3 and 5 need. With `write`, check 3 writes the file and returns `ok`. It throws when the page made a call that the transcript does not hold next.
+
+What each check returns:
+
+| n | `counts` | `names` |
+|---|---|---|
+| 1 | `{violations, review}` | the rule ids with a violation, and `outside_request`, `unsettled` or `page_error` |
+| 2 | `{keyboard: 'ok'|'miss'}` | the misses: `unreached`, `focus_unseen`, `focus_contrast`, `radio_arrows`, `dialog_missing`, `dialog_not_modal`, `dialog_no_label`, `dialog_no_description`, `dialog_not_inert`, `dialog_safe_not_first`, `dialog_not_taken`, `dialog_focus_lost`, `dialog_not_closed`, `opaque`, `unsettled`, `page_error` |
+| 3 | `{structure: 'same'|'differ'}` | `opaque`, `unsettled` or `page_error` on that miss, else none |
+| 4 | `{size: 'ok'|'miss'}` | the `data-act` name, or the tag name, of each control that is too small or of a kind that a `data-act` may not have; `no_act` when a control has no `data-act`; `opaque`, `unsettled`, `page_error` |
+| 5 | `{modes: 'ok'|'miss', modes_off}` | the modes that the browser could not turn on, and `opaque`, `unsettled` or `page_error` |
+| 6 | `{markup: 'ok'|'miss'}` | `elements`, `opaque`, `unsettled` or `page_error` on a miss |
+
+`outside_request`, `unsettled`, `opaque` and `page_error` are names that a check returns, not keys of the printed line. Every check can also return `stub_tampered` (see "The stub"). `open` prints `browser name=<webkit|chromium> version=<v>` on standard output the first time that it starts a browser in a process. Check 1 throws an error with `code` `engine` and a `reason` when the engine cannot run (see below). Every other misuse throws an error with `code` `usage` or `fixture`.
+
+## The stub
+
+The page gets `Halvo.ipc.call` from the harness before any script of the page runs. The function that it calls lives in a closure of the harness's init script, and no global of the page holds it, so assigning `window.__r4call` or a new `window.Halvo` does not replace it. The call goes on through the browser driver's own globals `__playwright__binding__` and `__playwright__binding__controller__`, which every script of the page can reach: no closure closes that path in the page's own realm. Before any script of the page runs, the harness locks both globals, so that a write leaves them as they were, and it gives the controller a `deliverBindingResult` of its own that cannot be written. A write to either global, and a reply that reaches a call that no longer waits because a script of the page answered it first, make every check of the state miss with the name `stub_tampered`. Both engines, WebKit 27.2 and Chromium 158, let the harness lock both globals; the verifier's page `stub2/forge.js`, which writes the binding global, now gets the real state and misses with `stub_tampered`. What a script of the page can still do on both engines, unseen: change the controller's prototype, its internal fields or `Map.prototype`, and so answer its own calls or keep them from the harness. The word list of contracts.md I8.4 bars the driver's names and the harness's own in a view file. The stub answers `agents_snapshot` with the `snapshot` of the state file, `agents_card` with its `card`, and every other call with `reply-ok.json`. It answers the first `agents_next` call of a page at once with `reply-next-same.json`, and holds every later one until the page closes, then answers it `{"closed":"yes"}`. That is a long poll whose state does not change: the page that a check reads is the page after the first reply, and nothing that the stub sends changes it during a check. With `replies`, the first `state` line answers `agents_snapshot`. Each `call` line must match the next call other than `agents_next` in command and arguments, and its `reply` answers it. A later `state` line answers the `agents_next` call that waits at that moment, or the next one to come.
+
+Under `out`, the stub writes `calls.jsonl`, one line `{"n":<count>,"call":"<command>","args":{...}}` per call other than `agents_snapshot` and `agents_next`, and `act` writes `actions.txt`, one line `action i=<count> type=<click|choose|type> act=<name>` per action. A call that the transcript does not hold next is written to no file, and neither is the action that led to it.
+
+The harness frame `tools/r4-page/frame/index.html` loads the view scripts in order, places one section per view by `order`, with an `h2` that holds `heading`, calls each view's `mount(element)` and then its `show()`. `Halvo.views.window(state)` calls `show()` of every view for the state `shown` and `hide()` for any other state.
+
+## When a check reads the page
+
+`open`, `act` and each page that a check opens again wait until the page has settled, and only then does a check read it. The page has settled when the load is complete, every reply that the stub owes the page has come, every finite CSS animation and transition is finished and every infinite one is paused, and then 80 ms pass with no change of the document followed by two animation frames. Without a transcript, the stub owes the answers to the calls in flight and the first `agents_next` reply. Under a transcript, a reply that the transcript gives only after a later call of the page is not owed, so `open` and `act` return without waiting for it. The quiet wait has a bound of 5,000 ms after the load. A page that is not quiet by then, for example one that changes the document on every animation frame, is checked by no check: checks 2 to 6 miss at once with the name `unsettled`, and check 1 runs and misses with `unsettled`. During the walk of check 2 the harness finishes or pauses the animations again after each key press, before it reads the style of the focus.
+
+## The rule engine
+
+| item | value as read |
+|---|---|
+| package | `accessibility-checker-engine` 4.0.34 |
+| licence | Apache-2.0 |
+| file loaded into the page | `ace.js` of the package, served by the harness from 127.0.0.1 |
+| rule set | `WCAG_2_2`, the package's rule set for WCAG 2.2 levels A and AA |
+
+Each result of the engine has a value of two words. A result with `VIOLATION` and `FAIL` is the level `violation`, which fails check 1. A result with `PASS` is the level `pass` and is not counted. Every other result is counted as `review` and fails nothing. These are the levels `potentialviolation` (`VIOLATION`, `POTENTIAL`), `recommendation` (`RECOMMENDATION`, `FAIL`), `potentialrecommendation` (`RECOMMENDATION`, `POTENTIAL`) and `manual` (`MANUAL`), and any result with `INFORMATION`.
+
+A route of the browser lets through only the origin of the harness's own server, `127.0.0.1:<port>` as `serve` returned it. It aborts and counts every request to another host or to another port of 127.0.0.1, and a WebSocket route closes and counts every socket to such an address. When a page of a state made one, at load or later, check 1 misses with the name `outside_request`, also in each mode of check 5. The engine is `none` when its package has no `package.json` or no `ace.js`, when its licence is outside the list of contracts.md I0.7, when the page has no `ace.Checker` after the load, when the engine has no rule set `WCAG_2_2`, when it throws, when it runs no rule, or, with the reason `request`, when the engine alone, on the harness frame with no view, makes a request to another host. The error names the reason: `package`, `file`, `licence`, `ruleset`, `throws`, `no_rule` or `request`.
+
+## The six checks
+
+Checks 2 to 6 read the top document alone. So each of them misses, with the name `opaque`, on a page that holds an `iframe`, `frame`, `object`, `embed`, `fencedframe` or `portal`, or a shadow root, open or closed: one that a script attaches, any open one, and one that markup can make. The harness finds markup by the name `shadowrootmode` alone, in any case and whatever stands around it, so `<template/shadowrootmode=closed>` and a template with a `>` in an earlier attribute value count. It reads the body of every document and script that it serves to the page, except the engine's `ace.js`, and every text that the page hands to `setHTMLUnsafe`, `Document.parseHTMLUnsafe`, `document.write` or `document.writeln`. Each of these hooks turns its text arguments into strings once, searches those strings and hands the same strings on to the browser, so the browser parses the text that the search read. A text argument that is no string, such as an object with its own `toString` or a `TrustedHTML`, is a hit by itself, because its text can change between two reads. A hit is `opaque` also when the text makes no root, for example the word in a string of a view script. A frame file with a hit is refused (see `open`). The harness cannot see the controls, names and elements there. Under `opaque`, check 5 names the three modes in `modes_off`, because it tried none. Writing a structure file is exempt.
+
+The role of an element is the first token of its `role` attribute that is an ARIA role, as a browser computes it. The controls of a state are the elements that are rendered (not `display: none`, not `visibility: hidden`, with a box; an `area` has no box and counts as rendered wherever it stands, whether or not an image names its map, because Chromium links a map that an image names by its `id` and WebKit does not, and a view holds no image map, which contracts.md I9.2 bars), not disabled, and either a native control (`button`, `input` other than hidden, `select`, `textarea`, `a` with `href`, `area` with `href`, `summary`, `audio` or `video` with `controls`), an element that the person can edit (an element whose `isContentEditable` is true and whose parent's is not), an element with `data-act`, an element with a `tabindex` of 0 or more, or an element whose role is a widget role. A confirmation is a rendered element whose role is `alertdialog`. When one is open, the controls of check 2 are those inside it. Without one, an element inside `inert` is no control of check 2.
+
+1. The engine runs on the whole document with the rule set `WCAG_2_2`. A request or a socket that the page made to another host, or to another port of 127.0.0.1, fails the check with `outside_request`.
+2. The walk presses the walk key of the machine, starting from where the focus is after the page settled, until the focus comes back to where it started, at most twice the count of controls plus 8 times. A press that leaves the focus on the body counts as no stop. Every control must be a stop that a key press reached: the focus that the page set at load does not count. A radio group is the radios of one `name` under one form owner, or under the document when they have none; it is reached when one of its radios is a stop. On a new page of the state the harness focuses the first radio of each group of two or more, presses ArrowDown until the last radio and ArrowUp back to the first, and the choice must reach each radio, else `radio_arrows`; WebKit 27.2 does not wrap past the last radio, so the harness does not rely on a wrap. For each stop, the computed outline and border with the focus are compared with those after the walk, with no element focused. The focus is shown when the outline is on (its style is not `none`, its width is above 0 or its style is `auto`, its colour is not transparent) and differs from the outline without the focus, or when the border of a side differs. A box shadow does not count. Of the outline or border sides that differ, one must have a colour with a contrast of at least 3:1 with the background on which it is drawn, else `focus_contrast`. That background is the first opaque background colour of the parent chain, with the colours that are not opaque above it composited over it, and white when none is opaque; for an outline with a negative offset the chain starts at the element itself. A colour that is not `rgb()` or `rgba()`, a background image on that chain, or a border that the focus removes counts as a colour that cannot be computed, which does not pass.
+
+   For each item of the state with the kind `confirm` and the presenter `page`, the page must show one confirmation, else `dialog_missing`. Each confirmation must have `aria-modal="true"` (`dialog_not_modal`), a label through `aria-label` or `aria-labelledby` (`dialog_no_label`), a description through `aria-description` or `aria-describedby` (`dialog_no_description`), and the rest of the page inert: it is a modal dialog, or each sibling along its parent chain is inert or not rendered (`dialog_not_inert`). The safe control is the control whose `data-act` is the choice of the item with `"safe":"yes"`; it must be the first control of the confirmation in document order (`dialog_safe_not_first`) and hold the focus when the page has settled (`dialog_not_taken`). After each press of the walk key the focus must be inside the confirmation: on one of its controls, or on the confirmation element itself. A stop on the confirmation element is a stop inside the confirmation and passes at any point of the walk; the verifier's page b-Hc-dlgelem goes from the last control to the dialog element and on to the first control, and passes. When it does not follow the body, the harness reads it as a stop like any other, so its focus must be shown. The body alone is limited to the way back: the press after it must land on the first control of the confirmation, or on the confirmation element and then on the first control. A stop outside the confirmation, or a second stop on the body, is a miss, `dialog_focus_lost`. Each engine walks a sound modal confirmation of two controls this way by itself (evidence of builder-2 of the run, `trace-webkit.txt` and `trace-chromium.txt`): WebKit 27.2 goes from the last control to the body, then to the dialog element, then to the first control; Chromium 158 goes from the last control to the body, then to the first control. On a second page of the same state the harness focuses the safe control and presses Enter. When the page has settled, no element of the confirmation may be rendered, no element of the page may be inert and no element may be modal, else `dialog_not_closed`. The stub sends no new state, so the view itself must close the confirmation.
+3. The structure is Playwright's ARIA snapshot of `body` in its JSON form (`ariaSnapshotJSON`): one line per node, indented by two spaces per level, `- ` and the node's keys other than `children` as compact JSON with sorted keys, with an LF at the end. The file is compared byte for byte. The text form of the snapshot leaves out a name of 900 characters or more (evidence of this unit, probe-longname); the JSON form keeps it. Both builds give the same text for the two sample states.
+4. Every control has a size of at least 24 by 24 CSS pixels, and every control inside a confirmation at least 44 by 44. The size is that of each rectangle of `getClientRects()`, cut on each axis by every ancestor below `body` whose `overflow` on that axis is `hidden` or `clip`; the smallest rectangle decides. A region that a person can scroll (`auto` or `scroll`) and the viewport cut nothing, so a control below the fold or scrolled out of sight in a region passes, and the harness scrolls nothing to measure. An ancestor that is not in the chain of containing blocks of an absolutely or fixed positioned control does not cut it. A radio input is measured by its own box, also inside a label. Every control carries `data-act`, else the check misses with the name `no_act`. An element with `data-act` that is not a `button`, a radio input or the typed text input (`data-act="typed"`) misses by its `data-act` name. So a control of a kind that contracts.md I9.2 bars misses either way: a native `select`, an element with the role `button` that is no `button` element, a link, an `area` with an address, a `textarea`, a `summary`, an `audio` or `video` with controls, an editing host and an element with a tab index of 0 or more (the verifier's pages k-select and k-divbutton miss with `no_act`). This holds also for a region that scrolls and takes the keyboard focus through a tab index, as in the verifier's page s02: a view makes no scrolling region of its own that takes the focus, because the page itself scrolls, so such a region misses with `no_act`.
+5. Each mode opens a new page of the state with the mode on, applies the state's acts and settles: `reduced_motion` (`prefers-reduced-motion: reduce`), `forced_colors` (`forced-colors: active`) and `width_320` (a viewport 320 CSS pixels wide). The harness reads whether the mode is on through `matchMedia` or the width of the window. A mode that is off is named in `modes_off`. In each mode that is on, checks 1 to 4 run (check 3 when `snapshot` is given, against the same file), and the page must have no horizontal scroll: the scrolling element's `scrollWidth` must not exceed its `clientWidth`, and neither may that of `html` or `body` when its `overflow-x` is `auto` or `scroll`. In `width_320`, no element whose `overflow-x` is `auto` or `scroll` may be wider inside than its box. When check 1 cannot run in a mode, the mode misses, unless the engine also fails alone on the harness frame with no view: then the engine cannot run on that machine, and check 1 is left out of every mode as it is left out of the state. A mode in which the page asked another host, did not settle or reported an error misses. Check 6 does not change with a mode and does not run in one.
+6. Two new pages of the state are opened, each with the state's acts: one with the fixture as it is, and one where every text value is the string `<b data-x="1">x</b>&amp;`. The check passes when the two pages have the same count of elements and the second has no element with `data-x`. A text value is a string, or a string in a list, under a key that the shapes of I2.5, I2.6, I3.4 and I8.1 write as `"<text>"`: `name`, `word`, `line`, `say`, `level`, `next`, `day`, `text`, `title`, `label`, `value`, `from_text` and `note`. The ids, the names of closed lists and the counts stay as they are. An empty string and a `null` stay as they are, because a view may leave out the element of an empty text.
+
+## What the checks do not see
+
+- A page that changes after the page has settled and before a person looks: a change on a reply that the stub never sends during a check, on a timer, or on a CSS animation that starts only after a later event. contracts.md I8.4 bars a view from setting a timer or an interval, and the page check of U3.3 fails a view file that names `setTimeout` or `setInterval`.
+- A page that counts animation frames with a script and changes after them passes, as the verifier's page j-late-raf does (60 frames, then a low contrast): the harness cannot wait for such a script, because a frame that changes nothing ends its quiet wait. The word list of contracts.md I8.4 bars `requestAnimationFrame` in a view, and the page check of U3.3 enforces it.
+- A confirmation whose last control sends the focus to the body on Tab passes check 2 on WebKit, as the verifier's page j-blurlast does: from the body WebKit goes through the dialog element to the first control, the way back that it takes by itself, so the key presses cannot tell it apart. On Chromium the same page misses with `dialog_focus_lost`, because the press after the body leaves the focus on the body a second time (verifier-3 of the run, 3 of 3 runs).
+- A page that sees the engine's script tag and hides a fault while the engine runs passes check 1.
+- A focus indicator that the computed style does not show. The harness reads the computed outline and border colours and does not read pixels. Where an engine draws a focus ring of its own (`outline-style: auto`), it reads the computed `outline-color`, and the ring that the engine draws may have other colours. A page can still hide a ring that the computed style reports, for example under an element that covers it, and a focus shown by a box shadow, a pseudo-element or a change of background is not counted.
+- A closed shadow root that a script makes through another realm, for example with the `attachShadow` of a frame that the page made and removed again (the verifier's page b-Hg-realm): no hook of the top document sees it and the walk of open roots cannot reach it. An open root made that way is `opaque`.
+- A shadow root that markup makes through a function of another realm, from a text that the page builds at run time, so that neither a served file nor a hook holds the word. Every frame is `opaque` in any case.
+
+## Browser builds
+
+Each build that a machine can start has a line in `tools/r4-page/files.tsv`: the build, the system name that Playwright 1.65.0 uses for its downloads, the address, the size in bytes and the SHA-256. One download of each archive into a directory from `mktemp -d` gave the size and the hash. Nothing in that directory was run. The library starts the build of its machine by its path, and only when the build's unpacked directory holds the hash of its line in its marker.
+
+| build | system | machines | address | SHA-256 | licence as read |
+|---|---|---|---|---|---|
+| `webkit-2388` | `mac26-arm64` | `mac` | `https://cdn.playwright.dev/dbazure/download/playwright/builds/webkit/2388/webkit-mac-26-arm64.zip` | `d3cc730027105a014d0cbf53925bd7eababbdf8dbccbb4a3a1713c5f631dbcaf` | The archive holds no licence file for WebKit itself. It holds the licence files of four parts of the web inspector (CodeMirror, three.js, Esprima, CSSDocumentation). |
+| `webkit-2388` | `mac15-arm64` | `hosted-mac` | `https://cdn.playwright.dev/dbazure/download/playwright/builds/webkit/2388/webkit-mac-15-arm64.zip` | `50b4238e145b8018e48aacefc15e9b3a43fafd18eee42ed4cb29a2e5c5a2e385` | As for `mac26-arm64`. |
+| `chromium-1254` | `win64` | `hosted-win` | `https://cdn.playwright.dev/builds/cft/158.0.8127.18/win64/chrome-win64.zip` | `b796e8a6231463d1a150ee679fd7cb0168b3728162d2d19bf7bbd867d60d55e2` | Chrome for Testing 158.0.8127.18. The archive holds no licence file. Its `ABOUT` file says "Copyright 2026 Google LLC. All rights reserved", names the Chromium project and other open source software (`chrome://credits`), and points to the terms of service at `chrome://terms`. |
+| `chromium-1254` | `mac26-arm64`, `mac15-arm64` | none in `browser.txt` | `https://cdn.playwright.dev/builds/cft/158.0.8127.18/mac-arm64/chrome-mac-arm64.zip` | `15d54783d40732983653ebc2171af38c6b5b5ab055a9afbf48d47c2b57836da9` | The same `ABOUT` text. The archive also holds the Widevine module with Google's licence, which says that the module is not open source. |
+
+contracts.md I0.7 puts these builds outside the licence rule, because they run only as tools of a check. This harness does not read the publishers' own statements of these licences, because a step of this unit reaches only the npm registry and the download addresses above. The Chromium build is the full Chrome for Testing build in Chromium's headless mode, not Playwright's headless shell, because the system web view of Windows is the full browser. The two `mac` lines of `chromium-1254` let a machine change its line of `browser.txt` to `chromium` without a new download line, and let this Mac run the Windows engine family.
+
+WebKit 27.2 of `webkit-2388` starts headless on this Mac (macOS 27.2) and on `hosted-mac`. Chrome for Testing 158.0.8127.18 starts headless on this Mac and on `hosted-win`.
+
+## Walk key
+
+| machine | browser | walk key | measured |
+|---|---|---|---|
+| `mac` | webkit | Alt+Tab | Tab moved the focus only to the text input and to the body. Alt+Tab reached each button, the link, the radio group and the text input. |
+| `hosted-mac` | webkit | Alt+Tab | In scratch run 42967116087, 30 presses of Tab alone on the sample state `a` stopped only at the text input, and otherwise left the focus on the body: 1 stop for 9 buttons and inputs. The self-test's walk with Alt+Tab reaches every control in the same run. |
+| `hosted-win` | chromium | Tab | In scratch run 42967116087, 30 presses of Tab alone on the sample state `a` stopped at each of the 6 buttons, at the radio group once and at the text input: 8 stops for 9 buttons and inputs, of which two are the radios of one group. |
+
+The library takes Alt+Tab for WebKit on macOS and Tab for every other pair.
+
+## Modes
+
+On this Mac both builds turned all three modes on. In scratch run 42967116087, WebKit on `hosted-mac` and Chromium on `hosted-win` each turned all three modes on for the sample state `a` (`modes_off=-`), so no mode is left out on any machine of `browser.txt`. WebKit's forced colours turn on the media feature `forced-colors: active` and force no colour: a text colour of the page stays as it is. Chromium's forced colours replace the colours of the page, and give a focused button a border in the system's highlight colour, also when the page sets `outline: none`. So a page that removes its focus outline only in forced colours passes check 2 in that mode on Chromium, where the person sees the border that Chromium draws, and misses it on WebKit.
+
+## How the driver acts
+
+Playwright drives the browser through the browser's own protocol. Its documentation in the type file of `playwright-core` 1.65.0 says that "Keyboard provides an api for managing a virtual keyboard" and that a key press "Dispatches a `keydown` event". It says nothing about events of the operating system on macOS. The workflow run measured that Playwright posts no input event on Windows (W builder-1). For macOS this harness has no measurement. The front app of this Mac was the same before and after the first headless start.
+
+## The self-test
+
+```sh
+node tools/r4-page/selftest.mjs
+```
+
+The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`, and the choices of each item carry the item id. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own that misses only while the condition holds. Each kind of the list of native controls has a fault of check 4 that plants one control of that kind with no `data-act` (`no_act` is the `button`, `area_no_act` the `area`), and the self-test writes the kinds out itself, so a kind that drops out of the harness's list fails the self-test: check 1 holds 8, check 2 holds 23, check 3 holds 3, check 4 holds 20, check 5 holds 8 and check 6 holds 8.
+
+| check | fault | state | what the fault does | what must miss |
+|---|---|---|---|---|
+| 1 | `contrast` | a | grey text of too little contrast | a violation |
+| 1 | `late_next` | a | the same grey text, set on the first `agents_next` reply | a violation |
+| 1 | `late_css` | a | the same grey text, by a CSS animation with a delay of 1.5 s | a violation |
+| 1 | `late_long` | a | the same grey text, by a CSS animation with a delay of 6 s, past the bound of the quiet wait, which only the harness's finish of the animation brings in time | a violation |
+| 1 | `outside_request` | a | an image and a WebSocket to `localhost` | `outside_request` |
+| 1 | `outside_fetch` | a | an image to `localhost` and no socket | `outside_request` |
+| 1 | `port_fetch` | a | an image to the listener's port of 127.0.0.1 | `outside_request` |
+| 1 | `port_socket` | a | a WebSocket to the listener's port of 127.0.0.1 | `outside_request` |
+| 2 | `unreachable` | a | a button with `tabindex="-1"` | `unreached` |
+| 2 | `focus_unseen` | a | a button whose outline is `none` with the focus | `focus_unseen` |
+| 2 | `focus_escapes` | b | the confirmation opens as a dialog that is not modal | `dialog_focus_lost` |
+| 2 | `escape_row` | b | a confirmation that is not modal sends the focus from its last control straight to a row button | `dialog_focus_lost` |
+| 2 | `dialog_blur` | b | the confirmation does not take the focus | `dialog_not_taken` |
+| 2 | `dialog_noclose` | b | Enter on the safe control does not close it | `dialog_not_closed` |
+| 2 | `dialog_role` | b | Enter changes the role and leaves the box, as a dialog that is not modal | `dialog_not_closed` |
+| 2 | `inert_left` | b | Enter closes it and leaves the list inert | `dialog_not_closed` |
+| 2 | `modal_left` | b | Enter closes it and opens another modal dialog | `dialog_not_closed` |
+| 2 | `safe_second` | b | the safe choice second in the document, with the focus | `dialog_safe_not_first` |
+| 2 | `body_stays` | b | the focus stays on the body for one more press | `dialog_focus_lost` |
+| 2 | `dialog_plain` | b | the confirmation without the role `alertdialog` | `dialog_missing` |
+| 2 | `dialog_no_modal` | b | no `aria-modal` | `dialog_not_modal` |
+| 2 | `dialog_no_label` | b | no label | `dialog_no_label` |
+| 2 | `dialog_no_description` | b | no description | `dialog_no_description` |
+| 2 | `dialog_not_inert` | b | a dialog that is not modal, with the focus kept inside | `dialog_not_inert` |
+| 2 | `focus_pale` | a | a focus outline of `#d8d8d8` on white | `focus_contrast` |
+| 2 | `focus_behind_image` | a | a background image behind the controls | `focus_contrast` |
+| 2 | `radio_forms` | a | a second radio group of the same name in a form, out of reach | `unreached` |
+| 2 | `radio_arrows` | a | the arrow keys of the radio group do nothing | `radio_arrows` |
+| 2 | `shadow_script` | a | a closed shadow root that a script attaches | `opaque` |
+| 2 | `key_error` | a | a key press throws an error | `page_error` |
+| 2 | `plaintext_only` | a | an element with `contenteditable="plaintext-only"` and `tabindex="-1"` | `unreached` |
+| 3 | `renamed` | a | a button with another name | `differ` |
+| 3 | `frame_file` | a | the frame file `sample/frame-shadow.html` holds a declarative shadow root | `open` refuses with `fixture` |
+| 3 | `frame_slash` | a | the frame file `sample/frame-shadow-slash.html` holds `<template/shadowrootmode=closed>` | `open` refuses with `fixture` |
+| 4 | `small` | a | a button of 20 pixels in height | the control `delete` |
+| 4 | `never_quiet` | a | an attribute that changes on every animation frame | `unsettled` |
+| 4 | `dialog_30` | b | the buttons of the confirmation at 30 by 30 | the control `reject` |
+| 4 | `clipped` | a | a button that its parent clips to 10 pixels | the control `more` |
+| 4 | `wrapped` | a | a `span` with the role `button` that wraps over two lines of 16 pixels | the control `span` |
+| 4 | `act_kind` | a | a link with `data-act` | the control `more` |
+| 4 | `no_act` | a | a button of 44 pixels with no `data-act` | `no_act` |
+| 4 | `area_no_act` | a | an image map whose `area` has an address and no `data-act` | `no_act` |
+| 4 | `area_unnamed_no_act` | a | an `area` with an address and no `data-act` in a map that no image names | `no_act` |
+| 4 | `input_no_act` | a | a text `input` with no `data-act` | `no_act` |
+| 4 | `select_no_act` | a | a `select` with no `data-act` | `no_act` |
+| 4 | `textarea_no_act` | a | a `textarea` with no `data-act` | `no_act` |
+| 4 | `link_no_act` | a | an `a` with an address and no `data-act` | `no_act` |
+| 4 | `summary_no_act` | a | a `summary` of a `details` with no `data-act` | `no_act` |
+| 4 | `audio_no_act` | a | an `audio` with `controls` and no `data-act` | `no_act` |
+| 4 | `video_no_act` | a | a `video` with `controls` and no `data-act` | `no_act` |
+| 4 | `shadow_markup` | a | a closed shadow root made by `setHTMLUnsafe` from `<template/shadowrootmode=closed>` | `opaque` |
+| 4 | `shadow_word` | a | the script `sample/word.js`, whose text holds the word `shadowrootmode` in a string and makes no root | `opaque` |
+| 4 | `parse_closed` | a | a closed shadow root made by `Document.parseHTMLUnsafe`, with the word split in the served text, and adopted into the page | `opaque` |
+| 4 | `shadow_tostring` | a | an object handed to `setHTMLUnsafe` whose text is `<div></div>` at the first read and a closed shadow root at the second | `opaque` |
+| 5 | `motion_hidden` | a | a control hidden with reduced motion | the mode `reduced_motion` alone |
+| 5 | `forced_hidden` | a | a control hidden in forced colours | the mode `forced_colors` alone |
+| 5 | `narrow_scroll` | a | a line at least 400 pixels wide | the mode `width_320` alone |
+| 5 | `outside_mode` | a | a request to `localhost` with reduced motion only | the mode `reduced_motion` alone |
+| 5 | `inner_scroll` | a | a row of controls that scrolls sideways at 320 pixels | the mode `width_320` alone |
+| 5 | `error_mode` | a | a key press throws an error in forced colours only | the mode `forced_colors` alone |
+| 5 | `engine_mode` | a | a page that hides the engine in forced colours only, behind a property `ace` that holds no checker, and reports no error | the mode `forced_colors` alone |
+| 5 | `shadow_parse` | a | an open shadow root made by `Document.parseHTMLUnsafe` | `opaque` with the three modes in `modes_off` |
+| 6 | `inner_html` | a | the first line set as markup | `miss` |
+| 6 | `day_html` | a | the day of the first row set as markup | `miss` |
+| 6 | `frame` | a | an `iframe` | `opaque` |
+| 6 | `shadow_realm_open` | a | an open shadow root attached with the `attachShadow` of a frame that the view made and removed, which no hook sees | `opaque` |
+| 6 | `stub_forge` | a | the view writes the driver's binding global with a function that answers each call itself | `stub_tampered` |
+| 6 | `stub_deliver` | a | the view answers its first call through the controller's own `deliverBindingResult` before the harness does | `stub_tampered` |
+| 6 | `count_only` | a | the first line set as markup, with the marker attribute taken off | `miss` by the count of elements alone |
+| 6 | `marker_only` | a | the first line as one element either way, markup when the text holds `<` | `miss` by the marker alone |
+
+It prints `selftest check=<n> sample=<ok|miss> fault=<caught|missed>` for each check, then `page self-test: <k> of <k> ok engine=<offline|none>`. With `engine=none` it runs checks 2 to 6, skips the faults of check 5 that need the engine (`outside_mode`, `engine_mode`), and prints `engine none reason=<reason>` on standard error. A fault of check 5 whose mode is off on the machine is not counted. The self-test exits 0 when every check passed, 1 when one did not, and 2 on the refusals `usage` (an argument), `browser` (no fetched build of the machine) and `fixture` (a sample file is missing or is no JSON). It records no time. A state of a sample view takes longer to check than before this list, because the walk opens a second page for each radio group and for each confirmation, and checks 5 and 6 apply the acts of the state on each page that they open.

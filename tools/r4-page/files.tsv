@@ -1,0 +1,6 @@
+# build	system	address	size	sha256
+webkit-2388	mac26-arm64	https://cdn.playwright.dev/dbazure/download/playwright/builds/webkit/2388/webkit-mac-26-arm64.zip	85789503	d3cc730027105a014d0cbf53925bd7eababbdf8dbccbb4a3a1713c5f631dbcaf
+webkit-2388	mac15-arm64	https://cdn.playwright.dev/dbazure/download/playwright/builds/webkit/2388/webkit-mac-15-arm64.zip	85207540	50b4238e145b8018e48aacefc15e9b3a43fafd18eee42ed4cb29a2e5c5a2e385
+chromium-1254	win64	https://cdn.playwright.dev/builds/cft/158.0.8127.18/win64/chrome-win64.zip	215820284	b796e8a6231463d1a150ee679fd7cb0168b3728162d2d19bf7bbd867d60d55e2
+chromium-1254	mac26-arm64	https://cdn.playwright.dev/builds/cft/158.0.8127.18/mac-arm64/chrome-mac-arm64.zip	199683801	15d54783d40732983653ebc2171af38c6b5b5ab055a9afbf48d47c2b57836da9
+chromium-1254	mac15-arm64	https://cdn.playwright.dev/builds/cft/158.0.8127.18/mac-arm64/chrome-mac-arm64.zip	199683801	15d54783d40732983653ebc2171af38c6b5b5ab055a9afbf48d47c2b57836da9

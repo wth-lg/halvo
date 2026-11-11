@@ -1,0 +1,10 @@
+{
+  "name": "r4-page",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "accessibility-checker-engine": "4.0.34",
+    "playwright": "1.65.0"
+  }
+}
