@@ -219,7 +219,6 @@ wfp_setup() {
   shift 3
   {
     cygpath -w "$runner"
-    cygpath -w "$bin/egress-probe.exe"
     wfp_program "$1"
   } >"$wfp_dir/programs" || refuse output "target/egress/$n/programs"
   win_dir=$(cygpath -w "$wfp_dir") || refuse output "target/egress/$n"
@@ -343,6 +342,9 @@ while [ $# -gt 0 ]; do
     -*) refuse usage "$1" ;;
     *)
       [ "$self_test" -eq 0 ] && [ "$control" -eq 0 ] || refuse usage "$1"
+      case $1 in
+        *[$(printf '\001-\037')]*) refuse usage "the LISTFILE path holds a byte below 0x20" ;;
+      esac
       list=$1
       shift
       [ "${1:-}" = -- ] || refuse usage "LISTFILE without -- after it"
