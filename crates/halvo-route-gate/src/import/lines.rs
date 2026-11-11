@@ -192,6 +192,15 @@ pub fn attempt(line: &[u8]) -> Option<Row> {
     })
 }
 
+/// Whether the `i` of a row keeps the numbering by itself: `compile`, `recover` and `write` have
+/// no `i` but 1, and `replay` has `i` from 1 to 3.
+pub fn numbered(row: &Row) -> bool {
+    match row.kind {
+        CallKind::Replay => row.attempt.get() <= 3,
+        CallKind::Compile | CallKind::Recover | CallKind::Write => row.attempt.get() == 1,
+    }
+}
+
 /// The key of a row that `attempt` made.
 pub fn attempt_key(row: &Row) -> AttemptKey {
     (

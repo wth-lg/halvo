@@ -3,9 +3,49 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 const ATTEMPT: &str = "attempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6";
-const VERDICT: &str = "verdict driver=m_a path=A writer=m_a";
+const VERDICT: &str = "verdict driver=none path=B writer=none";
 const BOUND: &str = "bound model=m_a machine=mac bound_bytes=100 fits=yes";
 const ROW: &str = "bill\tutility_bill_payment\tcompile\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t3\t10\t5\t6\tmedium\ts1";
+const MACHINES: [&str; 2] = ["mac", "hosted-win"];
+
+fn driver_lines(model: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    for machine in MACHINES {
+        for task in ["bill", "order"] {
+            for seed in 1..=3 {
+                for (kind, i) in [
+                    ("compile", 1),
+                    ("replay", 1),
+                    ("replay", 2),
+                    ("replay", 3),
+                    ("recover", 1),
+                ] {
+                    lines.push(format!("attempt model={model} machine={machine} task={task} seed={seed} kind={kind} i={i} pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6"));
+                }
+                lines.push(format!("drive model={model} machine={machine} task={task} seed={seed} compile=ok replays_ok=3 of=3 recover=ok steps=3 wall_s=10 model_tokens=11 typed_credential=0 effects_without_confirm=0"));
+            }
+        }
+    }
+    lines
+}
+
+fn writer_lines(model: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    for machine in MACHINES {
+        for seed in 1..=3 {
+            lines.push(format!("attempt model={model} machine={machine} task=reply seed={seed} kind=write i=1 pass=yes steps=0 wall_s=10 tokens_in=5 tokens_out=6"));
+            lines.push(format!(
+                "reply model={model} machine={machine} seed={seed} bodies=2 of=2 wall_s=10 model_tokens=11"
+            ));
+        }
+    }
+    lines
+}
+
+fn with(mut lines: Vec<String>, last: &str) -> Vec<String> {
+    lines.push(last.to_owned());
+    lines
+}
 
 fn scratch() -> PathBuf {
     static NEXT: AtomicU32 = AtomicU32::new(0);
@@ -162,7 +202,7 @@ fn a_good_pair_writes_the_four_files_and_prints_the_line() {
     );
     assert_eq!(
         got.file("freeze.txt"),
-        "freeze rows=1 models=1 sources=2 date=2026-11-10\non_device driver=m_a writer=m_a\n"
+        "freeze rows=1 models=1 sources=2 date=2026-11-10\non_device driver=none writer=none\n"
     );
     let driver_blob = halvo_route_gate::import::blob_id(
         &std::fs::read(got.dir.join("driver.md")).expect("driver"),
@@ -221,9 +261,9 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
         &[
             "attempt model=m_b machine=mac task=reply seed=3 kind=write i=1 pass=no steps=0 wall_s=7 tokens_in=1 tokens_out=2",
             ATTEMPT,
-            "attempt model=m_a machine=hosted-win task=order seed=2 kind=replay i=2 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0",
-            "attempt model=m_a machine=mac task=order seed=1 kind=recover i=4294967295 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1",
-            "verdict driver=none path=B writer=m_a",
+            "attempt model=m_a machine=hosted-win task=order seed=2 kind=replay i=1 pass=yes steps=4 wall_s=0 tokens_in=0 tokens_out=0",
+            "attempt model=m_a machine=mac task=order seed=1 kind=recover i=1 pass=yes steps=18446744073709551615 wall_s=1 tokens_in=1 tokens_out=1",
+            VERDICT,
         ],
         &[
             "bound model=ternary_bonsai_2_9b machine=mac bound_bytes=0 fits=not-measured",
@@ -242,8 +282,8 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
         lines,
         [
             ROW,
-            "order\tshop_order\trecover\ton_device\tm_a\tmac\t1\tdev\t4294967295\tyes\t18446744073709551615\t1\t1\t1\tmedium\ts1",
-            "order\tshop_order\treplay\ton_device\tm_a\thosted-win\t2\tdev\t2\tyes\t4\t0\t0\t0\tmedium\ts1",
+            "order\tshop_order\trecover\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t18446744073709551615\t1\t1\t1\tmedium\ts1",
+            "order\tshop_order\treplay\ton_device\tm_a\thosted-win\t2\tdev\t1\tyes\t4\t0\t0\t0\tmedium\ts1",
             "reply\temail\twrite\ton_device\tm_b\tmac\t3\theld\t1\tno\t0\t7\t1\t2\tmedium\ts1",
         ]
     );
@@ -259,7 +299,7 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
     );
     assert!(got
         .file("freeze.txt")
-        .ends_with("\non_device driver=none writer=m_a\n"));
+        .ends_with("\non_device driver=none writer=none\n"));
 }
 
 #[test]
@@ -441,7 +481,9 @@ fn lines_outside_the_block_are_not_read() {
     cells.extend(b"text after the block\n");
     let got = run_files(driver, cells);
     got.passed();
-    assert!(got.file("freeze.txt").ends_with("driver=m_a writer=m_a\n"));
+    assert!(got
+        .file("freeze.txt")
+        .ends_with("driver=none writer=none\n"));
 }
 
 #[test]
@@ -791,11 +833,145 @@ fn a_second_attempt_line_of_one_row_key_is_refused_at_its_line() {
         ("task", "order"),
         ("seed", "2"),
         ("kind", "recover"),
-        ("i", "2"),
     ] {
         let other = attempt_with(key, value);
         run(&[ATTEMPT, &other, VERDICT], &[BOUND]).passed();
     }
+    let replay = attempt_with("kind", "replay");
+    let second = replay.replace(" i=1 ", " i=2 ");
+    run(&[&replay, &second, VERDICT], &[BOUND]).passed();
+}
+
+fn line_of(model: &str, task: &str, seed: u32, kind: &str, i: &str) -> String {
+    format!("attempt model={model} machine=mac task={task} seed={seed} kind={kind} i={i} pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6")
+}
+
+#[test]
+fn an_i_outside_the_numbering_is_refused_at_its_line() {
+    for (task, kind, i) in [
+        ("bill", "compile", "2"),
+        ("order", "recover", "2"),
+        ("reply", "write", "2"),
+        ("bill", "replay", "4"),
+        ("order", "replay", "7"),
+    ] {
+        let line = line_of("m_b", task, 1, kind, i);
+        let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
+        assert_eq!(got.refused(), "REFUSED source: driver:4", "{line}");
+    }
+    for further in [
+        line_of("m_d", "bill", 1, "replay", "4"),
+        line_of("m_d", "order", 2, "compile", "2"),
+    ] {
+        let mut driver = vec![further.clone()];
+        driver.extend(driver_lines("m_d"));
+        let got = run(
+            &refs(&with(driver, "verdict driver=m_d path=A writer=none")),
+            &[BOUND],
+        );
+        assert_eq!(got.refused(), "REFUSED source: driver:3", "{further}");
+    }
+    let lines = driver_lines("m_d");
+    let twice = with(lines.clone(), &lines[7]);
+    let got = run(
+        &refs(&with(twice, "verdict driver=m_d path=A writer=none")),
+        &[BOUND],
+    );
+    assert_eq!(got.refused(), "REFUSED source: driver:75");
+}
+
+#[test]
+fn a_gap_in_the_replays_is_refused_at_the_first_replay_line_whose_i_less_one_has_no_line() {
+    let replay = |seed, i| line_of("m_b", "bill", seed, "replay", i);
+    for (lines, want) in [
+        (vec![replay(1, "1"), replay(1, "3")], "driver:4"),
+        (vec![replay(1, "3"), replay(1, "2")], "driver:4"),
+        (
+            vec![replay(1, "2"), replay(2, "1"), replay(2, "3")],
+            "driver:3",
+        ),
+        (
+            vec![replay(2, "1"), replay(2, "3"), replay(1, "2")],
+            "driver:4",
+        ),
+        (vec![ATTEMPT.to_owned(), replay(3, "2")], "driver:4"),
+    ] {
+        let got = run(&refs(&with(lines.clone(), VERDICT)), &[BOUND]);
+        assert_eq!(
+            got.refused(),
+            format!("REFUSED source: {want}"),
+            "{lines:?}"
+        );
+    }
+    let got = run(
+        &refs(&with(
+            vec![replay(1, "3"), replay(1, "1"), replay(1, "2")],
+            VERDICT,
+        )),
+        &[BOUND],
+    );
+    got.passed();
+    assert_eq!(got.stdout, "import rows=3 models=1 sources=2\n");
+}
+
+#[test]
+fn the_verdicts_driver_and_writer_have_exactly_the_attempt_lines_of_the_trial() {
+    let verdict = "verdict driver=m_d path=A writer=m_d";
+    let lines = [driver_lines("m_d"), writer_lines("m_d")].concat();
+    let got = run(&refs(&with(lines.clone(), verdict)), &[BOUND]);
+    got.passed();
+    assert_eq!(got.stdout, "import rows=66 models=1 sources=2\n");
+    let mut dropped = 0;
+    for (n, line) in lines.iter().enumerate() {
+        if !line.starts_with("attempt ") {
+            continue;
+        }
+        let mut fewer = lines.clone();
+        fewer.remove(n);
+        let got = run(&refs(&with(fewer, verdict)), &[BOUND]);
+        let want = if line.contains(" kind=replay i=1 ") || line.contains(" kind=replay i=2 ") {
+            format!("REFUSED source: driver:{}", n + 3)
+        } else {
+            "REFUSED source: driver:verdict".to_owned()
+        };
+        assert_eq!(got.refused(), want, "{line}");
+        dropped += 1;
+    }
+    assert_eq!(dropped, 66);
+    for verdict in [
+        "verdict driver=m_x path=A writer=none",
+        "verdict driver=none path=B writer=m_x",
+    ] {
+        let got = run(&refs(&with(lines.clone(), verdict)), &[BOUND]);
+        assert_eq!(got.refused(), "REFUSED source: driver:verdict", "{verdict}");
+    }
+    let mut writer_with_compile = writer_lines("m_w");
+    writer_with_compile.push(line_of("m_w", "bill", 1, "compile", "1"));
+    for (lines, verdict) in [
+        (
+            [driver_lines("m_d"), writer_lines("m_d")].concat(),
+            "verdict driver=m_d path=A writer=none",
+        ),
+        (writer_with_compile, "verdict driver=none path=B writer=m_w"),
+    ] {
+        run(&refs(&with(lines, verdict)), &[BOUND]).passed();
+    }
+}
+
+#[test]
+fn a_model_that_is_neither_driver_nor_writer_may_have_compile_lines_alone() {
+    let mut lines = driver_lines("m_d");
+    for task in ["bill", "order"] {
+        for seed in 1..=3 {
+            lines.push(line_of("m_n", task, seed, "compile", "1"));
+        }
+    }
+    let got = run(
+        &refs(&with(lines, "verdict driver=m_d path=A writer=none")),
+        &[BOUND],
+    );
+    got.passed();
+    assert_eq!(got.stdout, "import rows=66 models=1 sources=2\n");
 }
 
 #[test]
@@ -805,7 +981,7 @@ fn the_verdict_line_is_required_once() {
     let got = run(&[VERDICT, ATTEMPT, VERDICT], &[BOUND]);
     assert_eq!(got.refused(), "REFUSED source: driver:verdict");
     let got = run(
-        &[VERDICT, ATTEMPT, "verdict driver=none path=B writer=none"],
+        &["verdict driver=m_a path=A writer=m_a", ATTEMPT, VERDICT],
         &[BOUND],
     );
     assert_eq!(got.refused(), "REFUSED source: driver:verdict");
@@ -843,25 +1019,39 @@ fn each_field_of_the_verdict_line_with_a_wrong_value_is_refused() {
         let got = run(&[ATTEMPT, line], &[BOUND]);
         assert_eq!(got.refused(), "REFUSED source: driver:4", "{line:?}");
     }
-    for (line, freeze) in [
+    for (line, lines, rows, freeze) in [
         (
-            "verdict driver=m_a path=A writer=none",
-            "driver=m_a writer=none",
+            "verdict driver=m_d path=A writer=none",
+            driver_lines("m_d"),
+            61,
+            "driver=m_d writer=none",
         ),
         (
-            "verdict driver=none path=B writer=m_b",
-            "driver=none writer=m_b",
+            "verdict driver=m_d path=A writer=m_d",
+            [driver_lines("m_d"), writer_lines("m_d")].concat(),
+            67,
+            "driver=m_d writer=m_d",
+        ),
+        (
+            "verdict driver=none path=B writer=m_w",
+            writer_lines("m_w"),
+            7,
+            "driver=none writer=m_w",
         ),
         (
             "verdict driver=none path=B writer=none",
+            Vec::new(),
+            1,
             "driver=none writer=none",
         ),
     ] {
-        let got = run(&[ATTEMPT, line], &[BOUND]);
+        let mut driver = vec![ATTEMPT.to_owned()];
+        driver.extend(lines);
+        let got = run(&refs(&with(driver, line)), &[BOUND]);
         got.passed();
         assert_eq!(
             got.file("freeze.txt"),
-            format!("freeze rows=1 models=1 sources=2 date=2026-11-10\non_device {freeze}\n")
+            format!("freeze rows={rows} models=1 sources=2 date=2026-11-10\non_device {freeze}\n")
         );
     }
 }

@@ -53,7 +53,7 @@ impl Write for Broken {
 fn inputs(dir: &Path) -> Vec<String> {
     std::fs::write(
         dir.join("driver.md"),
-        "```\nattempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6\nverdict driver=m_a path=A writer=m_a\n```\n",
+        "```\nattempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6\nverdict driver=none path=B writer=none\n```\n",
     )
     .expect("driver");
     std::fs::write(
