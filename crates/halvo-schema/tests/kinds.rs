@@ -1381,3 +1381,12 @@ fn check_record_takes_null_a_list_or_an_object_under_a_key_that_is_no_rule_key()
         Err("summary: a key that the fields do not list: unknown_key".to_owned())
     );
 }
+
+#[test]
+fn check_record_reads_an_app_id_with_a_control_character_of_the_category_cc_as_no_app_id() {
+    for c in ['\u{85}', '\u{9b}'] {
+        let app = serde_json::to_string(&format!("com.example{c}app")).unwrap();
+        refused("app", &app, "string_form");
+    }
+    passes("app", "\"com.example\u{a0}app\"");
+}

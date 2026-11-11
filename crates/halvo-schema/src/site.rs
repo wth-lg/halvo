@@ -23,7 +23,7 @@ fn app(s: &str) -> Result<(), &'static str> {
     if s.contains(['/', '\\']) {
         return Err("separator");
     }
-    if s.chars().any(|c| c < '\u{20}' || c == '\u{7f}') {
+    if s.chars().any(char::is_control) {
         return Err("control");
     }
     if s == "." || s == ".." {
@@ -34,8 +34,8 @@ fn app(s: &str) -> Result<(), &'static str> {
 
 string_type! {
     /// An app id: a bundle id or the file name of an executable, never a path. `parse` accepts 1 to 255 bytes
-    /// with no `/`, no `\`, no character below U+0020 and not U+007F, and neither `.` nor `..`, and keeps
-    /// the bytes as given.
+    /// with no `/`, no `\`, no control character (the Unicode category Cc: U+0000 to U+001F, U+007F and U+0080
+    /// to U+009F), and neither `.` nor `..`, and keeps the bytes as given.
     AppId [Debug, PartialOrd, Ord, Hash] = app
 }
 
