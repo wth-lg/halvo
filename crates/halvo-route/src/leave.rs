@@ -1,6 +1,8 @@
 //! What may leave the machine, contract T9.2: the grant without which no byte of a model request
 //! leaves, and `grant`, the one code that makes one.
 
+use std::fmt;
+
 use crate::ruling::Ruling;
 use crate::tier::Tier;
 
@@ -86,14 +88,16 @@ impl LeaveCause {
 }
 
 /// The leave for one model request to leave the machine. It has a private field, no public maker
-/// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. `grant` makes one
+/// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. Its field is of a
+/// private type of no size that is neither `Clone` nor `Copy` either, so no code can copy a grant
+/// from a borrowed one by a struct update. `grant` makes one
 /// only in a build that sets `cfg(test)`, as the crate's own unit tests do, and never under the
 /// release ruling.
 ///
 /// A caller outside this module cannot write one:
 ///
 /// ```compile_fail,E0451
-/// let grant = halvo_route::leave::LeaveGrant { _sealed: () };
+/// let grant = halvo_route::leave::LeaveGrant { _sealed: todo!() };
 /// ```
 ///
 /// ```compile_fail,E0277
@@ -164,7 +168,15 @@ impl LeaveCause {
 /// ```
 #[derive(Debug)]
 pub struct LeaveGrant {
-    _sealed: (),
+    _sealed: Seal,
+}
+
+struct Seal;
+
+impl fmt::Debug for Seal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Seal")
+    }
 }
 
 /// The one maker of a `LeaveGrant`. The first rule that fits: the tier `on_device` gives `local`,
@@ -199,7 +211,7 @@ pub fn grant(
             } else if consent == Consent::Missing {
                 Err(LeaveCause::Consent)
             } else {
-                Ok(LeaveGrant { _sealed: () })
+                Ok(LeaveGrant { _sealed: Seal })
             }
         }
     }
@@ -572,22 +584,48 @@ mod tests {
             .and_then(|rest| rest.split("\n}\n").next())
             .expect("the body of grant");
         assert_eq!(
-            body.matches(&format!("LeaveGrant {{ {field}: () }}"))
+            body.matches(&format!("LeaveGrant {{ {field}: Seal }}"))
                 .count(),
             1
         );
-        let item = code
+        assert_eq!(
+            attributes_above(&code, "pub struct LeaveGrant {"),
+            ["#[derive(Debug)]"]
+        );
+        let declared = format!("    {field}: Seal,");
+        assert!(code.iter().any(|line| *line == declared));
+        assert!(attributes_above(&code, "struct Seal;").is_empty());
+        let impls: Vec<&str> = code
             .iter()
-            .position(|line| *line == "pub struct LeaveGrant {")
-            .expect("the item LeaveGrant");
-        let attributes: Vec<&str> = code[..item]
+            .filter(|line| words(line).any(|word| word == "impl"))
+            .filter(|line| words(line).any(|word| word == "Seal"))
+            .copied()
+            .collect();
+        assert_eq!(impls, ["impl fmt::Debug for Seal {"]);
+    }
+
+    #[test]
+    fn leave_grant_is_of_no_size() {
+        assert_eq!(std::mem::size_of::<LeaveGrant>(), 0);
+    }
+
+    fn attributes_above<'a>(code: &[&'a str], item: &str) -> Vec<&'a str> {
+        assert_eq!(
+            code.iter().filter(|line| **line == item).count(),
+            1,
+            "{item}"
+        );
+        let at = code
+            .iter()
+            .position(|line| *line == item)
+            .expect("the item");
+        code[..at]
             .iter()
             .rev()
             .take_while(|line| **line != "}" && !line.ends_with(';'))
             .filter(|line| !line.trim().is_empty())
             .copied()
-            .collect();
-        assert_eq!(attributes, ["#[derive(Debug)]"]);
+            .collect()
     }
 
     fn crate_sources() -> Vec<(String, String)> {
