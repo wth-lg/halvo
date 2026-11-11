@@ -205,6 +205,21 @@ head_of() {
   head_read
 }
 
+real_repository() {
+  repo=$gate_scratch/$1
+  git init -q "$repo" > /dev/null 2>&1 || return 1
+  printf 'one\n' > "$repo/a.txt"
+  git -C "$repo" add a.txt || return 1
+  repo_tree=$(git -C "$repo" write-tree) || return 1
+  repo_commit=$(printf 'tree %s\nauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$repo_tree" | git -C "$repo" hash-object -t commit -w --stdin) || return 1
+  git -C "$repo" update-ref HEAD "$repo_commit"
+}
+
+head_state_is() {
+  head_line=$(head_of "$gate_scratch/$2") || return 1
+  [ "${head_line##* }" = "$1" ]
+}
+
 status_is() {
   status=$(worst_status "$2" "$3")
   [ "$status" = "$1" ]
@@ -291,6 +306,14 @@ cases_run() {
   t porcelain-holds-a-change FAIL predicate_tree_clean " M scripts/r1-gate/run.sh"
   t porcelain-holds-an-untracked-file FAIL predicate_tree_clean "?? notes.txt"
   t head-of-no-repository FAIL head_of "$gate_scratch"
+  real_repository clean-repo || { emit_fail "self-test:run" "git could not make the scratch repository"; return 1; }
+  t clean-repository-is-clean PASS head_state_is clean clean-repo
+  real_repository hidden-untracked && git -C "$gate_scratch/hidden-untracked" config status.showUntrackedFiles no && printf 'new\n' > "$gate_scratch/hidden-untracked/notes.txt"
+  t untracked-file-under-show-untracked-files-no-is-dirty PASS head_state_is dirty hidden-untracked
+  real_repository assumed && git -C "$gate_scratch/assumed" update-index --assume-unchanged a.txt && printf 'changed\n' > "$gate_scratch/assumed/a.txt"
+  t assume-unchanged-entry-is-dirty PASS head_state_is dirty assumed
+  real_repository skipped && git -C "$gate_scratch/skipped" update-index --skip-worktree a.txt
+  t skip-worktree-entry-is-dirty PASS head_state_is dirty skipped
   scratch_trees || { emit_fail "self-test:run" "git could not write the scratch trees"; return 1; }
   t tree-id-moves-with-a-source-file PASS tree_ids differ "$tree_new_record" "$tree_new_source"
   t tree-id-holds-under-docs-baseline PASS tree_ids same "$tree_first" "$tree_new_record"
