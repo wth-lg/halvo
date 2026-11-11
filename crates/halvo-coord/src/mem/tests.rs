@@ -231,7 +231,7 @@ fn answer_confirm_sends_the_decision_only_after_record_returned_success() {
     let sent = p.sent_decisions();
     assert_eq!(sent, seen);
     let ids: Vec<&str> = sent[0]
-        .approvals
+        .approvals()
         .iter()
         .map(|e| e.approval.as_str())
         .collect();
@@ -243,7 +243,7 @@ fn answer_confirm_sends_the_decision_only_after_record_returned_success() {
         ]
     );
     assert!(sent[0]
-        .approvals
+        .approvals()
         .iter()
         .all(|e| e.answer == EffectAnswer::AllowOnce));
     let order: Vec<&str> = p.calls.borrow().iter().map(|c| c.call.method()).collect();
@@ -266,15 +266,50 @@ fn answer_confirm_sends_reject_once_under_new_ids_when_record_fails() {
     let sent = p.sent_decisions();
     assert_eq!(sent.len(), 1);
     assert!(sent[0]
-        .approvals
+        .approvals()
         .iter()
         .all(|e| e.answer == EffectAnswer::RejectOnce));
-    for e in &sent[0].approvals {
-        assert!(handed[0].approvals.iter().all(|h| h.approval != e.approval));
+    for e in sent[0].approvals() {
+        assert!(handed[0]
+            .approvals()
+            .iter()
+            .all(|h| h.approval != e.approval));
     }
-    let effects: Vec<EffectId> = sent[0].approvals.iter().map(|e| e.effect.clone()).collect();
+    let effects: Vec<EffectId> = sent[0]
+        .approvals()
+        .iter()
+        .map(|e| e.effect.clone())
+        .collect();
     let asked: Vec<EffectId> = answers().into_iter().map(|a| a.effect).collect();
     assert_eq!(effects, asked);
+}
+
+#[test]
+fn answer_confirm_refuses_answers_that_make_no_decision() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let mut called = 0;
+    let mut record = |_: &Decision| {
+        called += 1;
+        Ok(())
+    };
+    let doubled = vec![answers()[0].clone(), answers()[0].clone()];
+    assert_eq!(
+        p.answer_confirm(&spec().run, &[], &mut record),
+        refused("malformed")
+    );
+    assert_eq!(
+        p.answer_confirm(&spec().run, &doubled, &mut record),
+        refused("malformed")
+    );
+    assert_eq!(called, 0);
+    assert!(p.sent_decisions().is_empty());
+    p.answer_confirm(&spec().run, &answers(), &mut |_| Ok(()))
+        .unwrap();
+    assert_eq!(
+        p.sent_decisions()[0].approvals()[0].approval.as_str(),
+        "00000000000000000000000000000001",
+        "a refusal mints no id"
+    );
 }
 
 #[test]

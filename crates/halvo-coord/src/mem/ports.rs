@@ -127,6 +127,8 @@ pub struct Timed {
 /// entry of `agents` pairs the two, or once `send` acknowledged `create_agent` for the pair.
 /// `send` refuses `set_state` `active` for an agent of `agents` whose runtime is `web` and
 /// which has no playbook with `playbook`. `history` answers at most 64 events for one call.
+/// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
+/// effect) with `malformed`, before it mints an id or calls `record`.
 pub struct Ports<C> {
     /// The owner's list of workflows.
     pub workflows: RefCell<Vec<Workflow>>,
@@ -282,18 +284,25 @@ impl<C> Ports<C> {
         ApprovalId::parse(&hex(n.to_be_bytes())).expect("32 hex digits")
     }
 
-    fn decision(&self, answers: &[Answer], answer: Option<EffectAnswer>) -> Decision {
-        Decision {
-            approvals: answers
-                .iter()
-                .map(|a| DecisionEntry {
-                    approval: self.approval(),
-                    effect: a.effect.clone(),
-                    digest: a.digest.clone(),
-                    answer: answer.unwrap_or(a.answer),
-                })
-                .collect(),
-        }
+    fn decision(
+        &self,
+        answers: &[Answer],
+        answer: Option<EffectAnswer>,
+    ) -> Result<Decision, PortError> {
+        let minted = self.approvals.get();
+        let entries = answers
+            .iter()
+            .map(|a| DecisionEntry {
+                approval: self.approval(),
+                effect: a.effect.clone(),
+                digest: a.digest.clone(),
+                answer: answer.unwrap_or(a.answer),
+            })
+            .collect();
+        Decision::new(entries).map_err(|_| {
+            self.approvals.set(minted);
+            refusal("malformed")
+        })
     }
 }
 
@@ -389,14 +398,14 @@ impl<C> Runs for Ports<C> {
         record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
     ) -> Result<(), PortError> {
         self.refused(Method::AnswerConfirm)?;
-        let decision = self.decision(answers, None);
+        let decision = self.decision(answers, None)?;
         match record(&decision) {
             Ok(()) => {
                 self.record(Call::AnswerConfirm(run.clone(), answers.to_vec(), decision));
                 Ok(())
             }
             Err(e) => {
-                let sent = self.decision(answers, Some(EffectAnswer::RejectOnce));
+                let sent = self.decision(answers, Some(EffectAnswer::RejectOnce))?;
                 self.record(Call::AnswerConfirm(run.clone(), answers.to_vec(), sent));
                 Err(e)
             }

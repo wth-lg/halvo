@@ -1,5 +1,5 @@
 use super::{AgentId, ApprovalId, BoundFrom, Class, Digest, EffectAnswer, EffectId, Name, Origin};
-use super::{HandbackReason, Mode, Outcome, RunId, WorkflowId};
+use super::{Cause, HandbackReason, Mode, Outcome, RunId, WorkflowId};
 
 /// What `Runs::start` starts (I5.10).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,11 +91,49 @@ pub struct Answer {
     pub answer: EffectAnswer,
 }
 
-/// A decision of A-A6.3: one entry per effect of the request.
+/// A decision of A-A6.3: one entry per effect of the request, never empty.
+///
+/// ```
+/// use halvo_coord::types::{ApprovalId, Decision, DecisionEntry, Digest, EffectAnswer, EffectId};
+/// let entry = DecisionEntry {
+///     approval: ApprovalId::parse("00000000000000000000000000000009").unwrap(),
+///     effect: EffectId::parse("00000000000000000000000000000008").unwrap(),
+///     digest: Digest::parse(&"a".repeat(64)).unwrap(),
+///     answer: EffectAnswer::RejectOnce,
+/// };
+/// let decision = Decision::new(vec![entry]).unwrap();
+/// assert_eq!(decision.approvals().len(), 1);
+/// ```
+///
+/// A decision is made only by `new`, so an empty one cannot be written:
+///
+/// ```compile_fail,E0451
+/// use halvo_coord::types::Decision;
+/// let decision = Decision { approvals: vec![] };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Decision {
-    /// `approvals`.
-    pub approvals: Vec<DecisionEntry>,
+    approvals: Vec<DecisionEntry>,
+}
+
+impl Decision {
+    /// The decision of these entries; `malformed` for no entry or two entries for one effect.
+    pub fn new(approvals: Vec<DecisionEntry>) -> Result<Decision, Cause> {
+        let doubled = approvals
+            .iter()
+            .enumerate()
+            .any(|(i, e)| approvals[..i].iter().any(|f| f.effect == e.effect));
+        if approvals.is_empty() || doubled {
+            Err(Cause::Malformed)
+        } else {
+            Ok(Decision { approvals })
+        }
+    }
+
+    /// `approvals`, in the request's order.
+    pub fn approvals(&self) -> &[DecisionEntry] {
+        &self.approvals
+    }
 }
 
 /// One entry of a decision (A-A6.3).

@@ -277,6 +277,23 @@ fn an_answered_row_pairs_each_kind_with_its_own_choices_of_i3_1() {
 }
 
 #[test]
+fn a_decision_is_never_empty_and_holds_one_entry_for_an_effect() {
+    let entry = |effect: &str, approval: &str| DecisionEntry {
+        approval: ApprovalId::parse(&approval.repeat(32)).unwrap(),
+        effect: EffectId::parse(&effect.repeat(32)).unwrap(),
+        digest: Digest::parse(&"a".repeat(64)).unwrap(),
+        answer: EffectAnswer::AllowOnce,
+    };
+    assert_eq!(Decision::new(vec![]), Err(Cause::Malformed));
+    assert_eq!(
+        Decision::new(vec![entry("8", "1"), entry("8", "2")]),
+        Err(Cause::Malformed)
+    );
+    let two = Decision::new(vec![entry("8", "1"), entry("7", "2")]).unwrap();
+    assert_eq!(two.approvals().len(), 2);
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),
