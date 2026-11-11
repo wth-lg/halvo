@@ -160,6 +160,11 @@ fn the_tool_refuses_a_freeze_file_that_does_not_fit() {
             "REFUSED file: --freeze counts 131 rows and --table holds 132",
         ),
         (
+            "more.txt",
+            Some(good.replace("rows=132", "rows=133").into_bytes()),
+            "REFUSED file: --freeze counts 133 rows and --table holds 132",
+        ),
+        (
             "other.txt",
             Some(case_file("no_driver", "freeze.txt").into_bytes()),
             "REFUSED file: --freeze counts 1 rows and --table holds 132",

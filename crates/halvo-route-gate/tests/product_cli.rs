@@ -168,6 +168,29 @@ fn product_refuses_a_policy_that_does_not_parse() {
 }
 
 #[test]
+fn score_takes_a_thousand_draws_when_draws_is_absent() {
+    let dir = scratch();
+    let (table, policy) = specimen_policy(&dir);
+    let random = |extra: &[&str]| {
+        let mut args = vec![
+            "score", "--table", &table, "--router", "product", "--policy", &policy,
+        ];
+        args.extend_from_slice(extra);
+        let scored = run(&args);
+        assert_eq!(scored.code, Some(0), "{extra:?}");
+        scored
+            .stdout
+            .lines()
+            .find(|line| line.starts_with("versus name=random "))
+            .expect("a random line")
+            .to_owned()
+    };
+    let absent = random(&[]);
+    assert_eq!(absent, random(&["--draws", "1000"]));
+    assert_ne!(absent, random(&["--draws", "1"]));
+}
+
+#[test]
 fn self_test_counts_the_router_product() {
     let run = run(&["self-test", "--tables", "3", "--seed", "7"]);
     assert_eq!(
