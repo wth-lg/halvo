@@ -98,4 +98,4 @@ and merge without an entry landing under the heading of another.
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
 - Added: Add the page-test harness under tools/r4-page with its pinned packages, the browser builds pinned by address, size and SHA-256 and not committed, the six accessibility checks and a self-test on a sample view
 - Added: Add docs/r2 with its README and the .gitattributes files that give the workflow run's directories LF line ends and keep its fixtures out of line-end conversion
-- Added: Add the halvo-redact crate, whose mask function replaces card numbers by Luhn, IBANs by mod 97, US Social Security numbers by format and keys by the prefixes of gitleaks v8.30.1 with a token, with its list of documented misses and the ci.d check 22-redact
+- Added: Add the halvo-redact crate, whose mask function replaces card numbers by the Luhn check, IBANs by mod 97, US Social Security numbers by format and keys by 72 prefixes of 27 rules of the default configuration of gitleaks v8.30.1 with a token, with its list of documented misses and the ci.d check 22-redact
