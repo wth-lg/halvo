@@ -8,12 +8,13 @@ CHECKS="a:timed-run:here b:store:here b:deletion:here c:secure-input:here d:cost
 
 check_of() {
   check_rest=${1#*:}
-  printf '%s\n' "${check_rest%:*}"
+  entry_check=${check_rest%:*}
 }
 
 table_defect() {
   for entry in $CHECKS; do
-    table_check=$(check_of "$entry")
+    check_of "$entry"
+    table_check=$entry_check
     if [ -f "$1/check-$table_check.sh" ]; then
       [ "${entry##*:}" = here ] || { printf 'check-%s.sh is in %s and the table marks it later: mark it here\n' "$table_check" "$1"; return 1; }
     else
@@ -79,7 +80,8 @@ run_check() {
 measure_all() {
   all_status=0
   for entry in $CHECKS; do
-    run_check "$(check_of "$entry")" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
+    check_of "$entry"
+    run_check "$entry_check" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
     all_status=$(worst_status "$all_status" "$?")
   done
   return "$all_status"
@@ -89,7 +91,8 @@ stub_checks() {
   stubs=$gate_scratch/stubs-$st_case
   mkdir -p "$stubs"
   for entry in $CHECKS; do
-    cat > "$stubs/check-$(check_of "$entry").sh" <<'STUB'
+    check_of "$entry"
+    cat > "$stubs/check-$entry_check.sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" > "$0.args"
 read -r verdict < "$0.verdict"
@@ -98,7 +101,7 @@ printf '%s %s\n' "$verdict" "${stub%.sh}"
 case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
 exit 1
 STUB
-    printf 'PASS\n' > "$stubs/check-$(check_of "$entry").sh.verdict"
+    printf 'PASS\n' > "$stubs/check-$entry_check.sh.verdict"
   done
   for pair in "$@"; do
     printf '%s\n' "${pair#*=}" > "$stubs/check-${pair%%=*}.sh.verdict"
@@ -339,7 +342,8 @@ main() {
     fi
     for entry in $CHECKS; do
       [ "${entry##*:}" = here ] || continue
-      run_check "$(check_of "$entry")" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
+      check_of "$entry"
+      run_check "$entry_check" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
     done
     for name in run helper tree; do
       selftest_run || rc=1
