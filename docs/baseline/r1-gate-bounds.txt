@@ -1,0 +1,56 @@
+# Bounds of the R1 gate: one key=digits line per bound, with the unit in the key.
+# The lines above a key give its source and how the gate measures against it.
+# gate_bound in scripts/r1-gate/lib.sh prints a value only when exactly one line
+# holds the key, and every gate line prints the bounds it applied. A value
+# changes only through a plan Revision that carries the measurement. Decisions,
+# rulings and RD numbers are records of run 20261108-halvo-r1-capture.
+#
+# rss_max_bytes: 48 MiB, eng-manager decision 7. Sub-check (e) compares it with
+# the largest of ru_maxrss, the ps maximum and the peak memory footprint of the
+# gate-built debug binary over one timed run, and with the mean of the ps
+# samples; (g) and the Windows working-set check read the same key. Measured
+# before the bound was set, on the development Mac (aarch64-apple-darwin) on
+# 2026-11-09, debug binary, screen, input and foreground sources on, a 2 Hz
+# input load, one ps sample per second: a 25 s run held a peak of 25,231,360
+# bytes and a mean of 25,116,672 bytes (25 samples), and a 600 s run peaked at
+# 27,852,800 bytes. The check detects a peak or a mean above the bound in one
+# run on one machine. It does not detect a daemon that keeps every event of a
+# 600 s run, because that stays inside the headroom; sub-check (g) measures a
+# store of 2,000,000 events for that.
+rss_max_bytes=50331648
+# cpu_max_pct_of_one_core: the P0 bound, derived and not measured on Halvo: the
+# upper end of the 5 to 20 percent that Screenpipe reports for its own capture.
+# Sub-check (d) compares it with (user + sys) / real of the capture process,
+# read from the time file of the timed run. It is defined under input load, so
+# a run with no input cannot pass it: under --input operator the line fails
+# when the report of its own run holds no keystroke or no pointer event, and
+# under --input none it ends NO-INPUT and fails when input reached the run.
+cpu_max_pct_of_one_core=20
+# disk_max_bytes_per_day: the P0 bound, derived and not measured on Halvo:
+# Screenpipe's storage-planning example of 2 GB a day. Sub-check (d) compares
+# the growth of the allocated bytes of the store directory, scaled from the run
+# length to a day. No figure per event is written here: gate-4 measures it on
+# the real store.
+disk_max_bytes_per_day=2000000000
+# ci_job_timeout_min: RD-45: 1.45 times the longest of 82 recorded job attempts
+# of the workflow (1243 s, the windows job). The workflow lint compares each
+# job's timeout-minutes with it.
+ci_job_timeout_min=30
+# child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
+# its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
+# this many seconds before the gate ends it and prints FAIL: each timed run,
+# and the verify runs of the store and deletion checks, whose duration is 0.
+child_deadline_extra_s=25
+# batch_age_s: the owner thread's flush age. The pause wait and the cadence
+# bound of the later gate units derive from it, and a product test pins the
+# constant to this key.
+batch_age_s=5
+# maintenance_interval_s: the daemon's maintenance tick, one of the pinned
+# constants of the contracts. The expiry bound of the later gate units is two
+# of them, and a product test pins the constant to this key.
+maintenance_interval_s=60
+# screen_frames_max_per_s: the screen source's own cap (SCREEN_FRAME_CAP_FPS in
+# crates/halvo-capture/src/macos/mod.rs). The frames of a timed run divided by
+# its length stay at or under it, and a product test pins the constant to this
+# key.
+screen_frames_max_per_s=2
