@@ -143,6 +143,11 @@ async function release() {
 }
 
 const INIT = () => {
+  const attach = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function (init) {
+    window.__r4shadow = true;
+    return attach.call(this, init);
+  };
   const stub = Object.freeze({ call: (name, args) => window.__r4call(name, args === undefined ? null : args) });
   const halvo = {};
   Object.defineProperty(halvo, 'ipc', { get: () => stub, set: () => {}, enumerable: true });
@@ -450,7 +455,12 @@ async function engineCheck(h) {
 const HELPER = () => {
   if (window.__r4w) return;
   const NATIVE = 'button, input:not([type="hidden"]), select, textarea, a[href], summary, [contenteditable=""], [contenteditable="true"]';
-  const ROLES = new Set(['button', 'link', 'radio', 'checkbox', 'switch', 'tab', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'option', 'textbox', 'combobox', 'slider', 'spinbutton']);
+  const ROLES = new Set(['button', 'link', 'radio', 'checkbox', 'switch', 'tab', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'option', 'textbox', 'combobox', 'slider', 'spinbutton', 'searchbox', 'scrollbar', 'treeitem', 'gridcell']);
+  const ARIA = new Set(['alert', 'alertdialog', 'application', 'article', 'banner', 'blockquote', 'button', 'caption', 'cell', 'checkbox', 'code', 'columnheader', 'combobox', 'complementary', 'contentinfo', 'definition', 'deletion', 'dialog', 'directory', 'document', 'emphasis', 'feed', 'figure', 'form', 'generic', 'grid', 'gridcell', 'group', 'heading', 'img', 'image', 'insertion', 'link', 'list', 'listbox', 'listitem', 'log', 'main', 'mark', 'marquee', 'math', 'menu', 'menubar', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'meter', 'navigation', 'none', 'note', 'option', 'paragraph', 'presentation', 'progressbar', 'radio', 'radiogroup', 'region', 'row', 'rowgroup', 'rowheader', 'scrollbar', 'search', 'searchbox', 'separator', 'slider', 'spinbutton', 'status', 'strong', 'subscript', 'superscript', 'switch', 'tab', 'table', 'tablist', 'tabpanel', 'term', 'textbox', 'time', 'timer', 'toolbar', 'tooltip', 'tree', 'treegrid', 'treeitem']);
+  const role = (el) => {
+    for (const token of (el.getAttribute('role') || '').trim().toLowerCase().split(/\s+/)) if (ARIA.has(token)) return token;
+    return '';
+  };
   const PROPS = ['outline-style', 'outline-width', 'outline-color', 'outline-offset'];
   for (const side of ['top', 'right', 'bottom', 'left']) for (const p of ['style', 'width', 'color']) PROPS.push('border-' + side + '-' + p);
   const ids = new WeakMap();
@@ -468,9 +478,9 @@ const HELPER = () => {
     if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
     return el.getClientRects().length > 0;
   };
-  const isControl = (el) => el.matches(NATIVE) || el.hasAttribute('data-act') || (el.hasAttribute('tabindex') && el.tabIndex >= 0) || ROLES.has((el.getAttribute('role') || '').trim());
+  const isControl = (el) => el.matches(NATIVE) || el.hasAttribute('data-act') || (el.hasAttribute('tabindex') && el.tabIndex >= 0) || ROLES.has(role(el));
   const dialog = () => {
-    const all = [...document.querySelectorAll('[role="alertdialog"]')].filter(rendered);
+    const all = [...document.querySelectorAll('[role]')].filter((el) => role(el) === 'alertdialog' && rendered(el));
     return all.length ? all[all.length - 1] : null;
   };
   const controls = () => [...document.querySelectorAll('*')].filter((el) => isControl(el) && rendered(el) && !el.disabled);
@@ -516,7 +526,9 @@ const HELPER = () => {
       const small = [];
       for (const el of controls()) {
         const r = el.getBoundingClientRect();
-        const min = el.closest('[role="alertdialog"]') ? 44 : 24;
+        let inDialog = false;
+        for (let p = el.parentElement; p; p = p.parentElement) if (role(p) === 'alertdialog') inDialog = true;
+        const min = inDialog ? 44 : 24;
         if (Math.round(r.width * 100) / 100 < min || Math.round(r.height * 100) / 100 < min) small.push(name(el));
       }
       return small;
@@ -528,11 +540,17 @@ function seen(color) {
   return !(color === 'transparent' || /^rgba\(.*,\s*0\)$/.test(color));
 }
 
+function border(style, side) {
+  const [kind, width, color] = style.slice(4 + side * 3, 7 + side * 3);
+  if (kind === 'none' || kind === 'hidden' || !(parseFloat(width) > 0) || !seen(color)) return 'off';
+  return kind + ' ' + width + ' ' + color;
+}
+
 function visibleChange(focused, rest) {
   if (!focused || !rest) return false;
   const outlineOn = focused[0] !== 'none' && (focused[0] === 'auto' || parseFloat(focused[1]) > 0) && seen(focused[2]);
   const outlineChanged = [0, 1, 2, 3].some((i) => focused[i] !== rest[i]);
-  const borderChanged = focused.slice(4).some((v, i) => v !== rest[4 + i]);
+  const borderChanged = [0, 1, 2, 3].some((side) => border(focused, side) !== border(rest, side));
   return (outlineOn && outlineChanged) || borderChanged;
 }
 
@@ -563,7 +581,6 @@ async function walkCheck(h) {
       break;
     }
   }
-  if (first && !stops.has(first)) stops.set(first, b.activeStyle);
   const groups = new Map();
   for (const c of b.controls) {
     if (c.group) {
@@ -599,9 +616,19 @@ async function walkCheck(h) {
   return { ok: misses.size === 0, counts: { keyboard: misses.size ? 'miss' : 'ok' }, names: [...misses].sort() };
 }
 
+function structure(nodes, depth = 0, lines = []) {
+  for (const node of nodes || []) {
+    const own = {};
+    for (const k of Object.keys(node).sort()) if (k !== 'children') own[k] = node[k];
+    lines.push('  '.repeat(depth) + '- ' + JSON.stringify(own));
+    structure(node.children, depth + 1, lines);
+  }
+  return depth === 0 ? lines.join('\n') + '\n' : lines;
+}
+
 async function structureCheck(h, { snapshot, write } = {}) {
   if (typeof snapshot !== 'string') throw new Refusal('usage', 'check 3 needs {snapshot: <path of the structure file>}');
-  const text = (await h.page.locator('body').ariaSnapshot()) + '\n';
+  const text = structure(await h.page.locator('body').ariaSnapshotJSON());
   if (write) {
     await writeFile(snapshot, text);
     return { ok: true, counts: { structure: 'same' }, names: [] };
@@ -643,8 +670,9 @@ async function modesCheck(h, { snapshot } = {}) {
       results.push(await walkCheck(m), await sizeCheck(m));
       if (typeof snapshot === 'string') results.push(await structureCheck(m, { snapshot }));
       const scroll = await m.page.evaluate(() => {
-        const e = document.scrollingElement || document.documentElement;
-        return e.scrollWidth > e.clientWidth;
+        const main = document.scrollingElement || document.documentElement;
+        if (main.scrollWidth > main.clientWidth) return true;
+        return [document.documentElement, document.body].some((e) => e && ['auto', 'scroll'].includes(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth);
       });
       modes[name] = scroll || results.some((r) => !r.ok) ? 'miss' : 'ok';
     } finally {
@@ -677,8 +705,19 @@ async function markupCheck(h) {
   return { ok, counts: { markup: ok ? 'ok' : 'miss' }, names: ok ? [] : ['elements'] };
 }
 
+const OPAQUE = () => Boolean(window.__r4shadow) || document.querySelector('iframe, frame, object, embed') !== null;
+
+const UNSEEN = {
+  2: { keyboard: 'miss' },
+  3: { structure: 'differ' },
+  4: { size: 'miss' },
+  5: { modes: 'miss', modes_off: '-' },
+  6: { markup: 'miss' },
+};
+
 export async function check(h, n, options = {}) {
   if (!h || !h.page || h.closed) throw new Refusal('usage', 'check(page, n, {snapshot, write}) needs an open page');
+  if (UNSEEN[n] && !(options.write && n === 3) && (await h.page.evaluate(OPAQUE))) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
   switch (n) {
     case 1:
       return engineCheck(h);

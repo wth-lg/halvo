@@ -1,29 +1,29 @@
-- main:
-  - heading "Halvo" [level=1]
-  - region "Your agents":
-    - heading "Your agents" [level=2]
-    - status
-    - list:
-      - listitem:
-        - paragraph: Ready Pay the power bill
-        - paragraph: Runs on the first day of each month.
-        - button "Run now"
-        - button "Switch off"
-        - button "Delete"
-      - listitem:
-        - paragraph: Needs you Order groceries
-        - paragraph: Choose the shop for this agent.
-        - button "Switch off"
-        - button "Delete"
-    - heading "Set up Order groceries" [level=3]
-    - paragraph: Choose a shop and type the name of the list.
-    - group "Shop":
-      - text: Shop
-      - radio "Site1"
-      - text: Site1
-      - radio "Site2"
-      - text: Site2
-    - group "List name":
-      - text: List name Type it here
-      - textbox "Type it here"
-    - button "Not now"
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"Your agents","role":"region"}
+    - {"level":2,"name":"Your agents","role":"heading"}
+    - {"role":"status"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"role":"paragraph","text":"Ready Pay the power bill"}
+        - {"role":"paragraph","text":"Runs on the first day of each month."}
+        - {"name":"Run now","role":"button"}
+        - {"name":"Switch off","role":"button"}
+        - {"name":"Delete","role":"button"}
+      - {"role":"listitem"}
+        - {"role":"paragraph","text":"Needs you Order groceries"}
+        - {"role":"paragraph","text":"Choose the shop for this agent."}
+        - {"name":"Switch off","role":"button"}
+        - {"name":"Delete","role":"button"}
+    - {"level":3,"name":"Set up Order groceries","role":"heading"}
+    - {"role":"paragraph","text":"Choose a shop and type the name of the list."}
+    - {"name":"Shop","role":"group"}
+      - {"0":"S","1":"h","2":"o","3":"p"}
+      - {"name":"Site1","role":"radio"}
+      - {"0":"S","1":"i","2":"t","3":"e","4":"1"}
+      - {"name":"Site2","role":"radio"}
+      - {"0":"S","1":"i","2":"t","3":"e","4":"2"}
+    - {"name":"List name","role":"group"}
+      - {"0":"L","1":"i","2":"s","3":"t","4":" ","5":"n","6":"a","7":"m","8":"e","9":" ","10":"T","11":"y","12":"p","13":"e","14":" ","15":"i","16":"t","17":" ","18":"h","19":"e","20":"r","21":"e"}
+      - {"name":"Type it here","role":"textbox"}
+    - {"name":"Not now","role":"button"}

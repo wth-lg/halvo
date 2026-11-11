@@ -1,21 +1,21 @@
-- main:
-  - heading "Halvo" [level=1]
-  - region "Your agents":
-    - heading "Your agents" [level=2]
-    - status
-    - list:
-      - listitem:
-        - paragraph: Needs you Reply to email
-        - paragraph: Waiting for your answer.
-        - button "Stop"
-        - button "Delete"
-    - alertdialog "Send this email?":
-      - heading "Send this email?" [level=3]
-      - term: To (From the site)
-      - definition: Site1
-      - term: Subject (Written by the agent)
-      - definition: Rent for December
-      - term: Body (Written by the agent)
-      - definition: The rent is paid. Thank you.
-      - button "Don't send"
-      - button "Send"
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"Your agents","role":"region"}
+    - {"level":2,"name":"Your agents","role":"heading"}
+    - {"role":"status"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"role":"paragraph","text":"Needs you Reply to email"}
+        - {"role":"paragraph","text":"Waiting for your answer."}
+        - {"name":"Stop","role":"button"}
+        - {"name":"Delete","role":"button"}
+    - {"name":"Send this email?","role":"alertdialog"}
+      - {"level":3,"name":"Send this email?","role":"heading"}
+      - {"role":"term","text":"To (From the site)"}
+      - {"role":"definition","text":"Site1"}
+      - {"role":"term","text":"Subject (Written by the agent)"}
+      - {"role":"definition","text":"Rent for December"}
+      - {"role":"term","text":"Body (Written by the agent)"}
+      - {"role":"definition","text":"The rent is paid. Thank you."}
+      - {"name":"Don't send","role":"button"}
+      - {"name":"Send","role":"button"}
