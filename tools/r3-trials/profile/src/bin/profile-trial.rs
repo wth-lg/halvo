@@ -515,20 +515,21 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
             state.cookies.len()
         ));
     }
-    let b_was_empty = std::fs::symlink_metadata(&b_dir).is_err();
     let mut b = ctx.stop.or(Executor::start(&ctx.options(b_dir))).await?;
     watch.add_browser(b.pid());
     let landed = ctx
         .stop
         .or(async {
+            let before = b.export_state(&ctx.origins()).await?;
             b.import_state(&state).await?;
             b.open(&ctx.u("/bill")).await?;
-            path_now(&b).await
+            Ok((path_now(&b).await?, before.cookies.is_empty()))
         })
         .await;
     let stopped_b = b.stop_and_remove().await;
+    let (landing, b_was_empty) = landed?;
     Ok(Session {
-        landing: landed?,
+        landing,
         stopped_a,
         stopped_b: Some(stopped_b),
         b_was_empty,
@@ -643,7 +644,7 @@ async fn run_items12(
     }
     let yes_no = |v: bool| if v { "yes" } else { "no" };
     out(&format!(
-        "profile {cell} a_gone={} b_gone={} b_other_name=yes b_empty_at_start={}",
+        "profile {cell} a_gone={} b_gone={} b_empty_at_start={}",
         yes_no(a_gone),
         yes_no(b_gone),
         yes_no(s.b_was_empty)
