@@ -8,8 +8,9 @@
 //! 2. Single writer: at most one process holds the store at a time, over random
 //!    races of contending processes, with the lock file unlinked under them.
 
+use std::cell::Cell;
 use std::fs::OpenOptions;
-use std::io::{self, Cursor, Read, Write};
+use std::io::{self, Cursor, ErrorKind, Read, Write};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -17,7 +18,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use halvo_sqlcipher::rusqlite::Connection;
 use proptest::prelude::*;
-use proptest::test_runner::FileFailurePersistence;
+use proptest::test_runner::{contextualize_config, FileFailurePersistence, TestRunner};
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::{dev_root_bytes, replace_dev_root, DevFallbackCustody};
@@ -45,7 +46,7 @@ const WRAPPED_KEY_MIDDLE: Range<usize> = 24..56;
 
 /// Random multi-process races. Each case spawns up to [`MAX_CONTENDERS`]
 /// copies of the test binary, so the count is small and shrinking is short.
-const RACE_CASES: u32 = 10;
+const RACE_CASES: u32 = 30;
 const MAX_CONTENDERS: usize = 5;
 const MAX_ACQUISITIONS: usize = 3;
 
@@ -730,12 +731,31 @@ fn race() -> impl Strategy<Value = Race> {
         })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Refusal {
+    Locked,
+    AccessDenied,
+}
+
+fn writer_refusal(error: &StoreError) -> Option<Refusal> {
+    match error {
+        StoreError::Locked(_) => Some(Refusal::Locked),
+        StoreError::Io(ErrorKind::PermissionDenied) if cfg!(windows) => Some(Refusal::AccessDenied),
+        _ => None,
+    }
+}
+
+fn is_writer_refusal(error: &StoreError) -> bool {
+    writer_refusal(error).is_some()
+}
+
 /// One line of the race log: which contender, what happened, when.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Event {
     Enter,
     Exit,
     OverlapSeen,
+    Refused(Refusal),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -753,12 +773,14 @@ fn now_nanos() -> u128 {
 }
 
 fn log_line(path: &Path, contender: usize, event: &str) {
+    let line = format!("{contender} {event} {}\n", now_nanos());
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)
         .expect("the race log opens for append");
-    writeln!(file, "{contender} {event} {}", now_nanos()).expect("the race log line writes");
+    file.write_all(line.as_bytes())
+        .expect("the race log line writes");
 }
 
 fn parse_log(text: &str) -> Vec<Logged> {
@@ -773,6 +795,8 @@ fn parse_log(text: &str) -> Vec<Logged> {
                 Some("enter") => Event::Enter,
                 Some("exit") => Event::Exit,
                 Some("overlap-seen") => Event::OverlapSeen,
+                Some("refused-locked") => Event::Refused(Refusal::Locked),
+                Some("refused-access-denied") => Event::Refused(Refusal::AccessDenied),
                 other => panic!("unknown race log event {other:?}"),
             };
             let nanos = parts
@@ -805,7 +829,7 @@ fn intervals(log: &[Logged]) -> Vec<(usize, u128, u128)> {
                 let start = open[entry.contender].take().expect("exit without enter");
                 out.push((entry.contender, start, entry.nanos));
             }
-            Event::OverlapSeen => {}
+            Event::OverlapSeen | Event::Refused(_) => {}
         }
     }
     out
@@ -833,10 +857,22 @@ fn contend_for_store_for_parent() {
         let mut store = loop {
             match EncryptedStore::open(&store_dir, DEFAULT_RETENTION) {
                 Ok(store) => break store,
-                Err(refusal) => {
+                Err(error) => {
+                    assert!(
+                        is_writer_refusal(&error),
+                        "contender {index}: open failed with {error:?}, which is no refusal of a second writer"
+                    );
+                    log_line(
+                        &log,
+                        index,
+                        match writer_refusal(&error) {
+                            Some(Refusal::AccessDenied) => "refused-access-denied",
+                            _ => "refused-locked",
+                        },
+                    );
                     assert!(
                         Instant::now() < deadline,
-                        "contender {index} never got the store; last refusal: {refusal}"
+                        "contender {index} never got the store; last refusal: {error}"
                     );
                     std::thread::sleep(Duration::from_millis(1));
                 }
@@ -923,54 +959,108 @@ fn run_race(dir: &Path, race: &Race) -> Vec<std::process::ExitStatus> {
         .collect()
 }
 
-proptest! {
-    #![proptest_config(race_config())]
+#[derive(Default)]
+struct RefusalsSeen {
+    locked: Cell<u64>,
+    access_denied: Cell<u64>,
+    while_another_contender_held_the_store: Cell<u64>,
+}
 
-    /// Property 2. For any bounded race of processes opening the same store,
-    /// each holding it for a while and writing to it, with `writer.lock`
-    /// unlinked under them on a random cadence: no two hold intervals overlap,
-    /// no contender finds another inside, every contender holds the store as
-    /// many times as planned, and every contender exits clean.
-    #[test]
-    fn at_most_one_process_holds_the_store_at_a_time(race in race()) {
-        let dir = tempfile::tempdir().expect("a temp dir for the race");
-        let store_dir = dir.path().join("store");
-        let root = RootId::fresh();
-        drop(
-            EncryptedStore::create(
-                &store_dir,
-                Box::new(DevFallbackCustody::new(root)),
-                DEFAULT_RETENTION,
-            )
-            .expect("the race's store creates"),
-        );
-
-        let statuses = run_race(dir.path(), &race);
-        let text = std::fs::read_to_string(dir.path().join("race.log")).unwrap_or_default();
-        DevFallbackCustody::new(root)
-            .destroy_root()
-            .expect("the race's root is destroyed");
-
-        let log = parse_log(&text);
-        prop_assert!(
-            !log.iter().any(|e| e.event == Event::OverlapSeen),
-            "a contender found another contender inside the store"
-        );
-        let held = intervals(&log);
-        for (a, &(ca, sa, ea)) in held.iter().enumerate() {
-            for &(cb, sb, eb) in &held[a + 1..] {
-                prop_assert!(
-                    ea <= sb || eb <= sa,
-                    "contenders {ca} and {cb} held the store at the same time"
-                );
+impl RefusalsSeen {
+    fn count(&self, log: &[Logged], held: &[(usize, u128, u128)]) {
+        for entry in log {
+            let Event::Refused(refusal) = entry.event else {
+                continue;
+            };
+            let class = match refusal {
+                Refusal::Locked => &self.locked,
+                Refusal::AccessDenied => &self.access_denied,
+            };
+            class.set(class.get() + 1);
+            let another_held = held.iter().any(|&(holder, entered, left)| {
+                holder != entry.contender && entered <= entry.nanos && entry.nanos <= left
+            });
+            if another_held {
+                let seen = &self.while_another_contender_held_the_store;
+                seen.set(seen.get() + 1);
             }
         }
-        for (i, status) in statuses.iter().enumerate() {
-            prop_assert!(status.success(), "contender {i} exited with {status}");
-        }
-        for (i, plan) in race.contenders.iter().enumerate() {
-            let count = held.iter().filter(|(c, _, _)| *c == i).count();
-            prop_assert_eq!(count, plan.acquisitions, "contender {} held the store {} times", i, count);
+    }
+}
+
+fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
+    let dir = tempfile::tempdir().expect("a temp dir for the race");
+    let store_dir = dir.path().join("store");
+    let root = RootId::fresh();
+    drop(
+        EncryptedStore::create(
+            &store_dir,
+            Box::new(DevFallbackCustody::new(root)),
+            DEFAULT_RETENTION,
+        )
+        .expect("the race's store creates"),
+    );
+
+    let statuses = run_race(dir.path(), race);
+    let text = std::fs::read_to_string(dir.path().join("race.log")).unwrap_or_default();
+    DevFallbackCustody::new(root)
+        .destroy_root()
+        .expect("the race's root is destroyed");
+
+    let log = parse_log(&text);
+    prop_assert!(
+        !log.iter().any(|e| e.event == Event::OverlapSeen),
+        "a contender found another contender inside the store"
+    );
+    let held = intervals(&log);
+    for (a, &(ca, sa, ea)) in held.iter().enumerate() {
+        for &(cb, sb, eb) in &held[a + 1..] {
+            prop_assert!(
+                ea <= sb || eb <= sa,
+                "contenders {ca} and {cb} held the store at the same time"
+            );
         }
     }
+    for (i, status) in statuses.iter().enumerate() {
+        prop_assert!(status.success(), "contender {i} exited with {status}");
+    }
+    for (i, plan) in race.contenders.iter().enumerate() {
+        let count = held.iter().filter(|(c, _, _)| *c == i).count();
+        prop_assert_eq!(
+            count,
+            plan.acquisitions,
+            "contender {} held the store {} times",
+            i,
+            count
+        );
+    }
+    refusals.count(&log, &held);
+    Ok(())
+}
+
+/// Property 2. For any bounded race of processes opening the same store,
+/// each holding it for a while and writing to it, with `writer.lock`
+/// unlinked under them on a random cadence: no two hold intervals overlap,
+/// no contender finds another inside, every contender holds the store as
+/// many times as planned, and every contender exits clean.
+#[test]
+fn at_most_one_process_holds_the_store_at_a_time() {
+    let config = contextualize_config(race_config());
+    let cases = config.cases;
+    let refusals = RefusalsSeen::default();
+    let mut runner = TestRunner::new(config);
+    if let Err(failure) = runner.run(&race(), |race| one_race(&race, &refusals)) {
+        panic!("{failure}\n{runner}");
+    }
+    let while_held = refusals.while_another_contender_held_the_store.get();
+    let _ = writeln!(
+        io::stderr(),
+        "check 2 refusals in {cases} cases: locked={} access_denied={} while_another_contender_held_the_store={while_held}",
+        refusals.locked.get(),
+        refusals.access_denied.get(),
+    );
+    assert!(
+        cases < RACE_CASES || while_held > 0,
+        "in {cases} cases no contender was refused while another held the store, so this run cannot tell a lock from no lock"
+    );
 }
