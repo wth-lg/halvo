@@ -4,7 +4,7 @@
 # round) so that a change of the runner over the job hits every variant alike.
 # Prints counts, exit codes and the binary's own `S4 ` lines only.
 set -u
-launches=${S4_LAUNCHES:-30}
+launches=${S4_LAUNCHES:-60}
 dirty_launches=${S4_DIRTY_LAUNCHES:-0}
 exe=$(ls target/debug/deps/spike_s4-*.exe | head -n 1)
 [ -n "$exe" ] || { echo "S4 error no test binary"; exit 2; }
@@ -12,7 +12,7 @@ echo "S4 env launches_per_variant=$launches dirty_launches=$dirty_launches"
 powershell -NoProfile -Command '"S4 env os_version=" + [Environment]::OSVersion.Version.ToString()'
 powershell -NoProfile -Command '$p = Get-CimInstance Win32_Processor | Select-Object -First 1; "S4 env cpu=" + ($p.Name -replace " ", "_") + " logical=" + $p.NumberOfLogicalProcessors'
 
-sets=${S4_SETS:-"c8b:baseline c8b:product-source c8b:product-source+mta-ref c8b:product-source+message-window c8b:product-source+no-exclude c8b:mta-ref c8b:sta-test-thread x12:message-window"}
+sets=${S4_SETS:-"c8b:baseline c8b:product-source c8b:product-source+mta-ref c8b:product-source+message-window"}
 tally=$(mktemp)
 
 run_one() {
