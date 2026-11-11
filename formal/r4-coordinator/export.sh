@@ -50,7 +50,7 @@ directed() {
     test "$found" -eq 1 || miss "case=$2 lines=$found"
     last=$(grep -F "\"case\":\"$2\"" "$1" | sed 's/.*{"m":/{"m":/')
     case $last in
-        "{\"m\":\"$3\","*"},\"r\":\"$4\",\"s\":{"*) ;;
+        "{\"m\":\"$3\","*"},\"r\":\"$4\",\"e\":["*) ;;
         *) miss "case=$2 last=$3 answer=$4 missing" ;;
     esac
     test -n "${5:-}" || return 0

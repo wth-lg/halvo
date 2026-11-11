@@ -342,7 +342,7 @@ Each row is a coordinator or a guard that is wrong by I4 or I5, made from the mo
 exact replacement in the functions that `Step` calls; `Hist` and the invariants stay as they
 are. TLC was run on each with every invariant of its configuration and reports the
 property of the third column first. The last column counts the committed traces in which a
-replay of that design gives another answer or state at some move.
+replay of that design gives another answer, event, call or state at some move.
 
 | # | Wrong design | TLC reports | Traces that differ |
 |---|---|---|---|
@@ -354,27 +354,27 @@ replay of that design gives another answer or state at some move.
 | 6 | the scheduler starts an agent that never had a completed run | C5 | 149 of 211 |
 | 7 | a restart forgets which workflows are gone | C8 | 13 of 211 |
 | 8 | the kill comes only for runs stopped for `deleted` | C9 | 60 of 211 |
-| 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4; L3 when the lapse's decision also holds the approval ids of the answer; L9, checked alone, when the guard then also counts a row before its release | 26 of 214 |
-| 10 | the table takes the stored rows of a `no_record` lapse | L7, and not L9: the lapse's decision holds new ids | 2 of 214 |
-| 11 | the guard passes every `releasing` record | L8 | 25 of 214 |
-| 12 | a `releasing` record passes on an unused row | L8 | 2 of 214 |
-| 13 | the table pairs each approval id with the other effect | L7 | 26 of 214 |
-| 14 | the `approved` match does not ask for `allow_once` | L7 | 1 of 214 |
-| 15 | a `releasing` record with an unused row passes | L8 | 2 of 214 |
-| 16 | the `approved` match drops the effect id | L7 | 2 of 214 |
+| 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4; L3 when the lapse's decision also holds the approval ids of the answer; L9, checked alone, when the guard then also counts a row before its release | 26 of 215 |
+| 10 | the table takes the stored rows of a `no_record` lapse | L7, and not L9: the lapse's decision holds new ids | 2 of 215 |
+| 11 | the guard passes every `releasing` record | L8 | 22 of 215 |
+| 12 | a `releasing` record passes on an unused row | L8 | 1 of 215 |
+| 13 | the table pairs each approval id with the other effect | L7 | 57 of 215 |
+| 14 | the `approved` match does not ask for `allow_once` | L7 | 1 of 215 |
+| 15 | a `releasing` record with an unused row passes | L8 | 1 of 215 |
+| 16 | the `approved` match drops the effect id | L7 | 2 of 215 |
 | 17 | step 3 asks only the live run, not the queue | C3 | 25 of 211 |
 | 18 | the tick asks "needs the person" only | C5 | 149 of 211 |
 | 19 | a person's start names no slot | C6 | 181 of 211 |
 | 20 | a failed start is not counted | C7 | 74 of 211 |
 | 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0; with step 0 in place that start is answered `state` and no property is broken | C8 | 11 of 211 |
-| 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 55 of 214 |
-| 23 | a lapse is taken from `recorded` with any cause | L4 | 26 of 214 |
-| 24 | the guard's rule for `releasing` records is dropped | L8 | 25 of 214 |
-| 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | - |
-| 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | - |
-| 27 | a `releasing` record of the class `send` passes with another digest | L10 | - |
-| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | - |
-| 29 | a run that was not stopped and whose last frame says `failed` is stored `cancelled` | C10 | - |
+| 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 86 of 215 |
+| 23 | a lapse is taken from `recorded` with any cause | L4 | 26 of 215 |
+| 24 | the guard's rule for `releasing` records is dropped | L8 | 22 of 215 |
+| 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | 1 of 215 |
+| 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | 4 of 215 |
+| 27 | a `releasing` record of the class `send` passes with another digest | L10 | 2 of 215 |
+| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | 106 of 211 |
+| 29 | a run that was not stopped and whose last frame says `failed` is stored `cancelled` | C10 | 35 of 211 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0.
@@ -445,11 +445,98 @@ a pair in which they differ: such a pair holds the traces of two versions of the
 The check `30-r4-formal.sh` refuses it with the cause `traces`, and the test
 `formal_traces` fails. A reader that has the model files can compute the stamp again and
 so tell traces that were exported from other model files. Each further line is one trace,
-`{"n":<number>,"moves":[{"m":"<move>","a":{...},"r":"<answer>","s":{...}}...]}`. The walks
+`{"n":<number>,"moves":[{"m":"<move>","a":{...},"r":"<answer>","e":[...],"p":[...],"s":{...}}...]}`. The walks
 have the numbers 1 to `count`. The directed traces follow them, with one more key after
 `n`: `{"n":<number>,"case":"<name>","moves":[...]}`; `count` does not count them. `a`
-holds what the move is given, `r` the answer, and `s` what the step did and then the state
-after it. Keys stand in the order of the tables below.
+holds what the move is given, `r` the answer, `e` the events that the move stored, `p` the
+calls of the ports that it made, and `s` what the step returned and then the state after
+it. Keys stand in the order of the tables below.
+
+### Events and calls
+
+`e` and `p` each stand in the order in which the move made their entries. An entry of `e`
+is one event of I7.1 with its keys in I7.1's order; an event of a schedule trace names its
+agent, and a confirm trace has one agent and names none.
+
+| `event` | Keys after `event` | The line that stores it |
+|---|---|---|
+| `run_started` | `run`, `slot` (a day or null), `trigger`; `agent` stands before `event` | every start that passes step 6: a `start`, a start that a `tick` or an `end` takes from the queue, a start of the scheduler in a `tick` |
+| `run_ended` | `run`, `cause`; `agent` before `event` | `end`; a `tick` for each live run that it kills; `restart` for each live run; a start under the port `no_run`, with `failed` |
+| `hold_set` | `cause`; `agent` before `event` | `off`, with `person`; the line of a `run_ended` event that completes the failure streak while the hold `failures` does not stand, with `failures` |
+| `hold_cleared` | `cause` (`failures`); `agent` before `event` | a `start` of an agent under the hold `failures` whose workflow is in the list, also when the start is then refused |
+| `item_raised` | `item` | `issue` with `digest_ok` `yes` |
+| `item_answered` | `item`, `effect`, `approval`, `digest`, `answer`: one entry per effect | `record`: the coordinator sent the rows at the answer, and they count as stored when the acknowledgement comes. Rows that the store wrote without an acknowledgement stand in no `e` |
+| `item_released` | as `item_answered` | `release` |
+| `item_lapsed` | `item`, `cause` | every `lapse` with `ok`; `issue` with `digest_ok` `no`, with `digest` |
+
+An entry of `p` is `{"call":"<name>"}` with the keys of the table after it.
+
+| `call` | Keys | Port method | The line that makes it |
+|---|---|---|---|
+| `defer` | none | `Analysis::defer` | every start that passes step 4, also one that then fails at step 6; a `tick` before which a run is live |
+| `start_run` | `run` | `Owner::send` with the body `start_run` | every start that passes step 6 |
+| `start` | `run` | `Runs::start` | the same; under the port `no_run` it is this call that fails |
+| `cancel` | `run`; none in a confirm trace | `Runs::cancel` | `stop` with `ok`; `off` and a `tick`, for each run that they stop; a `lapse` with `wait_limit` or `cancelled` |
+| `kill` | `run` | `Runs::kill` | a `tick` with `grace` `yes`, for each run that was `stopping` before it and for each stopped run whose runner ended before it |
+| `reap` | none | `Runs::reap` | `restart` |
+| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event; `active` with a `hold_cleared` event when the hold `off` does not stand |
+| `answer_confirm` | `item`, `answer` (`allow`, `reject`) | `Runs::answer_confirm` | an `answer` with `ok`; with `reject`, a `lapse` from `shown` or `armed` of a run that still lives and an `issue` with `digest_ok` `no` |
+
+The lists hold no call of `Owner::log`: `e` holds what was stored, and under the port
+`no_ack` the `run_started` event is not stored and `e` is empty. They hold no call that
+only reads (`Owner::workflows`, `history` and `agents`, `Clock`, `Rng`) and no notice
+(`Tray`, `Page`). A record that the guard passes on is the answer `ok` of its line.
+
+The two lists do not say which entry of `e` came before which entry of `p`. The model
+makes them in this order, and `formal_traces` holds the code to it on the memory ports:
+
+- one start: `defer`; `run_started`; `start_run`; `start`; under `no_run` then `run_ended`
+  with `failed`, and `hold_set` with `set_state` when the streak is complete;
+- a `start` line: `hold_cleared` and `set_state` `active` first, then the start;
+- one end: `run_ended`; `hold_set` with `set_state`; then the start that the end takes from
+  the queue;
+- a `tick`: `defer` when a run is live; `cancel` for the runs of gone workflows, by run
+  number; by run number, `kill` and, for a run that was live, its end; the start from the
+  queue; then the agents from `a1` to `a5`, each with its start;
+- a `restart`: `reap`, then the ends by run number;
+- `off`: `hold_set`, `cancel`, `set_state`;
+- a `lapse`: `answer_confirm`, the decision of `sent`, `item_lapsed`, `cancel`;
+- an `issue` with `digest_ok` `no`: `answer_confirm`, the decision of `sent`,
+  `item_lapsed`; a `release`: the decision of `sent`, then `item_released`.
+
+### What a replay rebuilds from earlier lines
+
+A line shows the state after its move, but not everything that decides the next line.
+
+- The cause of a run that is `stopping`: the `cause` of the `stop` line that stopped it,
+  `cancelled` after `off`, and `deleted` from the first tick after the `delete` of its
+  workflow on, also when the run was `stopping` before. It is the `cause` of the run's
+  `run_ended` event unless a `restart` comes first.
+- The holds of an agent in `held`: `off` from its `off` line on; `failures` from a
+  `hold_set` event with `failures` to the next `hold_cleared` event; `check` from a
+  `run_ended` event with `effect_unknown` on. A `start` of the person ends `failures`
+  alone.
+- The trigger of each queued start: `person` for one that a `start` line with the answer
+  `queued` put there, `schedule` for one of a tick's `started`. A start of the person
+  stands before every start of the scheduler, each kind in the order of arrival. The
+  trigger shows again in the `run_started` event.
+- Run ids: one counter over the stored `run_started` events, from `r1`, across the lives
+  of the app. A start that fails at step 6 takes no number.
+- For the open slot: the day of each run's `run_started` line, the agents of which a run
+  ended `completed` (those of the table and each one with such a `run_ended` event), and
+  for each agent the day of its newest run that ended `completed` or `nothing_to_do`.
+- The stopped runs whose `end` line came before a tick with `grace` `yes`: that tick
+  calls `kill` for each, and a `restart` forgets them.
+- For each approval id of `table`: its item, its effect, its digest and its answer, from
+  the `item_answered` entries of the `record` line; it counts for a record from the
+  `release` line of its item on.
+- Approval ids: one counter, as the section on confirm traces says.
+
+The order of every list. `runs`, `stopped` and `ended` stand by run number; `queue` with
+its head first; `ready`, `held`, `gone`, `raised` and `started` by agent number; `starts`,
+`slot` and `fails` for `a1` to `a5`; `items` by item number; `effects`, `sent`,
+`approvals` and the entries of one `item_answered` or `item_released` event by effect
+number; `table` and `used` by approval number; `e` and `p` as made.
 
 A short id is a letter and a number. Its 32-digit id is the hex of its ASCII bytes with
 zeros in front; a digest has 64 digits by the same rule.
@@ -501,9 +588,9 @@ whose workflow is not in the owner's list; `life`, the life of the app, from 1.
 A `start` with `ok` holds the move `spawn` of I5.6: the run is `starting` in `s`. A start
 of an agent whose workflow is gone is answered `state`. `port` says what the ports do
 during the line: `ok`; `no_ack`, where the `run_started` event gets no acknowledgement
-(step 6), nothing is stored and the answer is `no_service`; `no_run`, where step 7 or 8
-fails, `run_started` and `run_ended` with `failed` are stored and the answer is
-`no_service`. In a `tick` and an `end` the port holds for every start that the line makes.
+(step 6), nothing is stored and the answer is `no_service`; `no_run`, where `Runs::start`
+fails (step 8), `run_started` and `run_ended` with `failed` are stored and the answer is
+`no_service`. A failure of step 7 stores the same two events and is in no trace. In a `tick` and an `end` the port holds for every start that the line makes.
 
 An entry of `next` and of `started` is `{"agent","r","run"}`: a start that the line made
 for that agent, with the answer of `start_step` or `no_service`, and its run or null. In

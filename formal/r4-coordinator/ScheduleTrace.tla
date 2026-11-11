@@ -177,9 +177,31 @@ Extra(mv, res) ==
       [] mv.m = "off" -> <<KV("stopped", RunList(res.stopped))>>
       [] OTHER -> <<>>
 
+IsEvent(x) == x.k \in {"run_started", "run_ended", "hold_set", "hold_cleared"}
+IsCall(x) == x.k \in {"defer", "start_run", "start", "cancel", "kill", "reap", "set_state"}
+
+EventJson(x) ==
+    CASE x.k = "run_started" ->
+            Obj(<<KV("agent", Id("a", x.agent)), KV("event", Str(x.k)), KV("run", Id("r", x.run)),
+                  KV("slot", IF x.slot = 0 THEN "null" ELSE ToString(x.slot)), KV("trigger", Str(x.trig))>>)
+      [] x.k = "run_ended" ->
+            Obj(<<KV("agent", Id("a", x.agent)), KV("event", Str(x.k)), KV("run", Id("r", x.run)),
+                  KV("cause", Str(x.cause))>>)
+      [] OTHER -> Obj(<<KV("agent", Id("a", x.agent)), KV("event", Str(x.k)), KV("cause", Str(x.cause))>>)
+
+CallJson(x) ==
+    CASE x.k \in {"defer", "reap"} -> Obj(<<KV("call", Str(x.k))>>)
+      [] x.k = "set_state" ->
+            Obj(<<KV("call", Str(x.k)), KV("agent", Id("a", x.agent)), KV("state", Str(x.state))>>)
+      [] OTHER -> Obj(<<KV("call", Str(x.k)), KV("run", Id("r", x.run))>>)
+
 MoveJson(mv, res) ==
-    Obj(<<KV("m", Str(mv.m)), KV("a", Obj(Args(mv))), KV("r", Str(res.r)),
-          KV("s", Obj(Extra(mv, res) \o Snap(res.st)))>>)
+    LET es == SelectSeq(res.out, IsEvent)
+        ps == SelectSeq(res.out, IsCall)
+    IN Obj(<<KV("m", Str(mv.m)), KV("a", Obj(Args(mv))), KV("r", Str(res.r)),
+             KV("e", Arr([i \in 1..Len(es) |-> EventJson(es[i])])),
+             KV("p", Arr([i \in 1..Len(ps) |-> CallJson(ps[i])])),
+             KV("s", Obj(Extra(mv, res) \o Snap(res.st)))>>)
 
 Cases == Len(Directed)
 

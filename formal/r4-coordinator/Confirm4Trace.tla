@@ -186,8 +186,32 @@ Extra(s, mv, res) ==
       [] mv.m \in {"release", "lapse"} -> <<KV("sent", SentJson(res))>>
       [] OTHER -> <<>>
 
+RowsJson(name, item, entries) ==
+    LET es == Sorted({e.effect : e \in entries})
+    IN [k \in 1..Len(es) |->
+            LET e == CHOOSE x \in entries : x.effect = es[k]
+            IN Obj(<<KV("event", Str(name)), KV("item", Id("i", item)), KV("effect", Id("e", e.effect)),
+                     KV("approval", Id("p", e.approval)), KV("digest", Id("d", e.digest)),
+                     KV("answer", Str(e.answer))>>)]
+
+EventsOf(x) ==
+    CASE x.k = "item_raised" -> <<Obj(<<KV("event", Str(x.k)), KV("item", Id("i", x.item))>>)>>
+      [] x.k = "item_lapsed" ->
+            <<Obj(<<KV("event", Str(x.k)), KV("item", Id("i", x.item)), KV("cause", Str(x.cause))>>)>>
+      [] x.k = "item_answered" -> RowsJson(x.k, x.item, x.rows)
+      [] x.k = "item_released" -> RowsJson(x.k, x.item, x.entries)
+      [] OTHER -> <<>>
+
+CallsOf(x) ==
+    CASE x.k = "answer_confirm" ->
+            <<Obj(<<KV("call", Str(x.k)), KV("item", Id("i", x.item)), KV("answer", Str(x.answer))>>)>>
+      [] x.k = "cancel" -> <<Obj(<<KV("call", Str(x.k))>>)>>
+      [] OTHER -> <<>>
+
 MoveJson(s, mv, res) ==
     Obj(<<KV("m", Str(mv.m)), KV("a", Obj(Args(s, mv))), KV("r", Str(res.r)),
+          KV("e", Arr(Cat([i \in 1..Len(res.out) |-> EventsOf(res.out[i])]))),
+          KV("p", Arr(Cat([i \in 1..Len(res.out) |-> CallsOf(res.out[i])]))),
           KV("s", Obj(Extra(s, mv, res) \o Snap(res.st)))>>)
 
 Cases == Len(Directed)
