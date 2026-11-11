@@ -498,10 +498,7 @@ async fn session(ctx: &Ctx, leave: &[String], watch: &Watch) -> Res<Session> {
             state.cookies.len()
         ));
     }
-    std::fs::create_dir(&b_dir).map_err(|e| Fault::new("profile", e.to_string()))?;
-    let b_was_empty = std::fs::read_dir(&b_dir)
-        .map(|mut e| e.next().is_none())
-        .unwrap_or(false);
+    let b_was_empty = std::fs::symlink_metadata(&b_dir).is_err();
     let mut b = ctx.stop.or(Executor::start(&ctx.options(b_dir))).await?;
     watch.add_browser(b.pid());
     let landed = ctx

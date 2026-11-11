@@ -191,12 +191,7 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
-        let used = std::fs::read_dir(&opts.profile)
-            .map(|mut entries| entries.next().is_some())
-            .unwrap_or(false);
-        if used {
-            return Err(Fault::new("start", "profile directory is not empty"));
-        }
+        session::make_profile(&opts.profile)?;
         let mut builder = BrowserConfig::builder()
             .chrome_executable(&opts.browser)
             .disable_default_args()
@@ -1116,7 +1111,7 @@ mod tests {
         let refused = Executor::start(&opts).await.err();
         assert_eq!(
             refused.map(|f| f.1),
-            Some("profile directory is not empty".to_string())
+            Some("profile path exists".to_string())
         );
     }
 

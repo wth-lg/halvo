@@ -139,14 +139,33 @@ async fn evaluate(page: &Page, script: &str) -> Res<Value> {
     Ok(r.result.result.value.unwrap_or(Value::Null))
 }
 
+pub(crate) fn make_profile(dir: &Path) -> Res<()> {
+    match std::fs::symlink_metadata(dir) {
+        Ok(m) if m.file_type().is_symlink() => Err(Fault::new("start", "profile path is a link")),
+        Ok(_) => Err(Fault::new("start", "profile path exists")),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            std::fs::create_dir(dir).map_err(|e| Fault::new("start", e.to_string()))
+        }
+        Err(e) => Err(Fault::new("start", e.to_string())),
+    }
+}
+
+fn gone(dir: &Path) -> bool {
+    matches!(std::fs::symlink_metadata(dir), Err(e) if e.kind() == std::io::ErrorKind::NotFound)
+}
+
 async fn remove_profile(dir: &Path) -> bool {
     let deadline = Instant::now() + REMOVE_WAIT;
     loop {
+        match std::fs::symlink_metadata(dir) {
+            Ok(m) if m.is_dir() => {}
+            Ok(_) => return false,
+            Err(_) => return gone(dir),
+        }
         match std::fs::remove_dir_all(dir) {
-            Ok(()) => return !dir.exists(),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return true,
+            Ok(()) => return gone(dir),
             Err(_) if Instant::now() < deadline => tokio::time::sleep(POLL).await,
-            Err(_) => return !dir.exists(),
+            Err(_) => return gone(dir),
         }
     }
 }
@@ -452,6 +471,90 @@ mod tests {
         assert!(SessionState::from_json("{").is_err());
     }
 
+    fn scratch(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("r3-web-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn missing_browser(profile: PathBuf) -> StartOptions {
+        StartOptions {
+            browser: PathBuf::from("/nonexistent/chrome"),
+            profile,
+            headless: true,
+            flags: Vec::new(),
+            debug_port: None,
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn start_refuses_a_profile_path_that_is_a_link() {
+        let dir = scratch("link-start");
+        let target = dir.join("target");
+        std::fs::create_dir_all(&target).unwrap();
+        let link = dir.join("profile");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let refused = Executor::start(&missing_browser(link)).await.err();
+        assert_eq!(refused, Some(Fault::new("start", "profile path is a link")));
+        assert_eq!(std::fs::read_dir(&target).unwrap().count(), 0);
+    }
+
+    #[tokio::test]
+    async fn start_refuses_a_profile_path_that_exists() {
+        let dir = scratch("exists-start");
+        let profile = dir.join("profile");
+        std::fs::create_dir_all(&profile).unwrap();
+        let refused = Executor::start(&missing_browser(profile.clone()))
+            .await
+            .err();
+        assert_eq!(refused, Some(Fault::new("start", "profile path exists")));
+        assert_eq!(std::fs::read_dir(&profile).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_profile_path_turned_into_a_link_is_not_followed_and_is_not_removed() {
+        let dir = scratch("link-stop");
+        let profile = dir.join("profile");
+        let target = dir.join("target");
+        std::fs::create_dir_all(target.join("Default")).unwrap();
+        std::fs::write(target.join("Default").join("Cookies"), b"kept").unwrap();
+        std::os::unix::fs::symlink(&target, &profile).unwrap();
+        assert!(!remove_profile(&profile).await);
+        assert!(target.join("Default").join("Cookies").exists());
+    }
+
+    #[tokio::test]
+    async fn the_removal_takes_the_profile_and_leaves_a_file_beside_it() {
+        let dir = scratch("beside");
+        let profile = dir.join("profile");
+        make_profile(&profile).unwrap();
+        std::fs::create_dir_all(profile.join("Default")).unwrap();
+        std::fs::write(profile.join("Default").join("Cookies"), b"session").unwrap();
+        std::fs::write(dir.join("beside.txt"), b"caller").unwrap();
+        assert!(remove_profile(&profile).await);
+        assert!(gone(&profile));
+        assert_eq!(std::fs::read(dir.join("beside.txt")).unwrap(), b"caller");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_removal_reports_no_when_a_file_of_the_profile_cannot_be_removed() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch("stuck");
+        let profile = dir.join("profile");
+        make_profile(&profile).unwrap();
+        let locked = profile.join("locked");
+        std::fs::create_dir_all(&locked).unwrap();
+        std::fs::write(locked.join("file"), b"x").unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let removed = remove_profile(&profile).await;
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(!removed);
+        assert!(locked.join("file").exists());
+    }
+
     fn browser() -> PathBuf {
         PathBuf::from(
             std::env::var("R3_TEST_BROWSER")
@@ -476,6 +579,7 @@ mod tests {
     async fn export_import_and_stop_carry_a_session_into_a_new_profile() {
         let scratch = std::env::temp_dir().join(format!("r3-web-state-{}", std::process::id()));
         std::fs::create_dir_all(&scratch).unwrap();
+        std::fs::write(scratch.join("beside.txt"), b"caller").unwrap();
         let origin = "http://state.agent.test:18599".to_string();
         let a_dir = scratch.join("a");
         let a = Executor::start(&options(a_dir.clone())).await.unwrap();
@@ -533,5 +637,9 @@ mod tests {
         assert_eq!(read, serde_json::json!("t1=v1 v"));
         let stopped = b.stop_and_remove().await;
         assert!(stopped.removed && !b_dir.exists(), "{stopped:?}");
+        assert_eq!(
+            std::fs::read(scratch.join("beside.txt")).unwrap(),
+            b"caller"
+        );
     }
 }
