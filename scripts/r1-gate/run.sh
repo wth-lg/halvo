@@ -4,7 +4,27 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 name=run
 
-CHECKS="a:timed-run b:store b:deletion c:secure-input d:cost e:memory f:service-run g:service-memory h:service-expiry i:service-pause j:service-delete k:content-floor l:login-start m:app-memory n:ci-results -:windows-ci -:no-ll-hook"
+CHECKS="a:timed-run:here b:store:here b:deletion:here c:secure-input:here d:cost:here e:memory:here f:service-run:later g:service-memory:later h:service-expiry:later i:service-pause:later j:service-delete:later k:content-floor:later l:login-start:later m:app-memory:later n:ci-results:later -:windows-ci:here -:no-ll-hook:here"
+
+check_of() {
+  check_rest=${1#*:}
+  printf '%s\n' "${check_rest%:*}"
+}
+
+table_defect() {
+  for entry in $CHECKS; do
+    table_check=$(check_of "$entry")
+    if [ -f "$1/check-$table_check.sh" ]; then
+      [ "${entry##*:}" = here ] || { printf 'check-%s.sh is in %s and the table marks it later: mark it here\n' "$table_check" "$1"; return 1; }
+    else
+      [ "${entry##*:}" = later ] || { printf 'check-%s.sh is missing from %s and the table marks it here\n' "$table_check" "$1"; return 1; }
+    fi
+  done
+}
+
+predicate_table() {
+  table_defect "$1" > /dev/null
+}
 
 checks_help=''
 for entry in $CHECKS; do
@@ -39,8 +59,11 @@ R1 gate driver. One line for each sub-check of the done-when.
       Scratch directories stay in place and their paths go to stderr, unless
       --remove-scratch is given.
 
-Sub-checks, as letter:name (a letter of the done-when, or - for a line outside
-the letters). A name with no check script prints FAIL <name> (check script missing).$checks_help
+Sub-checks, as letter:name:state (a letter of the done-when, or - for a line
+outside the letters). The state is here when check-<name>.sh is at this commit,
+or later when a later unit adds it. --self-test fails when a script marked here
+is missing or a script marked later is present. A name with no check script
+prints FAIL <name> (check script missing).$checks_help
 EOF
 }
 
@@ -56,7 +79,7 @@ run_check() {
 measure_all() {
   all_status=0
   for entry in $CHECKS; do
-    run_check "${entry#*:}" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
+    run_check "$(check_of "$entry")" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
     all_status=$(worst_status "$all_status" "$?")
   done
   return "$all_status"
@@ -66,7 +89,7 @@ stub_checks() {
   stubs=$gate_scratch/stubs-$st_case
   mkdir -p "$stubs"
   for entry in $CHECKS; do
-    cat > "$stubs/check-${entry#*:}.sh" <<'STUB'
+    cat > "$stubs/check-$(check_of "$entry").sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" > "$0.args"
 read -r verdict < "$0.verdict"
@@ -75,7 +98,7 @@ printf '%s %s\n' "$verdict" "${stub%.sh}"
 case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
 exit 1
 STUB
-    printf 'PASS\n' > "$stubs/check-${entry#*:}.sh.verdict"
+    printf 'PASS\n' > "$stubs/check-$(check_of "$entry").sh.verdict"
   done
   for pair in "$@"; do
     printf '%s\n' "${pair#*=}" > "$stubs/check-${pair%%=*}.sh.verdict"
@@ -96,6 +119,15 @@ checks_get_their_arguments() {
   measure_all 5 operator 0123456789abcdef0123456789abcdef01234567 > /dev/null
   read -r stub_args < "$stubs/check-memory.sh.args"
   [ "$stub_args" = "--measure 5 --input operator --sha 0123456789abcdef0123456789abcdef01234567 --strict" ]
+}
+
+copy_gate() {
+  mkdir -p "$gate_scratch/$1" && cp "$DIR"/check-*.sh "$gate_scratch/$1/"
+}
+
+table_defect_is() {
+  defect=$(table_defect "$gate_scratch/$2")
+  [ "$defect" = "$1" ]
 }
 
 missing_script_line_is() {
@@ -226,6 +258,13 @@ cases_run() {
   t check-script-missing FAIL run_check no-such-check --self-test
   t check-script-missing-is-named PASS missing_script_line_is "FAIL no-such-check (check script missing)"
   t check-script-present PASS run_check no-ll-hook --self-test
+  t table-of-this-commit PASS predicate_table "$DIR"
+  copy_gate renamed && mv "$gate_scratch/renamed/check-store.sh" "$gate_scratch/renamed/check-store-old.sh"
+  t check-script-renamed FAIL predicate_table "$gate_scratch/renamed"
+  t check-script-renamed-is-named PASS table_defect_is "check-store.sh is missing from $gate_scratch/renamed and the table marks it here" renamed
+  copy_gate early && printf '#!/bin/sh\n' > "$gate_scratch/early/check-service-run.sh"
+  t later-script-present FAIL predicate_table "$gate_scratch/early"
+  t later-script-present-is-named PASS table_defect_is "check-service-run.sh is in $gate_scratch/early and the table marks it later: mark it here" early
   t every-check-passing-exits-0 PASS all_checks_exit 0
   t a-no-input-line-exits-3 PASS all_checks_exit 3 cost=NO-INPUT timed-run=NO-INPUT
   t a-fail-beside-no-input-exits-1 PASS all_checks_exit 1 cost=NO-INPUT memory=FAIL
@@ -294,10 +333,13 @@ main() {
         *) printf 'run.sh: --group takes run, helper, tree or mutation\n' >&2; return 64 ;;
       esac
     fi
+    if ! table=$(table_defect "$DIR"); then
+      emit_fail "self-test:run" "$table"
+      return 1
+    fi
     for entry in $CHECKS; do
-      check=${entry#*:}
-      [ -f "$DIR/check-$check.sh" ] || continue
-      run_check "$check" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
+      [ "${entry##*:}" = here ] || continue
+      run_check "$(check_of "$entry")" --self-test ${verbose:+"$verbose"} ${remove:+"$remove"} || rc=1
     done
     for name in run helper tree; do
       selftest_run || rc=1

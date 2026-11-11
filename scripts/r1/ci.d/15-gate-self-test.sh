@@ -116,6 +116,10 @@ self_test() {
   check check-passes-as-another FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
   gate check-group-is-a-prefix "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store-other (1 cases)\n"'
   check check-group-is-a-prefix FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
+  mkdir -p "$work/check-script-renamed/scripts" || exit 2
+  cp -R "$CI_D_REPO/scripts/r1-gate" "$work/check-script-renamed/scripts/" || exit 2
+  mv "$work/check-script-renamed/scripts/r1-gate/check-store.sh" "$work/check-script-renamed/scripts/r1-gate/check-store-old.sh" || exit 2
+  check check-script-renamed FAIL 'run.sh --self-test exited 1)'
   gate dash-missing "$pass" store "$pass"
   path=$work/no-tools
   check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
