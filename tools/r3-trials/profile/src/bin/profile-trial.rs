@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
-    bound_bytes, encode, entry_names, landing, marker_needles, new_entries, outside_roots, search,
-    search_with, LEAVE_OUT_ALL,
+    bound_bytes, browser_did_not_start, encode, entry_names, landing, marker_needles, new_entries,
+    outside_roots, search, search_with, LEAVE_OUT_ALL,
 };
 use r3_web::cdp::{Executor, Fault, Locator, Res, SessionState, StartOptions, Stopped};
 use r3_web::fixture::{fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
@@ -782,7 +782,7 @@ const TASK_HOLD: Duration = Duration::from_secs(20);
 
 enum Shape {
     Median(u64),
-    Failed(u32),
+    Failed(u32, bool),
     Stopped,
 }
 
@@ -826,9 +826,10 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
                 out(&format!("notrun item=4 {cell} cause=signal"));
                 return ExitCode::from(1);
             }
-            Shape::Failed(run_ok) => {
+            Shape::Failed(run_ok, no_start) => {
+                let cause = if no_start { "browser_start" } else { "runs" };
                 out(&format!(
-                    "notrun item=4 {cell} shape={shape} runs_ok={run_ok} of={} cause=runs",
+                    "notrun item=4 {cell} shape={shape} runs_ok={run_ok} of={} cause={cause}",
                     args.runs
                 ));
                 return ExitCode::from(1);
@@ -854,10 +855,10 @@ async fn measure_shape(
     cmd.stdin(Stdio::null()).stdout(Stdio::piped());
     let mut child = match cmd.spawn() {
         Ok(c) => c,
-        Err(_) => return Shape::Failed(0),
+        Err(_) => return Shape::Failed(0, false),
     };
     let Some(stdout) = child.stdout.take() else {
-        return Shape::Failed(0);
+        return Shape::Failed(0, false);
     };
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     std::thread::spawn(move || {
@@ -872,6 +873,7 @@ async fn measure_shape(
     let mut runs_done: u32 = 0;
     let mut good: u32 = 0;
     let mut median: Option<u64> = None;
+    let mut no_start = false;
     let mut signalled = false;
     let mut stop_rx = stop.0.clone();
     loop {
@@ -879,6 +881,7 @@ async fn measure_shape(
             line = rx.recv() => {
                 let Some(line) = line else { break };
                 out(&line);
+                no_start |= browser_did_not_start(&line);
                 let counts = if shape == "steps" {
                     line.starts_with("cell candidate=") && line.contains(" ok=1 of=1 ")
                 } else {
@@ -918,7 +921,7 @@ async fn measure_shape(
     }
     match median {
         Some(m) if done && runs_done == args.runs && run_ok == args.runs => Shape::Median(m),
-        _ => Shape::Failed(run_ok),
+        _ => Shape::Failed(run_ok, no_start),
     }
 }
 

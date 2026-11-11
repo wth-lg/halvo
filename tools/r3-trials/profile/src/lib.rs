@@ -192,6 +192,13 @@ pub fn same_path(a: &Path, b: &Path) -> bool {
     }
 }
 
+pub fn browser_did_not_start(line: &str) -> bool {
+    let of_a_run = line.starts_with("run candidate=")
+        || line.starts_with("notrun candidate=")
+        || line.starts_with("task ");
+    of_a_run && line.ends_with(" cause=browser_start")
+}
+
 pub fn landing(path: &str) -> (&'static str, &'static str) {
     match path {
         "/bill" => ("ok", "no"),
@@ -271,6 +278,25 @@ mod tests {
             new_entries(dir, &before, &after, Path::new("/t/d")),
             vec![PathBuf::from("/t/c")]
         );
+    }
+
+    #[test]
+    fn a_browser_that_did_not_start_is_read_from_the_lines_of_a_run() {
+        assert!(browser_did_not_start(
+            "run candidate=cdp machine=mac browser=chrome step=signin_form i=1 result=miss ms=0 version=- cause=browser_start"
+        ));
+        assert!(browser_did_not_start(
+            "notrun candidate=cdp machine=mac browser=chrome step=signin_form cause=browser_start"
+        ));
+        assert!(browser_did_not_start(
+            "task machine=mac browser=chrome result=miss ms=40 removed=no cause=browser_start"
+        ));
+        assert!(!browser_did_not_start(
+            "run candidate=cdp machine=mac browser=chrome step=signin_form i=1 result=miss ms=9 version=x cause=timeout"
+        ));
+        assert!(!browser_did_not_start(
+            "notrun item=4 machine=mac browser=chrome cause=browser_start"
+        ));
     }
 
     #[test]
