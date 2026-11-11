@@ -253,13 +253,228 @@ fn run(status_path: &str, pid_path: &str, command: &[String]) -> i32 {
     if fs::write(pid_path, format!("{}\n", std::process::id())).is_err() {
         return 2;
     }
-    let status = match Command::new(&command[0]).args(&command[1..]).status() {
-        Ok(status) => describe(status),
-        Err(_) => "not-started".to_string(),
-    };
+    let status = start(command);
     match fs::write(status_path, format!("{status}\n")) {
         Ok(()) => 0,
         Err(_) => 2,
+    }
+}
+
+#[cfg(not(windows))]
+fn start(command: &[String]) -> String {
+    match Command::new(&command[0]).args(&command[1..]).status() {
+        Ok(status) => describe(status),
+        Err(_) => "not-started".to_string(),
+    }
+}
+
+#[cfg(windows)]
+fn start(command: &[String]) -> String {
+    lowered::start(command)
+}
+
+#[cfg(windows)]
+mod lowered {
+    use std::ffi::c_void;
+    use std::iter::repeat;
+
+    type Handle = *mut c_void;
+
+    #[repr(C)]
+    struct SidAndAttributes {
+        sid: *mut c_void,
+        attributes: u32,
+    }
+
+    #[repr(C)]
+    struct StartupInfo {
+        cb: u32,
+        reserved: *mut u16,
+        desktop: *mut u16,
+        title: *mut u16,
+        x: u32,
+        y: u32,
+        x_size: u32,
+        y_size: u32,
+        x_chars: u32,
+        y_chars: u32,
+        fill: u32,
+        flags: u32,
+        show: u16,
+        reserved2_len: u16,
+        reserved2: *mut u8,
+        input: Handle,
+        output: Handle,
+        error: Handle,
+    }
+
+    #[repr(C)]
+    struct ProcessInformation {
+        process: Handle,
+        thread: Handle,
+        process_id: u32,
+        thread_id: u32,
+    }
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn OpenProcessToken(process: Handle, access: u32, token: *mut Handle) -> i32;
+        fn CreateRestrictedToken(
+            existing: Handle,
+            flags: u32,
+            disable_count: u32,
+            disable: *const SidAndAttributes,
+            delete_count: u32,
+            delete: *const c_void,
+            restrict_count: u32,
+            restrict: *const SidAndAttributes,
+            created: *mut Handle,
+        ) -> i32;
+        fn CreateWellKnownSid(kind: i32, domain: *const c_void, sid: *mut u8, size: *mut u32)
+            -> i32;
+        fn SetTokenInformation(token: Handle, class: i32, info: *const c_void, size: u32) -> i32;
+        fn CreateProcessAsUserW(
+            token: Handle,
+            application: *const u16,
+            command: *mut u16,
+            process_attributes: *const c_void,
+            thread_attributes: *const c_void,
+            inherit: i32,
+            flags: u32,
+            environment: *const c_void,
+            directory: *const u16,
+            startup: *const StartupInfo,
+            information: *mut ProcessInformation,
+        ) -> i32;
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcess() -> Handle;
+        fn GetStdHandle(which: u32) -> Handle;
+        fn SetHandleInformation(handle: Handle, mask: u32, flags: u32) -> i32;
+        fn WaitForSingleObject(handle: Handle, milliseconds: u32) -> u32;
+        fn GetExitCodeProcess(handle: Handle, code: *mut u32) -> i32;
+        fn CloseHandle(handle: Handle) -> i32;
+    }
+
+    fn quote(arg: &str, line: &mut String) {
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        if !arg.is_empty() && !arg.contains([' ', '\t', '"']) {
+            line.push_str(arg);
+            return;
+        }
+        line.push('"');
+        let mut slashes = 0;
+        for c in arg.chars() {
+            if c == '\\' {
+                slashes += 1;
+                continue;
+            }
+            if c == '"' {
+                line.extend(repeat('\\').take(slashes * 2 + 1));
+            } else {
+                line.extend(repeat('\\').take(slashes));
+            }
+            line.push(c);
+            slashes = 0;
+        }
+        line.extend(repeat('\\').take(slashes * 2));
+        line.push('"');
+    }
+
+    pub fn start(command: &[String]) -> String {
+        let mut line = String::new();
+        for arg in command {
+            quote(arg, &mut line);
+        }
+        let mut wide: Vec<u16> = line.encode_utf16().chain(Some(0)).collect();
+        let mut admins = [0u8; 68];
+        let mut admins_size = admins.len() as u32;
+        let mut medium = [0u8; 68];
+        let mut medium_size = medium.len() as u32;
+        unsafe {
+            let mut own: Handle = std::ptr::null_mut();
+            if OpenProcessToken(GetCurrentProcess(), 0xF01FF, &mut own) == 0 {
+                return "not-started".to_string();
+            }
+            if CreateWellKnownSid(26, std::ptr::null(), admins.as_mut_ptr(), &mut admins_size) == 0
+                || CreateWellKnownSid(66, std::ptr::null(), medium.as_mut_ptr(), &mut medium_size)
+                    == 0
+            {
+                CloseHandle(own);
+                return "not-started".to_string();
+            }
+            let disable = [SidAndAttributes {
+                sid: admins.as_mut_ptr().cast(),
+                attributes: 0,
+            }];
+            let mut token: Handle = std::ptr::null_mut();
+            let made = CreateRestrictedToken(
+                own,
+                0x1 | 0x4,
+                1,
+                disable.as_ptr(),
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                &mut token,
+            );
+            CloseHandle(own);
+            if made == 0 {
+                return "not-started".to_string();
+            }
+            let label = SidAndAttributes {
+                sid: medium.as_mut_ptr().cast(),
+                attributes: 0x20,
+            };
+            let label_size = std::mem::size_of::<SidAndAttributes>() as u32 + medium_size;
+            if SetTokenInformation(token, 25, (&label as *const SidAndAttributes).cast(), label_size)
+                == 0
+            {
+                CloseHandle(token);
+                return "not-started".to_string();
+            }
+            let mut startup: StartupInfo = std::mem::zeroed();
+            startup.cb = std::mem::size_of::<StartupInfo>() as u32;
+            startup.flags = 0x100;
+            startup.input = GetStdHandle(-10i32 as u32);
+            startup.output = GetStdHandle(-11i32 as u32);
+            startup.error = GetStdHandle(-12i32 as u32);
+            for handle in [startup.input, startup.output, startup.error] {
+                SetHandleInformation(handle, 1, 1);
+            }
+            let mut information: ProcessInformation = std::mem::zeroed();
+            let created = CreateProcessAsUserW(
+                token,
+                std::ptr::null(),
+                wide.as_mut_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+                0,
+                std::ptr::null(),
+                std::ptr::null(),
+                &startup,
+                &mut information,
+            );
+            CloseHandle(token);
+            if created == 0 {
+                return "not-started".to_string();
+            }
+            CloseHandle(information.thread);
+            WaitForSingleObject(information.process, 0xFFFF_FFFF);
+            let mut code: u32 = 0;
+            let read = GetExitCodeProcess(information.process, &mut code);
+            CloseHandle(information.process);
+            if read == 0 {
+                return "not-started".to_string();
+            }
+            (code as i32).to_string()
+        }
     }
 }
 
@@ -270,14 +485,6 @@ fn describe(status: std::process::ExitStatus) -> String {
         (Some(code), _) => code.to_string(),
         (None, Some(signal)) => format!("signal-{signal}"),
         (None, None) => "not-started".to_string(),
-    }
-}
-
-#[cfg(not(unix))]
-fn describe(status: std::process::ExitStatus) -> String {
-    match status.code() {
-        Some(code) => code.to_string(),
-        None => "not-started".to_string(),
     }
 }
 
