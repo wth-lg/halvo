@@ -72,6 +72,7 @@ enum Fault {
     RepeatsAtAStop,
     SkipsAtAStop,
     LoadCutsSetC,
+    DropsTheLastRecordOfSetC,
     KeepsServingAfterTheReplace,
     StoreChangedOnReadNamesTheOldId,
     StoreChangedOnReadGetsStoreError,
@@ -169,6 +170,7 @@ fn refused_form(payload: &[u8]) -> Form {
 struct Proxy {
     fault: Fault,
     set_a: bool,
+    set_c: bool,
     frames: Vec<Entry>,
     first: Entry,
     store: Option<StoreId>,
@@ -350,6 +352,9 @@ impl Proxy {
             }
             ExpiryOutOfOrder => b.expiry.reverse(),
             ExpiryAtZero => b.expiry.iter_mut().for_each(|x| x.at = Instant(0)),
+            DropsTheLastRecordOfSetC if self.set_c && reached => {
+                b.records.pop();
+            }
             ServesScreenFrame if self.set_a => {
                 let extra = self
                     .frames
@@ -389,6 +394,7 @@ struct Control {
     files: Vec<PathBuf>,
     first_live: u64,
     set_a: bool,
+    set_c: bool,
     idle: Option<FixtureTransport>,
     serving: Option<JoinHandle<FixtureTransport>>,
     replace: Option<Replace>,
@@ -401,6 +407,7 @@ impl Control {
             files: Vec::new(),
             first_live: 1,
             set_a: false,
+            set_c: false,
             idle: None,
             serving: None,
             replace: None,
@@ -449,6 +456,7 @@ impl Subject for Control {
             return self.reopen();
         }
         self.set_a = batch_files == conformance::SET_A;
+        self.set_c = batch_files == conformance::SET_C;
         let cut_c = self.fault == LoadCutsSetC && batch_files == conformance::SET_C;
         self.files = Vec::new();
         for (i, text) in batch_files.iter().enumerate() {
@@ -472,6 +480,7 @@ impl Subject for Control {
         let mut proxy = Proxy {
             fault: self.fault,
             set_a: self.set_a,
+            set_c: self.set_c,
             frames: screen_frames(),
             first: first_record(),
             store: None,
@@ -1001,6 +1010,19 @@ fn control_a_server_that_serves_the_old_records_after_the_replace() {
             Pass,
             Pass,
             Fail("the store after replace_live served 44 entries; want none"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_drops_the_last_record_of_set_c() {
+    check(
+        DropsTheLastRecordOfSetC,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C served 419 entries, the first that differs at its end"),
         ],
     );
 }
