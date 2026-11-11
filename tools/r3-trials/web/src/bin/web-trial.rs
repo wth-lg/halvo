@@ -646,12 +646,12 @@ mod driver {
             Ok(ex) => ex,
             Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
             Err(f) => {
-                return Ok(Run {
-                    ok: false,
-                    cause: f.0.to_string(),
-                    ms: 0,
-                    version: "-".into(),
-                })
+                eprintln!(
+                    "start step={name} i={i} cause={} detail={}",
+                    f.0,
+                    printable(&f.1)
+                );
+                return Err(NotRun::new("browser_start", ""));
             }
         };
         let version = ex.version().await.unwrap_or_else(|_| "-".into());

@@ -27,6 +27,7 @@ use chromiumoxide::cdp::js_protocol::runtime::{
     AddBindingParams, CallArgument, CallFunctionOnParams, EvaluateParams, EventBindingCalled,
     ExecutionContextId, RemoteObjectId,
 };
+use chromiumoxide::error::CdpError;
 use chromiumoxide::{Browser, Page};
 use futures::StreamExt;
 use tokio::task::JoinHandle;
@@ -160,6 +161,22 @@ pub struct Executor {
     owns_process: bool,
 }
 
+fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
+    let stderr = match &e {
+        CdpError::LaunchExit(_, s) | CdpError::LaunchTimeout(s) | CdpError::LaunchIo(_, s) => {
+            s.as_slice().to_vec()
+        }
+        other => other.to_string().into_bytes(),
+    };
+    let mut kept = opts.profile.clone().into_os_string();
+    kept.push(".stderr");
+    let _ = std::fs::write(&kept, &stderr);
+    Fault::new(
+        "browser_start",
+        format!("stderr_kept_bytes_{}", stderr.len()),
+    )
+}
+
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
     let mut args: Vec<String> = opts.flags.clone();
     if cfg!(target_os = "macos") {
@@ -196,7 +213,9 @@ impl Executor {
             };
         }
         let config = builder.build().map_err(|e| Fault::new("start", e))?;
-        let (mut browser, mut handler) = Browser::launch(config).await.map_err(cdp("start"))?;
+        let (mut browser, mut handler) = Browser::launch(config)
+            .await
+            .map_err(|e| start_failed(opts, e))?;
         let pid = browser.get_mut_child().and_then(|c| c.inner.id());
         let handler = tokio::spawn(async move { while handler.next().await.is_some() {} });
         let page = match browser.new_page("about:blank").await {

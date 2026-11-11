@@ -36,8 +36,10 @@ starts the browser headless with a new profile for every run, and stops both at 
 
 Output: one run line per run, one cell line per step, and no verdict line. A run line holds the
 browser product and version that the browser reported over the protocol. median_ms is the median
-of the runs that printed ok. A run whose fixture control failed, and a cell with no browser
-version, make a notrun line in place of the cell line.
+of the runs that printed ok. A run whose fixture control failed, a browser that did not start
+(cause=browser_start), and a cell with no browser version make a notrun line in place of the cell
+line. The standard error of a browser that did not start is kept beside its profile directory in
+the scratch directory, in a file whose name ends in .stderr, and is not printed.
 Exit 0 when every cell ran (a miss is a result), 1 when a cell could not run (a notrun line
 names it), 2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error.
 run.sh ends by exec of the trial program, so a TERM or INT sent to run.sh reaches the program. On
