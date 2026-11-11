@@ -973,8 +973,75 @@ impl Executor {
         Err(Fault::new("click", "frame depth"))
     }
 
+    /// Clicks the ref with the mouse at the centre of its box. In a frame that runs in a process
+    /// of its own, it first scrolls each frame that holds it into view, from the page down, and
+    /// waits for two animation frames of the frame, and it then reads a mark that a click
+    /// listener on the ref set: when the mark says that the click did not arrive, it clicks again,
+    /// at most three times in all, and when the mark cannot be read because the document went
+    /// away, the click counts as arrived.
     pub async fn click(&self, reference: &str) -> Res<()> {
         let t = self.target(reference)?;
+        if t.place == Place::Page {
+            return self.click_at(&t).await;
+        }
+        for _ in 0..FRAME_CLICK_TRIES {
+            self.reveal(&t.place).await?;
+            self.painted(&t.place).await?;
+            self.call_on(&t.place, &t.node, MARK_CLICK_FN, Vec::new())
+                .await?;
+            self.click_at(&t).await?;
+            match self
+                .call_on(&t.place, &t.node, READ_CLICK_FN, Vec::new())
+                .await
+            {
+                Ok(serde_json::Value::Bool(false)) => continue,
+                _ => return Ok(()),
+            }
+        }
+        Err(Fault::new("click", "not received"))
+    }
+
+    async fn reveal(&self, place: &Place) -> Res<()> {
+        let mut chain: Vec<(Place, BackendNodeId)> = Vec::new();
+        let mut here = place.clone();
+        for _ in 0..MAX_FRAME_DEPTH {
+            let Place::Frame(session) = &here else {
+                break;
+            };
+            let (parent, owner) = self
+                .owners
+                .lock()
+                .ok()
+                .and_then(|o| o.get(session).cloned())
+                .ok_or_else(|| Fault::new("click", "frame owner"))?;
+            chain.push((parent.clone(), owner));
+            here = parent;
+        }
+        for (parent, owner) in chain.iter().rev() {
+            self.exec(
+                parent,
+                "click",
+                ScrollIntoViewIfNeededParams::builder()
+                    .backend_node_id(*owner)
+                    .build(),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    async fn painted(&self, place: &Place) -> Res<()> {
+        let params = EvaluateParams::builder()
+            .expression(PAINTED_JS)
+            .await_promise(true)
+            .return_by_value(true)
+            .build()
+            .map_err(|e| Fault::new("click", e))?;
+        self.exec(place, "click", params).await?;
+        Ok(())
+    }
+
+    async fn click_at(&self, t: &Target) -> Res<()> {
         self.exec(
             &t.place,
             "click",
@@ -1260,6 +1327,20 @@ const CONTROL_ROLES: [&str; 7] = [
 ];
 const VALUE_ROLES: [&str; 2] = ["textbox", "combobox"];
 const MAX_FRAME_DEPTH: usize = 8;
+const FRAME_CLICK_TRIES: usize = 3;
+
+const PAINTED_JS: &str = "new Promise((done) => {
+  setTimeout(() => done(false), 1000);
+  requestAnimationFrame(() => requestAnimationFrame(() => done(true)));
+})";
+
+const MARK_CLICK_FN: &str = "function () {
+  this.__halvoClickArrived = false;
+  this.addEventListener('click', () => { this.__halvoClickArrived = true; }, { capture: true, once: true });
+  return true;
+}";
+
+const READ_CLICK_FN: &str = "function () { return this.__halvoClickArrived === true; }";
 
 const CONTENT_CORNER_FN: &str = "function () {
   const r = this.getBoundingClientRect();
