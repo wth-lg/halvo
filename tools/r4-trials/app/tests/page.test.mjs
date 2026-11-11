@@ -22,6 +22,7 @@ function makePage(replies) {
     count: { textContent: '0' }
   };
   const loaded = [];
+  const visibility = [];
   const target = new EventTarget();
   const ctx = {
     CustomEvent,
@@ -29,8 +30,12 @@ function makePage(replies) {
     addEventListener: target.addEventListener.bind(target),
     dispatchEvent: target.dispatchEvent.bind(target),
     document: {
+      visibilityState: 'visible',
       getElementById: (id) => elements[id],
-      addEventListener: (type, fn) => { if (type === 'DOMContentLoaded') loaded.push(fn); }
+      addEventListener: (type, fn) => {
+        if (type === 'DOMContentLoaded') loaded.push(fn);
+        if (type === 'visibilitychange') visibility.push(fn);
+      }
     },
     requestAnimationFrame: (fn) => { const id = nextId++; frames.set(id, fn); return id; },
     cancelAnimationFrame: (id) => { frames.delete(id); },
@@ -52,6 +57,7 @@ function makePage(replies) {
   return {
     ctx, calls, callbacks, frames, intervals, elements,
     load: () => loaded.forEach((fn) => fn()),
+    setVisibility(state) { ctx.document.visibilityState = state; visibility.forEach((fn) => fn()); },
     flushFrames() { const due = [...frames.values()]; frames.clear(); due.forEach((fn) => fn()); },
     tick(n) { for (let i = 0; i < n; i++) [...intervals.values()].forEach((t) => t.fn()); },
     reports: () => calls.filter((c) => c.command === 'report').map((c) => c.args.line),
@@ -197,4 +203,53 @@ test('the events way listens to r4-change', async () => {
   page.callbacks.get(call.args.handler)({ payload: { seq: 3, of: 3 } });
   await settle();
   assert.deepEqual(page.reports(), ['sync end last=3 order=ok after_hide=0 hidden_ticks=0']);
+});
+
+test('ticks after the page became hidden count as hidden ticks before the window event', async () => {
+  const page = makePage({ config: { sync: 'channel' }, subscribe: null });
+  page.load();
+  await settle();
+  const id = Number(page.named('subscribe')[0].args.channel.slice('__CHANNEL__:'.length));
+  page.tick(2);
+  page.setVisibility('hidden');
+  page.tick(3);
+  page.callbacks.get(id)({ message: { seq: 1, of: 2 }, index: 0 });
+  page.ctx.__r4Window('hide');
+  page.tick(4);
+  page.setVisibility('visible');
+  page.ctx.__r4Window('show');
+  page.callbacks.get(id)({ message: { seq: 2, of: 2 }, index: 1 });
+  await settle();
+  assert.deepEqual(page.reports(), [
+    'window shown after_hide=1 hidden_ticks=3',
+    'sync end last=2 order=ok after_hide=1 hidden_ticks=3'
+  ]);
+});
+
+test('a page hidden without the window event counts its ticks as hidden', async () => {
+  const page = makePage({ config: {} });
+  page.load();
+  await settle();
+  page.setVisibility('hidden');
+  page.tick(5);
+  page.setVisibility('visible');
+  page.tick(1);
+  page.ctx.__r4AppCounts(1);
+  assert.deepEqual(page.named('counts').at(-1).args, { token: 1, ticks: 6, frames: 0 });
+  page.ctx.__r4Window('show');
+  assert.deepEqual(page.reports(), ['window shown after_hide=0 hidden_ticks=5']);
+});
+
+test('a change after the end line is reported with the order', async () => {
+  const page = makePage({ config: { sync: 'events' } });
+  page.load();
+  await settle();
+  const handler = page.callbacks.get(page.named('plugin:event|listen')[0].args.handler);
+  handler({ payload: { seq: 2, of: 2 } });
+  handler({ payload: { seq: 1, of: 2 } });
+  await settle();
+  assert.deepEqual(page.reports(), [
+    'sync end last=2 order=ok after_hide=0 hidden_ticks=0',
+    'sync after_end seq=1 last=2 order=miss'
+  ]);
 });

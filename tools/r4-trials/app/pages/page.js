@@ -5,6 +5,8 @@
   var interval = null;
   var loop = null;
   var hidden = false;
+  var windowHidden = false;
+  var viewHidden = false;
   var way = null;
   var waiting = false;
   var sync = { last: 0, order: 'ok', afterHide: 0, hiddenTicks: 0, mark: 0, ended: false };
@@ -55,11 +57,17 @@
       sync.mark = mark;
       app.report('sync mark=' + mark);
     }
-    if (!sync.ended && change.seq === change.of) {
+    if (sync.ended) {
+      app.report('sync after_end seq=' + change.seq + ' last=' + sync.last + ' order=' + sync.order);
+    } else if (change.seq === change.of) {
       sync.ended = true;
       app.report('sync end last=' + sync.last + ' order=' + sync.order +
         ' after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks);
     }
+  }
+
+  function setHidden() {
+    hidden = windowHidden || viewHidden;
   }
 
   function getNext() {
@@ -92,14 +100,22 @@
 
   window.addEventListener('r4-window', function (event) {
     if (event.detail === 'hide') {
-      hidden = true;
+      windowHidden = true;
+      setHidden();
       stop();
     } else if (event.detail === 'show') {
-      hidden = false;
+      windowHidden = false;
+      setHidden();
       start();
       app.report('window shown after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks);
       getNext();
     }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    viewHidden = document.visibilityState === 'hidden';
+    setHidden();
+    getNext();
   });
 
   document.addEventListener('DOMContentLoaded', function () {
