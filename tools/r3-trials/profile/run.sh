@@ -26,9 +26,12 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   marker_hits on the disk line sums both. Prints searched, trace (the utility host
                   name, counted the same way) and disk lines.
   --item 3        the egress item belongs to the second pull request of U0.3: a notrun line.
-  --item 4        five runs of the nine steps of tools/r3-trials/web under tree-peak. Prints the
-                  lines of both programs, one browser line per run and one bound line for this
-                  call's browser: 8 MiB times ceil(5 times the median peak / 33554432).
+  --item 4        two shapes under tree-peak: five runs of the nine steps of tools/r3-trials/web
+                  (shape=steps), then five runs of one browser that signs in on the utility fixture
+                  with the variant second_factor, opens /bill and /pay and holds that page for 20 s
+                  (shape=task). Prints the lines of the programs, one browser line per run and
+                  shape, and one bound line for this call's browser: 8 MiB times ceil(5 times the
+                  larger of the two median peaks / 33554432).
   --browser PATH  the Chrome or Edge binary (the file name says which).
   --port N        the fixture port, 1 to 65532.
   --driver PATH   taken by the webdriver candidate only; refused here.
@@ -37,7 +40,7 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
   --plant E:P     item 2: before the search, write the marker in encoding E (utf8, utf16le,
                   utf16be) to a file in place P: parent (the parent directory of the profiles)
                   or temp (a new directory in the temporary directory). A check, not a cell.
-  --runs N        item 4: runs under tree-peak, default 5.
+  --runs N        item 4: runs of each shape under tree-peak, default 5.
   --scratch DIR   the parent directory of the profiles; default a new mktemp directory.
 
 The keychain line says prompt=yes when the front application changed or a new on-screen window

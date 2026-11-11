@@ -60,8 +60,11 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("--help") {
         out("Usage: tree-peak --runs N -- COMMAND [ARG...]");
-        out("Starts COMMAND N times, one after the other. Every 250 ms it reads the memory of the");
-        out("command and of every descendant: on macOS the sum of phys_footprint, where a process");
+        out(
+            "Starts COMMAND N times, one after the other. Every 50 ms on macOS and every 250 ms on",
+        );
+        out("Windows it reads the memory of the command and of every descendant: on macOS the sum");
+        out("of phys_footprint, where a process");
         out("that the reparenting to launchd took out of the tree counts when it started during the");
         out("run and its executable lies in an .app bundle of the tree or is the command's own");
         out("binary outside the system directories; such a process counts alone, without its");

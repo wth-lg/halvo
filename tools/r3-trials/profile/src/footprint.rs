@@ -2,7 +2,11 @@ use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus};
 use std::time::{Duration, Instant};
 
-pub const PERIOD: Duration = Duration::from_millis(250);
+pub const PERIOD: Duration = if cfg!(target_os = "macos") {
+    Duration::from_millis(50)
+} else {
+    Duration::from_millis(250)
+};
 pub const ORPHAN_WAIT: Duration = Duration::from_secs(20);
 
 #[derive(Clone, Debug, Default)]

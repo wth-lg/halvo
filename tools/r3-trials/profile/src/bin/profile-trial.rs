@@ -59,6 +59,7 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                     "1" => 1,
                     "2" => 2,
                     "4" => 4,
+                    "task" => 5,
                     _ => return Err("--item takes 1, 2 or 4".into()),
                 }
             }
@@ -151,6 +152,9 @@ fn main() -> ExitCode {
     };
     if args.item == 4 {
         return rt.block_on(item4(&args, kind));
+    }
+    if args.item == 5 {
+        return rt.block_on(task_run(&args, kind));
     }
     rt.block_on(items12(&args, kind))
 }
@@ -774,6 +778,14 @@ async fn run_items12(
     ExitCode::SUCCESS
 }
 
+const TASK_HOLD: Duration = Duration::from_secs(20);
+
+enum Shape {
+    Median(u64),
+    Failed(u32),
+    Stopped,
+}
+
 async fn item4(args: &Args, kind: &'static str) -> ExitCode {
     let cell = format!("machine={} browser={kind}", args.machine);
     let stop = match watch_signals() {
@@ -786,29 +798,66 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
     let (Some(tp), Some(wt)) = (&args.tree_peak, &args.web_trial) else {
         return ExitCode::from(2);
     };
-    let mut cmd = Command::new(tp);
-    cmd.arg("--runs")
-        .arg(args.runs.to_string())
-        .arg("--")
-        .arg(wt)
-        .args(["--candidate", "cdp", "--browser", &args.browser, "--port"])
-        .arg(args.port.to_string())
-        .args(["--machine", &args.machine, "--repo"])
-        .arg(&args.repo)
-        .arg("--scratch")
-        .arg(&args.scratch)
-        .args(["--runs", "1"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped());
+    let Ok(me) = std::env::current_exe() else {
+        out(&format!("notrun item=4 {cell} cause=tree_peak"));
+        return ExitCode::from(1);
+    };
+    let mut medians = Vec::new();
+    for shape in ["steps", "task"] {
+        let mut cmd = Command::new(tp);
+        cmd.arg("--runs").arg(args.runs.to_string()).arg("--");
+        if shape == "steps" {
+            cmd.arg(wt).args(["--candidate", "cdp"]);
+        } else {
+            cmd.arg(&me).args(["--item", "task"]);
+        }
+        cmd.args(["--browser", &args.browser, "--port"])
+            .arg(args.port.to_string())
+            .args(["--machine", &args.machine, "--repo"])
+            .arg(&args.repo)
+            .arg("--scratch")
+            .arg(&args.scratch);
+        if shape == "steps" {
+            cmd.args(["--runs", "1"]);
+        }
+        match measure_shape(args, &cell, shape, cmd, &stop).await {
+            Shape::Median(m) => medians.push(m),
+            Shape::Stopped => {
+                out(&format!("notrun item=4 {cell} cause=signal"));
+                return ExitCode::from(1);
+            }
+            Shape::Failed(run_ok) => {
+                out(&format!(
+                    "notrun item=4 {cell} shape={shape} runs_ok={run_ok} of={} cause=runs",
+                    args.runs
+                ));
+                return ExitCode::from(1);
+            }
+        }
+    }
+    let worst = medians.into_iter().max().unwrap_or(0);
+    out(&format!(
+        "browser machine={} bound_bytes={}",
+        args.machine,
+        bound_bytes(worst)
+    ));
+    ExitCode::SUCCESS
+}
+
+async fn measure_shape(
+    args: &Args,
+    cell: &str,
+    shape: &str,
+    mut cmd: Command,
+    stop: &Stop,
+) -> Shape {
+    cmd.stdin(Stdio::null()).stdout(Stdio::piped());
     let mut child = match cmd.spawn() {
         Ok(c) => c,
-        Err(_) => {
-            out(&format!("notrun item=4 {cell} cause=tree_peak"));
-            return ExitCode::from(1);
-        }
+        Err(_) => return Shape::Failed(0),
     };
     let Some(stdout) = child.stdout.take() else {
-        return ExitCode::from(1);
+        return Shape::Failed(0);
     };
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     std::thread::spawn(move || {
@@ -818,9 +867,10 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
             }
         }
     });
+    let want: u32 = if shape == "steps" { 9 } else { 1 };
     let mut run_ok: u32 = 0;
     let mut runs_done: u32 = 0;
-    let mut steps_ok: u32 = 0;
+    let mut good: u32 = 0;
     let mut median: Option<u64> = None;
     let mut signalled = false;
     let mut stop_rx = stop.0.clone();
@@ -829,8 +879,13 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
             line = rx.recv() => {
                 let Some(line) = line else { break };
                 out(&line);
-                if line.starts_with("cell candidate=") && line.contains(" ok=1 of=1 ") {
-                    steps_ok += 1;
+                let counts = if shape == "steps" {
+                    line.starts_with("cell candidate=") && line.contains(" ok=1 of=1 ")
+                } else {
+                    line.starts_with("task ") && line.contains(" result=ok ")
+                };
+                if counts {
+                    good += 1;
                 }
                 if let Some(rest) = line.strip_prefix("tree run=") {
                     let fields: Vec<&str> = rest.split(' ').collect();
@@ -838,12 +893,12 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
                     let exit = fields.iter().find_map(|f| f.strip_prefix("exit=")).unwrap_or("-");
                     let peak = fields.iter().find_map(|f| f.strip_prefix("peak_bytes=")).unwrap_or("0");
                     runs_done += 1;
-                    out(&format!("steps {cell} run={run} ok={steps_ok} of=9"));
-                    if exit == "0" && steps_ok == 9 {
+                    out(&format!("steps {cell} shape={shape} run={run} ok={good} of={want}"));
+                    if exit == "0" && good == want {
                         run_ok += 1;
                     }
-                    steps_ok = 0;
-                    out(&format!("browser {cell} run={run} peak_bytes={peak}"));
+                    good = 0;
+                    out(&format!("browser {cell} shape={shape} run={run} peak_bytes={peak}"));
                 }
                 if let Some(m) = line.strip_prefix("tree median_bytes=") {
                     median = m.parse().ok();
@@ -859,26 +914,94 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
     let status = child.wait();
     let done = status.map(|s| s.success()).unwrap_or(false);
     if stop.is_set() {
-        out(&format!("notrun item=4 {cell} cause=signal"));
-        return ExitCode::from(1);
+        return Shape::Stopped;
     }
     match median {
-        Some(m) if done && runs_done == args.runs && run_ok == args.runs => {
-            out(&format!(
-                "browser machine={} bound_bytes={}",
-                args.machine,
-                bound_bytes(m)
-            ));
+        Some(m) if done && runs_done == args.runs && run_ok == args.runs => Shape::Median(m),
+        _ => Shape::Failed(run_ok),
+    }
+}
+
+async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
+    let cell = format!("machine={} browser={kind}", args.machine);
+    let began = std::time::Instant::now();
+    let report = |result: &str, removed: bool, cause: &str| {
+        out(&format!(
+            "task {cell} result={result} ms={} removed={} cause={cause}",
+            began.elapsed().as_millis(),
+            if removed { "yes" } else { "no" }
+        ));
+    };
+    let Ok(stop) = watch_signals() else {
+        report("miss", false, "runtime");
+        return ExitCode::from(1);
+    };
+    let Ok(seed) = Seed::load(&args.repo, 1) else {
+        report("miss", false, "seed");
+        return ExitCode::from(1);
+    };
+    let server = match Server::start(
+        &fixture_program(&args.repo),
+        &["--port".into(), args.port.to_string()],
+    ) {
+        Ok(s) => s,
+        Err(_) => {
+            report("miss", false, "fixture");
+            return ExitCode::from(1);
+        }
+    };
+    let ctx = Ctx {
+        browser: PathBuf::from(&args.browser),
+        kind,
+        machine: args.machine.clone(),
+        port: args.port,
+        control: Control { port: args.port },
+        seed,
+        scratch: args.scratch.clone(),
+        stop,
+    };
+    let outcome = task(&ctx).await;
+    server.stop();
+    match outcome {
+        Ok(removed) => {
+            report("ok", removed, "-");
             ExitCode::SUCCESS
         }
-        _ => {
-            out(&format!(
-                "notrun item=4 {cell} runs_ok={run_ok} of={} cause=runs",
-                args.runs
-            ));
+        Err(f) => {
+            let cause = match f.0 {
+                "start" | "browser_start" => "browser_start",
+                other => other,
+            };
+            report("miss", false, cause);
             ExitCode::from(1)
         }
     }
+}
+
+async fn task(ctx: &Ctx) -> Res<bool> {
+    ctx.control
+        .reset(&["second_factor"])
+        .map_err(|_| Fault::new("fixture", "reset"))?;
+    let dir = ctx
+        .scratch
+        .join(format!("{}-profile-task", std::process::id()));
+    let mut ex = ctx.stop.or(Executor::start(&ctx.options(dir))).await?;
+    let done = ctx
+        .stop
+        .or(async {
+            sign_in_with_second_factor(&mut ex, ctx).await?;
+            ex.snapshot().await?;
+            ex.open(&ctx.u("/pay")).await?;
+            let lines = ex.snapshot().await?;
+            if !lines.iter().any(|l| l.frame.is_some()) {
+                return Err(Fault::new("task", "no_payment_frame"));
+            }
+            tokio::time::sleep(TASK_HOLD).await;
+            Ok(())
+        })
+        .await;
+    let stopped = ex.stop_and_remove().await;
+    done.map(|_| stopped.removed)
 }
 
 #[cfg(unix)]
