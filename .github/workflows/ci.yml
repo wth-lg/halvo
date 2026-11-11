@@ -72,6 +72,28 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: U0.3 trial workspaces, test and clippy (scratch branch, never merged; counts only)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for crate in web profile; do
+            log="$RUNNER_TEMP/r3-trial-$crate-test.log"
+            (cd "tools/r3-trials/$crate" && cargo test --locked >"$log" 2>&1)
+            t=$?
+            passed=$(grep -o '[0-9]* passed' "$log" | awk '{s+=$1} END {print s+0}')
+            failed=$(grep -o '[0-9]* failed' "$log" | awk '{s+=$1} END {print s+0}')
+            ignored=$(grep -o '[0-9]* ignored' "$log" | awk '{s+=$1} END {print s+0}')
+            clog="$RUNNER_TEMP/r3-trial-$crate-clippy.log"
+            (cd "tools/r3-trials/$crate" && cargo clippy --locked --all-targets -- -D warnings >"$clog" 2>&1)
+            c=$?
+            errors=$(grep -c '^error' "$clog")
+            missing=no
+            grep -q 'is not installed' "$clog" && missing=yes
+            echo "trial crate=$crate test_exit=$t passed=$passed failed=$failed ignored=$ignored clippy_exit=$c clippy_error_lines=$errors clippy_missing=$missing"
+            [ "$t" -eq 0 ] && [ "$c" -eq 0 ] || code=1
+          done
+          exit $code
       - name: Test
         shell: bash
         run: cargo test --workspace
@@ -108,6 +130,28 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: U0.3 trial workspaces, test and clippy (scratch branch, never merged; counts only)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for crate in web profile; do
+            log="$RUNNER_TEMP/r3-trial-$crate-test.log"
+            (cd "tools/r3-trials/$crate" && cargo test --locked >"$log" 2>&1)
+            t=$?
+            passed=$(grep -o '[0-9]* passed' "$log" | awk '{s+=$1} END {print s+0}')
+            failed=$(grep -o '[0-9]* failed' "$log" | awk '{s+=$1} END {print s+0}')
+            ignored=$(grep -o '[0-9]* ignored' "$log" | awk '{s+=$1} END {print s+0}')
+            clog="$RUNNER_TEMP/r3-trial-$crate-clippy.log"
+            (cd "tools/r3-trials/$crate" && cargo clippy --locked --all-targets -- -D warnings >"$clog" 2>&1)
+            c=$?
+            errors=$(grep -c '^error' "$clog")
+            missing=no
+            grep -q 'is not installed' "$clog" && missing=yes
+            echo "trial crate=$crate test_exit=$t passed=$passed failed=$failed ignored=$ignored clippy_exit=$c clippy_error_lines=$errors clippy_missing=$missing"
+            [ "$t" -eq 0 ] && [ "$c" -eq 0 ] || code=1
+          done
+          exit $code
       - name: Test
         shell: bash
         run: cargo test --workspace
