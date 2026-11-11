@@ -33,7 +33,19 @@ digest_stdin() {
   printf '%s\n' "$sum"
 }
 
+regular_in_index() {
+  awk -v path="$1" '
+    BEGIN { FS = "\t" }
+    $2 == path {
+      n++
+      if ($1 !~ /^100(644|755) [0-9a-f]+ 0$/) bad = 1
+    }
+    END { if (bad || n != 1) exit 1 }
+  ' "$art/staged.txt"
+}
+
 file_digest() {
+  regular_in_index "$1" || return 1
   [ -f "$1" ] || return 1
   digest_stdin <"$1"
 }
@@ -65,20 +77,20 @@ list_digest() {
 
 paths_under() {
   awk -v prefixes="$*" '
-    BEGIN { n = split(prefixes, prefix, " ") }
+    BEGIN { FS = "\t"; n = split(prefixes, prefix, " ") }
     {
-      probe = $0
+      probe = $2
       if (substr(probe, 1, 1) == "\"") probe = substr(probe, 2)
       for (i = 1; i <= n; i++) {
         if (index(probe, prefix[i]) == 1) {
-          if (probe != $0) { quoted = 1; exit 1 }
-          print
+          if (probe != $2 || NF != 2 || $1 !~ /^100(644|755) [0-9a-f]+ 0$/) { bad = 1; exit 1 }
+          print $2
           break
         }
       }
     }
-    END { if (quoted) exit 1 }
-  ' "$art/tracked.txt"
+    END { if (bad) exit 1 }
+  ' "$art/staged.txt"
 }
 
 set_digest() {
@@ -86,6 +98,7 @@ set_digest() {
   shift
   paths_under "$@" >"$art/set-paths.txt" || return 1
   if [ "$named" != - ]; then
+    regular_in_index "$named" || return 1
     printf '%s\n' "$named" >>"$art/set-paths.txt"
   fi
   sort -u "$art/set-paths.txt" >"$art/set-sorted.txt" || return 1
@@ -93,6 +106,7 @@ set_digest() {
 }
 
 heldout_digits() {
+  regular_in_index docs/r5/heldout.txt || return 1
   [ -f docs/r5/heldout.txt ] || return 1
   awk '
     NR == 1 {
@@ -285,6 +299,7 @@ measure() {
 
   command -v git >/dev/null 2>&1 || finish git
   git -c core.quotepath=on ls-files >"$art/tracked.txt" 2>"$art/git-error.txt" || finish git
+  git -c core.quotepath=on ls-files -s >"$art/staged.txt" 2>>"$art/git-error.txt" || finish git
 
   if ! ends_in_lf scripts/r5/layout.txt; then
     finish layout
@@ -303,7 +318,7 @@ measure() {
   refused=no
   : >"$art/freeze.txt"
   if [ -e docs/r5/freeze.toml ]; then
-    if read_freeze docs/r5/freeze.toml >"$art/freeze-read.txt"; then
+    if regular_in_index docs/r5/freeze.toml && read_freeze docs/r5/freeze.toml >"$art/freeze-read.txt"; then
       targets=$(compare_table targets targets cases stat drift heldout)
       learner=$(compare_table learner crates)
     else
@@ -467,6 +482,16 @@ layout unmatched=1" --all
   fixture drift-file-one-byte
   printf 'drifT\n' >"$work/drift-file-one-byte/tools/r5-trials/drift/d.txt"
   check drift-file-one-byte FAIL-targets 'targets=miss learner=none harness=same'
+
+  fixture frozen-file-is-a-link-in-the-index
+  link=$(printf '%s' '../../../README.md' | git -C "$work/frozen-file-is-a-link-in-the-index" hash-object -w --stdin) || exit 2
+  git -C "$work/frozen-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,tools/r5-trials/stat/s.txt" || exit 2
+  check frozen-file-is-a-link-in-the-index FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture freeze-file-is-a-link-in-the-index
+  link=$(printf '%s' '../../README.md' | git -C "$work/freeze-file-is-a-link-in-the-index" hash-object -w --stdin) || exit 2
+  git -C "$work/freeze-file-is-a-link-in-the-index" update-index --cacheinfo "120000,$link,docs/r5/freeze.toml" || exit 2
+  check freeze-file-is-a-link-in-the-index FAIL-freeze "$line targets=miss learner=miss harness=same"
 
   fixture heldout-digits-differ
   printf 'heldout cases=24 benign=12 fault=12 sha256=d%s\nharness tree=%s\n' "${archive#?}" "$d_tree" >"$work/heldout-digits-differ/docs/r5/heldout.txt"
