@@ -1,8 +1,8 @@
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::types::{
-    hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, ConfigView, Decision, DecisionEntry,
-    EffectAnswer, Event, HandbackResult, Limits, Name, Reply, RunId, RunSpec, Runtime, Workflow,
-    WorkflowId,
+    hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
+    DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Reply, RunId, RunSpec,
+    Runtime, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -125,8 +125,13 @@ pub struct Timed {
 /// the last stored `seq` of its agent plus 1, the records before it in the same body counted,
 /// with `seq`. An agent is the workflow's when the workflow of `workflows` names it, when an
 /// entry of `agents` pairs the two, or once `send` acknowledged `create_agent` for the pair.
-/// `send` refuses `set_state` `active` for an agent of `agents` whose runtime is `web` and
-/// which has no playbook with `playbook`. `history` answers at most 64 events for one call.
+/// `send` refuses `set_state` `active` with `playbook` for an agent whose runtime is `web` and
+/// which has no playbook: an agent of `agents` by its configuration, and an agent that only a
+/// `create_agent` made by the preset of its workflow's category (A-A1.3), which has no
+/// playbook. It refuses `start_run` with `no_workflow` for a workflow that is not in
+/// `workflows`, with `binding` for an agent that is not the workflow's, and with `state`
+/// unless the workflow is `active`, or `approved` for the mode `compile` (A-A7.2). `history`
+/// answers at most 64 events for one call.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
 pub struct Ports<C> {
@@ -306,6 +311,73 @@ impl<C> Ports<C> {
     }
 }
 
+fn preset_runtime(category: Category) -> Runtime {
+    match category {
+        Category::UtilityBillPayment | Category::ShopOrder => Runtime::Web,
+        Category::Email => Runtime::GraphMail,
+        Category::CalendarCleanup => Runtime::GraphCalendar,
+        Category::SpreadsheetFill => Runtime::File,
+        Category::TenantRent
+        | Category::LeaseRenewalOrChange
+        | Category::TenantApplicationReview
+        | Category::RideOrder
+        | Category::DailyChartCheck => Runtime::None,
+    }
+}
+
+impl<C: ConfigView> Ports<C> {
+    fn web_with_no_playbook(&self, workflow: &WorkflowId, agent: &AgentId) -> bool {
+        if let Some(a) = self.agents.borrow().iter().find(|a| &a.agent == agent) {
+            return a.config.runtime() == Runtime::Web && a.config.playbook().is_none();
+        }
+        let created = self
+            .created
+            .borrow()
+            .iter()
+            .any(|(w, a)| w == workflow && a == agent);
+        let category = self.workflows.borrow().iter().find_map(|w| match w {
+            Workflow::Full(f) if &f.id == workflow => Some(f.category),
+            Workflow::Dismissed(d) if &d.id == workflow => Some(d.category),
+            _ => None,
+        });
+        created && category.is_some_and(|c| preset_runtime(c) == Runtime::Web)
+    }
+
+    fn send_refusal(&self, body: &Body) -> Option<&'static str> {
+        match body {
+            Body::SetState {
+                workflow,
+                agent,
+                state: AgentState::Active,
+            } => self
+                .web_with_no_playbook(workflow, agent)
+                .then_some("playbook"),
+            Body::StartRun {
+                workflow,
+                agent,
+                mode,
+                ..
+            } => {
+                let state = match self.workflows.borrow().iter().find(|w| w.id() == workflow) {
+                    None => return Some("no_workflow"),
+                    Some(Workflow::Full(f)) => Some(f.state),
+                    Some(Workflow::Dismissed(_)) => None,
+                };
+                if !self.bound(workflow, agent) {
+                    return Some("binding");
+                }
+                let startable = matches!(
+                    (state, mode),
+                    (Some(WorkflowState::Active), _)
+                        | (Some(WorkflowState::Approved), Mode::Compile)
+                );
+                (!startable).then_some("state")
+            }
+            _ => None,
+        }
+    }
+}
+
 impl<C: ConfigView + Clone> Owner for Ports<C> {
     type Config = C;
 
@@ -348,20 +420,8 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.refused(Method::Send)?;
-        if let Body::SetState {
-            agent,
-            state: AgentState::Active,
-            ..
-        } = body
-        {
-            let no_playbook = self.agents.borrow().iter().any(|a| {
-                &a.agent == agent
-                    && a.config.runtime() == Runtime::Web
-                    && a.config.playbook().is_none()
-            });
-            if no_playbook {
-                return Err(refusal("playbook"));
-            }
+        if let Some(name) = self.send_refusal(body) {
+            return Err(refusal(name));
         }
         self.record(Call::Send(body.clone()));
         Ok(match body {

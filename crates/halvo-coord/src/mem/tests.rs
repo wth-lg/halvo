@@ -341,6 +341,7 @@ fn a_refusal_set_by_the_test_answers_that_method() {
 #[test]
 fn owner_answers_each_body_as_a_a7_2_says() {
     let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, None);
     let (w, a) = (id(WorkflowId::parse, 1), id(AgentId::parse, 2));
     let create = Body::CreateAgent {
         workflow: w.clone(),
@@ -550,6 +551,76 @@ fn send_refuses_set_state_active_for_a_web_agent_with_no_playbook() {
         p.send(&set(6, AgentState::Active)).unwrap(),
         serde_json::json!({"state": "active"})
     );
+}
+
+fn workflow_in(p: &Ports<Config>, workflow: u8, category: Category, state: WorkflowState) {
+    p.workflows.borrow_mut().push(Workflow::Full(FullWorkflow {
+        id: id(WorkflowId::parse, workflow),
+        state,
+        category,
+        site: None,
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: 20_700,
+        agent: None,
+    }));
+    p.send(&Body::CreateAgent {
+        workflow: id(WorkflowId::parse, workflow),
+        agent: id(AgentId::parse, workflow + 1),
+    })
+    .unwrap();
+}
+
+#[test]
+fn send_refuses_set_state_active_for_a_created_web_agent_with_no_playbook() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    workflow_in(&p, 1, Category::UtilityBillPayment, WorkflowState::Approved);
+    workflow_in(&p, 3, Category::ShopOrder, WorkflowState::Approved);
+    workflow_in(&p, 5, Category::Email, WorkflowState::Approved);
+    let set = |w: u8, state: AgentState| Body::SetState {
+        workflow: id(WorkflowId::parse, w),
+        agent: id(AgentId::parse, w + 1),
+        state,
+    };
+    let calls = p.calls.borrow().len();
+    assert_eq!(p.send(&set(1, AgentState::Active)), refused("playbook"));
+    assert_eq!(p.send(&set(3, AgentState::Active)), refused("playbook"));
+    assert_eq!(p.calls.borrow().len(), calls, "a refusal records no call");
+    assert_eq!(
+        p.send(&set(1, AgentState::Approved)).unwrap(),
+        serde_json::json!({"state": "approved"})
+    );
+    assert_eq!(
+        p.send(&set(5, AgentState::Active)).unwrap(),
+        serde_json::json!({"state": "active"}),
+        "the preset of email has the runtime graph_mail (A-A1.3)"
+    );
+}
+
+#[test]
+fn send_refuses_start_run_as_a_a7_2_checks_it() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    workflow_in(&p, 1, Category::Email, WorkflowState::Approved);
+    workflow_in(&p, 3, Category::Email, WorkflowState::Active);
+    workflow_in(&p, 5, Category::Email, WorkflowState::Paused);
+    workflow_in(&p, 7, Category::Email, WorkflowState::Proposed);
+    let start = |w: u8, a: u8, mode: Mode| Body::StartRun {
+        workflow: id(WorkflowId::parse, w),
+        agent: id(AgentId::parse, a),
+        run: id(RunId::parse, 99),
+        mode,
+    };
+    let ok = serde_json::json!({"ok": "yes"});
+    let calls = p.calls.borrow().len();
+    assert_eq!(p.send(&start(9, 10, Mode::Compile)), refused("no_workflow"));
+    assert_eq!(p.send(&start(1, 4, Mode::Compile)), refused("binding"));
+    assert_eq!(p.send(&start(1, 2, Mode::Replay)), refused("state"));
+    assert_eq!(p.send(&start(5, 6, Mode::Compile)), refused("state"));
+    assert_eq!(p.send(&start(7, 8, Mode::Compile)), refused("state"));
+    assert_eq!(p.calls.borrow().len(), calls, "a refusal records no call");
+    assert_eq!(p.send(&start(1, 2, Mode::Compile)).unwrap(), ok);
+    assert_eq!(p.send(&start(3, 4, Mode::Compile)).unwrap(), ok);
+    assert_eq!(p.send(&start(3, 4, Mode::Replay)).unwrap(), ok);
 }
 
 #[test]
