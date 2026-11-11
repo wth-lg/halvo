@@ -92,3 +92,4 @@ and merge without an entry landing under the heading of another.
 - Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, and pair each rule in AGENTS.md with its check and its limits
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
+- Added: Keep LF line ends under docs/r6/ and scripts/r6/ in every clone, and say in docs/r6/README.md what its directories hold
