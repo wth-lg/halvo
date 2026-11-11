@@ -515,6 +515,87 @@ fn a_file_not_of_its_form_is_the_refusal_file() {
     refused(&check_names(&dir, "content\r\n"), "file: names.txt:1");
 }
 
+fn as_hex(line: &str) -> String {
+    let value: serde_json::Value = serde_json::from_str(line).unwrap();
+    let body = value["body"].as_str().unwrap();
+    let digits: String = body.bytes().map(|byte| format!("{byte:02x}")).collect();
+    line.replacen(
+        &format!("\"body\":{}", serde_json::to_string(body).unwrap()),
+        &format!("\"hex\":\"{digits}\""),
+        1,
+    )
+}
+
+#[test]
+fn a_line_holds_its_bytes_under_body_or_under_hex() {
+    let dir = fixture("hex-form");
+    edit_line(&dir, "vectors.jsonl", 1, as_hex);
+    edit_line(&dir, "answers.jsonl", 1, as_hex);
+    passes(&check(&dir), PASS);
+
+    let dir = fixture("hex-of-other-bytes");
+    edit_line(&dir, "vectors.jsonl", 1, |text| {
+        as_hex(text).replacen("\"hex\":\"7b", "\"hex\":\"20", 1)
+    });
+    misses(
+        &check(&dir),
+        &format!(
+            "gateway miss file=vectors n=1 name=least\n{}",
+            line(1, 0, PASS)
+        ),
+    );
+
+    let cases: [Case; 6] = [
+        (
+            "both-keys",
+            "vectors.jsonl",
+            1,
+            |text| format!("{},\"hex\":\"7b\"}}", &text[..text.len() - 1]),
+            "file: vectors.jsonl:1",
+        ),
+        (
+            "neither-key",
+            "vectors.jsonl",
+            1,
+            |text| text.replacen("\"body\":", "\"text\":", 1),
+            "file: vectors.jsonl:1",
+        ),
+        (
+            "odd-digits",
+            "vectors.jsonl",
+            1,
+            |text| as_hex(text).replacen("\"hex\":\"7b", "\"hex\":\"7", 1),
+            "file: vectors.jsonl:1",
+        ),
+        (
+            "upper-case-digit",
+            "vectors.jsonl",
+            1,
+            |text| as_hex(text).replacen("\"hex\":\"7b", "\"hex\":\"7B", 1),
+            "file: vectors.jsonl:1",
+        ),
+        (
+            "digit-g",
+            "answers.jsonl",
+            1,
+            |text| as_hex(text).replacen("\"hex\":\"7b", "\"hex\":\"7g", 1),
+            "file: answers.jsonl:1",
+        ),
+        (
+            "answer-both-keys",
+            "answers.jsonl",
+            1,
+            |text| text.replacen(",\"expect\":", ",\"hex\":\"7b\",\"expect\":", 1),
+            "file: answers.jsonl:1",
+        ),
+    ];
+    for (label, file, n, change, want) in cases {
+        let dir = fixture(label);
+        edit_line(&dir, file, n, change);
+        refused(&check(&dir), want);
+    }
+}
+
 #[test]
 fn the_tool_writes_no_file() {
     let dir = fixture("quiet");
