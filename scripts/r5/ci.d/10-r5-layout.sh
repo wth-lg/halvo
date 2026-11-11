@@ -266,11 +266,15 @@ match_layout() {
       while ((getline f < tracked) > 0) {
         probe = plain(f)
         found = 0
-        for (i = 1; i <= nr; i++) if (index(probe, root[i]) == 1) found = 1
+        own = 0
+        for (i = 1; i <= nr; i++) {
+          if (index(tolower(probe), tolower(root[i])) == 1) found = 1
+          if (index(probe, root[i]) == 1) own = 1
+        }
         if (!found) continue
         files++
         hit = 0
-        for (j = 1; j <= np; j++) if (probe ~ re[j]) { hit = 1; used[j] = 1 }
+        if (own) for (j = 1; j <= np; j++) if (probe ~ re[j]) { hit = 1; used[j] = 1 }
         if (!hit) { out++; print f > outside }
       }
       for (j = 1; j <= np; j++) {
@@ -567,6 +571,11 @@ layout unmatched=1" --all
   printf 'x\n' >"$work/quoted-name-under-no-pattern/docs/r5/$(printf 'caf\303\251').md"
   git -C "$work/quoted-name-under-no-pattern" add -A || exit 2
   check quoted-name-under-no-pattern FAIL-outside 'files=9 outside=1 targets=ok'
+
+  fixture root-spelled-in-another-case
+  blob=$(printf 'x\n' | git -C "$work/root-spelled-in-another-case" hash-object -w --stdin) || exit 2
+  git -C "$work/root-spelled-in-another-case" update-index --add --cacheinfo "100644,$blob,Docs/r5/targets.toml" || exit 2
+  check root-spelled-in-another-case FAIL-outside 'files=9 outside=1 targets=ok learner=none harness=same'
 
   fixture no-freeze-no-heldout
   mv "$work/no-freeze-no-heldout/docs/r5/freeze.toml" "$work/no-freeze-no-heldout/freeze.toml.moved" || exit 2
