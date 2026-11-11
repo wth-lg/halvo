@@ -1,0 +1,177 @@
+# Browser profile trial (U0.3): notes
+
+`docs/r3/trials/browser-profile.md` holds the result of this trial: a short text and its lines. This
+file holds the rest of what the builders recorded: how each item runs, where the browsers wrote their
+temporary files, the runs that show that each item can come out the other way, and what the lines
+cannot show. `sh tools/r3-trials/profile/run.sh --help` states every argument.
+
+## How each item runs
+
+run.sh builds the programs of this directory with `cargo build --release --locked`, and ends by exec
+of `profile-trial`, which starts the fixture server of unit U0.1 (`tools/fixture-server/variants`) on
+the port. A SIGTERM or SIGINT sent to run.sh therefore reaches the trial.
+
+Every browser starts headless through `Executor::start` of the library in `tools/r3-trials/web`, with
+the first flag set of A13.2, the resolver rule and, on macOS, `--use-mock-keychain`. `start` makes the
+profile directory at the path that the caller names and refuses a path that exists or is a link. It
+makes a temporary directory `<profile>-tmp` beside the profile, with the same refusals, and gives it to
+the browser as `TMPDIR` on macOS and as `TMP` and `TEMP` on Windows. It keeps the canonical paths of
+both. A start that fails, or whose future is dropped (the trial drops it on a signal), removes both.
+`stop_and_remove` closes the browser and waits up to 15 s for every process of its tree and for the
+crash handler that leaves the tree on macOS. From 10 s on it ends a process of the tree only when its
+pid still has the creation time recorded for it, read again just before the kill. It never ends the
+crash handler. Then it removes the two directories, following no link, and says `removed=no` when
+anything of them is left.
+
+- Item 1 resets the fixture to seed 1 with the variant `second_factor`. On profile A it signs in,
+  passes `/verify` and reaches `/bill`. It exports the cookies and the localStorage of the utility
+  and payment origins with `export_state`, and `stop_and_remove` stops browser A. Browser B starts on
+  profile B, which `start` makes as it made A. The trial reads B's cookies for the exported origins
+  (`b_empty_at_start` on the `profile` line), imports with `import_state` and opens `/bill`. A landing
+  on `/bill` is `import=ok second_factor_asked_again=no`, on `/verify` `import=ok
+  second_factor_asked_again=yes`, and on any other page, `/signin` among them, `import=miss`.
+- The exported state of the fixture holds 3 cookies of the utility host (`halvo_fx_session`,
+  `halvo_fx_ref`, `halvo_fx_device`), all host-only session cookies, two of them HttpOnly, and no
+  localStorage item. Its JSON form is 887 bytes. The trial keeps it in memory and writes it nowhere.
+- The watch reads the front application (`lsappinfo front` on macOS, the foreground window on
+  Windows) and the list of on-screen windows (`CGWindowListCopyWindowInfo`, `EnumWindows`) every
+  250 ms, from before the first start until 10 s after the last stop. `keychain ... prompt=yes` means
+  that the front application changed to a process of the browser's tree or to a prompt process of
+  the system (`SecurityAgent`, `coreautha`, `UserNotificationCenter`, `universalAccessAuthWarn`,
+  `consent.exe`, `CredentialUIBroker.exe`), or that a new window of such a process appeared. Any other
+  change of the front application is counted on standard error (`front_other_changes`). A read that
+  fails, also of the front application's process, makes `notrun ... cause=window_list` in place of
+  the `session` line, with no `keychain` line.
+- Item 2 runs item 1 and then searches every file under the scratch directory, which holds both
+  profiles and both temporary directories, under each entry that appeared at the top of the system's
+  temporary directory during the run (other programs' entries among them, which can only add hits),
+  and, on macOS, the files changed during the run in `Crashpad` of Chrome and Edge and in their helper
+  caches. It counts the page marker of seed 1 in UTF-8, UTF-16LE and UTF-16BE and the name of the
+  cookie whose exported value is the marker (`halvo_fx_ref`), because the browser stores cookie values
+  encrypted. `marker_hits` sums these counts and adds one for each of the four directories still on
+  disk (`dirs_left` on the `searched` line). The `trace` line counts the utility host name over the
+  scratch and the new temporary entries only. A search that could not finish prints its `notrun` line
+  in place of the `disk` line. Standard error gives the count of new temporary entries, never a name.
+- Item 4 runs two shapes under `tree-peak`, five runs each: the nine steps of `tools/r3-trials/web`
+  (`--runs 1`, nine short browser starts; `shape=steps`), then the trial's own task mode
+  (`shape=task`): one browser signs in with the second factor, opens `/bill` and `/pay` and holds the
+  payment page for 20 s. `--shape` runs one of them. `tree-peak` reads every 50 ms on macOS the sum of
+  `phys_footprint` of the command and its descendants, adding a process that the reparenting to
+  launchd took out of the tree when it started during the run and its executable lies in an `.app`
+  bundle of the tree or is the command's own binary (Chrome's `chrome_crashpad_handler`). On Windows it
+  reads the peak of a Job object that holds the command from a suspended start, every 250 ms. The
+  bound of a call is 8 MiB times ceil(5 times the larger median / 33554432). A `notrun` line of item 4
+  says `cause=browser_start` when a line of a run ends so (the program of the nine steps prints
+  `notrun candidate=... cause=browser_start` for a browser that does not start) and `cause=runs`
+  otherwise. A task run whose stop leaves its profile is a miss.
+- A SIGTERM or SIGINT stops the browsers with their trees, removes their profiles and temporary
+  directories, also of a browser that was starting, stops the fixture server and ends with
+  `notrun ... cause=signal` and exit 1, also when it comes after the session. In item 4 the profiles
+  of the nine steps are made, and left, by the program of `tools/r3-trials/web`, whose `stop()` does
+  not remove them.
+
+## Item 4 in numbers (03f4c53)
+
+- `mac`, Chrome, through the timed-run helper. `shape=steps` ran 2026-11-11T09:10:31Z to 09:11:20Z,
+  with the 1-minute load average 29.55 before and 25.54 after (other workers' runs). Its five peaks
+  lie between 931,302,864 and 955,682,088 bytes, median 934,693,560. Each run took 136 to 143 samples
+  and adopted 17 or 18 processes, the crash handlers of its nine browsers. `shape=task` ran 09:11:20Z
+  to 09:13:12Z, with the load at 25.54 before and 16.35 after. One task run took 21.4 to 21.6 s, 20 s
+  of it the held page, and 352 to 359 samples. Its peaks lie between 965,299,592 and 977,227,432,
+  median 971,787,872. That median is the larger, so the bound of `mac` is 1,216,348,160.
+- At the peak of the median task run (run 4), the `treepart` lines give the GPU and utility helpers
+  580.3 MB, the renderers 277.5 MB, the browser's main process 84.5 MB, the fixture server 22.4 MB,
+  the trial program 3.9 MB and the crash handler 3.1 MB. At the peak of the median run of the nine
+  steps (run 5) the renderers held 237.3 MB, the helpers 580.5 MB and the main process 85.0 MB.
+- `hosted-win`, run 42976989121: Chrome's medians are 312,881,152 (steps) and 321,466,368 (task),
+  Edge's 356,491,264 and 367,390,720. The bound of `hosted-win` comes from Edge's task shape:
+  461,373,440.
+- Builder-8's cells at 21b88ee measured the nine steps alone, with a median of 974,098,160 on `mac`.
+  The median of the nine steps here is 4.0 % lower and the task median 0.2 % lower; the bound falls by
+  one step of 8 MiB, to 1,216,348,160. Each shape is one call of five runs on a loaded machine, a peak
+  between two samples is missed, and memory that a daemon of the system holds for the browser lies
+  outside the tree.
+
+## Where the browsers wrote their temporary files
+
+A listing during item 1 (every 100 ms, by name pattern only; a temporary entry is the browser's when
+the `SingletonSocket` link of one of its profiles points into it, or when it lies in the run's own
+temporary directory; other new entries are counted, not named; builder-9's evidence `p03/` and
+`hosted/`):
+
+- Before the run's own temporary directory existed (this Mac, f6c246c), both profiles' singleton
+  sockets lay in `<system temporary directory>/com.google.Chrome.*`, one directory per browser, which
+  Chrome removes at its exit.
+- With it, Chrome on this Mac (52f8625) and Chrome and Edge on `hosted-mac` (03f4c53, run 42976989121)
+  still put their singleton directory in the system's temporary directory (`com.google.Chrome.*`,
+  `com.microsoft.edgemac.*`), and their run's own temporary directories stayed empty, although the
+  library passes `TMPDIR` to the browser process. On `hosted-mac` each browser also made one entry
+  of its bundle id under the per-user `X` directory (the code-signing clone). So on macOS the search
+  of the system's temporary directory stays as it was.
+- On `hosted-win` (03f4c53, run 42976989121) Chrome wrote 18 and Edge 26 files `<guid>.tmp` into the
+  run's own temporary directories, and the system's temporary directory got no new entry during
+  either run. No listing of Windows exists from before the change: builder-8's run read only files
+  that stayed after the run.
+
+## Each item can come out the other way
+
+These runs on this Mac, all at commit 03f4c53, the commit of the counted cells, each gave the other
+result (one run each, builder-9's evidence `other-way/`):
+
+- `--leave-out all` and `--leave-out halvo_fx_session` gave `import=miss`; `--leave-out
+  halvo_fx_device` gave `import=ok second_factor_asked_again=yes`.
+- `--plant utf8|utf16le|utf16be:parent|temp` gave `marker_hits=1` in each of the six runs, with the
+  hit in the planted encoding.
+- In a copy whose stop removes neither directory, both stops said `removed=no`, the `profile` line
+  `a_gone=no b_gone=no`, and the `disk` line `marker_hits=8`: 4 from the name of the marker cookie in
+  the two kept cookie stores and 4 for the directories left. The marker itself was in no file in
+  UTF-8 or UTF-16: the fixture sends `Cache-Control: no-store`, and the cookie store keeps the value
+  encrypted.
+- A copy that gives browser B one cookie of the fixture before the import printed
+  `b_empty_at_start=no` (at f50624c); a copy that keeps both temporary directories printed
+  `dirs_left=2` and `marker_hits=2` (at 52f8625); a copy whose front reader reports a change of the
+  front application to another process printed `prompt=no` and counted the change on standard error
+  (at af34d80).
+- A SIGTERM during browser B's start (0 and 75 files in profile B at the signal), during the sign-in,
+  during the watch's tail and during the wait before the search each ended with
+  `notrun ... cause=signal`, exit 1, an empty scratch and no process (at e7c8f81). A file of mode 000
+  in the scratch gave `notrun ... cause=unreadable` and no `disk` line.
+- A browser path that exits at once gave `notrun item=4 ... cause=browser_start` (at fd908e2).
+
+## tree-peak on trees of known allocations
+
+`tree-peak --runs 3 -- alloc-tree`, at 50 ms on this Mac (builder-9's evidence `p07/`): children
+that allocate and write 100, 200 and 300 MiB read 629,490,096 bytes over the empty tree's 6,424,328,
+344,496 bytes (0.055 %) above the known 629,145,600; with an orphan of 150 MiB, 0.054 % above
+786,432,000; the orphan of 400 MiB alone 0.051 % above; one child of 1,024 MiB 0.188 % below. The
+three runs of each case agreed within 0.01 %. A child that holds 400 MiB for 120 ms read 422,528,008
+bytes in 3 of 3 runs at 50 ms and 2,753,136 bytes (missed) in 3 of 3 runs at the former 250 ms. A
+tree that lives about 2.5 s got 43 to 45 samples at 50 ms, against 11 at 250 ms. `treeinfo lifetime_max_sum` sums each process's
+maximum up to its last sample, so it misses growth after that sample and every process that no sample
+saw: with a 300 MiB child that lived 20 ms it read 8 to 105 MB in four of five runs. It is no upper
+bound.
+
+## Places outside the profile
+
+Run 42962050772 of builder-8 repeated items 1 and 2 on the hosted machines and read every file that
+had changed under the home directory and the per-user directories since the start (496 and 522 files
+on `hosted-mac`, 1 and 3 on `hosted-win`); none held the marker. Besides their profiles the browsers
+wrote: Chrome on macOS `~/Library/Application Support/Google/Chrome/Crashpad/settings.dat` and Metal
+shader caches under `<per-user cache dir>/com.google.Chrome.helper/`; Edge on macOS its `Crashpad`
+directory, the Metal caches under `<per-user cache dir>/com.microsoft.edgemac.helper/` and one file
+in the group container `~/Library/Group Containers/UBF8T346G9.com.microsoft.edgemac.widgets/`; on
+Windows only the system's `AppData/LocalLow/Microsoft/CryptnetUrlCache/MetaData/` (Chrome) and
+`AppData/Local/Microsoft/TokenBroker/Cache/` (Edge). On this Mac Chrome also makes an app clone for
+code signing under `<per-user dir>/X/com.google.Chrome.code_sign_clone/`, which it removes at a clean
+exit. The search does not read the group container, the `X` directory, or any place outside the
+scratch and the new temporary entries on Windows.
+
+## Reviews before the counted cells
+
+Builder-8's review (three finders, one skeptic) found the stored cookie that the first search could
+not see, a missing check of profile B, a watch that sampled four times and an adoption rule of
+`tree-peak` that took foreign processes; all were fixed before its cells. Builder-9's review of the
+closed list at af34d80 (three finders, one skeptic, 422 s) found nine points; eight are fixed in
+e8a6093, 89be48d and 03f4c53, and one stands: in item 4 the profiles of the nine steps stay in the
+scratch, after a signal as after a run that ends, because the program of `tools/r3-trials/web` makes
+and leaves them.
