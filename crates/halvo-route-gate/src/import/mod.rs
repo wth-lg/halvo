@@ -3,8 +3,9 @@
 //! `freeze.txt` (T5.2, T5.3) into the directory that `--out` names, after both inputs have parsed.
 //! Refusal causes: `usage`, `file`, and `source` with the detail `<driver|cells>:<line number>`,
 //! `<driver|cells>:block` or `driver:verdict`. The driver file is read before the cells file, and
-//! each file in line order; a carriage return anywhere in a file is refused before its block is
-//! looked for. In the driver block a line that starts with `attempt` or `verdict` is of its form
+//! each file in line order; a carriage return, a byte sequence that is no UTF-8, no LF at the end
+//! or a byte-order mark at the start, anywhere in a file, is refused with its line before the
+//! block is looked for. In the driver block a line that starts with `attempt` or `verdict` is of its form
 //! and one that starts with `bound` is refused; in the cells block a line that starts with `bound`
 //! is of its form, one that starts with `verdict` starts `verdict candidates=`, and one that starts
 //! with `attempt` is refused. Every other line of a block is passed over, and no line outside the
@@ -145,7 +146,7 @@ impl Imported {
 pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceError> {
     let block_of = |input: Input, bytes| {
         block(bytes).map_err(|fault| match fault {
-            BlockFault::CarriageReturn(line) => SourceError::Line(input, line),
+            BlockFault::Text(line) => SourceError::Line(input, line),
             BlockFault::Block => SourceError::Block(input),
         })
     };

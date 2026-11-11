@@ -556,7 +556,7 @@ fn lines_outside_the_block_are_not_read() {
     let mut driver =
         b"# driver\nattempt model=bad\nverdict driver=m_b path=A writer=m_b\n".to_vec();
     driver.extend(block(&[ATTEMPT, VERDICT]));
-    driver.extend(b"attempt model=bad\nverdict driver=x\n\xff\n");
+    driver.extend(b"attempt model=bad\nverdict driver=x\n");
     let mut cells = b"bound model=BAD\n".to_vec();
     cells.extend(block(&[BOUND, CANDIDATES]));
     cells.extend(b"text after the block\n");
@@ -575,10 +575,104 @@ fn the_fence_opens_with_three_backticks_and_one_word_of_letters_and_closes_with_
         got.passed();
     }
     let got = run_files(
-        format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```").into_bytes(),
-        format!("```\n{BOUND}\n{CANDIDATES}\n```").into_bytes(),
+        format!("```\n{ATTEMPT}\n{VERDICT}\n```\n").into_bytes(),
+        format!("```\n{BOUND}\n{CANDIDATES}\n```\n").into_bytes(),
     );
     got.passed();
+}
+
+#[test]
+fn a_file_that_breaks_the_text_of_t0_4_is_refused_at_its_first_such_line() {
+    let good_driver = || file("driver", block(&[ATTEMPT, VERDICT]));
+    let good_cells = || file("cells", block(&[BOUND, CANDIDATES]));
+    let with_bytes = |head: &[u8], body: Vec<u8>, tail: &[u8]| {
+        let mut bytes = head.to_vec();
+        bytes.extend(body);
+        bytes.extend(tail);
+        bytes
+    };
+    let cases: Vec<(&str, Vec<u8>, &str)> = vec![
+        (
+            "a carriage return in a line outside the block",
+            with_bytes(b"# d\r\n", block(&[ATTEMPT, VERDICT]), b""),
+            "1",
+        ),
+        (
+            "a carriage return in a line inside the block",
+            with_bytes(
+                b"# d\n",
+                block(&["limits task=bill\r", ATTEMPT, VERDICT]),
+                b"",
+            ),
+            "3",
+        ),
+        (
+            "a byte that is no UTF-8 in a line outside the block",
+            with_bytes(b"# d\n", block(&[ATTEMPT, VERDICT]), b"note \xff\n"),
+            "6",
+        ),
+        (
+            "a byte that is no UTF-8 in a line inside the block",
+            with_bytes(
+                b"# d\n```\nnote \xc3\n",
+                format!("{ATTEMPT}\n{VERDICT}\n```\n").into_bytes(),
+                b"",
+            ),
+            "3",
+        ),
+        (
+            "no LF at the end of a line outside the block",
+            with_bytes(
+                b"# d\n",
+                block(&[ATTEMPT, VERDICT]),
+                b"text after the block",
+            ),
+            "6",
+        ),
+        (
+            "no LF at the end of the closing fence",
+            format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```").into_bytes(),
+            "5",
+        ),
+        (
+            "a byte-order mark at the start",
+            with_bytes(b"\xEF\xBB\xBF# d\n", block(&[ATTEMPT, VERDICT]), b""),
+            "1",
+        ),
+        (
+            "a byte-order mark before the opening fence",
+            with_bytes(b"\xEF\xBB\xBF", block(&[ATTEMPT, VERDICT]), b""),
+            "1",
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (what, bytes, line) in &cases {
+        let got = run_files(bytes.clone(), good_cells());
+        if got.code != Some(2) || got.stderr != format!("REFUSED source: driver:{line}\n") {
+            wrong.push(format!("driver, {what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+        let cells = bytes
+            .split(|byte| *byte == b'\n')
+            .map(|line| match line {
+                l if l == ATTEMPT.as_bytes() => BOUND.as_bytes(),
+                l if l == VERDICT.as_bytes() => CANDIDATES.as_bytes(),
+                l => l,
+            })
+            .collect::<Vec<_>>()
+            .join(&b'\n');
+        let got = run_files(good_driver(), cells);
+        if got.code != Some(2) || got.stderr != format!("REFUSED source: cells:{line}\n") {
+            wrong.push(format!("cells, {what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+    assert_eq!(cases.len(), 8);
+    let empty = run_files(Vec::new(), good_cells());
+    assert_eq!(empty.refused(), "REFUSED source: driver:block");
 }
 
 #[test]
