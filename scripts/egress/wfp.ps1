@@ -30,7 +30,7 @@ function Read-Entries {
             $entries += [pscustomobject]@{ Kind = $parts[2]; Host = $parts[3]; Port = [int]$parts[4] }
         }
     }
-    , $entries
+    return $entries
 }
 
 function Get-Bare([string]$hostText) { $hostText.Trim('[', ']') }
@@ -59,7 +59,7 @@ function Get-Complement([string[]]$addresses, [int]$size) {
         $low = $n + 1
     }
     if ($low -le $max) { $ranges += ('{0}-{1}' -f (ConvertFrom-Number $low $size), (ConvertFrom-Number $max $size)) }
-    , $ranges
+    return $ranges
 }
 
 function Get-PortComplement([int[]]$ports) {
@@ -70,7 +70,7 @@ function Get-PortComplement([int[]]$ports) {
         $low = $p + 1
     }
     if ($low -le 65535) { $ranges += "$low-65535" }
-    , $ranges
+    return $ranges
 }
 
 function Remove-Left {
@@ -104,7 +104,7 @@ function Add-Rules {
         $specs += @{ RemoteAddress = $others }
         foreach ($address in ($v4 + $v6)) {
             $ports = @($entries | Where-Object { (Get-Bare $_.Host) -eq $address } | ForEach-Object { $_.Port })
-            $rest = Get-PortComplement $ports
+            $rest = @(Get-PortComplement $ports)
             if ($rest.Count -gt 0) {
                 $specs += @{ RemoteAddress = $address; Protocol = 'TCP'; RemotePort = $rest }
                 $specs += @{ RemoteAddress = $address; Protocol = 'UDP'; RemotePort = $rest }
@@ -161,7 +161,7 @@ function Write-Log {
         }
     }
     $listed = @{}
-    foreach ($entry in (Read-Entries)) { $listed["$($entry.Host) $($entry.Port)"] = $true }
+    foreach ($entry in @(Read-Entries)) { $listed["$($entry.Host) $($entry.Port)"] = $true }
     $lines = @()
     $connections = @(Get-Events @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $since })
     $seen = @{ '5156' = 0; '5157' = 0; 'tree5156' = 0; 'tree5157' = 0 }
