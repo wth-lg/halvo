@@ -315,6 +315,7 @@ fn answer_confirm_refuses_answers_that_make_no_decision() {
 #[test]
 fn a_refusal_set_by_the_test_answers_that_method() {
     let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(2));
     p.refuse(Method::Log, PortError::NoService);
     p.refuse(
         Method::Send,
@@ -503,6 +504,9 @@ fn reap_ends_and_counts_the_trees_of_an_earlier_life() {
 #[test]
 fn send_refuses_set_state_active_for_a_web_agent_with_no_playbook() {
     let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p, 1, Some(2));
+    listed(&p, 3, Some(4));
+    listed(&p, 5, Some(6));
     let agent = |a: u8, record: String| Agent {
         workflow: id(WorkflowId::parse, a - 1),
         agent: id(AgentId::parse, a),
@@ -603,7 +607,16 @@ fn send_refuses_start_run_as_a_a7_2_checks_it() {
     workflow_in(&p, 1, Category::Email, WorkflowState::Approved);
     workflow_in(&p, 3, Category::Email, WorkflowState::Active);
     workflow_in(&p, 5, Category::Email, WorkflowState::Paused);
-    workflow_in(&p, 7, Category::Email, WorkflowState::Proposed);
+    p.workflows.borrow_mut().push(Workflow::Full(FullWorkflow {
+        id: id(WorkflowId::parse, 7),
+        state: WorkflowState::Proposed,
+        category: Category::Email,
+        site: None,
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: 20_700,
+        agent: Some(id(AgentId::parse, 8)),
+    }));
     let start = |w: u8, a: u8, mode: Mode| Body::StartRun {
         workflow: id(WorkflowId::parse, w),
         agent: id(AgentId::parse, a),
@@ -621,6 +634,100 @@ fn send_refuses_start_run_as_a_a7_2_checks_it() {
     assert_eq!(p.send(&start(1, 2, Mode::Compile)).unwrap(), ok);
     assert_eq!(p.send(&start(3, 4, Mode::Compile)).unwrap(), ok);
     assert_eq!(p.send(&start(3, 4, Mode::Replay)).unwrap(), ok);
+}
+
+fn held(p: &Ports<Config>, workflow: u8, state: Option<WorkflowState>) {
+    let w = id(WorkflowId::parse, workflow);
+    p.workflows.borrow_mut().push(match state {
+        Some(state) => Workflow::Full(FullWorkflow {
+            id: w,
+            state,
+            category: Category::Email,
+            site: None,
+            trigger: WorkflowTrigger::Manual,
+            period: None,
+            last: 20_700,
+            agent: None,
+        }),
+        None => Workflow::Dismissed(DismissedWorkflow {
+            id: w,
+            category: Category::Email,
+            site: None,
+        }),
+    });
+}
+
+fn create(w: u8) -> Body {
+    Body::CreateAgent {
+        workflow: id(WorkflowId::parse, w),
+        agent: id(AgentId::parse, w + 1),
+    }
+}
+
+fn set(w: u8, state: AgentState) -> Body {
+    Body::SetState {
+        workflow: id(WorkflowId::parse, w),
+        agent: id(AgentId::parse, w + 1),
+        state,
+    }
+}
+
+#[test]
+fn send_refuses_create_agent_for_a_workflow_that_the_owner_does_not_hold() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    held(&p, 3, Some(WorkflowState::Approved));
+    assert_eq!(p.send(&create(1)), refused("no_workflow"));
+    assert!(p.calls.borrow().is_empty(), "a refusal records no call");
+    assert_eq!(p.send(&create(3)).unwrap(), serde_json::json!({"rev": 1}));
+}
+
+#[test]
+fn send_refuses_create_agent_for_a_proposed_or_dismissed_workflow() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    held(&p, 1, Some(WorkflowState::Proposed));
+    held(&p, 3, None);
+    assert_eq!(p.send(&create(1)), refused("state"));
+    assert_eq!(p.send(&create(3)), refused("state"));
+    assert!(p.calls.borrow().is_empty(), "a refusal records no call");
+    let event = Event {
+        workflow: id(WorkflowId::parse, 1),
+        agent: id(AgentId::parse, 2),
+        seq: std::num::NonZeroU32::MIN,
+        day: 1,
+        at: 1_000_000,
+        what: What::SlotSkipped { slot: None },
+    };
+    assert_eq!(
+        p.log(&[event]),
+        refused("binding"),
+        "a refused create_agent binds no agent"
+    );
+}
+
+#[test]
+fn send_refuses_set_state_for_a_workflow_that_the_owner_does_not_hold() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    held(&p, 3, Some(WorkflowState::Approved));
+    for state in AgentState::ALL {
+        assert_eq!(p.send(&set(1, *state)), refused("no_workflow"), "{state}");
+    }
+    assert!(p.calls.borrow().is_empty(), "a refusal records no call");
+    assert_eq!(
+        p.send(&set(3, AgentState::Paused)).unwrap(),
+        serde_json::json!({"state": "paused"})
+    );
+}
+
+#[test]
+fn send_refuses_set_state_for_a_proposed_or_dismissed_workflow() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    held(&p, 1, Some(WorkflowState::Proposed));
+    held(&p, 3, None);
+    for state in AgentState::ALL {
+        assert_eq!(p.send(&set(1, *state)), refused("state"), "{state}");
+        assert_eq!(p.send(&set(3, *state)), refused("state"), "{state}");
+    }
+    assert!(p.calls.borrow().is_empty(), "a refusal records no call");
 }
 
 #[test]

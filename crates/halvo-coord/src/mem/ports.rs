@@ -125,13 +125,16 @@ pub struct Timed {
 /// the last stored `seq` of its agent plus 1, the records before it in the same body counted,
 /// with `seq`. An agent is the workflow's when the workflow of `workflows` names it, when an
 /// entry of `agents` pairs the two, or once `send` acknowledged `create_agent` for the pair.
-/// `send` refuses `set_state` `active` with `playbook` for an agent whose runtime is `web` and
-/// which has no playbook: an agent of `agents` by its configuration, and an agent that only a
-/// `create_agent` made by the preset of its workflow's category (A-A1.3), which has no
-/// playbook. It refuses `start_run` with `no_workflow` for a workflow that is not in
-/// `workflows`, with `binding` for an agent that is not the workflow's, and with `state`
-/// unless the workflow is `active`, or `approved` for the mode `compile` (A-A7.2). `history`
-/// answers at most 64 events for one call.
+/// `send` answers `create_agent` and `set_state` as the state call of W-C25.7 that each makes:
+/// `no_workflow` for a workflow that is not in `workflows`, and `state` for one that is
+/// `proposed` or dismissed. `set_state` is refused with `no_workflow` first, then with
+/// `playbook` for `active` and an agent whose runtime is `web` and which has no playbook (an
+/// agent of `agents` by its configuration, and an agent that only a `create_agent` made by the
+/// preset of its workflow's category, A-A1.3), then with `state`. `set_bindings` refuses
+/// nothing, as A-A7.2 gives it no refusal. `start_run` is refused with `no_workflow` for a
+/// workflow that is not in `workflows`, with `binding` for an agent that is not the workflow's,
+/// and with `state` unless the workflow is `active`, or `approved` for the mode `compile`
+/// (A-A7.2). `history` answers at most 64 events for one call.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
 pub struct Ports<C> {
@@ -343,15 +346,30 @@ impl<C: ConfigView> Ports<C> {
         created && category.is_some_and(|c| preset_runtime(c) == Runtime::Web)
     }
 
+    fn state_call_refusal(&self, workflow: &WorkflowId) -> Option<&'static str> {
+        match self.workflows.borrow().iter().find(|w| w.id() == workflow) {
+            None => Some("no_workflow"),
+            Some(Workflow::Dismissed(_)) => Some("state"),
+            Some(Workflow::Full(f)) => (f.state == WorkflowState::Proposed).then_some("state"),
+        }
+    }
+
     fn send_refusal(&self, body: &Body) -> Option<&'static str> {
         match body {
+            Body::CreateAgent { workflow, .. } => self.state_call_refusal(workflow),
             Body::SetState {
                 workflow,
                 agent,
-                state: AgentState::Active,
-            } => self
-                .web_with_no_playbook(workflow, agent)
-                .then_some("playbook"),
+                state,
+            } => {
+                if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+                    return Some("no_workflow");
+                }
+                if *state == AgentState::Active && self.web_with_no_playbook(workflow, agent) {
+                    return Some("playbook");
+                }
+                self.state_call_refusal(workflow)
+            }
             Body::StartRun {
                 workflow,
                 agent,
