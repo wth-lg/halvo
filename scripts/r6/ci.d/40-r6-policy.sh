@@ -110,18 +110,94 @@ bar_value() {
   esac
 }
 
+decoded_hits() {
+  PATTERN=$flag_pattern awk '
+    function hexval(s, i, v, c) {
+      v = 0
+      for (i = 1; i <= length(s); i++) {
+        c = index("0123456789abcdef", tolower(substr(s, i, 1))) - 1
+        if (c < 0) return -1
+        v = v * 16 + c
+      }
+      return v
+    }
+    function decode(s, out, i, c, n, h, d) {
+      out = ""
+      i = 1
+      while (i <= length(s)) {
+        c = substr(s, i, 1)
+        n = substr(s, i + 1, 1)
+        h = -1
+        if (c == "\\" && n == "x" && substr(s, i + 2, 2) ~ /^[0-9A-Fa-f][0-9A-Fa-f]$/) {
+          h = hexval(substr(s, i + 2, 2)); d = 4
+        } else if (c == "\\" && n == "u" && match(substr(s, i + 2), /^\{[0-9A-Fa-f]+\}/)) {
+          h = hexval(substr(s, i + 3, RLENGTH - 2)); d = 2 + RLENGTH
+        } else if (c == "\\" && n == "u" && substr(s, i + 2, 4) ~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+          h = hexval(substr(s, i + 2, 4)); d = 6
+        } else if (c == "\\" && n == "U" && substr(s, i + 2, 8) ~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+          h = hexval(substr(s, i + 2, 8)); d = 10
+        } else if (c == "\\" && match(substr(s, i + 1), /^0?[0-7][0-7]?[0-7]?/)) {
+          h = 0
+          for (d = 2; d <= RLENGTH + 1; d++) h = h * 8 + substr(s, i + d - 1, 1)
+          d = RLENGTH + 1
+        }
+        if (h < 0) {
+          out = out c
+          i++
+        } else {
+          out = out ((h >= 32 && h < 127) ? sprintf("%c", h) : "?")
+          i += d
+        }
+      }
+      return out
+    }
+    function check(text, file, t) {
+      t = tolower(decode(text))
+      gsub("[" sprintf("%c%c", 34, 39) "]", "", t)
+      if ((t ~ ENVIRON["PATTERN"] || tolower(text) ~ ENVIRON["PATTERN"]) && !(file in seen)) {
+        seen[file] = 1
+        print "sets " file
+      }
+    }
+    FNR == 1 && held != "" {
+      check(held, heldfile)
+      held = ""
+    }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      if (held != "") {
+        sub(/^[ \t]+/, "", line)
+        line = held line
+        held = ""
+      }
+      if (line ~ /\\$/) {
+        held = substr(line, 1, length(line) - 1)
+        heldfile = FILENAME
+        next
+      }
+      check(line, FILENAME)
+    }
+    END {
+      if (held != "") check(held, heldfile)
+    }
+  ' "$@"
+}
+
 scan_flags() {
-  git -c core.quotepath=off ls-files >"$scratch/tracked.txt" || return 2
+  git -c core.quotepath=off ls-files -z >"$scratch/tracked.z" || return 2
+  tr '\000' '\n' <"$scratch/tracked.z" >"$scratch/tracked.txt" || return 2
   found=0
   grep -E '(^|/)\.cargo/config(\.toml)?$' "$scratch/tracked.txt" >"$scratch/config.txt"
   if [ -s "$scratch/config.txt" ]; then
     sed 's/^/config /' "$scratch/config.txt"
     found=1
   fi
-  grep -E '\.(sh|bash|zsh|ps1|psm1|bat|cmd|py|js|mjs|cjs|toml|mk)$|(^|/)(build\.rs|Makefile|GNUmakefile|makefile|justfile|Justfile|\.justfile|package\.json)$|^\.githooks/|^\.github/' \
+  grep -E '\.(sh|bash|zsh|ps1|psm1|bat|cmd|py|rb|pl|lua|js|mjs|cjs|ts|mts|cts|toml|mk)$|(^|/)(build\.rs|Makefile|GNUmakefile|makefile|justfile|Justfile|\.justfile|package\.json)$|^\.githooks/|^\.github/' \
     "$scratch/tracked.txt" >"$scratch/scan.txt"
-  git grep -l -I -E -e '^#! ?/' >"$scratch/interpreter.txt"
+  git grep -l -z -I -E -e '^#! ?/' >"$scratch/interpreter.z"
   [ $? -le 1 ] || return 2
+  tr '\000' '\n' <"$scratch/interpreter.z" >"$scratch/interpreter.txt" || return 2
   while IFS= read -r file; do
     first=
     IFS= read -r first <"$file"
@@ -132,7 +208,7 @@ scan_flags() {
   grep -E '(^|/)Cargo\.toml$' "$scratch/tracked.txt" >"$scratch/manifests.txt"
   while IFS= read -r manifest; do
     dir=${manifest%Cargo.toml}
-    sed -n 's/^[[:space:]]*build[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" >"$scratch/build.txt"
+    sed -n "s/^[[:space:]]*build[[:space:]]*=[[:space:]]*[\"$q]\\([^\"$q]*\\)[\"$q].*/\\1/p" "$manifest" >"$scratch/build.txt"
     while IFS= read -r script; do
       printf '%s%s\n' "$dir" "$script" >>"$scratch/scan.txt"
     done <"$scratch/build.txt"
@@ -144,15 +220,21 @@ scan_flags() {
   done <"$scratch/scan-set.txt"
   printf 'read %s\n' "$#" >"$scratch/scan-count.txt"
   if [ "$#" -gt 0 ]; then
-    git grep -l -I -i -E -e "$flag_pattern" -- "$@" >"$scratch/hits.txt"
+    git grep -l -z -a -i -E -e "$flag_pattern" -- "$@" >"$scratch/hits.z"
     case $? in
       0)
+        tr '\000' '\n' <"$scratch/hits.z" >"$scratch/hits.txt" || return 2
         sed 's/^/sets /' "$scratch/hits.txt"
         found=1
         ;;
       1) ;;
       *) return 2 ;;
     esac
+    decoded_hits "$@" >"$scratch/decoded.txt" || return 2
+    if [ -s "$scratch/decoded.txt" ]; then
+      cat "$scratch/decoded.txt"
+      found=1
+    fi
   fi
   return "$found"
 }
@@ -495,6 +577,29 @@ $setting=x cargo build"
   flags_case hook FAIL .githooks/pre-commit "export $setting=x"
   flags_case package-json FAIL package.json "{\"scripts\":{\"b\":\"$setting=x tauri build\"}}"
   flags_case power-shell FAIL scripts/w.ps1 "\$env:$setting = 'x'"
+  flags_case python FAIL tools/p.py "os.environ[\"$setting\"] = \"x\""
+  flags_case batch FAIL tools/b.bat "set $setting=x"
+  flags_case javascript FAIL tools/j.js "process.env.$setting = 'x'"
+  flags_case typescript FAIL tools/t.ts "process.env.$setting = 'x'"
+  flags_case makefile FAIL Makefile "export $setting = x"
+  flags_case cfg-value-in-single-quotes FAIL scripts/q.sh "cargo rustc -p halvo-route -- $(printf -- "--%s 'test'" "$word_cfg")"
+  flags_case yaml-escape FAIL .github/workflows/ci.yml "    env:
+      $(printf '"%s\\x46%s": x' RUST LAGS)"
+  flags_case toml-unicode-escape FAIL ci/c.toml "$(printf '"%s\\u0066%s" = [1]' rust lags)"
+  flags_case rust-escape FAIL crates/x/build.rs "$(printf 'fn main() { println!("cargo:rustc-%s=\\x74est"); }' "$word_cfg")"
+  flags_case rust-braced-escape FAIL crates/x/build.rs "$(printf 'fn main() { println!("cargo:rustc-%s=\\u{74}est"); }' "$word_cfg")"
+  flags_case octal-escape FAIL scripts/o.sh "$(printf 'export %s\\106%s=x' RUST LAGS)"
+  flags_case line-continuation FAIL scripts/c.sh "$(printf 'cargo rustc -- --%s \\\n  test' "$word_cfg")"
+  flags_case split-quotes FAIL scripts/s.sh "$(printf 'export "%s""%s=x"' RUST FLAGS)"
+  flags_case single-quoted-build-path FAIL crates/x/Cargo.toml "[package]
+build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build_cfg\"); }"
+  flags_case name-with-a-backslash FAIL 'scripts/a\b.sh' "export $setting=x"
+  nul=$work/flags/nul-byte
+  make_repo "$nul"
+  mkdir -p "$nul/tools" || exit 2
+  printf '// a\000b\nprocess.env.%s = 1\n' "$setting" >"$nul/tools/n.js" || exit 2
+  git -C "$nul" add -- tools/n.js || exit 2
+  check nul-byte "$nul" FAIL "FAIL $name (flags)"
   flags_case this-check-as-it-is PASS "scripts/r6/ci.d/$name.sh" "$(cat "$self")"
   flags_case other-words PASS scripts/z.sh "cargo rustc -- --${word_cfg} testing" crates/z/build.rs "fn main() { println!(\"cargo:rustc-${word_cfg}=test_hosted\"); }"
   flags_case words-in-a-document PASS docs/notes.md "Never set $setting or $cfg_test."
