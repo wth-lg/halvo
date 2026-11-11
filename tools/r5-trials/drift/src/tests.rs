@@ -497,6 +497,48 @@ fn admit_answers_full_for_a_step_that_holds_edits_max_edits() {
 }
 
 #[test]
+fn a_served_locator_that_matches_two_controls_resolves_to_none_in_a_run() {
+    use crate::case::{Case, Control, Occurrence, Role, Step, Verb};
+    let button = |id: &str, name: &str, test_id: &str| Control {
+        id: id.to_owned(),
+        role: Role::Button,
+        name: name.to_owned(),
+        test_id: test_id.to_owned(),
+        passes: Vec::new(),
+    };
+    let occurrence = |day: u32, page: Vec<Control>| Occurrence {
+        day,
+        page,
+        repair: vec![vec!["pay".to_owned()]],
+        flaky: Vec::new(),
+        restart: false,
+    };
+    let case = Case {
+        name: "two-matches".to_owned(),
+        kind: Kind::Benign,
+        form: Form::Renamed,
+        shows: 0,
+        steps: vec![Step {
+            n: 1,
+            verb: Verb::Click,
+            control: "pay".to_owned(),
+        }],
+        occurrences: vec![
+            occurrence(1, vec![button("pay", "Pay", "pay-button")]),
+            occurrence(
+                2,
+                vec![
+                    button("other", "Pay", "other-button"),
+                    button("pay", "Pay", "pay-new"),
+                ],
+            ),
+        ],
+    };
+    let none = model::run(&case, Arm::None);
+    assert_eq!((none.assisted, none.harm, none.failed), (1, 0, 0));
+}
+
+#[test]
 fn a_case_file_with_a_carriage_return_is_refused_as_not_lf_text() {
     let bytes = std::fs::read(dev_dir().join("renamed-pay.jsonl")).expect("a development case");
     let text = String::from_utf8(bytes).expect("UTF-8");
