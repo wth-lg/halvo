@@ -37,3 +37,23 @@ data directory and stops no other copy.
 A Secure Enclave custody would keep the root outside every copy of the directory.
 R1 ships none: a build with the `secure-enclave` feature creates no store and opens
 an existing one for maintenance only, and no R1 installer is such a build.
+
+## What else stays after a shred
+
+- Free blocks of the volume. Right after a shred the wrapped key of the segment came
+  back from a freed WAL frame of the raw volume image in 6 of 6 runs on APFS, and it
+  was gone after 5 MiB of further capture
+  (evidence/interrogate-rr-store-3/it14_raw_volume_apfs_run1.log to
+  it14_raw_volume_apfs_run3.log, and the three logs of the same names under
+  rerun/). A reader of those blocks also needs the owner's root.
+- The Time Machine mark. Time Machine skips the data directory. A sync client,
+  another backup tool, Migration Assistant and a copy made by hand are not covered.
+  Whether a local APFS snapshot holds the directory is not verified.
+- Segment files. From store-4 on, a file name carries no time, because file ids are
+  random. The size of each file, its file times and the segment's number in the
+  clear header remain, and they show when the person was active. R1 accepts this
+  and pads nothing (RR-store-25).
+- Key rows. The ids and times of shredded segments stay in store.db until
+  delete-all, about 124 bytes a row (evidence/interrogate-rr-store-3/it03_what_a_shred_leaves_inside_store_db.log).
+- Rows of a segment shredded out of order (RR-store-08). store-4 closes this when it
+  removes the per-event rows; until then the note in the table applies.
