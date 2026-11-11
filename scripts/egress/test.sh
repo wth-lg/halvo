@@ -330,6 +330,7 @@ test_sandbox() {
   got=$(awk -v token=tok -f scripts/egress/sandbox.awk "$work/forged.ndjson") || got=
   result sandbox/forged-markers-ignored 'denied at=1794395210956934000 proto=tcp dest=-:443 pid=7 image=egress-probe' "$got"
   expect_run sandbox/tree-cannot-write-the-check 0 0 0 sh scripts/egress/check.sh "$e" -- sh -c ': >>scripts/egress/sandbox.awk 2>/dev/null && exit 8; : >>target/egress/bin/egress-spawn 2>/dev/null && exit 9; exit 0'
+  expect_run sandbox/tree-cannot-move-the-check 0 0 0 sh scripts/egress/check.sh "$e" -- sh -c 'mv target target.moved 2>/dev/null && exit 7; mv scripts scripts.moved 2>/dev/null && exit 8; exit 0'
   cp "$bin/egress-spawn" "$work/real-spawn"
   printf '%s\n' '#!/bin/sh' ": >'$work/planted-ran'" "exec '$work/real-spawn' \"\$@\"" >"$bin/egress-spawn"
   chmod +x "$bin/egress-spawn"

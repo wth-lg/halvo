@@ -54,6 +54,13 @@ sandbox_rights() {
 sandbox_profile() {
   printf '(version 1)\n(allow default)\n'
   printf '(deny file-write* (subpath "%s/target/egress") (subpath "%s/scripts/egress"))\n' "$real_root" "$real_root"
+  above=$real_root
+  printf '(deny file-write* (literal "%s/target") (literal "%s/scripts")' "$real_root" "$real_root"
+  while [ -n "$above" ]; do
+    printf ' (literal "%s")' "$above"
+    above=${above%/*}
+  done
+  printf ')\n'
   printf '(deny signal)\n(allow signal (target same-sandbox))\n'
   [ "$2" -eq 1 ] || return 0
   printf '(deny network-outbound (with message "%s other"))\n' "$1"
@@ -478,6 +485,14 @@ parts_changed() {
   fi
 }
 
+identity() {
+  ls -di "$1" 2>/dev/null | awk '{ print $1 }'
+}
+
+moved() {
+  [ "$(identity "$dir")" != "$dir_id" ] || [ "$(identity "$root")" != "$root_id" ] || [ "$(identity "$here")" != "$here_id" ]
+}
+
 new_run() {
   mkdir -p "$root/target/egress" || refuse output target/egress
   mode_reap
@@ -487,6 +502,9 @@ new_run() {
     n=$((n + 1))
   done
   dir=$root/target/egress/$n
+  dir_id=$(identity "$dir")
+  root_id=$(identity "$root")
+  here_id=$(identity "$here")
   token=halvo-egress-$n-$$-$(date +%s) || refuse output "target/egress/$n"
   printf 'pid=%s\ntoken=%s\n' "$$" "$token" >"$dir/state" || refuse output "target/egress/$n/state"
   : >"$dir/denied.log" || refuse output "target/egress/$n/denied.log"
@@ -506,6 +524,10 @@ first_form() {
   run_reported=
   mode_launch "$dir" "$runner" -- "$@"
   launched=$?
+  if moved; then
+    mode_teardown "$dir" "$token"
+    refuse mode "a directory of the check was moved during the run"
+  fi
   run_status=
   if [ "$launched" -eq 0 ]; then
     case $run_reported in
