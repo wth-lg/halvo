@@ -84,6 +84,9 @@ fn answers_cover_each_case_of_t11_6() {
     assert_eq!(expect("unknown_reason"), "malformed");
     assert_eq!(expect("key_twice"), "malformed");
     assert_eq!(expect("refusal_under_200"), "malformed");
+    assert_eq!(expect("usage_largest"), "ok");
+    assert_eq!(expect("tokens_in_above_u64"), "malformed");
+    assert_eq!(expect("tokens_out_above_u64"), "malformed");
     let refusals: BTreeSet<&str> = answers
         .iter()
         .filter(|answer| answer["status"] == 403)

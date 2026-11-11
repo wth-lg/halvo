@@ -34,3 +34,6 @@
 {"n":34,"name":"refusal_key_twice","status":403,"body":"{\"result\":\"refused\",\"reason\":\"over-cap\",\"reason\":\"no-cap\"}","expect":"malformed","content":null,"tokens_in":null,"tokens_out":null,"cost":null}
 {"n":35,"name":"refusal_not_an_object","status":403,"body":"[{\"result\":\"refused\",\"reason\":\"over-cap\"}]","expect":"malformed","content":null,"tokens_in":null,"tokens_out":null,"cost":null}
 {"n":36,"name":"empty_body_200","status":200,"body":"","expect":"malformed","content":null,"tokens_in":null,"tokens_out":null,"cost":null}
+{"n":37,"name":"usage_largest","status":200,"body":"{\"result\":\"ok\",\"content\":\"Done.\",\"usage\":{\"input\":18446744073709551615,\"output\":18446744073709551615},\"cost\":1520}","expect":"ok","content":"Done.","tokens_in":18446744073709551615,"tokens_out":18446744073709551615,"cost":1520}
+{"n":38,"name":"tokens_in_above_u64","status":200,"body":"{\"result\":\"ok\",\"content\":\"Done.\",\"usage\":{\"input\":18446744073709551616,\"output\":40},\"cost\":1520}","expect":"malformed","content":null,"tokens_in":null,"tokens_out":null,"cost":null}
+{"n":39,"name":"tokens_out_above_u64","status":200,"body":"{\"result\":\"ok\",\"content\":\"Done.\",\"usage\":{\"input\":120,\"output\":18446744073709551616},\"cost\":1520}","expect":"malformed","content":null,"tokens_in":null,"tokens_out":null,"cost":null}
