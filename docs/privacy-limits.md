@@ -54,7 +54,8 @@ an existing one for maintenance only, and no R1 installer is such a build.
   clear header remain, and they show when the person was active. R1 accepts this
   and pads nothing (RR-store-25).
 - Key rows. The ids and times of shredded segments stay in store.db until
-  delete-all, about 124 bytes a row (evidence/interrogate-rr-store-3/it03_what_a_shred_leaves_inside_store_db.log).
+  delete-all, about 124 bytes a row (RD-21). The ids that stay are in
+  evidence/interrogate-rr-store-3/it03_what_a_shred_leaves_inside_store_db.log.
 - Rows of a segment shredded out of order (RR-store-08). store-4 closes this when it
   removes the per-event rows; until then the note in the table applies.
 

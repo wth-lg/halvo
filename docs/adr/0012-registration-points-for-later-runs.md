@@ -36,11 +36,12 @@ record seam and the entry of the run mark.
   the feature, which answers true or false. The mark's kind is among the per-kind
   entries of the port, and one adapter line names it toward the store.
 - The shared APIs that R1 uses itself: the key-file helper by path, the fill function
-  of the prefill helper, the scripted source of the daemon's tests and the registry
-  of the data directory.
+  of the prefill helper, the scripted source of the daemon's tests, the registry
+  of the data directory and packaging/helpers.d/.
 
 ## Consequences
 
-- control-1, control-2, store-3, daemon-1, daemon-2 and daemon-3 land the points
-  that the next run asks for, and this ADR lands none of them.
+- Contract C18 names the unit that lands each point, among them control-1,
+  control-2, core-2, store-3, store-4, daemon-1, daemon-2 and daemon-3. This ADR
+  lands none of them.
 - R1 depends on no crate of a later run.

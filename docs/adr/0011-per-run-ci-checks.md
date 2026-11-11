@@ -30,7 +30,8 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 
 ## Consequences
 
-- A unit that adds a check adds one file under its run's ci.d directory and edits no
-  line of ci.yml.
+- A check is one file under its run's ci.d directory and needs no line of ci.yml.
+  After gate-1 the writers of ci.yml are release-1, release-2, and gate-4 and gate-5
+  for the job timeout only (contract C16 item 11).
 - The job timeout is 30 minutes at this commit. Its value lives in the bounds key
   `ci_job_timeout_min` of docs/baseline/r1-gate-bounds.txt.

@@ -42,5 +42,6 @@ A daemon that launchd starts is not the default path (row 81).
   that file holds the value in force.
 - control-1 lands the login-item builder and, in the service module of
   halvo-control, the Run-value command line with its registry write, read and
-  remove (RD-52; rulings D9). control-2, daemon-3, app-3 and win-5 land their
-  parts, and app-4 calls them.
+  remove (RD-52; rulings D9). daemon-2 lands the run condition of the supervisor
+  and the shutdown budget with its compile-time check (rulings D3). control-2,
+  daemon-3, app-3 and win-5 land their parts, and app-4 calls them.

@@ -25,8 +25,9 @@ The app is a client over a local control channel and links no store code.
   app, and halvo-capture, the daemon.
 - The store port is a trait in the capture crate. daemon-1 and daemon-2 build
   against it with a model store in their tests. daemon-3 builds the adapter over the
-  encrypted store, and from then on only `halvo-capture --service-run` opens the
-  store, under the instance lock of the data directory.
+  encrypted store, which is the only code that opens a persistent store. It opens
+  it from `halvo-capture --service-run`, from the offline delete and from the
+  debug-only modes, each under the instance lock of the data directory.
 - The app links none of halvo-capture, halvo-sqlcipher, rusqlite or libsqlite3-sys.
   From app-2 on a CI check fails when it does.
 
