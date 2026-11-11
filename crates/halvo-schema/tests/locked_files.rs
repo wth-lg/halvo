@@ -646,6 +646,122 @@ fn the_lock_test_refuses_a_path_attribute_include_macro_use_and_a_macro_that_no_
     }
 }
 
+fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) => panic!("{}: {e}", dir.display()),
+    };
+    for entry in entries {
+        let path = entry.expect("a directory entry").path();
+        if path.is_dir() {
+            rust_files(&path, out);
+        } else if path.extension().is_some_and(|x| x == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+fn later_files() -> Vec<(String, String)> {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files: Vec<std::path::PathBuf> = LATER
+        .iter()
+        .map(|module| src.join(format!("{module}.rs")))
+        .collect();
+    for module in LATER {
+        let dir = src.join(module);
+        if dir.is_dir() {
+            rust_files(&dir, &mut files);
+        }
+    }
+    files
+        .into_iter()
+        .map(|path| {
+            let name = path
+                .strip_prefix(&src)
+                .map_or_else(|_| path.display().to_string(), |p| p.display().to_string());
+            match std::fs::read_to_string(&path) {
+                Ok(text) => (name, text.replace("\r\n", "\n")),
+                Err(e) => panic!("{name}: {e}"),
+            }
+        })
+        .collect()
+}
+
+fn later_faults(file: &str, text: &str) -> Vec<String> {
+    let mut faults = Vec::new();
+    for token in tokens(text) {
+        match bare(&token) {
+            "Fields" => faults.push(format!(
+                "{file} names Fields, the reader of objects of the request module"
+            )),
+            "macro_export" => faults.push(format!("{file} holds macro_export")),
+            _ => {}
+        }
+    }
+    faults
+}
+
+#[test]
+fn no_file_of_a_later_run_names_fields_of_the_request_module_or_holds_macro_export() {
+    let files = later_files();
+    assert!(files.len() >= 4, "{}", files.len());
+    for (file, text) in files {
+        assert_eq!(later_faults(&file, &text), Vec::<String>::new());
+    }
+}
+
+#[test]
+fn the_lock_test_refuses_fields_and_macro_export_in_a_later_file() {
+    for (text, fault) in [
+        (
+            "pub fn probe_fields() -> usize {\n    crate::request::Fields::read(b\"{}\").map_or(0, |fields| fields.0.len())\n}\n",
+            "learning.rs names Fields",
+        ),
+        (
+            "use crate::request::{Fields, RunnerBody};\n",
+            "learning.rs names Fields",
+        ),
+        (
+            "use crate::request as r;\nfn f(_: r::Fields<'_>) {}\n",
+            "learning.rs names Fields",
+        ),
+        (
+            "use crate::request::*;\nfn f(_: Fields<'_>) {}\n",
+            "learning.rs names Fields",
+        ),
+        (
+            "fn f(_: crate::request::r#Fields<'_>) {}\n",
+            "learning.rs names Fields",
+        ),
+        (
+            "#[macro_export]\nmacro_rules! name_enum {\n    () => {};\n}\n",
+            "learning.rs holds macro_export",
+        ),
+        (
+            "#[cfg_attr(all(), macro_export)]\nmacro_rules! own {\n    () => {};\n}\n",
+            "learning.rs holds macro_export",
+        ),
+    ] {
+        let faults = later_faults("learning.rs", text);
+        assert!(
+            faults.iter().any(|f| f.starts_with(fault)),
+            "{text}: {faults:?}"
+        );
+    }
+    for twin in [
+        "/// Fields and #[macro_export]\nfn f() {}\n",
+        "let s = \"crate::request::Fields #[macro_export]\";\n",
+        "macro_rules! own {\n    () => {};\n}\nown!();\n",
+        "struct FieldList;\nuse crate::request::RunnerBody;\n",
+    ] {
+        assert_eq!(
+            later_faults("learning.rs", twin),
+            Vec::<String>::new(),
+            "{twin}"
+        );
+    }
+}
+
 #[test]
 fn no_locked_file_names_an_item_of_the_files_of_later_runs_but_their_kind_lists() {
     let macros = locked_macros();
