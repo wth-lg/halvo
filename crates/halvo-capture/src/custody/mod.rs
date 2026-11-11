@@ -135,7 +135,9 @@ pub enum CustodyError {
     RootCorrupt,
     #[error("this process may not read or destroy the root of this store")]
     RootDenied,
-    /// A platform state that can clear, with the platform's code.
+    /// A platform state that can clear, with the platform's code: a keychain
+    /// that allows no interaction, or a DPAPI failure other than data that does
+    /// not decode.
     #[error("the root of this store is locked for now (code {0:#x})")]
     RootLocked(i32),
     #[error("this build has no {0:?} custody")]
@@ -148,7 +150,8 @@ pub enum CustodyError {
     WrapAuthFailed,
     #[error("the platform refused the custody call (code {})", os_code_text(*.0))]
     Os(Option<i32>),
-    /// A permanent failure of the wrap or the unwrap.
+    /// A failure of the wrap or the unwrap that no other variant names, among
+    /// them DPAPI data that does not decode.
     #[error("wrapping or unwrapping the store key failed: {0}")]
     Crypto(String),
     #[error("{0} is not implemented in this phase")]

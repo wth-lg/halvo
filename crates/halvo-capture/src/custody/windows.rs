@@ -11,6 +11,17 @@ use zeroize::Zeroizing;
 use super::file_root::{FileRoots, Protector};
 use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
+const USER_SCOPE_NO_UI: u32 = CRYPTPROTECT_UI_FORBIDDEN;
+const DATA_DOES_NOT_DECODE: i32 = 0x8007_000D_u32 as i32;
+
+fn classify_dpapi_failure(call: &str, code: i32) -> CustodyError {
+    if code == DATA_DOES_NOT_DECODE {
+        CustodyError::Crypto(format!("{call}: the data does not decode"))
+    } else {
+        CustodyError::RootLocked(code)
+    }
+}
+
 struct DpapiBlob(CRYPT_INTEGER_BLOB);
 
 impl DpapiBlob {
@@ -52,11 +63,11 @@ pub(crate) fn dpapi_protect(data: &[u8], entropy: &[u8]) -> Result<Vec<u8>, Cust
             Some(&entropy_blob as *const _),
             None,
             None,
-            CRYPTPROTECT_UI_FORBIDDEN,
+            USER_SCOPE_NO_UI,
             &mut out as *mut _,
         )
     }
-    .map_err(|e| CustodyError::Crypto(format!("CryptProtectData: {e}")))?;
+    .map_err(|e| classify_dpapi_failure("CryptProtectData", e.code().0))?;
     Ok(DpapiBlob(out).as_slice().to_vec())
 }
 
@@ -74,11 +85,11 @@ pub(crate) fn dpapi_unprotect(
             Some(&entropy_blob as *const _),
             None,
             None,
-            CRYPTPROTECT_UI_FORBIDDEN,
+            USER_SCOPE_NO_UI,
             &mut out as *mut _,
         )
     }
-    .map_err(|e| CustodyError::Crypto(format!("CryptUnprotectData: {e}")))?;
+    .map_err(|e| classify_dpapi_failure("CryptUnprotectData", e.code().0))?;
     Ok(Zeroizing::new(DpapiBlob(out).as_slice().to_vec()))
 }
 
@@ -138,5 +149,46 @@ impl KeyCustody for DpapiCustody {
 
     fn destroy_root(&self) -> Result<(), CustodyError> {
         user_roots()?.destroy_root(self.root_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_dpapi_code_that_can_clear_is_root_locked_and_data_that_does_not_decode_is_crypto() {
+        const NTE_BAD_KEY_STATE: i32 = 0x8009_000B_u32 as i32;
+        assert!(matches!(
+            classify_dpapi_failure("CryptUnprotectData", NTE_BAD_KEY_STATE),
+            CustodyError::RootLocked(code) if code == NTE_BAD_KEY_STATE
+        ));
+        assert!(matches!(
+            classify_dpapi_failure("CryptUnprotectData", DATA_DOES_NOT_DECODE),
+            CustodyError::Crypto(_)
+        ));
+    }
+
+    #[test]
+    fn a_blob_that_dpapi_cannot_decode_is_crypto_and_no_state_that_can_clear() {
+        let blob = dpapi_protect(b"thirty-two bytes of test payload", b"label").unwrap();
+        let cases = [
+            ("another label", dpapi_unprotect(&blob, b"another label")),
+            (
+                "bytes that are no blob",
+                dpapi_unprotect(&[0x5a; 64], b"label"),
+            ),
+            (
+                "half of the blob",
+                dpapi_unprotect(&blob[..blob.len() / 2], b"label"),
+            ),
+        ];
+        for (case, answer) in cases {
+            assert!(
+                matches!(answer, Err(CustodyError::Crypto(_))),
+                "{case}: {:?}",
+                answer.err()
+            );
+        }
     }
 }

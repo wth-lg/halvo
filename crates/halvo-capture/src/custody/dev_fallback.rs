@@ -99,11 +99,13 @@ mod keychain {
     use crate::custody::{CustodyError, RootId, StoreKey, WrappedKey};
 
     const SERVICE: &str = "com.halvo.capture.dev-fallback";
+    const ERR_SEC_INTERACTION_NOT_ALLOWED: i32 = -25308;
 
     fn classify(e: &KeychainError) -> CustodyError {
         match e.code() {
             code if code == errSecItemNotFound => CustodyError::RootMissing,
             code if code == errSecAuthFailed => CustodyError::RootDenied,
+            code if code == ERR_SEC_INTERACTION_NOT_ALLOWED => CustodyError::RootLocked(code),
             code => CustodyError::Os(Some(code)),
         }
     }
@@ -586,7 +588,11 @@ mod tests {
         ));
         assert!(matches!(
             keychain::absent_is_none::<u8>(Err(Error::from_code(-25308))),
-            Err(CustodyError::Os(Some(-25308)))
+            Err(CustodyError::RootLocked(-25308))
+        ));
+        assert!(matches!(
+            keychain::absent_is_none::<u8>(Err(Error::from_code(-25291))),
+            Err(CustodyError::Os(Some(-25291)))
         ));
     }
 }
