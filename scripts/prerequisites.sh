@@ -24,29 +24,40 @@ cargo_release_executable() {
   esac
 }
 
+unpack_cargo_release() {
+  case "$1" in
+    *.tar.gz) tar -xzf "$1" -C "$2" ;;
+    *.zip) powershell.exe -NoProfile -Command "\$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath '$(cygpath -w "$1")' -DestinationPath '$(cygpath -w "$2")' -Force" ;;
+  esac
+}
+
 install_cargo_release_prebuilt() {
-  asset=$(cargo_release_asset) || return 1
+  if ! asset=$(cargo_release_asset); then
+    echo "prerequisites: no prebuilt cargo-release matches $(uname -s) $(uname -m)"
+    return 1
+  fi
   executable=$(cargo_release_executable)
-  base="https://github.com/crate-ci/cargo-release/releases/download/v$cargo_release_version"
+  url="https://github.com/crate-ci/cargo-release/releases/download/v$cargo_release_version/$asset"
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/prerequisites.XXXXXX") || return 1
-  ok=0
-  if curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$base/$asset"; then
-    case "$asset" in
-      *.tar.gz)
-        tar -xzf "$tmp/$asset" -C "$tmp" && mkdir -p "$CARGO_HOME/bin" && cp "$tmp/$executable" "$CARGO_HOME/bin/$executable" && ok=1 ;;
-      *.zip)
-        powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath '$(cygpath -w "$tmp/$asset")' -DestinationPath '$(cygpath -w "$tmp")' -Force" \
-          && mkdir -p "$CARGO_HOME/bin" && cp "$tmp/$executable" "$CARGO_HOME/bin/$executable" && ok=1 ;;
-    esac
+  failed=
+  if ! curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors -o "$tmp/$asset" "$url"; then
+    failed="downloading the prebuilt cargo-release from $url"
+  elif ! unpack_cargo_release "$tmp/$asset" "$tmp"; then
+    failed="unpacking the prebuilt cargo-release $asset"
+  elif ! { mkdir -p "$CARGO_HOME/bin" && cp "$tmp/$executable" "$CARGO_HOME/bin/$executable"; }; then
+    failed="copying the prebuilt cargo-release into $CARGO_HOME/bin"
   fi
   rm -rf "$tmp"
-  [ "$ok" = 1 ]
+  if [ -n "$failed" ]; then
+    echo "prerequisites: $failed failed"
+    return 1
+  fi
 }
 
 install_cargo_release() {
   echo "prerequisites: installing cargo-release $cargo_release_version into $CARGO_HOME/bin"
   install_cargo_release_prebuilt && return
-  echo "prerequisites: no prebuilt cargo-release for this platform, or its download failed; building it with cargo install"
+  echo "prerequisites: building cargo-release $cargo_release_version with cargo install instead"
   cargo install cargo-release --version "$cargo_release_version" --locked
 }
 
@@ -144,6 +155,51 @@ EOF
   [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the download ran $(count 'curl ' "$case_dir/calls") times, not once"
   [ "$(count 'cargo install' "$case_dir/calls")" = 0 ] || problems="$problems; cargo install ran"
   [ "$(count "prerequisites: cargo-release $cargo_release_version present" "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report the tool present"
+  [ "$(count ' failed' "$case_dir/output")" = 0 ] || problems="$problems; a line reports a failure"
+  verdict "$name"
+
+  expect_fallback() {
+    run_ensure
+    [ "$(count "prerequisites: $1" "$case_dir/output")" = 1 ] || problems="$problems; no line says \"prerequisites: $1\""
+    for other in downloading unpacking copying 'no prebuilt'; do
+      case "$1" in "$other"*) continue ;; esac
+      [ "$(count "prerequisites: $other" "$case_dir/output")" = 0 ] || problems="$problems; a line names $other"
+    done
+    [ "$(count "cargo install cargo-release --version $cargo_release_version --locked" "$case_dir/calls")" = 1 ] || problems="$problems; cargo install did not run once with the pinned version"
+    [ -f "$CARGO_HOME/bin/$executable" ] || problems="$problems; cargo install left no bin/$executable"
+    [ "$(tail -n 1 "$case_dir/output")" = "prerequisites: cargo-release $cargo_release_version" ] || problems="$problems; the last line does not give the installed version"
+  }
+
+  name='a failed download is named, and cargo install still installs the tool'
+  new_case download
+  expect_fallback 'downloading the prebuilt cargo-release'
+  verdict "$name"
+
+  name='a failed unpacking is named, and cargo install still installs the tool'
+  new_case unpack
+  echo 'not an archive' >"$case_dir/assets/$asset"
+  expect_fallback 'unpacking the prebuilt cargo-release'
+  verdict "$name"
+
+  name='a failed copy is named, and cargo install still installs the tool'
+  new_case copy
+  mkdir "$case_dir/other"
+  echo 'not cargo-release' >"$case_dir/other/README.md"
+  make_archive "$case_dir/other" README.md "$case_dir/assets/$asset"
+  expect_fallback 'copying the prebuilt cargo-release'
+  verdict "$name"
+
+  name='a platform with no prebuilt is named, and cargo install still installs the tool'
+  new_case platform
+  cat >"$case_dir/stubs/uname" <<'EOF'
+#!/bin/sh
+case "$1" in
+  -s) echo Linux ;;
+  *) echo x86_64 ;;
+esac
+EOF
+  chmod +x "$case_dir/stubs/uname"
+  expect_fallback 'no prebuilt cargo-release matches Linux x86_64'
   verdict "$name"
 
   if [ "$failures" -gt 0 ]; then
