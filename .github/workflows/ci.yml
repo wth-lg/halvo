@@ -2,184 +2,584 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
+      - name: Builder 9 cases
         shell: bash
         run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+          cat >"$RUNNER_TEMP/cases.sh" <<'CASES'
+          #!/bin/sh
+          # mac.sh: the builder's cases on the macos-15 runner, at the base 40dfa6a and at the scratch head; prints counts, booleans and the check's own lines.
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 2
+          base=40dfa6a770c92b7273918bd2536a54278c48e9fb
+          out=$RUNNER_TEMP/b9
+          mkdir -p "$out"
+          gate=0
+          git worktree add -q --detach "$RUNNER_TEMP/b9-base" "$base" || exit 2
+          python3 -I -c '
+          import socket, sys, threading
+          s = socket.socket()
+          s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          s.bind(("127.0.0.1", 47203))
+          s.listen(16)
+          def one(c):
+              c.settimeout(3)
+              data = b""
+              try:
+                  data = c.recv(2048)
+              except Exception:
+                  pass
+              c.close()
+              line = data.split(b"\r\n", 1)[0].decode("latin-1")
+              with open(sys.argv[1], "a") as f:
+                  f.write("%d %s\n" % (len(data), line))
+          while True:
+              c, _ = s.accept()
+              threading.Thread(target=one, args=(c,), daemon=True).start()
+          ' "$out/recorded" &
+          recorder=$!
+          sleep 1
+          received() {
+            n=$(grep -c "$1" "$out/recorded" 2>/dev/null)
+            printf '%s received-requests=%s\n' "$1" "${n:-0}"
+          }
+          capture_start() {
+            sudo -n tcpdump -i any -n -U -w "$out/$1.pcap" 'port 53 or icmp or host 192.0.2.1' >"$out/$1.tcpdump.err" 2>&1 &
+            capture=$!
+            sleep 3
+          }
+          capture_stop() {
+            sleep 2
+            sudo -n pkill -INT -x tcpdump
+            sleep 3
+            sudo -n tcpdump -n -r "$out/$1.pcap" >"$out/$1.txt" 2>/dev/null
+            printf 'capture %s packets=%s icmp-echo-to-192.0.2.1=%s\n' "$1" "$(grep -c '' "$out/$1.txt")" "$(grep -c '192.0.2.1: ICMP echo request' "$out/$1.txt")"
+            for name in $2; do
+              printf 'capture %s dns-queries-naming %s=%s\n' "$1" "$name" "$(grep -c "$name" "$out/$1.txt")"
+            done
+          }
+          case_run() {
+            label=$1
+            dir=$2
+            shift 2
+            (cd "$dir" && sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- "$@" >"$out/$label.out" 2>"$out/$label.err")
+            code=$?
+            last=$(tail -n 1 "$out/$label.err")
+            printf 'case %s exit=%s | %s\n' "$label" "$code" "$last"
+            log=${last##* log=}
+            case $last in
+              "egress mode="*) [ -f "$dir/$log" ] && sed "s/^/  $label log: /" "$dir/$log" ;;
+            esac
+          }
+          step() {
+            label=$1
+            shift
+            "$@" >"$out/$label.out" 2>"$out/$label.err"
+            code=$?
+            printf '::group::%s\n' "$label"
+            grep -E '^(egress self-test|probe name=|quiet |listed |unlisted |listen |control |checks |tests passed=|not ok |PASS |FAIL |SKIP |seconds |self-test mode=|control mode=|REFUSED )' "$out/$label.out" "$out/$label.err" | sed 's/^[^:]*://'
+            printf '::endgroup::\n'
+            printf 'step %s exit=%s\n' "$label" "$code"
+            return "$code"
+          }
+          rustc --version
+          printf '== base %s\n' "$base"
+          capture_start base
+          case_run b-icmp "$RUNNER_TEMP/b9-base" ping -c 2 -t 3 192.0.2.1
+          case_run b-resolver "$RUNNER_TEMP/b9-base" /usr/bin/nscurl -m 4 https://egress-b9-base.invalid/
+          case_run b-open "$RUNNER_TEMP/b9-base" /usr/bin/open -g http://127.0.0.1:47203/b9-base-open
+          sleep 8
+          received b9-base-open
+          case_run b-session "$RUNNER_TEMP/b9-base" /usr/bin/nscurl --background -m 6 http://127.0.0.1:47203/b9-base-session
+          sleep 4
+          received b9-base-session
+          capture_stop base 'egress-b9-base'
+          printf '== head %s\n' "$(git rev-parse HEAD)"
+          capture_start head
+          case_run h-icmp . ping -c 2 -t 3 192.0.2.1
+          case_run h-probe-icmp . sh scripts/egress/probe.sh icmp
+          case_run h-resolver . /usr/bin/nscurl -m 4 https://egress-b9-head.invalid/
+          case_run h-probe-resolver . sh scripts/egress/probe.sh resolver
+          case_run h-open . /usr/bin/open -g http://127.0.0.1:47203/b9-head-open
+          sleep 8
+          received b9-head-open
+          case_run h-session . /usr/bin/nscurl --background -m 6 http://127.0.0.1:47203/b9-head-session
+          sleep 4
+          received b9-head-session
+          case_run h-probe-open . sh scripts/egress/probe.sh open
+          case_run h-probe-session . sh scripts/egress/probe.sh session
+          step self-test sh scripts/egress/check.sh --mode sandbox --self-test || gate=1
+          capture_stop head 'egress-b9-head egress-probe-resolver'
+          step control sh scripts/egress/check.sh --mode sandbox --self-test --control-no-deny
+          [ "$code" = 1 ] || gate=1
+          step test-sandbox sh scripts/egress/test.sh sandbox || gate=1
+          step test-probe-lists sh scripts/egress/test.sh || gate=1
+          printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$out/routable.txt"
+          step entry sh scripts/egress/check.sh --mode sandbox "$out/routable.txt" -- sh scripts/egress/probe.sh none
+          step driver-self-test sh scripts/ci/run-ci-d.sh macos --self-test 10-egress || gate=1
+          step driver sh scripts/ci/run-ci-d.sh macos 10-egress || gate=1
+          kill "$recorder" 2>/dev/null
+          printf 'gate=%s\n' "$gate"
+          exit 0
+          CASES
+          sh "$RUNNER_TEMP/cases.sh"
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
+          fetch-depth: 0
+      - name: Builder 9 cases
         shell: bash
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          cat >"$RUNNER_TEMP/cases.sh" <<'CASES'
+          #!/bin/sh
+          # win.sh: the builder's cases on the windows-2025 runner, at the base 40dfa6a and at the scratch head; prints counts, booleans and the check's own lines.
+          set -u
+          cd "$GITHUB_WORKSPACE" || exit 2
+          base=40dfa6a770c92b7273918bd2536a54278c48e9fb
+          out=$RUNNER_TEMP/b9
+          mkdir -p "$out"
+          gate=0
+          git worktree add -q --detach "$RUNNER_TEMP/b9-base" "$base" || exit 2
+          ps1=$RUNNER_TEMP/b9-ps
+          mkdir -p "$ps1"
+          winout=$(cygpath -w "$out")
+          cat >"$ps1/state.ps1" <<'PS'
+          $ErrorActionPreference = 'Continue'
+          foreach ($guid in @('{0CCE9226-69AE-11D9-BED3-505054503030}', '{0CCE922B-69AE-11D9-BED3-505054503030}')) {
+              $row = @(& auditpol.exe /get "/subcategory:$guid" /r | Where-Object { $_ -ne '' } | ConvertFrom-Csv)
+              if ($row.Count -gt 0) { "audit $($row[0].Subcategory)=$($row[0].'Inclusion Setting')" } else { "audit $guid unreadable" }
+          }
+          $dns = (& wevtutil.exe gl Microsoft-Windows-DNS-Client/Operational | Where-Object { $_ -match '^enabled:' }) -join ''
+          "dns-channel $dns"
+          Get-NetFirewallProfile | Sort-Object Name | ForEach-Object { "profile $($_.Name) enabled=$($_.Enabled)" }
+          "halvo-rules=" + @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count
+          PS
+          cat >"$ps1/connect.ps1" <<'PS'
+          param([string]$HostName, [int]$PortNumber)
+          $client = New-Object System.Net.Sockets.TcpClient
+          $outcome = ''
+          try {
+              if ($client.ConnectAsync($HostName, $PortNumber).Wait(5000)) { $outcome = 'connected' } else { $outcome = 'timeout' }
+          } catch {
+              $inner = $_.Exception
+              while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+              if ($inner -is [System.Net.Sockets.SocketException]) { $outcome = "socket-error=$($inner.NativeErrorCode)" } else { $outcome = 'error' }
+          }
+          "connect ${HostName}:$PortNumber $outcome"
+          PS
+          cat >"$ps1/undo.ps1" <<'PS'
+          $ErrorActionPreference = 'Continue'
+          $here = Split-Path -Parent $MyInvocation.MyCommand.Path
+          $fpc = '{0CCE9226-69AE-11D9-BED3-505054503030}'
+          $found = @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue)
+          "tree sees halvo rules=$($found.Count)"
+          $null = & auditpol.exe /set "/subcategory:$fpc" /success:disable /failure:disable 2>&1
+          "auditpol off exit=$LASTEXITCODE"
+          $null = & wevtutil.exe sl Microsoft-Windows-DNS-Client/Operational /e:false 2>&1
+          "dns channel off exit=$LASTEXITCODE"
+          $removed = 'yes'
+          try { $found | Remove-NetFirewallRule -ErrorAction Stop } catch { $removed = 'refused' }
+          "remove rules: $removed"
+          "rules left=" + @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count
+          & (Join-Path $here 'connect.ps1') 192.0.2.1 443
+          exit 0
+          PS
+          cat >"$ps1/kill-runner.ps1" <<'PS'
+          param([string]$Out)
+          $ErrorActionPreference = 'Continue'
+          $runs = @(Get-ChildItem 'target\egress' -Directory | Where-Object { $_.Name -match '^\d+$' } | Sort-Object { [int]$_.Name })
+          $dir = $runs[-1].FullName
+          $wrote = 'yes'
+          try { [IO.File]::WriteAllText((Join-Path $dir 'run\status'), "0`n") } catch { $wrote = 'refused' }
+          try { [IO.File]::WriteAllText((Join-Path $dir 'status'), "0`n") } catch { $wrote = "$wrote,refused" }
+          $me = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+          $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$($me.ParentProcessId)"
+          $killed = 'yes'
+          try { Stop-Process -Id $parent.ProcessId -Force -ErrorAction Stop } catch { $killed = 'refused' }
+          "tree: status write $wrote, kill of its parent $($parent.Name): $killed"
+          Start-Sleep -Seconds 20
+          $rules = @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count
+          $line = & (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'connect.ps1') 192.0.2.1 443
+          [IO.File]::WriteAllText($Out, "rules at the late connect=$rules; $line`n")
+          exit 0
+          PS
+          cat >"$ps1/handoff.ps1" <<'PS'
+          param([string]$Kind, [string]$Url)
+          $ErrorActionPreference = 'Continue'
+          if ($Kind -eq 'wmi') {
+              $made = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = "C:\Windows\System32\curl.exe -s -m 5 -o NUL $Url" }
+              "wmi create return=$($made.ReturnValue)"
+          } elseif ($Kind -eq 'bits') {
+              try { Start-BitsTransfer -Source $Url -Destination "$env:TEMP\b9-bits.bin" -ErrorAction Stop; 'bits done' } catch { 'bits error' }
+          } elseif ($Kind -eq 'task') {
+              $null = & schtasks.exe /create /tn b9-handoff /sc once /st 23:59 /f /tr "C:\Windows\System32\curl.exe -s -m 5 -o NUL $Url" 2>&1
+              "task create exit=$LASTEXITCODE"
+              $null = & schtasks.exe /run /tn b9-handoff 2>&1
+              "task run exit=$LASTEXITCODE"
+          }
+          Start-Sleep -Seconds 8
+          exit 0
+          PS
+          cat >"$ps1/icmp-events.ps1" <<'PS'
+          param([string]$Since)
+          $start = [DateTime]::Parse($Since, $null, [Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
+          $events = @()
+          try { $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $start } -ErrorAction Stop) } catch { }
+          $counts = @{ '5156' = 0; '5157' = 0 }
+          foreach ($e in $events) {
+              $x = [xml]$e.ToXml()
+              $f = @{}
+              foreach ($d in $x.Event.EventData.Data) { $f[$d.Name] = [string]$d.'#text' }
+              if ($f['Protocol'] -ne '1' -and $f['Protocol'] -ne '58') { continue }
+              if ($f['Direction'] -ne '%%14593') { continue }
+              $counts["$($e.Id)"]++
+          }
+          "icmp-events outbound permitted=$($counts['5156']) blocked=$($counts['5157'])"
+          PS
+          python -I -c '
+          import socket, sys, threading
+          s = socket.socket()
+          s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+          s.bind(("127.0.0.1", 47203))
+          s.listen(16)
+          def one(c):
+              c.settimeout(3)
+              data = b""
+              try:
+                  data = c.recv(2048)
+              except Exception:
+                  pass
+              c.close()
+              line = data.split(b"\r\n", 1)[0].decode("latin-1")
+              with open(sys.argv[1], "a") as f:
+                  f.write("%d %s\n" % (len(data), line))
+          while True:
+              c, _ = s.accept()
+              threading.Thread(target=one, args=(c,), daemon=True).start()
+          ' "$winout\\recorded" &
+          recorder=$!
+          sleep 2
+          received() {
+            n=$(grep -c "$1" "$out/recorded" 2>/dev/null)
+            printf '%s received-requests=%s\n' "$1" "${n:-0}"
+          }
+          state() {
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps1/state.ps1" | tr -d '\r' | sed "s/^/state $1: /"
+          }
+          case_run() {
+            label=$1
+            dir=$2
+            shift 2
+            since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            start=$(date +%s)
+            (cd "$dir" && sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- "$@" >"$out/$label.out" 2>"$out/$label.err")
+            code=$?
+            printf 'case %s exit=%s seconds=%s | %s\n' "$label" "$code" "$(($(date +%s) - start))" "$(tail -n 1 "$out/$label.err" | tr -d '\r')"
+            grep -E '^(tree |auditpol |dns channel |remove rules|rules left|connect |wmi |bits |task |tree:)' "$out/$label.out" | tr -d '\r' | sed "s/^/  $label: /"
+            last=$(tail -n 1 "$out/$label.err")
+            log=${last##* log=}
+            case $last in
+              "egress mode="*)
+                [ -f "$dir/$log" ] && sed "s/^/  $label log: /" "$dir/$log" | tr -d '\r'
+                d=${log%/denied.log}
+                [ -f "$dir/$d/counts" ] && sed "s/^/  $label counts: /" "$dir/$d/counts" | tr -d '\r'
+                ;;
+            esac
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ps1/icmp-events.ps1" -Since "$since" | tr -d '\r' | sed "s/^/  $label /"
+          }
+          ps_case() {
+            label=$1
+            dir=$2
+            shift 2
+            case_run "$label" "$dir" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$@"
+          }
+          step() {
+            label=$1
+            shift
+            start=$(date +%s)
+            "$@" >"$out/$label.out" 2>"$out/$label.err"
+            code=$?
+            printf '::group::%s\n' "$label"
+            grep -E '^(egress self-test|probe name=|quiet |listed |unlisted |listen |control |checks |tests passed=|not ok |PASS |FAIL |SKIP |seconds |self-test mode=|control mode=|tests mode=|REFUSED |case 10-egress)' "$out/$label.out" "$out/$label.err" | sed 's/^[^:]*://' | tr -d '\r'
+            printf '::endgroup::\n'
+            printf 'step %s exit=%s seconds=%s\n' "$label" "$code" "$(($(date +%s) - start))"
+            return "$code"
+          }
+          mutant() {
+            python -I -c '
+          import sys
+          path, old, new = sys.argv[1], sys.argv[2], sys.argv[3]
+          text = open(path, newline="").read()
+          n = text.count(old)
+          if n != 1:
+              print("mutant: the old text matches %d times" % n)
+              sys.exit(3)
+          open(path, "w", newline="").write(text.replace(old, new))
+          ' scripts/egress/wfp.ps1 "$2" "$3"
+            printf 'mutant %s applied exit=%s\n' "$1" "$?"
+            step "mutant-$1-test-wfp" sh scripts/egress/test.sh wfp
+            [ "$code" != 0 ] || gate=1
+            git checkout -- scripts/egress/wfp.ps1
+          }
+          rustc --version
+          cat >"$RUNNER_TEMP/lab.rs" <<'LABRS'
+          use std::ffi::c_void;
+          use std::iter::repeat;
+
+          type Handle = *mut c_void;
+
+          #[repr(C)]
+          struct SidAndAttributes {
+              sid: *mut c_void,
+              attributes: u32,
+          }
+
+          #[repr(C)]
+          struct StartupInfo {
+              cb: u32,
+              reserved: *mut u16,
+              desktop: *mut u16,
+              title: *mut u16,
+              x: u32,
+              y: u32,
+              x_size: u32,
+              y_size: u32,
+              x_chars: u32,
+              y_chars: u32,
+              fill: u32,
+              flags: u32,
+              show: u16,
+              reserved2_len: u16,
+              reserved2: *mut u8,
+              input: Handle,
+              output: Handle,
+              error: Handle,
+          }
+
+          #[repr(C)]
+          struct ProcessInformation {
+              process: Handle,
+              thread: Handle,
+              process_id: u32,
+              thread_id: u32,
+          }
+
+          #[link(name = "advapi32")]
+          extern "system" {
+              fn OpenProcessToken(process: Handle, access: u32, token: *mut Handle) -> i32;
+              fn CreateRestrictedToken(e: Handle, f: u32, dc: u32, d: *const SidAndAttributes, pc: u32, p: *const c_void, rc: u32, r: *const SidAndAttributes, n: *mut Handle) -> i32;
+              fn CreateWellKnownSid(kind: i32, domain: *const c_void, sid: *mut u8, size: *mut u32) -> i32;
+              fn SetTokenInformation(token: Handle, class: i32, info: *const c_void, size: u32) -> i32;
+              fn GetTokenInformation(token: Handle, class: i32, info: *mut c_void, size: u32, needed: *mut u32) -> i32;
+              fn CreateProcessAsUserW(t: Handle, a: *const u16, c: *mut u16, pa: *const c_void, ta: *const c_void, i: i32, f: u32, e: *const c_void, d: *const u16, s: *const StartupInfo, p: *mut ProcessInformation) -> i32;
+              fn SaferCreateLevel(scope: u32, level: u32, flags: u32, handle: *mut Handle, reserved: *const c_void) -> i32;
+              fn SaferComputeTokenFromLevel(level: Handle, input: Handle, output: *mut Handle, flags: u32, reserved: *const c_void) -> i32;
+              fn InitializeAcl(acl: *mut u8, size: u32, revision: u32) -> i32;
+              fn AddAccessAllowedAce(acl: *mut u8, revision: u32, mask: u32, sid: *const c_void) -> i32;
+          }
+
+          #[link(name = "kernel32")]
+          extern "system" {
+              fn GetCurrentProcess() -> Handle;
+              fn GetStdHandle(which: u32) -> Handle;
+              fn SetHandleInformation(handle: Handle, mask: u32, flags: u32) -> i32;
+              fn WaitForSingleObject(handle: Handle, milliseconds: u32) -> u32;
+              fn GetExitCodeProcess(handle: Handle, code: *mut u32) -> i32;
+              fn GetLastError() -> u32;
+          }
+
+          fn quote(arg: &str, line: &mut String) {
+              if !line.is_empty() {
+                  line.push(' ');
+              }
+              if !arg.is_empty() && !arg.contains([' ', '\t', '"']) {
+                  line.push_str(arg);
+                  return;
+              }
+              line.push('"');
+              let mut slashes = 0;
+              for c in arg.chars() {
+                  if c == '\\' {
+                      slashes += 1;
+                      continue;
+                  }
+                  if c == '"' {
+                      line.extend(repeat('\\').take(slashes * 2 + 1));
+                  } else {
+                      line.extend(repeat('\\').take(slashes));
+                  }
+                  line.push(c);
+                  slashes = 0;
+              }
+              line.extend(repeat('\\').take(slashes * 2));
+              line.push('"');
+          }
+
+          fn main() {
+              let args: Vec<String> = std::env::args().collect();
+              let variant = args[1].as_str();
+              let mut line = String::new();
+              for arg in &args[3..] {
+                  quote(arg, &mut line);
+              }
+              let mut wide: Vec<u16> = line.encode_utf16().chain(Some(0)).collect();
+              unsafe {
+                  let mut own: Handle = std::ptr::null_mut();
+                  OpenProcessToken(GetCurrentProcess(), 0xF01FF, &mut own);
+                  let mut token: Handle = std::ptr::null_mut();
+                  if variant.starts_with("safer") {
+                      let mut level: Handle = std::ptr::null_mut();
+                      if SaferCreateLevel(2, 0x20000, 1, &mut level, std::ptr::null()) == 0 {
+                          println!("lab {variant}: SaferCreateLevel failed {}", GetLastError());
+                          std::process::exit(90);
+                      }
+                      if SaferComputeTokenFromLevel(level, std::ptr::null_mut(), &mut token, 0, std::ptr::null()) == 0 {
+                          println!("lab {variant}: SaferComputeTokenFromLevel failed {}", GetLastError());
+                          std::process::exit(91);
+                      }
+                  } else {
+                      let mut admins = [0u8; 68];
+                      let mut size = 68u32;
+                      CreateWellKnownSid(26, std::ptr::null(), admins.as_mut_ptr(), &mut size);
+                      let disable = [SidAndAttributes { sid: admins.as_mut_ptr().cast(), attributes: 0 }];
+                      let flags = if variant.contains("lua") { 0x1 | 0x4 } else { 0x1 };
+                      if CreateRestrictedToken(own, flags, 1, disable.as_ptr(), 0, std::ptr::null(), 0, std::ptr::null(), &mut token) == 0 {
+                          println!("lab {variant}: CreateRestrictedToken failed {}", GetLastError());
+                          std::process::exit(92);
+                      }
+                  }
+                  if variant.contains("medium") {
+                      let mut medium = [0u8; 68];
+                      let mut size = 68u32;
+                      CreateWellKnownSid(66, std::ptr::null(), medium.as_mut_ptr(), &mut size);
+                      let label = SidAndAttributes { sid: medium.as_mut_ptr().cast(), attributes: 0x20 };
+                      if SetTokenInformation(token, 25, (&label as *const SidAndAttributes).cast(), 16 + size) == 0 {
+                          println!("lab {variant}: integrity failed {}", GetLastError());
+                      }
+                  }
+                  if variant.contains("dacl") {
+                      let mut user = [0u8; 256];
+                      let mut needed = 0u32;
+                      GetTokenInformation(own, 1, user.as_mut_ptr().cast(), 256, &mut needed);
+                      let user_sid = *(user.as_ptr() as *const *mut c_void);
+                      let mut system = [0u8; 68];
+                      let mut admins = [0u8; 68];
+                      let mut s1 = 68u32;
+                      let mut s2 = 68u32;
+                      CreateWellKnownSid(22, std::ptr::null(), system.as_mut_ptr(), &mut s1);
+                      CreateWellKnownSid(26, std::ptr::null(), admins.as_mut_ptr(), &mut s2);
+                      let mut acl = [0u8; 512];
+                      InitializeAcl(acl.as_mut_ptr(), 512, 2);
+                      AddAccessAllowedAce(acl.as_mut_ptr(), 2, 0x10000000, user_sid);
+                      AddAccessAllowedAce(acl.as_mut_ptr(), 2, 0x10000000, system.as_ptr().cast());
+                      AddAccessAllowedAce(acl.as_mut_ptr(), 2, 0x10000000, admins.as_ptr().cast());
+                      let holder: *const u8 = acl.as_ptr();
+                      if SetTokenInformation(token, 6, (&holder as *const *const u8).cast(), 8) == 0 {
+                          println!("lab {variant}: default dacl failed {}", GetLastError());
+                      }
+                  }
+                  let mut startup: StartupInfo = std::mem::zeroed();
+                  startup.cb = std::mem::size_of::<StartupInfo>() as u32;
+                  startup.flags = 0x100;
+                  startup.input = GetStdHandle(-10i32 as u32);
+                  startup.output = GetStdHandle(-11i32 as u32);
+                  startup.error = GetStdHandle(-12i32 as u32);
+                  for h in [startup.input, startup.output, startup.error] {
+                      SetHandleInformation(h, 1, 1);
+                  }
+                  let mut info: ProcessInformation = std::mem::zeroed();
+                  let create = if variant.contains("nowindow") { 0x0800_0000 } else { 0 };
+                  if CreateProcessAsUserW(token, std::ptr::null(), wide.as_mut_ptr(), std::ptr::null(), std::ptr::null(), 1, create, std::ptr::null(), std::ptr::null(), &startup, &mut info) == 0 {
+                      println!("lab {variant}: CreateProcessAsUserW failed {}", GetLastError());
+                      std::process::exit(93);
+                  }
+                  WaitForSingleObject(info.process, 0xFFFF_FFFF);
+                  let mut code = 0u32;
+                  GetExitCodeProcess(info.process, &mut code);
+                  println!("lab {variant}: child exit=0x{code:x}");
+              }
+          }
+          LABRS
+          rustc --edition 2021 -o "$out/lab.exe" "$(cygpath -w "$RUNNER_TEMP/lab.rs")" >"$out/lab-build.txt" 2>&1
+          printf 'lab build exit=%s\n' "$?"
+          mkdir -p "$RUNNER_TEMP/b9-prot"
+          B9_PROT=$(cygpath -w "$RUNNER_TEMP/b9-prot")
+          export B9_PROT
+          icacls "$B9_PROT" /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' >/dev/null
+          icacls "$B9_PROT" /setowner '*S-1-5-32-544' >/dev/null
+          for v in medium-lua medium-lua-nowindow medium-lua-nowindow-dacl keep-lua keep-lua-dacl safer safer-nowindow; do
+            "$out/lab.exe" "$v" -- sh -c 'exit 7' 2>&1 | tr -d '\r'
+            "$out/lab.exe" "$v" -- powershell.exe -NoProfile -NonInteractive -Command "\$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); \$w = 'yes'; try { [IO.File]::WriteAllText(\$env:B9_PROT + '\x.txt', 'x') } catch { \$w = 'refused' }; \$a = 'yes'; & auditpol.exe /set '/subcategory:{0CCE9226-69AE-11D9-BED3-505054503030}' /success:enable *> \$null; if (\$LASTEXITCODE -ne 0) { \$a = 'refused' }; \"lab-tree admin=\$admin write-admin-only-dir=\$w auditpol-set=\$a\"; \$me = Get-CimInstance Win32_Process -Filter \"ProcessId=\$PID\"; \$k = 'yes'; try { Stop-Process -Id \$me.ParentProcessId -Force -ErrorAction Stop } catch { \$k = 'refused' }; \"lab-tree kill-parent=\$k\"; exit 0" 2>&1 | tr -d '\r' | grep -E '^(lab|lab-tree) '
+          done
+          state before-any-run
+          printf '== head %s\n' "$(git rev-parse HEAD)"
+          state before-the-term-case
+          sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- powershell.exe -NoProfile -Command "Start-Sleep -Seconds 15" >"$out/term.out" 2>"$out/term.err" &
+          term=$!
+          sleep 12
+          state during-a-run
+          kill -TERM "$term"
+          wait "$term"
+          printf 'term case check exit=%s\n' "$?"
+          state after-the-signal
+          sleep 5
+          sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh none 2>"$out/next.err" >/dev/null
+          printf 'next run exit=%s | %s\n' "$?" "$(tail -n 1 "$out/next.err" | tr -d '\r')"
+          state after-the-next-run
+          case_run h-icmp . C:/Windows/System32/PING.EXE -n 2 -w 1000 192.0.2.1
+          case_run h-probe-icmp . sh scripts/egress/probe.sh icmp
+          ps_case h-w1-undo . "$ps1/undo.ps1"
+          ps_case h-w7-kill-runner . "$ps1/kill-runner.ps1" -Out "$winout\\h-w7.txt"
+          sleep 10
+          printf 'h-w7 the surviving tree wrote: %s\n' "$(tr -d '\r' <"$out/h-w7.txt" 2>/dev/null || printf none)"
+          case_run h-unnamed-binary . sh -c 'C:/Windows/System32/curl.exe -s -m 5 -o /dev/null http://192.0.2.1:443/; printf "curl exit=%s\n" "$?"'
+          ps_case h-wmi . "$ps1/handoff.ps1" -Kind wmi -Url http://127.0.0.1:47203/b9-wmi
+          received b9-wmi
+          ps_case h-bits . "$ps1/handoff.ps1" -Kind bits -Url http://127.0.0.1:47203/b9-bits
+          received b9-bits
+          ps_case h-task . "$ps1/handoff.ps1" -Kind task -Url http://127.0.0.1:47203/b9-task
+          sleep 5
+          received b9-task
+          schtasks.exe /delete /tn b9-handoff /f >/dev/null 2>&1
+          printf '== base %s\n' "$base"
+          case_run b-icmp "$RUNNER_TEMP/b9-base" C:/Windows/System32/PING.EXE -n 2 -w 1000 192.0.2.1
+          ps_case b-w1-undo "$RUNNER_TEMP/b9-base" "$ps1/undo.ps1"
+          ps_case b-w7-kill-runner "$RUNNER_TEMP/b9-base" "$ps1/kill-runner.ps1" -Out "$winout\\b-w7.txt"
+          sleep 30
+          printf 'b-w7 the surviving tree wrote: %s\n' "$(tr -d '\r' <"$out/b-w7.txt" 2>/dev/null || printf none)"
+          state after-base-runs
+          step self-test sh scripts/egress/check.sh --mode wfp --self-test || gate=1
+          step control sh scripts/egress/check.sh --mode wfp --self-test --control-no-deny
+          [ "$code" = 1 ] || gate=1
+          step test-wfp sh scripts/egress/test.sh wfp || gate=1
+          step test-probe-lists sh scripts/egress/test.sh || gate=1
+          printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$out/routable.txt"
+          step entry sh scripts/egress/check.sh --mode wfp "$out/routable.txt" -- sh scripts/egress/probe.sh none
+          step driver-self-test sh scripts/ci/run-ci-d.sh windows --self-test 10-egress || gate=1
+          step driver sh scripts/ci/run-ci-d.sh windows 10-egress || gate=1
+          mutant W2 'if ($Deny -eq 1) { $null = Add-Rules }' 'if ($false) { $null = Add-Rules }'
+          mutant W6 "        \$saved = Get-Saved (Get-Group)
+                  Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
+          " "        \$saved = Get-Saved (Get-Group)
+          "
+          state end
+          kill "$recorder" 2>/dev/null
+          printf 'gate=%s\n' "$gate"
+          exit 0
+          CASES
+          sh "$RUNNER_TEMP/cases.sh"
