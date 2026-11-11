@@ -6,12 +6,14 @@ usage() {
 usage: sh formal/r4-coordinator/export.sh --jar PATH [--out DIR] [--seed N --count N]
 
 Writes traces-schedule.jsonl and traces-confirm.jsonl from the models Schedule and
-Confirm4 of this directory. PATH is tla2tools.jar of the release that README.md names.
-DIR is an existing directory and defaults to this one. Without --seed and --count the
-export takes both from the first line of the committed traces-schedule.jsonl.
+Confirm4 of this directory: N random walks of each model and, after them, the directed
+traces, 11 of Schedule and 14 of Confirm4. PATH is tla2tools.jar of the release that
+README.md names. DIR is an existing directory and defaults to this one. Without --seed
+and --count the export takes both from the first line of the committed
+traces-schedule.jsonl.
 
 Exit status: 0 when both files are written. 1 when the export ran and a check missed;
-it prints which, and it writes no trace file. 2 on a refusal: one line
+it prints which, and it writes neither trace file. 2 on a refusal: one line
 "REFUSED <cause>: <detail>" on standard error, with the cause usage, java or jar.
 EOF
 }
@@ -31,6 +33,21 @@ number() {
         '' | *[!0-9]*) return 1 ;;
     esac
     test "${#1}" -le 9
+}
+
+directed() {
+    found=$(grep -c -F "\"case\":\"$2\"" "$1")
+    test "$found" -eq 1 || miss "case=$2 lines=$found"
+    last=$(grep -F "\"case\":\"$2\"" "$1" | sed 's/.*{"m":/{"m":/')
+    case $last in
+        "{\"m\":\"$3\","*"},\"r\":\"$4\",\"s\":{"*) ;;
+        *) miss "case=$2 last=$3 answer=$4 missing" ;;
+    esac
+    test -n "${5:-}" || return 0
+    case $last in
+        *"$5"*) ;;
+        *) miss "case=$2 last=$3 holds no $5" ;;
+    esac
 }
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -100,8 +117,14 @@ cp "$here"/*.tla "$work/" || miss "scratch=miss"
 
 for model in Schedule Confirm4; do
     case $model in
-        Schedule) file=traces-schedule.jsonl ;;
-        Confirm4) file=traces-confirm.jsonl ;;
+        Schedule)
+            file=traces-schedule.jsonl
+            cases=11
+            ;;
+        Confirm4)
+            file=traces-confirm.jsonl
+            cases=14
+            ;;
     esac
     {
         grep -v -e '^INIT ' -e '^NEXT ' -e '^CONSTRAINT ' -e '^VIEW ' "$here/$model.cfg"
@@ -117,14 +140,46 @@ for model in Schedule Confirm4; do
         tr -d '\r' <"$work/$model.out" | sed -n 's/^"\({.*}\)"$/\1/p' | sed 's/\\"/"/g'
     } >"$work/$file"
     lines=$(wc -l <"$work/$file" | tr -d ' ')
-    test "$lines" -eq $((count + 1)) || miss "model=$model lines=$lines want=$((count + 1))"
+    test "$lines" -eq $((count + 1 + cases)) || miss "model=$model lines=$lines want=$((count + 1 + cases))"
+    named=$(grep -c '^{"n":[0-9]*,"case":"' "$work/$file")
+    test "$named" -eq "$cases" || miss "model=$model directed=$named want=$cases"
 done
 
 for answer in budget queue_full queued; do
-    grep -q "\"r\":\"$answer\"" "$work/traces-schedule.jsonl" || miss "answers missing=$answer"
+    sed -n "2,$((count + 1))p" "$work/traces-schedule.jsonl" | grep -q "\"r\":\"$answer\"" || miss "answers missing=$answer"
 done
 
-cp "$work/traces-schedule.jsonl" "$out/traces-schedule.jsonl" || miss "write=miss"
-cp "$work/traces-confirm.jsonl" "$out/traces-confirm.jsonl" || miss "write=miss"
+s=$work/traces-schedule.jsonl
+directed "$s" two_models start queued
+directed "$s" two_runs_agent start state
+directed "$s" hold_start start hold
+directed "$s" unrecorded_start start no_service
+directed "$s" second_slot_run tick ok '"started":[]'
+directed "$s" auto_needs_person tick ok '"raised":["a1"'
+directed "$s" over_budget start budget
+directed "$s" queue_full start queue_full
+directed "$s" outlives_app restart ok '"cause":"interrupted"'
+directed "$s" stop_tree tick ok '"cause":"cancelled"'
+directed "$s" deleted_workflow tick ok '"cause":"deleted"'
+c=$work/traces-confirm.jsonl
+directed "$c" answer_twice answer stale
+directed "$c" answer_early answer early
+directed "$c" answer_page_native answer presenter
+directed "$c" timer_allow lapse ok '"answer":"reject_once"'
+directed "$c" no_record lapse ok '"cause":"no_record"'
+directed "$c" digest_shown issue ok '"digest_ok":"no"'
+for reason in unknown_id used_row digest effect reject_row releasing_no_row releasing_unused_row stopped_run; do
+    directed "$c" "reason_$reason" guard approval
+done
+
+new_s=$out/.traces-schedule.jsonl.new
+new_c=$out/.traces-confirm.jsonl.new
+cp "$s" "$new_s" || miss "write=miss"
+if ! cp "$c" "$new_c"; then
+    mv "$new_s" "$work/unwritten-traces-schedule.jsonl"
+    miss "write=miss"
+fi
+mv "$new_s" "$out/traces-schedule.jsonl" || miss "write=miss"
+mv "$new_c" "$out/traces-confirm.jsonl" || miss "write=miss"
 printf 'export seed=%s count=%s schedule=%s confirm=%s\n' "$seed" "$count" \
     "$(($(wc -l <"$out/traces-schedule.jsonl") - 1))" "$(($(wc -l <"$out/traces-confirm.jsonl") - 1))"
