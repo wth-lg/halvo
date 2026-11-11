@@ -9,6 +9,9 @@ pub mod verify;
 mod formal_tests;
 #[cfg(test)]
 mod hardening_tests;
+#[cfg(test)]
+#[path = "test_support/pages.rs"]
+pub(crate) mod pages;
 
 use std::io::Read;
 use std::path::PathBuf;

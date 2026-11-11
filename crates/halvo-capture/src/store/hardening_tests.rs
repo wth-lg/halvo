@@ -16,6 +16,7 @@ use crate::custody::file_root::test_support::{FileRootCustody, TestProtector};
 use crate::custody::file_root::{FileRoots, Protector};
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
+use super::db::test_support::pages;
 use super::db::{EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, CHUNK};
 use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
@@ -1080,5 +1081,202 @@ fn a_root_file_this_process_may_not_read_answers_open_as_root_denied() {
         matches!(denied, Err(StoreError::Custody(CustodyError::RootDenied))),
         "a root file of mode 000 answered {:?}",
         denied.err()
+    );
+}
+
+struct KeyedRow {
+    id: i64,
+    wrapped: Vec<u8>,
+}
+
+fn keyed_rows(store: &EncryptedStore) -> Vec<KeyedRow> {
+    let conn = store.db().unwrap().connection();
+    let mut statement = conn
+        .prepare(
+            "SELECT id, wrapped_key FROM segment_keys WHERE wrapped_key IS NOT NULL ORDER BY id",
+        )
+        .unwrap();
+    let rows = statement
+        .query_map([], |row| {
+            Ok(KeyedRow {
+                id: row.get(0)?,
+                wrapped: row.get(1)?,
+            })
+        })
+        .unwrap();
+    rows.map(|row| row.unwrap()).collect()
+}
+
+struct Leftovers {
+    whole: usize,
+    middle: usize,
+    places: Vec<String>,
+}
+
+fn leftovers_in_raw_pages(store: &EncryptedStore, key: &[u8; 32], rows: &[&KeyedRow]) -> Leftovers {
+    let images = pages::store_pages(store.dir(), key);
+    let whole: Vec<&[u8]> = rows.iter().map(|row| row.wrapped.as_slice()).collect();
+    let middle: Vec<&[u8]> = rows.iter().map(|row| &row.wrapped[24..56]).collect();
+    let whole = pages::places_of(&images, &whole);
+    let middle = pages::places_of(&images, &middle);
+    let owners = pages::page_owners(store.db().unwrap().connection());
+    let places = middle
+        .iter()
+        .flatten()
+        .map(|(file, page)| match (*file, owners.get(page)) {
+            ("store.db", Some(owner)) => format!("store.db page {page} of {owner}"),
+            ("store.db", None) => format!("store.db page {page}, a free page"),
+            (file, _) => format!("{file} slot of page {page}"),
+        })
+        .collect();
+    Leftovers {
+        whole: whole.iter().filter(|found| !found.is_empty()).count(),
+        middle: middle.iter().filter(|found| !found.is_empty()).count(),
+        places,
+    }
+}
+
+fn copy_of_store_key(store: &EncryptedStore) -> zeroize::Zeroizing<[u8; 32]> {
+    zeroize::Zeroizing::new(*store.store_key().unwrap().expose())
+}
+
+fn expire_rows_up_to(store: &EncryptedStore, last_id: i64) {
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .execute(
+            "UPDATE segment_keys SET expires_at = 1 WHERE wrapped_key IS NOT NULL AND id <= ?1",
+            [last_id],
+        )
+        .unwrap();
+}
+
+#[test]
+fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages() {
+    const SEGMENTS: usize = 1200;
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    for i in 0..SEGMENTS {
+        let expires_at = if i % 4 != 0 { 1 } else { i64::MAX as u64 };
+        store
+            .write_segment_with_expiry(&mut Cursor::new(vec![i as u8; 40]), 0, expires_at)
+            .unwrap();
+    }
+    let key = copy_of_store_key(&store);
+    let rows = keyed_rows(&store);
+    assert_eq!(rows.len(), SEGMENTS);
+    store.db().unwrap().checkpoint_truncate().unwrap();
+    let all: Vec<&KeyedRow> = rows.iter().collect();
+    let control = leftovers_in_raw_pages(&store, &key, &all);
+    assert_eq!(
+        control.whole, SEGMENTS,
+        "the page reader does not see every live wrapped key before any shred"
+    );
+
+    let first_wave: Vec<&KeyedRow> = rows
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i % 4 != 0)
+        .map(|(_, row)| row)
+        .collect();
+    let shredded = store.crypto_shred_expired().unwrap().segments_shredded;
+    assert_eq!(shredded as usize, first_wave.len());
+    let after_first = leftovers_in_raw_pages(&store, &key, &first_wave);
+    assert_eq!(
+        (after_first.whole, after_first.middle),
+        (0, 0),
+        "after the first pass, wrapped keys of shredded segments are in the raw pages: whole={} middle_32_bytes={} of={} at {:?}",
+        after_first.whole,
+        after_first.middle,
+        first_wave.len(),
+        after_first.places
+    );
+
+    let second_wave: Vec<&KeyedRow> = rows
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i % 16 != 0)
+        .map(|(_, row)| row)
+        .collect();
+    let kept: Vec<&KeyedRow> = rows
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i % 16 == 0)
+        .map(|(_, row)| row)
+        .collect();
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .execute(
+            "UPDATE segment_keys SET expires_at = 1 WHERE wrapped_key IS NOT NULL AND (id - 1) % 16 != 0",
+            [],
+        )
+        .unwrap();
+    store.crypto_shred_expired().unwrap();
+    let after_second = leftovers_in_raw_pages(&store, &key, &second_wave);
+    assert_eq!(
+        (after_second.whole, after_second.middle),
+        (0, 0),
+        "after the second pass, wrapped keys of shredded segments are in the raw pages: whole={} middle_32_bytes={} of={} at {:?}",
+        after_second.whole,
+        after_second.middle,
+        second_wave.len(),
+        after_second.places
+    );
+    assert_eq!(
+        leftovers_in_raw_pages(&store, &key, &kept).whole,
+        kept.len(),
+        "the page reader lost the live wrapped keys"
+    );
+}
+
+#[test]
+fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages_when_rows_expire_oldest_first() {
+    const SEGMENTS: usize = 1200;
+    const PER_PASS: usize = 50;
+    const PASSES: usize = 20;
+    const FAILED_WRITE_EVERY: usize = 9;
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    for i in 0..SEGMENTS {
+        store
+            .write_segment_with_expiry(&mut Cursor::new(vec![i as u8; 40]), 0, i64::MAX as u64)
+            .unwrap();
+        if (i + 1) % FAILED_WRITE_EVERY == 0 {
+            let failed = store.write_segment_with_expiry(
+                &mut DyingReader { remaining: 100 },
+                0,
+                i64::MAX as u64,
+            );
+            assert!(failed.is_err());
+        }
+    }
+    let key = copy_of_store_key(&store);
+    let rows = keyed_rows(&store);
+    assert_eq!(rows.len(), SEGMENTS);
+    store.db().unwrap().checkpoint_truncate().unwrap();
+    let all: Vec<&KeyedRow> = rows.iter().collect();
+    assert_eq!(
+        leftovers_in_raw_pages(&store, &key, &all).whole,
+        SEGMENTS,
+        "the page reader does not see every live wrapped key before any shred"
+    );
+
+    let mut passes_with_leftovers = Vec::new();
+    for pass in 1..=PASSES {
+        let done = pass * PER_PASS;
+        expire_rows_up_to(&store, rows[done - 1].id);
+        store.crypto_shred_expired().unwrap();
+        let shredded: Vec<&KeyedRow> = rows[..done].iter().collect();
+        let found = leftovers_in_raw_pages(&store, &key, &shredded);
+        if found.middle > 0 {
+            passes_with_leftovers.push((pass, found.middle, found.places));
+        }
+    }
+    assert!(
+        passes_with_leftovers.is_empty(),
+        "wrapped keys of shredded segments were in the raw pages after an expiry pass returned (pass, keys, places): {passes_with_leftovers:?}"
     );
 }

@@ -649,6 +649,8 @@ pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
 
 #[cfg(test)]
 pub(crate) mod test_support {
+    pub(crate) use crate::store::pages;
+
     use std::ops::{Deref, DerefMut};
     use std::path::Path;
 
