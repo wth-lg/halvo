@@ -95,3 +95,7 @@ and merge without an entry landing under the heading of another.
 - Added: Add the local fixture sites of the agent-setup run (utility, payment frame, shop, mail and calendar faces, control) with three invented seeds, nine variants, a state object and a self-test, and list their names in docs/r3/fixtures.md
 - Added: Add the web executor trial of the agent-setup run (tools/r3-trials/web): a chromiumoxide adapter, nine capability steps run with no model against the fixture sites, a fault proxy that makes each step miss, and the result file docs/r3/trials/web-executor.md
 - Added: Add the sheet trial of U0.4 with its corpus of eight workbooks and its result, which names umya-spreadsheet for U2.3
+- Added: Add the per-run ci.d driver with the nine R1 checks, the bounds file of the R1 gate, its memory check and its mutant rows beside the code
+- Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
+- Fixed: Make the R1 gate checks fail closed when a source did not run, the input counts of a run contradict its input mode, a bound is unreadable, a verify step outlives its deadline, a ci.d entry is not a regular NN-name.sh file, a mutant had no build of its kind, or the tree changed during the run
+- Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
