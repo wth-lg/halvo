@@ -7,6 +7,7 @@ use r3_sheet_trial::corpus::{self, Spec};
 use r3_sheet_trial::facts;
 use r3_sheet_trial::mutate::{self, Mutation};
 use r3_sheet_trial::parts;
+use r3_sheet_trial::paths;
 use r3_sheet_trial::trial::{self, Cached, Judgement};
 
 const USAGE: &str = "r3-sheet-trial generate --corpus DIR | run --corpus DIR --out DIR [--candidate umya|rewrite] | mutants --corpus DIR --out DIR --candidate C --work DIR | facts --corpus DIR --out DIR | inspect --corpus DIR";
@@ -200,7 +201,7 @@ fn mutants(args: &Args) -> Result<bool, String> {
     let out = need(&args.out, "--out")?;
     let work = need(&args.work, "--work")?;
     let candidate = args.candidate.ok_or("--candidate is required")?;
-    std::fs::create_dir_all(work).map_err(|e| format!("create {}: {e}", work.display()))?;
+    std::fs::create_dir_all(work).map_err(|e| format!("create {}: {e}", paths::shown(work)))?;
     let mut all_met = true;
     for spec in corpus::specs() {
         let original = corpus.join(spec.file);

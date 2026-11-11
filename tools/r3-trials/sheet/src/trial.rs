@@ -114,7 +114,8 @@ pub fn run_cell(
 fn cell(candidate: Candidate, spec: &Spec, corpus: &Path, out: &Path) -> Result<Line, String> {
     let original = corpus.join(spec.file);
     let dir = out.join(candidate.name());
-    std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("create {}: {e}", crate::paths::shown(&dir)))?;
     let saved = dir.join(spec.file);
     std::fs::copy(&original, &saved).map_err(|e| format!("copy {}: {e}", spec.file))?;
     candidate.change(&saved, spec.sheet, spec.cell, spec.new)?;

@@ -371,7 +371,8 @@ pub fn build(file: &str) -> Result<Workbook, XlsxError> {
 }
 
 pub fn generate(dir: &Path) -> Result<(), String> {
-    std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(dir)
+        .map_err(|e| format!("create {}: {e}", crate::paths::shown(dir)))?;
     for file in FILES {
         let mut workbook = build(file).map_err(|e| format!("{file}: {e}"))?;
         workbook

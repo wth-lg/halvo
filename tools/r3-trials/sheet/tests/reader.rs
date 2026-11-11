@@ -516,6 +516,39 @@ fn a_panic_in_a_library_is_a_miss_and_the_other_cells_run() {
 }
 
 #[test]
+fn a_miss_line_prints_no_absolute_path() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let inside = manifest.join("target").join("reader-miss-path");
+    let outside = std::env::temp_dir().join(format!("r3-sheet-trial-miss-{}", std::process::id()));
+    let cases = [
+        (
+            inside,
+            "cause=create_tools/r3-trials/sheet/target/reader-miss-path/blocker/umya:_",
+        ),
+        (outside, "cause=create_umya:_"),
+    ];
+    for (dir, want) in cases {
+        std::fs::create_dir_all(&dir).unwrap();
+        let blocker = dir.join("blocker");
+        std::fs::write(&blocker, b"").unwrap();
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_r3-sheet-trial"))
+            .args(["run", "--candidate", "umya", "--corpus"])
+            .arg(corpus_dir())
+            .arg("--out")
+            .arg(&blocker)
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(output.status.code(), Some(1), "{stderr}");
+        assert_eq!(stderr.lines().count(), 8, "{stderr}");
+        for line in stderr.lines() {
+            assert!(line.contains(want), "{line}");
+            assert!(!line.contains("_/") && !line.contains("=/"), "{line}");
+        }
+    }
+}
+
+#[test]
 fn the_binary_refuses_a_missing_flag() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_r3-sheet-trial"))
         .arg("run")

@@ -43,7 +43,7 @@ impl Mutation {
 }
 
 pub fn entries(path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
-    let file = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
+    let file = File::open(path).map_err(|e| format!("open {}: {e}", crate::paths::shown(path)))?;
     let mut archive = ZipArchive::new(file).map_err(|e| format!("zip: {e}"))?;
     let mut all = Vec::new();
     for index in 0..archive.len() {
@@ -64,7 +64,8 @@ pub fn entries(path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
 }
 
 fn write_entries(path: &Path, all: &[(String, Vec<u8>)]) -> Result<(), String> {
-    let file = File::create(path).map_err(|e| format!("create {}: {e}", path.display()))?;
+    let file =
+        File::create(path).map_err(|e| format!("create {}: {e}", crate::paths::shown(path)))?;
     let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     for (name, bytes) in all {

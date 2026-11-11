@@ -405,7 +405,7 @@ pub fn linked_parts(entries: &BTreeMap<String, Vec<u8>>) -> BTreeSet<String> {
 }
 
 pub fn read_entries(path: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
-    let file = File::open(path).map_err(|e| format!("open {}: {e}", path.display()))?;
+    let file = File::open(path).map_err(|e| format!("open {}: {e}", crate::paths::shown(path)))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("zip: {e}"))?;
     let mut all = BTreeMap::new();
     for index in 0..archive.len() {
