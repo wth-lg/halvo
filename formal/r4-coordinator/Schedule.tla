@@ -224,10 +224,10 @@ Recover(s, out, ev) ==
                     Append(out, [run |-> run.id, cause |-> "interrupted", next |-> <<>>]),
                     Append(ev, [k |-> "end", run |-> run.id, cause |-> "interrupted"]))
 
-Restart(s) ==
+Restart(s, d) ==
     LET v == Recover(s, <<>>, <<>>)
     IN [r |-> "ok", ended |-> v.ended, ev |-> v.ev,
-        st |-> [v.st EXCEPT !.life = @ + 1, !.queue = <<>>, !.ready = {}]]
+        st |-> [v.st EXCEPT !.life = @ + 1, !.day = d, !.queue = <<>>, !.ready = {}]]
 
 Delete(s, a) ==
     [r |-> "ok", ev |-> <<>>,
@@ -258,8 +258,8 @@ RunStep(s, mv) ==
 End(s, mv) ==
     IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, ev |-> <<>>]
     ELSE LET run == CHOOSE r \in s.runs : r.id = mv.run
-             cause == IF mv.frame # "none" THEN mv.frame
-                      ELSE IF run.phase = "stopping" THEN run.why
+             cause == IF run.phase = "stopping" THEN run.why
+                      ELSE IF mv.frame # "none" THEN mv.frame
                       ELSE "interrupted"
              e == EndRun(s, run, cause, mv.port)
          IN [r |-> "ok", st |-> e.st, cause |-> cause, next |-> e.next, ev |-> e.ev]
@@ -267,7 +267,7 @@ End(s, mv) ==
 Step(s, mv) ==
     CASE mv.m = "start" -> Press(s, mv.agent, mv.port)
       [] mv.m = "tick" -> Tick(s, mv.day, mv.grace, mv.port)
-      [] mv.m = "restart" -> Restart(s)
+      [] mv.m = "restart" -> Restart(s, mv.day)
       [] mv.m = "delete" -> Delete(s, mv.agent)
       [] mv.m = "off" -> Off(s, mv.agent)
       [] mv.m = "end" -> End(s, mv)
@@ -280,7 +280,8 @@ RunMoves(s, r) ==
     \cup (IF r.phase = "stopping" THEN {}
           ELSE {[m |-> "stop", run |-> r.id, cause |-> c] : c \in StopCauses})
     \cup {[m |-> "end", run |-> r.id, frame |-> f, port |-> p] :
-            f \in Frames \cup {"none"}, p \in IF Len(s.queue) = 0 THEN {"ok"} ELSE Ports}
+            f \in IF r.phase = "stopping" THEN {"none"} ELSE Frames,
+            p \in IF Len(s.queue) = 0 THEN {"ok"} ELSE Ports}
 
 Moves(s) ==
     {[m |-> "start", agent |-> a, port |-> p] : a \in Agents, p \in Ports}
@@ -289,7 +290,9 @@ Moves(s) ==
             d \in {s.day, s.day + 1} \cap Days,
             g \in IF \E r \in s.runs : r.phase = "stopping" THEN BOOLEAN ELSE {TRUE},
             p \in Ports}
-    \cup (IF s.life <= MaxRestarts THEN {[m |-> "restart"]} ELSE {})
+    \cup (IF s.life <= MaxRestarts
+          THEN {[m |-> "restart", day |-> d] : d \in {s.day, s.day + 1} \cap Days}
+          ELSE {})
     \cup (IF s.dels < MaxDeletes THEN {[m |-> "delete", agent |-> a] : a \in Deletable \ s.gone} ELSE {})
     \cup {[m |-> "off", agent |-> a] : a \in OffAgents \ s.off}
 
@@ -360,7 +363,7 @@ HFold(acc, evs, i) ==
 
 HMove(g, mv) ==
     CASE mv.m = "tick" -> [g EXCEPT !.day = mv.day]
-      [] mv.m = "restart" -> [g EXCEPT !.life = @ + 1,
+      [] mv.m = "restart" -> [g EXCEPT !.life = @ + 1, !.day = mv.day,
                                        !.wait = [a \in Agents |-> [t \in Triggers |-> 0]]]
       [] mv.m = "delete" -> [g EXCEPT !.gone[mv.agent] = "gone"]
       [] mv.m = "off" -> [g EXCEPT !.holds[mv.agent] = @ \cup {"off"}]
