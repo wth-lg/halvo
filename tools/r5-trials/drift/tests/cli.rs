@@ -1,6 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use r5_drift::case::Kind;
+use r5_drift::model::Tally;
+use r5_drift::targets;
+use r5_drift::trial::{rule, Row, Rule};
+
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
@@ -51,7 +56,7 @@ fn the_trial_prints_64_case_lines_and_a_verdict_line_and_exits_0() {
         .iter()
         .all(|line| line.starts_with("case name=")));
     assert!(lines[..64].iter().all(|line| line.contains(" failed=0 ")));
-    assert!(lines[64] == "verdict rule=admit" || lines[64] == "verdict rule=plain");
+    assert_eq!(lines[64], "verdict rule=admit");
     let arms: Vec<&str> = lines[..4]
         .iter()
         .map(|line| {
@@ -77,6 +82,56 @@ fn the_trial_prints_64_case_lines_and_a_verdict_line_and_exits_0() {
     let printed = names.clone();
     names.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
     assert_eq!(printed, names);
+}
+
+fn tally_of(line: &str) -> Tally {
+    let value = |key: &str| -> u32 {
+        line.split(' ')
+            .find_map(|word| word.strip_prefix(key))
+            .and_then(|number| number.parse().ok())
+            .expect(key)
+    };
+    Tally {
+        occurrences: value("occurrences="),
+        drifts: value("drifts="),
+        assisted: value("assisted="),
+        failed: value("failed="),
+        harm: value("harm="),
+        reverted_good: value("reverted_good="),
+    }
+}
+
+#[test]
+fn the_verdict_is_the_rule_on_the_printed_lines_of_plain_and_admit_with_sort_yes() {
+    let output = drift(&[]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    let targets = targets::parse(
+        &std::fs::read_to_string(root().join("docs/r5/targets.toml")).expect("the targets file"),
+    )
+    .expect("the targets file parses");
+    let rows: Vec<Row> = lines[..64]
+        .chunks(4)
+        .map(|four| {
+            assert!(four[1].contains(" arm=plain sort=- "), "{}", four[1]);
+            assert!(four[2].contains(" arm=admit sort=yes "), "{}", four[2]);
+            Row {
+                kind: if four[0].contains(" kind=fault ") {
+                    Kind::Fault
+                } else {
+                    Kind::Benign
+                },
+                plain: tally_of(four[1]),
+                admit: tally_of(four[2]),
+            }
+        })
+        .collect();
+    let verdict = match rule(&rows, &targets) {
+        Rule::Admit => "verdict rule=admit",
+        Rule::Plain => "verdict rule=plain",
+    };
+    assert_eq!(lines[64], verdict);
 }
 
 #[test]
