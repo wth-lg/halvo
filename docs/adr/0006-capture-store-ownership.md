@@ -28,8 +28,8 @@ The app is a client over a local control channel and links no store code.
   encrypted store, which is the only code that opens a persistent store. It opens
   it from `halvo-capture --service-run`, from the offline delete and from the
   debug-only modes, each under the instance lock of the data directory.
-- The app links none of halvo-capture, halvo-sqlcipher, rusqlite or libsqlite3-sys.
-  From app-2 on a CI check fails when it does.
+- From app-2 on, the app links none of halvo-capture, halvo-sqlcipher, rusqlite or
+  libsqlite3-sys, and a CI check fails when it does.
 
 ## Consequences
 
