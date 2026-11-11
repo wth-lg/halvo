@@ -58,7 +58,7 @@ fn inputs(dir: &Path) -> Vec<String> {
     .expect("driver");
     std::fs::write(
         dir.join("model-cells.md"),
-        "```\nbound model=m_a machine=mac bound_bytes=100 fits=yes\n```\n",
+        "```\nbound model=m_a machine=mac bound_bytes=100 fits=yes\nverdict candidates=-\n```\n",
     )
     .expect("cells");
     let out = dir.join("out");

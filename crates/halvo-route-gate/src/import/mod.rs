@@ -10,7 +10,8 @@
 //! with `attempt` is refused. Every other line of a block is passed over, and no line outside the
 //! block is read. Within one model, machine, task and seed, `compile`, `recover` and `write` have
 //! `i=1` and `replay` has `i` from 1 to 3 with no gap; the verdict's driver and writer have
-//! exactly the attempt lines of AS-A13.6, else `driver:verdict`.
+//! exactly the attempt lines of AS-A13.6, else `driver:verdict`. The last line of each block
+//! starts with `verdict`, and the cells block holds a `bound` line.
 
 mod blob;
 mod block;
@@ -56,7 +57,8 @@ impl Input {
 pub enum SourceError {
     /// The line of this number, counted from the first line of the file.
     Line(Input, usize),
-    /// The file does not hold exactly two fence lines, an opening and then a closing.
+    /// The file does not hold exactly two fence lines, an opening and then a closing, or the
+    /// cells block holds no `bound` line.
     Block(Input),
     /// The driver block holds no line or more than one line that starts `verdict`, or the
     /// verdict's driver or writer lacks an attempt line of the set or has a further one, or lacks
@@ -137,8 +139,9 @@ impl Imported {
 
 /// Parses both trial files and makes the four files, or names the first fault: the driver file
 /// before the cells file, each in line order; after the lines of the driver block a gap of the
-/// numbering, the count of verdict lines, the set of the verdict's driver and writer and their
-/// `drive` and `reply` lines.
+/// numbering, the count of verdict lines, the last line, the set of the verdict's driver and writer
+/// and their `drive` and `reply` lines; after the lines of the cells block its last line and then
+/// whether it holds a `bound` line (`cells:block`).
 pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceError> {
     let block_of = |input: Input, bytes| {
         block(bytes).map_err(|fault| match fault {
@@ -151,7 +154,8 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     let mut replays = Vec::new();
     let mut verdicts = Vec::new();
     let mut said = Vec::new();
-    for line in block_of(Input::Driver, driver.bytes)? {
+    let driver_block = block_of(Input::Driver, driver.bytes)?;
+    for &line in &driver_block {
         let fault = SourceError::Line(Input::Driver, line.number);
         if line.bytes.starts_with(lines::ATTEMPT) {
             let row = lines::attempt(line.bytes)
@@ -177,6 +181,7 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         return Err(SourceError::Line(Input::Driver, number));
     }
     let [verdict] = <[lines::Verdict; 1]>::try_from(verdicts).map_err(|_| SourceError::Verdict)?;
+    last_line(Input::Driver, &driver_block)?;
     if !set::holds(&verdict, &attempts) {
         return Err(SourceError::Verdict);
     }
@@ -186,7 +191,8 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
     })?;
     let mut bounds = Vec::new();
     let mut pairs: HashSet<(Model, Machine)> = HashSet::new();
-    for line in block_of(Input::Cells, cells.bytes)? {
+    let cells_block = block_of(Input::Cells, cells.bytes)?;
+    for &line in &cells_block {
         let fault = SourceError::Line(Input::Cells, line.number);
         if line.bytes.starts_with(lines::BOUND) {
             let bound = lines::bound(line.bytes).ok_or(fault)?;
@@ -200,6 +206,10 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         {
             return Err(fault);
         }
+    }
+    last_line(Input::Cells, &cells_block)?;
+    if bounds.is_empty() {
+        return Err(SourceError::Block(Input::Cells));
     }
 
     rows.sort_by_cached_key(|row| row.to_line());
@@ -242,6 +252,15 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
         rows: rows.len(),
         models: bounds.len(),
     })
+}
+
+fn last_line(input: Input, block: &[block::Line<'_>]) -> Result<(), SourceError> {
+    match block.last() {
+        Some(line) if !line.bytes.starts_with(lines::VERDICT) => {
+            Err(SourceError::Line(input, line.number))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Why `write_files` left none of its own files in the directory.

@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 const ATTEMPT: &str = "attempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6";
 const VERDICT: &str = "verdict driver=none path=B writer=none";
 const BOUND: &str = "bound model=m_a machine=mac bound_bytes=100 fits=yes";
+const CANDIDATES: &str = "verdict candidates=-";
 const ROW: &str = "bill\tutility_bill_payment\tcompile\ton_device\tm_a\tmac\t1\tdev\t1\tyes\t3\t10\t5\t6\tmedium\ts1";
 const MACHINES: [&str; 2] = ["mac", "hosted-win"];
 
@@ -165,7 +166,9 @@ fn run_files(driver: Vec<u8>, cells: Vec<u8>) -> Run {
 }
 
 fn run(driver: &[&str], cells: &[&str]) -> Run {
-    run_files(file("driver", block(driver)), file("cells", block(cells)))
+    let mut cells = cells.to_vec();
+    cells.push(CANDIDATES);
+    run_files(file("driver", block(driver)), file("cells", block(&cells)))
 }
 
 fn refs(lines: &[String]) -> Vec<&str> {
@@ -224,7 +227,7 @@ fn a_good_pair_writes_the_four_files_and_prints_the_line() {
 fn the_freeze_date_is_the_later_one_and_each_source_keeps_its_own() {
     let got = run_with(
         file("driver", block(&[ATTEMPT, VERDICT])),
-        file("cells", block(&[BOUND])),
+        file("cells", block(&[BOUND, CANDIDATES])),
         &[
             "import",
             "--date",
@@ -303,22 +306,100 @@ fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
 }
 
 #[test]
-fn a_block_with_no_known_line_but_the_verdict_imports_empty_tables() {
-    let got = run(&["verdict driver=none path=B writer=none"], &[]);
+fn a_driver_block_with_no_attempt_line_imports_an_empty_recorded_table() {
+    let got = run(&["verdict driver=none path=B writer=none"], &[BOUND]);
     got.passed();
-    assert_eq!(got.stdout, "import rows=0 models=0 sources=2\n");
+    assert_eq!(got.stdout, "import rows=0 models=1 sources=2\n");
     assert_eq!(
         got.file("recorded.tsv"),
         format!("{}\n", halvo_route_gate::table::HEADER)
     );
     assert_eq!(
         got.file("models.tsv"),
-        "model\tmachine\tbound_bytes\tfits\tgroup\tsource\n"
+        "model\tmachine\tbound_bytes\tfits\tgroup\tsource\nm_a\tmac\t100\tyes\tagents\ts2\n"
     );
     assert_eq!(
         got.file("freeze.txt"),
-        "freeze rows=0 models=0 sources=2 date=2026-11-10\non_device driver=none writer=none\n"
+        "freeze rows=0 models=1 sources=2 date=2026-11-10\non_device driver=none writer=none\n"
     );
+}
+
+#[test]
+fn the_last_line_of_each_block_starts_with_verdict() {
+    let mut wrong = Vec::new();
+    for (what, driver, cells, want) in [
+        (
+            "an attempt line after the verdict",
+            vec![VERDICT, ATTEMPT],
+            vec![BOUND, CANDIDATES],
+            "driver:4",
+        ),
+        (
+            "a passed-over line after the verdict",
+            vec![
+                ATTEMPT,
+                VERDICT,
+                "limits task=bill steps=1 wall_s=1 model_tokens=1",
+            ],
+            vec![BOUND, CANDIDATES],
+            "driver:5",
+        ),
+        (
+            "an empty line after the verdict",
+            vec![ATTEMPT, VERDICT, ""],
+            vec![BOUND, CANDIDATES],
+            "driver:5",
+        ),
+        (
+            "a bound line after the cells verdict",
+            vec![ATTEMPT, VERDICT],
+            vec![CANDIDATES, BOUND],
+            "cells:4",
+        ),
+        (
+            "a cell line after the cells verdict",
+            vec![ATTEMPT, VERDICT],
+            vec![BOUND, CANDIDATES, "cell model=m_a machine=mac"],
+            "cells:5",
+        ),
+        (
+            "no verdict line in the cells block",
+            vec![ATTEMPT, VERDICT],
+            vec![BOUND],
+            "cells:3",
+        ),
+    ] {
+        let got = run_files(file("driver", block(&driver)), file("cells", block(&cells)));
+        let want = format!("REFUSED source: {want}\n");
+        if got.code != Some(2) || got.stderr != want {
+            wrong.push(format!("{what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
+fn a_cells_block_with_no_bound_line_is_refused_after_its_last_line() {
+    for (cells, want) in [
+        (vec![CANDIDATES], "REFUSED source: cells:block"),
+        (Vec::new(), "REFUSED source: cells:block"),
+        (
+            vec!["cell model=m_a machine=mac", CANDIDATES],
+            "REFUSED source: cells:block",
+        ),
+        (
+            vec![CANDIDATES, "cell model=m_a machine=mac"],
+            "REFUSED source: cells:4",
+        ),
+    ] {
+        let got = run_files(
+            file("driver", block(&[ATTEMPT, VERDICT])),
+            file("cells", block(&cells)),
+        );
+        assert_eq!(got.refused(), want, "{cells:?}");
+    }
 }
 
 #[test]
@@ -477,7 +558,7 @@ fn lines_outside_the_block_are_not_read() {
     driver.extend(block(&[ATTEMPT, VERDICT]));
     driver.extend(b"attempt model=bad\nverdict driver=x\n\xff\n");
     let mut cells = b"bound model=BAD\n".to_vec();
-    cells.extend(block(&[BOUND]));
+    cells.extend(block(&[BOUND, CANDIDATES]));
     cells.extend(b"text after the block\n");
     let got = run_files(driver, cells);
     got.passed();
@@ -490,19 +571,19 @@ fn lines_outside_the_block_are_not_read() {
 fn the_fence_opens_with_three_backticks_and_one_word_of_letters_and_closes_with_three() {
     for opener in ["```", "```text", "```sh", "```Text", "```x"] {
         let driver = format!("# d\n{opener}\n{ATTEMPT}\n{VERDICT}\n```\n").into_bytes();
-        let got = run_files(driver, file("cells", block(&[BOUND])));
+        let got = run_files(driver, file("cells", block(&[BOUND, CANDIDATES])));
         got.passed();
     }
     let got = run_files(
         format!("# d\n```\n{ATTEMPT}\n{VERDICT}\n```").into_bytes(),
-        format!("```\n{BOUND}\n```").into_bytes(),
+        format!("```\n{BOUND}\n{CANDIDATES}\n```").into_bytes(),
     );
     got.passed();
 }
 
 #[test]
 fn a_file_with_no_block_or_two_is_refused() {
-    let good_cells = || file("cells", block(&[BOUND]));
+    let good_cells = || file("cells", block(&[BOUND, CANDIDATES]));
     let good_driver = || file("driver", block(&[ATTEMPT, VERDICT]));
     let cases: Vec<(&str, Vec<u8>)> = vec![
         (
@@ -654,7 +735,10 @@ fn a_fence_line_of_another_form_or_a_third_fence_line_is_refused() {
     ];
     let mut wrong = Vec::new();
     for (what, text) in &cases {
-        let got = run_files(text.clone().into_bytes(), file("cells", block(&[BOUND])));
+        let got = run_files(
+            text.clone().into_bytes(),
+            file("cells", block(&[BOUND, CANDIDATES])),
+        );
         if got.code != Some(2) || got.stderr != "REFUSED source: driver:block\n" {
             wrong.push(format!("driver, {what}: {:?} {:?}", got.code, got.stderr));
         } else {
@@ -681,12 +765,12 @@ fn a_fence_line_of_another_form_or_a_third_fence_line_is_refused() {
 fn a_carriage_return_is_refused_with_its_line() {
     let got = run_files(
         format!("# d\r\n```\n{ATTEMPT}\n{VERDICT}\n```\n").into_bytes(),
-        file("cells", block(&[BOUND])),
+        file("cells", block(&[BOUND, CANDIDATES])),
     );
     assert_eq!(got.refused(), "REFUSED source: driver:1");
     let got = run_files(
         format!("# d\n```\n{ATTEMPT}\r\n{VERDICT}\n```\n").into_bytes(),
-        file("cells", block(&[BOUND])),
+        file("cells", block(&[BOUND, CANDIDATES])),
     );
     assert_eq!(got.refused(), "REFUSED source: driver:3");
     let got = run_files(
@@ -696,7 +780,7 @@ fn a_carriage_return_is_refused_with_its_line() {
     assert_eq!(got.refused(), "REFUSED source: cells:6");
     let got = run_files(
         format!("# d\n```\r\n{ATTEMPT}\n{VERDICT}\n```\r\n").into_bytes(),
-        file("cells", block(&[BOUND])),
+        file("cells", block(&[BOUND, CANDIDATES])),
     );
     assert_eq!(got.refused(), "REFUSED source: driver:2");
 }
@@ -816,7 +900,7 @@ fn an_attempt_line_of_another_shape_is_refused() {
     bytes.extend(b"```\n");
     bytes.extend(b"attempt model=m_\xff machine=mac task=bill seed=1 kind=compile i=1 pass=yes steps=3 wall_s=10 tokens_in=5 tokens_out=6\n");
     bytes.extend(format!("{VERDICT}\n```\n").as_bytes());
-    let got = run_files(bytes, file("cells", block(&[BOUND])));
+    let got = run_files(bytes, file("cells", block(&[BOUND, CANDIDATES])));
     assert_eq!(got.refused(), "REFUSED source: driver:3");
 }
 
@@ -1154,7 +1238,7 @@ fn the_verdict_line_is_required_once() {
     assert_eq!(got.refused(), "REFUSED source: cells:4");
     let mut driver = file("driver", block(&[ATTEMPT]));
     driver.extend(format!("{VERDICT}\n").as_bytes());
-    let got = run_files(driver, file("cells", block(&[BOUND])));
+    let got = run_files(driver, file("cells", block(&[BOUND, CANDIDATES])));
     assert_eq!(got.refused(), "REFUSED source: driver:verdict");
 }
 
@@ -1293,7 +1377,7 @@ fn usage_is_refused_with_its_detail() {
     let good = || {
         (
             file("driver", block(&[ATTEMPT, VERDICT])),
-            file("cells", block(&[BOUND])),
+            file("cells", block(&[BOUND, CANDIDATES])),
         )
     };
     let (driver, cells) = good();
@@ -1611,7 +1695,7 @@ fn a_path_that_cannot_be_read_and_an_out_that_is_no_empty_directory_are_refused_
     let good = || {
         (
             file("driver", block(&[ATTEMPT, VERDICT])),
-            file("cells", block(&[BOUND])),
+            file("cells", block(&[BOUND, CANDIDATES])),
         )
     };
     let mut args = ARGS.to_vec();
@@ -1684,7 +1768,11 @@ fn a_path_with_a_backslash_is_kept_as_given() {
         file("driver", block(&[ATTEMPT, VERDICT])),
     )
     .expect("driver");
-    std::fs::write(dir.join("model-cells.md"), file("cells", block(&[BOUND]))).expect("cells");
+    std::fs::write(
+        dir.join("model-cells.md"),
+        file("cells", block(&[BOUND, CANDIDATES])),
+    )
+    .expect("cells");
     let mut args = ARGS.to_vec();
     args[2] = "sub\\driver.md";
     let output = Command::new(env!("CARGO_BIN_EXE_route-gate"))
