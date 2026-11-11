@@ -151,6 +151,12 @@ test_lists() {
   expect_refusal args/control-alone usage sh scripts/egress/check.sh --control-no-deny
   expect_refusal args/control-off-a-runner usage env -u GITHUB_ACTIONS sh scripts/egress/check.sh --self-test --control-no-deny
   expect_refusal args/self-test-with-list usage sh scripts/egress/check.sh --self-test scripts/egress/lists/empty.txt -- true
+  cp scripts/egress/lists/empty.txt "$work/a
+b.txt"
+  expect_refusal args/list-path-with-a-newline usage sh scripts/egress/check.sh "$work/a
+b.txt" -- true
+  cp scripts/egress/lists/empty.txt "$work/a	b.txt"
+  expect_refusal args/list-path-with-a-tab usage sh scripts/egress/check.sh "$work/a	b.txt" -- true
   (cd "$work" && expect_refusal args/outside-a-repository no-repository sh "$root/scripts/egress/check.sh" "$root/scripts/egress/lists/empty.txt" -- true)
   expect_refusal lists/committed-empty mode sh scripts/egress/check.sh --mode "$mode" scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh none
   expect_refusal lists/committed-loopback mode sh scripts/egress/check.sh --mode "$mode" scripts/egress/lists/loopback.txt -- sh scripts/egress/probe.sh none
@@ -400,6 +406,12 @@ test_wfp() {
   stop=$stop_first
   unserve
   expect_run wfp/listen-inside 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" listen
+  programs=${log%/denied.log}/programs
+  if [ -f "$programs" ] && ! grep -qi 'egress-probe' "$programs"; then
+    result wfp/no-rule-names-the-probe yes yes
+  else
+    result wfp/no-rule-names-the-probe yes no
+  fi
   ps_run wfp/named-binary-blocked 1 "\$c = New-Object System.Net.Sockets.TcpClient; try { if (\$c.ConnectAsync('192.0.2.1', 443).Wait(5000)) { exit 6 } else { exit 6 } } catch { \$e = \$_.Exception; while (\$null -ne \$e.InnerException) { \$e = \$e.InnerException }; if (\$e -is [System.Net.Sockets.SocketException] -and \$e.NativeErrorCode -eq 10013) { exit 5 } else { exit 6 } }"
   expect_run wfp/exit-code-passes 1 3 0 sh scripts/egress/check.sh "$e" -- sh -c 'exit 3'
   expect_run wfp/not-started 1 not-started 0 sh scripts/egress/check.sh "$e" -- "$work/no-such-command"
