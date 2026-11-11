@@ -95,6 +95,7 @@ and merge without an entry landing under the heading of another.
 - Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
 - Fixed: Make the R1 gate checks fail closed when a source did not run, the input counts of a run contradict its input mode, a bound is unreadable, a verify step outlives its deadline, a ci.d entry is not a regular NN-name.sh file, a mutant had no build of its kind, or the tree changed during the run
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
+- Added: Add the page-test harness under tools/r4-page with its pinned packages, the browser builds pinned by address, size and SHA-256 and not committed, the six accessibility checks and a self-test on a sample view
 - Added: Add ADRs 0004 to 0012 for what the capture run decided, docs/privacy-limits.md on what expiry and delete-all cover and which private windows capture tells, and a ci.d check of the ADR headers
 - Changed: Name the capture daemon in docs/plan.md as the only opener of the capture store and the app as its starter, with a dated revision line for each edit
 - Fixed: Cite the research lines that state the facts in ADRs 0001 and 0003 and record the crates of the workspace in ADR 0002, each by a dated amendment
