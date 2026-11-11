@@ -323,7 +323,11 @@ test_sandbox() {
   expect_refusal sandbox/other-loopback-entry entry sh scripts/egress/check.sh "$work/other-loopback.txt" -- sh "$pr" none
   printf '[fixed]\n[::1]:47201\n[agent]\n' >"$work/v6-loopback.txt"
   expect_refusal sandbox/v6-loopback-entry entry sh scripts/egress/check.sh "$work/v6-loopback.txt" -- sh "$pr" none
-  printf '%s\n' 'for d in target/egress/[0-9]*; do mkdir -p "$d/run" 2>/dev/null; printf "0\n" >"$d/run/status" 2>/dev/null; done' 'kill -9 "$PPID"' 'exit 3' >"$work/forge-status.sh"
+  cat >"$work/forge-status.sh" <<'TREE'
+for d in target/egress/[0-9]*; do mkdir -p "$d/run" 2>/dev/null; printf "0\n" >"$d/run/status" 2>/dev/null; done
+kill -9 "$PPID"
+exit 3
+TREE
   expect_run sandbox/tree-cannot-forge-its-status 1 signal-9 0 sh scripts/egress/check.sh "$e" -- sh "$work/forge-status.sh"
   printf '%s\n' "for d in target/egress/[0-9]*; do" \
     "if [ -f \$d/state ] && ! grep -q '^done\$' \$d/state; then" \
@@ -365,9 +369,15 @@ test_sandbox() {
   code=$?
   got=$(tail -n 1 "$work/copy.err")
   result sandbox/script-changed-during-run 'exit-2:REFUSED mode: a script of the check changed' "exit-$code:$got"
-  printf '%s\n' 'state=$(ls -t target/egress/[0-9]*/state | head -n 1)' 'token=$(sed -n "s/^token=//p" "$state")' \
-    'stream=$(sed -n "s/^stream=//p" "$state")' '/usr/bin/logger "$token mark-end"' 'sleep 1' 'kill "$stream" 2>/dev/null && exit 7' \
-    'exit 0' >"$work/forge-kill.sh"
+  cat >"$work/forge-kill.sh" <<'TREE'
+state=$(ls -t target/egress/[0-9]*/state | head -n 1)
+token=$(sed -n "s/^token=//p" "$state")
+stream=$(sed -n "s/^stream=//p" "$state")
+/usr/bin/logger "$token mark-end"
+sleep 1
+kill "$stream" 2>/dev/null && exit 7
+exit 0
+TREE
   expect_run sandbox/tree-cannot-end-the-stream 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$work/forge-kill.sh"
   head -n 1 "$work/forged.ndjson" >"$work/forged-end.ndjson"
   awk -v token=tok -v mark=end -f scripts/egress/sandbox.awk "$work/forged-end.ndjson" >/dev/null 2>&1

@@ -467,8 +467,8 @@ build_probe() {
   helper_sum=$(digest "$runner" | awk '{ print $1 }')
   [ -n "$helper_sum" ] || refuse mode "the helper binary has no digest"
   for name in egress-spawn egress-probe; do
-    cp "$runner" "$bin/$name-$$-copy$exe" && mv -f "$bin/$name-$$-copy$exe" "$bin/$name$exe" ||
-      refuse output "target/egress/bin/$name$exe"
+    cp "$runner" "$bin/$name-$$-copy$exe" || refuse output "target/egress/bin/$name$exe"
+    mv -f "$bin/$name-$$-copy$exe" "$bin/$name$exe" || refuse output "target/egress/bin/$name$exe"
   done
 }
 
@@ -485,7 +485,7 @@ parts_changed() {
 }
 
 identity() {
-  ls -di "$1" 2>/dev/null | awk '{ print $1 }'
+  stat -c %i "$1" 2>/dev/null || stat -f %i "$1" 2>/dev/null
 }
 
 moved() {
