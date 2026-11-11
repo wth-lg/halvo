@@ -9,11 +9,13 @@ use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey}
 const XNONCE_LEN: usize = size_of::<XNonce>();
 
 impl CustodyKind {
-    /// Whether this custody is strong enough for a release build.
+    /// Whether a release build accepts this custody kind: only a kind whose
+    /// root this build can destroy and whose custody it can rebuild, so that a
+    /// delete-all of its store can finish.
     pub fn is_acceptable_for_release(self) -> bool {
         match self {
-            CustodyKind::DevFallback => false,
-            CustodyKind::SecureEnclave | CustodyKind::Dpapi => true,
+            CustodyKind::DevFallback | CustodyKind::SecureEnclave => false,
+            CustodyKind::Dpapi => true,
         }
     }
 }
@@ -272,7 +274,7 @@ mod unsupported {
     }
 
     pub(super) fn destroy_root(_root_id: RootId) -> Result<(), CustodyError> {
-        Err(no_root())
+        Ok(())
     }
 
     #[cfg(test)]
@@ -523,10 +525,36 @@ mod tests {
     }
 
     #[test]
-    fn release_check_rejects_only_the_fallback() {
+    fn a_release_accepts_only_a_kind_whose_delete_all_can_finish() {
         assert!(!CustodyKind::DevFallback.is_acceptable_for_release());
-        assert!(CustodyKind::SecureEnclave.is_acceptable_for_release());
+        assert!(!CustodyKind::SecureEnclave.is_acceptable_for_release());
         assert!(CustodyKind::Dpapi.is_acceptable_for_release());
+    }
+
+    fn destroying_its_root_twice_is_no_error(custody: &dyn KeyCustody) {
+        custody
+            .wrap_store_key_under_new_root(&StoreKey::from_bytes([0x5c; 32]))
+            .unwrap();
+        let first = custody.destroy_root();
+        let second = custody.destroy_root();
+        assert!(
+            first.is_ok() && second.is_ok(),
+            "destroy_root answered {:?} and then {:?}",
+            first.err(),
+            second.err()
+        );
+    }
+
+    #[test]
+    fn destroying_a_root_twice_is_no_error_for_each_custody_the_product_builds() {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        destroying_its_root_twice_is_no_error(&DevFallbackCustody::new(RootId::fresh()));
+        #[cfg(target_os = "windows")]
+        destroying_its_root_twice_is_no_error(&crate::custody::windows::DpapiCustody::new(
+            RootId::fresh(),
+        ));
+        let dir = tempfile::tempdir().unwrap();
+        destroying_its_root_twice_is_no_error(&file_root_custody(dir.path()));
     }
 
     #[test]
