@@ -1036,3 +1036,59 @@ const RECORDER_JS: &str = "(() => {
   document.addEventListener('click', report('click'), true);
   document.addEventListener('input', report('input'), true);
 })();";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn start_refuses_a_used_profile_directory() {
+        let profile =
+            std::env::temp_dir().join(format!("r3-web-used-profile-{}", std::process::id()));
+        std::fs::create_dir_all(&profile).unwrap();
+        std::fs::write(profile.join("Local State"), b"{}").unwrap();
+        let opts = StartOptions {
+            browser: PathBuf::from("/nonexistent/chrome"),
+            profile,
+            headless: true,
+            flags: Vec::new(),
+            debug_port: None,
+        };
+        let refused = Executor::start(&opts).await.err();
+        assert_eq!(
+            refused.map(|f| f.1),
+            Some("profile directory is not empty".to_string())
+        );
+    }
+
+    #[test]
+    fn split_url_gives_origin_and_path() {
+        assert_eq!(
+            split_url("http://utility.agent.test:18090/prefs?x=1"),
+            (
+                "http://utility.agent.test:18090".to_string(),
+                "/prefs".to_string()
+            )
+        );
+        assert_eq!(
+            split_url("http://pay.agent.test:18090"),
+            ("http://pay.agent.test:18090".to_string(), "/".to_string())
+        );
+    }
+
+    #[test]
+    fn a_snapshot_line_quotes_and_marks() {
+        let line = SnapshotLine {
+            reference: "e7".into(),
+            role: "textbox",
+            name: "Say \"hi\"".into(),
+            value: None,
+            credential: true,
+            frame: Some("http://pay.agent.test:18090".into()),
+        };
+        assert_eq!(
+            line.render(),
+            "e7 textbox \"Say ''hi''\" credential frame=http://pay.agent.test:18090"
+        );
+    }
+}
