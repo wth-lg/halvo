@@ -140,7 +140,11 @@ pub fn classify(windows: bool, outcome: &Outcome, seen: &Seen) -> Verdict {
         if outcome.capped && seen.refused {
             return verdict(Word::Refused, None);
         }
-    } else if outcome.exit == Exit::Signal(SIGKILL) && !seen.refused && !seen.completed {
+    } else if outcome.exit == Exit::Signal(SIGKILL)
+        && outcome.capped
+        && !seen.refused
+        && !seen.completed
+    {
         let stop_ms = match seen.crossed_at {
             Some(at) if at < outcome.end => ((outcome.end.0 - at.0) / 1_000_000) as u64,
             _ => 0,
@@ -253,6 +257,19 @@ mod tests {
             &seen(Some(60), false, false),
         );
         assert_eq!((v.word, v.stop_ms), (Word::Stopped, Some(0)));
+    }
+
+    #[test]
+    fn on_macos_a_kill_that_follows_no_read_above_the_limit_is_a_miss() {
+        let v = classify(
+            false,
+            &ended(Exit::Signal(9), false, 300),
+            &seen(Some(100), false, false),
+        );
+        assert_eq!(
+            (v.word, v.stop_ms, v.ok(false)),
+            (Word::Failed, None, false)
+        );
     }
 
     #[test]
