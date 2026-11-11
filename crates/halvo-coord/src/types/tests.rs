@@ -386,13 +386,13 @@ fn an_item_is_made_by_one_constructor_per_kind() {
     let no = YesNo::No;
     let items = [
         Item::confirm(id(), agent(), Presenter::Native, no, s(), vec![], vec![]),
-        Item::sign_in(id(), agent(), no, s(), s(), vec![]),
-        Item::link_account(id(), agent(), no, s(), s(), vec![]),
-        Item::stuck(id(), agent(), no, s(), s(), vec![]),
-        Item::check(id(), agent(), no, s(), s(), vec![], vec![]),
-        Item::setup(id(), agent(), no, s(), s(), vec![], vec![]),
-        Item::ready(id(), agent(), no, s(), s(), vec![]),
-        Item::show(id(), agent(), no, s(), s(), vec![]),
+        Item::sign_in(id(), agent(), s(), s(), vec![]),
+        Item::link_account(id(), agent(), s(), s(), vec![]),
+        Item::stuck(id(), agent(), s(), s(), vec![]),
+        Item::check(id(), agent(), s(), s(), vec![], vec![]),
+        Item::setup(id(), agent(), s(), s(), vec![], vec![]),
+        Item::ready(id(), agent(), s(), s(), vec![]),
+        Item::show(id(), agent(), s(), s(), vec![]),
     ];
     let got: Vec<(&str, Option<Presenter>)> = items
         .iter()
@@ -491,6 +491,33 @@ fn the_facts_hold_one_run_state_and_at_most_one_item_of_the_right_source() {
         ["check", "setup", "ready"],
         "the kinds that a hold or the scheduler raises, I3.1"
     );
+}
+
+#[test]
+fn an_item_that_is_no_confirmation_is_not_armed() {
+    let id = || ItemId::parse(&"3".repeat(32)).unwrap();
+    let agent = || AgentId::parse(&"2".repeat(32)).unwrap();
+    let s = String::new;
+    let others = [
+        Item::sign_in(id(), agent(), s(), s(), vec![]),
+        Item::link_account(id(), agent(), s(), s(), vec![]),
+        Item::stuck(id(), agent(), s(), s(), vec![]),
+        Item::check(id(), agent(), s(), s(), vec![], vec![]),
+        Item::setup(id(), agent(), s(), s(), vec![], vec![]),
+        Item::ready(id(), agent(), s(), s(), vec![]),
+        Item::show(id(), agent(), s(), s(), vec![]),
+    ];
+    assert!(others.iter().all(|i| i.armed() == YesNo::No));
+    let page = Item::confirm(
+        id(),
+        agent(),
+        Presenter::Page,
+        YesNo::Yes,
+        s(),
+        vec![],
+        vec![],
+    );
+    assert_eq!(page.armed(), YesNo::Yes);
 }
 
 #[test]

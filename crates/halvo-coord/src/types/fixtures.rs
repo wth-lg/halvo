@@ -817,13 +817,12 @@ fn item(state: State, b: &Built) -> Option<Item> {
             two_choices(kind),
         )
     };
-    let armed = YesNo::No;
     Some(match kind {
         ItemKind::Confirm => confirm(state, id, agent),
         ItemKind::Check => {
             let (title, text, choices) = plain();
             let kept = fields(Class::Payment, &PAYMENT);
-            Item::check(id, agent, armed, title, text, kept, choices)
+            Item::check(id, agent, title, text, kept, choices)
         }
         ItemKind::Setup => {
             let (title, text, choices) = plain();
@@ -836,27 +835,27 @@ fn item(state: State, b: &Built) -> Option<Item> {
                     _ => param(p, None),
                 })
                 .collect();
-            Item::setup(id, agent, armed, title, text, asked, choices)
+            Item::setup(id, agent, title, text, asked, choices)
         }
         ItemKind::SignIn => {
             let (title, text, choices) = plain();
-            Item::sign_in(id, agent, armed, title, text, choices)
+            Item::sign_in(id, agent, title, text, choices)
         }
         ItemKind::LinkAccount => {
             let (title, text, choices) = plain();
-            Item::link_account(id, agent, armed, title, text, choices)
+            Item::link_account(id, agent, title, text, choices)
         }
         ItemKind::Stuck => {
             let (title, text, choices) = plain();
-            Item::stuck(id, agent, armed, title, text, choices)
+            Item::stuck(id, agent, title, text, choices)
         }
         ItemKind::Ready => {
             let (title, text, choices) = plain();
-            Item::ready(id, agent, armed, title, text, choices)
+            Item::ready(id, agent, title, text, choices)
         }
         ItemKind::Show => {
             let (title, text, choices) = plain();
-            Item::show(id, agent, armed, title, text, choices)
+            Item::show(id, agent, title, text, choices)
         }
     })
 }

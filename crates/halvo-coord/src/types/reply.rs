@@ -81,7 +81,8 @@ pub struct CardRun {
 }
 
 /// An item, as the page gets it (I3.4), made by the one constructor of its kind: a
-/// confirmation has its presenter and an empty `text`, every other kind a null presenter;
+/// confirmation has its presenter and an empty `text`, every other kind a null presenter and
+/// `armed` `no`;
 /// `fields` stand only in a confirmation and a check, and `params` only in a setup.
 ///
 /// ```
@@ -89,12 +90,12 @@ pub struct CardRun {
 /// let ready = Item::ready(
 ///     ItemId::parse("00000000000000000000000000000003").unwrap(),
 ///     AgentId::parse("00000000000000000000000000000002").unwrap(),
-///     YesNo::No,
 ///     String::new(),
 ///     String::new(),
 ///     vec![],
 /// );
 /// assert_eq!((ready.kind(), ready.presenter()), (ItemKind::Ready, None));
+/// assert_eq!(ready.armed(), YesNo::No);
 /// ```
 ///
 /// A `ready` item with a presenter cannot be written:
@@ -126,6 +127,20 @@ pub struct CardRun {
 ///     YesNo::Yes,
 ///     String::new(),
 ///     vec![],
+///     vec![],
+/// );
+/// ```
+///
+/// Nor an armed item of another kind than `confirm`:
+///
+/// ```compile_fail,E0061
+/// use halvo_coord::types::{AgentId, Item, ItemId, YesNo};
+/// let ready = Item::ready(
+///     ItemId::parse("00000000000000000000000000000003").unwrap(),
+///     AgentId::parse("00000000000000000000000000000002").unwrap(),
+///     YesNo::Yes,
+///     String::new(),
+///     String::new(),
 ///     vec![],
 /// );
 /// ```
@@ -189,14 +204,13 @@ impl Item {
     pub fn sign_in(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
             choices,
-            ..Item::of_kind(ItemKind::SignIn, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::SignIn, item, agent, YesNo::No, title, text)
         }
     }
 
@@ -204,14 +218,13 @@ impl Item {
     pub fn link_account(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
             choices,
-            ..Item::of_kind(ItemKind::LinkAccount, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::LinkAccount, item, agent, YesNo::No, title, text)
         }
     }
 
@@ -219,14 +232,13 @@ impl Item {
     pub fn stuck(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
             choices,
-            ..Item::of_kind(ItemKind::Stuck, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::Stuck, item, agent, YesNo::No, title, text)
         }
     }
 
@@ -234,7 +246,6 @@ impl Item {
     pub fn check(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         fields: Vec<Field>,
@@ -243,7 +254,7 @@ impl Item {
         Item {
             fields,
             choices,
-            ..Item::of_kind(ItemKind::Check, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::Check, item, agent, YesNo::No, title, text)
         }
     }
 
@@ -251,7 +262,6 @@ impl Item {
     pub fn setup(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         params: Vec<ParamEntry>,
@@ -260,7 +270,7 @@ impl Item {
         Item {
             params,
             choices,
-            ..Item::of_kind(ItemKind::Setup, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::Setup, item, agent, YesNo::No, title, text)
         }
     }
 
@@ -268,14 +278,13 @@ impl Item {
     pub fn ready(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
             choices,
-            ..Item::of_kind(ItemKind::Ready, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::Ready, item, agent, YesNo::No, title, text)
         }
     }
 
@@ -283,14 +292,13 @@ impl Item {
     pub fn show(
         item: ItemId,
         agent: AgentId,
-        armed: YesNo,
         title: String,
         text: String,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
             choices,
-            ..Item::of_kind(ItemKind::Show, item, agent, armed, title, text)
+            ..Item::of_kind(ItemKind::Show, item, agent, YesNo::No, title, text)
         }
     }
 
