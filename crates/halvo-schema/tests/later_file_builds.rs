@@ -88,6 +88,27 @@ const TWIN: &[&str] = &[
     "pub fn checked(r: &crate::record::Recurrence) -> bool {\n    serde_json::to_vec(r).is_ok()\n}\n",
 ];
 
+const READ_AS_CODE: &[(&str, &[&str])] = &[
+    (
+        "issue-1-forms",
+        &[
+            "pub const C: &core::ffi::CStr = cr#\"\\\"#;\npub const fn after_a_raw_c_string() -> u8 {\n    1\n}\n",
+            "pub const TWO: [char; 2] = ['\u{e9}','\"'];\npub const fn after_two_chars() -> u8 {\n    2\n}\n",
+            "pub const fn after_a_lifetime<'a>(x: &'a str) -> char {\n    let _ = x;\n    'a'\n}\n",
+            "/// a \"quote\npub const fn after_a_doc_comment() -> u8 {\n    4\n}\n",
+            "pub fn r#include() -> u8 {\n    3\n}\n",
+            "pub const SUM: u8 = after_a_raw_c_string() + after_two_chars() + after_a_doc_comment();\n",
+        ],
+    ),
+    (
+        "shebang",
+        &[
+            "#!/bin/sh \"\n",
+            "#[macro_export]\nmacro_rules! hidden {\n    () => {\n        3\n    };\n}\npub const H: u8 = crate::hidden!();\n// \"\n",
+        ],
+    ),
+];
+
 fn copy_rust_files(from: &Path, to: &Path, top: bool) {
     std::fs::create_dir_all(to).unwrap_or_else(|e| panic!("{}: {e}", to.display()));
     let entries = std::fs::read_dir(from).unwrap_or_else(|e| panic!("{}: {e}", from.display()));
@@ -109,8 +130,13 @@ fn fixture(root: &Path, name: &str, later: &[&str]) -> PathBuf {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let dir = root.join(name);
     copy_rust_files(&manifest_dir.join("src"), &dir.join("src"), true);
-    let text: String = std::iter::once(KINDS)
-        .chain(later.iter().copied())
+    let (first, rest) = match later.split_first() {
+        Some((first, rest)) if first.starts_with("#!") => (*first, rest),
+        _ => ("", later),
+    };
+    let text: String = [first, KINDS]
+        .into_iter()
+        .chain(rest.iter().copied())
         .collect();
     std::fs::write(dir.join("src").join("learning.rs"), text).expect("learning.rs of the fixture");
     let manifest = std::fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("the manifest");
@@ -206,6 +232,22 @@ fn a_later_file_that_tries_a_maker_of_ids_rs_or_unsafe_code_does_not_compile() {
             wrong.push(format!(
                 "{}: compiled={} codes={:?} want={:?} files={:?}\n{}",
                 case.name, build.ok, build.codes, want, build.files, build.stderr
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+#[test]
+fn the_compiler_reads_as_code_what_follows_each_form_of_the_lexer_cases() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("later-file-builds");
+    let mut wrong = Vec::new();
+    for (name, later) in READ_AS_CODE {
+        let build = check(&root, &fixture(&root, name, later));
+        if !build.ok || !build.codes.is_empty() {
+            wrong.push(format!(
+                "{name}: compiled={} codes={:?}\n{}",
+                build.ok, build.codes, build.stderr
             ));
         }
     }
