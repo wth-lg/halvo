@@ -1,7 +1,7 @@
 mod support;
 
 use halvo_redact::mask;
-use support::{grouped, luhn_number};
+use support::{grouped, iban, luhn_number};
 
 fn masks_to(title: &str, want: &str) {
     let got = mask(title);
@@ -122,6 +122,98 @@ fn digits_outside_ascii_are_not_read() {
         .map(|c| char::from_u32(0xFF10 + (c as u32 - '0' as u32)).unwrap_or(c))
         .collect();
     unchanged(&format!("pay {wide} now"));
+}
+
+fn holds_no(title: &str, token: &str) {
+    let got = mask(title);
+    assert!(!got.contains(token), "mask of {title:?} is {got:?}");
+    assert_eq!(mask(&got), got, "mask of the result of {title:?}");
+}
+
+fn de_iban() -> String {
+    iban("DE", "123456781234567890")
+}
+
+#[test]
+fn ibans_of_15_to_34_characters_are_masked_plain_and_in_groups_of_four() {
+    for length in 15..=34 {
+        let bban: String = "9081726354".chars().cycle().take(length - 4).collect();
+        let number = iban("NO", &bban);
+        for written in [number.clone(), grouped(&number, ' ')] {
+            masks_to(&format!("transfer {written} now"), "transfer [iban] now");
+            masks_to(&written, "[iban]");
+        }
+    }
+}
+
+#[test]
+fn an_iban_with_letters_in_its_account_part_is_masked() {
+    let number = iban("GB", "WXYZ12345612345678");
+    masks_to(
+        &format!("Transfer to {} | Bank", grouped(&number, ' ')),
+        "Transfer to [iban] | Bank",
+    );
+    masks_to(&format!("({number})"), "([iban])");
+}
+
+#[test]
+fn upper_case_text_after_an_iban_does_not_stop_it() {
+    let number = de_iban();
+    masks_to(&format!("{number} OK"), "[iban] OK");
+    masks_to(
+        &format!("{} AB12 end", grouped(&number, ' ')),
+        "[iban] AB12 end",
+    );
+}
+
+#[test]
+fn two_ibans_side_by_side_are_both_masked() {
+    let first = de_iban();
+    let second = iban("GB", "WXYZ12345612345678");
+    masks_to(&format!("{first} {second}"), "[iban] [iban]");
+    masks_to(&format!("{first},{second}"), "[iban],[iban]");
+}
+
+fn de_iban_with_last_digit_plus(step: u8) -> String {
+    let number = de_iban();
+    let (body, last) = number.split_at(number.len() - 1);
+    format!("{body}{}", (last.as_bytes()[0] - b'0' + step) % 10)
+}
+
+#[test]
+fn an_iban_that_fails_the_mod_97_check_is_not_masked_as_one() {
+    let wrong = de_iban_with_last_digit_plus(1);
+    holds_no(&format!("transfer {wrong} now"), "[iban]");
+    let number = de_iban();
+    assert!(number.starts_with("DE87"));
+    let wrong = number.replacen("DE87", "DE88", 1);
+    holds_no(&format!("transfer {wrong} now"), "[iban]");
+    holds_no(&format!("transfer {} now", grouped(&wrong, ' ')), "[iban]");
+}
+
+#[test]
+fn the_longest_reading_that_passes_the_mod_97_check_is_masked() {
+    let wrong = grouped(&de_iban_with_last_digit_plus(1), ' ');
+    assert_eq!(wrong, "DE87 1234 5678 1234 5678 91");
+    masks_to(&format!("transfer {wrong} now"), "transfer [iban] 91 now");
+}
+
+#[test]
+fn lower_case_other_separators_and_neighbours_keep_an_iban() {
+    let number = de_iban();
+    holds_no(
+        &format!("transfer {} now", number.to_ascii_lowercase()),
+        "[iban]",
+    );
+    holds_no(&format!("transfer {} now", grouped(&number, '-')), "[iban]");
+    holds_no(
+        &format!("transfer {} now", grouped(&number, ' ').replace(' ', "  ")),
+        "[iban]",
+    );
+    holds_no(&format!("transfer x{number} now"), "[iban]");
+    holds_no(&format!("transfer 7{number} now"), "[iban]");
+    holds_no(&format!("transfer {number}x now"), "[iban]");
+    holds_no(&format!("transfer {number}7 now"), "[iban]");
 }
 
 #[test]

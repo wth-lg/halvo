@@ -1,7 +1,9 @@
 mod card;
+mod iban;
 
 /// Returns `title` with every identifier that a rule of this crate finds replaced by the token
-/// of its rule: `[card]` for a card number that passes the Luhn check.
+/// of its rule: `[iban]` for an IBAN that passes the mod 97 check and `[card]` for a card
+/// number that passes the Luhn check.
 ///
 /// The text is scanned from the start; at each byte the rules are tried in a fixed order and
 /// the first match is replaced, and scans repeat until one changes nothing, so
@@ -21,27 +23,34 @@ pub fn mask(title: &str) -> String {
 
 #[derive(Clone, Copy)]
 enum Rule {
+    Iban,
     Card,
 }
 
 impl Rule {
-    const ORDER: [Rule; 1] = [Rule::Card];
+    const ORDER: [Rule; 2] = [Rule::Iban, Rule::Card];
 
     fn token(self) -> &'static str {
         match self {
+            Rule::Iban => "[iban]",
             Rule::Card => "[card]",
         }
     }
 
-    fn end_of_match(self, text: &[u8], start: usize) -> Option<usize> {
-        let before = start.checked_sub(1).map(|p| text[p]);
+    fn may_follow(self, before: u8) -> bool {
         match self {
-            Rule::Card => {
-                if before.is_some_and(|b| b.is_ascii_digit()) {
-                    return None;
-                }
-                card::end_of_match(text, start)
-            }
+            Rule::Iban => !before.is_ascii_alphanumeric(),
+            Rule::Card => !before.is_ascii_digit(),
+        }
+    }
+
+    fn end_of_match(self, text: &[u8], start: usize) -> Option<usize> {
+        if start > 0 && !self.may_follow(text[start - 1]) {
+            return None;
+        }
+        match self {
+            Rule::Iban => iban::end_of_match(text, start),
+            Rule::Card => card::end_of_match(text, start),
         }
     }
 }
