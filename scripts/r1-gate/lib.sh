@@ -435,11 +435,13 @@ tree_id() {
 head_read() {
   head_sha=$(git -C "$GATE_ROOT" rev-parse HEAD 2>/dev/null) || return 1
   head_tree=$(tree_id "$GATE_ROOT" HEAD) || return 1
-  head_porcelain=$(git -C "$GATE_ROOT" status --porcelain --untracked-files=all --ignore-submodules=none 2>/dev/null) || return 1
+  head_porcelain=$(git -C "$GATE_ROOT" -c core.fileMode=true status --porcelain --untracked-files=no --ignore-submodules=none 2>/dev/null) || return 1
+  head_untracked=$(git -C "$GATE_ROOT" ls-files --others --exclude-per-directory=.gitignore 2>/dev/null) || return 1
   head_index=$(git -C "$GATE_ROOT" ls-files -v 2>/dev/null) || return 1
   head_flagged=$(printf '%s\n' "$head_index" | awk 'NF > 0 && $1 != "H" { print; exit }')
   head_state=clean
   predicate_tree_clean "$head_porcelain" || head_state=dirty
+  predicate_tree_clean "$head_untracked" || head_state=dirty
   predicate_tree_clean "$head_flagged" || head_state=dirty
   printf '%s %s %s\n' "$head_sha" "$head_tree" "$head_state"
 }

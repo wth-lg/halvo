@@ -211,7 +211,7 @@ real_repository() {
   repo=$gate_scratch/$1
   git init -q "$repo" > /dev/null 2>&1 || return 1
   printf 'one\n' > "$repo/a.txt"
-  git -C "$repo" add a.txt || return 1
+  git -C "$repo" add -A || return 1
   repo_tree=$(git -C "$repo" write-tree) || return 1
   repo_commit=$(printf 'tree %s\nauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$repo_tree" | git -C "$repo" hash-object -t commit -w --stdin) || return 1
   git -C "$repo" update-ref HEAD "$repo_commit"
@@ -336,6 +336,14 @@ cases_run() {
   t assume-unchanged-entry-is-dirty PASS head_state_is dirty assumed
   real_repository skipped && git -C "$gate_scratch/skipped" update-index --skip-worktree a.txt
   t skip-worktree-entry-is-dirty PASS head_state_is dirty skipped
+  real_repository excluded && printf 'notes.txt\n' >> "$gate_scratch/excluded/.git/info/exclude" && printf 'new\n' > "$gate_scratch/excluded/notes.txt"
+  t untracked-file-in-info-exclude-is-dirty PASS head_state_is dirty excluded
+  real_repository excludes-file && printf 'notes.txt\n' > "$gate_scratch/excludes-file.list" && git -C "$gate_scratch/excludes-file" config core.excludesFile "$gate_scratch/excludes-file.list" && printf 'new\n' > "$gate_scratch/excludes-file/notes.txt"
+  t untracked-file-in-an-excludes-file-is-dirty PASS head_state_is dirty excludes-file
+  real_repository mode-changed && git -C "$gate_scratch/mode-changed" config core.fileMode false && chmod 755 "$gate_scratch/mode-changed/a.txt"
+  t mode-change-under-core-filemode-false-is-dirty PASS head_state_is dirty mode-changed
+  mkdir -p "$gate_scratch/ignored" && printf 'notes.txt\n' > "$gate_scratch/ignored/.gitignore" && real_repository ignored && printf 'new\n' > "$gate_scratch/ignored/notes.txt"
+  t file-that-a-tracked-gitignore-names-is-clean PASS head_state_is clean ignored
   real_repository untracked && printf 'new\n' > "$gate_scratch/untracked/notes.txt"
   t untracked-file-makes-the-head-dirty PASS head_state_is dirty untracked
   t measured-run-on-a-dirty-tree-is-refused PASS dirty_run_is_refused untracked
