@@ -479,8 +479,15 @@ where
             send_state(cx, &board.members[i].facts, state);
         }
     }
-    if let (Some(cause), Verdict::Queued | Verdict::Go(_)) = (unread, &step.verdict) {
-        return served(Err(cause));
+    if let Some(cause) = unread {
+        let off = holds(&board.members[i].facts).contains(&Hold::Off);
+        match step.verdict {
+            Verdict::Refused(Cause::QueueFull) | Verdict::Queued | Verdict::Go(_) => {
+                return served(Err(cause));
+            }
+            Verdict::Refused(Cause::Hold) if !off => return served(Err(cause)),
+            Verdict::Refused(_) => {}
+        }
     }
     match step.verdict {
         Verdict::Refused(cause) => served(Err(cause)),
@@ -981,10 +988,11 @@ where
 /// move decides from what the owner answers in that move (ruling XB-9): the workflow's state,
 /// trigger, period and `last` from the owner's list that it reads, and from the agent's entry
 /// of `Owner::agents` its configuration, its slot names, its session, whether the agent store
-/// has ended its newest run and that run's record (ruling XB-2); a start of the person whose read fails goes
-/// through steps 0 to 3 on the facts it holds and is answered `busy` or `no_service` where the
-/// store's answer would decide, so that an earlier step that fails keeps its cause. A start goes through `start_step` and then steps 5
-/// to 8 of I5.5: the request to defer, the `run_started` event, which closes an open `ready`
+/// has ended its newest run and that run's record (ruling XB-2). A start of the person whose
+/// read of the agents fails keeps the cause of a step that the owner's list and the stored
+/// events decide (step 0, the hold `off`, step 2, a live or queued run), and is answered with
+/// the read's cause, `busy` or `no_service`, wherever the entry or the store would decide. A
+/// start goes through `start_step` and then steps 5 to 8 of I5.5: the request to defer, the `run_started` event, which closes an open `ready`
 /// item in the same body, the body `start_run` and `Runs::start`; a failed step 7 or 8 stores
 /// `run_ended` with `failed` and answers `no_service`. The end of a run stores `run_ended`
 /// unless its workflow is gone, with `hold_set` of `failures` and `set_state` `paused` when the

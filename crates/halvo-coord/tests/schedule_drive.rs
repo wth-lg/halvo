@@ -2280,3 +2280,44 @@ fn an_end_reads_the_day_first() {
     let next = end.ended[0].next[0].run.clone().unwrap();
     assert_eq!(started_on(&w, &next).0, DAY + 1);
 }
+
+#[test]
+fn a_failed_read_of_the_agents_answers_its_cause_where_the_entry_or_the_store_decides() {
+    let mut w = world(&[manual(); 6]);
+    let r5 = ok_run(&w.start(5));
+    w.end_only(&r5, Some(Outcome::Completed));
+    ok_run(&w.start(0));
+    for n in 1..=4 {
+        assert_eq!(w.start(n).answer, Ok(Answer::Queued));
+    }
+    assert_eq!(
+        w.start(5).answer,
+        Err(Cause::State),
+        "the store has not ended its run"
+    );
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    assert_eq!(
+        w.start(5).answer,
+        Err(Cause::Busy),
+        "not step 4's queue_full"
+    );
+    let email = A {
+        category: Category::Email,
+        runtime: "graph_mail",
+        slots: &[],
+        ..manual()
+    };
+    let mut e = world(&[email]);
+    e.ports.refuse(Method::Agents, PortError::NoService);
+    assert_eq!(
+        e.start(0).answer,
+        Err(Cause::NoService),
+        "the hold setup comes from the entry, which was not read"
+    );
+    e.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(
+        e.start(0).answer,
+        Err(Cause::Hold),
+        "the hold off comes from the stored events"
+    );
+}
