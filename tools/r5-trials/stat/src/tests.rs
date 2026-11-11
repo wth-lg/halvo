@@ -218,6 +218,14 @@ fn targets_refuses_other_forms() {
 }
 
 #[test]
+fn the_output_refusal_is_one_line_of_its_cause() {
+    assert_eq!(
+        Refusal::Output.to_string(),
+        "REFUSED output: standard output cannot be written"
+    );
+}
+
+#[test]
 fn targets_refuses_an_extra_key() {
     assert_eq!(
         refused(parse_targets(&REPO_TARGETS.replacen(

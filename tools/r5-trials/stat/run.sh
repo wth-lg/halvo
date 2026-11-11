@@ -18,7 +18,8 @@ Exit status:
   0  the block was printed and its verdict is stat=ok
   1  the block was printed and its verdict is stat=miss
   2  refused: one line "REFUSED <cause>: <detail>" on standard error and
-     nothing on standard output; <cause> is usage, build or input
+     nothing on standard output; <cause> is usage, output (standard output
+     is closed or cannot be written), build or input
 EOF
 }
 
@@ -26,6 +27,8 @@ refuse() {
   printf 'REFUSED %s: %s\n' "$1" "$2" >&2
   exit 2
 }
+
+true 2>/dev/null 3>&1 || refuse output "standard output cannot be written"
 
 case $# in
 0) ;;

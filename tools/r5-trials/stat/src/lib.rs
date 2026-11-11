@@ -151,6 +151,7 @@ impl Verdict {
 pub enum Refusal {
     Usage(String),
     Input(String),
+    Output,
 }
 
 impl fmt::Display for Refusal {
@@ -158,6 +159,7 @@ impl fmt::Display for Refusal {
         match self {
             Refusal::Usage(detail) => write!(f, "REFUSED usage: {detail}"),
             Refusal::Input(detail) => write!(f, "REFUSED input: {detail}"),
+            Refusal::Output => f.write_str("REFUSED output: standard output cannot be written"),
         }
     }
 }
