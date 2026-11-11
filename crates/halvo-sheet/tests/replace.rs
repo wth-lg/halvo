@@ -65,6 +65,25 @@ fn kept(scratch: &Scratch, folder: &Folder, prepared: &Prepared, why: Kept, file
 }
 
 #[test]
+fn a_prepared_copy_that_no_replace_put_in_place_goes_when_it_is_dropped() {
+    let scratch = Scratch::new("replace-dropped");
+    let (folder, prepared, before) = setup(&scratch);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, COPY]));
+    drop(prepared);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), before);
+    let scratch = Scratch::new("replace-dropped-after");
+    let (folder_2, prepared, _) = setup(&scratch);
+    let copy = fs::read(scratch.path(COPY)).expect("read the copy");
+    assert_eq!(folder_2.replace(&prepared), Ok(()));
+    fs::write(scratch.path(COPY), b"a file of the same name made later").expect("write");
+    drop(prepared);
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), copy);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, COPY]));
+    drop(folder);
+}
+
+#[test]
 fn a_workbook_changed_after_prepare_is_kept_as_the_person_left_it() {
     let scratch = Scratch::new("replace-changed");
     let (folder, prepared, _) = setup(&scratch);

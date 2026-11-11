@@ -34,8 +34,11 @@ impl RunId {
 /// [`crate::Folder::replace`] needs: the checkpoint `<name>.halvo-checkpoint-<run id><ext>`, a
 /// copy of the workbook as it was, and the prepared copy `<name>.halvo-prepared-<run id><ext>`,
 /// the workbook with the new cells, whose content the sameness check of `prepare` read.
+/// Dropping a `Prepared` that no `replace` put in place removes the prepared copy when no
+/// link stands on the way to it, and leaves the checkpoint.
 #[derive(Debug)]
 pub struct Prepared {
+    pub(crate) root: PathBuf,
     pub(crate) workbook: PathBuf,
     pub(crate) checkpoint: PathBuf,
     pub(crate) copy: PathBuf,
@@ -56,6 +59,17 @@ impl Prepared {
     }
 }
 
+impl Drop for Prepared {
+    fn drop(&mut self) {
+        if self.answer.get() != Some(&Ok(())) {
+            let root = std::slice::from_ref(&self.root);
+            if let Ok(copy) = path::file(&self.root, root, &self.copy) {
+                let _ = fs::remove_file(copy);
+            }
+        }
+    }
+}
+
 fn beside(workbook: &Path, tag: &str, run: &RunId) -> PathBuf {
     let mut name = OsString::new();
     name.push(workbook.file_stem().unwrap_or_default());
@@ -68,6 +82,7 @@ fn beside(workbook: &Path, tag: &str, run: &RunId) -> PathBuf {
 }
 
 pub(crate) fn prepare(
+    root: &Path,
     workbook: PathBuf,
     run: &RunId,
     sheet: &str,
@@ -106,6 +121,7 @@ pub(crate) fn prepare(
     });
     match checked {
         Ok(disk) => Ok(Prepared {
+            root: root.to_path_buf(),
             workbook,
             checkpoint,
             copy,

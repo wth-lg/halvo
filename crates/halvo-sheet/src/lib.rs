@@ -99,7 +99,7 @@ impl Folder {
         values: &[Vec<Value>],
     ) -> Result<Prepared, Error> {
         let full = self.file(workbook)?;
-        write::prepare(full, run, sheet, range, values)
+        write::prepare(&self.root, full, run, sheet, range, values)
     }
 
     /// The second half of a file edit (contracts.md A11.3, A5.2), one step: it puts the

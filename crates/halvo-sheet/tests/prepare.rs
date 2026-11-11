@@ -172,7 +172,7 @@ fn the_fill_writes_the_seed_rows_into_b2_d6_of_formulas_xlsx() {
     fs::copy(corpus("formulas.xlsx"), scratch.path("formulas.xlsx")).expect("copy");
     let folder = Folder::new(&scratch.dir).expect("the folder opens");
     let range = Range::parse("B2:D6").expect("a range");
-    folder
+    let _held = folder
         .prepare(
             Path::new("formulas.xlsx"),
             &run(),
@@ -254,7 +254,7 @@ fn a_second_prepare_of_the_same_run_keeps_one_checkpoint_and_one_copy() {
     let folder = Folder::new(&scratch.dir).expect("the folder opens");
     let range = Range::parse("B5").expect("a range");
     for _ in 0..2 {
-        folder
+        let _held = folder
             .prepare(
                 Path::new("values.xlsx"),
                 &run(),
@@ -317,7 +317,7 @@ fn prepare_writes_over_a_formula_inside_a_merged_range_and_inside_a_table() {
         fs::copy(corpus(file), scratch.path(file)).expect("copy");
         let folder = Folder::new(&scratch.dir).expect("the folder opens");
         let range = Range::parse(cell).expect("a range");
-        folder
+        let _held = folder
             .prepare(
                 Path::new(file),
                 &run(),
@@ -361,7 +361,7 @@ fn text_of_every_kind_comes_back_as_it_was_written() {
         .map(|s| Value::Text(s.to_string()))
         .collect::<Vec<_>>()];
     let range = Range::parse("F2:L2").expect("a range");
-    folder
+    let _held = folder
         .prepare(Path::new("values.xlsx"), &run(), "Values", range, &values)
         .expect("prepared");
     let (_, copy) = names("values.xlsx");
