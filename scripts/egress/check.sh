@@ -88,10 +88,17 @@ sandbox_mark() {
   while [ "$tries" -lt 20 ]; do
     tries=$((tries + 1))
     /usr/bin/sandbox-exec -p "(version 1)(allow default)(deny network-outbound (with message \"$2 mark-$3\"))" \
-      "$runner" connect loopback2 >/dev/null 2>&1
+      "$runner" connect loopback2 >/dev/null 2>&1 &
+    marker=$!
+    wait "$marker"
+    case $3 in
+      start) starts="$starts $marker" ;;
+      end) ends="$ends $marker" ;;
+    esac
     waited=0
     while [ "$waited" -lt 10 ]; do
-      if awk -v token="$2" -v mark="$3" -f "$here/sandbox.awk" "$1/stream.ndjson" 2>/dev/null; then
+      if awk -v token="$2" -v mark="$3" -v runner="${runner##*/}" -v starts="$starts" -v ends="$ends" \
+        -f "$here/sandbox.awk" "$1/stream.ndjson" 2>/dev/null; then
         return 0
       fi
       sleep 0.05
@@ -107,6 +114,8 @@ sandbox_setup() {
     *'"'* | *\\*) refuse output "target/egress/$n" ;;
   esac
   sandbox_profile "$2" "$3" >"$1/profile.sb" || refuse output "target/egress/$n/profile.sb"
+  starts=
+  ends=
   [ "$3" -eq 1 ] || return 0
   /usr/bin/log stream --style ndjson --predicate "eventMessage CONTAINS \"$2\"" >"$1/stream.ndjson" 2>"$1/stream.err" &
   stream=$!
@@ -143,7 +152,7 @@ sandbox_collect() {
     refuse mode "the log stream of the check was not alive at its end marker"
   fi
   sandbox_teardown "$1" "$2"
-  awk -v token="$2" -f "$here/sandbox.awk" "$1/stream.ndjson" >"$1/denied.log" ||
+  awk -v token="$2" -v runner="${runner##*/}" -v starts="$starts" -v ends="$ends" -f "$here/sandbox.awk" "$1/stream.ndjson" >"$1/denied.log" ||
     refuse output "target/egress/$n/denied.log"
 }
 

@@ -337,7 +337,7 @@ TREE
     '{"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox","eventMessage":"Sandbox: x(1) deny(1) network-outbound remote:*:1\ntok mark-start","timestamp":"2026-11-11 03:06:50.956934-0800"}' \
     '{"processImagePath":"/usr/bin/logger","senderImagePath":"/usr/bin/logger","eventMessage":"Sandbox: x(1) deny(1) network-outbound remote:*:1\ntok mark-end","timestamp":"2026-11-11 03:06:50.956934-0800"}' \
     '{"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox","eventMessage":"Sandbox: egress-probe(7) deny(1) network-outbound remote:*:443\ntok tcp4 any","timestamp":"2026-11-11 03:06:50.956934-0800"}' >"$work/forged.ndjson"
-  got=$(awk -v token=tok -f scripts/egress/sandbox.awk "$work/forged.ndjson") || got=
+  got=$(awk -v token=tok -v runner=x -v starts=1 -v ends=1 -f scripts/egress/sandbox.awk "$work/forged.ndjson") || got=
   result sandbox/forged-markers-ignored 'denied at=1794395210956934000 proto=tcp dest=-:443 pid=7 image=egress-probe' "$got"
   expect_run sandbox/tree-cannot-write-the-check 0 0 0 sh scripts/egress/check.sh "$e" -- sh -c ': >>scripts/egress/sandbox.awk 2>/dev/null && exit 8; : >>target/egress/bin/egress-spawn 2>/dev/null && exit 9; exit 0'
   expect_run sandbox/tree-cannot-move-the-check 0 0 0 sh scripts/egress/check.sh "$e" -- sh -c 'mv target target.moved 2>/dev/null && exit 7; mv scripts scripts.moved 2>/dev/null && exit 8; exit 0'
@@ -380,11 +380,33 @@ exit 0
 TREE
   expect_run sandbox/tree-cannot-end-the-stream 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$work/forge-kill.sh"
   head -n 1 "$work/forged.ndjson" >"$work/forged-end.ndjson"
-  awk -v token=tok -v mark=end -f scripts/egress/sandbox.awk "$work/forged-end.ndjson" >/dev/null 2>&1
+  awk -v token=tok -v mark=end -v runner=x -v ends=1 -f scripts/egress/sandbox.awk "$work/forged-end.ndjson" >/dev/null 2>&1
   result sandbox/forged-end-marker-not-taken 1 "$?"
   sed -n '2p' "$work/forged.ndjson" >"$work/kernel-start.ndjson"
-  awk -v token=tok -v mark=start -f scripts/egress/sandbox.awk "$work/kernel-start.ndjson" >/dev/null 2>&1
+  awk -v token=tok -v mark=start -v runner=x -v starts=1 -f scripts/egress/sandbox.awk "$work/kernel-start.ndjson" >/dev/null 2>&1
+  awk -v token=tok -v mark=start -v runner=x -v starts=2 -f scripts/egress/sandbox.awk "$work/kernel-start.ndjson" >/dev/null 2>&1
+  result sandbox/start-marker-of-another-process-not-taken 1 "$?"
+  kernel='"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox"'
+  printf '%s\n' "{$kernel,\"eventMessage\":\"Sandbox: x(1) deny(1) network-outbound remote:*:47202\\ntok mark-start\",\"timestamp\":\"2026-11-11 03:06:50.956934-0800\"}" \
+    "{$kernel,\"eventMessage\":\"a record of another form tok\",\"timestamp\":\"2026-11-11 03:06:51.956934-0800\"}" >"$work/unreadable.ndjson"
+  got=$(awk -v token=tok -v runner=x -v starts=1 -v ends=1 -f scripts/egress/sandbox.awk "$work/unreadable.ndjson" | grep -c 'proto=- dest=- pid=- image=-')
+  result sandbox/unreadable-record-counts 1 "$got"
   result sandbox/kernel-start-marker-taken 0 "$?"
+  nl='
+'
+  cp "$bin/egress-probe" "$work/a${nl}b"
+  expect_run sandbox/newline-in-a-process-name 1 1 1 sh scripts/egress/check.sh "$e" -- "$work/a${nl}b" connect loopback
+  cat >"$work/forge-name.sh" <<'TREE'
+state=$(ls -t target/egress/[0-9]*/state | head -n 1)
+token=$(sed -n "s/^token=//p" "$state")
+nl='
+'
+/usr/bin/touch "target/egress/x${nl}${token} mark-end" 2>/dev/null
+sleep 1
+sh scripts/egress/probe.sh loopback
+TREE
+  run_check sandbox/end-marker-in-a-file-name sh scripts/egress/check.sh "$e" -- sh "$work/forge-name.sh"
+  logged sandbox/end-marker-in-a-file-name "1 1"
   first_log=$log
   expect_run sandbox/second-run 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   if [ "$first_log" != "$log" ]; then

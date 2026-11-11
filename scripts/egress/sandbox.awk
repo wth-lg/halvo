@@ -49,32 +49,49 @@ function emit(at, proto, dest, pid, image) {
   printf "denied at=%s proto=%s dest=%s pid=%s image=%s\n", at, proto, dest, pid, image
 }
 
+function marked(msg, kind, pids,    suffix, body, n, p, i, pre) {
+  suffix = "\n" token " mark-" kind
+  if (length(msg) <= length(suffix)) return 0
+  if (substr(msg, length(msg) - length(suffix) + 1) != suffix) return 0
+  body = substr(msg, 1, length(msg) - length(suffix))
+  if (index(body, "\n") != 0) return 0
+  n = split(pids, p, " ")
+  for (i = 1; i <= n; i++) {
+    pre = "Sandbox: " runner "(" p[i] ") deny("
+    if (index(body, pre) == 1 && substr(body, length(pre) + 1) ~ /^[0-9]+\) network-outbound /) return 1
+  }
+  return 0
+}
+
 {
   if (jstr($0, "processImagePath") != "/kernel") next
   if (jstr($0, "senderImagePath") !~ /\/Sandbox$/) next
   msg = jstr($0, "eventMessage")
-  cut = index(msg, "\n")
-  if (cut == 0) next
-  head = substr(msg, 1, cut - 1)
-  tag = substr(msg, cut + 1)
-  if (index(tag, token " ") != 1) next
-  tag = substr(tag, length(token) + 2)
   if (mark != "") {
-    if (tag == "mark-" mark) { found = 1; exit }
+    if (marked(msg, mark, mark == "start" ? starts : ends)) { found = 1; exit }
     next
   }
-  if (tag == "mark-start") { open = 1; next }
-  if (tag == "mark-end") { open = 0; next }
+  if (marked(msg, "start", starts)) { open = 1; next }
+  if (marked(msg, "end", ends)) { open = 0; next }
   if (!open) next
+  at = instant(jstr($0, "timestamp"))
+  cut = 0
+  for (i = length(msg); i > 0; i--) if (substr(msg, i, 1) == "\n") { cut = i; break }
+  if (cut == 0) { emit(at, "-", "-", "-", "-"); next }
+  head = substr(msg, 1, cut - 1)
+  tag = substr(msg, cut + 1)
+  if (index(tag, token " ") == 1) tag = substr(tag, length(token) + 2)
+  else tag = ""
   dup = 0
   if (head ~ /^[0-9]+ duplicate reports? for /) {
     dup = substr(head, 1, index(head, " ") - 1) + 0
     head = substr(head, index(head, " for ") + 5)
   }
-  if (index(head, "Sandbox: ") != 1) next
+  if (index(head, "Sandbox: ") != 1) { emit(at, "-", "-", "-", "-"); next }
   head = substr(head, 10)
-  deny = index(head, ") deny(")
-  if (deny == 0) next
+  deny = 0
+  for (i = length(head) - 6; i > 0; i--) if (substr(head, i, 7) == ") deny(") { deny = i; break }
+  if (deny == 0) { emit(at, "-", "-", "-", "-"); next }
   who = substr(head, 1, deny)
   target = substr(head, deny + 1)
   op = target
@@ -85,13 +102,12 @@ function emit(at, proto, dest, pid, image) {
   for (i = length(who); i > 0; i--) if (substr(who, i, 1) == "(") { open_paren = i; break }
   pid = substr(who, open_paren + 1, length(who) - open_paren - 1)
   image = substr(who, 1, open_paren - 1)
-  gsub(/[ \t]/, "_", image)
+  gsub(/[ \t\n]/, "_", image)
   if (pid !~ /^[0-9]+$/) pid = "-"
   if (image == "") image = "-"
   port = target
   sub(/^.*:/, "", port)
   if (port !~ /^[0-9]+$/) port = "-"
-  at = instant(jstr($0, "timestamp"))
   split(tag, t, " ")
   if (tag == "dns") { proto = "dns"; dest = "resolver" }
   else if (t[1] ~ /^(tcp|udp)[46]$/) {
@@ -102,7 +118,7 @@ function emit(at, proto, dest, pid, image) {
   else if (tag == "session" || tag == "open") { proto = "-"; dest = "-:-" }
   else { proto = "-"; dest = "-" }
   if (dup == 0) { emit(at, proto, dest, pid, image); next }
-  if (target != "/private/var/run/mDNSResponder" && op != "mach-lookup") { proto = "-"; dest = "-:" port }
+  if (op == "network-outbound" && target != "/private/var/run/mDNSResponder") { proto = "-"; dest = (port == "-") ? "-" : "-:" port }
   for (k = 0; k < dup; k++) emit(at, proto, dest, pid, image)
 }
 
