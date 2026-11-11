@@ -94,7 +94,7 @@ configurations() {
   awk -F'|' '
     /^\| `(Schedule|Confirm4)` \| `[a-z]+` \| `[A-Za-z0-9.-]+\.cfg` \| (yes|no) \|/ {
       for (i = 2; i <= 7; i++) gsub(/[ `,]/, "", $i)
-      if ($5 == "yes") print $2, $3, $4, $7
+      print $2, $3, $4, $7, $5
     }' "$1"
 }
 
@@ -113,12 +113,8 @@ run_tlc() {
   sed -n 's/^Error: Invariant \([A-Za-z0-9_]*\) is violated.*$/\1/p' "$1/out.txt" >"$1/violated.txt" || status=99
 }
 
-small() {
-  model=$1
-  config=$2
-  file=$3
-  want_distinct=$4
-  case $model in
+declared() {
+  case $1 in
     Schedule)
       key=schedule
       letter=C
@@ -130,27 +126,36 @@ small() {
       count=10
       ;;
   esac
-  run=$tmp/$key-$config
   result=ok
-  mkdir "$run" || fail invariant
-  cp "$dir"/*.tla "$run/" || fail invariant
-  if ! cp "$dir/$file" "$run/$file"; then
-    result=missing
-  fi
+  [ -f "$dir/$2" ] || result=missing
   i=1
   while [ "$result" = ok ] && [ "$i" -le "$count" ]; do
-    grep -q -x "INVARIANT $letter$i" "$run/$file" || result=invariants
+    grep -q -x "INVARIANT $letter$i" "$dir/$2" || result=invariants
     i=$((i + 1))
   done
   if [ "$result" = ok ]; then
-    lines=$(grep -c '^INVARIANT ' "$run/$file")
+    lines=$(grep -c '^INVARIANT ' "$dir/$2")
     [ "$lines" -eq "$count" ] || result=invariants
+    if grep -q -F -e '(*' -e '\*' "$dir/$2"; then
+      result=comment
+    fi
   fi
+}
+
+small() {
+  model=$1
+  config=$2
+  file=$3
+  want_distinct=$4
+  run=$tmp/$key-$config
+  mkdir "$run" || fail invariant
+  cp "$dir"/*.tla "$run/" || fail invariant
   status=-
   distinct=0
   generated=0
   t0=$(date +%s)
   if [ "$result" = ok ]; then
+    cp "$dir/$file" "$run/$file" || fail invariant
     run_tlc "$run" "$model" "$file"
     cat "$run/violated.txt" >>"$tmp/violated-$key.txt" || status=99
     counts=$(sed -n 's/^\([0-9][0-9]*\) states generated, \([0-9][0-9]*\) distinct states found, 0 states left on queue\.$/\1 \2/p' "$run/out.txt")
@@ -178,10 +183,8 @@ small() {
   [ "$result" = ok ] || bad=$((bad + 1))
   if [ "$key" = schedule ]; then
     schedule_states=$((schedule_states + distinct))
-    schedule_names=${schedule_names:+$schedule_names,}$config
   else
     confirm_states=$((confirm_states + distinct))
-    confirm_names=${confirm_names:+$confirm_names,}$config
   fi
 }
 
@@ -189,7 +192,8 @@ models() {
   configurations "$tmp/readme.txt" >"$tmp/configurations.txt" || fail invariant
   schedule_names=
   confirm_names=
-  while read -r model config file want_distinct; do
+  while read -r model config file want_distinct ci; do
+    [ "$ci" = yes ] || continue
     case $model in
       Schedule) schedule_names=${schedule_names:+$schedule_names,}$config ;;
       *) confirm_names=${confirm_names:+$confirm_names,}$config ;;
@@ -198,15 +202,20 @@ models() {
   printf 'formal configurations schedule=%s confirm=%s\n' "${schedule_names:--}" "${confirm_names:--}"
   [ -n "$schedule_names" ] || fail invariant
   [ -n "$confirm_names" ] || fail invariant
-  schedule_names=
-  confirm_names=
   schedule_states=0
   confirm_states=0
   bad=0
   : >"$tmp/violated-schedule.txt" || fail invariant
   : >"$tmp/violated-confirm.txt" || fail invariant
-  while read -r model config file want_distinct; do
-    small "$model" "$config" "$file" "$want_distinct"
+  while read -r model config file want_distinct ci; do
+    declared "$model" "$file"
+    if [ "$ci" = yes ]; then
+      small "$model" "$config" "$file" "$want_distinct"
+    elif [ "$result" != ok ]; then
+      printf 'formal run model=%s configuration=%s status=- states=0 generated=0 seconds=0 result=%s\n' \
+        "$key" "$config" "$result"
+      bad=$((bad + 1))
+    fi
   done <"$tmp/configurations.txt"
   sort -u "$tmp/violated-schedule.txt" >"$tmp/violated-schedule.names" || fail invariant
   sort -u "$tmp/violated-confirm.txt" >"$tmp/violated-confirm.names" || fail invariant
@@ -261,6 +270,8 @@ stamps() {
   fi
   named=$(grep -c '^export compared in jobs:' "$tmp/readme.txt")
   [ "$named" -eq 1 ] || fault=${fault:-jobs}
+  other=$(sed -n '/^export compared in jobs:/{s///;s/ macos//;s/ windows//;p;}' "$tmp/readme.txt")
+  [ -z "$other" ] || fault=${fault:-jobs}
   if [ -n "$fault" ]; then
     printf 'formal traces fault=%s\n' "$fault"
     printf 'formal traces schedule=%s confirm=%s same=-\n' "$schedule_traces" "$confirm_traces"
@@ -433,7 +444,7 @@ selftest() {
 mode=${R4_STUB_MODE:-good}
 if [ "${1:-}" = -version ]; then
   case $mode in
-    java-old) printf 'openjdk version "11.0.21" 2023-10-17\r\n' >&2 ;;
+    java-old) printf 'openjdk version "16.0.2" 2021-07-20\r\n' >&2 ;;
     java-unreadable) printf 'a java with no version line\r\n' >&2 ;;
     *) printf 'Picked up a note\r\nopenjdk version "17.0.1" 2021-10-19\r\n' >&2 ;;
   esac
@@ -533,6 +544,7 @@ EOF
   edit not-compared README.md "$elsewhere"
   expect not-compared "0:PASS $name" good '' ' same=-'
   fixture days-not-for-ci
+  edit days-not-for-ci README.md "$elsewhere"
   edit days-not-for-ci README.md 's/\(| .Schedule-days\.cfg. |\) yes |/\1 no |/'
   expect days-not-for-ci "0:PASS $name" violated
   if [ "$missed" -ne 0 ]; then
@@ -561,7 +573,7 @@ EOF
     expect good "1:FAIL $name (invariant)" "$mode"
   done
   for mode in control-holds control-other control-status control-one; do
-    expect good "1:FAIL $name (control)" "$mode"
+    expect not-compared "1:FAIL $name (control)" "$mode"
   done
 
   fixture renamed-invariant
@@ -572,7 +584,34 @@ EOF
 INVARIANT C7/'
   expect extra-invariant "1:FAIL $name (invariant)" good
 
+  fixture comment-in-configuration
+  {
+    printf '(*\n'
+    cat "$fdir/Schedule-store.cfg"
+    printf '*)\n'
+  } >"$work/commented.cfg" || fail selftest
+  mv "$work/commented.cfg" "$fdir/Schedule-store.cfg" || fail selftest
+  expect comment-in-configuration "1:FAIL $name (invariant)" good
+  fixture full-without-an-invariant
+  edit full-without-an-invariant README.md "$elsewhere"
+  edit full-without-an-invariant Schedule.cfg '/^INVARIANT C12$/d'
+  restamp full-without-an-invariant
+  expect full-without-an-invariant "1:FAIL $name (invariant)" good
+  fixture no-schedule-for-ci
+  edit no-schedule-for-ci README.md 's/\(| .Schedule-[a-z]*\.cfg. |\) yes |/\1 no |/'
+  expect no-schedule-for-ci "1:FAIL $name (invariant)" good
+  fixture no-confirm-for-ci
+  edit no-confirm-for-ci README.md 's/\(| .Confirm4[a-z-]*\.cfg. |\) yes |/\1 no |/'
+  expect no-confirm-for-ci "1:FAIL $name (invariant)" good
+  fixture unknown-job
+  edit unknown-job README.md 's/^export compared in jobs:.*$/export compared in jobs: macos linux/'
+  expect unknown-job "1:FAIL $name (traces)" good
+
   for file in traces-schedule.jsonl traces-confirm.jsonl; do
+    fixture "line-added-$file"
+    edit "line-added-$file" README.md "$elsewhere"
+    edit "line-added-$file" "$file" 9p
+    expect "line-added-$file" "1:FAIL $name (traces)" good
     fixture "line-removed-$file"
     edit "line-removed-$file" README.md "$elsewhere"
     edit "line-removed-$file" "$file" 9d
@@ -597,6 +636,7 @@ INVARIANT C7/'
   expect no-jobs-line "1:FAIL $name (traces)" good
 
   fixture control-moved
+  edit control-moved README.md "$elsewhere"
   edit control-moved Schedule.tla 's/^ModelFree(s, a) == a /ModelFree(s, a) ==  a /'
   restamp control-moved
   expect control-moved "1:FAIL $name (control)" good
