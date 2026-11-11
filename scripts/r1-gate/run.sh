@@ -77,11 +77,35 @@ run_check() {
   sh "$DIR/check-$check_name.sh" "$@"
 }
 
+measured_check() {
+  check_out=$(run_check "$@")
+  check_status=$?
+  [ -z "$check_out" ] || printf '%s\n' "$check_out"
+  check_found=$(printf '%s\n' "$check_out" | awk -v n="$1" '($1 == "PASS" || $1 == "FAIL" || $1 == "NO-INPUT") && $2 == n { c++; w = $1 } END { print c + 0, w }')
+  check_count=${check_found%% *}
+  check_word=${check_found#* }
+  case $check_status in
+    0) check_want=PASS ;;
+    1) check_want=FAIL ;;
+    3) check_want=NO-INPUT ;;
+    *) emit_fail "$1" "the check exited $check_status, and a check exits 0, 1 or 3"; return 1 ;;
+  esac
+  if [ "$check_count" != 1 ]; then
+    emit_fail "$1" "the check exited $check_status and printed $check_count lines PASS $1, FAIL $1 or NO-INPUT $1; it must print exactly one, and its word must match the exit status"
+    return 1
+  fi
+  if [ "$check_word" != "$check_want" ]; then
+    emit_fail "$1" "the check printed $check_word $1 and exited $check_status"
+    return 1
+  fi
+  return "$check_status"
+}
+
 measure_all() {
   all_status=0
   for entry in $CHECKS; do
     check_of "$entry"
-    run_check "$entry_check" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
+    measured_check "$entry_check" --measure "$1" --input "$2" --sha "$3" ${strict:+"$strict"} ${remove:+"$remove"}
     all_status=$(worst_status "$all_status" "$?")
   done
   return "$all_status"
@@ -97,7 +121,13 @@ stub_checks() {
 printf '%s\n' "$*" > "$0.args"
 read -r verdict < "$0.verdict"
 stub=${0##*/check-}
-printf '%s %s\n' "$verdict" "${stub%.sh}"
+stub=${stub%.sh}
+case $verdict in
+  SILENT) exit 0 ;;
+  TWICE) printf 'PASS %s\nPASS %s\n' "$stub" "$stub"; exit 0 ;;
+  MISMATCH) printf 'FAIL %s (a stub)\n' "$stub"; exit 0 ;;
+esac
+printf '%s %s\n' "$verdict" "$stub"
 case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
 exit 1
 STUB
@@ -114,6 +144,13 @@ all_checks_exit() {
   stub_checks "$@"
   measure_all 5 operator 0123456789abcdef0123456789abcdef01234567 > /dev/null
   [ "$?" -eq "$all_want" ]
+}
+
+measured_says() {
+  measured_line=$1; shift
+  stub_checks "$@"
+  measured_out=$(measure_all 5 operator 0123456789abcdef0123456789abcdef01234567)
+  printf '%s\n' "$measured_out" | grep -qxF -e "$measured_line"
 }
 
 checks_get_their_arguments() {
@@ -274,6 +311,12 @@ cases_run() {
   t a-fail-of-the-first-check-exits-1 PASS all_checks_exit 1 timed-run=FAIL
   t a-fail-of-the-last-check-exits-1 PASS all_checks_exit 1 no-ll-hook=FAIL
   t checks-get-duration-input-sha-and-strict PASS checks_get_their_arguments
+  t a-check-with-no-line-exits-1 PASS all_checks_exit 1 store=SILENT
+  t a-check-with-no-line-is-named PASS measured_says "FAIL store (the check exited 0 and printed 0 lines PASS store, FAIL store or NO-INPUT store; it must print exactly one, and its word must match the exit status)" store=SILENT
+  t a-check-with-two-lines-exits-1 PASS all_checks_exit 1 store=TWICE
+  t a-check-with-two-lines-is-named PASS measured_says "FAIL store (the check exited 0 and printed 2 lines PASS store, FAIL store or NO-INPUT store; it must print exactly one, and its word must match the exit status)" store=TWICE
+  t a-line-against-its-exit-status-exits-1 PASS all_checks_exit 1 store=MISMATCH
+  t a-line-against-its-exit-status-is-named PASS measured_says "FAIL store (the check printed FAIL store and exited 0)" store=MISMATCH
   t exit-0-when-every-line-passes PASS status_is 0 0 0
   t exit-3-on-a-no-input-line PASS status_is 3 0 3
   t exit-3-stays-after-a-pass PASS status_is 3 3 0
