@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use halvo_schema::{Instant, Position, StoreId};
 use sha2::{Digest, Sha256};
@@ -52,6 +54,30 @@ pub struct FixtureTransport {
     set: Option<InputSet>,
     store: StoreId,
     cursor: Option<Cursor>,
+    replace: Arc<AtomicBool>,
+    stale: bool,
+}
+
+/// A handle that replaces the store of a fixture transport with an empty one while its serving call runs
+/// (C5.12 item 11). The transport reads it before each message: once it is set, the transport serves the
+/// empty store, whose id is that of no bytes and whose watermark is `{"seg":1,"idx":0}`, and the next
+/// `read_batch` of a cursor that was open gets `store-changed` and closes it. It watches no file.
+#[derive(Clone, Debug)]
+pub struct Replace(Arc<AtomicBool>);
+
+impl Replace {
+    /// Replaces the store before the transport's next message.
+    pub fn replace(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+fn store_id(hasher: Sha256) -> Option<StoreId> {
+    let hex: String = hasher.finalize()[..16]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    StoreId::parse(&hex).ok()
 }
 
 struct Cursor {
@@ -352,18 +378,36 @@ impl FixtureTransport {
                 }
             }
         }
-        let hex: String = hasher.finalize()[..16]
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        let store = StoreId::parse(&hex).map_err(|_| OpenError::FirstLive)?;
+        let store = store_id(hasher).ok_or(OpenError::FirstLive)?;
         Ok(FixtureTransport {
             files: files.iter().map(|p| p.as_ref().to_owned()).collect(),
             first_live,
             set,
             store,
             cursor: None,
+            replace: Arc::new(AtomicBool::new(false)),
+            stale: false,
         })
+    }
+
+    /// The handle that replaces the store with an empty one while a serving call runs (C5.12 item 11).
+    pub fn replace_handle(&self) -> Replace {
+        Replace(Arc::clone(&self.replace))
+    }
+
+    fn replaced(&mut self) {
+        if !self.replace.swap(false, Ordering::SeqCst) {
+            return;
+        }
+        if let Some(store) = store_id(Sha256::new()) {
+            self.store = store;
+        }
+        self.files = Vec::new();
+        self.first_live = 1;
+        if let Some(cursor) = &mut self.cursor {
+            cursor.scan = None;
+            self.stale = true;
+        }
     }
 
     /// The store id.
@@ -380,6 +424,7 @@ impl FixtureTransport {
     /// C5.10. It builds the same Batches as the stream entry, counting the payload bytes that the frame of the
     /// Batch would have before the reduction.
     pub fn handle(&mut self, message: &ClientMessage) -> ServerMessage {
+        self.replaced();
         let w = self.watermark();
         match message {
             ClientMessage::OpenCursor(open) => {
@@ -410,6 +455,11 @@ impl FixtureTransport {
                 if self.cursor.is_none() {
                     return error(Cause::BadRequest, "no cursor is open");
                 }
+                if self.stale {
+                    self.stale = false;
+                    self.cursor = None;
+                    return error(Cause::StoreChanged(self.store.clone()), "store id differs");
+                }
                 match self.read() {
                     Ok(batch) => ServerMessage::Batch(batch),
                     Err(fault) => {
@@ -422,6 +472,7 @@ impl FixtureTransport {
                 if self.cursor.take().is_none() {
                     return error(Cause::BadRequest, "no cursor is open");
                 }
+                self.stale = false;
                 ServerMessage::Closed
             }
             ClientMessage::AnalysisWrite(_) => error(
@@ -438,6 +489,7 @@ impl FixtureTransport {
             set,
             store,
             cursor,
+            ..
         } = self;
         let Some(cursor) = cursor.as_mut() else {
             return Err(Fault::Read(0));
@@ -537,6 +589,7 @@ impl FixtureTransport {
     ) -> Result<(), ServeError> {
         let result = self.serve_connection(&mut input, &mut output);
         self.cursor = None;
+        self.stale = false;
         result
     }
 

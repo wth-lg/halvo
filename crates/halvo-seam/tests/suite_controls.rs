@@ -8,7 +8,7 @@ use std::thread::JoinHandle;
 
 use halvo_schema::{Instant, Position, StoreId};
 use halvo_seam::conformance::{self, Subject, CASES};
-use halvo_seam::fixture::FixtureTransport;
+use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::{
     decode_client, Batch, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal, ServerError,
@@ -24,6 +24,7 @@ enum Form {
     EmptyRange,
     NullStoreAtAPosition,
     ReadWithNoCursor,
+    ReadAfterReplace,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -71,6 +72,10 @@ enum Fault {
     RepeatsAtAStop,
     SkipsAtAStop,
     LoadCutsSetC,
+    KeepsServingAfterTheReplace,
+    StoreChangedOnReadNamesTheOldId,
+    StoreChangedOnReadGetsStoreError,
+    ServesOldRecordsAfterTheReplace,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -172,13 +177,15 @@ struct Proxy {
     open_w: Position,
     reads: usize,
     stop: Option<Entry>,
+    changed_on_read: bool,
+    old_files: Vec<PathBuf>,
 }
 
 impl Proxy {
     fn opened(&mut self, open: &OpenCursor, reply: ServerMessage) -> ServerMessage {
         let mut b = match reply {
             ServerMessage::Batch(b) => b,
-            ServerMessage::Error(e) => return self.refused(e.cause().clone(), open.store()),
+            ServerMessage::Error(e) => return self.refused(e.cause().clone(), open.store(), false),
             other => return other,
         };
         self.cursor = Some(open.position());
@@ -205,16 +212,34 @@ impl Proxy {
         ServerMessage::Batch(b)
     }
 
-    fn refused(&mut self, cause: Cause, asked: Option<&StoreId>) -> ServerMessage {
+    fn refused(&mut self, cause: Cause, asked: Option<&StoreId>, on_read: bool) -> ServerMessage {
         let cause = match (self.fault, cause) {
             (BadPositionGetsStoreError, Cause::BadPosition) => Cause::StoreError,
             (StoreChangedNamesTheOldId, Cause::StoreChanged(id)) => {
                 Cause::StoreChanged(asked.cloned().unwrap_or(id))
             }
-            (StoreChangedGetsStoreError, Cause::StoreChanged(_)) => Cause::StoreError,
-            (RefusalGetsStoreError(Form::ReadWithNoCursor), Cause::BadRequest) => Cause::StoreError,
+            (StoreChangedGetsStoreError, Cause::StoreChanged(_)) if !on_read => Cause::StoreError,
+            (StoreChangedOnReadNamesTheOldId, Cause::StoreChanged(id)) if on_read => {
+                Cause::StoreChanged(self.store.clone().unwrap_or(id))
+            }
+            (StoreChangedOnReadGetsStoreError, Cause::StoreChanged(_)) if on_read => {
+                Cause::StoreError
+            }
+            (RefusalGetsStoreError(Form::ReadWithNoCursor), Cause::BadRequest)
+                if on_read && !self.changed_on_read =>
+            {
+                Cause::StoreError
+            }
+            (RefusalGetsStoreError(Form::ReadAfterReplace), Cause::BadRequest)
+                if on_read && self.changed_on_read =>
+            {
+                Cause::StoreError
+            }
             (_, cause) => cause,
         };
+        if let Cause::StoreChanged(_) = cause {
+            self.changed_on_read = on_read;
+        }
         error(cause)
     }
 
@@ -254,7 +279,7 @@ impl Proxy {
         }
         let mut b = match t.handle(&ClientMessage::ReadBatch) {
             ServerMessage::Batch(b) => b,
-            ServerMessage::Error(e) => return self.refused(e.cause().clone(), None),
+            ServerMessage::Error(e) => return self.refused(e.cause().clone(), None, true),
             other => return other,
         };
         if self.fault == IgnoresTheByteBound && !b.records.is_empty() && b.next != b.watermark {
@@ -366,6 +391,7 @@ struct Control {
     set_a: bool,
     idle: Option<FixtureTransport>,
     serving: Option<JoinHandle<FixtureTransport>>,
+    replace: Option<Replace>,
 }
 
 impl Control {
@@ -377,6 +403,7 @@ impl Control {
             set_a: false,
             idle: None,
             serving: None,
+            replace: None,
         }
     }
 
@@ -389,6 +416,7 @@ impl Control {
     fn reopen(&mut self) -> Result<(), String> {
         let t = FixtureTransport::open(&self.files, self.first_live, None)
             .map_err(|e| format!("{e:?}"))?;
+        self.replace = Some(t.replace_handle());
         self.idle = Some(t);
         Ok(())
     }
@@ -452,6 +480,8 @@ impl Subject for Control {
             open_w: ZERO,
             reads: 0,
             stop: None,
+            changed_on_read: false,
+            old_files: self.files.clone(),
         };
         let (mut requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, mut replies_out) = io::pipe().map_err(|e| e.to_string())?;
@@ -459,6 +489,10 @@ impl Subject for Control {
             while let Ok(Some(payload)) = read_frame(&mut requests_in, CLIENT_FRAME_MAX) {
                 let (request, reply) = match decode_client(&payload) {
                     Ok(ClientMessage::OpenCursor(open)) => {
+                        if proxy.fault == ServesOldRecordsAfterTheReplace && proxy.changed_on_read {
+                            t = FixtureTransport::open(&proxy.old_files, 1, None).unwrap();
+                            proxy.changed_on_read = false;
+                        }
                         let w = t.watermark();
                         let p = open.position();
                         let sent = match open.store() {
@@ -532,6 +566,13 @@ impl Subject for Control {
             self.first_live += 1;
         }
         self.reopen()
+    }
+
+    fn replace_live(&mut self) -> Result<(), String> {
+        if self.fault != KeepsServingAfterTheReplace {
+            self.replace.as_ref().ok_or("no store")?.replace();
+        }
+        Ok(())
     }
 }
 
@@ -782,6 +823,15 @@ fn control_an_error_of_another_cause_than_bad_request_for_each_refused_message()
         ],
     );
     check(
+        RefusalGetsStoreError(Form::ReadAfterReplace),
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("a second read_batch after replace_live got store-error; want bad-request"),
+        ],
+    );
+    check(
         RefusalGetsStoreError(Form::ReadWithNoCursor),
         [
             Pass,
@@ -899,6 +949,58 @@ fn control_a_set_c_too_short_to_stop_a_batch() {
             Pass,
             Pass,
             Fail("the read of set C ended 0 Batches before the store ended; want at least 2"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_goes_on_serving_after_the_replace() {
+    check(
+        KeepsServingAfterTheReplace,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("read_batch after replace_live got another reply than an error"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_store_changed_after_the_replace_that_names_the_old_store() {
+    check(
+        StoreChangedOnReadNamesTheOldId,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("store-changed after replace_live names the old store id"),
+        ],
+    );
+}
+
+#[test]
+fn control_an_error_of_another_cause_than_store_changed_after_the_replace() {
+    check(
+        StoreChangedOnReadGetsStoreError,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("read_batch after replace_live got store-error; want store-changed"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_serves_the_old_records_after_the_replace() {
+    check(
+        ServesOldRecordsAfterTheReplace,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the store after replace_live served 44 entries; want none"),
         ],
     );
 }

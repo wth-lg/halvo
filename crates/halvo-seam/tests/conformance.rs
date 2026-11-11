@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 
 use halvo_seam::conformance::{self, Subject};
-use halvo_seam::fixture::FixtureTransport;
+use halvo_seam::fixture::{FixtureTransport, Replace};
 
 struct Fixture {
     test: &'static str,
@@ -12,6 +12,7 @@ struct Fixture {
     first_live: u64,
     idle: Option<FixtureTransport>,
     serving: Option<JoinHandle<FixtureTransport>>,
+    replace: Option<Replace>,
 }
 
 impl Fixture {
@@ -22,6 +23,7 @@ impl Fixture {
             first_live: 1,
             idle: None,
             serving: None,
+            replace: None,
         }
     }
 
@@ -38,6 +40,7 @@ impl Fixture {
     fn reopen(&mut self) -> Result<(), String> {
         let transport = FixtureTransport::open(&self.files, self.first_live, None)
             .map_err(|e| format!("open failed: {e:?}"))?;
+        self.replace = Some(transport.replace_handle());
         self.idle = Some(transport);
         Ok(())
     }
@@ -89,6 +92,13 @@ impl Subject for Fixture {
         self.settle()?;
         self.first_live += 1;
         self.reopen()
+    }
+
+    fn replace_live(&mut self) -> Result<(), String> {
+        self.replace.as_ref().ok_or("no store is loaded")?.replace();
+        self.files = Vec::new();
+        self.first_live = 1;
+        Ok(())
     }
 }
 

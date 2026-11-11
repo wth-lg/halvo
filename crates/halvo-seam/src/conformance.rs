@@ -28,6 +28,11 @@ pub trait Subject {
 
     /// Destroys the live segment with the lowest ordinal, as expiry does.
     fn shred_oldest(&mut self) -> Result<(), String>;
+
+    /// Destroys the store and starts an empty one while the server runs; every open connection stays open,
+    /// and the next `read_batch` of a cursor that was open gets `store-changed`. For a daemon it is the
+    /// delete-all request. It is the one call that the suite makes with a connection open.
+    fn replace_live(&mut self) -> Result<(), String>;
 }
 
 /// The names of the four cases, in the order in which `run` runs them.
@@ -322,13 +327,13 @@ fn check(
     Ok(())
 }
 
-fn read<S: Subject>(
+fn open<S: Subject>(
     conn: &mut Conn<S>,
     store: Option<&StoreId>,
     position: Position,
     kinds: Option<&[&str]>,
     range: Option<(Instant, Instant)>,
-) -> Result<Reading, String> {
+) -> Result<Batch, String> {
     let opened = match conn.send(&open_text(store, position, kinds, range))? {
         ServerMessage::Batch(b) => b,
         ServerMessage::Error(e) => {
@@ -355,6 +360,17 @@ fn read<S: Subject>(
             "the reply to open_cursor names another store than the one asked for".to_owned(),
         );
     }
+    Ok(opened)
+}
+
+fn read<S: Subject>(
+    conn: &mut Conn<S>,
+    store: Option<&StoreId>,
+    position: Position,
+    kinds: Option<&[&str]>,
+    range: Option<(Instant, Instant)>,
+) -> Result<Reading, String> {
+    let opened = open(conn, store, position, kinds, range)?;
     let mut reading = Reading {
         store: opened.store.clone(),
         entries: Vec::new(),
@@ -681,13 +697,61 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     Ok(())
 }
 
-/// The case `store_changed` (C5.13 item 9): after `load(B)`, the old store id gets `store-changed` with
+/// The case `store_changed` (C5.13 item 9): first, on the connection of the reference read, a cursor opened
+/// with S that took one Batch gets `store-changed` with another id at its next `read_batch` after
+/// `replace_live`, a further `read_batch` gets `bad-request`, and a cursor opened then serves nothing. Then,
+/// after `load(B)`, the old store id gets `store-changed` with
 /// another id and opens no cursor, a null store with a non-zero position gets `bad-request`, and the new
 /// store serves the records of set B from the zero position, with a null store and with its new id. Last,
 /// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
 /// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`.
 pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
-    let (conn, rf) = reference(subject)?;
+    let (mut conn, rf) = reference(subject)?;
+    let opened = open(&mut conn, Some(&rf.s), ZERO, None, None)
+        .map_err(|e| format!("the open before replace_live: {e}"))?;
+    match conn.send(READ_BATCH)? {
+        ServerMessage::Batch(b) => check(&b, &opened.store, ZERO, None, opened.watermark)
+            .map_err(|e| format!("the read before replace_live: {e}"))?,
+        ServerMessage::Error(e) => {
+            return Err(format!(
+                "the read before replace_live got the error {}",
+                e.cause().name()
+            ))
+        }
+        _ => {
+            return Err(
+                "the read before replace_live got a reply other than batch or error".to_owned(),
+            )
+        }
+    }
+    subject.replace_live()?;
+    match conn.error(READ_BATCH, "read_batch after replace_live")? {
+        Cause::StoreChanged(id) if id != rf.s => {}
+        Cause::StoreChanged(_) => {
+            return Err("store-changed after replace_live names the old store id".to_owned())
+        }
+        other => {
+            return Err(format!(
+                "read_batch after replace_live got {}; want store-changed",
+                other.name()
+            ))
+        }
+    }
+    let cause = conn.error(READ_BATCH, "a second read_batch after replace_live")?;
+    if cause != Cause::BadRequest {
+        return Err(format!(
+            "a second read_batch after replace_live got {}; want bad-request",
+            cause.name()
+        ));
+    }
+    let empty = read(&mut conn, None, ZERO, None, None)
+        .map_err(|e| format!("the open after replace_live: {e}"))?;
+    if !empty.entries.is_empty() {
+        return Err(format!(
+            "the store after replace_live served {} entries; want none",
+            empty.entries.len()
+        ));
+    }
     drop(conn);
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
