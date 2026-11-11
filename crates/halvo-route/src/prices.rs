@@ -46,10 +46,17 @@ pub struct Rate {
     pub output: Micro,
 }
 
-/// The rates of the three tiers, read from a price file whose every rate has a source and a date.
+/// The rates of the three tiers, read from a price file whose every rate has a source and a date,
+/// or, from `Prices::release()` alone, the mark that the compiled-in file did not parse.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Prices {
-    rates: [Rate; 3],
+    rates: Rates,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+enum Rates {
+    Read([Rate; 3]),
+    Unread,
 }
 
 impl Prices {
@@ -93,40 +100,65 @@ impl Prices {
         if !rows.iter().all(|cells| is_date(cells[4])) {
             return Err(PriceError::Date);
         }
-        Ok(Prices { rates })
-    }
-
-    /// The compiled-in price file, `crates/halvo-route/data/prices.tsv`, read once; rates of 0 when
-    /// it does not parse.
-    pub fn release() -> &'static Prices {
-        static RELEASE: OnceLock<Prices> = OnceLock::new();
-        RELEASE.get_or_init(|| {
-            Prices::parse(include_str!("../data/prices.tsv")).unwrap_or(Prices {
-                rates: [Rate {
-                    input: 0,
-                    output: 0,
-                }; 3],
-            })
+        Ok(Prices {
+            rates: Rates::Read(rates),
         })
     }
 
+    /// The compiled-in price file, `crates/halvo-route/data/prices.tsv`, read once. When it does
+    /// not parse, `cost` and `hold` answer `u64::MAX` for each hosted tier, whatever the token
+    /// counts, and 0 for `on_device`, so no hosted call fits a cap and none is free.
+    pub fn release() -> &'static Prices {
+        static RELEASE: OnceLock<Prices> = OnceLock::new();
+        RELEASE.get_or_init(|| release_of(include_str!("../data/prices.tsv")))
+    }
+
+    /// The two rates of a tier; when the compiled-in file did not parse, `u64::MAX` for a hosted
+    /// tier and 0 for `on_device`.
     pub const fn rate(&self, tier: Tier) -> Rate {
-        self.rates[tier as usize]
+        match self.rates {
+            Rates::Read(rates) => rates[tier as usize],
+            Rates::Unread => match tier {
+                Tier::OnDevice => Rate {
+                    input: 0,
+                    output: 0,
+                },
+                Tier::LowCostHosted | Tier::Frontier => Rate {
+                    input: u64::MAX,
+                    output: u64::MAX,
+                },
+            },
+        }
     }
 
     /// `tokens_in` times the input rate plus `tokens_out` times the output rate, over one million,
     /// rounded up.
     pub const fn cost(&self, tier: Tier, tokens_in: u64, tokens_out: u64) -> Micro {
-        let rate = self.rate(tier);
-        per_million_rounded_up(tokens_in, rate.input, tokens_out, rate.output)
+        self.amount(tier, tokens_in, tokens_out)
     }
 
     /// `body_bytes` times the input rate plus `max_output_tokens` times the output rate, over one
     /// million, rounded up: the amount that the gateway holds for one choice.
     pub const fn hold(&self, tier: Tier, body_bytes: u64, max_output_tokens: u64) -> Micro {
-        let rate = self.rate(tier);
-        per_million_rounded_up(body_bytes, rate.input, max_output_tokens, rate.output)
+        self.amount(tier, body_bytes, max_output_tokens)
     }
+
+    const fn amount(&self, tier: Tier, input: u64, output: u64) -> Micro {
+        match (self.rates, tier) {
+            (Rates::Read(rates), _) => {
+                let rate = rates[tier as usize];
+                per_million_rounded_up(input, rate.input, output, rate.output)
+            }
+            (Rates::Unread, Tier::OnDevice) => 0,
+            (Rates::Unread, Tier::LowCostHosted | Tier::Frontier) => u64::MAX,
+        }
+    }
+}
+
+fn release_of(text: &str) -> Prices {
+    Prices::parse(text).unwrap_or(Prices {
+        rates: Rates::Unread,
+    })
 }
 
 const fn per_million_rounded_up(a: u64, rate_a: u64, b: u64, rate_b: u64) -> Micro {
@@ -179,4 +211,27 @@ fn is_date(cell: &str) -> bool {
         _ => return false,
     };
     (1..=days).contains(&day)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_price_file_that_does_not_parse_makes_every_hosted_call_impossible() {
+        let text = include_str!("../data/prices.tsv").replacen("2026-11-10", "2026-11-31", 1);
+        assert_eq!(Prices::parse(&text), Err(PriceError::Date));
+        let broken = release_of(&text);
+        let counts = [0, 1, u64::MAX];
+        for tokens_in in counts {
+            for tokens_out in counts {
+                for tier in [Tier::LowCostHosted, Tier::Frontier] {
+                    assert_eq!(broken.cost(tier, tokens_in, tokens_out), u64::MAX);
+                    assert_eq!(broken.hold(tier, tokens_in, tokens_out), u64::MAX);
+                }
+                assert_eq!(broken.cost(Tier::OnDevice, tokens_in, tokens_out), 0);
+                assert_eq!(broken.hold(Tier::OnDevice, tokens_in, tokens_out), 0);
+            }
+        }
+    }
 }
