@@ -116,14 +116,15 @@ overflow_ok() {
   root=$(pwd -W 2>/dev/null || pwd -P) || return 1
   while read -r member; do
     mir=target/r5-trials/overflow-$member.mir
-    reference=target/r5-trials/overflow-reference-$member.mir
+    reference=target/r5-trials-reference/overflow-$member.mir
     cargo rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p "$member" --lib --target "$host" --target-dir target/r5-trials -- --emit=mir="$root/$mir" >"$art/overflow-$member.txt" 2>&1 </dev/null || {
       note "test overflow member=$member build=failed"
       return 1
     }
     (
-      unset RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER
-      cargo rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p "$member" --lib --target "$host" --target-dir target/r5-trials -- -C overflow-checks=on --emit=mir="$root/$reference"
+      unset RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER CARGO_BUILD_RUSTC CARGO_BUILD_RUSTC_WRAPPER CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER
+      CARGO_ENCODED_RUSTFLAGS=-Coverflow-checks=on cargo rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p "$member" --lib --target "$host" --target-dir target/r5-trials-reference \
+        --config 'build.rustc="rustc"' --config 'build.rustc-wrapper=""' --config 'build.rustc-workspace-wrapper=""' -- --emit=mir="$root/$reference"
     ) >"$art/overflow-reference-$member.txt" 2>&1 </dev/null || {
       note "test overflow member=$member reference=failed"
       return 1
@@ -362,7 +363,8 @@ stub_cargo() {
   cat <<'EOF'
 #!/bin/sh
 [ -f fixture-root ] || { printf 'stub cargo: started outside the fixture root\n'; exit 98; }
-[ -z "${RUSTFLAGS+set}${CARGO_BUILD_RUSTFLAGS+set}${CARGO_ENCODED_RUSTFLAGS+set}${CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS+set}" ] ||
+[ -z "${RUSTFLAGS+set}${CARGO_BUILD_RUSTFLAGS+set}${CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS+set}" ] &&
+  { [ -z "${CARGO_ENCODED_RUSTFLAGS+set}" ] || [ "$CARGO_ENCODED_RUSTFLAGS" = -Coverflow-checks=on ]; } ||
   { printf 'stub cargo: a variable that sets rustc flags or the profile is set\n'; exit 93; }
 case $* in
   'test --locked --manifest-path tools/r5-trials/Cargo.toml --workspace --target-dir target/r5-trials')
@@ -380,26 +382,85 @@ case $* in
     fi
     exit "${STUB_METADATA_EXIT:-0}"
     ;;
-  "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir target/r5-trials -- --emit=mir=$(pwd -W 2>/dev/null || pwd -P)/target/r5-trials/overflow-$7.mir")
-    mkdir -p target/r5-trials || exit 92
-    if [ "${STUB_OVERFLOW_OFF:-}" = "$7" ] || [ "${STUB_NO_ARITHMETIC:-}" = "$7" ]; then
-      printf '        _0 = Add(copy _1, const 1_u32);\n' >"target/r5-trials/overflow-$7.mir"
-    elif [ "${STUB_OVERFLOW_ONE_LEFT:-}" = "$7" ]; then
-      printf '        assert(!move (_2.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _1, const 48_u8) -> [success: bb1, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
+  "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir "*)
+    member=$7
+    root=$(pwd -W 2>/dev/null || pwd -P)
+    case $* in
+      *" --target-dir target/r5-trials -- --emit=mir=$root/target/r5-trials/overflow-$member.mir")
+        kind=measured
+        out=target/r5-trials/overflow-$member.mir
+        ;;
+      *" --target-dir target/r5-trials-reference "*" -- --emit=mir=$root/target/r5-trials-reference/overflow-$member.mir")
+        kind=reference
+        out=target/r5-trials-reference/overflow-$member.mir
+        ;;
+      *)
+        printf 'stub cargo: got the arguments: %s\n' "$*"
+        exit 97
+        ;;
+    esac
+    cleared=
+    for a in "$@"; do
+      case $a in
+        'build.rustc="rustc"') cleared="$cleared rustc" ;;
+        'build.rustc-wrapper=""') cleared="$cleared wrapper" ;;
+        'build.rustc-workspace-wrapper=""') cleared="$cleared workspace-wrapper" ;;
+      esac
+    done
+    off=no
+    flag_off=no
+    for v in "${RUSTC:-}" "${RUSTC_WRAPPER:-}" "${RUSTC_WORKSPACE_WRAPPER:-}"; do
+      case ${v##*/} in *checks-off*) off=yes ;; esac
+    done
+    case " $cleared " in *" rustc "*) ;; *) case ${CARGO_BUILD_RUSTC##*/} in *checks-off*) off=yes ;; esac ;; esac
+    case " $cleared " in *" wrapper "*) ;; *) case ${CARGO_BUILD_RUSTC_WRAPPER##*/} in *checks-off*) off=yes ;; esac ;; esac
+    case " $cleared " in *" workspace-wrapper "*) ;; *) case ${CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER##*/} in *checks-off*) off=yes ;; esac ;; esac
+    dir=$PWD
+    while :; do
+      if [ -f "$dir/.cargo/config.toml" ]; then
+        while IFS= read -r line; do
+          case $line in
+            rustc-wrapper*checks-off*) case " $cleared " in *" wrapper "*) ;; *) off=yes ;; esac ;;
+            rustc-workspace-wrapper*checks-off*) case " $cleared " in *" workspace-wrapper "*) ;; *) off=yes ;; esac ;;
+            "rustc ="*checks-off*) case " $cleared " in *" rustc "*) ;; *) off=yes ;; esac ;;
+            rustflags*overflow-checks=off*) flag_off=yes ;;
+          esac
+        done <"$dir/.cargo/config.toml"
+      fi
+      case $dir in /*/*) dir=${dir%/*} ;; *) break ;; esac
+    done
+    case ${CARGO_TARGET_STUB_HOST_RUSTFLAGS:-} in *overflow-checks=off*) flag_off=yes ;; esac
+    forced=no
+    if [ "$kind" = reference ] && [ "${CARGO_ENCODED_RUSTFLAGS:-}" = -Coverflow-checks=on ]; then
+      forced=yes
+      flag_off=no
+    fi
+    if [ "$kind" = measured ] && [ -n "${CARGO_ENCODED_RUSTFLAGS+set}" ]; then
+      printf 'stub cargo: the measured build got the forced flags\n'
+      exit 89
+    fi
+    if [ "${STUB_NO_ARITHMETIC:-}" = "$member" ]; then
+      n=0
+    elif { [ "$off" = yes ] && [ "$member" = drift ]; } || [ "$flag_off" = yes ]; then
+      n=1
+    elif [ "$forced" = yes ]; then
+      n=2
+    elif [ "${STUB_OVERFLOW_OFF:-}" = "$member" ]; then
+      n=0
+    elif [ "${STUB_OVERFLOW_ONE_LEFT:-}" = "$member" ]; then
+      n=1
     else
-      printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n        assert(!move (_4.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _3, const 48_u8) -> [success: bb2, unwind continue];\n' >"target/r5-trials/overflow-$7.mir"
+      n=2
+    fi
+    mkdir -p "${out%/*}" || exit 92
+    : >"$out"
+    [ "$n" -lt 1 ] || printf '        assert(!move (_4.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _3, const 48_u8) -> [success: bb2, unwind continue];\n' >>"$out"
+    [ "$n" -lt 2 ] || printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n' >>"$out"
+    [ "$n" -gt 0 ] || printf '        _0 = Add(copy _1, const 1_u32);\n' >>"$out"
+    if [ "$kind" = reference ]; then
+      exit "${STUB_REFERENCE_EXIT:-0}"
     fi
     exit "${STUB_RUSTC_EXIT:-0}"
-    ;;
-  "rustc --release --locked --manifest-path tools/r5-trials/Cargo.toml -p $7 --lib --target stub-host --target-dir target/r5-trials -- -C overflow-checks=on --emit=mir=$(pwd -W 2>/dev/null || pwd -P)/target/r5-trials/overflow-reference-$7.mir")
-    [ -z "${RUSTC_WRAPPER+set}${RUSTC_WORKSPACE_WRAPPER+set}" ] || { printf 'stub cargo: a wrapper is set for the reference build\n'; exit 90; }
-    mkdir -p target/r5-trials || exit 92
-    if [ "${STUB_NO_ARITHMETIC:-}" = "$7" ]; then
-      printf '        _0 = Add(copy _1, const 1_u32);\n' >"target/r5-trials/overflow-reference-$7.mir"
-    else
-      printf '        assert(!move (_2.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, const 1_u32) -> [success: bb1, unwind continue];\n        assert(!move (_4.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _3, const 48_u8) -> [success: bb2, unwind continue];\n' >"target/r5-trials/overflow-reference-$7.mir"
-    fi
-    exit "${STUB_REFERENCE_EXIT:-0}"
     ;;
 esac
 printf 'stub cargo: got the arguments: %s\n' "$*"
@@ -440,7 +501,7 @@ check() {
   want=$2
   text=$3
   shift 3
-  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="${artifacts:-$work/artifacts-$case_name}" sh "$self" ${argument:+"$argument"} 2>&1)
+  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="${repo:-$work/$case_name}" CI_D_ARTIFACTS="${artifacts:-$work/artifacts-$case_name}" sh "$self" ${argument:+"$argument"} 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -463,11 +524,13 @@ check() {
   fi
   argument=
   artifacts=
+  repo=
 }
 
 self_test() {
   argument=
   artifacts=
+  repo=
   self=$0
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken
   mkdir -p "$work/bin" || broken
@@ -525,8 +588,49 @@ self_test() {
   fixture reference-build-fails
   check reference-build-fails FAIL-test 'FAIL 40-r5-trials (test)' STUB_REFERENCE_EXIT=101
 
-  fixture wrapper-variables-reach-no-reference-build
-  check wrapper-variables-reach-no-reference-build PASS "$all_same" RUSTC_WRAPPER= RUSTC_WORKSPACE_WRAPPER=
+  fixture rustc-wrapper-variable-turns-the-checks-off-in-r5-drift
+  check rustc-wrapper-variable-turns-the-checks-off-in-r5-drift FAIL-test 'FAIL 40-r5-trials (test)' RUSTC_WRAPPER="$work/checks-off-wrapper.sh"
+
+  fixture rustc-workspace-wrapper-variable-turns-the-checks-off-in-r5-drift
+  check rustc-workspace-wrapper-variable-turns-the-checks-off-in-r5-drift FAIL-test 'FAIL 40-r5-trials (test)' RUSTC_WORKSPACE_WRAPPER="$work/checks-off-wrapper.sh"
+
+  fixture cargo-build-rustc-wrapper-variable-turns-the-checks-off-in-r5-drift
+  check cargo-build-rustc-wrapper-variable-turns-the-checks-off-in-r5-drift FAIL-test 'FAIL 40-r5-trials (test)' CARGO_BUILD_RUSTC_WRAPPER="$work/checks-off-wrapper.sh"
+
+  fixture cargo-build-rustc-workspace-wrapper-variable-turns-the-checks-off-in-r5-drift
+  check cargo-build-rustc-workspace-wrapper-variable-turns-the-checks-off-in-r5-drift FAIL-test 'FAIL 40-r5-trials (test)' CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER="$work/checks-off-wrapper.sh"
+
+  fixture rustc-variable-names-a-compiler-that-turns-the-checks-off-in-r5-drift
+  check rustc-variable-names-a-compiler-that-turns-the-checks-off-in-r5-drift FAIL-test 'FAIL 40-r5-trials (test)' RUSTC="$work/checks-off-compiler.sh"
+
+  fixture cargo-build-rustc-variable-names-a-compiler-that-turns-the-checks-off-in-r5-drift
+  check cargo-build-rustc-variable-names-a-compiler-that-turns-the-checks-off-in-r5-drift FAIL-test 'FAIL 40-r5-trials (test)' CARGO_BUILD_RUSTC="$work/checks-off-compiler.sh"
+
+  for key in rustc-wrapper rustc-workspace-wrapper rustc; do
+    fixture "config-above-the-repository-$key/wt"
+    mkdir -p "$work/config-above-the-repository-$key/.cargo" || broken
+    printf '[build]\n%s = "%s/checks-off-tool.sh"\n' "$key" "$work" >"$work/config-above-the-repository-$key/.cargo/config.toml"
+    repo=$work/config-above-the-repository-$key/wt
+    check "config-above-the-repository-$key" FAIL-test 'FAIL 40-r5-trials (test)'
+  done
+
+  fixture tracked-config-at-the-root-names-a-wrapper
+  mkdir -p "$work/tracked-config-at-the-root-names-a-wrapper/.cargo" || broken
+  printf '#!/bin/sh\nexec "$@"\n' >"$work/tracked-config-at-the-root-names-a-wrapper/checks-off-wrapper.sh"
+  printf '[build]\nrustc-wrapper = "./checks-off-wrapper.sh"\n' >"$work/tracked-config-at-the-root-names-a-wrapper/.cargo/config.toml"
+  check tracked-config-at-the-root-names-a-wrapper FAIL-test 'FAIL 40-r5-trials (test)'
+
+  fixture target-rustflags-variable-turn-the-checks-off-in-every-member
+  check target-rustflags-variable-turn-the-checks-off-in-every-member FAIL-test 'FAIL 40-r5-trials (test)' CARGO_TARGET_STUB_HOST_RUSTFLAGS='-C overflow-checks=off'
+
+  fixture target-rustflags-in-a-config-file/wt
+  mkdir -p "$work/target-rustflags-in-a-config-file/.cargo" || broken
+  printf '[target.stub-host]\nrustflags = ["-C", "overflow-checks=off"]\n' >"$work/target-rustflags-in-a-config-file/.cargo/config.toml"
+  repo=$work/target-rustflags-in-a-config-file/wt
+  check target-rustflags-in-a-config-file FAIL-test 'FAIL 40-r5-trials (test)'
+
+  fixture caching-wrapper-changes-no-flag
+  check caching-wrapper-changes-no-flag PASS "$all_same" RUSTC_WRAPPER="$work/cache-wrapper.sh"
 
   fixture flag-variables-are-unset
   check flag-variables-are-unset PASS "$all_same" RUSTFLAGS=x CARGO_BUILD_RUSTFLAGS=x CARGO_ENCODED_RUSTFLAGS=x CARGO_PROFILE_RELEASE_OVERFLOW_CHECKS=false
