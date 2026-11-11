@@ -126,6 +126,34 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Verifier probes of the Job cap (scratch branch only)
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          cargo build --locked -p halvo-cap --bins
+          cargo build --manifest-path scratch-probes/verprobe/Cargo.toml
+          MP=target/debug/measure-peak.exe
+          PR=$(cygpath -w "$PWD/scratch-probes/verprobe/target/debug/verprobe.exe")
+          TMPU=$(cygpath -u "$RUNNER_TEMP")
+          TMPW=$(cygpath -w "$RUNNER_TEMP")
+          probe() { echo "== probe $1"; shift; "$MP" "$@"; echo "== exit=$?"; }
+          probe plain-under --limit 67108864 --runs 1 -- "$PR" plain 33554432 1000
+          probe plain-over --limit 67108864 --runs 1 -- "$PR" plain 134217728 1000
+          probe two-processes --limit 67108864 --runs 1 -- "$PR" two 100663296 2000
+          probe section --limit 67108864 --runs 1 -- "$PR" section 134217728 2000
+          probe mapfile --limit 67108864 --runs 1 -- "$PR" mapfile 134217728 2000 "$TMPW\\map.bin"
+          probe breakaway --limit 67108864 --runs 1 -- "$PR" breakaway 134217728 2000 "$TMPW\\breakaway.log"
+          probe wmi --limit 67108864 --runs 1 -- "$PR" wmi 134217728 3000 "$TMPW\\outside.log"
+          echo "== mutant: the memory-limit message of the Job is dropped"
+          git worktree add --detach "$TMPU/mut" HEAD
+          sed -i 's/JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => reported = true,/JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => {}/' "$TMPU/mut/crates/halvo-cap/src/windows.rs"
+          echo "lines changed in the copy: $(grep -c 'JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => {}' "$TMPU/mut/crates/halvo-cap/src/windows.rs")"
+          (cd "$TMPU/mut" && cargo build --locked -p halvo-cap --bins)
+          MP="$TMPU/mut/target/debug/measure-peak.exe"
+          probe mutant-control --limit 268435456 --control
+          probe mutant-plain-over --limit 67108864 --runs 1 -- "$PR" plain 134217728 1000
+          exit 0
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows --self-test
