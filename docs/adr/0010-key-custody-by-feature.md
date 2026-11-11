@@ -21,7 +21,7 @@ crates/halvo-capture/Cargo.toml, never by the build profile.
   as the key custody of an unsigned build. On an unsigned macOS build the first-run
   text and the data view carry this sentence (recommended text, RD-13):
   `This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.`
-- With the feature (the signed release, the owner's, which uses the enclave-backed
+- With the feature (a later signed release, the owner's, which uses the enclave-backed
   custody): the feature line stays declared as the selector, and R1 ships no Secure
   Enclave custody, because store-6 deletes the skeleton (RD-42; rulings D1). Such a
   build creates no store and reports `store=no_release_custody`. A store created
