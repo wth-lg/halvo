@@ -2,6 +2,7 @@
 //! configuration that reads the record of A-A2.1 (I2.1).
 
 mod config;
+pub mod policy;
 mod ports;
 
 pub use config::Config;
