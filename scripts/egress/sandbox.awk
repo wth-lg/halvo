@@ -91,7 +91,8 @@ function emit(at, proto, dest, pid, image) {
     proto = substr(t[1], 1, 3)
     if (t[2] == "lo" && substr(t[1], 4, 1) == "4") dest = "127.0.0.1:" port
     else dest = "-:" port
-  } else { proto = "-"; dest = "-" }
+  } else if (t[1] ~ /^icmp[46]$/) { proto = "icmp"; dest = "-:-" }
+  else { proto = "-"; dest = "-" }
   if (dup == 0) { emit(at, proto, dest, pid, image); next }
   if (target != "/private/var/run/mDNSResponder") { proto = "-"; dest = "-:" port }
   for (k = 0; k < dup; k++) emit(at, proto, dest, pid, image)

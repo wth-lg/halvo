@@ -14,7 +14,7 @@ case $# in
   *) refuse usage "probe.sh takes one NAME" ;;
 esac
 case $1 in
-  ipv4 | ipv6 | dns | loopback | udp | loopback2 | none | listen) name=$1 ;;
+  ipv4 | ipv6 | dns | loopback | udp | icmp | loopback2 | none | listen) name=$1 ;;
   *) refuse usage "$1" ;;
 esac
 
