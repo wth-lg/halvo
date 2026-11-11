@@ -393,6 +393,20 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn two_segment_keys_wrapped_under_one_store_key_use_two_nonces() {
+        const XNONCE: usize = 24;
+        let store_key = [0x42u8; 32];
+        let first = wrap_segment_key(&store_key, &SegmentKey::random().unwrap()).unwrap();
+        let second = wrap_segment_key(&store_key, &SegmentKey::random().unwrap()).unwrap();
+        let (first, second) = (&first[..XNONCE], &second[..XNONCE]);
+        assert!(first != second, "two segment-key wraps used one nonce");
+        assert!(
+            first.iter().any(|&b| b != 0) && second.iter().any(|&b| b != 0),
+            "a segment-key wrap used the all-zero nonce"
+        );
+    }
+
+    #[test]
     fn the_golden_segment_of_format_version_1_decrypts_to_its_plaintext() {
         let mut head = Vec::new();
         head.extend_from_slice(b"HLVOSEG");

@@ -434,6 +434,19 @@ mod tests {
     }
 
     #[test]
+    fn two_seals_under_one_key_use_two_nonces() {
+        let key = [0x21u8; 32];
+        let first = aead_seal(&key, b"one plaintext", b"one label").unwrap();
+        let second = aead_seal(&key, b"one plaintext", b"one label").unwrap();
+        let (first, second) = (&first[..XNONCE_LEN], &second[..XNONCE_LEN]);
+        assert!(first != second, "two seals under one key used one nonce");
+        assert!(
+            first.iter().any(|&b| b != 0) && second.iter().any(|&b| b != 0),
+            "a seal used the all-zero nonce"
+        );
+    }
+
+    #[test]
     fn a_wrapped_store_key_opens_under_no_all_zero_root_and_no_other_store_root() {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         no_all_zero_root_and_no_other_store_root(
