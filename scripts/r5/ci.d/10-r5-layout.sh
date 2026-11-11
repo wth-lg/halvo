@@ -107,13 +107,12 @@ set_digest() {
 
 heldout_digits() {
   regular_in_index docs/r5/heldout.txt || return 1
-  [ -f docs/r5/heldout.txt ] || return 1
+  ends_in_lf docs/r5/heldout.txt || return 1
   awk '
     NR == 1 {
-      if ($0 !~ /^heldout cases=[0-9]+ benign=[0-9]+ fault=[0-9]+ sha256=[0-9a-f]+$/) exit 1
-      digits = substr($0, index($0, "sha256=") + 7)
-      if (length(digits) != 64) exit 1
-      print digits
+      if ($0 !~ /^heldout cases=24 benign=12 fault=12 sha256=[0-9a-f]+$/) exit 1
+      if (length($0) != 107) exit 1
+      print substr($0, 44)
       found = 1
       exit 0
     }
@@ -499,6 +498,18 @@ layout unmatched=1" --all
   fixture heldout-digits-differ
   printf 'heldout cases=24 benign=12 fault=12 sha256=d%s\nharness tree=%s\n' "${archive#?}" "$d_tree" >"$work/heldout-digits-differ/docs/r5/heldout.txt"
   check heldout-digits-differ FAIL-targets 'targets=miss learner=none harness=same'
+
+  fixture heldout-counts-differ
+  printf 'heldout cases=20 benign=10 fault=10 sha256=%s\nharness tree=%s\n' "$archive" "$d_tree" >"$work/heldout-counts-differ/docs/r5/heldout.txt"
+  check heldout-counts-differ FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture heldout-count-with-a-leading-zero
+  printf 'heldout cases=024 benign=12 fault=12 sha256=%s\nharness tree=%s\n' "$archive" "$d_tree" >"$work/heldout-count-with-a-leading-zero/docs/r5/heldout.txt"
+  check heldout-count-with-a-leading-zero FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture heldout-without-its-final-line-feed
+  printf 'heldout cases=24 benign=12 fault=12 sha256=%s\nharness tree=%s' "$archive" "$d_tree" >"$work/heldout-without-its-final-line-feed/docs/r5/heldout.txt"
+  check heldout-without-its-final-line-feed FAIL-targets "$line targets=miss learner=none harness=same"
 
   fixture freeze-keys-out-of-order
   printf '[targets]\ncases = "%s"\ntargets = "%s"\nstat = "%s"\ndrift = "%s"\nheldout = "%s"\n' \
