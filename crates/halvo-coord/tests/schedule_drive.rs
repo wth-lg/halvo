@@ -1800,3 +1800,19 @@ fn creation_sends_no_state_for_a_web_agent_even_with_a_playbook() {
     assert_eq!(w.go(Move::Create).created, vec![minted(1)]);
     assert_eq!(w.calls(), vec!["create_agent".to_string()]);
 }
+
+#[test]
+fn an_end_whose_read_of_the_agents_fails_serves_no_start_and_the_next_tick_does() {
+    let mut w = world(&[manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    let end = w.end(&run, Some(Outcome::Completed));
+    assert_eq!(end.ended[0].next, Vec::<Served>::new());
+    assert_eq!(w.starts(), 0);
+    assert_eq!(w.board.queue.len(), 1, "the start stays at the head");
+    w.ports.clear_refusals();
+    let tick = w.tick();
+    assert_eq!(tick.next[0].agent, agent(1));
+    assert_eq!(tick.next[0].answer, Ok(Answer::Ok));
+}
