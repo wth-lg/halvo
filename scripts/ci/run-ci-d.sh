@@ -268,7 +268,13 @@ new_repo() {
   fixture=$(mktemp -d "$tmp/repo.XXXXXX") || return 1
   git -C "$fixture" init -q >/dev/null 2>&1 || return 1
   printf 'version = 4\n' >"$fixture/Cargo.lock"
-  git -C "$fixture" add Cargo.lock >/dev/null 2>&1
+  git -C "$fixture" add Cargo.lock >/dev/null 2>&1 && fixture_commit
+}
+
+fixture_commit() {
+  fixture_tree=$(git -C "$fixture" write-tree) || return 1
+  fixture_head=$(printf 'tree %s\nauthor ci.d fixture <fixture@example.invalid> 1 +0000\ncommitter ci.d fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$fixture_tree" | git -C "$fixture" hash-object -t commit -w --stdin) || return 1
+  git -C "$fixture" update-ref HEAD "$fixture_head"
 }
 
 add_script() {
@@ -332,7 +338,7 @@ own_self_test() {
   tab=$(printf '\t')
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
-  guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)'
+  guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
 
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
@@ -437,8 +443,10 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; printf "PASS 10-a\n"'
   own_case lockfile-changed 1 "$guard_line" macos
   new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/package-lock.json"; printf "PASS 10-a\n"' &&
-    printf '{}\n' >"$fixture/package-lock.json" && git -C "$fixture" add package-lock.json >/dev/null 2>&1
+    printf '{}\n' >"$fixture/package-lock.json" && git -C "$fixture" add package-lock.json >/dev/null 2>&1 && fixture_commit
   own_case package-lock-changed 1 "$guard_line" macos
+  new_repo && add_script r1 10-a.sh "$good" 'printf "x\n" >>"$CI_D_REPO/Cargo.lock"; git -C "$CI_D_REPO" add Cargo.lock; printf "PASS 10-a\n"'
+  own_case lockfile-changed-and-staged 1 "$guard_line" macos
 
   new_repo && add_script r1 10-a.sh "$good" '[ "${1:-}" = --self-test ] || exit 3; printf "PASS self-test:10-a (2 failing fixtures rejected)\n"'
   own_case self-test-rejects-two 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
@@ -527,8 +535,8 @@ fi
 if [ "$failed" -gt 0 ] || [ "$passed" -eq 0 ]; then
   status=1
 fi
-if ! git diff --exit-code -- Cargo.lock package-lock.json; then
-  printf 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from the index; a script builds with --locked and changes no tracked file)\n'
+if ! git diff --exit-code HEAD -- Cargo.lock package-lock.json; then
+  printf 'FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)\n'
   status=1
 fi
 exit "$status"

@@ -46,7 +46,7 @@ Each job of `ci.yml` has the steps `ci.d self-test` and `ci.d`, which run the fi
 1. The output of each script while it runs, then `seconds <NN-name> <n>`.
 2. One line for each script: the script's PASS, FAIL or SKIP line, or the driver's own FAIL line for it.
 3. `ci.d <job>: <p> passed, <f> failed, <s> skipped`. With `--self-test` the line is `ci.d <job> self-test: <p> passed, <f> failed`.
-4. The output of the lockfile guard, `git diff --exit-code -- Cargo.lock package-lock.json`, when a lockfile differs from the index.
+4. The output of the lockfile guard, `git diff --exit-code HEAD -- Cargo.lock package-lock.json`, when a lockfile differs from HEAD, staged or not.
 
 ## Exit status
 
