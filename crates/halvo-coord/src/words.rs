@@ -204,7 +204,8 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "item.check.text",
-        "Check the site or your account to see if this happened; it asks you before trying again.",
+        "Check the site or your account first; No does nothing now, \
+         and you get a new card before it acts.",
     ),
     ("item.setup.title", "Answer a few questions for “{name}”"),
     (
