@@ -11,17 +11,20 @@ Audit of the covered table in docs/verify/store-shred.md. It reads the doc, ever
 mutants.rows file and crates/halvo-capture/src/store/formal_tests.rs. It builds nothing.
 
   sh docs/verify/check-covered.sh [--root DIR] [--as NAME]
-      Fail unless every line of the table under "## Covered code" names a row that
-      - starts with formal- and stands once in a mutants.rows file,
+      Fail unless every row whose name starts with formal-
       - has the state required,
-      - mutates the file of its line,
       - has the verdict "test store::formal_tests::<test>", where <test> is a function
-        of formal_tests.rs and the table under "## The checks" lists it for the check
-        of the line.
+        of formal_tests.rs under #[test] and without #[ignore], and the table under
+        "## The checks" lists it,
+      - is named in the doc, in backticks and outside a code block: `formal-<name>`,
+      and unless every line of every table under "## Covered code" names such a row
+      that stands in one mutants.rows file, mutates the file of the line and is
+      judged by a test that the table of checks lists for the check of the line.
       It also fails when no row starts with formal-, when the doc names a formal- row
-      that no row file holds, and when a row file holds a formal- row that the doc
-      does not name. The doc names a row in backticks: `formal-<name>`. Each problem
-      is one line, and a problem of the doc names its line.
+      that no row file holds, and when the covered table holds no line. In the two
+      sections that it reads as tables, every line with a | is a line of a table, so
+      a line that lost its first | or gained a space in front is still audited. Each
+      problem is one line, and a problem of the doc names its line.
       --root DIR   audit the tree DIR (default: the repository of this script)
       --as NAME    print NAME in the last line (the ci.d script passes its own name)
   sh docs/verify/check-covered.sh --self-test [-v] [--as NAME]
@@ -53,9 +56,29 @@ audit() {
     tr -d '\r' <"$rows_file" |
       awk -F '\t' -v dir="$rows_dir" -v from="$rows_name" 'NF == 6 { print $1 "\t" dir "/" $2 "\t" $4 "\t" $5 "\t" from }' >>"$scratch/rows" || return 2
   done <"$scratch/files"
-  tr -d '\r' <"$root/$tests_path" | sed -n 's/^[[:space:]]*fn \([a-z0-9_]*\)(.*/\1/p' >"$scratch/tests" || return 2
+  tr -d '\r' <"$root/$tests_path" |
+    awk '
+      {
+        line = $0
+        sub(/^[ \t]+/, "", line)
+      }
+      line ~ /^#\[/ {
+        if (line == "#[test]") is_test = 1
+        if (line ~ /^#\[ignore/) is_ignored = 1
+        next
+      }
+      line ~ /^fn [a-z0-9_]+\(/ {
+        sub(/^fn /, "", line)
+        sub(/\(.*/, "", line)
+        if (is_test && !is_ignored) print line
+      }
+      line !~ /^\/\// {
+        is_test = 0
+        is_ignored = 0
+      }
+    ' >"$scratch/tests" || return 2
   tr -d '\r' <"$root/$doc_path" >"$scratch/doc" || return 2
-  awk -F '|' -v rows="$scratch/rows" -v tests="$scratch/tests" -v doc="$doc_path" -v module="$tests_module" '
+  awk -v rows="$scratch/rows" -v tests="$scratch/tests" -v doc="$doc_path" -v module="$tests_module" '
     function problem(text) {
       print "problem: " text
       problems++
@@ -75,11 +98,22 @@ audit() {
         if (index(part[1], "formal-") == 1) formal_rows++
       }
       while ((getline line < tests) > 0) is_test[line] = 1
+      prefix = "test " module "::"
     }
-    /^#/ {
-      section = $0
-      sub(/^#+[ \t]*/, "", section)
+    /^[ \t]*```/ {
+      in_code = !in_code
       table_line = 0
+      next
+    }
+    in_code { next }
+    /^#/ {
+      match($0, /^#+/)
+      if (RLENGTH <= 2) {
+        section = $0
+        sub(/^#+[ \t]*/, "", section)
+      }
+      table_line = 0
+      next
     }
     {
       text = $0
@@ -92,24 +126,30 @@ audit() {
           problem("line " NR " of " doc " names the row " named ", which no mutants.rows file holds")
         }
       }
-    }
-    !/^\|/ { table_line = 0; next }
-    { table_line++ }
-    table_line < 3 { next }
-    section == "The checks" {
-      test_of[cell($2), cell($3)] = 1
-      next
-    }
-    section != "Covered code" { next }
-    {
+      line = $0
+      sub(/^[ \t]+/, "", line)
+      if ((section != "The checks" && section != "Covered code") || index(line, "|") == 0) {
+        table_line = 0
+        next
+      }
+      if (substr(line, 1, 1) != "|") line = "|" line
+      if (line !~ /\|[ \t]*$/) line = line "|"
+      cells = split(line, part, "|") - 2
+      table_line++
+      if (table_line < 3) next
+      if (section == "The checks") {
+        test_of[cell(part[2]), cell(part[3])] = 1
+        listed[cell(part[3])] = 1
+        next
+      }
       covered_lines++
-      if (NF != 6) {
+      if (cells != 4) {
         problem("line " NR " of " doc " is a line of the covered table without its four cells: check, file, functions, rows")
         next
       }
-      check = cell($2)
-      file = cell($3)
-      text = $5
+      check = cell(part[2])
+      file = cell(part[3])
+      text = part[5]
       rows_named = 0
       while (match(text, /`formal-[a-z0-9-]+`/)) {
         row = substr(text, RSTART + 1, RLENGTH - 2)
@@ -118,24 +158,28 @@ audit() {
         if (!(row in held)) continue
         where = "line " NR " of " doc " names the row " row ", "
         if (held[row] > 1) problem(where "which stands in more than one mutants.rows file")
-        if (row_state[row] != "required") problem(where "whose state is " row_state[row] ", not required")
         if (row_file[row] != file) problem(where "which mutates " row_file[row] ", not the file of this line")
-        verdict = row_verdict[row]
-        if (index(verdict, "test " module "::") != 1) {
-          problem(where "whose verdict is " verdict ", not a test of " module)
-          continue
-        }
-        test = substr(verdict, length("test " module "::") + 1)
-        if (!(test in is_test)) problem(where "whose verdict test " test " is not a function of formal_tests.rs")
+        if (index(row_verdict[row], prefix) != 1) continue
+        test = substr(row_verdict[row], length(prefix) + 1)
         if (!((check, test) in test_of)) problem(where "whose verdict test " test " is not a test of check " check " in the table under The checks")
       }
       if (rows_named == 0) problem("line " NR " of " doc ", the covered-table line of " file ", names no formal- row: name the row that fails through it, or move the line to Not covered with the reason")
     }
     END {
       if (formal_rows == 0) problem("no mutants.rows file holds a row whose name starts with formal-")
-      if (covered_lines == 0) problem("the table under Covered code in " doc " holds no line")
+      if (covered_lines == 0) problem("the tables under Covered code in " doc " hold no line")
       for (row in held) {
-        if (index(row, "formal-") == 1 && !(row in in_doc)) problem("the row " row " stands in " row_from[row] ", and " doc " does not name it")
+        if (index(row, "formal-") != 1) continue
+        where = "the row " row " of " row_from[row] " "
+        if (!(row in in_doc)) problem(where "is named nowhere in " doc ", in backticks and outside a code block")
+        if (row_state[row] != "required") problem(where "has the state " row_state[row] ", not required")
+        if (index(row_verdict[row], prefix) != 1) {
+          problem(where "has the verdict " row_verdict[row] ", not a test of " module)
+          continue
+        }
+        test = substr(row_verdict[row], length(prefix) + 1)
+        if (!(test in is_test)) problem(where "has the verdict test " test ", which is no function of formal_tests.rs under #[test] and without #[ignore]")
+        else if (!(test in listed)) problem(where "has the verdict test " test ", which the table under The checks does not list")
       }
       printf "covered lines %d, formal rows %d, problems %d\n", covered_lines, formal_rows, problems
       exit (problems > 0)
@@ -208,6 +252,10 @@ good_doc='# A fixture of the verify doc
 
 ## Covered code
 
+```sh
+# a line of a code block is no heading and no line of a table | it | has | four | cells |
+```
+
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
 | 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` | `formal-keys` |
@@ -219,17 +267,22 @@ good_doc='# A fixture of the verify doc
 
 good_tests='fn helper() {}
 proptest! {
+    /// A property.
     #[test]
     fn shred_check(ops in ops()) {}
 }
 #[test]
-fn race_check() {}'
+fn race_check() {}
+#[test]
+#[ignore]
+fn slow_check() {}'
 
 # shellcheck disable=SC2016
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
   wrong=
+  store_rows=crates/halvo-capture/src/store/mutants.rows
 
   fixture holds
   check holds PASS 'covered lines 2, formal rows 2, problems 0'
@@ -245,28 +298,66 @@ self_test() {
 | 1 | `crates\/halvo-capture\/src\/custody\/dev_fallback.rs` | `aead_seal` | `formal-wrap` |/'
   check row-beside-custody-code PASS 'covered lines 3, formal rows 3, problems 0'
 
+  fixture control-row-named-in-prose
+  row control-row-named-in-prose store formal-control formal_tests.rs "test $tests_module::shred_check" required
+  edit_doc control-row-named-in-prose 's/^- The segment format.*/&\
+- `formal-control` is a control of the harness./'
+  check control-row-named-in-prose PASS 'covered lines 2, formal rows 3, problems 0'
+
   fixture line-names-no-row
-  edit_doc line-names-no-row 's/ `formal-keys` |$/ none |/'
-  check line-names-no-row FAIL "line 14 of $doc_path, the covered-table line of crates/halvo-capture/src/store/expiry.rs, names no formal- row"
+  edit_doc line-names-no-row 's/ `formal-keys` |$/ `formal-lock` |/'
+  check line-names-no-row FAIL "names the row formal-lock, which mutates crates/halvo-capture/src/store/db.rs, not the file of this line"
+
+  fixture line-names-nothing
+  row line-names-nothing store formal-spare expiry.rs "test $tests_module::shred_check" required
+  edit_doc line-names-nothing 's/ `formal-keys` |$/ none |/; s/^- The segment format.*/&\
+- `formal-keys` and `formal-spare` are named here./'
+  check line-names-nothing FAIL "line 18 of $doc_path, the covered-table line of crates/halvo-capture/src/store/expiry.rs, names no formal- row"
+
+  fixture line-indented
+  edit_doc line-indented 's/^| 1 | \(.*\) `formal-keys` |$/ | 1 | \1 none |/; s/^- The segment format.*/&\
+- `formal-keys` is named here./'
+  check line-indented FAIL "line 18 of $doc_path, the covered-table line of crates/halvo-capture/src/store/expiry.rs, names no formal- row"
+
+  fixture line-without-its-first-pipe
+  edit_doc line-without-its-first-pipe 's/^| 2 | \(.*\) `formal-lock` |$/2 | \1 none |/; s/^- The segment format.*/&\
+- `formal-lock` is named here./'
+  check line-without-its-first-pipe FAIL "line 19 of $doc_path, the covered-table line of crates/halvo-capture/src/store/db.rs, names no formal- row"
+
+  fixture table-under-a-subheading
+  edit_doc table-under-a-subheading 's/^## Not covered$/### Custody code\
+\
+| Check | File | Functions | Rows that fail through it |\
+|---|---|---|---|\
+| 1 | `crates\/halvo-capture\/src\/custody\/dev_fallback.rs` | `aead_seal` | none |\
+\
+&/'
+  check table-under-a-subheading FAIL "the covered-table line of crates/halvo-capture/src/custody/dev_fallback.rs, names no formal- row"
 
   fixture row-missing
   edit_doc row-missing 's/`formal-lock`/`formal-gone`/'
-  check row-missing FAIL "line 15 of $doc_path names the row formal-gone, which no mutants.rows file holds"
+  check row-missing FAIL "line 19 of $doc_path names the row formal-gone, which no mutants.rows file holds"
 
   fixture row-pending
   row row-pending store formal-later db.rs "test $tests_module::race_check" 'pending store-3'
   edit_doc row-pending 's/`formal-lock`/`formal-lock`, `formal-later`/'
-  check row-pending FAIL 'names the row formal-later, whose state is pending store-3, not required'
+  check row-pending FAIL "the row formal-later of $store_rows has the state pending store-3, not required"
+
+  fixture control-row-for-another-place
+  row control-row-for-another-place store formal-control formal_tests.rs "test $tests_module::shred_check" 'required on hosted-runner'
+  edit_doc control-row-for-another-place 's/^- The segment format.*/&\
+- `formal-control` is a control of the harness./'
+  check control-row-for-another-place FAIL "the row formal-control of $store_rows has the state required on hosted-runner, not required"
 
   fixture verdict-is-a-gate-line
   row verdict-is-a-gate-line store formal-gate db.rs 'measured decryptable' required
   edit_doc verdict-is-a-gate-line 's/`formal-lock`/`formal-lock`, `formal-gate`/'
-  check verdict-is-a-gate-line FAIL "names the row formal-gate, whose verdict is measured decryptable, not a test of $tests_module"
+  check verdict-is-a-gate-line FAIL "the row formal-gate of $store_rows has the verdict measured decryptable, not a test of $tests_module"
 
   fixture verdict-is-another-test
   row verdict-is-another-test store formal-other db.rs 'test store::hardening_tests::raw_pages' required
   edit_doc verdict-is-another-test 's/`formal-lock`/`formal-lock`, `formal-other`/'
-  check verdict-is-another-test FAIL "whose verdict is test store::hardening_tests::raw_pages, not a test of $tests_module"
+  check verdict-is-another-test FAIL "has the verdict test store::hardening_tests::raw_pages, not a test of $tests_module"
 
   fixture verdict-of-the-other-check
   row verdict-of-the-other-check store formal-crossed expiry.rs "test $tests_module::race_check" required
@@ -276,7 +367,23 @@ self_test() {
   fixture test-not-in-the-file
   row test-not-in-the-file store formal-renamed db.rs "test $tests_module::renamed_check" required
   edit_doc test-not-in-the-file 's/`formal-lock`/`formal-lock`, `formal-renamed`/'
-  check test-not-in-the-file FAIL 'whose verdict test renamed_check is not a function of formal_tests.rs'
+  check test-not-in-the-file FAIL 'has the verdict test renamed_check, which is no function of formal_tests.rs under #[test] and without #[ignore]'
+
+  fixture verdict-is-a-helper-function
+  row verdict-is-a-helper-function store formal-helper db.rs "test $tests_module::helper" required
+  edit_doc verdict-is-a-helper-function 's/`formal-lock`/`formal-lock`, `formal-helper`/; s/^| 2 | `race_check` |$/&\
+| 2 | `helper` |/'
+  check verdict-is-a-helper-function FAIL 'has the verdict test helper, which is no function of formal_tests.rs under #[test] and without #[ignore]'
+
+  fixture verdict-is-an-ignored-test
+  row verdict-is-an-ignored-test store formal-slow db.rs "test $tests_module::slow_check" required
+  edit_doc verdict-is-an-ignored-test 's/`formal-lock`/`formal-lock`, `formal-slow`/; s/^| 2 | `race_check` |$/&\
+| 2 | `slow_check` |/'
+  check verdict-is-an-ignored-test FAIL 'has the verdict test slow_check, which is no function of formal_tests.rs under #[test] and without #[ignore]'
+
+  fixture verdict-test-not-listed
+  edit_doc verdict-test-not-listed '/^| 2 | `race_check` |$/d'
+  check verdict-test-not-listed FAIL 'has the verdict test race_check, which the table under The checks does not list'
 
   fixture row-on-another-file
   row row-on-another-file store formal-elsewhere segment.rs "test $tests_module::race_check" required
@@ -285,24 +392,31 @@ self_test() {
 
   fixture row-not-in-the-doc
   row row-not-in-the-doc store formal-unnamed db.rs "test $tests_module::race_check" required
-  check row-not-in-the-doc FAIL "the row formal-unnamed stands in crates/halvo-capture/src/store/mutants.rows, and $doc_path does not name it"
+  check row-not-in-the-doc FAIL "the row formal-unnamed of $store_rows is named nowhere in $doc_path"
+
+  fixture row-named-in-a-code-block
+  row row-named-in-a-code-block store formal-unnamed db.rs "test $tests_module::race_check" required
+  edit_doc row-named-in-a-code-block 's/^# a line of a code block.*/&\
+`formal-unnamed`/'
+  check row-named-in-a-code-block FAIL "the row formal-unnamed of $store_rows is named nowhere in $doc_path"
 
   fixture name-twice
   row name-twice custody formal-lock db.rs "test $tests_module::race_check" required
   check name-twice FAIL 'names the row formal-lock, which stands in more than one mutants.rows file'
 
   fixture no-formal-row
-  grep -v '^formal-' "$work/no-formal-row/crates/halvo-capture/src/store/mutants.rows" >"$work/no-formal-row/rows.kept"
-  cp "$work/no-formal-row/rows.kept" "$work/no-formal-row/crates/halvo-capture/src/store/mutants.rows" || exit 2
+  grep -v '^formal-' "$work/no-formal-row/$store_rows" >"$work/no-formal-row/rows.kept"
+  cp "$work/no-formal-row/rows.kept" "$work/no-formal-row/$store_rows" || exit 2
   check no-formal-row FAIL 'no mutants.rows file holds a row whose name starts with formal-'
 
   fixture no-covered-table
-  edit_doc no-covered-table '/^## Covered code$/,/^## Not covered$/d'
-  check no-covered-table FAIL "the table under Covered code in $doc_path holds no line"
+  edit_doc no-covered-table '/^## Covered code$/,/^## Not covered$/d; s/^- The segment format.*/&\
+- `formal-keys` and `formal-lock` are named here./'
+  check no-covered-table FAIL "the tables under Covered code in $doc_path hold no line"
 
   fixture line-with-three-cells
   edit_doc line-with-three-cells 's/ `Db::open` |//'
-  check line-with-three-cells FAIL "line 15 of $doc_path is a line of the covered table without its four cells"
+  check line-with-three-cells FAIL "line 19 of $doc_path is a line of the covered table without its four cells"
 
   fixture doc-missing
   mv "$work/doc-missing/$doc_path" "$work/doc-missing/doc.moved" || exit 2
