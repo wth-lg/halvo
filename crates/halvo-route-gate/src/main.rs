@@ -12,7 +12,7 @@ use halvo_route::prices::Prices;
 use halvo_route_gate::derive::derive;
 use halvo_route_gate::generate::generate;
 use halvo_route_gate::out::{self, Refused};
-use halvo_route_gate::product::{build_product, score_once, ProductRouter};
+use halvo_route_gate::product::{build_product, recorded_setup, score_once, Freeze, ProductRouter};
 use halvo_route_gate::routers::{OneTier, PolicyRouter, Random};
 use halvo_route_gate::score::DEFAULT_DRAWS;
 use halvo_route_gate::selftest::self_test;
@@ -163,17 +163,40 @@ fn write_new(path: &str, text: &str) -> Result<(), Refusal> {
     }
 }
 
-fn generated_only(table: &Table, found: &BTreeMap<String, &str>) -> Result<(), Refusal> {
-    if !table.is_generated() {
-        return not_built().map(|_| ());
+fn setup_for(table: &Table, found: &BTreeMap<String, &str>) -> Result<Setup, Refusal> {
+    let freeze = found.get("--freeze");
+    if table.is_generated() {
+        if freeze.is_some() {
+            return refuse(
+                "usage",
+                "--freeze names the freeze file of a recorded table",
+            );
+        }
+        return Ok(Setup::generated());
     }
-    if found.contains_key("--freeze") {
+    let Some(path) = freeze else {
+        return recorded_setup(None).or_else(|detail| refuse("file", detail));
+    };
+    let Ok(bytes) = std::fs::read(path) else {
+        return refuse("file", "--freeze cannot be read");
+    };
+    let Ok(text) = String::from_utf8(bytes) else {
+        return refuse("file", "--freeze is not UTF-8 text");
+    };
+    let setup = recorded_setup(Some(&text)).or_else(|detail| refuse("file", detail))?;
+    let rows = Freeze::parse(&text)
+        .map(|freeze| freeze.rows)
+        .or_else(|detail| refuse("file", detail))?;
+    if rows != table.rows().len() as u64 {
         return refuse(
-            "usage",
-            "--freeze names the freeze file of a recorded table",
+            "file",
+            format!(
+                "--freeze counts {rows} rows and --table holds {}",
+                table.rows().len()
+            ),
         );
     }
-    Ok(())
+    Ok(setup)
 }
 
 fn generate_command(args: &[String]) -> Result<Done, Refusal> {
@@ -189,8 +212,8 @@ fn derive_command(args: &[String]) -> Result<Done, Refusal> {
     let path = required(&found, "--table")?;
     let out = required(&found, "--out")?;
     let table = read_table(path)?;
-    generated_only(&table, &found)?;
-    write_new(out, &derive(&table, &Setup::generated()).to_text())?;
+    let setup = setup_for(&table, &found)?;
+    write_new(out, &derive(&table, &setup).to_text())?;
     Ok(Done::Pass(Vec::new()))
 }
 
@@ -230,8 +253,7 @@ fn score_command(args: &[String]) -> Result<Done, Refusal> {
         None => DEFAULT_DRAWS,
     };
     let table = read_table(path)?;
-    generated_only(&table, &found)?;
-    let setup = Setup::generated();
+    let setup = setup_for(&table, &found)?;
     let router: Box<dyn Router> = match (name, policy) {
         ("product", Some(policy)) => Box::new(ProductRouter::new(read_policy(policy, &setup)?)),
         ("derived", _) => Box::new(PolicyRouter::derived(&table, &setup)),

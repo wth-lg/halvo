@@ -387,9 +387,20 @@ fn derive_writes_the_policy_of_a_generated_table() {
     );
     let header = path(&dir, "header.tsv");
     std::fs::write(&header, format!("{HEADER}\n")).expect("fixture");
-    assert_refused(
-        &["derive", "--table", &header, "--out", &path(&dir, "p3.tsv")],
-        "REFUSED usage: not built",
+    let recorded = crate::run(&[
+        "derive",
+        "--table",
+        &header,
+        "--out",
+        &path(&dir, "first.tsv"),
+    ]);
+    assert_eq!(
+        (
+            recorded.code,
+            recorded.stdout.as_str(),
+            recorded.stderr.as_str()
+        ),
+        (Some(0), "", "")
     );
     assert_refused(
         &[
@@ -482,10 +493,8 @@ fn score_prints_its_lines_and_exits_by_the_verdict() {
     }
     let header = path(&dir, "header.tsv");
     std::fs::write(&header, format!("{HEADER}\n")).expect("fixture");
-    assert_refused(
-        &["score", "--table", &header, "--router", "derived"],
-        "REFUSED usage: not built",
-    );
+    let recorded = run(&["score", "--table", &header, "--router", "derived"]);
+    assert_eq!((recorded.code, recorded.stderr.as_str()), (Some(0), ""));
     assert_refused(
         &[
             "score", "--table", &table, "--router", "derived", "--freeze", &table,

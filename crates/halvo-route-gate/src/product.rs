@@ -1,5 +1,5 @@
-//! The router `product` of contract T6.6, the product's own pick on a policy, and the guard under
-//! which the tool asks a router for its picks.
+//! The router `product` of contract T6.6, the product's own pick on a policy, the guard under
+//! which the tool asks a router for its picks, and the setup of a recorded table.
 
 use std::num::NonZeroU32;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -7,10 +7,12 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use halvo_route::pick::pick;
 use halvo_route::policy::{cells, PickCell, Policy, CELL_COUNT};
 use halvo_route::prices::Prices;
+use halvo_route::release;
 use halvo_route::tier::{CallKind, CategoryId, Tier};
 
+use crate::import::Date;
 use crate::score::{score, Score};
-use crate::table::Table;
+use crate::table::{Model, Table};
 use crate::{Router, Setup};
 
 /// The router `product`: `halvo_route::pick::pick` on its policy with the ceiling `frontier`.
@@ -110,6 +112,102 @@ pub fn score_once(
 ) -> Result<Score, Panicked> {
     let answers = Answers::ask(router)?;
     Ok(score(table, setup, &answers, prices, draws))
+}
+
+/// The setup of a recorded table (contract T6.6): the tiers that `release::ruling()` allows, and
+/// the `driver` and `writer` of the freeze file whose text is given, or none of either when no
+/// text is given. A text that is not the two lines of T5.2 is refused; the string is the detail
+/// of `REFUSED file`.
+pub fn recorded_setup(freeze: Option<&str>) -> Result<Setup, String> {
+    let (driver, writer) = match freeze {
+        Some(text) => {
+            let freeze = Freeze::parse(text)?;
+            (freeze.driver, freeze.writer)
+        }
+        None => (None, None),
+    };
+    Ok(Setup {
+        allowed: release::ruling().allowed().to_vec(),
+        driver,
+        writer,
+        recorded: true,
+    })
+}
+
+/// The freeze file of contract T5.2: `freeze rows=<n> models=<n> sources=2 date=<YYYY-MM-DD>`
+/// and `on_device driver=<token|none> writer=<token|none>`, each line ended by one LF.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct Freeze {
+    pub rows: u64,
+    pub models: u64,
+    pub date: String,
+    pub driver: Option<String>,
+    pub writer: Option<String>,
+}
+
+impl Freeze {
+    /// Reads the two lines and refuses any other text, with a detail that names the line.
+    pub fn parse(text: &str) -> Result<Freeze, String> {
+        let refused = |line: usize| format!("--freeze line {line} is not of the freeze form");
+        let Some(body) = text.strip_suffix('\n') else {
+            return Err("--freeze does not end with LF".to_owned());
+        };
+        let mut lines = body.split('\n');
+        let (Some(first), Some(second), None) = (lines.next(), lines.next(), lines.next()) else {
+            return Err("--freeze does not hold two lines".to_owned());
+        };
+        let mut fields = first.split(' ');
+        let (Some("freeze"), Some(rows), Some(models), Some("sources=2"), Some(date), None) = (
+            fields.next(),
+            fields.next().and_then(|f| f.strip_prefix("rows=")),
+            fields.next().and_then(|f| f.strip_prefix("models=")),
+            fields.next(),
+            fields.next().and_then(|f| f.strip_prefix("date=")),
+            fields.next(),
+        ) else {
+            return Err(refused(1));
+        };
+        let (Some(rows), Some(models), Some(date)) =
+            (decimal(rows), decimal(models), Date::parse(date))
+        else {
+            return Err(refused(1));
+        };
+        let mut fields = second.split(' ');
+        let (Some("on_device"), Some(driver), Some(writer), None) = (
+            fields.next(),
+            fields.next().and_then(|f| f.strip_prefix("driver=")),
+            fields.next().and_then(|f| f.strip_prefix("writer=")),
+            fields.next(),
+        ) else {
+            return Err(refused(2));
+        };
+        let (Some(driver), Some(writer)) = (model(driver), model(writer)) else {
+            return Err(refused(2));
+        };
+        Ok(Freeze {
+            rows,
+            models,
+            date: date.as_str().to_owned(),
+            driver,
+            writer,
+        })
+    }
+}
+
+fn decimal(text: &str) -> Option<u64> {
+    let canonical = !text.is_empty()
+        && text.bytes().all(|b| b.is_ascii_digit())
+        && (text == "0" || !text.starts_with('0'));
+    canonical.then(|| text.parse().ok()).flatten()
+}
+
+fn model(text: &str) -> Option<Option<String>> {
+    if text == "none" {
+        return Some(None);
+    }
+    Model::parse(text)
+        .ok()
+        .map(|model| Some(model.as_str().to_owned()))
 }
 
 /// `router` asked once for each cell: its answers, or `Answers::panicked` when it panicked.
