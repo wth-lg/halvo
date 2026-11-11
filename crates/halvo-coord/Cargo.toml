@@ -1,0 +1,14 @@
+[package]
+name = "halvo-coord"
+version = "0.0.0"
+description = "Halvo coordinator: the pure types, limits, ports, memory ports, words table, command list and page fixtures of the interface run"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[[bin]]
+name = "coord-words"
+path = "src/bin/coord-words.rs"
