@@ -15,6 +15,8 @@
 //! limit, and on Windows that no report of a refused allocation arrived; it never says that
 //! the program held no more than the limit. The reading is one quantity on each system, and
 //! the two lists below name, as a closed list, what that quantity does not count.
+//! docs/r2/trials/cap.md holds a `limit` line for each name on each machine of its system,
+//! which a run of the crate's probe, the example `hold`, printed.
 //!
 //! On macOS, the lifetime peak physical footprint of the started process does not count:
 //! - `child-process`: the memory of any other process, also of a process that the started
