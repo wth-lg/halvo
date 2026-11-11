@@ -455,6 +455,17 @@ impl ServerError {
         })
     }
 
+    pub(crate) fn bounded(cause: Cause, detail: &str) -> ServerError {
+        let mut end = detail.len().min(DETAIL_MAX);
+        while !detail.is_char_boundary(end) {
+            end -= 1;
+        }
+        ServerError {
+            cause,
+            detail: detail[..end].to_owned(),
+        }
+    }
+
     /// The cause.
     pub fn cause(&self) -> &Cause {
         &self.cause
