@@ -116,7 +116,21 @@
         tl.appendChild(t);
         set.appendChild(tl);
       }
+      if (fault === 'radio_arrows') {
+        set.addEventListener('keydown', function (event) {
+          if (event.key.indexOf('Arrow') === 0) event.preventDefault();
+        });
+      }
       box.appendChild(set);
+      if (fault === 'radio_forms' && p.candidates.length) {
+        var form = document.createElement('form');
+        var copy = set.cloneNode(true);
+        Array.prototype.forEach.call(copy.querySelectorAll('input'), function (input) {
+          input.tabIndex = -1;
+        });
+        form.appendChild(copy);
+        box.appendChild(form);
+      }
     });
     var controls = el('div', 'r4s-controls', null);
     item.choices.forEach(function (c) {

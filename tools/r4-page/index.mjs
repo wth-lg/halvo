@@ -614,7 +614,7 @@ const HELPER = () => {
         active,
         activeStyle: active ? style(a) : null,
         safe: d && list.length ? idOf(list[0]) : 0,
-        controls: list.map((el) => ({ id: idOf(el), group: el.tagName === 'INPUT' && el.type === 'radio' && el.name ? 'radio:' + el.name : null, name: name(el) })),
+        controls: list.map((el) => ({ id: idOf(el), group: el.tagName === 'INPUT' && el.type === 'radio' && el.name ? 'radio:' + (el.form ? idOf(el.form) : 0) + ':' + el.name : null, name: name(el) })),
       };
     },
     step() {
@@ -631,6 +631,10 @@ const HELPER = () => {
       const el = byId.get(id);
       if (el) el.focus();
       return Boolean(el) && document.activeElement === el;
+    },
+    chosen(ids) {
+      const on = ids.find((id) => byId.has(id) && byId.get(id).checked);
+      return on === undefined ? 0 : on;
     },
     open() {
       return Boolean(dialog());
@@ -704,6 +708,32 @@ async function walkCheck(h) {
     }
   }
   for (const reached of groups.values()) if (!reached) misses.add('unreached');
+  if (b.controls.some((c, i) => c.group && b.controls.findIndex((d) => d.group === c.group) !== i)) {
+    const fresh = await again(h);
+    try {
+      await fresh.page.evaluate(HELPER);
+      const fb = await fresh.page.evaluate(() => window.__r4w.begin());
+      const members = new Map();
+      for (const c of fb.controls) if (c.group) members.set(c.group, [...(members.get(c.group) || []), c.id]);
+      for (const ids of members.values()) {
+        if (ids.length < 2) continue;
+        const seen = new Set();
+        if (!(await fresh.page.evaluate((id) => window.__r4w.focus(id), ids[0]))) {
+          misses.add('radio_arrows');
+          continue;
+        }
+        for (const key of ['ArrowDown', 'ArrowUp']) {
+          for (let i = 1; i < ids.length; i++) {
+            await fresh.page.keyboard.press(key);
+            seen.add(await fresh.page.evaluate((list) => window.__r4w.chosen(list), ids));
+          }
+        }
+        if (!ids.every((id) => seen.has(id))) misses.add('radio_arrows');
+      }
+    } finally {
+      await fresh.close();
+    }
+  }
   const ids = [...stops.keys()];
   await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
   await page.evaluate(FINISH);

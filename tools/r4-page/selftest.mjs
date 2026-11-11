@@ -20,6 +20,8 @@ const FAULTS = {
     { fault: 'unreachable', state: 'a', want: (r) => r.names.includes('unreached') },
     { fault: 'focus_unseen', state: 'a', want: (r) => r.names.includes('focus_unseen') },
     { fault: 'focus_escapes', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
+    { fault: 'radio_forms', state: 'a', want: (r) => r.names.includes('unreached') },
+    { fault: 'radio_arrows', state: 'a', want: (r) => r.names.includes('radio_arrows') },
   ],
   3: [{ fault: 'renamed', state: 'a', want: (r) => r.counts.structure === 'differ' }],
   4: [
