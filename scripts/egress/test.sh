@@ -95,23 +95,26 @@ test_probe() {
   unserve
   expect_exit probe/serve-on-a-taken-port-exits-3 3 sh -c "\"$bin/egress-spawn$exe\" serve 47201 '$work/s1' '$work/r1' & first=\$!; sleep 0.5; \"$bin/egress-spawn$exe\" serve 47201 '$work/s2' '$work/r2'; code=\$?; : >'$work/s1'; wait \$first; exit \$code"
   printf '%s\n' 'exit 7' >"$work/seven.sh"
-  "$bin/egress-spawn$exe" run "$work/status" "$work/pid" -- sh "$work/seven.sh"
+  "$bin/egress-spawn$exe" run "$work/status" -- sh "$work/seven.sh"
   code=$?
   got=missing
   read -r got <"$work/status"
   result probe/run-records-exit-code "0:7" "$code:$got"
-  "$bin/egress-spawn$exe" run "$work/status2" "$work/pid2" -- "$work/no-such-binary"
+  "$bin/egress-spawn$exe" run "$work/status2" -- "$work/no-such-binary"
   code=$?
   got=missing
   read -r got <"$work/status2"
   result probe/run-records-not-started "0:not-started" "$code:$got"
   if [ -z "$exe" ]; then
     printf '%s\n' 'kill -9 $$' >"$work/nine.sh"
-    "$bin/egress-spawn$exe" run "$work/status3" "$work/pid3" -- sh "$work/nine.sh"
+    "$bin/egress-spawn$exe" run "$work/status3" -- sh "$work/nine.sh"
     code=$?
     got=missing
     read -r got <"$work/status3"
     result probe/run-records-signal "0:signal-9" "$code:$got"
+    got=$("$bin/egress-spawn$exe" run fd3 -- sh -c 'printf 7 >&3 2>/dev/null || printf closed' 3>"$work/fd3-status")
+    code=$?
+    result probe/run-fd3-not-inherited "0:closed:0" "$code:$got:$(cat "$work/fd3-status")"
   fi
 }
 
@@ -283,6 +286,8 @@ test_sandbox() {
   expect_refusal sandbox/other-loopback-entry entry sh scripts/egress/check.sh "$work/other-loopback.txt" -- sh "$pr" none
   printf '[fixed]\n[::1]:47201\n[agent]\n' >"$work/v6-loopback.txt"
   expect_refusal sandbox/v6-loopback-entry entry sh scripts/egress/check.sh "$work/v6-loopback.txt" -- sh "$pr" none
+  printf '%s\n' 'for d in target/egress/[0-9]*; do mkdir -p "$d/run" 2>/dev/null; printf "0\n" >"$d/run/status" 2>/dev/null; done' 'kill -9 "$PPID"' 'exit 3' >"$work/forge-status.sh"
+  expect_run sandbox/tree-cannot-forge-its-status 1 signal-9 0 sh scripts/egress/check.sh "$e" -- sh "$work/forge-status.sh"
   printf '%s\n' "for d in target/egress/[0-9]*; do" \
     "if [ -f \$d/state ] && ! grep -q '^done\$' \$d/state; then" \
     ": >\$d/stream.ndjson 2>/dev/null && exit 9; : >\$d/denied.log 2>/dev/null && exit 8; fi; done" >"$work/erase.sh"
