@@ -484,6 +484,52 @@ mod scan_rule {
         );
         masks_to("id 151-14-20044028163578 end", "id [ssn] end");
     }
+
+    #[test]
+    fn a_shorter_reading_at_a_start_holds_where_the_longest_does_not() {
+        masks_to(
+            &format!("pay {} 1070 now", grouped(&card(16), ' ')),
+            "pay [card] 1070 now",
+        );
+        masks_to(
+            &format!("transfer {} 8K0A now", grouped(&de_iban(), ' ')),
+            "transfer [iban] 8K0A now",
+        );
+    }
+
+    #[test]
+    fn a_card_reading_may_start_among_the_digits_of_a_masked_card() {
+        masks_to(
+            &format!("{} 2026", grouped(&luhn_number("531418733333333"), '-')),
+            "[card]",
+        );
+        masks_to(
+            &format!("{} 2026", grouped(&luhn_number("623170586270777"), '-')),
+            "[card] 2026",
+        );
+    }
+}
+
+#[test]
+fn ibans_of_14_and_35_characters_are_not_masked() {
+    unchanged(&format!("ref {} end", iban("NO", "1234567890")));
+    unchanged(&format!(
+        "ref {} end",
+        iban("NO", "ABCD1234EFGH5678IJKL9012MNOP345")
+    ));
+}
+
+#[test]
+fn lower_case_letters_after_an_iban_are_no_part_of_it() {
+    masks_to(
+        &format!("transfer {} yx.", de_iban()),
+        "transfer [iban] yx.",
+    );
+}
+
+#[test]
+fn an_aws_key_body_with_an_8_is_kept() {
+    unchanged(&format!("key AKIA{} saved", "Q8".repeat(8)));
 }
 
 #[test]
