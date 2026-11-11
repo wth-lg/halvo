@@ -1,8 +1,9 @@
 use serde_json::value::RawValue;
 
-use crate::ids::{hex32, hex64, MAX_ORDINAL};
+use crate::ids::{hex32, hex64, AgentId, RequestId, SummaryId, WorkflowId, MAX_ORDINAL};
+use crate::record::{Confidence, KeyCounts, PointerCounts, Recurrence};
 use crate::request::Fields;
-use crate::site::{AppId, SiteDomain, SiteToken, SiteValue};
+use crate::site::{AppId, SiteDomain, SiteHash, SiteToken, SiteValue};
 
 /// The type of a field of a record, one variant per row of the closed set of field types: the integer 1, a random
 /// id, a name of a closed list, an app id, a stored domain (`SiteDomain`), a site hash, a site value, a count, a
@@ -434,3 +435,29 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// The marker of the field types that a bounded or kept record of every origin may hold: a random id, a name of a
+/// closed list (every enum of names), an app id, a stored domain, a site hash, a site value, a count or a day
+/// (`u32`), the objects of counts and days of this run's records, and `Option` and `Vec` of them. No type of free
+/// text, token, instant or ordinal is `Coarse`. A later run's kinds are covered by `check_registry` alone.
+pub trait Coarse {}
+
+/// Compiles only for a `Coarse` type. The assertion of `src/record.rs` calls it for every field type of the
+/// summary, the support row and both shapes of the workflow.
+pub const fn assert_coarse<T: Coarse + ?Sized>() {}
+
+impl Coarse for u32 {}
+impl<T: Coarse> Coarse for Option<T> {}
+impl<T: Coarse> Coarse for Vec<T> {}
+impl Coarse for WorkflowId {}
+impl Coarse for SummaryId {}
+impl Coarse for AgentId {}
+impl Coarse for RequestId {}
+impl Coarse for AppId {}
+impl Coarse for SiteDomain {}
+impl Coarse for SiteHash {}
+impl Coarse for SiteValue {}
+impl Coarse for Confidence {}
+impl Coarse for Recurrence {}
+impl Coarse for KeyCounts {}
+impl Coarse for PointerCounts {}

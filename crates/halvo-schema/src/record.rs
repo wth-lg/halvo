@@ -9,6 +9,7 @@ use crate::ids::{
     name_enum, object, parse_str, strict_struct, AgentId, ParseError, SummaryId, Version,
     WorkflowId, MAX_ORDINAL, VERSION,
 };
+use crate::kinds::{assert_coarse, Coarse};
 use crate::site::{AppId, Domain, ObservedSite, SiteDomain, SiteToken, SiteValue};
 
 /// An instant: a signed count of nanoseconds since 1970-01-01T00:00:00Z, a JSON integer.
@@ -643,4 +644,169 @@ strict_struct! {
         }
         next_rule("EvidencePage", p.evidence.last().map(|e| &e.summary), &p.next)
     }
+}
+
+fn coarse<T: Coarse>(_: &T) {
+    assert_coarse::<T>()
+}
+
+const _: fn(&Summary, &Support, &FullWorkflow, &DismissedWorkflow) =
+    |summary, support, full, dismissed| {
+        let Summary {
+            id,
+            category,
+            site,
+            app,
+            day,
+            part,
+            minutes,
+            keys,
+            pointer,
+        } = summary;
+        coarse(id);
+        coarse(category);
+        coarse(site);
+        coarse(app);
+        coarse(day);
+        coarse(part);
+        coarse(minutes);
+        coarse(keys);
+        coarse(pointer);
+        let Support {
+            workflow,
+            summary,
+            day,
+        } = support;
+        coarse(workflow);
+        coarse(summary);
+        coarse(day);
+        let FullWorkflow {
+            id,
+            state,
+            category,
+            site,
+            app,
+            trigger,
+            recurrence,
+            confidence,
+            agent,
+        } = full;
+        coarse(id);
+        coarse(state);
+        coarse(category);
+        coarse(site);
+        coarse(app);
+        coarse(trigger);
+        coarse(recurrence);
+        coarse(confidence);
+        coarse(agent);
+        let DismissedWorkflow {
+            id,
+            category,
+            site,
+            app,
+        } = dismissed;
+        coarse(id);
+        coarse(category);
+        coarse(site);
+        coarse(app);
+        let Recurrence {
+            count,
+            period,
+            first,
+            last,
+        } = recurrence;
+        coarse(count);
+        coarse(period);
+        coarse(first);
+        coarse(last);
+    };
+
+const _: fn(&KeyCounts, &PointerCounts) = |keys, pointer| {
+    let KeyCounts {
+        printable,
+        editing,
+        navigation,
+        enter,
+        tab,
+        shortcut,
+        other,
+    } = keys;
+    for count in [printable, editing, navigation, enter, tab, shortcut, other] {
+        coarse(count);
+    }
+    let PointerCounts {
+        click,
+        scroll,
+        drag,
+        r#move,
+    } = pointer;
+    for count in [click, scroll, drag, r#move] {
+        coarse(count);
+    }
+};
+
+macro_rules! coarse_case {
+    ($fence:literal, $record:literal, $id:literal, $field:literal, $ty:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::kinds::{assert_coarse, Coarse};\n",
+            "use halvo_schema::{Instant, SummaryId, WorkflowId};\n",
+            "struct ",
+            $record,
+            " {\n",
+            "    id: ",
+            $id,
+            ",\n",
+            "    ",
+            $field,
+            ": ",
+            $ty,
+            ",\n",
+            "}\n",
+            "fn coarse<T: Coarse>(_: &T) {\n",
+            "    assert_coarse::<T>()\n",
+            "}\n",
+            "const _: fn(&",
+            $record,
+            ") = |record| {\n",
+            "    let ",
+            $record,
+            " { id, ",
+            $field,
+            " } = record;\n",
+            "    coarse(id);\n",
+            "    coarse(",
+            $field,
+            ");\n",
+            "};\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: the assertion that every field type of a bounded or kept record is `Coarse` refuses a
+/// bounded record with a `String` field and a kept record with an instant. Each case differs from its twin in
+/// `compiles` in the one field type.
+pub mod compile_fail {
+    /// A bounded record with a `String` field. Twin: `compiles::bounded_count_field`.
+    #[doc = coarse_case!("compile_fail", "BoundedRecord", "SummaryId", "minutes", "String")]
+    pub mod bounded_text_field {}
+
+    /// A kept record with an instant. Twin: `compiles::kept_day_field`.
+    #[doc = coarse_case!("compile_fail", "KeptRecord", "WorkflowId", "day", "Instant")]
+    pub mod kept_instant_field {}
+}
+
+/// The twins of the cases of `compile_fail`, which compile.
+pub mod compiles {
+    /// A bounded record with a count.
+    #[doc = coarse_case!("", "BoundedRecord", "SummaryId", "minutes", "u32")]
+    pub mod bounded_count_field {}
+
+    /// A kept record with a day.
+    #[doc = coarse_case!("", "KeptRecord", "WorkflowId", "day", "u32")]
+    pub mod kept_day_field {}
 }

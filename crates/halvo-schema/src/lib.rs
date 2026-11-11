@@ -13,7 +13,7 @@ pub use category::{Category, SeedCategory};
 pub use ids::{
     AgentId, EpisodeId, ParseError, Position, RequestId, StoreId, SummaryId, WorkflowId, VERSION,
 };
-pub use kinds::{FieldType, KindEntry, Origin, RetentionClass};
+pub use kinds::{Coarse, FieldType, KindEntry, Origin, RetentionClass};
 pub use record::{
     AddressFieldLayer, Confidence, DismissedWorkflow, Episode, Evidence, EvidencePage, FloorLayer,
     FullWorkflow, InputClass, Instant, KeyCounts, ObservedStep, Ordinal, Part, PointerCounts,
