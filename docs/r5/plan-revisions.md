@@ -2,7 +2,8 @@
 
 The learning run departs from `docs/plan.md`, the project's first plan, at
 six lines. Each entry gives the line number, the first twelve words of the
-line (all of it when shorter, a leading list dash left out) and what this run does in its place.
+line (all of it when shorter, a leading list dash left out) and what this
+run does in its place.
 The line numbers are those of `docs/plan.md` when this file was written; if
 the plan has changed since, search for the quoted words.
 

@@ -2,9 +2,11 @@
 
 The learning run teaches Halvo's agents where a step finds its element when
 a page changes. A repair is kept only after the run that made it is
-verified, and it is reverted when it fails within two clean uses. This
-directory holds the run's fixed numbers and the trials that chose them,
-measured before any learning code exists.
+verified, and it is reverted when its step fails for a counted cause before
+its second clean use; a failure of another kind, such as a timeout, leaves
+it on trial. This directory holds the run's fixed numbers, most of them the
+planner's, and the trials that set or checked the rest, measured before any
+learning code exists.
 
 - `README.md`: this file.
 - `.gitattributes`: the line `* text eol=lf`, so that git checks out every
@@ -13,10 +15,10 @@ measured before any learning code exists.
 - `cases.md`: the form of a case file of the drift trial, how the reader in
   `tools/r5-trials/drift` reads it, and a worked example, which
   `cargo test` in `tools/r5-trials` reads.
-- `freeze.toml`: freeze point 1, the SHA-256 of `targets.toml`, of the
-  development cases, of the `stat` and `drift` trial directories and of
-  the held-out archive; a later change to a file it covers voids the trial
-  lines measured before it.
+- `freeze.toml`: freeze point 1, the SHA-256 of `targets.toml`, of
+  `cases.md` with the development cases, of the `stat` and `drift` trial
+  directories and of the held-out archive; a later change to a file it
+  covers voids the trial lines measured before it.
 - `heldout.txt`: the 24 held-out cases by count and archive hash, the tree
   of `tools/r5-trials/drift` that accepted them, and the six spread lines
   of `sh tools/r5-trials/drift/run.sh --count DIR`. The cases stay outside
