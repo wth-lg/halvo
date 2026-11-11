@@ -6,8 +6,8 @@ use halvo_coord::schedule::{
 };
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, Body, Category, Cause, CheckAnswer, Cleared, Doing,
-    Event, Facts, FullWorkflow, HoldSetCause, Limits, Name, Outcome, OwnItemKind, PastRun, Raised,
-    ReadyAnswer, RunEnd, RunId, Trigger, What, Workflow, WorkflowId, WorkflowState,
+    Event, Facts, FullWorkflow, HoldSetCause, Limits, Mode, Name, Outcome, OwnItemKind, PastRun,
+    Raised, ReadyAnswer, RunEnd, RunId, Trigger, What, Workflow, WorkflowId, WorkflowState,
     WorkflowTrigger,
 };
 use std::num::NonZeroU32;
@@ -2319,5 +2319,92 @@ fn a_failed_read_of_the_agents_answers_its_cause_where_the_entry_or_the_store_de
         e.start(0).answer,
         Err(Cause::Hold),
         "the hold off comes from the stored events"
+    );
+}
+
+#[test]
+fn a_web_agent_with_a_playbook_starts_in_replay_and_with_a_session_not_headed() {
+    let mut w = world(&[A {
+        runtime: "web",
+        playbook: true,
+        ..manual()
+    }]);
+    ok_run(&w.start(0));
+    let calls = w.ports.calls.borrow();
+    let modes: Vec<(Mode, Option<bool>)> = calls
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::Send(Body::StartRun { mode, .. }) => Some((*mode, None)),
+            Call::Start(spec) => Some((spec.mode, Some(spec.headed))),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(modes, [(Mode::Replay, None), (Mode::Replay, Some(false))]);
+}
+
+#[test]
+fn with_two_live_runs_a_tick_defers_until_the_end_of_the_longer() {
+    let mut w = world_with(
+        &[manual(), manual()],
+        Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        },
+    );
+    ok_run(&w.start(0));
+    ok_run(&w.start(1));
+    let longer = w.board.runs[1].defer_ms + 60_000;
+    w.board.runs[1].defer_ms = longer;
+    w.forget();
+    w.tick();
+    let defers: Vec<u64> = w
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter_map(|t| match t.call {
+            Call::Defer(until) => Some(until),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(defers, [T0 + longer]);
+}
+
+#[test]
+fn a_tick_whose_read_of_the_agents_fails_takes_no_start_from_the_queue() {
+    let mut w = world(&[manual(), manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    assert_eq!(w.start(2).answer, Ok(Answer::Queued));
+    w.go(Move::SwitchOff { agent: agent(1) });
+    let end = w.end(&run, Some(Outcome::Completed));
+    assert_eq!(end.ended[0].next[0].answer, Err(Cause::Hold));
+    assert!(w.board.queue.holds(&agent(2)) && w.board.runs.is_empty());
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    let tick = w.tick();
+    assert_eq!(tick.next, Vec::<Served>::new());
+    assert_eq!(w.calls(), Vec::<String>::new());
+    assert!(w.board.queue.holds(&agent(2)));
+    w.ports.clear_refusals();
+    assert_eq!(w.tick().next[0].answer, Ok(Answer::Ok));
+}
+
+#[test]
+fn a_second_switch_off_does_not_stop_a_stopping_run_again() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.go(Move::SwitchOn { agent: agent(0) });
+    w.clock(T0 + 3_000, DAY);
+    w.forget();
+    let again = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(again.stopped, Vec::<RunId>::new());
+    assert!(!w.calls().iter().any(|c| c.starts_with("cancel")));
+    w.clock(T0 + 5_000, DAY);
+    w.forget();
+    w.tick();
+    assert!(
+        w.calls().contains(&format!("kill {run}")),
+        "the kill comes cancel_grace_s after the first stop"
     );
 }
