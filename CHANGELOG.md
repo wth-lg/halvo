@@ -97,3 +97,4 @@ and merge without an entry landing under the heading of another.
 - Fixed: Make the R1 gate checks fail closed when a source did not run, a bound is unreadable, or the tree changed during the run
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
 - Added: Add the router crate halvo-route with its tiers, call kinds, categories, line, price file and policy types, and the gate tool route-gate with its generator, scorer, self-test and the check 30-r6-table
+- Added: Keep LF line ends under docs/r6/ and scripts/r6/ in every clone, and say in docs/r6/README.md what its directories hold
