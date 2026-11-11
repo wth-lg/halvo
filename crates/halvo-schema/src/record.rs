@@ -9,7 +9,76 @@ use crate::ids::{
     name_enum, object, parse_str, strict_struct, AgentId, ParseError, SummaryId, Version,
     WorkflowId, MAX_ORDINAL, VERSION,
 };
+use crate::kinds::{assert_coarse, Coarse};
 use crate::site::{AppId, Domain, ObservedSite, SiteDomain, SiteToken, SiteValue};
+
+/// The names that this module writes in a record or a reply: the keys of every record, step and page, and the names
+/// of its enums with `dismissed`, which the dismissed shape of a workflow writes.
+pub const NAMES: &[&str] = &[
+    "v",
+    "id",
+    "state",
+    "category",
+    "site",
+    "app",
+    "trigger",
+    "recurrence",
+    "confidence",
+    "agent",
+    "proposed",
+    "approved",
+    "active",
+    "paused",
+    "dismissed",
+    "app_context",
+    "schedule",
+    "manual",
+    "count",
+    "period",
+    "first",
+    "last",
+    "day",
+    "part",
+    "minutes",
+    "keys",
+    "pointer",
+    "night",
+    "morning",
+    "afternoon",
+    "evening",
+    "printable",
+    "editing",
+    "navigation",
+    "enter",
+    "tab",
+    "shortcut",
+    "other",
+    "click",
+    "scroll",
+    "drag",
+    "move",
+    "workflow",
+    "summary",
+    "segments",
+    "expires",
+    "start",
+    "end",
+    "hint",
+    "steps",
+    "title",
+    "input",
+    "text",
+    "value",
+    "layer",
+    "floor",
+    "address_field",
+    "accessibility_text",
+    "extracted_text",
+    "summaries",
+    "workflows",
+    "next",
+    "evidence",
+];
 
 /// An instant: a signed count of nanoseconds since 1970-01-01T00:00:00Z, a JSON integer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -643,4 +712,230 @@ strict_struct! {
         }
         next_rule("EvidencePage", p.evidence.last().map(|e| &e.summary), &p.next)
     }
+}
+
+/// The read trait over bounded summaries. `for_each` visits every stored summary inside its bound once, in
+/// ascending order of `day`, then of summary id. The recurrence step reads summaries through it and nothing else.
+pub trait SummaryRead {
+    fn for_each(&self, visit: &mut dyn FnMut(&Summary));
+}
+
+/// A proposal of the recurrence step: a workflow with no id, which halvo-derived mints when it stores one, and the
+/// ids of the summaries that support it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Proposal {
+    pub category: SeedCategory,
+    pub site: Option<SiteValue>,
+    pub app: AppId,
+    pub trigger: Trigger,
+    pub recurrence: Recurrence,
+    pub confidence: Confidence,
+    pub summaries: Vec<SummaryId>,
+}
+
+/// The recurrence step, a pure function: it reads summaries through `SummaryRead` alone, with no evidence, no
+/// clock and no workflow, so the same summaries give the same proposals in the same order. A host puts it first.
+pub trait RecurrenceStep {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal>;
+}
+
+/// A record of a registered kind as a step or a handler returns it: the kind name and the serialized record, which
+/// the store commits by the typed commit after `kinds::check_record`. `Debug` prints the type name, the kind and
+/// the length of `json` in bytes, never `json`, which can hold a person's own text.
+#[derive(Clone, PartialEq, Eq)]
+pub struct TypedRecord {
+    pub kind: &'static str,
+    pub json: String,
+}
+
+impl fmt::Debug for TypedRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TypedRecord")
+            .field("kind", &self.kind)
+            .field("json_len", &self.json.len())
+            .finish()
+    }
+}
+
+/// The read of the rows of the own family of a step or of a handler, as they stand at its call: `for_each` visits
+/// the serialized rows of one registered kind of that family, each once, in ascending byte order of the
+/// serialized rows, and nothing for a kind that is not registered or belongs to another family.
+pub trait RowRead {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str));
+}
+
+/// A step after the recurrence step: after each committed batch it reads the summaries and the rows of its own
+/// family and returns records that the store commits by the typed commit in one further transaction.
+pub trait WriterStep {
+    fn after_commit(&self, summaries: &dyn SummaryRead, rows: &dyn RowRead) -> Vec<TypedRecord>;
+}
+
+fn coarse<T: Coarse>(_: &T) {
+    assert_coarse::<T>()
+}
+
+const _: fn(&Summary, &Support, &FullWorkflow, &DismissedWorkflow) =
+    |summary, support, full, dismissed| {
+        let Summary {
+            id,
+            category,
+            site,
+            app,
+            day,
+            part,
+            minutes,
+            keys,
+            pointer,
+        } = summary;
+        coarse(id);
+        coarse(category);
+        coarse(site);
+        coarse(app);
+        coarse(day);
+        coarse(part);
+        coarse(minutes);
+        coarse(keys);
+        coarse(pointer);
+        let Support {
+            workflow,
+            summary,
+            day,
+        } = support;
+        coarse(workflow);
+        coarse(summary);
+        coarse(day);
+        let FullWorkflow {
+            id,
+            state,
+            category,
+            site,
+            app,
+            trigger,
+            recurrence,
+            confidence,
+            agent,
+        } = full;
+        coarse(id);
+        coarse(state);
+        coarse(category);
+        coarse(site);
+        coarse(app);
+        coarse(trigger);
+        coarse(recurrence);
+        coarse(confidence);
+        coarse(agent);
+        let DismissedWorkflow {
+            id,
+            category,
+            site,
+            app,
+        } = dismissed;
+        coarse(id);
+        coarse(category);
+        coarse(site);
+        coarse(app);
+        let Recurrence {
+            count,
+            period,
+            first,
+            last,
+        } = recurrence;
+        coarse(count);
+        coarse(period);
+        coarse(first);
+        coarse(last);
+    };
+
+const _: fn(&KeyCounts, &PointerCounts) = |keys, pointer| {
+    let KeyCounts {
+        printable,
+        editing,
+        navigation,
+        enter,
+        tab,
+        shortcut,
+        other,
+    } = keys;
+    coarse(printable);
+    coarse(editing);
+    coarse(navigation);
+    coarse(enter);
+    coarse(tab);
+    coarse(shortcut);
+    coarse(other);
+    let PointerCounts {
+        click,
+        scroll,
+        drag,
+        r#move,
+    } = pointer;
+    coarse(click);
+    coarse(scroll);
+    coarse(drag);
+    coarse(r#move);
+};
+
+macro_rules! coarse_case {
+    ($fence:literal, $record:literal, $id:literal, $field:literal, $ty:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::kinds::{assert_coarse, Coarse};\n",
+            "use halvo_schema::{Instant, SummaryId, WorkflowId};\n",
+            "struct ",
+            $record,
+            " {\n",
+            "    id: ",
+            $id,
+            ",\n",
+            "    ",
+            $field,
+            ": ",
+            $ty,
+            ",\n",
+            "}\n",
+            "fn coarse<T: Coarse>(_: &T) {\n",
+            "    assert_coarse::<T>()\n",
+            "}\n",
+            "const _: fn(&",
+            $record,
+            ") = |record| {\n",
+            "    let ",
+            $record,
+            " { id, ",
+            $field,
+            " } = record;\n",
+            "    coarse(id);\n",
+            "    coarse(",
+            $field,
+            ");\n",
+            "};\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: the assertion that every field type of a bounded or kept record is `Coarse` refuses a
+/// bounded record with a `String` field and a kept record with an instant. Each case differs from its twin in
+/// `compiles` in the one field type.
+pub mod compile_fail {
+    /// A bounded record with a `String` field. Twin: `compiles::bounded_count_field`.
+    #[doc = coarse_case!("compile_fail", "BoundedRecord", "SummaryId", "minutes", "String")]
+    pub mod bounded_text_field {}
+
+    /// A kept record with an instant. Twin: `compiles::kept_day_field`.
+    #[doc = coarse_case!("compile_fail", "KeptRecord", "WorkflowId", "day", "Instant")]
+    pub mod kept_instant_field {}
+}
+
+/// The twins of the cases of `compile_fail`, which compile.
+pub mod compiles {
+    /// A bounded record with a count.
+    #[doc = coarse_case!("", "BoundedRecord", "SummaryId", "minutes", "u32")]
+    pub mod bounded_count_field {}
+
+    /// A kept record with a day.
+    #[doc = coarse_case!("", "KeptRecord", "WorkflowId", "day", "u32")]
+    pub mod kept_day_field {}
 }
