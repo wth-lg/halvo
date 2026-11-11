@@ -239,3 +239,91 @@ fn each_carried_workbook_differs_from_its_source_only_where_cp32_allows() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+#[test]
+fn an_inline_text_of_every_kind_reads_back_through_calamine_as_written() {
+    let texts = [
+        " padded ",
+        "a & b < c > d \" e ' f",
+        "line\rbreak",
+        "_x0041_",
+        "",
+        "tab\there",
+        "\u{e9} \u{1f642}",
+    ];
+    let cells = ["F2", "G2", "H2", "I2", "J2", "K2", "L2"];
+    let scratch = Scratch::new("package-inline");
+    let values: Vec<(&str, Value)> = cells
+        .iter()
+        .zip(texts)
+        .map(|(c, t)| (*c, Value::Text(t.to_string())))
+        .collect();
+    assert_eq!(written(&scratch, &corpus("values.xlsx"), &values), Ok(()));
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let read = folder
+        .read(
+            Path::new("book.xlsx"),
+            "Values",
+            Range::parse("F2:L2").expect("a range"),
+        )
+        .expect("the book reads");
+    for ((cell, text), got) in cells.iter().zip(texts).zip(&read[0]) {
+        let same = match got {
+            halvo_sheet::Cell::Text(read) => read == text,
+            halvo_sheet::Cell::Empty => text.is_empty(),
+            _ => false,
+        };
+        assert!(same, "{cell}: wrote {text:?}, read {got:?}");
+    }
+    let differ = package_differences(&corpus("values.xlsx"), &scratch.path("book.xlsx"), &cells);
+    assert_eq!(differ, Vec::<String>::new());
+}
+
+#[test]
+fn the_calculation_flag_is_set_when_it_was_absent_or_zero_or_its_element_was_missing() {
+    let book = "xl/workbook.xml";
+    let full = r#"<calcPr calcId="124519" fullCalcOnLoad="1"/>"#;
+    let cases: [(&str, &str, &str); 3] = [
+        (
+            "absent",
+            r#"<calcPr calcId="124519"/>"#,
+            r#"<calcPr fullCalcOnLoad="1" calcId="124519"/>"#,
+        ),
+        (
+            "zero",
+            r#"<calcPr calcId="124519" fullCalcOnLoad="0"/>"#,
+            r#"<calcPr calcId="124519" fullCalcOnLoad="1"/>"#,
+        ),
+        ("no-element", "", r#"<calcPr fullCalcOnLoad="1"/>"#),
+    ];
+    for (label, made, want) in cases {
+        let scratch = Scratch::new("package-calc");
+        common::rewrite(
+            &corpus("values.xlsx"),
+            &scratch.path("source.xlsx"),
+            &[(book, full, made)],
+        );
+        let done = written(
+            &scratch,
+            &scratch.path("source.xlsx"),
+            &[("B5", Value::Number(77.0))],
+        );
+        assert_eq!(done, Ok(()), "{label}");
+        let after = entries(&scratch.path("book.xlsx"))
+            .into_iter()
+            .find(|(n, _)| n == book)
+            .expect("a workbook part")
+            .1;
+        let after = String::from_utf8(after).expect("utf-8");
+        assert!(
+            after.contains(&format!("{want}</workbook>")),
+            "{label}: {after}"
+        );
+        let differ = package_differences(
+            &scratch.path("source.xlsx"),
+            &scratch.path("book.xlsx"),
+            &["B5"],
+        );
+        assert_eq!(differ, Vec::<String>::new(), "{label}");
+    }
+}
