@@ -21,17 +21,22 @@ fn lines_of(file: &str) -> usize {
         .count()
 }
 
+const TRIES: usize = 100;
+
 fn fresh(label: &str) -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("gateway-check");
     fs::create_dir_all(&root).unwrap();
-    loop {
+    let mut last = None;
+    for _ in 0..TRIES {
         let n = NEXT.fetch_add(1, Ordering::SeqCst);
         let dir = root.join(format!("{label}-{}-{n}", std::process::id()));
-        if fs::create_dir(&dir).is_ok() {
-            return dir;
+        match fs::create_dir(&dir) {
+            Ok(()) => return dir,
+            Err(error) => last = Some(error),
         }
     }
+    panic!("fresh({label:?}) made no new directory after {TRIES} tries; the last error: {last:?}");
 }
 
 fn fixture(label: &str) -> PathBuf {
@@ -351,24 +356,28 @@ fn bad_arguments_are_the_refusal_usage() {
 fn a_refusal_is_one_line_whatever_its_detail_holds() {
     let gateway = gateway();
     let gateway = gateway.to_str().unwrap();
-    let odd_dir = fresh("line\nbreak").join("dir\nwith\rbreaks");
-    fs::create_dir(&odd_dir).unwrap();
+    let odd_dir = fresh("odd-dir").join("dir\nwith\rbreaks");
     let odd_dir = odd_dir.to_str().unwrap();
-    let odd_names = fresh("names").join("names\nwith\u{1b}[2J\u{85}\u{2028}breaks.txt");
-    fs::write(&odd_names, "").unwrap();
+    let odd_names = fresh("odd-names").join("names\nwith\u{1b}[2J\u{85}\u{2028}breaks.txt");
     let odd_names = odd_names.to_str().unwrap();
-    for args in [
-        vec!["--x\ny"],
-        vec!["--dir", gateway, "--all\r\nmore"],
-        vec!["--dir", gateway, "\t\u{7}\u{7f}\u{9b}\u{2029}"],
-        vec!["--dir", odd_dir],
-        vec!["--dir", gateway, "--names", odd_names],
-        vec!["--dir", gateway, "--names", "missing\nnames.txt"],
+    for (cause, args) in [
+        ("usage", vec!["--x\ny"]),
+        ("usage", vec!["--dir", gateway, "--all\r\nmore"]),
+        (
+            "usage",
+            vec!["--dir", gateway, "\t\u{7}\u{7f}\u{9b}\u{2029}"],
+        ),
+        ("file", vec!["--dir", odd_dir]),
+        ("file", vec!["--dir", gateway, "--names", odd_names]),
+        (
+            "file",
+            vec!["--dir", gateway, "--names", "missing\nnames.txt"],
+        ),
     ] {
         let output = run(&args);
         let text = String::from_utf8_lossy(&output.stderr).to_string();
         assert!(
-            text.starts_with("REFUSED ") && text.ends_with('\n'),
+            text.starts_with(&format!("REFUSED {cause}: ")) && text.ends_with('\n'),
             "{args:?}: {text:?}"
         );
         assert_eq!(text.lines().count(), 1, "{args:?}: {text:?}");
@@ -381,6 +390,7 @@ fn a_refusal_is_one_line_whatever_its_detail_holds() {
         assert!(output.stdout.is_empty(), "{args:?}");
         assert_eq!(output.status.code(), Some(2), "{args:?}");
     }
+    assert!(!Path::new(odd_dir).exists() && !Path::new(odd_names).exists());
 }
 
 #[test]
@@ -669,6 +679,19 @@ fn a_write_to_a_file_at_its_size_limit_is_exit_1_with_nothing_on_standard_error(
     );
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(fs::metadata(&out).unwrap().len(), 0);
+}
+
+#[test]
+fn fresh_gives_up_after_a_fixed_number_of_tries() {
+    let payload = std::panic::catch_unwind(|| fresh("no-such-parent/child")).unwrap_err();
+    let message = payload
+        .downcast_ref::<String>()
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        message.contains(&format!("after {TRIES} tries")),
+        "{message}"
+    );
 }
 
 #[test]
