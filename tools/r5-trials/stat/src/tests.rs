@@ -329,3 +329,71 @@ fn targets_accepts_other_values_and_compares_the_two_keys() {
     let same = block(&expected, parse_targets(&kept).unwrap());
     assert!(same.verdict.ok());
 }
+
+#[test]
+fn a_changed_dev_critical_alone_gives_differ_and_miss() {
+    let changed = REPO_TARGETS.replacen("dev_critical = 7", "dev_critical = 6", 1);
+    let block = block(
+        &parse_expected(REPO_EXPECTED).unwrap(),
+        parse_targets(&changed).unwrap(),
+    );
+    assert!(block
+        .text
+        .contains("targets dev_critical=differ heldout_critical=same\n"));
+    assert!(block.text.ends_with("verdict stat=miss\n"));
+}
+
+#[test]
+fn two_swapped_expected_lines_give_miss() {
+    let mut lines: Vec<&str> = REPO_EXPECTED.lines().collect();
+    lines.swap(0, 1);
+    let swapped: String = lines.iter().map(|l| format!("{l}\n")).collect();
+    let block = block(
+        &parse_expected(&swapped).unwrap(),
+        parse_targets(REPO_TARGETS).unwrap(),
+    );
+    assert!(!block.verdict.lines_equal);
+    assert!(block.text.ends_with("verdict stat=miss\n"));
+}
+
+#[test]
+fn targets_refuses_a_spaced_header() {
+    assert_eq!(
+        refused(parse_targets(
+            &REPO_TARGETS.replacen("[gate]", "[ gate ]", 1)
+        )),
+        "targets line 6 is not of its form"
+    );
+}
+
+#[test]
+fn targets_refuses_a_key_that_is_not_a_name() {
+    assert_eq!(
+        refused(parse_targets(&REPO_TARGETS.replacen(
+            "dev_critical = 7",
+            "Dev_critical = 7",
+            1
+        ))),
+        "targets line 9 is not of its form"
+    );
+}
+
+#[test]
+fn targets_refuses_a_value_of_two_to_the_64() {
+    assert_eq!(
+        refused(parse_targets(&REPO_TARGETS.replacen(
+            "dev_critical = 7",
+            "dev_critical = 18446744073709551616",
+            1
+        ))),
+        "targets line 9 is not of its form"
+    );
+}
+
+#[test]
+fn expected_refuses_a_sixth_word() {
+    assert_eq!(
+        refused(parse_expected(&REPO_EXPECTED.replacen('\n', " x\n", 1))),
+        "expected line 1 is not of its form"
+    );
+}
