@@ -190,16 +190,30 @@ match_layout() {
       }
       return r "$"
     }
-    BEGIN { FS = "\t" }
+    function plain(f,   s, i, c, out) {
+      if (substr(f, 1, 1) != "\"" || substr(f, length(f), 1) != "\"") return f
+      s = substr(f, 2, length(f) - 2)
+      out = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c != "\\") { out = out c; continue }
+        if (substr(s, i + 1, 1) ~ /[0-7]/) i += 3
+        else i++
+        out = out "#"
+      }
+      return out
+    }
+    BEGIN {
+      FS = "\t"
+      known = split("docs/r5/ scripts/r5/ scripts/r5-gate/ formal/r5-admit/ tools/r5-trials/ fixtures/r5/ crates/halvo-learn/ crates/halvo-learn-store/ crates/halvo-learn-gate/", l13, " ")
+      for (i = 1; i <= known; i++) of_l13[l13[i]] = 1
+    }
     {
       if (NF != 2) bad("not two fields separated by one tab")
+      if ($1 == "root" && np > 0) bad("a root line after a pattern line")
       if (seen[$0]++) bad("a repeated line")
       if ($1 == "root") {
-        if (np > 0) bad("a root line after a pattern line")
-        if ($2 !~ /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*\/$/) bad("a root that is not a directory path")
-        if (("/" $2) ~ /\/\.\.?\//) bad("a dot component")
-        for (i = 1; i <= nr; i++)
-          if (index($2, root[i]) == 1 || index(root[i], $2) == 1) bad("a root inside another root")
+        if (!($2 in of_l13)) bad("a root that is not one of the nine of L13")
         root[++nr] = $2
         next
       }
@@ -218,18 +232,15 @@ match_layout() {
     }
     END {
       if (failed) exit 1
-      if (nr == 0) { print "no root line" > "/dev/stderr"; exit 1 }
+      if (nr != known) { print "not the nine root lines of L13" > "/dev/stderr"; exit 1 }
       while ((getline f < tracked) > 0) {
-        probe = f
-        if (substr(f, 1, 1) == "\"") probe = substr(f, 2)
+        probe = plain(f)
         found = 0
         for (i = 1; i <= nr; i++) if (index(probe, root[i]) == 1) found = 1
         if (!found) continue
         files++
         hit = 0
-        if (probe == f) {
-          for (j = 1; j <= np; j++) if (f ~ re[j]) { hit = 1; used[j] = 1 }
-        }
+        for (j = 1; j <= np; j++) if (probe ~ re[j]) { hit = 1; used[j] = 1 }
         if (!hit) { out++; print f > outside }
       }
       for (j = 1; j <= np; j++) {
@@ -354,7 +365,9 @@ fixture() {
   printf 'outside every root\n' >"$r/README.md"
   printf 'heldout cases=24 benign=12 fault=12 sha256=%s\nharness tree=%s\n' "$archive" "$d_tree" >"$r/docs/r5/heldout.txt"
   freeze_text "$d_targets" >"$r/docs/r5/freeze.toml"
-  printf '%s\n' 'root	docs/r5/' 'root	fixtures/r5/' 'root	tools/r5-trials/' 'root	scripts/r5/' \
+  printf '%s\n' 'root	docs/r5/' 'root	scripts/r5/' 'root	scripts/r5-gate/' 'root	formal/r5-admit/' \
+    'root	tools/r5-trials/' 'root	fixtures/r5/' 'root	crates/halvo-learn/' 'root	crates/halvo-learn-store/' \
+    'root	crates/halvo-learn-gate/' \
     'U0.2	docs/r5/targets.toml' 'U0.3	docs/r5/cases.md' 'U0.3	fixtures/r5/cases/dev/**' \
     'U0.2	tools/r5-trials/stat/**' 'U0.3	tools/r5-trials/drift/*' 'U0.4	docs/r5/freeze.toml' \
     'U0.5	docs/r5/heldout.txt' 'U1.4	scripts/r5/layout.txt' 'U9.1	docs/r5/gate.md' >"$r/scripts/r5/layout.txt"
@@ -400,7 +413,7 @@ self_test() {
   path=$PATH
   rejected=0
   wrong=
-  line='layout roots=4 patterns=9 files=8 outside=0'
+  line='layout roots=9 patterns=9 files=8 outside=0'
 
   fixture good
   check good PASS "$line targets=ok learner=none harness=same"
@@ -443,13 +456,15 @@ layout unmatched=1" --all
   mkdir -p "$work/learner-same/crates/halvo-learn/src" || exit 2
   printf 'pub fn f() {}\n' >"$work/learner-same/crates/halvo-learn/src/lib.rs"
   printf '[learner]\ncrates = "%s"\n' "$d_crates" >>"$work/learner-same/docs/r5/freeze.toml"
+  printf 'U1.2\tcrates/halvo-learn/**\n' >>"$work/learner-same/scripts/r5/layout.txt"
   commit_all "$work/learner-same"
-  check learner-same PASS "$line targets=ok learner=ok harness=same"
+  check learner-same PASS 'layout roots=9 patterns=10 files=9 outside=0 targets=ok learner=ok harness=same'
 
   fixture learner-differs
   mkdir -p "$work/learner-differs/crates/halvo-learn/src" || exit 2
   printf 'pub fn g() {}\n' >"$work/learner-differs/crates/halvo-learn/src/lib.rs"
   printf '[learner]\ncrates = "%s"\n' "$d_crates" >>"$work/learner-differs/docs/r5/freeze.toml"
+  printf 'U1.2\tcrates/halvo-learn/**\n' >>"$work/learner-differs/scripts/r5/layout.txt"
   commit_all "$work/learner-differs"
   check learner-differs FAIL-learner 'targets=ok learner=miss harness=same'
 
@@ -471,6 +486,23 @@ layout unmatched=1" --all
   fixture layout-root-after-pattern
   printf 'root\tcrates/halvo-learn/\n' >>"$work/layout-root-after-pattern/scripts/r5/layout.txt"
   check layout-root-after-pattern FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture layout-tenth-root
+  awk 'NR == 9 { print; print "root\tnowhere/"; next } { print }' "$work/layout-tenth-root/scripts/r5/layout.txt" >"$work/layout-tenth-root.txt" || exit 2
+  cp "$work/layout-tenth-root.txt" "$work/layout-tenth-root/scripts/r5/layout.txt" || exit 2
+  check layout-tenth-root FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture quoted-name-under-a-double-star
+  printf 'U6.1\ttools/r5-trials/driver/**\n' >>"$work/quoted-name-under-a-double-star/scripts/r5/layout.txt"
+  mkdir -p "$work/quoted-name-under-a-double-star/tools/r5-trials/driver" || exit 2
+  printf 'x\n' >"$work/quoted-name-under-a-double-star/tools/r5-trials/driver/$(printf 'caf\303\251').txt"
+  git -C "$work/quoted-name-under-a-double-star" add -A || exit 2
+  check quoted-name-under-a-double-star PASS 'layout roots=9 patterns=10 files=9 outside=0 targets=ok'
+
+  fixture quoted-name-under-no-pattern
+  printf 'x\n' >"$work/quoted-name-under-no-pattern/docs/r5/$(printf 'caf\303\251').md"
+  git -C "$work/quoted-name-under-no-pattern" add -A || exit 2
+  check quoted-name-under-no-pattern FAIL-outside 'files=9 outside=1 targets=ok'
 
   fixture no-freeze-no-heldout
   mv "$work/no-freeze-no-heldout/docs/r5/freeze.toml" "$work/no-freeze-no-heldout/freeze.toml.moved" || exit 2
