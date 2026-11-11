@@ -1,0 +1,70 @@
+date 2026-11-11
+machine mac
+
+```
+case name=alternates-checkout kind=benign form=alternates arm=none sort=- occurrences=8 drifts=1 assisted=3 failed=0 harm=0 reverted_good=0
+case name=alternates-checkout kind=benign form=alternates arm=plain sort=- occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=alternates-checkout kind=benign form=alternates arm=admit sort=yes occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=alternates-checkout kind=benign form=alternates arm=admit sort=no occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=alternates-period kind=benign form=alternates arm=none sort=- occurrences=9 drifts=1 assisted=3 failed=0 harm=0 reverted_good=0
+case name=alternates-period kind=benign form=alternates arm=plain sort=- occurrences=9 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=alternates-period kind=benign form=alternates arm=admit sort=yes occurrences=9 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=alternates-period kind=benign form=alternates arm=admit sort=no occurrences=9 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=decoy-checkout-1 kind=fault form=decoy arm=none sort=- occurrences=10 drifts=2 assisted=6 failed=0 harm=1 reverted_good=0
+case name=decoy-checkout-1 kind=fault form=decoy arm=plain sort=- occurrences=10 drifts=2 assisted=3 failed=0 harm=3 reverted_good=0
+case name=decoy-checkout-1 kind=fault form=decoy arm=admit sort=yes occurrences=10 drifts=2 assisted=3 failed=0 harm=2 reverted_good=1
+case name=decoy-checkout-1 kind=fault form=decoy arm=admit sort=no occurrences=10 drifts=2 assisted=3 failed=0 harm=2 reverted_good=1
+case name=decoy-download-2 kind=fault form=decoy arm=none sort=- occurrences=8 drifts=2 assisted=6 failed=0 harm=1 reverted_good=0
+case name=decoy-download-2 kind=fault form=decoy arm=plain sort=- occurrences=8 drifts=2 assisted=3 failed=0 harm=4 reverted_good=0
+case name=decoy-download-2 kind=fault form=decoy arm=admit sort=yes occurrences=8 drifts=2 assisted=3 failed=0 harm=3 reverted_good=1
+case name=decoy-download-2 kind=fault form=decoy arm=admit sort=no occurrences=8 drifts=2 assisted=3 failed=0 harm=3 reverted_good=1
+case name=decoy-pay-1 kind=fault form=decoy arm=none sort=- occurrences=8 drifts=2 assisted=6 failed=0 harm=1 reverted_good=0
+case name=decoy-pay-1 kind=fault form=decoy arm=plain sort=- occurrences=8 drifts=2 assisted=3 failed=0 harm=3 reverted_good=0
+case name=decoy-pay-1 kind=fault form=decoy arm=admit sort=yes occurrences=8 drifts=2 assisted=3 failed=0 harm=2 reverted_good=1
+case name=decoy-pay-1 kind=fault form=decoy arm=admit sort=no occurrences=8 drifts=2 assisted=3 failed=0 harm=2 reverted_good=1
+case name=decoy-submit-2 kind=fault form=decoy arm=none sort=- occurrences=12 drifts=2 assisted=9 failed=0 harm=1 reverted_good=0
+case name=decoy-submit-2 kind=fault form=decoy arm=plain sort=- occurrences=12 drifts=2 assisted=3 failed=0 harm=4 reverted_good=0
+case name=decoy-submit-2 kind=fault form=decoy arm=admit sort=yes occurrences=12 drifts=2 assisted=3 failed=0 harm=3 reverted_good=0
+case name=decoy-submit-2 kind=fault form=decoy arm=admit sort=no occurrences=12 drifts=2 assisted=3 failed=0 harm=3 reverted_good=0
+case name=flaky-amount kind=benign form=flaky arm=none sort=- occurrences=8 drifts=1 assisted=6 failed=0 harm=0 reverted_good=0
+case name=flaky-amount kind=benign form=flaky arm=plain sort=- occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=flaky-amount kind=benign form=flaky arm=admit sort=yes occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=flaky-amount kind=benign form=flaky arm=admit sort=no occurrences=8 drifts=1 assisted=5 failed=0 harm=0 reverted_good=1
+case name=flaky-submit kind=benign form=flaky arm=none sort=- occurrences=11 drifts=1 assisted=6 failed=0 harm=0 reverted_good=0
+case name=flaky-submit kind=benign form=flaky arm=plain sort=- occurrences=11 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=flaky-submit kind=benign form=flaky arm=admit sort=yes occurrences=11 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=flaky-submit kind=benign form=flaky arm=admit sort=no occurrences=11 drifts=1 assisted=5 failed=0 harm=0 reverted_good=1
+case name=renamed-pay kind=benign form=renamed arm=none sort=- occurrences=8 drifts=1 assisted=6 failed=0 harm=0 reverted_good=0
+case name=renamed-pay kind=benign form=renamed arm=plain sort=- occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=renamed-pay kind=benign form=renamed arm=admit sort=yes occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=renamed-pay kind=benign form=renamed arm=admit sort=no occurrences=8 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=renamed-search kind=benign form=renamed arm=none sort=- occurrences=10 drifts=1 assisted=4 failed=0 harm=0 reverted_good=0
+case name=renamed-search kind=benign form=renamed arm=plain sort=- occurrences=10 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=renamed-search kind=benign form=renamed arm=admit sort=yes occurrences=10 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=renamed-search kind=benign form=renamed arm=admit sort=no occurrences=10 drifts=1 assisted=1 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-download kind=benign form=renamed-twice arm=none sort=- occurrences=9 drifts=2 assisted=7 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-download kind=benign form=renamed-twice arm=plain sort=- occurrences=9 drifts=2 assisted=2 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-download kind=benign form=renamed-twice arm=admit sort=yes occurrences=9 drifts=2 assisted=2 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-download kind=benign form=renamed-twice arm=admit sort=no occurrences=9 drifts=2 assisted=2 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-reading kind=benign form=renamed-twice arm=none sort=- occurrences=12 drifts=2 assisted=9 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-reading kind=benign form=renamed-twice arm=plain sort=- occurrences=12 drifts=2 assisted=2 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-reading kind=benign form=renamed-twice arm=admit sort=yes occurrences=12 drifts=2 assisted=2 failed=0 harm=0 reverted_good=0
+case name=renamed-twice-reading kind=benign form=renamed-twice arm=admit sort=no occurrences=12 drifts=2 assisted=2 failed=0 harm=0 reverted_good=0
+case name=reused-add-1 kind=fault form=reused arm=none sort=- occurrences=8 drifts=3 assisted=6 failed=0 harm=0 reverted_good=0
+case name=reused-add-1 kind=fault form=reused arm=plain sort=- occurrences=8 drifts=3 assisted=3 failed=0 harm=2 reverted_good=0
+case name=reused-add-1 kind=fault form=reused arm=admit sort=yes occurrences=8 drifts=3 assisted=3 failed=0 harm=1 reverted_good=1
+case name=reused-add-1 kind=fault form=reused arm=admit sort=no occurrences=8 drifts=3 assisted=3 failed=0 harm=1 reverted_good=1
+case name=reused-confirm-1 kind=fault form=reused arm=none sort=- occurrences=11 drifts=3 assisted=7 failed=0 harm=0 reverted_good=0
+case name=reused-confirm-1 kind=fault form=reused arm=plain sort=- occurrences=11 drifts=3 assisted=3 failed=0 harm=2 reverted_good=0
+case name=reused-confirm-1 kind=fault form=reused arm=admit sort=yes occurrences=11 drifts=3 assisted=3 failed=0 harm=1 reverted_good=0
+case name=reused-confirm-1 kind=fault form=reused arm=admit sort=no occurrences=11 drifts=3 assisted=3 failed=0 harm=1 reverted_good=0
+case name=reused-pay-2 kind=fault form=reused arm=none sort=- occurrences=13 drifts=3 assisted=8 failed=0 harm=0 reverted_good=0
+case name=reused-pay-2 kind=fault form=reused arm=plain sort=- occurrences=13 drifts=3 assisted=3 failed=0 harm=2 reverted_good=0
+case name=reused-pay-2 kind=fault form=reused arm=admit sort=yes occurrences=13 drifts=3 assisted=3 failed=0 harm=1 reverted_good=1
+case name=reused-pay-2 kind=fault form=reused arm=admit sort=no occurrences=13 drifts=3 assisted=3 failed=0 harm=1 reverted_good=1
+case name=reused-statements-2 kind=fault form=reused arm=none sort=- occurrences=9 drifts=3 assisted=7 failed=0 harm=0 reverted_good=0
+case name=reused-statements-2 kind=fault form=reused arm=plain sort=- occurrences=9 drifts=3 assisted=3 failed=0 harm=2 reverted_good=0
+case name=reused-statements-2 kind=fault form=reused arm=admit sort=yes occurrences=9 drifts=3 assisted=3 failed=0 harm=1 reverted_good=1
+case name=reused-statements-2 kind=fault form=reused arm=admit sort=no occurrences=9 drifts=3 assisted=3 failed=0 harm=1 reverted_good=1
+verdict rule=admit
+```
