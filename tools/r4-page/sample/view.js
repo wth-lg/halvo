@@ -22,10 +22,15 @@
   if (fault === 'motion_hidden') CSS.push('@media (prefers-reduced-motion: reduce) { .r4s [data-act="delete"] { display: none; } }');
   if (fault === 'forced_hidden') CSS.push('@media (forced-colors: active) { .r4s [data-act="switch_off"] { display: none; } }');
   if (fault === 'narrow_scroll') CSS.push('.r4s-line { min-width: 400px; }');
+  if (fault === 'inner_scroll') CSS.push('@media (max-width: 400px) { .r4s-controls { overflow-x: auto; flex-wrap: nowrap; } .r4s-controls button { flex: 0 0 220px; } }');
   if (fault === 'dialog_30') CSS.push('.r4s .r4s-dialog button { min-width: 30px; min-height: 30px; width: 30px; height: 30px; padding: 0; overflow: hidden; }');
   if (fault === 'focus_pale') CSS.push('.r4s button:focus { outline-color: #d8d8d8; }');
   if (fault === 'focus_behind_image') CSS.push('.r4s { background-image: linear-gradient(#ffffff, #f8f8f8); }');
   if (fault === 'late_css') CSS.push('@keyframes r4s-late { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-late 0.01s 1.5s forwards; }');
+
+  if (fault === 'engine_mode' && matchMedia('(forced-colors: active)').matches) {
+    Object.defineProperty(window, 'ace', { value: undefined, writable: false, configurable: false });
+  }
 
   var root = null;
   var status = null;

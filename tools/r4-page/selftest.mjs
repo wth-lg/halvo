@@ -48,7 +48,9 @@ const FAULTS = {
     { fault: 'motion_hidden', state: 'a', mode: 'reduced_motion' },
     { fault: 'forced_hidden', state: 'a', mode: 'forced_colors' },
     { fault: 'narrow_scroll', state: 'a', mode: 'width_320' },
-    { fault: 'outside_mode', state: 'a', mode: 'reduced_motion' },
+    { fault: 'outside_mode', state: 'a', mode: 'reduced_motion', engine: true },
+    { fault: 'inner_scroll', state: 'a', mode: 'width_320' },
+    { fault: 'engine_mode', state: 'a', mode: 'forced_colors', engine: true },
   ],
   6: [{ fault: 'inner_html', state: 'a', want: (r) => r.counts.markup === 'miss' }],
 };
@@ -142,6 +144,7 @@ async function main() {
     let fault = 'caught';
     let ran = 0;
     for (const f of FAULTS[n]) {
+      if (none && f.engine) continue;
       const before = reached.count;
       const r = await run(origin, n, f.state, f.fault);
       if (f.mode && r.modes[f.mode] === 'off') continue;

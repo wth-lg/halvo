@@ -534,7 +534,7 @@ const ENGINE_RUN = async () => {
 
 let engineAlone = null;
 
-function engineRequests(h) {
+function alone(h) {
   if (!engineAlone) {
     engineAlone = (async () => {
       let count = 0;
@@ -545,9 +545,14 @@ function engineRequests(h) {
         });
         const page = await ctx.newPage();
         await page.goto(new URL(FRAME, h.origin).href);
-        await page.addScriptTag({ url: h.origin + ENGINE });
-        await page.evaluate(ENGINE_RUN);
-        return count;
+        let r;
+        try {
+          await page.addScriptTag({ url: h.origin + ENGINE });
+          r = await page.evaluate(ENGINE_RUN);
+        } catch {
+          r = { error: 'file' };
+        }
+        return { count, error: r.error || (r.executed > 0 ? null : 'no_rule') };
       } finally {
         await ctx.close().catch(() => {});
       }
@@ -557,6 +562,12 @@ function engineRequests(h) {
     });
   }
   return engineAlone;
+}
+
+async function machineWide(h, err) {
+  if (err.reason === 'package' || err.reason === 'licence') return true;
+  const a = await alone(h);
+  return a.count > 0 || a.error !== null;
 }
 
 async function engineCheck(h) {
@@ -570,7 +581,7 @@ async function engineCheck(h) {
   if (r.error) throw new EngineNone(r.error);
   if (!(r.executed > 0)) throw new EngineNone('no_rule');
   const outside = h.blocked > 0;
-  if (outside && (await engineRequests(h)) > 0) throw new EngineNone('request');
+  if (outside && (await alone(h)).count > 0) throw new EngineNone('request');
   const names = outside ? [...r.rules, 'outside_request'].sort() : r.rules;
   return { ok: r.violations === 0 && !outside, counts: { violations: r.violations, review: r.review }, names };
 }
@@ -994,14 +1005,16 @@ async function modesCheck(h, { snapshot } = {}) {
         results.push(await engineCheck(m));
       } catch (err) {
         if (!(err instanceof EngineNone)) throw err;
+        if (!(await machineWide(m, err))) results.push({ ok: false });
       }
       results.push(await walkCheck(m), await sizeCheck(m));
       if (typeof snapshot === 'string') results.push(await structureCheck(m, { snapshot }));
-      const scroll = await m.page.evaluate(() => {
+      const scroll = await m.page.evaluate((every) => {
         const main = document.scrollingElement || document.documentElement;
         if (main.scrollWidth > main.clientWidth) return true;
-        return [document.documentElement, document.body].some((e) => e && ['auto', 'scroll'].includes(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth);
-      });
+        const list = every ? document.querySelectorAll('*') : [document.documentElement, document.body];
+        return [...list].some((e) => e && ['auto', 'scroll'].includes(getComputedStyle(e).overflowX) && e.scrollWidth > e.clientWidth);
+      }, name === 'width_320');
       modes[name] = scroll || m.flags.size > 0 || results.some((r) => !r.ok) ? 'miss' : 'ok';
     } finally {
       await m.close();
