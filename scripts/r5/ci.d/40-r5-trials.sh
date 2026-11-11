@@ -605,7 +605,7 @@ self_test() {
   check result-block-with-a-trailing-empty-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 
   fixture result-with-another-machine
-  result_text drift | sed '2s/mac/laptop/' >"$work/result-with-another-machine/docs/r5/trials/admission.md"
+  result_text drift | sed '2s/^machine mac$/machine laptop/' >"$work/result-with-another-machine/docs/r5/trials/admission.md"
   check result-with-another-machine FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 
   fixture result-with-text-in-place-of-the-empty-line
