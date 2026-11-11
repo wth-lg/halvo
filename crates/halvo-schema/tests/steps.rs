@@ -163,3 +163,33 @@ fn a_writer_step_reads_its_rows_and_returns_typed_records_that_its_kind_reads() 
     rows.for_each("probe_other", &mut |_| other += 1);
     assert_eq!(other, 0);
 }
+
+#[test]
+fn the_debug_form_of_a_typed_record_holds_its_kind_and_the_length_of_its_text_and_never_the_text() {
+    let marker = "marker_of_own_text_s18";
+    let record = TypedRecord {
+        kind: "probe_routine",
+        json: format!(r#"{{"v":1,"note":"{marker}"}}"#),
+    };
+    for printed in [
+        format!("{record:?}"),
+        format!("{record:#?}"),
+        format!("{:?}", vec![record.clone()]),
+    ] {
+        assert!(!printed.contains(marker), "{printed}");
+        assert!(!printed.contains("note"), "{printed}");
+        assert!(printed.contains("TypedRecord"), "{printed}");
+        assert!(printed.contains("probe_routine"), "{printed}");
+        assert!(
+            printed.contains(&record.json.len().to_string()),
+            "{printed}"
+        );
+    }
+    assert_eq!(
+        format!("{record:?}"),
+        format!(
+            "TypedRecord {{ kind: \"probe_routine\", json_len: {} }}",
+            record.json.len()
+        )
+    );
+}

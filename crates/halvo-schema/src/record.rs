@@ -740,11 +740,21 @@ pub trait RecurrenceStep {
 }
 
 /// A record of a registered kind as a step or a handler returns it: the kind name and the serialized record, which
-/// the store commits by the typed commit after `kinds::check_record`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// the store commits by the typed commit after `kinds::check_record`. `Debug` prints the type name, the kind and
+/// the length of `json` in bytes, never `json`, which can hold a person's own text.
+#[derive(Clone, PartialEq, Eq)]
 pub struct TypedRecord {
     pub kind: &'static str,
     pub json: String,
+}
+
+impl fmt::Debug for TypedRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TypedRecord")
+            .field("kind", &self.kind)
+            .field("json_len", &self.json.len())
+            .finish()
+    }
 }
 
 /// The read of the rows of the own family of a step or of a handler, as they stand at its call: `for_each` visits
