@@ -23,6 +23,11 @@ ends_in_lf() {
   [ "$last" = "$lfx" ]
 }
 
+no_nul() {
+  tr -d '\000' <"$1" >"$art/without-nul.txt" || return 1
+  cmp -s "$art/without-nul.txt" "$1"
+}
+
 sha_tool() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$@"
@@ -114,6 +119,7 @@ set_digest() {
 heldout_digits() {
   regular_in_index docs/r5/heldout.txt || return 1
   ends_in_lf docs/r5/heldout.txt || return 1
+  no_nul docs/r5/heldout.txt || return 1
   awk '
     NR == 1 {
       if ($0 !~ /^heldout cases=24 benign=12 fault=12 sha256=[0-9a-f]+$/) exit 1
@@ -140,6 +146,7 @@ key_digest() {
 
 read_freeze() {
   ends_in_lf "$1" || return 1
+  no_nul "$1" || return 1
   awk '
     BEGIN {
       keys["targets"] = "targets cases stat drift heldout"
@@ -304,12 +311,17 @@ measure() {
   mkdir -p -- "$art" || finish scratch
   art=$(cd -P -- "$art" && pwd -P) || finish scratch
   cd -- "$repo" || finish scratch
+  here=$(pwd -P) || finish scratch
+  case $art/ in
+    "$here"/target/*) ;;
+    "$here"/*) finish scratch ;;
+  esac
 
   command -v git >/dev/null 2>&1 || finish git
   git -c core.quotepath=on ls-files >"$art/tracked.txt" 2>"$art/git-error.txt" || finish git
   git -c core.quotepath=on ls-files -s >"$art/staged.txt" 2>>"$art/git-error.txt" || finish git
 
-  if ! ends_in_lf scripts/r5/layout.txt; then
+  if ! ends_in_lf scripts/r5/layout.txt || ! no_nul scripts/r5/layout.txt; then
     finish layout
   fi
   : >"$art/outside.txt"
@@ -761,6 +773,26 @@ layout unmatched=1" --all
   printf 'U1.2\tcrates/halvo-learn/**\n' >>"$work/targets-and-learner-differ/scripts/r5/layout.txt"
   commit_all "$work/targets-and-learner-differ"
   check targets-and-learner-differ FAIL-targets 'targets=miss learner=miss harness=same'
+
+  fixture heldout-line-with-a-nul-byte
+  printf 'heldout cases=24 benign=12 fault=12 sha256=%s\000 changed\nharness tree=%s\n' "$archive" "$d_tree" >"$work/heldout-line-with-a-nul-byte/docs/r5/heldout.txt"
+  check heldout-line-with-a-nul-byte FAIL-targets "$line targets=miss learner=none harness=same"
+
+  fixture freeze-line-with-a-nul-byte
+  freeze_text "$d_targets" | awk 'NR == 2 { printf "%s\000 changed\n", $0; next } { print }' >"$work/freeze-line-with-a-nul-byte/docs/r5/freeze.toml"
+  check freeze-line-with-a-nul-byte FAIL-freeze "$line targets=miss learner=miss harness=same"
+
+  fixture layout-line-with-a-nul-byte
+  printf 'U9.9\tdocs/r5/x.md\000y\n' >>"$work/layout-line-with-a-nul-byte/scripts/r5/layout.txt"
+  check layout-line-with-a-nul-byte FAIL-layout 'FAIL 10-r5-layout (layout)'
+
+  fixture artifacts-inside-the-repository
+  artifacts=$work/artifacts-inside-the-repository/docs/r5
+  check artifacts-inside-the-repository FAIL-scratch 'FAIL 10-r5-layout (scratch)'
+
+  fixture artifacts-under-the-target-of-the-repository
+  artifacts=$work/artifacts-under-the-target-of-the-repository/target/ci-artifacts/10-r5-layout
+  check artifacts-under-the-target-of-the-repository PASS "$line targets=ok learner=none harness=same"
 
   fixture git-fails
   mkdir -p "$work/stub" || broken

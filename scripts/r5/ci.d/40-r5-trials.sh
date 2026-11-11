@@ -19,12 +19,18 @@ broken() {
   exit 1
 }
 
+no_nul() {
+  tr -d '\000' <"$1" >"$art/without-nul.txt" || return 1
+  cmp -s "$art/without-nul.txt" "$1"
+}
+
 note() {
   printf '%s\n' "$*" >>"$art/checks.txt"
 }
 
 profile_ok() {
   [ -f "$1" ] || return 1
+  no_nul "$1" || return 1
   awk '
     function scan(s,   i, c) {
       i = 1
@@ -69,29 +75,43 @@ overflow_ok() {
   [ -n "$host" ] || return 1
   cargo metadata --no-deps --format-version 1 --locked --manifest-path tools/r5-trials/Cargo.toml >"$art/metadata.json" 2>"$art/metadata.err" </dev/null || return 1
   awk '
+    function member(id,   fragment, dir, name) {
+      fragment = id
+      sub(/^.*#/, "", fragment)
+      dir = id
+      sub(/#.*$/, "", dir)
+      sub(/^.*\//, "", dir)
+      name = index(fragment, "@") ? substr(fragment, 1, index(fragment, "@") - 1) : dir
+      if (name !~ /^[A-Za-z0-9_-]+$/) { bad = 1; exit 1 }
+      print name
+      found++
+    }
     {
-      i = index($0, "\"workspace_members\":[")
-      if (!i) exit 1
-      s = substr($0, i + 21)
-      j = index(s, "]")
-      if (!j) exit 1
-      n = split(substr(s, 1, j - 1), ids, ",")
-      for (k = 1; k <= n; k++) {
-        id = ids[k]
-        if (id !~ /^".*"$/) exit 1
-        id = substr(id, 2, length(id) - 2)
-        fragment = id
-        sub(/^.*#/, "", fragment)
-        dir = id
-        sub(/#.*$/, "", dir)
-        sub(/^.*\//, "", dir)
-        member = index(fragment, "@") ? substr(fragment, 1, index(fragment, "@") - 1) : dir
-        if (member !~ /^[A-Za-z0-9_-]+$/) exit 1
-        print member
-        found++
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (instr) {
+          if (c == "\\") { str = str c substr($0, i + 1, 1); i++ }
+          else if (c == "\"") {
+            instr = 0
+            if (inlist && depth == 2) member(str)
+            else if (depth == 1) last = str
+          } else str = str c
+          continue
+        }
+        if (c == "\"") { instr = 1; str = ""; continue }
+        if (c == ":" && depth == 1) key = last
+        else if (c == "," && depth == 1) key = ""
+        else if (c == "{" || c == "[") {
+          depth++
+          if (depth == 2 && c == "[" && key == "workspace_members") { inlist = 1; lists++ }
+        } else if (c == "}" || c == "]") {
+          if (depth == 2) inlist = 0
+          depth--
+        }
       }
     }
-    END { if (!found) exit 1 }
+    END { if (bad || lists != 1 || !found) exit 1 }
   ' "$art/metadata.json" >"$art/members.txt" || return 1
   root=$(pwd -W 2>/dev/null || pwd -P) || return 1
   while read -r member; do
@@ -153,6 +173,7 @@ refuse_call() {
 block_of() {
   last=$(tail -c 1 "$1" && printf x) || return 1
   [ "$last" = "$lfx" ] || return 1
+  no_nul "$1" || return 1
   awk -v fence="$fence" '
     NR == 1 { if ($0 !~ /^date [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) exit 1; next }
     NR == 2 { if ($0 !~ /^machine (mac|hosted-mac|hosted-win)$/) exit 1; next }
@@ -193,6 +214,11 @@ measure() {
   mkdir -p -- "$art" || finish scratch
   art=$(cd -P -- "$art" && pwd -P) || finish scratch
   cd -- "$repo" || finish scratch
+  here=$(pwd -P) || finish scratch
+  case $art/ in
+    "$here"/target/*) ;;
+    "$here"/*) finish scratch ;;
+  esac
   : >"$art/checks.txt"
 
   if ! profile_ok tools/r5-trials/Cargo.toml; then
@@ -297,6 +323,7 @@ case $# in
     fi
     printf 'block %s\nverdict %s=ok\n' "$trial" "$trial"
     [ "${STUB_STAT_EXIT:-}" = "" ] || [ "$trial" != stat ] || exit "$STUB_STAT_EXIT"
+    [ "${STUB_DRIFT_EXIT:-}" = "" ] || [ "$trial" != drift ] || exit "$STUB_DRIFT_EXIT"
     exit "${STUB_RUN_EXIT:-0}"
     ;;
   1)
@@ -305,6 +332,7 @@ case $# in
   2)
     [ "${STUB_HELP_EXTRA_TAKEN:-}" = "$trial" ] && [ "$1" = --help ] && exit 0
     if [ "$trial" = routine ] && [ "$1" = --sample ]; then
+      [ "${STUB_SAMPLE_SILENT:-}" != yes ] || exit 0
       [ -z "${STUB_SAMPLE_EXIT:-}" ] || exit "$STUB_SAMPLE_EXIT"
       printf '{"cell":"7-0-0"}\n' >"$2"
       exit 0
@@ -328,6 +356,10 @@ case $* in
   'metadata --no-deps --format-version 1 --locked --manifest-path tools/r5-trials/Cargo.toml')
     if [ "${STUB_NO_MEMBERS:-}" = yes ]; then
       printf '{"packages":[],"workspace_members":[],"resolve":null}\n'
+    elif [ "${STUB_FAKE_MEMBERS:-}" = yes ]; then
+      printf '{"packages":[{"name":"r5-stat","metadata":{"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0"]}}],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
+    elif [ "${STUB_ODD_MEMBER:-}" = yes ]; then
+      printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5 stat@0.0.0"],"resolve":null}\n'
     else
       printf '{"packages":[],"workspace_members":["path+file:///fixture/tools/r5-trials/stat#r5-stat@0.0.0","path+file:///fixture/tools/r5-trials/drift#0.0.0"],"resolve":null}\n'
     fi
@@ -381,7 +413,7 @@ check() {
   want=$2
   text=$3
   shift 3
-  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="$work/artifacts-$case_name" sh "$self" ${argument:+"$argument"} 2>&1)
+  out=$(env "$@" PATH="${case_path:-$work/bin:$PATH}" CI_D_REPO="$work/$case_name" CI_D_ARTIFACTS="${artifacts:-$work/artifacts-$case_name}" sh "$self" ${argument:+"$argument"} 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
@@ -403,10 +435,12 @@ check() {
     rejected=$((rejected + 1))
   fi
   argument=
+  artifacts=
 }
 
 self_test() {
   argument=
+  artifacts=
   self=$0
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken
   mkdir -p "$work/bin" || broken
@@ -557,6 +591,39 @@ self_test() {
 
   fixture member-build-fails-after-its-output
   check member-build-fails-after-its-output FAIL-test 'FAIL 40-r5-trials (test)' STUB_RUSTC_EXIT=101
+
+  fixture refusal-exits-3
+  check refusal-exits-3 FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_REFUSAL_EXIT=3
+
+  fixture drift-exits-1
+  check drift-exits-1 FAIL-run 'FAIL 40-r5-trials (run)' STUB_DRIFT_EXIT=1
+
+  fixture stale-sample-in-the-artifacts-directory
+  mkdir -p "$work/artifacts-stale-sample-in-the-artifacts-directory" || broken
+  printf '{"cell":"7-0-0"}\n' >"$work/artifacts-stale-sample-in-the-artifacts-directory/sample.jsonl"
+  check stale-sample-in-the-artifacts-directory FAIL-differ 'trials routine=same stat=same admission=same sample=differ' STUB_SAMPLE_SILENT=yes
+
+  fixture result-with-a-date-that-is-no-date
+  result_text drift | sed '1s/.*/date yesterday/' >"$work/result-with-a-date-that-is-no-date/docs/r5/trials/admission.md"
+  check result-with-a-date-that-is-no-date FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-line-with-a-nul-byte
+  printf 'date 2026-11-11\nmachine mac\n\n%s\nblock drift\nverdict drift=ok\000 but changed\n%s\n' "$fence" "$fence" >"$work/result-line-with-a-nul-byte/docs/r5/trials/admission.md"
+  check result-line-with-a-nul-byte FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture profile-line-with-a-nul-byte
+  printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\noverflow-checks = true\000 changed\n' >"$work/profile-line-with-a-nul-byte/tools/r5-trials/Cargo.toml"
+  check profile-line-with-a-nul-byte FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture workspace-members-in-package-metadata
+  check workspace-members-in-package-metadata FAIL-test 'FAIL 40-r5-trials (test)' STUB_FAKE_MEMBERS=yes STUB_OVERFLOW_OFF=drift
+
+  fixture member-name-with-another-byte
+  check member-name-with-another-byte FAIL-test 'FAIL 40-r5-trials (test)' STUB_ODD_MEMBER=yes
+
+  fixture artifacts-inside-the-repository
+  artifacts=$work/artifacts-inside-the-repository/fixtures/r5/trains
+  check artifacts-inside-the-repository FAIL-scratch 'FAIL 40-r5-trials (scratch)'
 
   fixture trial-refuses-its-run
   check trial-refuses-its-run FAIL-run 'FAIL 40-r5-trials (run)' STUB_RUN_REFUSES=drift
