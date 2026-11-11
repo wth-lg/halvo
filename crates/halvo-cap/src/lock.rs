@@ -116,6 +116,26 @@ fn lock_file_options() -> OpenOptions {
     options
 }
 
+#[cfg(target_os = "macos")]
+fn keep_across_exec(file: &File, path: &Path) -> Result<(), LockError> {
+    use std::os::fd::AsRawFd;
+    let fd = file.as_raw_fd();
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) } < 0 {
+        return Err(LockError::Io {
+            call: "fcntl",
+            path: path.to_path_buf(),
+            source: io::Error::last_os_error(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn keep_across_exec(_file: &File, _path: &Path) -> Result<(), LockError> {
+    Ok(())
+}
+
 /// Takes the model lock at [`model_lock_path`] without waiting.
 ///
 /// Creates the directory and the empty lock file where they are missing, writes nothing
@@ -126,6 +146,11 @@ fn lock_file_options() -> OpenOptions {
 /// while it is held neither the file nor its directory can be renamed or removed. On macOS
 /// they can: a lock file or directory that another program moves away while the lock is
 /// held lets the next loader create a new file and take the lock.
+///
+/// On macOS the lock stays held across an exec of the holder, so a loader that takes it and
+/// then execs the program that reads the weights keeps it until that process ends. A
+/// process that the holder starts inherits the open file and holds the lock with it until
+/// both have ended.
 pub fn take_model_lock() -> Result<ModelLock, LockError> {
     let path = model_lock_path()?;
     if let Some(dir) = path.parent() {
@@ -143,7 +168,10 @@ pub fn take_model_lock() -> Result<ModelLock, LockError> {
             source,
         })?;
     match file.try_lock() {
-        Ok(()) => Ok(ModelLock { _file: file, path }),
+        Ok(()) => {
+            keep_across_exec(&file, &path)?;
+            Ok(ModelLock { _file: file, path })
+        }
         Err(TryLockError::WouldBlock) => Err(LockError::Held(path)),
         Err(TryLockError::Error(source)) => Err(LockError::Io {
             call: "try_lock",
