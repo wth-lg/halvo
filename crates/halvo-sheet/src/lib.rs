@@ -1,12 +1,16 @@
 //! The sheet executor of the agent-setup run (contracts.md A11.3).
 
+mod book;
 mod error;
 mod path;
+mod range;
 mod source;
 
 use std::path::{Path, PathBuf};
 
-pub use error::{Cause, Error, PathRefusal, SourceRefusal};
+pub use book::Cell;
+pub use error::{Cause, Error, PathRefusal, Refusal, SourceRefusal};
+pub use range::Range;
 pub use source::Value;
 
 /// The directory that the permission `user_files` names, as the runner gives it. Every path
@@ -29,6 +33,23 @@ impl Folder {
 
     fn file(&self, path: &Path) -> Result<PathBuf, Error> {
         path::file(&self.root, &self.spellings, path)
+    }
+
+    /// Returns the values of `range` on the sheet named `sheet` (compared byte for byte) of
+    /// the workbook at `workbook`, one row of the range after the other, with
+    /// [`Cell::Empty`] for a cell that holds nothing and the cached result for a formula cell.
+    /// Writes nothing. [`Error::NoSheet`] when the workbook has no such sheet, and
+    /// [`Error::Workbook`] with [`Refusal::Unreadable`] when the file is no workbook that the
+    /// crate can read.
+    pub fn read(
+        &self,
+        workbook: &Path,
+        sheet: &str,
+        range: Range,
+    ) -> Result<Vec<Vec<Cell>>, Error> {
+        let full = self.file(workbook)?;
+        let bytes = std::fs::read(full)?;
+        book::read(&bytes, sheet, range)
     }
 
     /// Returns the rows of the source file at `source` (contracts.md A1.2): one row per line,

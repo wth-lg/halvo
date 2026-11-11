@@ -57,6 +57,14 @@ pub enum SourceRefusal {
     Number { line: usize },
 }
 
+/// Why the crate refuses a workbook, with the cause `workbook`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// The file is not a workbook that the crate can read: not a zip archive of the parts of a
+    /// workbook, a part that does not parse, or a library that fails or panics on it.
+    Unreadable,
+}
+
 /// An error of a call. No error holds the content of a cell, of a source row or of a part of
 /// the workbook.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,13 +77,25 @@ pub enum Error {
     Io(io::ErrorKind),
     /// The source file is not of the form of A1.2.
     Source(SourceRefusal),
+    /// The text is not a range of the form that [`crate::Range::parse`] takes.
+    Range,
+    /// The workbook has no sheet of that name.
+    NoSheet,
+    /// The workbook is refused, with the cause `workbook`.
+    Workbook(Refusal),
 }
 
 impl Error {
     /// The cause of A7.4 that this error gives.
     pub fn cause(&self) -> Cause {
         match self {
-            Error::Folder | Error::Path(_) | Error::Io(_) | Error::Source(_) => Cause::StepFailed,
+            Error::Workbook(_) => Cause::Workbook,
+            Error::Folder
+            | Error::Path(_)
+            | Error::Io(_)
+            | Error::Source(_)
+            | Error::Range
+            | Error::NoSheet => Cause::StepFailed,
         }
     }
 }
@@ -93,6 +113,9 @@ impl fmt::Display for Error {
             Error::Path(why) => write!(f, "the path is refused: {why:?}"),
             Error::Io(kind) => write!(f, "a file could not be read or written: {kind:?}"),
             Error::Source(why) => write!(f, "the source is not of the form of A1.2: {why:?}"),
+            Error::Range => f.write_str("the text is not a range"),
+            Error::NoSheet => f.write_str("the workbook has no sheet of that name"),
+            Error::Workbook(why) => write!(f, "the workbook is refused: {why:?}"),
         }
     }
 }

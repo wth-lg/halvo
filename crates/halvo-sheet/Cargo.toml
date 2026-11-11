@@ -4,3 +4,6 @@ version = "0.0.0"
 description = "The sheet executor: reads cells and a source file, prepares a changed copy of a workbook beside it with a checkpoint, replaces the workbook in one rename, and refuses a workbook that it cannot carry"
 edition = "2021"
 publish = false
+
+[dependencies]
+calamine = "=0.38.0"
