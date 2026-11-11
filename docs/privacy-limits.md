@@ -57,3 +57,47 @@ an existing one for maintenance only, and no R1 installer is such a build.
   delete-all, about 124 bytes a row (evidence/interrogate-rr-store-3/it03_what_a_shred_leaves_inside_store_db.log).
 - Rows of a segment shredded out of order (RR-store-08). store-4 closes this when it
   removes the per-event rows; until then the note in the table applies.
+
+## What capture stores and does not exclude
+
+Each sentence names the unit that makes it true.
+
+- The title of a private window of Chrome, Edge, Firefox or Safari is not stored when
+  the browser runs with an English interface, and the title of any other private
+  window is stored (macos-4 and win-4). A source tells a private window by the ending
+  that the browser gives its title, and only for the browser that the ending belongs
+  to: on macOS `(Incognito)` for Chrome, `(InPrivate)` for Edge, an em dash and
+  `Private Browsing` for Firefox and `, Private Browsing` for Safari; on Windows
+  `[InPrivate]` for Edge and `Mozilla Firefox Private Browsing` for Firefox. A page
+  whose own title holds the word private is kept, because a source matches the
+  ending and never the word alone.
+- On Windows the title of a Chrome window does not tell a private window (it read
+  `PAGE - Google Chrome` in 3 of 3 runs). win-4 asks the window instead, through UI
+  Automation, and drops the title of every Chrome window that the query does not
+  tell as not private.
+- Limits of that rule. The endings are those of an English interface, measured on
+  the browser versions of the two hosted images: Chrome 157 and 156, Edge 156,
+  Firefox 159 and Safari 27.2. With another interface language, another browser or a
+  title that ends otherwise, the window is not told and its title is stored. On
+  macOS the trial read the title through the accessibility interface, which is how
+  macos-4 reads it; a read from the window list was not tried.
+- A terminal that does not assert secure input gets no protection, so key classes
+  and the window title are recorded while a password is typed there (macos-4).
+- The record of the gate on main (docs/baseline/r1-gate-main.txt) was made with
+  nobody at the machine. A run with a person at the keyboard recorded no keystroke
+  while secure input was held. What that line proves is decided in a later unit.
+- Characters and key codes are never stored: the types that core-2 builds have no
+  field for them.
+
+The first-run text and the data view quote these three sentences word for word.
+The owner approves them once, in the table of user-visible sentences for each
+system; until then they are the recommended text.
+
+- `Typing is not observed on Windows in this version.` win-3 keeps the Windows
+  keyboard source out of the default source set.
+- `Screen activity is not recorded.` core-2 builds the switch `screen_activity`
+  with the default off; the sentence holds while the switch is off.
+- For an unsigned macOS build: `This is an unsigned build: the key that protects your data is kept in a file with owner-only permissions in your account.`
+  store-3 and daemon-3 make it true.
+
+docs-2 confirms each sentence of this section against the merged code.
