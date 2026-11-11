@@ -253,13 +253,13 @@ mod tests {
         std::fs::create_dir_all(root.join("both")).unwrap();
         std::fs::create_dir_all(root.join("both-tmp")).unwrap();
         std::fs::create_dir_all(root.join("tmp-only-tmp")).unwrap();
-        std::fs::write(root.join("afile"), b"x").unwrap();
         assert!(profile_gone(&root.join("none")));
         assert!(!profile_gone(&root.join("both")));
         assert!(!profile_gone(&root.join("tmp-only")));
-        assert!(!profile_gone(&root.join("afile").join("under-a-file")));
         #[cfg(unix)]
         {
+            std::fs::write(root.join("afile"), b"x").unwrap();
+            assert!(!profile_gone(&root.join("afile").join("under-a-file")));
             let link = root.join("link");
             if std::fs::symlink_metadata(&link).is_err() {
                 std::os::unix::fs::symlink(root.join("no-target"), &link).unwrap();
