@@ -182,11 +182,15 @@ fn answer_confirm_sends_the_decision_only_after_record_returned_success() {
 fn answer_confirm_sends_reject_once_under_new_ids_when_record_fails() {
     let p: Ports<Config> = Ports::new(0, 0);
     let mut handed = Vec::new();
-    p.answer_confirm(&spec().run, &answers(), &mut |d: &Decision| {
+    let answered = p.answer_confirm(&spec().run, &answers(), &mut |d: &Decision| {
         handed.push(d.clone());
         Err(PortError::NoService)
-    })
-    .unwrap();
+    });
+    assert_eq!(
+        answered,
+        Err(PortError::NoService),
+        "a success return means that the answer's decision was sent (I4.5)"
+    );
     let sent = p.sent_decisions();
     assert_eq!(sent.len(), 1);
     assert!(sent[0]

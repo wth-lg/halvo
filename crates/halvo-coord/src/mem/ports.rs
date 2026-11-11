@@ -274,12 +274,17 @@ impl<C> Runs for Ports<C> {
     ) -> Result<(), PortError> {
         self.refused(Method::AnswerConfirm)?;
         let decision = self.decision(answers, None);
-        let sent = match record(&decision) {
-            Ok(()) => decision,
-            Err(_) => self.decision(answers, Some(EffectAnswer::RejectOnce)),
-        };
-        self.record(Call::AnswerConfirm(run.clone(), answers.to_vec(), sent));
-        Ok(())
+        match record(&decision) {
+            Ok(()) => {
+                self.record(Call::AnswerConfirm(run.clone(), answers.to_vec(), decision));
+                Ok(())
+            }
+            Err(e) => {
+                let sent = self.decision(answers, Some(EffectAnswer::RejectOnce));
+                self.record(Call::AnswerConfirm(run.clone(), answers.to_vec(), sent));
+                Err(e)
+            }
+        }
     }
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {

@@ -41,7 +41,8 @@ pub trait Runs {
     fn start(&self, spec: &RunSpec) -> Result<(), PortError>;
     /// Mints the approval ids of the answers, calls `record` with the `Decision`, and sends the
     /// decision only when `record` returned success; else sends `reject_once` for every effect
-    /// under approval ids that it mints anew (I4.5).
+    /// under approval ids that it mints anew and returns the error of `record`. So a success
+    /// return means that the decision that `record` accepted was sent (I4.5).
     fn answer_confirm(
         &self,
         run: &RunId,
