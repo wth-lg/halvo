@@ -1,5 +1,7 @@
 use std::path::{Component, Path, PathBuf};
 
+/// One row of the process table: the pid, the parent pid, the creation time in microseconds since
+/// the Unix epoch (0 when the system does not give it) and the executable's path where it is readable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proc {
     pub pid: u32,
@@ -8,10 +10,15 @@ pub struct Proc {
     pub exe: Option<PathBuf>,
 }
 
+/// Whether two rows name one process: the same pid and the same creation time.
 pub fn same(a: &Proc, b: &Proc) -> bool {
     a.pid == b.pid && a.started_us == b.started_us
 }
 
+/// The roots and every process of `table` that descends from them. A process is a child of a member
+/// only when its parent pid is the member's pid, its creation time is known and at or after the
+/// member's, and the member's pid still has the member's creation time in `table`; so a process whose
+/// parent pid is stale, or whose parent's pid was reused, does not enter. Roots come first, each pid once.
 pub fn descendants(table: &[Proc], roots: &[Proc]) -> Vec<Proc> {
     let mut tree: Vec<Proc> = Vec::new();
     for r in roots {
@@ -42,6 +49,8 @@ pub fn descendants(table: &[Proc], roots: &[Proc]) -> Vec<Proc> {
     tree
 }
 
+/// The `.app` bundle that holds `exe` (the path up to its first component that ends in `.app`), or
+/// else the directory of `exe`.
 pub fn bundle_root(exe: &Path) -> PathBuf {
     let mut root = PathBuf::new();
     for c in exe.components() {
@@ -55,6 +64,10 @@ pub fn bundle_root(exe: &Path) -> PathBuf {
     exe.parent().map(Path::to_path_buf).unwrap_or_default()
 }
 
+/// The processes of `table` outside `tree` whose parent pid is 1, which started at or after
+/// `since_us` and whose executable lies under one of `roots`: on macOS the browser's crash handler,
+/// which leaves the tree. A caller waits for them and never ends them, because the rule can also take
+/// a process of the person's own browser.
 pub fn adopted(table: &[Proc], tree: &[Proc], since_us: u64, roots: &[PathBuf]) -> Vec<Proc> {
     table
         .iter()
@@ -94,6 +107,9 @@ fn started_of(info: &libc::proc_bsdinfo) -> u64 {
     info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec
 }
 
+/// Every process of the system with its parent pid, its creation time and its executable: on macOS
+/// from `proc_listallpids` and `proc_pidinfo`, on Windows from a Toolhelp snapshot and
+/// `GetProcessTimes`. A creation time that the system does not give is 0. Other systems get an error.
 #[cfg(target_os = "macos")]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     use std::os::unix::ffi::OsStringExt;
@@ -129,11 +145,17 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     Ok(out)
 }
 
+/// Whether the process of `p` still runs: its pid exists, still has the creation time of `p`, and
+/// has not exited (on macOS it is no zombie). A pid that another process took over is not running.
 #[cfg(target_os = "macos")]
 pub fn running(p: &Proc) -> bool {
     bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us && i.pbi_status != SZOMB)
 }
 
+/// Ends the process of `p` at once (SIGKILL on macOS, `TerminateProcess` on Windows) after reading
+/// its creation time again, and only when that is the creation time of `p`. Returns whether it sent
+/// the kill. On Windows the read and the kill go through one handle, which keeps the pid from being
+/// reused between them; on macOS a reuse between them would need a wrap of the pid counter.
 #[cfg(target_os = "macos")]
 pub fn kill(p: &Proc) -> bool {
     if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
@@ -177,6 +199,9 @@ fn started_of_pid(pid: u32) -> u64 {
     t.unwrap_or(0)
 }
 
+/// Every process of the system with its parent pid, its creation time and its executable: on macOS
+/// from `proc_listallpids` and `proc_pidinfo`, on Windows from a Toolhelp snapshot and
+/// `GetProcessTimes`. A creation time that the system does not give is 0. Other systems get an error.
 #[cfg(windows)]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
@@ -212,6 +237,8 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     Ok(out)
 }
 
+/// Whether the process of `p` still runs: its pid exists, still has the creation time of `p`, and
+/// has not exited (on macOS it is no zombie). A pid that another process took over is not running.
 #[cfg(windows)]
 pub fn running(p: &Proc) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
@@ -228,6 +255,10 @@ pub fn running(p: &Proc) -> bool {
     same_process && ok != 0 && code == STILL_ACTIVE as u32
 }
 
+/// Ends the process of `p` at once (SIGKILL on macOS, `TerminateProcess` on Windows) after reading
+/// its creation time again, and only when that is the creation time of `p`. Returns whether it sent
+/// the kill. On Windows the read and the kill go through one handle, which keeps the pid from being
+/// reused between them; on macOS a reuse between them would need a wrap of the pid counter.
 #[cfg(windows)]
 pub fn kill(p: &Proc) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
@@ -243,6 +274,9 @@ pub fn kill(p: &Proc) -> bool {
     killed
 }
 
+/// Every process of the system with its parent pid, its creation time and its executable: on macOS
+/// from `proc_listallpids` and `proc_pidinfo`, on Windows from a Toolhelp snapshot and
+/// `GetProcessTimes`. A creation time that the system does not give is 0. Other systems get an error.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn table() -> std::io::Result<Vec<Proc>> {
     Err(std::io::Error::new(
@@ -251,11 +285,17 @@ pub fn table() -> std::io::Result<Vec<Proc>> {
     ))
 }
 
+/// Whether the process of `p` still runs: its pid exists, still has the creation time of `p`, and
+/// has not exited (on macOS it is no zombie). A pid that another process took over is not running.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn running(_p: &Proc) -> bool {
     false
 }
 
+/// Ends the process of `p` at once (SIGKILL on macOS, `TerminateProcess` on Windows) after reading
+/// its creation time again, and only when that is the creation time of `p`. Returns whether it sent
+/// the kill. On Windows the read and the kill go through one handle, which keeps the pid from being
+/// reused between them; on macOS a reuse between them would need a wrap of the pid counter.
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn kill(_p: &Proc) -> bool {
     false

@@ -23,6 +23,9 @@ const STOP_WAIT: Duration = Duration::from_secs(15);
 const KILL_AFTER: Duration = Duration::from_secs(10);
 const REMOVE_WAIT: Duration = Duration::from_secs(10);
 
+/// The state that carries a sign-in from one browser into the next: the origins it was exported
+/// for, the browser's cookies whose domain belongs to one of their hosts, and the localStorage items
+/// of each origin. It holds credentials.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SessionState {
     pub origins: Vec<String>,
@@ -30,12 +33,17 @@ pub struct SessionState {
     pub storage: Vec<OriginStorage>,
 }
 
+/// The localStorage items of one origin, sorted by key.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OriginStorage {
     pub origin: String,
     pub items: Vec<(String, String)>,
 }
 
+/// What `stop_and_remove` did: the pids of the browser's process tree (`pids`); the processes that
+/// left the tree and were waited for but never ended (`adopted`, on macOS the crash handler); the
+/// pids of either kind that still ran when the wait ended (`left`); the profile directory and the
+/// temporary directory that the start made; and whether both are gone (`removed`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stopped {
     pub pids: Vec<u32>,
@@ -51,6 +59,7 @@ fn state_fault(detail: impl std::fmt::Display) -> Fault {
 }
 
 impl SessionState {
+    /// The JSON form `{"origins":[..],"cookies":[..],"storage":[{"origin":..,"items":[[k,v],..]}]}`.
     pub fn to_json(&self) -> String {
         let storage: Vec<Value> = self
             .storage
@@ -60,6 +69,7 @@ impl SessionState {
         json!({"origins": self.origins, "cookies": self.cookies, "storage": storage}).to_string()
     }
 
+    /// Reads the form of `to_json` back; any other text is a fault `state`.
     pub fn from_json(text: &str) -> Res<SessionState> {
         let v: Value = serde_json::from_str(text).map_err(state_fault)?;
         let origins: Vec<String> =
@@ -86,23 +96,28 @@ impl SessionState {
         })
     }
 
+    /// A copy without the cookies of that name.
     pub fn without_cookie(&self, name: &str) -> SessionState {
         let mut cut = self.clone();
         cut.cookies.retain(|c| c.name != name);
         cut
     }
 
+    /// The number of localStorage items over all origins.
     pub fn item_count(&self) -> usize {
         self.storage.iter().map(|s| s.items.len()).sum()
     }
 }
 
+/// The host of an origin, without its scheme and port.
 pub fn host_of(origin: &str) -> &str {
     let rest = origin.split_once("://").map(|(_, r)| r).unwrap_or(origin);
     let end = rest.find([':', '/']).unwrap_or(rest.len());
     &rest[..end]
 }
 
+/// Whether a cookie of `cookie_domain` belongs to `host`: the same host for a host-only cookie, the
+/// domain or a subdomain of it for a domain cookie (a leading dot).
 pub fn domain_matches(cookie_domain: &str, host: &str) -> bool {
     match cookie_domain.strip_prefix('.') {
         Some(d) => host == d || host.ends_with(&format!(".{d}")),
@@ -110,6 +125,9 @@ pub fn domain_matches(cookie_domain: &str, host: &str) -> bool {
     }
 }
 
+/// The parameters that set `cookie` again in another browser: through the origin's address for a
+/// host-only cookie of one of `origins`, else through its domain; with its path, secure, httpOnly,
+/// sameSite, priority and partition key, and with its expiry unless it is a session cookie.
 pub fn cookie_param(cookie: &Cookie, origins: &[String]) -> CookieParam {
     let mut p = CookieParam::new(cookie.name.clone(), cookie.value.clone());
     let own = origins.iter().find(|o| host_of(o) == cookie.domain);
@@ -244,6 +262,9 @@ fn pids(list: &[procs::Proc]) -> Vec<u32> {
 }
 
 impl Executor {
+    /// Reads the browser's cookies that belong to the hosts of `origins` and the localStorage of each
+    /// origin; the storage is read in a page of the origin that the browser answers itself, so no
+    /// request reaches the site.
     pub async fn export_state(&self, origins: &[String]) -> Res<SessionState> {
         let r = self
             .browser
@@ -280,6 +301,8 @@ impl Executor {
         })
     }
 
+    /// Sets the cookies of `state` and replaces the localStorage of each of its origins with its
+    /// items; a fault `state` when an origin does not hold them afterwards.
     pub async fn import_state(&self, state: &SessionState) -> Res<()> {
         let params: Vec<CookieParam> = state
             .cookies
@@ -316,6 +339,12 @@ impl Executor {
         outcome
     }
 
+    /// Stops the browser and removes the two directories that its start made, the profile and the
+    /// temporary directory beside it, and nothing else. It closes the browser (`stop`), then waits up
+    /// to 15 s for every process of the tree and for the adopted ones; from 10 s on it ends each
+    /// process of the tree that still has its recorded creation time, never an adopted one. Then it
+    /// removes both directories, following no link, and reports `removed` false when anything of
+    /// them is left.
     pub async fn stop_and_remove(self) -> Stopped {
         let profile = self.profile.clone();
         let temp = self.temp.clone();
