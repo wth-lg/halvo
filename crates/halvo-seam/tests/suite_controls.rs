@@ -77,6 +77,7 @@ enum Fault {
     StoreChangedOnReadNamesTheOldId,
     StoreChangedOnReadGetsStoreError,
     ServesOldRecordsAfterTheReplace,
+    RestartAddsASegment,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -566,6 +567,9 @@ impl Subject for Control {
         if self.fault == RestartLosesASegment {
             self.first_live += 1;
         }
+        if self.fault == RestartAddsASegment {
+            self.files.push(file_of("")?);
+        }
         self.reopen()
     }
 
@@ -1025,4 +1029,9 @@ fn control_a_server_that_drops_the_last_record_of_set_c() {
             Fail("the read of set C served 419 entries, the first that differs at its end"),
         ],
     );
+}
+
+#[test]
+fn a_server_whose_restart_adds_a_segment_passes() {
+    check(RestartAddsASegment, [Pass, Pass, Pass, Pass]);
 }

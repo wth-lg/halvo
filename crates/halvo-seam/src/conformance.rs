@@ -505,8 +505,8 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
 
 /// The case `resume` (C5.13 item 6): after `restart`, a read from each of five start positions serves the
 /// entries of the reference read at or after it, at the same positions, from the same store; a position
-/// beyond every watermark and the index 1 of the watermark's segment get `bad-position`, and a legal open
-/// after them works.
+/// beyond every watermark and the index 1 of the segment of the highest watermark after the restart get
+/// `bad-position`, and a legal open after them works.
 pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
     drop(conn);
@@ -543,7 +543,7 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
         idx: 0,
     };
     let inside = Position {
-        seg: rf.w.seg,
+        seg: top.seg,
         idx: 1,
     };
     for at in [beyond, inside] {
