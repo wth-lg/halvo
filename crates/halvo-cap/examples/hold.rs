@@ -1,7 +1,9 @@
 //! The probe of the list of what the reading of the cap does not count (the crate's
-//! documentation): `hold <way>` holds 134,217,728 bytes in that way for 2 s, writes a pattern
-//! and reads it back, and prints `hold way=<way> held_bytes=<n>`, the bytes that it read
-//! back intact. Run it under `measure-peak --limit 67108864 --runs 1 -- <this program> <way>`.
+//! documentation): `hold <way>` holds 134,217,728 bytes in that way, writes a pattern and
+//! reads it back, and prints `hold way=<way> held_bytes=<n>`, the bytes that it read back
+//! intact. It holds them for 2 s, but for the way exec: that way reads the bytes back and
+//! execs itself at once, before the next poll, and after the exec the reading no longer
+//! counts them. Run it under `measure-peak --limit 67108864 --runs 1 -- <this program> <way>`.
 //! Ways on macOS: child-process, exec, mapped-read, mapped-written, purgeable, reusable,
 //! kernel-message, socket-buffer. Ways on Windows: child-process, mapped-file, section,
 //! broker-process.
