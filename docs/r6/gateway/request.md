@@ -65,7 +65,7 @@ The device reads two answers, each one complete body that the gateway sends once
 - A success, status 200: `{"result":"ok","content":"<text>","usage":{"input":<count>,"output":<count>},"cost":<count>}`. `content` is the text, `usage` holds the input and output tokens, and `cost` is the settled cost in micro-units.
 - A refusal, status 403: `{"result":"refused","reason":R}`, where R is one of `over-cap`, `no-cap`, `not-active`, `pending`, `closing`, `no-such-account`, `credential-mismatch` and `other-arguments`, written with hyphens.
 
-Both objects are closed. A reader takes their keys in any order with JSON white space between tokens and refuses a repeated key. Any status other than 200 and 403 is read as `status`, whatever the body holds. Every other fault is read as `malformed`, among them an unknown reason and a `result` that does not fit its status.
+Both objects are closed, and so is `usage`: inside it an unknown key, a missing key and a repeated key are each `malformed`, so a key that a later gateway adds is `malformed`. A reader reads an answer as it reads a body: the bytes as received, so a leading EF BB BF and any byte sequence that is no UTF-8 are `malformed`, the keys in any order, JSON white space, and a repeated key is `malformed`. Any status other than 200 and 403 is read as `status`, whatever the body holds. Every other fault is read as `malformed`, among them an unknown reason and a `result` that does not fit its status.
 
 What the device does with each answer:
 
