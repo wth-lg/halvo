@@ -64,7 +64,15 @@
     head.appendChild(document.createTextNode(r.name));
     li.appendChild(head);
     var line = el('p', 'r4s-line', null);
-    if (first && fault === 'inner_html') line.innerHTML = r.line;
+    if (first && fault === 'count_only') {
+      line.innerHTML = r.line;
+      Array.prototype.forEach.call(line.querySelectorAll('[data-x]'), function (node) {
+        node.removeAttribute('data-x');
+      });
+    } else if (first && fault === 'marker_only') {
+      if (r.line.indexOf('<') >= 0) line.innerHTML = r.line;
+      else line.appendChild(el('i', null, r.line));
+    } else if (first && fault === 'inner_html') line.innerHTML = r.line;
     else if (first && fault === 'day_html' && r.next !== null) line.innerHTML = r.next;
     else line.appendChild(document.createTextNode(r.line));
     if (first && fault === 'contrast') line.style.color = '#c4c4c4';
@@ -192,8 +200,11 @@
       b.addEventListener('click', function () {
         if (c.safe === 'yes' && fault === 'dialog_role') {
           d.setAttribute('role', 'group');
+          d.close();
+          d.show();
           return;
         }
+        if (c.safe === 'yes' && fault === 'inert_left') list.inert = true;
         if (c.safe === 'yes' && fault === 'dialog_noclose') return;
         answered[item.item] = true;
         call('agents_answer', { item: item.item, choice: c.choice }).then(function () {

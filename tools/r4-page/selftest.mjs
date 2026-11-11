@@ -23,6 +23,7 @@ const FAULTS = {
     { fault: 'dialog_blur', state: 'b', want: (r) => r.names.includes('dialog_not_taken') },
     { fault: 'dialog_noclose', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'dialog_role', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
+    { fault: 'inert_left', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'safe_second', state: 'b', want: (r) => r.names.includes('dialog_safe_not_first') },
     { fault: 'body_stays', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
     { fault: 'dialog_plain', state: 'b', want: (r) => r.names.includes('dialog_missing') },
@@ -63,6 +64,8 @@ const FAULTS = {
   6: [
     { fault: 'inner_html', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'day_html', state: 'a', want: (r) => r.counts.markup === 'miss' },
+    { fault: 'count_only', state: 'a', want: (r) => r.counts.markup === 'miss' },
+    { fault: 'marker_only', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'frame', state: 'a', want: (r) => r.names.includes('opaque') },
   ],
 };
