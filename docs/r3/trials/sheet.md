@@ -96,8 +96,11 @@ comparison of a cached result with the computed one is exact.
     `IMPLICIT` of `parts.rs`). So a chart whose sheet no longer names its
     drawing is lost, although its entry is still in the archive.
   - a child of the original that the saved file does not hold, compared by
-    `sqref`, `type`, `operator`, `formula1` and `formula2` for a validation,
-    by `ref` for a merged range, by `formatCode` for a number format, and by
+    `sqref`, `type`, `operator`, `allowBlank`, `showErrorMessage`,
+    `errorStyle`, `errorTitle`, `error`, `promptTitle`, `prompt`, `formula1`
+    and `formula2` for a validation (a missing `allowBlank` or
+    `showErrorMessage` counts as `0` and a missing `errorStyle` as `stop`,
+    their defaults), by `ref` for a merged range, by `formatCode` for a number format, and by
     `name`, `localSheetId` and the reference text for a defined name.
   The facts in the evidence print, for each file, what the presence rule
   alone would give (`lost_by_presence_alone`).

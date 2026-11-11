@@ -56,7 +56,7 @@ fn element_rules_find_children_of_the_parent() {
     );
     assert_eq!(
         parts::element_instances(sheet, &rule(Kind::Validation)).unwrap(),
-        vec!["B2:B11|whole||0|".to_string()]
+        vec!["B2:B11|whole||0|0|stop|||||0|".to_string()]
     );
     let styles = br##"<styleSheet><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts></styleSheet>"##;
     assert_eq!(
@@ -251,8 +251,14 @@ fn a_validation_is_keyed_by_its_bounds_and_a_name_by_its_target() {
     let with = br#"<worksheet><dataValidations count="1"><dataValidation type="whole" operator="between" sqref="B2:B11"><formula1>0</formula1><formula2>24</formula2></dataValidation></dataValidations></worksheet>"#;
     let without = br#"<worksheet><dataValidations count="1"><dataValidation type="whole" operator="between" sqref="B2:B11"/></dataValidations></worksheet>"#;
     let keys = |xml: &[u8]| parts::element_instances(xml, &rule(Kind::Validation)).unwrap();
-    assert_eq!(keys(with), vec!["B2:B11|whole|between|0|24".to_string()]);
-    assert_eq!(keys(without), vec!["B2:B11|whole|between||".to_string()]);
+    assert_eq!(
+        keys(with),
+        vec!["B2:B11|whole|between|0|0|stop|||||0|24".to_string()]
+    );
+    assert_eq!(
+        keys(without),
+        vec!["B2:B11|whole|between|0|0|stop||||||".to_string()]
+    );
     let broken = br#"<workbook><definedNames><definedName name="Rate">#REF!</definedName></definedNames></workbook>"#;
     assert_eq!(
         parts::element_instances(broken, &rule(Kind::DefinedName)).unwrap(),
@@ -392,6 +398,65 @@ fn the_reader_keys_decoded_values() {
         let saved = dir.join(format!("{label}.xlsx"));
         rewrite_entry(&original, &saved, entry, from, to);
         let spec = corpus::spec(file).unwrap();
+        let judgement = trial::judge(&original, &saved, &spec).unwrap();
+        if judgement.lost != want {
+            wrong.push(format!(
+                "{label}: lost={} want {}",
+                parts::list(&judgement.lost),
+                parts::list(&want)
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("; "));
+}
+
+#[test]
+fn a_validation_is_keyed_by_what_makes_it_enforce() {
+    let dir = scratch("enforce");
+    let original = corpus_dir().join("validation.xlsx");
+    let spec = corpus::spec("validation.xlsx").unwrap();
+    let flags = "type=\"whole\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\"";
+    let cases = [
+        (
+            "no-error-message",
+            "type=\"whole\" allowBlank=\"1\" showInputMessage=\"1\"",
+            vec![Kind::Validation],
+        ),
+        (
+            "error-message-off",
+            "type=\"whole\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"0\"",
+            vec![Kind::Validation],
+        ),
+        (
+            "blank-not-allowed",
+            "type=\"whole\" showInputMessage=\"1\" showErrorMessage=\"1\"",
+            vec![Kind::Validation],
+        ),
+        (
+            "warning-style",
+            "type=\"whole\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" errorStyle=\"warning\"",
+            vec![Kind::Validation],
+        ),
+        (
+            "error-text",
+            "type=\"whole\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" error=\"0 to 24\"",
+            vec![Kind::Validation],
+        ),
+        (
+            "prompt-text",
+            "type=\"whole\" allowBlank=\"1\" showInputMessage=\"1\" showErrorMessage=\"1\" promptTitle=\"Hours\"",
+            vec![Kind::Validation],
+        ),
+        (
+            "same-in-other-spelling",
+            "type=\"whole\" allowBlank=\"true\" showInputMessage=\"1\" showErrorMessage=\"true\" errorStyle=\"stop\"",
+            vec![],
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (label, to, want) in cases {
+        let saved = dir.join(format!("{label}.xlsx"));
+        rewrite_entry(&original, &saved, "xl/worksheets/sheet1.xml", flags, to);
         let judgement = trial::judge(&original, &saved, &spec).unwrap();
         if judgement.lost != want {
             wrong.push(format!(

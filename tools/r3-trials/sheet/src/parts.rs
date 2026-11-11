@@ -146,7 +146,19 @@ pub fn element_rule(kind: Kind) -> Option<ElementRule> {
             PartSet::Sheets,
             "dataValidations",
             "dataValidation",
-            ["sqref", "type", "operator"].as_slice(),
+            [
+                "sqref",
+                "type",
+                "operator",
+                "allowBlank",
+                "showErrorMessage",
+                "errorStyle",
+                "errorTitle",
+                "error",
+                "promptTitle",
+                "prompt",
+            ]
+            .as_slice(),
             ["formula1", "formula2"].as_slice(),
         ),
         Kind::Merged => rule(
@@ -206,11 +218,12 @@ pub fn element_instances(xml: &[u8], rule: &ElementRule) -> Result<Vec<String>, 
         rule.key
             .iter()
             .map(|key| {
-                e.attributes()
+                let value = e
+                    .attributes()
                     .flatten()
                     .find(|a| local(a.key.as_ref()) == *key)
-                    .map(|a| attribute_value(&a))
-                    .unwrap_or_default()
+                    .map(|a| attribute_value(&a));
+                with_default(key, value)
             })
             .collect()
     };
@@ -275,6 +288,20 @@ pub fn attribute_value(attribute: &Attribute<'_>) -> String {
         .normalized_value(XmlVersion::Implicit1_0)
         .map(|value| value.into_owned())
         .unwrap_or_else(|_| attribute.value.to_string())
+}
+
+fn with_default(key: &str, value: Option<String>) -> String {
+    match key {
+        "allowBlank" | "showErrorMessage" => {
+            match value.as_deref().map(str::trim) {
+                Some("1") | Some("true") => "1",
+                _ => "0",
+            }
+        }
+        .to_string(),
+        "errorStyle" => value.unwrap_or_else(|| "stop".to_string()),
+        _ => value.unwrap_or_default(),
+    }
 }
 
 fn reference_text(reference: &BytesRef<'_>) -> Result<String, String> {
