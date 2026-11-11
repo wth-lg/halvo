@@ -22,7 +22,6 @@ fn ident(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// The source with every comment, string literal and char literal written as one space.
 fn code(text: &str) -> String {
     let b = text.as_bytes();
     let mut out = Vec::with_capacity(b.len());

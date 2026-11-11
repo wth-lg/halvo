@@ -3,8 +3,6 @@ use std::fs::OpenOptions;
 use std::io::{ErrorKind, Write};
 use std::process::ExitCode;
 
-/// The `NAMES` lists that the names file joins, one for each module that writes names in a record or a request.
-/// A later run adds its own list here by one line.
 pub(crate) const LISTS: &[&[&str]] = &[
     halvo_schema::category::NAMES,
     halvo_schema::ids::NAMES,
@@ -14,7 +12,6 @@ pub(crate) const LISTS: &[&[&str]] = &[
     halvo_schema::site::NAMES,
 ];
 
-/// The names file: every name of `LISTS` once, sorted in byte order, one per line, each line ended by a line feed.
 pub(crate) fn names_file() -> String {
     let mut names: Vec<&str> = LISTS.iter().flat_map(|list| list.iter().copied()).collect();
     names.sort_unstable();

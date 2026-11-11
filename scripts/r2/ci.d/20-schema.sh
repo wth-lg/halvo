@@ -67,7 +67,7 @@ check() {
     CI_D_REPO=$repo
     CI_D_ARTIFACTS=${art:-$work/artifacts/$1}
     STUB_RUNS=$work/runs
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_TEST_EXIT STUB_RUN_EXIT STUB_OUT STUB_FIRST STUB_SECOND
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND
     sh "$self" 2>&1
   )
   code=$?
@@ -84,6 +84,7 @@ check() {
   note "$1" "$2" "$got"
   STUB_TEST_EXIT=0
   STUB_RUN_EXIT=0
+  STUB_RUN2_EXIT=0
   STUB_OUT='names 3'
   STUB_FIRST=$names
   STUB_SECOND=$names
@@ -116,12 +117,14 @@ case $* in
     printf 'x\n' >>"$STUB_RUNS"
     if [ "$(grep -c '' "$STUB_RUNS")" -eq 1 ]; then
       content=$STUB_FIRST
+      status=$STUB_RUN_EXIT
     else
       content=$STUB_SECOND
+      status=$STUB_RUN2_EXIT
     fi
     [ "$content" = none ] || printf '%s\n' "$content" >"$1"
     [ -z "$STUB_OUT" ] || printf '%s\n' "$STUB_OUT"
-    exit "$STUB_RUN_EXIT"
+    exit "$status"
     ;;
   *)
     printf 'stub cargo: got the arguments: %s\n' "$*"
@@ -134,6 +137,7 @@ EOF
   wrong=
   STUB_TEST_EXIT=0
   STUB_RUN_EXIT=0
+  STUB_RUN2_EXIT=0
   STUB_OUT='names 3'
   STUB_FIRST=$names
   STUB_SECOND=$names
@@ -146,6 +150,8 @@ PASS $name"
   STUB_RUN_EXIT=2
   STUB_OUT=
   check export-names-refuses FAIL "FAIL $name (export-names run 1 exited 2)"
+  STUB_RUN2_EXIT=2
+  check second-run-refuses FAIL "FAIL $name (export-names run 2 exited 2)"
   STUB_FIRST='accessibility_text
 active'
   check file-lacks-a-name FAIL "FAIL $name (the names file of export-names run 1 differs from $golden)"
