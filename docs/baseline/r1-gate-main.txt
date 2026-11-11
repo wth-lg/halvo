@@ -1,10 +1,10 @@
-gate head=3885903c5a9c7f7e635ecd1d84d287df2e4fa572 tree=2179f245bb76d405aab2b6201db77b3aa5773965 state=clean input=none machine=host
-NO-INPUT timed-run (input=none, so keystroke and pointer are not judged: screen_frame=1199 keystroke=0 pointer=0 foreground_app=1 over 600s with --switch screen_activity=on and the helper window; bounds: child_deadline_extra_s=25)
-PASS store
-PASS deletion
-NO-INPUT secure-input (input=none, so no key was typed during the hold: secure_input_keystrokes=0 over 600s of held secure input; bounds: child_deadline_extra_s=25)
-NO-INPUT cost (input=none, and the bound is defined under input load: cpu=0.12% of one core, growth=0B over 600s, start load1=2.88 pressure=1, end load1=3.53 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 child_deadline_extra_s=25)
-NO-INPUT memory (input=none, and the bound is defined under input load: peak=20037632B (ru_maxrss=20037632B ps_max=19552KiB footprint=6095520B) mean=19453KiB over 570 samples in 600s, start load1=3.53 pressure=1, end load1=2.81 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: rss_max_bytes=50331648 child_deadline_extra_s=25)
+gate head=96a58152940dce51d77abbe7afd5bf99a6b17044 tree=c34cf3df5cc71287868937fe16cd7c487920f47e state=clean input=none machine=host
+NO-INPUT timed-run (input=none, and no keystroke or pointer event reached the run, so the kinds that need input are not judged: screen_frame=1198 keystroke=0 pointer=0 foreground_app=1 over 600s with --switch screen_activity=on and the helper window; bounds: child_deadline_extra_s=25)
+PASS store (bounds: child_deadline_extra_s=25)
+PASS deletion (bounds: child_deadline_extra_s=25)
+NO-INPUT secure-input (input=none, so no key was typed during the hold: secure_input_keystrokes=0 keystroke=0 pointer=0 over 600s of held secure input; bounds: child_deadline_extra_s=25)
+NO-INPUT cost (input=none, and the bound is defined under input load: cpu=0.17% of one core, growth=0B over 600s, start load1=15.29 pressure=1, end load1=18.36 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 child_deadline_extra_s=25)
+NO-INPUT memory (input=none, and the bound is defined under input load: peak=20414464B (ru_maxrss=20414464B ps_max=19920KiB footprint=6505120B) mean=19837KiB over 575 samples in 600s, start load1=18.36 pressure=1, end load1=4.02 pressure=1, other halvo-capture=no, binary=target/r1-gate/debug/halvo-capture; bounds: rss_max_bytes=50331648 child_deadline_extra_s=25)
 FAIL service-run (check script missing)
 FAIL service-memory (check script missing)
 FAIL service-expiry (check script missing)
@@ -14,11 +14,11 @@ FAIL content-floor (check script missing)
 FAIL login-start (check script missing)
 FAIL app-memory (check script missing)
 FAIL ci-results (check script missing)
-PASS windows-ci (commit 3885903c5a9c7f7e635ecd1d84d287df2e4fa572: 1 push runs decide, 1 pull_request runs are listed and do not)
+PASS windows-ci (commit 96a58152940dce51d77abbe7afd5bf99a6b17044: 1 push runs decide, 1 pull_request runs are listed and do not)
 PASS no-ll-hook
 OPEN second-account-read (owner step; no test bed)
-bounds file at 3885903: rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=30 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2
-mutation-test.sh at 3885903:
+bounds file at 96a5815: rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=30 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2
+mutation-test.sh at 96a5815:
 PASS mutation:required-kinds-weakened (test selftest:timed-run/pointer-zero: the one test failed)
 PASS mutation:missing-line-accepted (test selftest:secure-input/line-absent: the one test failed)
 PASS mutation:cost-sampler-constant (test selftest:cost/standin-short-lived-threads: the one test failed)
@@ -28,13 +28,13 @@ PASS unmutated:store
 PASS unmutated:deletion
 PASS unmutated:no-ll-hook
 PASS mutation:mutant-does-not-compile (control: the mutant does not build, and the runner did not count it as caught)
-PASS mutation:delete-all-destroys-nothing (measured root_destroyed store_sealed: gate said: FAIL deletion (verify-deletion measured: root_destroyed store_sealed))
-PASS mutation:shredded-key-survives (measured decryptable: gate said: FAIL deletion (verify-deletion measured: decryptable file_gone))
-PASS mutation:checkpoint-not-verified (measured wal_bytes: gate said: FAIL deletion (verify-deletion measured: wal_bytes))
-PASS mutation:segment-roundtrip-broken (measured segment_roundtrip: gate said: FAIL store (verify-store measured: segment_roundtrip))
-PASS mutation:event-rows-never-written (measured rows: gate said: FAIL store (verify-store measured: rows))
-PASS mutation:temp-store-on-disk (measured temp_store: gate said: FAIL store (verify-store measured: temp_store))
-PASS mutation:plaintext-written-to-stderr (leak: gate said: FAIL store (leak: the marker is in what the binary printed))
-PASS mutation:marker-written-into-the-store-directory (leak: gate said: FAIL store (leak: the marker is in the store directory))
+PASS mutation:delete-all-destroys-nothing (measured root_destroyed store_sealed: gate said: FAIL deletion (verify-deletion measured: root_destroyed store_sealed; bounds: child_deadline_extra_s=25))
+PASS mutation:shredded-key-survives (measured decryptable: gate said: FAIL deletion (verify-deletion measured: decryptable file_gone; bounds: child_deadline_extra_s=25))
+PASS mutation:checkpoint-not-verified (measured wal_bytes: gate said: FAIL deletion (verify-deletion measured: wal_bytes; bounds: child_deadline_extra_s=25))
+PASS mutation:segment-roundtrip-broken (measured segment_roundtrip: gate said: FAIL store (verify-store measured: segment_roundtrip; bounds: child_deadline_extra_s=25))
+PASS mutation:event-rows-never-written (measured rows: gate said: FAIL store (verify-store measured: rows; bounds: child_deadline_extra_s=25))
+PASS mutation:temp-store-on-disk (measured temp_store: gate said: FAIL store (verify-store measured: temp_store; bounds: child_deadline_extra_s=25))
+PASS mutation:plaintext-written-to-stderr (leak: gate said: FAIL store (leak: the marker is in what the binary printed; bounds: child_deadline_extra_s=25))
+PASS mutation:marker-written-into-the-store-directory (leak: gate said: FAIL store (leak: the marker is in the store directory; bounds: child_deadline_extra_s=25))
 PASS mutation:m3-active-tap (measured active-tap: gate said: FAIL no-ll-hook (source scan measured: active-tap at crates/halvo-capture/src/macos/input.rs:248))
 mutation rows: 14 caught, 0 failed, 0 open, 9 transitional, 0 for the measuring Mac not run, 32 expected names with no row
