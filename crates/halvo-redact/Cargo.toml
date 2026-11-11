@@ -1,0 +1,6 @@
+[package]
+name = "halvo-redact"
+version = "0.0.0"
+description = "Masks card numbers, IBANs, US Social Security numbers and prefixed keys in a window title"
+edition = "2021"
+publish = false
