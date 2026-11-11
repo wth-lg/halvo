@@ -73,6 +73,36 @@ fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
 }
 
+#[cfg(test)]
+pub(crate) mod failpoint {
+    use std::cell::Cell;
+
+    use super::{StoreError, StoreResult};
+
+    thread_local! {
+        static ARMED: Cell<Option<&'static str>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn arm(name: &'static str) {
+        ARMED.with(|armed| armed.set(Some(name)));
+    }
+
+    pub(crate) fn hit(name: &'static str) -> StoreResult<()> {
+        if ARMED.with(|armed| armed.get()) == Some(name) {
+            ARMED.with(|armed| armed.set(None));
+            return Err(StoreError::Io(std::io::ErrorKind::Other));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(test))]
+mod failpoint {
+    pub(super) fn hit(_name: &'static str) -> super::StoreResult<()> {
+        Ok(())
+    }
+}
+
 pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
     match e {
         rusqlite::Error::SqliteFailure(failure, _) => StoreError::Db(failure.extended_code),
@@ -191,6 +221,7 @@ impl Db {
         };
         db.init_schema()?;
         db.enable_fts_secure_delete()?;
+        failpoint::hit("db_open")?;
         Ok(db)
     }
 
@@ -423,7 +454,9 @@ impl EncryptedStore {
     /// Create a fresh store in `dir`: open a new database under a random store
     /// key, wrap that key with `custody` and write the store-key file. A
     /// directory with a store-key file already holds a store; one without is
-    /// free, and any keyless leftovers in it are removed.
+    /// free, and any keyless leftovers in it are removed. When a step fails, the
+    /// database and key files that the call made are removed and the root that
+    /// it made is destroyed; the directory and its `writer.lock` stay.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -437,7 +470,7 @@ impl EncryptedStore {
         Db::destroy(dir)?;
         remove_dir_if_present(&segment::segments_root(dir))?;
         let store_key = StoreKey::random()?;
-        let db = Db::open(dir, store_key.expose())?;
+        let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         match Self::write_key_file(dir, custody.as_ref(), &store_key) {
             Ok(()) => Ok(Self {
                 dir: dir.to_path_buf(),
@@ -466,6 +499,13 @@ impl EncryptedStore {
             wrapped_store_key_b64: BASE64.encode(&wrapped.0),
         }
         .write(dir)
+    }
+
+    fn without_database(dir: &Path, cause: StoreError) -> StoreError {
+        match Db::destroy(dir) {
+            Ok(()) => cause,
+            Err(left_behind) => left_behind,
+        }
     }
 
     fn abandon_create(dir: &Path, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {

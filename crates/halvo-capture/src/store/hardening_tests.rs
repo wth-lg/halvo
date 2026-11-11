@@ -282,6 +282,31 @@ fn delete_all_survives_a_transient_root_destroy_failure() {
 #[test]
 fn a_failed_create_leaves_no_root_and_no_half_store() {
     let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    let root_id = RootId::fresh();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    super::db::failpoint::arm("db_open");
+    let created = EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
+    assert!(
+        created.is_err(),
+        "the create with a failing Db::open succeeded"
+    );
+    for name in ["store.key", "store.db", "store.db-wal", "store.db-shm"] {
+        assert!(
+            !store_dir.join(name).exists(),
+            "a create that failed in Db::open left {name}"
+        );
+    }
+    let roots = FileRoots::new(roots_dir, TestProtector::new(0x5a).0);
+    assert!(
+        !roots.root_exists(root_id).unwrap(),
+        "a failed create left a root"
+    );
+}
+
+#[test]
+fn a_create_that_cannot_clear_its_directory_fails_and_makes_no_root() {
+    let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join("store.db")).unwrap();
     let root_id = RootId::fresh();
     let (custody, _) = FlakyCustody::new(root_id, 0);
