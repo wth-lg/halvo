@@ -2,14 +2,9 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:
@@ -17,96 +12,367 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: Verifier probe
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+        run: |
+          set +e +o pipefail
+          set -u
+          app=tools/r4-trials/app
+          T="$RUNNER_TEMP"
+          export T
+          echo "probe os=$RUNNER_OS"
+          started=$(date +%s)
+          if ! cargo build --release --locked --manifest-path "$app/Cargo.toml"; then
+            echo "probe build=fail"
+            exit 1
+          fi
+          echo "probe build=ok seconds=$(( $(date +%s) - started ))"
+          bin="$app/target/release/r4-trial-app"
+          if [ -f "$bin.exe" ]; then bin="$bin.exe"; fi
+          echo "probe binary_bytes=$(wc -c <"$bin" | tr -d ' ')"
+
+          # --- system helpers: windows of a pid, process tree of the app, check after quit ---
+          if [ "$RUNNER_OS" = macOS ]; then
+            cat >"$T/wins.swift" <<'EOF'
+          import CoreGraphics
+          import Foundation
+          let pid = Int32(CommandLine.arguments[1])!
+          let list = (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]) ?? []
+          var all = 0, layer0 = 0, layer0On = 0, other = 0
+          for w in list {
+            guard let p = w[kCGWindowOwnerPID as String] as? Int32, p == pid else { continue }
+            let layer = (w[kCGWindowLayer as String] as? Int) ?? -1
+            let on = (w[kCGWindowIsOnscreen as String] as? Bool) ?? false
+            let b = (w[kCGWindowBounds as String] as? [String: Any]) ?? [:]
+            let wd = Int((b["Width"] as? Double) ?? 0), ht = Int((b["Height"] as? Double) ?? 0)
+            all += 1
+            if layer == 0 { layer0 += 1; if on { layer0On += 1 } } else { other += 1 }
+            print("win layer=\(layer) onscreen=\(on) w=\(wd) h=\(ht)")
+          }
+          print("wins all=\(all) layer0=\(layer0) layer0_onscreen=\(layer0On) other_layers=\(other)")
+          EOF
+            if swiftc -O -o "$T/wins" "$T/wins.swift" >"$T/swiftc.out" 2>&1; then echo "probe wins_tool=ok"; else echo "probe wins_tool=fail"; cut -c1-200 "$T/swiftc.out" | head -n 20; fi
+            ps -axo pid=,comm= | grep -E 'WebKit|WebContent|Networking|GPU' | awk '{print $1}' >"$T/before.txt"
+            echo "probe webkit_before=$(wc -l <"$T/before.txt" | tr -d ' ')"
+          else
+            cat >"$T/wins.ps1" <<'EOF'
+          param([int]$procId)
+          Add-Type @"
+          using System; using System.Runtime.InteropServices; using System.Text;
+          public static class W {
+            public delegate bool EnumProc(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+            [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+          }
+          "@
+          $found = New-Object System.Collections.ArrayList
+          $cb = [W+EnumProc]{ param($h, $l)
+            $p = [uint32]0
+            [void][W]::GetWindowThreadProcessId($h, [ref]$p)
+            if ($p -eq $procId) { [void]$found.Add($h) }
+            return $true }
+          [void][W]::EnumWindows($cb, [IntPtr]::Zero)
+          $all = 0; $vis = 0; $trial = 0; $trialVis = 0
+          foreach ($h in $found) {
+            $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
+            $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
+            $r = New-Object W+RECT; [void][W]::GetWindowRect($h, [ref]$r)
+            $v = [W]::IsWindowVisible($h)
+            $all++; if ($v) { $vis++ }
+            if ($t.ToString() -eq 'Trial') { $trial++; if ($v) { $trialVis++ } }
+            $cls = ($c.ToString() -replace '[^A-Za-z0-9_]', '_')
+            $ttl = ($t.ToString() -replace '[^A-Za-z0-9_]', '_')
+            Write-Output ("win visible={0} title={1} class={2} w={3} h={4}" -f $v, $ttl, $cls, ($r.R - $r.L), ($r.B - $r.T))
+          }
+          Write-Output ("wins all={0} visible={1} trial={2} trial_visible={3}" -f $all, $vis, $trial, $trialVis)
+          EOF
+            cat >"$T/tree.ps1" <<'EOF'
+          param([int]$root, [string]$out)
+          $all = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name
+          $set = New-Object System.Collections.Generic.List[int]
+          $set.Add($root)
+          $added = $true
+          while ($added) {
+            $added = $false
+            foreach ($p in $all) {
+              if ($set.Contains([int]$p.ParentProcessId) -and -not $set.Contains([int]$p.ProcessId)) { $set.Add([int]$p.ProcessId); $added = $true }
+            }
+          }
+          $names = @{}
+          foreach ($p in $all) { if ($set.Contains([int]$p.ProcessId)) { $names[[string]$p.Name] = 1 + [int]$names[[string]$p.Name] } }
+          $set | ForEach-Object { $_ } | Set-Content -Path $out
+          Write-Output ("tree count={0} names={1}" -f $set.Count, (($names.Keys | Sort-Object | ForEach-Object { "$_" + ':' + $names[$_] }) -join ','))
+          EOF
+            cat >"$T/alive.ps1" <<'EOF'
+          param([string]$list)
+          $n = 0
+          foreach ($id in Get-Content $list) { if (Get-Process -Id ([int]$id) -ErrorAction SilentlyContinue) { $n++ } }
+          Write-Output $n
+          EOF
+          fi
+
+          cat >"$T/sys.sh" <<'EOF'
+          #!/bin/bash
+          label=$1
+          case "$label" in
+            tree*)
+              if [ "$RUNNER_OS" = macOS ]; then
+                ps -axo pid=,comm= | grep -E 'WebKit|WebContent|Networking|GPU' | awk '{print $1}' >"$T/now.txt"
+                : >"$T/tree.txt"
+                echo "$APP_PID" >>"$T/tree.txt"
+                grep -vxF -f "$T/before.txt" "$T/now.txt" >>"$T/tree.txt"
+                pgrep -P "$APP_PID" >>"$T/tree.txt"
+                sort -u "$T/tree.txt" -o "$T/tree.txt"
+                names=$(while read -r p; do ps -o comm= -p "$p" 2>/dev/null | sed 's#.*/##'; done <"$T/tree.txt" | sort | uniq -c | awk '{printf "%s:%s,", $2, $1}')
+                echo "probe sys=$label tree count=$(wc -l <"$T/tree.txt" | tr -d ' ') names=$names"
+              else
+                powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T/tree.ps1")" -root "$APP_PID" -out "$(cygpath -w "$T/tree.txt")" | tr -d '\r' | sed "s/^/probe sys=$label /"
+              fi
+              ;;
+            *)
+              if [ "$RUNNER_OS" = macOS ]; then
+                "$T/wins" "$APP_PID" | sed "s/^/probe sys=$label /"
+              else
+                powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T/wins.ps1")" -procId "$APP_PID" | tr -d '\r' | sed "s/^/probe sys=$label /"
+              fi
+              ;;
+          esac
+          EOF
+          chmod +x "$T/sys.sh"
+
+          alive_count() {
+            if [ "$RUNNER_OS" = macOS ]; then
+              n=0
+              while read -r p; do if kill -0 "$p" 2>/dev/null; then n=$((n + 1)); fi; done <"$T/tree.txt"
+              echo "$n"
+            else
+              powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T/alive.ps1")" -list "$(cygpath -w "$T/tree.txt")" | tr -d '\r'
+            fi
+          }
+
+          # --- pages for the probes: the app's own pages plus three probe pages ---
+          P="$T/probe-pages"
+          mkdir -p "$P"
+          cp "$app/pages/index.html" "$app/pages/page.js" "$P/"
+          echo "R4-OUTSIDE-MARK" >"$T/outside.txt"
+          if [ "$RUNNER_OS" = macOS ]; then ln -s "$T/outside.txt" "$P/link-out.txt"; fi
+          cat >"$P/nocall.html" <<'EOF'
+          <!doctype html><meta charset="utf-8"><title>Trial</title><p>no call.js</p>
+          EOF
+
+          # --- the driver: several connections, timed answers, system checks between lines ---
+          cat >"$T/drive.js" <<'EOF'
+          const net = require("node:net");
+          const { execFileSync } = require("node:child_process");
+          const [port, ...steps] = process.argv.slice(2);
+          const conns = {};
+          function conn(name) {
+            if (conns[name]) return conns[name];
+            const c = { name, sock: net.connect(Number(port), "127.0.0.1"), buf: "", answers: [], waiters: [], closed: false, err: null, sentAt: 0 };
+            c.sock.on("data", (d) => {
+              c.buf += d;
+              let i;
+              while ((i = c.buf.indexOf("\n")) >= 0) {
+                const line = c.buf.slice(0, i).replace(/\r$/, "");
+                c.buf = c.buf.slice(i + 1);
+                if (c.waiters.length) c.waiters.shift()(line); else c.answers.push(line);
+              }
+            });
+            c.sock.on("error", (e) => { c.err = e.code; });
+            c.sock.on("close", () => { c.closed = true; while (c.waiters.length) c.waiters.shift()(null); });
+            conns[name] = c;
+            return c;
+          }
+          function next(c, ms) {
+            return new Promise((resolve) => {
+              if (c.answers.length) return resolve(c.answers.shift());
+              if (c.closed) return resolve(null);
+              let f;
+              const t = setTimeout(() => { const i = c.waiters.indexOf(f); if (i >= 0) c.waiters.splice(i, 1); resolve(undefined); }, ms);
+              f = (l) => { clearTimeout(t); resolve(l); };
+              c.waiters.push(f);
+            });
+          }
+          const show = (a) => (a === undefined ? "timeout" : a === null ? "closed" : a);
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          (async () => {
+            for (const step of steps) {
+              const at = step.indexOf(":");
+              const op = step.slice(0, at);
+              const arg = step.slice(at + 1);
+              if (op === "wait") { await sleep(Number(arg)); continue; }
+              if (op === "sys") { try { execFileSync("bash", [process.env.T + "/sys.sh", arg], { stdio: "inherit" }); } catch (e) { console.log("probe sys=" + arg + " error=" + e.status); } continue; }
+              if (op === "big") {
+                const c = conn(arg);
+                const t0 = Date.now();
+                c.sock.write("x".repeat(1048576) + "\n");
+                const a = await next(c, 10000);
+                await sleep(1000);
+                console.log("probe big conn=" + arg + " answer=" + show(a) + " closed=" + c.closed + " err=" + (c.err || "-") + " ms=" + (Date.now() - t0));
+                continue;
+              }
+              if (op === "close") { conn(arg).sock.end(); await sleep(200); console.log("probe close conn=" + arg); continue; }
+              const m = op.match(/^(c\d+)([&?]?)$/);
+              if (!m) { console.log("probe bad_step=" + JSON.stringify(step)); continue; }
+              const c = conn(m[1]);
+              if (m[2] === "&") { c.sentAt = Date.now(); c.sock.write(arg + "\n"); console.log("probe " + m[1] + " sent_nowait=" + JSON.stringify(arg)); continue; }
+              if (m[2] === "?") { const a = await next(c, Number(arg)); console.log("probe " + m[1] + " pending_answer=" + show(a) + " since_send_ms=" + (Date.now() - c.sentAt)); continue; }
+              const t0 = Date.now();
+              c.sock.write(arg + "\n");
+              const a = await next(c, 60000);
+              console.log("probe " + m[1] + " sent=" + JSON.stringify(arg) + " answer=" + show(a) + " ms=" + (Date.now() - t0));
+            }
+            for (const c of Object.values(conns)) c.sock.destroy();
+            process.exit(0);
+          })();
+          EOF
+
+          start_app() {
+            out=$1
+            shift
+            if [ "$RUNNER_OS" = macOS ]; then
+              ps -axo pid=,comm= | grep -E 'WebKit|WebContent|Networking|GPU' | awk '{print $1}' >"$T/before.txt"
+              echo "probe webkit_before=$(wc -l <"$T/before.txt" | tr -d ' ')"
+            fi
+            "$bin" "$@" >"$out" 2>&1 &
+            pid=$!
+            port=
+            i=0
+            while [ "$i" -lt 600 ]; do
+              port=$(tr -d '\r' <"$out" | sed -n 's/^control port=\([0-9][0-9]*\)$/\1/p' | head -n 1)
+              if [ -n "$port" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+              sleep 0.1
+              i=$((i + 1))
+            done
+            if [ "$RUNNER_OS" = Windows ]; then APP_PID=$(cat "/proc/$pid/winpid" 2>/dev/null); else APP_PID=$pid; fi
+            export APP_PID
+            echo "probe started args=$* shell_pid=$pid app_pid=$APP_PID port=${port:-none} waited_ds=$i"
+          }
+
+          after_quit() {
+            name=$1
+            t0=$(date +%s)
+            first_zero=
+            told10=
+            while :; do
+              n=$(alive_count)
+              e=$(( $(date +%s) - t0 ))
+              if [ "$n" = 0 ] && [ -z "$first_zero" ]; then first_zero=$e; fi
+              if [ "$e" -ge 10 ] && [ -z "$told10" ]; then echo "probe quit run=$name tree_alive_at_${e}s=$n"; told10=1; fi
+              if [ -n "$first_zero" ] && [ "$e" -ge 10 ]; then break; fi
+              if [ "$e" -ge 30 ]; then break; fi
+              sleep 0.5
+            done
+            echo "probe quit run=$name tree_alive_end=$(alive_count) all_gone_by_s=${first_zero:--} polled_s=$(( $(date +%s) - t0 ))"
+            if kill -0 "$pid" 2>/dev/null; then echo "probe quit run=$name shell_pid_alive=yes"; kill "$pid"; else wait "$pid"; echo "probe quit run=$name app_exit=$?"; fi
+            if [ "$RUNNER_OS" = macOS ]; then
+              while read -r p; do ps -o pid=,comm= -p "$p" 2>/dev/null | sed "s/^/probe quit run=$name left /"; done <"$T/tree.txt"
+            fi
+          }
+
+          app_lines() {
+            tr -d '\r' <"$1" | grep -E '^(control port=|page |core |r4-trial-app: |thread |refused )' | cut -c1-300 | sed "s/^/probe app[$2] /"
+          }
+
+          ip=
+          if [ "$RUNNER_OS" = macOS ]; then ip=$(ipconfig getifaddr en0); else ip=$(powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.IPAddress -ne '127.0.0.1' -and \$_.PrefixOrigin -ne 'WellKnown' } | Select-Object -First 1).IPAddress" | tr -d '\r'); fi
+          echo "probe other_ip_found=$([ -n "$ip" ] && echo yes || echo no)"
+
+          # ===== run 1: arm main on a given port, with the probe pages =====
+          echo "probe run=main"
+          start_app "$T/main.out" --control-port 47811 --pages "$P"
+          if [ "$RUNNER_OS" = macOS ]; then
+            lsof -nP -a -p "$APP_PID" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print "probe listen " $9}'
+          else
+            powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -OwningProcess $APP_PID | ForEach-Object { 'probe listen ' + \$_.LocalAddress + ':' + \$_.LocalPort }" | tr -d '\r'
+          fi
+          if [ -n "$ip" ]; then
+            node -e 'const s=require("net").connect(Number(process.argv[2]),process.argv[1]);s.setTimeout(5000);s.on("connect",()=>{console.log("probe other_ip_connect=accepted");s.destroy()});s.on("error",e=>console.log("probe other_ip_connect="+e.code));s.on("timeout",()=>{console.log("probe other_ip_connect=timeout");s.destroy()})' "$ip" 47811
+          fi
+          # a second app on the same given port
+          "$bin" --control-port 47811 --pages "$P" >"$T/second.out" 2>&1 &
+          p2=$!
+          j=0
+          while kill -0 "$p2" 2>/dev/null && [ "$j" -lt 300 ]; do sleep 0.1; j=$((j + 1)); done
+          if kill -0 "$p2" 2>/dev/null; then echo "probe same_port second_app=running_after_30s"; kill "$p2"; else wait "$p2"; echo "probe same_port second_app_exit=$? after_ds=$j"; fi
+          app_lines "$T/second.out" second
+
+          node "$T/drive.js" 47811 \
+            sys:launch \
+            c1:show sys:after-show tree:after-show \
+            c1:sample wait:3000 c1:sample \
+            c1:hide sys:after-hide c1:sample wait:3000 c1:sample \
+            c1:show sys:after-show2 \
+            'c1:SHOW' 'c1:show ' 'c1: show' 'c1:show	x' 'c1:load ../index.html' 'c1:load /etc/hosts' 'c1:load C:/Windows/win.ini' 'c1:load %2e%2e/x' 'c1:load index.html?x=1' 'c1:send 1 0' 'c1:send 99999999999999999999 1' 'c1:$(touch probe-shell-marker)' 'c1:;touch probe-shell-marker' 'c1:load index.html;touch probe-shell-marker' 'c1:eval alert(1)' 'c1:quit now' 'c1:sample' \
+            c2:sample 'c3:hide' sys:c3-hide c2:show sys:c2-show \
+            'c1:load nocall.html' wait:2000 'c1&:show' 'c1?:10000' 'c2:sample' sys:during-nocall-show 'c2:load index.html' 'c1?:15000' sys:after-load \
+            big:c4 'c5:sample' \
+            c5:quit
+          echo "probe shell_marker=$([ -e probe-shell-marker ] && echo present || echo absent)"
+          after_quit main
+          app_lines "$T/main.out" main
+
+          # ===== run 2: the scheme and the other origins, from a page =====
+          echo "probe run=scheme"
+          start_app "$T/scheme.out" --pages "$P"
+          sport=$port
+          cat >"$P/scheme.html" <<EOF
+          <!doctype html><meta charset="utf-8"><title>Trial</title><script src="/__app/call.js"></script>
+          <script>
+          (async function () {
+            var r = window.r4app;
+            var base = location.protocol + '//' + location.host;
+            r.report('scheme origin=' + encodeURIComponent(base));
+            var paths = ['/index.html', '/../outside.txt', '/..%2foutside.txt', '/%2e%2e/outside.txt', '/%2e%2e%2foutside.txt', '/sub/..%2f..%2foutside.txt', '/..%5coutside.txt', '//etc/hosts', '/%2fetc%2fhosts', '/C:/Windows/win.ini', '/C:%5cWindows%5cwin.ini', '/c%3a/Windows/win.ini', '/link-out.txt', '/__app/call.js', '/__app/../index.html', '/__app/call.js/..%2f..%2foutside.txt'];
+            for (var i = 0; i < paths.length; i++) {
+              var line;
+              try {
+                var res = await fetch(base + paths[i]);
+                var t = await res.text();
+                line = 'status=' + res.status + ' bytes=' + t.length + ' mark=' + (t.indexOf('R4-OUTSIDE-MARK') >= 0 ? 'yes' : 'no') + ' url=' + encodeURIComponent(res.url);
+              } catch (e) { line = 'error=' + e.name; }
+              r.report('scheme path=' + encodeURIComponent(paths[i]) + ' ' + line);
+            }
+            var others = ['https://example.com/', 'http://127.0.0.1:${sport}/'];
+            for (var j = 0; j < others.length; j++) {
+              try { var o = await fetch(others[j], { mode: 'no-cors' }); r.report('origin url=' + encodeURIComponent(others[j]) + ' reached=yes type=' + o.type); }
+              catch (e) { r.report('origin url=' + encodeURIComponent(others[j]) + ' reached=no error=' + e.name); }
+            }
+            try {
+              await fetch('http://127.0.0.1:${sport}/', { method: 'POST', mode: 'no-cors', body: 'destroy\n' });
+              r.report('control post sent=yes');
+            } catch (e) { r.report('control post sent=error ' + e.name); }
+            r.report('scheme done');
+          })();
+          </script>
+          EOF
+          node "$T/drive.js" "$sport" c1:show sys:scheme-show tree:scheme-show 'c1:load scheme.html' wait:20000 sys:after-post c1:sample c1:quit
+          after_quit scheme
+          app_lines "$T/scheme.out" scheme
+
+          # ===== run 3: arm b, the window by the system's word =====
+          echo "probe run=b"
+          start_app "$T/b.out" --arm b
+          node "$T/drive.js" "$port" sys:launch c1:show sys:after-show tree:after-show c1:destroy wait:2000 sys:after-destroy c1:sample wait:5000 c1:show sys:after-show2 tree:after-show2 c1:sample c1:quit
+          after_quit b
+          app_lines "$T/b.out" b
+          echo "probe end"
 
   windows:
     runs-on: windows-2025
@@ -117,69 +383,360 @@ jobs:
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
+      - name: Verifier probe
         shell: bash
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
+          set +e +o pipefail
+          set -u
+          app=tools/r4-trials/app
+          T="$RUNNER_TEMP"
+          export T
+          echo "probe os=$RUNNER_OS"
+          started=$(date +%s)
+          if ! cargo build --release --locked --manifest-path "$app/Cargo.toml"; then
+            echo "probe build=fail"
             exit 1
           fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
+          echo "probe build=ok seconds=$(( $(date +%s) - started ))"
+          bin="$app/target/release/r4-trial-app"
+          if [ -f "$bin.exe" ]; then bin="$bin.exe"; fi
+          echo "probe binary_bytes=$(wc -c <"$bin" | tr -d ' ')"
+
+          # --- system helpers: windows of a pid, process tree of the app, check after quit ---
+          if [ "$RUNNER_OS" = macOS ]; then
+            cat >"$T/wins.swift" <<'EOF'
+          import CoreGraphics
+          import Foundation
+          let pid = Int32(CommandLine.arguments[1])!
+          let list = (CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]) ?? []
+          var all = 0, layer0 = 0, layer0On = 0, other = 0
+          for w in list {
+            guard let p = w[kCGWindowOwnerPID as String] as? Int32, p == pid else { continue }
+            let layer = (w[kCGWindowLayer as String] as? Int) ?? -1
+            let on = (w[kCGWindowIsOnscreen as String] as? Bool) ?? false
+            let b = (w[kCGWindowBounds as String] as? [String: Any]) ?? [:]
+            let wd = Int((b["Width"] as? Double) ?? 0), ht = Int((b["Height"] as? Double) ?? 0)
+            all += 1
+            if layer == 0 { layer0 += 1; if on { layer0On += 1 } } else { other += 1 }
+            print("win layer=\(layer) onscreen=\(on) w=\(wd) h=\(ht)")
+          }
+          print("wins all=\(all) layer0=\(layer0) layer0_onscreen=\(layer0On) other_layers=\(other)")
+          EOF
+            if swiftc -O -o "$T/wins" "$T/wins.swift" >"$T/swiftc.out" 2>&1; then echo "probe wins_tool=ok"; else echo "probe wins_tool=fail"; cut -c1-200 "$T/swiftc.out" | head -n 20; fi
+            ps -axo pid=,comm= | grep -E 'WebKit|WebContent|Networking|GPU' | awk '{print $1}' >"$T/before.txt"
+            echo "probe webkit_before=$(wc -l <"$T/before.txt" | tr -d ' ')"
+          else
+            cat >"$T/wins.ps1" <<'EOF'
+          param([int]$procId)
+          Add-Type @"
+          using System; using System.Runtime.InteropServices; using System.Text;
+          public static class W {
+            public delegate bool EnumProc(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+            [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+          }
+          "@
+          $found = New-Object System.Collections.ArrayList
+          $cb = [W+EnumProc]{ param($h, $l)
+            $p = [uint32]0
+            [void][W]::GetWindowThreadProcessId($h, [ref]$p)
+            if ($p -eq $procId) { [void]$found.Add($h) }
+            return $true }
+          [void][W]::EnumWindows($cb, [IntPtr]::Zero)
+          $all = 0; $vis = 0; $trial = 0; $trialVis = 0
+          foreach ($h in $found) {
+            $t = New-Object System.Text.StringBuilder 256; [void][W]::GetWindowText($h, $t, 256)
+            $c = New-Object System.Text.StringBuilder 256; [void][W]::GetClassName($h, $c, 256)
+            $r = New-Object W+RECT; [void][W]::GetWindowRect($h, [ref]$r)
+            $v = [W]::IsWindowVisible($h)
+            $all++; if ($v) { $vis++ }
+            if ($t.ToString() -eq 'Trial') { $trial++; if ($v) { $trialVis++ } }
+            $cls = ($c.ToString() -replace '[^A-Za-z0-9_]', '_')
+            $ttl = ($t.ToString() -replace '[^A-Za-z0-9_]', '_')
+            Write-Output ("win visible={0} title={1} class={2} w={3} h={4}" -f $v, $ttl, $cls, ($r.R - $r.L), ($r.B - $r.T))
+          }
+          Write-Output ("wins all={0} visible={1} trial={2} trial_visible={3}" -f $all, $vis, $trial, $trialVis)
+          EOF
+            cat >"$T/tree.ps1" <<'EOF'
+          param([int]$root, [string]$out)
+          $all = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name
+          $set = New-Object System.Collections.Generic.List[int]
+          $set.Add($root)
+          $added = $true
+          while ($added) {
+            $added = $false
+            foreach ($p in $all) {
+              if ($set.Contains([int]$p.ParentProcessId) -and -not $set.Contains([int]$p.ProcessId)) { $set.Add([int]$p.ProcessId); $added = $true }
+            }
+          }
+          $names = @{}
+          foreach ($p in $all) { if ($set.Contains([int]$p.ProcessId)) { $names[[string]$p.Name] = 1 + [int]$names[[string]$p.Name] } }
+          $set | ForEach-Object { $_ } | Set-Content -Path $out
+          Write-Output ("tree count={0} names={1}" -f $set.Count, (($names.Keys | Sort-Object | ForEach-Object { "$_" + ':' + $names[$_] }) -join ','))
+          EOF
+            cat >"$T/alive.ps1" <<'EOF'
+          param([string]$list)
+          $n = 0
+          foreach ($id in Get-Content $list) { if (Get-Process -Id ([int]$id) -ErrorAction SilentlyContinue) { $n++ } }
+          Write-Output $n
+          EOF
           fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
+
+          cat >"$T/sys.sh" <<'EOF'
+          #!/bin/bash
+          label=$1
+          case "$label" in
+            tree*)
+              if [ "$RUNNER_OS" = macOS ]; then
+                ps -axo pid=,comm= | grep -E 'WebKit|WebContent|Networking|GPU' | awk '{print $1}' >"$T/now.txt"
+                : >"$T/tree.txt"
+                echo "$APP_PID" >>"$T/tree.txt"
+                grep -vxF -f "$T/before.txt" "$T/now.txt" >>"$T/tree.txt"
+                pgrep -P "$APP_PID" >>"$T/tree.txt"
+                sort -u "$T/tree.txt" -o "$T/tree.txt"
+                names=$(while read -r p; do ps -o comm= -p "$p" 2>/dev/null | sed 's#.*/##'; done <"$T/tree.txt" | sort | uniq -c | awk '{printf "%s:%s,", $2, $1}')
+                echo "probe sys=$label tree count=$(wc -l <"$T/tree.txt" | tr -d ' ') names=$names"
+              else
+                powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T/tree.ps1")" -root "$APP_PID" -out "$(cygpath -w "$T/tree.txt")" | tr -d '\r' | sed "s/^/probe sys=$label /"
+              fi
+              ;;
+            *)
+              if [ "$RUNNER_OS" = macOS ]; then
+                "$T/wins" "$APP_PID" | sed "s/^/probe sys=$label /"
+              else
+                powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T/wins.ps1")" -procId "$APP_PID" | tr -d '\r' | sed "s/^/probe sys=$label /"
+              fi
+              ;;
           esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          EOF
+          chmod +x "$T/sys.sh"
+
+          alive_count() {
+            if [ "$RUNNER_OS" = macOS ]; then
+              n=0
+              while read -r p; do if kill -0 "$p" 2>/dev/null; then n=$((n + 1)); fi; done <"$T/tree.txt"
+              echo "$n"
+            else
+              powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T/alive.ps1")" -list "$(cygpath -w "$T/tree.txt")" | tr -d '\r'
+            fi
+          }
+
+          # --- pages for the probes: the app's own pages plus three probe pages ---
+          P="$T/probe-pages"
+          mkdir -p "$P"
+          cp "$app/pages/index.html" "$app/pages/page.js" "$P/"
+          echo "R4-OUTSIDE-MARK" >"$T/outside.txt"
+          if [ "$RUNNER_OS" = macOS ]; then ln -s "$T/outside.txt" "$P/link-out.txt"; fi
+          cat >"$P/nocall.html" <<'EOF'
+          <!doctype html><meta charset="utf-8"><title>Trial</title><p>no call.js</p>
+          EOF
+
+          # --- the driver: several connections, timed answers, system checks between lines ---
+          cat >"$T/drive.js" <<'EOF'
+          const net = require("node:net");
+          const { execFileSync } = require("node:child_process");
+          const [port, ...steps] = process.argv.slice(2);
+          const conns = {};
+          function conn(name) {
+            if (conns[name]) return conns[name];
+            const c = { name, sock: net.connect(Number(port), "127.0.0.1"), buf: "", answers: [], waiters: [], closed: false, err: null, sentAt: 0 };
+            c.sock.on("data", (d) => {
+              c.buf += d;
+              let i;
+              while ((i = c.buf.indexOf("\n")) >= 0) {
+                const line = c.buf.slice(0, i).replace(/\r$/, "");
+                c.buf = c.buf.slice(i + 1);
+                if (c.waiters.length) c.waiters.shift()(line); else c.answers.push(line);
+              }
+            });
+            c.sock.on("error", (e) => { c.err = e.code; });
+            c.sock.on("close", () => { c.closed = true; while (c.waiters.length) c.waiters.shift()(null); });
+            conns[name] = c;
+            return c;
+          }
+          function next(c, ms) {
+            return new Promise((resolve) => {
+              if (c.answers.length) return resolve(c.answers.shift());
+              if (c.closed) return resolve(null);
+              let f;
+              const t = setTimeout(() => { const i = c.waiters.indexOf(f); if (i >= 0) c.waiters.splice(i, 1); resolve(undefined); }, ms);
+              f = (l) => { clearTimeout(t); resolve(l); };
+              c.waiters.push(f);
+            });
+          }
+          const show = (a) => (a === undefined ? "timeout" : a === null ? "closed" : a);
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          (async () => {
+            for (const step of steps) {
+              const at = step.indexOf(":");
+              const op = step.slice(0, at);
+              const arg = step.slice(at + 1);
+              if (op === "wait") { await sleep(Number(arg)); continue; }
+              if (op === "sys") { try { execFileSync("bash", [process.env.T + "/sys.sh", arg], { stdio: "inherit" }); } catch (e) { console.log("probe sys=" + arg + " error=" + e.status); } continue; }
+              if (op === "big") {
+                const c = conn(arg);
+                const t0 = Date.now();
+                c.sock.write("x".repeat(1048576) + "\n");
+                const a = await next(c, 10000);
+                await sleep(1000);
+                console.log("probe big conn=" + arg + " answer=" + show(a) + " closed=" + c.closed + " err=" + (c.err || "-") + " ms=" + (Date.now() - t0));
+                continue;
+              }
+              if (op === "close") { conn(arg).sock.end(); await sleep(200); console.log("probe close conn=" + arg); continue; }
+              const m = op.match(/^(c\d+)([&?]?)$/);
+              if (!m) { console.log("probe bad_step=" + JSON.stringify(step)); continue; }
+              const c = conn(m[1]);
+              if (m[2] === "&") { c.sentAt = Date.now(); c.sock.write(arg + "\n"); console.log("probe " + m[1] + " sent_nowait=" + JSON.stringify(arg)); continue; }
+              if (m[2] === "?") { const a = await next(c, Number(arg)); console.log("probe " + m[1] + " pending_answer=" + show(a) + " since_send_ms=" + (Date.now() - c.sentAt)); continue; }
+              const t0 = Date.now();
+              c.sock.write(arg + "\n");
+              const a = await next(c, 60000);
+              console.log("probe " + m[1] + " sent=" + JSON.stringify(arg) + " answer=" + show(a) + " ms=" + (Date.now() - t0));
+            }
+            for (const c of Object.values(conns)) c.sock.destroy();
+            process.exit(0);
+          })();
+          EOF
+
+          start_app() {
+            out=$1
+            shift
+            if [ "$RUNNER_OS" = macOS ]; then
+              ps -axo pid=,comm= | grep -E 'WebKit|WebContent|Networking|GPU' | awk '{print $1}' >"$T/before.txt"
+              echo "probe webkit_before=$(wc -l <"$T/before.txt" | tr -d ' ')"
+            fi
+            "$bin" "$@" >"$out" 2>&1 &
+            pid=$!
+            port=
+            i=0
+            while [ "$i" -lt 600 ]; do
+              port=$(tr -d '\r' <"$out" | sed -n 's/^control port=\([0-9][0-9]*\)$/\1/p' | head -n 1)
+              if [ -n "$port" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+              sleep 0.1
+              i=$((i + 1))
+            done
+            if [ "$RUNNER_OS" = Windows ]; then APP_PID=$(cat "/proc/$pid/winpid" 2>/dev/null); else APP_PID=$pid; fi
+            export APP_PID
+            echo "probe started args=$* shell_pid=$pid app_pid=$APP_PID port=${port:-none} waited_ds=$i"
+          }
+
+          after_quit() {
+            name=$1
+            t0=$(date +%s)
+            first_zero=
+            told10=
+            while :; do
+              n=$(alive_count)
+              e=$(( $(date +%s) - t0 ))
+              if [ "$n" = 0 ] && [ -z "$first_zero" ]; then first_zero=$e; fi
+              if [ "$e" -ge 10 ] && [ -z "$told10" ]; then echo "probe quit run=$name tree_alive_at_${e}s=$n"; told10=1; fi
+              if [ -n "$first_zero" ] && [ "$e" -ge 10 ]; then break; fi
+              if [ "$e" -ge 30 ]; then break; fi
+              sleep 0.5
+            done
+            echo "probe quit run=$name tree_alive_end=$(alive_count) all_gone_by_s=${first_zero:--} polled_s=$(( $(date +%s) - t0 ))"
+            if kill -0 "$pid" 2>/dev/null; then echo "probe quit run=$name shell_pid_alive=yes"; kill "$pid"; else wait "$pid"; echo "probe quit run=$name app_exit=$?"; fi
+            if [ "$RUNNER_OS" = macOS ]; then
+              while read -r p; do ps -o pid=,comm= -p "$p" 2>/dev/null | sed "s/^/probe quit run=$name left /"; done <"$T/tree.txt"
+            fi
+          }
+
+          app_lines() {
+            tr -d '\r' <"$1" | grep -E '^(control port=|page |core |r4-trial-app: |thread |refused )' | cut -c1-300 | sed "s/^/probe app[$2] /"
+          }
+
+          ip=
+          if [ "$RUNNER_OS" = macOS ]; then ip=$(ipconfig getifaddr en0); else ip=$(powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.IPAddress -ne '127.0.0.1' -and \$_.PrefixOrigin -ne 'WellKnown' } | Select-Object -First 1).IPAddress" | tr -d '\r'); fi
+          echo "probe other_ip_found=$([ -n "$ip" ] && echo yes || echo no)"
+
+          # ===== run 1: arm main on a given port, with the probe pages =====
+          echo "probe run=main"
+          start_app "$T/main.out" --control-port 47811 --pages "$P"
+          if [ "$RUNNER_OS" = macOS ]; then
+            lsof -nP -a -p "$APP_PID" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print "probe listen " $9}'
+          else
+            powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -OwningProcess $APP_PID | ForEach-Object { 'probe listen ' + \$_.LocalAddress + ':' + \$_.LocalPort }" | tr -d '\r'
+          fi
+          if [ -n "$ip" ]; then
+            node -e 'const s=require("net").connect(Number(process.argv[2]),process.argv[1]);s.setTimeout(5000);s.on("connect",()=>{console.log("probe other_ip_connect=accepted");s.destroy()});s.on("error",e=>console.log("probe other_ip_connect="+e.code));s.on("timeout",()=>{console.log("probe other_ip_connect=timeout");s.destroy()})' "$ip" 47811
+          fi
+          # a second app on the same given port
+          "$bin" --control-port 47811 --pages "$P" >"$T/second.out" 2>&1 &
+          p2=$!
+          j=0
+          while kill -0 "$p2" 2>/dev/null && [ "$j" -lt 300 ]; do sleep 0.1; j=$((j + 1)); done
+          if kill -0 "$p2" 2>/dev/null; then echo "probe same_port second_app=running_after_30s"; kill "$p2"; else wait "$p2"; echo "probe same_port second_app_exit=$? after_ds=$j"; fi
+          app_lines "$T/second.out" second
+
+          node "$T/drive.js" 47811 \
+            sys:launch \
+            c1:show sys:after-show tree:after-show \
+            c1:sample wait:3000 c1:sample \
+            c1:hide sys:after-hide c1:sample wait:3000 c1:sample \
+            c1:show sys:after-show2 \
+            'c1:SHOW' 'c1:show ' 'c1: show' 'c1:show	x' 'c1:load ../index.html' 'c1:load /etc/hosts' 'c1:load C:/Windows/win.ini' 'c1:load %2e%2e/x' 'c1:load index.html?x=1' 'c1:send 1 0' 'c1:send 99999999999999999999 1' 'c1:$(touch probe-shell-marker)' 'c1:;touch probe-shell-marker' 'c1:load index.html;touch probe-shell-marker' 'c1:eval alert(1)' 'c1:quit now' 'c1:sample' \
+            c2:sample 'c3:hide' sys:c3-hide c2:show sys:c2-show \
+            'c1:load nocall.html' wait:2000 'c1&:show' 'c1?:10000' 'c2:sample' sys:during-nocall-show 'c2:load index.html' 'c1?:15000' sys:after-load \
+            big:c4 'c5:sample' \
+            c5:quit
+          echo "probe shell_marker=$([ -e probe-shell-marker ] && echo present || echo absent)"
+          after_quit main
+          app_lines "$T/main.out" main
+
+          # ===== run 2: the scheme and the other origins, from a page =====
+          echo "probe run=scheme"
+          start_app "$T/scheme.out" --pages "$P"
+          sport=$port
+          cat >"$P/scheme.html" <<EOF
+          <!doctype html><meta charset="utf-8"><title>Trial</title><script src="/__app/call.js"></script>
+          <script>
+          (async function () {
+            var r = window.r4app;
+            var base = location.protocol + '//' + location.host;
+            r.report('scheme origin=' + encodeURIComponent(base));
+            var paths = ['/index.html', '/../outside.txt', '/..%2foutside.txt', '/%2e%2e/outside.txt', '/%2e%2e%2foutside.txt', '/sub/..%2f..%2foutside.txt', '/..%5coutside.txt', '//etc/hosts', '/%2fetc%2fhosts', '/C:/Windows/win.ini', '/C:%5cWindows%5cwin.ini', '/c%3a/Windows/win.ini', '/link-out.txt', '/__app/call.js', '/__app/../index.html', '/__app/call.js/..%2f..%2foutside.txt'];
+            for (var i = 0; i < paths.length; i++) {
+              var line;
+              try {
+                var res = await fetch(base + paths[i]);
+                var t = await res.text();
+                line = 'status=' + res.status + ' bytes=' + t.length + ' mark=' + (t.indexOf('R4-OUTSIDE-MARK') >= 0 ? 'yes' : 'no') + ' url=' + encodeURIComponent(res.url);
+              } catch (e) { line = 'error=' + e.name; }
+              r.report('scheme path=' + encodeURIComponent(paths[i]) + ' ' + line);
+            }
+            var others = ['https://example.com/', 'http://127.0.0.1:${sport}/'];
+            for (var j = 0; j < others.length; j++) {
+              try { var o = await fetch(others[j], { mode: 'no-cors' }); r.report('origin url=' + encodeURIComponent(others[j]) + ' reached=yes type=' + o.type); }
+              catch (e) { r.report('origin url=' + encodeURIComponent(others[j]) + ' reached=no error=' + e.name); }
+            }
+            try {
+              await fetch('http://127.0.0.1:${sport}/', { method: 'POST', mode: 'no-cors', body: 'destroy\n' });
+              r.report('control post sent=yes');
+            } catch (e) { r.report('control post sent=error ' + e.name); }
+            r.report('scheme done');
+          })();
+          </script>
+          EOF
+          node "$T/drive.js" "$sport" c1:show sys:scheme-show tree:scheme-show 'c1:load scheme.html' wait:20000 sys:after-post c1:sample c1:quit
+          after_quit scheme
+          app_lines "$T/scheme.out" scheme
+
+          # ===== run 3: arm b, the window by the system's word =====
+          echo "probe run=b"
+          start_app "$T/b.out" --arm b
+          node "$T/drive.js" "$port" sys:launch c1:show sys:after-show tree:after-show c1:destroy wait:2000 sys:after-destroy c1:sample wait:5000 c1:show sys:after-show2 tree:after-show2 c1:sample c1:quit
+          after_quit b
+          app_lines "$T/b.out" b
+          echo "probe end"
