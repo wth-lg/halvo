@@ -32,6 +32,13 @@ starts the browser headless with a new profile for every run, and stops both at 
                     the scratch directory and serves it with tools/r3-trials/web/tls-listener.mjs on
                     a loopback port that the system picks; without openssl its cell is a notrun
                     line with cause=openssl. --fault does not take these rows.
+  --rows driver     runs the row driver_killed_port of ruling CP-22: a driver process (this
+                    program) starts the browser over the loopback port, holds one POST paused,
+                    and is killed with the system's hard kill (SIGKILL, or TerminateProcess on
+                    Windows); tools/r3-trials/web/record-listener.mjs records for 10 s every
+                    connection and byte that reaches the POST's address, and the program watches
+                    the browser's process. One control run lets the POST through first, and the
+                    listener must see it. --runs gives the number of kills; the row's cells take 20.
   --driver PATH     taken by the webdriver candidate only; refused here.
   --extras          prints the extras line: added_bytes (release binary with the driver crate
                     against one without it, both stripped), cold_ms (median of 10 starts to the
@@ -43,6 +50,13 @@ starts the browser headless with a new profile for every run, and stops both at 
                     or one page (signin_500, history_changed, prefs_500, frame_hangs,
                     upload_input_gone, pay_now_renamed, prefs_get_form, password_plain).
   --scratch DIR     the directory for profiles and upload files; default a new mktemp directory.
+  --relay           runs the cells with the relay of ruling CP-24 in the trial program's own
+                    process: every browser gets it as its only route, with the flags that the
+                    README names.
+  --routes          after each run's step, reads the system's table of established TCP
+                    connections to the fixture's port (lsof on macOS, netstat on Windows) and
+                    prints one route line per cell: how many came from this program, which
+                    holds the relay, and how many from any other process.
 
 Output: one run line per run, one cell line per step, and no verdict line. A run line holds the
 browser product and version that the browser reported over the protocol. median_ms is the median
@@ -64,11 +78,14 @@ refuse() {
 }
 
 candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch='' rows=nine
+relay='' routes=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
     --extras) mode=extras; shift; continue ;;
     --resolver-probe) mode=resolver; shift; continue ;;
+    --relay) relay=yes; shift; continue ;;
+    --routes) routes=yes; shift; continue ;;
   esac
   [ $# -ge 2 ] || refuse usage "$1 needs a value or is unknown; see --help"
   case "$1" in
@@ -120,7 +137,15 @@ case "$rows" in
       *) refuse usage "--step with --rows isolation takes one of the six rows of A13.7" ;;
     esac
     ;;
-  *) refuse usage "--rows takes isolation" ;;
+  driver)
+    [ "$mode" = cells ] || refuse usage "--rows driver runs cells only"
+    [ -z "$fault" ] || refuse usage "--fault runs the nine steps only"
+    case "$step" in
+      '' | driver_killed_pipe | driver_killed_port | driver_killed_pipe_relay | driver_killed_port_relay) ;;
+      *) refuse usage "--step with --rows driver takes one of the four forms of driver_killed" ;;
+    esac
+    ;;
+  *) refuse usage "--rows takes isolation or driver" ;;
 esac
 case "$fault" in
   '') ;;
@@ -197,6 +222,9 @@ case "$mode" in
     [ -n "$step" ] && set -- "$@" --step "$step"
     [ "$rows" = isolation ] &&
       set -- "$@" --rows isolation --add-flag "--isolate-origins=http://pay.agent.test:$port"
+    [ "$rows" = driver ] && set -- "$@" --rows driver
+    [ -n "$relay" ] && set -- "$@" --relay
+    [ -n "$routes" ] && set -- "$@" --routes
     ;;
   extras)
     with=$(wc -c <"$bin" | tr -d ' ')

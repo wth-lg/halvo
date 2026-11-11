@@ -32,6 +32,7 @@ pub(crate) struct Attached {
 pub(crate) struct Rule {
     pub allowed: Vec<String>,
     pub state_changing: bool,
+    pub hold: bool,
 }
 
 impl Rule {
@@ -268,7 +269,10 @@ impl Wire {
             .map(|r| r.lets_through(&method, &origin))
             .unwrap_or(false);
         let id = ev.request_id.clone();
-        let answered = if let_through {
+        let hold = self.rule().map(|r| r.hold).unwrap_or(false);
+        let answered = if !let_through && hold {
+            Ok(Outcome::Held)
+        } else if let_through {
             self.call(session.as_deref(), ContinueRequestParams::new(id))
                 .await
                 .map(|_| Outcome::Continued)
@@ -405,6 +409,7 @@ mod tests {
         let rule = Rule {
             allowed: vec!["http://utility.agent.test:18190".into()],
             state_changing: false,
+            hold: false,
         };
         assert!(rule.lets_through("GET", "http://utility.agent.test:18190"));
         assert!(rule.lets_through("HEAD", "http://utility.agent.test:18190"));

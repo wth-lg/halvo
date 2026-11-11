@@ -1,7 +1,11 @@
 #[cfg(feature = "driver")]
 pub mod cdp;
 pub mod fixture;
+#[cfg(feature = "driver")]
+pub mod pipe;
 pub mod procs;
+#[cfg(feature = "driver")]
+pub mod relay;
 pub mod tls;
 
 pub const CANDIDATE: &str = "cdp";
@@ -26,6 +30,16 @@ pub const ISOLATION_STEPS: [&str; 6] = [
     "block_frame_post",
     "block_websocket",
     "cert_error",
+];
+
+/// The row of rulings CP-22 and CP-24 in its four forms, which `--rows driver` runs: the driver is
+/// killed with the system's hard kill while a state-changing request is paused, over the pipe or
+/// the port, and without or with the relay in the driver's own process.
+pub const DRIVER_STEPS: [&str; 4] = [
+    "driver_killed_pipe",
+    "driver_killed_port",
+    "driver_killed_pipe_relay",
+    "driver_killed_port_relay",
 ];
 
 /// The one start flag that the rows of A13.7 add: it puts the payment frame of the fixture on

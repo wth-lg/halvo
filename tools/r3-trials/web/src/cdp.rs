@@ -77,6 +77,7 @@ pub enum Outcome {
     Continued,
     Failed,
     Refused,
+    Held,
 }
 
 /// A request that the rule paused before it left: its method, origin and path, the id of the
@@ -1204,8 +1205,27 @@ impl Executor {
             .arm_rule(wire::Rule {
                 allowed: allowed_origins,
                 state_changing,
+                hold: false,
             })
             .await
+    }
+
+    /// For the trial of a driver that dies while a request is paused (U0.7, CP-22), and no
+    /// operation of A11.1: arms a rule that lets through the reads of `allowed_origins` and leaves
+    /// every other request paused with no answer, recorded with the outcome `Held`.
+    pub async fn hold_requests(&mut self, allowed_origins: Vec<String>) -> Res<()> {
+        self.wire
+            .arm_rule(wire::Rule {
+                allowed: allowed_origins,
+                state_changing: false,
+                hold: true,
+            })
+            .await
+    }
+
+    /// The WebSocket address of the browser's debugging channel.
+    pub fn debug_address(&self) -> String {
+        self.browser.websocket_address().clone()
     }
 
     /// Runs a script of the trial in the page's own world of the main frame, through the debugging

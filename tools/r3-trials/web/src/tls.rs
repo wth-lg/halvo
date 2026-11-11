@@ -81,47 +81,86 @@ pub struct Counts {
     pub tls_errors: u64,
 }
 
-/// Reads the line `count requests=<n> handshakes=<n> tls_errors=<n>` of the listener.
-pub fn parse_counts(line: &str) -> Option<Counts> {
+fn parse_keys<const N: usize>(line: &str, keys: [&str; N]) -> Option<[u64; N]> {
     let rest = line.trim().strip_prefix("count ")?;
-    let mut values = [None; 3];
+    let mut values = [None; N];
     for pair in rest.split(' ') {
         let (k, v) = pair.split_once('=')?;
-        let slot = match k {
-            "requests" => 0,
-            "handshakes" => 1,
-            "tls_errors" => 2,
-            _ => return None,
-        };
+        let slot = keys.iter().position(|key| *key == k)?;
         if values[slot].is_some() {
             return None;
         }
         values[slot] = Some(v.parse::<u64>().ok()?);
     }
+    let mut out = [0; N];
+    for (o, v) in out.iter_mut().zip(values) {
+        *o = v?;
+    }
+    Some(out)
+}
+
+/// Reads the line `count requests=<n> handshakes=<n> tls_errors=<n>` of the TLS listener.
+pub fn parse_counts(line: &str) -> Option<Counts> {
+    let [requests, handshakes, tls_errors] =
+        parse_keys(line, ["requests", "handshakes", "tls_errors"])?;
     Some(Counts {
-        requests: values[0]?,
-        handshakes: values[1]?,
-        tls_errors: values[2]?,
+        requests,
+        handshakes,
+        tls_errors,
     })
 }
 
-/// The TLS listener of `cert_error`, `tools/r3-trials/web/tls-listener.mjs`, a child process on a
-/// loopback port that the system picks.
-pub struct TlsListener {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordCounts {
+    pub connections: u64,
+    pub bytes: u64,
+    pub path_requests: u64,
+}
+
+/// Reads the line `count connections=<n> bytes=<n> path_requests=<n>` of the recording listener.
+pub fn parse_record_counts(line: &str) -> Option<RecordCounts> {
+    let [connections, bytes, path_requests] =
+        parse_keys(line, ["connections", "bytes", "path_requests"])?;
+    Some(RecordCounts {
+        connections,
+        bytes,
+        path_requests,
+    })
+}
+
+/// A listener of the trial in Node, a child process on a loopback port that the system picks:
+/// the TLS listener of `cert_error` (`tls-listener.mjs`) or the recording listener of
+/// `driver_killed_port` (`record-listener.mjs`).
+pub struct Listener {
     child: Child,
     stdin: Option<ChildStdin>,
     lines: mpsc::Receiver<String>,
     pub port: u16,
 }
 
-impl TlsListener {
-    pub fn start(program: &Path, cert: &Path, key: &Path) -> Result<TlsListener, String> {
+impl Listener {
+    /// Starts `tls-listener.mjs` with the certificate and the key.
+    pub fn start_tls(program: &Path, cert: &Path, key: &Path) -> Result<Listener, String> {
+        Listener::spawn(
+            program,
+            &[
+                "--cert".as_ref(),
+                cert.as_os_str(),
+                "--key".as_ref(),
+                key.as_os_str(),
+            ],
+        )
+    }
+
+    /// Starts `record-listener.mjs` for the request path `path`.
+    pub fn start_record(program: &Path, path: &str) -> Result<Listener, String> {
+        Listener::spawn(program, &["--path".as_ref(), path.as_ref()])
+    }
+
+    fn spawn(program: &Path, args: &[&std::ffi::OsStr]) -> Result<Listener, String> {
         let mut child = Command::new("node")
             .arg(program)
-            .arg("--cert")
-            .arg(cert)
-            .arg("--key")
-            .arg(key)
+            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -147,7 +186,7 @@ impl TlsListener {
             .trim()
             .strip_prefix("listening 127.0.0.1:")
             .and_then(|p| p.parse::<u16>().ok());
-        let mut listener = TlsListener {
+        let mut listener = Listener {
             child,
             stdin,
             lines,
@@ -169,18 +208,27 @@ impl TlsListener {
         self.child.id()
     }
 
-    /// Asks the listener for its counts and waits for the answer at most `ANSWER_WAIT`.
+    /// Asks the TLS listener for its counts and waits for the answer at most `ANSWER_WAIT`.
     pub fn counts(&mut self) -> Result<Counts, String> {
+        let line = self.count_line()?;
+        parse_counts(&line).ok_or_else(|| "answer form".to_string())
+    }
+
+    /// Asks the recording listener for its counts and waits for the answer at most `ANSWER_WAIT`.
+    pub fn record_counts(&mut self) -> Result<RecordCounts, String> {
+        let line = self.count_line()?;
+        parse_record_counts(&line).ok_or_else(|| "answer form".to_string())
+    }
+
+    fn count_line(&mut self) -> Result<String, String> {
         let stdin = self.stdin.as_mut().ok_or("stdin closed")?;
         stdin
             .write_all(b"count\n")
             .and_then(|_| stdin.flush())
             .map_err(|e| format!("write {}", e.kind()))?;
-        let line = self
-            .lines
+        self.lines
             .recv_timeout(ANSWER_WAIT)
-            .map_err(|_| "no answer".to_string())?;
-        parse_counts(&line).ok_or_else(|| "answer form".to_string())
+            .map_err(|_| "no answer".to_string())
     }
 
     /// Ends the listener: closes its standard input, waits for it at most `ANSWER_WAIT`, then kills
@@ -206,7 +254,7 @@ impl TlsListener {
     }
 }
 
-impl Drop for TlsListener {
+impl Drop for Listener {
     fn drop(&mut self) {
         self.end();
     }
@@ -262,7 +310,7 @@ mod tests {
         let dir = scratch("count");
         let (cert, key) = make_certificate(&dir).expect("certificate");
         let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("tls-listener.mjs");
-        let mut listener = TlsListener::start(&program, &cert, &key).expect("listener");
+        let mut listener = Listener::start_tls(&program, &cert, &key).expect("listener");
         assert_eq!(
             listener.counts(),
             Ok(Counts {
@@ -287,6 +335,55 @@ mod tests {
         assert_eq!(counts.tls_errors, 1);
         assert_eq!(counts.requests, 0);
         assert_eq!(counts.handshakes, 0);
+    }
+
+    #[test]
+    fn parse_record_counts_takes_the_three_counts_once_each() {
+        assert_eq!(
+            parse_record_counts("count connections=1 bytes=187 path_requests=1"),
+            Some(RecordCounts {
+                connections: 1,
+                bytes: 187,
+                path_requests: 1
+            })
+        );
+        for bad in [
+            "count connections=1 bytes=187",
+            "count connections=1 connections=1 bytes=1 path_requests=0",
+            "count requests=0 handshakes=2 tls_errors=1",
+        ] {
+            assert_eq!(parse_record_counts(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_recording_listener_counts_the_bytes_and_the_requests_of_its_path() {
+        let program = Path::new(env!("CARGO_MANIFEST_DIR")).join("record-listener.mjs");
+        let mut listener = Listener::start_record(&program, "/held").expect("listener");
+        assert_eq!(
+            listener.record_counts(),
+            Ok(RecordCounts {
+                connections: 0,
+                bytes: 0,
+                path_requests: 0
+            })
+        );
+        let request =
+            b"POST /held HTTP/1.1\r\nHost: utility.agent.test\r\nContent-Length: 1\r\n\r\nx";
+        let mut plain = TcpStream::connect(("127.0.0.1", listener.port)).expect("connect");
+        plain.write_all(request).expect("write");
+        let deadline = std::time::Instant::now() + ANSWER_WAIT;
+        let counts = loop {
+            let c = listener.record_counts().expect("counts");
+            if c.bytes == request.len() as u64 || std::time::Instant::now() > deadline {
+                break c;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        listener.stop();
+        assert_eq!(counts.connections, 1);
+        assert_eq!(counts.bytes, request.len() as u64);
+        assert_eq!(counts.path_requests, 1);
     }
 
     #[test]
