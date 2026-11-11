@@ -7,6 +7,7 @@ export LC_ALL
 name=40-r5-trials
 trials='routine stat drift'
 fence=$(printf '\140\140\140')
+lfx=$(printf '\nx')
 
 finish() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -74,10 +75,16 @@ refuse_call() {
 }
 
 block_of() {
-  awk '
-    !inside && $0 == "```" { inside = 1; next }
-    inside && $0 == "```" { closed = 1; exit 0 }
-    inside { print }
+  last=$(tail -c 1 "$1" && printf x) || return 1
+  [ "$last" = "$lfx" ] || return 1
+  awk -v fence="$fence" '
+    NR == 1 { if ($0 !~ /^date [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) exit 1; next }
+    NR == 2 { if ($0 !~ /^machine (mac|hosted-mac|hosted-win)$/) exit 1; next }
+    NR == 3 { if ($0 != "") exit 1; next }
+    NR == 4 { if ($0 != fence) exit 1; next }
+    closed { exit 1 }
+    $0 == fence { closed = 1; next }
+    { print }
     END { if (!closed) exit 1 }
   ' "$1"
 }
@@ -351,6 +358,22 @@ self_test() {
   fixture block-differs-in-one-line
   result_text drift 0k >"$work/block-differs-in-one-line/docs/r5/trials/admission.md"
   check block-differs-in-one-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-with-a-second-block
+  { result_text drift; printf 'later text\n%s\nblock drift\nverdict drift=FAIL\n%s\n' "$fence" "$fence"; } >"$work/result-with-a-second-block/docs/r5/trials/admission.md"
+  check result-with-a-second-block FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-block-after-an-info-string-fence
+  printf 'date 2026-11-11\nmachine mac\n\n%stext\nblock drift\nverdict drift=WRONG\n%s\nblock drift\nverdict drift=ok\n%s\n' "$fence" "$fence" "$fence" >"$work/result-block-after-an-info-string-fence/docs/r5/trials/admission.md"
+  check result-block-after-an-info-string-fence FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-without-its-date-line
+  result_text drift | tail -n +2 >"$work/result-without-its-date-line/docs/r5/trials/admission.md"
+  check result-without-its-date-line FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
+
+  fixture result-with-an-unclosed-fence
+  result_text drift | sed '$d' >"$work/result-with-an-unclosed-fence/docs/r5/trials/admission.md"
+  check result-with-an-unclosed-fence FAIL-differ 'trials routine=same stat=same admission=differ sample=same'
 
   fixture sample-differs
   printf '{"cell":"7-0-1"}\n' >"$work/sample-differs/fixtures/r5/trains/sample.jsonl"
