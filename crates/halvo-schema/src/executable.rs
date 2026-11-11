@@ -35,9 +35,8 @@ use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 pub const ERROR_NAMES: &[&str] = &["binding", "playbook", "config", "class", "length", "effect"];
 
 /// The keys and closed-list names that this run's records, bodies and replies write, the names of its two kinds and
-/// its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds; `role`,
-/// which the names file never holds; and `adapter`, because the names file begins with `accessibility_text`,
-/// `active` and `address_field`.
+/// its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and
+/// `role`, which the names file never holds.
 pub const NAMES: &[&str] = &[
     "agent_config",
     "agent_run",
@@ -120,6 +119,7 @@ pub const NAMES: &[&str] = &[
     "by",
     "value",
     "name",
+    "adapter",
     "op",
     "sheet",
     "range",

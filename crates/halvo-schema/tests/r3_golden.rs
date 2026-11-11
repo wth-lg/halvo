@@ -963,9 +963,7 @@ fn keys_of(value: &serde_json::Value, keys: &mut BTreeSet<String>) {
     }
 }
 
-const LEFT_OUT: [&str; 7] = [
-    "tier", "amount", "period", "week", "month", "role", "adapter",
-];
+const LEFT_OUT: [&str; 6] = ["tier", "amount", "period", "week", "month", "role"];
 
 #[test]
 fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies() {
@@ -1061,7 +1059,7 @@ fn the_committed_names_file_holds_the_names_of_this_file_and_none_left_out() {
         assert!(lines.contains(name), "{name}");
     }
     for name in [
-        "tier", "amount", "week", "month", "role", "adapter", "binding", "length",
+        "tier", "amount", "week", "month", "role", "binding", "length",
     ] {
         assert!(!lines.contains(name), "{name}");
     }
