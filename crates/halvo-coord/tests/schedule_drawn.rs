@@ -723,6 +723,15 @@ impl Sim {
     }
 
     fn properties(&mut self, label: &str) {
+        for n in 0..N {
+            let queued = self.board.queue.holds(&agent(n));
+            if queued != self.h.waiting[n].is_some() {
+                self.fault(format!(
+                    "{label}: C3 the queue holds agent {n}: {queued}, the answers say {:?}",
+                    self.h.waiting[n]
+                ));
+            }
+        }
         let live = self.h.live.len() as u32;
         let models = self.h.live.iter().filter(|r| SPEC[r.agent].model).count();
         if live > self.limits.max_live_runs || models > 1 {

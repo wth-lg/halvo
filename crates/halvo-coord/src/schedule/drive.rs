@@ -358,12 +358,17 @@ fn start<P, C>(
     trigger: Trigger,
     listed: &[WorkflowId],
     from_queue: bool,
+    unread: Option<Cause>,
 ) -> Served
 where
     P: Owner + Runs + Analysis + Rng,
     C: ConfigView,
 {
     let agent = board.members[i].facts.agent.clone();
+    let kept = board.members[i].facts.store_ended;
+    if unread.is_some() {
+        board.members[i].facts.store_ended = true;
+    }
     let around = Around {
         listed: listed.contains(&board.members[i].facts.workflow.id),
         live: u32::try_from(board.runs.len()).unwrap_or(u32::MAX),
@@ -373,6 +378,7 @@ where
         from_queue,
     };
     let step = start_step(&board.members[i].facts, trigger, cx.limits, &around);
+    board.members[i].facts.store_ended = kept;
     let served = |answer| Served {
         agent: agent.clone(),
         answer,
@@ -388,6 +394,9 @@ where
         if let Some(state) = clear.set_state {
             send_state(cx, &board.members[i].facts, state);
         }
+    }
+    if let (Some(cause), Verdict::Queued | Verdict::Go(_)) = (unread, &step.verdict) {
+        return served(Err(cause));
     }
     match step.verdict {
         Verdict::Refused(cause) => served(Err(cause)),
@@ -431,7 +440,7 @@ where
             run: None,
         });
     };
-    let served = start(cx, board, i, head.trigger, listed, true);
+    let served = start(cx, board, i, head.trigger, listed, true, None);
     if served.answer != Ok(Answer::Queued) {
         board.queue.pop();
         if let Doing::Queued(item) = &board.members[i].facts.doing {
@@ -593,7 +602,7 @@ where
             Ask::Start if starts => {
                 report
                     .started
-                    .push(start(cx, board, i, Trigger::Schedule, &listed, false));
+                    .push(start(cx, board, i, Trigger::Schedule, &listed, false, None));
             }
             Ask::Start => {}
             Ask::Nothing => {}
@@ -711,11 +720,12 @@ where
     };
     match mv {
         Move::Start { .. } => {
-            let listed = match (read, cx.ports.workflows()) {
-                (Ok(()), Ok(w)) => ids(&w),
-                (Err(e), _) | (_, Err(e)) => return refused(port_cause(&e)),
+            let listed = match cx.ports.workflows() {
+                Ok(w) => ids(&w),
+                Err(e) => return refused(port_cause(&e)),
             };
-            let s = start(cx, board, i, Trigger::Person, &listed, false);
+            let unread = read.err().map(|e| port_cause(&e));
+            let s = start(cx, board, i, Trigger::Person, &listed, false, unread);
             Report {
                 answer: s.answer,
                 run: s.run,
@@ -835,8 +845,9 @@ where
 /// that `tick_step` gives, agent by agent; it serves and starts only when its reads of the
 /// owner's list and of `Owner::agents` answered. Each move of an agent, and each end, reads
 /// `Owner::agents` and takes from the agent's entry whether the agent store has ended its
-/// newest run and that run's record (ruling XB-2); a start of the person whose read fails is
-/// answered `busy` or `no_service`. A start goes through `start_step` and then steps 5
+/// newest run and that run's record (ruling XB-2); a start of the person whose read fails goes
+/// through steps 0 to 3 on the facts it holds and is answered `busy` or `no_service` where the
+/// store's answer would decide, so that an earlier step that fails keeps its cause. A start goes through `start_step` and then steps 5
 /// to 8 of I5.5: the request to defer, the `run_started` event, which closes an open `ready`
 /// item in the same body, the body `start_run` and `Runs::start`; a failed step 7 or 8 stores
 /// `run_ended` with `failed` and answers `no_service`. The end of a run stores `run_ended`

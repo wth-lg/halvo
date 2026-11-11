@@ -1816,3 +1816,83 @@ fn an_end_whose_read_of_the_agents_fails_serves_no_start_and_the_next_tick_does(
     assert_eq!(tick.next[0].agent, agent(1));
     assert_eq!(tick.next[0].answer, Ok(Answer::Ok));
 }
+
+#[test]
+fn a_failed_read_of_the_agents_lets_an_earlier_step_of_a_start_keep_its_cause() {
+    let mut w = world(&[manual(), manual(), manual()]);
+    w.delete(0);
+    w.go(Move::SwitchOff { agent: agent(1) });
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    assert_eq!(w.start(0).answer, Err(Cause::State), "step 0");
+    assert_eq!(w.start(1).answer, Err(Cause::Hold), "step 1");
+    assert_eq!(w.start(2).answer, Err(Cause::Busy), "step 3 needs the read");
+    assert_eq!(w.starts(), 0);
+    assert!(w.board.queue.is_empty());
+}
+
+#[test]
+fn a_tick_kills_in_the_order_in_which_the_runs_started() {
+    let mut w = world_with(
+        &[manual(), manual()],
+        Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        },
+    );
+    let first = ok_run(&w.start(0));
+    let second = ok_run(&w.start(1));
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.go(Move::SwitchOff { agent: agent(1) });
+    w.end_only(&first, None);
+    w.clock(T0 + 5_000, DAY);
+    w.forget();
+    w.tick();
+    let calls = w.calls();
+    let kills: Vec<_> = calls.iter().filter(|c| c.starts_with("kill")).collect();
+    assert_eq!(kills, [&format!("kill {first}"), &format!("kill {second}")]);
+}
+
+#[test]
+fn the_end_that_a_kill_makes_takes_its_one_start_from_the_queue() {
+    let mut w = world(&[manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.clock(T0 + 5_000, DAY);
+    let tick = w.tick();
+    assert_eq!(tick.ended[0].run, run);
+    assert_eq!(tick.ended[0].next[0].agent, agent(1));
+    assert_eq!(tick.ended[0].next[0].answer, Ok(Answer::Ok));
+    assert_eq!(tick.next, Vec::<Served>::new());
+    assert!(w.board.queue.is_empty());
+}
+
+#[test]
+fn a_tick_whose_kill_ended_a_run_serves_no_second_start_after_a_drop() {
+    let mut w = world(&[manual(), manual(), manual()]);
+    queue_two_behind(&mut w);
+    assert_eq!(w.start(2).answer, Ok(Answer::Queued));
+    w.go(Move::SwitchOff { agent: agent(1) });
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.clock(T0 + 5_000, DAY);
+    let tick = w.tick();
+    assert_eq!(tick.ended[0].next[0].answer, Err(Cause::Hold));
+    assert_eq!(tick.next, Vec::<Served>::new());
+    assert!(
+        w.board.queue.holds(&agent(2)),
+        "the start behind the dropped one waits"
+    );
+    assert_eq!(w.starts(), 1, "the first run alone started");
+}
+
+#[test]
+fn a_start_that_leaves_the_queue_and_goes_is_no_longer_queued() {
+    let mut w = world(&[manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    let end = w.end(&run, Some(Outcome::Completed));
+    assert_eq!(end.ended[0].next[0].answer, Ok(Answer::Ok));
+    assert!(!w.board.queue.holds(&agent(1)));
+    assert!(matches!(
+        w.facts(1).doing,
+        Doing::Live(halvo_coord::types::Live::Starting)
+    ));
+}
