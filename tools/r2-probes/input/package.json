@@ -1,0 +1,7 @@
+{
+  "name": "r2-probes-input",
+  "private": true,
+  "devDependencies": {
+    "playwright": "1.65.0"
+  }
+}

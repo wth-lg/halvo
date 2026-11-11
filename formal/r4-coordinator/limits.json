@@ -1,0 +1,1 @@
+{"max_live_runs":2,"queue_max":2,"wait_limit_s":900,"arm_ms":500,"cancel_grace_s":5,"starts_per_day":2,"items_per_run":8,"fails_to_pause":2,"catch_up_days":0,"next_wait_s":25,"coalesce_ms":250,"owner_wait_s":5,"roster_max":256,"request_records":8,"request_bytes":4096,"history_runs":5,"setup_params":8,"setup_candidates":8}
