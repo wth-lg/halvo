@@ -64,6 +64,7 @@ sandbox_profile() {
   done
   printf '(deny network-outbound (socket-protocol 1) (with message "%s icmp4"))\n' "$1"
   printf '(deny network-outbound (socket-protocol 58) (with message "%s icmp6"))\n' "$1"
+  printf '(deny mach-lookup (global-name "com.apple.dnssd.service") (with message "%s dns"))\n' "$1"
   while read -r number part kind host port; do
     [ -n "$number" ] || continue
     case $kind:$part:$host in
@@ -477,13 +478,14 @@ fi
 # want PROBE: prints the proto and the dest that a log line of the probe holds.
 want() {
   case $1 in
-    ipv4) printf '%s\n' 'tcp 192.0.2.1:443' ;;
-    ipv6) printf '%s\n' 'tcp [2001:db8::1]:443' ;;
-    dns) printf '%s\n' 'dns *' ;;
-    loopback) printf '%s\n' 'tcp 127.0.0.1:47201' ;;
-    udp) printf '%s\n' 'udp 192.0.2.1:9' ;;
-    icmp) printf '%s\n' 'icmp *' ;;
-    loopback2) printf '%s\n' 'tcp 127.0.0.1:47202' ;;
+    ipv4) printf '%s\n' 'tcp 192.0.2.1:443 egress-probe' ;;
+    ipv6) printf '%s\n' 'tcp [2001:db8::1]:443 egress-probe' ;;
+    dns) printf '%s\n' 'dns * egress-probe' ;;
+    loopback) printf '%s\n' 'tcp 127.0.0.1:47201 egress-probe' ;;
+    udp) printf '%s\n' 'udp 192.0.2.1:9 egress-probe' ;;
+    icmp) printf '%s\n' 'icmp * egress-probe' ;;
+    resolver) printf '%s\n' 'dns * nscurl' ;;
+    loopback2) printf '%s\n' 'tcp 127.0.0.1:47202 egress-probe' ;;
   esac
 }
 
@@ -505,7 +507,7 @@ classify() {
       proto = field("proto"); dest = field("dest"); image = field("image")
       if (w[1] == "icmp" && proto == "-") proto = "icmp"
       if (proto != w[1]) next
-      if (image != "-" && image != "egress-probe" && image != "egress-probe.exe") next
+      if (image != "-" && image != w[3] && image != w[3] ".exe") next
       if (w[2] == "*" || dest == w[2]) found = 1
       else if (index(dest, "-:") == 1 && port(dest) == port(w[2])) found = 1
     }
@@ -568,7 +570,9 @@ else
   lines="egress self-test mode=$mode deny=off"
 fi
 probes=ok
-for name in ipv4 ipv6 dns loopback udp icmp; do
+names="ipv4 ipv6 dns loopback udp icmp"
+[ "$mode" != sandbox ] || names="$names resolver"
+for name in $names; do
   first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
   result=$(classify "$name" "$name")
   [ "$result" != missed ] || probes=miss
