@@ -8,15 +8,14 @@ use tauri::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use tauri::http::Response;
 use tauri::ipc::Channel;
 use tauri::tray::TrayIconBuilder;
-use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri::{Webview, Window, WindowEvent, Wry};
 
-use crate::control::{self, Answer, ErrCause, Line};
+use crate::control::{self, Answer, ErrCause, Line, SHOW_BOUND, WINDOW_BOUND};
 use crate::pages::{self, SCHEME};
 use crate::sync::{self, Change, Hub};
-use crate::waits::Reports;
+use crate::waits::{self, Reports, Waited};
 use crate::{Arm, Options, SyncWay};
 
 /// The label of the trial's one window.
@@ -96,8 +95,6 @@ pub(crate) fn make(options: Options, listener: std::net::TcpListener) -> tauri::
             });
             app.manage(core.clone());
             let port = listener.local_addr()?.port();
-            println!("control port={port}");
-            std::io::stdout().flush()?;
             if options.tray {
                 TrayIconBuilder::with_id("r4-trial")
                     .title("R4 trial")
@@ -105,7 +102,9 @@ pub(crate) fn make(options: Options, listener: std::net::TcpListener) -> tauri::
                     .build(app)?;
             }
             core.make_window()?;
-            control::serve(listener, Arc::new(core))?;
+            control::serve(listener, Arc::new(core.clone()))?;
+            print_line(&format!("control port={port}"));
+            core.made(true);
             Ok(())
         })
 }
@@ -130,14 +129,16 @@ impl TrialCore {
         let url = pages::page_url("index.html")
             .parse()
             .map_err(tauri::Error::InvalidUrl)?;
-        let mut builder =
-            WebviewWindowBuilder::new(&self.app, WINDOW, WebviewUrl::CustomProtocol(url))
-                .title("Trial")
-                .inner_size(620.0, 720.0)
-                .visible(false);
-        if self.options.arm == Arm::A2 {
-            builder = builder.background_throttling(BackgroundThrottlingPolicy::Suspend);
-        }
+        let builder = WebviewWindowBuilder::new(&self.app, WINDOW, WebviewUrl::CustomProtocol(url))
+            .title("Trial")
+            .inner_size(620.0, 720.0)
+            .visible(false);
+        #[cfg(target_os = "macos")]
+        let builder = if self.options.arm == Arm::A2 {
+            builder.background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Suspend)
+        } else {
+            builder
+        };
         let free_by = Instant::now() + LABEL_FREE_WAIT;
         while self.app.get_webview_window(WINDOW).is_some() && Instant::now() < free_by {
             thread::sleep(Duration::from_millis(10));
@@ -152,21 +153,35 @@ impl TrialCore {
         Ok(window)
     }
 
+    fn made(&self, built: bool) {
+        if cfg!(target_os = "macos") && self.options.arm == Arm::A2 {
+            quiet_line("background_throttling", built);
+        }
+    }
+
     fn eval(window: &WebviewWindow, script: &str) {
         let _ = window.eval(script);
     }
 
     fn show(&self) -> Answer {
         let started = Instant::now();
-        let token = {
+        let Some(token) = self.frames.begin_alone() else {
+            return Answer::Err(ErrCause::Busy);
+        };
+        {
             let _ops = self.window_ops.lock().unwrap_or_else(|e| e.into_inner());
             self.hub.open();
             let window = match self.window() {
                 Some(window) => window,
                 None => match self.make_window() {
-                    Ok(window) => window,
+                    Ok(window) => {
+                        self.made(true);
+                        window
+                    }
                     Err(e) => {
+                        self.made(false);
                         eprintln!("r4-trial-app: window: {e}");
+                        self.frames.cancel();
                         return Answer::Err(ErrCause::NoWindow);
                     }
                 },
@@ -175,7 +190,6 @@ impl TrialCore {
                 quiet(&window, false);
             }
             let _ = window.show();
-            let token = self.frames.begin();
             let loaded = {
                 let mut page = self.page();
                 page.pending_show = Some(token);
@@ -190,16 +204,15 @@ impl TrialCore {
                     &format!("window.__r4AppFrame && window.__r4AppFrame({token})"),
                 );
             }
-            token
-        };
-        let reported = self.frames.wait(token, None);
-        self.page().pending_show = None;
-        if reported.is_none() {
-            return Answer::Err(ErrCause::NoWindow);
         }
-        Answer::Shown {
-            show_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        let waited = self.frames.wait(token, SHOW_BOUND);
+        {
+            let mut page = self.page();
+            if page.pending_show == Some(token) {
+                page.pending_show = None;
+            }
         }
+        control::shown(waited, started.elapsed())
     }
 
     fn hide(&self) -> Answer {
@@ -216,7 +229,11 @@ impl TrialCore {
             quiet(&window, true);
         }
         let _ = window.hide();
-        Answer::Ok
+        if waits::until(WINDOW_BOUND, || window.is_visible().ok() == Some(false)) {
+            Answer::Ok
+        } else {
+            Answer::Err(ErrCause::Timeout)
+        }
     }
 
     fn destroy(&self) -> Answer {
@@ -229,7 +246,13 @@ impl TrialCore {
         self.frames.cancel();
         let _ = window.destroy();
         self.forget_page();
-        Answer::Ok
+        if waits::until(WINDOW_BOUND, || {
+            self.app.get_webview_window(WINDOW).is_none()
+        }) {
+            Answer::Ok
+        } else {
+            Answer::Err(ErrCause::Timeout)
+        }
     }
 
     fn forget_page(&self) {
@@ -244,7 +267,10 @@ impl TrialCore {
         let Some(window) = self.window() else {
             return Answer::Err(ErrCause::NoWindow);
         };
-        let Ok(url) = pages::page_url(file).parse() else {
+        let Some(address) = pages::page_to_load(&self.options.pages, file) else {
+            return Answer::Err(ErrCause::NoFile);
+        };
+        let Ok(url) = address.parse() else {
             return Answer::Err(ErrCause::UnknownLine);
         };
         self.forget_page();
@@ -275,9 +301,11 @@ impl TrialCore {
             window,
             &format!("window.__r4AppCounts && window.__r4AppCounts({token})"),
         );
-        self.counts
-            .wait(token, Some(COUNTS_WAIT))
-            .or_else(|| self.page().last_counts)
+        match self.counts.wait(token, COUNTS_WAIT) {
+            Waited::Reported(counts) => Some(counts),
+            Waited::Ended | Waited::TimedOut => None,
+        }
+        .or_else(|| self.page().last_counts)
     }
 
     fn send(self: &Arc<Self>, count: u64, per_second: u64) -> Answer {
@@ -300,8 +328,7 @@ impl TrialCore {
                         thread::sleep(Duration::from_millis(1));
                     }
                 }
-                println!("core send_done sent={sent}");
-                let _ = std::io::stdout().flush();
+                print_line(&format!("core send_done sent={sent}"));
                 core.sending.store(false, Ordering::SeqCst);
             });
         if spawned.is_err() {
@@ -388,9 +415,23 @@ impl control::Core for Arc<TrialCore> {
     }
 }
 
+fn print_line(line: &str) {
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(out, "{line}");
+    let _ = out.flush();
+}
+
+fn quiet_line(call: &str, ok: bool) {
+    let system = if cfg!(windows) { "windows" } else { "macos" };
+    let result = if ok { "ok" } else { "err" };
+    print_line(&format!(
+        "core quiet system={system} call={call} result={result}"
+    ));
+}
+
 #[cfg(windows)]
 fn quiet(window: &WebviewWindow, quiet: bool) {
-    let _ = window.with_webview(move |webview| {
+    let queued = window.with_webview(move |webview| {
         use webview2_com::Microsoft::Web::WebView2::Win32::{
             ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
             COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
@@ -403,15 +444,17 @@ fn quiet(window: &WebviewWindow, quiet: bool) {
             COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
         };
         unsafe {
-            let _ = controller.SetIsVisible(!quiet);
-            if let Ok(core) = controller
+            quiet_line("set_is_visible", controller.SetIsVisible(!quiet).is_ok());
+            let set = controller
                 .CoreWebView2()
                 .and_then(|core| core.cast::<ICoreWebView2_19>())
-            {
-                let _ = core.SetMemoryUsageTargetLevel(level);
-            }
+                .and_then(|core| core.SetMemoryUsageTargetLevel(level));
+            quiet_line("set_memory_usage_target_level", set.is_ok());
         }
     });
+    if queued.is_err() {
+        quiet_line("with_webview", false);
+    }
 }
 
 #[cfg(not(windows))]
@@ -447,8 +490,7 @@ fn report(line: String) {
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
         .collect();
-    println!("page {line}");
-    let _ = std::io::stdout().flush();
+    print_line(&format!("page {line}"));
 }
 
 #[tauri::command]

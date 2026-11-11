@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The scheme of the app's own pages.
 pub const SCHEME: &str = "r4trial";
@@ -37,25 +37,10 @@ pub fn serve(pages: &Path, path: &str) -> Served {
     } else {
         relative
     };
-    if !relative.split('/').all(|part| {
-        !part.is_empty()
-            && part != "."
-            && part != ".."
-            && part
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
-    }) {
-        return status(404);
-    }
-    let (Ok(root), Ok(file)) = (pages.canonicalize(), pages.join(relative).canonicalize()) else {
-        return status(404);
+    let file = match resolve(pages, relative) {
+        Ok(file) => file,
+        Err(code) => return status(code),
     };
-    if !file.starts_with(&root) {
-        return status(403);
-    }
-    if !file.is_file() {
-        return status(404);
-    }
     match std::fs::read(&file) {
         Ok(body) => Served {
             status: 200,
@@ -64,6 +49,35 @@ pub fn serve(pages: &Path, path: &str) -> Served {
         },
         Err(_) => status(500),
     }
+}
+
+/// The address of `file` of `pages` for the control line `load`, where the scheme serves that
+/// file; `None` where it does not, so that `load` answers `err no_file`.
+pub fn page_to_load(pages: &Path, file: &str) -> Option<String> {
+    resolve(pages, file).ok().map(|_| page_url(file))
+}
+
+fn resolve(pages: &Path, relative: &str) -> Result<PathBuf, u16> {
+    if !relative.split('/').all(|part| {
+        !part.is_empty()
+            && part != "."
+            && part != ".."
+            && part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+    }) {
+        return Err(404);
+    }
+    let (Ok(root), Ok(file)) = (pages.canonicalize(), pages.join(relative).canonicalize()) else {
+        return Err(404);
+    };
+    if !file.starts_with(&root) {
+        return Err(403);
+    }
+    if !file.is_file() {
+        return Err(404);
+    }
+    Ok(file)
 }
 
 fn status(code: u16) -> Served {

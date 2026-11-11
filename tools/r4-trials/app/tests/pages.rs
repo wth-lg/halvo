@@ -78,6 +78,30 @@ fn a_link_that_leaves_the_directory_is_403() {
 }
 
 #[test]
+fn load_gets_the_address_of_a_file_of_the_directory_and_nothing_else() {
+    let dir = scratch("load");
+    let pages = dir.join("pages");
+    assert_eq!(
+        page_to_load(&pages, "index.html"),
+        Some(page_url("index.html"))
+    );
+    assert_eq!(
+        page_to_load(&pages, "sub/view.js"),
+        Some(page_url("sub/view.js"))
+    );
+    for file in [
+        "missing.html",
+        "sub",
+        "sub/missing.js",
+        "../outside.html",
+        "",
+    ] {
+        assert_eq!(page_to_load(&pages, file), None, "{file:?}");
+    }
+    assert_eq!(page_to_load(&dir.join("no-such-dir"), "index.html"), None);
+}
+
+#[test]
 fn the_page_url_uses_the_scheme_of_this_system() {
     let url = page_url("probe.html");
     if cfg!(windows) {

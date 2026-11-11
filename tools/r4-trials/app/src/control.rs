@@ -3,9 +3,18 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
+
+use crate::waits::Waited;
 
 /// The longest control line, in bytes, before its line feed.
 pub const MAX_LINE_BYTES: usize = 4096;
+
+/// How long `show` waits for the page's first animation frame after the show.
+pub const SHOW_BOUND: Duration = Duration::from_secs(30);
+
+/// How long `hide` and `destroy` wait for the window to report that it is not visible or gone.
+pub const WINDOW_BOUND: Duration = Duration::from_secs(10);
 
 /// A control line of I11.3.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,12 +28,15 @@ pub enum Line {
     Quit,
 }
 
-/// The cause of an `err` answer.
+/// The cause of an `err` answer, of the closed list `unknown_line`, `no_window`, `busy`,
+/// `timeout` and `no_file`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrCause {
     UnknownLine,
     NoWindow,
     Busy,
+    Timeout,
+    NoFile,
 }
 
 /// The one answer line to a control line: `ok`, with pairs for `show` and `sample` alone, or
@@ -56,6 +68,8 @@ impl ErrCause {
             ErrCause::UnknownLine => "unknown_line",
             ErrCause::NoWindow => "no_window",
             ErrCause::Busy => "busy",
+            ErrCause::Timeout => "timeout",
+            ErrCause::NoFile => "no_file",
         }
     }
 }
@@ -74,6 +88,19 @@ impl fmt::Display for Answer {
             ),
             Answer::Err(cause) => write!(f, "err {}", cause.name()),
         }
+    }
+}
+
+/// The answer to `show` whose wait for the page's frame ended as `waited`, `elapsed` after the
+/// show began: `ok show_ms=<n>`, `err no_window` when a destroy ended it, `err timeout` at its
+/// bound.
+pub fn shown(waited: Waited<()>, elapsed: Duration) -> Answer {
+    match waited {
+        Waited::Reported(()) => Answer::Shown {
+            show_ms: u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
+        },
+        Waited::Ended => Answer::Err(ErrCause::NoWindow),
+        Waited::TimedOut => Answer::Err(ErrCause::Timeout),
     }
 }
 
@@ -183,6 +210,7 @@ mod tests {
     use super::*;
     use crate::testing::BOUND;
     use std::sync::Mutex;
+    use std::time::Duration;
 
     #[test]
     fn every_line_parses() {
@@ -269,6 +297,29 @@ mod tests {
         );
         assert_eq!(Answer::Err(ErrCause::NoWindow).to_string(), "err no_window");
         assert_eq!(Answer::Err(ErrCause::Busy).to_string(), "err busy");
+        assert_eq!(Answer::Err(ErrCause::Timeout).to_string(), "err timeout");
+        assert_eq!(Answer::Err(ErrCause::NoFile).to_string(), "err no_file");
+    }
+
+    #[test]
+    fn a_show_answer_says_how_its_wait_ended() {
+        use crate::waits::Waited;
+        let after = Duration::from_millis(412);
+        assert_eq!(
+            shown(Waited::Reported(()), after),
+            Answer::Shown { show_ms: 412 }
+        );
+        assert_eq!(shown(Waited::Ended, after), Answer::Err(ErrCause::NoWindow));
+        assert_eq!(
+            shown(Waited::TimedOut, after),
+            Answer::Err(ErrCause::Timeout)
+        );
+    }
+
+    #[test]
+    fn the_bounds_are_30_s_for_show_and_10_s_for_hide_and_destroy() {
+        assert_eq!(SHOW_BOUND, Duration::from_secs(30));
+        assert_eq!(WINDOW_BOUND, Duration::from_secs(10));
     }
 
     #[derive(Default)]
