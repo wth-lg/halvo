@@ -34,18 +34,23 @@ fn wal_len(dir: &Path) -> u64 {
 
 /// The wrapped key for `segment_id` as seen in a copy of `store.db` alone (no
 /// WAL), read with the store key: what a snapshot of the main file leaks.
-fn wrapped_key_in_main_file(dir: &Path, store_key: &[u8; 32], segment_id: Uuid) -> Option<Vec<u8>> {
+fn wrapped_key_in_main_file(
+    dir: &Path,
+    store_key: &[u8; 32],
+    segment_id: Uuid,
+) -> Result<Option<Vec<u8>>, halvo_sqlcipher::rusqlite::Error> {
     let copy = tempfile::tempdir().unwrap();
     std::fs::copy(dir.join("store.db"), copy.path().join("store.db")).unwrap();
-    let conn = Connection::open(copy.path().join("store.db")).unwrap();
-    conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex(store_key)))
-        .unwrap();
-    conn.query_row(
+    let conn = Connection::open(copy.path().join("store.db"))?;
+    conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex(store_key)))?;
+    match conn.query_row(
         "SELECT wrapped_key FROM segment_keys WHERE segment_id = ?1",
         [segment_id.simple().to_string()],
         |r| r.get::<_, Option<Vec<u8>>>(0),
-    )
-    .unwrap_or(None)
+    ) {
+        Err(halvo_sqlcipher::rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        other => other,
+    }
 }
 
 fn recoverable(cipher: &[u8], store_key: &[u8; 32], wrapped: Option<Vec<u8>>) -> bool {
@@ -151,7 +156,8 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
         )
         .unwrap_or(None)
     });
-    let from_main_file = wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id);
+    let from_main_file =
+        wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id).unwrap();
     assert_eq!(
         wal_len(dir.path()),
         0,
@@ -379,16 +385,28 @@ fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_rem
     let cipher = std::fs::read(&path).unwrap();
     let store_key = *store.store_key().unwrap().expose();
     let shard = path.parent().unwrap().to_path_buf();
+    store.db().unwrap().checkpoint_truncate().unwrap();
+    let before = wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id).unwrap();
+    assert!(
+        recoverable(&cipher, &store_key, before),
+        "the probe does not find the live key in store.db, so it cannot see one left behind"
+    );
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o500)).unwrap();
 
     let first = store.crypto_shred_expired();
 
     let from_main_file = wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id);
+    let wal_after_the_failed_pass = wal_len(dir.path());
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let from_main_file = from_main_file.unwrap();
     assert!(path.exists(), "the fixture did not block the removal");
     assert!(
         first.is_err(),
         "the pass reported success with the file still present"
+    );
+    assert_eq!(
+        wal_after_the_failed_pass, 0,
+        "the failed pass left frames in the WAL"
     );
     assert!(
         !recoverable(&cipher, &store_key, from_main_file),
