@@ -751,10 +751,7 @@ const HELPER = () => {
   };
   const rendered = (el) => {
     if (!el.isConnected) return false;
-    if (el.tagName === 'AREA') {
-      const map = el.closest('map');
-      return !!map && map.name !== '' && [...document.querySelectorAll('img[usemap]')].some((img) => img.useMap === '#' + map.name && rendered(img));
-    }
+    if (el.tagName === 'AREA') return true;
     const s = getComputedStyle(el);
     if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
     return el.getClientRects().length > 0;
