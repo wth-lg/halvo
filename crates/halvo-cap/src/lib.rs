@@ -10,11 +10,38 @@
 //! the child at the first read above the limit; the cap and the peak cover the started
 //! process alone, so a caller wraps the program itself and never a shell.
 //!
-//! What the macOS reading does not see: the memory of a grandchild; pages of a file that
-//! the child maps and only reads; volatile purgeable memory; and memory that the child
-//! holds only before it execs another program, because the lifetime peak starts again at
-//! an exec. Between two polls the child may hold more than the limit for up to 250 ms
-//! before it is killed, and `peak_bytes` then shows how far it went.
+//! The cap bounds and measures a program that Halvo builds or chooses. It is no sandbox: a
+//! program that works against it passes it. `capped=no` says that no read was above the
+//! limit; it never says that the program held no more than the limit. The reading is one
+//! quantity on each system, and the two lists below name, as a closed list, what that
+//! quantity does not count.
+//!
+//! On macOS, the lifetime peak physical footprint of the started process does not count:
+//! - `child-process`: the memory of any other process, also of a process that the started
+//!   one starts and of one that outlives it;
+//! - `exec`: what the process held before it became another program by an exec, because
+//!   the lifetime peak starts again;
+//! - `mapped-read` and `mapped-written`: pages of a mapped file, read, or written through a
+//!   shared mapping;
+//! - `purgeable`: volatile purgeable memory;
+//! - `reusable`: pages that the process marked reusable, also while they still hold their
+//!   data;
+//! - `kernel-message`: data that the kernel holds for the process in messages queued on a
+//!   port of its own;
+//! - `socket-buffer`: data in the buffers of sockets and pipes that the process filled.
+//!
+//! On Windows, the Job's peak committed memory of one process does not count:
+//! - `child-process`: the other processes of the Job, each of which has the limit to
+//!   itself;
+//! - `mapped-file`: pages of a mapped file;
+//! - `section`: a section backed by the paging file, whose commit the system charges to no
+//!   process; the working-set maximum holds its resident pages at the limit;
+//! - `broker-process`: a process that a service of the system starts for the child (a Task
+//!   Scheduler task is shown; WMI is not shown), which runs outside the Job.
+//!
+//! On macOS the cap ends a child at most one poll after the first read above the limit; it
+//! does not keep it under the limit. Between two polls the child may hold more than the
+//! limit for up to 250 ms before it is killed, and `peak_bytes` then shows how far it went.
 
 use std::ffi::OsString;
 use std::fmt;
@@ -126,6 +153,15 @@ pub struct Outcome {
     pub peak_bytes: u64,
     /// Whether the cap stopped it: on macOS a read above the limit, on Windows an
     /// allocation that the Job refused.
+    ///
+    /// `capped=no` says that no read was above the limit; it never says that the program
+    /// held no more than the limit, because the reading does not count what the crate's
+    /// documentation lists. On Windows `capped=yes` says that the Job's report of a refused
+    /// allocation arrived. Windows does not guarantee that report: a refusal whose report is
+    /// lost reads `capped=no` and shows in the exit status of the run, and the control then
+    /// prints `miss`. A runtime that reads the Job's limit and refuses its own allocation
+    /// below it reads `capped=no` too. A child that survives a refused allocation runs to its
+    /// own end.
     pub capped: bool,
     /// When it was started.
     pub start: UnixNanos,
@@ -234,9 +270,15 @@ pub fn check_supported(limit: Limit) -> Result<(), CapError> {
 /// A program that cannot be started gives `Exit::NotStarted`, not an error. The error
 /// means that the cap could not be set or read; a child that was started is then killed
 /// and reaped before the call returns. On Windows the function sets the creation flags of
-/// the child; the processes that the child leaves behind are ended with it, because the
-/// Job holds them. A caller that must go on beside the child calls this on a thread of
-/// its own.
+/// the child. A caller that must go on beside the child calls this on a thread of its own.
+///
+/// Which processes outlive a run: on macOS a run ends the started process alone. The
+/// processes that it started go on after the run, also after a run that the cap stopped,
+/// and nothing caps them. When the process that called the cap ends before the child, by a
+/// signal or otherwise, the child goes on with no cap. A child of the same user can stop or
+/// end the capping process. On Windows the Job ends every process of the tree when the run
+/// ends and when the caller ends, but for a child whose caller ends between its start and
+/// its entry into the Job.
 pub fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     platform::run(spec, limit)
 }
