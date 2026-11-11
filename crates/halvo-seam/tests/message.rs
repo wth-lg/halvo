@@ -382,3 +382,105 @@ fn a_server_error_keeps_its_rules() {
         ["bad-frame", "bad-request", "bad-position", "store-error"]
     );
 }
+
+#[test]
+fn a_key_of_another_message_is_a_bad_frame_also_when_its_value_is_null() {
+    let open_null_request =
+        zero_open().replace(r#","range":null"#, r#","range":null,"request":null"#);
+    let mut client_cases: Vec<String> = ["store", "position", "kinds", "range", "request"]
+        .iter()
+        .flat_map(|key| {
+            [
+                format!(r#"{{"msg":"read_batch","{key}":null}}"#),
+                format!(r#"{{"msg":"close","{key}":null}}"#),
+            ]
+        })
+        .collect();
+    for key in ["store", "position", "kinds", "range"] {
+        client_cases.push(format!(
+            r#"{{"msg":"analysis_write","request":{{}},"{key}":null}}"#
+        ));
+    }
+    client_cases.push(open_null_request);
+    client_cases.push(r#"{"msg":"analysis_write","request":{},"request":null}"#.to_owned());
+    for text in client_cases {
+        assert_eq!(client(&text).err(), Some(Refusal::BadFrame), "{text}");
+    }
+    let keys = [
+        "store",
+        "watermark",
+        "records",
+        "expiry",
+        "next",
+        "reply",
+        "cause",
+        "detail",
+    ];
+    let empty_batch = format!(
+        r#"{{"msg":"batch","store":"{STORE}","watermark":{{"seg":2,"idx":0}},"records":[],"expiry":[],"next":{{"seg":2,"idx":0}}"#
+    );
+    let mut server_cases: Vec<String> = keys
+        .iter()
+        .map(|key| format!(r#"{{"msg":"closed","{key}":null}}"#))
+        .collect();
+    for key in ["reply", "cause", "detail"] {
+        server_cases.push(format!(r#"{empty_batch},"{key}":null}}"#));
+    }
+    for key in [
+        "store",
+        "watermark",
+        "records",
+        "expiry",
+        "next",
+        "cause",
+        "detail",
+    ] {
+        server_cases.push(format!(
+            r#"{{"msg":"write_ack","reply":{{"v":1}},"{key}":null}}"#
+        ));
+    }
+    for key in ["watermark", "records", "expiry", "next", "reply"] {
+        server_cases.push(format!(
+            r#"{{"msg":"error","cause":"bad-frame","store":null,"detail":"x","{key}":null}}"#
+        ));
+    }
+    server_cases.push(r#"{"msg":"error","cause":null,"store":null,"detail":"x"}"#.to_owned());
+    server_cases
+        .push(r#"{"msg":"error","cause":"bad-frame","store":null,"detail":null}"#.to_owned());
+    server_cases.push(r#"{"msg":"write_ack","reply":null}"#.to_owned());
+    for text in server_cases {
+        assert!(!server(&text), "{text}");
+    }
+    assert!(server(&format!("{empty_batch}}}")));
+}
+
+#[test]
+fn a_watermark_or_a_segment_ordinal_outside_the_form_of_c5_3_is_refused() {
+    let entry = |seg: u64| {
+        format!(
+            r#"{{"pos":{{"seg":{seg},"idx":0}},"record":{{"v":1,"id":"019b78c9-0a80-7a1b-8f21-3b5d6c7e8f90","at":1,"seq":0,"kind":"foreground_app","app":null,"p":{{}}}}}}"#
+        )
+    };
+    let batch = |watermark: &str, records: &str, expiry: &str, next: &str| {
+        format!(
+            r#"{{"msg":"batch","store":"{STORE}","watermark":{watermark},"records":[{records}],"expiry":[{expiry}],"next":{next}}}"#
+        )
+    };
+    let w = r#"{"seg":2,"idx":0}"#;
+    let refused = [
+        batch(r#"{"seg":2,"idx":3}"#, "", "", r#"{"seg":2,"idx":3}"#),
+        batch(r#"{"seg":0,"idx":0}"#, "", "", r#"{"seg":0,"idx":0}"#),
+        batch(w, &entry(0), r#"{"seg":0,"at":5}"#, r#"{"seg":0,"idx":1}"#),
+        batch(w, "", r#"{"seg":0,"at":5}"#, w),
+    ];
+    for text in refused {
+        assert!(!server(&text), "{text}");
+    }
+    assert!(server(&batch(
+        r#"{"seg":1,"idx":0}"#,
+        "",
+        "",
+        r#"{"seg":0,"idx":0}"#
+    )));
+    assert!(server(&batch(w, &entry(1), r#"{"seg":1,"at":5}"#, w)));
+}

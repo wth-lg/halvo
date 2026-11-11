@@ -274,19 +274,19 @@ struct ClientFields {
     msg: String,
     #[serde(default, deserialize_with = "present")]
     store: Option<Option<String>>,
-    #[serde(default)]
-    position: Option<Position>,
+    #[serde(default, deserialize_with = "present")]
+    position: Option<Option<Position>>,
     #[serde(default, deserialize_with = "present")]
     kinds: Option<Option<Vec<String>>>,
     #[serde(default, deserialize_with = "present")]
     range: Option<Option<RawRange>>,
-    #[serde(default)]
-    request: Option<Box<RawValue>>,
+    #[serde(default, deserialize_with = "present")]
+    request: Option<Option<Box<RawValue>>>,
 }
 
 /// Reads the payload of a frame from the client. Accepts the keys of a message, of a `position` and of a
 /// `range` in any order and JSON white space between tokens; refuses a key twice, an unknown or a missing key,
-/// an array or any other value in place of an object, and an integer outside its form or its range with
+/// a key of another message, also with the value null, an array or any other value in place of an object, and an integer outside its form or its range with
 /// `bad-frame`, and the illegal values of C5.10 with `bad-request`.
 pub fn decode_client(payload: &[u8]) -> Result<ClientMessage, Refusal> {
     let mut de = serde_json::Deserializer::from_slice(payload);
@@ -307,7 +307,7 @@ pub fn decode_client(payload: &[u8]) -> Result<ClientMessage, Refusal> {
         && request.is_none();
     match msg.as_str() {
         "open_cursor" => {
-            let (Some(store), Some(position), Some(kinds), Some(range), None) =
+            let (Some(store), Some(Some(position)), Some(kinds), Some(range), None) =
                 (store, position, kinds, range, request)
             else {
                 return Err(Refusal::BadFrame);
@@ -343,7 +343,7 @@ pub fn decode_client(payload: &[u8]) -> Result<ClientMessage, Refusal> {
         "read_batch" if only_msg => Ok(ClientMessage::ReadBatch),
         "close" if only_msg => Ok(ClientMessage::Close),
         "analysis_write" => match (store, position, kinds, range, request) {
-            (None, None, None, None, Some(request)) if is_object(&request) => {
+            (None, None, None, None, Some(Some(request))) if is_object(&request) => {
                 Ok(ClientMessage::AnalysisWrite(request))
             }
             _ => Err(Refusal::BadFrame),
@@ -412,6 +412,17 @@ pub struct Batch {
     pub records: Vec<Entry>,
     pub expiry: Vec<Expiry>,
     pub next: Position,
+}
+
+impl Batch {
+    /// True when the watermark has the form of C5.3, `{"seg":H+1,"idx":0}` with H at least 0, and every
+    /// record and every expiry entry names a segment ordinal of at least 1, since no segment has the ordinal 0.
+    pub fn has_form(&self) -> bool {
+        self.watermark.seg >= 1
+            && self.watermark.idx == 0
+            && self.records.iter().all(|e| e.pos.seg >= 1)
+            && self.expiry.iter().all(|e| e.seg >= 1)
+    }
 }
 
 /// The cause of an error (C5.10), a closed list in the order in which a server picks the first that fits.
@@ -558,25 +569,26 @@ struct ServerFields {
     msg: String,
     #[serde(default, deserialize_with = "present")]
     store: Option<Option<StoreId>>,
-    #[serde(default)]
-    watermark: Option<Position>,
-    #[serde(default)]
-    records: Option<Vec<Entry>>,
-    #[serde(default)]
-    expiry: Option<Vec<Expiry>>,
-    #[serde(default)]
-    next: Option<Position>,
-    #[serde(default)]
-    reply: Option<Box<RawValue>>,
-    #[serde(default)]
-    cause: Option<String>,
-    #[serde(default)]
-    detail: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    watermark: Option<Option<Position>>,
+    #[serde(default, deserialize_with = "present")]
+    records: Option<Option<Vec<Entry>>>,
+    #[serde(default, deserialize_with = "present")]
+    expiry: Option<Option<Vec<Expiry>>>,
+    #[serde(default, deserialize_with = "present")]
+    next: Option<Option<Position>>,
+    #[serde(default, deserialize_with = "present")]
+    reply: Option<Option<Box<RawValue>>>,
+    #[serde(default, deserialize_with = "present")]
+    cause: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present")]
+    detail: Option<Option<String>>,
 }
 
 /// Reads the payload of a frame from the server by the rules of C5.5 and C5.10: keys in any order, no key
-/// twice, no unknown or missing key, no array in place of an object, each served record through the reader of
-/// C4.6, a store id only on `store-changed`, and a detail of at most `DETAIL_MAX` bytes.
+/// twice, no unknown or missing key and no key of another message, also with the value null, no array in place
+/// of an object, each served record through the reader of C4.6, a Batch of the form of `Batch::has_form`, a
+/// store id only on `store-changed`, and a detail of at most `DETAIL_MAX` bytes.
 pub fn decode_server(payload: &[u8]) -> Result<ServerMessage, MessageError> {
     let mut de = serde_json::Deserializer::from_slice(payload);
     let f: ServerFields = object(&mut de).map_err(|_| MessageError)?;
@@ -598,20 +610,26 @@ pub fn decode_server(payload: &[u8]) -> Result<ServerMessage, MessageError> {
         ) {
             (
                 Some(Some(store)),
-                Some(watermark),
-                Some(records),
-                Some(expiry),
-                Some(next),
+                Some(Some(watermark)),
+                Some(Some(records)),
+                Some(Some(expiry)),
+                Some(Some(next)),
                 None,
                 None,
                 None,
-            ) => Ok(ServerMessage::Batch(Batch {
-                store,
-                watermark,
-                records,
-                expiry,
-                next,
-            })),
+            ) => {
+                let batch = Batch {
+                    store,
+                    watermark,
+                    records,
+                    expiry,
+                    next,
+                };
+                if !batch.has_form() {
+                    return Err(MessageError);
+                }
+                Ok(ServerMessage::Batch(batch))
+            }
             _ => Err(MessageError),
         },
         "closed" => match (
@@ -623,7 +641,7 @@ pub fn decode_server(payload: &[u8]) -> Result<ServerMessage, MessageError> {
         "write_ack" => match (
             store, watermark, records, expiry, next, reply, cause, detail,
         ) {
-            (None, None, None, None, None, Some(reply), None, None) if is_object(&reply) => {
+            (None, None, None, None, None, Some(Some(reply)), None, None) if is_object(&reply) => {
                 Ok(ServerMessage::WriteAck(reply))
             }
             _ => Err(MessageError),
@@ -631,7 +649,7 @@ pub fn decode_server(payload: &[u8]) -> Result<ServerMessage, MessageError> {
         "error" => match (
             store, watermark, records, expiry, next, reply, cause, detail,
         ) {
-            (Some(store), None, None, None, None, None, Some(cause), Some(detail)) => {
+            (Some(store), None, None, None, None, None, Some(Some(cause)), Some(Some(detail))) => {
                 let cause = match (cause.as_str(), store) {
                     ("bad-frame", None) => Cause::BadFrame,
                     ("bad-request", None) => Cause::BadRequest,

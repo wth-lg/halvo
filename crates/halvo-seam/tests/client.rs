@@ -527,3 +527,62 @@ fn the_analysis_write_goes_out_as_to_bytes_wrote_it_and_its_reply_is_decoded() {
     ));
     assert_eq!(client.read().unwrap().records.len(), 3);
 }
+
+struct Typed(Vec<halvo_seam::message::ServerMessage>);
+
+impl halvo_seam::client::Link for Typed {
+    fn exchange(
+        &mut self,
+        _: &halvo_seam::message::ClientMessage,
+    ) -> Result<halvo_seam::message::ServerMessage, Failure> {
+        Ok(self.0.remove(0))
+    }
+}
+
+#[test]
+fn a_batch_outside_the_form_of_c5_3_stops_the_client_on_any_link() {
+    let batch = |w: Position, entries: Vec<halvo_seam::message::Entry>, next: Position| {
+        halvo_seam::message::ServerMessage::Batch(halvo_seam::message::Batch {
+            store: store(),
+            watermark: w,
+            records: entries,
+            expiry: Vec::new(),
+            next,
+        })
+    };
+    let rec =
+        halvo_seam::record::CaptureRecord::read(record(1, "keystroke", DAY).as_bytes()).unwrap();
+    let mut open_bad = Client::new(Typed(vec![batch(pos(2, 3), vec![], pos(0, 0))]));
+    assert!(matches!(
+        open_bad.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Failed(Failure::Order(_)))
+    ));
+    let mut open_zero = Client::new(Typed(vec![batch(pos(0, 0), vec![], pos(0, 0))]));
+    assert!(matches!(
+        open_zero.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Failed(Failure::Order(_)))
+    ));
+    let seg_zero = halvo_seam::message::Entry {
+        pos: pos(0, 0),
+        record: rec.clone(),
+    };
+    let mut read_bad = Client::new(Typed(vec![
+        batch(pos(2, 0), vec![], pos(0, 0)),
+        batch(pos(2, 0), vec![seg_zero], pos(0, 1)),
+    ]));
+    read_bad.open(OpenCursor::fresh(None, None)).unwrap();
+    assert!(matches!(
+        read_bad.read(),
+        Err(ClientError::Failed(Failure::Order(_)))
+    ));
+    let seg_one = halvo_seam::message::Entry {
+        pos: pos(1, 0),
+        record: rec,
+    };
+    let mut good = Client::new(Typed(vec![
+        batch(pos(2, 0), vec![], pos(0, 0)),
+        batch(pos(2, 0), vec![seg_one], pos(2, 0)),
+    ]));
+    good.open(OpenCursor::fresh(None, None)).unwrap();
+    assert_eq!(good.read().unwrap().records.len(), 1);
+}

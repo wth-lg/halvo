@@ -191,7 +191,8 @@ impl<L: Link> Client<L> {
         }
         match self.send(&ClientMessage::OpenCursor(open.clone()))? {
             ServerMessage::Batch(b) => {
-                let fits = b.records.is_empty()
+                let fits = b.has_form()
+                    && b.records.is_empty()
                     && b.expiry.is_empty()
                     && b.next == open.position()
                     && b.next <= b.watermark
@@ -276,6 +277,9 @@ impl<L: Link> Client<L> {
 }
 
 fn broken(open: &Open, b: &Batch) -> Option<&'static str> {
+    if !b.has_form() {
+        return Some("the watermark and the segment ordinals of C5.3");
+    }
     if b.store != open.store {
         return Some("one store per cursor");
     }
