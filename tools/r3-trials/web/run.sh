@@ -53,7 +53,7 @@ refuse() {
   exit 2
 }
 
-candidate= browser= port= runs= step= mode=cells out= fault= scratch=
+candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
@@ -127,11 +127,10 @@ command -v cargo >/dev/null 2>&1 || refuse usage "cargo is not on the PATH"
 dir=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$dir/../../.." && pwd)
 
-ports=$port
-[ "$mode" = extras ] && ports="$port $((port + 1))"
-[ -n "$fault" ] && ports="$port $((port + 2))"
-# shellcheck disable=SC2086
-taken=$(node "$dir/port-free.mjs" $ports) || refuse port "127.0.0.1:$taken is taken"
+set -- "$port"
+[ "$mode" = extras ] && set -- "$@" "$((port + 1))"
+[ -n "$fault" ] && set -- "$@" "$((port + 2))"
+taken=$(node "$dir/port-free.mjs" "$@") || refuse port "127.0.0.1:$taken is taken"
 
 if [ -z "$scratch" ]; then
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/r3-web.XXXXXX") || {
