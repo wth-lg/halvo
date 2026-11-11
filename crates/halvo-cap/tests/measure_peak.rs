@@ -277,6 +277,17 @@ fn the_command_reads_the_null_device_and_not_the_standard_input_of_measure_peak(
     assert!(!stderr.contains("marker-of-the-standard-input"), "{stderr}");
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn a_control_that_the_cap_does_not_catch_prints_miss_and_exits_1() {
+    let ran = measure(&["--limit", "18446744073692774399", "--control"]);
+    assert_eq!(ran.code, 1, "{}{}", ran.stdout, ran.stderr);
+    let lines = ran.lines();
+    assert_eq!(lines.len(), 3, "{}", ran.stdout);
+    assert_eq!(field(lines[1], "outcome"), "failed", "{}", ran.stdout);
+    assert_eq!(lines[2], "checks control=miss", "{}", ran.stdout);
+}
+
 #[test]
 fn the_control_is_caught_at_the_limit() {
     let ran = measure(&["--limit", LIMIT, "--control"]);
