@@ -169,6 +169,7 @@
       var b = el('button', null, c.text);
       b.type = 'button';
       b.setAttribute('data-act', c.choice);
+      b.setAttribute('data-param', item.item);
       b.addEventListener('click', function () {
         call('agents_answer', { item: item.item, choice: c.choice });
       });
@@ -210,6 +211,7 @@
       var b = el('button', null, c.text);
       b.type = 'button';
       b.setAttribute('data-act', c.choice);
+      b.setAttribute('data-param', item.item);
       if (c.safe === 'yes') b.autofocus = true;
       b.addEventListener('click', function () {
         if (c.safe === 'yes' && fault === 'dialog_role') {
