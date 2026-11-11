@@ -97,3 +97,17 @@ fn every_def_has_a_type_and_every_object_type_is_closed() {
         "structs without deny_unknown_fields: {open:?}"
     );
 }
+
+#[test]
+fn typify_is_required_at_exactly_0_8_0() {
+    let manifest = read(generate::crate_dir().join("Cargo.toml"));
+    let lines: Vec<&str> = manifest
+        .lines()
+        .filter(|line| line.starts_with("typify"))
+        .collect();
+    assert_eq!(
+        lines,
+        vec![r#"typify = { version = "=0.8.0", default-features = false }"#],
+        "check 70 and this crate generate with typify 0.8.0 exactly"
+    );
+}

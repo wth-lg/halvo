@@ -57,7 +57,7 @@ self_test() {
   older=$(git -C "$backend" rev-parse "$older^") || exit 2
   tree=$(git -C "$backend" rev-parse "$commit^{tree}") || exit 2
   upper=$(printf '%s' "$commit" | tr 'a-f' 'A-F')
-  while IFS='|' read -r case want edit args; do
+  while IFS='|' read -r case want edit args after; do
     case $edit in
       byte) sed '1s/{/[/' "$here/routes.v1.json" >"$dir/routes.v1.json" ;;
       sum) sed '/ samples\.v1\.json /s/^0/g/; / samples\.v1\.json /s/^[1-9a-f]/0/; / samples\.v1\.json /s/^g/1/' "$here/vendored.txt" >"$dir/vendored.txt" ;;
@@ -83,18 +83,28 @@ self_test() {
     cases=$((cases + 1))
     case "$code $last" in
       "$want") verdict=ok ;;
-      *) verdict=wrong wrong="$wrong $case" ;;
+      *) verdict=wrong ;;
     esac
+    case $after in
+      routes-kept) ! cmp -s "$dir/routes.v1.json" "$here/routes.v1.json" || verdict=wrong ;;
+      record-kept) ! cmp -s "$dir/vendored.txt" "$here/vendored.txt" || verdict=wrong ;;
+      all-equal)
+        for name in schema.v1.json routes.v1.json samples.v1.json prompt-budget.json vendored.txt; do
+          cmp -s "$dir/$name" "$here/$name" || verdict=wrong
+        done
+        ;;
+    esac
+    [ "$verdict" = ok ] || wrong="$wrong $case"
     printf 'case vendor/%s want=%s got=%s %s: %s\n' "$case" "$want" "$code" "$verdict" "$last"
     cp "$here/routes.v1.json" "$dir/routes.v1.json" || exit 2
     cp "$here/vendored.txt" "$dir/vendored.txt" || exit 2
   done <<EOF
-equal|0 vendor-check commit=$commit files=4 equal=4 record=equal|none|check
-second-run-changes-nothing|0 vendored commit=$commit files=4 changed=0 record=kept|none|vendor
-changed-byte|1 vendor-check commit=$commit files=4 equal=3 record=equal|byte|check
-changed-byte-is-written-back|0 vendored commit=$commit files=4 changed=1 record=kept|byte|vendor
-changed-sum|1 vendor-check commit=$commit files=4 equal=4 record=differs|sum|check
-changed-sum-is-written-back|0 vendored commit=$commit files=4 changed=0 record=written|sum|vendor
+equal|0 vendor-check commit=$commit files=4 equal=4 record=equal|none|check|all-equal
+second-run-changes-nothing|0 vendored commit=$commit files=4 changed=0 record=kept|none|vendor|all-equal
+changed-byte|1 vendor-check commit=$commit files=4 equal=3 record=equal|byte|check|routes-kept
+changed-byte-is-written-back|0 vendored commit=$commit files=4 changed=1 record=kept|byte|vendor|all-equal
+changed-sum|1 vendor-check commit=$commit files=4 equal=4 record=differs|sum|check|record-kept
+changed-sum-is-written-back|0 vendored commit=$commit files=4 changed=0 record=written|sum|vendor|all-equal
 a-tree-is-no-commit|1 vendor: the backend has no commit $tree|none|tree
 a-commit-without-a-file|1 vendor: the backend has no contract/schema/v1.json at $older|none|older
 a-short-commit|64 or a file, 2 a step could not run, 64 bad usage.|none|short
