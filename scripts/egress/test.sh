@@ -115,6 +115,88 @@ test_probe() {
   fi
 }
 
+other_mode() {
+  if [ -n "$exe" ]; then
+    printf '%s\n' sandbox
+  else
+    printf '%s\n' pf
+  fi
+}
+
+list_case() {
+  printf '%b' "$3" >"$work/list-$1.txt"
+  expect_refusal "lists/$1" "$2" sh scripts/egress/check.sh --mode "$mode" "$work/list-$1.txt" -- sh scripts/egress/probe.sh none
+  if [ -n "${4:-}" ]; then
+    detail=$(cat "$work/err")
+    case $detail in
+      *"$4") result "lists/$1-detail" yes yes ;;
+      *) result "lists/$1-detail" "...$4" "$detail" ;;
+    esac
+  fi
+}
+
+test_lists() {
+  mode=$(other_mode)
+  expect_refusal args/none usage sh scripts/egress/check.sh
+  expect_refusal args/unknown-option usage sh scripts/egress/check.sh --verbose scripts/egress/lists/empty.txt -- true
+  expect_refusal args/unknown-mode usage sh scripts/egress/check.sh --mode iptables scripts/egress/lists/empty.txt -- true
+  expect_refusal args/mode-without-value usage sh scripts/egress/check.sh --mode
+  expect_refusal args/mode-twice usage sh scripts/egress/check.sh --mode "$mode" --mode "$mode" scripts/egress/lists/empty.txt -- true
+  expect_refusal args/list-without-dashes usage sh scripts/egress/check.sh scripts/egress/lists/empty.txt true
+  expect_refusal args/no-command usage sh scripts/egress/check.sh scripts/egress/lists/empty.txt --
+  expect_refusal args/dashes-first usage sh scripts/egress/check.sh -- true
+  expect_refusal args/control-alone usage sh scripts/egress/check.sh --control-no-deny
+  expect_refusal args/control-off-a-runner usage env -u GITHUB_ACTIONS sh scripts/egress/check.sh --self-test --control-no-deny
+  expect_refusal args/self-test-with-list usage sh scripts/egress/check.sh --self-test scripts/egress/lists/empty.txt -- true
+  (cd "$work" && expect_refusal args/outside-a-repository no-repository sh "$root/scripts/egress/check.sh" "$root/scripts/egress/lists/empty.txt" -- true)
+  expect_refusal lists/committed-empty mode sh scripts/egress/check.sh --mode "$mode" scripts/egress/lists/empty.txt -- sh scripts/egress/probe.sh none
+  expect_refusal lists/committed-loopback mode sh scripts/egress/check.sh --mode "$mode" scripts/egress/lists/loopback.txt -- sh scripts/egress/probe.sh none
+  size=$(wc -c <scripts/egress/lists/empty.txt)
+  result lists/empty-is-16-bytes 16 "$((size))"
+  list_case ordered mode '[fixed]\n127.0.0.1:47201\n127.0.0.1:47202\n[::1]:80\n[agent]\n192.0.2.1:443\nexample.com:443\n'
+  list_case ipv6-forms mode '[fixed]\n[2001:db8:0:1:1:1:1:1]:443\n[2001:db8::1:0:0:1]:1\n[2001:db8::1]:443\n[::]:1\n[agent]\n'
+  list_case name-forms mode '[fixed]\na-b.example:1\nlocalhost:1\nx.0y:2\n[agent]\n'
+  expect_refusal lists/missing-file list sh scripts/egress/check.sh --mode "$mode" "$work/no-such-list.txt" -- sh scripts/egress/probe.sh none
+  list_case zero-bytes list ''
+  list_case fixed-only list '[fixed]\n'
+  list_case agent-first list '[agent]\n[fixed]\n' 'line 1'
+  list_case agent-twice list '[fixed]\n[agent]\n[agent]\n' 'line 3'
+  list_case fixed-twice list '[fixed]\n[fixed]\n[agent]\n' 'line 2'
+  list_case entry-before-fixed list '127.0.0.1:1\n[fixed]\n[agent]\n' 'line 1'
+  list_case blank-line list '[fixed]\n\n[agent]\n' 'line 2'
+  list_case trailing-space list '[fixed]\n127.0.0.1:1 \n[agent]\n' 'line 2'
+  list_case comment list '[fixed]\n# allowed\n[agent]\n' 'line 2'
+  list_case crlf list '[fixed]\r\n[agent]\r\n' 'line 1'
+  list_case no-final-newline list '[fixed]\n[agent]'
+  list_case bom list '\0357\0273\0277[fixed]\n[agent]\n' 'line 1'
+  list_case nul list '[fixed]\n[agent]\n\0000\n'
+  list_case non-ascii list '[fixed]\nexampl\0303\0251.com:1\n[agent]\n' 'line 2'
+  list_case ipv4-leading-zero list '[fixed]\n127.0.0.01:1\n[agent]\n' 'line 2'
+  list_case ipv4-octet-256 list '[fixed]\n127.0.0.256:1\n[agent]\n' 'line 2'
+  list_case ipv4-three-parts list '[fixed]\n127.0.1:1\n[agent]\n' 'line 2'
+  list_case port-zero list '[fixed]\n127.0.0.1:0\n[agent]\n' 'line 2'
+  list_case port-65536 list '[fixed]\n127.0.0.1:65536\n[agent]\n' 'line 2'
+  list_case port-leading-zero list '[fixed]\n127.0.0.1:080\n[agent]\n' 'line 2'
+  list_case no-port list '[fixed]\n127.0.0.1\n[agent]\n' 'line 2'
+  list_case wildcard list '[fixed]\n*.example.com:443\n[agent]\n' 'line 2'
+  list_case ipv6-upper list '[fixed]\n[2001:DB8::1]:443\n[agent]\n' 'line 2'
+  list_case ipv6-uncompressed list '[fixed]\n[2001:db8:0:0:0:0:0:1]:443\n[agent]\n' 'line 2'
+  list_case ipv6-one-group-compressed list '[fixed]\n[2001:db8::1:1:1:1:1]:443\n[agent]\n' 'line 2'
+  list_case ipv6-shorter-run-compressed list '[fixed]\n[2001::1:0:0:0:1]:443\n[agent]\n' 'line 2'
+  list_case ipv6-leading-zero list '[fixed]\n[2001:0db8::1]:443\n[agent]\n' 'line 2'
+  list_case ipv6-ipv4-part list '[fixed]\n[::ffff:1.2.3.4]:443\n[agent]\n' 'line 2'
+  list_case ipv6-zone list '[fixed]\n[fe80::1%en0]:443\n[agent]\n' 'line 2'
+  list_case ipv6-unbracketed list '[fixed]\n::1:443\n[agent]\n' 'line 2'
+  list_case name-upper list '[fixed]\nExample.com:443\n[agent]\n' 'line 2'
+  list_case name-digit-last-label list '[fixed]\na.1:80\n[agent]\n' 'line 2'
+  list_case name-hex-last-label list '[fixed]\na.0x1f:80\n[agent]\n' 'line 2'
+  list_case name-hyphen-start list '[fixed]\n-a.example:80\n[agent]\n' 'line 2'
+  list_case name-empty-label list '[fixed]\na..example:80\n[agent]\n' 'line 2'
+  list_case out-of-order list '[fixed]\n127.0.0.1:2\n127.0.0.1:1\n[agent]\n' 'line 3'
+  list_case twice list '[fixed]\n127.0.0.1:1\n127.0.0.1:1\n[agent]\n' 'line 3'
+  list_case order-per-heading mode '[fixed]\n127.0.0.1:2\n[agent]\n127.0.0.1:1\n'
+}
+
 [ $# -gt 0 ] || set -- probe
 for part in "$@"; do
   case $part in
