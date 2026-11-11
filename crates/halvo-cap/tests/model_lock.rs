@@ -1,6 +1,6 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use halvo_cap::{model_lock_path, take_model_lock, LockError};
@@ -122,13 +122,8 @@ fn loader_line(role: &str, home: &Path) -> (i32, String) {
     (output.status.code().unwrap_or(-1), line)
 }
 
-#[test]
-fn a_second_loader_is_refused_at_once_and_a_killed_holder_frees_the_lock() {
-    let home = fresh_home("model-lock");
-    let lock = expected_lock(&home);
-    assert!(!lock.exists());
-
-    let mut holder = loader_command("hold", &home)
+fn start_holder(home: &Path) -> Child {
+    let mut holder = loader_command("hold", home)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -141,7 +136,17 @@ fn a_second_loader_is_refused_at_once_and_a_killed_holder_frees_the_lock() {
         })
         .unwrap()
         .unwrap();
-    assert_eq!(first, format!("held {}", lock.display()));
+    assert_eq!(first, format!("held {}", expected_lock(home).display()));
+    holder
+}
+
+#[test]
+fn a_second_loader_is_refused_at_once_and_a_killed_holder_frees_the_lock() {
+    let home = fresh_home("model-lock");
+    let lock = expected_lock(&home);
+    assert!(!lock.exists());
+
+    let mut holder = start_holder(&home);
 
     let (code, line) = loader_line("try", &home);
     assert_eq!(code, 3, "the second loader got: {line}");
@@ -195,4 +200,24 @@ fn a_loader_that_exits_frees_the_lock() {
     assert_eq!(code, 0, "{line}");
     let (code, line) = loader_line("try", &home);
     assert_eq!(code, 0, "{line}");
+}
+
+#[cfg(windows)]
+#[test]
+fn the_held_lock_file_and_its_directory_cannot_be_moved() {
+    let home = fresh_home("model-lock-move");
+    let lock = expected_lock(&home);
+    let mut holder = start_holder(&home);
+    let moved = home.join("moved.lock");
+    let file_moved = std::fs::rename(&lock, &moved).is_ok();
+    let dir_moved = std::fs::rename(home.join("halvo"), home.join("halvo-moved")).is_ok();
+    let (code, line) = loader_line("try", &home);
+    holder.kill().unwrap();
+    holder.wait().unwrap();
+    assert!(!file_moved, "the held lock file was renamed");
+    assert!(
+        !dir_moved,
+        "the directory of the held lock file was renamed"
+    );
+    assert_eq!(code, 3, "a second loader got: {line}");
 }
