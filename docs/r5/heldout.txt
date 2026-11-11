@@ -1,0 +1,8 @@
+heldout cases=24 benign=12 fault=12 sha256=3966ce0c62fa1bcd9bf8bc13839b2720c2bf5463bf58089719c33f33a603c997
+harness tree=3b4c9aabd58adf6c67415bf927de02661dddd298
+spread form=renamed cases=3 shows1=0 shows2=0
+spread form=renamed-twice cases=3 shows1=0 shows2=0
+spread form=alternates cases=3 shows1=0 shows2=0
+spread form=flaky cases=3 shows1=0 shows2=0
+spread form=decoy cases=6 shows1=3 shows2=3
+spread form=reused cases=6 shows1=3 shows2=3
