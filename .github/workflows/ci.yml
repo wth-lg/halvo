@@ -97,6 +97,24 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
+      - name: Browser profile trial, item 4 steps shape (scratch branch of U0.3, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for b in "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b")"; code=1; continue; }
+            case "$b" in *msedge*) kind=edge ;; *) kind=chrome ;; esac
+            scratch=$(mktemp -d "/tmp/r3-profile.XXXXXX")
+            echo caller >"$scratch/r3-builder-9-beside.txt"
+            sh tools/r3-trials/profile/run.sh --item 4 --shape steps --browser "$b" --port 18591 --scratch "$scratch" || code=1
+            profiles=$(find "$scratch" -maxdepth 1 -type d -name '*-p-*' ! -name '*-tmp' | wc -l | tr -d ' ')
+            temps=$(find "$scratch" -maxdepth 1 -type d -name '*-tmp' | wc -l | tr -d ' ')
+            beside=no
+            [ "$(cat "$scratch/r3-builder-9-beside.txt" 2>/dev/null)" = caller ] && beside=yes
+            echo "scratch_after machine=hosted-win browser=$kind shape=steps profiles=$profiles temps=$temps beside_file_kept=$beside entries=$(ls -A "$scratch" | wc -l | tr -d ' ')"
+          done
+          exit $code
       - uses: actions/setup-node@v7
         with:
           node-version: 26
