@@ -349,17 +349,20 @@ mod tests {
     fn the_job_drops_the_working_set_maximum_only_when_the_privilege_is_missing() {
         let (chosen, asked) = choose(&[None]);
         assert_eq!((chosen.unwrap(), asked), (Mode::Job, vec![true]));
-        let (chosen, asked) = choose(&[Some(PRIVILEGE_NOT_HELD), None]);
+        let (chosen, asked) = choose(&[Some(1314), None]);
         assert_eq!(
             (chosen.unwrap(), asked),
             (Mode::JobCommit, vec![true, false])
         );
-        let (chosen, asked) = choose(&[Some(5)]);
-        assert_eq!(
-            (chosen.unwrap_err().raw_os_error(), asked),
-            (Some(5), vec![true])
-        );
-        let (chosen, asked) = choose(&[Some(PRIVILEGE_NOT_HELD), Some(87)]);
+        for code in [5, 1313, 1315] {
+            let (chosen, asked) = choose(&[Some(code)]);
+            assert_eq!(
+                (chosen.unwrap_err().raw_os_error(), asked),
+                (Some(code), vec![true]),
+                "{code}"
+            );
+        }
+        let (chosen, asked) = choose(&[Some(1314), Some(87)]);
         assert_eq!(
             (chosen.unwrap_err().raw_os_error(), asked),
             (Some(87), vec![true, false])
