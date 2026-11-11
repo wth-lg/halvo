@@ -12,7 +12,7 @@ A row for a further term of another run comes by a request of that run's planner
 
 | term | meaning | run | reserved |
 |---|---|---|---|
-| paused | Capture is stopped until the person starts it again. | capture | yes |
+| paused | The capture run's word for capture that is stopped. | capture | yes |
 | cap | The capture run's limit on storage, and the billing run's limit on spend. The interface run shows neither. | capture | yes |
 | delete | The person removes a stored workflow. The Delete control of an agent sends the workflow run's delete command. | workflow | yes |
 | approve | The person accepts a proposal in the workflow run's list. | workflow | yes |
@@ -31,6 +31,6 @@ A row for a further term of another run comes by a request of that run's planner
 | Keep | The control that refuses that removal. | interface | no |
 | site | A website that an agent works on. The window shows it by its name, such as Site1, and never by its address. | interface | no |
 | its own window | The browser window of an agent, where the person signs in or does a step for the agent. | interface | no |
-| Quick | The label of an agent that thinks for a short time before it acts. | interface | no |
-| Standard | The label of an agent that thinks for a normal time before it acts. | interface | no |
-| Thorough | The label of an agent that thinks for a long time before it acts. | interface | no |
+| Quick | The read-only label of an agent whose stored reasoning level is low. | interface | no |
+| Standard | The read-only label of an agent whose stored reasoning level is medium. | interface | no |
+| Thorough | The read-only label of an agent whose stored reasoning level is high. | interface | no |
