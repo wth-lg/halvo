@@ -314,6 +314,40 @@ fn a_confirm_request_is_never_empty_and_holds_one_entry_for_an_effect() {
 }
 
 #[test]
+fn an_item_that_a_run_raises_names_its_run() {
+    let run = RunId::parse(&"4".repeat(32)).unwrap();
+    let rows = [
+        Raised::Confirm(run.clone()),
+        Raised::SignIn(run.clone()),
+        Raised::LinkAccount(run.clone()),
+        Raised::Stuck(run.clone()),
+        Raised::Check(Some(run.clone())),
+        Raised::Check(None),
+        Raised::Setup,
+        Raised::Ready,
+        Raised::Show(run.clone()),
+    ];
+    let got: Vec<(&str, bool)> = rows
+        .iter()
+        .map(|r| (r.kind().name(), r.run() == Some(&run)))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("confirm", true),
+            ("sign_in", true),
+            ("link_account", true),
+            ("stuck", true),
+            ("check", true),
+            ("check", false),
+            ("setup", false),
+            ("ready", false),
+            ("show", true),
+        ]
+    );
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),

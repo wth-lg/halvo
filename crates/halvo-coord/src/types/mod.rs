@@ -19,8 +19,8 @@ mod workflow;
 pub use cause::Cause;
 pub use config::{Budget, ConfigView};
 pub use event::{
-    Answered, Body, CheckAnswer, Cleared, DoneAnswer, Event, ReadyAnswer, Reply, SetupAnswer, Slot,
-    What,
+    Answered, Body, CheckAnswer, Cleared, DoneAnswer, Event, Raised, ReadyAnswer, Reply,
+    SetupAnswer, Slot, What,
 };
 pub use facts::{Facts, OpenItem};
 pub use ids::{

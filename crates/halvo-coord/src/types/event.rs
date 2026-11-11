@@ -69,10 +69,8 @@ pub enum What {
     ItemRaised {
         /// `item`.
         item: ItemId,
-        /// `kind`.
-        kind: ItemKind,
-        /// `run`, or null for an item that a hold or the scheduler raised.
-        run: Option<RunId>,
+        /// `kind`, with `run` for an item that a run raised.
+        raised: Raised,
     },
     /// `item_answered`: one row per answer, and for a confirmation one row per effect.
     ItemAnswered {
@@ -250,6 +248,73 @@ impl ReadyAnswer {
         match self {
             ReadyAnswer::Skip => Choice::Skip,
             ReadyAnswer::Start => Choice::Start,
+        }
+    }
+}
+
+/// The `kind` and the `run` of an `item_raised` row, by the sources of I3.1: a kind that a
+/// request of a run raises names that run, `check` names the run of a handback
+/// `effect_unknown` or none for the hold `check`, and `setup` and `ready` name none.
+///
+/// ```
+/// use halvo_coord::types::{Raised, RunId};
+/// let run = RunId::parse("00000000000000000000000000000004").unwrap();
+/// let raised = Raised::Confirm(run.clone());
+/// assert_eq!(raised.run(), Some(&run));
+/// ```
+///
+/// A confirmation with no run cannot be written:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::Raised;
+/// let raised = Raised::Confirm(None);
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Raised {
+    /// `confirm`, from a confirm request of the run.
+    Confirm(RunId),
+    /// `sign_in`, from a handback request of the run.
+    SignIn(RunId),
+    /// `link_account`, from a handback request of the run.
+    LinkAccount(RunId),
+    /// `stuck`, from a handback request of the run.
+    Stuck(RunId),
+    /// `check`, from a handback `effect_unknown` of the run, or from the hold `check` with
+    /// none.
+    Check(Option<RunId>),
+    /// `setup`, from the hold `setup`.
+    Setup,
+    /// `ready`, from the scheduler.
+    Ready,
+    /// `show`, from the first run in the mode `compile`.
+    Show(RunId),
+}
+
+impl Raised {
+    /// The row's `kind`.
+    pub const fn kind(&self) -> ItemKind {
+        match self {
+            Raised::Confirm(_) => ItemKind::Confirm,
+            Raised::SignIn(_) => ItemKind::SignIn,
+            Raised::LinkAccount(_) => ItemKind::LinkAccount,
+            Raised::Stuck(_) => ItemKind::Stuck,
+            Raised::Check(_) => ItemKind::Check,
+            Raised::Setup => ItemKind::Setup,
+            Raised::Ready => ItemKind::Ready,
+            Raised::Show(_) => ItemKind::Show,
+        }
+    }
+
+    /// The row's `run`, or none.
+    pub const fn run(&self) -> Option<&RunId> {
+        match self {
+            Raised::Confirm(r)
+            | Raised::SignIn(r)
+            | Raised::LinkAccount(r)
+            | Raised::Stuck(r)
+            | Raised::Show(r) => Some(r),
+            Raised::Check(r) => r.as_ref(),
+            Raised::Setup | Raised::Ready => None,
         }
     }
 }

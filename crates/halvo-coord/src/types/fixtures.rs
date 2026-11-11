@@ -51,7 +51,7 @@
 //! the state-sync verdict `sync=get` of I8.2.
 
 use super::names::names;
-use super::{commands, Class};
+use super::{commands, Class, Raised};
 use super::{
     hex, AgentId, BoundFrom, Candidate, CandidateFrom, Card, CardLine, CardRun, Category, Cause,
     Choice, ChoiceText, ClosedReply, ConfigView, Control, ControlText, ErrorReply, Event, Facts,
@@ -440,15 +440,18 @@ fn config(spec: &Spec, workflow: &WorkflowId, agent: &AgentId) -> Config {
     Config::parse(&record).expect("a record of A-A2.1")
 }
 
-fn run_raised(kind: ItemKind) -> bool {
-    matches!(
-        kind,
-        ItemKind::Confirm
-            | ItemKind::SignIn
-            | ItemKind::LinkAccount
-            | ItemKind::Stuck
-            | ItemKind::Show
-    )
+fn raised(kind: ItemKind, live: Option<RunId>) -> Raised {
+    let run = || live.clone().expect("a live run raised the item");
+    match kind {
+        ItemKind::Confirm => Raised::Confirm(run()),
+        ItemKind::SignIn => Raised::SignIn(run()),
+        ItemKind::LinkAccount => Raised::LinkAccount(run()),
+        ItemKind::Stuck => Raised::Stuck(run()),
+        ItemKind::Show => Raised::Show(run()),
+        ItemKind::Check => Raised::Check(None),
+        ItemKind::Setup => Raised::Setup,
+        ItemKind::Ready => Raised::Ready,
+    }
 }
 
 fn build(state: State) -> Vec<Built> {
@@ -517,13 +520,11 @@ fn build(state: State) -> Vec<Built> {
             );
         }
         if let (Some(item), Some(kind)) = (&item, spec.item) {
-            let run = live.clone().filter(|_| run_raised(kind));
             push(
                 TODAY,
                 What::ItemRaised {
                     item: item.clone(),
-                    kind,
-                    run,
+                    raised: raised(kind, live.clone()),
                 },
             );
         }
