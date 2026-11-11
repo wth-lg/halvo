@@ -9,6 +9,12 @@
 //! footprint at the start, every 250 ms and once more when the child has ended, and kills
 //! the child at the first read above the limit; the cap and the peak cover the started
 //! process alone, so a caller wraps the program itself and never a shell.
+//!
+//! What the macOS reading does not see: the memory of a grandchild; pages of a file that
+//! the child maps and only reads; volatile purgeable memory; and memory that the child
+//! holds only before it execs another program, because the lifetime peak starts again at
+//! an exec. Between two polls the child may hold more than the limit for up to 250 ms
+//! before it is killed, and `peak_bytes` then shows how far it went.
 
 use std::ffi::OsString;
 use std::fmt;
