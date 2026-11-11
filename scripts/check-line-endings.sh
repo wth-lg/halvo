@@ -29,8 +29,9 @@ CRLF. Other shells do not: sh, dash and ksh on macOS stop with an error.
     content without one is text that every checkout gets with its carriage
     returns.
   - Three tracked texts quote by hand the lines of .gitattributes at the root
-    that give eol=lf: the fix that the last step of the windows job prints
-    (.github/workflows/ci.yml), row 4 of AGENTS.md, and a fixture of this
+    that give eol=lf: the fix that the windows step "Scripts and hook in a
+    core.autocrlf=true clone" prints (.github/workflows/ci.yml), row 4 of
+    AGENTS.md, and a fixture of this
     script. Each of these files that is tracked holds its text with those
     lines as .gitattributes has them.
 The check reads file content and the .gitattributes files from the index, not
@@ -359,7 +360,7 @@ self_test() {
   expect 'the same file is accepted once .gitattributes holds that line' 0 "$(pass_line 1)"
 
   start_fixture_with_the_lines_of_this_repository() {
-    start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf'
+    start_fixture '*.sh text eol=lf' '.githooks/** text eol=lf' 'docs/baseline/r1-gate-bounds.txt text eol=lf' 'mutants.rows text eol=lf' 'mutants.expected text eol=lf'
   }
 
   start_fixture_with_the_lines_of_this_repository
