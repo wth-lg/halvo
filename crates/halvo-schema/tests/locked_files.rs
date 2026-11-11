@@ -154,6 +154,42 @@ fn closing(tokens: &[String], open: usize) -> usize {
     tokens.len()
 }
 
+fn matching(tokens: &[String], open: usize) -> usize {
+    let mut depth = 0usize;
+    for (i, t) in tokens.iter().enumerate().skip(open) {
+        match t.as_str() {
+            "(" | "[" | "{" => depth += 1,
+            ")" | "]" | "}" => match depth.checked_sub(1) {
+                Some(0) | None => return i,
+                Some(d) => depth = d,
+            },
+            _ => {}
+        }
+    }
+    tokens.len()
+}
+
+fn outside_macros(tokens: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        if tokens[i] == "macro_rules" && tokens.get(i + 1).is_some_and(|x| x == "!") {
+            let open = i + 3;
+            i = match tokens.get(open).map(String::as_str) {
+                Some("{" | "(" | "[") => matching(tokens, open) + 1,
+                _ => open,
+            };
+            if tokens.get(i).is_some_and(|x| x == ";") {
+                i += 1;
+            }
+            continue;
+        }
+        out.push(tokens[i].clone());
+        i += 1;
+    }
+    out
+}
+
 fn split_at_commas(tokens: &[String]) -> Vec<&[String]> {
     let mut parts = Vec::new();
     let mut depth = 0i32;
@@ -181,6 +217,22 @@ const COARSE_RECORDS: [&str; 7] = [
     "Recurrence",
     "KeyCounts",
     "PointerCounts",
+];
+
+const COARSE_IMPORT: [&str; 13] = [
+    "use",
+    "crate",
+    ":",
+    ":",
+    "kinds",
+    ":",
+    ":",
+    "{",
+    "assert_coarse",
+    ",",
+    "Coarse",
+    "}",
+    ";",
 ];
 
 const COARSE_FN: [&str; 23] = [
@@ -258,8 +310,14 @@ fn asserted_fields(t: &[String], record: &str) -> Vec<String> {
 }
 
 fn coarse_assertion_faults(text: &str) -> Vec<String> {
-    let t = tokens(text);
+    let t = outside_macros(&tokens(text));
     let mut faults = Vec::new();
+    let count = |name: &str| t.iter().filter(|x| *x == name).count();
+    if find(&t, &COARSE_IMPORT).len() != 1 || count("Coarse") != 2 || count("assert_coarse") != 2 {
+        faults.push(
+            "src/record.rs: Coarse and assert_coarse must come from `use crate::kinds::{assert_coarse, Coarse};` once and stand only there and in fn coarse".to_owned(),
+        );
+    }
     if find(&t, &COARSE_FN).len() != 1 || find(&t, &["fn", "coarse"]).len() != 1 {
         faults.push(format!(
             "src/record.rs: `fn coarse<T: Coarse>(_: &T) {{ assert_coarse::<T>() }}` does not stand once, so no field of {} keeps its assertion",
@@ -351,89 +409,164 @@ fn the_check_of_the_coarse_assertion_names_the_field_that_lost_its_assertion() {
         shadowed.iter().any(|f| f.contains("names coarse")),
         "{shadowed:?}"
     );
+    let aliased = changed(
+        "use crate::kinds::{assert_coarse, Coarse};\n",
+        "use self::nothing as assert_coarse;\nuse std::marker::Sized as Coarse;\nconst fn nothing<T: ?Sized>() {}\n",
+    );
+    assert!(
+        aliased.iter().any(|f| f.contains("must come from")),
+        "{aliased:?}"
+    );
+    let open = "const _: fn(&KeyCounts, &PointerCounts) = |keys, pointer| {\n";
+    let end = "    coarse(r#move);\n};\n";
+    assert_eq!(text.matches(open).count(), 1);
+    assert_eq!(text.matches(end).count(), 1);
+    let in_a_macro = coarse_assertion_faults(
+        &text
+            .replacen(
+                open,
+                &format!("macro_rules! kept {{\n    () => {{\n{open}"),
+                1,
+            )
+            .replacen(end, &format!("{end}    }};\n}}\n"), 1),
+    );
+    assert!(
+        in_a_macro
+            .iter()
+            .any(|f| f.contains("the field printable of KeyCounts lost its assertion")),
+        "{in_a_macro:?}"
+    );
+}
+
+const STD_MACROS: [&str; 7] = [
+    "concat",
+    "format",
+    "matches",
+    "stringify",
+    "vec",
+    "write",
+    "forward_to_deserialize_any",
+];
+
+const KEYWORDS: [&str; 38] = [
+    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
+    "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
+    "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type",
+    "unsafe", "use", "where", "while",
+];
+
+fn bare(name: &str) -> &str {
+    name.strip_prefix("r#").unwrap_or(name)
+}
+
+fn is_name(token: &str) -> bool {
+    let name = bare(token);
+    !name.is_empty() && name.bytes().all(ident) && !KEYWORDS.contains(&name)
 }
 
 fn macro_names(text: &str) -> Vec<String> {
     let t = tokens(text);
     find(&t, &["macro_rules", "!"])
         .into_iter()
-        .filter_map(|i| t.get(i + 2).cloned())
+        .filter_map(|i| t.get(i + 2).map(|name| bare(name).to_owned()))
         .collect()
 }
 
-fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(e) => panic!("{}: {e}", dir.display()),
-    };
-    for entry in entries {
-        let path = entry.expect("a directory entry").path();
-        if path.is_dir() {
-            rust_files(&path, out);
-        } else if path.extension().is_some_and(|x| x == "rs") {
-            out.push(path);
-        }
-    }
+fn locked_macros() -> Vec<String> {
+    LOCKED
+        .iter()
+        .flat_map(|file| macro_names(&source(file)))
+        .collect()
 }
 
-fn macros_of_later_files() -> Vec<String> {
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(&src).expect("src") {
-        let path = entry.expect("a directory entry").path();
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if path.is_dir() && name != "bin" {
-            rust_files(&path, &mut files);
-        } else if path.is_file() && name.ends_with(".rs") && !LOCKED.contains(&name) {
-            files.push(path);
-        }
-    }
-    let mut names = Vec::new();
-    for file in files {
-        match std::fs::read_to_string(&file) {
-            Ok(text) => names.extend(macro_names(&text)),
-            Err(e) => panic!("{}: {e}", file.display()),
+fn root_names() -> Vec<String> {
+    let mut names: Vec<String> = LOCKED
+        .iter()
+        .filter(|file| **file != "lib.rs")
+        .map(|file| file.trim_end_matches(".rs").to_owned())
+        .chain(LATER.iter().map(|module| (*module).to_owned()))
+        .collect();
+    let t = tokens(&source("lib.rs"));
+    for at in find(&t, &["use"]) {
+        for token in t[at + 1..].iter().take_while(|x| *x != ";") {
+            if is_name(token) {
+                names.push(bare(token).to_owned());
+            }
         }
     }
     names
 }
 
-fn lock_faults(file: &str, text: &str, later_macros: &[String]) -> Vec<String> {
+fn lock_faults(file: &str, text: &str, macros: &[String], root: &[String]) -> Vec<String> {
     let t = tokens(text);
+    let own = macro_names(text);
     let mut faults = Vec::new();
-    let mut in_use = false;
     for (i, token) in t.iter().enumerate() {
+        let name = bare(token);
         let next = t.get(i + 1).map(String::as_str);
         let before = i.checked_sub(1).map(|j| t[j].as_str());
-        match token.as_str() {
-            "use" => in_use = true,
-            ";" => in_use = false,
-            _ => {}
-        }
-        if token == "path" && next == Some("=") && matches!(before, Some("[" | "," | "(")) {
+        if name == "path" && next == Some("=") && matches!(before, Some("[" | "," | "(")) {
             faults.push(format!("{file} holds a path attribute"));
         }
-        if token == "include" && next == Some("!") {
-            faults.push(format!("{file} holds include!"));
+        if name == "include" {
+            faults.push(format!("{file} names include"));
         }
-        if later_macros.contains(token)
-            && before != Some("macro_rules")
-            && (next == Some("!") || in_use)
+        if name == "macro_use" {
+            faults.push(format!("{file} holds macro_use"));
+        }
+        let call =
+            next == Some("!") && matches!(t.get(i + 2).map(String::as_str), Some("(" | "[" | "{"));
+        if call
+            && is_name(token)
+            && name != "include"
+            && !macros.iter().chain(&own).any(|m| m == name)
+            && !STD_MACROS.contains(&name)
         {
             faults.push(format!(
-                "{file} calls or imports the macro {token}, which a file of a later run defines"
+                "{file} calls the macro {name}, which no locked file defines"
             ));
+        }
+        if matches!(name, "crate" | "super")
+            && next == Some(":")
+            && t.get(i + 2).is_some_and(|x| x == ":")
+        {
+            let items: Vec<String> = match t.get(i + 3).map(String::as_str) {
+                Some("{") => split_at_commas(&t[i + 4..matching(&t, i + 3)])
+                    .into_iter()
+                    .map(|part| bare(&part[0]).to_owned())
+                    .collect(),
+                Some(item) => vec![bare(item).to_owned()],
+                None => Vec::new(),
+            };
+            for item in items {
+                if item != "self" && !root.contains(&item) {
+                    faults.push(format!(
+                        "{file} names {name}::{item}, which is no module of the crate and no re-export of lib.rs"
+                    ));
+                }
+            }
+        }
+        if file == "lib.rs" && name == "use" {
+            let from = t.get(i + 1).map_or("", |x| bare(x));
+            if !LOCKED.contains(&format!("{from}.rs").as_str()) {
+                faults.push(format!("lib.rs re-exports from {from}"));
+            }
         }
     }
     faults
 }
 
 #[test]
-fn the_lock_test_refuses_a_path_attribute_include_and_a_macro_of_a_later_file() {
-    let later = macro_names(
-        "#[macro_export]\nmacro_rules! sneak_macro {\n    () => {\n        $crate::learning::KINDS.len()\n    };\n}\n",
-    );
-    assert_eq!(later, ["sneak_macro"]);
+fn the_lock_test_refuses_a_path_attribute_include_macro_use_and_a_macro_that_no_locked_file_defines(
+) {
+    let macros = locked_macros();
+    let root = root_names();
+    for name in ["name_enum", "strict_struct", "string_type", "coarse_types"] {
+        assert!(macros.iter().any(|m| m == name), "{name}");
+    }
+    for name in ["ids", "kinds", "learning", "Coarse", "RowRead", "SiteValue"] {
+        assert!(root.iter().any(|m| m == name), "{name}");
+    }
     for (text, fault) in [
         (
             "#[path = \"learning.rs\"]\nmod sneak_path;\n",
@@ -445,35 +578,68 @@ fn the_lock_test_refuses_a_path_attribute_include_and_a_macro_of_a_later_file() 
         ),
         (
             "mod sneak {\n    include!(\"learning.rs\");\n}\n",
-            "site.rs holds include!",
+            "site.rs names include",
+        ),
+        (
+            "mod sneak {\n    use core::include as grab;\n    grab!(\"executable.rs\");\n}\n",
+            "site.rs names include",
         ),
         (
             "fn sneak_len() -> usize {\n    crate::sneak_macro!()\n}\n",
-            "site.rs calls or imports the macro sneak_macro",
+            "site.rs calls the macro sneak_macro",
+        ),
+        (
+            "fn sneak_len() -> usize {\n    crate::r#sneak!()\n}\n",
+            "site.rs calls the macro sneak",
         ),
         (
             "fn sneak_len() -> usize {\n    sneak_macro![]\n}\n",
-            "site.rs calls or imports the macro sneak_macro",
+            "site.rs calls the macro sneak_macro",
+        ),
+        (
+            "fn sneak_len() -> usize {\n    hidden!()\n}\n",
+            "site.rs calls the macro hidden",
         ),
         (
             "use crate::{ids, sneak_macro as m};\n",
-            "site.rs calls or imports the macro sneak_macro",
+            "site.rs names crate::sneak_macro",
+        ),
+        (
+            "use crate::sneak_macro as format;\nfn f() -> String {\n    format!(\"x\")\n}\n",
+            "site.rs names crate::sneak_macro",
+        ),
+        (
+            "fn sneak_len() -> usize {\n    super::sneak!()\n}\n",
+            "site.rs names super::sneak",
+        ),
+        (
+            "#[macro_use]\npub mod learning;\n",
+            "site.rs holds macro_use",
         ),
     ] {
-        let faults = lock_faults("site.rs", text, &later);
-        assert_eq!(faults.len(), 1, "{text}: {faults:?}");
-        assert!(faults[0].starts_with(fault), "{text}: {faults:?}");
+        let faults = lock_faults("site.rs", text, &macros, &root);
+        assert!(
+            faults.iter().any(|f| f.starts_with(fault)),
+            "{text}: {faults:?}"
+        );
     }
+    assert_eq!(
+        lock_faults("lib.rs", "pub use sneak::Hidden;\n", &macros, &root),
+        ["lib.rs re-exports from sneak"]
+    );
     for twin in [
         "let path = 1;\n",
         "fn path(p: &str) -> &str {\n    p\n}\n",
-        "let s = include_str!(\"learning.rs\");\n",
-        "/// #[path = \"learning.rs\"] include!(\"learning.rs\") sneak_macro!()\nfn f() {}\n",
+        "/// #[path = \"learning.rs\"] include!(\"learning.rs\") sneak_macro!() #[macro_use]\nfn f() {}\n",
         "let sneak_macro = \"sneak_macro!()\";\n",
         "macro_rules! own {\n    () => {};\n}\nown!();\n",
+        "fn f() -> String {\n    format!(\"{}\", concat!(\"a\", \"b\"))\n}\n",
+        "use crate::ids::{name_enum, ParseError};\nuse crate::{kinds, record::Summary};\npub(crate) use name_enum;\n",
+        "fn f(_: &dyn crate::RowRead) -> bool {\n    !(1 == 2) && matches!(1, 1)\n}\n",
+        "fn g(a: bool) -> bool {\n    if !(a) {\n        return !(a);\n    }\n    a\n}\n",
     ] {
         assert_eq!(
-            lock_faults("site.rs", twin, &later),
+            lock_faults("site.rs", twin, &macros, &root),
             Vec::<String>::new(),
             "{twin}"
         );
@@ -482,11 +648,12 @@ fn the_lock_test_refuses_a_path_attribute_include_and_a_macro_of_a_later_file() 
 
 #[test]
 fn no_locked_file_names_an_item_of_the_files_of_later_runs_but_their_kind_lists() {
-    let later_macros = macros_of_later_files();
+    let macros = locked_macros();
+    let root = root_names();
     for file in LOCKED {
         let text = source(file);
         assert_eq!(
-            lock_faults(file, &text, &later_macros),
+            lock_faults(file, &text, &macros, &root),
             Vec::<String>::new()
         );
         for module in LATER {
@@ -525,37 +692,55 @@ fn the_reading_of_identifiers_leaves_out_comments_strings_and_chars() {
     assert_eq!(identifiers(text, "coordinator"), 0);
 }
 
-fn fn_body(t: &[String], name: &str) -> Vec<String> {
-    let at = find(t, &["fn", name, "("]);
-    assert_eq!(
-        at.len(),
-        1,
-        "src/kinds.rs declares fn {name} {} times",
-        at.len()
-    );
-    let open = (at[0]..t.len()).find(|&i| t[i] == "{").unwrap_or(t.len());
-    t[(open + 1).min(t.len())..closing(t, open)].to_vec()
+fn fn_body(text: &str, name: &str) -> Option<Vec<String>> {
+    let t = outside_macros(&tokens(text));
+    let at = find(&t, &["fn", name, "("]);
+    if at.len() != 1 {
+        return None;
+    }
+    let open = (at[0]..t.len()).find(|&i| t[i] == "{")?;
+    Some(t[open + 1..closing(&t, open)].to_vec())
 }
+
+const REGISTRY: &str = "KINDS.iter().chain(crate::executable::KINDS).chain(crate::coordinator::KINDS).chain(crate::learning::KINDS).chain(crate::routing::KINDS)";
+const CHECK_REGISTRY: &str =
+    "let entries: Vec<&KindEntry> = registry().collect(); check_entries(&entries)";
 
 #[test]
 fn registry_chains_the_kinds_of_this_run_and_the_four_lists_of_later_runs_in_the_order_of_the_contract(
 ) {
-    let body = fn_body(&tokens(&source("kinds.rs")), "registry");
     assert_eq!(
-        body,
-        tokens(
-            "KINDS.iter().chain(crate::executable::KINDS).chain(crate::coordinator::KINDS).chain(crate::learning::KINDS).chain(crate::routing::KINDS)"
-        ),
+        fn_body(&source("kinds.rs"), "registry"),
+        Some(tokens(REGISTRY)),
         "src/kinds.rs: registry() must chain kinds::KINDS, executable::KINDS, coordinator::KINDS, learning::KINDS and routing::KINDS in that order"
     );
 }
 
 #[test]
 fn check_registry_reads_the_whole_registry() {
-    let body = fn_body(&tokens(&source("kinds.rs")), "check_registry");
     assert_eq!(
-        body,
-        tokens("let entries: Vec<&KindEntry> = registry().collect(); check_entries(&entries)"),
+        fn_body(&source("kinds.rs"), "check_registry"),
+        Some(tokens(CHECK_REGISTRY)),
         "src/kinds.rs: check_registry() must call check_entries over registry() and nothing else"
     );
+}
+
+#[test]
+fn the_tests_of_the_chain_read_the_code_outside_macros() {
+    let text = source("kinds.rs");
+    let real = "pub fn registry() -> impl Iterator<Item = &'static KindEntry> {\n";
+    assert_eq!(text.matches(real).count(), 1);
+    let hidden = text.replacen(
+        real,
+        &format!(
+            "macro_rules! shown {{\n    () => {{\n        fn registry() {{\n            {REGISTRY}\n        }}\n        fn check_registry() {{\n            {CHECK_REGISTRY}\n        }}\n    }};\n}}\n{real}"
+        ),
+        1,
+    );
+    assert_eq!(fn_body(&hidden, "registry"), fn_body(&text, "registry"));
+    let made = hidden
+        .replacen("pub fn registry()", "pub fn registry_made()", 1)
+        .replacen("pub fn check_registry()", "pub fn check_registry_made()", 1);
+    assert_eq!(fn_body(&made, "registry"), None);
+    assert_eq!(fn_body(&made, "check_registry"), None);
 }
