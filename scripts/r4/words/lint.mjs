@@ -358,7 +358,7 @@ function readSentences(repo) {
     }
     if (headings === 0) headingMissing = true;
   }
-  const hidden = sentences.find((s) => /[\p{Cf}­]/u.test(s.text));
+  const hidden = sentences.find((s) => /[\p{Cf}\u00ad]/u.test(s.text));
   if (hidden) throw new Stop('input', hidden.file);
   return { sentences, headingMissing, viewStrings };
 }
@@ -421,12 +421,21 @@ function check(repo) {
 }
 
 function run(repo, artifacts) {
-  fs.mkdirSync(artifacts, { recursive: true });
   const findingsFile = path.join(artifacts, 'findings.txt');
-  fs.writeFileSync(findingsFile, '');
+  const setup = () => ({ code: 1, out: [`words problem cause=setup file=-`, `FAIL ${NAME} (setup)`] });
+  try {
+    fs.mkdirSync(artifacts, { recursive: true });
+    fs.writeFileSync(findingsFile, '');
+  } catch {
+    return setup();
+  }
   try {
     const r = check(repo);
-    fs.writeFileSync(findingsFile, r.findings.map((l) => `${l}\n`).join(''));
+    try {
+      fs.writeFileSync(findingsFile, r.findings.map((l) => `${l}\n`).join(''));
+    } catch {
+      return setup();
+    }
     const last = r.cause ? `FAIL ${NAME} (${r.cause})` : `PASS ${NAME}`;
     return { code: r.cause ? 1 : 0, out: [...r.out, last] };
   } catch (e) {
@@ -522,7 +531,8 @@ function selfTest(dir, repo) {
   };
   const fixture = (name, edit = {}) => {
     n += 1;
-    const root = path.join(dir, `case-${String(n).padStart(3, '0')}`);
+    const root = path.join(dir, name);
+    if (fs.existsSync(root)) throw new Error(`two fixtures are named ${name}`);
     const files = { ...copies };
     const words = baseWords();
     if (edit.words) edit.words(words);
@@ -537,10 +547,15 @@ function selfTest(dir, repo) {
     return { name, root };
   };
   const expect = (fx, want, opts = {}) => {
-    const artifacts = path.join(fx.root, 'artifacts');
+    const artifacts = path.join(fx.root, opts.artifacts ?? 'artifacts');
     const r = run(fx.root, artifacts);
     const last = r.out[r.out.length - 1];
-    const findings = fs.readFileSync(path.join(artifacts, 'findings.txt'), 'utf8');
+    let findings = '';
+    try {
+      findings = fs.readFileSync(path.join(artifacts, 'findings.txt'), 'utf8');
+    } catch {
+      findings = '';
+    }
     let got = r.code === 0 && last === `PASS ${NAME}` ? 'PASS' : `exit-${r.code}`;
     const m = /^FAIL 45-r4-words \(([a-z_]+)\)$/u.exec(last);
     if (r.code === 1 && m) got = `FAIL:${m[1]}`;
@@ -748,7 +763,7 @@ function selfTest(dir, repo) {
   );
   expect(
     fixture('a-view-string-with-a-no-break-space-ends-with-view', {
-      files: (f) => (f['ui/app/views/agents.js'] = view("  note: 'Two words',\n")),
+      files: (f) => (f['ui/app/views/agents.js'] = view("  note: 'Two\u00a0words',\n")),
     }),
     'FAIL:view',
   );
@@ -788,10 +803,10 @@ function selfTest(dir, repo) {
   ];
   for (const [a, b, edit] of twoFaults) expect(fixture(`order-${a}-before-${b}`, edit), `FAIL:${a}`);
   for (const [name, mark] of [
-    ['zero-width-space', '​'],
-    ['soft-hyphen', '­'],
-    ['word-joiner', '⁠'],
-    ['left-to-right-mark', '‎'],
+    ['zero-width-space', '\u200b'],
+    ['soft-hyphen', '\u00ad'],
+    ['word-joiner', '\u2060'],
+    ['left-to-right-mark', '\u200e'],
   ]) {
     expect(
       fixture(`a-${name}-in-the-table-is-input`, { words: (w) => (w['line.time'] = `It is pau${mark}sed now.`) }),
@@ -801,16 +816,38 @@ function selfTest(dir, repo) {
   expect(
     fixture('a-hidden-character-in-a-fixture-is-input', {
       state: (s, doc) => {
-        if (s === 'queue') doc.snapshot.rows[0].line = 'It is wait​ing.';
+        if (s === 'queue') doc.snapshot.rows[0].line = 'It is wait\u200bing.';
       },
     }),
     'FAIL:input',
   );
   expect(
     fixture('a-hidden-character-in-a-heading-is-input', {
-      files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  heading: "What​ needs you",\n};\n'),
+      files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  heading: "What\u200b needs you",\n};\n'),
     }),
     'FAIL:input',
+  );
+  const blocked = { artifacts: 'blocker/artifacts' };
+  expect(fixture('artifacts-under-a-file-is-setup', { files: (f) => (f.blocker = 'x\n') }), 'FAIL:setup', blocked);
+  expect(
+    fixture('order-setup-before-list', {
+      files: (f) => {
+        f.blocker = 'x\n';
+        f[LIST] = `${copies[LIST]}model\t(unclosed\n`;
+      },
+    }),
+    'FAIL:setup',
+    blocked,
+  );
+  expect(
+    fixture('order-setup-before-input', {
+      files: (f) => {
+        f.blocker = 'x\n';
+        f[WORDS] = null;
+      },
+    }),
+    'FAIL:setup',
+    blocked,
   );
   expect(
     fixture('heading-line-without-its-comma', {
@@ -841,8 +878,8 @@ function selfTest(dir, repo) {
   );
   for (const [name, space] of [
     ['a-tab', '\t'],
-    ['a-no-break-space', ' '],
-    ['an-em-space', ' '],
+    ['a-no-break-space', '\u00a0'],
+    ['an-em-space', '\u2003'],
     ['a-line-break', '\n'],
   ]) {
     expect(
