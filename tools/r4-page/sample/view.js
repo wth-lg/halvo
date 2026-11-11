@@ -221,6 +221,10 @@
         event.preventDefault();
         buttons[0].focus();
       }
+      if (event.key === 'Tab' && fault === 'escape_row') {
+        event.preventDefault();
+        list.querySelector('button').focus();
+      }
     });
     if (fault === 'body_stays') {
       var held = 0;
@@ -252,7 +256,7 @@
       if (item.kind === 'confirm' && item.presenter === 'page') {
         var d = confirm(item);
         items.appendChild(d);
-        if (fault === 'focus_escapes' || fault === 'dialog_not_inert') {
+        if (fault === 'focus_escapes' || fault === 'dialog_not_inert' || fault === 'escape_row') {
           d.show();
           d.querySelector('[autofocus]').focus();
         } else {

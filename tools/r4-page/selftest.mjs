@@ -20,6 +20,7 @@ const FAULTS = {
     { fault: 'unreachable', state: 'a', want: (r) => r.names.includes('unreached') },
     { fault: 'focus_unseen', state: 'a', want: (r) => r.names.includes('focus_unseen') },
     { fault: 'focus_escapes', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
+    { fault: 'escape_row', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
     { fault: 'dialog_blur', state: 'b', want: (r) => r.names.includes('dialog_not_taken') },
     { fault: 'dialog_noclose', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'dialog_role', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
