@@ -1313,3 +1313,71 @@ fn check_entries_reports_a_bounded_kind_of_origin_capture_above_93_days() {
         ["kind \"probe_own\": a bounded kind with 0 days"]
     );
 }
+
+#[test]
+fn check_record_refuses_minus_zero_under_every_rule_key_and_under_the_other_keys() {
+    let minus_zero = [("-0", "not_an_integer")];
+    rule_key(entry("summary"), "day", &minus_zero);
+    rule_key(entry("support"), "day", &minus_zero);
+    rule_key(&LATER_BOUNDED, "day", &minus_zero);
+    rule_key(entry("evidence"), "expires", &minus_zero);
+    rule_key(&LATER_WINDOW, "expires", &minus_zero);
+    for segments in ["[-0]", "[4410,-0]"] {
+        rule_key(
+            entry("evidence"),
+            "segments",
+            &[(segments, "not_an_integer")],
+        );
+    }
+    rule_key(entry("support"), "workflow", &minus_zero);
+    for kind in KINDS
+        .iter()
+        .chain([&LATER_BOUNDED, &LATER_OWN, &LATER_WINDOW])
+    {
+        rule_key(kind, "v", &minus_zero);
+    }
+    rule_key(entry("summary"), "minutes", &minus_zero);
+    rule_key(entry("evidence"), "start", &minus_zero);
+    rule_key(&LATER_OWN, "at", &minus_zero);
+    for value in ["-0", "[-0]", r#"{"n":-0}"#] {
+        rule_key(&LATER_BOUNDED, "count", &[(value, "not_an_integer")]);
+    }
+}
+
+#[test]
+fn check_record_takes_null_a_list_or_an_object_under_a_key_that_is_no_rule_key() {
+    let takes = |kind: &KindEntry, key: &str, value: &str| {
+        let record = with(kind.example, key, value);
+        assert_eq!(check_record(kind, &record), Ok(()), "{record}");
+    };
+    for value in [
+        "null",
+        "[]",
+        "[1,2]",
+        "[[3],null]",
+        r#"{"a":1,"b":[2,null]}"#,
+    ] {
+        takes(&LATER_BOUNDED, "count", value);
+        takes(entry("summary"), "minutes", value);
+    }
+    takes(entry("workflow"), "recurrence", "null");
+    takes(entry("workflow"), "recurrence", "[3,31,20705,20767]");
+    takes(entry("workflow"), "agent", "null");
+    takes(entry("summary"), "keys", "null");
+    takes(entry("summary"), "site", "null");
+    takes(entry("summary"), "site", "[]");
+    takes(entry("evidence"), "start", "null");
+    takes(entry("evidence"), "steps", "[]");
+    takes(&LATER_OWN, "at", "[1,2]");
+    takes(&LATER_OWN, "note", r#"["a","b"]"#);
+    takes(&LATER_OWN, "note", r#"{"a":"x","b":{"c":"y"}}"#);
+    let summary = entry("summary");
+    let record =
+        summary
+            .example
+            .replacen(r#""v":1,"#, r#""v":1,"Pay the bill of Jane Example":1,"#, 1);
+    assert_eq!(
+        check_record(summary, &record),
+        Err("summary: a key that the fields do not list: unknown_key".to_owned())
+    );
+}
