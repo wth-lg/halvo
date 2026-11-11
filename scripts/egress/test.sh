@@ -327,6 +327,16 @@ test_sandbox() {
   code=$?
   got=$(tail -n 1 "$work/copy.err")
   result sandbox/script-changed-during-run 'exit-2:REFUSED mode: a script of the check changed' "exit-$code:$got"
+  printf '%s\n' 'state=$(ls -t target/egress/[0-9]*/state | head -n 1)' 'token=$(sed -n "s/^token=//p" "$state")' \
+    'stream=$(sed -n "s/^stream=//p" "$state")' '/usr/bin/logger "$token mark-end"' 'sleep 1' 'kill "$stream" 2>/dev/null && exit 7' \
+    'exit 0' >"$work/forge-kill.sh"
+  expect_run sandbox/tree-cannot-end-the-stream 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$work/forge-kill.sh"
+  head -n 1 "$work/forged.ndjson" >"$work/forged-end.ndjson"
+  awk -v token=tok -v mark=end -f scripts/egress/sandbox.awk "$work/forged-end.ndjson" >/dev/null 2>&1
+  result sandbox/forged-end-marker-not-taken 1 "$?"
+  sed -n '2p' "$work/forged.ndjson" >"$work/kernel-start.ndjson"
+  awk -v token=tok -v mark=start -f scripts/egress/sandbox.awk "$work/kernel-start.ndjson" >/dev/null 2>&1
+  result sandbox/kernel-start-marker-taken 0 "$?"
   first_log=$log
   expect_run sandbox/second-run 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   if [ "$first_log" != "$log" ]; then
@@ -374,6 +384,24 @@ test_wfp() {
   expect_refusal wfp/sandbox-on-windows mode sh scripts/egress/check.sh --mode sandbox "$e" -- sh "$pr" none
   ps_run wfp/command-not-administrator "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 5 }"
   ps_run wfp/tree-cannot-switch-audit-off "& auditpol.exe /set '/subcategory:{0CCE9226-69AE-11D9-BED3-505054503030}' /success:disable /failure:disable *> \$null; if (\$LASTEXITCODE -eq 0) { exit 0 } else { exit 5 }"
+  (sh scripts/egress/check.sh "$e" -- powershell.exe -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 10" >"$work/undo.out" 2>"$work/undo.err") &
+  undo_check=$!
+  n=0
+  while [ $n -lt 60 ]; do
+    count=$(powershell.exe -NoProfile -NonInteractive -Command "@(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count" | tr -d '\r')
+    [ "${count:-0}" -gt 0 ] && break
+    sleep 0.5
+    n=$((n + 1))
+  done
+  powershell.exe -NoProfile -NonInteractive -Command "Get-NetFirewallRule -DisplayName 'halvo-egress-*' | Remove-NetFirewallRule" >/dev/null 2>&1
+  wait "$undo_check"
+  code=$?
+  got=$(tail -n 1 "$work/undo.err")
+  case $code:$got in
+    "2:REFUSED mode: "*) got=refused-mode ;;
+    *) got="exit-$code:$got" ;;
+  esac
+  result wfp/rules-removed-during-run-refused refused-mode "$got"
 }
 
 ps_run() {

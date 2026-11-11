@@ -6,6 +6,7 @@ param(
     [long]$CheckPid = 0,
     [long]$Root = 0,
     [string]$Start = '',
+    [int]$Rules = -1,
     [string]$Listed = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -149,7 +150,21 @@ function Get-Events([hashtable]$filter) {
     }
 }
 
+function Test-Kept {
+    $kept = @(Get-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue).Count
+    if ($kept -ne $Rules) { throw "the run's firewall rules were changed during the run ($kept of $Rules left)" }
+    foreach ($pair in @(@($FilteringPlatformConnection, 'Success and Failure'), @($ProcessCreation, 'Success'))) {
+        $row = @(& auditpol.exe /get "/subcategory:$($pair[0])" /r | Where-Object { $_ -ne '' } | ConvertFrom-Csv)
+        if ($row.Count -eq 0 -or $row[0].'Inclusion Setting' -notlike "$($pair[1])*") { throw "an audit of the run was switched off during the run" }
+    }
+    if ($Deny -eq 1) {
+        $channel = (& wevtutil.exe gl $DnsChannel | Where-Object { $_ -match '^enabled:' }) -join ''
+        if ($channel -notmatch 'true') { throw 'the DNS client channel was switched off during the run' }
+    }
+}
+
 function Write-Log {
+    Test-Kept
     $start = [DateTime]::Parse($Start, $null, [Globalization.DateTimeStyles]::RoundtripKind)
     Start-Sleep -Seconds 2
     $since = $start.ToLocalTime().AddSeconds(-1)
@@ -244,7 +259,7 @@ switch ($Action) {
             [IO.File]::WriteAllText((Join-Path $Dir 'rules'), "$rules`n", $Utf8)
             $now = [DateTime]::UtcNow.ToString('o')
             [IO.File]::WriteAllText((Join-Path $Dir 'start'), $now + "`n", $Utf8)
-            Write-Output "start=$now"
+            Write-Output "rules=$rules start=$now"
         } catch {
             Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
             Write-Output "set-up failed: $($_.Exception.Message)"

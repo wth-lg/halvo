@@ -54,6 +54,7 @@ sandbox_rights() {
 sandbox_profile() {
   printf '(version 1)\n(allow default)\n'
   printf '(deny file-write* (subpath "%s/target/egress") (subpath "%s/scripts/egress"))\n' "$real_root" "$real_root"
+  printf '(deny signal)\n(allow signal (target same-sandbox))\n'
   [ "$2" -eq 1 ] || return 0
   printf '(deny network-outbound (with message "%s other"))\n' "$1"
   printf '(allow network-outbound (remote unix-socket))\n'
@@ -83,7 +84,7 @@ sandbox_mark() {
       "$runner" connect loopback2 >/dev/null 2>&1
     waited=0
     while [ "$waited" -lt 10 ]; do
-      if grep -q "$2 mark-$3" "$1/stream.ndjson" 2>/dev/null; then
+      if awk -v token="$2" -v mark="$3" -f "$here/sandbox.awk" "$1/stream.ndjson" 2>/dev/null; then
         return 0
       fi
       sleep 0.05
@@ -123,6 +124,16 @@ sandbox_collect() {
   if ! sandbox_mark "$1" "$2" end; then
     sandbox_teardown "$1" "$2"
     refuse mode "the log stream gave no end marker"
+  fi
+  now=$(ps -o lstart= -p "$stream" 2>/dev/null) || now=
+  command=$(ps -o command= -p "$stream" 2>/dev/null) || command=
+  case $command in
+    "/usr/bin/log stream"*) ;;
+    *) now= ;;
+  esac
+  if [ -z "$now" ] || [ "$now" != "$started" ]; then
+    sandbox_teardown "$1" "$2"
+    refuse mode "the log stream of the check was not alive at its end marker"
   fi
   sandbox_teardown "$1" "$2"
   awk -v token="$2" -f "$here/sandbox.awk" "$1/stream.ndjson" >"$1/denied.log" ||
@@ -215,6 +226,8 @@ wfp_setup() {
   out=$(wfp_ps -Action setup -Dir "$win_dir" -Token "$wfp_token" -Deny "$wfp_deny" -CheckPid "$checker" 2>&1) ||
     refuse mode "${out:-the wfp set-up failed}"
   wfp_start=${out##*start=}
+  wfp_rules=${out##*rules=}
+  wfp_rules=${wfp_rules%% *}
 }
 
 wfp_launch() {
@@ -236,7 +249,7 @@ wfp_launch() {
 wfp_collect() {
   win_dir=$(cygpath -w "$1") || refuse output "target/egress/$n"
   allowed_pairs=$(printf '%s\n' "$entries" | awk 'NF == 5 { printf "%s%s %s", sep, $4, $5; sep = ";" }') || allowed_pairs=
-  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Listed "${allowed_pairs:-none}" 2>&1) || {
+  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Rules "$wfp_rules" -Listed "${allowed_pairs:-none}" 2>&1) || {
     wfp_teardown "$1" "$2"
     refuse mode "${out:-the wfp audit could not be read}"
   }

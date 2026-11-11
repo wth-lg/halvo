@@ -59,6 +59,10 @@ function emit(at, proto, dest, pid, image) {
   tag = substr(msg, cut + 1)
   if (index(tag, token " ") != 1) next
   tag = substr(tag, length(token) + 2)
+  if (mark != "") {
+    if (tag == "mark-" mark) { found = 1; exit }
+    next
+  }
   if (tag == "mark-start") { open = 1; next }
   if (tag == "mark-end") { open = 0; next }
   if (!open) next
@@ -100,4 +104,8 @@ function emit(at, proto, dest, pid, image) {
   if (dup == 0) { emit(at, proto, dest, pid, image); next }
   if (target != "/private/var/run/mDNSResponder" && op != "mach-lookup") { proto = "-"; dest = "-:" port }
   for (k = 0; k < dup; k++) emit(at, proto, dest, pid, image)
+}
+
+END {
+  if (mark != "") exit found ? 0 : 1
 }
