@@ -88,6 +88,12 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Trial of taskpolicy -m (scratch branch only)
+        if: always()
+        shell: bash
+        env:
+          HALVO_CAP_TRIAL_PLACE: macos-15
+        run: cargo test -p halvo-cap --locked --test taskpolicy -- --ignored --nocapture
       - name: Build
         shell: bash
         run: npm run tauri build
