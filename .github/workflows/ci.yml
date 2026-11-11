@@ -82,6 +82,32 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Probe of what the reading of the cap does not count (scratch branch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e -u
+          cargo build --locked --release -p halvo-cap --example hold --bin measure-peak
+          echo "build exit=$?"
+          MP=target/release/measure-peak
+          HOLD=target/release/examples/hold
+          scratch=$(mktemp -d)
+          for way in child-process exec mapped-read mapped-written purgeable reusable kernel-message socket-buffer; do
+            echo "== way $way"
+            out=$(TMPDIR="$scratch" "$MP" --limit 67108864 --runs 1 -- "$HOLD" "$way" 2>"$scratch/$way.err")
+            code=$?
+            printf '%s\n' "$out"
+            cat "$scratch/$way.err"
+            echo "measure-peak exit=$code"
+            run=$(printf '%s\n' "$out" | grep '^run n=1 ' | tr -d '\r')
+            peak=${run#*peak_bytes=}
+            peak=${peak%% *}
+            capped=${run#*capped=}
+            capped=${capped%% *}
+            held=$(grep '^hold way=' "$scratch/$way.err" | tr -d '\r' | sed 's/.*held_bytes=//')
+            echo "limit $way.macos-15 runs=1 held_bytes=${held:-0} limit_bytes=67108864 peak_bytes=${peak:-0} capped=${capped:-no}"
+          done
+          exit 0
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos --self-test
