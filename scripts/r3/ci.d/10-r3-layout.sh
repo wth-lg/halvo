@@ -326,6 +326,9 @@ self_test() {
   lay c 'tools/r3-trials/web/** U0.2\n'
   check quoted-name-printed-as-git-quotes-it c outside 'layout outside="docs/r3/caf\303\251.md"'
   check space-printed-as-an-escape c outside 'layout outside="docs/r3/two\040words.md"'
+  lay c 'tools/r3-trials/web/** U0.2\ndocs/r3/caf*3*1.md U1.4\ndocs/r3/tab*tname.md U1.4\n'
+  check octal-escape-is-one-byte c outside 'layout outside="docs/r3/caf\303\251.md"'
+  check letter-escape-is-one-byte c outside 'layout outside="docs/r3/tab\tname.md"'
 
   make_repo d docs/r3/x scripts/r3/x scripts/r3-gate/x formal/r3-confirm/x tools/r3-trials/x \
     tools/fixture-server/variants/x crates/halvo-policy/x crates/halvo-web/x crates/halvo-connect/x \
