@@ -1,5 +1,5 @@
 use halvo_route_wire::{
-    Effort, Reason, Role, WireTier, MAX_BODY_BYTES, MAX_MESSAGES, MAX_OUTPUT_TOKENS,
+    BodyError, Effort, Reason, Role, WireTier, MAX_BODY_BYTES, MAX_MESSAGES, MAX_OUTPUT_TOKENS,
 };
 
 fn read(name: &str) -> String {
@@ -108,4 +108,30 @@ fn request_md_states_the_names_and_the_limits() {
     ] {
         assert!(text.contains(&number), "{number}");
     }
+    for words in [
+        "`size_before_limit`",
+        "`size_before_malformed`",
+        "without reading it",
+        "bytes as received",
+        "an overlong form and an encoded surrogate",
+        "fatal: true, ignoreBOM: true",
+        "does not stop at the first fault",
+        "binds `max_output_tokens` and nothing else",
+        "may have settled",
+        "no `minItems` or `maxItems`",
+        "no keyword bounds the bytes of the whole body",
+        "never both and never neither",
+        "ends at LF alone",
+        "scripts/r6/ci.d/20-r6-gateway.sh",
+    ] {
+        assert!(text.contains(words), "{words}");
+    }
+    assert_eq!(text.matches("an allowance that the branch sets").count(), 2);
+    assert!(!text.contains("two places"));
+    let row = |error: &str| text.find(&format!("| `{error}` |")).unwrap();
+    let rows: Vec<usize> = BodyError::ALL
+        .iter()
+        .map(|error| row(error.as_str()))
+        .collect();
+    assert!(rows.windows(2).all(|pair| pair[0] < pair[1]), "{rows:?}");
 }
