@@ -220,7 +220,10 @@ const INIT = () => {
   wrap(Document.prototype, 'write');
   wrap(Document.prototype, 'writeln');
   Object.defineProperty(window, '__r4opaque', { get: () => opaque, configurable: false });
-  const stub = Object.freeze({ call: (name, args) => window.__r4call(name, args === undefined ? null : args) });
+  const binding = window.__r4call;
+  delete window.__r4call;
+  if (Object.getOwnPropertyDescriptor(window, '__r4call')) Object.defineProperty(window, '__r4call', { value: undefined, writable: false, configurable: false });
+  const stub = Object.freeze({ call: (name, args) => binding(name, args === undefined ? null : args) });
   const halvo = {};
   Object.defineProperty(halvo, 'ipc', { get: () => stub, set: () => {}, enumerable: true });
   Object.defineProperty(window, 'Halvo', {
