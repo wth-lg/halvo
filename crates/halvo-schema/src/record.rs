@@ -846,18 +846,23 @@ const _: fn(&KeyCounts, &PointerCounts) = |keys, pointer| {
         shortcut,
         other,
     } = keys;
-    for count in [printable, editing, navigation, enter, tab, shortcut, other] {
-        coarse(count);
-    }
+    coarse(printable);
+    coarse(editing);
+    coarse(navigation);
+    coarse(enter);
+    coarse(tab);
+    coarse(shortcut);
+    coarse(other);
     let PointerCounts {
         click,
         scroll,
         drag,
         r#move,
     } = pointer;
-    for count in [click, scroll, drag, r#move] {
-        coarse(count);
-    }
+    coarse(click);
+    coarse(scroll);
+    coarse(drag);
+    coarse(r#move);
 };
 
 macro_rules! coarse_case {
