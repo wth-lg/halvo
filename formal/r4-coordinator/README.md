@@ -85,6 +85,17 @@ they stand since commit baa4190. The heap bound `-Xmx2g` keeps a run far
 below the machine's cap of 8,589,934,592 bytes of resident size. More workers find the
 same states; the depth that TLC prints can then differ.
 
+What each configuration costs on the development Mac (arm64, JDK 17.0.20.1), one run each
+on 2026-11-11 through the machine's helper for timed runs, read with `/usr/bin/time -l`.
+The time holds the start of the JVM and follows the load of the machine.
+
+| Model | Configuration | Time, one worker | Largest resident size | 1-minute load before the run |
+|---|---|---|---|---|
+| `Schedule` | `full` | 361.62 s | 1,077,428,224 bytes | 15.28 |
+| `Schedule` | `days` | 66.71 s | 904,544,256 bytes | 5.56 |
+| `Schedule` | `queue` | 1.41 s | 448,823,296 bytes | 5.77 |
+| `Confirm4` | `full` | 2.77 s | 433,979,392 bytes | 15.28 |
+
 ## What a property is read from
 
 Each model has two variables. `st` is what the coordinator keeps and what its guards read:
@@ -432,8 +443,8 @@ moves of the confirm walks (16.6%); a confirm walk also takes a refusal whenever
 move is left that the model accepts. Two exports with one seed and count gave the same
 bytes on the development Mac. The export is compared with the committed files in the jobs
 `macos` and `windows`; before the first run of the check only the Mac was tried. One
-export of both files took 8.23 s there, with a largest resident size of
-525,287,424 bytes.
+export of both files took 8.69 s there under a load of 5.77, with a largest
+resident size of 547,782,656 bytes.
 
 The first line of a file is `{"seed":<n>,"count":<n>,"stamp":"<digest>"}`. The stamp is
 the SHA-256, as 64 hex digits, of the bytes of `Schedule.tla`, `Schedule.cfg`,
