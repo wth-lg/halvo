@@ -55,7 +55,7 @@ pub fn browser_kind(path: &str) -> Option<&'static str> {
     let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
     BROWSER_NAMES
         .iter()
-        .find(|(n, _)| n.eq_ignore_ascii_case(name))
+        .find(|(n, _)| *n == name)
         .map(|(_, kind)| *kind)
 }
 
@@ -113,6 +113,8 @@ mod tests {
             Some("edge")
         );
         assert_eq!(browser_kind("/usr/bin/firefox"), None);
+        assert_eq!(browser_kind("/x/google chrome"), None);
+        assert_eq!(browser_kind("C:\\x\\MSEDGE.EXE"), None);
     }
 
     #[test]
