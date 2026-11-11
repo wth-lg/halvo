@@ -642,18 +642,22 @@ fn raise<P: Owner + Rng, C>(
     Ok(())
 }
 
+fn read_day<P: Clock, C>(cx: &Cx<'_, P>, board: &mut Board<C>) -> Result<(), PortError> {
+    let day = cx.ports.today()?;
+    board.day = day;
+    for m in &mut board.members {
+        m.facts.today = day;
+    }
+    Ok(())
+}
+
 fn tick<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>) -> Report
 where
     P: Owner<Config = C> + Runs + Analysis + Clock + Rng,
     C: ConfigView + Clone,
 {
-    let day = match cx.ports.today() {
-        Ok(day) => day,
-        Err(e) => return refused(port_cause(&e)),
-    };
-    board.day = day;
-    for m in &mut board.members {
-        m.facts.today = day;
+    if let Err(e) = read_day(cx, board) {
+        return refused(port_cause(&e));
     }
     let listed = listing(cx, board, None).ok();
     let starts = listed.is_some() && fresh(cx, board, None).is_ok();
@@ -964,7 +968,8 @@ where
 }
 
 /// Carries out a move on the ports and the board, and is the one function of the schedule
-/// that calls a port (I5.10). A tick works in the order of I5.9: it reads the day; sends the
+/// that calls a port (I5.10). A tick, a start by the person and an end read the day first
+/// (ruling XB-10). A tick works in the order of I5.9: it reads the day; sends the
 /// request to defer again when a run is live before it; stops, by `Runs::cancel` and with the
 /// cause `deleted`, each run of a workflow that the owner's list no longer holds and drops that
 /// agent's queued start and open item with nothing stored (I5.7); kills by `Runs::kill`, in the
@@ -1000,6 +1005,11 @@ where
         Err(e) => return refused(port_cause(&e)),
     };
     let cx = Cx { ports, limits, now };
+    if matches!(mv, Move::Start { .. } | Move::End { .. }) {
+        if let Err(e) = read_day(&cx, board) {
+            return refused(port_cause(&e));
+        }
+    }
     match mv {
         Move::Tick => tick(&cx, board),
         Move::Create => create(&cx, board),

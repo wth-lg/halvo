@@ -2235,3 +2235,48 @@ fn a_tick_whose_read_of_the_agents_fails_raises_no_ready_from_kept_facts() {
     w.ports.clear_refusals();
     assert_eq!(w.tick().raised, vec![agent(0)]);
 }
+
+fn started_on(w: &World, run: &RunId) -> (u32, Option<u32>) {
+    w.stored()
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunStarted { run: r, slot, .. } if r == run => Some((e.day, *slot)),
+            _ => None,
+        })
+        .unwrap()
+}
+
+#[test]
+fn a_start_of_the_person_reads_the_day_first() {
+    let mut w = world(&[AUTO]);
+    let first = ok_run(&w.tick().started[0].clone().into_report());
+    w.end(&first, Some(Outcome::Completed));
+    w.clock(T0 + 1_000, DAY + 2);
+    let run = ok_run(&w.start(0));
+    assert_eq!(started_on(&w, &run), (DAY + 2, Some(DAY + 2)));
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(
+        w.tick().started,
+        Vec::<Served>::new(),
+        "no second run in the slot of the clock's day"
+    );
+}
+
+#[test]
+fn an_end_reads_the_day_first() {
+    let mut w = world(&[manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    w.clock(T0 + 1_000, DAY + 1);
+    let end = w.end(&run, Some(Outcome::Completed));
+    let ended_day = w
+        .stored()
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunEnded { run: r, .. } if *r == run => Some(e.day),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(ended_day, DAY + 1);
+    let next = end.ended[0].next[0].run.clone().unwrap();
+    assert_eq!(started_on(&w, &next).0, DAY + 1);
+}
