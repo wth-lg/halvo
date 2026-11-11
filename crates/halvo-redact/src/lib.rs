@@ -22,7 +22,12 @@ mod ssn;
 /// reading that starts first, in the order key, IBAN, card, SSN where several start there. So
 /// `mask(&mask(t)) == mask(t)`. Only ASCII bytes are examined; every other byte is copied, and
 /// a title in which no rule matches is returned byte for byte. The result never holds more
-/// bytes than the title.
+/// bytes than the title, and the time of one call grows with the length of the title.
+///
+/// A caller that stores a title masks the whole title and cuts only the result: a group of
+/// readings of any length becomes one token, so the stored bytes can come from beyond any cut
+/// made before the call, and such a cut can split an identifier that the stored title would
+/// then keep in part.
 pub fn mask(title: &str) -> String {
     let text = title.as_bytes();
     let mut found = Vec::new();
