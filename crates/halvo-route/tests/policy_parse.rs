@@ -95,6 +95,18 @@ fn policy_refusals() {
             PolicyError::Rows,
         ),
         (
+            "header in another case",
+            FIRST_TABLE.replacen("category\tkind", "Category\tkind", 1),
+            ALL,
+            PolicyError::Header,
+        ),
+        (
+            "header in another column order",
+            FIRST_TABLE.replacen("\tk\tn\n", "\tn\tk\n", 1),
+            ALL,
+            PolicyError::Header,
+        ),
+        (
             "header with another cell",
             FIRST_TABLE.replacen("\tn\n", "\tn\tx\n", 1),
             ALL,
@@ -362,6 +374,15 @@ fn policy_refusals() {
             with_row(
                 0,
                 "utility_bill_payment\tcompile\thand_back\t-\tnot_seed\t0\t0",
+            ),
+            ALL,
+            PolicyError::Shape,
+        ),
+        (
+            "a signed count",
+            with_row(
+                0,
+                "utility_bill_payment\tcompile\thand_back\t-\tuntested\t+0\t0",
             ),
             ALL,
             PolicyError::Shape,

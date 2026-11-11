@@ -261,6 +261,7 @@ mod tests {
     fn level_list_is_closed() {
         assert_closed(&Level::ALL.map(|v| (v, v.as_str())), Level::parse);
         assert_eq!(Level::ALL.map(Level::as_str), ["low", "medium", "high"]);
+        assert!(Level::ALL.windows(2).all(|pair| pair[0] < pair[1]));
     }
 
     #[test]
