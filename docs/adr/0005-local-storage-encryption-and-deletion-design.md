@@ -35,8 +35,10 @@ Window expiry and cap eviction destroy a segment key. Delete-all destroys the ro
   and the README and the view quote that file.
 - R1 records the limit and builds no per-day key (the default answer of RD-03, an
   owner ask; another answer is a dated line here). The Time Machine mark on the data
-  directory stays as a mitigation: it stops Time Machine from copying the data
-  directory and stops no other copy.
+  directory is the mitigation, and daemon-3a sets it when the daemon starts
+  (contract C3.2 item 7); until then Time Machine copies the data directory like
+  any other. The mark stops Time Machine from copying the data directory and stops
+  no other copy.
 - The storage cap counts disk bytes of the capture store: its database pages, its
   WAL and the segment ciphertext. The inventory labels the logical and the disk
   totals apart (DR-03, which row 76 folds into the units).

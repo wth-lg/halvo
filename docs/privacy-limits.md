@@ -30,9 +30,11 @@ the root, and a copy of the store directory alone does not. Builds before store-
 kept the macOS root in the login keychain, which the Time Machine exclusion does not
 cover (`tmutil isexcluded` prints `[Included]` for the login keychain).
 
-R1 records this limit and builds no per-day key. Halvo sets the Time Machine
-exclusion mark on the data directory. The mark stops Time Machine from copying the
-data directory and stops no other copy.
+R1 records this limit and builds no per-day key. Halvo does not set the Time
+Machine exclusion mark yet, so Time Machine copies the data directory like any
+other. From daemon-3a on, Halvo sets the mark on the data directory when the daemon
+starts. The mark stops Time Machine from copying the data directory and stops no
+other copy.
 
 A Secure Enclave custody would keep the root outside every copy of the directory.
 R1 ships none: a build with the `secure-enclave` feature creates no store and opens
@@ -46,8 +48,10 @@ an existing one for maintenance only, and no R1 installer is such a build.
   (evidence/interrogate-rr-store-3/it14_raw_volume_apfs_run1.log to
   it14_raw_volume_apfs_run3.log, and the three logs of the same names under
   rerun/). A reader of those blocks also needs the owner's root.
-- The Time Machine mark. Time Machine skips the data directory. A sync client,
-  another backup tool, Migration Assistant and a copy made by hand are not covered.
+- The Time Machine mark. Halvo does not set it yet, so Time Machine copies the data
+  directory like any other. From daemon-3a on, Time Machine skips the data
+  directory. A sync client, another backup tool, Migration Assistant and a copy made
+  by hand are not covered by the mark.
   Whether a local APFS snapshot holds the directory is not verified.
 - Segment files. From store-4 on, a file name carries no time, because file ids are
   random. The size of each file, its file times and the segment's number in the
