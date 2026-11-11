@@ -70,25 +70,25 @@ comment, because TLC reads no line inside a comment. To run a small configuratio
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store ends a run at a move of its own, a request may have left, and `reap` may answer `alive` for one run | - | - | - |
-| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store ends a run in the move that ends its runner, no request has left and `reap` answers `gone` | 180,817 | 4,394,118 | 12 |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | - | - | - |
+| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 167,133 | 4,127,606 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
-| `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store ends a run at a move of its own, a request may have left, and `reap` may answer `alive` for one run | 7,926 | 120,127 | 12 |
+| `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
 | `Confirm4` | `full` | `Confirm4.cfg` | yes | one run, two requests, two effects | 6,704 | 1,993,891 | 24 |
 | `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on | 2,304 | 528,219 | 20 |
 
 | Configuration | Rows of the table of wrong designs that TLC reports in it | `Reach` properties that TLC reports violated in it |
 |---|---|---|
-| `full` of `Schedule` | every row that a small configuration reports: each small one is this one with fewer agents, days or answers of the environment, so a run that breaks a property there is a run of this one. In this round the rows were run in the small configurations alone | the same, for the properties of `Schedule` |
+| `full` of `Schedule` | every row that `days` and `queue` report, and rows 46, 53, 54 and 55 of `store`, which need no request that left and no `alive`: each of those configurations is this one with fewer agents, days or answers of the environment, so a run that breaks a property there is a run of this one. In this round the rows were run in the small configurations alone | the same, for the properties of `Schedule` that need no request that left and no `alive` |
 | `days` | 1 to 8, 18 to 21, 28, 29, 31 to 34 and 38 | the 28 properties that `Schedule` had before the store's view: all of the first list below but `ReachQueueTwo`, `ReachQueueOrder` and `ReachQueueIdle`, which need a queue of two |
 | `queue` | 17 and 30: of the three, only `queue` holds `a5`, the agent with no schedule that needs no person. It holds no stop, so row 38 is no run of it | `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueIdle` |
-| `store` | 46 to 50: of the three, only `store` holds the time between the end of a runner and the store's end of its run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds` |
+| `store` | 46 to 50 and 53 to 55: of the three, only `store` holds the time between the end of a runner, or a failed start, and the store's record of the run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds`, `ReachFailedOwed`, `ReachFailedSentAgain` |
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37 and 39 to 45 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
-The counts are TLC's own lines, with one worker, for `Schedule.tla` as it stands since
-commit 14e236f and `Confirm4.tla` as it stands since commit 6295574;
-the full configuration of `Schedule` ran with three workers. The heap bound `-Xmx2g` keeps
+The counts are TLC's own lines for `Schedule.tla` as it stands since commit
+01ca9c5 and `Confirm4.tla` as it stands since commit 6295574, each
+from the run of the next table, with the workers that it names. The heap bound `-Xmx2g` keeps
 a run far below the machine's cap of 8,589,934,592 bytes of resident size. More workers
 find the same distinct states. The depth and, under the `VIEW` of `Schedule`, the number
 of generated states can then differ, so the check compares the distinct states of each
@@ -96,22 +96,22 @@ configuration with this table and nothing else of the two counts.
 
 What each configuration costs. The first three columns are from the development Mac
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
-runs, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
+runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run -.
+configuration, with three workers, in the hosted jobs of run 43115435599 on 2026-11-11, at commit 6178aaa, which is the round before the failed starts of ruling XB-15: `days` had 180,817 states there and `store` 7,926.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
-| `Schedule` | `full` | - s, three workers | - bytes | - | not run | not run |
-| `Schedule` | `days` | - s, one worker | - bytes | - | - s | - s |
-| `Schedule` | `queue` | - s, one worker | - bytes | - | - s | - s |
-| `Schedule` | `store` | - s, one worker | - bytes | - | - s | - s |
-| `Confirm4` | `full` | - s, one worker | - bytes | - | - s | - s |
-| `Confirm4` | `apart` | - s, one worker | - bytes | - | - s | - s |
+| `Schedule` | `full` | - s, - | - bytes | - | not run | not run |
+| `Schedule` | `days` | 291.14 s, three workers | 1,459,355,648 bytes | 57.54 | 115 s | 127 s |
+| `Schedule` | `queue` | 5.54 s, one worker | 431,833,088 bytes | 56.75 | 5 s | 3 s |
+| `Schedule` | `store` | 27.93 s, one worker | 744,833,024 bytes | 58.91 | 6 s | 5 s |
+| `Confirm4` | `full` | 66.00 s, one worker | 430,702,592 bytes | 44.58 | 15 s | 14 s |
+| `Confirm4` | `apart` | 31.88 s, one worker | 423,051,264 bytes | 474.76 | 5 s | 4 s |
 
-In that run the check took - s and its self-test - s in the
-`macos` job, and - s and - s in the `windows` job; the
-export of both trace files is - s and - s of the check's.
+In that run the check took 177 s and its self-test 32 s in the
+`macos` job, and 177 s and 118 s in the `windows` job; the
+export of both trace files is 23 s and 18 s of the check's.
 
 ## What a property is read from
 
@@ -163,7 +163,7 @@ The histories that this round added, each taken from the environment's move:
 |---|---|---|
 | what the port `Policy` answers for a `releasing` record | the key `policy` of the move `guard` | L10 |
 | that the guard refused a repeat | the record of the move `guard`, the records that passed before it, and that the step passed nothing on | L7 |
-| which run of an agent the agent store has not ended, and whether a request of it may have left | the move that ended the runner: the frame of an `end`, the `left` of an `end` with no frame, of a `tick` that kills and of a `restart`; and the move `ack`, at which the store ends the run | C4 |
+| which run of an agent the agent store has not ended, and whether a request of it may have left | the stored start, the port of a start that failed at step 7 or 8, and the move that ended the runner: the frame of an `end`, the `left` of an `end` with no frame, of a `tick` that kills and of a `restart`; and the move `ack`, at which the store ends the run | C4 |
 | for which runs `reap` answered `alive` | the key `alive` of the move `restart` | C12 |
 | that the person answered a `check` | the move `check` | C4 |
 
@@ -182,7 +182,7 @@ of the model is one call of the coordinator.
 | `ready` | the agents with an open `ready` item | I5.3 |
 | `off`, `paused` | the holds `off` and `failures` as the coordinator holds them | I5.4 |
 | `cleared` | the runs whose `check` the person answered: the `hold_cleared` events with the cause `check` | I5.4 |
-| `owing` | the runs for which this life's recovery sent `end_run` and of which the store has not shown the end at a tick yet | I5.8 |
+| `owing` | the runs for which the coordinator sent `end_run`, at a start whose step 7 or 8 failed or in this life's recovery, and of which the store has not shown the record at a tick yet | I5.5, I5.8 |
 | `f` | the owner's answers during one step, as the head of this section says; it is empty between steps | I5.5 step 3, I5.4 |
 | `gone` | the workflows that are not in the owner's list, as `Owner::workflows` returns it | I5.5, I5.7 |
 | `fin`, `done`, `starts`, `fails`, `slotrun` | what the coordinator reads from the stored events: an agent with a run that ended `completed`, the day of the newest run that ended `completed` or `nothing_to_do`, the starts of each day, the failure streak, the newest slot that a `run_started` event names | I5.2 to I5.5 |
@@ -198,7 +198,7 @@ of the model is one call of the coordinator.
 | `store` | for each agent, the run that the agent store has not ended, if any: whether the environment's move ended its runner (`dead`), whether a request of it may have left (`left`), whether an `end_run` for it was sent since the last restart (`sent`), and, for a run with `left`, which move ended the runner (`by`), which only the `Reach` properties read | C4, C12 |
 | `unknown`, `answered` | for each agent, the newest run that the store ended with `unknown` above 0, and the runs whose `check` the person answered. The hold `check` stands for an agent whose `unknown` run is not in `answered` | C4 |
 | `heldstarts`, `unacked`, `openstarts` | the starts that were stored while a hold of `holds` or the hold `check` stood, the runs that began without an acknowledged `run_started` event, and the starts that were stored while the store had not ended the agent's newest run | C4 |
-| `alive`, `wrongsend`, `forgotten` | the runs for which `reap` answered `alive` and has not answered `gone` since; the `end_run` calls for a run that is live or in `alive`; and, at each restart, the runs whose runner is gone, that the store has not ended and for which that recovery sent no `end_run` | C12 |
+| `alive`, `wrongsend`, `forgotten` | the runs for which `reap` answered `alive` and has not answered `gone` since; the `end_run` calls for a run that is live or in `alive`; and, at each restart, the runs whose runner is gone, that the store has not ended and for which that recovery sent no `end_run`. The third clause of C12 reads `store` itself after every move: no run of it is `dead` and not `sent` | C12 |
 | `done`, `served`, `streak` | the agents of which a run ended `completed`, the day of the newest served run, the failure streak, each from the `run_ended` events | C4, C5, C6 |
 | `alone`, `extra` | the stored starts that no move of the person asked for, of an agent that needs the person or of which no run had ended `completed`; and the stored starts of a `start` move beyond its one | C5 |
 | `given`, `sched`, `after` | the slots that I5.3 gave the stored starts of an agent, the scheduler's starts for each slot, and those that came after a start that I5.3 gave the same slot | C6 |
@@ -211,7 +211,8 @@ environment may do. `StoreWaits`: with `TRUE` the agent store ends a run whose r
 without a `finish` only at a move `ack`, and with `FALSE` it ends it at the end of the
 move that ended the runner. `Lefts`: whether a request of such a run may have left
 (`TRUE`), may not (`FALSE`), or either. `MaxAlive`: for how many live runs a `reap` may
-answer `alive`.
+answer `alive`. `Ports`: what the ports may answer a start: `ok`, `no_ack` (step 6 fails),
+`no_store` (step 7) and `no_run` (step 8).
 
 | Agent | Needs the person | Needs the model | Slots | A run ended `completed` before | Other |
 |---|---|---|---|---|---|
@@ -238,7 +239,7 @@ answered `queue_full`.
 | C9 | a run that was stopped is ended after the first tick at which `cancel_grace_s` have passed since its stop, whoever stopped it | no run of `h.live` is `late` |
 | C10 | the cause that a `run_ended` event stores is the cause that I5.6 gives the end that happened, read from the move that ended the run: `failed` for a start whose step 7 or 8 failed and for a last frame `failed` of a run that was not stopped, the cause of its stop for a stopped run, `interrupted` for a run that a restart finds live. This is read for a run whose workflow is in the owner's list at its end; the end of a run whose workflow is gone stores no event | `h.wrongend` is 0 |
 | C11 | a start that no move of the person asked for is a start for a slot of the workflow's own schedule that is open when the start is stored, with no exception for a start that waited in the queue: the workflow has a schedule, no served run closes its current slot, that slot is at most `catch_up_days` old, and no stored start names it | `h.noslot` is 0 |
-| C12 | the coordinator sends `end_run` only for a run whose runner the environment's move ended; the model's invariant also holds the other half of I5.8, that each life's recovery sends it for every run that the store has not ended and whose runner is gone | `h.wrongsend` and `h.forgotten` are 0 |
+| C12 | the coordinator sends `end_run` only for a run that has no runner: one whose runner the environment's move ended, or one for which no runner was made; each life's recovery sends it for every run that the store has not ended and whose runner is gone; and after every move each run that the events hold started, that has no runner and whose record the store does not hold is owed (rulings XB-6, XB-14, XB-15) | `h.wrongsend` and `h.forgotten` are 0, and no run of `h.store` is `dead` and not `sent` |
 
 How the model reads I5 where the contract ruled or left a reading to the model. The traces
 follow these readings.
@@ -318,10 +319,14 @@ follow these readings.
     may have left. With `yes`, the store ends the run with `unknown` above 0 at its `ack`,
     and the hold `check` stands from that move on, until the move `check`. A run that
     ended with the frame `effect_unknown` has `unknown` above 0 from its `end`.
-18. A start whose step 8 failed leaves no run that the store has not ended: the model
-    reads the failed `Runs::start` as ended in the store within the step, so that a second
-    failed start can follow at once and the failure streak builds as I5.4 says. No
-    `end_run` call stands in such a line.
+18. A start whose step 7 or step 8 failed leaves a run that the events hold started, with
+    no runner and no record in the store (ruling XB-14). The port `no_store` is a failed
+    step 7: `start_run` fails and the line holds no `start` call. The port `no_run` is a
+    failed step 8. In both the coordinator stores `run_ended` with `failed`, sends
+    `end_run` in the same move and owes it: the run stands in `owing`. Until the move
+    `ack` the agent takes no start, as after any other run; the record has `unknown` 0,
+    so no hold `check` follows. A second failed start, and with it the hold `failures`,
+    comes after the `ack` of the first.
 19. A restart: `reap` answers for every run that the store has not ended, `alive` for the
     runs of the key `alive` and `gone` for the others. Recovery then sends `end_run` for
     each run that it answered `gone`, a run whose `run_ended` an earlier life stored among
@@ -330,9 +335,11 @@ follow these readings.
     `gone` for it. Its tree may live on: `h.live` holds no run of an earlier life, so C1
     and C2 say nothing about that tree.
 20. At each tick the coordinator sends `end_run` again for every run of `owing` that the
-    store has not ended, before anything else but `defer`, and drops from `owing` each run
-    that the store has ended. For a run of this life the supervisor library sends
-    `end_run`, which is no call of the coordinator and stands in no line.
+    store has not ended, after its kills and before it serves the queue (I5.9), and drops
+    from `owing` each run that the store has ended. A tick reads the owner once, at its
+    start: an acknowledgement is a move of its own, and no agent starts in the tick that
+    sent its `end_run`. For a run of this life whose runner ended, the supervisor library
+    sends `end_run`, which is no call of the coordinator and stands in no line.
 21. The models hold no `kill` that the library answers with `unknown_run`: library and
     coordinator are one process (I5.7).
 
@@ -476,7 +483,7 @@ does its work. TLC must report each one violated. To run one, add the line
 | `Schedule`, as `INVARIANT` | `ReachPerson`, `ReachAuto`, `ReachDeletableAuto`, `ReachFailures`, `ReachSlots`, `ReachCatchUp`, `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueFull`, `ReachBudget`, `ReachTwoLive`, `ReachGoneStart`, `ReachGoneSeen` |
 | `Schedule`, as `PROPERTY` | `ReachFailuresCleared`, `ReachQueue`, `ReachQueueIdle`, `ReachRestart`, `ReachRestartDay`, `ReachRestartStopping`, `ReachGoneQueued`, `ReachOffLive`, `ReachOffQueued`, `ReachKillCancelled`, `ReachKillOff`, `ReachKillLapsed`, `ReachKillDeleted`, `ReachKillEnded`, `ReachRecause`, `ReachFailedFrame`, `ReachFailedStart`, `ReachQueuedStale` |
 | `Schedule`, for the store's view, as `INVARIANT` | `ReachStoreOpen` (a start that only the store's open run refuses), `ReachAlive` (a `reap` that answers `alive`) |
-| `Schedule`, for the store's view, as `PROPERTY` | `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart` (the store ends, with `unknown` above 0, a run that a kill, the end of a lapsed stop or a restart ended), `ReachCheckAnswered` (an agent starts again after its `check` was answered), `ReachOwedAgain` (a recovery sends `end_run` for a run that ended in the earlier life), `ReachSentAgain` (a tick sends `end_run` again), `ReachOwingEnds` (a tick sees that the store ended an owed run) |
+| `Schedule`, for the store's view, as `PROPERTY` | `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart` (the store ends, with `unknown` above 0, a run that a kill, the end of a lapsed stop or a restart ended), `ReachCheckAnswered` (an agent starts again after its `check` was answered), `ReachOwedAgain` (a recovery sends `end_run` for a run that ended in the earlier life), `ReachSentAgain` (a tick sends `end_run` again), `ReachOwingEnds` (a tick sees that the store ended an owed run), `ReachFailedSentAgain` (a tick sends the `end_run` of a failed start again); and, as `INVARIANT`, `ReachFailedOwed` (a failed start is owed in the first life) |
 | `Confirm4`, as `INVARIANT` | `ReachEffects`, `ReachSecond`, `ReachPresenters`, `ReachLostAck`, `ReachRestart`, `ReachReleasedRestart`, `ReachLapseRecorded`, `ReachOldApproval`, `ReachMoney`, `ReachPageRecord`, `ReachOtherEffect`, `ReachOtherApproval`, `ReachStopLapse`, `ReachStopPerson`, `ReachStoppedRequest`, `ReachStoppedRecord`, `ReachRejected`, `ReachRepeat`, `ReachUsedRowOther`, `ReachNoApprovalRun`, `ReachNoApprovalRefused`, `ReachNoApprovalNative`, `ReachNotAskedAgain` |
 
 Three more properties are stronger than the contract's sentences, and TLC reports each one
@@ -563,6 +570,9 @@ replay of that design gives another answer, event, call or state at some move.
 | 50 | one answered `check` clears every later `check` | C4 | - of 213 |
 | 51 | a lapse sends its decision under new approval ids and the port's count of ids does not go on, so a later answer gets the same ids | L3, in `apart` alone | - of 215 |
 | 52 | the same for the decision of an `issue` whose digests do not hold | L3, in `apart` alone | - of 215 |
+| 53 | no `end_run` after a start whose step 7 failed | C12 | - of 213 |
+| 54 | no `end_run` after a start whose step 8 failed | C12 | - of 213 |
+| 55 | a start of the agent before the store's record of a run that the coordinator owes, a failed start among them | C4 | - of 213 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -570,7 +580,7 @@ sends the event of row 34 again after the owner's `no_workflow` is row 34 at a l
 tick: the models hold no answer `no_workflow`, and C10 reports the first sending. Rows 15,
 18, 20 and 24 are the replacements of rows 12, 6, 2 and 11 under the words of an earlier
 round. Rows 40 to 45 are the round of rulings XA-1, XA-2 and XA-5, and rows 46 to 50 the
-round of ruling XB-4. Rows 51 and 52 need a second item after a lapse of the first, which
+round of ruling XB-4, with rows 53 to 55 for ruling XB-15. Rows 51 and 52 need a second item after a lapse of the first, which
 reading 9 of `Confirm4` takes out of `full`; `apart` holds it. `Confirm4` as it stood before this round is rows 43 and 45 at once,
 and none of its ten invariants reported either: it refused a repeat with `approval`, and
 its run asked again after a `reject_once`. Three more changes break no property and
@@ -684,7 +694,7 @@ An entry of `p` is `{"call":"<name>"}` with the keys of the table after it.
 | `cancel` | `run`; none in a confirm trace | `Runs::cancel` | `stop` with `ok`; `off` and a `tick`, for each run that they stop; a `lapse` with `wait_limit` or `cancelled` |
 | `kill` | `run` | `Runs::kill` | a `tick` with `grace` `yes`, for each run that was `stopping` before it and for each stopped run whose runner ended before it |
 | `reap` | none | `Runs::reap` | `restart`; its answers are the key `alive` of the line |
-| `end_run` | `run` | `Owner::send` with the body `end_run` | `restart`, for each run that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each such run until the store has ended it |
+| `end_run` | `run` | `Owner::send` with the body `end_run` | a start under `no_store` or `no_run`, after its `run_ended` event; `restart`, for each run that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each run of `owing` until the store has ended it |
 | `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event; `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
 | `answer_confirm` | `item`, `answer` (`allow`, `reject`) | `Runs::answer_confirm` | an `answer` with `ok`; with `reject`, a `lapse` from `shown` or `armed` of a run that still lives and an `issue` with `digest_ok` `no` |
 
@@ -701,15 +711,16 @@ only reads (`Owner::workflows`, `history` and `agents`, `Clock`, `Rng`) and no n
 The two lists do not say which entry of `e` came before which entry of `p`. The model
 makes them in this order, and `formal_traces` holds the code to it on the memory ports:
 
-- one start: `defer`; `run_started`; `start_run`; `start`; under `no_run` then `run_ended`
-  with `failed`, and `hold_set` with `set_state` when the streak is complete;
+- one start: `defer`; `run_started`; `start_run`; `start`, but for `no_store`; under
+  `no_store` and `no_run` then `run_ended` with `failed`, `hold_set` with `set_state` when
+  the streak is complete, and `end_run`;
 - a `start` line: `hold_cleared` and `set_state` `active` first, then the start;
 - one end: `run_ended`; `hold_set` with `set_state`; then the start that the end takes from
   the queue;
-- a `tick`: `defer` when a run is live; `end_run` for the owed runs, by run number;
-  `cancel` for the runs of gone workflows, by run number; by run number, `kill` and, for
-  a run that was live, its end; the start from the queue; then the agents from `a1` to
-  `a5`, each with its start;
+- a `tick`: `defer` when a run is live; `cancel` for the runs of gone workflows, by run
+  number; by run number, `kill` and, for a run that was live, its end; `end_run` for the
+  owed runs, by run number; the start from the queue; then the agents from `a1` to `a5`,
+  each with its start;
 - a `restart`: `reap`, then the ends by run number, then `end_run` by run number;
 - a `check`: `hold_cleared`;
 - `off`: `hold_set`, `cancel`, `set_state`;
@@ -795,8 +806,9 @@ ended, live ones among them; `unknown`, for each agent that has one, the newest 
 the store ended with `unknown` above 0; `cleared`, the runs whose `check` the person
 answered; `owing`, the runs for which this life's recovery sent `end_run` and whose end
 the coordinator has not seen in the store at a tick; `life`, the life of the app, from 1.
-`open` and `unknown` are the environment's: `open` gains a run at its `start` call,
-unless that call fails, and loses it at an `end` with a frame or at an `ack`; `unknown`
+`open` and `unknown` are the environment's: `open` gains a run with its `run_started`
+event, also when step 7 or 8 then fails, and loses it at an `end` with a frame or at an
+`ack`; `unknown`
 gains a run at an `end` with the frame `effect_unknown` and at the `ack` of a run whose
 runner ended with `left` `yes`, and an agent's entry goes at its next stored start.
 
@@ -817,8 +829,10 @@ A `start` with `ok` holds the move `spawn` of I5.6: the run is `starting` in `s`
 of an agent whose workflow is gone is answered `state`. `port` says what the ports do
 during the line: `ok`; `no_ack`, where the `run_started` event gets no acknowledgement
 (step 6), nothing is stored and the answer is `no_service`; `no_run`, where `Runs::start`
-fails (step 8), `run_started` and `run_ended` with `failed` are stored, the answer is
-`no_service` and the run does not stand in `open`. A failure of step 7 stores the same two events and is in no trace. In a `tick` and an `end` the port holds for every start that the line makes.
+fails (step 8), `run_started` and `run_ended` with `failed` are stored, `end_run` is sent
+and the answer is `no_service`; `no_store`, where `start_run` fails (step 7), with the
+same events, the same `end_run` and no `start` call. After either the run stands in
+`open` and in `owing`. In a `tick` and an `end` the port holds for every start that the line makes.
 
 An entry of `next` and of `started` is `{"agent","r","run"}`: a start that the line made
 for that agent, with the answer of `start_step` or `no_service`, and its run or null. In
@@ -834,12 +848,14 @@ tick with `grace` `yes` kills every run that was `stopping` before it, and one w
 that are gone (the stop of their runs, their queued starts, their `ready` items); the
 kills by run number, each with the start that its end takes from the queue; one start
 from the queue when the tick killed nothing and no run is live; then the agents from `a1`
-to `a5`. Before all of that it sends `end_run` again for each run of `owing` that still
-stands in `open`, and drops the others from `owing`. A `restart` ends the runs by run
+to `a5`. After the kills and before the start from the queue it sends `end_run` again for
+each run of `owing` that stood in `open` when the tick began, and drops the others from
+`owing`. A `restart` ends the runs by run
 number and then sends `end_run`, by run number, for each run of `open` that is not in
 `alive` and whose workflow is in the list; those runs are its `owing`. An `ack` line is
-in a trace only when the runner of the agent's open run is gone and an `end_run` for it
-was sent since the last restart, by the library in the run's own life or by recovery.
+in a trace only when the agent's open run has no runner and an `end_run` for it was sent
+since the last restart: by the library in the run's own life, by the coordinator at a
+failed start, or by recovery.
 
 The directed traces, each with its last move:
 
@@ -847,7 +863,7 @@ The directed traces, each with its last move:
 |---|---|---|---|
 | `two_models` | `a1` holds the model; a start of `a2` waits although a second run may be live | `start` | `queued` |
 | `two_runs_agent` | a start of an agent with a queued start, then of one with a live run | `start` | `state` |
-| `hold_start` | a tick that starts nothing for `a2` under `failures`, the person's start that ends that hold, a start under `off`, and a start under `check` after the frame `effect_unknown` | `start` | `hold` |
+| `hold_start` | a start of `a2` that fails at step 8 in a tick, a start of it before the store's record of that run (`state`), the `ack`, a start that fails at step 7, a tick that starts nothing for `a2` under `failures`, the person's start that ends that hold, a start under `off`, and a start under `check` after the frame `effect_unknown` | `start` | `hold` |
 | `unrecorded_start` | a start whose `run_started` event is not acknowledged; no run is stored | `start` | `no_service` |
 | `second_slot_run` | a tick starts `a2` for its slot, a restart, the store's end of that run, and a second tick that starts nothing: `started` is empty | `tick` | `ok` |
 | `auto_needs_person` | a tick with the open slot of `a1`: `raised` holds `a1`, and no run of it starts | `tick` | `ok` |
