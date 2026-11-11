@@ -1368,6 +1368,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-cap"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "halvo-capture"
 version = "0.0.0"
 dependencies = [
@@ -1411,6 +1419,10 @@ dependencies = [
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "halvo-redact"
+version = "0.0.0"
 
 [[package]]
 name = "halvo-route"
