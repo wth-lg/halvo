@@ -216,42 +216,117 @@ pub fn parse_expected(text: &str) -> Result<Vec<String>, Refusal> {
     Ok(lines.into_iter().map(str::to_owned).collect())
 }
 
-fn is_name(word: &str) -> bool {
-    !word.is_empty()
-        && word
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+const TARGETS_FORM: [(&str, &[&str]); 4] = [
+    (
+        "rule",
+        &["k_clean", "locators_max", "edits_max", "value_min"],
+    ),
+    (
+        "gate",
+        &[
+            "dev_benign",
+            "dev_fault",
+            "dev_critical",
+            "dev_cost_budget",
+            "heldout_benign",
+            "heldout_fault",
+            "heldout_critical",
+            "heldout_cost_budget",
+            "calendar_days_min",
+        ],
+    ),
+    (
+        "routine",
+        &[
+            "miss_cycles",
+            "stale_floor",
+            "tolerance",
+            "false_stale_max",
+            "detected_min",
+            "detect_days",
+        ],
+    ),
+    ("memory", &["increment_bytes_max", "host_bytes_max"]),
+];
+
+#[derive(Clone, Copy)]
+enum TargetsLine {
+    Table(&'static str),
+    Key(&'static str, &'static str),
+}
+
+fn targets_form() -> Vec<TargetsLine> {
+    TARGETS_FORM
+        .iter()
+        .flat_map(|&(table, keys)| {
+            std::iter::once(TargetsLine::Table(table))
+                .chain(keys.iter().map(move |&key| TargetsLine::Key(table, key)))
+        })
+        .collect()
+}
+
+fn key_of(line: &str) -> Option<&str> {
+    line.split_once(" = ").map(|(key, _)| key)
+}
+
+fn value_of(line: &str, key: &str) -> Option<u64> {
+    let (word, value) = line.split_once(" = ")?;
+    if word != key || !is_count(value) {
+        return None;
+    }
+    value.parse().ok()
+}
+
+fn is_of_form(line: &str, form: TargetsLine) -> bool {
+    match form {
+        TargetsLine::Table(name) => {
+            line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) == Some(name)
+        }
+        TargetsLine::Key(_, key) => value_of(line, key).is_some(),
+    }
 }
 
 pub fn parse_targets(text: &str) -> Result<Targets, Refusal> {
-    let mut table: Option<&str> = None;
-    let mut seen: Vec<(&str, &str)> = Vec::new();
+    let lines = text_lines("targets", text)?;
+    let form = targets_form();
+    let bad = |i: usize| refuse_input(format!("targets line {} is not of its form", i + 1));
+    let absent = |key: &str| refuse_input(format!("targets key {key} is absent"));
     let mut dev_critical = None;
     let mut heldout_critical = None;
-    for (i, line) in text_lines("targets", text)?.into_iter().enumerate() {
-        let bad = || refuse_input(format!("targets line {} is not of its form", i + 1));
-        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-            if !is_name(name) || seen.iter().any(|(t, k)| *t == name && k.is_empty()) {
-                return Err(bad());
+    for (i, &want) in form.iter().enumerate() {
+        let Some(&line) = lines.get(i) else {
+            let key = form[i..]
+                .iter()
+                .find_map(|f| match f {
+                    TargetsLine::Key(_, key) => Some(*key),
+                    TargetsLine::Table(_) => None,
+                })
+                .unwrap_or_default();
+            return Err(absent(key));
+        };
+        if !is_of_form(line, want) {
+            return Err(match want {
+                TargetsLine::Key(_, key)
+                    if lines.iter().all(|&l| key_of(l) != Some(key))
+                        && form[i + 1..].iter().any(|&later| is_of_form(line, later)) =>
+                {
+                    absent(key)
+                }
+                _ => bad(i),
+            });
+        }
+        if let TargetsLine::Key(table, key) = want {
+            let value = value_of(line, key);
+            match (table, key) {
+                ("gate", "dev_critical") => dev_critical = value,
+                ("gate", "heldout_critical") => heldout_critical = value,
+                _ => {}
             }
-            seen.push((name, ""));
-            table = Some(name);
-            continue;
-        }
-        let (key, value) = line.split_once(" = ").ok_or_else(bad)?;
-        let current = table.ok_or_else(bad)?;
-        if !is_name(key) || !is_count(value) || seen.contains(&(current, key)) {
-            return Err(bad());
-        }
-        seen.push((current, key));
-        let value: u64 = value.parse().map_err(|_| bad())?;
-        match (current, key) {
-            ("gate", "dev_critical") => dev_critical = Some(value),
-            ("gate", "heldout_critical") => heldout_critical = Some(value),
-            _ => {}
         }
     }
-    let absent = |key: &str| refuse_input(format!("targets key {key} is absent"));
+    if lines.len() > form.len() {
+        return Err(bad(form.len()));
+    }
     Ok(Targets {
         dev_critical: dev_critical.ok_or_else(|| absent("dev_critical"))?,
         heldout_critical: heldout_critical.ok_or_else(|| absent("heldout_critical"))?,
