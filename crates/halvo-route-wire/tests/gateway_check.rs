@@ -348,6 +348,42 @@ fn bad_arguments_are_the_refusal_usage() {
 }
 
 #[test]
+fn a_refusal_is_one_line_whatever_its_detail_holds() {
+    let gateway = gateway();
+    let gateway = gateway.to_str().unwrap();
+    let odd_dir = fresh("line\nbreak").join("dir\nwith\rbreaks");
+    fs::create_dir(&odd_dir).unwrap();
+    let odd_dir = odd_dir.to_str().unwrap();
+    let odd_names = fresh("names").join("names\nwith\u{1b}[2J\u{85}\u{2028}breaks.txt");
+    fs::write(&odd_names, "").unwrap();
+    let odd_names = odd_names.to_str().unwrap();
+    for args in [
+        vec!["--x\ny"],
+        vec!["--dir", gateway, "--all\r\nmore"],
+        vec!["--dir", gateway, "\t\u{7}\u{7f}\u{9b}\u{2029}"],
+        vec!["--dir", odd_dir],
+        vec!["--dir", gateway, "--names", odd_names],
+        vec!["--dir", gateway, "--names", "missing\nnames.txt"],
+    ] {
+        let output = run(&args);
+        let text = String::from_utf8_lossy(&output.stderr).to_string();
+        assert!(
+            text.starts_with("REFUSED ") && text.ends_with('\n'),
+            "{args:?}: {text:?}"
+        );
+        assert_eq!(text.lines().count(), 1, "{args:?}: {text:?}");
+        assert!(
+            !text[..text.len() - 1]
+                .chars()
+                .any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}')),
+            "{args:?}: {text:?}"
+        );
+        assert!(output.stdout.is_empty(), "{args:?}");
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+    }
+}
+
+#[test]
 fn a_file_not_of_its_form_is_the_refusal_file() {
     let missing = fresh("missing");
     for file in &FILES[1..] {

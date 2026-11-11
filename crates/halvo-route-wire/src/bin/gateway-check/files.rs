@@ -17,10 +17,24 @@ pub enum Refusal {
 impl fmt::Display for Refusal {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Refusal::Usage(detail) => write!(formatter, "usage: {detail}"),
-            Refusal::File(name, line) => write!(formatter, "file: {name}:{line}"),
+            Refusal::Usage(detail) => write!(formatter, "usage: {}", one_line(detail)),
+            Refusal::File(name, line) => write!(formatter, "file: {}:{line}", one_line(name)),
         }
     }
+}
+
+fn one_line(detail: &str) -> String {
+    let mut out = String::with_capacity(detail.len());
+    for c in detail.chars() {
+        if c == '\\' {
+            out.push_str("\\\\");
+        } else if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}') {
+            out.push_str(&c.escape_unicode().to_string());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 pub struct BodyVector {
