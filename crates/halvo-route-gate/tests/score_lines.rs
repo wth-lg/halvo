@@ -534,3 +534,27 @@ fn a_routed_tier_with_one_held_out_attempt_misses_r2() {
     );
     assert!(!result.passed());
 }
+
+#[test]
+fn cost_sums_beyond_u64_are_u64_max_on_the_cell_and_versus_lines() {
+    let mut rows = hand_table().rows().to_vec();
+    for row in rows
+        .iter_mut()
+        .filter(|row| row.kind == Write && row.tier == LowCostHosted && row.seed == Three)
+    {
+        row.tokens_in = u64::MAX;
+        row.tokens_out = u64::MAX;
+    }
+    let table = Table::from_rows(&rows).expect("a table");
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        line(&lines, "cell category=email kind=write "),
+        "cell category=email kind=write pick=low_cost_hosted basis=line_met dev_k=4 dev_n=4 held_k=2 held_n=2 lower_pct=60 cost_micro=18446744073709551615 wall_s=12"
+    );
+    assert_eq!(
+        line(&lines, "versus name=router "),
+        "versus name=router attempts=4 passed=4 wasted=0 handed_back=0 cost_micro=18446744073709551615 wall_s=42"
+    );
+}

@@ -167,3 +167,11 @@ fn hold_prices_the_body_bytes_and_the_output_limit() {
         }
     }
 }
+
+#[test]
+fn a_sum_of_products_beyond_u128_is_u64_max() {
+    let prices = custom((1, 1), (u64::MAX, u64::MAX));
+    let (tokens_in, tokens_out) = (1u64 << 63, (1u64 << 63) + 2);
+    assert_eq!(prices.cost(Tier::Frontier, tokens_in, tokens_out), u64::MAX);
+    assert_eq!(prices.hold(Tier::Frontier, tokens_in, tokens_out), u64::MAX);
+}
