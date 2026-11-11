@@ -123,8 +123,9 @@ temporary directory; other new entries are counted, not named; builder-9's evide
 
 ## Each item can come out the other way
 
-These runs on this Mac, all at commit 03f4c53, the commit of the counted cells, each gave the other
-result (one run each, builder-9's evidence `other-way/`):
+These runs on this Mac each gave the other result (one run each): those of the first three bullets
+at commit 03f4c53, the commit of the counted cells (builder-9's evidence `other-way/`), and the
+others at the commit that their bullet names:
 
 - `--leave-out all` and `--leave-out halvo_fx_session` gave `import=miss`; `--leave-out
   halvo_fx_device` gave `import=ok second_factor_asked_again=yes`.
