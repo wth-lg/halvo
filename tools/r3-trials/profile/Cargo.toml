@@ -1,0 +1,37 @@
+[package]
+name = "r3-profile"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+name = "r3_profile"
+path = "src/lib.rs"
+
+[[bin]]
+name = "profile-trial"
+path = "src/bin/profile-trial.rs"
+
+[[bin]]
+name = "tree-peak"
+path = "src/bin/tree-peak.rs"
+
+[[bin]]
+name = "alloc-tree"
+path = "src/bin/alloc-tree.rs"
+
+[dependencies]
+r3-web = { path = "../web" }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "macros", "time", "sync", "signal"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "=0.2.191"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+
+[profile.release]
+strip = true

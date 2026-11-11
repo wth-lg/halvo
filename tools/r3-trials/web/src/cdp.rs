@@ -32,6 +32,9 @@ use chromiumoxide::{Browser, Page};
 use futures::StreamExt;
 use tokio::task::JoinHandle;
 
+mod session;
+pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
+
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(50);
 
@@ -159,6 +162,8 @@ pub struct Executor {
     recorded: Arc<Mutex<Vec<String>>>,
     recorder: Option<JoinHandle<()>>,
     owns_process: bool,
+    profile: Option<PathBuf>,
+    temp: Option<PathBuf>,
 }
 
 fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
@@ -170,7 +175,13 @@ fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
     };
     let mut kept = opts.profile.clone().into_os_string();
     kept.push(".stderr");
-    let _ = std::fs::write(&kept, &stderr);
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&kept)
+    {
+        let _ = std::io::Write::write_all(&mut file, &stderr);
+    }
     Fault::new(
         "browser_start",
         format!("stderr_kept_bytes_{}", stderr.len()),
@@ -187,12 +198,25 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
-        let used = std::fs::read_dir(&opts.profile)
-            .map(|mut entries| entries.next().is_some())
-            .unwrap_or(false);
-        if used {
-            return Err(Fault::new("start", "profile directory is not empty"));
+        let (profile, temp) = session::make_dirs(&opts.profile)?;
+        let made = session::RemoveOnDrop::new(&profile, &temp);
+        match Executor::launch(opts, &temp).await {
+            Ok(mut started) => {
+                made.disarm();
+                started.profile = Some(profile);
+                started.temp = Some(temp);
+                Ok(started)
+            }
+            Err(f) => {
+                session::remove_dirs(&profile, &temp).await;
+                made.disarm();
+                Err(f)
+            }
         }
+    }
+
+    async fn launch(opts: &StartOptions, temp: &Path) -> Res<Executor> {
+        let temp_text = temp.to_string_lossy().into_owned();
         let mut builder = BrowserConfig::builder()
             .chrome_executable(&opts.browser)
             .disable_default_args()
@@ -204,6 +228,11 @@ impl Executor {
             builder.new_headless_mode()
         } else {
             builder.with_head()
+        };
+        builder = if cfg!(windows) {
+            builder.env("TMP", temp_text.clone()).env("TEMP", temp_text)
+        } else {
+            builder.env("TMPDIR", temp_text)
         };
         for flag in launch_args(opts) {
             let bare = flag.trim_start_matches('-');
@@ -275,6 +304,8 @@ impl Executor {
             recorded: Arc::new(Mutex::new(Vec::new())),
             recorder: None,
             owns_process,
+            profile: None,
+            temp: None,
         }
     }
 
@@ -1109,7 +1140,7 @@ mod tests {
         let refused = Executor::start(&opts).await.err();
         assert_eq!(
             refused.map(|f| f.1),
-            Some("profile directory is not empty".to_string())
+            Some("profile path exists".to_string())
         );
     }
 
