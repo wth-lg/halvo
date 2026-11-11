@@ -1,9 +1,11 @@
 //! The items of I3 and the confirmation of I4: the closed list of what may wait for the
 //! person, where each kind comes from and the budgets (`raise_step`), the item as the page gets
-//! it (`compose_*`), the presenter table and the machine of a confirmation, as pure functions.
+//! it (`compose_*`), the presenter table and the machine of a confirmation, as pure functions,
+//! and `drive`, which carries out their decisions through the ports.
 
 mod compose;
 mod confirm;
+pub mod drive;
 mod key;
 mod presenter;
 mod raise;
