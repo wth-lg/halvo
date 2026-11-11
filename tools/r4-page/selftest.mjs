@@ -25,6 +25,7 @@ const FAULTS = {
     { fault: 'dialog_noclose', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'dialog_role', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'inert_left', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
+    { fault: 'modal_left', state: 'b', want: (r) => r.names.includes('dialog_not_closed') },
     { fault: 'safe_second', state: 'b', want: (r) => r.names.includes('dialog_safe_not_first') },
     { fault: 'body_stays', state: 'b', want: (r) => r.names.includes('dialog_focus_lost') },
     { fault: 'dialog_plain', state: 'b', want: (r) => r.names.includes('dialog_missing') },

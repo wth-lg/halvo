@@ -210,6 +210,12 @@
         call('agents_answer', { item: item.item, choice: c.choice }).then(function () {
           if (d.open) d.close();
           if (d.parentNode) d.parentNode.removeChild(d);
+          if (c.safe === 'yes' && fault === 'modal_left') {
+            var wait = document.createElement('dialog');
+            wait.appendChild(el('p', null, 'Saving your answer'));
+            items.appendChild(wait);
+            wait.showModal();
+          }
         });
       });
       controls.appendChild(b);
