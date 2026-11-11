@@ -441,6 +441,17 @@
         root.appendChild(picture);
         root.appendChild(areaMap);
       }
+      if (fault === 'area_unnamed_no_act') {
+        var lone = el('map', null, null);
+        lone.name = 'r4s-lone';
+        var place = el('area', null, null);
+        place.shape = 'rect';
+        place.coords = '0,0,120,60';
+        place.href = '#garden';
+        place.alt = 'The garden';
+        lone.appendChild(place);
+        root.appendChild(lone);
+      }
       if (fault === 'no_act') {
         var plain = el('button', null, 'Help');
         plain.type = 'button';

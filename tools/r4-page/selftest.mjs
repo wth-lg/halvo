@@ -63,6 +63,7 @@ const FAULTS = {
     { fault: 'act_kind', state: 'a', want: (r) => r.names.includes('more') },
     { fault: 'no_act', state: 'a', want: (r) => r.names.includes('no_act') },
     { fault: 'area_no_act', state: 'a', want: (r) => r.names.includes('no_act') },
+    { fault: 'area_unnamed_no_act', state: 'a', want: (r) => r.names.includes('no_act') },
     { fault: 'input_no_act', state: 'a', want: (r) => r.names.includes('no_act') },
     { fault: 'select_no_act', state: 'a', want: (r) => r.names.includes('no_act') },
     { fault: 'textarea_no_act', state: 'a', want: (r) => r.names.includes('no_act') },
