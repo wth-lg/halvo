@@ -11,6 +11,64 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Browser profile trial (scratch branch of U0.3, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          cat >"$RUNNER_TEMP/r3-outside.js" <<'R3EOF'
+          const fs = require('fs');
+          const [list, home, label] = process.argv.slice(2);
+          const marker = process.env.R3_MARKER || '';
+          const le = Buffer.from(marker, 'utf16le');
+          const needles = [Buffer.from(marker, 'utf8'), le, Buffer.from(le).swap16()];
+          const files = fs.readFileSync(list, 'utf8').split(/\r?\n/).filter(Boolean);
+          let hits = 0;
+          let read = 0;
+          const dirs = new Map();
+          for (const f of files) {
+            let data;
+            try {
+              data = fs.readFileSync(f);
+              read += 1;
+            } catch {
+              continue;
+            }
+            if (marker) {
+              for (const n of needles) {
+                let i = data.indexOf(n);
+                while (i >= 0) {
+                  hits += 1;
+                  i = data.indexOf(n, i + n.length);
+                }
+              }
+            }
+            const dir = f.split(home).join('~').replace(/[^/\\]+$/, '').replace(/ /g, '_');
+            dirs.set(dir, (dirs.get(dir) || 0) + 1);
+          }
+          const keep = new RegExp(process.env.R3_KEEP || '.', 'i');
+          const shown = [...dirs].sort().filter(([d]) => keep.test(d)).slice(0, 200);
+          for (const [dir, n] of shown) console.log(`outside_dir ${label} files=${n} dir=${dir}`);
+          console.log(`outside ${label} files=${files.length} read=${read} dirs=${dirs.size} shown=${shown.length} marker_hits=${hits}`);
+          R3EOF
+          marker=$(node -e "process.stdout.write(require('./tools/fixture-server/variants/data/seed-1.json').page_marker)")
+          vf=$(dirname "${TMPDIR%/}")
+          for b in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b" | tr ' ' '_')"; code=1; continue; }
+            case "$b" in *Edge*) kind=edge ;; *) kind=chrome ;; esac
+            echo "browser version $("$b" --version | tr ' ' '_')"
+            cargo build --release --locked --quiet --manifest-path tools/r3-trials/profile/Cargo.toml --target-dir tools/r3-trials/profile/target --target "$(rustc -vV | sed -n 's/^host: //p')"
+            stamp="$RUNNER_TEMP/r3-stamp-$kind"
+            touch "$stamp"
+            sleep 1
+            sh tools/r3-trials/profile/run.sh --item 2 --browser "$b" --port 18590 || code=1
+            sleep 5
+            find "$HOME" "$vf" /tmp/ -path "$GITHUB_WORKSPACE" -prune -o -newer "$stamp" -type f -print 2>/dev/null >"$stamp.list"
+            R3_KEEP='chrom|edge|google|microsoft|crashpad|metal|code_sign|scoped_dir|/T/|Temp/' R3_MARKER="$marker" node "$RUNNER_TEMP/r3-outside.js" "$stamp.list" "$HOME" "machine=hosted-mac browser=$kind"
+            pgrep -fl "$(basename "$b")" | cut -c1-120
+            echo "leftover browser=$kind pgrep_exit=$?"
+          done
+          exit $code
       - name: Commit messages
         shell: bash
         env:
@@ -97,6 +155,72 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
+      - name: Browser profile trial (scratch branch of U0.3, never merged)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          cat >"$RUNNER_TEMP/r3-outside.js" <<'R3EOF'
+          const fs = require('fs');
+          const [list, home, label] = process.argv.slice(2);
+          const marker = process.env.R3_MARKER || '';
+          const le = Buffer.from(marker, 'utf16le');
+          const needles = [Buffer.from(marker, 'utf8'), le, Buffer.from(le).swap16()];
+          const files = fs.readFileSync(list, 'utf8').split(/\r?\n/).filter(Boolean);
+          let hits = 0;
+          let read = 0;
+          const dirs = new Map();
+          for (const f of files) {
+            let data;
+            try {
+              data = fs.readFileSync(f);
+              read += 1;
+            } catch {
+              continue;
+            }
+            if (marker) {
+              for (const n of needles) {
+                let i = data.indexOf(n);
+                while (i >= 0) {
+                  hits += 1;
+                  i = data.indexOf(n, i + n.length);
+                }
+              }
+            }
+            const dir = f.split(home).join('~').replace(/[^/\\]+$/, '').replace(/ /g, '_');
+            dirs.set(dir, (dirs.get(dir) || 0) + 1);
+          }
+          const keep = new RegExp(process.env.R3_KEEP || '.', 'i');
+          const shown = [...dirs].sort().filter(([d]) => keep.test(d)).slice(0, 200);
+          for (const [dir, n] of shown) console.log(`outside_dir ${label} files=${n} dir=${dir}`);
+          console.log(`outside ${label} files=${files.length} read=${read} dirs=${dirs.size} shown=${shown.length} marker_hits=${hits}`);
+          R3EOF
+          marker=$(node -e "process.stdout.write(require('./tools/fixture-server/variants/data/seed-1.json').page_marker)")
+          home=$(cygpath -u "$USERPROFILE")
+          for b in "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"; do
+            [ -f "$b" ] || { echo "browser missing $(basename "$b")"; code=1; continue; }
+            case "$b" in *msedge*) kind=edge ;; *) kind=chrome ;; esac
+            cargo build --release --locked --quiet --manifest-path tools/r3-trials/profile/Cargo.toml --target-dir tools/r3-trials/profile/target --target "$(rustc -vV | sed -n 's/^host: //p')"
+            stamp="$RUNNER_TEMP/r3-stamp-$kind"
+            touch "$stamp"
+            sleep 1
+            sh tools/r3-trials/profile/run.sh --item 2 --browser "$b" --port 18590 || code=1
+            sleep 5
+            find "$home" -newer "$stamp" -type f 2>/dev/null >"$stamp.list"
+            R3_KEEP='chrom|edge|google|microsoft|crashpad|metal|code_sign|scoped_dir|/T/|Temp/' R3_MARKER="$marker" node "$RUNNER_TEMP/r3-outside.js" "$stamp.list" "$home" "machine=hosted-win browser=$kind"
+          done
+          for b in "C:/Program Files/Google/Chrome/Application/chrome.exe" "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"; do
+            [ -f "$b" ] || continue
+            sh tools/r3-trials/profile/run.sh --item 4 --browser "$b" --port 18591 || code=1
+          done
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          tp="tools/r3-trials/profile/target/$host/release"
+          for shape in "0,0,0 0" "100,200,300 0" "100,200,300 150" "0,0,0 400"; do
+            set -- $shape
+            echo "case mib=$1 orphan=$2"
+            "$tp/tree-peak.exe" --runs 3 -- "$tp/alloc-tree.exe" --mib "$1" --orphan "$2" --hold-ms 2500 || code=1
+          done
+          exit $code
       - uses: actions/setup-node@v7
         with:
           node-version: 26
