@@ -92,7 +92,7 @@ function Remove-Left {
 
 function Add-Rules {
     $group = Get-Group
-    $entries = Read-Entries
+    $entries = @(Read-Entries)
     $programs = @([IO.File]::ReadAllLines((Join-Path $Dir 'programs')) | Where-Object { $_ -ne '' } | Sort-Object -Unique)
     $v4 = @($entries | Where-Object { $_.Kind -eq 'v4' } | ForEach-Object { Get-Bare $_.Host } | Sort-Object -Unique)
     $v6 = @($entries | Where-Object { $_.Kind -eq 'v6' } | ForEach-Object { Get-Bare $_.Host } | Sort-Object -Unique)
@@ -148,7 +148,7 @@ function Write-Log {
     $tree = @{}
     $images = @{}
     $tree[[long]$Root] = $true
-    $created = Get-Events @{ LogName = 'Security'; Id = 4688; StartTime = $since }
+    $created = @(Get-Events @{ LogName = 'Security'; Id = 4688; StartTime = $since })
     foreach ($record in ($created | Sort-Object RecordId)) {
         $xml = [xml]$record.ToXml()
         $child = [Convert]::ToInt64((Get-Field $xml 'NewProcessId'), 16)
@@ -163,7 +163,7 @@ function Write-Log {
     $listed = @{}
     foreach ($entry in (Read-Entries)) { $listed["$($entry.Host) $($entry.Port)"] = $true }
     $lines = @()
-    $connections = Get-Events @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $since }
+    $connections = @(Get-Events @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $since })
     $seen = @{ '5156' = 0; '5157' = 0; 'tree5156' = 0; 'tree5157' = 0 }
     foreach ($record in $connections) {
         $xml = [xml]$record.ToXml()
@@ -184,7 +184,7 @@ function Write-Log {
         $lines += [pscustomobject]@{ At = (Get-Instant $record); Order = $record.RecordId; Text = "proto=$proto dest=${address}:$port pid=$processId image=$image" }
     }
     $dns = @()
-    if ($Deny -eq 1) { $dns = Get-Events @{ LogName = $DnsChannel; Id = 3006; StartTime = $since } }
+    if ($Deny -eq 1) { $dns = @(Get-Events @{ LogName = $DnsChannel; Id = 3006; StartTime = $since }) }
     $seen['3006'] = $dns.Count
     $seen['tree3006'] = 0
     foreach ($record in $dns) {
