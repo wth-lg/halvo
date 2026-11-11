@@ -2,6 +2,7 @@
 //! messages of the seam protocol with their framing, the client, the fixture transport over batch files, the
 //! input-set reader with the reduction, and the conformance suite that every server of the protocol passes.
 
+pub mod client;
 pub mod fixture;
 pub mod frame;
 pub mod input_set;
