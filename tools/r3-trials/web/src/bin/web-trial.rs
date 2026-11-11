@@ -293,6 +293,10 @@ mod driver {
         ctx.control.state().map_err(|e| Fault::new("control", e))
     }
 
+    fn counter(ctx: &Ctx, path: &[&str]) -> Res<i64> {
+        count(&state(ctx)?, path).ok_or_else(|| Fault::new("check", "state_key"))
+    }
+
     fn role(r: &'static str, name: &str) -> Locator {
         Locator::Role(r, name.to_string())
     }
@@ -326,9 +330,9 @@ mod driver {
     }
 
     async fn signin_form(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
-        let before = count(&state(ctx)?, &["utility", "signins"]);
+        let before = counter(ctx, &["utility", "signins"])?;
         signin(ex, ctx).await?;
-        let after = count(&state(ctx)?, &["utility", "signins"]);
+        let after = counter(ctx, &["utility", "signins"])?;
         check(after == before + 1, "signins")?;
         check(path_now(ex).await? == "/bill", "page")
     }
@@ -376,7 +380,7 @@ mod driver {
         signin(ex, ctx).await?;
         ex.open(&ctx.u("/prefs")).await?;
         watch_requests(ex, ctx).await?;
-        let before = count(&state(ctx)?, &["utility", "prefs_saved"]);
+        let before = counter(ctx, &["utility", "prefs_saved"])?;
         let boxed = ex
             .resolve_one(&[role("checkbox", "Paperless billing")], &[])
             .await?;
@@ -385,7 +389,7 @@ mod driver {
             .resolve_one(&[role("button", "Save preferences")], &[])
             .await?;
         click_and_wait(ex, &save).await?;
-        let after = count(&state(ctx)?, &["utility", "prefs_saved"]);
+        let after = counter(ctx, &["utility", "prefs_saved"])?;
         check(after == before + 1, "prefs_saved")?;
         let post = sent(ex, "POST", "/prefs")?;
         check(post.body_holds(b"paperless=yes"), "box_set_in_request")
@@ -466,7 +470,7 @@ mod driver {
         let file = ctx.scratch.join(format!("meter-{i}.bin"));
         std::fs::write(&file, vec![0x5a_u8; 1024])
             .map_err(|e| Fault::new("file", e.to_string()))?;
-        let before = count(&state(ctx)?, &["utility", "uploads"]);
+        let before = counter(ctx, &["utility", "uploads"])?;
         let input = ex
             .resolve_one(
                 &[
@@ -481,14 +485,14 @@ mod driver {
         watch_requests(ex, ctx).await?;
         let send = ex.resolve_one(&[role("button", "Upload")], &[]).await?;
         click_and_wait(ex, &send).await?;
-        let after = count(&state(ctx)?, &["utility", "uploads"]);
+        let after = counter(ctx, &["utility", "uploads"])?;
         check(after == before + 1, "uploads")?;
         sent(ex, "POST", "/upload").map(|_| ())
     }
 
     async fn session_expiry(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
         signin(ex, ctx).await?;
-        let signins = count(&state(ctx)?, &["utility", "signins"]);
+        let signins = counter(ctx, &["utility", "signins"])?;
         check(signins == 1, "first_signin")?;
         ex.open(&ctx.u("/prefs")).await?;
         let save = ex
@@ -496,13 +500,13 @@ mod driver {
             .await?;
         click_and_wait(ex, &save).await?;
         check(
-            count(&state(ctx)?, &["utility", "prefs_saved"]) == 1,
+            counter(ctx, &["utility", "prefs_saved"])? == 1,
             "prefs_saved",
         )?;
         ex.open(&ctx.u("/bill")).await?;
         let lines = ex.snapshot().await?;
         check(lines.iter().any(|l| l.credential), "credential_field")?;
-        check(count(&state(ctx)?, &["utility", "signins"]) == 1, "signins")
+        check(counter(ctx, &["utility", "signins"])? == 1, "signins")
     }
 
     async fn changed_page_1(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -529,7 +533,7 @@ mod driver {
         let u = origin(UTILITY, ctx.port);
         ex.arm_rule(vec![u.clone(), origin(PAY, ctx.port)], false)
             .await?;
-        let before = count(&state(ctx)?, &["requests", "state_changing"]);
+        let before = counter(ctx, &["requests", "state_changing"])?;
         let save = ex
             .resolve_one(&[role("button", "Save preferences")], &[])
             .await?;
@@ -558,7 +562,7 @@ mod driver {
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        let after = count(&state(ctx)?, &["requests", "state_changing"]);
+        let after = counter(ctx, &["requests", "state_changing"])?;
         check(after == before, "state_changing")
     }
 
@@ -918,16 +922,16 @@ mod driver {
         let outcome = ctx
             .stop
             .or(async {
-                let t0 = count(&state(ctx)?, &["requests", "total"]);
+                let t0 = counter(ctx, &["requests", "total"])?;
                 let other = ex
                     .navigate_error(&format!(
                         "http://halvo-resolver-probe.localhost:{}/",
                         ctx.port
                     ))
                     .await?;
-                let t1 = count(&state(ctx)?, &["requests", "total"]);
+                let t1 = counter(ctx, &["requests", "total"])?;
                 ex.open(&ctx.u("/signin")).await?;
-                let t2 = count(&state(ctx)?, &["requests", "total"]);
+                let t2 = counter(ctx, &["requests", "total"])?;
                 out(&format!(
                     "resolver other_name_error={} other_name_requests={} test_name_requests={}",
                     other.unwrap_or("none".into()).replace(' ', "_"),

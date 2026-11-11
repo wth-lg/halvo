@@ -65,14 +65,12 @@ impl Control {
     }
 }
 
-pub fn count(state: &Value, path: &[&str]) -> i64 {
+pub fn count(state: &Value, path: &[&str]) -> Option<i64> {
     let mut v = state;
     for k in path {
         v = &v[*k];
     }
-    v.as_i64()
-        .or_else(|| v.as_array().map(|a| a.len() as i64))
-        .unwrap_or(-1)
+    v.as_i64().or_else(|| v.as_array().map(|a| a.len() as i64))
 }
 
 pub struct Seed(pub Value);
