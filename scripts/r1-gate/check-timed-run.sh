@@ -29,6 +29,7 @@ cases() {
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
   t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
   t standin-run-with-no-event-of-two-kinds FAIL against_the_standin ok operator
+  t standin-operator-gave-no-input FAIL fails_saying 'the operator gave no input: the report of this run holds keystroke=0 pointer=0' against_the_standin ok operator
   t standin-binary-fails FAIL against_the_standin exit-1 operator
   t standin-binary-prints-usage FAIL against_the_standin exit-64 operator
   t standin-report-then-exit-1 FAIL against_the_standin report-then-exit-1 operator
@@ -76,6 +77,7 @@ measure() {
   counts=$(report_counts "$run_dir/stdout")
   line="${counts% } over ${1}s with --switch screen_activity=on and the helper window"
   defect=$(sources_defect "$run_dir/stdout" "$run_dir/stderr") || { emit_fail "$name" "$defect; $line"; return 1; }
+  defect=$(input_defect "$run_dir/stdout" keystroke pointer) || { emit_fail "$name" "$defect; $line"; return 1; }
   if [ "$gate_input" = none ]; then
     verdict_under_input "so keystroke and pointer are not judged" "$line"
     return

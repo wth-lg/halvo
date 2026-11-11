@@ -15,6 +15,7 @@ cases() {
   t report-missing FAIL predicate_zero_secure_keystrokes "$gate_scratch/no-such-report"
   standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
   t standin-held-run PASS against_the_standin typed operator
+  t standin-operator-gave-no-input FAIL fails_saying 'the operator gave no input: the report of this run holds keystroke=0 pointer=0' against_the_standin ok operator
   t standin-held-run-with-no-input NO-INPUT against_the_standin ok none
   t standin-keystroke-while-held-with-no-input FAIL against_the_standin keystroke-while-held none
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
@@ -47,6 +48,7 @@ measure() {
   if ! predicate_zero_secure_keystrokes "$run_dir/stdout"; then
     emit_fail "$name" "a keystroke was recorded while secure input was held, or the line is absent: $line"; return 1
   fi
+  defect=$(input_defect "$run_dir/stdout" pointer) || { emit_fail "$name" "$defect; $line"; return 1; }
   verdict_under_input "so no key was typed during the hold" "$line"
 }
 

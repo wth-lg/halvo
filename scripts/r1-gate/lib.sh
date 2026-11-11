@@ -318,6 +318,27 @@ predicate_sources_ran() {
   sources_defect "$1" "$2" > /dev/null
 }
 
+input_defect() {
+  [ "$gate_input" = operator ] || return 0
+  input_report=$1; shift
+  input_keys=$(modality_count "$input_report" keystroke)
+  input_points=$(modality_count "$input_report" pointer)
+  input_counts="keystroke=${input_keys:-absent} pointer=${input_points:-absent}"
+  for input_kind in "$@"; do
+    case $input_kind in keystroke) input_count=$input_keys ;; *) input_count=$input_points ;; esac
+    case $input_count in ''|*[!0-9]*|0) ;; *) continue ;; esac
+    printf 'the operator gave no input: the report of this run holds %s under --input operator\n' "$input_counts"
+    return 1
+  done
+}
+
+fails_saying() {
+  said_text=$1; shift
+  said=$("$@" 2> /dev/null)
+  case $said in *"FAIL $name ("*"$said_text"*) return 1 ;; esac
+  return 0
+}
+
 predicate_zero_secure_keystrokes() {
   count=$(sed -n 's/^secure_input_keystrokes=\([0-9][0-9]*\)$/\1/p' "$1" 2>/dev/null)
   [ "$count" = 0 ]

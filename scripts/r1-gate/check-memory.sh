@@ -99,7 +99,8 @@ cases() {
   t standin-spike FAIL live_verdict spike 64 0.2 1
   t standin-leak FAIL live_verdict leak 16 5 0.3
   sources_cases
-  t standin-run-with-sources PASS against_the_standin ok operator
+  t standin-run-with-sources PASS against_the_standin typed operator
+  t standin-operator-gave-no-input FAIL fails_saying 'the operator gave no input: the report of this run holds keystroke=0 pointer=0' against_the_standin ok operator
   t standin-run-with-no-input NO-INPUT against_the_standin ok none
   t standin-screen-source-failed-with-no-input FAIL against_the_standin screen-failed none
   t standin-binary-fails-with-no-input FAIL against_the_standin exit-1 none
@@ -186,7 +187,7 @@ with_an_unreadable_deadline() {
 }
 
 strict_beside() {
-  standin_as_the_binary ok operator
+  standin_as_the_binary typed operator
   gate_strict=yes
   # shellcheck disable=SC2329
   machine_state() { printf 'load1=0.00 pressure=1\n'; }
@@ -227,6 +228,7 @@ FIGURES
   if ! strict_run_ok; then
     emit_fail "$name" "$line: --strict needs pressure level 1 at both ends and no other halvo-capture"; return 1
   fi
+  defect=$(input_defect "$run_dir/stdout" keystroke pointer) || { emit_fail "$name" "$defect; $line"; return 1; }
   verdict_under_input "and the bound is defined under input load" "$line"
 }
 
