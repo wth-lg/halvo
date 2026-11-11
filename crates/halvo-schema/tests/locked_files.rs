@@ -393,3 +393,38 @@ fn the_reading_of_identifiers_leaves_out_comments_strings_and_chars() {
     assert_eq!(identifiers(text, "executable"), 0);
     assert_eq!(identifiers(text, "coordinator"), 0);
 }
+
+fn fn_body(t: &[String], name: &str) -> Vec<String> {
+    let at = find(t, &["fn", name, "("]);
+    assert_eq!(
+        at.len(),
+        1,
+        "src/kinds.rs declares fn {name} {} times",
+        at.len()
+    );
+    let open = (at[0]..t.len()).find(|&i| t[i] == "{").unwrap_or(t.len());
+    t[(open + 1).min(t.len())..closing(t, open)].to_vec()
+}
+
+#[test]
+fn registry_chains_the_kinds_of_this_run_and_the_four_lists_of_later_runs_in_the_order_of_the_contract(
+) {
+    let body = fn_body(&tokens(&source("kinds.rs")), "registry");
+    assert_eq!(
+        body,
+        tokens(
+            "KINDS.iter().chain(crate::executable::KINDS).chain(crate::coordinator::KINDS).chain(crate::learning::KINDS).chain(crate::routing::KINDS)"
+        ),
+        "src/kinds.rs: registry() must chain kinds::KINDS, executable::KINDS, coordinator::KINDS, learning::KINDS and routing::KINDS in that order"
+    );
+}
+
+#[test]
+fn check_registry_reads_the_whole_registry() {
+    let body = fn_body(&tokens(&source("kinds.rs")), "check_registry");
+    assert_eq!(
+        body,
+        tokens("let entries: Vec<&KindEntry> = registry().collect(); check_entries(&entries)"),
+        "src/kinds.rs: check_registry() must call check_entries over registry() and nothing else"
+    );
+}
