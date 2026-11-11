@@ -33,7 +33,9 @@ A daemon that launchd starts is not the default path (row 81).
   daemon's shutdown budget of 18,000 ms sits under that 20,000 ms stop wait
   (contract C14; rulings D3).
 - On Windows the per-user Run value starts the app. There is no task and no
-  elevation (RD-43).
+  elevation (RD-43). This is form A of spike S5, which stands; a plan Revision
+  replaces it by form B, a per-user task, when S5 reports branch B (contract C14
+  item 7).
 - A daemon that launchd starts stays only as a branch for a signed release.
 
 ## Consequences
