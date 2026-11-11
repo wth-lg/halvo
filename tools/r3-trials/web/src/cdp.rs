@@ -824,6 +824,20 @@ impl Executor {
             .ok_or_else(|| Fault::new("read", "not text"))
     }
 
+    pub async fn file_sizes(&self, reference: &str) -> Res<Vec<u64>> {
+        let t = self.target(reference)?;
+        let v = self
+            .call_on(
+                &t.node,
+                "function () { return Array.from(this.files || []).map((f) => f.size); }",
+                Vec::new(),
+            )
+            .await?;
+        Ok(v.as_array()
+            .map(|a| a.iter().filter_map(|n| n.as_u64()).collect())
+            .unwrap_or_default())
+    }
+
     pub async fn arm_rule(
         &mut self,
         allowed_origins: Vec<String>,
