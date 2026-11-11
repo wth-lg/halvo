@@ -26,14 +26,17 @@ pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 /// The store the capture daemon appends to.
 pub trait SegmentStore {
-    /// Append one event's metadata row.
+    /// Append one event's metadata row and its search-index row, both or
+    /// neither.
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()>;
 
     /// Write raw capture bytes as a new encrypted segment and return its ref and
     /// the id of the per-segment key that encrypts it.
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
-    /// Total bytes the store occupies on disk, for the cost bound.
+    /// The summed lengths of the files under the store directory, for the cost
+    /// bound. A file or directory that cannot be read is an error; one that
+    /// went away is skipped.
     fn size_bytes(&self) -> StoreResult<u64>;
 }
 
@@ -61,10 +64,14 @@ pub struct ShredReport {
 pub enum StoreError {
     #[error("store i/o failed: {0}")]
     Io(std::io::ErrorKind),
-    /// SQLite failed with this extended result code, so a full volume is
-    /// `SQLITE_FULL`.
+    /// SQLite returned this extended result code; a database that cannot grow
+    /// returns `SQLITE_FULL`.
     #[error("the store database failed with SQLite code {0}")]
     Db(i32),
+    /// The write-ahead log checkpoint was busy or left bytes in the log, so the
+    /// shred that asked for it is not complete.
+    #[error("the checkpoint left the write-ahead log busy ({busy}) or holding {wal_bytes} bytes")]
+    CheckpointIncomplete { busy: i64, wal_bytes: u64 },
     /// No store-key file is in the directory, the store key does not open the
     /// database, the handle was sealed by delete-all, or the segment was shredded.
     #[error("the store is sealed; its key is not available")]

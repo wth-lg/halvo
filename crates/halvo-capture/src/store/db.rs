@@ -304,6 +304,25 @@ impl Db {
 
     pub(crate) fn insert_event(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
         self.conn
+            .execute_batch("SAVEPOINT insert_event;")
+            .map_err(db_error)?;
+        match self.insert_event_rows(event) {
+            Ok(()) => self
+                .conn
+                .execute_batch("RELEASE insert_event;")
+                .map_err(db_error),
+            Err(cause) => match self
+                .conn
+                .execute_batch("ROLLBACK TO insert_event; RELEASE insert_event;")
+            {
+                Ok(()) => Err(cause),
+                Err(e) => Err(db_error(e)),
+            },
+        }
+    }
+
+    fn insert_event_rows(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
+        self.conn
             .execute(
                 "INSERT INTO events (event_id, wall_clock_nanos, sequence, modality, \
                    foreground_app, segment_id, byte_offset, byte_len, segment_key_id, \
@@ -372,7 +391,10 @@ impl Db {
             wal_bytes: self.wal_bytes()?,
         };
         if checkpoint.busy != 0 || checkpoint.wal_bytes != 0 {
-            return Err(StoreError::Db(rusqlite::ffi::SQLITE_BUSY));
+            return Err(StoreError::CheckpointIncomplete {
+                busy: checkpoint.busy,
+                wal_bytes: checkpoint.wal_bytes,
+            });
         }
         Ok(checkpoint)
     }
@@ -671,12 +693,15 @@ pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
     while let Some(p) = stack.pop() {
         let entries = match std::fs::read_dir(&p) {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(e) if e.kind() == ErrorKind::NotFound => continue,
+            Err(e) => return Err(io_error(e)),
         };
-        for entry in entries.flatten() {
+        for entry in entries {
+            let entry = entry.map_err(io_error)?;
             let meta = match entry.metadata() {
                 Ok(m) => m,
-                Err(_) => continue,
+                Err(e) if e.kind() == ErrorKind::NotFound => continue,
+                Err(e) => return Err(io_error(e)),
             };
             if meta.is_dir() {
                 stack.push(entry.path());
@@ -768,6 +793,86 @@ mod tests {
         assert!(
             checkpoint.is_err(),
             "a write-ahead log that cannot be read let the checkpoint succeed: {checkpoint:?}"
+        );
+    }
+
+    #[test]
+    fn an_event_whose_index_row_fails_leaves_no_event_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (seg_ref, key_id) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute_batch("DROP TABLE events_fts;")
+            .unwrap();
+        let event = CaptureStreamEvent::new_raw(
+            CapturedAt {
+                wall_clock: SystemTime::now(),
+                sequence: MonotonicSequence::new(1),
+            },
+            Modality::ScreenFrame,
+            "app".to_string(),
+            seg_ref,
+            key_id,
+        );
+        let appended = store.append_event(&event);
+        let rows: i64 = store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+            .unwrap();
+        assert!(
+            appended.is_err(),
+            "the append with no index table succeeded"
+        );
+        assert_eq!(rows, 0, "a failed append left its event row");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_store_directory_that_cannot_be_read_fails_the_size_and_does_not_shrink_it() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (seg_ref, _) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        let shard = segment::segment_path(dir.path(), seg_ref.segment_id)
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let size = store.size_bytes();
+        std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(
+            matches!(size, Err(StoreError::Io(ErrorKind::PermissionDenied))),
+            "{size:?}"
+        );
+    }
+
+    #[test]
+    fn a_checkpoint_that_leaves_bytes_in_the_wal_is_incomplete_and_no_sqlite_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        let wal = dir.path().join("a-wal-that-keeps-bytes");
+        std::fs::write(&wal, [1u8; 100]).unwrap();
+        db.wal_path = wal;
+        let checkpoint = db.checkpoint_truncate();
+        assert!(
+            matches!(
+                checkpoint,
+                Err(StoreError::CheckpointIncomplete {
+                    busy: 0,
+                    wal_bytes: 100
+                })
+            ),
+            "{checkpoint:?}"
         );
     }
 
