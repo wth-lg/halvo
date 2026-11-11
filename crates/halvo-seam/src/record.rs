@@ -45,6 +45,8 @@ macro_rules! names {
     };
 }
 
+pub(crate) use names;
+
 names! {
     /// The six kinds that the reader knows (C4.3), `screen_frame` among them, which no server serves.
     Kind {
@@ -340,6 +342,16 @@ impl CaptureRecord {
     /// The key `kind`.
     pub fn kind(&self) -> Kind {
         self.payload.kind()
+    }
+
+    pub(crate) fn with_payload(&self, payload: Payload) -> CaptureRecord {
+        CaptureRecord {
+            id: self.id.clone(),
+            at: self.at,
+            seq: self.seq,
+            app: self.app.clone(),
+            payload,
+        }
     }
 
     /// Reads one JSON object by the rules of C4.6: keys in any order, JSON white space between tokens, no key

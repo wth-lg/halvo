@@ -1,0 +1,5 @@
+envelope = ["app"]
+layers = []
+[kinds]
+foreground_app = []
+window_title = ["text"]

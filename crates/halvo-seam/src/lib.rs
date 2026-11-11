@@ -3,5 +3,6 @@
 //! input-set reader with the reduction, and the conformance suite that every server of the protocol passes.
 
 pub mod frame;
+pub mod input_set;
 pub mod message;
 pub mod record;
