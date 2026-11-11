@@ -36,8 +36,7 @@ impl StoreKey {
         Ok(key)
     }
 
-    /// The raw key bytes, for the store to open the database. Keep the borrow
-    /// short; the key zeroes on drop.
+    /// The raw key bytes. Keep the borrow short; the key zeroes on drop.
     pub fn expose(&self) -> &[u8; 32] {
         &self.0
     }
@@ -69,8 +68,9 @@ impl fmt::Display for RootId {
     }
 }
 
-/// Which custody wrapped the store key. The release privacy check rejects
-/// [`CustodyKind::DevFallback`]; the signed-build paths are the real roots.
+/// Which custody wrapped the store key.
+/// [`dev_fallback::reject_fallback_for_release`] rejects every kind that
+/// [`CustodyKind::is_acceptable_for_release`] does not accept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CustodyKind {
@@ -110,7 +110,8 @@ pub(crate) fn opens_under_an_all_zero_root(root_id: RootId, wrapped: &WrappedKey
 }
 
 /// The custody that wrapped a store key, rebuilt from the kind and root id the
-/// store-key file records.
+/// store-key file records, or [`CustodyError::CustodyKindUnsupported`] for a kind
+/// that this build cannot rebuild.
 pub fn custody_for(
     kind: CustodyKind,
     root_id: RootId,

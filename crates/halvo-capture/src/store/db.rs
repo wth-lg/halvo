@@ -551,8 +551,7 @@ impl EncryptedStore {
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
-    /// through the custody it names** (the owner's no-prompt unwrap) and open the
-    /// database. Fails [`StoreError::Locked`] while another writer holds the
+    /// through the custody it names** and open the database. Fails [`StoreError::Locked`] while another writer holds the
     /// directory, [`StoreError::Sealed`] if the key file is gone (delete-all ran)
     /// or the key does not open the database, [`StoreError::KeyFileUnparseable`]
     /// for a key file that does not parse, and [`StoreError::Custody`] with the
@@ -614,10 +613,13 @@ impl EncryptedStore {
     }
 
     /// Read and decrypt a segment's plaintext: unwrap its per-segment key with the
-    /// store key, then decrypt the file. Nothing reaches `out` until the whole
-    /// file has authenticated. Fails [`StoreError::Sealed`] if the segment has
-    /// been crypto-shredded or never finished writing (its key row is NULL or
-    /// gone) and [`StoreError::Corrupt`] if the file does not authenticate.
+    /// store key, then read the file twice, first to authenticate every chunk and
+    /// then to write the plaintext to `out`. Nothing reaches `out` before the first
+    /// read has authenticated the whole file; a file that changes between the two
+    /// reads ends in an error, after `out` has taken the chunks that still
+    /// authenticate. Fails [`StoreError::Sealed`] if the segment has been
+    /// crypto-shredded or never finished writing (its key row is NULL or gone) and
+    /// [`StoreError::Corrupt`] if the file does not authenticate.
     pub fn read_segment(&self, segment_id: uuid::Uuid, out: &mut dyn Write) -> StoreResult<u64> {
         let (db, store_key) = self.keyed()?;
         let wrapped: Option<Vec<u8>> = db

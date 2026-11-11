@@ -57,8 +57,7 @@ pub struct ShredReport {
     pub keys_destroyed: u64,
 }
 
-/// Why a store call failed, classified where the failure happens so that the
-/// owner can match every state. A custody failure, also one of `open`'s unwrap,
+/// Why a store call failed. A custody failure, also one of `open`'s unwrap,
 /// arrives as [`StoreError::Custody`] with its own variant.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -103,14 +102,15 @@ pub enum StoreError {
 
 pub type StoreResult<T> = Result<T, StoreError>;
 
-/// `--verify-store`: no plaintext leaked and the owner unwrapped the store key
-/// with no prompt.
+/// Run the `--verify-store` measurements on a fresh store and return the line
+/// that the gate judges. Fails when a file of the store holds the raw store key.
 pub fn verify_store() -> StoreResult<String> {
     verify::run_store_check().map(|check| check.to_string())
 }
 
-/// `--verify-deletion`: a crypto-shredded segment is not decryptable with any
-/// remaining key.
+/// Run the `--verify-deletion` measurements, one expired segment shredded beside
+/// a live one and then delete-all, and return the line that the gate judges.
+/// Fails when the state of the root after delete-all is unknown.
 pub fn verify_deletion() -> StoreResult<String> {
     verify::run_deletion_check().map(|check| check.to_string())
 }

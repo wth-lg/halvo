@@ -448,8 +448,8 @@ property failing. So is a panic "unknown race log event", which one run at
 the sync commit printed while shrinking: two contenders inside the store
 wrote the race log at the same moment.
 
-The `flock-only` row is the point of check 2: the file lock only serializes
-`create`; the single-writer guarantee is SQLite's exclusive lock, which
+The `flock-only` row is the point of check 2: the file lock serializes
+`create` and `open`; the single-writer guarantee is SQLite's exclusive lock, which
 unlinking `writer.lock` cannot release. A change that removes the file lock
 alone does not fail the check, and is not a safety regression. It does fail
 a test of the lib suite.
@@ -624,6 +624,9 @@ it in the plan before weakening an assertion.
   file and a scrubbed key file give their old blocks back to the file
   system, and the harness reads files, not the volume. Freed pages inside
   `store.db` are covered: the file scan reads every page of the file.
+- A restored copy of a root file. Destroying a root scrubs and removes its
+  file, and a copy that a backup or a shadow copy kept unprotects again for the
+  same user and revives the key of its store.
 - A part of a wrapped key that is shorter than its middle 32 bytes. The
   file scan looks for the whole key and for that middle.
 - What the event rows of a shredded segment leave in the store files. The
