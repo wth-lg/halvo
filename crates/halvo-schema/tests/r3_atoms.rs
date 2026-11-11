@@ -286,6 +286,16 @@ fn the_classes_have_the_money_and_confirm_sets_of_the_contract() {
 }
 
 #[test]
+fn the_classes_of_a_request_of_the_browser_are_submit_purchase_payment_and_sign() {
+    let browser: Vec<&str> = ActionClass::ALL
+        .iter()
+        .filter(|c| c.is_browser_effect())
+        .map(|c| c.as_str())
+        .collect();
+    assert_eq!(browser, ["submit", "purchase", "payment", "sign"]);
+}
+
+#[test]
 fn own_text_holds_at_most_1024_bytes() {
     assert_eq!(
         OwnText::parse(&"a".repeat(1024)).unwrap().as_str().len(),
@@ -400,6 +410,27 @@ fn a_web_origin_is_scheme_host_and_port_in_lower_case() {
     let label = "a".repeat(64);
     malformed(
         WebOrigin::parse(&format!("http://{label}.test:80")),
+        "WebOrigin",
+        "origin_form",
+    );
+}
+
+#[test]
+fn a_host_holds_at_most_253_bytes() {
+    let labels = |last: usize| {
+        format!(
+            "{}.{}.{}.{}",
+            "a".repeat(63),
+            "b".repeat(63),
+            "c".repeat(63),
+            "d".repeat(last)
+        )
+    };
+    assert_eq!(labels(61).len(), 253);
+    let taken = format!("http://{}:80", labels(61));
+    assert_eq!(WebOrigin::parse(&taken).unwrap().as_str(), taken);
+    malformed(
+        WebOrigin::parse(&format!("http://{}:80", labels(62))),
         "WebOrigin",
         "origin_form",
     );

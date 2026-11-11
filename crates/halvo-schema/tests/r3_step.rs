@@ -1024,9 +1024,10 @@ fn sized(value_len: usize) -> String {
 #[test]
 fn a_step_of_more_than_2048_bytes_of_compact_json_is_refused_with_length() {
     let base = sized(0).len();
-    assert!(base < STEP_JSON_MAX);
-    let exact = sized(STEP_JSON_MAX - base);
-    assert_eq!(exact.len(), STEP_JSON_MAX);
+    assert_eq!(STEP_JSON_MAX, 2048);
+    assert!(base < 2048);
+    let exact = sized(2048 - base);
+    assert_eq!(exact.len(), 2048);
     assert_eq!(
         ExecutableStep::parse(exact.as_bytes())
             .unwrap()
@@ -1034,7 +1035,7 @@ fn a_step_of_more_than_2048_bytes_of_compact_json_is_refused_with_length() {
             .unwrap(),
         exact
     );
-    let over = sized(STEP_JSON_MAX - base + 1);
+    let over = sized(2048 - base + 1);
     let refusal = refused(&over);
     assert_eq!(refusal.cause(), RefusalCause::Length);
     assert_eq!(
@@ -1129,8 +1130,25 @@ fn a_playbook_file_holds_1_to_64_steps_one_per_line_numbered_from_1() {
 }
 
 #[test]
+fn a_step_numbered_above_64_is_refused_with_length() {
+    assert!(ExecutableStep::parse(wait(64).as_bytes()).is_ok());
+    for n in [65, 1000, 4_294_967_295] {
+        let refusal = refused(&wait(n));
+        assert_eq!(refusal.cause(), RefusalCause::Length, "{n}");
+        assert_eq!(
+            (refusal.type_name(), refusal.rule(), refusal.key()),
+            ("ExecutableStep", "step_number", Some("n"))
+        );
+    }
+}
+
+#[test]
 fn a_playbook_value_holds_the_same_rules() {
-    let step = |n: usize| ExecutableStep::parse(wait(n).as_bytes()).unwrap();
+    let step = |n: u32| {
+        let mut step = ExecutableStep::parse(wait(1).as_bytes()).unwrap();
+        step.n = std::num::NonZeroU32::new(n).unwrap();
+        step
+    };
     assert_eq!(Playbook::new(Vec::new()).unwrap_err().rule(), "no_step");
     let many: Vec<ExecutableStep> = (1..=65).map(step).collect();
     assert_eq!(

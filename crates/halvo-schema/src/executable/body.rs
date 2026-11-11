@@ -120,7 +120,12 @@ object_type! {
         pub number: NonZeroU32 = "number" => from_json,
         pub from: NonZeroU32 = "from" => from_json,
     }
-    rules(_b) { Ok(()) }
+    rules(b) {
+        if usize::try_from(b.from.get()).map_or(true, |n| n > PLAYBOOK_STEPS_MAX) {
+            return Err(Refusal::length("LoadSteps", "step_number").at("from"));
+        }
+        Ok(())
+    }
 }
 
 object_type! {

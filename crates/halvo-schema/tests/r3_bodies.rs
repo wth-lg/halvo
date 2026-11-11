@@ -206,11 +206,13 @@ fn a_bound_object_holds_exactly_the_fields_of_its_class_in_their_order() {
         r#""from":"slot","origin":null,"value":["Northwind Power"]"#,
         r#""from":"slot","origin":"http://utility.test:18090","value":["Northwind Power"]"#,
     );
-    expect(
-        Bound::parse(slot_origin.as_bytes()),
-        "BoundField",
-        "origin_without_extract",
-        "origin",
+    assert_eq!(
+        Bound::parse(slot_origin.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        slot_origin,
+        "which origin a field admits is the rule of admit"
     );
     let not_cut = swap(PAY_BOUND, r#"["84.20"]"#, r#"["84.","20"]"#);
     expect(
@@ -1125,6 +1127,46 @@ fn a_runner_body_is_refused_for_each_rule() {
         .unwrap_err()
         .to_string();
     assert!(!broken.contains("4711"), "{broken}");
+}
+
+#[test]
+fn a_step_or_a_first_step_numbered_above_64_is_refused_with_length() {
+    let load_steps = |from: u32| {
+        format!(r#"{{"op":"load_steps","agent":"{A}","run":"{R}","number":1,"from":{from}}}"#)
+    };
+    assert!(RunnerCall::parse(load_steps(64).as_bytes()).is_ok());
+    let refusal = RunnerCall::parse(load_steps(65).as_bytes()).unwrap_err();
+    assert_eq!(
+        (
+            refusal.cause(),
+            refusal.type_name(),
+            refusal.rule(),
+            refusal.key()
+        ),
+        (
+            RefusalCause::Length,
+            "LoadSteps",
+            "step_number",
+            Some("from")
+        )
+    );
+    let put = format!(
+        r#"{{"op":"put_playbook","agent":"{A}","run":"{R}","number":1,"steps":[{}]}}"#,
+        wait(65)
+    );
+    let refusal = RunnerCall::parse(put.as_bytes()).unwrap_err();
+    assert_eq!(
+        (refusal.cause(), refusal.rule()),
+        (RefusalCause::Length, "step_number")
+    );
+    let row = format!(
+        r#"{{"v":1,"workflow":"{W}","agent":"{A}","number":1,"n":65,"step":{}}}"#,
+        wait(65)
+    );
+    assert_eq!(
+        AgentPlaybook::parse(row.as_bytes()).unwrap_err().cause(),
+        RefusalCause::Length
+    );
 }
 
 fn coordinator_bodies() -> Vec<String> {

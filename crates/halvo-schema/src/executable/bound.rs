@@ -34,8 +34,8 @@ impl ActionClass {
 }
 
 object_type! {
-    /// One field of a bound object: its name, the source of its value, the origin that an extracted value was read
-    /// from or null, and the value. Only a value of the source `extract` has an origin.
+    /// One field of a bound object: its name, the source of its value, an origin or null, and the value. Which
+    /// sources and origins a field admits is the rule of `admit` of halvo-policy, not of this parser.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct BoundField {
         pub name: FieldName = "name" => from_json,
@@ -43,12 +43,7 @@ object_type! {
         pub origin: Option<WebOrigin> = "origin" => opt(from_json),
         pub value: OwnValue = "value" => from_json,
     }
-    rules(f) {
-        if f.origin.is_some() && f.from != Source::Extract {
-            return Err(Refusal::malformed("BoundField", "origin_without_extract").at("origin"));
-        }
-        Ok(())
-    }
+    rules(_f) { Ok(()) }
 }
 
 /// The bound object of an effect, `{"class":"<class>","fields":[<bound field>...]}`, with exactly the fields of

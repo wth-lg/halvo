@@ -278,6 +278,9 @@ fn millis(s: &str) -> bool {
 
 fn step_rules(step: &ExecutableStep) -> Result<(), Refusal> {
     let fail = |key, rule| Err(Refusal::malformed("ExecutableStep", rule).at(key));
+    if usize::try_from(step.n.get()).map_or(true, |n| n > PLAYBOOK_STEPS_MAX) {
+        return Err(Refusal::length("ExecutableStep", "step_number").at("n"));
+    }
     if step.verb.kind() != step.kind {
         return fail("verb", "verb_of_kind");
     }

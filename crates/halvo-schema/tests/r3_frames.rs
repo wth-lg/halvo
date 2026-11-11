@@ -248,12 +248,13 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         "value",
     );
 
+    assert_eq!(FRAME_JSON_MAX, 65_536);
     let shell = r#"{"t":"secret_reply","value":""}"#.len();
     let exact = format!(
         r#"{{"t":"secret_reply","value":"{}"}}"#,
-        "s".repeat(FRAME_JSON_MAX - shell)
+        "s".repeat(65_536 - shell)
     );
-    assert_eq!(exact.len(), FRAME_JSON_MAX);
+    assert_eq!(exact.len(), 65_536);
     assert_eq!(
         ToRunner::parse(exact.as_bytes())
             .unwrap()
@@ -263,7 +264,7 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
     );
     let over = format!(
         r#"{{"t":"secret_reply","value":"{}"}}"#,
-        "s".repeat(FRAME_JSON_MAX - shell + 1)
+        "s".repeat(65_536 - shell + 1)
     );
     let refusal = ToRunner::parse(over.as_bytes()).unwrap_err();
     assert_eq!(
@@ -279,11 +280,12 @@ fn a_frame_is_refused_by_its_tag_its_keys_and_its_length() {
         panic!()
     };
     frame.value = Some(halvo_schema::executable::text::SecretText::new(
-        &"s".repeat(FRAME_JSON_MAX),
+        &"s".repeat(65_536 - shell + 1),
     ));
+    let refusal = ToRunner::SecretReply(frame).to_json().unwrap_err();
     assert_eq!(
-        ToRunner::SecretReply(frame).to_json().unwrap_err().cause(),
-        RefusalCause::Length
+        (refusal.cause(), refusal.rule()),
+        (RefusalCause::Length, "frame_length")
     );
 }
 
@@ -419,6 +421,34 @@ fn a_confirmation_request_holds_confirm_classes_whose_bound_object_fits() {
     for (text, type_name, rule, key) in cases {
         expect(ConfirmRequest::parse(text.as_bytes()), type_name, rule, key);
     }
+}
+
+#[test]
+fn a_submit_effect_is_a_request_of_the_browser_and_stands_alone() {
+    let submit = r#"{"class":"submit","fields":[{"name":"origin","from":"const","origin":null,"value":["http://form.test:18090"]},{"name":"fields","from":"slot","origin":null,"value":["name, address"]}]}"#;
+    let alone = confirm(&[confirm_effect(
+        E,
+        "submit",
+        submit,
+        Some("http://form.test:18090"),
+    )]);
+    assert_eq!(
+        ConfirmRequest::parse(alone.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        alone
+    );
+    let with_send = confirm(&[
+        confirm_effect(E, "submit", submit, None),
+        confirm_effect(E2, "send", SEND_BOUND, None),
+    ]);
+    expect(
+        ConfirmRequest::parse(with_send.as_bytes()),
+        "ConfirmRequest",
+        "browser_effect_not_alone",
+        "effects",
+    );
 }
 
 #[test]
