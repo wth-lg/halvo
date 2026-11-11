@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The egress check's self-test passes in each mode of the job, and fails with probes=miss when its deny rule is off on a hosted runner.
+# rule: The egress check's self-test passes in each mode of the job, fails with probes=miss when its deny rule is off on a hosted runner, and the tests of the mode pass.
 set -u
 name=10-egress
 
@@ -45,6 +45,13 @@ decide() {
       ;;
     control:0) printf '%s\n' 'control exited 0: the self-test passes without its deny rule' ;;
     control:2) printf 'control refused (%s)\n' "$cause" ;;
+    tests:0)
+      case $3 in
+        *"tests passed="*" failed=0") printf '%s\n' pass ;;
+        *) printf '%s\n' 'tests exited 0 without failed=0' ;;
+      esac
+      ;;
+    tests:*) printf 'tests exited %s (%s)\n' "$2" "$(printf '%s\n' "$3" | grep -c '^not ok ') not ok" ;;
     *) printf '%s exited %s\n' "$1" "$2" ;;
   esac
 }
@@ -86,6 +93,18 @@ measure() {
       run_one control "$mode" --control-no-deny
     done
   fi
+  for mode in $modes; do
+    if [ "${GITHUB_ACTIONS:-}" != true ] && [ "$mode" != sandbox ]; then
+      continue
+    fi
+    out=$(sh scripts/egress/test.sh "$mode" 2>"$CI_D_ARTIFACTS/tests-$mode.err")
+    code=$?
+    printf '%s\n' "$out" >"$CI_D_ARTIFACTS/tests-$mode.out"
+    printf '%s\n' "$out" | grep -E '^(not ok |tests passed=)'
+    verdict=$(decide tests "$code" "$out") || verdict="decide failed"
+    printf 'tests mode=%s exit=%s verdict=%s\n' "$mode" "$code" "$verdict"
+    [ "$verdict" = pass ] || fail "test.sh $mode: $verdict"
+  done
   printf 'PASS %s\n' "$name"
 }
 
@@ -122,6 +141,11 @@ checks probes=miss quiet=ok loopback=miss default=ok' pass
   fixture control-probes-ok control 1 'checks probes=ok quiet=ok loopback=miss default=ok' fail
   fixture control-refused control 2 'REFUSED usage: --control-no-deny runs on a hosted runner only' fail
   fixture control-exit-3 control 3 '' fail
+  fixture tests-pass tests 0 'ok sandbox/quiet
+tests passed=40 failed=0' pass
+  fixture tests-fail tests 1 'not ok sandbox/quiet: want 0 0 0, got 1 0 1
+tests passed=39 failed=1' fail
+  fixture tests-exit-0-with-a-failure tests 0 'tests passed=39 failed=1' fail
   modes=$(modes_of macos) || modes=
   [ "$modes" = sandbox ] || wrong="$wrong modes-macos"
   modes=$(modes_of windows) || modes=
