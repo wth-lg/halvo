@@ -43,14 +43,18 @@ absolute() {
   esac
 }
 
-true 2>/dev/null 3>&1 || refuse output "standard output cannot be written"
+if ! true 2>/dev/null 3>&1; then
+  refuse output "standard output cannot be written"
+fi
 
 calls="the trial takes no argument, --help, --case FILE --arm none|plain, or --count DIR"
 help=no
 case $# in
 0) ;;
 1)
-  [ "$1" = --help ] || refuse usage "$calls"
+  if [ "$1" != --help ]; then
+    refuse usage "$calls"
+  fi
   help=yes
   ;;
 2)
@@ -81,16 +85,24 @@ unset CDPATH
 export PATH="${CARGO_HOME:-${HOME:-}/.cargo}/bin:$PATH"
 
 here=$(dirname "$0")
-cd -P "$here/../../.." 2>/dev/null || refuse input "the root of the repository cannot be entered"
+if ! cd -P "$here/../../.." 2>/dev/null; then
+  refuse input "the root of the repository cannot be entered"
+fi
 
 host=$(rustc -vV 2>/dev/null | sed -n 's/^host: \([^[:space:]]*\).*/\1/p')
-[ -n "$host" ] || refuse build "rustc -vV names no host"
+if [ -z "$host" ]; then
+  refuse build "rustc -vV names no host"
+fi
 
 target=target/r5-trials
-mkdir -p "$target" 2>/dev/null || refuse build "the target directory cannot be made"
+if ! mkdir -p "$target" 2>/dev/null; then
+  refuse build "the target directory cannot be made"
+fi
 cargo build --release --locked --manifest-path tools/r5-trials/Cargo.toml -p r5-drift --target "$host" --target-dir "$target" >"$target/build.log" 2>&1
 code=$?
-[ "$code" -eq 0 ] || refuse build "cargo exited $code; its output is in the build log"
+if [ "$code" -ne 0 ]; then
+  refuse build "cargo exited $code; its output is in the build log"
+fi
 
 bin=$target/$host/release/r5-drift
 if [ -f "$bin.exe" ]; then
