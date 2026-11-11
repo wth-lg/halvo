@@ -59,15 +59,16 @@ with `-deadlock`, because a state after the app ended has no next state on purpo
 
 | Model | Distinct states | States generated | Depth | Time, one worker | Largest resident size |
 |---|---|---|---|---|---|
-| `Schedule` | 440,596 | 12,815,356 | 14 | 559.44 s | 1,315,438,592 bytes |
-| `Confirm4` | 3,106 | 349,199 | 21 | 7.41 s | 428,933,120 bytes |
+| `Schedule` | 440,596 | 12,815,356 | 14 | 292.99 s | 1,106,968,576 bytes |
+| `Confirm4` | 3,106 | 349,199 | 21 | 4.10 s | 434,634,752 bytes |
 
 The counts are TLC's own lines. The times and sizes are from one run each on the
 development Mac (arm64, JDK 17.0.20.1) on 2026-11-11, through the machine's helper for
-timed runs, read with `/usr/bin/time -l`, under a 1-minute load of 84.42. The heap
-bound `-Xmx2g` keeps a run far below the machine's cap of 8,589,934,592 bytes. With
-`-workers 8` the `Schedule` run took 112.59 s there and found
-the same states; the depth that TLC prints can then differ.
+timed runs, read with `/usr/bin/time -l`, under a 1-minute load of 8.55. The heap
+bound `-Xmx2g` keeps a run far below the machine's cap of 8,589,934,592 bytes. The time
+follows the load of the machine: under a load of 84.42 the `Schedule` run took 559.44 s
+with one worker and 112.59 s with `-workers 8`. More workers find the same states; the
+depth that TLC prints can then differ.
 
 ## What a property is read from
 
@@ -318,7 +319,8 @@ replay of that design gives another answer or state at some move.
 Row 9 has two more forms: when the lapse's decision also holds the approval ids of the
 answer, TLC reports L3, and when the guard then passes a record with one of those ids, L9.
 Row 21 needs both halves: with step 0 in place the start that the tick offers for a gone
-workflow is answered `state`, and no invariant is broken.
+workflow is answered `state`, and no invariant is broken; that half alone differs in 11
+of the 211 traces.
 
 ## Limits
 
@@ -363,8 +365,8 @@ moves of the confirm walks (16.6%); a confirm walk also takes a refusal whenever
 move is left that the model accepts. Two exports with one seed and count gave the same
 bytes on the development Mac. The export is compared with the committed files in the jobs
 `macos` and `windows`; before the first run of the check only the Mac was tried. One
-export of both files took 17.00 s there, with a largest resident size of
-519,487,488 bytes.
+export of both files took 8.23 s there, with a largest resident size of
+525,287,424 bytes.
 
 The first line of a file is `{"seed":<n>,"count":<n>}`. Each further line is one trace,
 `{"n":<number>,"moves":[{"m":"<move>","a":{...},"r":"<answer>","s":{...}}...]}`. The walks
