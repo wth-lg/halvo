@@ -59,33 +59,46 @@ pub fn browsers() -> Vec<Browser> {
         ),
     ] {
         if Path::new(path).exists() {
-            let version = output(path, &["--version"])
-                .split_whitespace()
-                .last()
-                .unwrap_or("")
-                .to_string();
             found.push(Browser {
                 name: name.to_string(),
                 path: path.to_string(),
-                version,
+                version: version_on_disk("", path),
             });
         }
     }
-    if Path::new("/Applications/Safari.app").exists() {
+    let safari = "/Applications/Safari.app";
+    if Path::new(safari).exists() {
         found.push(Browser {
             name: "safari".to_string(),
-            path: "/Applications/Safari.app".to_string(),
-            version: output(
-                "defaults",
-                &[
-                    "read",
-                    "/Applications/Safari.app/Contents/Info",
-                    "CFBundleShortVersionString",
-                ],
-            ),
+            path: safari.to_string(),
+            version: version_on_disk("safari", safari),
         });
     }
     found
+}
+
+/// The version of the browser build that is on disk now, read again at each call.
+pub fn version_of(browser: &Browser) -> String {
+    version_on_disk(&browser.name, &browser.path)
+}
+
+fn version_on_disk(name: &str, path: &str) -> String {
+    if name == "safari" {
+        output(
+            "defaults",
+            &[
+                "read",
+                &format!("{path}/Contents/Info"),
+                "CFBundleShortVersionString",
+            ],
+        )
+    } else {
+        output(path, &["--version"])
+            .split_whitespace()
+            .last()
+            .unwrap_or("")
+            .to_string()
+    }
 }
 
 pub fn granted() -> Result<(), String> {

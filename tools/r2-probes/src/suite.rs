@@ -44,6 +44,7 @@ struct Running {
     pid: u32,
     profile: PathBuf,
     webkit: bool,
+    version: String,
 }
 
 impl Running {
@@ -316,6 +317,7 @@ impl Suite {
         let profile = self.scratch.join(format!("profile-{token}"));
         std::fs::create_dir_all(&profile).map_err(|e| format!("profile: {e}"))?;
         let webkit = browser.name == "safari";
+        let version = sys::version_of(browser);
         let child = if webkit {
             if let Some(old) = sys::pid_named("Safari") {
                 sys::kill_tree(old);
@@ -342,6 +344,7 @@ impl Suite {
             child,
             profile,
             webkit,
+            version,
         };
         if !self.server.wait_for(&token, Duration::from_secs(seconds)) {
             running.stop(&pages::title(page));
@@ -397,6 +400,7 @@ impl Suite {
             child: Some(child),
             profile: dir,
             webkit: false,
+            version: self.options.soffice_version.clone(),
         };
         Ok((running, file.to_string()))
     }
@@ -423,10 +427,11 @@ impl Suite {
                 }
                 let result = suite.child(&args, 60);
                 suite.snap(&cell, run);
+                let version = running.version.clone();
                 running.stop(&title);
                 Ok(result?
                     .text("served", "http-loopback")
-                    .text("version", &browser.version))
+                    .text("version", &version))
             });
         }
     }
@@ -451,11 +456,12 @@ impl Suite {
                     }
                     let result = suite.child(&args, 60);
                     suite.snap(&cell, run);
+                    let version = running.version.clone();
                     running.stop(&title);
                     Ok(result?
                         .text("process", "chrome")
                         .text("served", "http-loopback")
-                        .text("version", &chrome.version))
+                        .text("version", &version))
                 });
             }
         }
@@ -548,6 +554,7 @@ impl Suite {
                     continue;
                 }
             };
+            let browser_version = running.version.clone();
             for (engine, scale, cell) in &cells {
                 let pooled = format!("engine.{}.{engine}.x{scale}", sys::RUNNER);
                 let version = if engine == ONE_ENGINE {
@@ -601,6 +608,11 @@ impl Suite {
                             },
                         )
                         .text("version", &version);
+                    let record = if in_browser {
+                        record.text("browser_version", &browser_version)
+                    } else {
+                        record
+                    };
                     if is_text {
                         suite.pool(&pooled, &record);
                     }
@@ -618,6 +630,7 @@ impl Suite {
         let normal = pages::title("page-one");
         let private = pages::title("page-two");
         let running = self.start(browser, "page-one", Mode::Normal)?;
+        let version = running.version.clone();
         let pid = running.pid.to_string();
         let token = self.token();
         let url = self.server.url("page-two", &token);
@@ -693,7 +706,7 @@ impl Suite {
             sys::kill_tree(pid);
         }
         sys::kill_tree(sys::resolve_pid(0, &private));
-        result
+        result.map(|read| read.text("version", &version))
     }
 
     fn private_cells(&mut self) {
@@ -736,7 +749,14 @@ impl Suite {
             for (index, read) in reads.iter().enumerate() {
                 let mut record = Record::new(&cell, index as u32 + 1)
                     .text("signal", signal)
-                    .text("version", &browser.version)
+                    .text(
+                        "version",
+                        read.fields
+                            .iter()
+                            .find(|field| field.key == "version")
+                            .and_then(|field| field.value.as_str())
+                            .unwrap_or(""),
+                    )
                     .text(
                         "attribute_hit",
                         read.detail

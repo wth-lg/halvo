@@ -83,6 +83,11 @@ pub fn browsers() -> Vec<Browser> {
         .collect()
 }
 
+/// The version of the browser build that is on disk now, read again at each call.
+pub fn version_of(browser: &Browser) -> String {
+    product_version(&browser.path)
+}
+
 pub fn granted() -> Result<(), String> {
     Ok(())
 }

@@ -134,6 +134,7 @@ command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES
 command deciding cell of this Mac: sh tools/r2-probes/quiet-sets.sh WORKTREE apple-vision-accurate FRAMES OUT, three sets of retime.sh in one call of the helper for timed runs
 command records of this Mac: python3 -I tools/r2-probes/stamp-cells.py WORKTREE EVIDENCE OUT, which runs r2-probes stamp once for each cell of this Mac
 note stored_bytes: the probe of run 42889376963 counted the engine's pieces joined by one space and saved that text with runs of white space folded, so in the 8 PP-OCRv6 cells of calc and writer (40 runs) the saved text is 2 to 8 bytes shorter than stored_bytes; the figures stand as measured, and the probe now saves the text that it counts, for a later run
+note version: Chrome on macos-15 updated itself during run 42889376963, so its meta.json names 157.0.8103.39 and the 9 cells address.macos-15.chrome and accessibility.macos-15.* of the four pages name 157.0.8103.40, which the probe read from the build on disk when it listed the browsers before each group of cells, and the extraction runs in Chrome name no build; the figures stand as measured, and the probe now records in each run the build on disk when that run started the browser (browser_version in an extraction run), for a later run
 command this file: r2-probes trial layer-cost --artifact MACOS --artifact WINDOWS [--records THIS-MAC] --lines LINES --out FILE
 verdict engine apple-vision macos-15: holds re-timed
 verdict engine windows-media-ocr windows-2025: holds

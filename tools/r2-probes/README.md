@@ -15,7 +15,10 @@ new directory `OUT`:
 
 - `records.jsonl`: one line per run of a cell, or one line that says why a cell is not measurable.
 - `meta.json`: the runner, the system version, the display size before and after the probe set
-  it, the browser versions, and the branch, commit, run and attempt of the hosted run.
+  it, the browser versions at the start of the suite, and the branch, commit, run and attempt of
+  the hosted run. A browser can update itself during a job, so each run that starts a browser
+  records the build on disk at that start: in `version` in the address, accessibility and
+  private-window cells, and in `browser_version` in an extraction run that shows a page in Chrome.
 - `frames/`: the frame of each run of an extraction cell on a text page at downscale 1.0.
 
 Browser profiles, the LibreOffice profile and the frames of the two LibreOffice windows go to
