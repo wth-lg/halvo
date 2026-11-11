@@ -1,0 +1,2 @@
+task	category	kind	tier	model	machine	seed	split	attempt	pass	steps	wall_s	tokens_in	tokens_out	level	source
+bill	utility_bill_payment	recover	on_device	m_tiny	hosted-win	3	held	1	no	9	191	3507	343	medium	s1

@@ -45,7 +45,7 @@ fn main() -> ExitCode {
     let rest = args.get(1..).unwrap_or_default();
     let done = match args.first().map(String::as_str) {
         Some("generate") => generate_command(rest),
-        Some("import") => not_built(),
+        Some("import") => return import_command(rest),
         Some("derive") => derive_command(rest),
         Some("score") => score_command(rest),
         Some("self-test") => self_test_command(rest),
@@ -74,6 +74,15 @@ fn finish(done: Result<Done, Refusal>) -> ExitCode {
         Ok(()) => ExitCode::from(code),
         Err(_) => ExitCode::from(1),
     }
+}
+
+fn import_command(args: &[String]) -> ExitCode {
+    let code = halvo_route_gate::import::command(
+        args,
+        &mut std::io::stdout().lock(),
+        &mut std::io::stderr().lock(),
+    );
+    ExitCode::from(code)
 }
 
 fn not_built() -> Result<Done, Refusal> {
