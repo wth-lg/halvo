@@ -8,6 +8,7 @@ use halvo_route::tier::{CallKind, CategoryId, Tier};
 
 pub mod derive;
 pub mod generate;
+pub mod import;
 pub mod out;
 pub mod routers;
 pub mod score;

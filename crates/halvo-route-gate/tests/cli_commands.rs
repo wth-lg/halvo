@@ -74,7 +74,7 @@ fn assert_refused(args: &[&str], line: &str) {
 fn refusals_of_usage() {
     assert_refused(&[], "REFUSED usage: no command");
     assert_refused(&["simulate"], "REFUSED usage: unknown command");
-    for command in ["import", "spend-sim", "probe"] {
+    for command in ["spend-sim", "probe"] {
         assert_refused(&[command], "REFUSED usage: not built");
         assert_refused(&[command, "--seed", "1"], "REFUSED usage: not built");
     }
