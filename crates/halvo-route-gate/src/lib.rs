@@ -10,6 +10,7 @@ pub mod derive;
 pub mod generate;
 pub mod import;
 pub mod out;
+pub mod product;
 pub mod routers;
 pub mod score;
 pub mod selftest;

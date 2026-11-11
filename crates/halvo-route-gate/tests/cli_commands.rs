@@ -140,7 +140,7 @@ fn refusals_of_usage() {
         &[
             "score", "--table", "x", "--router", "product", "--policy", "y",
         ],
-        "REFUSED usage: not built",
+        "REFUSED file: --table cannot be read",
     );
     assert_refused(
         &["score", "--table", "x", "--router", "best"],
@@ -497,5 +497,5 @@ fn score_prints_its_lines_and_exits_by_the_verdict() {
 #[test]
 fn self_test_prints_its_line() {
     let run = run(&["self-test", "--tables", "3", "--seed", "7"]);
-    assert_eq!((run.code, run.stdout.as_str(), run.stderr.as_str()), (Some(0), "selftest tables=3 derived_pass=3 product_pass=- one_tier_fail=3 random_fail=3 peek_fail=3\n", ""));
+    assert_eq!((run.code, run.stdout.as_str(), run.stderr.as_str()), (Some(0), "selftest tables=3 derived_pass=3 product_pass=3 one_tier_fail=3 random_fail=3 peek_fail=3\n", ""));
 }
