@@ -304,6 +304,13 @@
         root.appendChild(host);
         host.attachShadow({ mode: 'closed' }).appendChild(document.createElement('button'));
       }
+      if (fault === 'plaintext_only') {
+        var note = el('div', null, 'A note for the agent');
+        note.setAttribute('contenteditable', 'plaintext-only');
+        note.tabIndex = -1;
+        note.style.cssText = 'min-height: 44px; border: 2px solid #1a1a1a;';
+        root.appendChild(note);
+      }
       if (fault === 'key_error') {
         document.addEventListener('keydown', function () {
           throw new Error('sample fault key_error');

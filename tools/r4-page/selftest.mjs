@@ -36,6 +36,7 @@ const FAULTS = {
     { fault: 'radio_arrows', state: 'a', want: (r) => r.names.includes('radio_arrows') },
     { fault: 'shadow_script', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'key_error', state: 'a', want: (r) => r.names.includes('page_error') },
+    { fault: 'plaintext_only', state: 'a', want: (r) => r.names.includes('unreached') },
   ],
   3: [
     { fault: 'renamed', state: 'a', want: (r) => r.counts.structure === 'differ' },

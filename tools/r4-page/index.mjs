@@ -660,7 +660,7 @@ async function engineCheck(h) {
 
 const HELPER = () => {
   if (window.__r4w) return;
-  const NATIVE = 'button, input:not([type="hidden"]), select, textarea, a[href], summary, [contenteditable=""], [contenteditable="true"]';
+  const NATIVE = 'button, input:not([type="hidden"]), select, textarea, a[href], summary';
   const ROLES = new Set(['button', 'link', 'radio', 'checkbox', 'switch', 'tab', 'menuitem', 'menuitemradio', 'menuitemcheckbox', 'option', 'textbox', 'combobox', 'slider', 'spinbutton', 'searchbox', 'scrollbar', 'treeitem', 'gridcell']);
   const ARIA = new Set(['alert', 'alertdialog', 'application', 'article', 'banner', 'blockquote', 'button', 'caption', 'cell', 'checkbox', 'code', 'columnheader', 'combobox', 'complementary', 'contentinfo', 'definition', 'deletion', 'dialog', 'directory', 'document', 'emphasis', 'feed', 'figure', 'form', 'generic', 'grid', 'gridcell', 'group', 'heading', 'img', 'image', 'insertion', 'link', 'list', 'listbox', 'listitem', 'log', 'main', 'mark', 'marquee', 'math', 'menu', 'menubar', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'meter', 'navigation', 'none', 'note', 'option', 'paragraph', 'presentation', 'progressbar', 'radio', 'radiogroup', 'region', 'row', 'rowgroup', 'rowheader', 'scrollbar', 'search', 'searchbox', 'separator', 'slider', 'spinbutton', 'status', 'strong', 'subscript', 'superscript', 'switch', 'tab', 'table', 'tablist', 'tabpanel', 'term', 'textbox', 'time', 'timer', 'toolbar', 'tooltip', 'tree', 'treegrid', 'treeitem']);
   const role = (el) => {
@@ -684,7 +684,8 @@ const HELPER = () => {
     if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
     return el.getClientRects().length > 0;
   };
-  const isControl = (el) => el.matches(NATIVE) || el.hasAttribute('data-act') || (el.hasAttribute('tabindex') && el.tabIndex >= 0) || ROLES.has(role(el));
+  const host = (el) => el.isContentEditable && !(el.parentElement && el.parentElement.isContentEditable);
+  const isControl = (el) => el.matches(NATIVE) || host(el) || el.hasAttribute('data-act') || (el.hasAttribute('tabindex') && el.tabIndex >= 0) || ROLES.has(role(el));
   const dialog = () => {
     const all = [...document.querySelectorAll('[role]')].filter((el) => role(el) === 'alertdialog' && rendered(el));
     return all.length ? all[all.length - 1] : null;
