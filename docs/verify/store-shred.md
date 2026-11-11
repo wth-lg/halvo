@@ -69,7 +69,7 @@ table under Covered code.
 
 ## Tool
 
-The two random tests are `proptest` property tests over the real store, not
+The three random tests are `proptest` property tests over the real store, not
 a model.
 A verifier that runs on the code is the faithful tool here: the properties
 are about bytes on disk, SQLCipher's locking and the OS file lock, none of
@@ -320,7 +320,11 @@ as a destroyed root run; nine tests. On a 16-core Mac whose 1-minute load was 10
 work, the command took 31 s in one run, and alone the random test of check 1
 took 19 s, the one-pass case 12 to 15 s, the oldest-first case 34 to 47 s and
 check 2 14 s. At a load near 10 the random test took 10 s and the one-pass
-case 11 s. A single test: append `::` and the start of its
+case 11 s. Those times are of the four tests that the command ran before
+the moves that fail or are refused had theirs. With the nine tests of
+today the command took 77 to 82 s in three runs at a load of 180 to 480,
+and the two tests of those moves with the two tests of a destroyed root
+took 13 s alone at a load of 342. A single test: append `::` and the start of its
 name, for example `::a_shredded_segment` or `::at_most_one`.
 
 ## Reading a failure
@@ -736,7 +740,12 @@ it in the plan before weakening an assertion.
   id behind a barrier, 200 times: in 115 rounds both returned `Ok`, and in
   each of those one of the two stores answered `Custody(WrapAuthFailed)`
   to the `open` that followed; in the other 85 one create answered
-  `Custody(RootExists)`. Every caller in the tree makes a fresh root id for
+  `Custody(RootExists)`. The file-root store, which both Windows custodies
+  use, checks and then writes in the same way, and its two callers write
+  one partial file. The probe ran it over a temp directory with the test
+  protector: of 500 rounds of two wraps under one new root id, one wrap
+  returned `Ok` in every round, and in 473 of them that wrap no longer
+  opened. Every caller in the tree makes a fresh root id for
   each create, so the race needs a caller that gives one id to two creates.
   To state it, check 1 would need two creators that share a root id and
   start together, and the read that at most one of them returns `Ok` and
