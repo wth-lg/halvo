@@ -210,7 +210,7 @@ const INIT = () => {
     const f = owner && owner[key];
     if (typeof f !== 'function') return;
     owner[key] = function (...args) {
-      if (args.some((a) => /shadowrootmode/i.test(String(a)))) opaque = true;
+      if (args.some((a) => /<template[^>]*\sshadowrootmode\s*=/i.test(String(a)))) opaque = true;
       return f.apply(this, args);
     };
   };
@@ -396,7 +396,7 @@ function fromTranscript(h, name, args) {
   }
   t.i++;
   setImmediate(() => flush(h));
-  return line.reply;
+  return h.transform ? h.transform(line.reply) : line.reply;
 }
 
 async function record(h, name, a) {
@@ -509,7 +509,7 @@ async function openWith(options, context, transform, inner) {
     const url = new URL(o.frame || FRAME, o.origin);
     if (Array.isArray(o.views) && o.views.length) url.searchParams.set('views', o.views.join(','));
     try {
-      h.markupShadow = /shadowrootmode/i.test(await (await fetch(new URL(o.frame || FRAME, o.origin).href)).text());
+      h.markupShadow = /<template[^>]*\sshadowrootmode\s*=/i.test((await (await fetch(new URL(o.frame || FRAME, o.origin).href)).text()).replace(/<!--[\s\S]*?-->/g, ''));
     } catch {
       h.markupShadow = false;
     }
