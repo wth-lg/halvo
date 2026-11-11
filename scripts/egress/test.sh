@@ -422,16 +422,22 @@ test_wfp() {
   expect_refusal wfp/sandbox-on-windows mode sh scripts/egress/check.sh --mode sandbox "$e" -- sh "$pr" none
   ps_run wfp/command-not-administrator 0 "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 5 }"
   ps_run wfp/tree-cannot-switch-audit-off 0 "& auditpol.exe /set '/subcategory:{0CCE9226-69AE-11D9-BED3-505054503030}' /success:disable /failure:disable *> \$null; if (\$LASTEXITCODE -eq 0) { exit 0 } else { exit 5 }"
-  (sh scripts/egress/check.sh "$e" -- powershell.exe -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 10" >"$work/undo.out" 2>"$work/undo.err") &
+  sh scripts/egress/check.sh "$e" -- powershell.exe -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 12" >"$work/undo.out" 2>"$work/undo.err" &
   undo_check=$!
+  undo_token=
   n=0
-  while [ $n -lt 60 ]; do
-    count=$(powershell.exe -NoProfile -NonInteractive -Command "@(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count" | tr -d '\r')
-    [ "${count:-0}" -gt 0 ] && break
+  while [ -z "$undo_token" ] && [ $n -lt 60 ]; do
+    undo_state=$(grep -l "^pid=$undo_check\$" target/egress/[0-9]*/state 2>/dev/null | head -n 1)
+    [ -z "$undo_state" ] || undo_token=$(sed -n 's/^token=//p' "$undo_state")
     sleep 0.5
     n=$((n + 1))
   done
-  powershell.exe -NoProfile -NonInteractive -Command "Get-NetFirewallRule -DisplayName 'halvo-egress-*' | Remove-NetFirewallRule" >/dev/null 2>&1
+  n=0
+  while [ "$(wfp_rules "$undo_token")" = 0 ] && [ $n -lt 60 ]; do
+    sleep 0.5
+    n=$((n + 1))
+  done
+  powershell.exe -NoProfile -NonInteractive -Command "Get-NetFirewallRule -DisplayName '$undo_token-*' | Remove-NetFirewallRule" >/dev/null 2>&1
   wait "$undo_check"
   code=$?
   got=$(tail -n 1 "$work/undo.err")
@@ -463,7 +469,7 @@ wfp_state() {
 }
 
 wfp_rules() {
-  powershell.exe -NoProfile -NonInteractive -Command "@(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count" | tr -d '\r'
+  powershell.exe -NoProfile -NonInteractive -Command "@(Get-NetFirewallRule -DisplayName '${1:-halvo-egress}-*' -ErrorAction SilentlyContinue).Count" | tr -d '\r'
 }
 
 ps_run() {
