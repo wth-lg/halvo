@@ -619,18 +619,62 @@ fn titles_built_from_pieces_of_every_rule_keep_the_properties_of_the_scan() {
 mod boundary {
     use super::*;
 
-    const KEY_ROWS: [(&str, &str, usize); 28] = [
+    const KEY_PREFIXES: [(&str, &str, usize); 72] = [
         ("AKIA", "Q2", 16),
+        ("ASIA", "Q2", 16),
+        ("ABIA", "Q2", 16),
+        ("ACCA", "Q2", 16),
         ("A3TA", "Q2", 16),
+        ("A3TB", "Q2", 16),
+        ("A3TC", "Q2", 16),
+        ("A3TD", "Q2", 16),
+        ("A3TE", "Q2", 16),
+        ("A3TF", "Q2", 16),
+        ("A3TG", "Q2", 16),
+        ("A3TH", "Q2", 16),
+        ("A3TI", "Q2", 16),
+        ("A3TJ", "Q2", 16),
+        ("A3TK", "Q2", 16),
+        ("A3TL", "Q2", 16),
+        ("A3TM", "Q2", 16),
+        ("A3TN", "Q2", 16),
+        ("A3TO", "Q2", 16),
+        ("A3TP", "Q2", 16),
+        ("A3TQ", "Q2", 16),
+        ("A3TR", "Q2", 16),
+        ("A3TS", "Q2", 16),
+        ("A3TT", "Q2", 16),
+        ("A3TU", "Q2", 16),
+        ("A3TV", "Q2", 16),
+        ("A3TW", "Q2", 16),
+        ("A3TX", "Q2", 16),
+        ("A3TY", "Q2", 16),
+        ("A3TZ", "Q2", 16),
+        ("A3T0", "Q2", 16),
+        ("A3T1", "Q2", 16),
+        ("A3T2", "Q2", 16),
+        ("A3T3", "Q2", 16),
+        ("A3T4", "Q2", 16),
+        ("A3T5", "Q2", 16),
+        ("A3T6", "Q2", 16),
+        ("A3T7", "Q2", 16),
+        ("A3T8", "Q2", 16),
+        ("A3T9", "Q2", 16),
         ("ghp_", "Ab3", 36),
         ("gho_", "Ab3", 36),
         ("ghu_", "Ab3", 36),
+        ("ghs_", "Ab3", 36),
         ("ghr_", "Ab3", 36),
         ("github_pat_", "Ab3_", 82),
         ("glpat-", "Ab3_-", 20),
         ("glptt-", "b3", 40),
         ("GR1348941", "Ab3_-", 20),
         ("sk_test_", "Ab3", 99),
+        ("sk_live_", "Ab3", 99),
+        ("sk_prod_", "Ab3", 99),
+        ("rk_test_", "Ab3", 99),
+        ("rk_live_", "Ab3", 99),
+        ("rk_prod_", "Ab3", 99),
         ("SG.", "Ab3=_-.", 66),
         ("pypi-AgEIcHlwaS5vcmc", "Ab3_-", 1000),
         ("AIza", "Ab3_-", 35),
@@ -726,7 +770,7 @@ mod boundary {
             (Rule::Iban, iban("DE", "123456781234567890"), "[iban]"),
             (Rule::Ssn, "247-61-3058".to_owned(), "[ssn]"),
         ];
-        for (prefix, pattern, max) in KEY_ROWS {
+        for (prefix, pattern, max) in KEY_PREFIXES {
             let body: String = pattern.chars().cycle().take(max).collect();
             identifiers.push((Rule::Key, format!("{prefix}{body}"), "[key]"));
         }
@@ -768,7 +812,7 @@ mod boundary {
             }
         }
         assert_eq!(cases, identifiers.len() * (before.len() + after.len()));
-        assert_eq!(cases, 31 * (192 + 179));
+        assert_eq!(cases, 75 * (192 + 179));
         assert!(
             wrong.is_empty(),
             "{} of {cases} cases differ: {}",
