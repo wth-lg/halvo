@@ -235,6 +235,15 @@ expect_run() {
   result "$label" "$want_code $want_status $want_denied" "$code $status $denied"
 }
 
+logged() {
+  status=$(field_of command)
+  denied=$(field_of denied)
+  case $denied in
+    '' | 0 | *[!0-9]*) result "$1" "$2 denied>0" "$code $status denied=$denied" ;;
+    *) result "$1" "$2 denied>0" "$code $status denied>0" ;;
+  esac
+}
+
 expect_logged() {
   if [ -f "$log" ] && grep -q "$2" "$log"; then
     result "$1" yes yes
@@ -265,6 +274,22 @@ test_sandbox() {
   stop=$stop_first
   unserve
   expect_run sandbox/listen-inside 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" listen
+  run_check sandbox/other-loopback-host-on-a-listed-port sh scripts/egress/check.sh "$l" -- sh -c '/usr/bin/nc -z -G 2 127.0.0.2 47201; /usr/bin/nc -z -G 2 127.0.0.2 47201; exit 0'
+  logged sandbox/other-loopback-host-on-a-listed-port "1 0"
+  run_check sandbox/denial-then-exit-0 sh scripts/egress/check.sh "$e" -- sh -c 'sh scripts/egress/probe.sh loopback; sh scripts/egress/probe.sh loopback2; exit 0'
+  logged sandbox/denial-then-exit-0 "1 0"
+  sh scripts/egress/check.sh "$e" -- sh -c ': >"$1"; sleep 4' sh "$work/stream-started" >"$work/stream.out" 2>"$work/stream.err" &
+  stream_check=$!
+  n=0
+  while [ ! -f "$work/stream-started" ] && [ $n -lt 300 ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  stream_state=$(grep -l "^pid=$stream_check\$" target/egress/[0-9]*/state | head -n 1)
+  kill "$(sed -n 's/^stream=//p' "$stream_state")"
+  wait "$stream_check"
+  code=$?
+  result sandbox/stream-lost-before-its-end 'exit-2:REFUSED mode: the log stream gave no end marker' "exit-$code:$(tail -n 1 "$work/stream.err")"
   expect_run sandbox/exit-code-passes 1 3 0 sh scripts/egress/check.sh "$e" -- sh -c 'exit 3'
   expect_run sandbox/not-started 1 not-started 0 sh scripts/egress/check.sh "$e" -- "$work/no-such-command"
   expect_run sandbox/signal 1 signal-9 0 sh scripts/egress/check.sh "$e" -- sh -c 'kill -9 $$'
@@ -375,6 +400,7 @@ test_wfp() {
   stop=$stop_first
   unserve
   expect_run wfp/listen-inside 0 0 0 sh scripts/egress/check.sh "$l" -- sh "$pr" listen
+  ps_run wfp/named-binary-blocked 1 "\$c = New-Object System.Net.Sockets.TcpClient; try { if (\$c.ConnectAsync('192.0.2.1', 443).Wait(5000)) { exit 6 } else { exit 6 } } catch { \$e = \$_.Exception; while (\$null -ne \$e.InnerException) { \$e = \$e.InnerException }; if (\$e -is [System.Net.Sockets.SocketException] -and \$e.NativeErrorCode -eq 10013) { exit 5 } else { exit 6 } }"
   expect_run wfp/exit-code-passes 1 3 0 sh scripts/egress/check.sh "$e" -- sh -c 'exit 3'
   expect_run wfp/not-started 1 not-started 0 sh scripts/egress/check.sh "$e" -- "$work/no-such-command"
   printf '[fixed]\n192.0.2.1:443\n[agent]\n' >"$work/routable.txt"
@@ -382,8 +408,8 @@ test_wfp() {
   printf '[fixed]\n[agent]\nexample.com:443\n' >"$work/name.txt"
   expect_refusal wfp/name-entry entry sh scripts/egress/check.sh "$work/name.txt" -- sh "$pr" none
   expect_refusal wfp/sandbox-on-windows mode sh scripts/egress/check.sh --mode sandbox "$e" -- sh "$pr" none
-  ps_run wfp/command-not-administrator "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 5 }"
-  ps_run wfp/tree-cannot-switch-audit-off "& auditpol.exe /set '/subcategory:{0CCE9226-69AE-11D9-BED3-505054503030}' /success:disable /failure:disable *> \$null; if (\$LASTEXITCODE -eq 0) { exit 0 } else { exit 5 }"
+  ps_run wfp/command-not-administrator 0 "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 5 }"
+  ps_run wfp/tree-cannot-switch-audit-off 0 "& auditpol.exe /set '/subcategory:{0CCE9226-69AE-11D9-BED3-505054503030}' /success:disable /failure:disable *> \$null; if (\$LASTEXITCODE -eq 0) { exit 0 } else { exit 5 }"
   (sh scripts/egress/check.sh "$e" -- powershell.exe -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 10" >"$work/undo.out" 2>"$work/undo.err") &
   undo_check=$!
   n=0
@@ -429,7 +455,7 @@ wfp_rules() {
 }
 
 ps_run() {
-  expect_run "$1" 1 5 0 sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- powershell.exe -NoProfile -NonInteractive -Command "$2"
+  expect_run "$1" 1 5 "$2" sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- powershell.exe -NoProfile -NonInteractive -Command "$3"
 }
 
 [ $# -gt 0 ] || set -- probe lists
