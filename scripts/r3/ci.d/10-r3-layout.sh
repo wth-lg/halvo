@@ -67,7 +67,7 @@ function to_regex(p,   r, i, n, c) {
   return r "$"
 }
 function read_layout(line, n) {
-  sub(/\r$/, "", line)
+  sub("\001$", "", line)
   if (split(line, f, " ") != 2 || f[1] " " f[2] != line) return fault(n, "fields")
   p = f[1]
   u = f[2]
@@ -91,6 +91,9 @@ function read_file(raw,   path, i, hit) {
   if (!hit) stray[++nout] = show(raw)
 }
 BEGIN {
+  lay = ENVIRON["R3_LAYOUT_COPY"]
+  files = ENVIRON["R3_FILE_LIST"]
+  resultfile = ENVIRON["R3_RESULT"]
   nroots = split(roots, root, " ")
   if (missing) fault("-", "unreadable")
   else {
@@ -129,17 +132,21 @@ measure() {
   artifacts=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
   mkdir -p "$artifacts" || fail setup
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail setup
-  git -c core.quotepath=on ls-files >"$scratch/files" || fail git
+  git -c core.quotepath=on ls-files >"$scratch/index" || fail git
+  tr -d '\r' <"$scratch/index" >"$scratch/files" || fail setup
   missing=0
   nolf=0
   if [ ! -f "$layout" ]; then
     missing=1
-  elif [ -s "$layout" ]; then
-    last=$(tail -c 1 "$layout") || fail setup
-    [ -z "$last" ] || nolf=1
+  else
+    tr '\000\001\r' '\002\002\001' <"$layout" >"$scratch/layout" || fail setup
+    if [ -s "$scratch/layout" ]; then
+      last=$(tail -c 1 "$scratch/layout") || fail setup
+      [ -z "$last" ] || nolf=1
+    fi
   fi
-  awk -v roots="$roots" -v lay="$layout" -v files="$scratch/files" -v all="$1" -v missing="$missing" \
-    -v nolf="$nolf" -v resultfile="$scratch/result" "$program" >"$artifacts/report.txt" || fail awk
+  R3_LAYOUT_COPY=$scratch/layout R3_FILE_LIST=$scratch/files R3_RESULT=$scratch/result \
+    awk -v roots="$roots" -v all="$1" -v missing="$missing" -v nolf="$nolf" "$program" >"$artifacts/report.txt" || fail awk
   cat "$artifacts/report.txt" || fail setup
   result=
   read -r result <"$scratch/result"
@@ -162,15 +169,16 @@ make_repo() {
   git init -q "$dir" >/dev/null 2>&1 || broken "$label: git init"
   git -C "$dir" config core.protectNTFS false || broken "$label: git config"
   blob=$(git -C "$dir" hash-object -w --stdin </dev/null) || broken "$label: hash-object"
+  printf '%s\0' "$@" >"$work/$label.want" || broken "$label: list"
   count=$#
   for p do
     set -- "$@" --cacheinfo "100644,$blob,$p"
   done
   shift "$count"
-  git -C "$dir" update-index --add "$@" || broken "$label: update-index"
-  git -C "$dir" ls-files >"$work/$label.list" || broken "$label: ls-files"
-  listed=$(wc -l <"$work/$label.list") || broken "$label: wc"
-  [ "$((listed))" -eq "$count" ] || broken "$label: the index holds $((listed)) of $count paths"
+  (cd "$dir" && MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' git update-index --add "$@") || broken "$label: update-index"
+  sort -z <"$work/$label.want" >"$work/$label.sorted" || broken "$label: sort"
+  git -C "$dir" ls-files -z >"$work/$label.index" || broken "$label: ls-files"
+  cmp -s "$work/$label.sorted" "$work/$label.index" || broken "$label: the index does not hold the listed paths byte for byte"
   mkdir -p "$dir/scripts/r3" || broken "$label: mkdir"
 }
 
@@ -183,6 +191,7 @@ check() {
     driver) out=$(CI_D_REPO=$work/$2 CI_D_ARTIFACTS=$work/artifacts sh "$self" ${5:+"$5"} 2>&1) ;;
     alone) out=$(cd "$work/$2" && unset CI_D_REPO CI_D_ARTIFACTS && sh "$self" 2>&1) ;;
     stub) out=$(PATH=$work/$stub:$PATH CI_D_REPO=$work/$2 CI_D_ARTIFACTS=$work/artifacts sh "$self" 2>&1) ;;
+    tmpdir) out=$(TMPDIR=$tmp CI_D_REPO=$work/$2 CI_D_ARTIFACTS=$work/artifacts sh "$self" 2>&1) ;;
   esac
   code=$?
   last=${out##*"$nl"}
@@ -211,10 +220,15 @@ check() {
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || broken mktemp
   artifacts=${CI_D_ARTIFACTS:-$work/artifacts}
-  mkdir -p "$work/artifacts" "$artifacts" "$work/stub-git" "$work/stub-awk" || broken mkdir
+  mkdir -p "$work/artifacts" "$artifacts" "$work/stub-git" "$work/stub-awk" "$work/stub-crlf-git" || broken mkdir
   printf '#!/bin/sh\nexit 1\n' >"$work/stub-git/git" || broken stub
   printf '#!/bin/sh\nexit 0\n' >"$work/stub-awk/awk" || broken stub
-  chmod +x "$work/stub-git/git" "$work/stub-awk/awk" || broken chmod
+  R3_REAL_GIT=$(command -v git) || broken git
+  R3_STUB_OUT=$work/stub-crlf-git/out
+  export R3_REAL_GIT R3_STUB_OUT
+  printf '%s\n' '#!/bin/sh' "\"\$R3_REAL_GIT\" \"\$@\" >\"\$R3_STUB_OUT\" || exit 1" \
+    "awk '{ printf \"%s\\r\\n\", \$0 }' \"\$R3_STUB_OUT\"" >"$work/stub-crlf-git/git" || broken stub
+  chmod +x "$work/stub-git/git" "$work/stub-awk/awk" "$work/stub-crlf-git/git" || broken chmod
   mode=driver
   rejected=0
   wrong=
@@ -249,6 +263,8 @@ self_test() {
   lay a "${a_good}docs/r3/gate.md U10.1\n"
   check pattern-without-a-file-under-all a empty 'layout empty=docs/r3/gate.md' --all
   check pattern-without-a-file-without-all a PASS 'layout patterns=7 files=7 outside=0'
+  lay a "${a_tail}docs/r3/gate.md U10.1\n"
+  check stray-file-before-empty-pattern a outside 'layout empty=docs/r3/gate.md' --all
   lay a "docs/r3/* U1.4\n$a_web$a_rest"
   check star-stops-at-a-slash a outside 'layout outside=docs/r3/trials/sheet.md'
   lay a "${a_head}docs/r3/trials/*.md U0.2\\ntools/r3-trials/web/* U0.2\\n$a_rest"
@@ -270,8 +286,31 @@ self_test() {
   check three-fields a layout 'layout fault=fields line=1'
   lay a "docs/r3/README.md U1.4\n\n$a_tail"
   check empty-line a layout 'layout fault=fields line=2'
-  lay a "docs/r3/READ?ME.md U1.4\n$a_tail"
-  check byte-outside-the-pattern-set a layout 'layout fault=pattern line=1'
+  others='!"#$%&()+,:;<=>?@[\]^`{|}~'"'"
+  : >"$work/a/scripts/r3/layout.txt" || broken "a: layout"
+  want=
+  n=0
+  rest=$others
+  while [ -n "$rest" ]; do
+    c=${rest%"${rest#?}"}
+    rest=${rest#?}
+    n=$((n + 1))
+    printf 'docs/r3/a%s.md U1.4\n' "$c" >>"$work/a/scripts/r3/layout.txt" || broken "a: layout"
+    want="${want}layout fault=pattern line=$n$nl"
+  done
+  check every-byte-outside-the-pattern-set a layout "$want"
+  lay a "docs/r3/README.md U1.4\0000junk\n$a_tail"
+  check nul-byte-inside-a-line a layout 'layout fault=unit line=1'
+  lay a "${a_good}docs/r3/gate.md U10.1\0000"
+  check nul-byte-at-the-end a layout 'layout fault=no_final_lf line=7'
+  lay a "$a_good"
+  mode=stub
+  stub='stub-crlf-git'
+  check file-list-with-crlf a PASS 'layout patterns=6 files=7 outside=0'
+  tmp="$work/t\tx"
+  mkdir -p "$tmp" || broken "tmpdir"
+  mode=tmpdir
+  check tmpdir-with-a-backslash a PASS 'layout patterns=6 files=7 outside=0'
   lay a "docs/r3//README.md U1.4\n$a_tail"
   check double-slash a layout 'layout fault=pattern line=1'
   lay a "docs/r3/trials/ U0.2\n$a_good"
@@ -316,17 +355,29 @@ self_test() {
 
   make_repo c "tools/r3-trials/web/caf$e_acute.txt" "docs/r3/caf$e_acute.md" "docs/r3/tab${tab}name.md" \
     'docs/r3/q"uote.md' 'docs/r3/back\slash.md' "docs/r3/ctl$ctl.md" 'docs/r3/two words.md' \
+    "docs/r3/two words$e_acute.md" \
     'docs/r3/d"/n.md' "docs/r3/e$e_acute/n.md" "crates/halvo-schema/caf$e_acute"
   c_base='tools/r3-trials/web/** U0.2\ndocs/r3/*.md U1.4\n'
   lay c "${c_base}docs/r3/*/n.md U1.4\n"
-  check quoted-names-match c PASS 'layout patterns=3 files=9 outside=0'
-  check quoted-names-fill-patterns c PASS 'layout patterns=3 files=9 outside=0' --all
+  check quoted-names-match c PASS 'layout patterns=3 files=10 outside=0'
+  check quoted-names-fill-patterns c PASS 'layout patterns=3 files=10 outside=0' --all
   lay c "$c_base"
-  check quoted-byte-before-a-slash c outside 'layout patterns=2 files=9 outside=2'
+  check quoted-byte-before-a-slash c outside 'layout patterns=2 files=10 outside=2'
   lay c 'tools/r3-trials/web/** U0.2\n'
   check quoted-name-printed-as-git-quotes-it c outside 'layout outside="docs/r3/caf\303\251.md"'
   check space-printed-as-an-escape c outside 'layout outside="docs/r3/two\040words.md"'
-  lay c 'tools/r3-trials/web/** U0.2\ndocs/r3/caf*3*1.md U1.4\ndocs/r3/tab*tname.md U1.4\n'
+  check quoted-name-with-a-space c outside 'layout outside="docs/r3/two\040words\303\251.md"'
+  allowed=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-
+  c_each='tools/r3-trials/web/** U0.2\n'
+  rest=$allowed
+  while [ -n "$rest" ]; do
+    c=${rest%"${rest#?}"}
+    rest=${rest#?}
+    c_each="${c_each}docs/r3/caf$c$c.md U1.4\n"
+  done
+  lay c "$c_each"
+  check escaped-byte-is-no-pattern-byte c outside 'layout outside="docs/r3/caf\303\251.md"'
+  lay c 'tools/r3-trials/web/** U0.2\ndocs/r3/caf*3*1.md U1.4\ndocs/r3/caf.md U1.4\ndocs/r3/tab*tname.md U1.4\n'
   check octal-escape-is-one-byte c outside 'layout outside="docs/r3/caf\303\251.md"'
   check letter-escape-is-one-byte c outside 'layout outside="docs/r3/tab\tname.md"'
 
