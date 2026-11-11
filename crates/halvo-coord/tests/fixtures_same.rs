@@ -276,7 +276,7 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                 .iter()
                 .find(|f| f.agent.as_str() == i["agent"])
                 .expect("an item has its agent");
-            let open = f.item.as_ref().expect("the facts hold the open item");
+            let open = f.doing.item().expect("the facts hold the open item");
             assert_eq!(open.item.as_str(), i["item"]);
             assert_eq!(open.kind.name(), i["kind"]);
         }

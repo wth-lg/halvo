@@ -397,6 +397,39 @@ fn the_reply_ok_holds_nothing_but_ok() {
 }
 
 #[test]
+fn the_facts_say_in_one_value_whether_an_agent_is_idle_queued_or_live() {
+    let open = |kind| OpenItem {
+        item: ItemId::parse(&"3".repeat(32)).unwrap(),
+        kind,
+    };
+    let setup = open(ItemKind::Setup);
+    let confirm = open(ItemKind::Confirm);
+    let all = [
+        Doing::Idle(None),
+        Doing::Idle(Some(setup.clone())),
+        Doing::Queued,
+        Doing::Live(Live::Starting),
+        Doing::Live(Live::Working),
+        Doing::Live(Live::Waiting(confirm.clone())),
+        Doing::Live(Live::Stopping),
+    ];
+    let got: Vec<(Option<LivePhase>, Option<&OpenItem>)> =
+        all.iter().map(|d| (d.phase(), d.item())).collect();
+    assert_eq!(
+        got,
+        [
+            (None, None),
+            (None, Some(&setup)),
+            (None, None),
+            (Some(LivePhase::Starting), None),
+            (Some(LivePhase::Working), None),
+            (Some(LivePhase::Waiting), Some(&confirm)),
+            (Some(LivePhase::Stopping), None),
+        ]
+    );
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),
