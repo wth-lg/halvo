@@ -354,10 +354,12 @@ impl Db {
             .map_err(db_error)
     }
 
-    pub(crate) fn wal_bytes(&self) -> u64 {
-        std::fs::metadata(&self.wal_path)
-            .map(|m| m.len())
-            .unwrap_or(0)
+    pub(crate) fn wal_bytes(&self) -> StoreResult<u64> {
+        match std::fs::metadata(&self.wal_path) {
+            Ok(metadata) => Ok(metadata.len()),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(0),
+            Err(e) => Err(io_error(e)),
+        }
     }
 
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
@@ -367,7 +369,7 @@ impl Db {
             .map_err(db_error)?;
         let checkpoint = Checkpoint {
             busy,
-            wal_bytes: self.wal_bytes(),
+            wal_bytes: self.wal_bytes()?,
         };
         if checkpoint.busy != 0 || checkpoint.wal_bytes != 0 {
             return Err(StoreError::Db(rusqlite::ffi::SQLITE_BUSY));
@@ -740,6 +742,26 @@ mod tests {
         assert!(pragma.starts_with(KEY_PRAGMA_HEAD) && pragma.ends_with(KEY_PRAGMA_TAIL));
         let hex = hex_lower(&[0xab; 32]);
         assert_eq!(hex.capacity(), hex.len());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_write_ahead_log_that_cannot_be_read_fails_the_checkpoint() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        db.wal_path = dir.path().join("no-such-wal");
+        assert!(
+            db.checkpoint_truncate().is_ok(),
+            "a missing write-ahead log is not an empty one"
+        );
+        let looping = dir.path().join("looping-wal");
+        std::os::unix::fs::symlink(&looping, &looping).unwrap();
+        db.wal_path = looping;
+        let checkpoint = db.checkpoint_truncate();
+        assert!(
+            checkpoint.is_err(),
+            "a write-ahead log that cannot be read let the checkpoint succeed: {checkpoint:?}"
+        );
     }
 
     #[test]

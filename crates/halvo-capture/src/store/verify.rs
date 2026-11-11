@@ -315,7 +315,7 @@ pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
     }
 
     let file_gone = !segment_path(dir, segment_id).exists();
-    let wal_bytes = store.db()?.wal_bytes();
+    let wal_bytes = store.db()?.wal_bytes()?;
     let remaining_keys = remaining_wrapped_keys(&store)?.len();
     let decryptable_with_remaining_keys = decryptable_with_remaining_keys(&store, &cipher)?;
     let sibling_readable = store
