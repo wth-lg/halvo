@@ -65,6 +65,8 @@ enum Fault {
     NeverReachesTheWatermark,
     SendsNoMessage,
     EndsTheStream,
+    NoLookAhead,
+    OpensInsideTheWatermarkSegment,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -187,6 +189,7 @@ impl Proxy {
                 at: Instant(0),
             }),
             OpenNextElsewhere => b.next.idx += 1,
+            OpensInsideTheWatermarkSegment => b.next = open.position(),
             OpenGetsClosed => return ServerMessage::Closed,
             _ => {}
         }
@@ -259,6 +262,13 @@ impl Proxy {
                 }
             }
             RecordAtNext if reached => b.next = b.records.last().unwrap().pos,
+            NoLookAhead if reached => {
+                let last = b.records.last().unwrap().pos;
+                b.next = Position {
+                    seg: last.seg,
+                    idx: last.idx + 1,
+                };
+            }
             RepeatsARecord if !b.records.is_empty() => {
                 let copy = b.records[0].clone();
                 b.records.insert(1, copy);
@@ -413,10 +423,20 @@ impl Subject for Control {
             while let Ok(Some(payload)) = read_frame(&mut requests_in, CLIENT_FRAME_MAX) {
                 let (request, reply) = match decode_client(&payload) {
                     Ok(ClientMessage::OpenCursor(open)) => {
-                        let reply = t.handle(&ClientMessage::OpenCursor(unfiltered(
-                            &open,
-                            proxy.fault,
-                        )));
+                        let w = t.watermark();
+                        let p = open.position();
+                        let sent = match open.store() {
+                            Some(s)
+                                if proxy.fault == OpensInsideTheWatermarkSegment
+                                    && p.seg == w.seg
+                                    && p.idx > 0 =>
+                            {
+                                OpenCursor::at(s.clone(), w, open.kinds().cloned(), open.range())
+                                    .unwrap()
+                            }
+                            _ => unfiltered(&open, proxy.fault),
+                        };
+                        let reply = t.handle(&ClientMessage::OpenCursor(sent));
                         let reply = proxy.opened(&open, reply);
                         (ClientMessage::OpenCursor(open), reply)
                     }
@@ -510,7 +530,7 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
             Pass,
             Pass,
             Pass,
-            Fail("a message that is due an error got another reply"),
+            Fail("an open_cursor with the old store id got another reply than an error"),
         ],
     );
     let short = "the reference read served 43 entries";
@@ -749,5 +769,26 @@ fn control_a_read_that_never_reaches_the_watermark() {
     check(
         NeverReachesTheWatermark,
         everywhere("did not reach the watermark in 1000 reads"),
+    );
+}
+
+#[test]
+fn control_a_server_without_look_ahead() {
+    check(
+        NoLookAhead,
+        everywhere("the reply that serves the last entry of the reference read has next {seg 4, idx 12}"),
+    );
+}
+
+#[test]
+fn control_a_server_that_opens_inside_the_watermark_segment() {
+    check(
+        OpensInsideTheWatermarkSegment,
+        [
+            Fail("an open_cursor at {seg 5, idx 1} got another reply than an error"),
+            Pass,
+            Pass,
+            Pass,
+        ],
     );
 }

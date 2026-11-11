@@ -210,10 +210,10 @@ impl<S: Subject> Conn<S> {
         }
     }
 
-    fn error(&mut self, payload: &str) -> Result<Cause, String> {
+    fn error(&mut self, payload: &str, what: &str) -> Result<Cause, String> {
         match self.send(payload)? {
             ServerMessage::Error(e) => Ok(e.cause().clone()),
-            _ => Err("a message that is due an error got another reply".to_owned()),
+            _ => Err(format!("{what} got another reply than an error")),
         }
     }
 }
@@ -253,6 +253,7 @@ struct Reading {
     low: Position,
     top: Position,
     first_full_next: Option<Position>,
+    tail: Option<(Position, Position)>,
     expiry_segs: Vec<u64>,
 }
 
@@ -355,6 +356,7 @@ fn read<S: Subject>(
         low: opened.watermark,
         top: opened.watermark,
         first_full_next: None,
+        tail: None,
         expiry_segs: Vec::new(),
     };
     let mut cursor = position;
@@ -371,6 +373,9 @@ fn read<S: Subject>(
         check(&b, &reading.store, cursor, last, watermark)?;
         if !b.records.is_empty() && reading.first_full_next.is_none() {
             reading.first_full_next = Some(b.next);
+        }
+        if !b.records.is_empty() {
+            reading.tail = Some((b.next, b.watermark));
         }
         last = b.records.last().map(|e| e.pos).or(last);
         cursor = b.next;
@@ -451,6 +456,13 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
             segs.len()
         ));
     }
+    if let Some((next, w)) = reading.tail.filter(|(next, w)| next != w) {
+        return Err(format!(
+            "the reply that serves the last entry of the reference read has next {}; want its watermark {}",
+            show(next),
+            show(w)
+        ));
+    }
     let first_full_next = reading
         .first_full_next
         .ok_or("the reference read served no record")?;
@@ -467,7 +479,8 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
 
 /// The case `resume` (C5.13 item 6): after `restart`, a read from each of five start positions serves the
 /// entries of the reference read at or after it, at the same positions, from the same store; a position
-/// beyond every watermark gets `bad-position`, and a legal open after it works.
+/// beyond every watermark and the index 1 of the watermark's segment get `bad-position`, and a legal open
+/// after them works.
 pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
     drop(conn);
@@ -503,13 +516,16 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
         seg: top.seg + 1,
         idx: 0,
     };
-    let cause = conn.error(&open_text(Some(&rf.s), beyond, None, None))?;
-    if cause != Cause::BadPosition {
-        return Err(format!(
-            "an open_cursor at {} got {}; want bad-position",
-            show(beyond),
-            cause.name()
-        ));
+    let inside = Position {
+        seg: rf.w.seg,
+        idx: 1,
+    };
+    for at in [beyond, inside] {
+        let what = format!("an open_cursor at {}", show(at));
+        let cause = conn.error(&open_text(Some(&rf.s), at, None, None), &what)?;
+        if cause != Cause::BadPosition {
+            return Err(format!("{what} got {}; want bad-position", cause.name()));
+        }
     }
     read(&mut conn, Some(&rf.s), ZERO, None, None)
         .map_err(|e| format!("the open after bad-position: {e}"))?;
@@ -640,7 +656,7 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
         ("a range whose end equals its start", None, Some((a, a))),
     ];
     for (name, kinds, range) in illegal {
-        let cause = conn.error(&open_text(Some(&rf.s), ZERO, kinds, range))?;
+        let cause = conn.error(&open_text(Some(&rf.s), ZERO, kinds, range), name)?;
         if cause != Cause::BadRequest {
             return Err(format!("{name} got {}; want bad-request", cause.name()));
         }
@@ -664,7 +680,10 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
     let mut conn = connect(subject)?;
-    let new = match conn.error(&open_text(Some(&rf.s), p, None, None))? {
+    let new = match conn.error(
+        &open_text(Some(&rf.s), p, None, None),
+        "an open_cursor with the old store id",
+    )? {
         Cause::StoreChanged(id) if id != rf.s => id,
         Cause::StoreChanged(_) => return Err("store-changed names the old store id".to_owned()),
         other => {
@@ -674,14 +693,17 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
             ))
         }
     };
-    let cause = conn.error(READ_BATCH)?;
+    let cause = conn.error(READ_BATCH, "read_batch after store-changed")?;
     if cause != Cause::BadRequest {
         return Err(format!(
             "read_batch after store-changed got {}; want bad-request",
             cause.name()
         ));
     }
-    let cause = conn.error(&open_text(None, p, None, None))?;
+    let cause = conn.error(
+        &open_text(None, p, None, None),
+        "a null store with a non-zero position",
+    )?;
     if cause != Cause::BadRequest {
         return Err(format!(
             "a null store with a non-zero position got {}; want bad-request",
