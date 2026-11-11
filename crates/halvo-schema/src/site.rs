@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::ids::{hex64, name_enum, object, string_type, ParseError};
 
+pub(crate) struct Key(());
+
 /// The names that this module writes in a record or a request: the keys of a site value and of an observed site,
 /// and the three sources.
 pub const NAMES: &[&str] = &[

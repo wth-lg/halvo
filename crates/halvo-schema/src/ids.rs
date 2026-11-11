@@ -2,7 +2,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor};
-use serde::ser::{Serialize, Serializer};
+use serde::ser::Serializer;
 
 /// The version of every serialized record, request and reply, written first under the key `v`.
 /// A reader refuses any other number.
@@ -23,7 +23,7 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) const fn new(type_name: &'static str, rule: &'static str) -> Self {
+    pub(crate) fn new<K: Locked>(_: K, type_name: &'static str, rule: &'static str) -> Self {
         ParseError { type_name, rule }
     }
 
@@ -45,6 +45,22 @@ impl fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
+
+pub(crate) struct Key(());
+
+mod key {
+    pub trait Sealed {}
+}
+
+pub(crate) trait Locked: key::Sealed {}
+
+impl<K: key::Sealed> Locked for K {}
+
+impl key::Sealed for Key {}
+impl key::Sealed for crate::category::Key {}
+impl key::Sealed for crate::record::Key {}
+impl key::Sealed for crate::request::Key {}
+impl key::Sealed for crate::site::Key {}
 
 pub(crate) struct ParsedStr<T> {
     parse: fn(&str) -> Result<T, ParseError>,
@@ -144,7 +160,7 @@ impl<'de> Deserialize<'de> for Version {
                 if n == u64::from(VERSION) {
                     Ok(Version)
                 } else {
-                    Err(E::custom(ParseError::new("Version", "version")))
+                    Err(E::custom(ParseError::new(Key(()), "Version", "version")))
                 }
             }
 
@@ -152,7 +168,7 @@ impl<'de> Deserialize<'de> for Version {
                 if n == i64::from(VERSION) {
                     Ok(Version)
                 } else {
-                    Err(E::custom(ParseError::new("Version", "version")))
+                    Err(E::custom(ParseError::new(Key(()), "Version", "version")))
                 }
             }
         }
@@ -162,15 +178,11 @@ impl<'de> Deserialize<'de> for Version {
 
 pub(crate) trait Strict {
     fn rules(&self) -> Result<(), ParseError>;
-    fn write_fields<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
-}
-
-pub(crate) struct Unchecked<'a, T>(pub(crate) &'a T);
-
-impl<T: Strict> Serialize for Unchecked<'_, T> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.write_fields(serializer)
-    }
+    fn write_fields<S: Serializer, K: Locked>(
+        &self,
+        serializer: S,
+        key: K,
+    ) -> Result<S::Ok, S::Error>;
 }
 
 macro_rules! strict_struct {
@@ -192,7 +204,7 @@ macro_rules! strict_struct {
                 $rules
             }
 
-            fn write_fields<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            fn write_fields<S: serde::Serializer, K: $crate::ids::Locked>(&self, serializer: S, _: K) -> Result<S::Ok, S::Error> {
                 #[derive(serde::Serialize)]
                 struct Out<'a> {
                     $( $v: u32, )?
@@ -208,7 +220,7 @@ macro_rules! strict_struct {
         impl serde::Serialize for $name {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 $crate::ids::Strict::rules(self).map_err(<S::Error as serde::ser::Error>::custom)?;
-                $crate::ids::Strict::write_fields(self, serializer)
+                $crate::ids::Strict::write_fields(self, serializer, Key(()))
             }
         }
 
@@ -247,7 +259,7 @@ macro_rules! string_type {
             pub fn parse(s: &str) -> Result<Self, $crate::ids::ParseError> {
                 match $check(s) {
                     Ok(()) => Ok($name(s.to_owned())),
-                    Err(rule) => Err($crate::ids::ParseError::new(stringify!($name), rule)),
+                    Err(rule) => Err($crate::ids::ParseError::new(Key(()), stringify!($name), rule)),
                 }
             }
 
@@ -307,7 +319,7 @@ macro_rules! name_enum {
             pub fn parse(s: &str) -> Result<Self, $crate::ids::ParseError> {
                 match s {
                     $( $text => Ok($name::$variant), )+
-                    _ => Err($crate::ids::ParseError::new(stringify!($name), "unknown_name")),
+                    _ => Err($crate::ids::ParseError::new(Key(()), stringify!($name), "unknown_name")),
                 }
             }
         }
@@ -437,7 +449,7 @@ strict_struct! {
     }
     rules(p) {
         if p.seg > MAX_ORDINAL || p.idx > MAX_ORDINAL {
-            return Err(ParseError::new("Position", "range"));
+            return Err(ParseError::new(Key(()), "Position", "range"));
         }
         Ok(())
     }
