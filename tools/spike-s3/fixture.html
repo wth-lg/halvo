@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>s3 t=0 p=0</title>
+<style>
+html, body { margin: 0; height: 100%; }
+input { position: fixed; left: 0; width: 100vw; height: 45vh; box-sizing: border-box; font-size: 24px; }
+#t { top: 0; }
+#p { top: 50vh; }
+</style>
+</head>
+<body>
+<input id="t" type="text" autocomplete="off" aria-label="plain">
+<input id="p" type="password" autocomplete="off" aria-label="secret">
+<script>
+var t = document.getElementById("t");
+var p = document.getElementById("p");
+function u() { document.title = "s3 t=" + t.value.length + " p=" + p.value.length; }
+t.addEventListener("input", u);
+p.addEventListener("input", u);
+</script>
+</body>
+</html>
