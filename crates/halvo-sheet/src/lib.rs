@@ -2,11 +2,11 @@
 
 mod book;
 mod error;
-#[allow(dead_code)]
 mod parts;
 mod path;
 mod range;
 mod source;
+mod write;
 
 use std::path::{Path, PathBuf};
 
@@ -15,6 +15,7 @@ pub use error::{Cause, Error, PathRefusal, Refusal, SourceRefusal};
 pub use parts::Kind;
 pub use range::Range;
 pub use source::Value;
+pub use write::{Prepared, RunId};
 
 /// The directory that the permission `user_files` names, as the runner gives it. Every path
 /// that a call takes is the runner's: an absolute path under this directory or a path relative
@@ -64,5 +65,36 @@ impl Folder {
     pub fn read_source(&self, source: &Path) -> Result<Vec<Vec<Value>>, Error> {
         let full = self.file(source)?;
         source::parse(&std::fs::read(full)?)
+    }
+
+    /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
+    /// workbook at `workbook`. In this order, and before it writes any file: refuses `values`
+    /// that do not have the rows and columns of `range` ([`Error::Shape`]) or that hold a text
+    /// with a character that XML 1.0 does not allow ([`Error::Value`]); refuses with
+    /// [`Error::Workbook`] a workbook that holds a part kind of the sheet trial's refuses list
+    /// ([`Refusal::Kinds`], found by the rule of A13.4) or that the crate cannot read; refuses a
+    /// sheet that the workbook lacks ([`Error::NoSheet`]); and writes the values into a copy of
+    /// the workbook in memory, a number as a number and a text as a text. Then it copies the
+    /// workbook to its checkpoint `<name>.halvo-checkpoint-<run id><ext>` beside it, or keeps a
+    /// checkpoint of the run that is already there and equal to the workbook
+    /// ([`Error::Checkpoint`] when it differs), writes the changed copy to
+    /// `<name>.halvo-prepared-<run id><ext>` beside it, reads that file again and requires the
+    /// sameness of A13.4: the sheet names and their order are the same, each cell of the range
+    /// holds its new value and no formula, every other cell holds the same value or, for a
+    /// formula cell, the same formula text, the array formulas are the same, and no part kind
+    /// of A13.4 is lost by the trial's rule. On a miss it removes the prepared copy and the
+    /// checkpoint that it made and returns [`Error::Sheet`]. A formula's cached result is
+    /// neither compared nor computed: a formula that reads a changed cell keeps its old result
+    /// until a spreadsheet application calculates it again.
+    pub fn prepare(
+        &self,
+        workbook: &Path,
+        run: &RunId,
+        sheet: &str,
+        range: Range,
+        values: &[Vec<Value>],
+    ) -> Result<Prepared, Error> {
+        let full = self.file(workbook)?;
+        write::prepare(full, run, sheet, range, values)
     }
 }

@@ -561,6 +561,69 @@ fn new_reader(xml: &[u8]) -> Reader<&[u8]> {
     reader
 }
 
+fn sheet_parts(entries: &Entries) -> Vec<(String, String)> {
+    let empty = Vec::new();
+    let workbook = entries.get("xl/workbook.xml").unwrap_or(&empty);
+    let rels = entries.get("xl/_rels/workbook.xml.rels").unwrap_or(&empty);
+    let targets: BTreeMap<String, String> = relationships(rels)
+        .into_iter()
+        .filter_map(|rel| Some((rel.get("Id")?.clone(), rel.get("Target")?.clone())))
+        .collect();
+    element_attributes(workbook)
+        .into_iter()
+        .filter(|(element, _)| element == "sheet")
+        .filter_map(|(_, attrs)| {
+            let name = attrs.get("name")?.clone();
+            let id = attrs
+                .iter()
+                .find(|(k, _)| local(k) == "id" && k.contains(':'))?
+                .1;
+            Some((name, resolve("xl/workbook.xml", targets.get(id)?)))
+        })
+        .collect()
+}
+
+pub(crate) type Array = (String, String, String);
+
+pub(crate) fn array_formulas(entries: &Entries) -> Result<BTreeSet<Array>, Error> {
+    let mut found = BTreeSet::new();
+    for (sheet, part) in sheet_parts(entries) {
+        let Some(xml) = entries.get(&part) else {
+            continue;
+        };
+        let mut reader = new_reader(xml);
+        let mut buf = Vec::new();
+        let mut cell = String::new();
+        loop {
+            match reader.read_event_into(&mut buf).map_err(|_| unreadable())? {
+                Event::Eof => break,
+                Event::Start(e) | Event::Empty(e) => {
+                    let attr = |key: &str| {
+                        e.attributes()
+                            .flatten()
+                            .find(|a| a.key.as_ref() == key)
+                            .map(|a| attribute_value(&a))
+                    };
+                    match local(e.name().as_ref()) {
+                        "c" => cell = attr("r").unwrap_or_default(),
+                        "f" if attr("t").as_deref() == Some("array") => {
+                            found.insert((
+                                sheet.clone(),
+                                cell.clone(),
+                                attr("ref").unwrap_or_default(),
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+            buf.clear();
+        }
+    }
+    Ok(found)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

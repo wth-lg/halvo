@@ -63,6 +63,8 @@ pub enum Refusal {
     /// The file is not a workbook that the crate can read: not a zip archive of the parts of a
     /// workbook, a part that does not parse, or a library that fails or panics on it.
     Unreadable,
+    /// The workbook holds these kinds of the verdict's refuses list ([`crate::Kind::REFUSED`]).
+    Kinds(Vec<crate::Kind>),
 }
 
 /// An error of a call. No error holds the content of a cell, of a source row or of a part of
@@ -83,6 +85,19 @@ pub enum Error {
     NoSheet,
     /// The workbook is refused, with the cause `workbook`.
     Workbook(Refusal),
+    /// The values do not have the rows and columns of the range.
+    Shape,
+    /// A text of the values holds a character that XML 1.0 does not allow in a part of a
+    /// workbook: a control character other than tab, line feed and carriage return, U+FFFE or
+    /// U+FFFF.
+    Value,
+    /// The text is not a run id of the form of contracts.md A0.6.
+    RunId,
+    /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
+    Checkpoint,
+    /// The prepared copy did not read back with the sameness of A13.4, or it lost a part kind
+    /// of the workbook, with the cause `sheet`.
+    Sheet,
 }
 
 impl Error {
@@ -90,12 +105,17 @@ impl Error {
     pub fn cause(&self) -> Cause {
         match self {
             Error::Workbook(_) => Cause::Workbook,
+            Error::Sheet => Cause::Sheet,
             Error::Folder
             | Error::Path(_)
             | Error::Io(_)
             | Error::Source(_)
             | Error::Range
-            | Error::NoSheet => Cause::StepFailed,
+            | Error::NoSheet
+            | Error::Shape
+            | Error::Value
+            | Error::RunId
+            | Error::Checkpoint => Cause::StepFailed,
         }
     }
 }
@@ -116,6 +136,11 @@ impl fmt::Display for Error {
             Error::Range => f.write_str("the text is not a range"),
             Error::NoSheet => f.write_str("the workbook has no sheet of that name"),
             Error::Workbook(why) => write!(f, "the workbook is refused: {why:?}"),
+            Error::Shape => f.write_str("the values do not have the shape of the range"),
+            Error::Value => f.write_str("a text holds a character that a workbook cannot hold"),
+            Error::RunId => f.write_str("the text is not a run id"),
+            Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
+            Error::Sheet => f.write_str("the prepared copy did not read back the same"),
         }
     }
 }

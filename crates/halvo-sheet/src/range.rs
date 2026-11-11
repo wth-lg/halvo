@@ -31,6 +31,15 @@ impl Range {
     pub fn cols(&self) -> u32 {
         self.last.1 - self.first.1 + 1
     }
+
+    pub(crate) fn cells(&self) -> impl Iterator<Item = (u32, u32)> + '_ {
+        (self.first.0..=self.last.0)
+            .flat_map(move |row| (self.first.1..=self.last.1).map(move |col| (row, col)))
+    }
+
+    pub(crate) fn holds(&self, (row, col): (u32, u32)) -> bool {
+        (self.first.0..=self.last.0).contains(&row) && (self.first.1..=self.last.1).contains(&col)
+    }
 }
 
 fn cell(text: &str) -> Result<(u32, u32), Error> {
