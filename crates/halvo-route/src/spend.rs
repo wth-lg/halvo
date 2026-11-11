@@ -692,6 +692,65 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn the_cap_test_sums_in_u128() {
+        let account = Account {
+            cap_minor: Some(1_844_674_407_370_956),
+            active: true,
+            spent: u64::MAX,
+            held: 1,
+        };
+        assert_eq!(
+            step(&account, &Hold::new(), Move::Reserve { amount: 8_385 }),
+            Err(SpendCause::OverCap)
+        );
+        assert_eq!(
+            step(&account, &Hold::new(), Move::Reserve { amount: 8_384 }),
+            Ok((
+                Account {
+                    held: 8_385,
+                    ..account
+                },
+                hold(State::Held, 8_384, 0)
+            ))
+        );
+    }
+
+    #[test]
+    fn moves_keep_what_they_do_not_change() {
+        let account = Account {
+            cap_minor: Some(3),
+            active: true,
+            spent: 0,
+            held: 10_000,
+        };
+        assert_eq!(
+            step(&account, &hold(State::Held, 10_000, 5_000), Move::Void),
+            Ok((
+                Account { held: 0, ..account },
+                hold(State::Voided, 10_000, 5_000)
+            ))
+        );
+        assert_eq!(
+            step(&account, &hold(State::Held, 10_000, 5_000), Move::Dispatch),
+            Ok((account, hold(State::Sent, 10_000, 5_000)))
+        );
+        assert_eq!(
+            step(
+                &account,
+                &hold(State::New, 0, 7),
+                Move::Reserve { amount: 20_000 }
+            ),
+            Ok((
+                Account {
+                    held: 30_000,
+                    ..account
+                },
+                hold(State::Held, 20_000, 7)
+            ))
+        );
+    }
+
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     enum Cell {
         Go,

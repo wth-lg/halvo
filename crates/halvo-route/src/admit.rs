@@ -322,6 +322,30 @@ mod tests {
     #[test]
     fn room_left_and_of() {
         assert_eq!(ROOM.left(), 50_000);
+        let used_above_u64 = Room {
+            cap_minor: 3_689_348_814_741_911,
+            spent: u64::MAX,
+            held: u64::MAX,
+            period_end_ms: END,
+        };
+        assert_eq!(used_above_u64.left(), 6_770);
+        assert_eq!(fits(&used_above_u64, 6_770, &[]), Fit::Fits);
+        assert_eq!(fits(&used_above_u64, 6_771, &[]), Fit::Over);
+        assert_eq!(
+            admit(&open(), Some(&used_above_u64), 6_771, &[]),
+            Admission::Wait { until_ms: END }
+        );
+        let cap_above_u64 = Room {
+            cap_minor: u64::MAX,
+            spent: u64::MAX,
+            held: 0,
+            period_end_ms: END,
+        };
+        assert_eq!(cap_above_u64.left(), u64::MAX);
+        assert_eq!(
+            admit(&open(), Some(&cap_above_u64), u64::MAX, &[]),
+            Admission::Admit
+        );
         assert_eq!(
             Room {
                 spent: 100_000,

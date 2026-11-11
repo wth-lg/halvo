@@ -99,6 +99,10 @@ impl LeaveCause {
 /// let grant: halvo_route::leave::LeaveGrant = Default::default();
 /// ```
 ///
+/// ```compile_fail,E0599
+/// let grant = halvo_route::leave::LeaveGrant::new();
+/// ```
+///
 /// cannot copy one:
 ///
 /// ```compile_fail,E0599
@@ -508,6 +512,26 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn grant_is_the_only_maker() {
+        let code: String = include_str!("leave.rs")
+            .split("\n#[cfg(test)]\nmod tests {")
+            .next()
+            .expect("the code before the tests")
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .map(|line| format!("{line}\n"))
+            .collect();
+        assert_eq!(code.matches("_sealed").count(), 2, "{code}");
+        let body = code
+            .split("\npub fn grant(")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .expect("the body of grant");
+        assert_eq!(body.matches("LeaveGrant { _sealed: () }").count(), 1);
+        assert!(!code.contains("unsafe"));
     }
 
     #[test]
