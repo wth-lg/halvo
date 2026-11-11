@@ -114,13 +114,98 @@ pub fn self_test(
             (&Random::new(&table, &setup), &mut result.random_fail),
             (&PolicyRouter::peek(&table, &setup), &mut result.peek_fail),
         ];
-        for (router, fails) in bad {
-            if passes(router) {
-                result.misses.push((router.name(), table_seed));
-            } else {
-                *fails += 1;
-            }
-        }
+        count_bad(bad, &passes, table_seed, &mut result.misses);
     }
     Ok(result)
+}
+
+fn count_bad(
+    bad: [(&dyn Router, &mut u32); 3],
+    passes: &dyn Fn(&dyn Router) -> bool,
+    seed: u64,
+    misses: &mut Vec<(&'static str, u64)>,
+) {
+    for (router, fails) in bad {
+        if passes(router) {
+            misses.push((router.name(), seed));
+        } else {
+            *fails += 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn full() -> SelfTest {
+        SelfTest {
+            tables: 20,
+            misses: Vec::new(),
+            derived_pass: 20,
+            product_pass: Some(20),
+            one_tier_fail: 20,
+            random_fail: 20,
+            peek_fail: 20,
+        }
+    }
+
+    #[test]
+    fn one_count_short_of_the_tables_fails() {
+        assert!(full().passed());
+        assert!(SelfTest {
+            product_pass: None,
+            ..full()
+        }
+        .passed());
+        let short: [fn(&mut SelfTest); 5] = [
+            |result| result.derived_pass -= 1,
+            |result| result.product_pass = Some(19),
+            |result| result.one_tier_fail -= 1,
+            |result| result.random_fail -= 1,
+            |result| result.peek_fail -= 1,
+        ];
+        for (i, cut) in short.into_iter().enumerate() {
+            let mut result = full();
+            cut(&mut result);
+            assert!(!result.passed(), "count {i}");
+        }
+    }
+
+    #[test]
+    fn a_bad_router_that_passes_prints_its_miss_with_its_seed() {
+        let table = generate(1);
+        let setup = Setup::generated();
+        let (mut one_tier, mut random, mut peek) = (0, 0, 0);
+        let mut misses = Vec::new();
+        count_bad(
+            [
+                (&OneTier { recorded: false }, &mut one_tier),
+                (&Random::new(&table, &setup), &mut random),
+                (&PolicyRouter::peek(&table, &setup), &mut peek),
+            ],
+            &|router| router.name() != "random",
+            7,
+            &mut misses,
+        );
+        assert_eq!((one_tier, random, peek), (0, 1, 0));
+        let result = SelfTest {
+            tables: 1,
+            misses,
+            derived_pass: 1,
+            product_pass: None,
+            one_tier_fail: one_tier,
+            random_fail: random,
+            peek_fail: peek,
+        };
+        assert_eq!(
+            result.lines(),
+            [
+                "selftest miss router=one_tier seed=7",
+                "selftest miss router=peek seed=7",
+                "selftest tables=1 derived_pass=1 product_pass=- one_tier_fail=0 random_fail=1 peek_fail=0",
+            ]
+        );
+        assert!(!result.passed());
+    }
 }
