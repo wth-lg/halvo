@@ -32,10 +32,10 @@ cpu_max_pct_of_one_core=20
 # length to a day. No figure per event is written here: gate-4 measures it on
 # the real store.
 disk_max_bytes_per_day=2000000000
-# ci_job_timeout_min: RD-45: 1.45 times the longest of 82 recorded job attempts
-# of the workflow (1243 s, the windows job). The workflow lint compares each
-# job's timeout-minutes with it.
-ci_job_timeout_min=30
+# ci_job_timeout_min: the coordinator's ruling of 2026-11-11 08:25Z, after the
+# macos job took 1159 s at cdde6c8; the first value 30 was RD-45, 1.45 times
+# 1243 s. The workflow lint compares each job's timeout-minutes with it.
+ci_job_timeout_min=60
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
 # this many seconds before the gate ends it and prints FAIL: each timed run,
