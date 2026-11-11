@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('rights', 'setup', 'collect', 'teardown')][string]$Action,
+    [Parameter(Mandatory = $true)][ValidateSet('rights', 'setup', 'collect', 'teardown', 'reap', 'state')][string]$Action,
     [string]$Dir = '',
     [string]$Token = '',
     [int]$Deny = 1,
@@ -76,21 +76,73 @@ function Get-PortComplement([int[]]$ports) {
     return $ranges
 }
 
-function Remove-Left {
-    $rules = @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue)
-    $groups = @($rules | ForEach-Object { $_.Group } | Sort-Object -Unique)
-    foreach ($group in $groups) {
-        if ($group -notmatch '^halvo-egress-\d+-\d+-(\d+)-w(\d+)$') { continue }
-        $epoch = [long]$Matches[1]
-        $owner = [int]$Matches[2]
-        $process = Get-Process -Id $owner -ErrorAction SilentlyContinue
-        $alive = $false
-        if ($null -ne $process) {
-            $started = ([DateTimeOffset]$process.StartTime).ToUnixTimeSeconds()
-            $alive = $started -le $epoch
-        }
-        if (-not $alive) { Remove-NetFirewallRule -Group $group -ErrorAction SilentlyContinue }
+function Get-Setting {
+    $parts = @()
+    foreach ($pair in @(@('fpc', $FilteringPlatformConnection), @('pc', $ProcessCreation))) {
+        $row = @(& auditpol.exe /get "/subcategory:$($pair[1])" /r | Where-Object { $_ -ne '' } | ConvertFrom-Csv)
+        if ($row.Count -eq 0) { throw 'auditpol could not read an audit setting' }
+        $parts += "$($pair[0])=$($row[0].'Inclusion Setting')"
     }
+    $channel = (& wevtutil.exe gl $DnsChannel | Where-Object { $_ -match '^enabled:' }) -join ''
+    $parts += "dns=$($channel -match 'true')"
+    foreach ($one in @(Get-NetFirewallProfile | Sort-Object Name)) { $parts += "$($one.Name)=$($one.Enabled)" }
+    $parts -join ';'
+}
+
+function Set-Setting([string]$saved) {
+    $values = @{}
+    foreach ($part in $saved.Split(';')) {
+        $pair = $part.Split('=', 2)
+        if ($pair.Count -eq 2) { $values[$pair[0]] = $pair[1] }
+    }
+    foreach ($pair in @(@('fpc', $FilteringPlatformConnection), @('pc', $ProcessCreation))) {
+        if (-not $values.ContainsKey($pair[0])) { continue }
+        $success = 'disable'
+        $failure = 'disable'
+        if ($values[$pair[0]] -like '*Success*') { $success = 'enable' }
+        if ($values[$pair[0]] -like '*Failure*') { $failure = 'enable' }
+        $null = & auditpol.exe /set "/subcategory:$($pair[1])" "/success:$success" "/failure:$failure"
+    }
+    if ($values.ContainsKey('dns')) { $null = & wevtutil.exe sl $DnsChannel "/e:$($values['dns'].ToLower())" }
+    foreach ($name in @('Domain', 'Private', 'Public')) {
+        if ($values.ContainsKey($name)) { Set-NetFirewallProfile -Profile $name -Enabled $values[$name] }
+    }
+}
+
+function Get-Groups {
+    @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue | ForEach-Object { $_.Group } | Sort-Object -Unique)
+}
+
+function Test-Live([string]$group) {
+    if ($group -notmatch '^halvo-egress-\d+-\d+-(\d+)-w(\d+)$') { return $false }
+    $epoch = [long]$Matches[1]
+    $process = Get-Process -Id ([int]$Matches[2]) -ErrorAction SilentlyContinue
+    if ($null -eq $process) { return $false }
+    try { $started = ([DateTimeOffset]$process.StartTime).ToUnixTimeSeconds() } catch { return $true }
+    $started -le $epoch
+}
+
+function Get-Saved([string]$group) {
+    $marker = @(Get-NetFirewallRule -Group $group -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "$group saved" })
+    if ($marker.Count -eq 0) { return '' }
+    [string]$marker[0].Description
+}
+
+function Remove-Left {
+    $live = @()
+    $restore = ''
+    foreach ($group in Get-Groups) {
+        if ($group -eq (Get-Group)) { continue }
+        if (Test-Live $group) {
+            $live += $group
+            continue
+        }
+        $saved = Get-Saved $group
+        if ($restore -eq '') { $restore = $saved }
+        Remove-NetFirewallRule -Group $group -ErrorAction SilentlyContinue
+    }
+    if ($live.Count -eq 0 -and $restore -ne '') { Set-Setting $restore }
+    $live
 }
 
 function Add-Rules {
@@ -239,8 +291,12 @@ switch ($Action) {
         exit 0
     }
     'setup' {
+        $saved = ''
         try {
-            Remove-Left
+            $live = @(Remove-Left)
+            foreach ($group in $live) { if ($saved -eq '') { $saved = Get-Saved $group } }
+            if ($saved -eq '') { $saved = Get-Setting }
+            $null = New-NetFirewallRule -DisplayName "$(Get-Group) saved" -Group (Get-Group) -Direction Outbound -Action Allow -Enabled False -Description $saved
             $null = & icacls.exe $Dir /setintegritylevel '(OI)(CI)H'
             if ($LASTEXITCODE -ne 0) { throw 'icacls could not keep the tree from writing the run directory' }
             $null = & auditpol.exe /set "/subcategory:$FilteringPlatformConnection" /success:enable /failure:enable
@@ -249,20 +305,19 @@ switch ($Action) {
             if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Process Creation audit' }
             $null = & wevtutil.exe sl $DnsChannel /e:true
             if ($LASTEXITCODE -ne 0) { throw 'wevtutil could not enable the DNS client channel' }
-            $off = @(Get-NetFirewallProfile | Where-Object { -not $_.Enabled })
-            if ($off.Count -gt 0) {
-                Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled True
-                [IO.File]::WriteAllText((Join-Path $Dir 'firewall-enabled'), "yes`n", $Utf8)
-            }
-            $rules = 0
-            if ($Deny -eq 1) { $rules = Add-Rules }
+            Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled True
+            if ($Deny -eq 1) { $null = Add-Rules }
+            $rules = @(Get-NetFirewallRule -Group (Get-Group) -ErrorAction Stop).Count
             [IO.File]::WriteAllText((Join-Path $Dir 'rules'), "$rules`n", $Utf8)
             $now = [DateTime]::UtcNow.ToString('o')
             [IO.File]::WriteAllText((Join-Path $Dir 'start'), $now + "`n", $Utf8)
             Write-Output "rules=$rules start=$now"
         } catch {
+            $message = $_.Exception.Message
             Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
-            Write-Output "set-up failed: $($_.Exception.Message)"
+            $others = @(Get-Groups | Where-Object { Test-Live $_ })
+            if ($others.Count -eq 0 -and $saved -ne '') { Set-Setting $saved }
+            Write-Output "set-up failed: $message"
             exit 1
         }
         exit 0
@@ -272,11 +327,18 @@ switch ($Action) {
         exit 0
     }
     'teardown' {
+        $saved = Get-Saved (Get-Group)
         Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
-        if (Test-Path (Join-Path $Dir 'firewall-enabled')) {
-            $left = @(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue)
-            if ($left.Count -eq 0) { Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled False }
-        }
+        $others = @(Get-Groups | Where-Object { Test-Live $_ })
+        if ($others.Count -eq 0 -and $saved -ne '') { Set-Setting $saved }
+        exit 0
+    }
+    'reap' {
+        try { $null = Remove-Left } catch { Write-Output "reap failed: $($_.Exception.Message)"; exit 1 }
+        exit 0
+    }
+    'state' {
+        Write-Output (Get-Setting)
         exit 0
     }
 }

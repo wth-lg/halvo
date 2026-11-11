@@ -402,6 +402,30 @@ test_wfp() {
     *) got="exit-$code:$got" ;;
   esac
   result wfp/rules-removed-during-run-refused refused-mode "$got"
+  before=$(wfp_state)
+  expect_run wfp/quiet-again 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
+  result wfp/settings-restored-after-a-run "$before" "$(wfp_state)"
+  result wfp/teardown-removes-the-rules 0 "$(wfp_rules)"
+  sh scripts/egress/check.sh "$e" -- powershell.exe -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 12" >"$work/term.out" 2>"$work/term.err" &
+  term_check=$!
+  n=0
+  while [ "$(wfp_rules)" = 0 ] && [ $n -lt 60 ]; do
+    sleep 0.5
+    n=$((n + 1))
+  done
+  kill -TERM "$term_check"
+  wait "$term_check"
+  left=$(wfp_rules)
+  expect_run wfp/next-run-after-a-signal 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
+  result wfp/next-run-restores-what-a-signal-left "$before 0 left-before-next=yes" "$(wfp_state) $(wfp_rules) left-before-next=$([ "$left" != 0 ] && printf yes || printf no)"
+}
+
+wfp_state() {
+  MSYS2_ARG_CONV_EXCL='*' powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/egress/wfp.ps1 -Action state | tr -d '\r'
+}
+
+wfp_rules() {
+  powershell.exe -NoProfile -NonInteractive -Command "@(Get-NetFirewallRule -DisplayName 'halvo-egress-*' -ErrorAction SilentlyContinue).Count" | tr -d '\r'
 }
 
 ps_run() {
