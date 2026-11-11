@@ -92,6 +92,11 @@ pub trait KeyCustody {
 
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError>;
 
+    /// Make a new root for this store and wrap `key` under it. Fails
+    /// [`CustodyError::RootExists`] when a root with this id exists, so that a
+    /// create never takes the root of another store.
+    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError>;
+
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError>;
 
     /// Destroy the platform root so no retained wrapped store key can ever be
@@ -135,6 +140,9 @@ pub enum CustodyError {
     RootLocked(i32),
     #[error("this build has no {0:?} custody")]
     CustodyKindUnsupported(CustodyKind),
+    /// A root with this id exists; a create takes only a root that it makes.
+    #[error("a root with this id exists already")]
+    RootExists,
     /// The wrapped store key does not authenticate under the root.
     #[error("the wrapped store key does not open under the root")]
     WrapAuthFailed,

@@ -56,6 +56,16 @@ fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {
     }
 }
 
+fn seal(
+    root_id: RootId,
+    root: Zeroizing<[u8; 32]>,
+    key: &StoreKey,
+) -> Result<WrappedKey, CustodyError> {
+    let sealed = aead_seal(&root, key.expose(), root_id.as_bytes())
+        .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
+    Ok(WrappedKey(sealed))
+}
+
 impl<P: Protector> FileRoots<P> {
     pub(crate) fn new(dir: PathBuf, protector: P) -> Self {
         Self { dir, protector }
@@ -84,9 +94,20 @@ impl<P: Protector> FileRoots<P> {
     }
 
     fn existing_or_new_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
-        if let Some(root) = self.existing_root(root_id)? {
-            return Ok(root);
+        match self.existing_root(root_id)? {
+            Some(root) => Ok(root),
+            None => self.make_root(root_id),
         }
+    }
+
+    fn new_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+        match self.existing_root(root_id)? {
+            Some(_) => Err(CustodyError::RootExists),
+            None => self.make_root(root_id),
+        }
+    }
+
+    fn make_root(&self, root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
         let mut root = Zeroizing::new([0u8; 32]);
         fill_random(root.as_mut_slice())?;
         let blob = self
@@ -99,10 +120,15 @@ impl<P: Protector> FileRoots<P> {
     }
 
     pub(crate) fn wrap(&self, root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        let root = self.existing_or_new_root(root_id)?;
-        let sealed = aead_seal(&root, key.expose(), root_id.as_bytes())
-            .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
-        Ok(WrappedKey(sealed))
+        seal(root_id, self.existing_or_new_root(root_id)?, key)
+    }
+
+    pub(crate) fn wrap_under_new_root(
+        &self,
+        root_id: RootId,
+        key: &StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
+        seal(root_id, self.new_root(root_id)?, key)
     }
 
     pub(crate) fn unwrap(
@@ -235,6 +261,13 @@ pub(crate) mod test_support {
 
         fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
             self.roots.wrap(self.root_id, key)
+        }
+
+        fn wrap_store_key_under_new_root(
+            &self,
+            key: &StoreKey,
+        ) -> Result<WrappedKey, CustodyError> {
+            self.roots.wrap_under_new_root(self.root_id, key)
         }
 
         fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {

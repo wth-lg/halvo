@@ -482,6 +482,13 @@ impl EncryptedStore {
                 keyed: Keyed::Open { db, store_key },
                 _writer_lock,
             }),
+            Err(StoreError::Custody(CustodyError::RootExists)) => {
+                drop(db);
+                Err(Self::without_database(
+                    dir,
+                    StoreError::Custody(CustodyError::RootExists),
+                ))
+            }
             Err(e) => {
                 drop(db);
                 Err(Self::abandon_create(dir, custody.as_ref(), e))
@@ -494,7 +501,7 @@ impl EncryptedStore {
         custody: &dyn KeyCustody,
         store_key: &StoreKey,
     ) -> StoreResult<()> {
-        let wrapped = custody.wrap_store_key(store_key)?;
+        let wrapped = custody.wrap_store_key_under_new_root(store_key)?;
         KeyFile {
             version: 1,
             custody_kind: custody.kind(),

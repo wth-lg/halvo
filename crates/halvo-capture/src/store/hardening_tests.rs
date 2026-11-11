@@ -98,6 +98,9 @@ impl KeyCustody for FlakyCustody {
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         self.inner.wrap_store_key(key)
     }
+    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        self.inner.wrap_store_key_under_new_root(key)
+    }
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         self.inner.unwrap_store_key(wrapped)
     }
@@ -359,6 +362,12 @@ impl KeyCustody for WrapThenFail {
     }
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         self.0.wrap_store_key(key)?;
+        Err(CustodyError::Crypto(
+            "wrap failed after the root was made".to_string(),
+        ))
+    }
+    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        self.0.wrap_store_key_under_new_root(key)?;
         Err(CustodyError::Crypto(
             "wrap failed after the root was made".to_string(),
         ))
@@ -842,6 +851,9 @@ impl KeyCustody for FailingUnwrap {
     fn wrap_store_key(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         Err((self.error)())
     }
+    fn wrap_store_key_under_new_root(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Err((self.error)())
+    }
     fn unwrap_store_key(&self, _wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         Err((self.error)())
     }
@@ -1176,7 +1188,10 @@ impl KeyCustody for DirectoryAtTheKeyFile {
         self.inner.root_id()
     }
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        let wrapped = self.inner.wrap_store_key(key)?;
+        self.inner.wrap_store_key(key)
+    }
+    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        let wrapped = self.inner.wrap_store_key_under_new_root(key)?;
         std::fs::create_dir(&self.key_file).unwrap();
         Ok(wrapped)
     }
@@ -1873,4 +1888,65 @@ fn a_delete_all_that_fails_after_its_root_step_finishes_on_the_next_call() {
         "a create after the finished delete-all failed: {:?}",
         fresh.err()
     );
+}
+
+fn a_second_create_with_one_root_id_fails_and_leaves_the_first_store_readable(
+    custody: &dyn Fn() -> Box<dyn KeyCustody + Send>,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (first_dir, second_dir) = (dir.path().join("first"), dir.path().join("second"));
+    let mut first = EncryptedStore::create(&first_dir, custody(), DEFAULT_RETENTION).unwrap();
+    let (segment, _) = first
+        .write_segment(&mut Cursor::new(b"the first store"))
+        .unwrap();
+    drop(first);
+    let second = EncryptedStore::create(&second_dir, custody(), DEFAULT_RETENTION);
+    let second_answer = second.as_ref().err().map(|e| format!("{e:?}"));
+    drop(second);
+    let reopened = EncryptedStore::open_with(&first_dir, DEFAULT_RETENTION, |_, _| Ok(custody()));
+    let read = reopened
+        .as_ref()
+        .map(|store| {
+            store
+                .read_segment(segment.segment_id, &mut Vec::new())
+                .is_ok()
+        })
+        .map_err(|e| format!("{e:?}"));
+    drop(reopened);
+    custody().destroy_root().unwrap();
+    assert!(
+        second_answer.is_some(),
+        "a create took the root of another store"
+    );
+    assert!(
+        second_answer
+            .as_deref()
+            .is_some_and(|answer| answer.contains("RootExists")),
+        "the refused create answered {second_answer:?}"
+    );
+    assert!(
+        matches!(read, Ok(true)),
+        "the first store does not read after the refused create: {read:?}"
+    );
+}
+
+#[test]
+fn a_create_never_takes_the_root_of_another_store() {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        let root_id = RootId::fresh();
+        a_second_create_with_one_root_id_fails_and_leaves_the_first_store_readable(&|| {
+            Box::new(DevFallbackCustody::new(root_id))
+        });
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let roots_dir = dir.path().join("roots");
+    let root_id = RootId::fresh();
+    a_second_create_with_one_root_id_fails_and_leaves_the_first_store_readable(&|| {
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        ))
+    });
 }

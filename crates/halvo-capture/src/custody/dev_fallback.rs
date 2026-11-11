@@ -131,10 +131,7 @@ mod keychain {
         Ok(Some(Zeroizing::new(root)))
     }
 
-    fn existing_or_new_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
-        if let Some(root) = existing_root(root_id)? {
-            return Ok(root);
-        }
+    fn make_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
         let mut root = Zeroizing::new([0u8; 32]);
         fill_random(root.as_mut_slice())?;
         set_generic_password(SERVICE, &root_id.to_string(), root.as_slice())
@@ -142,11 +139,39 @@ mod keychain {
         Ok(root)
     }
 
-    pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
-        let root = existing_or_new_root(root_id)?;
+    fn existing_or_new_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+        match existing_root(root_id)? {
+            Some(root) => Ok(root),
+            None => make_root(root_id),
+        }
+    }
+
+    fn new_root(root_id: RootId) -> Result<Zeroizing<[u8; 32]>, CustodyError> {
+        match existing_root(root_id)? {
+            Some(_) => Err(CustodyError::RootExists),
+            None => make_root(root_id),
+        }
+    }
+
+    fn seal(
+        root_id: RootId,
+        root: Zeroizing<[u8; 32]>,
+        key: &StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
         let sealed = aead_seal(&root, key.expose(), root_id.as_bytes())
             .map_err(|_| CustodyError::Crypto("sealing the store key failed".to_string()))?;
         Ok(WrappedKey(sealed))
+    }
+
+    pub(super) fn wrap(root_id: RootId, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        seal(root_id, existing_or_new_root(root_id)?, key)
+    }
+
+    pub(super) fn wrap_under_new_root(
+        root_id: RootId,
+        key: &StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
+        seal(root_id, new_root(root_id)?, key)
     }
 
     pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
@@ -185,6 +210,13 @@ mod dpapi {
         user_roots()?.wrap(root_id, key)
     }
 
+    pub(super) fn wrap_under_new_root(
+        root_id: RootId,
+        key: &StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
+        user_roots()?.wrap_under_new_root(root_id, key)
+    }
+
     pub(super) fn unwrap(root_id: RootId, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         user_roots()?.unwrap(root_id, wrapped)
     }
@@ -220,6 +252,13 @@ mod unsupported {
     }
 
     pub(super) fn wrap(_root_id: RootId, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Err(no_root())
+    }
+
+    pub(super) fn wrap_under_new_root(
+        _root_id: RootId,
+        _key: &StoreKey,
+    ) -> Result<WrappedKey, CustodyError> {
         Err(no_root())
     }
 
@@ -299,6 +338,10 @@ impl KeyCustody for DevFallbackCustody {
 
     fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
         platform::wrap(self.root_id, key)
+    }
+
+    fn wrap_store_key_under_new_root(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        platform::wrap_under_new_root(self.root_id, key)
     }
 
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {

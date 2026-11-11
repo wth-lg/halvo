@@ -41,6 +41,10 @@ impl KeyCustody for SecureEnclaveCustody {
         Ok(WrappedKey(blob))
     }
 
+    fn wrap_store_key_under_new_root(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Err(CustodyError::NotImplemented("secure-enclave root creation"))
+    }
+
     fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
         let plain = self
             .key
