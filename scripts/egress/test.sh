@@ -306,12 +306,9 @@ test_sandbox() {
     sleep 0.1
     n=$((n + 1))
   done
-  stream_state=
-  for st in target/egress/[0-9]*/state; do
-    if grep -q "^pid=$stream_check\$" "$st" && ! grep -q '^done$' "$st"; then
-      stream_state=$st
-    fi
-  done
+  stream_state=$(grep -l "^pid=$stream_check\$" target/egress/[0-9]*/state 2>/dev/null | while read -r st; do
+    grep -q '^done$' "$st" || printf '%s\n' "$st"
+  done | tail -n 1)
   stream_pid=$(sed -n 's/^stream=//p' "$stream_state" 2>/dev/null)
   stream_token=$(sed -n 's/^token=//p' "$stream_state" 2>/dev/null)
   case $(ps -o command= -p "${stream_pid:-0}" 2>/dev/null) in
@@ -523,11 +520,10 @@ test_wfp_rules() {
   undo_token=
   n=0
   while [ -z "$undo_token" ] && [ $n -lt 60 ]; do
-    for st in target/egress/[0-9]*/state; do
-      if grep -q "^pid=$undo_check\$" "$st" && ! grep -q '^done$' "$st"; then
-        undo_token=$(sed -n 's/^token=//p' "$st")
-      fi
-    done
+    undo_state=$(grep -l "^pid=$undo_check\$" target/egress/[0-9]*/state 2>/dev/null | while read -r st; do
+      grep -q '^done$' "$st" || printf '%s\n' "$st"
+    done | tail -n 1)
+    [ -z "$undo_state" ] || undo_token=$(sed -n 's/^token=//p' "$undo_state")
     sleep 0.5
     n=$((n + 1))
   done
