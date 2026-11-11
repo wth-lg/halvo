@@ -296,3 +296,18 @@ fn site_values_are_clone_eq_and_hash() {
     )
     .contains("shop"));
 }
+
+#[test]
+fn a_site_value_is_refused_as_an_array() {
+    common::refused_as_array::<SiteValue>(r#"["address_field","northwind-power.test"]"#);
+    refused::<SiteValue>(r#"["sign_in","northwind-power.test"]"#);
+    refused::<SiteValue>(&format!(r#"["title","{HASH}"]"#));
+    refused::<SiteValue>(r#"["northwind-power.test","address_field"]"#);
+}
+
+#[test]
+fn an_observed_site_is_refused_as_an_array() {
+    common::refused_as_array::<ObservedSite>(r#"["title","northwind-power"]"#);
+    refused::<ObservedSite>(r#"["address_field","northwind-power.test"]"#);
+    refused::<ObservedSite>(r#"["northwind-power","title"]"#);
+}

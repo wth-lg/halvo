@@ -1,11 +1,11 @@
 mod common;
 
-use common::{assert_strict, read, refused, round_trip, with, MAX63};
+use common::{assert_strict, read, refused, refused_as_array, round_trip, values, with, MAX63};
 use halvo_schema::{
-    AddressFieldLayer, Confidence, DismissedWorkflow, Episode, Evidence, EvidencePage, FloorLayer,
-    FullWorkflow, InputClass, Instant, KeyCounts, ObservedStep, Ordinal, Part, PointerCounts,
-    Recurrence, Summary, Support, Tagged, Text, TextLayer, Trigger, Workflow, WorkflowItem,
-    WorkflowState, WorkflowsPage,
+    AddressFieldLayer, AppId, Confidence, DismissedWorkflow, Episode, Evidence, EvidencePage,
+    FloorLayer, FullWorkflow, InputClass, Instant, KeyCounts, ObservedStep, Ordinal, Part,
+    PointerCounts, Recurrence, Summary, Support, Tagged, Text, TextLayer, Trigger, Workflow,
+    WorkflowItem, WorkflowState, WorkflowsPage,
 };
 
 const HASH: &str = "9f2c4b7a1d3e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e";
@@ -533,4 +533,86 @@ fn name_lists_hold_the_names_of_the_contract() {
     assert_eq!(states, ["proposed", "approved", "active", "paused"]);
     let layers: Vec<&str> = TextLayer::ALL.iter().map(|s| s.as_str()).collect();
     assert_eq!(layers, ["accessibility_text", "extracted_text"]);
+}
+
+macro_rules! refusals {
+    ($($test:ident: $check:ident::<$ty:ty>($text:expr);)+) => {
+        $(
+            #[test]
+            fn $test() {
+                $check::<$ty>(&$text);
+            }
+        )+
+    };
+}
+
+const RECURRENCE: &str = r#"{"count":3,"period":31,"first":20705,"last":20767}"#;
+const KEYS: &str =
+    r#"{"printable":1,"editing":2,"navigation":3,"enter":4,"tab":5,"shortcut":6,"other":7}"#;
+const POINTER: &str = r#"{"click":1,"scroll":2,"drag":3,"move":4294967295}"#;
+const ADDRESS_ARRAY: &str = r#"["address_field","northwind-power.test"]"#;
+
+fn listed_item() -> String {
+    item(W1, "proposed", &format!("[{S1}]"), "null")
+}
+
+refusals! {
+    a_recurrence_is_refused_as_an_array: refused_as_array::<Recurrence>(values(RECURRENCE));
+    a_full_workflow_is_refused_as_an_array: refused_as_array::<FullWorkflow>(values(PROPOSED));
+    a_dismissed_workflow_is_refused_as_an_array:
+        refused_as_array::<DismissedWorkflow>(values(&dismissed()));
+    a_workflow_of_the_full_shape_is_refused_as_an_array:
+        refused_as_array::<Workflow>(values(PROPOSED));
+    a_workflow_of_the_dismissed_shape_is_refused_as_an_array:
+        refused_as_array::<Workflow>(values(&dismissed()));
+    key_counts_are_refused_as_an_array: refused_as_array::<KeyCounts>(values(KEYS));
+    pointer_counts_are_refused_as_an_array: refused_as_array::<PointerCounts>(values(POINTER));
+    a_summary_is_refused_as_an_array: refused_as_array::<Summary>(values(SUMMARY));
+    a_support_row_is_refused_as_an_array: refused_as_array::<Support>(values(SUPPORT));
+    a_tagged_value_is_refused_as_an_array: refused_as_array::<Tagged<AppId, FloorLayer>>(values(
+        r#"{"value":"com.google.Chrome","layer":"floor"}"#
+    ));
+    an_observed_step_is_refused_as_an_array: refused_as_array::<ObservedStep>(values(STEP));
+    an_evidence_record_is_refused_as_an_array: refused_as_array::<Evidence>(values(&evidence()));
+    an_episode_is_refused_as_an_array: refused_as_array::<Episode>(values(&episode()));
+    a_workflow_item_is_refused_as_an_array:
+        refused_as_array::<WorkflowItem>(values(&listed_item()));
+    a_workflows_page_is_refused_as_an_array: refused_as_array::<WorkflowsPage>(values(&format!(
+        r#"{{"workflows":[{}],"next":null}}"#,
+        listed_item()
+    )));
+    an_evidence_page_is_refused_as_an_array: refused_as_array::<EvidencePage>(values(&format!(
+        r#"{{"evidence":[{}],"next":null}}"#,
+        evidence()
+    )));
+    a_recurrence_inside_a_workflow_is_refused_as_an_array:
+        refused::<Workflow>(with(PROPOSED, "recurrence", &values(RECURRENCE)));
+    a_site_inside_a_workflow_is_refused_as_an_array:
+        refused::<Workflow>(with(PROPOSED, "site", ADDRESS_ARRAY));
+    a_site_inside_a_dismissed_workflow_is_refused_as_an_array:
+        refused::<Workflow>(with(&dismissed(), "site", &format!(r#"["title","{HASH}"]"#)));
+    key_counts_inside_a_summary_are_refused_as_an_array:
+        refused::<Summary>(with(SUMMARY, "keys", &values(KEYS)));
+    pointer_counts_inside_a_summary_are_refused_as_an_array:
+        refused::<Summary>(with(SUMMARY, "pointer", &values(POINTER)));
+    a_site_inside_a_summary_is_refused_as_an_array:
+        refused::<Summary>(with(SUMMARY, "site", ADDRESS_ARRAY));
+    a_tagged_value_inside_a_step_is_refused_as_an_array:
+        refused::<ObservedStep>(with(STEP, "app", r#"["com.google.Chrome","floor"]"#));
+    a_step_inside_an_evidence_record_is_refused_as_an_array:
+        refused::<Evidence>(with(&evidence(), "steps", &format!("[{}]", values(STEP))));
+    a_site_inside_an_episode_is_refused_as_an_array:
+        refused::<Episode>(with(&episode(), "site", r#"["title","northwind-power"]"#));
+    a_step_inside_an_episode_is_refused_as_an_array:
+        refused::<Episode>(with(&episode(), "steps", &format!("[{}]", values(STEP))));
+    a_workflow_inside_an_item_is_refused_as_an_array:
+        refused::<WorkflowItem>(with(&listed_item(), "workflow", &values(PROPOSED)));
+    an_item_inside_a_workflows_page_is_refused_as_an_array: refused::<WorkflowsPage>(format!(
+        r#"{{"workflows":[{}],"next":null}}"#,
+        values(&listed_item())
+    ));
+    an_evidence_record_inside_a_page_is_refused_as_an_array: refused::<EvidencePage>(format!(
+        r#"{{"evidence":[{}],"next":null}}"#,
+        values(&evidence())
+    ));
 }

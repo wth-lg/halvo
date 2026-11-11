@@ -179,3 +179,8 @@ fn positions_order_by_segment_then_index() {
     let copied = a;
     assert_eq!(copied, a);
 }
+
+#[test]
+fn a_position_is_refused_as_an_array() {
+    common::refused_as_array::<Position>("[4411,212]");
+}

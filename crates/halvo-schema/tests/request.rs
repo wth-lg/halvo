@@ -1,6 +1,6 @@
 mod common;
 
-use common::{read, HEX_A, HEX_B, MAX63};
+use common::{entries, read, refused, refused_as_array, values, with, HEX_A, HEX_B, MAX63};
 use halvo_schema::request::{
     decode, decode_reply, write_reply, AnalysisRole, AnalysisWrite, CoordinatorBody,
     CoordinatorRole, CoordinatorWrite, Decision, DecodeError, Decoded, ErrorName, ExtBody,
@@ -645,17 +645,24 @@ fn decode_returns_the_bodies_of_later_runs_as_their_bytes() {
 
 const W1: &str = "10000000000000000000000000000000";
 
+const WORKFLOW: &str = r#"{"v":1,"id":"10000000000000000000000000000000","state":"proposed","category":"email","site":null,"app":"com.apple.mail","trigger":"manual","recurrence":{"count":1,"period":null,"first":20767,"last":20767},"confidence":50,"agent":null}"#;
+
+fn workflows_item() -> String {
+    format!(r#"{{"workflow":{WORKFLOW},"summaries":["{HEX_B}"],"hint":null}}"#)
+}
+
 fn workflows_page() -> String {
-    let workflow = r#"{"v":1,"id":"10000000000000000000000000000000","state":"proposed","category":"email","site":null,"app":"com.apple.mail","trigger":"manual","recurrence":{"count":1,"period":null,"first":20767,"last":20767},"confidence":50,"agent":null}"#;
+    format!(r#"{{"workflows":[{}],"next":"{W1}"}}"#, workflows_item())
+}
+
+fn evidence_item() -> String {
     format!(
-        r#"{{"workflows":[{{"workflow":{workflow},"summaries":["{HEX_B}"],"hint":null}}],"next":"{W1}"}}"#
+        r#"{{"v":1,"summary":"{HEX_B}","segments":[1],"expires":10,"start":1,"end":2,"hint":null,"steps":[]}}"#
     )
 }
 
 fn evidence_page() -> String {
-    format!(
-        r#"{{"evidence":[{{"v":1,"summary":"{HEX_B}","segments":[1],"expires":10,"start":1,"end":2,"hint":null,"steps":[]}}],"next":null}}"#
-    )
+    format!(r#"{{"evidence":[{}],"next":null}}"#, evidence_item())
 }
 
 fn reply(id: &str, key: &str, value: &str) -> String {
@@ -894,4 +901,123 @@ fn the_bounds_are_those_of_the_contract() {
     assert_eq!(INTERFACE_REQUEST_MAX, 4_096);
     let roles: Vec<&str> = Role::ALL.iter().map(|r| r.as_str()).collect();
     assert_eq!(roles, ["analysis", "interface", "runner", "coordinator"]);
+}
+
+const STEP: &str = r#"{"app":{"value":"com.google.Chrome","layer":"floor"},"title":{"value":"Pay bill - Northwind Power","layer":"floor"},"input":{"value":"click","layer":"floor"},"site":null,"text":null}"#;
+
+fn field(line: &str, key: &str) -> String {
+    let found = entries(line).into_iter().find(|(k, _)| k == key);
+    found.expect(key).1.get().to_owned()
+}
+
+fn not_malformed(cases: &[(&str, String)]) -> Vec<String> {
+    cases
+        .iter()
+        .filter(|(_, input)| {
+            !matches!(
+                decode(input.as_bytes()),
+                Err(DecodeError { error: ErrorName::Malformed, id: Some(ref id) }) if id.as_str() == HEX_A
+            )
+        })
+        .map(|(label, _)| (*label).to_owned())
+        .collect()
+}
+
+#[test]
+fn a_read_body_is_refused_as_an_array() {
+    refused_as_array::<Read>(r#"["workflows",null]"#);
+    refused::<Read>(&format!(r#"["evidence","{HEX_A}",null]"#));
+}
+
+#[test]
+fn decode_refuses_an_interface_body_in_the_array_form() {
+    let mut cases: Vec<(&str, String)> = [
+        ("an approval", format!(r#"["approve","{HEX_A}"]"#)),
+        ("a dismissal", format!(r#"["dismiss","{HEX_A}"]"#)),
+        ("a deletion", format!(r#"["delete","{HEX_A}"]"#)),
+    ]
+    .map(|(label, body)| (label, line("interface_decision", &body)))
+    .into();
+    cases.extend(
+        [
+            ("the read workflows", r#"["workflows",null]"#.to_owned()),
+            (
+                "the read evidence",
+                format!(r#"["evidence","{HEX_A}",null]"#),
+            ),
+        ]
+        .map(|(label, body)| (label, line("interface_read", &body))),
+    );
+    assert_eq!(not_malformed(&cases), Vec::<String>::new());
+}
+
+#[test]
+fn decode_refuses_an_analysis_write_with_a_part_in_the_array_form() {
+    let body = field(EXAMPLE, "body");
+    let one = |episode: String| with(&body, "episodes", &format!("[{episode}]"));
+    let tagged = with(STEP, "app", r#"["com.google.Chrome","floor"]"#);
+    let cases = [
+        ("the body", values(&body)),
+        ("an episode", one(values(EPISODE))),
+        (
+            "the site of an episode",
+            one(with(EPISODE, "site", r#"["title","northwind-power"]"#)),
+        ),
+        (
+            "the key counts of an episode",
+            one(with(EPISODE, "keys", "[1,2,3,4,5,6,7]")),
+        ),
+        (
+            "a step",
+            one(with(EPISODE, "steps", &format!("[{}]", values(STEP)))),
+        ),
+        (
+            "a tagged value of a step",
+            one(with(EPISODE, "steps", &format!("[{tagged}]"))),
+        ),
+        ("the commit position", with(&body, "commit", "[4411,212]")),
+    ]
+    .map(|(label, body)| (label, line("analysis_write", &body)));
+    assert_eq!(not_malformed(&cases), Vec::<String>::new());
+}
+
+#[test]
+fn decode_reply_and_the_writer_refuse_a_page_item_in_the_array_form() {
+    let quoted = format!("\"{HEX_A}\"");
+    let workflows = |item: String| format!(r#"{{"workflows":[{item}],"next":"{W1}"}}"#);
+    let evidence = |item: String| format!(r#"{{"evidence":[{item}],"next":null}}"#);
+    let pages = [
+        ("a workflows item", workflows(values(&workflows_item()))),
+        (
+            "the workflow of an item",
+            workflows(with(&workflows_item(), "workflow", &values(WORKFLOW))),
+        ),
+        ("an evidence item", evidence(values(&evidence_item()))),
+        (
+            "a step of an evidence item",
+            evidence(with(
+                &evidence_item(),
+                "steps",
+                &format!("[{}]", values(STEP)),
+            )),
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (label, page) in pages {
+        let read = decode_reply(reply(&quoted, "ok", &page).as_bytes());
+        if !matches!(
+            read,
+            Err(DecodeError {
+                error: ErrorName::Malformed,
+                ..
+            })
+        ) {
+            wrong.push(format!("decode_reply read {label}"));
+        }
+        let raw = ReplyResult::Raw(RawValue::from_string(page).unwrap());
+        if write_reply(None, Ok(&raw)) != Err(ErrorName::Malformed) {
+            wrong.push(format!("write_reply wrote {label}"));
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
 }

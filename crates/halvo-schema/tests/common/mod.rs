@@ -55,6 +55,24 @@ pub fn with(line: &str, key: &str, value: &str) -> String {
     object(&e)
 }
 
+/// The values of the object `line` as a JSON array, in the order of its keys.
+pub fn values(line: &str) -> String {
+    let parts: Vec<String> = entries(line)
+        .iter()
+        .map(|(_, v)| v.get().to_owned())
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
+/// Refuses `array`, the values of an object of `T` written as a JSON array, and every other JSON value that is
+/// no object.
+pub fn refused_as_array<T: DeserializeOwned + Debug>(array: &str) {
+    refused::<T>(array);
+    for other in ["[]", "null", "true", "0", "\"x\""] {
+        refused::<T>(other);
+    }
+}
+
 pub fn refused<T: DeserializeOwned + Debug>(line: &str) {
     let read = serde_json::from_str::<T>(line);
     assert!(
