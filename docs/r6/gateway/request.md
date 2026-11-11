@@ -75,7 +75,9 @@ What the device does with each answer:
 - `other-arguments`: a fault of the sender; the task is handed back.
 - No answer within the hold's life and an allowance that the branch sets: one more send with the same id and the same body, then a hand back.
 - `status`, any other status: a hand back.
-- `malformed` under 200 or 403: the task is handed back and nothing is sent again, because a 200 that cannot be read may have settled. The device makes no figure of its own for such a request; what it shows is what the ledger says at its next read.
+- `malformed` under 200 or 403: the task is handed back and nothing is sent again, because a 200 that cannot be read may have settled.
+
+For a request whose answer it cannot read, `status` or `malformed`, the device makes no figure of its own: what it shows is what the ledger says at its next read.
 
 The device never moves a request to another tier or host by itself.
 

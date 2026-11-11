@@ -118,6 +118,7 @@ fn request_md_states_the_names_and_the_limits() {
         "does not stop at the first fault",
         "binds `max_output_tokens` and nothing else",
         "may have settled",
+        "For a request whose answer it cannot read, `status` or `malformed`, the device makes no figure of its own",
         "no `minItems` or `maxItems`",
         "no keyword bounds the bytes of the whole body",
         "never both and never neither",
