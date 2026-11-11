@@ -80,12 +80,12 @@ check_lock() {
   sqlite=0
   outside=0
   while IFS= read -r line || [ -n "$line" ]; do
-    line=${line%"$cr"}
-    case $line in
+    squeeze "${line%"$cr"}"
+    case $bare in
       '[[package]]') packages=$((packages + 1)) ;;
-      'name = '*[sS][qQ][lL][iI][tT][eE]* | 'name = '*[sS][qQ][lL][cC][iI][pP][hH][eE][rR]*) sqlite=$((sqlite + 1)) ;;
-      'source = "registry+https://github.com/rust-lang/crates.io-index"') ;;
-      'source = '* | 'source='*) outside=$((outside + 1)) ;;
+      'name="'*[sS][qQ][lL][iI][tT][eE]* | 'name="'*[sS][qQ][lL][cC][iI][pP][hH][eE][rR]*) sqlite=$((sqlite + 1)) ;;
+      'source="registry+https://github.com/rust-lang/crates.io-index"') ;;
+      'source='*) outside=$((outside + 1)) ;;
     esac
   done <account/Cargo.lock
   [ "$sqlite" -eq 0 ] || fail "account/Cargo.lock holds $sqlite packages whose names contain sqlite or sqlcipher"
@@ -93,10 +93,20 @@ check_lock() {
   [ "$packages" -gt 0 ] || fail 'account/Cargo.lock holds no package'
 }
 
+squeeze() {
+  bare=$1
+  while :; do
+    case $bare in
+      *[' 	']*) bare=${bare%%[' 	']*}${bare#*[' 	']} ;;
+      *) return 0 ;;
+    esac
+  done
+}
+
 path_inside() {
   level=$1
   case $2 in
-    /* | [A-Za-z]:* | *\\*) return 1 ;;
+    '' | /* | [A-Za-z]:* | *\\*) return 1 ;;
   esac
   rest=$2/
   while [ -n "$rest" ]; do
@@ -117,9 +127,10 @@ check_paths_of() {
   rest=$3
   while :; do
     case $rest in
-      *"$2=\""*)
-        rest=${rest#*"$2=\""}
-        path_inside "$1" "${rest%%\"*}" || fail "$manifest names a path outside account/"
+      *"$2="*)
+        rest=${rest#*"$2="}
+        value=${rest%%[,\}]*}
+        path_inside "$1" "$value" || fail "$manifest names a path outside account/"
         ;;
       *) return 0 ;;
     esac
@@ -136,18 +147,27 @@ check_manifests() {
       *) depth=2 ;;
     esac
     while IFS= read -r line || [ -n "$line" ]; do
-      bare=${line%"$cr"}
+      case $line in
+        *'"""'* | *"'''"*) fail "$manifest holds a multi-line string, which this script does not read" ;;
+      esac
+      squeeze "${line%"$cr"}"
       while :; do
         case $bare in
-          *[' 	']*) bare=${bare%%[' 	']*}${bare#*[' 	']} ;;
+          *[\"\']*) bare=${bare%%[\"\']*}${bare#*[\"\']} ;;
           *) break ;;
         esac
       done
       case $bare in
-        '[patch'* | '[replace'* | '[source'* | git=* | *'{git='* | *',git='* | registry=* | *'{registry='* | *',registry='* | registry-index=* | *'{registry-index='* | *',registry-index='*)
+        '[patch'* | patch.* | '[replace'* | replace.* | '[source'* | source.* | git=* | *'{git='* | *',git='* | registry=* | *'{registry='* | *',registry='* | registry-index=* | *'{registry-index='* | *',registry-index='*)
           fail "$manifest names a source outside crates.io"
           ;;
       esac
+      if [ "$depth" -eq 0 ]; then
+        case $bare in
+          'members=[crates/*]') ;;
+          members=* | default-members=* | *.members=*) fail 'account/Cargo.toml names a workspace member outside account/crates/' ;;
+        esac
+      fi
       check_paths_of "$depth" path "$bare"
       check_paths_of "$depth" build "$bare"
     done <"$manifest"
@@ -307,6 +327,7 @@ write_stub() {
   mkdir "$1" || return 1
   cat >"$1/cargo" <<'EOF' || return 1
 #!/bin/sh
+printf '%s\n' "$*" >>"$STUB_LOG"
 if [ "$1" = deny ] && [ "$2" = --version ]; then
   printf 'cargo-deny %s\n' "$STUB_DENY_VERSION"
   exit 0
@@ -336,9 +357,13 @@ make_fixture() {
 edit() {
   file=$fixture/account/$1
   shift
-  "$@" <"$file" >"$file.edited" || return 1
+  if ! "$@" <"$file" >"$file.edited"; then
+    wrong="$wrong ${fixture##*/}"
+    return 1
+  fi
   if cmp -s "$file" "$file.edited"; then
     printf 'the edit of %s changed nothing\n' "$file"
+    wrong="$wrong ${fixture##*/}"
     return 1
   fi
   mv "$file.edited" "$file"
@@ -354,7 +379,7 @@ run_case() {
   else
     path=$PATH
   fi
-  out=$(env PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" "$@" sh "$self" 2>&1 </dev/null)
+  out=$(env PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
   code=$?
   last=${out##*"$nl"}
   case $want in
@@ -372,6 +397,8 @@ run_case() {
       *"${nl}account packages=$packages vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
+    calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
+    [ "$calls" = "$want_calls" ] || got="$got, with other cargo calls"
   fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case" "$want" "$got"
   if [ "$got" != "$want" ]; then
@@ -397,6 +424,7 @@ self_test() {
   deny_pin
   rejected=0
   wrong=
+  want_calls="deny --version${nl}deny --locked --manifest-path account/Cargo.toml check bans licenses sources${nl}build --manifest-path account/Cargo.toml --locked${nl}test --manifest-path account/Cargo.toml --locked"
   fixture=$work/no-repository
   run_case no-repository "FAIL $name (cannot enter the repository that CI_D_REPO names)" stub
   stub_case unchanged "PASS $name" stub
@@ -420,16 +448,35 @@ self_test() {
     run_case record-with-a-fifth-line "FAIL $name (account/schema/vendored.txt does not name the four vendored files)" stub
   make_fixture sqlite-in-lock && edit Cargo.lock awk '{ print } END { print ""; print "[[package]]"; print "name = \"libsqlite3-sys\""; print "version = \"0.35.0\""; print "source = \"registry+https://github.com/rust-lang/crates.io-index\"" }' &&
     run_case sqlite-in-lock "FAIL $name (account/Cargo.lock holds 1 packages whose names contain sqlite or sqlcipher)" stub
+  make_fixture sqlite-in-lock-mixed-case && edit Cargo.lock sed 's/^name = "itoa"$/name = "LibSQLite3-ffi"/' &&
+    run_case sqlite-in-lock-mixed-case "FAIL $name (account/Cargo.lock holds 1 packages whose names contain sqlite or sqlcipher)" stub
   make_fixture sqlcipher-in-lock && edit Cargo.lock sed 's/^name = "itoa"$/name = "SQLCipher-sys"/' &&
     run_case sqlcipher-in-lock "FAIL $name (account/Cargo.lock holds 1 packages whose names contain sqlite or sqlcipher)" stub
   make_fixture git-source-in-lock && edit Cargo.lock sed '/^name = "itoa"$/{n;n;s|^source = .*|source = "git+https://example.invalid/itoa.git#0000000"|;}' &&
     run_case git-source-in-lock "FAIL $name (account/Cargo.lock holds 1 packages from a source outside crates.io)" stub
+  make_fixture git-source-in-lock-without-spaces && edit Cargo.lock sed '/^name = "itoa"$/{n;n;s|^source = .*|source="git+https://example.invalid/itoa.git#0000000"|;}' &&
+    run_case git-source-in-lock-without-spaces "FAIL $name (account/Cargo.lock holds 1 packages from a source outside crates.io)" stub
   make_fixture git-source-in-manifest && edit crates/halvo-wire/Cargo.toml sed 's|^serde_json = "1"$|serde_json = { git = "https://example.invalid/serde_json.git" }|' &&
     run_case git-source-in-manifest "FAIL $name (account/crates/halvo-wire/Cargo.toml names a source outside crates.io)" stub
   make_fixture registry-in-manifest && edit crates/halvo-wire/Cargo.toml sed 's|^serde_json = "1"$|serde_json = { version = "1", registry = "other" }|' &&
     run_case registry-in-manifest "FAIL $name (account/crates/halvo-wire/Cargo.toml names a source outside crates.io)" stub
   make_fixture patch-in-workspace && edit Cargo.toml awk '{ print } END { print "[patch.crates-io]" }' &&
     run_case patch-in-workspace "FAIL $name (account/Cargo.toml names a source outside crates.io)" stub
+  make_fixture patch-as-dotted-key && edit Cargo.toml awk '{ print } END { print "patch.crates-io.itoa = { path = \"crates/halvo-wire\" }" }' &&
+    run_case patch-as-dotted-key "FAIL $name (account/Cargo.toml names a source outside crates.io)" stub
+  make_fixture patch-in-quoted-header && edit Cargo.toml awk '{ print } END { print "[ \"patch\" . crates-io ]" }' &&
+    run_case patch-in-quoted-header "FAIL $name (account/Cargo.toml names a source outside crates.io)" stub
+  make_fixture path-in-literal-string && edit crates/halvo-wire/Cargo.toml sed "s|^serde_json = \"1\"$|serde_json = { 'path' = '../../../crates/halvo-schema' }|" &&
+    run_case path-in-literal-string "FAIL $name (account/crates/halvo-wire/Cargo.toml names a path outside account/)" stub
+  make_fixture path-absolute && edit crates/halvo-wire/Cargo.toml sed 's|^serde_json = "1"$|serde_json = { path = "/opt/halvo-schema" }|' &&
+    run_case path-absolute "FAIL $name (account/crates/halvo-wire/Cargo.toml names a path outside account/)" stub
+  make_fixture multi-line-string && edit crates/halvo-wire/Cargo.toml sed 's|^serde_json = "1"$|serde_json = { path = """../../../crates/halvo-schema""" }|' &&
+    run_case multi-line-string "FAIL $name (account/crates/halvo-wire/Cargo.toml holds a multi-line string, which this script does not read)" stub
+  make_fixture member-outside-crates && edit Cargo.toml sed 's|^members = \["crates/\*"\]$|members = ["crates/*", "../tools/x"]|' &&
+    run_case member-outside-crates "FAIL $name (account/Cargo.toml names a workspace member outside account/crates/)" stub
+  make_fixture crlf-line-ends && crlf=yes &&
+    for toml in Cargo.toml Cargo.lock deny.toml crates/halvo-wire/Cargo.toml; do edit "$toml" sed "s/\$/$cr/" || crlf=no; done &&
+    [ "$crlf" = yes ] && run_case crlf-line-ends "PASS $name" stub
   make_fixture path-outside-account && edit crates/halvo-wire/Cargo.toml sed 's|^serde_json = "1"$|serde_json = { path = "../../../crates/halvo-schema" }|' &&
     run_case path-outside-account "FAIL $name (account/crates/halvo-wire/Cargo.toml names a path outside account/)" stub
   make_fixture licence-added-to-list && edit deny.toml sed 's/^    "Zlib",$/    "Zlib",\
