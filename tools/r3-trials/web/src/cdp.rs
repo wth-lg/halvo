@@ -32,6 +32,9 @@ use chromiumoxide::{Browser, Page};
 use futures::StreamExt;
 use tokio::task::JoinHandle;
 
+mod session;
+pub use session::{cookie_param, domain_matches, host_of, OriginStorage, SessionState, Stopped};
+
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(50);
 
@@ -159,6 +162,7 @@ pub struct Executor {
     recorded: Arc<Mutex<Vec<String>>>,
     recorder: Option<JoinHandle<()>>,
     owns_process: bool,
+    profile: Option<PathBuf>,
 }
 
 fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
@@ -225,7 +229,9 @@ impl Executor {
                 return Err(Fault::new("start", e.to_string()));
             }
         };
-        Ok(Executor::wrap(browser, page, handler, pid, true))
+        let mut started = Executor::wrap(browser, page, handler, pid, true);
+        started.profile = Some(opts.profile.clone());
+        Ok(started)
     }
 
     pub async fn connect(address: &str, url_prefix: &str) -> Res<Executor> {
@@ -275,6 +281,7 @@ impl Executor {
             recorded: Arc::new(Mutex::new(Vec::new())),
             recorder: None,
             owns_process,
+            profile: None,
         }
     }
 

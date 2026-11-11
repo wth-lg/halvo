@@ -1,6 +1,7 @@
 #[cfg(feature = "driver")]
 pub mod cdp;
 pub mod fixture;
+pub mod procs;
 
 pub const CANDIDATE: &str = "cdp";
 
