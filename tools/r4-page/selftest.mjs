@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { HERE, Refusal, refuse, installed } from './machine.mjs';
 import { serve, open, check } from './index.mjs';
@@ -13,6 +14,7 @@ const FAULTS = {
     { fault: 'contrast', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'late_next', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'late_css', state: 'a', want: (r) => r.counts.violations > 0 },
+    { fault: 'outside_request', state: 'a', want: (r) => r.names.includes('outside_request') },
   ],
   2: [
     { fault: 'unreachable', state: 'a', want: (r) => r.names.includes('unreached') },
@@ -28,6 +30,7 @@ const FAULTS = {
     { fault: 'motion_hidden', state: 'a', mode: 'reduced_motion' },
     { fault: 'forced_hidden', state: 'a', mode: 'forced_colors' },
     { fault: 'narrow_scroll', state: 'a', mode: 'width_320' },
+    { fault: 'outside_mode', state: 'a', mode: 'reduced_motion' },
   ],
   6: [{ fault: 'inner_html', state: 'a', want: (r) => r.counts.markup === 'miss' }],
 };
@@ -36,8 +39,28 @@ function structure(state) {
   return join(SAMPLE, 'structure-' + state + '.txt');
 }
 
+const reached = { count: 0, port: 0 };
+
+async function listen() {
+  const server = createServer((req, res) => {
+    reached.count++;
+    res.writeHead(404).end();
+  });
+  server.on('upgrade', (req, socket) => {
+    reached.count++;
+    socket.destroy();
+  });
+  server.on('connection', (socket) => socket.unref());
+  await new Promise((done, fail) => {
+    server.once('error', fail);
+    server.listen(0, '127.0.0.1', done);
+  });
+  server.unref();
+  reached.port = server.address().port;
+}
+
 async function run(origin, n, state, fault) {
-  const view = fault ? '/view.js?fault=' + fault : '/view.js';
+  const view = fault ? '/view.js?fault=' + fault + '&port=' + reached.port : '/view.js';
   const page = await open({ origin, state, views: [view] });
   try {
     const result = await check(page, n, { snapshot: structure(state) });
@@ -47,8 +70,8 @@ async function run(origin, n, state, fault) {
   }
 }
 
-function caught(f, r) {
-  if (r.ok) return 'missed';
+function caught(f, r, before) {
+  if (r.ok || reached.count !== before) return 'missed';
   if (f.mode) {
     for (const m of MODES) {
       const want = m === f.mode ? 'miss' : r.modes[m] === 'off' ? 'off' : 'ok';
@@ -86,6 +109,7 @@ async function main() {
       }
     }
   }
+  await listen();
   const origin = await serve({ ui: SAMPLE, fixtures: SAMPLE });
   const none = await engine(origin);
   const checks = none ? [2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6];
@@ -100,10 +124,11 @@ async function main() {
     let fault = 'caught';
     let ran = 0;
     for (const f of FAULTS[n]) {
+      const before = reached.count;
       const r = await run(origin, n, f.state, f.fault);
       if (f.mode && r.modes[f.mode] === 'off') continue;
       ran++;
-      if (caught(f, r) !== 'caught') fault = 'missed';
+      if (caught(f, r, before) !== 'caught') fault = 'missed';
     }
     if (ran === 0) fault = 'missed';
     if (sample === 'ok' && fault === 'caught') passed++;

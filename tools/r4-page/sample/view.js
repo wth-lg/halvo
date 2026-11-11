@@ -1,6 +1,7 @@
 (function () {
   var script = document.currentScript;
   var fault = script ? new URL(script.src).searchParams.get('fault') || '' : '';
+  var port = script ? new URL(script.src).searchParams.get('port') || '' : '';
   var CSS = [
     '.r4s-list { list-style: none; margin: 0; padding: 0; }',
     '.r4s-row { border-bottom: 1px solid #6b6b6b; padding: 8px 0; }',
@@ -243,6 +244,15 @@
         apply(snapshot);
         next();
       });
+      if (fault === 'outside_request' || (fault === 'outside_mode' && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        var image = new Image();
+        image.src = 'http://localhost:' + port + '/image';
+        try {
+          new WebSocket('ws://localhost:' + port + '/socket');
+        } catch (error) {
+          status.setAttribute('data-socket', 'refused');
+        }
+      }
       if (fault === 'never_quiet') {
         var tick = 0;
         var frame = function () {

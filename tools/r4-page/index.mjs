@@ -106,6 +106,33 @@ export async function serve({ ui, fixtures } = {}) {
   return 'http://127.0.0.1:' + server.address().port;
 }
 
+function own(url) {
+  try {
+    return new URL(url).hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+async function guard(ctx, count) {
+  await ctx.route('**/*', (route) => {
+    if (own(route.request().url())) return route.continue();
+    count();
+    return route.abort();
+  });
+  await ctx.routeWebSocket(
+    () => true,
+    (ws) => {
+      if (own(ws.url())) {
+        ws.connectToServer();
+        return;
+      }
+      count();
+      ws.close();
+    },
+  );
+}
+
 let shared = null;
 let announced = false;
 
@@ -397,16 +424,8 @@ async function openWith(options, context, transform) {
       h.state = transform ? transform(raw) : raw;
     }
     if (h.out) await mkdir(h.out, { recursive: true });
-    await ctx.route('**/*', (route) => {
-      let host = '';
-      try {
-        host = new URL(route.request().url()).hostname;
-      } catch {
-        host = '';
-      }
-      if (host === '127.0.0.1') return route.continue();
+    await guard(ctx, () => {
       h.blocked++;
-      return route.abort();
     });
     await ctx.exposeBinding('__r4call', (_source, name, args) => stub(h, name, args));
     await ctx.addInitScript(INIT);
@@ -503,19 +522,47 @@ const ENGINE_RUN = async () => {
   }
 };
 
+let engineAlone = null;
+
+function engineRequests(h) {
+  if (!engineAlone) {
+    engineAlone = (async () => {
+      let count = 0;
+      const ctx = await h.ctx.browser().newContext({ viewport: VIEWPORT });
+      try {
+        await guard(ctx, () => {
+          count++;
+        });
+        const page = await ctx.newPage();
+        await page.goto(new URL(FRAME, h.origin).href);
+        await page.addScriptTag({ url: h.origin + ENGINE });
+        await page.evaluate(ENGINE_RUN);
+        return count;
+      } finally {
+        await ctx.close().catch(() => {});
+      }
+    })();
+    engineAlone.catch(() => {
+      engineAlone = null;
+    });
+  }
+  return engineAlone;
+}
+
 async function engineCheck(h) {
   engineInfo();
-  const before = h.blocked;
   try {
     await h.page.addScriptTag({ url: h.origin + ENGINE });
   } catch {
     throw new EngineNone('file');
   }
   const r = await h.page.evaluate(ENGINE_RUN);
-  if (h.blocked !== before) throw new EngineNone('request');
   if (r.error) throw new EngineNone(r.error);
   if (!(r.executed > 0)) throw new EngineNone('no_rule');
-  return { ok: r.violations === 0, counts: { violations: r.violations, review: r.review }, names: r.rules };
+  const outside = h.blocked > 0;
+  if (outside && (await engineRequests(h)) > 0) throw new EngineNone('request');
+  const names = outside ? [...r.rules, 'outside_request'].sort() : r.rules;
+  return { ok: r.violations === 0 && !outside, counts: { violations: r.violations, review: r.review }, names };
 }
 
 const HELPER = () => {
