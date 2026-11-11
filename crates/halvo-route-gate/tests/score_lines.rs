@@ -268,3 +268,67 @@ fn a_router_that_routes_a_cell_with_no_model_fails_r1() {
         );
     }
 }
+
+struct Turncoat {
+    derived: PolicyRouter,
+    asked: std::cell::Cell<u32>,
+}
+
+impl Router for Turncoat {
+    fn name(&self) -> &'static str {
+        "turncoat"
+    }
+
+    fn pick(&self, category: CategoryId, kind: CallKind) -> PickCell {
+        self.asked.set(self.asked.get() + 1);
+        if self.asked.get() <= 44 {
+            self.derived.pick(category, kind)
+        } else {
+            fixed(category, kind, false).unwrap_or(PickCell::Tier(OnDevice))
+        }
+    }
+}
+
+#[test]
+fn the_scorer_asks_each_cell_once() {
+    let table = hand_table();
+    let setup = Setup::generated();
+    let turncoat = Turncoat {
+        derived: PolicyRouter::derived(&table, &setup),
+        asked: std::cell::Cell::new(0),
+    };
+    let lines = score(&table, &setup, &turncoat, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(turncoat.asked.get(), 44);
+    assert_eq!(
+        line(&lines, "versus name=router "),
+        "versus name=router attempts=4 passed=4 wasted=0 handed_back=0 cost_micro=37600 wall_s=42"
+    );
+}
+
+#[test]
+fn a_cell_with_development_rows_alone_is_handed_back_in_every_comparison() {
+    let mut rows = hand_table().rows().to_vec();
+    for (seed, machine) in [(One, GenA), (One, GenB), (Two, GenA), (Two, GenB)] {
+        rows.push(row(CallKind::Recover, OnDevice, seed, machine, true, 1, 50));
+    }
+    rows.sort_by_cached_key(Row::to_line);
+    let table = Table::from_rows(&rows).expect("a table");
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        lines[55..],
+        [
+            "versus name=router attempts=4 passed=4 wasted=0 handed_back=1 cost_micro=37600 wall_s=42",
+            "versus name=fixed_on_device attempts=4 passed=3 wasted=1 handed_back=1 cost_micro=0 wall_s=37",
+            "versus name=fixed_low_cost_hosted attempts=2 passed=2 wasted=0 handed_back=2 cost_micro=37600 wall_s=12",
+            "versus name=random attempts=4 passed=3 wasted=0 handed_back=1 cost_micro=18236 wall_s=39",
+            "versus name=hindsight attempts=4 passed=4 wasted=0 handed_back=1 cost_micro=18800 wall_s=40",
+            "gate table=generated router=derived cells=44 routed=3 handed_back=27 derivation=same held=miss result=fail",
+        ]
+    );
+    assert_eq!(
+        line(&lines, "category id=email "),
+        "category id=email compile=on_device recover=on_device write=low_cost_hosted line=missed cost_micro=37600"
+    );
+}

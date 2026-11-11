@@ -224,10 +224,15 @@ impl Sums {
 struct ModelCell {
     category: CategoryId,
     kind: CallKind,
+    pick: PickCell,
     tallies: [Tally; 3],
 }
 
 impl ModelCell {
+    fn has_rows(&self) -> bool {
+        self.tallies.iter().any(Tally::has_rows)
+    }
+
     fn held_tiers(&self) -> Vec<Tier> {
         Tier::ALL
             .into_iter()
@@ -284,26 +289,26 @@ pub fn score(
         .map(|((cell, tally), pick)| cell_line(cell, tally, *pick, &derived))
         .collect();
     let categories = category_lines(&cell_lines, setup);
-    let model_cells: Vec<ModelCell> = cells()
+    let model_cells: Vec<ModelCell> = cell_lines
+        .iter()
         .zip(&tallies)
-        .filter(|((category, kind), _)| category.is_seed() && *kind != CallKind::Replay)
-        .map(|((category, kind), tallies)| ModelCell {
-            category,
-            kind,
+        .filter(|(line, _)| line.category.is_seed() && line.kind != CallKind::Replay)
+        .map(|(line, tallies)| ModelCell {
+            category: line.category,
+            kind: line.kind,
+            pick: line.pick,
             tallies: *tallies,
         })
         .collect();
-    let router_sums = route_sums(&model_cells, |cell| {
-        match router.pick(cell.category, cell.kind) {
-            PickCell::Tier(tier) => Some(tier),
-            _ => None,
-        }
+    let router_sums = route_sums(&model_cells, |cell| match cell.pick {
+        PickCell::Tier(tier) => Some(tier),
+        _ => None,
     });
     let mut versus = vec![router_sums.versus("router", 1)];
     for tier in Tier::ALL {
         if model_cells
             .iter()
-            .any(|cell| cell.tallies[tier as usize].held.n > 0)
+            .any(|cell| cell.tallies[tier as usize].has_rows())
         {
             let name = match tier {
                 Tier::OnDevice => "fixed_on_device",
@@ -428,10 +433,7 @@ fn route_sums(model_cells: &[ModelCell], choose: impl Fn(&ModelCell) -> Option<T
         sums: Sums::default(),
         attempted_cells: 0,
     };
-    for cell in model_cells
-        .iter()
-        .filter(|cell| !cell.held_tiers().is_empty())
-    {
+    for cell in model_cells.iter().filter(|cell| cell.has_rows()) {
         match choose(cell)
             .map(|tier| &cell.tallies[tier as usize])
             .filter(|tally| tally.held.n > 0)
@@ -447,18 +449,22 @@ fn route_sums(model_cells: &[ModelCell], choose: impl Fn(&ModelCell) -> Option<T
 }
 
 fn random_sums(model_cells: &[ModelCell], attempted: u64, draws: NonZeroU32) -> Sums {
-    let with_rows: Vec<&ModelCell> = model_cells
+    let with_rows: Vec<&ModelCell> = model_cells.iter().filter(|cell| cell.has_rows()).collect();
+    let attemptable = with_rows
         .iter()
         .filter(|cell| !cell.held_tiers().is_empty())
-        .collect();
+        .count();
     let mut sums = Sums::default();
-    let Some(cells_with_rows) = NonZeroU64::new(with_rows.len() as u64) else {
+    let Some(attemptable) = NonZeroU64::new(attemptable as u64) else {
+        sums.handed_back = with_rows.len() as u128 * u128::from(draws.get());
         return sums;
     };
     let mut stream = SplitMix64::new(RANDOM_SEED);
     for _ in 0..draws.get() {
         for cell in &with_rows {
-            if stream.below(cells_with_rows) < attempted {
+            if cell.held_tiers().is_empty() {
+                sums.handed_back += 1;
+            } else if stream.below(attemptable) < attempted {
                 let tiers = cell.held_tiers();
                 let count = NonZeroU64::new(tiers.len() as u64)
                     .expect("a cell with rows has a tier with rows");
@@ -479,10 +485,7 @@ fn hindsight_sums(
     model_cells: &[ModelCell],
 ) -> Sums {
     let mut sums = Sums::default();
-    for cell in model_cells
-        .iter()
-        .filter(|cell| !cell.held_tiers().is_empty())
-    {
+    for cell in model_cells.iter().filter(|cell| cell.has_rows()) {
         let mut best: BTreeMap<(Seed, Machine, NonZeroU32), (u64, u64)> = BTreeMap::new();
         for tier in Tier::ALL {
             for row in tier_rows(table, setup, cell.category, cell.kind, tier)
