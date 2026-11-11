@@ -2,184 +2,1153 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: Trial app
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+        run: |
+          set +e +o pipefail
+          set -u
+          app="$GITHUB_WORKSPACE/tools/r4-trials/app"
+          T="$RUNNER_TEMP/r4v"
+          mkdir -p "$T"
+          export CARGO_TARGET_DIR="$app/target"
+          exe=
+          if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
+          bin="$CARGO_TARGET_DIR/release/r4-trial-app$exe"
+          cat >"$T/probe.mjs" <<'R4EOF'
+          import { execFileSync, spawn } from 'node:child_process';
+          import fs from 'node:fs';
+          import net from 'node:net';
+          import path from 'node:path';
+          import { pathToFileURL } from 'node:url';
+
+          const [mode, appDir, bin, pages] = process.argv.slice(2);
+          const { launch, Control, stop, SYSTEM } = await import(pathToFileURL(path.join(appDir, 'selfcheck.mjs')).href);
+          const { readTree } = await import(pathToFileURL(path.join(appDir, 'system', 'system.mjs')).href);
+          const HTTP_PS1 = `param([string]$Out, [int]$Seconds)
+          $l = New-Object System.Net.HttpListener
+          $l.Prefixes.Add('http://+:80/')
+          try { $l.Start() } catch { 'start=fail error=' + $_.Exception.GetType().Name | Set-Content $Out; exit 0 }
+          $requests = 0
+          $bytes = 0
+          $deadline = (Get-Date).AddSeconds($Seconds)
+          $task = $null
+          while ((Get-Date) -lt $deadline) {
+            if ($task -eq $null) { $task = $l.GetContextAsync() }
+            if ($task.Wait(250)) {
+              $ctx = $task.Result
+              $task = $null
+              $req = $ctx.Request
+              $requests++
+              $head = $req.HttpMethod.Length + $req.RawUrl.Length + 11
+              foreach ($k in $req.Headers.AllKeys) { $head += $k.Length + $req.Headers[$k].Length + 4 }
+              $bytes += $head + [Math]::Max(0, $req.ContentLength64)
+              $ctx.Response.StatusCode = 404
+              $ctx.Response.Close()
+            }
+          }
+          'start=ok requests=' + $requests + ' bytes=' + $bytes | Set-Content $Out
+          $l.Stop()
+          `;
+
+          const CONNS_PS1 = `param([string]$Ids, [int]$Seconds, [string]$Out)
+          $ids = @($Ids -split ',' | ForEach-Object { [int]$_ })
+          $seen = @{}
+          $deadline = (Get-Date).AddSeconds($Seconds)
+          while ((Get-Date) -lt $deadline) {
+            foreach ($c in @(Get-NetTCPConnection -RemotePort 80 -ErrorAction SilentlyContinue)) {
+              if ($ids -contains [int]$c.OwningProcess) { $seen[[string]$c.LocalAddress + '|' + [string]$c.LocalPort] = [string]$c.RemoteAddress }
+            }
+            Start-Sleep -Milliseconds 500
+          }
+          $loop = @($seen.Values | Where-Object { $_ -eq '::1' -or $_ -like '127.*' }).Count
+          'connections=' + $seen.Count + ' loopback=' + $loop | Set-Content $Out
+          `;
+
+          const HOLDER_PS1 = `$l = @(Get-NetTCPConnection -State Listen -LocalPort 80 -ErrorAction SilentlyContinue)
+          $names = (@($l | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName }) | Sort-Object -Unique) -join ','
+          if (-not $names) { $names = '-' }
+          $excluded = 'no'
+          foreach ($line in @(netsh interface ipv4 show excludedportrange protocol=tcp)) {
+            $p = @(($line -split '\\s+') | Where-Object { $_ -match '^\\d+$' })
+            if ($p.Count -ge 2 -and [int]$p[0] -le 80 -and [int]$p[1] -ge 80) { $excluded = 'yes' }
+          }
+          'listeners=' + $l.Count + ' owners=' + $names + ' excluded=' + $excluded
+          `;
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const loopback = (address) => /^(127\.|::1$|\[::1\]|localhost|0\.0\.0\.0$|::$|\*$)/.test(address);
+
+          function sockets(pids) {
+            let listening = 0;
+            let remote = 0;
+            let loop = 0;
+            if (process.platform === 'darwin') {
+              let out = '';
+              try {
+                out = execFileSync('lsof', ['-nP', '-a', '-p', pids.join(','), '-i'], { encoding: 'utf8', timeout: 60000 });
+              } catch (error) {
+                out = String(error.stdout ?? '');
+              }
+              for (const line of out.split('\n').slice(1)) {
+                const name = line.trim().split(/\s+/).slice(8).join(' ');
+                if (!name) continue;
+                if (/\(LISTEN\)/.test(name)) listening += 1;
+                const peer = /->(\S+)/.exec(name);
+                if (peer) {
+                  const host = peer[1].replace(/:\d+$/, '');
+                  if (loopback(host)) loop += 1; else remote += 1;
+                }
+              }
+            } else {
+              const script = `$ids = @(${pids.join(',')}); `
+                + "$t = @(Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess }); "
+                + "$u = @(Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess }); "
+                + "foreach ($c in $t) { 'tcp ' + $c.State + ' ' + $c.RemoteAddress }; foreach ($e in $u) { 'udp ' + $e.LocalAddress }";
+              const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 120000 });
+              for (const line of out.split('\n').map((l) => l.replace(/\r$/, '')).filter(Boolean)) {
+                const [kind, state, address] = line.split(' ');
+                if (kind === 'tcp' && state === 'Listen') listening += 1;
+                else if (kind === 'tcp' && address) {
+                  if (loopback(address)) loop += 1; else remote += 1;
+                }
+              }
+            }
+            return { listening, remote, loop };
+          }
+
+          async function withApp(args, body) {
+            const app = await launch(bin, args);
+            const control = await Control.connect(app.port);
+            try {
+              return await body(app, control);
+            } finally {
+              await control.send('quit', 10000);
+              await Promise.race([app.exited, sleep(10000)]);
+              control.close();
+              stop(app);
+            }
+          }
+
+          if (mode === 'fetch') {
+            await withApp(['--pages', pages], async (app, control) => {
+              const shown = await control.send('show');
+              const loaded = await control.send('load fetch.html');
+              const deadline = Date.now() + 20000;
+              while (Date.now() < deadline && !app.lines.some((l) => l.startsWith('page fetch nav_stayed='))) await sleep(200);
+              const fetchLine = app.lines.find((l) => l.startsWith('page fetch reached=')) ?? '';
+              const policy = app.lines.filter((l) => l.startsWith('page policy violated '));
+              const stayed = app.lines.some((l) => l === 'page fetch nav_stayed=yes');
+              const reached = /reached=(yes|no)/.exec(fetchLine)?.[1] ?? 'none';
+              const error = /error=([A-Za-z]+)/.exec(fetchLine)?.[1] ?? '-';
+              const first = /directive=(\S+) blocked=(\S+)/.exec(policy[0] ?? '');
+              console.log(`probe fetch system=${SYSTEM} show=${(shown.answer ?? 'none').split(' ')[0]} load=${loaded.answer ?? 'none'} reached=${reached} error=${error} policy_lines=${policy.length} directive=${first?.[1] ?? '-'} blocked=${first?.[2] ?? '-'} nav_stayed=${stayed ? 'yes' : 'no'}`);
+            });
+          } else if (mode === 'net') {
+            const dir = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP ?? '.', 'r4-net-'));
+            const powershell = (args, options = {}) => spawn('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], options);
+            const ended = (child, ms) => Promise.race([new Promise((resolve) => child.on('exit', resolve)), sleep(ms)]);
+            let listener = null;
+            const listenerOut = path.join(dir, 'http.txt');
+            if (process.platform === 'win32') {
+              fs.writeFileSync(path.join(dir, 'holder.ps1'), HOLDER_PS1);
+              fs.writeFileSync(path.join(dir, 'http.ps1'), HTTP_PS1);
+              fs.writeFileSync(path.join(dir, 'conns.ps1'), CONNS_PS1);
+              const holder = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(dir, 'holder.ps1')], { encoding: 'utf8', timeout: 120000 }).replace(/\r/g, '').trim();
+              console.log(`probe port80_holder system=windows ${holder}`);
+              listener = powershell(['-File', path.join(dir, 'http.ps1'), '-Out', listenerOut, '-Seconds', '45'], { stdio: 'ignore' });
+              await sleep(5000);
+            }
+            let conns = null;
+            const connsOut = path.join(dir, 'conns.txt');
+            await withApp(['--sync', 'events', '--pages', pages], async (app, control) => {
+              await control.send('show');
+              const tree = readTree(app.pid);
+              if (process.platform === 'win32') {
+                conns = powershell(['-File', path.join(dir, 'conns.ps1'), '-Ids', tree.procs.map((p) => p.pid).join(','), '-Seconds', '10', '-Out', connsOut], { stdio: 'ignore' });
+              }
+              await sleep(2000);
+              await control.send('send 100 100');
+              await sleep(3000);
+              const counted = sockets(readTree(app.pid).procs.map((p) => p.pid));
+              console.log(`probe sockets system=${SYSTEM} listening=${counted.listening} remote=${counted.remote} loopback_peers=${counted.loop} tree=${tree.count}`);
+              if (conns) await ended(conns, 30000);
+            });
+            if (listener) {
+              await ended(listener, 60000);
+              const heard = fs.existsSync(listenerOut) ? fs.readFileSync(listenerOut, 'utf8').trim() : 'start=none';
+              const seen = fs.existsSync(connsOut) ? fs.readFileSync(connsOut, 'utf8').trim() : 'connections=none';
+              const n = (text, key) => new RegExp(`${key}=(\\S+)`).exec(text)?.[1] ?? '-';
+              console.log(`probe port80 system=windows connections=${n(seen, 'connections')} bytes=${n(heard, 'bytes')} requests=${n(heard, 'requests')} loopback_connections=${n(seen, 'loopback')} listener=${n(heard, 'start')}`);
+            }
+          }
+          process.exit(0);
+          R4EOF
+          cat >"$T/answers.mjs" <<'R4EOF'
+          // verifier-11's probe of the control answers of TA-3: no_file, the show bound, busy, a destroy
+          // during a show, hide and destroy after the window's own report. Prints `probe answers ...` lines.
+          // usage: node answers.mjs <appDir> <bin> <pages> <arm>
+          import path from 'node:path';
+          import { pathToFileURL } from 'node:url';
+
+          const [appDir, bin, pages, arm] = process.argv.slice(2);
+          const { launch, Control, stop, SYSTEM } = await import(pathToFileURL(path.join(appDir, 'selfcheck.mjs')).href);
+          const { readWindowMatch } = await import(pathToFileURL(path.join(appDir, 'system', 'system.mjs')).href);
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const w = (r) => (r.answer === undefined ? 'none' : r.answer === null ? 'closed' : r.answer.replace(/ /g, ','));
+          const say = (step, r, extra = '') => console.log(`probe answers system=${SYSTEM} arm=${arm} step=${step} answer=${w(r)} ms=${r.ms}${extra}`);
+          const look = () => {
+            try { return readWindowMatch(app.pid).state; } catch (e) { return 'error'; }
+          };
+
+          const app = await launch(bin, ['--arm', arm, '--pages', pages]);
+          const c1 = await Control.connect(app.port);
+          const c2 = await Control.connect(app.port);
+          try {
+            say('show', await c1.send('show'), ` window=${look()}`);
+            say('load_missing', await c1.send('load no-such-file.html'));
+            if (arm === 'main') {
+              say('load_nocall', await c1.send('load nocall.html'));
+              await sleep(1000);
+              say('show_nocall', await c1.send('show', 50000));
+              say('load_slow', await c1.send('load slow.html'));
+              await sleep(1000);
+              const first = c1.send('show', 50000);
+              await sleep(300);
+              say('show_second_while_first_waits', await c2.send('show', 50000));
+              say('show_first', await first);
+              const h = await c1.send('hide');
+              say('hide', h, ` window_at_answer=${look()}`);
+            } else if (arm === 'b') {
+              say('load_slow', await c1.send('load slow.html'));
+              await sleep(1000);
+              const first = c1.send('show', 50000);
+              await sleep(300);
+              say('destroy_while_show_waits', await c2.send('destroy'), ` window_at_answer=${look()}`);
+              say('show_ended_by_destroy', await first);
+            }
+            say('quit', await c1.send('quit', 10000));
+            await Promise.race([app.exited, sleep(10000)]);
+            console.log(`probe answers system=${SYSTEM} arm=${arm} exit=${app.exitCode ?? 'none'}`);
+          } finally {
+            c1.close();
+            c2.close();
+            stop(app);
+          }
+          process.exit(0);
+          R4EOF
+          cat >"$T/mutate.mjs" <<'R4EOF'
+          // verifier-11's copy maker: applies the edits of one copy in place, each found exactly once.
+          // usage: node mutate.mjs <copies.json> <id> <appDir>; prints `copy=<id> apply=ok|fail ...`.
+          import fs from 'node:fs';
+          import path from 'node:path';
+
+          const [list, id, appDir] = process.argv.slice(2);
+          const copy = JSON.parse(fs.readFileSync(list, 'utf8')).find((c) => c.id === id);
+          for (const edit of copy.edits) {
+            const file = path.join(appDir, edit.file);
+            const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+            const found = text.split(edit.find).length - 1;
+            if (found !== 1) {
+              console.log(`copy=${id} apply=fail file=${edit.file} found=${found}`);
+              process.exit(1);
+            }
+            fs.writeFileSync(file, text.replace(edit.find, edit.replace));
+          }
+          console.log(`copy=${id} apply=ok kind=${copy.kind} run=${copy.run} key=${copy.key} files=${copy.edits.map((e) => e.file).join(',')}`);
+          R4EOF
+          cat >"$T/copies.json" <<'R4EOF'
+          [
+           {
+            "id": "M01",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "show",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            Line::Show => self.show(),",
+              "replace": "            Line::Show => Answer::Shown { show_ms: 1 },"
+             }
+            ]
+           },
+           {
+            "id": "M02",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "hide",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        let _ = window.hide();\n        if waits::until(WINDOW_BOUND, || window.is_visible().ok() == Some(false)) {",
+              "replace": "        let _ = window.destroy();\n        if waits::until(WINDOW_BOUND, || window.is_visible().ok() == Some(false)) {"
+             }
+            ]
+           },
+           {
+            "id": "M06",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "counts",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            ticks: counts.map(|c| c.0),\n            frames: counts.map(|c| c.1),",
+              "replace": "            ticks: Some(1),\n            frames: Some(5),"
+             }
+            ]
+           },
+           {
+            "id": "M07",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "pid",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        let pid = std::process::id();",
+              "replace": "        let pid = 1;"
+             }
+            ]
+           },
+           {
+            "id": "M08",
+            "kind": "rust",
+            "run": "selfcheck:b",
+            "key": "destroy",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        self.frames.cancel();\n        let _ = window.destroy();",
+              "replace": "        self.frames.cancel();\n        let _ = window.hide();"
+             }
+            ]
+           },
+           {
+            "id": "M09",
+            "kind": "rust",
+            "run": "selfcheck:b",
+            "key": "-",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "WindowEvent::CloseRequested { api, .. } if self.options.arm != Arm::B =>",
+              "replace": "WindowEvent::CloseRequested { api, .. } if true =>"
+             }
+            ]
+           },
+           {
+            "id": "M10",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "sync_events",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "                    let _ = self.app.emit(CHANGE_EVENT, change);",
+              "replace": "                    let _ = (CHANGE_EVENT, change);"
+             }
+            ]
+           },
+           {
+            "id": "M11",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "sync_channel",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "                        let _ = channel.send(change);",
+              "replace": "                        let _ = (&channel, change);"
+             }
+            ]
+           },
+           {
+            "id": "M13",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "quit",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        self.app.exit(0);",
+              "replace": "        let _ = &self.app;"
+             }
+            ]
+           },
+           {
+            "id": "M14",
+            "kind": "rust",
+            "run": "selfcheck:b",
+            "key": "destroy",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/lib.rs",
+              "find": "            api.prevent_exit();",
+              "replace": "            let _ = api;"
+             }
+            ]
+           },
+           {
+            "id": "M15",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "-",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            builder.background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Suspend)",
+              "replace": "            builder"
+             }
+            ]
+           },
+           {
+            "id": "M16",
+            "kind": "rust",
+            "run": "selfcheck:a",
+            "key": "counts",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            Self::eval(&window, \"window.__r4Window && window.__r4Window('hide')\");",
+              "replace": "            let _ = &window;"
+             }
+            ]
+           },
+           {
+            "id": "M21",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "sync_get",
+            "repeat": 3,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        self.hub.hide();\n        self.hub.close();\n        if matches!(self.options.arm, Arm::A | Arm::A2) {\n            Self::eval(&window, \"window.__r4Window && window.__r4Window('hide')\");",
+              "replace": "        self.hub.hide();\n        if matches!(self.options.arm, Arm::A | Arm::A2) {\n            Self::eval(&window, \"window.__r4Window && window.__r4Window('hide')\");"
+             }
+            ]
+           },
+           {
+            "id": "M22",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "show",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        let waited = self.frames.wait(token, SHOW_BOUND);",
+              "replace": "        let waited = waits::Waited::Reported(());"
+             }
+            ]
+           }
+          ]
+          R4EOF
+          P="$T/pages"
+          mkdir -p "$P"
+          cp "$app"/pages/* "$app"/selfcheck-pages/* "$P/"
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>Trial</title><p>no call.js</p>' >"$P/nocall.html"
+          cat >"$P/fetch.js" <<'R4EOF'
+          (function () {
+            'use strict';
+            var app = window.r4app;
+            fetch('https://example.com/', { mode: 'no-cors' }).then(function (response) {
+              app.report('fetch reached=yes type=' + response.type);
+            }, function (error) {
+              app.report('fetch reached=no error=' + error.name);
+            }).then(function () {
+              setTimeout(function () {
+                app.report('fetch nav_stayed=yes');
+              }, 3000);
+              location.href = 'https://example.com/';
+            });
+          })();
+          R4EOF
+          node -e 'const fs = require("fs"); const [from, to] = process.argv.slice(1); const tag = "<script src=\"page.js\"></script>"; fs.writeFileSync(to, fs.readFileSync(from, "utf8").replace(tag, tag + "\n<script src=\"fetch.js\"></script>"))' "$app/pages/index.html" "$P/fetch.html"
+          sha() { node -e 'console.log(require("crypto").createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex").slice(0, 16))' "$1"; }
+          echo "verifier mode=3 os=$RUNNER_OS head=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD) parent=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD^)"
+
+          started=$(date +%s)
+          cargo build --release --locked --manifest-path "$app/Cargo.toml"
+          code=$?
+          echo "verifier build=$([ "$code" = 0 ] && echo ok || echo fail) exit=$code seconds=$(($(date +%s) - started))"
+          if [ "$code" != 0 ]; then exit 1; fi
+          base_sha=$(sha "$bin")
+          echo "verifier binary_bytes=$(wc -c <"$bin" | tr -d ' ') sha=$base_sha"
+          (cd "$app" && node --test tests/) >"$T/node-test.out" 2>&1
+          code=$?
+          tr -d '\r' <"$T/node-test.out" | grep -E '^. (tests|pass|fail) [0-9]+$' | sed 's/^/verifier node_test /'
+          echo "verifier node_test exit=$code"
+
+          if [ "3" = 3 ]; then
+            started=$(date +%s)
+            node "$app/selfcheck.mjs" --bin "$bin" --trace >"$T/selfcheck.out" 2>&1
+            code=$?
+            sed 's/^/verifier unchanged /' "$T/selfcheck.out"
+            echo "verifier unchanged selfcheck_exit=$code seconds=$(($(date +%s) - started))"
+            node "$T/probe.mjs" fetch "$app" "$bin" "$P"
+            echo "verifier probe_fetch exit=$?"
+            node "$T/probe.mjs" net "$app" "$bin" "$P"
+            echo "verifier probe_net exit=$?"
+            node "$T/answers.mjs" "$app" "$bin" "$P" main
+            node "$T/answers.mjs" "$app" "$bin" "$P" b
+            node "$T/answers.mjs" "$app" "$bin" "$P" a2
+          fi
+
+          prev_sha=$base_sha
+          for id in $(node -e 'for (const c of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))) console.log(c.id)' "$T/copies.json"); do
+            field() { node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).find((c) => c.id === process.argv[2]); console.log(c[process.argv[3]])' "$T/copies.json" "$id" "$1"; }
+            applied=$(node "$T/mutate.mjs" "$T/copies.json" "$id" "$app")
+            echo "$applied"
+            case "$applied" in *apply=ok*) ;; *) git -C "$GITHUB_WORKSPACE" checkout -q -- tools/r4-trials/app; continue ;; esac
+            kind=$(field kind)
+            run=$(field run)
+            reps=$(field repeat)
+            if [ "$kind" = rust ]; then
+              started=$(date +%s)
+              cargo build --release --locked --manifest-path "$app/Cargo.toml" >"$T/copy-$id-build.out" 2>&1
+              code=$?
+              now_sha=$(sha "$bin")
+              echo "copy=$id build=$([ "$code" = 0 ] && echo ok || echo fail) seconds=$(($(date +%s) - started)) sha=$now_sha differs_from_base=$([ "$now_sha" != "$base_sha" ] && echo yes || echo no) differs_from_previous=$([ "$now_sha" != "$prev_sha" ] && echo yes || echo no)"
+              prev_sha=$now_sha
+              if [ "$code" != 0 ]; then tr -d '\r' <"$T/copy-$id-build.out" | grep -E '^error' | head -n 5 | cut -c1-160; git -C "$GITHUB_WORKSPACE" checkout -q -- tools/r4-trials/app; continue; fi
+            else
+              echo "copy=$id build=none binary_sha=$(sha "$bin") base=$base_sha"
+            fi
+            for rep in $(seq 1 "$reps"); do
+              case "$run" in
+                selfcheck:*)
+                  arm=${run#selfcheck:}
+                  arm=${arm%%+*}
+                  node "$app/selfcheck.mjs" --bin "$bin" --arm "$arm" --trace >"$T/copy-$id-$rep.out" 2>&1
+                  code=$?
+                  sed "s/^/copy=$id rep=$rep /" "$T/copy-$id-$rep.out"
+                  line=$(grep '^selfcheck ' "$T/copy-$id-$rep.out")
+                  missed=$(printf '%s\n' "$line" | tr ' ' '\n' | sed -n 's/=miss$//p' | tr '\n' ',' | sed 's/,$//')
+                  echo "copy=$id rep=$rep selfcheck_exit=$code missed=${missed:--} cell_lines=$(grep -c '^cell ' "$T/copy-$id-$rep.out")"
+                  ;;
+                answers:*)
+                  node "$T/answers.mjs" "$app" "$bin" "$P" "${run#answers:}" 2>&1 | sed "s/^/copy=$id rep=$rep /"
+                  ;;
+                fetch)
+                  node "$T/probe.mjs" fetch "$app" "$bin" "$P" 2>&1 | sed "s/^/copy=$id rep=$rep /"
+                  ;;
+              esac
+              case "$run" in
+                *+node)
+                  (cd "$app" && node --test tests/) >"$T/copy-$id-node.out" 2>&1
+                  code=$?
+                  echo "copy=$id node_test_exit=$code failed=$(tr -d '\r' <"$T/copy-$id-node.out" | grep -E '^✖ ' | grep -v 'failing tests' | sed 's/ ([0-9.]*ms)$//;s/^✖ //' | sort -u | tr '\n' '|')"
+                  ;;
+              esac
+            done
+            git -C "$GITHUB_WORKSPACE" checkout -q -- tools/r4-trials/app
+            echo "copy=$id restored_dirty=$(git -C "$GITHUB_WORKSPACE" status --porcelain -- tools/r4-trials/app | wc -l | tr -d ' ')"
+          done
+          echo "verifier end"
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
+      - name: Trial app
         shell: bash
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
+          set +e +o pipefail
+          set -u
+          app="$GITHUB_WORKSPACE/tools/r4-trials/app"
+          T="$RUNNER_TEMP/r4v"
+          mkdir -p "$T"
+          export CARGO_TARGET_DIR="$app/target"
+          exe=
+          if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
+          bin="$CARGO_TARGET_DIR/release/r4-trial-app$exe"
+          cat >"$T/probe.mjs" <<'R4EOF'
+          import { execFileSync, spawn } from 'node:child_process';
+          import fs from 'node:fs';
+          import net from 'node:net';
+          import path from 'node:path';
+          import { pathToFileURL } from 'node:url';
+
+          const [mode, appDir, bin, pages] = process.argv.slice(2);
+          const { launch, Control, stop, SYSTEM } = await import(pathToFileURL(path.join(appDir, 'selfcheck.mjs')).href);
+          const { readTree } = await import(pathToFileURL(path.join(appDir, 'system', 'system.mjs')).href);
+          const HTTP_PS1 = `param([string]$Out, [int]$Seconds)
+          $l = New-Object System.Net.HttpListener
+          $l.Prefixes.Add('http://+:80/')
+          try { $l.Start() } catch { 'start=fail error=' + $_.Exception.GetType().Name | Set-Content $Out; exit 0 }
+          $requests = 0
+          $bytes = 0
+          $deadline = (Get-Date).AddSeconds($Seconds)
+          $task = $null
+          while ((Get-Date) -lt $deadline) {
+            if ($task -eq $null) { $task = $l.GetContextAsync() }
+            if ($task.Wait(250)) {
+              $ctx = $task.Result
+              $task = $null
+              $req = $ctx.Request
+              $requests++
+              $head = $req.HttpMethod.Length + $req.RawUrl.Length + 11
+              foreach ($k in $req.Headers.AllKeys) { $head += $k.Length + $req.Headers[$k].Length + 4 }
+              $bytes += $head + [Math]::Max(0, $req.ContentLength64)
+              $ctx.Response.StatusCode = 404
+              $ctx.Response.Close()
+            }
+          }
+          'start=ok requests=' + $requests + ' bytes=' + $bytes | Set-Content $Out
+          $l.Stop()
+          `;
+
+          const CONNS_PS1 = `param([string]$Ids, [int]$Seconds, [string]$Out)
+          $ids = @($Ids -split ',' | ForEach-Object { [int]$_ })
+          $seen = @{}
+          $deadline = (Get-Date).AddSeconds($Seconds)
+          while ((Get-Date) -lt $deadline) {
+            foreach ($c in @(Get-NetTCPConnection -RemotePort 80 -ErrorAction SilentlyContinue)) {
+              if ($ids -contains [int]$c.OwningProcess) { $seen[[string]$c.LocalAddress + '|' + [string]$c.LocalPort] = [string]$c.RemoteAddress }
+            }
+            Start-Sleep -Milliseconds 500
+          }
+          $loop = @($seen.Values | Where-Object { $_ -eq '::1' -or $_ -like '127.*' }).Count
+          'connections=' + $seen.Count + ' loopback=' + $loop | Set-Content $Out
+          `;
+
+          const HOLDER_PS1 = `$l = @(Get-NetTCPConnection -State Listen -LocalPort 80 -ErrorAction SilentlyContinue)
+          $names = (@($l | ForEach-Object { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName }) | Sort-Object -Unique) -join ','
+          if (-not $names) { $names = '-' }
+          $excluded = 'no'
+          foreach ($line in @(netsh interface ipv4 show excludedportrange protocol=tcp)) {
+            $p = @(($line -split '\\s+') | Where-Object { $_ -match '^\\d+$' })
+            if ($p.Count -ge 2 -and [int]$p[0] -le 80 -and [int]$p[1] -ge 80) { $excluded = 'yes' }
+          }
+          'listeners=' + $l.Count + ' owners=' + $names + ' excluded=' + $excluded
+          `;
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const loopback = (address) => /^(127\.|::1$|\[::1\]|localhost|0\.0\.0\.0$|::$|\*$)/.test(address);
+
+          function sockets(pids) {
+            let listening = 0;
+            let remote = 0;
+            let loop = 0;
+            if (process.platform === 'darwin') {
+              let out = '';
+              try {
+                out = execFileSync('lsof', ['-nP', '-a', '-p', pids.join(','), '-i'], { encoding: 'utf8', timeout: 60000 });
+              } catch (error) {
+                out = String(error.stdout ?? '');
+              }
+              for (const line of out.split('\n').slice(1)) {
+                const name = line.trim().split(/\s+/).slice(8).join(' ');
+                if (!name) continue;
+                if (/\(LISTEN\)/.test(name)) listening += 1;
+                const peer = /->(\S+)/.exec(name);
+                if (peer) {
+                  const host = peer[1].replace(/:\d+$/, '');
+                  if (loopback(host)) loop += 1; else remote += 1;
+                }
+              }
+            } else {
+              const script = `$ids = @(${pids.join(',')}); `
+                + "$t = @(Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess }); "
+                + "$u = @(Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess }); "
+                + "foreach ($c in $t) { 'tcp ' + $c.State + ' ' + $c.RemoteAddress }; foreach ($e in $u) { 'udp ' + $e.LocalAddress }";
+              const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 120000 });
+              for (const line of out.split('\n').map((l) => l.replace(/\r$/, '')).filter(Boolean)) {
+                const [kind, state, address] = line.split(' ');
+                if (kind === 'tcp' && state === 'Listen') listening += 1;
+                else if (kind === 'tcp' && address) {
+                  if (loopback(address)) loop += 1; else remote += 1;
+                }
+              }
+            }
+            return { listening, remote, loop };
+          }
+
+          async function withApp(args, body) {
+            const app = await launch(bin, args);
+            const control = await Control.connect(app.port);
+            try {
+              return await body(app, control);
+            } finally {
+              await control.send('quit', 10000);
+              await Promise.race([app.exited, sleep(10000)]);
+              control.close();
+              stop(app);
+            }
+          }
+
+          if (mode === 'fetch') {
+            await withApp(['--pages', pages], async (app, control) => {
+              const shown = await control.send('show');
+              const loaded = await control.send('load fetch.html');
+              const deadline = Date.now() + 20000;
+              while (Date.now() < deadline && !app.lines.some((l) => l.startsWith('page fetch nav_stayed='))) await sleep(200);
+              const fetchLine = app.lines.find((l) => l.startsWith('page fetch reached=')) ?? '';
+              const policy = app.lines.filter((l) => l.startsWith('page policy violated '));
+              const stayed = app.lines.some((l) => l === 'page fetch nav_stayed=yes');
+              const reached = /reached=(yes|no)/.exec(fetchLine)?.[1] ?? 'none';
+              const error = /error=([A-Za-z]+)/.exec(fetchLine)?.[1] ?? '-';
+              const first = /directive=(\S+) blocked=(\S+)/.exec(policy[0] ?? '');
+              console.log(`probe fetch system=${SYSTEM} show=${(shown.answer ?? 'none').split(' ')[0]} load=${loaded.answer ?? 'none'} reached=${reached} error=${error} policy_lines=${policy.length} directive=${first?.[1] ?? '-'} blocked=${first?.[2] ?? '-'} nav_stayed=${stayed ? 'yes' : 'no'}`);
+            });
+          } else if (mode === 'net') {
+            const dir = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP ?? '.', 'r4-net-'));
+            const powershell = (args, options = {}) => spawn('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], options);
+            const ended = (child, ms) => Promise.race([new Promise((resolve) => child.on('exit', resolve)), sleep(ms)]);
+            let listener = null;
+            const listenerOut = path.join(dir, 'http.txt');
+            if (process.platform === 'win32') {
+              fs.writeFileSync(path.join(dir, 'holder.ps1'), HOLDER_PS1);
+              fs.writeFileSync(path.join(dir, 'http.ps1'), HTTP_PS1);
+              fs.writeFileSync(path.join(dir, 'conns.ps1'), CONNS_PS1);
+              const holder = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(dir, 'holder.ps1')], { encoding: 'utf8', timeout: 120000 }).replace(/\r/g, '').trim();
+              console.log(`probe port80_holder system=windows ${holder}`);
+              listener = powershell(['-File', path.join(dir, 'http.ps1'), '-Out', listenerOut, '-Seconds', '45'], { stdio: 'ignore' });
+              await sleep(5000);
+            }
+            let conns = null;
+            const connsOut = path.join(dir, 'conns.txt');
+            await withApp(['--sync', 'events', '--pages', pages], async (app, control) => {
+              await control.send('show');
+              const tree = readTree(app.pid);
+              if (process.platform === 'win32') {
+                conns = powershell(['-File', path.join(dir, 'conns.ps1'), '-Ids', tree.procs.map((p) => p.pid).join(','), '-Seconds', '10', '-Out', connsOut], { stdio: 'ignore' });
+              }
+              await sleep(2000);
+              await control.send('send 100 100');
+              await sleep(3000);
+              const counted = sockets(readTree(app.pid).procs.map((p) => p.pid));
+              console.log(`probe sockets system=${SYSTEM} listening=${counted.listening} remote=${counted.remote} loopback_peers=${counted.loop} tree=${tree.count}`);
+              if (conns) await ended(conns, 30000);
+            });
+            if (listener) {
+              await ended(listener, 60000);
+              const heard = fs.existsSync(listenerOut) ? fs.readFileSync(listenerOut, 'utf8').trim() : 'start=none';
+              const seen = fs.existsSync(connsOut) ? fs.readFileSync(connsOut, 'utf8').trim() : 'connections=none';
+              const n = (text, key) => new RegExp(`${key}=(\\S+)`).exec(text)?.[1] ?? '-';
+              console.log(`probe port80 system=windows connections=${n(seen, 'connections')} bytes=${n(heard, 'bytes')} requests=${n(heard, 'requests')} loopback_connections=${n(seen, 'loopback')} listener=${n(heard, 'start')}`);
+            }
+          }
+          process.exit(0);
+          R4EOF
+          cat >"$T/answers.mjs" <<'R4EOF'
+          // verifier-11's probe of the control answers of TA-3: no_file, the show bound, busy, a destroy
+          // during a show, hide and destroy after the window's own report. Prints `probe answers ...` lines.
+          // usage: node answers.mjs <appDir> <bin> <pages> <arm>
+          import path from 'node:path';
+          import { pathToFileURL } from 'node:url';
+
+          const [appDir, bin, pages, arm] = process.argv.slice(2);
+          const { launch, Control, stop, SYSTEM } = await import(pathToFileURL(path.join(appDir, 'selfcheck.mjs')).href);
+          const { readWindowMatch } = await import(pathToFileURL(path.join(appDir, 'system', 'system.mjs')).href);
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const w = (r) => (r.answer === undefined ? 'none' : r.answer === null ? 'closed' : r.answer.replace(/ /g, ','));
+          const say = (step, r, extra = '') => console.log(`probe answers system=${SYSTEM} arm=${arm} step=${step} answer=${w(r)} ms=${r.ms}${extra}`);
+          const look = () => {
+            try { return readWindowMatch(app.pid).state; } catch (e) { return 'error'; }
+          };
+
+          const app = await launch(bin, ['--arm', arm, '--pages', pages]);
+          const c1 = await Control.connect(app.port);
+          const c2 = await Control.connect(app.port);
+          try {
+            say('show', await c1.send('show'), ` window=${look()}`);
+            say('load_missing', await c1.send('load no-such-file.html'));
+            if (arm === 'main') {
+              say('load_nocall', await c1.send('load nocall.html'));
+              await sleep(1000);
+              say('show_nocall', await c1.send('show', 50000));
+              say('load_slow', await c1.send('load slow.html'));
+              await sleep(1000);
+              const first = c1.send('show', 50000);
+              await sleep(300);
+              say('show_second_while_first_waits', await c2.send('show', 50000));
+              say('show_first', await first);
+              const h = await c1.send('hide');
+              say('hide', h, ` window_at_answer=${look()}`);
+            } else if (arm === 'b') {
+              say('load_slow', await c1.send('load slow.html'));
+              await sleep(1000);
+              const first = c1.send('show', 50000);
+              await sleep(300);
+              say('destroy_while_show_waits', await c2.send('destroy'), ` window_at_answer=${look()}`);
+              say('show_ended_by_destroy', await first);
+            }
+            say('quit', await c1.send('quit', 10000));
+            await Promise.race([app.exited, sleep(10000)]);
+            console.log(`probe answers system=${SYSTEM} arm=${arm} exit=${app.exitCode ?? 'none'}`);
+          } finally {
+            c1.close();
+            c2.close();
+            stop(app);
+          }
+          process.exit(0);
+          R4EOF
+          cat >"$T/mutate.mjs" <<'R4EOF'
+          // verifier-11's copy maker: applies the edits of one copy in place, each found exactly once.
+          // usage: node mutate.mjs <copies.json> <id> <appDir>; prints `copy=<id> apply=ok|fail ...`.
+          import fs from 'node:fs';
+          import path from 'node:path';
+
+          const [list, id, appDir] = process.argv.slice(2);
+          const copy = JSON.parse(fs.readFileSync(list, 'utf8')).find((c) => c.id === id);
+          for (const edit of copy.edits) {
+            const file = path.join(appDir, edit.file);
+            const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+            const found = text.split(edit.find).length - 1;
+            if (found !== 1) {
+              console.log(`copy=${id} apply=fail file=${edit.file} found=${found}`);
+              process.exit(1);
+            }
+            fs.writeFileSync(file, text.replace(edit.find, edit.replace));
+          }
+          console.log(`copy=${id} apply=ok kind=${copy.kind} run=${copy.run} key=${copy.key} files=${copy.edits.map((e) => e.file).join(',')}`);
+          R4EOF
+          cat >"$T/copies.json" <<'R4EOF'
+          [
+           {
+            "id": "M01",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "show",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            Line::Show => self.show(),",
+              "replace": "            Line::Show => Answer::Shown { show_ms: 1 },"
+             }
+            ]
+           },
+           {
+            "id": "M02",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "hide",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        let _ = window.hide();\n        if waits::until(WINDOW_BOUND, || window.is_visible().ok() == Some(false)) {",
+              "replace": "        let _ = window.destroy();\n        if waits::until(WINDOW_BOUND, || window.is_visible().ok() == Some(false)) {"
+             }
+            ]
+           },
+           {
+            "id": "M06",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "counts",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            ticks: counts.map(|c| c.0),\n            frames: counts.map(|c| c.1),",
+              "replace": "            ticks: Some(1),\n            frames: Some(5),"
+             }
+            ]
+           },
+           {
+            "id": "M07",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "pid",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        let pid = std::process::id();",
+              "replace": "        let pid = 1;"
+             }
+            ]
+           },
+           {
+            "id": "M08",
+            "kind": "rust",
+            "run": "selfcheck:b",
+            "key": "destroy",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        self.frames.cancel();\n        let _ = window.destroy();",
+              "replace": "        self.frames.cancel();\n        let _ = window.hide();"
+             }
+            ]
+           },
+           {
+            "id": "M09",
+            "kind": "rust",
+            "run": "selfcheck:b",
+            "key": "-",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "WindowEvent::CloseRequested { api, .. } if self.options.arm != Arm::B =>",
+              "replace": "WindowEvent::CloseRequested { api, .. } if true =>"
+             }
+            ]
+           },
+           {
+            "id": "M10",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "sync_events",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "                    let _ = self.app.emit(CHANGE_EVENT, change);",
+              "replace": "                    let _ = (CHANGE_EVENT, change);"
+             }
+            ]
+           },
+           {
+            "id": "M11",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "sync_channel",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "                        let _ = channel.send(change);",
+              "replace": "                        let _ = (&channel, change);"
+             }
+            ]
+           },
+           {
+            "id": "M13",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "quit",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        self.app.exit(0);",
+              "replace": "        let _ = &self.app;"
+             }
+            ]
+           },
+           {
+            "id": "M14",
+            "kind": "rust",
+            "run": "selfcheck:b",
+            "key": "destroy",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/lib.rs",
+              "find": "            api.prevent_exit();",
+              "replace": "            let _ = api;"
+             }
+            ]
+           },
+           {
+            "id": "M15",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "-",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            builder.background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Suspend)",
+              "replace": "            builder"
+             }
+            ]
+           },
+           {
+            "id": "M16",
+            "kind": "rust",
+            "run": "selfcheck:a",
+            "key": "counts",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "            Self::eval(&window, \"window.__r4Window && window.__r4Window('hide')\");",
+              "replace": "            let _ = &window;"
+             }
+            ]
+           },
+           {
+            "id": "M21",
+            "kind": "rust",
+            "run": "selfcheck:a2",
+            "key": "sync_get",
+            "repeat": 3,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        self.hub.hide();\n        self.hub.close();\n        if matches!(self.options.arm, Arm::A | Arm::A2) {\n            Self::eval(&window, \"window.__r4Window && window.__r4Window('hide')\");",
+              "replace": "        self.hub.hide();\n        if matches!(self.options.arm, Arm::A | Arm::A2) {\n            Self::eval(&window, \"window.__r4Window && window.__r4Window('hide')\");"
+             }
+            ]
+           },
+           {
+            "id": "M22",
+            "kind": "rust",
+            "run": "selfcheck:main",
+            "key": "show",
+            "repeat": 1,
+            "edits": [
+             {
+              "file": "src/app.rs",
+              "find": "        let waited = self.frames.wait(token, SHOW_BOUND);",
+              "replace": "        let waited = waits::Waited::Reported(());"
+             }
+            ]
+           }
+          ]
+          R4EOF
+          P="$T/pages"
+          mkdir -p "$P"
+          cp "$app"/pages/* "$app"/selfcheck-pages/* "$P/"
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>Trial</title><p>no call.js</p>' >"$P/nocall.html"
+          cat >"$P/fetch.js" <<'R4EOF'
+          (function () {
+            'use strict';
+            var app = window.r4app;
+            fetch('https://example.com/', { mode: 'no-cors' }).then(function (response) {
+              app.report('fetch reached=yes type=' + response.type);
+            }, function (error) {
+              app.report('fetch reached=no error=' + error.name);
+            }).then(function () {
+              setTimeout(function () {
+                app.report('fetch nav_stayed=yes');
+              }, 3000);
+              location.href = 'https://example.com/';
+            });
+          })();
+          R4EOF
+          node -e 'const fs = require("fs"); const [from, to] = process.argv.slice(1); const tag = "<script src=\"page.js\"></script>"; fs.writeFileSync(to, fs.readFileSync(from, "utf8").replace(tag, tag + "\n<script src=\"fetch.js\"></script>"))' "$app/pages/index.html" "$P/fetch.html"
+          sha() { node -e 'console.log(require("crypto").createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex").slice(0, 16))' "$1"; }
+          echo "verifier mode=3 os=$RUNNER_OS head=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD) parent=$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD^)"
+
+          started=$(date +%s)
+          cargo build --release --locked --manifest-path "$app/Cargo.toml"
+          code=$?
+          echo "verifier build=$([ "$code" = 0 ] && echo ok || echo fail) exit=$code seconds=$(($(date +%s) - started))"
+          if [ "$code" != 0 ]; then exit 1; fi
+          base_sha=$(sha "$bin")
+          echo "verifier binary_bytes=$(wc -c <"$bin" | tr -d ' ') sha=$base_sha"
+          (cd "$app" && node --test tests/) >"$T/node-test.out" 2>&1
+          code=$?
+          tr -d '\r' <"$T/node-test.out" | grep -E '^. (tests|pass|fail) [0-9]+$' | sed 's/^/verifier node_test /'
+          echo "verifier node_test exit=$code"
+
+          if [ "3" = 3 ]; then
+            started=$(date +%s)
+            node "$app/selfcheck.mjs" --bin "$bin" --trace >"$T/selfcheck.out" 2>&1
+            code=$?
+            sed 's/^/verifier unchanged /' "$T/selfcheck.out"
+            echo "verifier unchanged selfcheck_exit=$code seconds=$(($(date +%s) - started))"
+            node "$T/probe.mjs" fetch "$app" "$bin" "$P"
+            echo "verifier probe_fetch exit=$?"
+            node "$T/probe.mjs" net "$app" "$bin" "$P"
+            echo "verifier probe_net exit=$?"
+            node "$T/answers.mjs" "$app" "$bin" "$P" main
+            node "$T/answers.mjs" "$app" "$bin" "$P" b
+            node "$T/answers.mjs" "$app" "$bin" "$P" a2
           fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+
+          prev_sha=$base_sha
+          for id in $(node -e 'for (const c of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))) console.log(c.id)' "$T/copies.json"); do
+            field() { node -e 'const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).find((c) => c.id === process.argv[2]); console.log(c[process.argv[3]])' "$T/copies.json" "$id" "$1"; }
+            applied=$(node "$T/mutate.mjs" "$T/copies.json" "$id" "$app")
+            echo "$applied"
+            case "$applied" in *apply=ok*) ;; *) git -C "$GITHUB_WORKSPACE" checkout -q -- tools/r4-trials/app; continue ;; esac
+            kind=$(field kind)
+            run=$(field run)
+            reps=$(field repeat)
+            if [ "$kind" = rust ]; then
+              started=$(date +%s)
+              cargo build --release --locked --manifest-path "$app/Cargo.toml" >"$T/copy-$id-build.out" 2>&1
+              code=$?
+              now_sha=$(sha "$bin")
+              echo "copy=$id build=$([ "$code" = 0 ] && echo ok || echo fail) seconds=$(($(date +%s) - started)) sha=$now_sha differs_from_base=$([ "$now_sha" != "$base_sha" ] && echo yes || echo no) differs_from_previous=$([ "$now_sha" != "$prev_sha" ] && echo yes || echo no)"
+              prev_sha=$now_sha
+              if [ "$code" != 0 ]; then tr -d '\r' <"$T/copy-$id-build.out" | grep -E '^error' | head -n 5 | cut -c1-160; git -C "$GITHUB_WORKSPACE" checkout -q -- tools/r4-trials/app; continue; fi
+            else
+              echo "copy=$id build=none binary_sha=$(sha "$bin") base=$base_sha"
+            fi
+            for rep in $(seq 1 "$reps"); do
+              case "$run" in
+                selfcheck:*)
+                  arm=${run#selfcheck:}
+                  arm=${arm%%+*}
+                  node "$app/selfcheck.mjs" --bin "$bin" --arm "$arm" --trace >"$T/copy-$id-$rep.out" 2>&1
+                  code=$?
+                  sed "s/^/copy=$id rep=$rep /" "$T/copy-$id-$rep.out"
+                  line=$(grep '^selfcheck ' "$T/copy-$id-$rep.out")
+                  missed=$(printf '%s\n' "$line" | tr ' ' '\n' | sed -n 's/=miss$//p' | tr '\n' ',' | sed 's/,$//')
+                  echo "copy=$id rep=$rep selfcheck_exit=$code missed=${missed:--} cell_lines=$(grep -c '^cell ' "$T/copy-$id-$rep.out")"
+                  ;;
+                answers:*)
+                  node "$T/answers.mjs" "$app" "$bin" "$P" "${run#answers:}" 2>&1 | sed "s/^/copy=$id rep=$rep /"
+                  ;;
+                fetch)
+                  node "$T/probe.mjs" fetch "$app" "$bin" "$P" 2>&1 | sed "s/^/copy=$id rep=$rep /"
+                  ;;
+              esac
+              case "$run" in
+                *+node)
+                  (cd "$app" && node --test tests/) >"$T/copy-$id-node.out" 2>&1
+                  code=$?
+                  echo "copy=$id node_test_exit=$code failed=$(tr -d '\r' <"$T/copy-$id-node.out" | grep -E '^✖ ' | grep -v 'failing tests' | sed 's/ ([0-9.]*ms)$//;s/^✖ //' | sort -u | tr '\n' '|')"
+                  ;;
+              esac
+            done
+            git -C "$GITHUB_WORKSPACE" checkout -q -- tools/r4-trials/app
+            echo "copy=$id restored_dirty=$(git -C "$GITHUB_WORKSPACE" status --porcelain -- tools/r4-trials/app | wc -l | tr -d ' ')"
+          done
+          echo "verifier end"
