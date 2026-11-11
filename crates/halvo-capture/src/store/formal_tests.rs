@@ -21,7 +21,7 @@ use super::db::test_support::pages;
 use super::db::{unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
 use super::verify::{raw_key_at_rest, root_state, RootState};
-use super::{SegmentExpiry, SegmentStore, StoreError, DEFAULT_RETENTION};
+use super::{SegmentExpiry, SegmentStore, ShredReport, StoreError, DEFAULT_RETENTION};
 
 const SHRED_CASES: u32 = 48;
 const MAX_OPS: usize = 12;
@@ -350,9 +350,15 @@ impl Harness {
         let result = store.crypto_shred_all();
         if self.deleted {
             prop_assert!(
-                matches!(result, Err(StoreError::Sealed)),
-                "a second delete-all did not report Sealed: {:?}",
-                result.err()
+                matches!(
+                    result,
+                    Ok(ShredReport {
+                        segments_shredded: 0,
+                        keys_destroyed: 0
+                    })
+                ),
+                "a second delete-all did not finish with nothing left to shred: {:?}",
+                result
             );
             return Ok(());
         }
