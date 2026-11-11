@@ -278,11 +278,11 @@ marker_defect() {
 }
 
 report_has_key() {
-  printf '%s\n' "$1" | tr ' ' '\n' | grep -q -e "^$2="
+  printf '%s\n' "$1" | tr '\t' ' ' | tr ' ' '\n' | grep -q -e "^$2="
 }
 
 report_values() {
-  printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p"
+  printf '%s\n' "$1" | tr '\t' ' ' | tr ' ' '\n' | sed -n "s/^$2=//p"
 }
 
 report_defects() {

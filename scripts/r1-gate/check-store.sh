@@ -102,6 +102,9 @@ cases() {
   line=$(printf '%s\nfts_secure_delete=0' "$no_fts"); t fts-0-on-a-line-of-its-own FAIL predicate_store_report "$line"
   line=$(printf '%s\nevents=0' "$good"); t events-0-on-a-second-line FAIL predicate_store_report "$line"
   line=$(printf '%s\nxrecords=1999' "$good"); t key-inside-another-word PASS predicate_store_report "$line"
+  line=$(printf '%s\n\trecords=1999' "$good"); t records-1999-after-a-tab FAIL predicate_store_report "$line"
+  no_prompt=$(with 's/ prompt=none//')
+  line=$(printf '%s\tprompt=none' "$no_prompt"); t prompt-none-after-a-tab-is-read PASS predicate_store_report "$line"
 }
 
 past_the_deadline() {
