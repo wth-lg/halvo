@@ -40,3 +40,16 @@ Window expiry and cap eviction destroy a segment key. Delete-all destroys the ro
 - The storage cap counts disk bytes of the capture store: its database pages, its
   WAL and the segment ciphertext. The inventory labels the logical and the disk
   totals apart (DR-03, which row 76 folds into the units).
+- Delete-all runs in this order, attempts every step and reports once after all of
+  them ran: destroy the root, seal the store against writes, destroy the key file,
+  destroy the database, remove the segments. When the root cannot be destroyed, the
+  store seals, the rest still runs and the report names the root that survived
+  (RD-20; store-3 lands the order).
+- A shred keeps the key row of the segment and clears its key in place; nothing
+  deletes a key row before delete-all. The ids and times of shredded segments stay
+  in store.db until delete-all, about 124 bytes a row (RD-21).
+- A store that an older build wrote, of any schema before store-4's, is refused: it
+  reports `store=unsupported_version` with `store_error=older`, and delete-all is
+  accepted (RD-22).
+- ADR 0009 removes the per-event rows and the full-text tables of row 12. ADR 0010
+  replaces the Secure Enclave custody of row 12 for every R1 build.
