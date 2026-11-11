@@ -291,7 +291,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("confirm.new_site", "A site it has not used before"),
     (
         "confirm.changed",
-        "Something changed since you allowed this, so it asks you again.",
+        "Something changed after you said yes, so it has not done this yet and asks you again.",
     ),
     ("confirm.present", "See the details and answer"),
     ("from.you", "You gave this"),
