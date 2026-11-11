@@ -13,7 +13,8 @@ this file and contracts.md differ, contracts.md stands.
 A case is one file `<name>.jsonl`, in the repository under
 `fixtures/r5/cases/dev/` or `fixtures/r5/cases/heldout/`; `<name>` is 1
 to 32 bytes of `a` to `z`, `0` to `9` and `-`. Line 1 is the header,
-every later line one occurrence.
+every later line one occurrence. A case file is at most 1,048,576
+bytes, and the reader tests the size before it reads the file.
 
 ```
 {"case":"<name>","kind":"benign"|"fault","form":"<form>","shows":0|1|2,"steps":[{"n":<count>,"verb":"click"|"fill"|"extract","control":"<control id>"}...]}
@@ -101,26 +102,38 @@ outside the form `flaky`.
 In a benign case `plain` completes with `harm` 0 and `assisted` equal to
 `drifts`, and `none` has `assisted` of at least `drifts` + 2. In a fault
 case `harm` of `plain` is at least 3 for `decoy` and at least 2 for
-`reused`. In a fault case `repair` names the step's intended control
-alone on every day but the change day of `decoy`. No control but a
-step's intended one carries a test id, or a role with a name, that the
-intended control has or had; the one exception is the other control of
-`reused`, which carries the name of the change day and a test id of its
-own. The decoy's name and test id are new on the change day. The reader
+`reused`. In every case, benign or fault, on every day and for every
+step, `repair` is the list of one entry, the step's intended control;
+the one exception is the changed step on the change day of `decoy`,
+whose list is exactly the decoy and then the intended control. A list
+that names a control twice, a second control on any other day, or
+another step's two-entry list on the decoy's change day is refused, and
+so is a list of the changed step on that day that names another control
+first. No control but a step's intended one carries a test id, or a
+role with a name, that the intended control has or had; the one
+exception is the other control of `reused`, which carries the name of
+the change day and a test id of its own: a test id that no other
+control of the case holds or held on any occurrence. The decoy's name
+and test id are new on the change day. The reader
 computes these with its own arms `none` and `plain` and refuses a case
 that misses them.
 
 ## The refusals (L9.4)
 
 Each refusal is one line `REFUSED case: <file name>: <rule>` on standard
-error, with status 2 and nothing on standard output: a line that is not
-the shape of L9.1; a header `case` that is not the file's name without
-`.jsonl`; a count or a form of L9.2 outside its limits; an occurrence
-whose `repair` lacks a step or names a control that the page lacks, or
-whose last named control is not the intended one; a first page on which
-a compiled locator does not resolve to its intended control; a case
-with no `restart` `yes` more than 93 days after its first day; a case
-that breaks a rule of its form in L9.3. The two readers, U0.3's and
+error, with status 2 and nothing on standard output: a file that breaks
+a rule of L9.1, its size, which the reader tests before it reads the
+file, its text, or the shape of a line; a header `case` that is not the
+file's name without `.jsonl`; a count or a form of L9.2 outside its
+limits; an occurrence whose `repair` lacks a step or names a control
+that the page lacks, or whose last named control is not the intended
+one, or a `repair` list that L9.3 refuses; a first page on which a
+compiled locator does not resolve to its intended control; a case with
+no `restart` `yes` more than 93 days after its first day; a case that
+breaks a rule of its form in L9.3. A refusal names a rule that the file
+breaks. When a file breaks more than one rule the reported rule is not
+fixed; the two readers are compared by accept and refuse alone. The two
+readers, U0.3's and
 U2.2's, hold the same list: a file that one accepts and the other
 refuses is a defect of a reader, and never a reason to change a case.
 Scoring is the harness's, from `id` alone.
@@ -167,15 +180,21 @@ The author of the held-out cases uses two calls:
    and every other escape is not the shape. The keys of `repair` are the
    step numbers `"1"` to `"<k>"` in order, each once. The file is UTF-8
    with LF line ends, one LF at its end, no byte-order mark, no carriage
-   return and no empty line.
+   return and no empty line. A file with two LF or more at its end
+   breaks the text rule; an empty line before the last line is not the
+   shape. A case file is at most 1,048,576 bytes: the reader takes the
+   size from the file system before it reads the file, and it reads at
+   most 1,048,577 bytes of it.
 2. The numbers. `n`, `day` and every number of `passes` and `flaky` are
    counts from 1 to 4,294,967,295. A number of `passes` need not be a
    step of the case; `flaky` is decided by the forms.
-3. `repair` names one or two controls, and L9.2 does not refuse the same
-   control named twice. In a fault case, "names the intended control
-   alone" means that the list is exactly `["<intended control>"]`; on the
-   change day of `decoy` that sentence reads no step, and the list of the
-   changed step is exactly `["<decoy>","<intended control>"]`.
+3. `repair` (ruling R-a). In every case, benign or fault, `repair` of
+   every step on every day is exactly `["<intended control>"]`; the one
+   exception is the changed step on the change day of `decoy`, whose list
+   is exactly `["<decoy>","<intended control>"]`. A list of two entries
+   anywhere else, also one that names the intended control twice, is
+   refused with `repair holds two entries for a step other than the
+   changed step on the change day of decoy`.
 4. The page is compared by `id`: the order of the controls in `page` is
    no change of the page, and every other difference between two
    consecutive pages is one.
@@ -200,7 +219,9 @@ The author of the held-out cases uses two calls:
 10. `reused`: the other control first stands on the page on the
     occurrence `shows` after the change, with the intended control's
     role, its name of the change day, an empty `passes`, and a test id
-    that the intended control never held. The recurrence is the one later
+    of its own (ruling R-b): no other control of the case holds or held
+    it on any occurrence, so a case in which it shares a filler's test
+    id is refused. The recurrence is the one later
     occurrence on which the intended control changes a third time, and
     nothing else changes.
 11. "Has or had" is read at each occurrence, against the test ids and
@@ -209,13 +230,41 @@ The author of the held-out cases uses two calls:
 12. A directory for `--count` or for the trial holds case files alone: an
     entry that is not a file `<name>.jsonl` is refused, and so is the
     first refused case in byte order of the names.
-13. The reader reports the first rule that fails, in this order: the
-    file name, the text, the shape of each line in line order, the
-    header's `case`, the limits of the header, the number of
-    occurrences, the limits of each occurrence in line order, the span,
-    `repair`, the compiled locators, `restart`, and the form. The second
-    reader need not report the same rule; it must accept and refuse the
-    same files.
+13. A refusal names a rule that the file breaks. The reader tests the
+    rules in this order and reports the first that fails: the file name,
+    with the bytes of `<name>` in it; the size; the text; the shape of
+    each line in line order; the header's `case`; the limits of the
+    header; the number of occurrences; the limits of each occurrence in
+    line order; the span; `repair` in line order; the compiled locators;
+    `restart`; and the form: `kind` and `shows`, `flaky` outside its
+    form, the rules of the form's bullet in an order of their own, the
+    controls that carry what an intended control has or had, the test id
+    of the other control of `reused`, `repair` alone, and the counts of
+    the paragraph. When the first difference between two pages is not a
+    change of exactly one step's intended control, the reader reports
+    that the page changes other than the form says, and so does
+    `alternates` for a difference outside the changed control. The
+    second reader need not report the same rule; it must accept and
+    refuse the same files.
+14. Rules that no case breaks alone. A case that breaks one of these
+    rules and passes every rule tested before it also breaks a rule
+    tested after it, so with that check left out the reader refuses the
+    same files. The two compiled locators of L9.4: a control that makes
+    one of them match twice on the first page carries a test id, or a
+    role with a name, that the intended control has. The four
+    occurrences after the change of `alternates`, and `assisted` of
+    `none` of at least `drifts` + 2: in `alternates` `none` asks on the
+    change day and on every second occurrence after it, so the one holds
+    exactly when the other does, and the bullets of the other benign
+    forms give `none` at least four asks. The other counts of the
+    paragraph: under the other rules `plain` acts only on the intended
+    control of a benign case and asks exactly on the occurrences that
+    `drifts` counts, and in a fault case it acts on a wrong control on
+    `shows` + 2 occurrences of `decoy` and on 2 of `reused`. No
+    refusal file is refused with one of the five counts, and unit tests
+    check them on counts that they build. The rule on the decoy's
+    `repair` can be broken alone: a filler that passes the changed step,
+    named first on the change day.
 
 ## Worked example
 
