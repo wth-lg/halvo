@@ -233,6 +233,38 @@ const INIT = () => {
   wrap(Document.prototype, 'write');
   wrap(Document.prototype, 'writeln');
   Object.defineProperty(window, '__r4opaque', { get: () => opaque, configurable: false });
+  let tampered = false;
+  const apply = Reflect.apply;
+  for (const name of ['__playwright__binding__', '__playwright__binding__controller__']) {
+    const value = window[name];
+    if (value === undefined) continue;
+    try {
+      Object.defineProperty(window, name, { get: () => value, set: () => (tampered = true), configurable: false });
+    } catch {
+      tampered = true;
+    }
+  }
+  const controller = window.__playwright__binding__controller__;
+  if (controller && typeof controller.deliverBindingResult === 'function' && controller._bindings instanceof Map) {
+    const real = controller.deliverBindingResult;
+    const bindings = controller._bindings;
+    const get = Map.prototype.get;
+    const has = Map.prototype.has;
+    const deliver = function (arg) {
+      const data = arg ? apply(get, bindings, [arg.name]) : undefined;
+      if (!data || !apply(has, data.callbacks, [arg.seq])) {
+        tampered = true;
+        return undefined;
+      }
+      return apply(real, this, [arg]);
+    };
+    try {
+      Object.defineProperty(controller, 'deliverBindingResult', { value: deliver, writable: false, configurable: false });
+    } catch {
+      tampered = true;
+    }
+  }
+  Object.defineProperty(window, '__r4tampered', { get: () => tampered, configurable: false });
   const binding = window.__r4call;
   delete window.__r4call;
   if (Object.getOwnPropertyDescriptor(window, '__r4call')) Object.defineProperty(window, '__r4call', { value: undefined, writable: false, configurable: false });
@@ -308,7 +340,16 @@ function sleep(ms) {
   return new Promise((done) => setTimeout(done, ms).unref());
 }
 
+async function tamper(h) {
+  if (await h.page.evaluate(() => window.__r4tampered === true).catch(() => false)) h.flags.add('stub_tampered');
+}
+
 async function settle(h) {
+  await wait(h);
+  await tamper(h);
+}
+
+async function wait(h) {
   await h.page.waitForFunction(() => document.readyState === 'complete' && (!window.__r4frame || window.__r4frame.ready), null, { timeout: 15000 });
   const end = Date.now() + SETTLE_MS;
   for (;;) {
@@ -1168,6 +1209,7 @@ export async function check(h, n, options = {}) {
   if (!h || !h.page || h.closed) throw new Refusal('usage', 'check(page, n, {snapshot, write}) needs an open page');
   if (!Number.isInteger(n) || n < 1 || n > 6) throw new Refusal('usage', 'check(page, n, {snapshot, write}) takes n from 1 to 6');
   unheld(h, 'check');
+  await tamper(h);
   h.kids = [];
   if (UNSEEN[n] && !(options.write && n === 3)) {
     if (h.flags.has('unsettled')) return { ok: false, counts: { ...UNSEEN[n] }, names: ['unsettled'] };

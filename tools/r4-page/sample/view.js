@@ -32,6 +32,14 @@
     Object.defineProperty(window, 'ace', { value: undefined, writable: false, configurable: false });
   }
 
+  if (fault === 'stub_forge') {
+    var driver = window.__playwright__binding__controller__;
+    window.__playwright__binding__ = function (payload) {
+      var m = JSON.parse(payload);
+      driver.deliverBindingResult({ name: m.name, seq: m.seq, result: { seq: 1, rows: [], items: [], note: null } });
+    };
+  }
+
   var root = null;
   var status = null;
   var list = null;
@@ -306,7 +314,12 @@
     show: function () {
       if (shown) return;
       shown = true;
-      call('agents_snapshot', null).then(function (snapshot) {
+      var first = call('agents_snapshot', null);
+      if (fault === 'stub_deliver') {
+        var own = window.__playwright__binding__controller__;
+        Object.getPrototypeOf(own).deliverBindingResult.call(own, { name: '__r4call', seq: own._bindings.get('__r4call').lastSeq, result: { seq: 1, rows: [], items: [], note: null } });
+      }
+      first.then(function (snapshot) {
         apply(snapshot);
         next();
       });

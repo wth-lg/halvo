@@ -71,6 +71,8 @@ const FAULTS = {
     { fault: 'count_only', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'marker_only', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'frame', state: 'a', want: (r) => r.names.includes('opaque') },
+    { fault: 'stub_forge', state: 'a', want: (r) => r.names.includes('stub_tampered') },
+    { fault: 'stub_deliver', state: 'a', want: (r) => r.names.includes('stub_tampered') },
   ],
 };
 
