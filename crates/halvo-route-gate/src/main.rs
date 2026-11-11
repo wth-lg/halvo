@@ -145,24 +145,37 @@ fn read_table(path: &str) -> Result<Table, Refusal> {
 }
 
 fn write_new(path: &str, text: &str) -> Result<(), Refusal> {
-    let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            return refuse("file", "--out exists")
-        }
-        Err(_) => return refuse("file", "--out cannot be written"),
+    if std::fs::symlink_metadata(path).is_ok() {
+        return refuse("file", "--out exists");
+    }
+    let Some((part, mut file)) = new_part(path) else {
+        return refuse("file", "--out cannot be written");
     };
     let written = file
         .write_all(text.as_bytes())
         .and_then(|()| file.sync_all());
     drop(file);
-    match written {
+    let placed = written.and_then(|()| std::fs::hard_link(&part, path));
+    let _ = std::fs::remove_file(&part);
+    match placed {
         Ok(()) => Ok(()),
-        Err(_) => {
-            let _ = std::fs::remove_file(path);
-            refuse("file", "--out cannot be written")
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            refuse("file", "--out exists")
+        }
+        Err(_) => refuse("file", "--out cannot be written"),
+    }
+}
+
+fn new_part(path: &str) -> Option<(String, std::fs::File)> {
+    for n in 0..1_000u32 {
+        let part = format!("{path}.{}-{n}.part", std::process::id());
+        match OpenOptions::new().write(true).create_new(true).open(&part) {
+            Ok(file) => return Some((part, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(_) => return None,
         }
     }
+    None
 }
 
 fn generated_only(table: &Table, found: &BTreeMap<String, &str>) -> Result<(), Refusal> {

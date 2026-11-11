@@ -231,6 +231,64 @@ fn a_write_that_fails_leaves_no_file_at_out() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_call_killed_by_the_size_limit_leaves_no_table_at_out() {
+    let dir = scratch();
+    let table = path(&dir, "table.tsv");
+    std::fs::write(&table, SPECIMEN).expect("fixture");
+    let kept = path(&dir, "kept.tsv");
+    std::fs::write(&kept, "bytes of another call\n").expect("fixture");
+    let generated = path(&dir, "generated.tsv");
+    let policy = path(&dir, "policy.tsv");
+    let calls = [
+        vec!["generate", "--seed", "1", "--out", &generated],
+        vec!["derive", "--table", &table, "--out", &policy],
+        vec!["generate", "--seed", "1", "--out", &kept],
+    ];
+    for args in &calls {
+        let output = Command::new("/bin/sh")
+            .arg("-c")
+            .arg("ulimit -f 1; exec \"$0\" \"$@\"")
+            .arg(env!("CARGO_BIN_EXE_route-gate"))
+            .args(args)
+            .output()
+            .expect("sh runs");
+        assert_ne!(output.status.code(), Some(0), "{args:?}");
+    }
+    assert!(!Path::new(&generated).exists());
+    assert!(!Path::new(&policy).exists());
+    assert_eq!(
+        std::fs::read_to_string(&kept).expect("kept"),
+        "bytes of another call\n"
+    );
+    for entry in std::fs::read_dir(&dir).expect("the scratch directory") {
+        let name = entry
+            .expect("an entry")
+            .file_name()
+            .into_string()
+            .expect("utf-8");
+        let beside = (name.starts_with("generated.tsv.") || name.starts_with("policy.tsv."))
+            && name.ends_with(".part");
+        assert!(
+            beside || name == "table.tsv" || name == "kept.tsv",
+            "{name}"
+        );
+    }
+    for args in &calls[..2] {
+        let run = run(args);
+        assert_eq!((run.code, run.stderr.as_str()), (Some(0), ""), "{args:?}");
+    }
+    assert_eq!(
+        std::fs::read_to_string(&generated).expect("written"),
+        SPECIMEN
+    );
+    assert_eq!(
+        std::fs::read_to_string(&policy).expect("written"),
+        derive(&generate(1), &Setup::generated()).to_text()
+    );
+}
+
 #[test]
 fn a_file_at_out_before_the_call_keeps_its_bytes() {
     let dir = scratch();
