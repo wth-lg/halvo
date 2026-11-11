@@ -3,8 +3,10 @@
 mod book;
 mod error;
 mod parts;
+mod patch;
 mod path;
 mod range;
+mod same;
 mod source;
 #[cfg(test)]
 mod testing;

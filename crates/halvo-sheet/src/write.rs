@@ -1,16 +1,16 @@
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Cursor, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use calamine::Reader;
-
-use crate::book::{self, guarded, unreadable};
+use crate::book::{self, guarded};
 use crate::error::{Error, Kept, PathRefusal, Refusal};
-use crate::parts::{self, Inventory};
+use crate::parts;
+use crate::patch;
 use crate::path;
 use crate::range::Range;
+use crate::same;
 use crate::source::Value;
 
 /// A run id of the form of contracts.md A0.6: 32 lower-case hex digits. It names the
@@ -101,25 +101,27 @@ pub(crate) fn prepare(
         !(c < '\u{20}' && !matches!(c, '\t' | '\n' | '\r') || c == '\u{fffe}' || c == '\u{ffff}')
     };
     let texts_ok = values.iter().flatten().all(|value| match value {
-        Value::Number(_) => true,
+        Value::Number(x) => x.is_finite(),
         Value::Text(text) => text.chars().all(writable) && text.encode_utf16().count() <= 32_767,
     });
     if !texts_ok {
         return Err(Error::Value);
     }
     let original = fs::read(&workbook)?;
-    let inventory = parts::inventory(&parts::entries(&original)?)?;
+    let entries = parts::entries(&original)?;
+    let inventory = parts::inventory(&entries)?;
     let refused = inventory.refused();
     if !refused.is_empty() {
         return Err(Error::Workbook(Refusal::Kinds(refused)));
     }
-    let changed = write_cells(&original, sheet, range, values)?;
+    let part = patch::part_of(&entries, sheet)?;
+    let changed = spoiled(patch::write(&original, &entries, &part, range, values)?);
     let checkpoint = beside(&workbook, "checkpoint", run);
     let copy = beside(&workbook, "prepared", run);
     let made = keep_checkpoint(&checkpoint, &original)?;
     let checked = write_copy(&copy, &changed).and_then(|()| {
         let disk = fs::read(&copy)?;
-        check(&original, &inventory, &disk, sheet, range, values)?;
+        check(&original, &disk, &part, sheet, range, values)?;
         Ok(disk)
     });
     match checked {
@@ -157,38 +159,6 @@ pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
     }
     fs::rename(&prepared.copy, &prepared.workbook)
         .map_err(|error| Error::NotReplaced(Kept::Rename(error.kind())))
-}
-
-fn write_cells(
-    original: &[u8],
-    sheet: &str,
-    range: Range,
-    values: &[Vec<Value>],
-) -> Result<Vec<u8>, Error> {
-    guarded(|| {
-        let xlsx = book::open(original)?;
-        if !xlsx.sheet_names().iter().any(|name| name == sheet) {
-            return Err(Error::NoSheet);
-        }
-        let mut workbook = umya_spreadsheet::reader::xlsx::read_reader(Cursor::new(original), true)
-            .map_err(|_| unreadable())?;
-        let worksheet = workbook
-            .sheet_by_name_mut(sheet)
-            .map_err(|_| unreadable())?;
-        for (row, cells) in (range.first.0..).zip(values) {
-            for (col, value) in (range.first.1..).zip(cells) {
-                let cell = worksheet.cell_mut((col + 1, row + 1));
-                match value {
-                    Value::Number(x) => cell.set_value_number(*x),
-                    Value::Text(text) => cell.set_value_string(text.clone()),
-                };
-            }
-        }
-        let mut out = Vec::new();
-        umya_spreadsheet::writer::xlsx::write_writer(&workbook, &mut out)
-            .map_err(|_| unreadable())?;
-        Ok(out)
-    })
 }
 
 fn fill(mut file: File, bytes: &[u8]) -> io::Result<()> {
@@ -235,19 +205,87 @@ fn write_copy(copy: &Path, bytes: &[u8]) -> Result<(), Error> {
 
 fn check(
     original: &[u8],
-    inventory: &Inventory,
     disk: &[u8],
+    part: &str,
     sheet: &str,
     range: Range,
     values: &[Vec<Value>],
 ) -> Result<(), Error> {
-    let same = guarded(|| book::same(original, disk, sheet, range, values));
-    if same != Ok(true) {
+    let cells: Vec<(u32, u32)> = range.cells().collect();
+    if !same::package(original, disk, part, &cells) {
         return Err(Error::Sheet);
     }
-    let saved = parts::entries(disk).and_then(|all| parts::inventory(&all));
-    match saved {
-        Ok(saved) if parts::lost(inventory, &saved).is_empty() => Ok(()),
-        _ => Err(Error::Sheet),
+    if guarded(|| book::holds(disk, sheet, range, values)) != Ok(true) {
+        return Err(Error::Sheet);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static SPOIL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn spoiled(bytes: Vec<u8>) -> Vec<u8> {
+    if SPOIL.with(std::cell::Cell::get) {
+        crate::testing::spoiled(&bytes)
+    } else {
+        bytes
+    }
+}
+
+#[cfg(not(test))]
+fn spoiled(bytes: Vec<u8>) -> Vec<u8> {
+    bytes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testing::{corpus_file, scratch};
+    use crate::Folder;
+
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .expect("list")
+            .map(|e| e.expect("entry").file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn a_copy_that_the_check_finds_changed_gives_the_cause_sheet_and_removes_what_this_call_made() {
+        let dir = scratch("check-miss");
+        fs::copy(corpus_file("values.xlsx"), dir.join("values.xlsx")).expect("copy");
+        let before = fs::read(dir.join("values.xlsx")).expect("read");
+        let folder = Folder::new(&dir).expect("the folder opens");
+        let run = RunId::parse("0123456789abcdef0123456789abcdef").expect("a run id");
+        let b5 = Range::parse("B5").expect("a range");
+        let values = vec![vec![Value::Number(77.0)]];
+        let spoiled_prepare = || {
+            SPOIL.with(|s| s.set(true));
+            let got = folder.prepare(Path::new("values.xlsx"), &run, "Values", b5, &values);
+            SPOIL.with(|s| s.set(false));
+            got
+        };
+        let got = spoiled_prepare();
+        assert_eq!(got.as_ref().err(), Some(&Error::Sheet));
+        assert_eq!(got.err().map(|e| e.cause()), Some(crate::Cause::Sheet));
+        assert_eq!(names(&dir), vec!["values.xlsx".to_string()]);
+        assert_eq!(fs::read(dir.join("values.xlsx")).expect("read"), before);
+        drop(
+            folder
+                .prepare(Path::new("values.xlsx"), &run, "Values", b5, &values)
+                .expect("prepared"),
+        );
+        let checkpoint = "values.halvo-checkpoint-0123456789abcdef0123456789abcdef.xlsx";
+        assert_eq!(spoiled_prepare().err(), Some(Error::Sheet));
+        assert_eq!(
+            names(&dir),
+            vec![checkpoint.to_string(), "values.xlsx".to_string()]
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -1,11 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use calamine::{Data, Reader, Xlsx};
 
 use crate::error::{Error, Refusal};
-use crate::parts;
 use crate::range::Range;
 use crate::source::Value;
 
@@ -118,52 +117,20 @@ fn holds_new(value: &Value, cell: Option<&(Data, Option<String>)>) -> bool {
     }
 }
 
-fn kept(before: Option<&(Data, Option<String>)>, after: Option<&(Data, Option<String>)>) -> bool {
-    match (before, after) {
-        (Some((_, Some(formula))), Some((_, read))) => read.as_ref() == Some(formula),
-        (Some((value, None)), Some((read, None))) => value == read,
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-pub(crate) fn same(
-    original: &[u8],
+pub(crate) fn holds(
     changed: &[u8],
     sheet: &str,
     range: Range,
     values: &[Vec<Value>],
 ) -> Result<bool, Error> {
-    let before = sheets(original)?;
     let after = sheets(changed)?;
-    let names = |book: &[Sheet]| {
-        book.iter()
-            .map(|(name, _)| name.clone())
-            .collect::<Vec<_>>()
-    };
-    if names(&before) != names(&after) {
+    let Some((_, cells)) = after.iter().find(|(name, _)| name == sheet) else {
         return Ok(false);
-    }
-    for ((name, old), (_, new)) in before.iter().zip(&after) {
-        let mut positions: BTreeSet<Pos> = old.keys().chain(new.keys()).copied().collect();
-        if name == sheet {
-            positions.extend(range.cells());
-        }
-        for pos in positions {
-            let same = if name == sheet && range.holds(pos) {
-                let row = (pos.0 - range.first.0) as usize;
-                let col = (pos.1 - range.first.1) as usize;
-                holds_new(&values[row][col], new.get(&pos))
-            } else {
-                kept(old.get(&pos), new.get(&pos))
-            };
-            if !same {
-                return Ok(false);
-            }
-        }
-    }
-    let arrays = |bytes: &[u8]| parts::entries(bytes).and_then(|all| parts::array_formulas(&all));
-    Ok(arrays(original)? == arrays(changed)?)
+    };
+    Ok(range
+        .cells()
+        .zip(values.iter().flatten())
+        .all(|(pos, value)| holds_new(value, cells.get(&pos))))
 }
 
 #[cfg(test)]
@@ -190,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn the_workbook_with_the_new_value_in_the_range_and_nothing_else_changed_is_the_same() {
+    fn the_cells_of_the_range_read_back_with_their_new_values() {
         let original = bytes("values.xlsx", &[]);
         let b5 = [(
             SHEET,
@@ -198,140 +165,32 @@ mod tests {
             r#"<c r="B5"><v>77</v></c>"#,
         )];
         let changed = bytes("values.xlsx", &b5);
-        let same_as = |values: &[Vec<Value>]| same(&original, &changed, "Values", at("B5"), values);
-        assert_eq!(same_as(&one(Value::Number(77.0))), Ok(true));
-        assert_eq!(same_as(&one(Value::Number(78.0))), Ok(false));
-        assert_eq!(same_as(&one(Value::Text("77".to_string()))), Ok(false));
-        let unchanged = same(
-            &original,
-            &original,
-            "Values",
-            at("B5"),
-            &one(Value::Number(77.0)),
+        let read =
+            |bytes: &[u8], sheet: &str, value: Value| holds(bytes, sheet, at("B5"), &one(value));
+        assert_eq!(read(&changed, "Values", Value::Number(77.0)), Ok(true));
+        assert_eq!(read(&changed, "Values", Value::Number(78.0)), Ok(false));
+        assert_eq!(
+            read(&changed, "Values", Value::Text("77".to_string())),
+            Ok(false)
         );
-        assert_eq!(unchanged, Ok(false));
+        assert_eq!(read(&original, "Values", Value::Number(77.0)), Ok(false));
+        assert_eq!(read(&changed, "Missing", Value::Number(77.0)), Ok(false));
     }
 
     #[test]
     fn an_empty_text_in_the_range_is_a_cell_that_holds_nothing() {
         let original = bytes("values.xlsx", &[]);
         let empty = one(Value::Text(String::new()));
-        assert_eq!(
-            same(&original, &original, "Values", at("F2"), &empty),
-            Ok(true)
-        );
+        assert_eq!(holds(&original, "Values", at("F2"), &empty), Ok(true));
         let text = one(Value::Text("x".to_string()));
-        assert_eq!(
-            same(&original, &original, "Values", at("F2"), &text),
-            Ok(false)
-        );
-    }
-
-    type Edit = (&'static str, &'static str, &'static str);
-
-    struct Case {
-        file: &'static str,
-        sheet: &'static str,
-        target: &'static str,
-        new: f64,
-        written: Edit,
-        other: Edit,
+        assert_eq!(holds(&original, "Values", at("F2"), &text), Ok(false));
     }
 
     #[test]
-    fn another_value_another_formula_text_or_another_sheet_order_is_not_the_same() {
-        let cases = [
-            Case {
-                file: "values.xlsx",
-                sheet: "Values",
-                target: "B5",
-                new: 77.0,
-                written: (
-                    SHEET,
-                    r#"<c r="B5"><v>12</v></c>"#,
-                    r#"<c r="B5"><v>77</v></c>"#,
-                ),
-                other: (
-                    SHEET,
-                    r#"<c r="B6"><v>15</v></c>"#,
-                    r#"<c r="B6"><v>16</v></c>"#,
-                ),
-            },
-            Case {
-                file: "chart.xlsx",
-                sheet: "Sales",
-                target: "B3",
-                new: 640.0,
-                written: (
-                    SHEET,
-                    r#"<c r="B3"><v>135</v></c>"#,
-                    r#"<c r="B3"><v>640</v></c>"#,
-                ),
-                other: (SHEET, "<f>SUM(B2:B7)</f>", "<f>SUM(B2:B6)</f>"),
-            },
-            Case {
-                file: "two-sheets.xlsx",
-                sheet: "Input",
-                target: "B3",
-                new: 25.0,
-                written: (
-                    SHEET,
-                    r#"<c r="B3"><v>20</v></c>"#,
-                    r#"<c r="B3"><v>25</v></c>"#,
-                ),
-                other: (
-                    "xl/workbook.xml",
-                    r#"<sheet name="Input" sheetId="1" r:id="rId1"/><sheet name="Summary" sheetId="2" r:id="rId2"/>"#,
-                    r#"<sheet name="Summary" sheetId="2" r:id="rId2"/><sheet name="Input" sheetId="1" r:id="rId1"/>"#,
-                ),
-            },
-        ];
-        for case in cases {
-            let original = bytes(case.file, &[]);
-            let values = one(Value::Number(case.new));
-            let target = at(case.target);
-            let written = bytes(case.file, &[case.written]);
-            let both = bytes(case.file, &[case.written, case.other]);
-            let control = same(&original, &written, case.sheet, target, &values);
-            assert_eq!(control, Ok(true), "{}: the written cell alone", case.file);
-            let other = same(&original, &both, case.sheet, target, &values);
-            assert_eq!(other, Ok(false), "{}: one more change", case.file);
-        }
-    }
-
-    #[test]
-    fn an_array_formula_that_covers_other_cells_is_compared_by_its_range() {
-        let row2 = r#"<c r="D2" t="b"><v>0</v></c></row>"#;
-        let row3 = r#"<c r="D3" t="b"><v>1</v></c></row>"#;
-        let f2 = r#"<c r="D2" t="b"><v>0</v></c><c r="F2"><f t="array" ref="F2:F3">B2:B3*2</f><v>6</v></c></row>"#;
-        let f3 = r#"<c r="D3" t="b"><v>1</v></c><c r="F3"><v>12</v></c></row>"#;
-        let mut original = corpus("values.xlsx");
-        edit(&mut original, SHEET, row2, f2);
-        edit(&mut original, SHEET, row3, f3);
-        let mut changed = original.clone();
-        edit(
-            &mut changed,
-            SHEET,
-            r#"<c r="B5"><v>12</v></c>"#,
-            r#"<c r="B5"><v>77</v></c>"#,
-        );
-        let values = one(Value::Number(77.0));
-        let kept = same(
-            &zipped(&original),
-            &zipped(&changed),
-            "Values",
-            at("B5"),
-            &values,
-        );
-        assert_eq!(kept, Ok(true));
-        edit(&mut changed, SHEET, r#"ref="F2:F3""#, r#"ref="F2:F2""#);
-        let shrunk = same(
-            &zipped(&original),
-            &zipped(&changed),
-            "Values",
-            at("B5"),
-            &values,
-        );
-        assert_eq!(shrunk, Ok(false));
+    fn a_number_in_a_date_formatted_cell_reads_back_as_its_serial() {
+        let original = bytes("formats.xlsx", &[]);
+        let read = |x: f64| holds(&original, "Formats", at("C2"), &one(Value::Number(x)));
+        assert_eq!(read(46023.0), Ok(true));
+        assert_eq!(read(46024.0), Ok(false));
     }
 }

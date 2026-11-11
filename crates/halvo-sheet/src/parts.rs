@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read};
 
 use quick_xml::escape::resolve_predefined_entity;
@@ -77,7 +77,6 @@ pub(crate) type Entries = BTreeMap<String, Vec<u8>>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Inventory {
     pub(crate) present: BTreeSet<Kind>,
-    pub(crate) instances: BTreeMap<Kind, Vec<String>>,
 }
 
 impl Inventory {
@@ -326,19 +325,6 @@ fn reference_text(reference: &BytesRef<'_>) -> Result<String, Error> {
     })
 }
 
-const IMPLICIT: [&str; 10] = [
-    "/comments",
-    "/styles",
-    "/theme",
-    "/sharedStrings",
-    "/calcChain",
-    "/vbaProject",
-    "/printerSettings",
-    "/chartStyle",
-    "/chartColorStyle",
-    "/threadedComment",
-];
-
 fn rels_of(part: &str) -> String {
     match part.rsplit_once('/') {
         Some((dir, base)) => format!("{dir}/_rels/{base}.rels"),
@@ -403,53 +389,6 @@ fn relationships(rels: &[u8]) -> Vec<Attrs> {
         .collect()
 }
 
-fn referenced_ids(xml: &[u8]) -> BTreeSet<String> {
-    element_attributes(xml)
-        .into_iter()
-        .flat_map(|(_, attrs)| attrs)
-        .filter(|(key, _)| key.contains(':') && !key.starts_with("xmlns"))
-        .map(|(_, value)| value)
-        .collect()
-}
-
-fn linked_parts(entries: &Entries) -> BTreeSet<String> {
-    let by_lower: BTreeMap<String, &String> =
-        entries.keys().map(|name| (lower(name), name)).collect();
-    let entry = |name: &str| by_lower.get(&lower(name)).copied();
-    let mut live = BTreeSet::new();
-    let mut queue = VecDeque::from([String::new()]);
-    while let Some(source) = queue.pop_front() {
-        let rels_name = if source.is_empty() {
-            "_rels/.rels".to_string()
-        } else {
-            rels_of(&source)
-        };
-        let Some(rels) = entry(&rels_name).and_then(|name| entries.get(name)) else {
-            continue;
-        };
-        let used: BTreeSet<String> = entries
-            .get(&source)
-            .map(|xml| referenced_ids(xml))
-            .unwrap_or_default();
-        for rel in relationships(rels) {
-            let get = |k: &str| rel.get(k).cloned().unwrap_or_default();
-            if get("TargetMode") == "External" {
-                continue;
-            }
-            let referenced = source.is_empty()
-                || used.contains(&get("Id"))
-                || IMPLICIT.iter().any(|tail| get("Type").ends_with(tail));
-            let Some(target) = entry(&resolve(&source, &get("Target"))) else {
-                continue;
-            };
-            if referenced && live.insert(target.clone()) {
-                queue.push_back(target.clone());
-            }
-        }
-    }
-    live
-}
-
 struct Linked {
     sheets: BTreeSet<String>,
     kinds: BTreeSet<Kind>,
@@ -493,20 +432,12 @@ fn holds(set: PartSet, name: &str, sheets: &BTreeSet<String>) -> bool {
 }
 
 pub(crate) fn inventory(entries: &Entries) -> Result<Inventory, Error> {
-    let live = linked_parts(entries);
     let linked = by_relationship(entries);
     let mut found = Inventory::default();
     found.present.extend(linked.kinds.iter().copied());
     for (name, xml) in entries {
         if let Some(kind) = entry_kind(name) {
             found.present.insert(kind);
-            if live.contains(name) {
-                found
-                    .instances
-                    .entry(kind)
-                    .or_default()
-                    .push("entry".into());
-            }
         }
         for kind in Kind::ALL {
             let Some(rule) = element_rule(kind) else {
@@ -519,33 +450,9 @@ pub(crate) fn inventory(entries: &Entries) -> Result<Inventory, Error> {
             if !keys.is_empty() {
                 found.present.insert(kind);
             }
-            if live.contains(name) {
-                found.instances.entry(kind).or_default().extend(keys);
-            }
         }
     }
-    for keys in found.instances.values_mut() {
-        keys.sort();
-    }
     Ok(found)
-}
-
-pub(crate) fn lost(original: &Inventory, saved: &Inventory) -> Vec<Kind> {
-    Kind::ALL
-        .into_iter()
-        .filter(|kind| {
-            let had = original.instances.get(kind).map_or(&[][..], Vec::as_slice);
-            let mut left = saved.instances.get(kind).cloned().unwrap_or_default();
-            had.iter()
-                .any(|key| match left.iter().position(|k| k == key) {
-                    Some(at) => {
-                        left.swap_remove(at);
-                        false
-                    }
-                    None => true,
-                })
-        })
-        .collect()
 }
 
 fn local(name: &str) -> &str {
@@ -561,7 +468,21 @@ fn new_reader(xml: &[u8]) -> Reader<&[u8]> {
     reader
 }
 
-fn sheet_parts(entries: &Entries) -> Vec<(String, String)> {
+pub(crate) fn linked(entries: &Entries, part: &str, kind: &str) -> Vec<String> {
+    let Some(rels) = entries.get(&rels_of(part)) else {
+        return Vec::new();
+    };
+    relationships(rels)
+        .into_iter()
+        .filter(|rel| {
+            rel.get("Type").and_then(|t| t.rsplit('/').next()) == Some(kind)
+                && rel.get("TargetMode").map(String::as_str) != Some("External")
+        })
+        .filter_map(|rel| rel.get("Target").map(|target| resolve(part, target)))
+        .collect()
+}
+
+pub(crate) fn sheet_parts(entries: &Entries) -> Vec<(String, String)> {
     let empty = Vec::new();
     let workbook = entries.get("xl/workbook.xml").unwrap_or(&empty);
     let rels = entries.get("xl/_rels/workbook.xml.rels").unwrap_or(&empty);
@@ -581,47 +502,6 @@ fn sheet_parts(entries: &Entries) -> Vec<(String, String)> {
             Some((name, resolve("xl/workbook.xml", targets.get(id)?)))
         })
         .collect()
-}
-
-pub(crate) type Array = (String, String, String);
-
-pub(crate) fn array_formulas(entries: &Entries) -> Result<BTreeSet<Array>, Error> {
-    let mut found = BTreeSet::new();
-    for (sheet, part) in sheet_parts(entries) {
-        let Some(xml) = entries.get(&part) else {
-            continue;
-        };
-        let mut reader = new_reader(xml);
-        let mut buf = Vec::new();
-        let mut cell = String::new();
-        loop {
-            match reader.read_event_into(&mut buf).map_err(|_| unreadable())? {
-                Event::Eof => break,
-                Event::Start(e) | Event::Empty(e) => {
-                    let attr = |key: &str| {
-                        e.attributes()
-                            .flatten()
-                            .find(|a| a.key.as_ref() == key)
-                            .map(|a| attribute_value(&a))
-                    };
-                    match local(e.name().as_ref()) {
-                        "c" => cell = attr("r").unwrap_or_default(),
-                        "f" if attr("t").as_deref() == Some("array") => {
-                            found.insert((
-                                sheet.clone(),
-                                cell.clone(),
-                                attr("ref").unwrap_or_default(),
-                            ));
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
-            buf.clear();
-        }
-    }
-    Ok(found)
 }
 
 #[cfg(test)]
@@ -731,10 +611,6 @@ mod tests {
         );
         let found = inventory(&all).expect("an inventory");
         assert_eq!(names(found.refused()), vec!["validation"]);
-        assert_eq!(
-            found.instances.get(&Kind::Validation).map(Vec::len),
-            Some(2)
-        );
     }
 
     #[test]
@@ -766,49 +642,6 @@ mod tests {
             r#"<x:dataValidations xmlns:x="y"><x:dataValidation sqref="A1"/></x:dataValidations>"#,
         );
         assert_eq!(present(&all), vec!["validation"]);
-    }
-
-    #[test]
-    fn a_kind_is_lost_when_the_saved_file_keeps_less_of_it() {
-        let cases: [(&str, &str, &str, &str, &[&str]); 4] = [
-            (
-                "validation.xlsx",
-                "xl/worksheets/sheet1.xml",
-                "<formula2>24</formula2>",
-                "",
-                &["validation"],
-            ),
-            (
-                "merged.xlsx",
-                "xl/worksheets/sheet1.xml",
-                r#"ref="A10:B10""#,
-                r#"ref="A10:C10""#,
-                &["merged"],
-            ),
-            (
-                "chart.xlsx",
-                "xl/worksheets/sheet1.xml",
-                r#"<drawing r:id="rId1"/>"#,
-                "",
-                &["chart", "drawing"],
-            ),
-            (
-                "two-sheets.xlsx",
-                "xl/workbook.xml",
-                "Input!$B$6",
-                "Input!$B$7",
-                &["defined_name"],
-            ),
-        ];
-        for (file, part, from, to, want) in cases {
-            let original = corpus(file);
-            let mut saved = original.clone();
-            edit(&mut saved, part, from, to);
-            let before = inventory(&original).expect("an inventory");
-            let after = inventory(&saved).expect("an inventory");
-            assert_eq!(names(lost(&before, &after)), want.to_vec(), "{file}");
-            assert_eq!(lost(&before, &before), Vec::new(), "{file}");
-        }
     }
 
     #[test]

@@ -66,8 +66,19 @@ pub enum Refusal {
     /// The file is not a workbook that the crate can read: not a zip archive of the parts of a
     /// workbook, a part that does not parse, or a library that fails or panics on it.
     Unreadable,
-    /// The workbook holds these kinds of the verdict's refuses list ([`crate::Kind::REFUSED`]).
+    /// The workbook holds these kinds of the executor's refused list ([`crate::Kind::REFUSED`]).
     Kinds(Vec<crate::Kind>),
+    /// The worksheet part or `xl/workbook.xml` is not UTF-8, starts with a byte-order mark,
+    /// does not parse, or is not in the form that the writer takes: a row or a cell with no
+    /// reference, rows or cells out of order, a cell outside its row.
+    Part,
+    /// A cell to write lies in the header row of a table that the sheet's relationships link.
+    TableHeader,
+    /// A cell to write holds an array formula or a data-table formula, or lies inside the
+    /// range of one.
+    ArrayFormula,
+    /// A cell to write is the first cell or a member of a shared formula.
+    SharedFormula,
 }
 
 /// Why [`crate::Folder::replace`] left the workbook as it was.
