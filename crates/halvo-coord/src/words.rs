@@ -102,7 +102,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.all_set.nothing", "Last time, it found nothing to do."),
     (
         "line.all_set.stopped_early",
-        "Last time, it stopped before it finished.",
+        "Last time, it stopped before the end, and it needs nothing from you now.",
     ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
