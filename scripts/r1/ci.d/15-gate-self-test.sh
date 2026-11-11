@@ -77,7 +77,6 @@ gate() {
   done
 }
 
-# shellcheck disable=SC2016
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   mkdir -p "$work/no-tools"

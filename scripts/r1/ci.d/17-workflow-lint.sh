@@ -55,7 +55,6 @@ measure() {
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
   GATE_ROOT=$CI_D_REPO
   export GATE_ROOT
-  # shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
   . scripts/r1-gate/lib.sh
   jobs=$(grep -c '^    runs-on: ' "$file")
   [ "$jobs" -gt 0 ] || finding "ci.yml holds no job with runs-on at four spaces"

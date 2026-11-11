@@ -85,7 +85,6 @@ tree() {
   done
 }
 
-# shellcheck disable=SC2016
 self_test() {
   if ! have_shellcheck; then
     printf 'FAIL self-test:%s (shellcheck is not installed)\n' "$name"

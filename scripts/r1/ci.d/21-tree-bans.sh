@@ -26,7 +26,6 @@ measure() {
   [ -f scripts/r1-gate/lib.sh ] || fail "scripts/r1-gate/lib.sh is missing"
   GATE_ROOT=$CI_D_REPO
   export GATE_ROOT
-  # shellcheck source=scripts/r1-gate/lib.sh disable=SC1091
   . scripts/r1-gate/lib.sh
 
   tree=$(cargo tree --workspace --target all --all-features --prefix none --locked) ||

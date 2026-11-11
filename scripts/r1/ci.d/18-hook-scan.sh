@@ -49,7 +49,6 @@ scan() {
   [ $# -lt 2 ] || printf '%s\n' "$2" >"$work/$1/scripts/r1-gate/check-no-ll-hook.sh"
 }
 
-# shellcheck disable=SC2016
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
