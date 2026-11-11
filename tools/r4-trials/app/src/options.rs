@@ -31,11 +31,13 @@ pub struct Options {
     pub tray: bool,
 }
 
-/// Why the app does not start; `cause` is the word that the refusal line prints.
+/// Why the app does not start; `cause` is the word that the refusal line prints. The binary
+/// prints it as one line `REFUSED <cause>: <detail>` on standard error and exits with 2.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Refusal {
     Usage(String),
     NotHosted,
+    Port(String),
 }
 
 impl Arm {
@@ -76,16 +78,18 @@ impl Refusal {
         match self {
             Refusal::Usage(_) => "usage",
             Refusal::NotHosted => "not_hosted",
+            Refusal::Port(_) => "port",
         }
     }
 }
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Refusal::Usage(why) => write!(f, "refused cause=usage {why}"),
-            Refusal::NotHosted => write!(f, "refused cause=not_hosted"),
-        }
+        let detail = match self {
+            Refusal::Usage(why) | Refusal::Port(why) => why.as_str(),
+            Refusal::NotHosted => "neither CI nor R4_GUEST is set",
+        };
+        write!(f, "REFUSED {}: {detail}", self.cause())
     }
 }
 
@@ -269,8 +273,18 @@ mod tests {
 
     #[test]
     fn refusal_line_names_the_cause() {
-        assert_eq!(Refusal::NotHosted.to_string(), "refused cause=not_hosted");
-        let usage = Refusal::Usage("unknown flag".into()).to_string();
-        assert!(usage.starts_with("refused cause=usage "), "{usage}");
+        assert_eq!(
+            Refusal::NotHosted.to_string(),
+            "REFUSED not_hosted: neither CI nor R4_GUEST is set"
+        );
+        assert_eq!(
+            Refusal::Usage("unknown flag".into()).to_string(),
+            "REFUSED usage: unknown flag"
+        );
+        assert_eq!(
+            Refusal::Port("127.0.0.1:9 is in use".into()).to_string(),
+            "REFUSED port: 127.0.0.1:9 is in use"
+        );
+        assert_eq!(Refusal::Port(String::new()).cause(), "port");
     }
 }

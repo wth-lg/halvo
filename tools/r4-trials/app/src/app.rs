@@ -50,7 +50,7 @@ pub struct TrialCore {
     window_ops: Mutex<()>,
 }
 
-pub(crate) fn make(options: Options) -> tauri::Builder<Wry> {
+pub(crate) fn make(options: Options, listener: std::net::TcpListener) -> tauri::Builder<Wry> {
     let pages_dir = options.pages.clone();
     tauri::Builder::default()
         .register_uri_scheme_protocol(SCHEME, move |_ctx, request| {
@@ -95,7 +95,6 @@ pub(crate) fn make(options: Options) -> tauri::Builder<Wry> {
                 window_ops: Mutex::new(()),
             });
             app.manage(core.clone());
-            let listener = control::listen(options.control_port)?;
             let port = listener.local_addr()?.port();
             println!("control port={port}");
             std::io::stdout().flush()?;
