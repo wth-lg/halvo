@@ -165,8 +165,8 @@ function Write-Log {
         }
     }
     if (-not $images.ContainsKey([long]$Root)) { throw 'the process-creation audit holds no event for the runner' }
-    $listed = @{}
-    foreach ($pair in $Listed.Split(';')) { if ($pair -ne '') { $listed[$pair] = $true } }
+    $allowed = @{}
+    foreach ($pair in $Listed.Split(';')) { if ($pair -ne '' -and $pair -ne 'none') { $allowed[$pair] = $true } }
     $lines = @()
     $connections = @(Get-Events @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $since })
     $seen = @{ '5156' = 0; '5157' = 0; 'tree5156' = 0; 'tree5157' = 0 }
@@ -182,7 +182,7 @@ function Write-Log {
         $port = Get-Field $xml 'DestPort'
         if ($record.Id -eq 5156) {
             if ($Deny -ne 1) { continue }
-            if ($proto -ne '-' -and $listed.ContainsKey("$address $port")) { continue }
+            if ($proto -ne '-' -and $allowed.ContainsKey("$address $port")) { continue }
         }
         $image = [IO.Path]::GetFileName((Get-Field $xml 'Application'))
         if ($image -eq '') { $image = '-' }

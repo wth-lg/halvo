@@ -221,8 +221,8 @@ wfp_launch() {
 
 wfp_collect() {
   win_dir=$(cygpath -w "$1") || refuse output "target/egress/$n"
-  listed=$(printf '%s\n' "$entries" | awk 'NF == 5 { printf "%s%s %s", sep, $4, $5; sep = ";" }') || listed=
-  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Listed "$listed" 2>&1) || {
+  allowed_pairs=$(printf '%s\n' "$entries" | awk 'NF == 5 { printf "%s%s %s", sep, $4, $5; sep = ";" }') || allowed_pairs=
+  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Listed "${allowed_pairs:-none}" 2>&1) || {
     wfp_teardown "$1" "$2"
     refuse mode "${out:-the wfp audit could not be read}"
   }
