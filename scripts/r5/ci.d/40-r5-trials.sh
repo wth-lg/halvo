@@ -300,6 +300,7 @@ trial=$(basename "$(dirname "$0")")
 refuse() {
   [ "${STUB_REFUSAL_STDOUT:-}" != "$trial" ] || [ "$1" = output ] || printf 'a line on standard output\n'
   [ "${STUB_REFUSAL_TARGET:-}" != "$trial" ] || mkdir -p "$(dirname "$0")/../../../target"
+  [ "${STUB_USAGE_TARGET:-}" != "$trial" ] || [ "$1" != usage ] || mkdir -p "$(dirname "$0")/../../../target"
   cause=$1
   [ "${STUB_REFUSAL_CAUSE:-}" != "$trial" ] || cause=input
   printf 'REFUSED %s: %s\n' "$cause" "stub" >&2
@@ -505,6 +506,9 @@ self_test() {
 
   fixture refusal-leaves-a-build-directory
   check refusal-leaves-a-build-directory FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_REFUSAL_TARGET=routine
+
+  fixture usage-refusal-leaves-a-build-directory
+  check usage-refusal-leaves-a-build-directory FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_USAGE_TARGET=stat
 
   fixture closed-output-not-refused
   check closed-output-not-refused FAIL-refusal 'FAIL 40-r5-trials (refusal)' STUB_IGNORE_CLOSED=drift
