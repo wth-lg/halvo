@@ -375,8 +375,8 @@ fn check_entries_reports_a_bounded_kind_with_0_days_or_without_a_day() {
         }],
         "a bounded kind without the key day of the type Day",
     );
-    one_report(
-        &[&KindEntry {
+    assert_eq!(
+        check_entries(&[&KindEntry {
             fields: &[
                 ("v", FieldType::Version),
                 ("workflow", FieldType::Id),
@@ -384,8 +384,11 @@ fn check_entries_reports_a_bounded_kind_with_0_days_or_without_a_day() {
                 ("count", FieldType::Count),
             ],
             ..LATER_BOUNDED
-        }],
-        "a bounded kind without the key day of the type Day",
+        }]),
+        [
+            "kind \"probe_bounded\": a bounded kind without the key day of the type Day",
+            "kind \"probe_bounded\": a bounded kind with the key day of the type Count",
+        ]
     );
 }
 
@@ -428,6 +431,7 @@ fn check_entries_reports_a_workflow_key_that_is_no_key_of_the_type_id() {
         }]),
         [
             "kind \"probe_bounded\": the workflow_key count is no key of the fields with the type Id",
+            "kind \"probe_bounded\": the workflow_key count has a pair of the type Count",
             "kind \"probe_bounded\": the example is refused: probe_bounded: count: integer_form",
         ]
     );
@@ -1153,5 +1157,159 @@ fn check_record_reads_a_site_value_whole_and_holds_another_object_under_site_to_
             ),
             (&format!(r#"{{"key-x":"{HASH}"}}"#), "key_form"),
         ],
+    );
+}
+
+#[test]
+fn check_entries_reports_a_rule_key_with_a_pair_of_another_type() {
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("workflow", FieldType::Id),
+                ("day", FieldType::Day),
+                ("day", FieldType::App),
+                ("count", FieldType::Count),
+            ],
+            ..LATER_BOUNDED
+        }]),
+        ["kind \"probe_bounded\": a bounded kind with the key day of the type App"]
+    );
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("segments", FieldType::Ordinal),
+                ("expires", FieldType::Instant),
+                ("expires", FieldType::Name),
+                ("hint", FieldType::Token),
+                ("title", FieldType::Text),
+            ],
+            ..LATER_WINDOW
+        }]),
+        ["kind \"probe_window\": a window kind with the key expires of the type Name"]
+    );
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("segments", FieldType::Ordinal),
+                ("segments", FieldType::Name),
+                ("expires", FieldType::Instant),
+                ("hint", FieldType::Token),
+                ("title", FieldType::Text),
+            ],
+            ..LATER_WINDOW
+        }]),
+        ["kind \"probe_window\": a window kind with the key segments of the type Name"]
+    );
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("workflow", FieldType::Id),
+                ("workflow", FieldType::Name),
+                ("at", FieldType::Instant),
+                ("note", FieldType::OwnText),
+                ("site", FieldType::Site),
+            ],
+            ..LATER_OWN
+        }]),
+        ["kind \"probe_own\": the workflow_key workflow has a pair of the type Name"]
+    );
+    let summary_keyed = KindEntry {
+        workflow_key: Some("id"),
+        family: "probe",
+        ..*entry("summary")
+    };
+    assert_eq!(check_entries(&[&summary_keyed]), Vec::<String>::new());
+}
+
+#[test]
+fn check_entries_reports_a_pair_that_stands_twice_and_the_pairs_of_one_key_apart() {
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("workflow", FieldType::Id),
+                ("day", FieldType::Day),
+                ("count", FieldType::Count),
+                ("count", FieldType::Count),
+                ("count", FieldType::Count),
+            ],
+            ..LATER_BOUNDED
+        }]),
+        ["kind \"probe_bounded\": the pair of the key count and the type Count stands 3 times"]
+    );
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("workflow", FieldType::Id),
+                ("count", FieldType::Count),
+                ("day", FieldType::Day),
+                ("count", FieldType::Name),
+            ],
+            example: r#"{"v":1,"workflow":"10000000000000000000000000000001","count":2,"day":20767}"#,
+            ..LATER_BOUNDED
+        }]),
+        ["kind \"probe_bounded\": the pairs of the key count do not stand together"]
+    );
+    assert_eq!(
+        check_entries(&[&KindEntry {
+            fields: &[
+                ("v", FieldType::Version),
+                ("workflow", FieldType::Id),
+                ("count", FieldType::Count),
+                ("count", FieldType::Name),
+                ("day", FieldType::Day),
+            ],
+            example: r#"{"v":1,"workflow":"10000000000000000000000000000001","count":2,"day":20767}"#,
+            ..LATER_BOUNDED
+        }]),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn check_entries_reports_a_bounded_kind_of_origin_capture_above_93_days() {
+    for days in [94, 365, 65535] {
+        assert_eq!(
+            check_entries(&[&KindEntry {
+                class: RetentionClass::Bounded { days },
+                ..LATER_BOUNDED
+            }]),
+            ["kind \"probe_bounded\": a bounded kind of origin capture with more than 93 days"],
+            "{days}"
+        );
+    }
+    for days in [1, 93] {
+        assert_eq!(
+            check_entries(&[&KindEntry {
+                class: RetentionClass::Bounded { days },
+                ..LATER_BOUNDED
+            }]),
+            Vec::<String>::new(),
+            "{days}"
+        );
+    }
+    let own = |days| KindEntry {
+        class: RetentionClass::Bounded { days },
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("day", FieldType::Day),
+            ("at", FieldType::Instant),
+            ("note", FieldType::OwnText),
+        ],
+        example: r#"{"v":1,"workflow":"10000000000000000000000000000001","day":20767,"at":1794339000000000000,"note":"Pay on the first"}"#,
+        ..LATER_OWN
+    };
+    for days in [1, 35, 93, 94, 65535] {
+        assert_eq!(check_entries(&[&own(days)]), Vec::<String>::new(), "{days}");
+    }
+    assert_eq!(
+        check_entries(&[&own(0)]),
+        ["kind \"probe_own\": a bounded kind with 0 days"]
     );
 }

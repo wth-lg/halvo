@@ -182,6 +182,16 @@ fn has(entry: &KindEntry, key: &str, field_type: FieldType) -> bool {
     entry.fields.contains(&(key, field_type))
 }
 
+fn distinct_pairs(entry: &KindEntry) -> Vec<(&'static str, FieldType)> {
+    let mut pairs: Vec<(&'static str, FieldType)> = Vec::new();
+    for pair in entry.fields {
+        if !pairs.contains(pair) {
+            pairs.push(*pair);
+        }
+    }
+    pairs
+}
+
 fn keys_in_order(entry: &KindEntry) -> Vec<&'static str> {
     let mut keys: Vec<&'static str> = Vec::new();
     for (key, _) in entry.fields {
@@ -192,11 +202,14 @@ fn keys_in_order(entry: &KindEntry) -> Vec<&'static str> {
     keys
 }
 
-/// The checks of the rules for kind entries over any list, one line per breach; empty when the list is sound.
-/// It reports a name that stands twice; a name or a family outside the form of a kind name; the family `workflow`
-/// in an entry that is none of the four kinds of this run; a bounded entry with 0 days or without the key `day`
-/// of the type `Day`; a window entry without the key `expires` of the type `Instant` or the key `segments` of the
-/// type `Ordinal`; a `workflow_key` that is no key of the fields with the type `Id`; an entry of origin own of the
+/// The checks of the rules for kind entries over any list, one line per breach, each once; empty when the list is
+/// sound. It reports a name that stands twice; a name or a family outside the form of a kind name; the family
+/// `workflow` in an entry that is none of the four kinds of this run; a pair of a key and a type that stands twice;
+/// the pairs of one key that do not stand together; a bounded entry with 0 days, a bounded entry of origin capture
+/// with more than 93 days, a bounded entry without the pair of the key `day` and the type `Day` or with a pair of
+/// the key `day` and another type; a window entry without the pair of the key `expires` and the type `Instant` or
+/// the key `segments` and the type `Ordinal`, or with a pair of either key and another type; a `workflow_key` that
+/// is no key of the fields with the type `Id`, or whose key has a pair of another type; an entry of origin own of the
 /// class window or without a `workflow_key`; a bounded or kept entry of origin capture with a field of the type
 /// `Instant`, `Ordinal`, `Token`, `Text` or `OwnText`; an entry of origin own with a field of the type `Ordinal`,
 /// `Token` or `Text`; a window entry with a field of the type `OwnText`; an example that `check_record` refuses;
@@ -231,14 +244,54 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 "{kind}: the family workflow belongs to the four kinds of this run"
             ));
         }
+        let pairs = distinct_pairs(entry);
+        for (key, field_type) in &pairs {
+            let count = entry
+                .fields
+                .iter()
+                .filter(|pair| pair == &&(*key, *field_type))
+                .count();
+            if count > 1 {
+                reports.push(format!(
+                    "{kind}: the pair of the key {key} and the type {field_type:?} stands {count} times"
+                ));
+            }
+        }
+        for key in keys_in_order(entry) {
+            let at: Vec<usize> = (0..entry.fields.len())
+                .filter(|&i| entry.fields[i].0 == key)
+                .collect();
+            if at.last().zip(at.first()).map(|(l, f)| l - f + 1) != Some(at.len()) {
+                reports.push(format!(
+                    "{kind}: the pairs of the key {key} do not stand together"
+                ));
+            }
+        }
+        let other_types = |key: &str, rule: FieldType| -> Vec<FieldType> {
+            pairs
+                .iter()
+                .filter(|(k, t)| *k == key && *t != rule)
+                .map(|(_, t)| *t)
+                .collect()
+        };
         match entry.class {
             RetentionClass::Bounded { days } => {
                 if days == 0 {
                     reports.push(format!("{kind}: a bounded kind with 0 days"));
                 }
+                if days > 93 && entry.origin == Origin::Capture {
+                    reports.push(format!(
+                        "{kind}: a bounded kind of origin capture with more than 93 days"
+                    ));
+                }
                 if !has(entry, "day", FieldType::Day) {
                     reports.push(format!(
                         "{kind}: a bounded kind without the key day of the type Day"
+                    ));
+                }
+                for other in other_types("day", FieldType::Day) {
+                    reports.push(format!(
+                        "{kind}: a bounded kind with the key day of the type {other:?}"
                     ));
                 }
             }
@@ -248,9 +301,19 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                         "{kind}: a window kind without the key expires of the type Instant"
                     ));
                 }
+                for other in other_types("expires", FieldType::Instant) {
+                    reports.push(format!(
+                        "{kind}: a window kind with the key expires of the type {other:?}"
+                    ));
+                }
                 if !has(entry, "segments", FieldType::Ordinal) {
                     reports.push(format!(
                         "{kind}: a window kind without the key segments of the type Ordinal"
+                    ));
+                }
+                for other in other_types("segments", FieldType::Ordinal) {
+                    reports.push(format!(
+                        "{kind}: a window kind with the key segments of the type {other:?}"
                     ));
                 }
             }
@@ -260,6 +323,11 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
             if !has(entry, key, FieldType::Id) {
                 reports.push(format!(
                     "{kind}: the workflow_key {key} is no key of the fields with the type Id"
+                ));
+            }
+            for other in other_types(key, FieldType::Id) {
+                reports.push(format!(
+                    "{kind}: the workflow_key {key} has a pair of the type {other:?}"
                 ));
             }
         }
@@ -277,7 +345,7 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
         }
         let capture_stored =
             entry.origin == Origin::Capture && entry.class != RetentionClass::Window;
-        for (key, field_type) in entry.fields {
+        for (key, field_type) in &pairs {
             let rules = [
                 (
                     capture_stored,
