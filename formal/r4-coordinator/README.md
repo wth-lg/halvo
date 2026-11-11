@@ -287,6 +287,11 @@ How the model reads I4:
 7. The move `release` stores the `item_released` row. A restart is the app's end: the open
    item lapses with `app_ended`, and no move follows.
 
+What the properties do not show. L3 reads the stored rows as a set, so a row that is
+written twice cannot be told from a row that is written once: a `release` that writes the
+item's rows again breaks no property. A ledger reader would see two rows for one approval
+id; no record passes for it.
+
 ## Reachability and controls
 
 A property whose name starts with `Reach` says that some part of the configuration never
