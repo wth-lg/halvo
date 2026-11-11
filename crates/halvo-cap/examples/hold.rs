@@ -390,11 +390,20 @@ mod way {
     }
 
     fn socket_buffer() -> usize {
+        let mut files = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut files) } == 0 {
+            files.rlim_cur = files.rlim_max.min(4096);
+            unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &files) };
+        }
+        let most = (files.rlim_cur as usize).saturating_sub(16) / 2;
         let mut pairs: Vec<[c_int; 2]> = Vec::new();
         let mut chunk = vec![0u8; 65_536];
         let mut written = 0usize;
         let mut lengths: Vec<usize> = Vec::new();
-        while written < BYTES && pairs.len() < 64 {
+        while written < BYTES && pairs.len() < most {
             let mut pair = [0 as c_int; 2];
             if unsafe { libc::socketpair(libc::AF_UNIX, libc::SOCK_STREAM, 0, pair.as_mut_ptr()) }
                 != 0
@@ -431,6 +440,7 @@ mod way {
             pairs.push(pair);
             lengths.push(length);
         }
+        println!("hold socket pairs={}", pairs.len());
         std::thread::sleep(HOLD);
         let mut held = 0;
         for (i, pair) in pairs.iter().enumerate() {
