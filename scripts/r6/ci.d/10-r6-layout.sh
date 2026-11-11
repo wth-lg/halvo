@@ -61,6 +61,9 @@ measure() {
     cmp -s "$scratch/last.txt" "$scratch/lf.txt" || printf 'file no LF at its end\n' >>"$problems"
     iconv -f UTF-8 -t UTF-8 "$layout" >"$scratch/utf8.txt" 2>"$scratch/iconv.err" ||
       printf 'file not UTF-8\n' >>"$problems"
+    tr -d '\r' <"$layout" >"$scratch/no-cr.txt" || setup_failed
+    cmp -s "$scratch/no-cr.txt" "$layout" || printf 'file carriage return\n' >>"$problems"
+    patterns=$scratch/no-cr.txt
   fi
 
   awk -v all="$all" -v waits="$waits" -v dir="$scratch" -v problems="$problems" '
@@ -98,7 +101,6 @@ measure() {
     FILENAME == ARGV[2] {
       lines++
       if (FNR == 1 && substr($0, 1, 3) == "\357\273\277") { problem("byte-order mark"); next }
-      if (index($0, "\r")) { problem("carriage return"); next }
       t = $0
       if (gsub(/ /, "", t) != 1) { problem("not one space"); next }
       sp = index($0, " ")
@@ -186,9 +188,15 @@ measure() {
 make_repo() {
   dir=$work/$1
   git init -q "$dir" >"$work/$1.init.txt" 2>&1 || broken "cannot make the fixture repository $1"
+  git -C "$dir" config core.protectNTFS false || broken "cannot set core.protectNTFS in $1"
   blob=$(git -C "$dir" hash-object -w --stdin </dev/null) || broken "cannot write a blob in $1"
   sed "s|^|100644 $blob$tab|" "$2" >"$work/$1.index.txt" || broken "cannot write the index list of $1"
-  git -C "$dir" update-index --index-info <"$work/$1.index.txt" || broken "cannot fill the index of $1"
+  git -C "$dir" update-index --index-info <"$work/$1.index.txt" >"$work/$1.update.txt" 2>&1 ||
+    broken "cannot fill the index of $1"
+  git -C "$dir" ls-files >"$work/$1.indexed.txt" || broken "cannot list the index of $1"
+  indexed=$(grep -c '' "$work/$1.indexed.txt") || broken "the index of $1 is empty"
+  listed=$(grep -c '' "$2") || broken "the list of $1 is empty"
+  [ "$indexed" = "$listed" ] || broken "the index of $1 holds $indexed of its $listed paths"
   mkdir -p "$dir/scripts/r6" "$dir/docs/r6" || broken "cannot make the directories of $1"
 }
 
@@ -214,6 +222,7 @@ check() {
   if [ "$got" != "$want" ]; then
     wrong="$wrong $label"
     printf '%s\n' "$out" >"$work/$label.out"
+    [ -z "${CI_D_ARTIFACTS:-}" ] || cp "$work/$label.out" "$CI_D_ARTIFACTS/$label.out"
   elif [ "$want" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
@@ -318,7 +327,7 @@ FAIL $name (outside)"
       *) count=6 files=4 outside=0 ;;
     esac
     case $fixture in
-      no-space | two-spaces | carriage-return-at-the-end | byte-order-mark) outside=1 ;;
+      no-space | two-spaces | byte-order-mark) outside=1 ;;
     esac
     text="layout patterns=$count files=$files outside=$outside empty=-"
     case $outside in
