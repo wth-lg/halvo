@@ -9,7 +9,7 @@ use std::time::Duration;
 use r3_profile::screen::{self, FrontSeen, Window};
 use r3_profile::{
     bound_bytes, browser_did_not_start, encode, entry_names, landing, marker_needles, new_entries,
-    outside_roots, search, search_with, LEAVE_OUT_ALL,
+    outside_roots, profile_gone, search, search_with, LEAVE_OUT_ALL,
 };
 use r3_web::cdp::{Executor, Fault, Locator, Res, SessionState, StartOptions, Stopped};
 use r3_web::fixture::{fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
@@ -927,19 +927,22 @@ async fn measure_shape(
 async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
     let cell = format!("machine={} browser={kind}", args.machine);
     let began = std::time::Instant::now();
-    let report = |result: &str, removed: bool, cause: &str| {
+    let profile = args
+        .scratch
+        .join(format!("{}-profile-task", std::process::id()));
+    let report = |result: &str, cause: &str| {
         out(&format!(
             "task {cell} result={result} ms={} removed={} cause={cause}",
             began.elapsed().as_millis(),
-            if removed { "yes" } else { "no" }
+            if profile_gone(&profile) { "yes" } else { "no" }
         ));
     };
     let Ok(stop) = watch_signals() else {
-        report("miss", false, "runtime");
+        report("miss", "runtime");
         return ExitCode::from(1);
     };
     let Ok(seed) = Seed::load(&args.repo, 1) else {
-        report("miss", false, "seed");
+        report("miss", "seed");
         return ExitCode::from(1);
     };
     let server = match Server::start(
@@ -948,7 +951,7 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
     ) {
         Ok(s) => s,
         Err(_) => {
-            report("miss", false, "fixture");
+            report("miss", "fixture");
             return ExitCode::from(1);
         }
     };
@@ -962,15 +965,15 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
         scratch: args.scratch.clone(),
         stop,
     };
-    let (done, removed) = task(&ctx).await;
+    let (done, removed) = task(&ctx, profile.clone()).await;
     server.stop();
     match done {
         Ok(()) if removed => {
-            report("ok", true, "-");
+            report("ok", "-");
             ExitCode::SUCCESS
         }
         Ok(()) => {
-            report("miss", false, "profile_kept");
+            report("miss", "profile_kept");
             ExitCode::from(1)
         }
         Err(f) => {
@@ -978,19 +981,16 @@ async fn task_run(args: &Args, kind: &'static str) -> ExitCode {
                 "start" | "browser_start" => "browser_start",
                 other => other,
             };
-            report("miss", removed, cause);
+            report("miss", cause);
             ExitCode::from(1)
         }
     }
 }
 
-async fn task(ctx: &Ctx) -> (Res<()>, bool) {
+async fn task(ctx: &Ctx, dir: PathBuf) -> (Res<()>, bool) {
     if ctx.control.reset(&["second_factor"]).is_err() {
         return (Err(Fault::new("fixture", "reset")), false);
     }
-    let dir = ctx
-        .scratch
-        .join(format!("{}-profile-task", std::process::id()));
     let mut ex = match ctx.stop.or(Executor::start(&ctx.options(dir))).await {
         Ok(ex) => ex,
         Err(f) => return (Err(f), false),

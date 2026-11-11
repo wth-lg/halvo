@@ -63,7 +63,9 @@ anything of them is left.
   bound of a call is 8 MiB times ceil(5 times the larger median / 33554432). A `notrun` line of item 4
   says `cause=browser_start` when a line of a run ends so (the program of the nine steps prints
   `notrun candidate=... cause=browser_start` for a browser that does not start) and `cause=runs`
-  otherwise. A task run whose stop leaves its profile is a miss.
+  otherwise. A task run whose stop leaves its profile is a miss. On every path the `task` line's
+  `removed=yes` says that neither its profile nor `<profile>-tmp` exists when the line is printed,
+  read without following a link, and `removed=no` that one of them exists or could not be read.
 - A SIGTERM or SIGINT stops the browsers with their trees, removes their profiles and temporary
   directories, also of a browser that was starting, stops the fixture server and ends with
   `notrun ... cause=signal` and exit 1, also when it comes after the session. In item 4 the program of

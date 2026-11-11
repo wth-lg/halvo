@@ -185,6 +185,16 @@ pub fn new_entries(
         .collect()
 }
 
+/// Whether neither `profile` nor `<profile>-tmp` exists, read without following a link; any other
+/// error of the read than not-found counts as existing.
+pub fn profile_gone(profile: &Path) -> bool {
+    let mut temp = profile.as_os_str().to_owned();
+    temp.push("-tmp");
+    [profile, Path::new(&temp)].iter().all(|p| {
+        matches!(std::fs::symlink_metadata(p), Err(e) if e.kind() == std::io::ErrorKind::NotFound)
+    })
+}
+
 pub fn same_path(a: &Path, b: &Path) -> bool {
     match (a.canonicalize(), b.canonicalize()) {
         (Ok(x), Ok(y)) => x == y,
@@ -235,6 +245,27 @@ mod tests {
         assert_eq!(occurrences(b"aaaa", b"aa"), 2);
         assert_eq!(occurrences(b"ab", b"abc"), 0);
         assert_eq!(occurrences(b"abc", b""), 0);
+    }
+
+    #[test]
+    fn profile_gone_reads_both_paths_and_follows_no_link() {
+        let root = std::env::temp_dir().join(format!("r3-profile-gone-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("both")).unwrap();
+        std::fs::create_dir_all(root.join("both-tmp")).unwrap();
+        std::fs::create_dir_all(root.join("tmp-only-tmp")).unwrap();
+        std::fs::write(root.join("afile"), b"x").unwrap();
+        assert!(profile_gone(&root.join("none")));
+        assert!(!profile_gone(&root.join("both")));
+        assert!(!profile_gone(&root.join("tmp-only")));
+        assert!(!profile_gone(&root.join("afile").join("under-a-file")));
+        #[cfg(unix)]
+        {
+            let link = root.join("link");
+            if std::fs::symlink_metadata(&link).is_err() {
+                std::os::unix::fs::symlink(root.join("no-target"), &link).unwrap();
+            }
+            assert!(!profile_gone(&link));
+        }
     }
 
     #[test]
