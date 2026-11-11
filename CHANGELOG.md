@@ -96,3 +96,4 @@ and merge without an entry landing under the heading of another.
 - Changed: Give each CI job a 30-minute timeout, cancel only superseded pull_request runs, save the Rust cache on main only and list the workspace members by a glob
 - Fixed: Make the R1 gate checks fail closed when a source did not run, a bound is unreadable, or the tree changed during the run
 - Security: Pin every workflow action to a commit, give the workflow read-only permissions and let Dependabot propose action updates
+- Added: Add the router crate halvo-route with its tiers, call kinds, categories, line, price file and policy table, and the gate tool route-gate with its generator, scorer, self-test and the check 30-r6-table

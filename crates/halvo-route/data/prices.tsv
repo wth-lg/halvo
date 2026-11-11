@@ -1,0 +1,4 @@
+tier	input	output	source	date
+on_device	0	0	device	2026-11-10
+low_cost_hosted	3100000	15700000	fixture:B-3.2	2026-11-10
+frontier	15500000	78500000	fixture:B-3.2	2026-11-10
