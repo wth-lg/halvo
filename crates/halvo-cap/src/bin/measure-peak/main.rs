@@ -62,6 +62,10 @@ fn measure(limit: Limit, runs: u64, command: Vec<OsString>) -> ExitCode {
     let _ = writeln!(out, "median peak_bytes={}", report::median(&peaks));
     let _ = writeln!(out, "{}", checks.line());
     let _ = out.flush();
+    measure_status(&checks)
+}
+
+fn measure_status(checks: &report::Checks) -> ExitCode {
     status(checks.all_ok())
 }
 
@@ -121,6 +125,28 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_status_of_a_measurement_needs_every_check() {
+        for (exit, cap, median) in [
+            (false, true, true),
+            (true, false, true),
+            (true, true, false),
+        ] {
+            let checks = report::Checks { exit, cap, median };
+            assert_eq!(
+                measure_status(&checks),
+                ExitCode::from(1),
+                "{exit} {cap} {median}"
+            );
+        }
+        let checks = report::Checks {
+            exit: true,
+            cap: true,
+            median: true,
+        };
+        assert_eq!(measure_status(&checks), ExitCode::SUCCESS);
+    }
 
     #[test]
     fn the_checks_line_of_the_control_follows_its_verdict() {

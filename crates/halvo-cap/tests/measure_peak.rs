@@ -5,6 +5,9 @@ use std::process::{Command, Stdio};
 const BIN: &str = env!("CARGO_BIN_EXE_measure-peak");
 const LIMIT: &str = "268435456";
 const ROLE: &str = "HALVO_CAP_MEASURE_PEAK_CHILD";
+const ONCE: &str = "HALVO_CAP_MEASURE_PEAK_ONCE";
+const BIG: usize = 100_663_296;
+static CHUNK: [u8; 65_536] = [0xa5; 65_536];
 
 #[test]
 #[ignore = "a command that the other tests start under measure-peak"]
@@ -12,6 +15,21 @@ fn child() {
     let Ok(role) = std::env::var(ROLE) else {
         return;
     };
+    if role == "big-then-small" {
+        let marker = std::env::var_os(ONCE).unwrap();
+        let first = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&marker)
+            .is_ok();
+        let mut held: Vec<u8> = Vec::new();
+        if first && held.try_reserve_exact(BIG).is_ok() {
+            while held.len() < BIG {
+                held.extend_from_slice(&CHUNK);
+            }
+            std::hint::black_box(&held);
+        }
+    }
     if role == "write-stderr" {
         eprintln!("marker-of-the-standard-error");
     }
@@ -237,6 +255,46 @@ fn a_run_above_the_limit_misses_the_cap_check() {
     }
     assert!(lines[3].starts_with("checks exit="), "{}", ran.stdout);
     assert_eq!(field(lines[3], "cap"), "miss", "{}", ran.stdout);
+}
+
+#[test]
+fn a_run_that_the_cap_stopped_makes_the_status_1_with_the_other_checks_ok() {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    for attempt in 0..5 {
+        let marker = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+            "measure-peak-once-{}-{nanos}-{attempt}",
+            std::process::id()
+        ));
+        let mut args = vec![
+            "--limit".to_string(),
+            "33554432".into(),
+            "--runs".into(),
+            "3".into(),
+            "--".into(),
+        ];
+        args.extend(this_test_as_a_command());
+        let output = Command::new(BIN)
+            .args(&args)
+            .env(ROLE, "big-then-small")
+            .env(ONCE, &marker)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let lines: Vec<&str> = stdout.lines().collect();
+        assert_eq!(lines.len(), 6, "{stdout}");
+        if field(lines[1], "exit") != "0" {
+            continue;
+        }
+        assert_eq!(field(lines[1], "capped"), "yes", "{stdout}");
+        assert_eq!(lines[5], "checks exit=ok cap=miss median=ok", "{stdout}");
+        assert_eq!(output.status.code(), Some(1), "{stdout}");
+        return;
+    }
+    panic!("in five attempts a poll ended the first run each time");
 }
 
 #[test]
