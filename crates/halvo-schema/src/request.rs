@@ -48,6 +48,7 @@ name_enum! {
         NoWorkflow = "no_workflow",
         State = "state",
         Unsupported = "unsupported",
+        Internal = "internal",
     }
 }
 
