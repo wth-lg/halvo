@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus};
 use std::time::{Duration, Instant};
 
+/// How long tree-peak sleeps after each reading of the tree: 50 ms on macOS, 250 ms elsewhere.
 pub const PERIOD: Duration = if cfg!(target_os = "macos") {
     Duration::from_millis(50)
 } else {

@@ -192,6 +192,7 @@ pub fn same_path(a: &Path, b: &Path) -> bool {
     }
 }
 
+/// Whether `line` is a `run`, `notrun` or `task` line of a run that ends `cause=browser_start`.
 pub fn browser_did_not_start(line: &str) -> bool {
     let of_a_run = line.starts_with("run candidate=")
         || line.starts_with("notrun candidate=")

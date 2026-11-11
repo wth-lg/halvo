@@ -14,6 +14,7 @@ pub const PROMPT_OWNERS: [&str; 6] = [
     "CredentialUIBroker.exe",
 ];
 
+/// Changes of the front application: `prompt` for the browser or a prompt, `other` counts the rest.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FrontSeen {
     first: Option<String>,
@@ -23,10 +24,12 @@ pub struct FrontSeen {
 }
 
 impl FrontSeen {
+    /// Whether `token` differs from the last token that `observe` took.
     pub fn is_new(&self, token: &str) -> bool {
         self.last.as_deref() != Some(token)
     }
 
+    /// Takes one reading: a change to any token but the first sets `prompt` or adds one to `other`.
     pub fn observe(&mut self, token: &str, pid: Option<u32>, owner: &str, browser: &[u32]) {
         if self.first.is_none() {
             self.first = Some(token.to_string());
@@ -46,6 +49,7 @@ impl FrontSeen {
     }
 }
 
+/// The number after the first `pid` that `=` and digits follow, past spaces and quotes: `"pid"=42`.
 pub fn pid_in(text: &str) -> Option<u32> {
     let mut rest = text;
     while let Some(i) = rest.find("pid") {
@@ -187,6 +191,7 @@ mod mac {
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
     }
 
+    /// The pid of the application that a token of `front` names, read with `lsappinfo info`.
     pub fn front_pid(token: &str) -> Option<u32> {
         let out = std::process::Command::new("lsappinfo")
             .args(["info", "-only", "pid", token])
@@ -264,6 +269,7 @@ mod win {
         Some(format!("{} {}", hwnd as u64, pid))
     }
 
+    /// The pid in a token of `front`, which is `<window> <pid>`.
     pub fn front_pid(token: &str) -> Option<u32> {
         token.split(' ').nth(1)?.parse().ok()
     }
