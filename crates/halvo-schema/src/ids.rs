@@ -82,6 +82,47 @@ where
     T::deserialize(deserializer)
 }
 
+struct ObjectOnly<D>(D);
+
+impl<'de, D: Deserializer<'de>> Deserializer<'de> for ObjectOnly<D> {
+    type Error = D::Error;
+
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, D::Error> {
+        self.0.deserialize_map(MapOnly(visitor))
+    }
+
+    fn is_human_readable(&self) -> bool {
+        self.0.is_human_readable()
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf option unit
+        unit_struct newtype_struct seq tuple tuple_struct map struct enum identifier ignored_any
+    }
+}
+
+struct MapOnly<V>(V);
+
+impl<'de, V: Visitor<'de>> Visitor<'de> for MapOnly<V> {
+    type Value = V::Value;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a JSON object")
+    }
+
+    fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<V::Value, A::Error> {
+        self.0.visit_map(map)
+    }
+}
+
+pub(crate) fn object<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(ObjectOnly(deserializer))
+}
+
 pub(crate) struct Version;
 
 impl<'de> Deserialize<'de> for Version {
@@ -175,7 +216,7 @@ macro_rules! strict_struct {
                     $( $v: $crate::ids::Version, )?
                     $( #[serde(deserialize_with = "crate::ids::required")] $field: $ty, )+
                 }
-                let input = <In as serde::Deserialize>::deserialize(deserializer)?;
+                let input: In = $crate::ids::object(deserializer)?;
                 let value = $name { $( $field: input.$field, )+ };
                 $crate::ids::Strict::rules(&value).map_err(<D::Error as serde::de::Error>::custom)?;
                 Ok(value)

@@ -4,8 +4,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::category::SeedCategory;
 use crate::ids::{
-    name_enum, parse_str, strict_struct, AgentId, ParseError, SummaryId, Version, WorkflowId,
-    MAX_ORDINAL, VERSION,
+    name_enum, object, parse_str, strict_struct, AgentId, ParseError, SummaryId, Version,
+    WorkflowId, MAX_ORDINAL, VERSION,
 };
 use crate::site::{AppId, Domain, ObservedSite, SiteToken, SiteValue};
 
@@ -316,7 +316,7 @@ impl<'de> Deserialize<'de> for DismissedWorkflow {
             site: Option<SiteValue>,
             app: AppId,
         }
-        let input = In::deserialize(deserializer)?;
+        let input: In = object(deserializer)?;
         Ok(DismissedWorkflow {
             id: input.id,
             category: input.category,
@@ -437,11 +437,26 @@ strict_struct! {
 
 /// A value of an observed step with the capture layer that filled it: `{"value":<v>,"layer":<layer>}`.
 /// The layer type of each field of `ObservedStep` holds only the layers that may fill that field.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Tagged<T, L> {
     pub value: T,
     pub layer: L,
+}
+
+impl<'de, T: Deserialize<'de>, L: Deserialize<'de>> Deserialize<'de> for Tagged<T, L> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct In<T, L> {
+            value: T,
+            layer: L,
+        }
+        let input: In<T, L> = object(deserializer)?;
+        Ok(Tagged {
+            value: input.value,
+            layer: input.layer,
+        })
+    }
 }
 
 strict_struct! {

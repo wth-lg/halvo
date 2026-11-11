@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::ids::{hex64, name_enum, string_type, ParseError};
+use crate::ids::{hex64, name_enum, object, string_type, ParseError};
 
 fn app(s: &str) -> Result<(), &'static str> {
     if s.is_empty() || s.len() > 255 {
@@ -184,7 +184,7 @@ impl<'de> Deserialize<'de> for SiteValue {
             SignIn { key: Domain },
             Title { key: SiteHash },
         }
-        Ok(match Stored::deserialize(deserializer)? {
+        Ok(match object(deserializer)? {
             Stored::AddressField { key } => SiteValue::Domain {
                 key,
                 source: DomainSource::AddressField,
@@ -201,13 +201,27 @@ impl<'de> Deserialize<'de> for SiteValue {
 /// A site as the analysis write carries it, before commit: `{"domain":"<domain>","source":"address_field"}` or
 /// `{"token":"<site token>","source":"title"}`. Its key names differ from those of `SiteValue`, so a plain
 /// token never parses as a stored site value.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
-#[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ObservedSite {
     /// The registrable domain cut from the address field.
     AddressField { domain: Domain },
     /// The title-derived site token in plain text.
     Title { token: SiteToken },
+}
+
+impl<'de> Deserialize<'de> for ObservedSite {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
+        enum Observed {
+            AddressField { domain: Domain },
+            Title { token: SiteToken },
+        }
+        Ok(match object(deserializer)? {
+            Observed::AddressField { domain } => ObservedSite::AddressField { domain },
+            Observed::Title { token } => ObservedSite::Title { token },
+        })
+    }
 }
 
 impl Serialize for ObservedSite {

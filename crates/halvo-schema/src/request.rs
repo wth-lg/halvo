@@ -6,8 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
 use crate::ids::{
-    name_enum, strict_struct, Position, RequestId, StoreId, SummaryId, Unchecked, WorkflowId,
-    MAX_ORDINAL, VERSION,
+    name_enum, object, strict_struct, Position, RequestId, StoreId, SummaryId, Unchecked,
+    WorkflowId, MAX_ORDINAL, VERSION,
 };
 use crate::record::{Episode, EvidencePage, WorkflowsPage};
 
@@ -251,20 +251,38 @@ impl AnalysisWrite {
 
 /// The body of an interface read: `{"read":"workflows","after":..}` or
 /// `{"read":"evidence","workflow":..,"after":..}`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "read", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "read", rename_all = "snake_case")]
 pub enum Read {
     /// Every stored workflow after the workflow id `after`, or from the first.
-    Workflows {
-        #[serde(deserialize_with = "crate::ids::required")]
-        after: Option<WorkflowId>,
-    },
+    Workflows { after: Option<WorkflowId> },
     /// The evidence of one workflow's support set after the summary id `after`, or from the first.
     Evidence {
         workflow: WorkflowId,
-        #[serde(deserialize_with = "crate::ids::required")]
         after: Option<SummaryId>,
     },
+}
+
+impl<'de> Deserialize<'de> for Read {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(tag = "read", rename_all = "snake_case", deny_unknown_fields)]
+        enum In {
+            Workflows {
+                #[serde(deserialize_with = "crate::ids::required")]
+                after: Option<WorkflowId>,
+            },
+            Evidence {
+                workflow: WorkflowId,
+                #[serde(deserialize_with = "crate::ids::required")]
+                after: Option<SummaryId>,
+            },
+        }
+        Ok(match object(deserializer)? {
+            In::Workflows { after } => Read::Workflows { after },
+            In::Evidence { workflow, after } => Read::Evidence { workflow, after },
+        })
+    }
 }
 
 /// The interface read, a request of the role `interface`.
@@ -324,11 +342,14 @@ name_enum! {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DecisionBody {
-    decision: Decision,
-    workflow: WorkflowId,
+strict_struct! {
+    struct DecisionBody {
+        pub decision: Decision,
+        pub workflow: WorkflowId,
+    }
+    rules(_b) {
+        Ok(())
+    }
 }
 
 /// The interface decision, a request of the role `interface` and the one request that builds an approval, a
