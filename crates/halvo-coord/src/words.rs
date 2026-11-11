@@ -154,7 +154,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.asks.unattended",
-        "It does what you allowed without asking, and asks you before anything else.",
+        "It asks before anything you did not allow, and always before paying, ordering or signing.",
     ),
     (
         "line.time",
