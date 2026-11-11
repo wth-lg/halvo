@@ -1,0 +1,398 @@
+{
+  "credentials": {
+    "user": "resident@agent.test",
+    "password": "Zq7-halvo-marker-pw",
+    "code": "482913",
+    "captcha": "halvo",
+    "token": "Zq7-halvo-marker-token"
+  },
+  "page_marker": "Zq7-halvo-marker-page-2",
+  "utility": {
+    "account": "UB-2208-7745",
+    "amount_due": 12950,
+    "payee": "Tarnwick Fixture Power",
+    "instruments": [
+      "Card ending 5523",
+      "Bank account ending 6648"
+    ],
+    "history": [
+      {
+        "date": "2026-07-28",
+        "amount": 11870,
+        "status": "Paid"
+      },
+      {
+        "date": "2026-08-27",
+        "amount": 12415,
+        "status": "Paid"
+      },
+      {
+        "date": "2026-09-26",
+        "amount": 13020,
+        "status": "Paid"
+      }
+    ]
+  },
+  "shop": {
+    "seller": "Brindle Fixture Market",
+    "items": [
+      {
+        "name": "Basmati rice 2 kg",
+        "quantity": 1,
+        "price": 699
+      },
+      {
+        "name": "Olive oil 750 ml",
+        "quantity": 2,
+        "price": 1149
+      },
+      {
+        "name": "Tea bags 80",
+        "quantity": 1,
+        "price": 375
+      },
+      {
+        "name": "Honey jar",
+        "quantity": 2,
+        "price": 520
+      }
+    ],
+    "total": 4412,
+    "instruments": [
+      "Card ending 8806",
+      "Bank transfer 1174"
+    ]
+  },
+  "mail": {
+    "address": "resident.two@agent.test",
+    "inbox": [
+      {
+        "id": "s2-msg-01",
+        "conversationId": "s2-conv-01",
+        "subject": "Rent receipt for October",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "cyd.morrow@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.two@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Hello, the visit is booked. Your reference is Zq7-halvo-marker-page-2. Please confirm."
+        }
+      },
+      {
+        "id": "s2-msg-02",
+        "conversationId": "s2-conv-02",
+        "subject": "Window repair quote",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "dee.ashlar@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.two@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Could you tell me which time suits you?"
+        }
+      },
+      {
+        "id": "s2-msg-03",
+        "conversationId": "s2-conv-03",
+        "subject": "Party last month",
+        "isRead": true,
+        "from": {
+          "emailAddress": {
+            "address": "cyd.morrow@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.two@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Thanks again for sorting this out."
+        }
+      },
+      {
+        "id": "s2-msg-04",
+        "conversationId": "s2-conv-04",
+        "subject": "Monthly offers",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "offers@letters.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.two@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "This week in the letters: nothing that needs an answer."
+        }
+      }
+    ]
+  },
+  "calendar": {
+    "events": [
+      {
+        "id": "s2-evt-01",
+        "subject": "Optician",
+        "days_before": 5,
+        "start_time": "09:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer"
+      },
+      {
+        "id": "s2-evt-02",
+        "subject": "Board games night",
+        "days_before": 2,
+        "start_time": "12:30",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "accepted"
+      },
+      {
+        "id": "s2-evt-03",
+        "subject": "Swim practice",
+        "days_before": 12,
+        "start_time": "18:00",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "declined"
+      },
+      {
+        "id": "s2-evt-04",
+        "subject": "Choir rehearsal",
+        "days_before": 42,
+        "start_time": "19:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer"
+      },
+      {
+        "id": "s2-evt-05",
+        "subject": "Running club",
+        "days_before": 7,
+        "start_time": "07:30",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "tentativelyAccepted"
+      },
+      {
+        "id": "s2-evt-06",
+        "subject": "Language class",
+        "days_before": -6,
+        "start_time": "16:00",
+        "minutes": 60,
+        "isCancelled": false,
+        "response": "declined"
+      }
+    ]
+  },
+  "sheet": {
+    "rows": [
+      [
+        "2026-09-03",
+        "Electricity",
+        "72.18"
+      ],
+      [
+        "2026-09-10",
+        "Internet",
+        "35.00"
+      ],
+      [
+        "2026-09-17",
+        "Pharmacy",
+        "12.65"
+      ],
+      [
+        "2026-09-24",
+        "Train ticket",
+        "48.90"
+      ],
+      [
+        "2026-09-30",
+        "Insurance",
+        "55.75"
+      ]
+    ]
+  },
+  "later": {
+    "message": {
+      "id": "s2-msg-05",
+      "conversationId": "s2-conv-05",
+      "subject": "Recycling day moved",
+      "isRead": false,
+      "from": {
+        "emailAddress": {
+          "address": "dee.ashlar@people.agent.test"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "address": "resident.two@agent.test"
+          }
+        }
+      ],
+      "body": {
+        "content": "Could you report it to the landlord?"
+      }
+    },
+    "event": {
+      "id": "s2-evt-07",
+      "subject": "Boiler check",
+      "days_before": 7,
+      "start_time": "10:00",
+      "minutes": 60,
+      "isCancelled": true,
+      "response": "organizer"
+    }
+  },
+  "bindings": {
+    "bill": {
+      "origins": [
+        "http://utility.agent.test",
+        "http://pay.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "start",
+          "value": [
+            "http://utility.agent.test"
+          ]
+        },
+        {
+          "name": "payee",
+          "value": [
+            "Tarnwick Fixture Power"
+          ]
+        },
+        {
+          "name": "instrument",
+          "value": [
+            "Bank account ending 6648"
+          ]
+        }
+      ]
+    },
+    "order": {
+      "origins": [
+        "http://shop.agent.test",
+        "http://pay.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "start",
+          "value": [
+            "http://shop.agent.test"
+          ]
+        },
+        {
+          "name": "seller",
+          "value": [
+            "Brindle Fixture Market"
+          ]
+        },
+        {
+          "name": "instrument",
+          "value": [
+            "Bank transfer 1174"
+          ]
+        }
+      ]
+    },
+    "reply": {
+      "origins": [
+        "http://mail.agent.test"
+      ],
+      "slots": [
+        {
+          "name": "reply_senders",
+          "value": [
+            "cyd.morrow@people.agent.test",
+            "dee.ashlar@people.agent.test"
+          ]
+        }
+      ]
+    },
+    "cleanup": {
+      "origins": [
+        "http://calendar.agent.test"
+      ],
+      "slots": []
+    }
+  },
+  "end": {
+    "bill": [
+      {
+        "account": "UB-2208-7745",
+        "amount": 12950,
+        "payee": "Tarnwick Fixture Power",
+        "instrument": "Bank account ending 6648"
+      }
+    ],
+    "order": [
+      {
+        "items": [
+          {
+            "name": "Basmati rice 2 kg",
+            "quantity": 1
+          },
+          {
+            "name": "Olive oil 750 ml",
+            "quantity": 2
+          },
+          {
+            "name": "Tea bags 80",
+            "quantity": 1
+          },
+          {
+            "name": "Honey jar",
+            "quantity": 2
+          }
+        ],
+        "total": 4412,
+        "instrument": "Bank transfer 1174"
+      }
+    ],
+    "reply": [
+      {
+        "to": "cyd.morrow@people.agent.test",
+        "conversation": "s2-conv-01",
+        "in_reply_to": "s2-msg-01"
+      },
+      {
+        "to": "dee.ashlar@people.agent.test",
+        "conversation": "s2-conv-02",
+        "in_reply_to": "s2-msg-02"
+      }
+    ],
+    "cleanup": [
+      "s2-evt-03",
+      "s2-evt-01"
+    ]
+  }
+}
