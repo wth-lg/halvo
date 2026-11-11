@@ -454,8 +454,17 @@ relock() {
   (cd "$fixture" && "$real_cargo" metadata --offline --format-version 1 --manifest-path account/Cargo.toml >/dev/null 2>&1)
 }
 
+selected() {
+  [ -z "${R7_ACCOUNT_CASES:-}" ] && return 0
+  case " $R7_ACCOUNT_CASES " in
+    *" $1 "*) return 0 ;;
+  esac
+  return 1
+}
+
 run_case() {
   case=$1
+  selected "$case" || return 0
   want=$2
   mode=$3
   shift 3
@@ -498,6 +507,7 @@ stub_case() {
 }
 
 harness_case() {
+  selected "$1" || return 0
   printf 'case %s/%s want=refused got=%s\n' "$name" "$1" "$2"
   if [ "$2" = refused ]; then
     rejected=$((rejected + 1))
