@@ -124,6 +124,7 @@ fn vectors_cover_every_error_each_edge_and_each_form_rule() {
         ("role_before_limit", "role"),
         ("limit_before_size", "limit"),
         ("malformed_before_size", "malformed"),
+        ("space_after_largest", "size"),
     ];
     for (name, error) in invalid {
         assert_eq!(
