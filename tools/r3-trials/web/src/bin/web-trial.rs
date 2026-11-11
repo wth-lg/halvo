@@ -191,6 +191,60 @@ mod driver {
 
     use super::{out, Args, Mode};
 
+    #[derive(Clone)]
+    pub struct Stop(tokio::sync::watch::Receiver<bool>);
+
+    impl Stop {
+        fn is_set(&self) -> bool {
+            *self.0.borrow()
+        }
+
+        async fn wait(&self) {
+            let mut rx = self.0.clone();
+            if rx.wait_for(|stopped| *stopped).await.is_err() {
+                std::future::pending::<()>().await;
+            }
+        }
+
+        async fn or<T>(&self, work: impl std::future::Future<Output = Res<T>>) -> Res<T> {
+            tokio::select! {
+                biased;
+                _ = self.wait() => Err(Fault::new("signal", "stopped")),
+                r = work => r,
+            }
+        }
+    }
+
+    fn watch_signals() -> std::io::Result<Stop> {
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+            let mut term = signal(SignalKind::terminate())?;
+            let mut int = signal(SignalKind::interrupt())?;
+            tokio::spawn(async move {
+                tokio::select! {
+                    _ = term.recv() => {}
+                    _ = int.recv() => {}
+                }
+                let _ = tx.send(true);
+            });
+        }
+        #[cfg(not(unix))]
+        {
+            let mut c = tokio::signal::windows::ctrl_c()?;
+            let mut b = tokio::signal::windows::ctrl_break()?;
+            tokio::spawn(async move {
+                tokio::select! {
+                    _ = c.recv() => {}
+                    _ = b.recv() => {}
+                }
+                let _ = tx.send(true);
+            });
+        }
+        Ok(Stop(rx))
+    }
+
     pub struct Ctx {
         browser: PathBuf,
         kind: &'static str,
@@ -200,6 +254,7 @@ mod driver {
         seed: Seed,
         scratch: PathBuf,
         headless: bool,
+        stop: Stop,
     }
 
     fn flags() -> Vec<String> {
@@ -560,10 +615,36 @@ mod driver {
         version: String,
     }
 
-    async fn run_once(ctx: &Ctx, name: &str, i: u32) -> Result<Run, String> {
-        ctx.control.reset(variants_of(name))?;
-        let mut ex = match Executor::start(&ctx.options(&format!("p-{name}-{i}"), None)).await {
+    struct NotRun {
+        cause: &'static str,
+        detail: String,
+    }
+
+    impl NotRun {
+        fn new(cause: &'static str, detail: impl Into<String>) -> Self {
+            NotRun {
+                cause,
+                detail: detail.into(),
+            }
+        }
+    }
+
+    async fn run_once(ctx: &Ctx, name: &str, i: u32) -> Result<Run, NotRun> {
+        if ctx.stop.is_set() {
+            return Err(NotRun::new("signal", ""));
+        }
+        ctx.control
+            .reset(variants_of(name))
+            .map_err(|e| NotRun::new("fixture", e))?;
+        let started = ctx
+            .stop
+            .or(Executor::start(
+                &ctx.options(&format!("p-{name}-{i}"), None),
+            ))
+            .await;
+        let mut ex = match started {
             Ok(ex) => ex,
+            Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
             Err(f) => {
                 return Ok(Run {
                     ok: false,
@@ -575,17 +656,23 @@ mod driver {
         };
         let version = ex.version().await.unwrap_or_else(|_| "-".into());
         let t0 = Instant::now();
-        let outcome = step(&mut ex, ctx, name, i).await;
+        let outcome = ctx.stop.or(step(&mut ex, ctx, name, i)).await;
         let ms = t0.elapsed().as_millis();
         ex.stop().await;
         if let Err(f) = &outcome {
+            if f.0 == "signal" {
+                return Err(NotRun::new("signal", ""));
+            }
             eprintln!(
                 "miss step={name} i={i} cause={} detail={}",
                 f.0,
                 printable(&f.1)
             );
             if f.0 == "control" {
-                return Err(format!("control during the run: {}", printable(&f.1)));
+                return Err(NotRun::new(
+                    "fixture",
+                    format!("control during the run: {}", printable(&f.1)),
+                ));
             }
         }
         Ok(Run {
@@ -624,10 +711,12 @@ mod driver {
                         }
                     }
                     Err(e) => {
-                        eprintln!("control: {}", printable(&e));
+                        if !e.detail.is_empty() {
+                            eprintln!("control: {}", printable(&e.detail));
+                        }
                         out(&format!(
-                            "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=fixture",
-                            ctx.machine, ctx.kind
+                            "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause={}",
+                            ctx.machine, ctx.kind, e.cause
                         ));
                         ran = false;
                         break;
@@ -636,6 +725,9 @@ mod driver {
             }
             if !ran {
                 all_ran = false;
+                if ctx.stop.is_set() {
+                    break;
+                }
                 continue;
             }
             majors.sort_unstable();
@@ -673,8 +765,11 @@ mod driver {
             .reset(&[])
             .map_err(|e| Fault::new("control", e))?;
         let t0 = Instant::now();
-        let mut ex = Executor::start(&ctx.options(&format!("p-cold-{i}"), None)).await?;
-        let opened = ex.open(&ctx.u("/signin")).await;
+        let mut ex = ctx
+            .stop
+            .or(Executor::start(&ctx.options(&format!("p-cold-{i}"), None)))
+            .await?;
+        let opened = ctx.stop.or(ex.open(&ctx.u("/signin"))).await;
         let ms = t0.elapsed().as_millis();
         ex.stop().await;
         opened.map(|_| ms)
@@ -684,41 +779,46 @@ mod driver {
         ctx.control
             .reset(&[])
             .map_err(|e| Fault::new("control", e))?;
-        let mut ex = Executor::start(&ctx.options("p-record", None)).await?;
-        let outcome = async {
-            ex.add_recorder().await?;
-            signin(&mut ex, ctx).await?;
-            let link = ex.resolve_one(&[role("link", "Pay bill")], &[]).await?;
-            click_and_wait(&mut ex, &link).await?;
-            let deadline = Instant::now() + Duration::from_secs(5);
-            loop {
-                let events: Vec<serde_json::Value> = ex
-                    .recorded()
-                    .iter()
-                    .filter_map(|p| serde_json::from_str(p).ok())
-                    .collect();
-                let typed = events.iter().any(|e| {
-                    e["kind"] == "input"
-                        && e["role"] == "textbox"
-                        && e["name"] == "Email"
-                        && e["testid"] == "email"
-                });
-                let clicked = events.iter().any(|e| {
-                    e["kind"] == "click"
-                        && e["role"] == "link"
-                        && e["name"] == "Pay bill"
-                        && e["testid"] == "pay-bill"
-                });
-                if typed && clicked {
-                    return Ok(());
+        let mut ex = ctx
+            .stop
+            .or(Executor::start(&ctx.options("p-record", None)))
+            .await?;
+        let outcome = ctx
+            .stop
+            .or(async {
+                ex.add_recorder().await?;
+                signin(&mut ex, ctx).await?;
+                let link = ex.resolve_one(&[role("link", "Pay bill")], &[]).await?;
+                click_and_wait(&mut ex, &link).await?;
+                let deadline = Instant::now() + Duration::from_secs(5);
+                loop {
+                    let events: Vec<serde_json::Value> = ex
+                        .recorded()
+                        .iter()
+                        .filter_map(|p| serde_json::from_str(p).ok())
+                        .collect();
+                    let typed = events.iter().any(|e| {
+                        e["kind"] == "input"
+                            && e["role"] == "textbox"
+                            && e["name"] == "Email"
+                            && e["testid"] == "email"
+                    });
+                    let clicked = events.iter().any(|e| {
+                        e["kind"] == "click"
+                            && e["role"] == "link"
+                            && e["name"] == "Pay bill"
+                            && e["testid"] == "pay-bill"
+                    });
+                    if typed && clicked {
+                        return Ok(());
+                    }
+                    if Instant::now() > deadline {
+                        return Err(Fault::new("check", "recorded"));
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                 }
-                if Instant::now() > deadline {
-                    return Err(Fault::new("check", "recorded"));
-                }
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        }
-        .await;
+            })
+            .await;
         ex.stop().await;
         outcome
     }
@@ -728,16 +828,21 @@ mod driver {
             .reset(&[])
             .map_err(|e| Fault::new("control", e))?;
         let debug = ctx.port + 1;
-        let mut ex = Executor::start(&ctx.options("p-attach", Some(debug))).await?;
-        let outcome = async {
-            signin(&mut ex, ctx).await?;
-            let mut second =
-                Executor::connect(&format!("127.0.0.1:{debug}"), &ctx.u("/bill")).await?;
-            let heading = second.resolve(&[role("heading", "Your bill")], &[]).await;
-            second.stop().await;
-            check(matches!(heading?, Resolved::One { .. }), "heading")
-        }
-        .await;
+        let mut ex = ctx
+            .stop
+            .or(Executor::start(&ctx.options("p-attach", Some(debug))))
+            .await?;
+        let outcome = ctx
+            .stop
+            .or(async {
+                signin(&mut ex, ctx).await?;
+                let mut second =
+                    Executor::connect(&format!("127.0.0.1:{debug}"), &ctx.u("/bill")).await?;
+                let heading = second.resolve(&[role("heading", "Your bill")], &[]).await;
+                second.stop().await;
+                check(matches!(heading?, Resolved::One { .. }), "heading")
+            })
+            .await;
         ex.stop().await;
         outcome
     }
@@ -762,13 +867,17 @@ mod driver {
         for (part, f) in &faults {
             eprintln!("{part} cause={} detail={}", f.0, printable(&f.1));
         }
-        let unmeasured = colds.len() < 10 || faults.iter().any(|(_, f)| f.0 == "control");
+        let stopped = ctx.stop.is_set();
+        let unmeasured =
+            stopped || colds.len() < 10 || faults.iter().any(|(_, f)| f.0 == "control");
         if unmeasured {
             out(&format!(
                 "notrun candidate={CANDIDATE} machine={} browser={} cell=extras cause={}",
                 ctx.machine,
                 ctx.kind,
-                if colds.len() < 10 {
+                if stopped {
+                    "signal"
+                } else if colds.len() < 10 {
                     "cold_start"
                 } else {
                     "fixture"
@@ -802,27 +911,32 @@ mod driver {
         ctx.control
             .reset(&[])
             .map_err(|e| Fault::new("control", e))?;
-        let mut ex = Executor::start(&ctx.options("p-resolver", None)).await?;
-        let outcome = async {
-            let t0 = count(&state(ctx)?, &["requests", "total"]);
-            let other = ex
-                .navigate_error(&format!(
-                    "http://halvo-resolver-probe.localhost:{}/",
-                    ctx.port
-                ))
-                .await?;
-            let t1 = count(&state(ctx)?, &["requests", "total"]);
-            ex.open(&ctx.u("/signin")).await?;
-            let t2 = count(&state(ctx)?, &["requests", "total"]);
-            out(&format!(
-                "resolver other_name_error={} other_name_requests={} test_name_requests={}",
-                other.unwrap_or("none".into()).replace(' ', "_"),
-                t1 - t0,
-                t2 - t1
-            ));
-            Ok(())
-        }
-        .await;
+        let mut ex = ctx
+            .stop
+            .or(Executor::start(&ctx.options("p-resolver", None)))
+            .await?;
+        let outcome = ctx
+            .stop
+            .or(async {
+                let t0 = count(&state(ctx)?, &["requests", "total"]);
+                let other = ex
+                    .navigate_error(&format!(
+                        "http://halvo-resolver-probe.localhost:{}/",
+                        ctx.port
+                    ))
+                    .await?;
+                let t1 = count(&state(ctx)?, &["requests", "total"]);
+                ex.open(&ctx.u("/signin")).await?;
+                let t2 = count(&state(ctx)?, &["requests", "total"]);
+                out(&format!(
+                    "resolver other_name_error={} other_name_requests={} test_name_requests={}",
+                    other.unwrap_or("none".into()).replace(' ', "_"),
+                    t1 - t0,
+                    t2 - t1
+                ));
+                Ok(())
+            })
+            .await;
         ex.stop().await;
         outcome
     }
@@ -831,21 +945,26 @@ mod driver {
         ctx.control
             .reset(&[])
             .map_err(|e| Fault::new("control", e))?;
-        let mut ex = Executor::start(&ctx.options("p-snapshot", None)).await?;
-        let outcome = async {
-            signin(&mut ex, ctx).await?;
-            ex.open(&ctx.u("/pay")).await?;
-            let lines = ex.snapshot().await?;
-            let mut text = String::new();
-            for l in &lines {
-                text.push_str(&l.render());
-                text.push('\n');
-            }
-            std::fs::write(path, text).map_err(|e| Fault::new("file", e.to_string()))?;
-            out(&format!("snapshot lines={}", lines.len()));
-            Ok(())
-        }
-        .await;
+        let mut ex = ctx
+            .stop
+            .or(Executor::start(&ctx.options("p-snapshot", None)))
+            .await?;
+        let outcome = ctx
+            .stop
+            .or(async {
+                signin(&mut ex, ctx).await?;
+                ex.open(&ctx.u("/pay")).await?;
+                let lines = ex.snapshot().await?;
+                let mut text = String::new();
+                for l in &lines {
+                    text.push_str(&l.render());
+                    text.push('\n');
+                }
+                std::fs::write(path, text).map_err(|e| Fault::new("file", e.to_string()))?;
+                out(&format!("snapshot lines={}", lines.len()));
+                Ok(())
+            })
+            .await;
         ex.stop().await;
         outcome
     }
@@ -854,6 +973,16 @@ mod driver {
         let repo = args.repo.clone().unwrap_or_default();
         let port = args.port.unwrap_or_default();
         let machine = args.machine.clone().unwrap_or_default();
+        let stop = match watch_signals() {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("signals: {e}");
+                out(&format!(
+                    "notrun candidate={CANDIDATE} machine={machine} browser={kind} cause=runtime"
+                ));
+                return ExitCode::from(1);
+            }
+        };
         let seed = match Seed::load(&repo, 1) {
             Ok(s) => s,
             Err(e) => {
@@ -910,6 +1039,7 @@ mod driver {
             seed,
             scratch: args.scratch.clone().unwrap_or_default(),
             headless: !args.headed,
+            stop,
         };
         out(&format!(
             "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} headless={}",
@@ -940,7 +1070,12 @@ mod driver {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(f) => {
                     eprintln!("resolver cause={} detail={}", f.0, f.1);
-                    out(&format!("notrun candidate={CANDIDATE} machine={machine} browser={kind} cause=resolver"));
+                    let cause = if f.0 == "signal" {
+                        "signal"
+                    } else {
+                        "resolver"
+                    };
+                    out(&format!("notrun candidate={CANDIDATE} machine={machine} browser={kind} cause={cause}"));
                     ExitCode::from(1)
                 }
             },
@@ -949,7 +1084,12 @@ mod driver {
                     Ok(()) => ExitCode::SUCCESS,
                     Err(f) => {
                         eprintln!("snapshot cause={} detail={}", f.0, f.1);
-                        out(&format!("notrun candidate={CANDIDATE} machine={machine} browser={kind} cause=snapshot"));
+                        let cause = if f.0 == "signal" {
+                            "signal"
+                        } else {
+                            "snapshot"
+                        };
+                        out(&format!("notrun candidate={CANDIDATE} machine={machine} browser={kind} cause={cause}"));
                         ExitCode::from(1)
                     }
                 }

@@ -40,6 +40,9 @@ of the runs that printed ok. A run whose fixture control failed, and a cell with
 version, make a notrun line in place of the cell line.
 Exit 0 when every cell ran (a miss is a result), 1 when a cell could not run (a notrun line
 names it), 2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error.
+run.sh ends by exec of the trial program, so a TERM or INT sent to run.sh reaches the program. On
+TERM or INT the program stops its browsers, the fixture server and the fault proxy, prints a
+notrun line with cause=signal and exits 1.
 EOF
 }
 
@@ -181,4 +184,4 @@ case "$mode" in
   resolver) set -- "$@" --resolver-probe ;;
   snapshot) set -- "$@" --snapshot-pay --out "$out" ;;
 esac
-"$bin" "$@"
+exec "$bin" "$@"
