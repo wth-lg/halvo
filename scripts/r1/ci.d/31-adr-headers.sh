@@ -141,10 +141,12 @@ self_test() {
   adr shared-number 0004-storage.md "$good"
   check shared-number FAIL 'problem 0004-storage.md: the number 0004 is also the number of another file'
 
-  adr missing-decision-line 0001-first.md "$(printf '%s\n' "$good" | sed '3d')"
+  text=$(printf '%s\n' "$good" | sed '3d') || exit 2
+  adr missing-decision-line 0001-first.md "$text"
   check missing-decision-line FAIL "problem 0001-first.md: line 3 is not 'decision: YYYY-MM-DDTHH:MM:SSZ'"
 
-  adr decision-not-utc 0001-first.md "$(printf '%s\n' "$good" | sed 's/^decision: .*/decision: 2026-11-09 07:51/')"
+  text=$(printf '%s\n' "$good" | sed 's/^decision: .*/decision: 2026-11-09 07:51/') || exit 2
+  adr decision-not-utc 0001-first.md "$text"
   check decision-not-utc FAIL "problem 0001-first.md: line 3 is not 'decision: YYYY-MM-DDTHH:MM:SSZ'"
 
   adr amendment-without-date 0001-first.md "$good
@@ -155,7 +157,8 @@ self_test() {
 - the Decision describes an older commit."
   check amendment-without-date FAIL "problem 0001-first.md: line 14 under '## Amendments' does not start with '- YYYY-MM-DD'"
 
-  adr no-heading-on-line-1 0001-first.md "$(printf '%s\n' "$good" | sed '1s/^# //')"
+  text=$(printf '%s\n' "$good" | sed '1s/^# //') || exit 2
+  adr no-heading-on-line-1 0001-first.md "$text"
   check no-heading-on-line-1 FAIL "problem 0001-first.md: line 1 is not a heading '# <decision label>'"
 
   adr name-without-number 0001-first.md "$good"
