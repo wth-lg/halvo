@@ -29,7 +29,7 @@ fn wal_len(dir: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-fn wrapped_key_in_main_file(
+fn wrapped_key_in_copy_of_main_file_without_wal(
     dir: &Path,
     store_key: &[u8; 32],
     segment_id: Uuid,
@@ -70,17 +70,17 @@ fn live_key_rows(store: &EncryptedStore) -> i64 {
 
 struct FlakyCustody {
     inner: DevFallbackCustody,
-    failures: AtomicUsize,
+    destroy_failures_before_success: AtomicUsize,
     destroy_calls: Arc<AtomicUsize>,
 }
 
 impl FlakyCustody {
-    fn new(root_id: RootId, failures: usize) -> (Self, Arc<AtomicUsize>) {
+    fn new(root_id: RootId, destroy_failures_before_success: usize) -> (Self, Arc<AtomicUsize>) {
         let destroy_calls = Arc::new(AtomicUsize::new(0));
         (
             Self {
                 inner: DevFallbackCustody::new(root_id),
-                failures: AtomicUsize::new(failures),
+                destroy_failures_before_success: AtomicUsize::new(destroy_failures_before_success),
                 destroy_calls: Arc::clone(&destroy_calls),
             },
             destroy_calls,
@@ -106,9 +106,10 @@ impl KeyCustody for FlakyCustody {
     }
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.destroy_calls.fetch_add(1, Ordering::SeqCst);
-        let remaining = self.failures.load(Ordering::SeqCst);
+        let remaining = self.destroy_failures_before_success.load(Ordering::SeqCst);
         if remaining > 0 {
-            self.failures.store(remaining - 1, Ordering::SeqCst);
+            self.destroy_failures_before_success
+                .store(remaining - 1, Ordering::SeqCst);
             return Err(CustodyError::RootLocked(-25308));
         }
         self.inner.destroy_root()
@@ -137,6 +138,10 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
         })
         .is_ok()
     });
+    assert!(
+        snapshot.is_none(),
+        "a second connection read the store while it was open"
+    );
 
     let report = store.crypto_shred_expired().unwrap();
     assert_eq!(report.segments_shredded, 1);
@@ -150,7 +155,8 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
         .unwrap_or(None)
     });
     let from_main_file =
-        wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id).unwrap();
+        wrapped_key_in_copy_of_main_file_without_wal(dir.path(), &store_key, expired.segment_id)
+            .unwrap();
     assert_eq!(
         wal_len(dir.path()),
         0,
@@ -198,6 +204,7 @@ fn a_second_process_is_refused_even_after_the_lock_file_is_unlinked() {
 #[test]
 fn hold_store_for_parent() {
     let Ok(dir) = std::env::var("HALVO_TEST_HOLD_STORE") else {
+        println!("hold_store_for_parent: HALVO_TEST_HOLD_STORE is not set, so no parent asked for a holder");
         return;
     };
     let dir = PathBuf::from(dir);
@@ -395,7 +402,9 @@ fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_rem
     let store_key = *store.store_key().unwrap().expose();
     let shard = path.parent().unwrap().to_path_buf();
     store.db().unwrap().checkpoint_truncate().unwrap();
-    let before = wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id).unwrap();
+    let before =
+        wrapped_key_in_copy_of_main_file_without_wal(dir.path(), &store_key, expired.segment_id)
+            .unwrap();
     assert!(
         recoverable(&cipher, &store_key, before),
         "the probe does not find the live key in store.db, so it cannot see one left behind"
@@ -404,7 +413,8 @@ fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_rem
 
     let first = store.crypto_shred_expired();
 
-    let from_main_file = wrapped_key_in_main_file(dir.path(), &store_key, expired.segment_id);
+    let from_main_file =
+        wrapped_key_in_copy_of_main_file_without_wal(dir.path(), &store_key, expired.segment_id);
     let wal_after_the_failed_pass = wal_len(dir.path());
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
     let from_main_file = from_main_file.unwrap();
@@ -571,7 +581,7 @@ fn a_truncated_segment_yields_no_plaintext_and_reports_corruption() {
 }
 
 #[test]
-fn orphan_segment_files_are_reconciled() {
+fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
     let (seg_ref, _) = store
@@ -670,10 +680,11 @@ fn rss_kib() -> u64 {
 
 #[cfg(unix)]
 #[test]
-#[ignore]
+#[ignore = "run with: cargo test --release -p halvo-capture --lib peak_rss -- --ignored --nocapture"]
 fn peak_rss_stays_bounded_for_a_512_mib_segment() {
     const SEGMENT_BYTES: u64 = 512 * 1024 * 1024;
     const BOUND_KIB: u64 = 64 * 1024;
+    const SAMPLE_EVERY: Duration = Duration::from_millis(20);
 
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
@@ -685,7 +696,7 @@ fn peak_rss_stays_bounded_for_a_512_mib_segment() {
         std::thread::spawn(move || {
             while stop.load(Ordering::SeqCst) == 0 {
                 peak.fetch_max(rss_kib() as usize, Ordering::SeqCst);
-                std::thread::sleep(Duration::from_millis(20));
+                std::thread::sleep(SAMPLE_EVERY);
             }
         })
     };

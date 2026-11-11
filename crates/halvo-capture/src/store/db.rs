@@ -877,6 +877,37 @@ mod tests {
     }
 
     #[test]
+    fn a_key_row_that_holds_a_key_is_not_committed_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (_, key_id) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        let again = store.db().unwrap().commit_segment_key(key_id, &[1u8; 72]);
+        assert!(matches!(again, Err(StoreError::Corrupt(_))), "{again:?}");
+    }
+
+    #[test]
+    fn a_wrapped_segment_key_that_does_not_open_under_the_store_key_reads_as_corrupt_not_sealed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (segment, _) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute(
+                "UPDATE segment_keys SET wrapped_key = ?1 WHERE segment_id = ?2",
+                rusqlite::params![vec![7u8; 72], segment.segment_id.simple().to_string()],
+            )
+            .unwrap();
+        let read = store.read_segment(segment.segment_id, &mut Vec::new());
+        assert!(matches!(read, Err(StoreError::Corrupt(_))), "{read:?}");
+    }
+
+    #[test]
     fn pragmas_are_set() {
         let dir = tempfile::tempdir().unwrap();
         let store = make_store(dir.path());

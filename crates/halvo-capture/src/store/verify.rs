@@ -64,9 +64,9 @@ impl Drop for StoreDir {
     }
 }
 
-struct RootGuard(RootId);
+struct DestroyRootOnDrop(RootId);
 
-impl Drop for RootGuard {
+impl Drop for DestroyRootOnDrop {
     fn drop(&mut self) {
         let _ = DevFallbackCustody::new(self.0).destroy_root();
     }
@@ -127,7 +127,7 @@ pub fn run_store_check() -> StoreResult<StoreCheck> {
 
 pub(crate) fn run_store_check_in(dir: &Path, marker: &str) -> StoreResult<StoreCheck> {
     let root_id = RootId::fresh();
-    let _root = RootGuard(root_id);
+    let _root = DestroyRootOnDrop(root_id);
 
     let segment_id = {
         let mut store = EncryptedStore::create(
@@ -292,7 +292,7 @@ pub fn run_deletion_check() -> StoreResult<DeletionCheck> {
 
 pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
     let root_id = RootId::fresh();
-    let _root = RootGuard(root_id);
+    let _root = DestroyRootOnDrop(root_id);
     let mut store = EncryptedStore::create(
         dir,
         Box::new(DevFallbackCustody::new(root_id)),

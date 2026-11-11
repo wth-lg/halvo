@@ -72,7 +72,7 @@ fn race_config() -> ProptestConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Expiry {
     Past,
-    AtWrite,
+    OnShredBoundary,
     Future,
 }
 
@@ -80,7 +80,7 @@ impl Expiry {
     fn expires_at(self, now: u64) -> u64 {
         match self {
             Expiry::Past => 1,
-            Expiry::AtWrite => now,
+            Expiry::OnShredBoundary => now,
             Expiry::Future => now + DEFAULT_RETENTION.as_secs(),
         }
     }
@@ -107,7 +107,7 @@ fn segment_len() -> impl Strategy<Value = usize> {
 fn expiry() -> impl Strategy<Value = Expiry> {
     prop_oneof![
         Just(Expiry::Past),
-        Just(Expiry::AtWrite),
+        Just(Expiry::OnShredBoundary),
         Just(Expiry::Future)
     ]
 }
@@ -158,8 +158,8 @@ struct Harness {
     dir: PathBuf,
     roots: Vec<RootId>,
     store: Option<EncryptedStore>,
-    deleted: bool,
-    key_file: Option<KeyFile>,
+    deleted_since_last_create: bool,
+    latest_created_key_file: Option<KeyFile>,
     segments: Vec<ModelSegment>,
 }
 
@@ -180,8 +180,8 @@ impl Harness {
             dir: dir.to_path_buf(),
             roots: Vec::new(),
             store: None,
-            deleted: false,
-            key_file: None,
+            deleted_since_last_create: false,
+            latest_created_key_file: None,
             segments: Vec::new(),
         };
         harness.create_store();
@@ -220,13 +220,13 @@ impl Harness {
             !raw_key_at_rest,
             "store.key of the fresh store holds the raw store key"
         );
-        self.key_file = Some(key_file);
+        self.latest_created_key_file = Some(key_file);
         self.store = Some(store);
-        self.deleted = false;
+        self.deleted_since_last_create = false;
     }
 
     fn open_store(&self) -> Option<&EncryptedStore> {
-        if self.deleted {
+        if self.deleted_since_last_create {
             None
         } else {
             self.store.as_ref()
@@ -252,7 +252,7 @@ impl Harness {
         let now = unix_secs_now();
         let expires_at = expiry.expires_at(now);
         let result = store.write_segment_with_expiry(&mut Cursor::new(&plaintext), now, expires_at);
-        if self.deleted {
+        if self.deleted_since_last_create {
             prop_assert!(
                 matches!(result, Err(StoreError::Sealed)),
                 "a write after delete-all did not report Sealed: {:?}",
@@ -318,7 +318,7 @@ impl Harness {
         };
         let now = unix_secs_now();
         let result = store.crypto_shred_expired();
-        if self.deleted {
+        if self.deleted_since_last_create {
             prop_assert!(
                 matches!(result, Err(StoreError::Sealed)),
                 "a shred after delete-all did not report Sealed: {:?}",
@@ -348,7 +348,7 @@ impl Harness {
             return Ok(());
         };
         let result = store.crypto_shred_all();
-        if self.deleted {
+        if self.deleted_since_last_create {
             prop_assert!(
                 matches!(
                     result,
@@ -371,7 +371,7 @@ impl Harness {
         for seg in &mut self.segments {
             seg.fate = Fate::Shredded;
         }
-        self.deleted = true;
+        self.deleted_since_last_create = true;
         prop_assert_eq!(report.segments_shredded, live);
         prop_assert_eq!(report.keys_destroyed, live + 1);
         Ok(())
@@ -381,11 +381,14 @@ impl Harness {
         self.store = None;
         match EncryptedStore::open(&self.dir, DEFAULT_RETENTION) {
             Ok(store) => {
-                prop_assert!(!self.deleted, "a deleted store reopened");
+                prop_assert!(!self.deleted_since_last_create, "a deleted store reopened");
                 self.store = Some(store);
             }
             Err(StoreError::Sealed) => {
-                prop_assert!(self.deleted, "an existing store reopened as Sealed");
+                prop_assert!(
+                    self.deleted_since_last_create,
+                    "an existing store reopened as Sealed"
+                );
             }
             Err(e) => prop_assert!(false, "reopen failed: {e}"),
         }
@@ -393,7 +396,7 @@ impl Harness {
     }
 
     fn reopen_under_another_root(&mut self) -> Result<(), TestCaseError> {
-        if self.deleted {
+        if self.deleted_since_last_create {
             return Ok(());
         }
         let root_id = *self.roots.last().expect("the root id of the store");
@@ -427,7 +430,7 @@ impl Harness {
     }
 
     fn recreate(&mut self) -> Result<(), TestCaseError> {
-        if self.deleted {
+        if self.deleted_since_last_create {
             self.store = None;
             self.create_store();
             return Ok(());
@@ -462,7 +465,7 @@ impl Harness {
     }
 
     fn check(&self) -> Result<(), TestCaseError> {
-        if self.deleted {
+        if self.deleted_since_last_create {
             return self.check_deleted();
         }
         let Some(store) = self.open_store() else {
@@ -580,7 +583,7 @@ impl Harness {
 
     fn check_deleted(&self) -> Result<(), TestCaseError> {
         let key_file = self
-            .key_file
+            .latest_created_key_file
             .as_ref()
             .expect("the deleted store's key file");
         let custody = custody_for(key_file.custody_kind, key_file.root_id)
@@ -918,7 +921,7 @@ fn parse_log(text: &str) -> Vec<Logged> {
         .collect()
 }
 
-fn intervals(log: &[Logged]) -> Vec<(usize, u128, u128)> {
+fn hold_intervals_per_contender(log: &[Logged]) -> Vec<(usize, u128, u128)> {
     let mut open: Vec<Option<u128>> = Vec::new();
     let mut out = Vec::new();
     for entry in log {
@@ -943,6 +946,7 @@ fn intervals(log: &[Logged]) -> Vec<(usize, u128, u128)> {
 #[test]
 fn contend_for_store_for_parent() {
     let Ok(dir) = std::env::var(CONTEND_DIR) else {
+        println!("contend_for_store_for_parent: {CONTEND_DIR} is not set, so no race asked for a contender");
         return;
     };
     let dir = PathBuf::from(dir);
@@ -1111,7 +1115,7 @@ fn one_race(race: &Race, refusals: &RefusalsSeen) -> Result<(), TestCaseError> {
         !log.iter().any(|e| e.event == Event::OverlapSeen),
         "a contender found another contender inside the store"
     );
-    let held = intervals(&log);
+    let held = hold_intervals_per_contender(&log);
     for (a, &(ca, sa, ea)) in held.iter().enumerate() {
         for &(cb, sb, eb) in &held[a + 1..] {
             prop_assert!(

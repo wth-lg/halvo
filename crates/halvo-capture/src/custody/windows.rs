@@ -106,7 +106,7 @@ impl Protector for Dpapi {
 }
 
 pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
-    let local = std::env::var_os("LOCALAPPDATA").ok_or(CustodyError::RootDenied)?;
+    let local = std::env::var_os("LOCALAPPDATA").ok_or(CustodyError::NoRootDirectory)?;
     Ok(FileRoots::new(
         PathBuf::from(local).join("Halvo").join("roots"),
         Dpapi,

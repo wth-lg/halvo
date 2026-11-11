@@ -49,8 +49,7 @@ impl SegmentKey {
 }
 
 pub(crate) fn wrap_segment_key(store_key: &[u8; 32], seg_key: &SegmentKey) -> StoreResult<Vec<u8>> {
-    aead_seal(store_key, seg_key.expose(), SEGMENT_KEY_AAD)
-        .map_err(|_| StoreError::Io(io::ErrorKind::Other))
+    aead_seal(store_key, seg_key.expose(), SEGMENT_KEY_AAD).map_err(|_| StoreError::Seal)
 }
 
 pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreResult<SegmentKey> {
@@ -227,8 +226,7 @@ pub(crate) fn encrypt_segment(
         .and_then(|()| out.write_all(&nonce_bytes))
         .map_err(io_error)?;
 
-    let nonce = Array::try_from(&nonce_bytes[..])
-        .map_err(|_| StoreError::Io(io::ErrorKind::InvalidInput))?;
+    let nonce = Array::try_from(&nonce_bytes[..]).map_err(|_| StoreError::Seal)?;
     let mut encryptor: EncryptorBE32<XChaCha20Poly1305> =
         EncryptorBE32::new(key.expose().into(), &nonce);
     let mut chunks = Chunks::new(plaintext, CHUNK);
@@ -249,15 +247,11 @@ pub(crate) fn encrypt_segment(
 }
 
 fn emit_ciphertext(out: &mut dyn Write, sealed: Result<Vec<u8>, aead::Error>) -> StoreResult<()> {
-    let ciphertext = sealed.map_err(|_| StoreError::Io(io::ErrorKind::Other))?;
+    let ciphertext = sealed.map_err(|_| StoreError::Seal)?;
     out.write_all(&ciphertext).map_err(io_error)
 }
 
-pub(crate) fn decrypt_segment(
-    file: &mut dyn Read,
-    out: &mut dyn Write,
-    key: &SegmentKey,
-) -> StoreResult<u64> {
+fn decrypt_segment(file: &mut dyn Read, out: &mut dyn Write, key: &SegmentKey) -> StoreResult<u64> {
     let mut head = [0u8; HEADER_LEN];
     let mut nonce_bytes = [0u8; STREAM_NONCE];
     file.read_exact(&mut head)
@@ -397,6 +391,12 @@ pub(crate) mod tests {
                 "byte {position} of the nonce took one value in {WRAPS} wraps"
             );
         }
+    }
+
+    #[test]
+    fn a_seal_that_fails_is_a_seal_error_and_no_io_error() {
+        let emitted = emit_ciphertext(&mut Vec::new(), Err(aead::Error));
+        assert!(matches!(emitted, Err(StoreError::Seal)), "{emitted:?}");
     }
 
     #[test]

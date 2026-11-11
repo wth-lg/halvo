@@ -68,6 +68,10 @@ pub enum StoreError {
     /// returns `SQLITE_FULL`.
     #[error("the store database failed with SQLite code {0}")]
     Db(i32),
+    /// Sealing a segment or a segment key failed: the random source or the
+    /// cipher refused.
+    #[error("sealing a segment or a segment key failed")]
+    Seal,
     /// The write-ahead log checkpoint was busy or left bytes in the log, so the
     /// shred that asked for it is not complete.
     #[error("the checkpoint left the write-ahead log busy ({busy}) or holding {wal_bytes} bytes")]
