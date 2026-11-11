@@ -510,3 +510,27 @@ fn a_breach_of_r3_prints_its_fault_after_the_verdict_and_fails() {
         assert!(breached.hindsight_fault && !breached.passed(), "{breach:?}");
     }
 }
+
+#[test]
+fn a_routed_tier_with_one_held_out_attempt_misses_r2() {
+    let rows: Vec<Row> = hand_table()
+        .rows()
+        .iter()
+        .filter(|row| !(row.kind == Compile && row.seed == Three && row.machine == GenB))
+        .cloned()
+        .collect();
+    let table = Table::from_rows(&rows).expect("a table");
+    let setup = Setup::generated();
+    let derived = PolicyRouter::derived(&table, &setup);
+    let result = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS);
+    let lines = result.lines();
+    assert_eq!(
+        line(&lines, "cell category=email kind=compile "),
+        "cell category=email kind=compile pick=on_device basis=line_met dev_k=4 dev_n=4 held_k=1 held_n=1 lower_pct=54 cost_micro=0 wall_s=10"
+    );
+    assert_eq!(
+        lines.last().map(String::as_str),
+        Some("gate table=generated router=derived cells=44 routed=2 handed_back=28 derivation=same held=miss result=fail")
+    );
+    assert!(!result.passed());
+}
