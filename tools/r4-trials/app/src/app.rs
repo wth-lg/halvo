@@ -4,8 +4,6 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use tauri::http::header::{CACHE_CONTROL, CONTENT_TYPE};
-use tauri::http::Response;
 use tauri::ipc::Channel;
 use tauri::tray::TrayIconBuilder;
 use tauri::webview::PageLoadEvent;
@@ -52,14 +50,7 @@ pub(crate) fn make(options: Options, listener: std::net::TcpListener) -> tauri::
     let pages_dir = options.pages.clone();
     tauri::Builder::default()
         .register_uri_scheme_protocol(SCHEME, move |_ctx, request| {
-            let served = pages::serve(&pages_dir, request.uri().path());
-            Response::builder()
-                .status(served.status)
-                .header(CONTENT_TYPE, served.content_type)
-                .header("X-Content-Type-Options", "nosniff")
-                .header(CACHE_CONTROL, "no-store")
-                .body(served.body)
-                .unwrap_or_default()
+            pages::respond(&pages_dir, request.uri().path())
         })
         .invoke_handler(tauri::generate_handler![
             config, bump, frame, counts, report, next, subscribe

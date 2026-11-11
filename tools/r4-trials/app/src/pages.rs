@@ -1,5 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use tauri::http::header::{CACHE_CONTROL, CONTENT_TYPE};
+use tauri::http::Response;
+
 /// The scheme of the app's own pages.
 pub const SCHEME: &str = "r4trial";
 
@@ -78,6 +81,18 @@ fn resolve(pages: &Path, relative: &str) -> Result<PathBuf, u16> {
         return Err(404);
     }
     Ok(file)
+}
+
+/// The response of the scheme to a request for `path`: `serve` with its headers.
+pub fn respond(pages: &Path, path: &str) -> Response<Vec<u8>> {
+    let served = serve(pages, path);
+    Response::builder()
+        .status(served.status)
+        .header(CONTENT_TYPE, served.content_type)
+        .header("X-Content-Type-Options", "nosniff")
+        .header(CACHE_CONTROL, "no-store")
+        .body(served.body)
+        .unwrap_or_default()
 }
 
 fn status(code: u16) -> Served {
