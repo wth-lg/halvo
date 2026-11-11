@@ -1,0 +1,93 @@
+# Browser profile trial
+
+Unit U0.3 of the agent-setup run tests the privacy model of the agent browser (contract A13.3,
+A8.3). A run's browser starts with an empty profile and a temporary directory of its own, and the
+run removes both at its end. A sign-in that passed a second factor reaches the next run only as an
+exported state. This first pull request holds items 1, 2 and 4. Item 3 (egress) and the `flag`
+lines come with the second, so the verdict ends with `egress=open`.
+`tools/r3-trials/profile/README.md` says how each item runs and holds the longer notes.
+
+What ran. At commit 03f4c53 items 1 and 2 ran once per cell, on `mac` with Chrome and on `hosted-mac`
+and `hosted-win` with Chrome and Edge in hosted run 42976989121. The task shape of item 4 ran at 03f4c53 on
+`mac` with Chrome through the timed-run helper (2026-11-11T09:11:20Z to 2026-11-11T09:13:12Z) and on `hosted-win` with
+Chrome and Edge in run 42976989121. The steps shape ran at 85f255a, whose one change of code makes the
+program of the nine steps remove its browsers' directories: on `mac` through the helper
+(2026-11-11T11:56:17Z to 2026-11-11T11:57:19Z) and on `hosted-win` in run 42995011332. Each hosted run is of a scratch
+branch with its commit plus one commit on the workflow file. The `--browser` paths are `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+and `/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge` on the Macs, and
+`C:/Program Files/Google/Chrome/Application/chrome.exe` and
+`C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe` on `hosted-win`.
+
+Choices that the contract leaves. Item 2 runs item 1 first, so one run gives the three lines of a
+cell. A landing on `/bill` is `import=ok second_factor_asked_again=no`, one on `/verify` is
+`second_factor_asked_again=yes`, and any other is `import=miss`. Origin storage is localStorage.
+`marker_hits` counts the marker in three encodings, the name of the cookie whose value is the marker
+(the browser keeps that value encrypted), and one for each profile or temporary directory left on
+disk. The task shape of item 4 signs in, passes `/verify`, opens `/bill` and `/pay`, and holds that
+page for 20 s. Both shapes also measure the trial program and the fixture server.
+
+What the lines cannot show. The state carries cookies and localStorage only, not sessionStorage,
+IndexedDB or the HTTP cache, and the fixture uses none of them. Each cell of items 1 and 2 is one
+run. The search matches raw bytes, so it cannot see the marker in compressed bytes. On macOS every
+start adds the mock keychain, so `prompt=no` cannot show what the product's browser asks of the
+keychain. Chrome and Edge on macOS keep their singleton directory in the system's temporary directory
+although `TMPDIR` names the run's own (on Windows both write into the run's own), so the search of
+the system's temporary directory stays. On `hosted-win` the search read no file after the removal,
+so `marker_hits=0` rests there on the removal. On macOS `tree-peak` misses a peak shorter than its
+50 ms period.
+
+```text
+licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
+licence item=windows-sys@0.61.2 spdx=MIT read=2026-11-11 ok=yes
+hosted machine=hosted-mac run=42976989121 sha=6e1ade82f1c5db019bbb687e955adfb28f964b81
+hosted machine=hosted-win run=42976989121 sha=6e1ade82f1c5db019bbb687e955adfb28f964b81
+hosted machine=hosted-win run=42995011332 sha=6a13d1ca27dd30d403b112e06a474a0e84d109bc
+session machine=mac browser=chrome import=ok second_factor_asked_again=no
+session machine=hosted-mac browser=chrome import=ok second_factor_asked_again=no
+session machine=hosted-mac browser=edge import=ok second_factor_asked_again=no
+session machine=hosted-win browser=chrome import=ok second_factor_asked_again=no
+session machine=hosted-win browser=edge import=ok second_factor_asked_again=no
+keychain machine=mac browser=chrome prompt=no
+keychain machine=hosted-mac browser=chrome prompt=no
+keychain machine=hosted-mac browser=edge prompt=no
+keychain machine=hosted-win browser=chrome prompt=no
+keychain machine=hosted-win browser=edge prompt=no
+disk machine=mac browser=chrome marker_hits=0
+disk machine=hosted-mac browser=chrome marker_hits=0
+disk machine=hosted-mac browser=edge marker_hits=0
+disk machine=hosted-win browser=chrome marker_hits=0
+disk machine=hosted-win browser=edge marker_hits=0
+browser machine=mac browser=chrome shape=steps run=1 peak_bytes=1003197512
+browser machine=mac browser=chrome shape=steps run=2 peak_bytes=987025064
+browser machine=mac browser=chrome shape=steps run=3 peak_bytes=967904288
+browser machine=mac browser=chrome shape=steps run=4 peak_bytes=969575432
+browser machine=mac browser=chrome shape=steps run=5 peak_bytes=951979016
+browser machine=mac browser=chrome shape=task run=1 peak_bytes=969936600
+browser machine=mac browser=chrome shape=task run=2 peak_bytes=965299592
+browser machine=mac browser=chrome shape=task run=3 peak_bytes=973540768
+browser machine=mac browser=chrome shape=task run=4 peak_bytes=971787872
+browser machine=mac browser=chrome shape=task run=5 peak_bytes=977227432
+browser machine=hosted-win browser=chrome shape=steps run=1 peak_bytes=333254656
+browser machine=hosted-win browser=chrome shape=steps run=2 peak_bytes=323710976
+browser machine=hosted-win browser=chrome shape=steps run=3 peak_bytes=324091904
+browser machine=hosted-win browser=chrome shape=steps run=4 peak_bytes=328142848
+browser machine=hosted-win browser=chrome shape=steps run=5 peak_bytes=328278016
+browser machine=hosted-win browser=chrome shape=task run=1 peak_bytes=328699904
+browser machine=hosted-win browser=chrome shape=task run=2 peak_bytes=327753728
+browser machine=hosted-win browser=chrome shape=task run=3 peak_bytes=320552960
+browser machine=hosted-win browser=chrome shape=task run=4 peak_bytes=319766528
+browser machine=hosted-win browser=chrome shape=task run=5 peak_bytes=321466368
+browser machine=hosted-win browser=edge shape=steps run=1 peak_bytes=381464576
+browser machine=hosted-win browser=edge shape=steps run=2 peak_bytes=376107008
+browser machine=hosted-win browser=edge shape=steps run=3 peak_bytes=359645184
+browser machine=hosted-win browser=edge shape=steps run=4 peak_bytes=370241536
+browser machine=hosted-win browser=edge shape=steps run=5 peak_bytes=362643456
+browser machine=hosted-win browser=edge shape=task run=1 peak_bytes=367390720
+browser machine=hosted-win browser=edge shape=task run=2 peak_bytes=369782784
+browser machine=hosted-win browser=edge shape=task run=3 peak_bytes=360443904
+browser machine=hosted-win browser=edge shape=task run=4 peak_bytes=365957120
+browser machine=hosted-win browser=edge shape=task run=5 peak_bytes=370835456
+browser machine=hosted-win bound_bytes=469762048
+browser machine=mac bound_bytes=1216348160
+verdict profile=ephemeral egress=open browser_bound_bytes=1216348160
+```
