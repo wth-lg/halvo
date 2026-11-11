@@ -255,7 +255,9 @@ self_test() {
   printf '%s\n' docs/r6/a.md docs/r6/sub/b.md scripts/r6-gate/run.sh scripts/r6/x.sh >"$work/c.txt"
   printf '%s\n' docs/r6/aa.md >"$work/d.txt"
   printf '%s\n' 'docs/r6/q"q.md' >"$work/e.txt"
-  for fixture in a b c d e real; do
+  { cat "$work/a.txt" && printf '%s\n' docs/r6/README.md.bak; } >"$work/f.txt"
+  printf '%s\n' docs/r6/notes docs/r6/.md docs/r6/log-x docs/r6/a >"$work/g.txt"
+  for fixture in a b c d e f g real; do
     make_repo "$fixture" "$work/$fixture.txt"
   done
   make_repo missing "$work/a.txt"
@@ -283,6 +285,11 @@ docs/r6/bar.md U1.2'
   printf '%s\ndocs/r6/b\rr.md U1.2\n' "$good" >"$l/carriage-return-inside.txt"
   printf '%s\n%s\n' 'docs/r6/a*.md U0.5' 'docs/r6/*a.md U1.2' >"$l/tie.txt"
   printf '%s\n' 'docs/r6/** U0.5' >"$l/below.txt"
+  edges='docs/r6/notes** U0.5
+docs/r6/*.md U0.5
+docs/r6/log-* U0.5'
+  printf '%s\n%s\n' "$edges" 'docs/r6/a U0.5' >"$l/edges-all.txt"
+  printf '%s\n' "$edges" >"$l/edges.txt"
   printf '\357\273\277%s\n' "$good" >"$l/byte-order-mark.txt"
   printf '%s' "$good" >"$l/no-final-lf.txt"
   printf '%s\ndocs/r6/b\377r.md U1.2\n' "$good" >"$l/not-utf8.txt"
@@ -306,6 +313,14 @@ layout waits=docs/r6/bar.md
 FAIL $name (empty)" --all --waits U1.2
   check one-stray-path FAIL b good.txt "layout patterns=6 files=5 outside=1 empty=-
 layout stray=docs/r6/notes.txt
+FAIL $name (outside)"
+  check literal-pattern-with-a-suffix FAIL f good.txt "layout patterns=6 files=5 outside=1 empty=-
+layout stray=docs/r6/README.md.bak
+FAIL $name (outside)"
+  check stars-match-nothing-and-everything PASS g edges-all.txt "layout patterns=4 files=4 outside=0 empty=-
+PASS $name"
+  check path-shorter-than-a-pattern FAIL g edges.txt "layout patterns=3 files=4 outside=1 empty=-
+layout stray=docs/r6/a
 FAIL $name (outside)"
   check star-and-roots FAIL c star.txt "layout patterns=2 files=4 outside=2 empty=-
 layout stray=docs/r6/sub/b.md
