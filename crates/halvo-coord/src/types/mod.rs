@@ -8,6 +8,7 @@ mod ids;
 mod limits;
 mod names;
 mod run;
+mod status;
 mod workflow;
 
 pub use cause::Cause;
@@ -28,6 +29,7 @@ pub use run::{
     Answer, AskedEffect, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk, RunEvent,
     RunSpec,
 };
+pub use status::StatusLine;
 pub use workflow::{Agent, DismissedWorkflow, FullWorkflow, Kept, PastRun, Unknown, Workflow};
 
 #[cfg(test)]

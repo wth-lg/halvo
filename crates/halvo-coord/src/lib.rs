@@ -6,3 +6,4 @@
 pub mod mem;
 pub mod ports;
 pub mod types;
+pub mod words;
