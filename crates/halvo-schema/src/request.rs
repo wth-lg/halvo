@@ -18,6 +18,11 @@ pub const ANALYSIS_WRITE_MAX: usize = 65_500;
 /// The bound of a serialized interface request in bytes.
 pub const INTERFACE_REQUEST_MAX: usize = 4_096;
 
+/// The bound of a serialized reply in bytes, its envelope included, which every counter of a reply uses. The
+/// envelope takes 53 bytes beside a request id and 23 beside a null id, so a page holds at most 261,067 bytes
+/// beside a request id.
+pub const REPLY_MAX: usize = 261_120;
+
 const REQUEST_NAMES: [&str; 5] = [
     "analysis_write",
     "interface_read",
