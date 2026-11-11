@@ -331,7 +331,8 @@ impl CaptureRecord {
     }
 
     /// The app id, or none where the record holds null or a string whose cut name `AppId::from_capture`
-    /// refuses.
+    /// refuses or holds a control character of U+0080 to U+009F, which with the characters below U+0020 and
+    /// U+007F make the Unicode category Cc (C4.6 item 2).
     pub fn app(&self) -> Option<&AppId> {
         self.app.as_ref()
     }
@@ -651,7 +652,11 @@ fn envelope(
             if kind == Kind::RunMark {
                 return Err(RecordError::new("app", "run_mark"));
             }
-            AppId::from_capture(&s).ok()
+            AppId::from_capture(&s).ok().filter(|a| {
+                !a.as_str()
+                    .chars()
+                    .any(|c| ('\u{80}'..='\u{9f}').contains(&c))
+            })
         }
     };
     let payload = payload(kind, p)?;

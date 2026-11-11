@@ -699,3 +699,19 @@ fn lines_keep_a_line_of_16384_bytes_and_pass_over_one_of_16385() {
     assert!(buf.is_empty());
     assert_eq!(lines.next_line(&mut buf).unwrap(), None);
 }
+
+#[test]
+fn an_app_with_a_control_character_of_the_category_cc_is_taken_as_null() {
+    let app_of = |app: &str| {
+        let json = record("foreground_app", &format!("\"{app}\""), "{}");
+        read(&json).unwrap().app().map(|a| a.as_str().to_owned())
+    };
+    for c in ['\u{80}', '\u{85}', '\u{9b}', '\u{9f}'] {
+        assert_eq!(app_of(&format!("com.example{c}reader")), None, "{c:?}");
+        assert_eq!(app_of(&format!("/Applications/Odd{c}.app")), None, "{c:?}");
+    }
+    for c in ['\u{a0}', '\u{ff}'] {
+        let app = format!("com.example{c}reader");
+        assert_eq!(app_of(&app), Some(app.clone()), "{c:?}");
+    }
+}
