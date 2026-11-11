@@ -491,6 +491,11 @@ fn a_workflows_page_is_ascending_and_its_next_is_its_last_id() {
     refused::<WorkflowItem>(&item(W2, "dismissed", &format!("[{S1}]"), "null"));
     refused::<WorkflowItem>(&item(W2, "dismissed", "[]", "\"northwind-power\""));
     round_trip::<WorkflowItem>(&item(W1, "paused", "[]", "null"));
+    round_trip::<WorkflowItem>(&item(W1, "approved", &format!("[{S1}]"), "null"));
+    refused::<WorkflowItem>(&item(W1, "proposed", "[]", "\"northwind-power\""));
+    let mut emptied = read::<WorkflowItem>(&a);
+    emptied.summaries.clear();
+    assert_write_refused(&emptied);
     let mut p = read::<WorkflowsPage>(&page);
     p.workflows.reverse();
     p.next = None;

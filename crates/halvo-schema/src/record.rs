@@ -520,7 +520,7 @@ fn next_rule<T: PartialEq>(
 
 strict_struct! {
     /// One workflow of a workflows page, with the ids of its support set in ascending order and its hint.
-    /// A dismissed workflow has no summaries and no hint.
+    /// A dismissed workflow has no summaries, and a workflow with no summaries has no hint.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct WorkflowItem {
         pub workflow: Workflow,
@@ -531,8 +531,11 @@ strict_struct! {
         if !i.summaries.windows(2).all(|w| w[0] < w[1]) {
             return Err(ParseError::new("WorkflowItem", "order"));
         }
-        if matches!(i.workflow, Workflow::Dismissed(_)) && (!i.summaries.is_empty() || i.hint.is_some()) {
+        if matches!(i.workflow, Workflow::Dismissed(_)) && !i.summaries.is_empty() {
             return Err(ParseError::new("WorkflowItem", "dismissed"));
+        }
+        if i.summaries.is_empty() && i.hint.is_some() {
+            return Err(ParseError::new("WorkflowItem", "hint"));
         }
         Ok(())
     }

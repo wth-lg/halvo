@@ -727,7 +727,17 @@ fn decode_reply_refuses_what_c3_does_not_write() {
         &format!("\"next\":\"{W1}\""),
         &format!("\"next\":\"{HEX_A}\""),
     );
+    let hint_without_support = workflows_page().replace(
+        &format!("\"summaries\":[\"{HEX_B}\"],\"hint\":null"),
+        "\"summaries\":[],\"hint\":\"northwind-power\"",
+    );
+    assert_ne!(hint_without_support, workflows_page());
     let cases: Vec<(String, Option<RequestId>, ErrorName)> = vec![
+        (
+            reply(&quoted, "ok", &hint_without_support),
+            id.clone(),
+            ErrorName::Malformed,
+        ),
         ("nope".to_owned(), None, ErrorName::Malformed),
         (
             reply(&quoted, "error", "\"oops\""),
