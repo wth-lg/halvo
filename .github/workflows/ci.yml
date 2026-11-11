@@ -82,6 +82,32 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Probe of what the reading of the cap does not count (scratch branch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e -u
+          cargo build --locked --release -p halvo-cap --example hold --bin measure-peak
+          echo "build exit=$?"
+          MP=target/release/measure-peak
+          HOLD=target/release/examples/hold
+          scratch=$(mktemp -d)
+          for way in child-process exec mapped-read mapped-written purgeable reusable kernel-message socket-buffer; do
+            echo "== way $way"
+            out=$(TMPDIR="$scratch" "$MP" --limit 67108864 --runs 1 -- "$HOLD" "$way" 2>"$scratch/$way.err")
+            code=$?
+            printf '%s\n' "$out"
+            cat "$scratch/$way.err"
+            echo "measure-peak exit=$code"
+            run=$(printf '%s\n' "$out" | grep '^run n=1 ' | tr -d '\r')
+            peak=${run#*peak_bytes=}
+            peak=${peak%% *}
+            capped=${run#*capped=}
+            capped=${capped%% *}
+            held=$(grep '^hold way=' "$scratch/$way.err" | tr -d '\r' | sed 's/.*held_bytes=//')
+            echo "limit $way.macos-15 runs=1 held_bytes=${held:-0} limit_bytes=67108864 peak_bytes=${peak:-0} capped=${capped:-no}"
+          done
+          exit 0
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos --self-test
@@ -126,6 +152,109 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: Probe of what the reading of the cap does not count (scratch branch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e -u
+          cargo build --locked --release -p halvo-cap --example hold --bin measure-peak
+          echo "build exit=$?"
+          MP=target/release/measure-peak.exe
+          HOLD=target/release/examples/hold.exe
+          scratch=$(mktemp -d)
+          for way in child-process mapped-file section broker-process; do
+            echo "== way $way"
+            out=$(TMPDIR="$scratch" "$MP" --limit 67108864 --runs 1 -- "$HOLD" "$way" 2>"$scratch/$way.err")
+            code=$?
+            printf '%s\n' "$out"
+            cat "$scratch/$way.err"
+            echo "measure-peak exit=$code"
+            run=$(printf '%s\n' "$out" | grep '^run n=1 ' | tr -d '\r')
+            peak=${run#*peak_bytes=}
+            peak=${peak%% *}
+            capped=${run#*capped=}
+            capped=${capped%% *}
+            held=$(grep '^hold way=' "$scratch/$way.err" | tr -d '\r' | sed 's/.*held_bytes=//')
+            echo "limit $way.windows-2025 runs=1 held_bytes=${held:-0} limit_bytes=67108864 peak_bytes=${peak:-0} capped=${capped:-no}"
+          done
+          exit 0
+      - name: Control cells under a reduced token and a standard user (scratch branch only)
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $dir = Join-Path $env:RUNNER_TEMP ('cells-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          & icacls $dir /grant '*S-1-5-32-545:(OI)(CI)M' *> $null
+          "cells icacls-exit=$LASTEXITCODE"
+          $exe = Join-Path $dir 'measure-peak.exe'
+          Copy-Item (Resolve-Path 'target/release/measure-peak.exe').Path $exe
+          function Cell($label, $files, $started) {
+            $text = ''
+            foreach ($f in $files) { if (Test-Path $f) { $text += (Get-Content $f -Raw) + "`n" } }
+            if (-not $started -or $text.Trim() -eq '') { return "cell $label runs=1 result=not-run error=-" }
+            if ($text -match 'REFUSED cap-unsupported: .*\(os error (\d+)\)') { return "cell $label runs=1 result=cap-unsupported error=$($Matches[1])" }
+            if ($text -match '(?m)^checks control=ok') { return "cell $label runs=1 result=ok error=-" }
+            if ($text -match '(?m)^checks control=miss') { return "cell $label runs=1 result=miss error=-" }
+            return "cell $label runs=1 result=unknown error=-"
+          }
+          $reduced = Join-Path $dir 'reduced.txt'
+          $batch = Join-Path $dir 'reduced.cmd'
+          Set-Content -Path $batch -Encoding ascii -Value @('@echo off', "$exe --limit 268435456 --control > $reduced 2>&1", "echo exit=%errorlevel%>> $reduced")
+          & runas /trustlevel:0x20000 "cmd /c $batch" *> $null
+          "reduced-token runas-exit=$LASTEXITCODE"
+          $deadline = (Get-Date).AddSeconds(90)
+          while ((Get-Date) -lt $deadline -and -not ((Test-Path $reduced) -and (Select-String -Path $reduced -Pattern '^exit=' -Quiet))) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path $reduced) { Get-Content $reduced | ForEach-Object { "reduced-token $_" } } else { 'reduced-token no-output' }
+          Cell 'control-reduced-token.windows-2025' @($reduced) $true
+          $name = 'hc' + (Get-Random -Minimum 1000000 -Maximum 9999999)
+          $set = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+          $password = 'Aa7!' + (-join (1..9 | ForEach-Object { $set[(Get-Random -Maximum $set.Length)] }))
+          & net user $name $password /add *> $null
+          $added = ($LASTEXITCODE -eq 0)
+          "standard-user added=$added"
+          $admin = [bool]((& net localgroup Administrators 2>$null) -contains $name)
+          "standard-user in-administrators=$admin"
+          $started = $false
+          $out = Join-Path $dir 'standard.txt'
+          $err = Join-Path $dir 'standard-err.txt'
+          $priv = Join-Path $dir 'standard-priv.txt'
+          if ($added) {
+            $cred = New-Object System.Management.Automation.PSCredential ($name, (ConvertTo-SecureString $password -AsPlainText -Force))
+            try {
+              $p = Start-Process -FilePath 'whoami.exe' -ArgumentList '/priv' -Credential $cred -WorkingDirectory $dir -RedirectStandardOutput $priv -Wait -PassThru -ErrorAction Stop
+              "standard-user whoami-exit=$($p.ExitCode)"
+              Get-Content $priv | Where-Object { $_ -match '^Se' } | ForEach-Object { "standard-user privilege $($_ -replace '\s+', ' ')" }
+            } catch {
+              "standard-user whoami-started=False hresult=$($_.Exception.HResult) native=$($_.Exception.InnerException.NativeErrorCode)"
+            }
+            try {
+              $p = Start-Process -FilePath $exe -ArgumentList '--limit', '268435456', '--control' -Credential $cred -WorkingDirectory $dir -RedirectStandardOutput $out -RedirectStandardError $err -Wait -PassThru -ErrorAction Stop
+              $started = $true
+              "standard-user started=True exit=$($p.ExitCode)"
+            } catch {
+              "standard-user started=False hresult=$($_.Exception.HResult) native=$($_.Exception.InnerException.NativeErrorCode)"
+            }
+            foreach ($f in @($out, $err)) { if (Test-Path $f) { Get-Content $f | ForEach-Object { "standard-user $_" } } }
+            & net user $name /delete *> $null
+            "standard-user removed=$($LASTEXITCODE -eq 0)"
+          }
+          Cell 'control-standard-user.windows-2025' @($out, $err) $started
+          exit 0
+      - name: Failing proof of point 6 in a copy that ignores TerminateJobObject (scratch branch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e -u
+          copy="$RUNNER_TEMP/k9"
+          git worktree add --detach "$copy" HEAD
+          perl -0pi -e 's/if unsafe \{ TerminateJobObject\(self\.job\.0, 1\) \} == 0 \{\s*return Err\(last\("TerminateJobObject"\)\);\s*\}/unsafe { TerminateJobObject(self.job.0, 1) };/' "$copy/crates/halvo-cap/src/windows.rs"
+          echo "k9 copy: lines that read the return value: $(grep -c 'if unsafe { TerminateJobObject' "$copy/crates/halvo-cap/src/windows.rs")"
+          (cd "$copy" && cargo test --locked -p halvo-cap --lib -- a_failed_termination_of_the_job_names_its_call)
+          echo "k9 copy test exit=$?"
+          cargo test --locked -p halvo-cap --lib -- a_failed_termination_of_the_job_names_its_call
+          echo "k9 head test exit=$?"
+          exit 0
       - name: ci.d self-test
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows --self-test
