@@ -859,3 +859,19 @@ fn an_expiry_out_of_rising_seg_order_or_with_a_seg_twice_stops_the_client() {
         stopped_after_one_failure(client, 2);
     }
 }
+
+#[test]
+fn a_read_whose_next_names_segment_zero_stops_the_client() {
+    for next in [pos(0, 5), pos(0, 1)] {
+        let mut client = open_then(batch_json(STORE, pos(3, 0), &[], next));
+        assert_eq!(
+            client.read(),
+            Err(ClientError::Failed(Failure::Order(
+                "next in a segment of C5.3 or at the watermark"
+            ))),
+            "{next:?}"
+        );
+        assert_eq!(client.position(), Some(pos(0, 0)));
+        stopped_after_one_failure(client, 2);
+    }
+}

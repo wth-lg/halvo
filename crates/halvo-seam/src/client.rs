@@ -258,7 +258,8 @@ impl<L: Link> Client<L> {
     }
 
     /// Reads the next Batch of the open cursor and checks it against C5.5, C5.7 and C5.8: `expiry` in rising
-    /// `seg` order with no `seg` twice; the store of the open reply; a watermark that does not fall; `next` not below the cursor's position and not above the
+    /// `seg` order with no `seg` twice; `next` in a segment of C5.3, since no segment has the ordinal 0; the
+    /// store of the open reply; a watermark that does not fall; `next` not below the cursor's position and not above the
     /// watermark; records at or after the position, below `next`, in rising order, of a served kind and
     /// inside the cursor's filters; and an empty `records` only with a risen `next` or at the watermark.
     pub fn read(&mut self) -> Result<Batch, ClientError> {
@@ -336,6 +337,9 @@ fn broken(open: &Open, b: &Batch) -> Option<&'static str> {
     }
     if b.next > b.watermark {
         return Some("next is not above the watermark");
+    }
+    if b.next.seg == 0 {
+        return Some("next in a segment of C5.3 or at the watermark");
     }
     let mut last: Option<Position> = None;
     for e in &b.records {
