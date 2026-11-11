@@ -39,6 +39,24 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: U0.3 trial workspaces, test and clippy (scratch branch, never merged; counts only)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for crate in web profile; do
+            log="$RUNNER_TEMP/r3-trial-$crate-test.log"
+            (cd "tools/r3-trials/$crate" && cargo test --locked >"$log" 2>&1)
+            t=$?
+            passed=$(grep -o '[0-9]* passed' "$log" | awk '{s+=$1} END {print s+0}')
+            failed=$(grep -o '[0-9]* failed' "$log" | awk '{s+=$1} END {print s+0}')
+            ignored=$(grep -o '[0-9]* ignored' "$log" | awk '{s+=$1} END {print s+0}')
+            (cd "tools/r3-trials/$crate" && cargo clippy --locked --all-targets -- -D warnings >"$RUNNER_TEMP/r3-trial-$crate-clippy.log" 2>&1)
+            c=$?
+            echo "trial crate=$crate test_exit=$t passed=$passed failed=$failed ignored=$ignored clippy_exit=$c"
+            [ "$t" -eq 0 ] && [ "$c" -eq 0 ] || code=1
+          done
+          exit $code
       - name: Changelog
         shell: bash
         run: |
@@ -104,6 +122,24 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: U0.3 trial workspaces, test and clippy (scratch branch, never merged; counts only)
+        shell: bash
+        run: |
+          set +e
+          code=0
+          for crate in web profile; do
+            log="$RUNNER_TEMP/r3-trial-$crate-test.log"
+            (cd "tools/r3-trials/$crate" && cargo test --locked >"$log" 2>&1)
+            t=$?
+            passed=$(grep -o '[0-9]* passed' "$log" | awk '{s+=$1} END {print s+0}')
+            failed=$(grep -o '[0-9]* failed' "$log" | awk '{s+=$1} END {print s+0}')
+            ignored=$(grep -o '[0-9]* ignored' "$log" | awk '{s+=$1} END {print s+0}')
+            (cd "tools/r3-trials/$crate" && cargo clippy --locked --all-targets -- -D warnings >"$RUNNER_TEMP/r3-trial-$crate-clippy.log" 2>&1)
+            c=$?
+            echo "trial crate=$crate test_exit=$t passed=$passed failed=$failed ignored=$ignored clippy_exit=$c"
+            [ "$t" -eq 0 ] && [ "$c" -eq 0 ] || code=1
+          done
+          exit $code
       - uses: Swatinem/rust-cache@v2
       - name: Rust components
         shell: bash
