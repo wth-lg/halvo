@@ -22,6 +22,7 @@
   if (fault === 'motion_hidden') CSS.push('@media (prefers-reduced-motion: reduce) { .r4s [data-act="delete"] { display: none; } }');
   if (fault === 'forced_hidden') CSS.push('@media (forced-colors: active) { .r4s [data-act="switch_off"] { display: none; } }');
   if (fault === 'narrow_scroll') CSS.push('.r4s-line { min-width: 400px; }');
+  if (fault === 'dialog_30') CSS.push('.r4s .r4s-dialog button { min-width: 30px; min-height: 30px; width: 30px; height: 30px; padding: 0; overflow: hidden; }');
   if (fault === 'focus_pale') CSS.push('.r4s button:focus { outline-color: #d8d8d8; }');
   if (fault === 'focus_behind_image') CSS.push('.r4s { background-image: linear-gradient(#ffffff, #f8f8f8); }');
   if (fault === 'late_css') CSS.push('@keyframes r4s-late { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-late 0.01s 1.5s forwards; }');
@@ -289,6 +290,31 @@
         } catch (error) {
           status.setAttribute('data-socket', 'refused');
         }
+      }
+      if (fault === 'clipped') {
+        var box = el('div', null, null);
+        box.style.height = '10px';
+        box.style.overflow = 'hidden';
+        var cut = el('button', null, 'Show more');
+        cut.type = 'button';
+        cut.setAttribute('data-act', 'more');
+        box.appendChild(cut);
+        root.appendChild(box);
+      }
+      if (fault === 'wrapped' || fault === 'act_kind') {
+        var para = el('p', null, 'The agent can also ');
+        para.style.cssText = 'width: 110px; font-size: 14px; line-height: 16px;';
+        var span = el(fault === 'wrapped' ? 'span' : 'a', null, 'show what it did last week');
+        if (fault === 'wrapped') {
+          span.setAttribute('role', 'button');
+          span.tabIndex = 0;
+        } else {
+          span.href = '#more';
+          span.setAttribute('data-act', 'more');
+          span.style.cssText = 'display: inline-block; min-width: 44px; min-height: 44px;';
+        }
+        para.appendChild(span);
+        root.appendChild(para);
       }
       if (fault === 'never_quiet') {
         var tick = 0;

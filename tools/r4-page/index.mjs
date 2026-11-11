@@ -743,12 +743,50 @@ const HELPER = () => {
     },
     sizes() {
       const small = [];
+      const CUT = ['hidden', 'clip'];
+      const clip = (el) => {
+        const box = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+        let mode = getComputedStyle(el).position;
+        for (let p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+          const s = getComputedStyle(p);
+          if (mode === 'fixed' && s.transform === 'none') continue;
+          if (mode === 'absolute' && s.position === 'static' && s.transform === 'none') continue;
+          mode = s.position;
+          const x = CUT.includes(s.overflowX);
+          const y = CUT.includes(s.overflowY);
+          if (!x && !y) continue;
+          const r = p.getBoundingClientRect();
+          const left = r.left + p.clientLeft;
+          const top = r.top + p.clientTop;
+          if (x) {
+            box.left = Math.max(box.left, left);
+            box.right = Math.min(box.right, left + p.clientWidth);
+          }
+          if (y) {
+            box.top = Math.max(box.top, top);
+            box.bottom = Math.min(box.bottom, top + p.clientHeight);
+          }
+        }
+        return box;
+      };
+      const kind = (el) => {
+        const act = el.getAttribute('data-act');
+        if (act === null) return true;
+        if (el.tagName === 'BUTTON') return true;
+        if (el.tagName === 'INPUT' && el.type === 'radio') return true;
+        return el.tagName === 'INPUT' && el.type === 'text' && act === 'typed';
+      };
+      const round = (v) => Math.round(v * 100) / 100;
       for (const el of controls()) {
-        const r = el.getBoundingClientRect();
         let inDialog = false;
         for (let p = el.parentElement; p; p = p.parentElement) if (role(p) === 'alertdialog') inDialog = true;
         const min = inDialog ? 44 : 24;
-        if (Math.round(r.width * 100) / 100 < min || Math.round(r.height * 100) / 100 < min) small.push(name(el));
+        const box = clip(el);
+        const rects = [...el.getClientRects()].map((r) => ({
+          width: Math.max(0, Math.min(r.right, box.right) - Math.max(r.left, box.left)),
+          height: Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top)),
+        }));
+        if (!kind(el) || !rects.length || rects.some((r) => round(r.width) < min || round(r.height) < min)) small.push(name(el));
       }
       return small;
     },

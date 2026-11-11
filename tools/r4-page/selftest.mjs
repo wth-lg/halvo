@@ -39,6 +39,10 @@ const FAULTS = {
   4: [
     { fault: 'small', state: 'a', want: (r) => r.names.includes('delete') },
     { fault: 'never_quiet', state: 'a', want: (r) => r.names.includes('unsettled') },
+    { fault: 'dialog_30', state: 'b', want: (r) => r.names.includes('reject') },
+    { fault: 'clipped', state: 'a', want: (r) => r.names.includes('more') },
+    { fault: 'wrapped', state: 'a', want: (r) => r.names.includes('span') },
+    { fault: 'act_kind', state: 'a', want: (r) => r.names.includes('more') },
   ],
   5: [
     { fault: 'motion_hidden', state: 'a', mode: 'reduced_motion' },
