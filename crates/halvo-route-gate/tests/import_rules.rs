@@ -1048,19 +1048,6 @@ fn usage_is_refused_with_its_detail() {
             "--out",
             "out",
         ],
-        vec![
-            "import",
-            "--driver",
-            "docs\\r3\\driver.md",
-            "--cells",
-            "model-cells.md",
-            "--date",
-            "s1=2026-11-10",
-            "--date",
-            "s2=2026-11-10",
-            "--out",
-            "out",
-        ],
     ];
     for args in cases {
         let (driver, cells) = good();
@@ -1134,6 +1121,37 @@ fn a_path_that_cannot_be_read_and_an_out_that_is_no_empty_directory_are_refused_
             "kept\n"
         );
     }
+}
+
+#[test]
+fn a_path_with_a_backslash_is_kept_as_given() {
+    let dir = scratch();
+    let out = dir.join("out");
+    std::fs::create_dir(&out).expect("out");
+    if cfg!(windows) {
+        std::fs::create_dir(dir.join("sub")).expect("sub");
+    }
+    std::fs::write(
+        dir.join("sub\\driver.md"),
+        file("driver", block(&[ATTEMPT, VERDICT])),
+    )
+    .expect("driver");
+    std::fs::write(dir.join("model-cells.md"), file("cells", block(&[BOUND]))).expect("cells");
+    let mut args = ARGS.to_vec();
+    args[2] = "sub\\driver.md";
+    let output = Command::new(env!("CARGO_BIN_EXE_route-gate"))
+        .current_dir(&dir)
+        .args(args)
+        .output()
+        .expect("the tool runs");
+    assert_eq!(
+        String::from_utf8(output.stderr).expect("utf-8"),
+        "",
+        "a backslash is no byte that T0.4 keeps out of a cell"
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let sources = std::fs::read_to_string(out.join("sources.tsv")).expect("written");
+    assert!(sources.contains("\ns1\tsub\\driver.md\t"), "{sources}");
 }
 
 #[test]

@@ -279,7 +279,7 @@ fn path_cell(path: &str) -> bool {
         && path != "-"
         && path
             .bytes()
-            .all(|b| b >= 0x20 && b != 0x7f && b != b'"' && b != b'\'' && b != b'\\')
+            .all(|b| b >= 0x20 && b != 0x7f && b != b'"' && b != b'\'')
 }
 
 fn call(args: &[String]) -> Result<Call<'_>, Refusal> {
