@@ -50,9 +50,7 @@ pub enum What {
     ItemAnswered {
         /// `item`.
         item: ItemId,
-        /// `kind`.
-        kind: ItemKind,
-        /// `answer`, with the effect's keys for a confirmation.
+        /// `kind` and `answer`, with the effect's keys for a confirmation.
         answer: Answered,
     },
     /// `item_lapsed`.
@@ -88,13 +86,144 @@ pub enum What {
     },
 }
 
-/// The answer of an `item_answered` row.
+/// The kind and the answer of an `item_answered` row: each kind with one of its own choices of
+/// I3.1, and a confirmation with the entry of one effect (I7.1).
+///
+/// ```
+/// use halvo_coord::types::{Answered, CheckAnswer, ItemKind};
+/// let row = Answered::Check(CheckAnswer::WentThrough);
+/// assert_eq!(row.kind(), ItemKind::Check);
+/// assert_eq!(row.choice().map(|c| c.name()), Some("went_through"));
+/// ```
+///
+/// A kind with the answer of another kind cannot be written:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::{Answered, CheckAnswer};
+/// let row = Answered::SignIn(CheckAnswer::WentThrough);
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Answered {
-    /// The choice of an item that is no confirmation.
-    Choice(Choice),
-    /// The entry of one effect of a confirmation: `effect`, `approval`, `digest` and `answer`.
-    Effect(DecisionEntry),
+    /// `confirm`: the entry of one effect, `effect`, `approval`, `digest` and `answer`.
+    Confirm(DecisionEntry),
+    /// `sign_in`.
+    SignIn(DoneAnswer),
+    /// `link_account`.
+    LinkAccount(DoneAnswer),
+    /// `stuck`.
+    Stuck(DoneAnswer),
+    /// `check`.
+    Check(CheckAnswer),
+    /// `setup`.
+    Setup(SetupAnswer),
+    /// `ready`.
+    Ready(ReadyAnswer),
+    /// `show`.
+    Show(DoneAnswer),
+}
+
+impl Answered {
+    /// The row's `kind`.
+    pub const fn kind(&self) -> ItemKind {
+        match self {
+            Answered::Confirm(_) => ItemKind::Confirm,
+            Answered::SignIn(_) => ItemKind::SignIn,
+            Answered::LinkAccount(_) => ItemKind::LinkAccount,
+            Answered::Stuck(_) => ItemKind::Stuck,
+            Answered::Check(_) => ItemKind::Check,
+            Answered::Setup(_) => ItemKind::Setup,
+            Answered::Ready(_) => ItemKind::Ready,
+            Answered::Show(_) => ItemKind::Show,
+        }
+    }
+
+    /// The row's `answer` as a choice, or none for a confirmation, whose answer is the entry's.
+    pub const fn choice(&self) -> Option<Choice> {
+        match self {
+            Answered::Confirm(_) => None,
+            Answered::SignIn(a) | Answered::LinkAccount(a) | Answered::Stuck(a) => Some(a.choice()),
+            Answered::Show(a) => Some(a.choice()),
+            Answered::Check(a) => Some(a.choice()),
+            Answered::Setup(a) => Some(a.choice()),
+            Answered::Ready(a) => Some(a.choice()),
+        }
+    }
+}
+
+/// The two choices of `sign_in`, `link_account`, `stuck` and `show` (I3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DoneAnswer {
+    /// `decline`.
+    Decline,
+    /// `done`.
+    Done,
+}
+
+/// The two choices of `check` (I3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CheckAnswer {
+    /// `try_again`.
+    TryAgain,
+    /// `went_through`.
+    WentThrough,
+}
+
+/// The two choices of `setup` (I3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SetupAnswer {
+    /// `none`.
+    None,
+    /// `choose`.
+    Choose,
+}
+
+/// The two choices of `ready` (I3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadyAnswer {
+    /// `skip`.
+    Skip,
+    /// `start`.
+    Start,
+}
+
+impl DoneAnswer {
+    /// The choice.
+    pub const fn choice(self) -> Choice {
+        match self {
+            DoneAnswer::Decline => Choice::Decline,
+            DoneAnswer::Done => Choice::Done,
+        }
+    }
+}
+
+impl CheckAnswer {
+    /// The choice.
+    pub const fn choice(self) -> Choice {
+        match self {
+            CheckAnswer::TryAgain => Choice::TryAgain,
+            CheckAnswer::WentThrough => Choice::WentThrough,
+        }
+    }
+}
+
+impl SetupAnswer {
+    /// The choice.
+    pub const fn choice(self) -> Choice {
+        match self {
+            SetupAnswer::None => Choice::None,
+            SetupAnswer::Choose => Choice::Choose,
+        }
+    }
+}
+
+impl ReadyAnswer {
+    /// The choice.
+    pub const fn choice(self) -> Choice {
+        match self {
+            ReadyAnswer::Skip => Choice::Skip,
+            ReadyAnswer::Start => Choice::Start,
+        }
+    }
 }
 
 /// The cause of a `hold_cleared` event: the hold that ended (I5.4, I7.1).

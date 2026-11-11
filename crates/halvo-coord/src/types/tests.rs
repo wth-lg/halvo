@@ -226,6 +226,57 @@ fn the_failure_class_is_the_six_ends_of_i5_6() {
 }
 
 #[test]
+fn an_answered_row_pairs_each_kind_with_its_own_choices_of_i3_1() {
+    let rows = [
+        Answered::SignIn(DoneAnswer::Decline),
+        Answered::SignIn(DoneAnswer::Done),
+        Answered::LinkAccount(DoneAnswer::Decline),
+        Answered::LinkAccount(DoneAnswer::Done),
+        Answered::Stuck(DoneAnswer::Decline),
+        Answered::Stuck(DoneAnswer::Done),
+        Answered::Check(CheckAnswer::TryAgain),
+        Answered::Check(CheckAnswer::WentThrough),
+        Answered::Setup(SetupAnswer::None),
+        Answered::Setup(SetupAnswer::Choose),
+        Answered::Ready(ReadyAnswer::Skip),
+        Answered::Ready(ReadyAnswer::Start),
+        Answered::Show(DoneAnswer::Decline),
+        Answered::Show(DoneAnswer::Done),
+    ];
+    let got: Vec<String> = rows
+        .iter()
+        .map(|r| format!("{}.{}", r.kind().name(), r.choice().unwrap().name()))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            "sign_in.decline",
+            "sign_in.done",
+            "link_account.decline",
+            "link_account.done",
+            "stuck.decline",
+            "stuck.done",
+            "check.try_again",
+            "check.went_through",
+            "setup.none",
+            "setup.choose",
+            "ready.skip",
+            "ready.start",
+            "show.decline",
+            "show.done",
+        ]
+    );
+    let entry = DecisionEntry {
+        approval: ApprovalId::parse(&"9".repeat(32)).unwrap(),
+        effect: EffectId::parse(&"8".repeat(32)).unwrap(),
+        digest: Digest::parse(&"a".repeat(64)).unwrap(),
+        answer: EffectAnswer::AllowOnce,
+    };
+    assert_eq!(Answered::Confirm(entry.clone()).kind(), ItemKind::Confirm);
+    assert_eq!(Answered::Confirm(entry).choice(), None);
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),
