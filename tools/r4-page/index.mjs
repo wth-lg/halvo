@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { HERE, Refusal, browsersDir, installed } from './machine.mjs';
 
 const LICENCES = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Zlib', 'Unicode-3.0'];
-const TEXT_KEYS = new Set(['name', 'word', 'line', 'say', 'level', 'text', 'title', 'label', 'value', 'from_text', 'note']);
+const TEXT_KEYS = new Set(['name', 'word', 'line', 'say', 'level', 'next', 'day', 'text', 'title', 'label', 'value', 'from_text', 'note']);
 const MARKUP = '<b data-x="1">x</b>&amp;';
 const VIEWPORT = { width: 1024, height: 768 };
 const SETTLE_MS = 5000;

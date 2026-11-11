@@ -52,7 +52,10 @@ const FAULTS = {
     { fault: 'inner_scroll', state: 'a', mode: 'width_320' },
     { fault: 'engine_mode', state: 'a', mode: 'forced_colors', engine: true },
   ],
-  6: [{ fault: 'inner_html', state: 'a', want: (r) => r.counts.markup === 'miss' }],
+  6: [
+    { fault: 'inner_html', state: 'a', want: (r) => r.counts.markup === 'miss' },
+    { fault: 'day_html', state: 'a', want: (r) => r.counts.markup === 'miss' },
+  ],
 };
 
 function structure(state) {
