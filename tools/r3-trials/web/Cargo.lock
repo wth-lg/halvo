@@ -656,6 +656,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 name = "r3-web"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "chromiumoxide",
  "futures",
  "serde_json",

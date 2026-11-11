@@ -116,6 +116,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if a.mode == Mode::SnapshotPay && a.out.is_none() {
         return Err("--snapshot-pay needs --out".into());
     }
+    if a.fault.is_some() && a.mode != Mode::Cells {
+        return Err("--fault runs cells only".into());
+    }
     Ok(a)
 }
 
@@ -140,7 +143,7 @@ fn main() -> ExitCode {
     let needed: Vec<u16> = match (&args.fault, args.mode) {
         (Some(_), _) => vec![port, port + 2],
         (None, Mode::Extras) => vec![port, port + 1],
-        _ => vec![port],
+        (None, _) => vec![port],
     };
     if let Some(p) = needed.iter().find(|p| !port_free(**p)) {
         return refuse("port", &format!("127.0.0.1:{p} is taken"));
@@ -178,7 +181,9 @@ mod driver {
     use std::process::ExitCode;
     use std::time::{Duration, Instant};
 
-    use r3_web::cdp::{Executor, Fault, Locator, Res, Resolved, SnapshotLine, StartOptions};
+    use r3_web::cdp::{
+        Executor, Fault, Locator, Outcome, PausedRequest, Res, Resolved, SnapshotLine, StartOptions,
+    };
     use r3_web::fixture::{count, fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
     use r3_web::{
         extract_amount, major_of, median, variants_of, CANDIDATE, FIRST_FLAGS, RESOLVER_RULE, STEPS,
@@ -292,9 +297,28 @@ mod driver {
         Ok(())
     }
 
+    async fn watch_requests(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+        ex.arm_rule(vec![origin(UTILITY, ctx.port), origin(PAY, ctx.port)], true)
+            .await
+    }
+
+    fn sent(ex: &Executor, method: &str, path: &str) -> Res<PausedRequest> {
+        let mut found: Vec<PausedRequest> = ex
+            .paused()
+            .into_iter()
+            .filter(|p| p.method == method && p.path == path && p.outcome == Outcome::Continued)
+            .collect();
+        match found.len() {
+            1 => Ok(found.remove(0)),
+            0 => Err(Fault::new("check", "request_not_sent")),
+            _ => Err(Fault::new("check", "request_sent_twice")),
+        }
+    }
+
     async fn form_fill(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
         signin(ex, ctx).await?;
         ex.open(&ctx.u("/prefs")).await?;
+        watch_requests(ex, ctx).await?;
         let before = count(&state(ctx)?, &["utility", "prefs_saved"]);
         let boxed = ex
             .resolve_one(&[role("checkbox", "Paperless billing")], &[])
@@ -305,7 +329,9 @@ mod driver {
             .await?;
         click_and_wait(ex, &save).await?;
         let after = count(&state(ctx)?, &["utility", "prefs_saved"]);
-        check(after == before + 1, "prefs_saved")
+        check(after == before + 1, "prefs_saved")?;
+        let post = sent(ex, "POST", "/prefs")?;
+        check(post.body_holds(b"paperless=yes"), "box_set_in_request")
     }
 
     fn payments(ctx: &Ctx) -> Res<Vec<serde_json::Value>> {
@@ -315,14 +341,22 @@ mod driver {
             .unwrap_or_default())
     }
 
-    fn paid_once_more(ctx: &Ctx, before: usize) -> Res<()> {
+    fn paid_once_more(ctx: &Ctx, before: usize, instrument: &str) -> Res<()> {
         let after = payments(ctx)?;
         check(after.len() == before + 1, "payments")?;
-        let amount = after.last().map(|p| p["amount"].clone());
+        let last = after.last().cloned().unwrap_or_default();
         check(
-            amount == Some(ctx.seed.0["utility"]["amount_due"].clone()),
+            last["amount"] == ctx.seed.0["utility"]["amount_due"],
             "amount",
-        )
+        )?;
+        check(last["instrument"] == instrument, "instrument")
+    }
+
+    fn first_instrument(ctx: &Ctx) -> String {
+        ctx.seed.0["utility"]["instruments"][0]
+            .as_str()
+            .unwrap_or("-")
+            .to_string()
     }
 
     async fn payment_frame(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -343,6 +377,7 @@ mod driver {
             .resolve_one(&[role("combobox", "Payment method")], &["Payment"])
             .await?;
         ex.select(&method, &first).await?;
+        check(ex.read(&method).await? == first, "selected")?;
         let pay = ex
             .resolve_one(&[role("button", "Pay now")], &["Payment"])
             .await?;
@@ -351,7 +386,8 @@ mod driver {
             .resolve(&[role("heading", "Payment received")], &["Payment"])
             .await?;
         check(matches!(heading, Resolved::One { .. }), "heading")?;
-        paid_once_more(ctx, before)
+        paid_once_more(ctx, before, &first)?;
+        check(first == first_instrument(ctx), "first_option")
     }
 
     async fn file_upload(ex: &mut Executor, ctx: &Ctx, i: u32) -> Res<()> {
@@ -371,10 +407,15 @@ mod driver {
             )
             .await?;
         ex.upload(&input, &file).await?;
+        watch_requests(ex, ctx).await?;
         let send = ex.resolve_one(&[role("button", "Upload")], &[]).await?;
         click_and_wait(ex, &send).await?;
         let after = count(&state(ctx)?, &["utility", "uploads"]);
-        check(after == before + 1, "uploads")
+        check(after == before + 1, "uploads")?;
+        let post = sent(ex, "POST", "/upload")?;
+        check(post.body_complete, "body_readable")?;
+        check(post.body_holds(&[0x5a_u8; 1024]), "file_bytes_in_request")?;
+        check(!post.body_holds(&[0x5a_u8; 1025]), "file_size_in_request")
     }
 
     async fn session_expiry(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -411,7 +452,7 @@ mod driver {
         };
         check(locator == 1, "second_locator")?;
         click_and_wait(ex, &reference).await?;
-        paid_once_more(ctx, before)
+        paid_once_more(ctx, before, &first_instrument(ctx))
     }
 
     async fn block_request(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -424,6 +465,7 @@ mod driver {
         let save = ex
             .resolve_one(&[role("button", "Save preferences")], &[])
             .await?;
+        let main = ex.main_frame().await?;
         ex.click(&save).await?;
         let deadline = Instant::now() + r3_web::cdp::STEP_TIMEOUT;
         let failed = loop {
@@ -438,7 +480,16 @@ mod driver {
         check(failed.method == "POST", "method")?;
         check(failed.origin == u, "origin")?;
         check(failed.path == "/prefs", "path")?;
-        tokio::time::sleep(Duration::from_millis(300)).await;
+        check(failed.outcome == Outcome::Failed, "failed_by_browser")?;
+        loop {
+            if ex.frame_url(&main).await?.starts_with("chrome-error://") {
+                break;
+            }
+            if Instant::now() > deadline {
+                return Err(Fault::new("timeout", "error_page"));
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
         let after = count(&state(ctx)?, &["requests", "state_changing"]);
         check(after == before, "state_changing")
     }
@@ -513,10 +564,17 @@ mod driver {
         let t0 = Instant::now();
         let outcome = step(&mut ex, ctx, name, i).await;
         let ms = t0.elapsed().as_millis();
-        if let Err(f) = &outcome {
-            eprintln!("miss step={name} i={i} cause={} detail={}", f.0, f.1);
-        }
         ex.stop().await;
+        if let Err(f) = &outcome {
+            eprintln!(
+                "miss step={name} i={i} cause={} detail={}",
+                f.0,
+                printable(&f.1)
+            );
+            if f.0 == "control" {
+                return Err(format!("control during the run: {}", printable(&f.1)));
+            }
+        }
         Ok(Run {
             ok: outcome.is_ok(),
             cause: outcome.err().map(|f| f.0.to_string()).unwrap_or("-".into()),
@@ -546,14 +604,14 @@ mod driver {
                         ));
                         if r.ok {
                             ok += 1;
+                            times.push(r.ms);
                         }
-                        times.push(r.ms);
                         if let Some(m) = major_of(&r.version) {
                             majors.push(m);
                         }
                     }
                     Err(e) => {
-                        eprintln!("control: {e}");
+                        eprintln!("control: {}", printable(&e));
                         out(&format!(
                             "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=fixture",
                             ctx.machine, ctx.kind
@@ -569,7 +627,14 @@ mod driver {
             }
             majors.sort_unstable();
             majors.dedup();
-            let major = majors.first().map(|m| m.to_string()).unwrap_or("-".into());
+            let Some(major) = majors.first() else {
+                out(&format!(
+                    "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=version",
+                    ctx.machine, ctx.kind
+                ));
+                all_ran = false;
+                continue;
+            };
             if majors.len() > 1 {
                 out(&format!(
                     "note step={name} majors={}",
@@ -664,28 +729,60 @@ mod driver {
         outcome
     }
 
-    async fn extras(ctx: &Ctx, added_bytes: u64) {
+    async fn extras(ctx: &Ctx, added_bytes: u64) -> bool {
         let mut colds = Vec::new();
+        let mut faults = Vec::new();
         for i in 1..=10 {
             match cold_start(ctx, i).await {
                 Ok(ms) => colds.push(ms),
-                Err(f) => eprintln!("cold i={i} cause={} detail={}", f.0, f.1),
+                Err(f) => faults.push(("cold", f)),
             }
         }
         let rec = record(ctx).await;
         if let Err(f) = &rec {
-            eprintln!("record cause={} detail={}", f.0, f.1);
+            faults.push(("record", f.clone()));
         }
         let att = attach(ctx).await;
         if let Err(f) = &att {
-            eprintln!("attach cause={} detail={}", f.0, f.1);
+            faults.push(("attach", f.clone()));
+        }
+        for (part, f) in &faults {
+            eprintln!("{part} cause={} detail={}", f.0, printable(&f.1));
+        }
+        let unmeasured = colds.len() < 10 || faults.iter().any(|(_, f)| f.0 == "control");
+        if unmeasured {
+            out(&format!(
+                "notrun candidate={CANDIDATE} machine={} browser={} cell=extras cause={}",
+                ctx.machine,
+                ctx.kind,
+                if colds.len() < 10 {
+                    "cold_start"
+                } else {
+                    "fixture"
+                }
+            ));
+            return false;
         }
         out(&format!(
             "extras candidate={CANDIDATE} added_bytes={added_bytes} cold_ms={} record={} attach={} pipe=no",
-            if colds.len() == 10 { median(&mut colds).to_string() } else { "-".into() },
+            median(&mut colds),
             if rec.is_ok() { "ok" } else { "miss" },
             if att.is_ok() { "ok" } else { "miss" }
         ));
+        true
+    }
+
+    fn printable(detail: &str) -> String {
+        let token = detail.replace(' ', "_");
+        let safe = token.len() <= 64
+            && token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"_:.-".contains(&b));
+        if safe {
+            token
+        } else {
+            format!("text_of_{}_bytes", detail.len())
+        }
     }
 
     async fn resolver(ctx: &Ctx) -> Res<()> {
@@ -820,8 +917,11 @@ mod driver {
                 }
             }
             Mode::Extras => {
-                extras(&ctx, args.added_bytes.unwrap_or_default()).await;
-                ExitCode::SUCCESS
+                if extras(&ctx, args.added_bytes.unwrap_or_default()).await {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::from(1)
+                }
             }
             Mode::Resolver => match resolver(&ctx).await {
                 Ok(()) => ExitCode::SUCCESS,

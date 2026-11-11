@@ -33,7 +33,9 @@ starts the browser headless with a new profile for every run, and stops both at 
   --scratch DIR     the directory for profiles and upload files; default a new mktemp directory.
 
 Output: one run line per run, one cell line per step, and no verdict line. A run line holds the
-browser product and version that the browser reported over the protocol.
+browser product and version that the browser reported over the protocol. median_ms is the median
+of the runs that printed ok. A run whose fixture control failed, and a cell with no browser
+version, make a notrun line in place of the cell line.
 Exit 0 when every cell ran (a miss is a result), 1 when a cell could not run (a notrun line
 names it), 2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error.
 EOF
@@ -78,8 +80,31 @@ esac
 [ "$port" -ge 1 ] && [ "$port" -le 65532 ] || refuse usage "--port takes an integer from 1 to 65532"
 if [ "$mode" = cells ]; then
   case "$runs" in
-    '' | *[!0-9]* | 0) refuse usage "--runs takes a count from 1" ;;
+    '' | *[!0-9]* | 0*) refuse usage "--runs takes a count from 1" ;;
   esac
+fi
+case "$step" in
+  '' | signin_form | table_read | form_fill | payment_frame | file_upload | session_expiry | \
+    changed_page_1 | block_request | credential_mark) ;;
+  *) refuse usage "--step takes one of the nine steps of A13.2" ;;
+esac
+case "$fault" in
+  '') ;;
+  signin_500 | history_changed | prefs_500 | frame_hangs | upload_input_gone | pay_now_renamed | \
+    prefs_get_form | password_plain)
+    [ "$mode" = cells ] || refuse usage "--fault runs cells only"
+    ;;
+  *) refuse usage "--fault takes one of the faults that --help names" ;;
+esac
+[ "$mode" = snapshot ] && [ -z "$out" ] && refuse usage "--snapshot-pay needs a file"
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = macOS ]; then
+  machine=hosted-mac
+elif [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = Windows ]; then
+  machine=hosted-win
+elif [ "$(uname -s)" = Darwin ]; then
+  machine=mac
+else
+  refuse usage "this machine is none of mac, hosted-mac and hosted-win"
 fi
 [ -n "$browser" ] || refuse usage "--browser is required"
 case "$(basename "$browser")" in
@@ -101,19 +126,9 @@ taken=$(node "$dir/port-free.mjs" $ports) || refuse port "127.0.0.1:$taken is ta
 
 if [ -z "$scratch" ]; then
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/r3-web.XXXXXX") || {
-    echo "notrun candidate=cdp cause=scratch"
+    echo "notrun candidate=cdp machine=$machine cause=scratch"
     exit 1
   }
-fi
-
-if [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = macOS ]; then
-  machine=hosted-mac
-elif [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = Windows ]; then
-  machine=hosted-win
-elif [ "$(uname -s)" = Darwin ]; then
-  machine=mac
-else
-  refuse usage "this machine is none of mac, hosted-mac and hosted-win"
 fi
 
 exe=
@@ -154,6 +169,6 @@ case "$mode" in
     set -- "$@" --extras --added-bytes "$((with - without))"
     ;;
   resolver) set -- "$@" --resolver-probe ;;
-  snapshot) set -- "$@" --snapshot-pay "$out" ;;
+  snapshot) set -- "$@" --snapshot-pay --out "$out" ;;
 esac
 "$bin" "$@"

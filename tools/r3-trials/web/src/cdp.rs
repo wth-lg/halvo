@@ -63,12 +63,45 @@ struct Target {
     node: BackendNodeId,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    Continued,
+    Failed,
+    Refused,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PausedRequest {
     pub method: String,
     pub origin: String,
     pub path: String,
     pub let_through: bool,
+    pub outcome: Outcome,
+    pub body: Vec<u8>,
+    pub body_complete: bool,
+}
+
+impl PausedRequest {
+    pub fn body_holds(&self, needle: &[u8]) -> bool {
+        !needle.is_empty() && self.body.windows(needle.len()).any(|w| w == needle)
+    }
+}
+
+fn body_of(request: &chromiumoxide::cdp::browser_protocol::network::Request) -> (Vec<u8>, bool) {
+    use base64::Engine;
+    let mut body = Vec::new();
+    let mut complete = true;
+    for entry in request.post_data_entries.iter().flatten() {
+        let decoded = entry.bytes.as_ref().and_then(|b| {
+            let text: &str = b.as_ref();
+            base64::engine::general_purpose::STANDARD.decode(text).ok()
+        });
+        match decoded {
+            Some(bytes) => body.extend(bytes),
+            None => complete = false,
+        }
+    }
+    (body, complete)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -176,11 +209,16 @@ impl Executor {
             .map_err(cdp("attach"))?;
         let handler = tokio::spawn(async move { while handler.next().await.is_some() {} });
         let targets = browser.fetch_targets().await.map_err(cdp("attach"))?;
-        let target: Option<TargetId> = targets
+        let pages: Vec<TargetId> = targets
             .into_iter()
-            .find(|t| t.r#type == "page" && t.url.starts_with(url_prefix))
-            .map(|t| t.target_id);
-        let target = target.ok_or_else(|| Fault::new("attach", "no page"))?;
+            .filter(|t| t.r#type == "page" && t.url.starts_with(url_prefix))
+            .map(|t| t.target_id)
+            .collect();
+        let target = match pages.as_slice() {
+            [one] => one.clone(),
+            [] => return Err(Fault::new("attach", "none")),
+            _ => return Err(Fault::new("attach", "many")),
+        };
         let deadline = Instant::now() + STEP_TIMEOUT;
         let page = loop {
             match browser.get_page(target.clone()).await {
@@ -499,10 +537,11 @@ impl Executor {
                     } else {
                         false
                     };
-                    let value = if credential || !VALUE_ROLES.contains(&role) {
+                    let raw = ax_text(&node.value).replace(['\r', '\n', '\t'], " ");
+                    let value = if credential || !VALUE_ROLES.contains(&role) || raw.is_empty() {
                         None
                     } else {
-                        Some(squeeze(&ax_text(&node.value)))
+                        Some(raw)
                     };
                     let r = self.add_ref(Target {
                         frame: frame.clone(),
@@ -529,9 +568,9 @@ impl Executor {
         Ok(())
     }
 
-    async fn frame_by_path(&self, path: &[&str]) -> Res<Option<FrameId>> {
+    async fn frame_by_path(&self, path: &[&str]) -> Res<Result<FrameId, Resolved>> {
         let mut frame = self.main_frame().await?;
-        for name in path {
+        for (i, name) in path.iter().enumerate() {
             let owners: Vec<BackendNodeId> = self
                 .ax_tree(&frame)
                 .await?
@@ -541,15 +580,17 @@ impl Executor {
                 .filter(|n| squeeze(&ax_text(&n.name)) == *name)
                 .filter_map(|n| n.backend_dom_node_id)
                 .collect();
-            if owners.len() != 1 {
-                return Ok(None);
+            match owners.len() {
+                0 => return Ok(Err(Resolved::None)),
+                1 => {}
+                _ => return Ok(Err(Resolved::Many { locator: i })),
             }
             frame = self.child_frame_of(&owners[0]).await?;
             if !self.ready(&frame).await {
-                return Ok(None);
+                return Ok(Err(Resolved::None));
             }
         }
-        Ok(Some(frame))
+        Ok(Ok(frame))
     }
 
     async fn by_test_id(&self, frame: &FrameId, id: &str) -> Res<Vec<BackendNodeId>> {
@@ -602,8 +643,9 @@ impl Executor {
     }
 
     pub async fn resolve(&mut self, locators: &[Locator], frame_path: &[&str]) -> Res<Resolved> {
-        let Some(frame) = self.frame_by_path(frame_path).await? else {
-            return Ok(Resolved::None);
+        let frame = match self.frame_by_path(frame_path).await? {
+            Ok(frame) => frame,
+            Err(unresolved) => return Ok(unresolved),
         };
         for (i, locator) in locators.iter().enumerate() {
             let found = match locator {
@@ -794,6 +836,9 @@ impl Executor {
             .map_err(cdp("rule"))?;
         let page = self.page.clone();
         let paused = self.paused.clone();
+        if let Ok(mut p) = paused.lock() {
+            p.clear();
+        }
         if let Some(t) = self.rule.take() {
             t.abort();
         }
@@ -801,26 +846,30 @@ impl Executor {
             while let Some(ev) = events.next().await {
                 let method = ev.request.method.clone();
                 let (origin, path) = split_url(&ev.request.url);
+                let (body, body_complete) = body_of(&ev.request);
                 let changes = !matches!(method.as_str(), "GET" | "HEAD" | "OPTIONS");
                 let let_through = allowed_origins.contains(&origin) && (state_changing || !changes);
+                let id = ev.request_id.clone();
+                let answered = if let_through {
+                    page.execute(ContinueRequestParams::new(id))
+                        .await
+                        .map(|_| Outcome::Continued)
+                } else {
+                    page.execute(FailRequestParams::new(id, ErrorReason::BlockedByClient))
+                        .await
+                        .map(|_| Outcome::Failed)
+                };
                 if let Ok(mut p) = paused.lock() {
                     p.push(PausedRequest {
                         method,
                         origin,
                         path,
                         let_through,
+                        outcome: answered.unwrap_or(Outcome::Refused),
+                        body,
+                        body_complete,
                     });
                 }
-                let id = ev.request_id.clone();
-                let _ = if let_through {
-                    page.execute(ContinueRequestParams::new(id))
-                        .await
-                        .map(|_| ())
-                } else {
-                    page.execute(FailRequestParams::new(id, ErrorReason::BlockedByClient))
-                        .await
-                        .map(|_| ())
-                };
             }
         }));
         let pattern = RequestPattern::builder()
@@ -925,8 +974,9 @@ const CREDENTIAL_FN: &str = "function () {
   const type = (this.getAttribute('type') || '').toLowerCase();
   const auto = (this.getAttribute('autocomplete') || '').toLowerCase().split(/\\s+/);
   const secret = ['current-password', 'new-password', 'one-time-code'].some((t) => auto.includes(t));
-  const captcha = typeof this.closest === 'function' && this.closest('[data-halvo-captcha]') !== null;
-  return (this.tagName === 'INPUT' && type === 'password') || secret || captcha;
+  const input = this.tagName === 'INPUT' && (type === 'password' || secret);
+  const captcha = this.parentElement !== null && this.parentElement.closest('[data-halvo-captcha]') !== null;
+  return input || captcha;
 }";
 
 const SELECT_FN: &str = "function (label) {
