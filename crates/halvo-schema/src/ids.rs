@@ -2,7 +2,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor};
-use serde::ser::Serializer;
+use serde::ser::{Serialize, Serializer};
 
 /// The version of every serialized record, request and reply, written first under the key `v`.
 /// A reader refuses any other number.
@@ -117,6 +117,14 @@ impl<'de> Deserialize<'de> for Version {
 pub(crate) trait Strict {
     fn rules(&self) -> Result<(), ParseError>;
     fn write_fields<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
+}
+
+pub(crate) struct Unchecked<'a, T>(pub(crate) &'a T);
+
+impl<T: Strict> Serialize for Unchecked<'_, T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.write_fields(serializer)
+    }
 }
 
 macro_rules! strict_struct {
