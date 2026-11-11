@@ -446,6 +446,40 @@
         plain.type = 'button';
         root.appendChild(plain);
       }
+      if (fault === 'input_no_act') {
+        var field = el('input', null, null);
+        field.type = 'text';
+        field.setAttribute('aria-label', 'Note');
+        root.appendChild(field);
+      }
+      if (fault === 'select_no_act') {
+        var pick = el('select', null, null);
+        pick.setAttribute('aria-label', 'Day');
+        pick.appendChild(el('option', null, 'Monday'));
+        root.appendChild(pick);
+      }
+      if (fault === 'textarea_no_act') {
+        var note = el('textarea', null, null);
+        note.setAttribute('aria-label', 'Note');
+        root.appendChild(note);
+      }
+      if (fault === 'link_no_act') {
+        var link = el('a', null, 'Help');
+        link.href = '#help';
+        root.appendChild(link);
+      }
+      if (fault === 'summary_no_act') {
+        var more = el('details', null, null);
+        more.appendChild(el('summary', null, 'More'));
+        more.appendChild(el('p', null, 'Runs every morning.'));
+        root.appendChild(more);
+      }
+      if (fault === 'audio_no_act' || fault === 'video_no_act') {
+        var media = el(fault === 'audio_no_act' ? 'audio' : 'video', null, null);
+        media.controls = true;
+        media.setAttribute('aria-label', 'Recording');
+        root.appendChild(media);
+      }
       if (fault === 'clipped') {
         var box = el('div', null, null);
         box.style.height = '10px';
