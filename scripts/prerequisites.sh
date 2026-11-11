@@ -129,6 +129,7 @@ install_cargo_deny_prebuilt() {
   elif ! { mkdir -p "$CARGO_HOME/bin" && cp "$tmp/cargo-deny-$cargo_deny_version-$target/$executable" "$CARGO_HOME/bin/$executable"; }; then
     failed="copying the prebuilt cargo-deny into $CARGO_HOME/bin"
   fi
+  rm -rf "$tmp"
   if [ -n "$failed" ]; then
     echo "prerequisites: $failed failed"
     return 1
@@ -137,7 +138,11 @@ install_cargo_deny_prebuilt() {
 
 install_cargo_deny() {
   echo "prerequisites: installing cargo-deny $cargo_deny_version into $CARGO_HOME/bin"
-  install_cargo_deny_prebuilt && return
+  if cargo_deny_target >/dev/null; then
+    install_cargo_deny_prebuilt
+    return
+  fi
+  echo "prerequisites: no prebuilt cargo-deny matches $(uname -s) $(uname -m)"
   echo "prerequisites: building cargo-deny $cargo_deny_version with cargo install instead"
   cargo install cargo-deny --version "$cargo_deny_version" --locked
 }
@@ -289,6 +294,8 @@ EOF
   }
   deny_asset="cargo-deny-$cargo_deny_version-$deny_target.tar.gz"
   deny_executable=$(cargo_deny_executable)
+  deny_built="cargo-deny $cargo_deny_version built by cargo install"
+  real_tar=$(command -v tar)
   mkdir "$work/deny" "$work/deny/cargo-deny-$cargo_deny_version-$deny_target"
   echo "cargo-deny $cargo_deny_version" >"$work/deny/cargo-deny-$cargo_deny_version-$deny_target/$deny_executable"
   tar -czf "$work/deny/$deny_asset" -C "$work/deny" "cargo-deny-$cargo_deny_version-$deny_target"
@@ -296,16 +303,22 @@ EOF
 
   new_deny_case() {
     new_case "$1"
+    mkdir "$case_dir/tmp"
     cat >"$case_dir/stubs/cargo" <<EOF
 #!/bin/sh
 echo "cargo \$*" >>'$case_dir/calls'
 case "\$1" in
   deny) cat '$CARGO_HOME/bin/$deny_executable' ;;
-  install) mkdir -p '$CARGO_HOME/bin' && echo "cargo-deny $cargo_deny_version" >'$CARGO_HOME/bin/$deny_executable' ;;
+  install) mkdir -p '$CARGO_HOME/bin' && echo "$deny_built" >'$CARGO_HOME/bin/$deny_executable' ;;
   *) exit 2 ;;
 esac
 EOF
-    chmod +x "$case_dir/stubs/cargo"
+    cat >"$case_dir/stubs/tar" <<EOF
+#!/bin/sh
+echo "tar \$*" >>'$case_dir/calls'
+exec '$real_tar' "\$@"
+EOF
+    chmod +x "$case_dir/stubs/cargo" "$case_dir/stubs/tar"
     cp "$work/deny/$deny_asset" "$case_dir/assets/$deny_asset"
   }
 
@@ -314,33 +327,69 @@ EOF
     stub_path=$(printenv PATH)
     (
       PATH="$case_dir/stubs:$stub_path"
+      TMPDIR="$case_dir/tmp"
       cargo_deny_sha256() { echo "$deny_sum"; }
       ensure_cargo_deny
     ) >>"$case_dir/output" 2>&1 || status=$?
-    [ "$status" = 0 ] || problems="$problems; ensure_cargo_deny exited $status"
+    case "$1:$status" in
+      ok:0 | fails:[1-9]*) ;;
+      *) problems="$problems; ensure_cargo_deny exited $status, wanted $1" ;;
+    esac
+    [ -z "$(ls -A "$case_dir/tmp")" ] || problems="$problems; a temporary directory was left in place"
+  }
+
+  expect_no_deny() {
+    [ ! -e "$CARGO_HOME/bin/$deny_executable" ] || problems="$problems; bin/$deny_executable exists"
+    [ "$(count 'cargo install' "$case_dir/calls")" = 0 ] || problems="$problems; cargo install ran"
+    [ "$(count "prerequisites: $1 failed" "$case_dir/output")" = 1 ] || problems="$problems; no line says that $1 failed"
+    [ "$(count 'prerequisites: building' "$case_dir/output")" = 0 ] || problems="$problems; a line names building"
   }
 
   name='a cargo home with no bin directory gets the prebuilt cargo-deny whose sha256 is the pinned one, and a second run finds it and installs nothing'
   new_deny_case deny-prebuilt
   deny_sum=$deny_archive_sum
-  run_ensure_deny
-  run_ensure_deny
+  run_ensure_deny ok
+  run_ensure_deny ok
   cmp -s "$work/deny/cargo-deny-$cargo_deny_version-$deny_target/$deny_executable" "$case_dir/cargo-home/bin/$deny_executable" || problems="$problems; bin/$deny_executable is not the binary of the archive"
   [ "$(count 'curl ' "$case_dir/calls")" = 1 ] || problems="$problems; the download ran $(count 'curl ' "$case_dir/calls") times, not once"
+  [ "$(count 'tar ' "$case_dir/calls")" = 1 ] || problems="$problems; tar ran $(count 'tar ' "$case_dir/calls") times, not once"
   [ "$(count 'cargo install' "$case_dir/calls")" = 0 ] || problems="$problems; cargo install ran"
   [ "$(count "prerequisites: cargo-deny $cargo_deny_version present" "$case_dir/output")" = 1 ] || problems="$problems; the second run did not report the tool present"
   [ "$(count ' failed' "$case_dir/output")" = 0 ] || problems="$problems; a line reports a failure"
   verdict "$name"
 
-  name='an archive whose sha256 is not the pinned one is never copied, and cargo install still installs the tool'
+  name='an archive whose sha256 is not the pinned one is never unpacked or copied, and the script fails and builds nothing'
   new_deny_case deny-checksum
   deny_sum=0000000000000000000000000000000000000000000000000000000000000000
-  run_ensure_deny
-  [ "$(count "prerequisites: checking the sha256 of the prebuilt cargo-deny $deny_asset failed" "$case_dir/output")" = 1 ] || problems="$problems; no line says that the sha256 check failed"
-  [ "$(count 'prerequisites: unpacking' "$case_dir/output")" = 0 ] || problems="$problems; a line names unpacking"
+  run_ensure_deny fails
+  expect_no_deny "checking the sha256 of the prebuilt cargo-deny $deny_asset"
+  [ "$(count 'tar ' "$case_dir/calls")" = 0 ] || problems="$problems; tar ran"
+  verdict "$name"
+
+  name='a failed download of the prebuilt cargo-deny fails the script, which builds nothing'
+  new_deny_case deny-download
+  mv "$case_dir/assets/$deny_asset" "$case_dir/assets/$deny_asset.absent"
+  deny_sum=$deny_archive_sum
+  run_ensure_deny fails
+  expect_no_deny "downloading the prebuilt cargo-deny from https://github.com/EmbarkStudios/cargo-deny/releases/download/$cargo_deny_version/$deny_asset"
+  verdict "$name"
+
+  name='a platform with no prebuilt cargo-deny is named, and cargo install builds the tool'
+  new_deny_case deny-platform
+  cat >"$case_dir/stubs/uname" <<'EOF'
+#!/bin/sh
+case "$1" in
+  -s) echo Linux ;;
+  *) echo x86_64 ;;
+esac
+EOF
+  chmod +x "$case_dir/stubs/uname"
+  deny_sum=$deny_archive_sum
+  run_ensure_deny ok
+  [ "$(count 'prerequisites: no prebuilt cargo-deny matches Linux x86_64' "$case_dir/output")" = 1 ] || problems="$problems; no line names the platform"
+  [ "$(count 'curl ' "$case_dir/calls")" = 0 ] || problems="$problems; a download ran"
   [ "$(count "cargo install cargo-deny --version $cargo_deny_version --locked" "$case_dir/calls")" = 1 ] || problems="$problems; cargo install did not run once with the pinned version"
-  [ "$(cat "$CARGO_HOME/bin/$deny_executable" 2>/dev/null)" = "cargo-deny $cargo_deny_version" ] || problems="$problems; bin/$deny_executable is not the one that cargo install wrote"
-  [ "$(tail -n 1 "$case_dir/output")" = "prerequisites: cargo-deny $cargo_deny_version" ] || problems="$problems; the last line does not give the installed version"
+  [ "$(cat "$CARGO_HOME/bin/$deny_executable" 2>/dev/null)" = "$deny_built" ] || problems="$problems; bin/$deny_executable is not the one that cargo install wrote"
   verdict "$name"
 
   if [ "$failures" -gt 0 ]; then
