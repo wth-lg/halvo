@@ -31,7 +31,9 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 ## Consequences
 
 - A check is one file under its run's ci.d directory and needs no line of ci.yml.
-  After gate-1 the writers of ci.yml are release-1, release-2, and gate-4 and gate-5
-  for the job timeout only (contract C16 item 11).
-- The job timeout is 30 minutes at this commit. Its value lives in the bounds key
+  After gate-1 the writers of ci.yml are, in the order of contract C16 item 11,
+  jobtime-1 for the two `timeout-minutes` lines alone, release-1, release-2, and
+  gate-4 and gate-5 for the job timeout only.
+- The job timeout is 30 minutes at this commit, and jobtime-1 makes it 60 (contract
+  C16 item 11). Its value lives in the bounds key
   `ci_job_timeout_min` of docs/baseline/r1-gate-bounds.txt.
