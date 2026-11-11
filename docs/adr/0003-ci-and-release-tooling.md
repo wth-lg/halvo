@@ -21,8 +21,9 @@ release notes.
 
 ## Consequences
 
-- Two literal jobs match the run-card CI rule, and the macos-15 and windows-2025
-  images already ship the Rust and Node toolchains (lane 8 rows 24, 66).
+- Two literal jobs match the run-card CI rule. The macos-15 and windows-2025 images
+  ship Rust and Node (lane 8 rows 24, 66), and the jobs pin their own versions:
+  Rust 1.99.1 in rust-toolchain.toml and Node 26 in .github/workflows/ci.yml.
 - cargo-release is dry-run by default and acts only with `--execute`. It reads and
   bumps the version in `src-tauri/Cargo.toml` and promotes the `## [Unreleased]`
   section of `CHANGELOG.md` through `pre-release-replacements` (rows 26, 67, 68).
@@ -33,3 +34,9 @@ release notes.
   settings cargo-release resolved, and prints the section from `CHANGELOG.md`.
 - The prerequisites script installs cargo-release from a prebuilt binary so CI jobs
   stay short; it falls back to `cargo install` when no prebuilt binary matches.
+
+## Amendments
+
+- 2026-11-11: The first line under Consequences says that the images ship Rust
+  and Node and that the jobs pin their own versions. Row 66 lists Cargo 1.98.0 and
+  Node 22.23.2 for macos-15, which are not the versions that the jobs use.
