@@ -22,8 +22,10 @@ empty, and a line that is empty is skipped.
 - **file**: the file to mutate, relative to the directory of the row file, with
   no `..` in it. For a `transitional` or a `control` row it is relative to the
   repository root.
-- **substitution**: a perl program for `perl -0pi -e`, so `\n` matches a line
-  end. A substitution that changes nothing fails the row.
+- **substitution**: one or more perl `s///` statements, separated by `;`. The
+  runner applies each to the whole file, so `\n` matches a line end. A
+  statement that matches nothing fails the row, and so does a substitution
+  that changes nothing.
 - **verdict**: the one source that must show the mutant caught, from a closed
   list:
   - `measured KEY...`: a gate line reads `FAIL <check> (... measured: ...)` and

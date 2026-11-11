@@ -207,9 +207,9 @@ run_rows() {
       esac
     fi
     cp "$tree/$mutated" "$work/pristine" || return 2
-    if ! perl -0pi -e "$row_subst" "$tree/$mutated" 2> "$work/perl.err"; then
+    if ! applied=$(ROW_SUBST=$row_subst perl "$DIR/helper/apply-row.pl" "$tree/$mutated" 2> "$work/perl.err"); then
       cp "$work/pristine" "$tree/$mutated"
-      say FAIL "$row_name" "the substitution is no valid perl"; failures=$((failures + 1)); continue
+      say FAIL "$row_name" "${applied:-the substitution could not be applied}"; failures=$((failures + 1)); continue
     fi
     if cmp -s "$work/pristine" "$tree/$mutated"; then
       say FAIL "$row_name" "the substitution did not apply"; failures=$((failures + 1)); continue
@@ -405,6 +405,19 @@ cases() {
   row unapplied/scripts/r1-gate/mutants.rows stale b.sh 's/no such text/x/' leak required X-1
   t substitution-did-not-apply FAIL fixture_run unapplied yes
   t substitution-did-not-apply-is-named PASS fixture_says unapplied 'FAIL mutation:stale (the substitution did not apply)' yes
+  fixture_tree half-stale
+  row half-stale/scripts/r1-gate/mutants.rows half b.sh 's/two/three/; s/no such text/x/' leak required X-1
+  t second-statement-did-not-apply FAIL fixture_run half-stale yes
+  t second-statement-did-not-apply-is-named PASS fixture_says half-stale 'FAIL mutation:half (statement 2 of 2 of the substitution did not apply)' yes
+  fixture_tree first-stale
+  row first-stale/scripts/r1-gate/mutants.rows first b.sh 's/no such text/x/; s/two/three/' leak required X-1
+  t first-statement-did-not-apply FAIL fixture_run first-stale yes
+  fixture_tree two-statements
+  row two-statements/scripts/r1-gate/mutants.rows both b.sh 's{echo}{printf} ; s/two/three/g' leak required X-1
+  t two-statements-that-apply PASS fixture_says two-statements 'PASS mutation:both (applies and builds)' yes
+  fixture_tree not-a-substitution
+  row not-a-substitution/scripts/r1-gate/mutants.rows other b.sh 'tr/a-z/A-Z/' leak required X-1
+  t program-that-is-no-substitution FAIL fixture_run not-a-substitution yes
   fixture_tree outside
   row outside/scripts/r1-gate/mutants.rows outside ../../code/a.sh 's/one/1/' leak required X-1
   t file-outside-row-directory FAIL fixture_run outside yes
