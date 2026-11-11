@@ -11,6 +11,33 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: r5 drift trial
+        shell: bash
+        run: |
+          rustup toolchain install || rustup show
+          code=0
+          sh tools/r5-trials/drift/run.sh >target-r5-drift.out || code=$?
+          echo "=== r5 drift block"
+          cat target-r5-drift.out
+          echo "=== r5 drift end exit=$code blob=$(git hash-object --no-filters target-r5-drift.out)"
+          echo "=== r5 drift count"
+          count=0
+          sh tools/r5-trials/drift/run.sh --count fixtures/r5/cases/dev || count=$?
+          echo "=== r5 drift count end exit=$count"
+          echo "=== r5 drift case"
+          one=0
+          sh tools/r5-trials/drift/run.sh --case fixtures/r5/cases/dev/renamed-pay.jsonl --arm plain || one=$?
+          echo "=== r5 drift case end exit=$one"
+          closed=0
+          sh tools/r5-trials/stat/run.sh >&- || closed=$?
+          echo "stat run.sh with standard output closed: exit=$closed" >&2
+          closed=0
+          sh tools/r5-trials/drift/run.sh >&- || closed=$?
+          echo "drift run.sh with standard output closed: exit=$closed" >&2
+          if [ "$count" -ne 0 ] || [ "$one" -ne 0 ]; then
+            exit 1
+          fi
+          exit "$code"
       - name: Commit messages
         shell: bash
         env:
@@ -97,6 +124,33 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v7
+      - name: r5 drift trial
+        shell: bash
+        run: |
+          rustup toolchain install || rustup show
+          code=0
+          sh tools/r5-trials/drift/run.sh >target-r5-drift.out || code=$?
+          echo "=== r5 drift block"
+          cat target-r5-drift.out
+          echo "=== r5 drift end exit=$code blob=$(git hash-object --no-filters target-r5-drift.out)"
+          echo "=== r5 drift count"
+          count=0
+          sh tools/r5-trials/drift/run.sh --count fixtures/r5/cases/dev || count=$?
+          echo "=== r5 drift count end exit=$count"
+          echo "=== r5 drift case"
+          one=0
+          sh tools/r5-trials/drift/run.sh --case fixtures/r5/cases/dev/renamed-pay.jsonl --arm plain || one=$?
+          echo "=== r5 drift case end exit=$one"
+          closed=0
+          sh tools/r5-trials/stat/run.sh >&- || closed=$?
+          echo "stat run.sh with standard output closed: exit=$closed" >&2
+          closed=0
+          sh tools/r5-trials/drift/run.sh >&- || closed=$?
+          echo "drift run.sh with standard output closed: exit=$closed" >&2
+          if [ "$count" -ne 0 ] || [ "$one" -ne 0 ]; then
+            exit 1
+          fi
+          exit "$code"
       - uses: actions/setup-node@v7
         with:
           node-version: 26
