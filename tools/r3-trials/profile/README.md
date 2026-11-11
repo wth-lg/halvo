@@ -73,6 +73,20 @@ anything of them is left.
   after the steps shape, also after an INT or a TERM, the scratch holds no profile and no temporary
   directory of a browser; a file beside them stays.
 
+On Windows the stop has a window that this trial does not close. `procs::table()` reads the process
+table in two steps: the parent number from the Toolhelp snapshot, and the creation time from a later
+open of the process by its number. A number that is reused while the snapshot is walked can
+therefore enter the tree with a member's number as its parent, and the stop would end that process.
+The rule of `descendants` that a row created before its parent is no child does not stop this,
+because the process that takes the number starts later. No Windows cell of this trial is stopped by
+a signal. The first unit that stops a browser with this library on Windows closes the window first,
+by taking both values of a row from one handle of the process.
+
+No hosted job of the repository builds or tests the two trial crates: they are not members of the
+root workspace, and the shell lint of the macOS job and the two repository checks of line endings
+and of own-source reads read their scripts alone. The hosted runs that this file cites ran on
+scratch branches whose workflow built and tested both crates.
+
 ## Item 4 in numbers (03f4c53 and 85f255a)
 
 - `mac`, Chrome, through the timed-run helper. `shape=steps` ran at 85f255a, 2026-11-11T11:56:17Z to
