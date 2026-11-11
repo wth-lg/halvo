@@ -25,6 +25,9 @@ cases() {
   report_fixture "$gate_scratch/no-input" 10 0 0 3
   t no-input-under-none PASS input_under none "$gate_scratch/no-input"
   t count-line-absent-under-none FAIL input_under none "$gate_scratch/pointer-absent"
+  report_fixture "$gate_scratch/leading-zeros" 10 00 00 3
+  t counts-of-00-are-no-input-under-operator FAIL input_under operator "$gate_scratch/leading-zeros"
+  t counts-of-00-are-no-input-under-none PASS input_under none "$gate_scratch/leading-zeros"
   standin_build || { emit_fail "self-test:$name" "cc could not build helper/load-standin.c"; return 1; }
   t standin-run-with-typed-input PASS against_the_standin typed operator
   t standin-run-with-no-input NO-INPUT against_the_standin ok none
