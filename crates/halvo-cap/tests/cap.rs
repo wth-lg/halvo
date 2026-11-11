@@ -50,6 +50,23 @@ fn child() {
             drop(allocate(1, number(1)));
             std::thread::sleep(Duration::from_millis(number(2)));
         }
+        #[cfg(target_os = "macos")]
+        "burst" => {
+            burst(number(1) * MIB);
+            std::thread::sleep(Duration::from_millis(number(2)));
+        }
+        #[cfg(target_os = "macos")]
+        "hold-then-exec" => {
+            use std::os::unix::process::CommandExt;
+            let held = allocate(number(1), 1);
+            std::thread::sleep(Duration::from_millis(number(2)));
+            std::hint::black_box(&held);
+            let error = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(child_args())
+                .env(ROLE, "exit 0")
+                .exec();
+            panic!("exec: {error}");
+        }
         "exit" => std::process::exit(number(1) as i32),
         "echo" => println!("hello from the child"),
         "grandchild" => {
@@ -63,6 +80,33 @@ fn child() {
         _ => std::process::exit(6),
     }
     std::process::exit(0);
+}
+
+#[cfg(target_os = "macos")]
+fn burst(bytes: u64) {
+    let size = bytes as usize;
+    let start = unsafe {
+        libc::mmap(
+            std::ptr::null_mut(),
+            size,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_ANON | libc::MAP_PRIVATE,
+            -1,
+            0,
+        )
+    };
+    if start == libc::MAP_FAILED {
+        std::process::exit(REFUSED);
+    }
+    let page = 4096;
+    let mut offset = 0;
+    while offset < size {
+        unsafe { start.cast::<u8>().add(offset).write_volatile(0xa5) };
+        offset += page;
+    }
+    if unsafe { libc::munmap(start, size) } != 0 {
+        std::process::exit(REFUSED);
+    }
 }
 
 fn child_args() -> [&'static str; 5] {
@@ -156,6 +200,23 @@ fn a_spike_above_the_limit_is_stopped() {
     } else {
         assert_eq!(outcome.exit, Exit::Signal(9), "{outcome:?}");
     }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn memory_unmapped_before_the_next_read_counts_in_the_peak() {
+    let outcome = run(spec("burst 128 1500"), limit(64)).unwrap();
+    assert!(outcome.capped, "{outcome:?}");
+    assert!(outcome.peak_bytes > 128 * MIB, "{outcome:?}");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn the_peak_is_the_highest_read_also_when_an_exec_starts_the_reading_again() {
+    let outcome = run(spec("hold-then-exec 48 700"), limit(256)).unwrap();
+    assert_eq!(outcome.exit, Exit::Code(0), "{outcome:?}");
+    assert!(!outcome.capped, "{outcome:?}");
+    assert!(outcome.peak_bytes >= 48 * MIB, "{outcome:?}");
 }
 
 #[test]

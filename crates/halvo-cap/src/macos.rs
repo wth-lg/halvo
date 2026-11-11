@@ -11,6 +11,10 @@ pub(crate) const PLATFORM: &str = "macos";
 
 const POLL: Duration = Duration::from_millis(250);
 
+fn is_breach(read: u64, limit: Limit) -> bool {
+    read > limit.bytes()
+}
+
 fn footprint(pid: libc::pid_t) -> io::Result<u64> {
     let mut info = MaybeUninit::<libc::rusage_info_v4>::zeroed();
     let rc = unsafe { libc::proc_pid_rusage(pid, libc::RUSAGE_INFO_V4, info.as_mut_ptr().cast()) };
@@ -142,7 +146,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
                 }
             }
         }
-        if peak > limit.bytes() {
+        if is_breach(peak, limit) {
             breach = true;
             if !ended && !killed {
                 let _ = child.kill();
@@ -179,4 +183,19 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
         start,
         end: end.unwrap_or_else(UnixNanos::now),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_read_above_the_limit_is_a_breach_and_a_read_at_or_below_it_is_none() {
+        let limit = Limit::new(1_000_000).unwrap();
+        assert!(!is_breach(500_000, limit));
+        assert!(!is_breach(750_000, limit));
+        assert!(!is_breach(999_999, limit));
+        assert!(!is_breach(1_000_000, limit));
+        assert!(is_breach(1_000_001, limit));
+    }
 }

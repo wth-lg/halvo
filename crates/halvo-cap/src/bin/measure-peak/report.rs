@@ -25,6 +25,10 @@ pub fn median(peaks: &[u64]) -> u64 {
     sorted.get(sorted.len() / 2).copied().unwrap_or(0)
 }
 
+pub fn median_passes(median: u64, limit: Limit) -> bool {
+    median <= limit.bytes()
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Checks {
     pub exit: bool,
@@ -38,7 +42,7 @@ impl Checks {
         Checks {
             exit: outcomes.iter().all(|o| o.exit == Exit::Code(0)),
             cap: outcomes.iter().all(|o| !o.capped),
-            median: median(&peaks) <= limit.bytes(),
+            median: median_passes(median(&peaks), limit),
         }
     }
 
@@ -85,6 +89,15 @@ mod tests {
         assert_eq!(median(&[4, 1, 3, 2]), 3);
         assert_eq!(median(&[9]), 9);
         assert_eq!(median(&[8, 2]), 8);
+    }
+
+    #[test]
+    fn a_median_at_or_below_the_limit_passes_and_a_median_above_it_misses() {
+        let limit = Limit::new(1_000_000).unwrap();
+        assert!(median_passes(500_000, limit));
+        assert!(median_passes(999_999, limit));
+        assert!(median_passes(1_000_000, limit));
+        assert!(!median_passes(1_000_001, limit));
     }
 
     #[test]
