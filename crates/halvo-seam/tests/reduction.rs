@@ -1,8 +1,19 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use halvo_seam::client::Client;
+use halvo_seam::fixture::FixtureTransport;
 use halvo_seam::input_set::{InputSet, Layer, SetError};
-use halvo_seam::record::{Button, CaptureRecord, Motion, Payload, Pointer, PointerDetail};
+use halvo_seam::message::{Entry, OpenCursor};
+use halvo_seam::record::{Button, CaptureRecord, Kind, Motion, Payload, Pointer, PointerDetail};
+use sha2::{Digest, Sha256};
+
+const SET_FILE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../docs/r2/input-sets/app-title.toml"
+);
+const DATA_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/reduction.jsonl");
+const SET_HASH: &str = "31118e5fab51c18e77f82c529b9f65cfb34dda1db55f9fe59bf2595c0c81513e";
 
 const APP_TITLE: &str =
     "envelope = [\"app\"]\nlayers = []\n[kinds]\nforeground_app = []\nwindow_title = [\"text\"]\n";
@@ -242,4 +253,148 @@ fn the_reduction_serves_the_listed_keys_and_the_marks_and_nothing_else() {
             }
         }
     }
+}
+
+fn read_through(set: Option<&Path>) -> Vec<Entry> {
+    let mut transport = FixtureTransport::open(&[DATA_FILE], 1, set).unwrap();
+    let mut client = Client::new(&mut transport);
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    let mut entries = Vec::new();
+    loop {
+        let batch = client.read().unwrap();
+        let done = batch.next == batch.watermark;
+        entries.extend(batch.records);
+        if done {
+            client.close().unwrap();
+            return entries;
+        }
+    }
+}
+
+#[test]
+fn reduction_app_title() {
+    let mut passed = 0;
+
+    let set_bytes = fs::read(SET_FILE).unwrap();
+    let hash: String = Sha256::digest(&set_bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    assert_eq!(set_bytes, APP_TITLE.as_bytes());
+    assert_eq!((set_bytes.len(), hash.as_str()), (83, SET_HASH));
+    passed += 1;
+
+    let data = fs::read(DATA_FILE).unwrap();
+    let lines: Vec<&[u8]> = data.split_inclusive(|b| *b == b'\n').collect();
+    assert_eq!(lines.len(), 26);
+    let records: Vec<CaptureRecord> = lines
+        .iter()
+        .map(|l| CaptureRecord::read_line(l).unwrap())
+        .collect();
+    let count = |kind: Kind| records.iter().filter(|r| r.kind() == kind).count();
+    assert_eq!(
+        [
+            Kind::ForegroundApp,
+            Kind::WindowTitle,
+            Kind::Keystroke,
+            Kind::Pointer,
+            Kind::RunMark,
+            Kind::ScreenFrame
+        ]
+        .map(count),
+        [4, 6, 7, 6, 2, 1]
+    );
+    let served = read_through(Some(Path::new(SET_FILE)));
+    assert_eq!(served.len(), 12);
+    passed += 1;
+
+    let outside = served
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.record.kind(),
+                Kind::Keystroke | Kind::Pointer | Kind::ScreenFrame
+            )
+        })
+        .count();
+    assert_eq!(outside, 0);
+    passed += 1;
+
+    let mut keys_outside = 0;
+    for e in &served {
+        match e.record.payload() {
+            Payload::WindowTitle(t) => {
+                keys_outside += usize::from(t.cut.is_some())
+                    + usize::from(t.why.is_some())
+                    + usize::from(t.site.is_some());
+            }
+            Payload::ForegroundApp | Payload::RunMark(_) => {}
+            _ => keys_outside += 1,
+        }
+        let json = String::from_utf8(e.record.to_json()).unwrap();
+        match e.record.kind() {
+            Kind::WindowTitle => assert!(
+                json.contains(r#""p":{"text":"#)
+                    && !json.contains(r#""cut""#)
+                    && !json.contains(r#""site""#)
+                    && !json.contains(r#""why""#)
+            ),
+            Kind::ForegroundApp => assert!(json.ends_with(r#""p":{}}"#)),
+            _ => {}
+        }
+    }
+    assert_eq!(keys_outside, 0);
+    passed += 1;
+
+    let mut seen = [0usize; 3];
+    for (idx, record) in records.iter().enumerate() {
+        let slot = match record.kind() {
+            Kind::ForegroundApp => 0,
+            Kind::WindowTitle => 1,
+            Kind::RunMark => 2,
+            _ => continue,
+        };
+        let entry = served
+            .iter()
+            .find(|e| e.pos.seg == 1 && e.pos.idx == idx as u64)
+            .unwrap_or_else(|| panic!("line {idx} was not served"));
+        let got = &entry.record;
+        assert_eq!(
+            (got.id(), got.at(), got.seq(), got.kind(), got.app()),
+            (
+                record.id(),
+                record.at(),
+                record.seq(),
+                record.kind(),
+                record.app()
+            )
+        );
+        match (got.payload(), record.payload()) {
+            (Payload::WindowTitle(a), Payload::WindowTitle(b)) => assert_eq!(a.text, b.text),
+            _ => assert_eq!(got.to_line(), lines[idx]),
+        }
+        seen[slot] += 1;
+    }
+    assert_eq!(seen, [4, 6, 2]);
+    passed += 1;
+
+    let whole = read_through(None);
+    assert_eq!(whole.len(), 25);
+    let mut lines_served = 0;
+    for (idx, line) in lines.iter().enumerate() {
+        match whole
+            .iter()
+            .find(|e| e.pos.seg == 1 && e.pos.idx == idx as u64)
+        {
+            Some(e) => {
+                assert_eq!(e.record.to_line(), *line, "line {idx}");
+                lines_served += 1;
+            }
+            None => assert_eq!(records[idx].kind(), Kind::ScreenFrame, "line {idx}"),
+        }
+    }
+    assert_eq!(lines_served, 25);
+    passed += 1;
+
+    assert_eq!(passed, 6);
 }
