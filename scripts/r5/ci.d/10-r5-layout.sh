@@ -802,6 +802,14 @@ layout unmatched=1" --all
   path=$work/stub:$PATH
   check git-fails FAIL-git 'FAIL 10-r5-layout (git)'
 
+  fixture staged-list-fails
+  real_git=$(command -v git) || broken
+  mkdir -p "$work/stub-staged" || broken
+  printf '#!/bin/sh\n[ "$*" != "-c core.quotepath=on ls-files -s" ] || exit 1\nexec "%s" "$@"\n' "$real_git" >"$work/stub-staged/git"
+  chmod +x "$work/stub-staged/git" || broken
+  path=$work/stub-staged:$PATH
+  check staged-list-fails FAIL-git 'FAIL 10-r5-layout (git)'
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
