@@ -1,6 +1,8 @@
 use std::fmt;
 
+use serde::de::{self, DeserializeOwned, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::value::RawValue;
 
 use crate::category::SeedCategory;
 use crate::ids::{
@@ -354,18 +356,58 @@ impl Serialize for Workflow {
     }
 }
 
+struct Entries(Vec<(String, Box<RawValue>)>);
+
+impl<'de> Deserialize<'de> for Entries {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> Visitor<'de> for V {
+            type Value = Entries;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a JSON object")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Entries, A::Error> {
+                let mut entries = Vec::new();
+                while let Some(entry) = map.next_entry::<String, Box<RawValue>>()? {
+                    entries.push(entry);
+                }
+                Ok(Entries(entries))
+            }
+        }
+        deserializer.deserialize_map(V)
+    }
+}
+
+fn shape<T: DeserializeOwned, E: de::Error>(text: &str) -> Result<T, E> {
+    serde_json::from_str(text).map_err(|e| {
+        let message = e.to_string();
+        let position = format!(" at line {} column {}", e.line(), e.column());
+        E::custom(message.strip_suffix(&position).unwrap_or(&message))
+    })
+}
+
 impl<'de> Deserialize<'de> for Workflow {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Shape {
-            Full(FullWorkflow),
-            Dismissed(DismissedWorkflow),
+        let Entries(entries) = Entries::deserialize(deserializer)?;
+        let mut states = entries.iter().filter(|(k, _)| k == "state");
+        let dismissed = match (states.next(), states.next()) {
+            (Some((_, state)), None) => {
+                serde_json::from_str::<String>(state.get()).is_ok_and(|s| s == "dismissed")
+            }
+            _ => false,
+        };
+        let fields: Vec<String> = entries
+            .iter()
+            .map(|(k, v)| format!("{}:{}", serde_json::Value::from(k.as_str()), v.get()))
+            .collect();
+        let text = format!("{{{}}}", fields.join(","));
+        if dismissed {
+            shape(&text).map(Workflow::Dismissed)
+        } else {
+            shape(&text).map(Workflow::Full)
         }
-        Ok(match Shape::deserialize(deserializer)? {
-            Shape::Full(w) => Workflow::Full(w),
-            Shape::Dismissed(w) => Workflow::Dismissed(w),
-        })
     }
 }
 
