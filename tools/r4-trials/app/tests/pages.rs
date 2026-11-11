@@ -101,6 +101,70 @@ fn load_gets_the_address_of_a_file_of_the_directory_and_nothing_else() {
     assert_eq!(page_to_load(&dir.join("no-such-dir"), "index.html"), None);
 }
 
+fn expected_policy() -> &'static str {
+    if cfg!(windows) {
+        "default-src 'none'; script-src 'self' http://r4trial.localhost; \
+         connect-src http://ipc.localhost; base-uri 'none'; form-action 'none'; \
+         frame-ancestors 'none'"
+    } else {
+        "default-src 'none'; script-src 'self' r4trial://localhost; \
+         connect-src ipc://localhost; base-uri 'none'; form-action 'none'; \
+         frame-ancestors 'none'"
+    }
+}
+
+#[test]
+fn every_response_of_the_scheme_carries_the_policy() {
+    let dir = scratch("policy");
+    let pages = dir.join("pages");
+    for (path, status) in [
+        ("/", 200),
+        ("/index.html", 200),
+        ("/__app/call.js", 200),
+        ("/sub/view.js", 200),
+        ("/missing.html", 404),
+        ("/../outside.html", 404),
+        ("/%2e%2e/outside.html", 404),
+    ] {
+        let response = respond(&pages, path);
+        assert_eq!(response.status().as_u16(), status, "{path}");
+        let policy = response
+            .headers()
+            .get_all("content-security-policy")
+            .iter()
+            .map(|v| v.to_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(policy, vec![expected_policy().to_string()], "{path}");
+        assert_eq!(
+            response.headers().get("x-content-type-options").unwrap(),
+            "nosniff"
+        );
+    }
+    assert_eq!(
+        respond(&dir.join("no-such-dir"), "/")
+            .headers()
+            .get("content-security-policy")
+            .unwrap(),
+        expected_policy()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_403_carries_the_policy_too() {
+    let dir = scratch("policy403");
+    let link = dir.join("pages/away.html");
+    if !link.exists() {
+        std::os::unix::fs::symlink(dir.join("outside.html"), &link).unwrap();
+    }
+    let response = respond(&dir.join("pages"), "/away.html");
+    assert_eq!(response.status().as_u16(), 403);
+    assert_eq!(
+        response.headers().get("content-security-policy").unwrap(),
+        expected_policy()
+    );
+}
+
 #[test]
 fn the_page_url_uses_the_scheme_of_this_system() {
     let url = page_url("probe.html");

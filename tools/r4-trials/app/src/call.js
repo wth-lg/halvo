@@ -53,6 +53,13 @@
     }
   };
 
+  document.addEventListener('securitypolicyviolation', function (event) {
+    var blocked = String(event.blockedURI || '-');
+    var at = blocked.indexOf(':');
+    report('policy violated directive=' + event.effectiveDirective +
+      ' blocked=' + (at > 0 ? blocked.slice(0, at) : blocked));
+  });
+
   window.__r4Window = function (state) {
     window.dispatchEvent(new CustomEvent('r4-window', { detail: state }));
   };

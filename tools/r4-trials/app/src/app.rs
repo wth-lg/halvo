@@ -121,7 +121,8 @@ impl TrialCore {
         let builder = WebviewWindowBuilder::new(&self.app, WINDOW, WebviewUrl::CustomProtocol(url))
             .title("Trial")
             .inner_size(620.0, 720.0)
-            .visible(false);
+            .visible(false)
+            .on_navigation(|url| pages::may_navigate(url.as_str()));
         #[cfg(target_os = "macos")]
         let builder = if self.options.arm == Arm::A2 {
             builder.background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Suspend)

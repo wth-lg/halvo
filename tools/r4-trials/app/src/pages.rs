@@ -83,12 +83,14 @@ fn resolve(pages: &Path, relative: &str) -> Result<PathBuf, u16> {
     Ok(file)
 }
 
-/// The response of the scheme to a request for `path`: `serve` with its headers.
+/// The response of the scheme to a request for `path`: `serve` with its headers, among them
+/// `policy()` as the Content-Security-Policy, whatever the status.
 pub fn respond(pages: &Path, path: &str) -> Response<Vec<u8>> {
     let served = serve(pages, path);
     Response::builder()
         .status(served.status)
         .header(CONTENT_TYPE, served.content_type)
+        .header("Content-Security-Policy", policy())
         .header("X-Content-Type-Options", "nosniff")
         .header(CACHE_CONTROL, "no-store")
         .body(served.body)
@@ -119,9 +121,35 @@ fn content_type(file: &str) -> &'static str {
 /// The address of `file` of the pages directory under the app's scheme, in the form of the
 /// web view of this system.
 pub fn page_url(file: &str) -> String {
-    if cfg!(windows) {
-        format!("http://{SCHEME}.localhost/{file}")
+    format!("{}/{file}", origin())
+}
+
+/// The Content-Security-Policy of every response of the scheme: scripts from the page's own
+/// origin, connections to the core's IPC in the form of this system, and nothing else, so that
+/// a page of the scheme reaches no other origin. The core's own scripts, channel messages and
+/// events come by the web view's script evaluation, which the policy does not govern.
+pub fn policy() -> String {
+    let ipc = if cfg!(windows) {
+        "http://ipc.localhost"
     } else {
-        format!("{SCHEME}://localhost/{file}")
+        "ipc://localhost"
+    };
+    format!(
+        "default-src 'none'; script-src 'self' {}; connect-src {ipc}; base-uri 'none'; \
+         form-action 'none'; frame-ancestors 'none'",
+        origin()
+    )
+}
+
+/// Whether the window may navigate to `url`: an address under the app's own scheme alone.
+pub fn may_navigate(url: &str) -> bool {
+    url.starts_with(&format!("{}/", origin()))
+}
+
+fn origin() -> String {
+    if cfg!(windows) {
+        format!("http://{SCHEME}.localhost")
+    } else {
+        format!("{SCHEME}://localhost")
     }
 }

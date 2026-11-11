@@ -23,6 +23,7 @@ function makePage(replies, { withPage = true } = {}) {
   };
   const loaded = [];
   const visibility = [];
+  const documentListeners = new Map();
   const target = new EventTarget();
   const ctx = {
     CustomEvent,
@@ -35,6 +36,7 @@ function makePage(replies, { withPage = true } = {}) {
       addEventListener: (type, fn) => {
         if (type === 'DOMContentLoaded') loaded.push(fn);
         if (type === 'visibilitychange') visibility.push(fn);
+        documentListeners.set(type, [...(documentListeners.get(type) ?? []), fn]);
       }
     },
     requestAnimationFrame: (fn) => { const id = nextId++; frames.set(id, fn); return id; },
@@ -57,6 +59,7 @@ function makePage(replies, { withPage = true } = {}) {
   return {
     ctx, calls, callbacks, frames, intervals, elements,
     load: () => loaded.forEach((fn) => fn()),
+    documentEvent: (type, event) => (documentListeners.get(type) ?? []).forEach((fn) => fn(event)),
     setVisibility(state) { ctx.document.visibilityState = state; visibility.forEach((fn) => fn()); },
     flushFrames() { const due = [...frames.values()]; frames.clear(); due.forEach((fn) => fn()); },
     tick(n) { for (let i = 0; i < n; i++) [...intervals.values()].forEach((t) => t.fn()); },
@@ -100,6 +103,19 @@ test('a page that loads call.js alone gives no counts', () => {
   const page = makePage({}, { withPage: false });
   page.ctx.__r4AppCounts(4);
   assert.equal(page.named('counts').length, 0);
+});
+
+test('a policy violation is reported with its directive and the blocked scheme', () => {
+  const page = makePage({}, { withPage: false });
+  page.documentEvent('securitypolicyviolation', {
+    effectiveDirective: 'connect-src',
+    blockedURI: 'https://example.com/'
+  });
+  page.documentEvent('securitypolicyviolation', { effectiveDirective: 'script-src', blockedURI: 'inline' });
+  assert.deepEqual(page.reports(), [
+    'policy violated directive=connect-src blocked=https',
+    'policy violated directive=script-src blocked=inline'
+  ]);
 });
 
 test('the window event stops and starts the interval and the loop', async () => {
