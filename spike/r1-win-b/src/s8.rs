@@ -60,13 +60,39 @@ fn uia() -> IUIAutomation {
 }
 
 fn find_edit(u: &IUIAutomation, h: HWND) -> windows::core::Result<IUIAutomationElement> {
+    find_field(u, h).map(|(e, _, _)| e)
+}
+
+/// The address field: the first Edit with a value, else the first ComboBox or Edit among all
+/// descendants whose value pattern gives a non-empty value. Returns (element, kind, candidates).
+fn find_field(u: &IUIAutomation, h: HWND) -> windows::core::Result<(IUIAutomationElement, &'static str, i32)> {
     unsafe {
         let el = u.ElementFromHandle(h)?;
-        let mut v = VARIANT::default();
-        (*v.Anonymous.Anonymous).vt = VT_I4;
-        (*v.Anonymous.Anonymous).Anonymous.lVal = UIA_EditControlTypeId.0;
-        let cond = u.CreatePropertyCondition(UIA_ControlTypePropertyId, &v)?;
-        el.FindFirst(TreeScope_Descendants, &cond)
+        let cond_for = |id: i32| -> windows::core::Result<IUIAutomationCondition> {
+            let mut v = VARIANT::default();
+            (*v.Anonymous.Anonymous).vt = VT_I4;
+            (*v.Anonymous.Anonymous).Anonymous.lVal = id;
+            u.CreatePropertyCondition(UIA_ControlTypePropertyId, &v)
+        };
+        let edit = cond_for(UIA_EditControlTypeId.0)?;
+        if let Ok(e) = el.FindFirst(TreeScope_Descendants, &edit) {
+            if value_of(&e).map(|v| !v.is_empty()).unwrap_or(false) {
+                return Ok((e, "edit_first", 1));
+            }
+        }
+        let combo = cond_for(UIA_ComboBoxControlTypeId.0)?;
+        let either = u.CreateOrCondition(&edit, &combo)?;
+        let arr = el.FindAll(TreeScope_Descendants, &either)?;
+        let n = arr.Length().unwrap_or(0);
+        for i in 0..n {
+            if let Ok(e) = arr.GetElement(i) {
+                if value_of(&e).map(|v| !v.is_empty()).unwrap_or(false) {
+                    let kind = if e.CurrentControlType().map(|t| t == UIA_ComboBoxControlTypeId).unwrap_or(false) { "combobox" } else { "edit_any" };
+                    return Ok((e, kind, n));
+                }
+            }
+        }
+        Err(windows::core::Error::from_hresult(windows::core::HRESULT(0x80004005u32 as i32)))
     }
 }
 
@@ -217,8 +243,10 @@ pub fn site(args: &[String]) {
     std::thread::sleep(Duration::from_secs(10));
     let a = measure(pid, secs);
     let b = measure(pid, secs);
+    let c = measure(pid, secs);
     let tree = descendants(pid, &snapshot());
     let (ok1, match1, len1, ms1, fg1) = read_once(&u, &tree, &token);
+    let kind1 = browser_window(&tree).and_then(|h| find_field(&u, h).ok()).map(|(_, k, n)| format!("{k}:{n}")).unwrap_or_else(|| "none".into());
     let mut locate = Vec::new();
     let mut matches = 0;
     for _ in 1..reads {
@@ -242,14 +270,15 @@ pub fn site(args: &[String]) {
         }
     }
     let after = measure(pid, secs);
+    let after2 = measure(pid, secs);
     println!(
-        "S8 browser={kind} part=effect launches={attempt} page_requested={requested} first_read_ok={ok1} first_read_has_fixture_token={match1} first_read_value_len={len1} first_read_ms={ms1:.1} browser_was_foreground={fg1} later_reads_ok={} later_reads_with_token={matches} locate_and_read_median_ms={:.1} cached_value_read_median_ms={:.2} cached_reads={}",
+        "S8 browser={kind} part=effect launches={attempt} page_requested={requested} field_kind={kind1} first_read_ok={ok1} first_read_has_fixture_token={match1} first_read_value_len={len1} first_read_ms={ms1:.1} browser_was_foreground={fg1} later_reads_ok={} later_reads_with_token={matches} locate_and_read_median_ms={:.1} cached_value_read_median_ms={:.2} cached_reads={}",
         locate.len(),
         median(&mut locate),
         median(&mut cached),
         cached.len()
     );
-    for (name, w) in [("before_a", &a), ("before_b", &b), ("after", &after)] {
+    for (name, w) in [("warm_up", &a), ("before_b", &b), ("before_c", &c), ("after_a", &after), ("after_b", &after2)] {
         println!(
             "S8 browser={kind} window={name} secs={secs} cpu_ms={:.1} max_summed_working_set_bytes={} end_summed_working_set_bytes={} processes_start={} processes_end={} processes_churn={}",
             w.cpu_ms, w.max_ws, w.end_ws, w.procs_start, w.procs_end, w.churn

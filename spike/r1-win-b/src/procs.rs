@@ -90,6 +90,8 @@ pub fn app_run(args: &[String]) {
         let mut loaded_at: Option<Duration> = None;
         let mut window_seen = false;
         let mut window_visible = false;
+        let mut main_visible = false;
+        let mut visible_kinds: Vec<String> = Vec::new();
         loop {
             sample_tree(pid, &mut t);
             if loaded_at.is_none() {
@@ -104,6 +106,19 @@ pub fn app_run(args: &[String]) {
             for w in windows_all(false) {
                 if w.pid == pid && w.top && w.visible {
                     window_visible = true;
+                    let h = hwnd(w.hwnd);
+                    let t = window_text(h);
+                    if t == title || t == "Halvo" {
+                        main_visible = true;
+                    }
+                    let mut rc = RECT::default();
+                    unsafe {
+                        let _ = GetWindowRect(h, &mut rc);
+                    }
+                    let kind = format!("{}:{}x{}", w.class.replace(' ', "_"), rc.right - rc.left, rc.bottom - rc.top);
+                    if !visible_kinds.contains(&kind) {
+                        visible_kinds.push(kind);
+                    }
                 }
             }
             let end = match loaded_at {
@@ -118,7 +133,8 @@ pub fn app_run(args: &[String]) {
         let alive = !wait(h.0, 0);
         let sum_peaks: u64 = t.peak_by_pid.values().sum();
         println!(
-            "S7 app_run label={label} run={run} alive_at_end={alive} window_created={window_seen} window_visible_ever={window_visible} page_loaded={} page_load_ms={} samples={} max_tree_processes={} max_webview_processes={} processes_seen={} max_summed_working_set_bytes={} sum_of_per_process_peak_working_set_bytes={} app_process_peak_working_set_bytes={} max_summed_private_bytes={} unreadable_reads={}",
+            "S7 app_run label={label} run={run} alive_at_end={alive} window_created={window_seen} window_visible_ever={window_visible} main_window_visible_ever={main_visible} visible_window_kinds={} page_loaded={} page_load_ms={} samples={} max_tree_processes={} max_webview_processes={} processes_seen={} max_summed_working_set_bytes={} sum_of_per_process_peak_working_set_bytes={} app_process_peak_working_set_bytes={} max_summed_private_bytes={} unreadable_reads={}",
+            if visible_kinds.is_empty() { "-".to_string() } else { visible_kinds.join(",") },
             loaded_at.is_some(),
             loaded_at.map(|d| d.as_millis().to_string()).unwrap_or("-".into()),
             t.samples,
