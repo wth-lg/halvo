@@ -367,15 +367,27 @@ function fromTranscript(h, name, args) {
   return line.reply;
 }
 
+async function record(h, name, a) {
+  h.calls++;
+  if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+}
+
+function unheld(h, fn) {
+  if (h.mismatch.length) throw new Error(fn + ': the page made a call that the transcript does not hold next: ' + h.mismatch.join(','));
+}
+
 async function stub(h, name, args) {
   const a = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   if (typeof name !== 'string') return { error: 'malformed' };
   h.started++;
-  if (name !== 'agents_snapshot' && name !== 'agents_next') {
-    h.calls++;
-    if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  const logged = name !== 'agents_snapshot' && name !== 'agents_next';
+  if (h.transcript) {
+    const wrong = h.mismatch.length;
+    const reply = fromTranscript(h, name, a);
+    if (logged && h.mismatch.length === wrong) await record(h, name, a);
+    return reply;
   }
-  if (h.transcript) return fromTranscript(h, name, a);
+  if (logged) await record(h, name, a);
   if (name === 'agents_next') {
     h.nexts++;
     if (h.nexts > 1 || h.closed) return h.closed ? { closed: 'yes' } : new Promise((wake) => h.held.push(wake));
@@ -468,6 +480,7 @@ async function openWith(options, context, transform) {
     await h.page.goto(url.href);
     await settle(h);
     if (await h.page.evaluate(() => Boolean(window.__r4frame && window.__r4frame.failed))) throw new Refusal('fixture', 'a view script of views did not load');
+    unheld(h, 'open');
     return h;
   } catch (err) {
     if (ctx) await ctx.close().catch(() => {});
@@ -519,10 +532,10 @@ export async function act(h, { act: name, param, n, text } = {}) {
     await loc.click();
     type = 'click';
   }
+  await settle(h);
+  unheld(h, 'act');
   h.actions++;
   if (h.out) await appendFile(join(h.out, 'actions.txt'), 'action i=' + h.actions + ' type=' + type + ' act=' + name + '\n');
-  await settle(h);
-  if (h.mismatch.length) throw new Error('act: the page made a call that the transcript does not hold next: ' + h.mismatch.join(','));
 }
 
 const ENGINE_RUN = async () => {
@@ -1088,12 +1101,15 @@ function taint(h, n, r) {
 export async function check(h, n, options = {}) {
   if (!h || !h.page || h.closed) throw new Refusal('usage', 'check(page, n, {snapshot, write}) needs an open page');
   if (!Number.isInteger(n) || n < 1 || n > 6) throw new Refusal('usage', 'check(page, n, {snapshot, write}) takes n from 1 to 6');
+  unheld(h, 'check');
   h.kids = [];
   if (UNSEEN[n] && !(options.write && n === 3)) {
     if (h.flags.has('unsettled')) return { ok: false, counts: { ...UNSEEN[n] }, names: ['unsettled'] };
     if (h.markupShadow || (await h.page.evaluate(OPAQUE))) return { ok: false, counts: { ...UNSEEN[n] }, names: ['opaque'] };
   }
-  return taint(h, n, await run(h, n, options));
+  const result = taint(h, n, await run(h, n, options));
+  unheld(h, 'check');
+  return result;
 }
 
 async function run(h, n, options) {
