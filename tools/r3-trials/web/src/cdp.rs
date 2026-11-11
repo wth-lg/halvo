@@ -193,14 +193,17 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
         let temp = session::make_dirs(&opts.profile)?;
+        let made = session::RemoveOnDrop::new(&opts.profile, &temp);
         match Executor::launch(opts, &temp).await {
             Ok(mut started) => {
+                made.disarm();
                 started.profile = Some(opts.profile.clone());
                 started.temp = Some(temp);
                 Ok(started)
             }
             Err(f) => {
                 session::remove_dirs(&opts.profile, &temp).await;
+                made.disarm();
                 Err(f)
             }
         }

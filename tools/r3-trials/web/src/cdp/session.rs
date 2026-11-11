@@ -192,6 +192,43 @@ pub(crate) async fn remove_dirs(profile: &Path, temp: &Path) -> bool {
     profile_gone && temp_gone
 }
 
+pub(crate) struct RemoveOnDrop(Option<(PathBuf, PathBuf)>);
+
+impl RemoveOnDrop {
+    pub(crate) fn new(profile: &Path, temp: &Path) -> RemoveOnDrop {
+        RemoveOnDrop(Some((profile.to_path_buf(), temp.to_path_buf())))
+    }
+
+    pub(crate) fn disarm(mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        if let Some((profile, temp)) = self.0.take() {
+            remove_now(&profile);
+            remove_now(&temp);
+        }
+    }
+}
+
+fn remove_now(dir: &Path) {
+    let deadline = Instant::now() + REMOVE_WAIT;
+    let mut quiet = 0;
+    while quiet < 6 && Instant::now() < deadline {
+        match std::fs::symlink_metadata(dir) {
+            Ok(m) if m.is_dir() => {
+                quiet = 0;
+                let _ = std::fs::remove_dir_all(dir);
+            }
+            Ok(_) => return,
+            Err(_) => quiet += 1,
+        }
+        std::thread::sleep(POLL);
+    }
+}
+
 fn push_new(into: &mut Vec<procs::Proc>, from: Vec<procs::Proc>) {
     for p in from {
         if !into.iter().any(|q| procs::same(q, &p)) {
@@ -547,6 +584,22 @@ mod tests {
             .err();
         assert_eq!(refused, Some(Fault::new("start", "temporary path exists")));
         assert!(std::fs::symlink_metadata(&profile).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_dropped_start_removes_both_directories_that_it_made() {
+        let dir = scratch("dropped-start");
+        let profile = dir.join("profile");
+        let temp = make_dirs(&profile).unwrap();
+        std::fs::write(profile.join("Local State"), b"{}").unwrap();
+        std::fs::write(dir.join("beside.txt"), b"caller").unwrap();
+        drop(RemoveOnDrop::new(&profile, &temp));
+        assert!(gone(&profile) && gone(&temp));
+        assert!(dir.join("beside.txt").exists());
+        let kept = dir.join("kept");
+        let kept_temp = make_dirs(&kept).unwrap();
+        RemoveOnDrop::new(&kept, &kept_temp).disarm();
+        assert!(kept.is_dir() && kept_temp.is_dir());
     }
 
     #[tokio::test]

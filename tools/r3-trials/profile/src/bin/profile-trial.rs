@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use r3_profile::screen::{self, Window};
 use r3_profile::{
@@ -263,8 +263,12 @@ impl Watch {
         }
     }
 
-    async fn finish(mut self) -> Seen {
-        tokio::time::sleep(WATCH_TAIL).await;
+    async fn finish(mut self, stop: &Stop) -> Seen {
+        let mut rx = stop.0.clone();
+        tokio::select! {
+            _ = tokio::time::sleep(WATCH_TAIL) => {}
+            _ = rx.wait_for(|s| *s) => {}
+        }
         self.stop.store(true, Ordering::SeqCst);
         if let Some(t) = self.thread.take() {
             let _ = t.join();
@@ -598,7 +602,7 @@ async fn run_items12(
     }
     let watcher = Watch::start();
     let outcome = session(ctx, &args.leave_out, &watcher).await;
-    let watch = watcher.finish().await;
+    let watch = watcher.finish(&ctx.stop).await;
     let s = match outcome {
         Ok(s) => s,
         Err(f) => {
@@ -613,6 +617,10 @@ async fn run_items12(
             return ExitCode::from(1);
         }
     };
+    if ctx.stop.is_set() {
+        out(&format!("notrun item={} {cell} cause=signal", args.item));
+        return ExitCode::from(1);
+    }
     stop_line(ctx, "a", &s.stopped_a);
     let gone = |st: &Stopped| st.profile.as_ref().is_some_and(|p| !p.exists());
     let a_gone = gone(&s.stopped_a);
@@ -634,10 +642,6 @@ async fn run_items12(
         ));
         return ExitCode::from(1);
     }
-    let (import, asked) = landing(&s.landing);
-    out(&format!(
-        "session {cell} import={import} second_factor_asked_again={asked}"
-    ));
     out(&format!(
         "watch {cell} reads={} failed_reads={} front_changed={} windows_raised={}",
         watch.reads,
@@ -652,6 +656,10 @@ async fn run_items12(
         ));
         return ExitCode::from(1);
     }
+    let (import, asked) = landing(&s.landing);
+    out(&format!(
+        "session {cell} import={import} second_factor_asked_again={asked}"
+    ));
     out(&format!(
         "keychain {cell} prompt={}",
         if watch.prompt() { "yes" } else { "no" }
@@ -673,9 +681,14 @@ async fn run_items12(
             }
         }
     }
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline {
-        tokio::time::sleep(Duration::from_millis(250)).await;
+    let mut rx = ctx.stop.0.clone();
+    let signalled = tokio::select! {
+        _ = tokio::time::sleep(Duration::from_secs(5)) => false,
+        _ = rx.wait_for(|s| *s) => true,
+    };
+    if signalled {
+        out(&format!("notrun item=2 {cell} cause=signal"));
+        return ExitCode::from(1);
     }
     let temp_after = entry_names(temp);
     let fresh = new_entries(temp, temp_before, &temp_after, &ctx.scratch);
@@ -727,10 +740,10 @@ async fn run_items12(
         dirs_left
     ));
     out(&format!("trace {cell} host_hits={}", host.total()));
-    out(&format!(
-        "disk {cell} marker_hits={}",
-        found.total() + dirs_left
-    ));
+    if ctx.stop.is_set() {
+        out(&format!("notrun item=2 {cell} cause=signal"));
+        return ExitCode::from(1);
+    }
     if s.marker_cookies.is_empty() && args.leave_out.is_empty() {
         out(&format!("notrun item=2 {cell} cause=marker_cookie"));
         return ExitCode::from(1);
@@ -739,6 +752,10 @@ async fn run_items12(
         out(&format!("notrun item=2 {cell} cause=unreadable"));
         return ExitCode::from(1);
     }
+    out(&format!(
+        "disk {cell} marker_hits={}",
+        found.total() + dirs_left
+    ));
     ExitCode::SUCCESS
 }
 
