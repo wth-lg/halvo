@@ -956,7 +956,7 @@ macro_rules! runner_conversion_case {
     };
 }
 
-macro_rules! role_conversion_case {
+macro_rules! interface_role_case {
     ($fence:literal, $role:literal) => {
         concat!(
             "```",
@@ -976,9 +976,34 @@ macro_rules! role_conversion_case {
     };
 }
 
+macro_rules! coordinator_role_case {
+    ($fence:literal, $role:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::request::{AnalysisRole, CoordinatorBody, CoordinatorRole, CoordinatorWrite, RunnerRole};\n",
+            "use halvo_schema::RequestId;\n",
+            "#[derive(serde::Serialize, serde::Deserialize)]\n",
+            "struct Probe {\n",
+            "    probe: u32,\n",
+            "}\n",
+            "impl CoordinatorBody for Probe {\n",
+            "    type Reply = ();\n",
+            "}\n",
+            "let role: CoordinatorRole = ",
+            $role,
+            ";\n",
+            "let write = CoordinatorWrite::new(&role, RequestId::from_random([1; 16]), Probe { probe: 1 });\n",
+            "assert!(write.to_bytes().is_ok());\n",
+            "```"
+        )
+    };
+}
+
 /// What must not compile: an analysis or a runner value builds no approval, dismissal or deletion, no coordinator
 /// write (which stands for every other state change and every configuration change), no decision by conversion
-/// and no interface token by conversion. Each case differs from its twin in `compiles` in the role value alone or
+/// and no interface or coordinator token by conversion. Each case differs from its twin in `compiles` in the role value alone or
 /// in the one conversion call.
 pub mod compile_fail {
     /// `InterfaceDecision::approve` does not take `&AnalysisRole`. Twin: `compiles::interface_approve`.
@@ -1022,12 +1047,20 @@ pub mod compile_fail {
     pub mod runner_into_decision {}
 
     /// No `InterfaceRole` converted from an `AnalysisRole`. Twin: `compiles::interface_role_claims`.
-    #[doc = role_conversion_case!("compile_fail", "AnalysisRole::claim().into()")]
+    #[doc = interface_role_case!("compile_fail", "AnalysisRole::claim().into()")]
     pub mod analysis_role_into_interface {}
 
     /// No `InterfaceRole` converted from a `RunnerRole`. Twin: `compiles::interface_role_claims`.
-    #[doc = role_conversion_case!("compile_fail", "RunnerRole::claim().into()")]
+    #[doc = interface_role_case!("compile_fail", "RunnerRole::claim().into()")]
     pub mod runner_role_into_interface {}
+
+    /// No `CoordinatorRole` converted from an `AnalysisRole`. Twin: `compiles::coordinator_role_claims`.
+    #[doc = coordinator_role_case!("compile_fail", "AnalysisRole::claim().into()")]
+    pub mod analysis_role_into_coordinator {}
+
+    /// No `CoordinatorRole` converted from a `RunnerRole`. Twin: `compiles::coordinator_role_claims`.
+    #[doc = coordinator_role_case!("compile_fail", "RunnerRole::claim().into()")]
+    pub mod runner_role_into_coordinator {}
 }
 
 /// The twins of the cases of `compile_fail`, which compile and run.
@@ -1057,6 +1090,10 @@ pub mod compiles {
     pub mod runner_request_builds {}
 
     /// An interface value claimed as such builds an approval.
-    #[doc = role_conversion_case!("", "InterfaceRole::claim()")]
+    #[doc = interface_role_case!("", "InterfaceRole::claim()")]
     pub mod interface_role_claims {}
+
+    /// A coordinator value claimed as such builds a coordinator write.
+    #[doc = coordinator_role_case!("", "CoordinatorRole::claim()")]
+    pub mod coordinator_role_claims {}
 }
