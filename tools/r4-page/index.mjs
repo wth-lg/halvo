@@ -418,7 +418,7 @@ function lines(replies) {
   });
 }
 
-async function openWith(options, context, transform) {
+async function openWith(options, context, transform, inner) {
   const o = options || {};
   if (typeof o.origin !== 'string' || (typeof o.state !== 'string' && !Array.isArray(o.replies))) {
     throw new Refusal('usage', 'open({origin, state, views, frame, replies, acts, out}) needs origin and a state or replies');
@@ -472,6 +472,7 @@ async function openWith(options, context, transform) {
     h.page = await ctx.newPage();
     h.page.on('pageerror', () => {
       h.errors++;
+      h.flags.add('page_error');
     });
     const url = new URL(o.frame || FRAME, o.origin);
     if (Array.isArray(o.views) && o.views.length) url.searchParams.set('views', o.views.join(','));
@@ -484,7 +485,9 @@ async function openWith(options, context, transform) {
     await settle(h);
     if (await h.page.evaluate(() => Boolean(window.__r4frame && window.__r4frame.failed))) throw new Refusal('fixture', 'a view script of views did not load');
     unheld(h, 'open');
+    if (h.errors > 0 && !inner) throw new Error('open: the page reported an uncaught error');
     for (const a of o.acts || []) await act(h, a);
+    if (h.errors > 0 && !inner) throw new Error('open: the page reported an uncaught error');
     return h;
   } catch (err) {
     if (ctx) await ctx.close().catch(() => {});
@@ -507,7 +510,7 @@ export async function open(options) {
 
 async function again(h, context, transform) {
   const o = { ...h.options, out: undefined };
-  const kid = await openWith(o, context === undefined ? h.context : context, transform === undefined ? h.transform : transform);
+  const kid = await openWith(o, context === undefined ? h.context : context, transform === undefined ? h.transform : transform, true);
   h.kids.push(kid);
   return kid;
 }

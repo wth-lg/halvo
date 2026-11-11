@@ -304,6 +304,11 @@
         root.appendChild(host);
         host.attachShadow({ mode: 'closed' }).appendChild(document.createElement('button'));
       }
+      if (fault === 'key_error') {
+        document.addEventListener('keydown', function () {
+          throw new Error('sample fault key_error');
+        });
+      }
       if (fault === 'shadow_markup') {
         var holder = el('div', null, null);
         root.appendChild(holder);
