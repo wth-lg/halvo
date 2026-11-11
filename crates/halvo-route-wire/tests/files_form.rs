@@ -64,6 +64,17 @@ fn the_schema_is_the_body_of_t11_3_in_the_form_of_t11_6() {
 }
 
 #[test]
+fn no_line_of_the_vector_files_holds_a_unicode_line_break_raw() {
+    for name in ["vectors.jsonl", "answers.jsonl"] {
+        for (at, line) in read(name).split('\n').enumerate() {
+            for raw in ['\u{85}', '\u{2028}', '\u{2029}'] {
+                assert!(!line.contains(raw), "{name}:{} {raw:?}", at + 1);
+            }
+        }
+    }
+}
+
+#[test]
 fn request_md_states_the_names_and_the_limits() {
     let text = read("request.md");
     assert!(!text.contains('\r') && text.ends_with('\n'));
