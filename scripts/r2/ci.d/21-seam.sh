@@ -133,10 +133,16 @@ check() {
 
 run_measure() {
   mkdir -p "$work/$1/bin" "$work/$1/artifacts" || self_fail "the directories of $1 cannot be made"
-  printf '#!/bin/sh\ncat "%s"\nexit %s\n' "$5" "$3" >"$work/$1/bin/cargo" || self_fail "the stub of $1 cannot be written"
-  chmod +x "$work/$1/bin/cargo" || self_fail "the stub of $1 cannot be made executable"
+  search="$work/$1/bin"
+  if [ "$3" != no-cargo ]; then
+    printf '#!/bin/sh\ncat "%s"\nexit %s\n' "$5" "$3" >"$work/$1/bin/cargo" || self_fail "the stub of $1 cannot be written"
+    chmod +x "$work/$1/bin/cargo" || self_fail "the stub of $1 cannot be made executable"
+    search="$search:$PATH"
+  fi
   out=$( (
-    export PATH="$work/$1/bin:$PATH" CI_D_REPO="$4" CI_D_ARTIFACTS="$work/$1/artifacts"
+    export PATH="$search" CI_D_ARTIFACTS="$work/$1/artifacts"
+    if [ -n "$4" ]; then export CI_D_REPO="$4"; else unset CI_D_REPO; fi
+    [ "$3" != no-cargo ] || export CI=true
     measure
   ) 2>&1)
   code=$?
@@ -173,12 +179,18 @@ test transport_memory ... ok/'
   check conformance-ok-only-in-the-unit-tests FAIL 0 '/^test conformance_shredded \.\.\. ok$/d
 s/^running 0 tests$/&\
 test conformance_shredded ... ok/'
+  check memory-ok-only-after-the-doc-tests-line FAIL 0 '/^test transport_memory \.\.\. ok$/d
+s|Running tests/set_reader\.rs|Running tests/memory.rs|
+s/^   Doc-tests halvo_seam$/&\
+test transport_memory ... ok/'
   passing_output >"$work/real.txt" || self_fail "the fixture cannot be written"
   : >"$work/empty.txt" || self_fail "the empty output cannot be written"
   run_measure measure-passes PASS 0 "$work" "$work/real.txt"
   run_measure measure-takes-the-failing-status FAIL 101 "$work" "$work/real.txt"
   run_measure measure-with-no-output FAIL 0 "$work" "$work/empty.txt"
   run_measure measure-in-a-missing-directory FAIL 0 "$work/missing" "$work/real.txt"
+  run_measure measure-with-ci-d-repo-not-set FAIL 0 "" "$work/real.txt"
+  run_measure measure-in-ci-with-no-cargo FAIL no-cargo "$work" "$work/real.txt"
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
