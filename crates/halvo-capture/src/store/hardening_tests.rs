@@ -12,11 +12,13 @@ use halvo_sqlcipher::rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::{dev_root_exists, DevFallbackCustody};
+use crate::custody::file_root::test_support::{FileRootCustody, TestProtector};
+use crate::custody::file_root::{FileRoots, Protector};
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
 
 use super::db::{EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, CHUNK};
-use super::{SegmentExpiry, SegmentStore, StoreError, DEFAULT_RETENTION};
+use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -104,9 +106,7 @@ impl KeyCustody for FlakyCustody {
         let remaining = self.failures.load(Ordering::SeqCst);
         if remaining > 0 {
             self.failures.store(remaining - 1, Ordering::SeqCst);
-            return Err(CustodyError::RootUnavailable(
-                "transient failure".to_string(),
-            ));
+            return Err(CustodyError::RootLocked(-25308));
         }
         self.inner.destroy_root()
     }
@@ -278,7 +278,10 @@ fn delete_all_survives_a_transient_root_destroy_failure() {
     std::fs::write(KeyFile::path(dir.path()), key_file_backup).unwrap();
     let reopened = EncryptedStore::open(dir.path(), DEFAULT_RETENTION);
     assert!(
-        matches!(reopened, Err(StoreError::Sealed)),
+        matches!(
+            reopened,
+            Err(StoreError::Custody(CustodyError::RootMissing))
+        ),
         "a backup of store.key reopened a deleted store: {:?}",
         reopened.err()
     );
@@ -794,5 +797,288 @@ fn no_open_is_refused_as_locked_while_other_threads_spawn_children() {
         refused_as_locked, 0,
         "{refused_as_locked} of {OPEN_THEN_DROP_CYCLES} opens were refused as Locked with no \
          other writer, while {children_spawned} children were spawned"
+    );
+}
+
+fn file_root_custody<P: Protector>(
+    roots_dir: &Path,
+    protector: P,
+    root_id: RootId,
+) -> FileRootCustody<P> {
+    FileRootCustody {
+        roots: FileRoots::new(roots_dir.to_path_buf(), protector),
+        root_id,
+    }
+}
+
+fn file_root_store(dir: &Path) -> (PathBuf, PathBuf, RootId, Uuid) {
+    let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+    let root_id = RootId::fresh();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let mut store =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+    let (segment, _) = store
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    (store_dir, roots_dir, root_id, segment.segment_id)
+}
+
+struct FailingUnwrap {
+    root_id: RootId,
+    error: fn() -> CustodyError,
+}
+
+impl KeyCustody for FailingUnwrap {
+    fn kind(&self) -> CustodyKind {
+        CustodyKind::Dpapi
+    }
+    fn root_id(&self) -> RootId {
+        self.root_id
+    }
+    fn wrap_store_key(&self, _key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+        Err((self.error)())
+    }
+    fn unwrap_store_key(&self, _wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+        Err((self.error)())
+    }
+    fn destroy_root(&self) -> Result<(), CustodyError> {
+        Ok(())
+    }
+}
+
+fn open_answer(error: fn() -> CustodyError) -> StoreError {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, _, root_id, _) = file_root_store(dir.path());
+    EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+        Ok(Box::new(FailingUnwrap { root_id, error }))
+    })
+    .err()
+    .expect("open succeeded over a custody whose unwrap fails")
+}
+
+macro_rules! open_passes_each_custody_error_through {
+    ($($name:ident: $error:expr => $pattern:pat,)*) => {$(
+        #[test]
+        fn $name() {
+            let answer = open_answer($error);
+            assert!(
+                matches!(answer, StoreError::Custody($pattern)),
+                "open answered {answer:?}"
+            );
+        }
+    )*};
+}
+
+open_passes_each_custody_error_through! {
+    open_answers_a_missing_root_as_root_missing:
+        || CustodyError::RootMissing => CustodyError::RootMissing,
+    open_answers_a_root_of_the_wrong_length_as_root_corrupt:
+        || CustodyError::RootCorrupt => CustodyError::RootCorrupt,
+    open_answers_a_refused_root_as_root_denied:
+        || CustodyError::RootDenied => CustodyError::RootDenied,
+    open_answers_a_root_state_that_can_clear_as_root_locked_with_its_code:
+        || CustodyError::RootLocked(-2146893813) => CustodyError::RootLocked(-2146893813),
+    open_answers_a_wrap_that_does_not_open_as_wrap_auth_failed:
+        || CustodyError::WrapAuthFailed => CustodyError::WrapAuthFailed,
+    open_answers_another_platform_code_as_os_with_its_code:
+        || CustodyError::Os(Some(5)) => CustodyError::Os(Some(5)),
+    open_answers_a_permanent_unwrap_failure_as_crypto:
+        || CustodyError::Crypto("permanent".to_string()) => CustodyError::Crypto(_),
+    open_answers_a_custody_kind_this_build_lacks_as_custody_kind_unsupported:
+        || CustodyError::CustodyKindUnsupported(CustodyKind::SecureEnclave)
+            => CustodyError::CustodyKindUnsupported(CustodyKind::SecureEnclave),
+    open_answers_an_unbuilt_custody_call_as_not_implemented:
+        || CustodyError::NotImplemented("unbuilt") => CustodyError::NotImplemented(_),
+}
+
+fn open_with_recorded_kind(kind: CustodyKind) -> StoreResult<EncryptedStore> {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, _, _, _) = file_root_store(dir.path());
+    let mut key_file = KeyFile::read(&store_dir).unwrap();
+    key_file.custody_kind = kind;
+    std::fs::write(
+        KeyFile::path(&store_dir),
+        serde_json::to_vec(&key_file).unwrap(),
+    )
+    .unwrap();
+    EncryptedStore::open(&store_dir, DEFAULT_RETENTION)
+}
+
+#[test]
+fn a_key_file_of_a_custody_kind_this_build_lacks_opens_as_custody_kind_unsupported() {
+    let enclave = open_with_recorded_kind(CustodyKind::SecureEnclave);
+    assert!(
+        matches!(
+            enclave,
+            Err(StoreError::Custody(CustodyError::CustodyKindUnsupported(
+                CustodyKind::SecureEnclave
+            )))
+        ),
+        "secure_enclave: {:?}",
+        enclave.err()
+    );
+    #[cfg(not(target_os = "windows"))]
+    {
+        let dpapi = open_with_recorded_kind(CustodyKind::Dpapi);
+        assert!(
+            matches!(
+                dpapi,
+                Err(StoreError::Custody(CustodyError::CustodyKindUnsupported(
+                    CustodyKind::Dpapi
+                )))
+            ),
+            "dpapi: {:?}",
+            dpapi.err()
+        );
+    }
+}
+
+#[test]
+fn an_empty_a_zeroed_and_a_garbled_key_file_open_as_key_file_unparseable() {
+    for (case, bytes) in [
+        ("empty", Vec::new()),
+        ("zeroed", vec![0u8; 232]),
+        ("garbled", b"{\"version\": 1, \"custody_kind\"".to_vec()),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, _, _, _) = file_root_store(dir.path());
+        std::fs::write(KeyFile::path(&store_dir), &bytes).unwrap();
+        let opened = EncryptedStore::open(&store_dir, DEFAULT_RETENTION);
+        assert!(
+            matches!(opened, Err(StoreError::KeyFileUnparseable)),
+            "{case} key file: {:?}",
+            opened.err()
+        );
+    }
+}
+
+fn reopened_file_root_store(store_dir: &Path, roots_dir: &Path, root_id: RootId) -> EncryptedStore {
+    EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, _| {
+        Ok(Box::new(file_root_custody(
+            roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )))
+    })
+    .unwrap()
+}
+
+#[test]
+fn a_segment_file_replaced_by_a_directory_reads_as_io() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let path = segment_path(&store_dir, segment_id);
+    std::fs::remove_file(&path).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    let read = store.read_segment(segment_id, &mut Vec::new());
+    assert!(matches!(read, Err(StoreError::Io(_))), "{read:?}");
+}
+
+#[test]
+fn a_live_key_without_its_file_reads_as_segment_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    std::fs::remove_file(segment_path(&store_dir, segment_id)).unwrap();
+    let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    let read = store.read_segment(segment_id, &mut Vec::new());
+    assert!(
+        matches!(read, Err(StoreError::SegmentMissing(id)) if id == segment_id),
+        "{read:?}"
+    );
+}
+
+fn open_over_protector(
+    store_dir: &Path,
+    roots_dir: &Path,
+    root_id: RootId,
+    protector: &Arc<TestProtector>,
+) -> StoreResult<EncryptedStore> {
+    EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, _| {
+        Ok(Box::new(file_root_custody(
+            roots_dir,
+            Arc::clone(protector),
+            root_id,
+        )))
+    })
+}
+
+#[test]
+fn a_root_file_custody_answers_open_by_the_state_of_its_root() {
+    const CAN_CLEAR: i32 = -2146893813;
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+
+    let (protector, _) = TestProtector::failing_once(0x5a, CustodyError::RootLocked(CAN_CLEAR));
+    let protector = Arc::new(protector);
+    let first = open_over_protector(&store_dir, &roots_dir, root_id, &protector);
+    assert!(
+        matches!(
+            first,
+            Err(StoreError::Custody(CustodyError::RootLocked(CAN_CLEAR)))
+        ),
+        "a protector failure that can clear answered {:?}",
+        first.err()
+    );
+    let second = open_over_protector(&store_dir, &roots_dir, root_id, &protector);
+    assert!(
+        second.is_ok(),
+        "the open after the failure cleared answered {:?}",
+        second.err()
+    );
+    drop(second);
+
+    let root_file =
+        FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
+    let blob = std::fs::read(&root_file).unwrap();
+    std::fs::write(&root_file, vec![0u8; blob.len()]).unwrap();
+    let (protector, unprotects) = TestProtector::new(0x5a);
+    let zeroed = open_over_protector(&store_dir, &roots_dir, root_id, &Arc::new(protector));
+    assert!(
+        matches!(zeroed, Err(StoreError::Custody(CustodyError::RootMissing))),
+        "a root file of zeros answered {:?}",
+        zeroed.err()
+    );
+    assert_eq!(
+        unprotects.load(Ordering::SeqCst),
+        0,
+        "the protector was called for a root file of zeros"
+    );
+
+    std::fs::write(&root_file, [7u8; 31]).unwrap();
+    let short = open_over_protector(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        &Arc::new(TestProtector::new(0x5a).0),
+    );
+    assert!(
+        matches!(short, Err(StoreError::Custody(CustodyError::RootCorrupt))),
+        "a root of 31 bytes answered {:?}",
+        short.err()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_root_file_this_process_may_not_read_answers_open_as_root_denied() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let root_file =
+        FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
+    std::fs::set_permissions(&root_file, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let denied = open_over_protector(
+        &store_dir,
+        &roots_dir,
+        root_id,
+        &Arc::new(TestProtector::new(0x5a).0),
+    );
+    std::fs::set_permissions(&root_file, std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(
+        matches!(denied, Err(StoreError::Custody(CustodyError::RootDenied))),
+        "a root file of mode 000 answered {:?}",
+        denied.err()
     );
 }

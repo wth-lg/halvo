@@ -14,6 +14,8 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use uuid::Uuid;
+
 use crate::custody::CustodyError;
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
@@ -50,10 +52,21 @@ pub struct ShredReport {
     pub keys_destroyed: u64,
 }
 
+/// Why a store call failed, classified where the failure happens so that the
+/// owner can match every state. A custody failure, also one of `open`'s unwrap,
+/// arrives as [`StoreError::Custody`] with its own variant.
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
+    /// A file operation failed with this kind, so a full volume is
+    /// [`std::io::ErrorKind::StorageFull`].
     #[error("store i/o failed: {0}")]
-    Io(String),
+    Io(std::io::ErrorKind),
+    /// SQLite failed with this extended result code, so a full volume is
+    /// `SQLITE_FULL`.
+    #[error("the store database failed with SQLite code {0}")]
+    Db(i32),
+    /// No store-key file is in the directory, the store key does not open the
+    /// database, the handle was sealed by delete-all, or the segment was shredded.
     #[error("the store is sealed; its key is not available")]
     Sealed,
     #[error("the store holds corrupt or tampered data: {0}")]
@@ -62,6 +75,15 @@ pub enum StoreError {
     Locked(PathBuf),
     #[error("a store already exists at {0}")]
     AlreadyExists(PathBuf),
+    /// store.key is empty, zeroed or does not parse.
+    #[error("the store-key file does not parse")]
+    KeyFileUnparseable,
+    /// A segment whose key is live has no file.
+    #[error("a segment whose key is live has no file")]
+    SegmentMissing(Uuid),
+    /// A setting that the store requires does not read back from the database.
+    #[error("the store database does not have {0} in effect")]
+    SettingNotInEffect(&'static str),
     #[error(transparent)]
     Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]

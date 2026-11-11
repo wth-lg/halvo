@@ -5,15 +5,11 @@ use std::collections::HashSet;
 use halvo_sqlcipher::rusqlite::{self, Connection, Row};
 use uuid::Uuid;
 
-use super::db::{unix_secs_now, Db, EncryptedStore, KeyFile};
+use super::db::{db_error, unix_secs_now, Db, EncryptedStore, KeyFile};
 use super::segment::{self, SegmentFile};
 use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
-
-fn db_error(e: rusqlite::Error) -> StoreError {
-    StoreError::Io(e.to_string())
-}
 
 fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
     row.get(0)
@@ -95,16 +91,13 @@ impl EncryptedStore {
             }
             match segment::remove_segment_file(file.path()) {
                 Ok(()) => removed += 1,
-                Err(e) => failures.push(e.to_string()),
+                Err(e) => failures.push(e),
             }
         }
-        if let Some(first) = failures.first() {
-            return Err(StoreError::Io(format!(
-                "{} keyless segment files could not be removed; first: {first}",
-                failures.len()
-            )));
+        match failures.into_iter().next() {
+            Some(first) => Err(first),
+            None => Ok(removed),
         }
-        Ok(removed)
     }
 
     fn shred_segments(&mut self, ids: &[Uuid]) -> StoreResult<u64> {
@@ -125,9 +118,7 @@ impl EncryptedStore {
         match std::fs::remove_dir_all(segment::segments_root(self.dir())) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(StoreError::Io(format!(
-                "removing the segments directory: {e}"
-            ))),
+            Err(e) => Err(StoreError::Io(e.kind())),
         }
     }
 }

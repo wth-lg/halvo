@@ -33,7 +33,8 @@ impl KeyFile {
     }
 
     fn write(&self, store_dir: &Path) -> StoreResult<()> {
-        let json = serde_json::to_vec_pretty(self).map_err(|e| StoreError::Io(e.to_string()))?;
+        let json =
+            serde_json::to_vec_pretty(self).map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
         std::fs::write(Self::path(store_dir), json).map_err(io_error)
     }
 
@@ -43,15 +44,14 @@ impl KeyFile {
             Err(e) if e.kind() == ErrorKind::NotFound => return Err(StoreError::Sealed),
             Err(e) => return Err(io_error(e)),
         };
-        serde_json::from_slice(&json)
-            .map_err(|e| StoreError::Corrupt(format!("store-key file: {e}")))
+        serde_json::from_slice(&json).map_err(|_| StoreError::KeyFileUnparseable)
     }
 
     pub(crate) fn wrapped_store_key(&self) -> StoreResult<WrappedKey> {
         BASE64
             .decode(self.wrapped_store_key_b64.as_bytes())
             .map(WrappedKey)
-            .map_err(|e| StoreError::Corrupt(format!("store-key file: {e}")))
+            .map_err(|_| StoreError::KeyFileUnparseable)
     }
 
     /// Overwrite the key file with zeros, then unlink it, so the wrapped store
@@ -72,11 +72,16 @@ impl KeyFile {
 }
 
 fn io_error(e: std::io::Error) -> StoreError {
-    StoreError::Io(e.to_string())
+    StoreError::Io(e.kind())
 }
 
-fn db_error(e: rusqlite::Error) -> StoreError {
-    StoreError::Io(e.to_string())
+pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
+    match e {
+        rusqlite::Error::SqliteFailure(failure, _) => StoreError::Db(failure.extended_code),
+        other => StoreError::Corrupt(format!(
+            "the database returned an unexpected value: {other}"
+        )),
+    }
 }
 
 pub(crate) fn unix_secs_now() -> u64 {
@@ -96,7 +101,7 @@ pub(crate) fn remove_if_present(path: &Path) -> StoreResult<()> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(StoreError::Io(format!("removing {}: {e}", path.display()))),
+        Err(e) => Err(io_error(e)),
     }
 }
 
@@ -104,7 +109,7 @@ fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
     match std::fs::remove_dir_all(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(StoreError::Io(format!("removing {}: {e}", path.display()))),
+        Err(e) => Err(io_error(e)),
     }
 }
 
@@ -181,10 +186,9 @@ impl Db {
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
         let key_pragma =
             Zeroizing::new(format!("PRAGMA key = \"x'{}'\";", hex_lower(key).as_str()));
-        conn.execute_batch(&key_pragma)
-            .map_err(|e| StoreError::Io(format!("set key: {e}")))?;
+        conn.execute_batch(&key_pragma).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
-            .map_err(|e| StoreError::Io(format!("locking mode: {e}")))?;
+            .map_err(db_error)?;
         verify_key(&conn, store_dir)?;
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
@@ -192,7 +196,7 @@ impl Db {
              PRAGMA journal_mode = WAL;\n\
              PRAGMA foreign_keys = ON;",
         )
-        .map_err(|e| StoreError::Io(format!("pragmas: {e}")))?;
+        .map_err(db_error)?;
         require_secure_delete(&conn)?;
         require_exclusive_locking(&conn)?;
         let db = Self {
@@ -229,13 +233,13 @@ impl Db {
                  );\n\
                  CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
             )
-            .map_err(|e| StoreError::Io(format!("schema: {e}")))
+            .map_err(db_error)
     }
 
     fn enable_fts_secure_delete(&self) -> StoreResult<()> {
         self.conn
             .execute_batch("INSERT INTO events_fts(events_fts, rank) VALUES('secure-delete', 1);")
-            .map_err(|e| StoreError::Io(format!("fts secure-delete: {e}")))
+            .map_err(db_error)
     }
 
     pub(crate) fn connection(&self) -> &Connection {
@@ -276,7 +280,7 @@ impl Db {
         if changed == 1 {
             Ok(())
         } else {
-            Err(StoreError::Io(format!(
+            Err(StoreError::Corrupt(format!(
                 "segment key row {} was not reserved for this write",
                 id.0
             )))
@@ -354,10 +358,7 @@ impl Db {
             wal_bytes: self.wal_bytes(),
         };
         if checkpoint.busy != 0 || checkpoint.wal_bytes != 0 {
-            return Err(StoreError::Io(format!(
-                "wal checkpoint did not complete: busy={} wal_bytes={}",
-                checkpoint.busy, checkpoint.wal_bytes
-            )));
+            return Err(StoreError::Db(rusqlite::ffi::SQLITE_BUSY));
         }
         Ok(checkpoint)
     }
@@ -375,16 +376,14 @@ fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
         Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => {
             StoreError::Locked(store_dir.to_path_buf())
         }
-        _ => StoreError::Io(format!("open: {e}")),
+        _ => db_error(e),
     })
 }
 
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
     match pragma_int(conn, "secure_delete")? {
         1 => Ok(()),
-        other => Err(StoreError::Io(format!(
-            "secure_delete is {other}, so key destruction would not scrub the freed blob"
-        ))),
+        _ => Err(StoreError::SettingNotInEffect("secure_delete")),
     }
 }
 
@@ -395,9 +394,7 @@ fn require_exclusive_locking(conn: &Connection) -> StoreResult<()> {
     if mode == "exclusive" {
         Ok(())
     } else {
-        Err(StoreError::Io(format!(
-            "locking_mode is {mode}, so a reader could keep a shredded page alive"
-        )))
+        Err(StoreError::SettingNotInEffect("locking_mode"))
     }
 }
 
@@ -487,26 +484,35 @@ impl EncryptedStore {
             .and_then(|()| custody.destroy_root().map_err(StoreError::Custody));
         match cleanup {
             Ok(()) => cause,
-            Err(e) => StoreError::Io(format!("{cause}; cleaning up the failed create: {e}")),
+            Err(left_behind) => left_behind,
         }
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
     /// through the custody it names** (the owner's no-prompt unwrap) and open the
-    /// database. Fails [`StoreError::Sealed`] if the key file is gone (delete-all
-    /// ran), the custody root is gone or cannot unwrap the key (a non-owner), or
-    /// the key does not open the database.
+    /// database. Fails [`StoreError::Locked`] while another writer holds the
+    /// directory, [`StoreError::Sealed`] if the key file is gone (delete-all ran)
+    /// or the key does not open the database, [`StoreError::KeyFileUnparseable`]
+    /// for a key file that does not parse, and [`StoreError::Custody`] with the
+    /// custody's own variant when the custody kind is not in this build or the
+    /// unwrap fails: [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`]
+    /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
+        Self::open_with(dir, retention, custody_for)
+    }
+
+    pub(crate) fn open_with(
+        dir: &Path,
+        retention: Duration,
+        custody_for: impl FnOnce(
+            CustodyKind,
+            RootId,
+        ) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
+    ) -> StoreResult<Self> {
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
-        let store_key = match custody.unwrap_store_key(&key_file.wrapped_store_key()?) {
-            Ok(key) => key,
-            Err(CustodyError::Crypto(_) | CustodyError::RootUnavailable(_)) => {
-                return Err(StoreError::Sealed)
-            }
-            Err(e) => return Err(StoreError::Custody(e)),
-        };
+        let store_key = custody.unwrap_store_key(&key_file.wrapped_store_key()?)?;
         let db = Db::open(dir, store_key.expose())?;
         Ok(Self {
             dir: dir.to_path_buf(),
@@ -769,14 +775,14 @@ mod tests {
     }
 
     #[test]
-    fn open_reports_a_missing_root_as_sealed() {
+    fn open_reports_a_missing_root_as_root_missing() {
         let dir = tempfile::tempdir().unwrap();
         let (store, root_id) = persistent_store(dir.path());
         drop(store);
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
         assert!(matches!(
             EncryptedStore::open(dir.path(), DEFAULT_RETENTION),
-            Err(StoreError::Sealed)
+            Err(StoreError::Custody(CustodyError::RootMissing))
         ));
     }
 

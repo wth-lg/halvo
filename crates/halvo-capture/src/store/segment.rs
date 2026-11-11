@@ -11,7 +11,7 @@ use chacha20poly1305::XChaCha20Poly1305;
 use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::custody::dev_fallback::{aead_open, aead_seal, fill_random};
+use crate::custody::dev_fallback::{aead_open, aead_seal};
 use crate::event::SegmentKeyId;
 
 use super::db::remove_if_present;
@@ -34,7 +34,7 @@ pub(crate) struct SegmentKey([u8; 32]);
 impl SegmentKey {
     pub(crate) fn random() -> StoreResult<Self> {
         let mut key = Self([0u8; 32]);
-        fill_random(&mut key.0).map_err(|e| StoreError::Io(e.to_string()))?;
+        getrandom::getrandom(&mut key.0).map_err(rng_error)?;
         Ok(key)
     }
     fn expose(&self) -> &[u8; 32] {
@@ -47,7 +47,7 @@ impl SegmentKey {
 
 pub(crate) fn wrap_segment_key(store_key: &[u8; 32], seg_key: &SegmentKey) -> StoreResult<Vec<u8>> {
     aead_seal(store_key, seg_key.expose(), SEGMENT_KEY_AAD)
-        .map_err(|_| StoreError::Io("sealing the segment key failed".to_string()))
+        .map_err(|_| StoreError::Io(io::ErrorKind::Other))
 }
 
 /// Unwrap a stored segment key. The store key opened the database, so a wrapped
@@ -160,7 +160,13 @@ fn check_header(bytes: &[u8; HEADER_LEN]) -> StoreResult<()> {
 }
 
 fn io_error(e: io::Error) -> StoreError {
-    StoreError::Io(e.to_string())
+    StoreError::Io(e.kind())
+}
+
+fn rng_error(e: getrandom::Error) -> StoreError {
+    StoreError::Io(e.raw_os_error().map_or(io::ErrorKind::Other, |code| {
+        io::Error::from_raw_os_error(code).kind()
+    }))
 }
 
 struct Chunks<'a> {
@@ -218,13 +224,13 @@ pub(crate) fn encrypt_segment(
 ) -> StoreResult<u64> {
     let head = header.to_bytes();
     let mut nonce_bytes = [0u8; STREAM_NONCE];
-    getrandom::getrandom(&mut nonce_bytes).map_err(|e| StoreError::Io(e.to_string()))?;
+    getrandom::getrandom(&mut nonce_bytes).map_err(rng_error)?;
     out.write_all(&head)
         .and_then(|()| out.write_all(&nonce_bytes))
         .map_err(io_error)?;
 
     let nonce = Array::try_from(&nonce_bytes[..])
-        .map_err(|_| StoreError::Io("bad stream nonce".to_string()))?;
+        .map_err(|_| StoreError::Io(io::ErrorKind::InvalidInput))?;
     let mut encryptor: EncryptorBE32<XChaCha20Poly1305> =
         EncryptorBE32::new(key.expose().into(), &nonce);
     let mut chunks = Chunks::new(plaintext, CHUNK);
@@ -245,7 +251,7 @@ pub(crate) fn encrypt_segment(
 }
 
 fn emit_ciphertext(out: &mut dyn Write, sealed: Result<Vec<u8>, aead::Error>) -> StoreResult<()> {
-    let ciphertext = sealed.map_err(|_| StoreError::Io("segment encryption failed".to_string()))?;
+    let ciphertext = sealed.map_err(|_| StoreError::Io(io::ErrorKind::Other))?;
     out.write_all(&ciphertext).map_err(io_error)
 }
 
@@ -262,7 +268,12 @@ pub(crate) fn decrypt_segment(
     let mut nonce_bytes = [0u8; STREAM_NONCE];
     file.read_exact(&mut head)
         .and_then(|()| file.read_exact(&mut nonce_bytes))
-        .map_err(|_| StoreError::Corrupt("segment file too short".to_string()))?;
+        .map_err(|e| match e.kind() {
+            io::ErrorKind::UnexpectedEof => {
+                StoreError::Corrupt("segment file too short".to_string())
+            }
+            _ => io_error(e),
+        })?;
     check_header(&head)?;
 
     let nonce = Array::try_from(&nonce_bytes[..])
@@ -340,7 +351,11 @@ pub(crate) fn read_segment_file(
     segment_id: Uuid,
     out: &mut dyn Write,
 ) -> StoreResult<u64> {
-    let file = std::fs::File::open(segment_path(store_dir, segment_id)).map_err(io_error)?;
+    let file =
+        std::fs::File::open(segment_path(store_dir, segment_id)).map_err(|e| match e.kind() {
+            io::ErrorKind::NotFound => StoreError::SegmentMissing(segment_id),
+            _ => io_error(e),
+        })?;
     let mut reader = io::BufReader::new(file);
     decrypt_segment(&mut reader, &mut io::sink(), seg_key)?;
     reader.seek(SeekFrom::Start(0)).map_err(io_error)?;

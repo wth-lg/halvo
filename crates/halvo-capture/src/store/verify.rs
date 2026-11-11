@@ -7,14 +7,13 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
-use halvo_sqlcipher::rusqlite;
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{custody_for, KeyCustody, RootId};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
 
-use super::db::{EncryptedStore, KeyFile};
+use super::db::{db_error, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path};
 use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
 
@@ -32,10 +31,6 @@ fn yes_no(value: bool) -> &'static str {
     } else {
         "no"
     }
-}
-
-fn db_error(e: rusqlite::Error) -> StoreError {
-    StoreError::Io(e.to_string())
 }
 
 /// The store directory for a verify run: `HALVO_STORE_DIR`, or a fresh temp
@@ -250,11 +245,11 @@ pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
     let (sibling, _) = store.write_segment(&mut Cursor::new(b"live sibling segment"))?;
     let segment_id = expired.segment_id;
     let cipher =
-        std::fs::read(segment_path(dir, segment_id)).map_err(|e| StoreError::Io(e.to_string()))?;
+        std::fs::read(segment_path(dir, segment_id)).map_err(|e| StoreError::Io(e.kind()))?;
 
     let report = store.crypto_shred_expired()?;
     if report.segments_shredded != 1 {
-        return Err(StoreError::Io(format!(
+        return Err(StoreError::Corrupt(format!(
             "expected 1 shredded segment, got {}",
             report.segments_shredded
         )));

@@ -29,7 +29,10 @@ pub(crate) struct FileRoots<P> {
 }
 
 fn root_io(e: std::io::Error) -> CustodyError {
-    CustodyError::RootUnavailable(format!("root file: {e}"))
+    match e.kind() {
+        ErrorKind::PermissionDenied => CustodyError::RootDenied,
+        _ => CustodyError::Os(e.raw_os_error()),
+    }
 }
 
 fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
@@ -77,11 +80,12 @@ impl<P: Protector> FileRoots<P> {
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(root_io(e)),
         };
+        if blob.iter().all(|&b| b == 0) {
+            return Ok(None);
+        }
         let plain = self.protector.unprotect(&blob, root_id.as_bytes())?;
         if plain.len() != 32 {
-            return Err(CustodyError::RootUnavailable(
-                "root file is not 32 bytes".to_string(),
-            ));
+            return Err(CustodyError::RootCorrupt);
         }
         let mut root = Zeroizing::new([0u8; 32]);
         root.copy_from_slice(&plain);
@@ -115,11 +119,11 @@ impl<P: Protector> FileRoots<P> {
         root_id: RootId,
         wrapped: &WrappedKey,
     ) -> Result<StoreKey, CustodyError> {
-        let root = self.existing_root(root_id)?.ok_or_else(|| {
-            CustodyError::RootUnavailable(format!("no root file for store {root_id}"))
-        })?;
+        let root = self
+            .existing_root(root_id)?
+            .ok_or(CustodyError::RootMissing)?;
         let plain = aead_open(&root, &wrapped.0, root_id.as_bytes())
-            .map_err(|_| CustodyError::Crypto("unwrapping the store key failed".to_string()))?;
+            .map_err(|_| CustodyError::WrapAuthFailed)?;
         store_key_from(plain)
     }
 
@@ -131,6 +135,105 @@ impl<P: Protector> FileRoots<P> {
     #[cfg(test)]
     pub(crate) fn root_exists(&self, root_id: RootId) -> Result<bool, CustodyError> {
         self.existing_root(root_id).map(|root| root.is_some())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn root_path(&self, root_id: RootId) -> PathBuf {
+        self.path(root_id)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use zeroize::Zeroizing;
+
+    use super::{FileRoots, Protector};
+    use crate::custody::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey};
+
+    pub(crate) struct TestProtector {
+        mask: u8,
+        unprotects: Arc<AtomicUsize>,
+        fail_next_unprotect: Mutex<Option<CustodyError>>,
+    }
+
+    impl TestProtector {
+        pub(crate) fn new(mask: u8) -> (Self, Arc<AtomicUsize>) {
+            let unprotects = Arc::new(AtomicUsize::new(0));
+            let protector = Self {
+                mask,
+                unprotects: Arc::clone(&unprotects),
+                fail_next_unprotect: Mutex::new(None),
+            };
+            (protector, unprotects)
+        }
+
+        pub(crate) fn failing_once(mask: u8, error: CustodyError) -> (Self, Arc<AtomicUsize>) {
+            let (protector, unprotects) = Self::new(mask);
+            *protector.fail_next_unprotect.lock().unwrap() = Some(error);
+            (protector, unprotects)
+        }
+
+        fn transform(&self, bytes: &[u8], label: &[u8]) -> Vec<u8> {
+            bytes
+                .iter()
+                .zip(label.iter().cycle())
+                .map(|(b, l)| b ^ l ^ self.mask)
+                .collect()
+        }
+    }
+
+    impl Protector for TestProtector {
+        fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError> {
+            Ok(self.transform(plain, label))
+        }
+
+        fn unprotect(&self, blob: &[u8], label: &[u8]) -> Result<Zeroizing<Vec<u8>>, CustodyError> {
+            self.unprotects.fetch_add(1, Ordering::SeqCst);
+            if let Some(error) = self.fail_next_unprotect.lock().unwrap().take() {
+                return Err(error);
+            }
+            Ok(Zeroizing::new(self.transform(blob, label)))
+        }
+    }
+
+    impl<P: Protector> Protector for Arc<P> {
+        fn protect(&self, plain: &[u8], label: &[u8]) -> Result<Vec<u8>, CustodyError> {
+            P::protect(self, plain, label)
+        }
+
+        fn unprotect(&self, blob: &[u8], label: &[u8]) -> Result<Zeroizing<Vec<u8>>, CustodyError> {
+            P::unprotect(self, blob, label)
+        }
+    }
+
+    pub(crate) struct FileRootCustody<P> {
+        pub(crate) roots: FileRoots<P>,
+        pub(crate) root_id: RootId,
+    }
+
+    impl<P: Protector> KeyCustody for FileRootCustody<P> {
+        fn kind(&self) -> CustodyKind {
+            CustodyKind::Dpapi
+        }
+
+        fn root_id(&self) -> RootId {
+            self.root_id
+        }
+
+        fn wrap_store_key(&self, key: &StoreKey) -> Result<WrappedKey, CustodyError> {
+            self.roots.wrap(self.root_id, key)
+        }
+
+        fn unwrap_store_key(&self, wrapped: &WrappedKey) -> Result<StoreKey, CustodyError> {
+            self.roots.unwrap(self.root_id, wrapped)
+        }
+
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            self.roots.destroy_root(self.root_id)
+        }
     }
 }
 
@@ -193,7 +296,7 @@ mod tests {
         assert!(!roots.root_exists(root_id).unwrap());
         assert!(matches!(
             roots.unwrap(root_id, &wrapped),
-            Err(CustodyError::RootUnavailable(_))
+            Err(CustodyError::RootMissing)
         ));
         roots.destroy_root(root_id).unwrap();
         assert!(!roots.root_exists(RootId::fresh()).unwrap());
@@ -208,7 +311,7 @@ mod tests {
         roots.wrap(b, &StoreKey::from_bytes([2u8; 32])).unwrap();
         assert!(matches!(
             roots.unwrap(b, &wrapped),
-            Err(CustodyError::Crypto(_))
+            Err(CustodyError::WrapAuthFailed)
         ));
         let other = FileRoots::new(dir.path().join("roots"), XorProtector(0x00));
         assert!(other.unwrap(a, &wrapped).is_err());

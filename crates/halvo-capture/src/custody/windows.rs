@@ -100,9 +100,7 @@ impl Protector for Dpapi {
 /// cannot destroy a key per store, so the destroyable root is this file, and
 /// a store directory copied elsewhere carries no root with it.
 pub(crate) fn user_roots() -> Result<FileRoots<Dpapi>, CustodyError> {
-    let local = std::env::var_os("LOCALAPPDATA").ok_or_else(|| {
-        CustodyError::RootUnavailable("LOCALAPPDATA is not set for this user".to_string())
-    })?;
+    let local = std::env::var_os("LOCALAPPDATA").ok_or(CustodyError::RootDenied)?;
     Ok(FileRoots::new(
         PathBuf::from(local).join("Halvo").join("roots"),
         Dpapi,

@@ -105,22 +105,50 @@ pub fn custody_for(
 ) -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
     match kind {
         CustodyKind::DevFallback => Ok(Box::new(dev_fallback::DevFallbackCustody::new(root_id))),
-        CustodyKind::SecureEnclave => Err(CustodyError::NotImplemented("secure-enclave custody")),
+        CustodyKind::SecureEnclave => Err(CustodyError::CustodyKindUnsupported(kind)),
         #[cfg(target_os = "windows")]
         CustodyKind::Dpapi => Ok(Box::new(windows::DpapiCustody::new(root_id))),
         #[cfg(not(target_os = "windows"))]
-        CustodyKind::Dpapi => Err(CustodyError::RootUnavailable(
-            "DPAPI custody exists only on Windows".to_string(),
-        )),
+        CustodyKind::Dpapi => Err(CustodyError::CustodyKindUnsupported(kind)),
     }
 }
 
+/// Why a custody call failed, classified where the failure happens so that the
+/// owner can match every state: a state that can clear is [`RootLocked`], and
+/// [`Crypto`] is a permanent failure only.
+///
+/// [`RootLocked`]: CustodyError::RootLocked
+/// [`Crypto`]: CustodyError::Crypto
 #[derive(Debug, thiserror::Error)]
 pub enum CustodyError {
-    #[error("the platform root key is not available: {0}")]
-    RootUnavailable(String),
+    /// No root exists for this store, also an empty or all-zero root file.
+    #[error("the root of this store is missing")]
+    RootMissing,
+    /// The root exists and does not hold 32 bytes.
+    #[error("the root of this store does not hold 32 bytes")]
+    RootCorrupt,
+    /// The root exists and this process may not read or destroy it.
+    #[error("this process may not read or destroy the root of this store")]
+    RootDenied,
+    /// A platform state that can clear, with the platform's code.
+    #[error("the root of this store is locked for now (code {0:#x})")]
+    RootLocked(i32),
+    /// This build has no custody of the kind that the store-key file names.
+    #[error("this build has no {0:?} custody")]
+    CustodyKindUnsupported(CustodyKind),
+    /// The wrapped store key does not authenticate under the root.
+    #[error("the wrapped store key does not open under the root")]
+    WrapAuthFailed,
+    /// The platform refused the call with a code that no other variant names.
+    #[error("the platform refused the custody call (code {})", os_code_text(*.0))]
+    Os(Option<i32>),
+    /// A permanent failure of the wrap or the unwrap.
     #[error("wrapping or unwrapping the store key failed: {0}")]
     Crypto(String),
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
+}
+
+fn os_code_text(code: Option<i32>) -> String {
+    code.map_or_else(|| "none".to_string(), |code| code.to_string())
 }
