@@ -13,6 +13,15 @@ bound_is() {
   [ "$value" = "$2" ]
 }
 
+zero_bound_verdict() {
+  zero_cpu=20; zero_disk=2000000000
+  case $1 in
+    cpu) zero_cpu=$(gate_bound cpu_max_pct_of_one_core "$gate_scratch/zero") || return 1 ;;
+    disk) zero_disk=$(gate_bound disk_max_bytes_per_day "$gate_scratch/zero") || return 1 ;;
+  esac
+  predicate_cost_within_bound 0.00 0 600 "$zero_cpu" "$zero_disk"
+}
+
 bounds_of_the_unit() {
   for pair in rss_max_bytes=50331648 cpu_max_pct_of_one_core=20 disk_max_bytes_per_day=2000000000 ci_job_timeout_min=30 child_deadline_extra_s=25 batch_age_s=5 maintenance_interval_s=60 screen_frames_max_per_s=2; do
     bound_is "${pair%%=*}" "${pair#*=}" || return 1
@@ -326,6 +335,9 @@ cases() {
   t dir-measured PASS usage_is_a_number "$gate_scratch/some-dir"
   t dir-missing FAIL dir_disk_usage_bytes "$gate_scratch/no-such-dir"
   t dir-is-a-file FAIL dir_disk_usage_bytes "$gate_scratch/some-file"
+  bounds_fixture zero "$(printf 'cpu_max_pct_of_one_core=0\ndisk_max_bytes_per_day=0')"
+  t cpu-bound-zero-with-figures-of-0 FAIL zero_bound_verdict cpu
+  t disk-bound-zero-with-figures-of-0 FAIL zero_bound_verdict disk
   t bound-read PASS bound_is cpu_max_pct_of_one_core 20 "$gate_scratch/one"
   t bounds-of-the-unit PASS bounds_of_the_unit
   t bound-file-missing FAIL gate_bound cpu_max_pct_of_one_core "$gate_scratch/no-such-file"

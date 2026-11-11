@@ -61,11 +61,12 @@ measure() {
   if bound=$(gate_bound ci_job_timeout_min); then
     case $bound in
       '' | *[!0-9]*) finding "the bound ci_job_timeout_min is no number" ;;
-      *)
+      *[1-9]*)
         timed=$(grep -c -x "    timeout-minutes: $bound" "$file")
         [ "$jobs" -eq "$timed" ] ||
           finding "$timed of $jobs jobs of ci.yml set timeout-minutes: $bound, the bound ci_job_timeout_min"
         ;;
+      *) finding "the bound ci_job_timeout_min is not positive" ;;
     esac
   else
     finding "the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh"
@@ -195,6 +196,9 @@ EOF
   tree bound-is-no-number ''
   STUB_BOUND=30m
   check bound-is-no-number FAIL 'the bound ci_job_timeout_min is no number)'
+  tree bound-zero '8s/30/0/;13s/30/0/'
+  STUB_BOUND=0
+  check bound-zero FAIL 'the bound ci_job_timeout_min is not positive)'
   tree bound-unreadable ''
   printf 'gate_bound() {\n  return 1\n}\n' >"$work/bound-unreadable/scripts/r1-gate/lib.sh"
   check bound-unreadable FAIL 'the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh)'

@@ -18,6 +18,11 @@ FIGURES
   predicate_memory_within_bound "$peak" "$mean_kib" "$samples" 50331648
 }
 
+zero_bound_verdict() {
+  zero_max=$(gate_bound rss_max_bytes "$gate_scratch/zero") || return 1
+  predicate_memory_within_bound 0 0 1 "$zero_max"
+}
+
 peak_is() {
   figures=$(memory_figures "$gate_scratch/$1") || return 1
   [ "${figures%% *}" = "$2" ]
@@ -149,6 +154,8 @@ cases() {
   crlf=$(printf 'rss_max_bytes=50331648\r')
   bounds_fixture crlf "$crlf"
   bounds_fixture other-key 'rss_max=50331648'
+  bounds_fixture zero 'rss_max_bytes=0'
+  t bound-zero-with-figures-of-0 FAIL zero_bound_verdict
   t bound-read PASS gate_bound rss_max_bytes "$gate_scratch/one"
   t bound-file-missing FAIL gate_bound rss_max_bytes "$gate_scratch/no-such-file"
   t bound-key-missing FAIL gate_bound rss_max_bytes "$gate_scratch/other-key"

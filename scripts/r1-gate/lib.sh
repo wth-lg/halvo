@@ -615,6 +615,7 @@ predicate_memory_within_bound() {
   awk -v peak="$1" -v mean_kib="$2" -v samples="$3" -v max="$4" 'BEGIN {
     whole = "^[0-9]+$"
     if (peak !~ whole || mean_kib !~ whole || samples !~ whole || max !~ whole) exit 2
+    if (max + 0 <= 0) exit 1
     if (samples + 0 == 0) exit 1
     if (peak + 0 > max + 0) exit 1
     if (mean_kib * 1024 > max + 0) exit 1
@@ -639,6 +640,7 @@ predicate_cost_within_bound() {
     decimal = "^[0-9]+(\\.[0-9]+)?$"; whole = "^[0-9]+$"
     if (cpu !~ decimal || cpu_max !~ decimal || growth !~ /^-?[0-9]+$/) exit 2
     if (seconds !~ whole || per_day !~ whole || seconds + 0 == 0) exit 2
+    if (cpu_max + 0 <= 0 || per_day + 0 <= 0) exit 1
     if (cpu + 0 > cpu_max + 0) exit 1
     if (growth + 0 > seconds * per_day / 86400) exit 1
     exit 0
