@@ -83,10 +83,8 @@ pub enum What {
     ItemLapsed {
         /// `item`.
         item: ItemId,
-        /// `kind`.
-        kind: ItemKind,
-        /// `cause`.
-        cause: LapseCause,
+        /// `kind` and `cause`.
+        lapsed: Lapsed,
     },
     /// `item_released`: one row per entry of the released decision, kind `confirm`.
     ItemReleased {
@@ -248,6 +246,95 @@ impl ReadyAnswer {
         match self {
             ReadyAnswer::Skip => Choice::Skip,
             ReadyAnswer::Start => Choice::Start,
+        }
+    }
+}
+
+/// The `kind` and the `cause` of an `item_lapsed` row: a confirmation with one of the six
+/// causes of I4.2, an item of another kind with `run_ended`, `app_ended` or `wait_limit`
+/// (I7.1).
+///
+/// ```
+/// use halvo_coord::types::{LapseCause, Lapsed, OtherLapse};
+/// let ready = Lapsed::Ready(OtherLapse::WaitLimit);
+/// assert_eq!(ready.cause(), LapseCause::WaitLimit);
+/// let confirm = Lapsed::Confirm(LapseCause::Digest);
+/// ```
+///
+/// An item of another kind than `confirm` that lapses with `digest` cannot be written:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::{LapseCause, Lapsed};
+/// let ready = Lapsed::Ready(LapseCause::Digest);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lapsed {
+    /// `confirm`, with one of the six causes of I4.2.
+    Confirm(LapseCause),
+    /// `sign_in`.
+    SignIn(OtherLapse),
+    /// `link_account`.
+    LinkAccount(OtherLapse),
+    /// `stuck`.
+    Stuck(OtherLapse),
+    /// `check`.
+    Check(OtherLapse),
+    /// `setup`.
+    Setup(OtherLapse),
+    /// `ready`.
+    Ready(OtherLapse),
+    /// `show`.
+    Show(OtherLapse),
+}
+
+/// The causes of a lapse of an item of another kind than `confirm` (I7.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OtherLapse {
+    /// `run_ended`.
+    RunEnded,
+    /// `app_ended`.
+    AppEnded,
+    /// `wait_limit`.
+    WaitLimit,
+}
+
+impl OtherLapse {
+    /// The cause's name in `LapseCause`.
+    pub const fn cause(self) -> LapseCause {
+        match self {
+            OtherLapse::RunEnded => LapseCause::RunEnded,
+            OtherLapse::AppEnded => LapseCause::AppEnded,
+            OtherLapse::WaitLimit => LapseCause::WaitLimit,
+        }
+    }
+}
+
+impl Lapsed {
+    /// The row's `kind`.
+    pub const fn kind(&self) -> ItemKind {
+        match self {
+            Lapsed::Confirm(_) => ItemKind::Confirm,
+            Lapsed::SignIn(_) => ItemKind::SignIn,
+            Lapsed::LinkAccount(_) => ItemKind::LinkAccount,
+            Lapsed::Stuck(_) => ItemKind::Stuck,
+            Lapsed::Check(_) => ItemKind::Check,
+            Lapsed::Setup(_) => ItemKind::Setup,
+            Lapsed::Ready(_) => ItemKind::Ready,
+            Lapsed::Show(_) => ItemKind::Show,
+        }
+    }
+
+    /// The row's `cause`.
+    pub const fn cause(&self) -> LapseCause {
+        match self {
+            Lapsed::Confirm(c) => *c,
+            Lapsed::SignIn(o)
+            | Lapsed::LinkAccount(o)
+            | Lapsed::Stuck(o)
+            | Lapsed::Check(o)
+            | Lapsed::Setup(o)
+            | Lapsed::Ready(o)
+            | Lapsed::Show(o) => o.cause(),
         }
     }
 }

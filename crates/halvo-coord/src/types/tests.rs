@@ -521,6 +521,66 @@ fn an_item_that_is_no_confirmation_is_not_armed() {
 }
 
 #[test]
+fn an_item_lapses_with_the_causes_of_its_kind() {
+    let mut confirm: Vec<&str> = LapseCause::ALL
+        .iter()
+        .map(|c| Lapsed::Confirm(*c).cause().name())
+        .collect();
+    confirm.sort_unstable();
+    assert_eq!(
+        confirm,
+        [
+            "app_ended",
+            "cancelled",
+            "digest",
+            "no_record",
+            "run_ended",
+            "wait_limit"
+        ],
+        "a confirmation lapses with the six causes of I4.2"
+    );
+    let other: Vec<&str> = [
+        OtherLapse::RunEnded,
+        OtherLapse::AppEnded,
+        OtherLapse::WaitLimit,
+    ]
+    .iter()
+    .map(|o| Lapsed::Ready(*o).cause().name())
+    .collect();
+    assert_eq!(
+        other,
+        ["run_ended", "app_ended", "wait_limit"],
+        "an item of another kind lapses with these three, I7.1"
+    );
+    let kinds: Vec<&str> = [
+        Lapsed::Confirm(LapseCause::Digest),
+        Lapsed::SignIn(OtherLapse::RunEnded),
+        Lapsed::LinkAccount(OtherLapse::RunEnded),
+        Lapsed::Stuck(OtherLapse::RunEnded),
+        Lapsed::Check(OtherLapse::RunEnded),
+        Lapsed::Setup(OtherLapse::RunEnded),
+        Lapsed::Ready(OtherLapse::RunEnded),
+        Lapsed::Show(OtherLapse::RunEnded),
+    ]
+    .iter()
+    .map(|l| l.kind().name())
+    .collect();
+    assert_eq!(
+        kinds,
+        [
+            "confirm",
+            "sign_in",
+            "link_account",
+            "stuck",
+            "check",
+            "setup",
+            "ready",
+            "show"
+        ]
+    );
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),
