@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { appendFile, mkdir, open as openFile, readFile, writeFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { HERE, Refusal, browsersDir, installed } from './machine.mjs';
@@ -62,7 +62,16 @@ function locate(path, routes) {
     if (!path.startsWith(prefix)) continue;
     const file = resolve(root, path.slice(prefix.length).replace(/^\/+/, ''));
     if (file !== root && !file.startsWith(root + sep)) return null;
-    return existsSync(file) && statSync(file).isFile() ? file : null;
+    let real;
+    let top;
+    try {
+      real = realpathSync(file);
+      top = realpathSync(root);
+    } catch {
+      return null;
+    }
+    if (!real.startsWith(top + sep)) return null;
+    return statSync(real).isFile() ? real : null;
   }
   return null;
 }
@@ -76,26 +85,45 @@ export async function serve({ ui, fixtures } = {}) {
     ['/__fixtures/', resolve(fixtures)],
     ['/', resolve(ui)],
   ];
-  const server = createServer((req, res) => {
+  let own = '';
+  const server = createServer(async (req, res) => {
+    const plain = { 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' };
+    if (req.headers.host !== own) {
+      res.writeHead(403, plain).end();
+      return;
+    }
     let path;
     try {
       path = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
     } catch {
-      res.writeHead(400).end();
+      res.writeHead(400, plain).end();
       return;
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405).end();
+      res.writeHead(405, plain).end();
       return;
     }
     const file = locate(path, routes);
     if (!file) {
-      res.writeHead(404).end();
+      res.writeHead(404, plain).end();
       return;
     }
-    res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
-    if (req.method === 'HEAD') res.end();
-    else createReadStream(file).pipe(res);
+    let handle;
+    try {
+      handle = await openFile(file, 'r');
+    } catch {
+      res.writeHead(500, plain).end();
+      return;
+    }
+    res.writeHead(200, { ...plain, 'content-type': TYPES[extname(file)] || 'application/octet-stream' });
+    if (req.method === 'HEAD') {
+      await handle.close();
+      res.end();
+      return;
+    }
+    const stream = handle.createReadStream();
+    stream.on('error', () => res.destroy());
+    stream.pipe(res);
   });
   server.on('connection', (socket) => socket.unref());
   await new Promise((done, fail) => {
@@ -103,7 +131,8 @@ export async function serve({ ui, fixtures } = {}) {
     server.listen(0, '127.0.0.1', done);
   });
   server.unref();
-  return 'http://127.0.0.1:' + server.address().port;
+  own = '127.0.0.1:' + server.address().port;
+  return 'http://' + own;
 }
 
 function own(url) {
