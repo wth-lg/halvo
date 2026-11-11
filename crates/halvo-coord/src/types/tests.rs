@@ -294,6 +294,26 @@ fn a_decision_is_never_empty_and_holds_one_entry_for_an_effect() {
 }
 
 #[test]
+fn a_confirm_request_is_never_empty_and_holds_one_entry_for_an_effect() {
+    let effect = |e: &str| AskedEffect {
+        effect: EffectId::parse(&e.repeat(32)).unwrap(),
+        class: Class::Send,
+        digest: Digest::parse(&"a".repeat(64)).unwrap(),
+        digest_ok: true,
+        fields: vec![],
+        new_origin: None,
+    };
+    let run = RunId::parse(&"4".repeat(32)).unwrap();
+    let agent = AgentId::parse(&"2".repeat(32)).unwrap();
+    let ask = |effects| ConfirmAsk::new(run.clone(), agent.clone(), effects);
+    assert_eq!(ask(vec![]), Err(Cause::Malformed));
+    assert_eq!(ask(vec![effect("8"), effect("8")]), Err(Cause::Malformed));
+    let two = ask(vec![effect("8"), effect("7")]).unwrap();
+    assert_eq!(two.effects().len(), 2);
+    assert_eq!((two.run(), two.agent()), (&run, &agent));
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),

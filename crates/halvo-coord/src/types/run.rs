@@ -40,15 +40,77 @@ pub enum RunEvent {
     Ended(Option<Outcome>),
 }
 
-/// A confirm request of A-A6.3 with the comparison of I4.4 added (I5.10).
+/// A confirm request of A-A6.3 with the comparison of I4.4 added (I5.10): one entry per
+/// effect, never empty.
+///
+/// ```
+/// use halvo_coord::types::{AgentId, AskedEffect, Class, ConfirmAsk, Digest, EffectId, RunId};
+/// let effect = AskedEffect {
+///     effect: EffectId::parse("00000000000000000000000000000008").unwrap(),
+///     class: Class::Send,
+///     digest: Digest::parse(&"a".repeat(64)).unwrap(),
+///     digest_ok: true,
+///     fields: vec![],
+///     new_origin: None,
+/// };
+/// let ask = ConfirmAsk::new(
+///     RunId::parse("00000000000000000000000000000004").unwrap(),
+///     AgentId::parse("00000000000000000000000000000002").unwrap(),
+///     vec![effect],
+/// )
+/// .unwrap();
+/// assert_eq!(ask.effects().len(), 1);
+/// ```
+///
+/// A request is made only by `new`, so an empty one cannot be written:
+///
+/// ```compile_fail,E0451
+/// use halvo_coord::types::{AgentId, ConfirmAsk, RunId};
+/// let ask = ConfirmAsk {
+///     run: RunId::parse("00000000000000000000000000000004").unwrap(),
+///     agent: AgentId::parse("00000000000000000000000000000002").unwrap(),
+///     effects: vec![],
+/// };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConfirmAsk {
+    run: RunId,
+    agent: AgentId,
+    effects: Vec<AskedEffect>,
+}
+
+impl ConfirmAsk {
+    /// The request of these effects; `malformed` for no effect or two entries for one effect.
+    pub fn new(run: RunId, agent: AgentId, effects: Vec<AskedEffect>) -> Result<ConfirmAsk, Cause> {
+        let doubled = effects
+            .iter()
+            .enumerate()
+            .any(|(i, e)| effects[..i].iter().any(|f| f.effect == e.effect));
+        if effects.is_empty() || doubled {
+            Err(Cause::Malformed)
+        } else {
+            Ok(ConfirmAsk {
+                run,
+                agent,
+                effects,
+            })
+        }
+    }
+
     /// `run`.
-    pub run: RunId,
+    pub fn run(&self) -> &RunId {
+        &self.run
+    }
+
     /// `agent`.
-    pub agent: AgentId,
+    pub fn agent(&self) -> &AgentId {
+        &self.agent
+    }
+
     /// `effects`, in the request's order.
-    pub effects: Vec<AskedEffect>,
+    pub fn effects(&self) -> &[AskedEffect] {
+        &self.effects
+    }
 }
 
 /// One effect of a confirm request.
