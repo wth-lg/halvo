@@ -93,3 +93,4 @@ and merge without an entry landing under the heading of another.
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
 - Added: Add the r5-stat trial of the learning run's gate statistics, the tools/r5-trials workspace, docs/r5/targets.toml and the attribute files of tools/r5-trials, docs/r5 and fixtures/r5
+- Added: Add the r5-drift drift harness and admission trial of the learning run: the case reader of contracts.md L9 with a refusal file for each rule, the page model, the arms none, plain and admit, the 16 development cases under fixtures/r5/cases/dev and docs/r5/cases.md

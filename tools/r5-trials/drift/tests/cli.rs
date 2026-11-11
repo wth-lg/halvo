@@ -165,13 +165,14 @@ fn a_missing_case_file_is_refused_with_case() {
     assert_eq!(stderr, "REFUSED case: absent.jsonl: not a case file\n");
 }
 
-#[cfg(unix)]
 #[test]
 fn a_standard_output_that_cannot_be_written_is_refused_with_output() {
-    let read_only = std::fs::File::open("/dev/null").expect("/dev/null");
+    let (reader, writer) = std::io::pipe().expect("a pipe");
+    drop(reader);
     let output = Command::new(env!("CARGO_BIN_EXE_r5-drift"))
         .current_dir(root())
-        .stdout(read_only)
+        .stdout(writer)
+        .stderr(std::process::Stdio::piped())
         .output()
         .expect("the binary runs");
     assert_eq!(output.status.code(), Some(2));

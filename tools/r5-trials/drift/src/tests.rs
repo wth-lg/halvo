@@ -393,3 +393,17 @@ fn a_locator_resolves_only_when_exactly_one_control_matches() {
         None
     );
 }
+
+#[test]
+fn a_case_file_with_a_carriage_return_is_refused_as_not_lf_text() {
+    let bytes = std::fs::read(dev_dir().join("renamed-pay.jsonl")).expect("a development case");
+    let text = String::from_utf8(bytes).expect("UTF-8");
+    let crlf = text.replace('\n', "\r\n");
+    let lone = text.replacen("\"Help\"", "\"He\rlp\"", 1);
+    for bytes in [crlf.as_bytes(), lone.as_bytes()] {
+        assert_eq!(
+            case::read_case("renamed-pay.jsonl", bytes, 240),
+            Err(case::TEXT.to_owned())
+        );
+    }
+}

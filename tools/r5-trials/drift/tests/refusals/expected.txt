@@ -117,7 +117,6 @@ REFUSED case: step-verb.jsonl: line 1: step 2: verb is not click, fill or extrac
 REFUSED case: steps-nine.jsonl: line 1: the case has 9 steps, not 1 to 8
 REFUSED case: steps-none.jsonl: line 1: the case has 0 steps, not 1 to 8
 REFUSED case: text-bom.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
-REFUSED case: text-crlf.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
 REFUSED case: text-empty.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
 REFUSED case: text-no-final-lf.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
 REFUSED case: text-not-utf8.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end

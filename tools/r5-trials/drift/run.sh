@@ -66,7 +66,7 @@ case $# in
 *) refuse usage "$calls" ;;
 esac
 
-{ true >&1; } 2>/dev/null || refuse output "standard output cannot be written"
+{ true 3>&1; } 2>/dev/null || refuse output "standard output cannot be written"
 
 if [ "$help" = yes ]; then
   usage
