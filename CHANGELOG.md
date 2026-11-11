@@ -92,3 +92,4 @@ and merge without an entry landing under the heading of another.
 - Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, and pair each rule in AGENTS.md with its check and its limits
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
+- Added: Model the coordinator's schedule and its confirmations in TLA+, with the fifteen invariants that TLC checks and the traces that the code will replay
