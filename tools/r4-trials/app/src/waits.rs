@@ -114,11 +114,11 @@ impl<T: Clone> Reports<T> {
 }
 
 /// The page's two counters, `ticks` and `frames`, as the core reads them for `sample`: one
-/// request under a token, and the page's report of that token.
+/// request under a token, and the page's report of that token. A sample without that report
+/// has no counts; an earlier report never stands in for it.
 #[derive(Default)]
 pub struct Counts {
     reports: Reports<(u64, u64)>,
-    last: Mutex<Option<(u64, u64)>>,
 }
 
 impl Counts {
@@ -131,18 +131,11 @@ impl Counts {
             Waited::Reported(counts) => Some(counts),
             Waited::Ended | Waited::TimedOut => None,
         }
-        .or_else(|| *self.last.lock().unwrap_or_else(|e| e.into_inner()))
     }
 
     /// Takes the page's report of `token`; returns whether `token` was the newest.
     pub fn deliver(&self, token: u64, counts: (u64, u64)) -> bool {
-        *self.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(counts);
         self.reports.deliver(token, counts)
-    }
-
-    /// Drops what the core knows of a page that went.
-    pub fn forget(&self) {
-        *self.last.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 }
 
@@ -291,6 +284,37 @@ mod tests {
         assert_eq!(join(waiter), Waited::TimedOut);
         assert!(started.elapsed() >= Duration::from_millis(80));
         assert!(r.begin_alone().is_some());
+    }
+
+    #[test]
+    fn a_sample_without_a_report_within_its_bound_gives_no_counts() {
+        let counts = Counts::default();
+        let first = counts.read(
+            |token| assert!(counts.deliver(token, (3, 9))),
+            Duration::from_secs(5),
+        );
+        assert_eq!(first, Some((3, 9)));
+        assert_eq!(counts.read(|_| {}, Duration::from_millis(30)), None);
+    }
+
+    #[test]
+    fn a_late_report_of_an_earlier_sample_is_not_counted() {
+        let counts = Counts::default();
+        let mut asked = 0;
+        assert_eq!(
+            counts.read(|token| asked = token, Duration::from_millis(30)),
+            None
+        );
+        assert!(!counts.deliver(asked + 1, (1, 1)));
+        let second = counts.read(
+            |token| {
+                assert!(!counts.deliver(asked, (5, 5)));
+                assert!(counts.deliver(token, (6, 7)));
+            },
+            Duration::from_secs(5),
+        );
+        assert_eq!(second, Some((6, 7)));
+        assert_eq!(counts.read(|_| {}, Duration::ZERO), None);
     }
 
     #[test]

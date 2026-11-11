@@ -143,7 +143,6 @@ impl TrialCore {
         }
         {
             self.page().loaded = false;
-            self.counts.forget();
         }
         let window = builder.build()?;
         self.page().alive = true;
@@ -217,7 +216,6 @@ impl TrialCore {
         let Some(window) = self.window() else {
             return Answer::Err(ErrCause::NoWindow);
         };
-        self.read_counts(&window);
         self.hub.close();
         if matches!(self.options.arm, Arm::A | Arm::A2) {
             Self::eval(&window, "window.__r4Window && window.__r4Window('hide')");
@@ -254,7 +252,6 @@ impl TrialCore {
 
     fn forget_page(&self) {
         self.page().loaded = false;
-        self.counts.forget();
         *self.channel.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
@@ -357,7 +354,6 @@ impl TrialCore {
         match event {
             PageLoadEvent::Started => {
                 page.loaded = false;
-                self.counts.forget();
             }
             PageLoadEvent::Finished => {
                 page.loaded = true;

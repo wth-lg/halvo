@@ -2,6 +2,7 @@
   'use strict';
   var internals = window.__TAURI_INTERNALS__;
   var counts = { ticks: 0, frames: 0 };
+  var counted = false;
 
   function call(command, args) {
     return internals.invoke(command, args || {});
@@ -47,7 +48,9 @@
   };
 
   window.__r4AppCounts = function (token) {
-    call('counts', { token: token, ticks: counts.ticks, frames: counts.frames });
+    if (counted) {
+      call('counts', { token: token, ticks: counts.ticks, frames: counts.frames });
+    }
   };
 
   window.__r4Window = function (state) {
@@ -59,6 +62,9 @@
     report: report,
     listen: listen,
     channel: channel,
-    counts: counts
+    get counts() {
+      counted = true;
+      return counts;
+    }
   });
 })();

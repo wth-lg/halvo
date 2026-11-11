@@ -11,7 +11,7 @@ function settle() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-function makePage(replies) {
+function makePage(replies, { withPage = true } = {}) {
   const calls = [];
   const callbacks = new Map();
   const frames = new Map();
@@ -53,7 +53,7 @@ function makePage(replies) {
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(callJs, ctx);
-  vm.runInContext(pageJs, ctx);
+  if (withPage) vm.runInContext(pageJs, ctx);
   return {
     ctx, calls, callbacks, frames, intervals, elements,
     load: () => loaded.forEach((fn) => fn()),
@@ -94,6 +94,12 @@ test('the page counts its interval and its frames, and counts are reported on re
   page.flushFrames();
   page.ctx.__r4AppCounts(5);
   assert.deepEqual(page.named('counts').at(-1).args, { token: 5, ticks: 3, frames: 2 });
+});
+
+test('a page that loads call.js alone gives no counts', () => {
+  const page = makePage({}, { withPage: false });
+  page.ctx.__r4AppCounts(4);
+  assert.equal(page.named('counts').length, 0);
 });
 
 test('the window event stops and starts the interval and the loop', async () => {
