@@ -7,7 +7,7 @@ use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
 use crate::book::unreadable;
-use crate::error::Error;
+use crate::error::{Error, Refusal};
 
 /// A part kind of the closed list of contracts.md A13.4.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -51,8 +51,8 @@ impl Kind {
         Kind::DefinedName,
     ];
 
-    /// The kinds that the verdict of the sheet trial refuses, as its line in
-    /// `docs/r3/trials/sheet.md` names them: `verdict sheet=umya refuses=pivot,macro,validation`.
+    /// The kinds that the executor refuses before any write, its own list (contracts.md A11.3):
+    /// `pivot`, `macro` and `validation`.
     pub const REFUSED: [Kind; 3] = [Kind::Pivot, Kind::Macro, Kind::Validation];
 
     /// The kind's name as A13.4 writes it.
@@ -90,6 +90,9 @@ impl Inventory {
 
 pub(crate) fn entries(bytes: &[u8]) -> Result<Entries, Error> {
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| unreadable())?;
+    if archive.has_duplicate_names() {
+        return Err(unreadable());
+    }
     let mut all = BTreeMap::new();
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(|_| unreadable())?;
@@ -254,7 +257,9 @@ fn element_instances(xml: &[u8], rule: &ElementRule) -> Result<Vec<String>, Erro
         parts.join("|")
     };
     loop {
-        let event = reader.read_event_into(&mut buf).map_err(|_| unreadable())?;
+        let event = reader
+            .read_event_into(&mut buf)
+            .map_err(|_| Error::Workbook(Refusal::Part))?;
         match (&event, open.as_mut()) {
             (Event::Eof, _) => break,
             (Event::Start(e), Some(instance)) => {
@@ -315,7 +320,10 @@ fn with_default(key: &str, value: Option<String>) -> String {
 }
 
 fn reference_text(reference: &BytesRef<'_>) -> Result<String, Error> {
-    if let Some(ch) = reference.resolve_char_ref().map_err(|_| unreadable())? {
+    if let Some(ch) = reference
+        .resolve_char_ref()
+        .map_err(|_| Error::Workbook(Refusal::Part))?
+    {
         return Ok(ch.to_string());
     }
     let name: &str = reference.as_ref();
@@ -509,7 +517,6 @@ mod tests {
     use super::*;
     use crate::error::Refusal;
     use crate::testing::{corpus, edit, zipped};
-    use std::path::Path;
 
     fn names(kinds: impl IntoIterator<Item = Kind>) -> Vec<&'static str> {
         kinds.into_iter().map(Kind::name).collect()
@@ -545,19 +552,8 @@ mod tests {
     }
 
     #[test]
-    fn the_refused_kinds_are_the_verdict_line_of_the_sheet_trial() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/r3/trials/sheet.md");
-        let text = std::fs::read_to_string(path).expect("read the trial's result");
-        let verdict = text
-            .lines()
-            .rfind(|line| line.starts_with("verdict "))
-            .expect("a verdict line");
-        assert!(verdict.starts_with("verdict sheet=umya "), "{verdict}");
-        let refuses = verdict
-            .split(' ')
-            .find_map(|pair| pair.strip_prefix("refuses="))
-            .expect("refuses=");
-        assert_eq!(refuses.split(',').collect::<Vec<_>>(), names(Kind::REFUSED));
+    fn the_refused_kinds_are_the_executors_own_list() {
+        assert_eq!(names(Kind::REFUSED), vec!["pivot", "macro", "validation"]);
     }
 
     #[test]
@@ -645,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    fn a_file_that_is_no_zip_or_holds_a_broken_part_is_unreadable() {
+    fn a_file_that_is_no_zip_is_unreadable_and_a_broken_part_is_refused() {
         let refusal = Error::Workbook(Refusal::Unreadable);
         assert_eq!(entries(b"secret,1\n").unwrap_err(), refusal);
         let mut all = corpus("values.xlsx");
@@ -657,6 +653,9 @@ mod tests {
         );
         let bytes = zipped(&all);
         let reread = entries(&bytes).expect("a zip");
-        assert_eq!(inventory(&reread).unwrap_err(), refusal);
+        assert_eq!(
+            inventory(&reread).unwrap_err(),
+            Error::Workbook(Refusal::Part)
+        );
     }
 }

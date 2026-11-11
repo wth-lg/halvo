@@ -68,9 +68,10 @@ pub enum Refusal {
     Unreadable,
     /// The workbook holds these kinds of the executor's refused list ([`crate::Kind::REFUSED`]).
     Kinds(Vec<crate::Kind>),
-    /// The worksheet part or `xl/workbook.xml` is not UTF-8, starts with a byte-order mark,
-    /// does not parse, or is not in the form that the writer takes: a row or a cell with no
-    /// reference, rows or cells out of order, a cell outside its row.
+    /// A part that the crate parses (a worksheet part, `xl/workbook.xml`, `xl/styles.xml`) is not
+    /// UTF-8 or does not parse, the worksheet part or `xl/workbook.xml` starts with a byte-order
+    /// mark, or the worksheet part is not in the form that the writer takes: a row or a cell
+    /// with no reference, rows or cells out of order, a cell outside its row.
     Part,
     /// A cell to write lies in the header row of a table that the sheet's relationships link.
     TableHeader,

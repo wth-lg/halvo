@@ -264,6 +264,25 @@ pub fn rewrite(source: &Path, target: &Path, edits: &[(&str, &str, &str)]) {
     assert!(used.iter().all(|u| *u), "an edit found no entry");
 }
 
+pub fn rewrite_bytes(source: &Path, target: &Path, part: &str, edit: &dyn Fn(Vec<u8>) -> Vec<u8>) {
+    use std::io::{Read, Write};
+    let mut archive = zip::ZipArchive::new(fs::File::open(source).expect("open")).expect("a zip");
+    let mut out = zip::ZipWriter::new(fs::File::create(target).expect("create"));
+    let options = zip::write::SimpleFileOptions::default();
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).expect("entry");
+        let name = entry.name().expect("name").to_string();
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes).expect("read");
+        if name == part {
+            bytes = edit(bytes);
+        }
+        out.start_file(name.as_str(), options).expect("start");
+        out.write_all(&bytes).expect("write");
+    }
+    out.finish().expect("finish");
+}
+
 pub fn entry_names(path: &Path) -> Vec<String> {
     let archive = zip::ZipArchive::new(fs::File::open(path).expect("open")).expect("a zip");
     let mut names: Vec<String> = archive
