@@ -27,7 +27,12 @@ const ACTION_GRAMMAR: &str = include_str!("../grammars/action.gbnf");
 /// mode, and llama-cpp-2 0.1.161 has no switch for that mode.
 pub const LARGEST_READ_TENSOR: u64 = 4 * 1024 * 1024 * 1024;
 
-unsafe extern "C" fn drop_log(_level: u32, _text: *const c_char, _data: *mut c_void) {}
+unsafe extern "C" fn drop_log(
+    _level: llama_cpp_sys_2::ggml_log_level,
+    _text: *const c_char,
+    _data: *mut c_void,
+) {
+}
 
 /// Drops llama.cpp's log while the child checks its inputs, so that a refusal prints one line.
 pub fn quiet_log() {
@@ -136,18 +141,22 @@ pub fn new_context<'m>(
     Ok(context)
 }
 
-fn templated(model: &LlamaModel, system: &str, user: &str) -> Result<String, String> {
+/// The text of a request through the model's chat template, and `true`; or, when llama.cpp's
+/// template engine does not apply that template, the plain form and `false`.
+fn templated(model: &LlamaModel, system: &str, user: &str) -> Result<(String, bool), String> {
     let message = |role: &str, content: &str| {
         LlamaChatMessage::new(role.to_string(), content.to_string())
             .map_err(|e| format!("a chat message: {e}"))
     };
     let chat = [message("system", system)?, message("user", user)?];
-    let template = model
+    let applied = model
         .chat_template(None)
-        .map_err(|e| format!("the model's chat template: {e}"))?;
-    model
-        .apply_chat_template(&template, &chat, true)
-        .map_err(|e| format!("apply the model's chat template: {e}"))
+        .ok()
+        .and_then(|template| model.apply_chat_template(&template, &chat, true).ok());
+    Ok(match applied {
+        Some(text) => (text, true),
+        None => (prompt::plain_text(system, user), false),
+    })
 }
 
 fn count_tokens(model: &LlamaModel, text: &str) -> usize {
@@ -171,8 +180,14 @@ pub fn answer(
         })
     });
     let user = prompt::user_text(&request.prompt, snapshot);
-    let text = templated(model, &request.system, &user)?;
-    let mut tokens = vocab.tokenize(text.as_bytes(), true, true);
+    let (text, special) = templated(model, &request.system, &user)?;
+    if !special {
+        eprintln!(
+            "r3-model: request {}: llama.cpp's template engine does not apply the model's chat template; the text goes as plain text",
+            request.id
+        );
+    }
+    let mut tokens = vocab.tokenize(text.as_bytes(), true, special);
     let bos = vocab.bos();
     if tokens.len() >= 2 && tokens[0] == bos && tokens[1] == bos {
         tokens.remove(0);

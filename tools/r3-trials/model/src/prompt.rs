@@ -35,6 +35,16 @@ pub fn user_text(prompt: &str, snapshot: Option<&str>) -> String {
     }
 }
 
+/// The text of a request for a model whose chat template llama.cpp's template engine does not
+/// apply: the system text and the user turn as plain text, with no special token.
+pub fn plain_text(system: &str, user: &str) -> String {
+    if system.is_empty() {
+        format!("{user}\n")
+    } else {
+        format!("{system}\n\n{user}\n")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -80,5 +90,11 @@ mod tests {
         );
         assert_eq!(user_text("Pay the bill.", None), "Pay the bill.");
         assert_eq!(user_text("Pay.", Some("")), "Pay.\n<<<DATA\n\nDATA>>>");
+    }
+
+    #[test]
+    fn the_plain_form_holds_the_system_text_then_the_user_turn() {
+        assert_eq!(plain_text("Be brief.", "Pay."), "Be brief.\n\nPay.\n");
+        assert_eq!(plain_text("", "Pay."), "Pay.\n");
     }
 }
