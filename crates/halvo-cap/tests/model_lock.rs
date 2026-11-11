@@ -365,6 +365,21 @@ fn a_held_lock_is_refused_with_words_that_name_no_other_process() {
 }
 
 #[test]
+fn the_refusal_of_the_cache_variable_names_it() {
+    let home = fresh_home("model-lock-words");
+    let output = loader_command("path", &home)
+        .env(CACHE_VAR, "relative-home")
+        .current_dir(&home)
+        .output()
+        .unwrap();
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(output.status.code(), Some(4), "{text}");
+    let want =
+        format!("error no model lock: the variable {CACHE_VAR} is not set to an absolute path");
+    assert!(text.lines().any(|l| l == want), "{text}");
+}
+
+#[test]
 fn a_cache_variable_that_is_empty_or_no_absolute_path_is_refused() {
     let home = fresh_home("model-lock-relative");
     for value in ["", "relative-home"] {
