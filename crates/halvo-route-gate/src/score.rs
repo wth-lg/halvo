@@ -283,7 +283,11 @@ pub fn score(
         .zip(picks.iter().zip(counted))
         .map(|((cell, tally), (pick, counted))| cell_line(cell, tally, *pick, counted, &derived))
         .collect();
-    let categories = category_lines(&cell_lines, setup);
+    let with_rows: Vec<bool> = tallies
+        .iter()
+        .map(|tallies| tallies.iter().any(|tally| tally.dev.n + tally.held.n > 0))
+        .collect();
+    let categories = category_lines(&cell_lines, &with_rows, setup);
     let model_cells: Vec<ModelCell> = cell_lines
         .iter()
         .zip(&tallies)
@@ -379,10 +383,11 @@ fn meets_both(line: &CellLine) -> bool {
         && meets(line.held.k, line.held.n, LINE_HELD_MIN) == Line::Met
 }
 
-fn category_lines(cell_lines: &[CellLine], setup: &Setup) -> Vec<CategoryLine> {
+fn category_lines(cell_lines: &[CellLine], with_rows: &[bool], setup: &Setup) -> Vec<CategoryLine> {
     cell_lines
         .chunks(CallKind::ALL.len())
-        .map(|chunk| {
+        .zip(with_rows.chunks(CallKind::ALL.len()))
+        .map(|(chunk, with_rows)| {
             let (compile, recover, write) = (&chunk[0], &chunk[1], &chunk[2]);
             let id = compile.category;
             let models = [compile, recover, write];
@@ -395,7 +400,7 @@ fn category_lines(cell_lines: &[CellLine], setup: &Setup) -> Vec<CategoryLine> {
                 Standing::Missed
             } else if models.iter().any(|line| routed(line)) {
                 Standing::Met
-            } else if models.iter().any(|line| line.dev.n + line.held.n > 0) {
+            } else if with_rows[..3].contains(&true) {
                 Standing::Shortfall
             } else {
                 Standing::Untested

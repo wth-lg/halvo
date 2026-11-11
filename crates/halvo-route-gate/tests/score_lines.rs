@@ -393,3 +393,76 @@ fn a_cell_handed_back_shows_the_counts_of_the_tier_that_the_derivation_wrote() {
         "cell category=email kind=compile pick=hand_back basis=line_met dev_k=4 dev_n=4 held_k=2 held_n=2 lower_pct=0 cost_micro=0 wall_s=0"
     );
 }
+
+struct NoneIn {
+    derived: PolicyRouter,
+    cells: Vec<(CategoryId, CallKind)>,
+}
+
+impl Router for NoneIn {
+    fn name(&self) -> &'static str {
+        "none_in"
+    }
+
+    fn pick(&self, category: CategoryId, kind: CallKind) -> PickCell {
+        if self.cells.contains(&(category, kind)) {
+            PickCell::None
+        } else {
+            self.derived.pick(category, kind)
+        }
+    }
+}
+
+#[test]
+fn a_category_with_rows_and_no_routed_cell_is_a_shortfall() {
+    let setup = Setup::generated();
+    let rows: Vec<Row> = generate(3)
+        .rows()
+        .iter()
+        .filter(|row| row.category != CategoryId::TenantRent || row.kind == Compile)
+        .cloned()
+        .collect();
+    let table = Table::from_rows(&rows).expect("a table");
+    let router = NoneIn {
+        derived: PolicyRouter::derived(&table, &setup),
+        cells: vec![(CategoryId::TenantRent, Compile)],
+    };
+    let lines = score(&table, &setup, &router, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        line(&lines, "category id=tenant_rent "),
+        "category id=tenant_rent compile=none recover=hand_back write=hand_back line=shortfall cost_micro=0"
+    );
+    let router = NoneIn {
+        derived: PolicyRouter::derived(&hand_table(), &setup),
+        cells: vec![(Email, Compile), (Email, Write)],
+    };
+    assert_eq!(
+        line(&lines_of(&router, 1_000), "category id=email "),
+        "category id=email compile=none recover=hand_back write=none line=shortfall cost_micro=0"
+    );
+    let mut rows = hand_table().rows().to_vec();
+    for machine in [GenA, GenB] {
+        let mut shop = row(Write, OnDevice, Three, machine, true, 1, 50);
+        shop.category = CategoryId::ShopOrder;
+        rows.push(shop);
+        let mut calendar = row(Compile, OnDevice, One, machine, true, 1, 50);
+        calendar.category = CategoryId::CalendarCleanup;
+        rows.push(calendar);
+    }
+    rows.sort_by_cached_key(Row::to_line);
+    let table = Table::from_rows(&rows).expect("a table");
+    let derived = PolicyRouter::derived(&table, &setup);
+    let lines = score(&table, &setup, &derived, Prices::release(), DEFAULT_DRAWS).lines();
+    assert_eq!(
+        line(&lines, "category id=shop_order "),
+        "category id=shop_order compile=hand_back recover=hand_back write=hand_back line=shortfall cost_micro=0"
+    );
+    assert_eq!(
+        line(&lines, "cell category=calendar_cleanup kind=compile "),
+        "cell category=calendar_cleanup kind=compile pick=hand_back basis=untested dev_k=2 dev_n=2 held_k=0 held_n=0 lower_pct=0 cost_micro=0 wall_s=0"
+    );
+    assert_eq!(
+        line(&lines, "category id=calendar_cleanup "),
+        "category id=calendar_cleanup compile=hand_back recover=hand_back write=hand_back line=shortfall cost_micro=0"
+    );
+}
