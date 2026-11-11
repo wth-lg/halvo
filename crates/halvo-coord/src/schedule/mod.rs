@@ -20,4 +20,4 @@ pub use slot::{current_slot, finished, next_slot, slot_due, slot_open};
 pub use start::{
     active_state, needs_model, needs_person, start_step, Around, Clear, Go, StartStep, Verdict,
 };
-pub use tick::{tick_plan, tick_step, wants_active, Ask, Plan};
+pub use tick::{gives_active, tick_plan, tick_step, wants_active, Ask, Plan};

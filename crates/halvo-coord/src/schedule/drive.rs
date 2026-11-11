@@ -1,5 +1,5 @@
 use super::{
-    active_state, current_slot, finished, holds, slot_open, start_step, tick_plan, tick_step,
+    current_slot, finished, gives_active, holds, slot_open, start_step, tick_plan, tick_step,
     wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing, Stop, Verdict,
     Waiting,
 };
@@ -719,13 +719,13 @@ where
         return report;
     };
     pay_owed(cx, board, &listed);
-    if plan.serve && starts {
-        report.next.extend(serve(cx, board, &listed));
-    }
     for m in &board.members {
         if starts && wants_active(&m.facts) {
             send_state(cx, &m.facts, AgentState::Active);
         }
+    }
+    if plan.serve && starts {
+        report.next.extend(serve(cx, board, &listed));
     }
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
@@ -947,7 +947,12 @@ where
                 return refused(port_cause(&e));
             }
             let facts = &board.members[i].facts;
-            send_state(cx, facts, active_state(&facts.config));
+            let state = if gives_active(facts) {
+                AgentState::Active
+            } else {
+                AgentState::Approved
+            };
+            send_state(cx, facts, state);
             Report::default()
         }
         Move::SwitchOff { .. } => {
@@ -986,9 +991,7 @@ where
 /// agent's queued start and open item with nothing stored (I5.7); kills by `Runs::kill`, in the
 /// order of their starts, every run whose stop came at least `cancel_grace_s` before it, live
 /// or ended in between, and ends each live one with the cause of its stop; serves the queue
-/// only when no run was live before it; sends `set_state` `active` for each agent that
-/// `wants_active` names (ruling IG-6a), again at each tick until the owner's list shows it
-/// `active`; and then raises the `ready` items and makes the starts
+/// only when no run was live before it; and then raises the `ready` items and makes the starts
 /// that `tick_step` gives, agent by agent; it serves and starts only when its reads of the
 /// owner's list and of `Owner::agents` answered, and raises a `ready` item only then. Each
 /// move decides from what the owner answers in that move (ruling XB-9): the workflow's state,
@@ -1003,7 +1006,9 @@ where
 /// `run_ended` with `failed` and answers `no_service`. The end of a run stores `run_ended`
 /// unless its workflow is gone, with `hold_set` of `failures` and `set_state` `paused` when the
 /// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
-/// while that hold stands, and then takes one start from the queue; a failed start takes none.
+/// while that hold stands, and then takes one start from the queue; a failed start takes none. After what is owed
+/// and before any start, a tick sends `set_state` `active` for each agent that `wants_active`
+/// names (ruling IG-6a), again at each tick until the owner's list shows it `active`.
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,

@@ -1,7 +1,7 @@
 use halvo_coord::mem::Config;
 use halvo_coord::schedule::{
-    active_state, needs_model, needs_person, start_step, Around, Clear, Go, Queue, StartStep,
-    Verdict, Waiting,
+    active_state, gives_active, needs_model, needs_person, start_step, wants_active, Around, Clear,
+    Go, Queue, StartStep, Verdict, Waiting,
 };
 use halvo_coord::types::{
     AgentId, AgentState, Category, Cause, Doing, Event, Facts, FullWorkflow, HoldSetCause, Limits,
@@ -709,4 +709,40 @@ fn step_3_an_owed_run_ended_of_the_agent_is_state() {
         cause(&start_step(&f, Trigger::Person, &L, &full)),
         Some(Cause::State)
     );
+}
+
+#[test]
+fn active_is_wanted_for_an_approved_agent_with_no_hold_and_for_web_after_a_completed_run() {
+    use halvo_coord::types::{Outcome, PastRun};
+    let past = |outcome| PastRun {
+        run: run(9),
+        day: 100,
+        outcome,
+        unknown: 0,
+    };
+    let mut f = facts(&AUTO, done_before());
+    f.workflow.state = WorkflowState::Approved;
+    assert!(wants_active(&f));
+    f.workflow.state = WorkflowState::Active;
+    assert!(!wants_active(&f), "the list shows it active");
+    assert!(gives_active(&f), "the rule itself reads no state");
+    let mut web = facts(
+        &Spec {
+            runtime: "web",
+            ..AUTO
+        },
+        done_before(),
+    );
+    web.workflow.state = WorkflowState::Approved;
+    assert!(!wants_active(&web), "no run record");
+    web.runs = vec![past(Outcome::Declined)];
+    assert!(!wants_active(&web), "the last run did not complete");
+    web.runs = vec![past(Outcome::Completed), past(Outcome::Declined)];
+    assert!(wants_active(&web));
+    web.runs = vec![past(Outcome::Declined), past(Outcome::Completed)];
+    assert!(!wants_active(&web), "the last run record decides");
+    let mut held = facts(&AUTO, done_before());
+    held.workflow.state = WorkflowState::Approved;
+    held.workflow.category = Category::Email;
+    assert!(!wants_active(&held), "the hold setup");
 }

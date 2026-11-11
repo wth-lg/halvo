@@ -1350,6 +1350,7 @@ fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state(
     );
     let mut web = world(&[A {
         runtime: "web",
+        finished: false,
         playbook: false,
         category: Category::CalendarCleanup,
         ..manual()
@@ -2413,48 +2414,6 @@ fn a_second_switch_off_does_not_stop_a_stopping_run_again() {
 }
 
 #[test]
-fn a_creation_decides_from_the_owners_list_alone() {
-    let mut w = world(&[]);
-    w.ports
-        .workflows
-        .borrow_mut()
-        .push(Workflow::Full(approved(0, Category::CalendarCleanup)));
-    listed_agent(
-        &w,
-        0,
-        &minted(2),
-        &A {
-            runtime: "graph_calendar",
-            ..AUTO
-        },
-    );
-    w.ports.refuse(Method::Send, PortError::Busy);
-    assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
-    w.ports.clear_refusals();
-    w.forget();
-    let second = w.go(Move::Create);
-    assert_eq!(
-        w.calls(),
-        ["create_agent"],
-        "no acknowledgement came, so the body goes again"
-    );
-    assert_eq!(second.created, vec![minted(2)]);
-    assert_eq!(w.board.members.len(), 1, "the agent joined the board");
-    w.forget();
-    let third = w.go(Move::Create);
-    assert_eq!(
-        w.calls(),
-        ["create_agent"],
-        "the list still shows no agent, so the body goes again"
-    );
-    let made = third.created[0].clone();
-    w.owner_workflow(0, |f| f.agent = Some(made));
-    w.forget();
-    assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
-    assert_eq!(w.calls(), Vec::<String>::new(), "the list shows the agent");
-}
-
-#[test]
 fn a_creation_is_for_a_seed_category_and_the_types_hold_no_other() {
     assert_eq!(Category::ALL.len(), 10);
     assert_eq!(Category::parse("tax_filing"), Err(Cause::Malformed));
@@ -2518,6 +2477,7 @@ fn a_lost_acknowledgement_of_active_is_followed_by_a_second_send_at_the_next_tic
     w.ports.refuse(Method::Send, PortError::Busy);
     w.tick();
     assert_eq!(set_states(&w), Vec::<String>::new());
+    w.ports.clear_refusals();
     w.ports.refuse(Method::Agents, PortError::NoService);
     w.forget();
     w.tick();
@@ -2607,4 +2567,155 @@ fn an_agent_on_which_a_hold_stands_gets_no_active() {
         Vec::<String>::new(),
         "setup, not_yet and off"
     );
+}
+
+fn next_minted(w: &mut World) -> RunId {
+    w.start(w.spec.len() - 1).run.unwrap()
+}
+
+#[test]
+fn a_creation_decides_from_the_owners_list_alone() {
+    let mut w = world(&[manual()]);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(approved(1, Category::CalendarCleanup)));
+    listed_agent(
+        &w,
+        1,
+        &minted(2),
+        &A {
+            runtime: "graph_calendar",
+            ..AUTO
+        },
+    );
+    w.ports.refuse(Method::Send, PortError::Busy);
+    assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
+    w.ports.clear_refusals();
+    w.forget();
+    assert_eq!(
+        w.go(Move::Create).created,
+        vec![minted(2)],
+        "the body goes again"
+    );
+    assert_eq!(w.calls(), ["create_agent"]);
+    assert_eq!(w.board.members.len(), 2, "the agent joined the board");
+    w.forget();
+    assert_eq!(
+        w.go(Move::Create).created,
+        Vec::<AgentId>::new(),
+        "the owner refuses a second agent for the workflow with binding"
+    );
+    assert_eq!(
+        next_minted(&mut w),
+        RunId::parse(&format!("{:032x}", 4)).unwrap(),
+        "while the list shows no agent the creation made an id and sent the body again"
+    );
+    let run = w.run_of(0);
+    w.end(&run, Some(Outcome::Completed));
+    w.owner_workflow(1, |f| f.agent = Some(minted(2)));
+    w.forget();
+    assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
+    assert_eq!(
+        next_minted(&mut w),
+        RunId::parse(&format!("{:032x}", 5)).unwrap(),
+        "the list shows the agent: no id was made and nothing was sent"
+    );
+}
+
+#[test]
+fn the_memory_owner_refuses_a_second_agent_for_a_workflow_and_takes_a_repeat() {
+    let w = world(&[]);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(approved(0, Category::CalendarCleanup)));
+    let body = |n: u128| Body::CreateAgent {
+        workflow: flow(0),
+        agent: minted(n),
+    };
+    assert!(w.ports.send(&body(1)).is_ok());
+    assert!(w.ports.send(&body(1)).is_ok(), "a repeat of the pair");
+    assert_eq!(
+        w.ports.send(&body(2)),
+        Err(PortError::Refused(Name::parse("binding").unwrap()))
+    );
+}
+
+#[test]
+fn a_tick_sends_active_after_what_is_owed_and_before_any_start() {
+    let mut w = world(&[manual(), AUTO]);
+    approved_listed(&w, 1);
+    w.ports.refuse(Method::Start, not_started());
+    w.ports.refuse(Method::EndRun, PortError::Busy);
+    let failed = w.start(0).run.unwrap();
+    w.ports.clear_refusals();
+    w.owner_workflow(1, |f| f.state = WorkflowState::Approved);
+    w.forget();
+    w.tick();
+    let calls = w.calls();
+    let owed = calls
+        .iter()
+        .position(|c| *c == format!("end_run {failed}"))
+        .unwrap();
+    let active = calls.iter().position(|c| c == "set_state active").unwrap();
+    let start = calls.iter().position(|c| c == "log run_started").unwrap();
+    assert!(owed < active && active < start, "{calls:?}");
+}
+
+#[test]
+fn switch_on_sends_active_where_the_rule_gives_it_and_approved_otherwise() {
+    let none = A {
+        runtime: "none",
+        category: Category::RideOrder,
+        ..manual()
+    };
+    let email = A {
+        category: Category::Email,
+        runtime: "graph_mail",
+        slots: &[],
+        ..manual()
+    };
+    let web_done = A {
+        runtime: "web",
+        playbook: true,
+        ..manual()
+    };
+    let mut w = world(&[none, email, web_done, manual()]);
+    for n in 0..4 {
+        w.go(Move::SwitchOff { agent: agent(n) });
+    }
+    let mut got = Vec::new();
+    for n in 0..4 {
+        w.forget();
+        w.go(Move::SwitchOn { agent: agent(n) });
+        got.push(set_states(&w));
+    }
+    assert_eq!(
+        got,
+        [
+            vec!["set_state approved".to_string()],
+            vec!["set_state approved".to_string()],
+            vec!["set_state active".to_string()],
+            vec!["set_state active".to_string()],
+        ],
+        "runtime none and a hold get approved; a web agent whose last run completed gets active"
+    );
+}
+
+#[test]
+fn a_tick_sends_active_before_the_start_that_it_serves_from_the_queue() {
+    let mut w = world(&[manual(), manual(), manual(), manual()]);
+    let run = queue_two_behind(&mut w);
+    assert_eq!(w.start(2).answer, Ok(Answer::Queued));
+    w.go(Move::SwitchOff { agent: agent(1) });
+    w.end(&run, Some(Outcome::Completed));
+    approved_listed(&w, 3);
+    w.forget();
+    let tick = w.tick();
+    assert_eq!(tick.next[0].agent, agent(2));
+    let calls = w.calls();
+    let active = calls.iter().position(|c| c == "set_state active").unwrap();
+    let start = calls.iter().position(|c| c == "log run_started").unwrap();
+    assert!(active < start, "{calls:?}");
 }

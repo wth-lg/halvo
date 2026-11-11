@@ -10,8 +10,15 @@ use crate::types::{
 /// `completed`, which is its first run in the mode `compile`. The one rule for every runtime; the
 /// creation and the ends of runs send no `active`.
 pub fn wants_active<C: ConfigView>(facts: &Facts<C>) -> bool {
-    facts.workflow.state == WorkflowState::Approved
-        && holds(facts).is_empty()
+    facts.workflow.state == WorkflowState::Approved && gives_active(facts)
+}
+
+/// The part of the rule for `active` that does not read the workflow's state: no hold stands,
+/// and for the runtime `web` the last run record has the outcome `completed`. The control
+/// `switch_on` sends `active` where it holds and `approved` otherwise (ruling IG-6a, IG-7 to
+/// IG-12).
+pub fn gives_active<C: ConfigView>(facts: &Facts<C>) -> bool {
+    holds(facts).is_empty()
         && (facts.config.runtime() != Runtime::Web
             || facts
                 .runs

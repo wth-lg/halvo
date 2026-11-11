@@ -396,9 +396,29 @@ impl<C: ConfigView> Ports<C> {
         }
     }
 
+    fn another_agent(&self, workflow: &WorkflowId, agent: &AgentId) -> bool {
+        let listed = self.workflows.borrow().iter().any(|w| match w {
+            Workflow::Full(f) => &f.id == workflow && f.agent.as_ref().is_some_and(|a| a != agent),
+            Workflow::Dismissed(_) => false,
+        });
+        listed
+            || self
+                .agents
+                .borrow()
+                .iter()
+                .any(|a| &a.workflow == workflow && &a.agent != agent)
+            || self
+                .created
+                .borrow()
+                .iter()
+                .any(|(w, a)| w == workflow && a != agent)
+    }
+
     fn send_refusal(&self, body: &Body) -> Option<&'static str> {
         match body {
-            Body::CreateAgent { workflow, .. } => self.state_call_refusal(workflow),
+            Body::CreateAgent { workflow, agent } => self
+                .state_call_refusal(workflow)
+                .or_else(|| self.another_agent(workflow, agent).then_some("binding")),
             Body::SetState {
                 workflow,
                 agent,
