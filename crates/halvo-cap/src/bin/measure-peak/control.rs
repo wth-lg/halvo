@@ -291,6 +291,11 @@ mod tests {
                 Word::Failed,
             ),
             (
+                ended(Exit::Signal(9), true, 300),
+                seen(Some(100), true, false),
+                Word::Failed,
+            ),
+            (
                 ended(Exit::Signal(9), true, 4300),
                 seen(Some(100), false, true),
                 Word::Failed,
