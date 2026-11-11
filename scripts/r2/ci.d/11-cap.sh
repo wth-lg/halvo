@@ -88,6 +88,34 @@ check() {
   fi
 }
 
+check_measure() {
+  case=$1
+  want=$2
+  shift 2
+  measured=$(
+    test_status=$1
+    run_status=$2
+    run_output=$3
+    cargo() {
+      if [ "$1" = test ]; then
+        return "$test_status"
+      fi
+      printf '%s\n' "$run_output"
+      return "$run_status"
+    }
+    CI_D_REPO=$PWD
+    measure 2>/dev/null
+  )
+  last=${measured##*"$nl"}
+  if [ "$last" = "$want" ]; then got=$want; else got="other: $last"; fi
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$case" "$want" "$got"
+  if [ "$got" != "$want" ]; then
+    wrong="$wrong $case"
+  elif [ "$want" != "PASS $name" ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
 self_test() {
   rejected=0
   wrong=
@@ -107,6 +135,9 @@ self_test() {
   check control-at-another-limit FAIL control 0 "measure-peak platform=macos mode=poll limit_bytes=1048576 control=yes${nl}control allocate_bytes=17825792 outcome=stopped stop_ms=0 peak_bytes=19136512${nl}checks control=ok"
   check no-control-line FAIL control 0 "$head_macos${nl}checks control=ok"
   check no-checks-line FAIL control 0 "$head_macos${nl}control allocate_bytes=285212672 outcome=stopped stop_ms=212 peak_bytes=287309824"
+  check_measure measure-passes "PASS $name" 0 0 "$head_macos${nl}control allocate_bytes=285212672 outcome=stopped stop_ms=212 peak_bytes=287309824${nl}checks control=ok"
+  check_measure measure-tests-fail "FAIL $name (cargo test -p halvo-cap exited 101)" 101 0 "$head_macos${nl}control allocate_bytes=285212672 outcome=stopped stop_ms=212 peak_bytes=287309824${nl}checks control=ok"
+  check_measure measure-control-misses "FAIL $name (measure-peak --limit 268435456 --control exited 1, last line: checks control=miss)" 0 1 "$head_macos${nl}control allocate_bytes=285212672 outcome=completed stop_ms=- peak_bytes=285999104${nl}checks control=miss"
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1

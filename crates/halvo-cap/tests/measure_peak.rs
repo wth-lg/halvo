@@ -12,6 +12,9 @@ fn child() {
     let Ok(role) = std::env::var(ROLE) else {
         return;
     };
+    if role == "write-stderr" {
+        eprintln!("marker-of-the-standard-error");
+    }
     if role == "read-stdin" {
         let mut text = Vec::new();
         std::io::stdin().read_to_end(&mut text).unwrap();
@@ -234,6 +237,32 @@ fn a_run_above_the_limit_misses_the_cap_check() {
     }
     assert!(lines[3].starts_with("checks exit="), "{}", ran.stdout);
     assert_eq!(field(lines[3], "cap"), "miss", "{}", ran.stdout);
+}
+
+#[test]
+fn the_standard_error_of_a_command_goes_to_standard_error() {
+    let mut args = vec![
+        "--limit".to_string(),
+        LIMIT.into(),
+        "--runs".into(),
+        "1".into(),
+        "--".into(),
+    ];
+    args.extend(this_test_as_a_command());
+    let output = Command::new(BIN)
+        .args(&args)
+        .env(ROLE, "write-stderr")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(output.status.code(), Some(0), "{stdout}{stderr}");
+    assert!(!stdout.contains("marker-of-the-standard-error"), "{stdout}");
+    assert!(
+        stderr.lines().any(|l| l == "marker-of-the-standard-error"),
+        "{stderr}"
+    );
 }
 
 #[test]
