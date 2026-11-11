@@ -1552,3 +1552,84 @@ fn every_modified_segment_file_is_rejected_with_no_plaintext() {
     );
     assert_eq!(tally.cases, CASES, "the matrix ran another number of cases");
 }
+
+fn read_from_another_thread(address: usize) -> [u8; 32] {
+    std::thread::scope(|scope| {
+        scope
+            .spawn(move || {
+                let mut bytes = [0u8; 32];
+                for (i, byte) in bytes.iter_mut().enumerate() {
+                    *byte = unsafe { std::ptr::read_volatile((address + i) as *const u8) };
+                }
+                bytes
+            })
+            .join()
+            .unwrap()
+    })
+}
+
+fn nonzero_bytes(bytes: &[u8; 32]) -> usize {
+    bytes.iter().filter(|&&b| b != 0).count()
+}
+
+fn key_bytes_before_and_after_drop_in_place<T>(
+    value: T,
+    key_offset: impl FnOnce(&T) -> usize,
+) -> (usize, usize) {
+    let mut slot = std::mem::MaybeUninit::new(value);
+    let base = slot.as_ptr() as usize;
+    let address = base + key_offset(unsafe { slot.assume_init_ref() });
+    let before = nonzero_bytes(&read_from_another_thread(address));
+    unsafe { std::ptr::drop_in_place(slot.as_mut_ptr()) };
+    let after = nonzero_bytes(&read_from_another_thread(address));
+    (before, after)
+}
+
+#[test]
+fn a_dropped_segment_key_leaves_zeros_in_its_slot() {
+    assert_eq!(size_of::<segment::SegmentKey>(), 32);
+    let (before, after) =
+        key_bytes_before_and_after_drop_in_place(segment::SegmentKey::random().unwrap(), |_| 0);
+    assert!(before > 0, "the slot showed no key bytes before the drop");
+    assert_eq!(
+        after, 0,
+        "{after} of 32 bytes of a dropped segment key stayed in its slot"
+    );
+}
+
+#[test]
+fn a_dropped_store_key_leaves_zeros_in_its_slot() {
+    assert_eq!(size_of::<StoreKey>(), 32);
+    let (before, after) =
+        key_bytes_before_and_after_drop_in_place(StoreKey::from_bytes([0xa5; 32]), |_| 0);
+    assert_eq!(
+        before, 32,
+        "the slot did not show the store key before the drop"
+    );
+    assert_eq!(
+        after, 0,
+        "{after} of 32 bytes of a dropped store key stayed in its slot"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let root_id = RootId::fresh();
+    let store = EncryptedStore::create(
+        dir.path(),
+        Box::new(DevFallbackCustody::new(root_id)),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (before, after) = key_bytes_before_and_after_drop_in_place(store, |store| {
+        store.store_key().unwrap().expose().as_ptr() as usize
+            - (store as *const EncryptedStore as usize)
+    });
+    DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    assert!(
+        before > 0,
+        "the slot showed no store key bytes before the store was dropped"
+    );
+    assert_eq!(
+        after, 0,
+        "{after} of 32 bytes of the store key stayed in a dropped store"
+    );
+}

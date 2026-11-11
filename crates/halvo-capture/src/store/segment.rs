@@ -12,6 +12,7 @@ use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::custody::dev_fallback::{aead_open, aead_seal};
+use crate::custody::wiped_on_drop;
 use crate::event::SegmentKeyId;
 
 use super::db::remove_if_present;
@@ -30,6 +31,8 @@ const PARTIAL_EXT: &str = "seg.tmp";
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub(crate) struct SegmentKey([u8; 32]);
+
+const _: () = wiped_on_drop::<SegmentKey>();
 
 impl SegmentKey {
     pub(crate) fn random() -> StoreResult<Self> {

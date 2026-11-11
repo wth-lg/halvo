@@ -19,6 +19,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct StoreKey([u8; 32]);
 
+pub(crate) const fn wiped_on_drop<T: ZeroizeOnDrop>() {}
+
+const _: () = wiped_on_drop::<StoreKey>();
+
 impl StoreKey {
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
