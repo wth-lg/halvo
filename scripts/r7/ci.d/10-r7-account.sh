@@ -9,7 +9,6 @@ case $0 in
 esac
 nl='
 '
-cr=$(printf '\r')
 files='schema.v1.json contract/schema/v1.json
 routes.v1.json contract/routes/v1.json
 samples.v1.json contract/samples/v1.json
@@ -36,6 +35,10 @@ sha256_of() {
   printf '%s\n' "${sum%% *}"
 }
 
+without_cr() {
+  tr -d '\r' <"$1" >"$work/$2" || fail "$1 cannot be read"
+}
+
 lower_hex() {
   [ "${#1}" -eq "$2" ] || return 1
   case $1 in
@@ -46,9 +49,9 @@ lower_hex() {
 check_vendored() {
   record=account/schema/vendored.txt
   [ -f "$record" ] || fail 'account/schema/vendored.txt is missing'
-  exec 3<"$record"
+  without_cr "$record" record.txt
+  exec 3<"$work/record.txt"
   IFS= read -r first <&3 || first=
-  first=${first%"$cr"}
   case $first in
     'commit '*) commit=${first#'commit '} ;;
     *) commit= ;;
@@ -57,7 +60,6 @@ check_vendored() {
   compared=0
   while read -r want_name want_path; do
     IFS= read -r line <&3 || line=
-    line=${line%"$cr"}
     recorded=${line%% *}
     if ! lower_hex "$recorded" 64 || [ "$line" != "$recorded $want_name $want_path" ]; then
       fail 'account/schema/vendored.txt does not name the four vendored files'
@@ -79,15 +81,16 @@ check_lock() {
   packages=0
   sqlite=0
   outside=0
+  without_cr account/Cargo.lock lock.txt
   while IFS= read -r line || [ -n "$line" ]; do
-    squeeze "${line%"$cr"}"
+    squeeze "$line"
     case $bare in
       '[[package]]') packages=$((packages + 1)) ;;
       'name="'*[sS][qQ][lL][iI][tT][eE]* | 'name="'*[sS][qQ][lL][cC][iI][pP][hH][eE][rR]*) sqlite=$((sqlite + 1)) ;;
       'source="registry+https://github.com/rust-lang/crates.io-index"') ;;
       'source='*) outside=$((outside + 1)) ;;
     esac
-  done <account/Cargo.lock
+  done <"$work/lock.txt"
   [ "$sqlite" -eq 0 ] || fail "account/Cargo.lock holds $sqlite packages whose names contain sqlite or sqlcipher"
   [ "$outside" -eq 0 ] || fail "account/Cargo.lock holds $outside packages from a source outside crates.io"
   [ "$packages" -gt 0 ] || fail 'account/Cargo.lock holds no package'
@@ -146,11 +149,12 @@ check_manifests() {
       account/Cargo.toml) depth=0 ;;
       *) depth=2 ;;
     esac
+    without_cr "$manifest" manifest.txt
     while IFS= read -r line || [ -n "$line" ]; do
       case $line in
         *'"""'* | *"'''"*) fail "$manifest holds a multi-line string, which this script does not read" ;;
       esac
-      squeeze "${line%"$cr"}"
+      squeeze "$line"
       while :; do
         case $bare in
           *[\"\']*) bare=${bare%%[\"\']*}${bare#*[\"\']} ;;
@@ -170,7 +174,7 @@ check_manifests() {
       fi
       check_paths_of "$depth" path "$bare"
       check_paths_of "$depth" build "$bare"
-    done <"$manifest"
+    done <"$work/manifest.txt"
   done
   [ "$manifests" -gt 1 ] || fail 'account/ holds no crate manifest under crates/'
 }
@@ -213,8 +217,8 @@ check_deny_config() {
   [ -f account/deny.toml ] || fail 'account/deny.toml is missing'
   bans=0
   : >"$work/deny.kept" || fail 'cannot write in the temp directory'
+  without_cr account/deny.toml deny.txt
   while IFS= read -r line || [ -n "$line" ]; do
-    line=${line%"$cr"}
     case $line in
       '    { crate = "'*)
         rest=${line#'    { crate = "'}
@@ -235,7 +239,7 @@ check_deny_config() {
         ;;
       *) printf '%s\n' "$line" >>"$work/deny.kept" ;;
     esac
-  done <account/deny.toml
+  done <"$work/deny.txt"
   admitted_deny_config >"$work/deny.admitted" || fail 'cannot write in the temp directory'
   cmp -s "$work/deny.kept" "$work/deny.admitted" || fail 'account/deny.toml differs from the configuration that this script admits'
   [ "$bans" -gt 0 ] || fail 'account/deny.toml bans no package'
@@ -243,15 +247,15 @@ check_deny_config() {
 
 deny_pin() {
   pin=
+  without_cr account/Cargo.toml workspace.txt
   while IFS= read -r line || [ -n "$line" ]; do
-    line=${line%"$cr"}
     case $line in
       'cargo-deny = "'*'"')
         pin=${line#'cargo-deny = "'}
         pin=${pin%\"}
         ;;
     esac
-  done <account/Cargo.toml
+  done <"$work/workspace.txt"
   case $pin in
     '' | *[!0-9.]*) fail 'account/Cargo.toml names no cargo-deny version' ;;
   esac
@@ -282,8 +286,8 @@ ensure_deny() {
 
 count_tests() {
   tests=0
+  without_cr "$1" test-log.txt
   while IFS= read -r line || [ -n "$line" ]; do
-    line=${line%"$cr"}
     case $line in
       'test result: ok. '*' passed; '*)
         passed=${line#'test result: ok. '}
@@ -294,7 +298,7 @@ count_tests() {
         esac
         ;;
     esac
-  done <"$1"
+  done <"$work/test-log.txt"
 }
 
 measure() {
@@ -367,6 +371,14 @@ edit() {
     return 1
   fi
   mv "$file.edited" "$file"
+}
+
+to_crlf() {
+  file=$fixture/account/$1
+  awk 'BEGIN { ORS = "\r\n" } 1' <"$file" >"$file.crlf" || return 1
+  mv "$file.crlf" "$file" || return 1
+  crs=$(tr -dc '\r' <"$file" | wc -c)
+  [ "$((crs))" -gt 0 ]
 }
 
 run_case() {
@@ -474,9 +486,17 @@ self_test() {
     run_case multi-line-string "FAIL $name (account/crates/halvo-wire/Cargo.toml holds a multi-line string, which this script does not read)" stub
   make_fixture member-outside-crates && edit Cargo.toml sed 's|^members = \["crates/\*"\]$|members = ["crates/*", "../tools/x"]|' &&
     run_case member-outside-crates "FAIL $name (account/Cargo.toml names a workspace member outside account/crates/)" stub
-  make_fixture crlf-line-ends && crlf=yes &&
-    for toml in Cargo.toml Cargo.lock deny.toml crates/halvo-wire/Cargo.toml; do edit "$toml" sed "s/\$/$cr/" || crlf=no; done &&
-    [ "$crlf" = yes ] && run_case crlf-line-ends "PASS $name" stub
+  crlf=yes
+  make_fixture crlf-line-ends || crlf=no
+  for toml in Cargo.toml Cargo.lock deny.toml crates/halvo-wire/Cargo.toml; do
+    [ "$crlf" = yes ] && to_crlf "$toml" || crlf=no
+  done
+  if [ "$crlf" = yes ]; then
+    run_case crlf-line-ends "PASS $name" stub
+  else
+    printf 'case %s/crlf-line-ends could not write the CRLF files\n' "$name"
+    wrong="$wrong crlf-line-ends"
+  fi
   make_fixture path-outside-account && edit crates/halvo-wire/Cargo.toml sed 's|^serde_json = "1"$|serde_json = { path = "../../../crates/halvo-schema" }|' &&
     run_case path-outside-account "FAIL $name (account/crates/halvo-wire/Cargo.toml names a path outside account/)" stub
   make_fixture licence-added-to-list && edit deny.toml sed 's/^    "Zlib",$/    "Zlib",\
