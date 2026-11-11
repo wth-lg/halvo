@@ -29,7 +29,8 @@ Exit status:
      or this text printed
   2  refused: one line "REFUSED <cause>: <detail>" on standard error and
      nothing on standard output; <cause> is usage, build, seed, input or
-     output (standard output is closed or cannot be written)
+     output (standard output is closed or cannot be written, or the
+     sample file cannot be written after the build)
 EOF
 }
 

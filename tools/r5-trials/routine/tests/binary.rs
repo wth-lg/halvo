@@ -102,3 +102,19 @@ fn the_binary_refuses_when_a_write_to_standard_output_fails() {
     refused(&out, "output");
     assert!(String::from_utf8_lossy(&out.stderr).contains("standard output cannot be written"));
 }
+
+#[test]
+fn the_binary_refuses_with_output_when_the_sample_file_cannot_be_written() {
+    let dir = root("output-sample", Some(SEEDS), Some(TARGETS));
+    std::fs::create_dir_all(dir.join("sample")).expect("the sample directory");
+    let out = Command::new(BIN)
+        .args(["--sample", "sample"])
+        .current_dir(&dir)
+        .output()
+        .expect("the binary runs");
+    refused(&out, "output");
+    assert_eq!(
+        out.stderr,
+        b"REFUSED output: the sample file cannot be written\n"
+    );
+}

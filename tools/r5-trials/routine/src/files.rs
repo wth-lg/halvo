@@ -10,7 +10,7 @@ pub enum Refusal {
     Usage(String),
     Seed(String),
     Input(String),
-    Output,
+    Output(String),
 }
 
 impl fmt::Display for Refusal {
@@ -19,7 +19,7 @@ impl fmt::Display for Refusal {
             Refusal::Usage(detail) => write!(f, "REFUSED usage: {detail}"),
             Refusal::Seed(detail) => write!(f, "REFUSED seed: {detail}"),
             Refusal::Input(detail) => write!(f, "REFUSED input: {detail}"),
-            Refusal::Output => write!(f, "REFUSED output: standard output cannot be written"),
+            Refusal::Output(detail) => write!(f, "REFUSED output: {detail}"),
         }
     }
 }

@@ -30,10 +30,10 @@ fn answer(args: &[OsString]) -> Result<(), Refusal> {
             let mut out = std::io::stdout().lock();
             out.write_all(trial.block().as_bytes())
                 .and_then(|()| out.flush())
-                .map_err(|_| Refusal::Output)
+                .map_err(|_| Refusal::Output("standard output cannot be written".to_owned()))
         }
         Ask::Sample(file) => std::fs::write(file, trial.sample())
-            .map_err(|_| Refusal::Usage("the sample file cannot be written".to_owned())),
+            .map_err(|_| Refusal::Output("the sample file cannot be written".to_owned())),
     }
 }
 
