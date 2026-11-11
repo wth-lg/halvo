@@ -1,0 +1,87 @@
+# Two sentences for each line of never-read.txt, in its order: a class name, a tab, match or
+# miss, a tab and the sentence. The line matches its match sentence; no line matches a miss
+# sentence. The self-test of 45-r4-words.sh reads this file.
+model	match	Claude wrote this reply.
+model	miss	Clause four of the lease is new.
+model	match	The model is loading.
+model	miss	It is a modern way to pay.
+tier	match	Pick a tier for this agent.
+tier	miss	The cake has three tiered layers.
+tier	match	It uses the frontier option.
+tier	miss	It runs on this device.
+count	match	It used 900 tokens.
+count	miss	It is not broken.
+count	match	It took 14 steps.
+count	miss	Do the next step in its own window.
+count	match	Step 3 did not work.
+count	miss	Step by step, it fills in the form.
+tool	match	The API did not answer.
+tool	miss	It sent a happy note.
+tool	match	Run git to see it.
+tool	miss	It got the digit right.
+tool	match	Open the command line.
+tool	miss	Call the shop about the tools.
+tool	match	It called click() twice.
+tool	miss	It called (twice) to check.
+bundle	match	It opened com.apple.Safari today.
+bundle	match	Microsoft.WindowsCalculator_8wekyb3d8bbwe is open.
+bundle	miss	Windows Calculator is open.
+bundle	miss	Pay in the app. Then wait.
+bundle	match	Open Safari.exe now.
+bundle	miss	Open the shop now.
+path	match	It saved it to /Users/ann/bills.
+path	miss	It costs 3/4 of the price.
+path	match	It is in bills/2026/ now.
+path	miss	It is either yes or no.
+path	match	It is on C:\Bills now.
+path	miss	Note: it is done.
+path	match	Look in \Users\Ann for it.
+path	miss	Look in the Users folder.
+path	match	It is in %APPDATA% now.
+path	miss	It costs $40 a month.
+address	match	Go to https://site1.example now.
+address	miss	Note that it goes to Site1.
+address	match	Visit www.site1 today.
+address	miss	Visit Site1 now.
+address	match	Write to ann@site1.example today.
+address	miss	Write to Ann at Site1.
+address	match	It reached 10.0.0.1 today.
+address	miss	It paid 42.10 today.
+address	match	It runs on localhost.
+address	miss	It runs on this computer.
+address	match	It paid on site1.example today.
+address	miss	It paid on Site1. Then it stopped.
+enum	match	Its status is needs_you.
+enum	miss	It needs you now.
+enum	match	It hit MAX_LIVE_RUNS.
+enum	miss	It hit the limit.
+enum	match	The itemKind is wrong.
+enum	miss	The item kind is wrong.
+enum	match	Read line.run.completed here.
+enum	miss	Read the line. Run it.
+code	match	It failed with error 404.
+code	miss	It found an error in the form.
+code	match	It stopped at 0x80070005.
+code	miss	It stopped at 10 past 8.
+code	match	It got ENOENT.
+code	miss	It got nothing.
+code	match	The amount is undefined.
+code	miss	The amount is not set yet.
+trace	match	It broke at run (main.js:4:2).
+trace	miss	Pay at Site1 (the shop).
+trace	match	Here is the stack trace.
+trace	miss	Here is the stack of bills.
+trace	match	It broke in main.rs:42 today.
+trace	miss	It broke at 4:42 today.
+trace	match	It hit a TypeError.
+trace	miss	It hit an error.
+prompt	match	Edit the prompt first.
+prompt	miss	It was quick to answer.
+prompt	match	Its reasoning was long.
+prompt	miss	It gave a reason.
+prompt	match	Show the chain of thought.
+prompt	miss	Show the chain on the gate.
+prompt	match	It said <thinking> first.
+prompt	miss	It said 3 < 4 first.
+prompt	match	You are a helpful agent.
+prompt	miss	You are all set.
