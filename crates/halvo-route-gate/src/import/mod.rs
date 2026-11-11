@@ -4,8 +4,11 @@
 //! Refusal causes: `usage`, `file`, and `source` with the detail `<driver|cells>:<line number>`,
 //! `<driver|cells>:block` or `driver:verdict`. The driver file is read before the cells file, and
 //! each file in line order; a carriage return anywhere in a file is refused before its block is
-//! looked for. Known lines are those of their own file; every other line of a block, a known line
-//! of the other file among them, is passed over, and no line outside the block is read.
+//! looked for. In the driver block a line that starts with `attempt` or `verdict` is of its form
+//! and one that starts with `bound` is refused; in the cells block a line that starts with `bound`
+//! is of its form, one that starts with `verdict` starts `verdict candidates=`, and one that starts
+//! with `attempt` is refused. Every other line of a block is passed over, and no line outside the
+//! block is read.
 
 mod blob;
 mod block;
@@ -148,19 +151,26 @@ pub fn import(driver: Trial<'_>, cells: Trial<'_>) -> Result<Imported, SourceErr
             rows.push(row);
         } else if line.bytes.starts_with(lines::VERDICT) {
             verdicts.push(lines::verdict(line.bytes).ok_or(fault)?);
+        } else if line.bytes.starts_with(lines::BOUND) {
+            return Err(fault);
         }
     }
     let [verdict] = <[lines::Verdict; 1]>::try_from(verdicts).map_err(|_| SourceError::Verdict)?;
     let mut bounds = Vec::new();
     let mut pairs: HashSet<(Model, Machine)> = HashSet::new();
     for line in block_of(Input::Cells, cells.bytes)? {
+        let fault = SourceError::Line(Input::Cells, line.number);
         if line.bytes.starts_with(lines::BOUND) {
-            let fault = SourceError::Line(Input::Cells, line.number);
             let bound = lines::bound(line.bytes).ok_or(fault)?;
             if !pairs.insert((bound.model.clone(), bound.machine)) {
                 return Err(fault);
             }
             bounds.push(bound);
+        } else if line.bytes.starts_with(lines::VERDICT)
+            && !line.bytes.starts_with(lines::CANDIDATES)
+            || line.bytes.starts_with(lines::ATTEMPT)
+        {
+            return Err(fault);
         }
     }
 

@@ -291,21 +291,14 @@ fn lines_that_are_not_known_are_passed_over() {
         "prompt file=action.txt sha256=00",
         "cell model=m_a machine=mac",
         "hosted machine=hosted-win run=1 sha=00",
-        "verdict candidates=m_a",
         "notrun model=m_a cause=browser_start",
-        "attempt",
-        "attempts model=m_a",
-        "attempt_model=m_a",
         " attempt model=m_a machine=mac task=bill seed=1 kind=compile i=1 pass=nonsense",
         "\tattempt model=x",
         "Attempt model=m_a",
-        "verdict",
-        "verdict driver",
-        "verdict  driver=x",
-        "verdict writer=x",
-        "bound",
-        "bounds model=m_a",
+        " verdict driver=x",
+        "Verdict candidates=x",
         " bound model=m_a",
+        "Bound model=m_a",
         "``",
         "\u{e9}t\u{e9} attempt model=",
     ];
@@ -320,10 +313,121 @@ fn lines_that_are_not_known_are_passed_over() {
 }
 
 #[test]
-fn a_known_line_of_one_file_is_passed_over_in_the_other() {
-    let got = run(&[ATTEMPT, BOUND, VERDICT], &[ATTEMPT, VERDICT, BOUND]);
-    got.passed();
-    assert_eq!(got.stdout, "import rows=1 models=1 sources=2\n");
+fn a_known_line_of_one_file_is_refused_in_the_other() {
+    let got = run(&[ATTEMPT, BOUND, VERDICT], &[BOUND]);
+    assert_eq!(got.refused(), "REFUSED source: driver:4");
+    let got = run(&[ATTEMPT, VERDICT], &[ATTEMPT, BOUND]);
+    assert_eq!(got.refused(), "REFUSED source: cells:3");
+    let got = run(&[ATTEMPT, VERDICT], &[BOUND, VERDICT]);
+    assert_eq!(got.refused(), "REFUSED source: cells:4");
+}
+
+#[test]
+fn a_line_that_starts_with_a_known_word_is_of_its_form_or_refused() {
+    let attempt_tab = ATTEMPT.replacen("attempt ", "attempt\t", 1);
+    let bound_tab = BOUND.replacen("bound ", "bound\t", 1);
+    let driver_cases: Vec<(&str, &str)> = vec![
+        ("attempt", "attempt"),
+        ("attempt", "attempts model=m_a"),
+        ("attempt", "attempt_model=m_a"),
+        ("attempt", &attempt_tab),
+        ("attempt", "attempted twice"),
+        ("verdict", "verdict"),
+        ("verdict", "verdict driver"),
+        ("verdict", "verdict  driver=m_a path=A writer=m_a"),
+        ("verdict", "verdict writer=m_a"),
+        ("verdict", "verdict candidates=m_a"),
+        ("verdict", "verdict candidates=-"),
+        ("verdict", "verdicts driver=m_a path=A writer=m_a"),
+        ("bound", BOUND),
+        ("bound", "bound"),
+        ("bound", "bounds model=m_a"),
+    ];
+    let cells_cases: Vec<(&str, &str)> = vec![
+        ("bound", "bound"),
+        ("bound", "bounds model=m_a"),
+        ("bound", &bound_tab),
+        ("bound", "bound_bytes=1"),
+        ("verdict", VERDICT),
+        ("verdict", "verdict"),
+        ("verdict", "verdict candidates"),
+        ("verdict", "verdict  candidates=-"),
+        ("verdict", "verdict\tcandidates=-"),
+        ("verdict", "verdict Candidates=-"),
+        ("verdict", "verdicts candidates=-"),
+        ("attempt", ATTEMPT),
+        ("attempt", "attempt"),
+        ("attempt", "attempts model=m_a"),
+    ];
+    let mut wrong = Vec::new();
+    for (word, line) in &driver_cases {
+        let got = run(&[ATTEMPT, line, VERDICT], &[BOUND]);
+        if got.code != Some(2) || got.stderr != "REFUSED source: driver:4\n" {
+            wrong.push(format!(
+                "driver {word} {line:?}: {:?} {:?}",
+                got.code, got.stderr
+            ));
+        } else {
+            got.refused();
+        }
+    }
+    for (word, line) in &cells_cases {
+        let got = run(&[ATTEMPT, VERDICT], &[BOUND, line]);
+        if got.code != Some(2) || got.stderr != "REFUSED source: cells:4\n" {
+            wrong.push(format!(
+                "cells {word} {line:?}: {:?} {:?}",
+                got.code, got.stderr
+            ));
+        } else {
+            got.refused();
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+    for line in [
+        "verdict candidates=-",
+        "verdict candidates=m_a",
+        "verdict candidates=m_a,m_b,qwen3_5_2b",
+        "verdict candidates=",
+        "verdict candidates=M,,x y",
+    ] {
+        run(&[ATTEMPT, VERDICT], &[BOUND, line]).passed();
+    }
+}
+
+#[test]
+fn two_swapped_trial_files_and_the_driver_file_given_twice_are_refused() {
+    let full = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/r3/full");
+    for (driver, cells, want) in [
+        ("model-cells.md", "driver.md", "REFUSED source: driver:16\n"),
+        ("driver.md", "driver.md", "REFUSED source: cells:7\n"),
+    ] {
+        let out = scratch();
+        let output = Command::new(env!("CARGO_BIN_EXE_route-gate"))
+            .current_dir(&full)
+            .args([
+                "import",
+                "--driver",
+                driver,
+                "--cells",
+                cells,
+                "--date",
+                "s1=2026-11-10",
+                "--date",
+                "s2=2026-11-10",
+                "--out",
+                out.to_str().expect("utf-8 path"),
+            ])
+            .output()
+            .expect("the tool runs");
+        assert_eq!(
+            String::from_utf8(output.stderr).expect("utf-8"),
+            want,
+            "--driver {driver} --cells {cells}"
+        );
+        assert_eq!(output.status.code(), Some(2));
+        assert_eq!(output.stdout, b"");
+        assert_eq!(names(&out), Vec::<String>::new());
+    }
 }
 
 #[test]
@@ -703,7 +807,7 @@ fn the_verdict_line_is_required_once() {
     );
     assert_eq!(got.refused(), "REFUSED source: driver:verdict");
     let got = run(&[ATTEMPT, VERDICT], &[BOUND, VERDICT]);
-    got.passed();
+    assert_eq!(got.refused(), "REFUSED source: cells:4");
     let mut driver = file("driver", block(&[ATTEMPT]));
     driver.extend(format!("{VERDICT}\n").as_bytes());
     let got = run_files(driver, file("cells", block(&[BOUND])));

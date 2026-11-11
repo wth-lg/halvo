@@ -4,12 +4,14 @@ use halvo_route::tier::{CallKind, CategoryId, Level, Tier};
 
 use crate::table::{Machine, Model, Row, Seed, Source, Task, SYNTHETIC};
 
-/// The start of an attempt line.
-pub const ATTEMPT: &[u8] = b"attempt ";
-/// The start of the verdict line of the driver file.
-pub const VERDICT: &[u8] = b"verdict driver=";
-/// The start of a bound line.
-pub const BOUND: &[u8] = b"bound ";
+/// A line of a block that starts with this word is an attempt line in the driver file and is
+/// refused in the cells file.
+pub const ATTEMPT: &[u8] = b"attempt";
+/// A line of a block that starts with this word is the verdict line of its file.
+pub const VERDICT: &[u8] = b"verdict";
+/// A line of a block that starts with this word is a bound line in the cells file and is refused
+/// in the driver file.
+pub const BOUND: &[u8] = b"bound";
 
 /// The models of the routing run's group (T12.1); every other model is of the group `agents`.
 pub const ROUTING: [&str; 4] = [
@@ -223,6 +225,10 @@ pub fn verdict(line: &[u8]) -> Option<Verdict> {
         writer,
     })
 }
+
+/// The start of the verdict line of the cells file, `verdict candidates=<list>` (AS-A13.5), whose
+/// list the importer does not read.
+pub const CANDIDATES: &[u8] = b"verdict candidates=";
 
 /// `bound model=<token> machine=<m> bound_bytes=<n> fits=<yes|no|not-measured>`.
 pub fn bound(line: &[u8]) -> Option<Bound> {
