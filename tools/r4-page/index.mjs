@@ -219,19 +219,21 @@ const INIT = () => {
     opaque = true;
     return attach.call(this, init);
   };
-  const wrap = (owner, key) => {
+  const wrap = (owner, key, count) => {
     const f = owner && owner[key];
     if (typeof f !== 'function') return;
     owner[key] = function (...args) {
-      if (args.some((a) => /shadowrootmode/i.test(String(a)))) opaque = true;
-      return f.apply(this, args);
+      const given = args.slice(0, count);
+      const text = given.map((a) => `${a}`);
+      if (given.some((a) => typeof a !== 'string') || text.some((t) => /shadowrootmode/i.test(t))) opaque = true;
+      return f.apply(this, [...text, ...args.slice(count)]);
     };
   };
-  wrap(Element.prototype, 'setHTMLUnsafe');
-  wrap(typeof ShadowRoot === 'undefined' ? null : ShadowRoot.prototype, 'setHTMLUnsafe');
-  wrap(Document, 'parseHTMLUnsafe');
-  wrap(Document.prototype, 'write');
-  wrap(Document.prototype, 'writeln');
+  wrap(Element.prototype, 'setHTMLUnsafe', 1);
+  wrap(typeof ShadowRoot === 'undefined' ? null : ShadowRoot.prototype, 'setHTMLUnsafe', 1);
+  wrap(Document, 'parseHTMLUnsafe', 1);
+  wrap(Document.prototype, 'write', Infinity);
+  wrap(Document.prototype, 'writeln', Infinity);
   Object.defineProperty(window, '__r4opaque', { get: () => opaque, configurable: false });
   let tampered = false;
   const apply = Reflect.apply;

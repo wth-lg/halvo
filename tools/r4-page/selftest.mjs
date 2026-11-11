@@ -55,6 +55,7 @@ const FAULTS = {
     { fault: 'shadow_markup', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'shadow_word', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'parse_closed', state: 'a', want: (r) => r.names.includes('opaque') },
+    { fault: 'shadow_tostring', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'never_quiet', state: 'a', want: (r) => r.names.includes('unsettled') },
     { fault: 'dialog_30', state: 'b', want: (r) => r.names.includes('reject') },
     { fault: 'clipped', state: 'a', want: (r) => r.names.includes('more') },

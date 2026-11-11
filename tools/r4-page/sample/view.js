@@ -392,6 +392,17 @@
         var closed = Document.parseHTMLUnsafe('<div id="r4s-closed"><template shadowroot' + 'mode="closed">' + hidden + '</template></div>');
         root.appendChild(document.adoptNode(closed.getElementById('r4s-closed')));
       }
+      if (fault === 'shadow_tostring') {
+        var turn = 0;
+        var shifty = {
+          toString: function () {
+            return turn++ ? '<div><template shadowroot' + 'mode="closed">' + hidden + '</template></div>' : '<div></div>';
+          },
+        };
+        var target = el('div', null, null);
+        root.appendChild(target);
+        target.setHTMLUnsafe(shifty);
+      }
       if (fault === 'shadow_word') {
         var words = document.createElement('script');
         words.src = '/word.js';
