@@ -103,6 +103,7 @@ mod win {
             "fixture-win32" => fixture_win32(&arg(2)),
             "probe" => probe(&arg(2)),
             "cost" => cost(&arg(2), &arg(3), &arg(4)),
+            "cold" => cold(&arg(2), &arg(3)),
             other => {
                 say(format!("error unknown_subcommand={}", other.len()));
                 std::process::exit(64);
@@ -366,6 +367,7 @@ mod win {
         t: f64,
         is_password: Option<bool>,
         control_type: i32,
+        rect: RECT,
     }
 
     type FocusLog = Arc<Mutex<Vec<FocusEvent>>>;
@@ -385,10 +387,12 @@ mod win {
                 t,
                 is_password: None,
                 control_type: 0,
+                rect: RECT::default(),
             };
             if let Some(e) = sender.as_ref() {
                 ev.is_password = unsafe { e.CachedIsPassword() }.ok().map(|b| b.as_bool());
                 ev.control_type = unsafe { e.CachedControlType() }.map(|c| c.0).unwrap_or(0);
+                ev.rect = unsafe { e.CachedBoundingRectangle() }.unwrap_or_default();
             }
             if let Ok(mut v) = self.log.lock() {
                 v.push(ev);
@@ -1122,6 +1126,106 @@ user_pref("signon.rememberSignons", false);
         say(format!(
             "raw target={target} key_downs={} null_device={null_dev} extra_info_marker={marked} flags_union={flag_bits:#x}",
             keys.len()
+        ));
+        uia.detach();
+        close(target, &job, hwnd, &stop);
+    }
+
+    // ---- cold: the first move into the password field after attach -----
+
+    fn same_rect(a: &RECT, b: &Option<RECT>) -> bool {
+        b.map(|b| {
+            (a.left - b.left).abs() <= 2
+                && (a.top - b.top).abs() <= 2
+                && (a.right - b.right).abs() <= 2
+                && (a.bottom - b.bottom).abs() <= 2
+        })
+        .unwrap_or(false)
+    }
+
+    /// One fresh client and one fresh launch: click the plain field, then Tab
+    /// and X in one SendInput call, before any tree query. Which element do
+    /// the Edit focus events of the next second name, and with which
+    /// IsPassword?
+    fn cold(target: &str, run: &str) {
+        let raw: RawLog = Arc::new(Mutex::new(Vec::new()));
+        start_raw_sink(Arc::clone(&raw));
+        let uia = match uia_attach() {
+            Ok(u) => u,
+            Err(e) => {
+                say(format!("cold target={target} uia_error_len={}", e.len()));
+                return;
+            }
+        };
+        let Some((job, found, stop)) = launch(target) else {
+            uia.detach();
+            return;
+        };
+        let hwnd = found.hwnd;
+        let fg = activate(hwnd);
+        let (px, py) = plain_point(hwnd);
+        let tc = now_ms();
+        click(px, py);
+        let click_ev = uia.wait_edit(tc, 3000.0);
+        sleep_ms(700);
+        let t0 = now_ms();
+        send(&[
+            key(VK_TAB, false),
+            key(VK_TAB, true),
+            key(VK_X, false),
+            key(VK_X, true),
+        ]);
+        sleep_ms(1000);
+        let events: Vec<FocusEvent> = uia
+            .events_since(t0)
+            .into_iter()
+            .filter(|e| e.control_type == UIA_EditControlTypeId.0)
+            .collect();
+        let key_t = raw.lock().ok().and_then(|v| {
+            v.iter()
+                .find(|k| k.t >= t0 && k.vkey == VK_X.0)
+                .map(|k| k.t)
+        });
+        let (plain, secret, _) = uia.fields(hwnd);
+        let name = |e: &FocusEvent| {
+            if same_rect(&e.rect, &secret) {
+                "password"
+            } else if same_rect(&e.rect, &plain) {
+                "plain"
+            } else {
+                "other"
+            }
+        };
+        let seq: Vec<String> = events
+            .iter()
+            .map(|e| {
+                format!(
+                    "{}:{}:{:.1}",
+                    name(e),
+                    match e.is_password {
+                        Some(true) => "pw",
+                        Some(false) => "clear",
+                        None => "none",
+                    },
+                    key_t.map(|k| e.t - k).unwrap_or(f64::NAN)
+                )
+            })
+            .collect();
+        let first_true = events
+            .iter()
+            .find(|e| e.is_password == Some(true))
+            .and_then(|e| key_t.map(|k| e.t - k));
+        let wrong_clear = events
+            .iter()
+            .filter(|e| name(e) == "password" && e.is_password == Some(false))
+            .count();
+        let (t_chars, p_chars) = title_counts(hwnd);
+        say(format!(
+            "cold target={target} run={run} foreground={fg} click_event_is_password={:?} edit_events={} password_element_reported_clear={wrong_clear} first_true_after_key_ms={} plain_chars={t_chars} password_chars={p_chars} sequence={}",
+            click_ev.and_then(|e| e.is_password),
+            events.len(),
+            first_true.map(|d| format!("{d:.1}")).unwrap_or("none".into()),
+            seq.join(",")
         ));
         uia.detach();
         close(target, &job, hwnd, &stop);

@@ -4,7 +4,7 @@
 # sizes, booleans and version numbers only.
 set -u
 exe=tools/spike-s3/target/release/spike-s3.exe
-runs=${S3_COST_RUNS:-3}
+runs=${S3_COST_RUNS:-5}
 
 for b in "chrome:C:/Program Files/Google/Chrome/Application/chrome.exe" \
   "edge:C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
@@ -34,6 +34,16 @@ for target in win32 wpf chrome edge firefox; do
   echo "S3 begin target=$target"
   timeout 600 "$exe" probe "$target"
   echo "S3 end target=$target exit=$?"
+done
+
+for target in win32 wpf chrome edge firefox; do
+  n=0
+  while [ "$n" -lt "${S3_COLD_RUNS:-10}" ]; do
+    n=$((n + 1))
+    timeout 120 "$exe" cold "$target" "$n"
+    code=$?
+    [ "$code" -eq 0 ] || echo "S3 cold target=$target run=$n exit=$code"
+  done
 done
 
 i=0
