@@ -172,6 +172,14 @@ const SECOND_PICKS: [[&str; 3]; 44] = [
     ["none", "none", "none"],
 ];
 
+const fn const_pick(policy: &Policy, category: CategoryId, kind: CallKind, ceiling: Tier) -> Pick {
+    pick(policy, category, kind, ceiling)
+}
+
+const fn const_explain(policy: &Policy, category: CategoryId, kind: CallKind) -> &Row {
+    explain(policy, category, kind)
+}
+
 fn second() -> Policy {
     Policy::parse_for(SECOND, &Tier::ALL).expect("the second table parses with every tier")
 }
@@ -212,9 +220,13 @@ fn pick_total() {
     let mut seen = std::collections::BTreeSet::new();
     for (table, policy) in [("release", release::policy()), ("second", &second)] {
         for (i, (category, kind)) in cells().enumerate() {
-            assert_eq!(explain(policy, category, kind), policy.row(category, kind));
+            assert_eq!(
+                const_explain(policy, category, kind),
+                policy.row(category, kind)
+            );
             for (j, ceiling) in Tier::ALL.into_iter().enumerate() {
-                let result = pick(policy, category, kind, ceiling);
+                let result = const_pick(policy, category, kind, ceiling);
+                assert_eq!(result, pick(policy, category, kind, ceiling));
                 let got = word(result);
                 let row = explain(policy, category, kind);
                 assert_eq!(
