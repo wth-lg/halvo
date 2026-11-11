@@ -306,8 +306,15 @@ test_sandbox() {
     sleep 0.1
     n=$((n + 1))
   done
-  stream_state=$(grep -l "^pid=$stream_check\$" target/egress/[0-9]*/state | head -n 1)
-  kill "$(sed -n 's/^stream=//p' "$stream_state")"
+  stream_state=
+  for st in $(grep -l "^pid=$stream_check\$" target/egress/[0-9]*/state 2>/dev/null); do
+    grep -q '^done$' "$st" || stream_state=$st
+  done
+  stream_pid=$(sed -n 's/^stream=//p' "$stream_state" 2>/dev/null)
+  stream_token=$(sed -n 's/^token=//p' "$stream_state" 2>/dev/null)
+  case $(ps -o command= -p "${stream_pid:-0}" 2>/dev/null) in
+    *"$stream_token"*) [ -z "$stream_token" ] || kill "$stream_pid" ;;
+  esac
   wait "$stream_check"
   code=$?
   result sandbox/stream-lost-before-its-end 'exit-2:REFUSED mode: the log stream gave no end marker' "exit-$code:$(tail -n 1 "$work/stream.err")"
@@ -514,8 +521,9 @@ test_wfp_rules() {
   undo_token=
   n=0
   while [ -z "$undo_token" ] && [ $n -lt 60 ]; do
-    undo_state=$(grep -l "^pid=$undo_check\$" target/egress/[0-9]*/state 2>/dev/null | head -n 1)
-    [ -z "$undo_state" ] || undo_token=$(sed -n 's/^token=//p' "$undo_state")
+    for st in $(grep -l "^pid=$undo_check\$" target/egress/[0-9]*/state 2>/dev/null); do
+      grep -q '^done$' "$st" || undo_token=$(sed -n 's/^token=//p' "$st")
+    done
     sleep 0.5
     n=$((n + 1))
   done
