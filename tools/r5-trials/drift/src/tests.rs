@@ -475,6 +475,28 @@ fn keep_cuts_the_list_of_a_new_edit_at_locators_max() {
 }
 
 #[test]
+fn admit_answers_locator_for_a_proposal_that_the_served_step_holds() {
+    let edits = model::Edits::default();
+    assert!(!edits.admit(&[role("Pay")], &role("Pay")));
+    assert!(edits.admit(&[role("Pay")], &role("Pay now")));
+}
+
+#[test]
+fn admit_answers_rejected_for_a_proposal_that_a_reverted_edit_brought() {
+    let edits = model::Edits {
+        edits: vec![edit(&["Pay now"], model::State::Reverted)],
+    };
+    assert!(!edits.admit(&[], &role("Pay now")));
+    assert!(edits.admit(&[], &role("Pay bill")));
+}
+
+#[test]
+fn admit_answers_full_for_a_step_that_holds_edits_max_edits() {
+    assert!(!reverted_edits(8).admit(&[], &role("new")));
+    assert!(reverted_edits(7).admit(&[], &role("new")));
+}
+
+#[test]
 fn a_case_file_with_a_carriage_return_is_refused_as_not_lf_text() {
     let bytes = std::fs::read(dev_dir().join("renamed-pay.jsonl")).expect("a development case");
     let text = String::from_utf8(bytes).expect("UTF-8");
