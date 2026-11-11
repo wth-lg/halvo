@@ -138,17 +138,6 @@ upper bound for the processes that it saw.
 ```text
 licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
 licence item=windows-sys@0.61.2 spdx=MIT read=2026-11-11 ok=yes
-flag --disable-background-networking
-flag --disable-component-update
-flag --disable-sync
-flag --disable-field-trial-config
-flag --disable-client-side-phishing-detection
-flag --disable-default-apps
-flag --disable-breakpad
-flag --disable-domain-reliability
-flag --metrics-recording-only
-flag --no-first-run
-flag --no-default-browser-check
 hosted machine=hosted-mac run=42960070038 sha=dc69cc0b8fb7f603eae167a7db0ecf17fae33681
 hosted machine=hosted-win run=42960070038 sha=dc69cc0b8fb7f603eae167a7db0ecf17fae33681
 session machine=mac browser=chrome import=ok second_factor_asked_again=no
