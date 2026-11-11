@@ -303,8 +303,8 @@ replay of that design gives another answer or state at some move.
 | 6 | the scheduler starts an agent that never had a completed run | C5 | 149 of 211 |
 | 7 | a restart forgets which workflows are gone | C8 | 13 of 211 |
 | 8 | the kill comes only for runs stopped for `deleted` | C9 | 60 of 211 |
-| 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4 | 26 of 214 |
-| 10 | the table takes the stored rows of a `no_record` lapse | L7 | 2 of 214 |
+| 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4; L3 when the lapse's decision also holds the approval ids of the answer; L9, checked alone, when the guard then also counts a row before its release | 26 of 214 |
+| 10 | the table takes the stored rows of a `no_record` lapse | L7, and not L9: the lapse's decision holds new ids | 2 of 214 |
 | 11 | the guard passes every `releasing` record | L8 | 25 of 214 |
 | 12 | a `releasing` record passes on an unused row | L8 | 2 of 214 |
 | 13 | the table pairs each approval id with the other effect | L7 | 26 of 214 |
@@ -315,7 +315,7 @@ replay of that design gives another answer or state at some move.
 | 18 | the tick asks "needs the person" only | C5 | 149 of 211 |
 | 19 | a person's start names no slot | C6 | 181 of 211 |
 | 20 | a failed start is not counted | C7 | 74 of 211 |
-| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0 | C8 | 11 of 211 |
+| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0; with step 0 in place that start is answered `state` and no property is broken | C8 | 11 of 211 |
 | 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 55 of 214 |
 | 23 | a lapse is taken from `recorded` with any cause | L4 | 26 of 214 |
 | 24 | the guard's rule for `releasing` records is dropped | L8 | 25 of 214 |
@@ -323,11 +323,8 @@ replay of that design gives another answer or state at some move.
 | 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | - |
 | 27 | a `releasing` record of the class `send` passes with another digest | L10 | - |
 
-Row 9 has two more forms: when the lapse's decision also holds the approval ids of the
-answer, TLC reports L3, and when the guard then passes a record with one of those ids, L9.
-Row 21 needs both halves: with step 0 in place the start that the tick offers for a gone
-workflow is answered `state`, and no invariant is broken; that half alone differs in 11
-of the 211 traces.
+The count of row 21 is that of its first half alone: a replay in which the tick does not
+skip the agent gives another line whether or not its start skips step 0.
 
 ## Limits
 
