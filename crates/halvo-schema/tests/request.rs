@@ -442,6 +442,26 @@ fn decode_makes_its_checks_in_the_order_of_the_contract() {
             ErrorName::TooLarge,
         ),
         (
+            line(
+                "analysis_write",
+                &format!(r#"{{"store":"{HEX_B}","episodes":[],"commit":null}}"#),
+            )
+            .replace(
+                "\"body\":",
+                &format!("\"x\":\"{}\",\"body\":", "x".repeat(65500)),
+            ),
+            id.clone(),
+            ErrorName::TooLarge,
+        ),
+        (
+            format!(
+                r#"{{"v":1,"id":"{HEX_A}","request":"analysis_write","x":"{}"}}"#,
+                "x".repeat(65500)
+            ),
+            id.clone(),
+            ErrorName::TooLarge,
+        ),
+        (
             line("interface_read", r#"{"read":"workflows"}"#),
             id.clone(),
             ErrorName::Malformed,
