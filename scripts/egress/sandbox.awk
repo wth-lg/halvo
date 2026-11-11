@@ -73,7 +73,10 @@ function emit(at, proto, dest, pid, image) {
   if (deny == 0) next
   who = substr(head, 1, deny)
   target = substr(head, deny + 1)
-  sub(/^\) deny\([0-9]*\) network-outbound /, "", target)
+  op = target
+  sub(/^\) deny\([0-9]*\) /, "", op)
+  sub(/ .*$/, "", op)
+  sub(/^\) deny\([0-9]*\) [a-z-]+ /, "", target)
   open_paren = 0
   for (i = length(who); i > 0; i--) if (substr(who, i, 1) == "(") { open_paren = i; break }
   pid = substr(who, open_paren + 1, length(who) - open_paren - 1)
@@ -94,6 +97,6 @@ function emit(at, proto, dest, pid, image) {
   } else if (t[1] ~ /^icmp[46]$/) { proto = "icmp"; dest = "-:-" }
   else { proto = "-"; dest = "-" }
   if (dup == 0) { emit(at, proto, dest, pid, image); next }
-  if (target != "/private/var/run/mDNSResponder") { proto = "-"; dest = "-:" port }
+  if (target != "/private/var/run/mDNSResponder" && op != "mach-lookup") { proto = "-"; dest = "-:" port }
   for (k = 0; k < dup; k++) emit(at, proto, dest, pid, image)
 }

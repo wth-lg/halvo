@@ -27,13 +27,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const LIMIT: Duration = Duration::from_secs(5);
-const NAMES: [&str; 9] = [
+const NAMES: [&str; 10] = [
     "ipv4",
     "ipv6",
     "dns",
     "loopback",
     "udp",
     "icmp",
+    "resolver",
     "loopback2",
     "none",
     "listen",
@@ -116,10 +117,31 @@ fn attempt(name: &str) -> bool {
             .map(|sent| sent == 1)
             .unwrap_or(false),
         "icmp" => icmp(),
+        "resolver" => tool(
+            "/usr/bin/nscurl",
+            &["-m", "4", "https://egress-probe-resolver.invalid/"],
+        ),
         "none" => true,
         "listen" => listen(),
         _ => false,
     }
+}
+
+fn tool(path: &str, args: &[&str]) -> bool {
+    let Ok(mut child) = Command::new(path).args(args).spawn() else {
+        return false;
+    };
+    let started = Instant::now();
+    while started.elapsed() < LIMIT - Duration::from_millis(500) {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) => thread::sleep(Duration::from_millis(50)),
+            Err(_) => break,
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    false
 }
 
 #[cfg(target_os = "macos")]
