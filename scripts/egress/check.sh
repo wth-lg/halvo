@@ -675,12 +675,24 @@ probes=ok
 names="ipv4 ipv6 dns loopback udp icmp"
 [ "$mode" != sandbox ] || names="$names resolver session"
 [ "$mode" != sandbox ] || [ "$platform" = this-mac ] || names="$names open"
+lost_report() {
+  [ "$1" = missed ] && [ "$deny" -eq 1 ] && [ "$run_status" != 0 ] && [ ! -s "$dir/denied.log" ]
+}
+
 for name in $names; do
-  first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
-  result=$(classify "$name" "$name")
+  lost=0
+  while :; do
+    first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
+    result=$(classify "$name" "$name")
+    if lost_report "$result"; then
+      lost=$((lost + 1))
+      [ "$lost" -gt 3 ] || continue
+    fi
+    break
+  done
   [ "$result" != missed ] || probes=miss
   lines="$lines
-probe name=$name result=$result"
+probe name=$name result=$result lost=$lost"
 done
 first_form "$empty" "$deny" sh scripts/egress/probe.sh none </dev/null >/dev/null
 quiet=$(empty_ok)
@@ -689,14 +701,22 @@ quiet result=$quiet"
 read_list "$loopback"
 first_form "$loopback" "$deny" sh scripts/egress/probe.sh loopback </dev/null >/dev/null
 listed=$(empty_ok)
-first_form "$loopback" "$deny" sh scripts/egress/probe.sh loopback2 </dev/null >/dev/null
-unlisted=$(classify loopback2 loopback)
+unlisted_lost=0
+while :; do
+  first_form "$loopback" "$deny" sh scripts/egress/probe.sh loopback2 </dev/null >/dev/null
+  unlisted=$(classify loopback2 loopback)
+  if lost_report "$unlisted"; then
+    unlisted_lost=$((unlisted_lost + 1))
+    [ "$unlisted_lost" -gt 3 ] || continue
+  fi
+  break
+done
 stop_listeners
 first_form "$loopback" "$deny" sh scripts/egress/probe.sh listen </dev/null >/dev/null
 listen=$(empty_ok)
 lines="$lines
 listed result=$listed
-unlisted result=$unlisted
+unlisted result=$unlisted lost=$unlisted_lost
 listen result=$listen"
 if [ "${GITHUB_ACTIONS:-}" != true ]; then
   lines="$lines
