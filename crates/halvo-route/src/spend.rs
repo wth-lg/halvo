@@ -140,6 +140,8 @@ impl SpendCause {
 }
 
 /// The next account and hold after one move, or the cause of its refusal, which changes nothing.
+/// The pair that it returns is the only valid next input for that hold: a caller keeps one value
+/// per hold.
 ///
 /// The moves that go through: `Reserve` of a `new` hold makes it `held`, raises `held` by the
 /// amount and sets the hold's amount; `Dispatch` of a `held` hold makes it `sent`; `Void` of a

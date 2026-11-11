@@ -86,8 +86,9 @@ impl LeaveCause {
 }
 
 /// The leave for one model request to leave the machine. It has a private field, no public maker
-/// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. While the ruling
-/// is `none` no build that is not a test build of this crate can hold one.
+/// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. `grant` makes one
+/// only in a build that sets `cfg(test)`, as the crate's own unit tests do, and never under the
+/// release ruling.
 ///
 /// A caller outside this module cannot write one:
 ///
@@ -128,7 +129,7 @@ impl LeaveCause {
 /// }
 /// ```
 ///
-/// and cannot name the ruling that a test build of this crate alone has:
+/// and, in a build that does not set `cfg(test)`, cannot name the test ruling:
 ///
 /// ```compile_fail,E0599
 /// let ruling = halvo_route::ruling::Ruling::test_hosted(&["127.0.0.1:1"]);
@@ -167,11 +168,12 @@ pub struct LeaveGrant {
 }
 
 /// The one maker of a `LeaveGrant`. The first rule that fits: the tier `on_device` gives `local`,
-/// because nothing leaves and no grant is needed; the ruling `None` gives `ruling`. Only a test
-/// build of this crate, under its test ruling, tests on: a tier above `ceiling` gives `ceiling`; a
-/// part that is not `text` gives `part`; an origin that is not among `ruling.origins()`, by equal
-/// bytes, gives `origin`; the consent `missing` gives `consent`; else the grant. Every other build
-/// makes no grant.
+/// because nothing leaves and no grant is needed; the ruling `None` gives `ruling`. Only a build
+/// that sets `cfg(test)`, as the crate's own unit tests do, compiles the rules that follow, and
+/// they run under its test ruling alone: a tier above `ceiling` gives `ceiling`; a part that is not
+/// `text` gives `part`; an origin that is not among `ruling.origins()`, by equal bytes, gives
+/// `origin`; the consent `missing` gives `consent`; else the grant. Under the release ruling no
+/// build makes a grant.
 #[cfg_attr(not(test), allow(unused_variables))]
 pub fn grant(
     ruling: &Ruling,
