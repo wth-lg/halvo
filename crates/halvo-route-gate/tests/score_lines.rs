@@ -3,10 +3,11 @@ use std::num::NonZeroU32;
 use halvo_route::policy::PickCell;
 use halvo_route::prices::Prices;
 use halvo_route::tier::{CallKind, CategoryId, Level, Tier};
+use halvo_route_gate::derive::tier_rows;
 use halvo_route_gate::generate::generate;
 use halvo_route_gate::routers::{fixed, OneTier, PolicyRouter, Random};
 use halvo_route_gate::score::{score, Score, Versus, DEFAULT_DRAWS};
-use halvo_route_gate::table::{Machine, Model, Row, Seed, Source, Table, Task};
+use halvo_route_gate::table::{Machine, Model, Row, Seed, Source, Split, Table, Task};
 use halvo_route_gate::{Router, Setup};
 
 use CallKind::{Compile, Write};
@@ -598,4 +599,102 @@ fn random_attempts_nothing_on_a_table_with_no_held_out_row() {
         line(&lines, "versus name=random "),
         "versus name=random attempts=0 passed=0 wasted=0 handed_back=0 cost_micro=0 wall_s=0"
     );
+}
+
+struct ByRule {
+    name: &'static str,
+    picks: Vec<PickCell>,
+}
+
+impl Router for ByRule {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn pick(&self, category: CategoryId, kind: CallKind) -> PickCell {
+        let at = halvo_route::policy::cells()
+            .position(|cell| cell == (category, kind))
+            .expect("a cell");
+        self.picks[at]
+    }
+}
+
+fn by_rule(table: &Table, name: &'static str, rule: fn(&[&Row], &[&Row]) -> bool) -> ByRule {
+    let setup = Setup::generated();
+    let picks = halvo_route::policy::cells()
+        .map(|(category, kind)| {
+            fixed(category, kind, false).unwrap_or_else(|| {
+                Tier::ALL
+                    .into_iter()
+                    .find(|tier| {
+                        let (dev, held): (Vec<&Row>, Vec<&Row>) =
+                            tier_rows(table, &setup, category, kind, *tier)
+                                .partition(|row| row.split() == Split::Dev);
+                        rule(&dev, &held)
+                    })
+                    .map_or(PickCell::HandBack, PickCell::Tier)
+            })
+        })
+        .collect();
+    ByRule { name, picks }
+}
+
+fn compile_table(on_device: &[(Seed, Machine, bool)]) -> Table {
+    let mut rows: Vec<Row> = on_device
+        .iter()
+        .map(|(seed, machine, pass)| row(Compile, OnDevice, *seed, *machine, *pass, 1, 50))
+        .collect();
+    for (seed, machine) in [
+        (One, GenA),
+        (One, GenB),
+        (Two, GenA),
+        (Two, GenB),
+        (Three, GenA),
+        (Three, GenB),
+    ] {
+        rows.push(row(Compile, LowCostHosted, seed, machine, true, 1, 50));
+    }
+    rows.sort_by_cached_key(Row::to_line);
+    Table::from_rows(&rows).expect("a table")
+}
+
+fn gate_of(table: &Table, router: &dyn Router) -> String {
+    let lines = score(
+        table,
+        &Setup::generated(),
+        router,
+        Prices::release(),
+        DEFAULT_DRAWS,
+    )
+    .lines();
+    lines.last().expect("the verdict").clone()
+}
+
+#[test]
+fn tables_outside_the_generator_fail_routers_with_a_wrong_rule() {
+    let setup = Setup::generated();
+    let few_rows = compile_table(&[
+        (One, GenA, true),
+        (One, GenB, true),
+        (Three, GenA, true),
+        (Three, GenB, true),
+    ]);
+    let no_least_number = by_rule(&few_rows, "no_least_number", |dev, _| {
+        !dev.is_empty() && dev.iter().all(|row| row.pass)
+    });
+    assert_eq!(gate_of(&few_rows, &no_least_number), "gate table=generated router=no_least_number cells=44 routed=1 handed_back=29 derivation=differs held=ok result=fail");
+    assert_eq!(gate_of(&few_rows, &PolicyRouter::derived(&few_rows, &setup)), "gate table=generated router=derived cells=44 routed=1 handed_back=29 derivation=same held=ok result=pass");
+    let held_miss = compile_table(&[
+        (One, GenA, true),
+        (One, GenB, true),
+        (Two, GenA, true),
+        (Two, GenB, true),
+        (Three, GenA, true),
+        (Three, GenB, false),
+    ]);
+    let both_splits = by_rule(&held_miss, "both_splits", |dev, held| {
+        dev.len() >= 4 && dev.iter().chain(held).all(|row| row.pass)
+    });
+    assert_eq!(gate_of(&held_miss, &both_splits), "gate table=generated router=both_splits cells=44 routed=1 handed_back=29 derivation=differs held=ok result=fail");
+    assert_eq!(gate_of(&held_miss, &PolicyRouter::derived(&held_miss, &setup)), "gate table=generated router=derived cells=44 routed=1 handed_back=29 derivation=same held=miss result=fail");
 }
