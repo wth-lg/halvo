@@ -100,8 +100,8 @@ window, but this trial did not open one.
   has no way to use `--remote-debugging-pipe`. Read on 2026-11-11 in `src/browser/config.rs` and
   `src/browser/mod.rs` of the package that cargo fetched from
   `https://crates.io/crates/chromiumoxide/0.9.1`.
-- A snapshot gives each text node of the accessibility tree its own `text` line, so `Amount` and
-  `84.37` in the frame are two lines. A credential field follows A8.2: an `input` of type
+- A snapshot gives each text node of the accessibility tree its own `text` line, so a label in the
+  frame and the amount beside it come out as two `text` lines. A credential field follows A8.2: an `input` of type
   `password` or with one of the three `autocomplete` tokens, or a control whose parent or an
   ancestor of it carries `data-halvo-captcha`.
 - The licence lines cover every crate in the trial's lock file, 138 packages, read from each
