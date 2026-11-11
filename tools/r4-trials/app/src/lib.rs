@@ -1,5 +1,6 @@
 pub mod control;
 mod options;
+pub mod pages;
 
 pub use options::{check_hosted, default_pages_dir, parse_args, Arm, Options, Refusal, SyncWay};
 
