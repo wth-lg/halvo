@@ -914,6 +914,9 @@ function selfTest(dir, repo) {
     const locked = fixture('a-directory-under-ui-app-that-cannot-be-read', { files: (f) => (f['ui/app/sub/x.js'] = 'const a = 1;\n') });
     fs.chmodSync(path.join(locked.root, 'ui/app/sub'), 0o000);
     expect(locked, 'FAIL:input');
+    const dangling = fixture('ui-app-that-points-nowhere');
+    fs.symlinkSync(path.join(dangling.root, 'no-such-directory'), path.join(dangling.root, 'ui/app'));
+    expect(dangling, 'FAIL:input');
   }
   expect(
     fixture('delete-in-a-row-line-clashes', {
