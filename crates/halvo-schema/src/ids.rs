@@ -189,6 +189,61 @@ macro_rules! string_type {
     };
 }
 
+macro_rules! name_enum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident {
+            $( $(#[$vmeta:meta])* $variant:ident = $text:literal ),+ $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        $vis enum $name {
+            $( $(#[$vmeta])* $variant, )+
+        }
+
+        impl $name {
+            /// Every value, in the order of the contract.
+            pub const ALL: &'static [$name] = &[ $( $name::$variant, )+ ];
+
+            /// The name of the value as it is serialized.
+            pub fn as_str(self) -> &'static str {
+                match self {
+                    $( $name::$variant => $text, )+
+                }
+            }
+
+            /// Returns the value whose serialized name is `s`, else the error with the rule `unknown_name`.
+            pub fn parse(s: &str) -> Result<Self, $crate::ids::ParseError> {
+                match s {
+                    $( $text => Ok($name::$variant), )+
+                    _ => Err($crate::ids::ParseError::new(stringify!($name), "unknown_name")),
+                }
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+
+        impl serde::Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                $crate::ids::parse_str(deserializer, concat!("a name of ", stringify!($name)), $name::parse)
+            }
+        }
+    };
+}
+
+pub(crate) use name_enum;
+
 fn hex(s: &str, len: usize) -> Result<(), &'static str> {
     if s.len() != len {
         return Err("length");
