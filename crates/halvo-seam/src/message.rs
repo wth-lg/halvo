@@ -352,7 +352,8 @@ pub fn decode_client(payload: &[u8]) -> Result<ClientMessage, Refusal> {
     }
 }
 
-/// One served record of a Batch with its position.
+/// One served record of a Batch with its position. Its serde form answers every input that is no entry with
+/// the fixed error `malformed entry of records`, which holds no value of the input.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Entry {
     pub pos: Position,
@@ -368,7 +369,8 @@ struct EntryFields {
 
 impl<'de> Deserialize<'de> for Entry {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let f: EntryFields = object(deserializer)?;
+        let f: EntryFields =
+            object(deserializer).map_err(|_| de::Error::custom("malformed entry of records"))?;
         Ok(Entry {
             pos: f.pos,
             record: f.record,
@@ -376,7 +378,9 @@ impl<'de> Deserialize<'de> for Entry {
     }
 }
 
-/// One entry of `expiry`: a segment ordinal and the instant at which the store destroys that segment.
+/// One entry of `expiry`: a segment ordinal and the instant at which the store destroys that segment. Its
+/// serde form answers every input that is no entry with the fixed error `malformed entry of expiry`, which
+/// holds no value of the input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Expiry {
     pub seg: u64,
@@ -392,9 +396,10 @@ struct ExpiryFields {
 
 impl<'de> Deserialize<'de> for Expiry {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let f: ExpiryFields = object(deserializer)?;
+        let malformed = || de::Error::custom("malformed entry of expiry");
+        let f: ExpiryFields = object(deserializer).map_err(|_| malformed())?;
         if f.seg > NUMBER_MAX {
-            return Err(de::Error::custom("seg out of range"));
+            return Err(malformed());
         }
         Ok(Expiry {
             seg: f.seg,

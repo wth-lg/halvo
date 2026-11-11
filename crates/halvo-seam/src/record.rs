@@ -282,7 +282,9 @@ impl fmt::Display for RecordError {
 impl std::error::Error for RecordError {}
 
 /// A capture record as a reader of the seam sees it (C4.1): the envelope and the payload. The type holds the
-/// app id that the reader cut from the stored string, and a record written from it holds no directory.
+/// app id that the reader cut from the stored string, and a record written from it holds no directory. Its
+/// serde form answers every input that is no record, its object or any other value, with the fixed error
+/// `malformed record`, which holds no value of the input (C4.6 item 1).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CaptureRecord {
     id: RecordId,
@@ -421,7 +423,9 @@ impl Serialize for CaptureRecord {
 impl<'de> Deserialize<'de> for CaptureRecord {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let slot = Cell::new(None);
-        RecordSeed(&slot).deserialize(deserializer)
+        RecordSeed(&slot)
+            .deserialize(deserializer)
+            .map_err(|_| de::Error::custom("malformed record"))
     }
 }
 

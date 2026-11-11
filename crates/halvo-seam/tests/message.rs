@@ -484,3 +484,84 @@ fn a_watermark_or_a_segment_ordinal_outside_the_form_of_c5_3_is_refused() {
     )));
     assert!(server(&batch(w, &entry(1), r#"{"seg":1,"at":5}"#, w)));
 }
+
+#[test]
+fn the_serde_forms_of_a_record_an_entry_and_an_expiry_entry_hold_no_value_in_their_errors() {
+    use halvo_seam::message::{Entry, Expiry};
+    use halvo_seam::record::CaptureRecord;
+    const MARK: &str = "ZQXMARK";
+    const NUMBER: &str = "7770777";
+    let record = r#"{"v":1,"id":"019b78c9-0a80-7a1b-8f21-3b5d6c7e8f90","at":1767258000000000000,"seq":0,"kind":"foreground_app","app":"org.mozilla.firefox","p":{}}"#;
+    let not_objects = [
+        format!("\"{MARK} Secret Title - Bank\""),
+        NUMBER.to_owned(),
+        format!("-{NUMBER}"),
+        format!("{NUMBER}.5"),
+        "true".to_owned(),
+        format!("[\"{MARK}\", {NUMBER}]"),
+        "null".to_owned(),
+    ];
+    let mut cases: Vec<(&str, String)> = Vec::new();
+    for input in &not_objects {
+        for kind in ["record", "entry", "expiry"] {
+            cases.push((kind, input.clone()));
+        }
+    }
+    cases.extend([
+        ("record", format!(r#"{{"v":1,"{MARK}":{NUMBER}}}"#)),
+        (
+            "record",
+            record.replace(r#""p":{}"#, &format!(r#""p":"{MARK}""#)),
+        ),
+        ("entry", format!(r#"{{"pos":"{MARK}","record":{record}}}"#)),
+        (
+            "entry",
+            format!(r#"{{"pos":{{"seg":{NUMBER}.5,"idx":0}},"record":{record}}}"#),
+        ),
+        (
+            "entry",
+            format!(r#"{{"pos":{{"seg":1,"idx":0}},"record":"{MARK}"}}"#),
+        ),
+        (
+            "entry",
+            format!(r#"{{"pos":{{"seg":1,"idx":0}},"record":{record},"{MARK}":1}}"#),
+        ),
+        ("entry", format!(r#"{{"{MARK}":{NUMBER}}}"#)),
+        ("expiry", format!(r#"{{"seg":"{MARK}","at":1}}"#)),
+        ("expiry", format!(r#"{{"seg":1,"at":"{MARK}"}}"#)),
+        ("expiry", format!(r#"{{"seg":1,"at":{NUMBER}.5}}"#)),
+        ("expiry", format!(r#"{{"seg":-{NUMBER},"at":1}}"#)),
+        ("expiry", format!(r#"{{"{MARK}":1,"seg":1,"at":1}}"#)),
+        ("expiry", r#"{"seg":1,"at":true}"#.to_owned()),
+    ]);
+    let fixed = |kind: &str| match kind {
+        "record" => "malformed record",
+        "entry" => "malformed entry of records",
+        _ => "malformed entry of expiry",
+    };
+    for (kind, input) in &cases {
+        let from_text = match *kind {
+            "record" => serde_json::from_str::<CaptureRecord>(input).err(),
+            "entry" => serde_json::from_str::<Entry>(input).err(),
+            _ => serde_json::from_str::<Expiry>(input).err(),
+        };
+        let value: serde_json::Value = serde_json::from_str(input).unwrap();
+        let from_value = match *kind {
+            "record" => serde_json::from_value::<CaptureRecord>(value).err(),
+            "entry" => serde_json::from_value::<Entry>(value).err(),
+            _ => serde_json::from_value::<Expiry>(value).err(),
+        };
+        for e in [from_text, from_value] {
+            let text = e
+                .unwrap_or_else(|| panic!("{kind} took {input}"))
+                .to_string();
+            assert!(
+                text.starts_with(fixed(kind))
+                    && !text.contains(MARK)
+                    && !text.contains(NUMBER)
+                    && !text.contains("true"),
+                "{kind} {input}: {text}"
+            );
+        }
+    }
+}
