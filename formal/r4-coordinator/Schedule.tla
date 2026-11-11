@@ -208,10 +208,13 @@ Tick(s, d, g, port) ==
         due == IF g THEN Due(s0) ELSE {}
         v == Sweep(s0)
         k == Kill([st |-> v.st, ended |-> <<>>, ev |-> <<>>], due, port)
-        t == TickFrom([st |-> k.st, raised |-> <<>>, started |-> <<>>, ev |-> <<>>], 1, port)
-    IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended,
+        i == IF Len(k.ended) = 0 /\ k.st.runs = {}
+             THEN Dequeue(k.st, port)
+             ELSE [st |-> k.st, next |-> <<>>, ev |-> <<>>]
+        t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, ev |-> <<>>], 1, port)
+    IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended, next |-> i.next,
         raised |-> t.raised, started |-> t.started, st |-> t.st,
-        ev |-> v.ev \o k.ev \o t.ev]
+        ev |-> v.ev \o k.ev \o i.ev \o t.ev]
 
 RECURSIVE Recover(_, _, _)
 Recover(s, out, ev) ==
@@ -387,8 +390,7 @@ C1 == /\ Cardinality({r \in h.live : r.agent \in NeedsModel}) <= 1
       /\ Cardinality(h.live) <= MaxLive
 C2 == \A r \in h.live : r.life = h.life
 C3 == \A a \in Agents :
-        Cardinality(LiveOf(st, a)) + Cardinality({i \in DOMAIN st.queue : st.queue[i].agent = a}) <= 1
-
+        Cardinality(LiveRuns(a)) + h.wait[a]["person"] + h.wait[a]["schedule"] <= 1
 C4 == h.heldstarts = 0 /\ h.unacked = 0
 C5 == h.alone = 0 /\ h.extra = 0
 C6 == /\ h.after = 0
