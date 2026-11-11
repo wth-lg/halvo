@@ -13,7 +13,7 @@
 //!   caller passes, which COMMAND does not inherit. On Windows COMMAND runs with a token that
 //!   holds no administrator rights.
 //! - `serve PORT STOP READY`: listens on 127.0.0.1:PORT, writes READY once bound, accepts and
-//!   closes connections until the file STOP exists or 120 s pass; it exits 3 when the bind fails.
+//!   closes connections until the file STOP exists or 600 s pass; it exits 3 when the bind fails.
 
 use std::env;
 use std::fs;
@@ -516,7 +516,7 @@ fn serve(port: &str, stop: &str, ready: &str) -> i32 {
         return 2;
     }
     let started = Instant::now();
-    while !Path::new(stop).exists() && started.elapsed() < Duration::from_secs(120) {
+    while !Path::new(stop).exists() && started.elapsed() < Duration::from_secs(600) {
         match listener.accept() {
             Ok((stream, _)) => drop(stream),
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
