@@ -153,4 +153,33 @@ fn golden_cases_hold_what_the_contract_names() {
         failed("no_driver"),
         ["bill utility_bill_payment recover on_device m_tiny hosted-win 3 held 1"]
     );
+    let block = |case: &str, name: &str| -> Vec<String> {
+        std::fs::read_to_string(case_dir(case).join(name))
+            .expect("a golden input")
+            .lines()
+            .skip_while(|line| !line.starts_with("```"))
+            .skip(1)
+            .take_while(|line| *line != "```")
+            .map(str::to_owned)
+            .collect()
+    };
+    for case in ["full", "no_writer", "no_driver"] {
+        for name in ["driver.md", "model-cells.md"] {
+            let lines = block(case, name);
+            assert!(
+                lines.last().is_some_and(|line| line.starts_with("verdict")),
+                "{case}/{name}: the block ends with its verdict line"
+            );
+        }
+    }
+    let count = |case: &str, head: &str, rule: &str| {
+        block(case, "driver.md")
+            .iter()
+            .filter(|line| line.starts_with(head) && line.contains(rule))
+            .count()
+    };
+    let passed = "compile=ok replays_ok=3 of=3 recover=ok";
+    assert_eq!(count("full", "drive model=m_small ", passed), 12);
+    assert_eq!(count("full", "reply model=m_small ", " bodies=2 "), 6);
+    assert_eq!(count("no_writer", "drive model=m_small ", passed), 12);
 }
