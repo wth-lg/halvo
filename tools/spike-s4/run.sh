@@ -5,13 +5,13 @@
 # Prints counts, exit codes and the binary's own `S4 ` lines only.
 set -u
 launches=${S4_LAUNCHES:-30}
-dirty_launches=${S4_DIRTY_LAUNCHES:-5}
+dirty_launches=${S4_DIRTY_LAUNCHES:-10}
 exe=$(ls target/debug/deps/spike_s4-*.exe | head -n 1)
 [ -n "$exe" ] || { echo "S4 error no test binary"; exit 2; }
 echo "S4 env launches_per_variant=$launches dirty_launches=$dirty_launches"
 powershell -NoProfile -Command '"S4 env os_version=" + [Environment]::OSVersion.Version.ToString()'
 
-sets="c8b:baseline c8b:no-pixel-read c8b:product-source c8b:no-join c8b:sta-test-thread c8b:window-first c8b:mta-ref x12:baseline x12:mta-ref"
+sets=${S4_SETS:-"c8b:product-source c8b:product-source+mta-ref c8b:product-source+no-exclude c8b:product-source+message-window c8b:product-source+sta-test-thread x12:message-window x12:message-window+mta-ref"}
 tally=$(mktemp)
 
 run_one() {

@@ -228,6 +228,11 @@ fn variant() -> String {
     std::env::var(VARIANT_ENV).unwrap_or_else(|_| "baseline".to_string())
 }
 
+/// A variant is one or more flags joined by `+`.
+fn has(variant: &str, flag: &str) -> bool {
+    variant.split('+').any(|f| f == flag)
+}
+
 /// Run `body` on its own thread, as c8b did, and fail if it does not finish.
 fn with_deadline<F>(test: &'static str, limit: Duration, body: F)
 where
@@ -361,6 +366,49 @@ impl TestWindow {
 
     fn magenta_popup(class: &str) -> Result<Self, String> {
         Self::create(class, MAGENTA, 100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
+    }
+
+    /// A message-only window, as the daemon's input pumps own.
+    fn message_only(class: &str) -> Result<Self, String> {
+        let class_name = HSTRING::from(class);
+        let hinstance: HINSTANCE = unsafe { GetModuleHandleW(None) }
+            .map_err(|e| format!("GetModuleHandleW: {e}"))?
+            .into();
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(test_wnd_proc),
+            hInstance: hinstance,
+            lpszClassName: PCWSTR(class_name.as_ptr()),
+            ..Default::default()
+        };
+        if unsafe { RegisterClassW(&wc) } == 0 {
+            return Err(format!(
+                "RegisterClassW: {}",
+                windows::core::Error::from_thread()
+            ));
+        }
+        let hwnd = unsafe {
+            CreateWindowExW(
+                windows::Win32::UI::WindowsAndMessaging::WINDOW_EX_STYLE(0),
+                PCWSTR(class_name.as_ptr()),
+                PCWSTR(class_name.as_ptr()),
+                windows::Win32::UI::WindowsAndMessaging::WINDOW_STYLE(0),
+                0,
+                0,
+                0,
+                0,
+                Some(windows::Win32::UI::WindowsAndMessaging::HWND_MESSAGE),
+                None,
+                Some(hinstance),
+                None,
+            )
+        }
+        .map_err(|e| format!("CreateWindowExW: {e}"))?;
+        Ok(Self {
+            hwnd,
+            class_name,
+            hinstance,
+            destroyed: false,
+        })
     }
 
     fn destroy(&mut self) {
@@ -568,24 +616,30 @@ fn s4_c8b() {
     install_fault_line();
     let variant = variant();
     say("c8b", format!("begin variant={variant}"));
-    if variant == "mta-ref" {
+    if has(&variant, "mta-ref") {
         take_mta_reference("c8b");
     }
     let v = variant.clone();
     with_deadline("c8b", Duration::from_secs(120), move || {
-        if v == "sta-test-thread" {
+        if has(&v, "sta-test-thread") {
             let hr = unsafe { CoInitializeEx(core::ptr::null_mut(), COINIT_APARTMENTTHREADED) };
             say("c8b", format!("test_thread_coinit_sta hr={hr:#x}"));
         }
-        let read_pixels = v != "no-pixel-read";
-        let join = v != "no-join";
-        let mut window = TestWindow::magenta_popup("S4ExcludePixels").expect("window");
+        let read_pixels = !has(&v, "no-pixel-read");
+        let join = !has(&v, "no-join");
+        let product = has(&v, "product-source");
+        let message_window = has(&v, "message-window");
+        let mut window = if message_window {
+            TestWindow::message_only("S4MessageOnly").expect("window")
+        } else {
+            TestWindow::magenta_popup("S4ExcludePixels").expect("window")
+        };
         pump_thread(Duration::from_millis(500));
         let (x, y) = (
             100 + WINDOW_WIDTH as u32 / 2,
             100 + WINDOW_HEIGHT as u32 / 2,
         );
-        if v == "product-source" {
+        if product {
             product_capture("first");
         } else {
             let shown = capture_pixel(x, y, read_pixels, join, || {});
@@ -598,16 +652,20 @@ fn s4_c8b() {
                 ),
             );
         }
-        let exclude = exclude_window_from_capture(window.hwnd);
-        say(
-            "c8b",
-            format!("exclude_window_from_capture={}", show(&exclude)),
-        );
+        if has(&v, "no-exclude") || message_window {
+            say("c8b", "exclude_window_from_capture=skipped");
+        } else {
+            let exclude = exclude_window_from_capture(window.hwnd);
+            say(
+                "c8b",
+                format!("exclude_window_from_capture={}", show(&exclude)),
+            );
+        }
         pump_thread(Duration::from_millis(500));
-        if v == "product-source" {
+        if product {
             product_capture("second");
         } else {
-            let window_first = v == "window-first";
+            let window_first = has(&v, "window-first");
             let hwnd_slot = &mut window;
             let excluded = capture_pixel(x, y, read_pixels, join, || {
                 if window_first {
@@ -644,10 +702,13 @@ fn s4_x12() {
     install_fault_line();
     let variant = variant();
     say("x12", format!("begin variant={variant}"));
-    if variant == "mta-ref" {
+    if has(&variant, "mta-ref") {
         take_mta_reference("x12");
     }
-    with_deadline("x12", Duration::from_secs(180), || {
+    let v = variant.clone();
+    with_deadline("x12", Duration::from_secs(180), move || {
+        let mut window = has(&v, "message-window")
+            .then(|| TestWindow::message_only("S4X12MessageOnly").expect("window"));
         let last_app = Arc::new(Mutex::new(None));
         let mut frames_total = 0;
         let mut started = 0;
@@ -660,6 +721,10 @@ fn s4_x12() {
             }
             frames_total += count_frames(&drain_for(&writer, Duration::from_millis(700)));
             screen.stop();
+        }
+        if let Some(w) = window.as_mut() {
+            w.destroy();
+            say("x12", "message_window_destroyed=true");
         }
         std::thread::sleep(Duration::from_secs(3));
         say(
@@ -681,6 +746,8 @@ struct DirtyCounts {
     regions: u64,
     region_area: u64,
     region_errors: u32,
+    recording: bool,
+    rects: Vec<(i32, i32, i32, i32)>,
 }
 
 struct DirtyCounter {
@@ -713,6 +780,9 @@ impl GraphicsCaptureApiHandler for DirtyCounter {
                     c.regions += list.len() as u64;
                     for r in list {
                         c.region_area += (r.width.max(0) as u64) * (r.height.max(0) as u64);
+                        if c.recording && c.rects.len() < 8 {
+                            c.rects.push((r.x, r.y, r.width, r.height));
+                        }
                     }
                 }
                 Err(_) => c.region_errors += 1,
@@ -772,14 +842,29 @@ fn s4_dirty() {
         let warmup = counts.lock().map(|c| c.clone()).unwrap_or_default();
         dirty_line("warmup", &warmup, 2);
         let base = warmup;
+        if let Ok(mut c) = counts.lock() {
+            c.recording = true;
+        }
         pump_thread(Duration::from_secs(8));
-        let after_static = counts.lock().map(|c| c.clone()).unwrap_or_default();
+        let after_static = counts
+            .lock()
+            .map(|mut c| {
+                c.recording = false;
+                c.clone()
+            })
+            .unwrap_or_default();
+        say(
+            "dirty",
+            format!("static_region_rects={:?}", after_static.rects),
+        );
         let diff = |a: &DirtyCounts, b: &DirtyCounts| DirtyCounts {
             frames: a.frames - b.frames,
             frames_with_region: a.frames_with_region - b.frames_with_region,
             regions: a.regions - b.regions,
             region_area: a.region_area - b.region_area,
             region_errors: a.region_errors - b.region_errors,
+            recording: false,
+            rects: Vec::new(),
         };
         dirty_line("static", &diff(&after_static, &base), 8);
         let cover_on_top = unsafe { GetForegroundWindow() } == cover.hwnd;
