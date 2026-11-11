@@ -100,7 +100,7 @@ fi
 test "$count" -ge 1 || refuse usage "--count is at least 1"
 
 command -v java >/dev/null 2>&1 || refuse java "no java on the path"
-major=$(java -version 2>&1 | sed -n '1s/.* version "\([0-9][0-9]*\).*/\1/p')
+major=$(java -version 2>&1 | sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p' | sed -n 1p)
 test -n "$major" || refuse java "the version of java is not readable"
 test "$major" -ge 17 || refuse java "java $major is older than 17"
 
