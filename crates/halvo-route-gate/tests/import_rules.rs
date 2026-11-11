@@ -1373,6 +1373,139 @@ fn the_driver_file_is_read_before_the_cells_file_and_each_file_in_line_order() {
 }
 
 #[test]
+fn file_comes_before_source_when_out_holds_one_of_the_four_names() {
+    let bad = attempt_with("seed", "4");
+    for name in ["recorded.tsv", "models.tsv", "sources.tsv", "freeze.txt"] {
+        let dir = scratch();
+        let out = dir.join("out");
+        std::fs::create_dir(&out).expect("out");
+        std::fs::write(
+            dir.join("driver.md"),
+            file("driver", block(&[ATTEMPT, &bad, VERDICT])),
+        )
+        .expect("driver");
+        std::fs::write(
+            dir.join("model-cells.md"),
+            file("cells", block(&[BOUND, CANDIDATES])),
+        )
+        .expect("cells");
+        std::fs::write(out.join(name), "kept\n").expect("a file that stands");
+        let output = Command::new(env!("CARGO_BIN_EXE_route-gate"))
+            .current_dir(&dir)
+            .args(ARGS)
+            .output()
+            .expect("the tool runs");
+        assert_eq!(
+            String::from_utf8(output.stderr).expect("utf-8"),
+            format!("REFUSED file: --out holds {name}\n")
+        );
+        assert_eq!(output.status.code(), Some(2));
+        assert_eq!(names(&out), [name]);
+        assert_eq!(
+            std::fs::read_to_string(out.join(name)).expect("kept"),
+            "kept\n"
+        );
+    }
+}
+
+#[test]
+fn the_checks_over_a_block_come_in_their_order() {
+    let replay = |seed, i| line_of("m_b", "bill", seed, "replay", i);
+    let set = [driver_lines("m_d"), writer_lines("m_d")].concat();
+    let verdict = "verdict driver=m_d path=A writer=m_d";
+    let mut no_compile = set.clone();
+    no_compile.remove(0);
+    let mut broken_drive_and_no_reply = changed(&set, 11, "recover=ok", "recover=miss");
+    broken_drive_and_no_reply.remove(73);
+    let mut wrong = Vec::new();
+    for (what, driver, want) in [
+        (
+            "a line of the block before a gap",
+            vec![
+                replay(1, "2"),
+                attempt_with("pass", "maybe"),
+                VERDICT.to_owned(),
+            ],
+            "driver:4",
+        ),
+        (
+            "a gap before the count of verdict lines",
+            vec![replay(1, "2"), VERDICT.to_owned(), VERDICT.to_owned()],
+            "driver:3",
+        ),
+        (
+            "the count of verdict lines before the last line",
+            vec![VERDICT.to_owned(), VERDICT.to_owned(), ATTEMPT.to_owned()],
+            "driver:verdict",
+        ),
+        (
+            "the last line before the set",
+            with(with(no_compile.clone(), verdict), ""),
+            "driver:87",
+        ),
+        (
+            "the set before the verdict's lines",
+            with(
+                changed(&no_compile, 4, "recover=ok", "recover=miss"),
+                verdict,
+            ),
+            "driver:verdict",
+        ),
+        (
+            "a line of the verdict's lines before a missing one",
+            with(broken_drive_and_no_reply, verdict),
+            "driver:14",
+        ),
+    ] {
+        let got = run(&refs(&driver), &[BOUND]);
+        let want = format!("REFUSED source: {want}\n");
+        if got.code != Some(2) || got.stderr != want {
+            wrong.push(format!("{what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+    }
+    for (what, driver, cells, want) in [
+        (
+            "the bytes of the file before its fence lines",
+            "# d\r\nno fence\n".to_owned(),
+            file("cells", block(&[BOUND, CANDIDATES])),
+            "driver:1",
+        ),
+        (
+            "the fence lines before the lines of the block",
+            format!(
+                "# d\n```\n{}\n{VERDICT}\n```\n```\n",
+                attempt_with("pass", "maybe")
+            ),
+            file("cells", block(&[BOUND, CANDIDATES])),
+            "driver:block",
+        ),
+        (
+            "the whole driver file before the cells file",
+            format!("# d\n```\n{ATTEMPT}\n```\n"),
+            b"# c\r\n".to_vec(),
+            "driver:verdict",
+        ),
+        (
+            "the last line of the cells block before its bound line",
+            String::from_utf8(file("driver", block(&[ATTEMPT, VERDICT]))).expect("utf-8"),
+            file("cells", block(&[CANDIDATES, "cell model=m_a machine=mac"])),
+            "cells:4",
+        ),
+    ] {
+        let got = run_files(driver.into_bytes(), cells);
+        let want = format!("REFUSED source: {want}\n");
+        if got.code != Some(2) || got.stderr != want {
+            wrong.push(format!("{what}: {:?} {:?}", got.code, got.stderr));
+        } else {
+            got.refused();
+        }
+    }
+    assert_eq!(wrong, Vec::<String>::new());
+}
+
+#[test]
 fn usage_is_refused_with_its_detail() {
     let good = || {
         (
