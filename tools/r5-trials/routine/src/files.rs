@@ -10,6 +10,7 @@ pub enum Refusal {
     Usage(String),
     Seed(String),
     Input(String),
+    Output,
 }
 
 impl fmt::Display for Refusal {
@@ -18,6 +19,7 @@ impl fmt::Display for Refusal {
             Refusal::Usage(detail) => write!(f, "REFUSED usage: {detail}"),
             Refusal::Seed(detail) => write!(f, "REFUSED seed: {detail}"),
             Refusal::Input(detail) => write!(f, "REFUSED input: {detail}"),
+            Refusal::Output => write!(f, "REFUSED output: standard output cannot be written"),
         }
     }
 }
@@ -29,18 +31,15 @@ fn text_lines(text: &str) -> Option<Vec<&str>> {
     Some(body.split('\n').collect())
 }
 
-fn count(word: &str) -> Option<u32> {
+fn integer(word: &str) -> Option<u64> {
     let digits = !word.is_empty()
         && word.bytes().all(|b| b.is_ascii_digit())
         && (word == "0" || !word.starts_with('0'));
     digits.then(|| word.parse().ok()).flatten()
 }
 
-fn is_name(word: &str) -> bool {
-    !word.is_empty()
-        && word
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+fn count(word: &str) -> Option<u32> {
+    integer(word).and_then(|n| u32::try_from(n).ok())
 }
 
 pub fn read_text(path: &Path) -> Option<String> {
@@ -81,18 +80,70 @@ pub fn parse_seeds(text: Option<&str>) -> Result<Vec<Cell>, Refusal> {
     Ok(cells)
 }
 
+pub const TARGETS_FORM: [(&str, &[&str]); 4] = [
+    (
+        "rule",
+        &["k_clean", "locators_max", "edits_max", "value_min"],
+    ),
+    (
+        "gate",
+        &[
+            "dev_benign",
+            "dev_fault",
+            "dev_critical",
+            "dev_cost_budget",
+            "heldout_benign",
+            "heldout_fault",
+            "heldout_critical",
+            "heldout_cost_budget",
+            "calendar_days_min",
+        ],
+    ),
+    (
+        "routine",
+        &[
+            "miss_cycles",
+            "stale_floor",
+            "tolerance",
+            "false_stale_max",
+            "detected_min",
+            "detect_days",
+        ],
+    ),
+    ("memory", &["increment_bytes_max", "host_bytes_max"]),
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Expected {
+    Table(&'static str),
+    Key(&'static str, &'static str),
+}
+
+fn expected_lines() -> Vec<Expected> {
+    TARGETS_FORM
+        .iter()
+        .flat_map(|&(table, keys)| {
+            std::iter::once(Expected::Table(table))
+                .chain(keys.iter().map(move |&key| Expected::Key(table, key)))
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Targets {
-    entries: Vec<(String, String, u32)>,
+    entries: Vec<(&'static str, &'static str, u64)>,
 }
 
 impl Targets {
     pub fn key(&self, table: &str, key: &str) -> Result<u32, Refusal> {
-        self.entries
+        let value = self
+            .entries
             .iter()
-            .find(|(t, k, _)| t == table && k == key)
+            .find(|(t, k, _)| *t == table && *k == key)
             .map(|(_, _, v)| *v)
-            .ok_or_else(|| Refusal::Input(format!("targets key {key} is absent")))
+            .ok_or_else(|| Refusal::Input(format!("targets key {key} is absent")))?;
+        u32::try_from(value)
+            .map_err(|_| Refusal::Input(format!("targets key {key} is out of range")))
     }
 
     pub fn lines(&self) -> Result<Lines, Refusal> {
@@ -118,24 +169,41 @@ pub fn parse_targets(text: Option<&str>) -> Result<Targets, Refusal> {
     let lines = text_lines(text).ok_or_else(|| {
         refuse("the targets file is not LF text with one LF at its end".to_owned())
     })?;
-    let mut tables: Vec<&str> = Vec::new();
-    let mut entries: Vec<(String, String, u32)> = Vec::new();
-    for (i, line) in lines.into_iter().enumerate() {
-        let bad = || refuse(format!("targets line {} is not of its form", i + 1));
-        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-            if !is_name(name) || tables.contains(&name) {
-                return Err(bad());
+    let expected = expected_lines();
+    let mut entries = Vec::new();
+    for (i, want) in expected.iter().enumerate() {
+        let line = lines.get(i).copied();
+        let ok = match (*want, line) {
+            (Expected::Table(table), Some(line)) => line == format!("[{table}]"),
+            (Expected::Key(table, key), Some(line)) => {
+                match line
+                    .strip_prefix(key)
+                    .and_then(|rest| rest.strip_prefix(" = "))
+                    .and_then(integer)
+                {
+                    Some(value) => {
+                        entries.push((table, key, value));
+                        true
+                    }
+                    None => false,
+                }
             }
-            tables.push(name);
-            continue;
+            (_, None) => false,
+        };
+        if !ok {
+            let what = match want {
+                Expected::Table(table) => format!("the table header [{table}]"),
+                Expected::Key(table, key) => format!("the key {key} of [{table}]"),
+            };
+            return Err(refuse(format!("targets line {} is not {what}", i + 1)));
         }
-        let (key, value) = line.split_once(" = ").ok_or_else(bad)?;
-        let table = tables.last().ok_or_else(bad)?;
-        let value = count(value).ok_or_else(bad)?;
-        if !is_name(key) || entries.iter().any(|(t, k, _)| t == table && k == key) {
-            return Err(bad());
-        }
-        entries.push(((*table).to_owned(), key.to_owned(), value));
+    }
+    if lines.len() != expected.len() {
+        return Err(refuse(format!(
+            "targets holds {} lines, not {}",
+            lines.len(),
+            expected.len()
+        )));
     }
     Ok(Targets { entries })
 }

@@ -38,7 +38,7 @@ pub fn false_stale(states: &[RoutineState]) -> u32 {
 
 pub fn detected(states: &[RoutineState], days: &[u32], detect_days: u32) -> bool {
     days.last().is_some_and(|&last| {
-        (last..=last + detect_days)
+        (last..=last.saturating_add(detect_days))
             .take_while(|&day| day <= TRAIN_DAYS)
             .any(|day| on_day(states, day).mark == Mark::Stale)
     })

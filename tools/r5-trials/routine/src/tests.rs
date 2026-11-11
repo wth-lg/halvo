@@ -2,7 +2,7 @@ use crate::files::{parse_seeds, parse_targets, Refusal};
 use crate::rule::{routine_step, walk, window, Mark, RoutineState, Setting};
 use crate::train::{grid, grid_days, train, Cadence, Cell, Draws, Kind, TRAIN_DAYS};
 use crate::trains_of;
-use crate::trial::{count_cell, detected, false_stale, judge, verdict, CellCount, Lines};
+use crate::trial::{count_cell, detected, false_stale, judge, results, verdict, CellCount, Lines};
 
 const REPO_SEEDS: &str = include_str!("../seeds.txt");
 const REPO_TARGETS: &str = include_str!("../../../../docs/r5/targets.toml");
@@ -387,4 +387,100 @@ fn targets_are_refused_when_absent_out_of_form_or_without_a_key() {
         &REPO_TARGETS.replace("detect_days = 120", "detect_days = 0120")
     )));
     assert!(input(Some(&format!("{REPO_TARGETS}[routine]\n"))));
+}
+
+fn refused_as_input(text: &str) -> bool {
+    matches!(parse_targets(Some(text)), Err(Refusal::Input(_)))
+}
+
+#[test]
+fn targets_are_refused_with_an_extra_key() {
+    assert!(refused_as_input(
+        &REPO_TARGETS.replace("value_min = 4\n", "value_min = 4\nvalue_max = 9\n")
+    ));
+}
+
+#[test]
+fn targets_are_refused_without_a_key_that_the_trial_does_not_read() {
+    assert!(refused_as_input(
+        &REPO_TARGETS.replace("host_bytes_max = 67108864\n", "")
+    ));
+}
+
+#[test]
+fn targets_are_refused_with_two_keys_swapped() {
+    assert!(refused_as_input(&REPO_TARGETS.replace(
+        "dev_benign = 8\ndev_fault = 8\n",
+        "dev_fault = 8\ndev_benign = 8\n"
+    )));
+}
+
+#[test]
+fn targets_are_refused_with_a_key_in_the_wrong_table() {
+    let moved = REPO_TARGETS
+        .replace("calendar_days_min = 240\n", "")
+        .replace("[memory]\n", "[memory]\ncalendar_days_min = 240\n");
+    assert!(refused_as_input(&moved));
+}
+
+#[test]
+fn targets_are_refused_with_an_extra_table() {
+    assert!(refused_as_input(&format!("{REPO_TARGETS}[extra]\n")));
+    assert!(refused_as_input(&format!("[extra]\n{REPO_TARGETS}")));
+}
+
+#[test]
+fn targets_are_refused_with_a_value_that_is_no_integer() {
+    assert!(refused_as_input(
+        &REPO_TARGETS.replace("k_clean = 2", "k_clean = two")
+    ));
+    assert!(refused_as_input(
+        &REPO_TARGETS.replace("k_clean = 2", "k_clean = -2")
+    ));
+}
+
+#[test]
+fn targets_take_any_integer_in_a_key() {
+    let changed = REPO_TARGETS.replace("increment_bytes_max = 8388608", "increment_bytes_max = 1");
+    assert!(parse_targets(Some(&changed)).is_ok());
+}
+
+#[test]
+fn each_read_key_reaches_its_own_line() {
+    let changed = REPO_TARGETS
+        .replace("false_stale_max = 30", "false_stale_max = 7")
+        .replace("detected_min = 45", "detected_min = 8")
+        .replace("detect_days = 120", "detect_days = 9");
+    let lines = parse_targets(Some(&changed)).and_then(|t| t.lines());
+    assert_eq!(
+        lines,
+        Ok(Lines {
+            false_stale_max: 7,
+            detected_min: 8,
+            detect_days: 9
+        })
+    );
+}
+
+#[test]
+fn detect_days_bounds_the_days_on_which_a_stop_counts_as_detected() {
+    let c = cell(Cadence::Thirty, 0, 0);
+    let trains = vec![trains_of(&c)];
+    let with = |detect_days: u32| {
+        let lines = Lines {
+            detect_days,
+            ..LINES
+        };
+        results(&[c], &trains, lines)[6].cells[0].detected
+    };
+    assert_eq!(with(120), 50);
+    assert_eq!(with(60), 0);
+}
+
+#[test]
+fn a_huge_detect_days_stops_at_the_end_of_the_train() {
+    let c = cell(Cadence::Thirty, 0, 0);
+    let t = train(&c, 101);
+    let states = walk(Setting::new(3, 60, 5), &t.days);
+    assert!(detected(&states, &t.days, u32::MAX));
 }
