@@ -26,11 +26,22 @@ const REMOVE_WAIT: Duration = Duration::from_secs(10);
 /// The state that carries a sign-in from one browser into the next: the origins it was exported
 /// for, the browser's cookies whose domain belongs to one of their hosts, and the localStorage items
 /// of each origin. It holds credentials.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct SessionState {
     pub origins: Vec<String>,
     pub cookies: Vec<Cookie>,
     pub storage: Vec<OriginStorage>,
+}
+
+/// Writes each field's name with its count and no value, so a logged state holds no credential.
+impl std::fmt::Debug for SessionState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionState")
+            .field("origins", &self.origins.len())
+            .field("cookies", &self.cookies.len())
+            .field("storage", &self.storage.len())
+            .finish()
+    }
 }
 
 /// The localStorage items of one origin, sorted by key.
@@ -567,6 +578,15 @@ mod tests {
         );
         assert_eq!(s.item_count(), 2);
         assert!(SessionState::from_json("{").is_err());
+    }
+
+    #[test]
+    fn the_debug_text_of_a_state_holds_no_cookie_value() {
+        let s = state();
+        let text = format!("{s:?}");
+        assert_eq!(s.cookies[0].value, "value-of-a");
+        assert!(s.cookies.iter().all(|c| !text.contains(&c.value)), "{text}");
+        assert_eq!(text, "SessionState { origins: 2, cookies: 3, storage: 1 }");
     }
 
     fn scratch(name: &str) -> PathBuf {
