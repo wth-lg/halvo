@@ -55,8 +55,8 @@ with `-deadlock`, because a state after the app ended has no next state on purpo
 
 | Model | Distinct states | States generated | Depth | Time, one worker | Largest resident size |
 |---|---|---|---|---|---|
-| `Schedule` | 35,592 | 1,159,625 | 11 | 13.8 s | 876,019,712 bytes |
-| `Confirm4` | 943 | 47,828 | 14 | 1.1 s | 174,391,296 bytes |
+| `Schedule` | 43,316 | 1,356,211 | 11 | 16.4 s | 704,184,320 bytes |
+| `Confirm4` | 943 | 47,828 | 14 | 0.9 s | 199,704,576 bytes |
 
 The counts are TLC's own lines. The times and sizes are from one run each on the
 development Mac (arm64, JDK 17.0.20.1) on 2026-11-11, through the machine's helper for
@@ -79,8 +79,8 @@ move leaves the state as it was.
 | `ready` | the agents with an open `ready` item | I5.3 |
 | `off`, `fails`, `check` | the holds `off`, `failures` and `check` | I5.4 |
 | `gone` | the agents whose workflow is gone | I5.7 |
-| `fin`, `done`, `today`, `slotrun` | what the stored events say: a finished run, the day of the newest run that ended `completed` or `nothing_to_do`, the starts of today, the newest slot that a `run_started` event names | I5.2, I5.3, I5.5 |
-| `sslot`, `scount`, `stale`, and `ack`, `held` of a run | history, read only by the invariants | I5.12 |
+| `fin`, `done`, `starts`, `slotrun` | what the stored events say: a finished run, the day of the newest run that ended `completed` or `nothing_to_do`, the starts of each day, the newest slot that a `run_started` event names | I5.2, I5.3, I5.5 |
+| `scount`, `stale`, and `ack`, `held` of a run | history, read only by the invariants: the scheduler's starts for each slot, a run of a gone workflow that outlived a tick, and how a run started | I5.12 |
 
 The configuration has four agents, the slots of day 1 and day 3 (`FirstSlot`, `Period`),
 three days, one restart and one deleted workflow. Agent 1 needs the person and the model.
@@ -97,7 +97,7 @@ not, so both halves of step 4 of I5.5 decide: the model's guard and the count of
 | C4 | every live run started with an acknowledged `run_started` event and with no hold |
 | C5 | every live run of an agent that needs the person has the trigger `person` |
 | C6 | no slot has two starts by the scheduler |
-| C7 | no agent has more than `StartsPerDay` starts today |
+| C7 | no agent has more than `StartsPerDay` starts on any day |
 | C8 | a run whose workflow is gone is `stopping`, and none is live after a tick at which the grace has passed |
 
 How the model reads the places that I5 leaves open. The traces follow these readings, so
@@ -301,6 +301,8 @@ for that agent, with the answer of `start_step` or `no_service`, and its run or 
 The clock of the replay. A `tick` sets the day to `a.day`. Before a `tick` with `grace`
 `yes` the clock goes on by `cancel_grace_s`; at every other line it stands still. So a
 tick with `grace` `yes` kills every `stopping` run, and one with `grace` `no` kills none.
+A `tick` does its work in this order: the day and the holds `off`, the kills by run
+number, then the agents from `a1` to `a4`. A `restart` ends the runs by run number.
 
 ### Confirm traces
 

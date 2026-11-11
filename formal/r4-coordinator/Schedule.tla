@@ -28,12 +28,11 @@ Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
      runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, check |-> {},
      fin |-> Finished,
-     today |-> [a \in Agents |-> 0],
+     starts |-> [a \in Agents |-> [d \in 1..MaxDay |-> 0]],
      fails |-> [a \in Agents |-> 0],
      done |-> [a \in Agents |-> 0],
      slotrun |-> [a \in Agents |-> 0],
-     sslot |-> [a \in Agents |-> 0],
-     scount |-> [a \in Agents |-> 0],
+     scount |-> [a \in Agents |-> [d \in 1..MaxDay |-> 0]],
      stale |-> FALSE]
 
 CurSlot(d) ==
@@ -56,7 +55,7 @@ ModelFree(s, a) == a \notin NeedsModel \/ \A r \in s.runs : r.agent \notin Needs
 
 Decide(s, a) ==
     IF Held(s, a) THEN "hold"
-    ELSE IF s.today[a] >= StartsPerDay THEN "budget"
+    ELSE IF s.starts[a][s.day] >= StartsPerDay THEN "budget"
     ELSE IF LiveOf(s, a) # {} \/ Queued(s, a) THEN "state"
     ELSE IF Room(s) /\ ModelFree(s, a) THEN "go"
     ELSE "wait"
@@ -79,12 +78,9 @@ Launch(s, a, trig, port) ==
     ELSE LET slot == SlotOf(s, a, trig)
              id == s.nrun + 1
              s1 == [s EXCEPT !.nrun = id,
-                             !.today[a] = @ + 1,
+                             !.starts[a][s.day] = @ + 1,
                              !.slotrun[a] = IF slot > 0 /\ a \notin NeedsPerson THEN slot ELSE @,
-                             !.sslot[a] = IF trig = "schedule" THEN slot ELSE @,
-                             !.scount[a] = IF trig = "schedule"
-                                           THEN (IF s.sslot[a] = slot THEN @ + 1 ELSE 1)
-                                           ELSE @,
+                             !.scount = IF trig = "schedule" THEN [@ EXCEPT ![a][slot] = @ + 1] ELSE @,
                              !.ready = @ \ {a}]
          IN IF port = "no_run"
             THEN [r |-> "no_service", st |-> Ended(s1, a, "failed", s.day), run |-> id]
@@ -158,9 +154,7 @@ TickFrom(acc, a, port) ==
                       started |-> acc.started \o t.started], a + 1, port)
 
 Tick(s, d, o, g, port) ==
-    LET s0 == [s EXCEPT !.day = d,
-                        !.today = IF d # s.day THEN [a \in Agents |-> 0] ELSE @,
-                        !.off = o]
+    LET s0 == [s EXCEPT !.day = d, !.off = o]
         k == IF g THEN Kill([st |-> s0, ended |-> <<>>], port) ELSE [st |-> s0, ended |-> <<>>]
         t == TickFrom([st |-> k.st, raised |-> <<>>, started |-> <<>>], 1, port)
     IN [r |-> "ok", ended |-> k.ended, raised |-> t.raised, started |-> t.started,
@@ -258,8 +252,8 @@ C3 == \A a \in Agents :
         Cardinality(LiveOf(st, a)) + Cardinality({i \in DOMAIN st.queue : st.queue[i].agent = a}) <= 1
 C4 == \A r \in st.runs : r.ack /\ ~r.held
 C5 == \A r \in st.runs : r.agent \in NeedsPerson => r.trig = "person"
-C6 == \A a \in Agents : st.scount[a] <= 1
-C7 == \A a \in Agents : st.today[a] <= StartsPerDay
+C6 == \A a \in Agents : \A d \in 1..MaxDay : st.scount[a][d] <= 1
+C7 == \A a \in Agents : \A d \in 1..MaxDay : st.starts[a][d] <= StartsPerDay
 C8 == /\ ~st.stale
       /\ \A r \in st.runs : r.agent \in st.gone => r.phase = "stopping"
 
@@ -273,8 +267,9 @@ ReachHold == [][~(/\ Len(st.queue) > 0
                   /\ st'.nrun = st.nrun
                   /\ Cardinality(st'.runs) < Cardinality(st.runs))]_st
 ReachFailures == \A a \in Agents : ~(st.fails[a] >= FailsToPause /\ Decide(st, a) = "hold")
-ReachSlots == [][~(\E a \in Agents : /\ st.sslot[a] = FirstSlot
-                                     /\ st'.sslot[a] = FirstSlot + Period)]_st
+ReachSlots == [][~(\E a \in Agents : /\ st.scount[a][FirstSlot] = 1
+                                     /\ st.scount[a][FirstSlot + Period] = 0
+                                     /\ st'.scount[a][FirstSlot + Period] = 1)]_st
 ReachCatchUp == \A a \in Agents \ NeedsPerson :
                     ~(/\ a \in st.fin
                       /\ Open(st, a)
