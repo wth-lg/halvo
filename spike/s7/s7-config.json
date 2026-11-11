@@ -1,0 +1,23 @@
+{
+  "identifier": "com.halvo.spike.mem",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Halvo",
+        "width": 620,
+        "height": 720,
+        "minWidth": 480,
+        "minHeight": 480,
+        "resizable": true,
+        "visible": false
+      }
+    ]
+  },
+  "bundle": {
+    "targets": ["app"],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  }
+}
