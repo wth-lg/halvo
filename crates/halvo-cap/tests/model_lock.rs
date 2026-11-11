@@ -20,6 +20,21 @@ fn loader() {
     };
     let mut out = std::io::stdout();
     let code = match role.as_str() {
+        #[cfg(unix)]
+        "hold-then-exec" => match take_model_lock() {
+            Ok(lock) => {
+                use std::os::unix::process::CommandExt;
+                writeln!(out, "held {}", lock.path().display()).unwrap();
+                out.flush().unwrap();
+                let error = Command::new("/bin/sleep").arg("60").exec();
+                writeln!(out, "error {error}").unwrap();
+                4
+            }
+            Err(e) => {
+                writeln!(out, "error {e}").unwrap();
+                4
+            }
+        },
         "hold" => match take_model_lock() {
             Ok(lock) => {
                 writeln!(out, "held {}", lock.path().display()).unwrap();
@@ -123,7 +138,11 @@ fn loader_line(role: &str, home: &Path) -> (i32, String) {
 }
 
 fn start_holder(home: &Path) -> Child {
-    let mut holder = loader_command("hold", home)
+    start_holder_as("hold", home)
+}
+
+fn start_holder_as(role: &str, home: &Path) -> Child {
+    let mut holder = loader_command(role, home)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -200,6 +219,23 @@ fn a_loader_that_exits_frees_the_lock() {
     assert_eq!(code, 0, "{line}");
     let (code, line) = loader_line("try", &home);
     assert_eq!(code, 0, "{line}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_holder_that_execs_keeps_the_lock_until_its_process_ends() {
+    let home = fresh_home("model-lock-exec");
+    let mut holder = start_holder_as("hold-then-exec", &home);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let (code, line) = loader_line("try", &home);
+    holder.kill().unwrap();
+    holder.wait().unwrap();
+    assert_eq!(
+        code, 3,
+        "a second loader got the lock after the holder's exec: {line}"
+    );
+    let (code, line) = loader_line("try", &home);
+    assert_eq!(code, 0, "after the holder's process ended: {line}");
 }
 
 #[cfg(windows)]
