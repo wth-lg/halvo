@@ -28,6 +28,7 @@ struct Args {
     tree_peak: Option<PathBuf>,
     web_trial: Option<PathBuf>,
     runs: u32,
+    shape: Option<String>,
 }
 
 fn out(line: &str) {
@@ -93,6 +94,12 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             }
             "--tree-peak" => a.tree_peak = Some(PathBuf::from(value)),
             "--web-trial" => a.web_trial = Some(PathBuf::from(value)),
+            "--shape" => {
+                if !["steps", "task"].contains(&value.as_str()) {
+                    return Err("--shape takes steps or task".into());
+                }
+                a.shape = Some(value);
+            }
             "--runs" => {
                 a.runs = value
                     .parse()
@@ -115,6 +122,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     }
     if a.item != 2 && a.plant.is_some() {
         return Err("--plant belongs to --item 2".into());
+    }
+    if a.item != 4 && a.shape.is_some() {
+        return Err("--shape belongs to --item 4".into());
     }
     if a.item == 4 && !a.leave_out.is_empty() {
         return Err("--leave-out belongs to --item 1 and 2".into());
@@ -787,8 +797,12 @@ async fn item4(args: &Args, kind: &'static str) -> ExitCode {
         out(&format!("notrun item=4 {cell} cause=tree_peak"));
         return ExitCode::from(1);
     };
+    let shapes: Vec<&str> = match args.shape.as_deref() {
+        Some(one) => vec![one],
+        None => vec!["steps", "task"],
+    };
     let mut medians = Vec::new();
-    for shape in ["steps", "task"] {
+    for shape in shapes {
         let mut cmd = Command::new(tp);
         cmd.arg("--runs").arg(args.runs.to_string()).arg("--");
         if shape == "steps" {

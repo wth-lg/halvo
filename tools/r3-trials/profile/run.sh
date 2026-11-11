@@ -4,7 +4,7 @@ set -u
 usage() {
   cat <<'EOF'
 Usage: sh tools/r3-trials/profile/run.sh --item 1|2|3|4 --browser PATH --port N [--driver PATH]
-         [--leave-out NAME]... [--plant ENCODING:PLACE] [--runs N] [--scratch DIR]
+         [--leave-out NAME]... [--plant ENCODING:PLACE] [--runs N] [--shape S] [--scratch DIR]
        sh tools/r3-trials/profile/run.sh --help
 
 The browser profile trial of unit U0.3 (contract A13.3). It builds the trial programs of
@@ -41,6 +41,8 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   utf16be) to a file in place P: parent (the parent directory of the profiles)
                   or temp (a new directory in the temporary directory). A check, not a cell.
   --runs N        item 4: runs of each shape under tree-peak, default 5.
+  --shape S       item 4: only the shape S, steps or task; default both. The bound line then
+                  comes from that shape's median alone.
   --scratch DIR   the parent directory of the profiles; default a new mktemp directory.
 
 The keychain line says prompt=yes when the front application changed or a new on-screen window
@@ -60,7 +62,7 @@ refuse() {
   exit 2
 }
 
-item='' browser='' port='' runs=5 scratch='' plant=''
+item='' browser='' port='' runs=5 scratch='' plant='' shape=''
 leave=''
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -85,6 +87,12 @@ while [ $# -gt 0 ]; do
       esac
       ;;
     --runs) runs=$2 ;;
+    --shape)
+      case "$2" in
+        steps | task) shape=$2 ;;
+        *) refuse usage "--shape takes steps or task" ;;
+      esac
+      ;;
     --scratch) scratch=$2 ;;
     *) refuse usage "unknown argument $1; see --help" ;;
   esac
@@ -105,6 +113,7 @@ case "$runs" in
 esac
 [ "${#runs}" -le 2 ] || refuse usage "--runs takes a count from 1 to 99"
 [ -n "$plant" ] && [ "$item" != 2 ] && refuse usage "--plant belongs to --item 2"
+[ -n "$shape" ] && [ "$item" != 4 ] && refuse usage "--shape belongs to --item 4"
 if [ -n "$leave" ]; then
   case "$item" in
     1 | 2) ;;
@@ -187,5 +196,6 @@ if [ "$item" = 4 ]; then
   }
   set -- "$@" --runs "$runs" --tree-peak "$bin/tree-peak$exe" \
     --web-trial "$web/target/$host/release/web-trial$exe"
+  [ -n "$shape" ] && set -- "$@" --shape "$shape"
 fi
 exec "$bin/profile-trial$exe" "$@"
