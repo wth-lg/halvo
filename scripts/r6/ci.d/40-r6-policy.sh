@@ -507,6 +507,13 @@ $setting=x cargo build"
   STUB_DERIVE_EXIT=2
   check two-causes-name-the-first "$base" FAIL "FAIL $name (derive)"
   printf '%s\n' "$cap_line" >"$base/$cap" || exit 2
+  both=$work/flags/flags-and-cap
+  make_repo "$both"
+  mkdir -p "$both/.cargo" || exit 2
+  printf '[build]\n' >"$both/.cargo/config.toml" || exit 2
+  git -C "$both" add -- .cargo/config.toml || exit 2
+  printf 'default_cap amount=2001 period=month status=provisional\n' >"$both/$cap" || exit 2
+  check flags-and-cap-name-the-cap "$both" FAIL "FAIL $name (cap)"
 
   usage=$(sh "$self" --all 2>&1)
   code=$?
