@@ -115,6 +115,15 @@ reads image files and calls no capture or accessibility interface. Run it alone 
 helper for timed runs. `r2-probes stamp` then adds the start and end times of the helper's
 record line and the largest resident set size to each record.
 
+Two scripts made the cells of this Mac in `layer-cost.md`, and they stand here as they ran.
+`sh tools/r2-probes/quiet-sets.sh WORKTREE ENGINE FRAMES OUT` runs `retime.sh` three times on
+the same frames, into `OUT/set-1` to `OUT/set-3`; it was the one command of the helper call
+that made the deciding cell of Apple Vision at the accurate level.
+`python3 -I tools/r2-probes/stamp-cells.py WORKTREE EVIDENCE OUT` runs `r2-probes stamp` once
+for each of the 7 cells of this Mac, on the run directories and the helper's record lines that
+it finds under `EVIDENCE/local`, and writes one record file per cell into `OUT`, which
+`r2-probes trial layer-cost --records` reads.
+
 For Apple Vision at the accurate level the first set landed 1.0 ms under the 172 ms line and
 the repeat sets over it, so the coordinator ruled on 2026-11-10 how its `.this-mac` cell is
 made: one helper call that starts only at a 1-minute load of 4 or less and makes three sets on
@@ -130,5 +139,5 @@ on with `.first-set` and `.repeat-K` hold the single sets with their loads and d
 cargo fmt --check
 cargo clippy --all-targets --features pp-ocrv6 -- -D warnings
 cargo test
-shellcheck -s sh fetch-files.sh run-hosted.sh retime.sh
+shellcheck -s sh fetch-files.sh run-hosted.sh retime.sh quiet-sets.sh
 ```

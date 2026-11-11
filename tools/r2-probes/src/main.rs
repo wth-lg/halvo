@@ -212,7 +212,9 @@ fn lines(args: &[String]) -> Result<(), String> {
             }
         }
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
-        println!("command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES], alone through the helper for timed runs, then r2-probes stamp");
+        println!("command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES], one set in one call of the helper for timed runs");
+        println!("command deciding cell of this Mac: sh tools/r2-probes/quiet-sets.sh WORKTREE apple-vision-accurate FRAMES OUT, three sets of retime.sh in one call of the helper for timed runs");
+        println!("command records of this Mac: python3 -I tools/r2-probes/stamp-cells.py WORKTREE EVIDENCE OUT, which runs r2-probes stamp once for each cell of this Mac");
     } else if kind == "input-visibility" || kind == "private-window" {
         println!("command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT");
     } else {

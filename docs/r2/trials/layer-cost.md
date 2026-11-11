@@ -130,7 +130,9 @@ file ppocrv6_tiny_dict.txt set=ocr-models address=https://github.com/GreatV/oar-
 file LibreOffice_26.8.2_MacOS_aarch64.dmg set=libreoffice-macos address=https://download.documentfoundation.org/libreoffice/stable/26.8.2/mac/aarch64/LibreOffice_26.8.2_MacOS_aarch64.dmg size_bytes=299236406 sha256=9f24fe83ab1ed5c95eb3df580119f32932f713e577feeac02bf619fb00749b55
 file LibreOffice_26.8.2_Win_x86-64.msi set=libreoffice-windows address=https://download.documentfoundation.org/libreoffice/stable/26.8.2/win/x86_64/LibreOffice_26.8.2_Win_x86-64.msi size_bytes=375934976 sha256=ff4b911403b67ee9e6249f820f9782c44bb32c94fdaa45b0da53a8e419e5307a
 command cells of a hosted run: sh tools/r2-probes/run-hosted.sh OUT
-command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES], alone through the helper for timed runs, then r2-probes stamp
+command cells of this Mac: sh tools/r2-probes/retime.sh ENGINE FRAMES OUT [FILES], one set in one call of the helper for timed runs
+command deciding cell of this Mac: sh tools/r2-probes/quiet-sets.sh WORKTREE apple-vision-accurate FRAMES OUT, three sets of retime.sh in one call of the helper for timed runs
+command records of this Mac: python3 -I tools/r2-probes/stamp-cells.py WORKTREE EVIDENCE OUT, which runs r2-probes stamp once for each cell of this Mac
 command this file: r2-probes trial layer-cost --artifact MACOS --artifact WINDOWS [--records THIS-MAC] --lines LINES --out FILE
 verdict engine apple-vision macos-15: holds re-timed
 verdict engine windows-media-ocr windows-2025: holds
