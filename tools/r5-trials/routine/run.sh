@@ -57,7 +57,7 @@ case $# in
 esac
 
 if [ -z "$sample" ]; then
-  { : >&1; } 2>/dev/null || refuse output "standard output cannot be written"
+  { true 3>&1; } 2>/dev/null || refuse output "standard output cannot be written"
 fi
 
 unset CDPATH
