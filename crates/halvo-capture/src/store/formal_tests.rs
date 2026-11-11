@@ -14,9 +14,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use halvo_sqlcipher::rusqlite::Connection;
 use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
-use rusqlite::Connection;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 

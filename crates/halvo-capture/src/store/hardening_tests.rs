@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rusqlite::Connection;
+use halvo_sqlcipher::rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::{dev_root_exists, DevFallbackCustody};

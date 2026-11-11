@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use rusqlite::{Connection, Row};
+use halvo_sqlcipher::rusqlite::{self, Connection, Row};
 use uuid::Uuid;
 
 use super::db::{unix_secs_now, Db, EncryptedStore, KeyFile};

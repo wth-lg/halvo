@@ -7,6 +7,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
+use halvo_sqlcipher::rusqlite;
 use uuid::Uuid;
 
 use crate::custody::dev_fallback::DevFallbackCustody;

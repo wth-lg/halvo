@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use rusqlite::{Connection, ErrorCode};
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 

@@ -18,7 +18,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
-rusqlite = { version = "0.41", features = ["sqlcipher"] }
+halvo-sqlcipher = { path = "../halvo-sqlcipher" }
 chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
 aead = { version = "0.6", features = ["alloc"] }
 aead-stream = { version = "0.6", features = ["alloc"] }
@@ -84,10 +84,6 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Registry",
     "Win32_System_Threading",
 ] }
-
-[build-dependencies]
-cc = { version = "1", features = ["parallel"] }
-sqlcipher-src = "=419.0.6"
 
 [dev-dependencies]
 proptest = "1"
