@@ -33,10 +33,13 @@ fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), Custod
             file.sync_all()
         })
         .and_then(|()| std::fs::rename(partial, path));
-    if written.is_err() {
-        let _ = std::fs::remove_file(partial);
+    match written {
+        Ok(()) => Ok(()),
+        Err(e) => match scrub_and_remove(partial) {
+            Ok(()) => Err(root_io(e)),
+            Err(left_behind) => Err(left_behind),
+        },
     }
-    written.map_err(root_io)
 }
 
 fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {
@@ -145,7 +148,10 @@ impl<P: Protector> FileRoots<P> {
     }
 
     pub(crate) fn destroy_root(&self, root_id: RootId) -> Result<(), CustodyError> {
-        scrub_and_remove(&self.path(root_id))
+        let path = self.path(root_id);
+        let root = scrub_and_remove(&path);
+        let partial = scrub_and_remove(&path.with_extension(PARTIAL_EXT));
+        root.and(partial)
     }
 
     #[cfg(test)]
@@ -365,6 +371,37 @@ mod tests {
         assert!(
             matches!(destroyed, Err(CustodyError::Os(Some(_)))),
             "destroy answered {destroyed:?}"
+        );
+    }
+
+    #[test]
+    fn destroying_a_root_also_removes_a_partial_root_file_that_a_failed_write_left() {
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh();
+        roots
+            .wrap(root_id, &StoreKey::from_bytes([3u8; 32]))
+            .unwrap();
+        let partial = roots.path(root_id).with_extension(PARTIAL_EXT);
+        std::fs::copy(roots.path(root_id), &partial).unwrap();
+        roots.destroy_root(root_id).unwrap();
+        assert!(
+            !partial.exists(),
+            "a partial root file stayed after its root was destroyed"
+        );
+    }
+
+    #[test]
+    fn a_root_write_that_fails_leaves_no_partial_root_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let roots = roots(dir.path());
+        let root_id = RootId::fresh();
+        std::fs::create_dir_all(roots.path(root_id).join("occupied")).unwrap();
+        let made = roots.make_root(root_id);
+        assert!(made.is_err(), "a root was written over a directory");
+        assert!(
+            !roots.path(root_id).with_extension(PARTIAL_EXT).exists(),
+            "a failed root write left its partial file"
         );
     }
 
