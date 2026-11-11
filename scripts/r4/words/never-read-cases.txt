@@ -1,87 +1,210 @@
-# Two sentences for each line of never-read.txt, in its order: a class name, a tab, match or
-# miss, a tab and the sentence. The line matches its match sentence; no line matches a miss
-# sentence. The self-test of 45-r4-words.sh reads this file.
-model	match	Claude wrote this reply.
-model	miss	Clause four of the lease is new.
-model	match	The model is loading.
-model	miss	It is a modern way to pay.
-tier	match	Pick a tier for this agent.
-tier	miss	The cake has three tiered layers.
-tier	match	It uses the frontier option.
-tier	miss	It runs on this device.
-count	match	It used 900 tokens.
-count	miss	It is not broken.
-count	match	It took 14 steps.
-count	miss	Do the next step in its own window.
-count	match	Step 3 did not work.
-count	miss	Step by step, it fills in the form.
-tool	match	The API did not answer.
-tool	miss	It sent a happy note.
-tool	match	Run git to see it.
-tool	miss	It got the digit right.
-tool	match	Open the command line.
-tool	miss	Call the shop about the tools.
-tool	match	It called click() twice.
-tool	miss	It called (twice) to check.
-bundle	match	It opened com.apple.Safari today.
-bundle	match	Microsoft.WindowsCalculator_8wekyb3d8bbwe is open.
-bundle	miss	Windows Calculator is open.
-bundle	miss	Pay in the app. Then wait.
-bundle	match	Open Safari.exe now.
-bundle	miss	Open the shop now.
-path	match	It saved it to /Users/ann/bills.
-path	miss	It costs 3/4 of the price.
-path	match	It is in bills/2026/ now.
-path	miss	It is either yes or no.
-path	match	It is on C:\Bills now.
-path	miss	Note: it is done.
-path	match	Look in \Users\Ann for it.
-path	miss	Look in the Users folder.
-path	match	It is in %APPDATA% now.
-path	miss	It costs $40 a month.
-address	match	Go to https://site1.example now.
-address	miss	Note that it goes to Site1.
-address	match	Visit www.site1 today.
-address	miss	Visit Site1 now.
-address	match	Write to ann@site1.example today.
-address	miss	Write to Ann at Site1.
-address	match	It reached 10.0.0.1 today.
-address	miss	It paid 42.10 today.
-address	match	It runs on localhost.
-address	miss	It runs on this computer.
-address	match	It paid on site1.example today.
-address	miss	It paid on Site1. Then it stopped.
-enum	match	Its status is needs_you.
-enum	miss	It needs you now.
-enum	match	It hit MAX_LIVE_RUNS.
-enum	miss	It hit the limit.
-enum	match	The itemKind is wrong.
-enum	miss	The item kind is wrong.
-enum	match	Read line.run.completed here.
-enum	miss	Read the line. Run it.
-code	match	It failed with error 404.
-code	miss	It found an error in the form.
-code	match	It stopped at 0x80070005.
-code	miss	It stopped at 10 past 8.
-code	match	It got ENOENT.
-code	miss	It got nothing.
-code	match	The amount is undefined.
-code	miss	The amount is not set yet.
-trace	match	It broke at run (main.js:4:2).
-trace	miss	Pay at Site1 (the shop).
-trace	match	Here is the stack trace.
-trace	miss	Here is the stack of bills.
-trace	match	It broke in main.rs:42 today.
-trace	miss	It broke at 4:42 today.
-trace	match	It hit a TypeError.
-trace	miss	It hit an error.
-prompt	match	Edit the prompt first.
-prompt	miss	It was quick to answer.
-prompt	match	Its reasoning was long.
-prompt	miss	It gave a reason.
-prompt	match	Show the chain of thought.
-prompt	miss	Show the chain on the gate.
-prompt	match	It said <thinking> first.
-prompt	miss	It said 3 < 4 first.
-prompt	match	You are a helpful agent.
-prompt	miss	You are all set.
+# Sentences for the lines of never-read.txt: the number of the line among its pattern lines,
+# a tab, its class, a tab, match or miss, a tab and the sentence. Each line has at least one of
+# each. The line matches each of its match sentences; no line matches a miss sentence. The
+# self-test of 45-r4-words.sh reads this file.
+1	model	match	Claude wrote this reply.
+1	model	match	GPT wrote this.
+1	model	match	ChatGPT wrote this.
+1	model	match	OpenAI wrote this.
+1	model	match	Anthropic wrote this.
+1	model	match	Gemini wrote this.
+1	model	match	Gemma wrote this.
+1	model	match	Llama wrote this.
+1	model	match	Mistral wrote this.
+1	model	match	Mixtral wrote this.
+1	model	match	Qwen wrote this.
+1	model	match	DeepSeek wrote this.
+1	model	match	Grok wrote this.
+1	model	match	Ollama wrote this.
+1	model	match	Copilot wrote this.
+1	model	miss	Clause four of the lease is new.
+1	model	miss	A llama ate the grass.
+1	model	miss	He likes Grokking puzzles.
+2	model	match	The model is loading.
+2	model	match	Two Models are here.
+2	model	match	An LLM wrote it.
+2	model	match	The LLMs are busy.
+2	model	miss	It is a modern way to pay.
+2	model	miss	She remodels the kitchen.
+2	model	miss	The modelling clay is soft.
+3	tier	match	Pick a tier for this agent.
+3	tier	match	Tier two is gone.
+3	tier	match	Three tiers are shown.
+3	tier	miss	The cake has three tiered layers.
+4	tier	match	It uses the frontier option.
+4	tier	match	Frontier is the best one.
+4	tier	match	It uses the low-cost hosted one.
+4	tier	match	Low cost hosted is cheap.
+4	tier	match	It is On-device now.
+4	tier	match	A hosted model answered.
+4	tier	miss	It runs on this device.
+4	tier	miss	The frontiersman walked.
+5	count	match	It used 900 tokens.
+5	count	match	Tokens ran out.
+5	count	match	Each token counts.
+5	count	miss	It is not broken.
+5	count	miss	Tokenism is bad.
+6	count	match	It took 14 steps.
+6	count	match	It made 3 tool calls.
+6	count	match	It ran 1,200 iterations.
+6	count	miss	Do the next step in its own window.
+7	count	match	Step 3 did not work.
+7	count	match	It failed at step 12.
+7	count	miss	Step by step, it fills in the form.
+8	tool	match	The API did not answer.
+8	tool	match	The APIs did not answer.
+8	tool	match	The CLI did not answer.
+8	tool	match	The MCP did not answer.
+8	tool	match	The SDK did not answer.
+8	tool	match	The JSON did not load.
+8	tool	match	The YAML did not load.
+8	tool	match	The HTTP did not answer.
+8	tool	match	The HTTPS did not answer.
+8	tool	match	The WebDriver did not answer.
+8	tool	match	The CDP did not answer.
+8	tool	match	The DOM did not load.
+8	tool	miss	It sent a happy note.
+8	tool	miss	The sign says APIARY.
+9	tool	match	Run npm to see it.
+9	tool	match	Run npx to see it.
+9	tool	match	Run rustc to see it.
+9	tool	match	Run curl to see it.
+9	tool	match	Run wget to see it.
+9	tool	match	Run git to see it.
+9	tool	match	Run bash to see it.
+9	tool	match	Run zsh to see it.
+9	tool	match	Run sudo to see it.
+9	tool	match	Run powershell to see it.
+9	tool	match	Run PowerShell to see it.
+9	tool	match	Run osascript to see it.
+9	tool	match	Run playwright to see it.
+9	tool	match	Run Playwright to see it.
+9	tool	match	Run chromedriver to see it.
+9	tool	match	Run msedgedriver to see it.
+9	tool	match	Run safaridriver to see it.
+9	tool	miss	It got the digit right.
+9	tool	miss	She gave a bashful smile.
+9	tool	miss	Her curly hair is long.
+10	tool	match	Open the command line.
+10	tool	match	Use the Command prompt.
+10	tool	match	It made tool calls.
+10	tool	match	It made a Tool call.
+10	tool	match	Open a terminal window.
+10	tool	match	Type a Terminal command.
+10	tool	miss	Call the shop about the tools.
+10	tool	miss	Go to terminal 2 at the airport.
+11	tool	match	It called click() twice.
+11	tool	match	Then run_all() starts.
+11	tool	miss	It called (twice) to check.
+12	bundle	match	It opened com.apple.Safari today.
+12	bundle	match	It opened org.mozilla.firefox today.
+12	bundle	miss	Pay in the app. Then wait.
+13	bundle	match	Microsoft.WindowsCalculator_8wekyb3d8bbwe is open.
+13	bundle	miss	Windows Calculator is open.
+14	bundle	match	Open Safari.exe now.
+14	bundle	match	Open Notes.app now.
+14	bundle	match	Open setup.msi now.
+14	bundle	miss	Open the shop now.
+15	path	match	It saved it to /Users/ann/bills.
+15	path	match	/Users/ann holds it.
+15	path	match	Look in ~/Documents now.
+15	path	match	It is in ../bills now.
+15	path	miss	It costs 3/4 of the price.
+16	path	match	It is in bills/2026/ now.
+16	path	miss	It is either yes or no.
+17	path	match	It is on C:\Bills now.
+17	path	match	It is on d:\ now.
+17	path	miss	Note: it is done.
+17	path	miss	It wrote note:\ then stopped.
+18	path	match	Look in \Users\Ann for it.
+18	path	miss	Look in the Users folder.
+19	path	match	It is in %APPDATA% now.
+19	path	match	It is in $HOME now.
+19	path	match	It is in ${TMPDIR} now.
+19	path	miss	It costs $40 a month.
+19	path	miss	It is 100% done.
+20	address	match	Go to https://site1.example now.
+20	address	match	Open file://bills now.
+20	address	miss	Note that it goes to Site1.
+21	address	match	Visit www.site1 today.
+21	address	miss	Visit Site1 now.
+22	address	match	Write to ann@site1.example today.
+22	address	miss	Write to Ann at Site1.
+23	address	match	It reached 10.0.0.1 today.
+23	address	miss	It paid 42.10 today.
+23	address	miss	It is on page 1.2.3 of the guide.
+24	address	match	It runs on localhost.
+24	address	miss	It runs on this computer.
+24	address	miss	The shop is called Nolocalhost.
+25	address	match	It paid on site1.example today.
+25	address	match	Go to shop.com today.
+25	address	miss	It paid on Site1. Then it stopped.
+26	enum	match	Its status is needs_you.
+26	enum	miss	It needs you now.
+27	enum	match	It hit MAX_LIVE_RUNS.
+27	enum	miss	It hit the limit.
+28	enum	match	The itemKind is wrong.
+28	enum	miss	The item kind is wrong.
+28	enum	miss	Pay at McDonald today.
+29	enum	match	Read line.run.completed here.
+29	enum	miss	Read the line. Run it.
+30	code	match	It failed with error 404.
+30	code	match	Exit code 2 came back.
+30	code	match	Status: 3 now.
+30	code	miss	It found an error in the form.
+31	code	match	It stopped at 0x80070005.
+31	code	miss	It stopped at 10 past 8.
+31	code	miss	It ordered a 10x12 rug.
+32	code	match	It got ENOENT.
+32	code	match	It got EACCES.
+32	code	match	It got EPERM.
+32	code	match	It got EEXIST.
+32	code	match	It got ECONNREFUSED.
+32	code	match	It got ECONNRESET.
+32	code	match	It got ETIMEDOUT.
+32	code	match	It got EPIPE.
+32	code	match	It got ENOTFOUND.
+32	code	miss	It got nothing.
+33	code	match	The amount is undefined.
+33	code	match	It is Malformed now.
+33	code	match	It panicked.
+33	code	match	It is a segfault.
+33	code	match	Errno is set.
+33	code	match	The value is NaN.
+33	code	match	The value is null.
+33	code	miss	The amount is not set yet.
+33	code	miss	Don't panic.
+34	trace	match	It broke at run (main.js:4:2).
+34	trace	miss	Pay at Site1 (the shop).
+35	trace	match	Here is the stack trace.
+35	trace	match	Traceback is shown.
+35	trace	match	A backtrace is shown.
+35	trace	match	Stacktrace is shown.
+35	trace	miss	Here is the stack of bills.
+36	trace	match	It broke in main.rs:42 today.
+36	trace	match	It broke in app.py:7 today.
+36	trace	miss	It broke at 4:42 today.
+37	trace	match	It hit a TypeError.
+37	trace	match	A RuntimeException came.
+37	trace	miss	It hit an error.
+37	trace	miss	It had no SpellErrors.
+37	trace	miss	Buy the 3DError toy.
+38	prompt	match	Edit the prompt first.
+38	prompt	match	Prompts are hidden.
+38	prompt	miss	It was quick to answer.
+38	prompt	miss	It answered promptly.
+39	prompt	match	Its reasoning was long.
+39	prompt	match	Reasoning is hidden.
+39	prompt	miss	It gave a reason.
+40	prompt	match	Show the chain of thought.
+40	prompt	match	Show the chain-of-thought.
+40	prompt	match	Show the system prompt.
+40	prompt	match	Read the system message.
+40	prompt	match	Its thought process is long.
+40	prompt	miss	Show the chain on the gate.
+41	prompt	match	It said <thinking> first.
+41	prompt	match	It said </system> then.
+41	prompt	miss	It said 3 < 4 first.
+42	prompt	match	You are a helpful agent.
+42	prompt	match	You are an AI.
+42	prompt	miss	You are all set.

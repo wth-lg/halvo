@@ -661,6 +661,8 @@ function selfTest(dir, repo) {
           'const b = `Ask the model ${a} now`;',
           "const c = 'model';",
           `// "${NEVER}"`,
+          `const d = \`say "${NEVER}" here\`;`,
+          `/* "${NEVER}" */ const e = "It is paused here";`,
           '',
         ].join('\n');
         f['ui/app/index.html'] = `<p title='${NEVER}'>Hello</p>\n`;
@@ -669,12 +671,64 @@ function selfTest(dir, repo) {
     }),
     'PASS',
     {
-      lines: ['words other_views files=2 findings=2'],
+      lines: ['words other_views files=2 findings=3'],
       findings: [
         'finding file=ui/app/index.html line=1 rule=never_read class=model key=-',
         'finding file=ui/app/main.js line=1 rule=never_read class=model key=-',
+        'finding file=ui/app/main.js line=6 rule=clash class=- key=-',
       ],
     },
+  );
+  expect(
+    fixture('the-two-views-are-not-other-views', {
+      files: (f) => {
+        f['ui/app/views/needs.js'] = `export const view = {\n  heading: "What needs you",\n  note: "${NEVER}",\n};\n`;
+      },
+    }),
+    'PASS',
+    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`, 'words other_views files=0 findings=0'] },
+  );
+  expect(
+    fixture('heading-line-without-its-comma', {
+      files: (f) => {
+        f['ui/app/views/needs.js'] = 'export const view = {\n  heading: "What needs you"\n};\n';
+      },
+    }),
+    'FAIL:heading',
+  );
+  expect(
+    fixture('heading-comes-before-the-rules', {
+      words: (w) => (w['line.time'] = NEVER),
+      files: (f) => {
+        f['ui/app/views/agents.js'] = 'export const view = {};\n';
+      },
+    }),
+    'FAIL:heading',
+  );
+  expect(
+    fixture('never-read-comes-before-long', { words: (w) => (w['line.time'] = `${NEVER} ${longText}`) }),
+    'FAIL:never_read',
+    { lines: [`words sentences=${5 + 18 * 19} never_read=1 long=1 clash=0`] },
+  );
+  expect(
+    fixture('long-comes-before-clash', { words: (w) => (w['line.time'] = `It is paused ${longText}`) }),
+    'FAIL:long',
+    { lines: [`words sentences=${5 + 18 * 19} never_read=0 long=1 clash=1`] },
+  );
+  expect(
+    fixture('a-tab-is-no-space-between-words', {
+      words: (w) => (w['line.time'] = `${Array.from({ length: 19 }, () => 'word').join(' ')} two\twords`),
+    }),
+    'PASS',
+  );
+  expect(
+    fixture('a-term-inside-a-longer-word', {
+      words: (w) => {
+        w['line.time'] = 'It is unpaused after a short recap.';
+        w['say.needs_you'] = 'It is undeleted and disapproved.';
+      },
+    }),
+    'PASS',
   );
 
   const listWithout = (cls) => dataLines(copies[LIST]).filter((l) => !l.startsWith(`${cls}\t`)).join('\n');
@@ -696,21 +750,25 @@ function selfTest(dir, repo) {
   expect(fixture('letter-case-counts', { words: (w) => (w['line.time'] = 'The MODEL and the TIER are here.') }), 'PASS');
 
   const cases = dataLines(copies[CASES]).map((l) => l.split('\t'));
-  const matches = cases.filter((c) => c[1] === 'match');
-  const misses = cases.filter((c) => c[1] === 'miss');
-  if (matches.length !== patterns.length || misses.length !== patterns.length || cases.length !== 2 * patterns.length) {
-    wrong.push('cases-pair-each-line');
-    lines.push('case cases-pair-each-line want=yes got=no wrong');
+  const misses = [];
+  const wellFormed = cases.every(
+    (c) => c.length === 4 && /^[1-9][0-9]*$/u.test(c[0]) && Number(c[0]) <= patterns.length && ['match', 'miss'].includes(c[2]),
+  );
+  if (!wellFormed) {
+    wrong.push('cases-name-a-line-each');
+    lines.push('case cases-name-a-line-each want=yes got=no wrong');
   }
   patterns.forEach((p, i) => {
-    const [cls, , sentence] = matches[i] ?? ['-', '-', ''];
-    const miss = misses[i] ?? ['-', '-', ''];
-    const own = cls === p.cls && miss[0] === p.cls && p.re.test(sentence);
-    const missed = patterns.every((q) => !q.re.test(miss[2]));
-    lines.push(`case pattern-${i + 1}-${p.cls} match=${own ? 'yes' : 'no'} miss=${missed ? 'yes' : 'no'}`);
-    if (!own || !missed) wrong.push(`pattern-${i + 1}`);
+    const own = cases.filter((c) => Number(c[0]) === i + 1);
+    const hits = own.filter((c) => c[2] === 'match');
+    const away = own.filter((c) => c[2] === 'miss');
+    misses.push(...away.map((c) => c[3]));
+    const matched = hits.length > 0 && hits.every((c) => c[1] === p.cls && p.re.test(c[3]));
+    const missed = away.length > 0 && away.every((c) => c[1] === p.cls && patterns.every((q) => !q.re.test(c[3])));
+    lines.push(`case pattern-${i + 1}-${p.cls} match=${matched ? 'yes' : 'no'} miss=${missed ? 'yes' : 'no'}`);
+    if (!matched || !missed) wrong.push(`pattern-${i + 1}`);
     expect(
-      fixture(`pattern-${i + 1}-${p.cls}-fails-the-check`, { words: (w) => (w['line.time'] = sentence) }),
+      fixture(`pattern-${i + 1}-${p.cls}-fails-the-check`, { words: (w) => (w['line.time'] = hits[0]?.[3] ?? '') }),
       'FAIL:never_read',
       { findings: [wordsFinding('never_read', p.cls, 'line.time')] },
     );
@@ -718,7 +776,7 @@ function selfTest(dir, repo) {
   expect(
     fixture('every-miss-sentence-passes', {
       words: (w) => {
-        misses.forEach((m, i) => (w[`miss.${i + 1}`] = m[2]));
+        misses.forEach((m, i) => (w[`miss.${i + 1}`] = m));
       },
     }),
     'PASS',
