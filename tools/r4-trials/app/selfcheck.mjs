@@ -5,6 +5,8 @@
 // Exit: 0 when no key is miss, 1 when a key is miss or the binary is missing, 2 on a refusal.
 // A window read is repeated, at most 10 times 300 ms apart, until it shows the state that the
 // step expects: on macOS the window list follows the window's own report with a delay.
+// A sync run sends 1,000 changes at 100 a second and hides 2 s in, so that the call of the way
+// get waits at the core when the hide comes.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -18,7 +20,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const ARMS = ['main', 'a', 'a2', 'b'];
 export const WAYS = ['get', 'channel', 'events'];
 export const SYSTEM = process.platform === 'win32' ? 'windows' : 'macos';
-export const SENT = 10000;
+export const SENT = 1000;
+export const RATE = 100;
 const START_MS = 60000;
 const CONNECT_MS = 10000;
 const READ_TRIES = 10;
@@ -391,7 +394,7 @@ async function syncRun(options, arm, way, pages) {
       trace(`sent=${line.replace(/ /g, '_')} answer=${words(result).replace(/ /g, ',')} ms=${result.ms}`);
       return result.answer;
     };
-    const steps = [await send('show'), await send(`send ${SENT} 1000`)];
+    const steps = [await send('show'), await send(`send ${SENT} ${RATE}`)];
     await sleep(2000);
     if (arm === 'a' || arm === 'a2') steps.push(await send('hide'));
     if (arm === 'b') steps.push(await send('destroy'));
