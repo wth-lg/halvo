@@ -25,15 +25,16 @@ for variant in direct plugin; do
     d="$RUNNER_TEMP/s6-$variant-$scenario"
     mkdir -p "$d"
     dw=$(cygpath -w "$d")
-    R1SPIKE_S6_DIR="$dw" "$RUNNER_TEMP/setup-$variant.exe" /S
+    # MSYS would turn /S into a path; keep it as the installer's switch.
+    MSYS_NO_PATHCONV=1 R1SPIKE_S6_DIR="$dw" timeout 180 "$RUNNER_TEMP/setup-$variant.exe" /S
     echo "S6 install variant=$variant scenario=$scenario exit=$? app=$(test -f "$inst/halvo.exe" && echo true || echo false) helper=$(test -f "$inst/halvo-capture.exe" && echo true || echo false) uninstaller=$(test -f "$inst/uninstall.exe" && echo true || echo false)"
     flag=""
     [ "$scenario" = rm ] && flag="--ignore-stop"
-    "$inst/halvo-capture.exe" s6-hold --dir "$dw" $flag &
+    MSYS_NO_PATHCONV=1 "$inst/halvo-capture.exe" s6-hold --dir "$dw" $flag &
     sleep 3
     before=$(tasklist //FI "IMAGENAME eq halvo-capture.exe" //NH | grep -c -i 'halvo-capture.exe')
     t0=$(date +%s%N)
-    R1SPIKE_S6_DIR="$dw" "$inst/uninstall.exe" /S
+    MSYS_NO_PATHCONV=1 R1SPIKE_S6_DIR="$dw" timeout 180 "$inst/uninstall.exe" /S
     urc=$?
     t1=$(date +%s%N)
     n=0
