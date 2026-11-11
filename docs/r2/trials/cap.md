@@ -1,4 +1,4 @@
-cells: taskpolicy.macos-15 taskpolicy.this-mac control.macos-15 control.windows-2025 child-process.this-mac exec.this-mac mapped-read.this-mac mapped-written.this-mac purgeable.this-mac reusable.this-mac kernel-message.this-mac socket-buffer.this-mac child-process.macos-15 exec.macos-15 mapped-read.macos-15 mapped-written.macos-15 purgeable.macos-15 reusable.macos-15 kernel-message.macos-15 socket-buffer.macos-15 child-process.windows-2025 mapped-file.windows-2025 section.windows-2025 broker-process.windows-2025
+cells: taskpolicy.macos-15 taskpolicy.this-mac control.macos-15 control.windows-2025 child-process.this-mac exec.this-mac mapped-read.this-mac mapped-written.this-mac purgeable.this-mac reusable.this-mac kernel-message.this-mac socket-buffer.this-mac child-process.macos-15 exec.macos-15 mapped-read.macos-15 mapped-written.macos-15 purgeable.macos-15 reusable.macos-15 kernel-message.macos-15 socket-buffer.macos-15 child-process.windows-2025 mapped-file.windows-2025 section.windows-2025 broker-process.windows-2025 control-reduced-token.windows-2025 control-standard-user.windows-2025
 hosted-run branch=scratch/r2-u02-1 commit=1f407ce7d03c6dc1b30dfe351caa12e84bb3c164 run=43011382012 attempt=1
 hosted-run branch=scratch/r2-u02-3 commit=0c1cd6e42456837a89682ff0c441f995e2a3a5d6 run=43013466434 attempt=1
 hosted-run branch=scratch/r2-u02-fix-1 commit=3ced50cb72cd4a0197bfc7f0e22a8344045d1331 run=43044047984 attempt=1
@@ -27,4 +27,6 @@ limit child-process.windows-2025 runs=1 held_bytes=134217728 limit_bytes=6710886
 limit mapped-file.windows-2025 runs=1 held_bytes=134217728 limit_bytes=67108864 peak_bytes=942080 capped=no
 limit section.windows-2025 runs=1 held_bytes=134217728 limit_bytes=67108864 peak_bytes=937984 capped=no
 limit broker-process.windows-2025 runs=1 held_bytes=134217728 limit_bytes=67108864 peak_bytes=1298432 capped=no
+cell control-reduced-token.windows-2025 runs=1 result=cap-unsupported error=1314
+cell control-standard-user.windows-2025 runs=1 result=cap-unsupported error=1314
 verdict taskpolicy: not-enforced
