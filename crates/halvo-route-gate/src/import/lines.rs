@@ -367,3 +367,21 @@ pub fn reply(line: &[u8]) -> Option<Reply> {
         bodies: figure(v[3])?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::attempt;
+
+    fn replay(i: &str) -> Vec<u8> {
+        format!("attempt model=m_a machine=mac task=bill seed=1 kind=replay i={i} pass=yes steps=1 wall_s=1 tokens_in=1 tokens_out=1").into_bytes()
+    }
+
+    #[test]
+    fn the_line_parse_takes_i_up_to_4294967295_and_refuses_above_with_no_wrap() {
+        let parsed = |i: &str| attempt(&replay(i)).map(|row| row.attempt.get());
+        assert_eq!(parsed("3"), Some(3));
+        assert_eq!(parsed("4294967295"), Some(4_294_967_295));
+        assert_eq!(parsed("4294967296"), None);
+        assert_eq!(parsed("4294967297"), None);
+    }
+}

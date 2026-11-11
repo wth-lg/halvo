@@ -259,6 +259,49 @@ fn the_freeze_date_is_the_later_one_and_each_source_keeps_its_own() {
 }
 
 #[test]
+fn each_date_stays_in_its_own_row_when_the_driver_file_has_the_later_day() {
+    let mut args = ARGS.to_vec();
+    args[6] = "s1=2027-01-02";
+    args[8] = "s2=2026-12-31";
+    let got = run_with(
+        file("driver", block(&[ATTEMPT, VERDICT])),
+        file("cells", block(&[BOUND, CANDIDATES])),
+        &args,
+    );
+    got.passed();
+    assert!(got
+        .file("freeze.txt")
+        .starts_with("freeze rows=1 models=1 sources=2 date=2027-01-02\n"));
+    let dates: Vec<(String, String)> = got
+        .file("sources.tsv")
+        .lines()
+        .skip(1)
+        .map(|line| {
+            let cells: Vec<&str> = line.split('\t').collect();
+            (cells[0].to_owned(), cells[3].to_owned())
+        })
+        .collect();
+    assert_eq!(
+        dates,
+        [
+            ("s1".to_owned(), "2027-01-02".to_owned()),
+            ("s2".to_owned(), "2026-12-31".to_owned())
+        ]
+    );
+}
+
+#[test]
+fn an_i_of_4294967295_and_above_is_refused_at_its_line() {
+    for i in ["4294967295", "4294967296", "4294967297"] {
+        for kind in ["compile", "replay"] {
+            let line = line_of("m_b", "bill", 1, kind, i);
+            let got = run(&[ATTEMPT, &line, VERDICT], &[BOUND]);
+            assert_eq!(got.refused(), "REFUSED source: driver:4", "{line}");
+        }
+    }
+}
+
+#[test]
 fn rows_and_models_stand_in_byte_order_and_routing_tokens_get_their_group() {
     let got = run(
         &[
