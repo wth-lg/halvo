@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "stat",
+    "drift",
 ]
 resolver = "2"
