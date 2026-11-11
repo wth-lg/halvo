@@ -30,7 +30,8 @@ Once(ans) == IF ans = "allow" THEN "allow_once" ELSE "reject_once"
 Init0 == [items |-> <<>>, nap |-> 0, table |-> {}, run |-> "live", app |-> "live"]
 
 InitH ==
-    [shown |-> [i \in Items |-> {}],
+    [n |-> 0,
+     shown |-> [i \in Items |-> {}],
      moves |-> [i \in Items |-> <<>>],
      answers |-> {},
      minted |-> [i \in Items |-> {}],
@@ -57,30 +58,29 @@ Rows(i, entries) ==
     {[item |-> i, effect |-> e.effect, digest |-> e.digest, approval |-> e.approval,
       answer |-> e.answer] : e \in entries}
 
-Mv(i, m, cause) == [k |-> "move", item |-> i, m |-> m, cause |-> cause]
-No(s, r) == [r |-> r, st |-> s, ev |-> <<>>]
+No(s, r) == [r |-> r, st |-> s, out |-> <<>>]
+Ids(ds) == {d.approval : d \in ds}
 
 Issue(s, ok) ==
     LET n == Len(s.items) + 1
         it == [req |-> n, st |-> "shown", ans |-> "none", ids |-> {}]
-        shown == {[effect |-> e, digest |-> IF ok THEN Digest(n, e) ELSE 0] : e \in ReqEffects(n)}
     IN IF s.run # "live" THEN No(s, "state")
        ELSE IF OpenItems(s) # {} THEN No([s EXCEPT !.run = "ended"], "state")
        ELSE IF ok
        THEN [r |-> "ok", st |-> [s EXCEPT !.items = Append(@, it)],
-             ev |-> <<[k |-> "shown", item |-> n, shown |-> shown], Mv(n, "issue", "none")>>]
+             out |-> <<[k |-> "item_raised", item |-> n]>>]
        ELSE [r |-> "ok",
              st |-> [s EXCEPT !.items = Append(@, [it EXCEPT !.st = "lapsed"]),
                               !.nap = @ + Cardinality(ReqEffects(n))],
-             ev |-> <<Mv(n, "issue", "none"),
-                      [k |-> "sent", item |-> n, via |-> "lapse",
-                       entries |-> Entries(n, Mint(s, n), "reject_once")],
-                      Mv(n, "lapse", "digest")>>]
+             out |-> <<[k |-> "answer_confirm", item |-> n, answer |-> "reject", ids |-> Ids(Mint(s, n))],
+                       [k |-> "sent", item |-> n, via |-> "lapse",
+                        entries |-> Entries(n, Mint(s, n), "reject_once")],
+                       [k |-> "item_lapsed", item |-> n, cause |-> "digest"]>>]
 
 Arm(s, i) ==
     IF i \notin DOMAIN s.items THEN No(s, "state")
     ELSE IF s.items[i].st # "shown" THEN No(s, "state")
-    ELSE [r |-> "ok", st |-> [s EXCEPT !.items[i].st = "armed"], ev |-> <<Mv(i, "arm", "none")>>]
+    ELSE [r |-> "ok", st |-> [s EXCEPT !.items[i].st = "armed"], out |-> <<>>]
 
 Answer(s, i, ans, from) ==
     IF i \notin DOMAIN s.items THEN No(s, "state")
@@ -92,9 +92,7 @@ Answer(s, i, ans, from) ==
             ELSE [r |-> "ok",
                   st |-> [s EXCEPT !.items[i] = [it EXCEPT !.st = "answered", !.ans = ans, !.ids = ids],
                                    !.nap = @ + Cardinality(ReqEffects(it.req))],
-                  ev |-> <<[k |-> "answer", item |-> i, answer |-> ans, from |-> from,
-                            ids |-> {d.approval : d \in ids}],
-                           Mv(i, "answer", "none")>>]
+                  out |-> <<[k |-> "answer_confirm", item |-> i, answer |-> ans, ids |-> Ids(ids)]>>]
 
 Record(s, i) ==
     IF i \notin DOMAIN s.items THEN No(s, "state")
@@ -103,7 +101,7 @@ Record(s, i) ==
          IN [r |-> "ok",
              st |-> [s EXCEPT !.items[i].st = "recorded",
                               !.table = @ \cup {[row |-> x, live |-> FALSE, used |-> FALSE] : x \in rows}],
-             ev |-> <<[k |-> "rows", rows |-> rows, acked |-> TRUE], Mv(i, "record", "none")>>]
+             out |-> <<[k |-> "item_answered", item |-> i, rows |-> rows]>>]
 
 Release(s, i) ==
     IF i \notin DOMAIN s.items THEN No(s, "state")
@@ -112,21 +110,19 @@ Release(s, i) ==
          IN [r |-> "ok",
              st |-> [s EXCEPT !.items[i].st = "released",
                               !.table = {IF t.row.item = i THEN [t EXCEPT !.live = TRUE] ELSE t : t \in @}],
-             ev |-> <<[k |-> "sent", item |-> i, via |-> "release", entries |-> es],
-                      [k |-> "released", item |-> i, entries |-> es],
-                      Mv(i, "release", "none")>>]
+             out |-> <<[k |-> "sent", item |-> i, via |-> "release", entries |-> es],
+                       [k |-> "item_released", item |-> i, entries |-> es]>>]
 
 LapseOk(it, cause) ==
     \/ it.st \in {"shown", "armed", "answered"}
     \/ it.st = "recorded" /\ cause \in {"run_ended", "app_ended"}
 
-Lapse(s, i, cause, stored) ==
+Lapse(s, i, cause) ==
     IF i \notin DOMAIN s.items THEN No(s, "state")
     ELSE IF ~LapseOk(s.items[i], cause) THEN No(s, "state")
     ELSE LET it == s.items[i]
              gone == cause \in {"run_ended", "app_ended"}
              stop == cause \in {"wait_limit", "cancelled"}
-             kept == cause = "no_record" /\ stored /\ it.st = "answered"
              es == Entries(it.req, Mint(s, it.req), "reject_once")
          IN [r |-> "ok",
              st |-> [s EXCEPT !.items[i].st = "lapsed",
@@ -134,17 +130,19 @@ Lapse(s, i, cause, stored) ==
                               !.table = {t \in @ : t.row.item # i},
                               !.run = IF gone THEN "ended" ELSE IF stop THEN "stopped" ELSE @,
                               !.app = IF cause = "app_ended" THEN "ended" ELSE @],
-             ev |-> (IF kept THEN <<[k |-> "rows", rows |-> Rows(i, ItemEntries(it)), acked |-> FALSE]>> ELSE <<>>)
-                    \o (IF gone THEN <<>> ELSE <<[k |-> "sent", item |-> i, via |-> "lapse", entries |-> es]>>)
-                    \o <<Mv(i, "lapse", cause)>>
-                    \o (IF stop THEN <<[k |-> "stop"]>> ELSE <<>>)]
+             out |-> (IF gone \/ it.st \notin {"shown", "armed"} THEN <<>>
+                      ELSE <<[k |-> "answer_confirm", item |-> i, answer |-> "reject", ids |-> Ids(Mint(s, it.req))]>>)
+                     \o (IF it.st = "answered" THEN <<[k |-> "sent_rows", rows |-> Rows(i, ItemEntries(it))]>> ELSE <<>>)
+                     \o (IF gone THEN <<>> ELSE <<[k |-> "sent", item |-> i, via |-> "lapse", entries |-> es]>>)
+                     \o <<[k |-> "item_lapsed", item |-> i, cause |-> cause]>>
+                     \o (IF stop THEN <<[k |-> "cancel"]>> ELSE <<>>)]
 
 Stop(s) ==
     IF s.run # "live" \/ OpenItems(s) # {} THEN No(s, "state")
-    ELSE [r |-> "ok", st |-> [s EXCEPT !.run = "stopped"], ev |-> <<[k |-> "stop"]>>]
+    ELSE [r |-> "ok", st |-> [s EXCEPT !.run = "stopped"], out |-> <<[k |-> "cancel"]>>]
 
 Guard(s, rec) ==
-    LET pass == [r |-> "ok", st |-> s, ev |-> <<[k |-> "pass", rec |-> rec]>>]
+    LET pass == [r |-> "ok", st |-> s, out |-> <<[k |-> "pass"]>>]
         m == {t \in s.table : /\ t.row.approval = rec.approval
                                /\ t.row.effect = rec.effect
                                /\ t.row.digest = rec.digest
@@ -165,7 +163,7 @@ Step(s, mv) ==
       [] mv.m = "answer" -> Answer(s, mv.item, mv.answer, mv.from)
       [] mv.m = "record" -> Record(s, mv.item)
       [] mv.m = "release" -> Release(s, mv.item)
-      [] mv.m = "lapse" -> Lapse(s, mv.item, mv.cause, mv.stored)
+      [] mv.m = "lapse" -> Lapse(s, mv.item, mv.cause)
       [] mv.m = "stop" -> Stop(s)
       [] mv.m = "guard" -> Guard(s, mv)
 
@@ -191,42 +189,62 @@ Moves(s) ==
          \cup GuardMoves(s)
 
 HLast(g, i) == IF Len(g.moves[i]) = 0 THEN "none" ELSE g.moves[i][Len(g.moves[i])].m
+HMade(m, cause) == [m |-> m, cause |-> cause]
 
-HEvent(g, e) ==
-    CASE e.k = "shown" -> [g EXCEPT !.shown[e.item] = e.shown]
-      [] e.k = "move" -> [g EXCEPT !.moves[e.item] = Append(@, [m |-> e.m, cause |-> e.cause])]
-      [] e.k = "answer" ->
-            [g EXCEPT !.answers = @ \cup {[item |-> e.item, answer |-> e.answer, from |-> e.from,
-                                           armed |-> HLast(g, e.item) = "arm"]},
-                      !.minted[e.item] = @ \cup e.ids]
-      [] e.k = "rows" ->
-            [g EXCEPT !.stored = @ \cup e.rows,
-                      !.acked = IF e.acked THEN @ \cup e.rows ELSE @]
+HBefore(g, mv) ==
+    CASE mv.m = "issue" ->
+            LET n == g.n + 1
+            IN [g EXCEPT !.n = n,
+                         !.shown[n] = {[effect |-> e, digest |-> IF mv.ok THEN Digest(n, e) ELSE 0] :
+                                          e \in ReqEffects(n)},
+                         !.moves[n] = IF mv.ok THEN <<HMade("issue", "none")>>
+                                      ELSE <<HMade("issue", "none"), HMade("lapse", "digest")>>]
+      [] mv.m = "answer" ->
+            [g EXCEPT !.answers = @ \cup {[item |-> mv.item, answer |-> mv.answer, from |-> mv.from,
+                                           armed |-> HLast(g, mv.item) = "arm"]},
+                      !.moves[mv.item] = Append(@, HMade("answer", "none"))]
+      [] mv.m \in {"arm", "record", "release"} ->
+            [g EXCEPT !.moves[mv.item] = Append(@, HMade(mv.m, "none"))]
+      [] mv.m = "lapse" -> [g EXCEPT !.moves[mv.item] = Append(@, HMade("lapse", mv.cause))]
+      [] OTHER -> g
+
+HEvent(g, e, mv) ==
+    CASE e.k = "answer_confirm" ->
+            [g EXCEPT !.minted[e.item] = IF mv.m = "answer" THEN @ \cup e.ids ELSE @]
+      [] e.k = "item_answered" -> [g EXCEPT !.stored = @ \cup e.rows, !.acked = @ \cup e.rows]
+      [] e.k = "sent_rows" ->
+            [g EXCEPT !.stored = IF mv.cause = "no_record" /\ mv.stored THEN @ \cup e.rows ELSE @]
       [] e.k = "sent" ->
             [g EXCEPT !.got = @ \cup {[item |-> e.item, via |-> e.via, entries |-> e.entries,
                                        after |-> g.stopped]}]
-      [] e.k = "released" -> [g EXCEPT !.released = @ \cup {[item |-> e.item, entries |-> e.entries]}]
+      [] e.k = "item_released" -> [g EXCEPT !.released = @ \cup {[item |-> e.item, entries |-> e.entries]}]
       [] e.k = "pass" ->
             [g EXCEPT !.passed = @ \cup
-                {[state |-> e.rec.state, effect |-> e.rec.effect,
-                  digest |-> e.rec.digest,
-                  approval |-> e.rec.approval,
-                  first |-> \/ e.rec.state = "releasing"
-                            \/ \A p \in g.passed : ~(p.state = "approved" /\ p.approval = e.rec.approval),
+                {[state |-> mv.state, effect |-> mv.effect, digest |-> mv.digest, approval |-> mv.approval,
+                  first |-> \/ mv.state = "releasing"
+                            \/ \A p \in g.passed : ~(p.state = "approved" /\ p.approval = mv.approval),
                   used |-> \E p \in g.passed : /\ p.state = "approved"
-                                               /\ p.effect = e.rec.effect
-                                               /\ p.digest = e.rec.digest
-                                               /\ p.approval = e.rec.approval,
+                                               /\ p.effect = mv.effect
+                                               /\ p.digest = mv.digest
+                                               /\ p.approval = mv.approval,
                   stopped |-> g.stopped]}]
-      [] e.k = "stop" -> [g EXCEPT !.stopped = TRUE]
+      [] OTHER -> g
 
-RECURSIVE HFold(_, _, _)
-HFold(g, evs, i) == IF i > Len(evs) THEN g ELSE HFold(HEvent(g, evs[i]), evs, i + 1)
+RECURSIVE HFold(_, _, _, _)
+HFold(g, out, i, mv) == IF i > Len(out) THEN g ELSE HFold(HEvent(g, out[i], mv), out, i + 1, mv)
 
-Hist(g, res) == HFold(g, res.ev, 1)
+HAfter(g, mv) ==
+    CASE mv.m = "lapse" -> [g EXCEPT !.stopped = @ \/ mv.cause \in {"wait_limit", "cancelled"}]
+      [] mv.m = "stop" -> [g EXCEPT !.stopped = TRUE]
+      [] OTHER -> g
+
+Hist(g, mv, res) ==
+    IF res.r = "ok" /\ mv.m # "guard"
+    THEN HAfter(HFold(HBefore(g, mv), res.out, 1, mv), mv)
+    ELSE HFold(g, res.out, 1, mv)
 
 Init == st = Init0 /\ h = InitH
-Next == \E mv \in Moves(st) : LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, res)
+Next == \E mv \in Moves(st) : LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, mv, res)
 
 Entry(x) == [effect |-> x.effect, digest |-> x.digest, approval |-> x.approval, answer |-> x.answer]
 Released(x) == \E d \in h.got : d.via = "release" /\ d.item = x.item /\ Entry(x) \in d.entries

@@ -78,14 +78,35 @@ happened, written only by the move that made it happen. `Step(st, move)` never s
 so no guard of the start, of the tick or of the link reads it, and a restart leaves it as
 it is. Every one of the nineteen invariants reads `h` alone.
 
-`Step` returns, beside the answer and the next state, the events of the step in order
-(`ev`): a stored start, an end, a stop, a start that joined or left the queue, a decision
-that went to the runner, a row that the owner acknowledged, a record that passed. `Hist`
-folds those events into `h`. Where the history needs a rule of the contract (which holds
-stand by the stored events, which slot I5.3 gives a start, whether the grace of a stop has
-passed), `Hist` computes it again from `h` itself. So a coordinator whose own value is
-wrong, for example a count that a restart forgets, changes `st` and its answers, while `h`
-stays right and the invariant reports the start that should not have happened.
+`Step` returns, beside the answer and the next state, what the step did to the world, in
+order (`out`): the events that it stored and the calls of the ports that it made. `Hist`
+writes `h` from two things, the move and `out`. What the environment knows it takes from
+the move and never from `out`: who pressed, which run the person stopped, what the port
+answered, what the runner's last frame said, whether the acknowledgement came, which
+record the runner sent. From `out` it takes what only the coordinator's act can be: that
+an event was stored, that a runner was started, cancelled or killed, that a decision went
+to the runner, that a record was passed on. Where the history needs a rule of the contract
+(which holds stand by the stored events, which slot I5.3 gives a start, whether the grace
+of a stop has passed), `Hist` computes it again from `h` itself. So a coordinator whose
+own value is wrong, for example a count that a restart forgets, or whose own label is
+wrong, for example a start that it calls the person's, changes `st`, its answers and
+`out`, while `h` stays right and the invariant reports the start that should not have
+happened.
+
+The histories that take a fact from the move since the third round, with the property
+that reads each:
+
+| Fact | Before | Now | Read by |
+|---|---|---|---|
+| who asked for a queued start | the trigger of the step's `queued` event | the person, when the move is a `start` of that agent; the scheduler otherwise | C3, C5 |
+| who asked for a stored start | the trigger of the step's `start` event | the person, when the move is a `start` of that agent or a start of the person waits for it in the queue | C5, C6 |
+| whether a `run_started` event was acknowledged, and whether the runner started | two fields of the step's `start` event | the `port` of the move | C1 to C4, C7 |
+| that a run was stopped by the person, by a lapse or by the switch-off control | the step's `stop` event | the move `stop` or `off`; a stop for a gone workflow is still the coordinator's call of `Runs::cancel` | C8, C9 |
+| which moves an item accepted, and which answer came from which source | the step's `move` and `answer` events | the move, when its answer is `ok` | L1, L4, L6 |
+| what the request of an item showed | the step's `shown` event | the request of the move `issue` and its `digest_ok` | L2 |
+| that the acknowledgement of the rows came, or that the store wrote them without one | a field of the step's `rows` event | the move `record`, and the key `stored` of a lapse | L3, L5, L7, L8 |
+| that the run was stopped | the step's `stop` event | the move `stop`, or a lapse with `wait_limit` or `cancelled`, when its answer is `ok` | L6, L9 |
+| which record passed | the record of the step's `pass` event | the record of the move `guard` | L7, L8, L9, L10 |
 
 ## Schedule
 
@@ -97,6 +118,7 @@ of the model is one call of the coordinator.
 | `day` | the coordinator's day: the day of its last tick, or of the start of its life | I5.2, I5.9 |
 | `life`, `nrun`, `dels` | the life of the app, the run ids handed out, the workflows deleted | I5.8 |
 | `runs` | the live runs: id, agent, phase, the cause that a stop gave, the day of the start | I5.6 |
+| `dying` | the runs that were stopped and whose runner ended before the kill; the first tick at which the grace has passed calls `Runs::kill` for each | I5.7, I5.9 |
 | `queue` | the starts that wait, a person's before a scheduler's | I5.5 |
 | `ready` | the agents with an open `ready` item | I5.3 |
 | `off`, `paused`, `check` | the holds `off`, `failures` and `check` as the coordinator holds them | I5.4 |
@@ -106,12 +128,12 @@ of the model is one call of the coordinator.
 | Part of `h` | What happened | Read by |
 |---|---|---|
 | `live` | the runs between their spawn and their end, each with the life that started it, whether it was stopped (`stop`) and whether it outlived the first tick at which the grace of that stop had passed (`late`) | C1, C2, C3, C8, C9 |
-| `wait` | for each agent, the starts that were answered `queued` and have not left the queue, by trigger; a restart empties it, as I5.8 empties the queue | C3, C5 |
+| `wait` | for each agent, the starts that joined the queue and have not left it, by who asked: the person, when a `start` move of that agent queued it, and the scheduler otherwise; a restart empties it, as I5.8 empties the queue | C3, C5 |
 | `count` | the `run_started` events of each agent and day, a start whose step 7 or 8 failed among them | C7 |
 | `holds` | the holds that the stored events ask for: `off` from the switch-off control on, `failures` from the `run_ended` event that completes the streak until a start by the person, `check` from a `run_ended` with `effect_unknown` | C4 |
 | `heldstarts`, `unacked` | the starts that were stored while such a hold stood, and the runs that began without an acknowledged `run_started` event | C4 |
 | `done`, `served`, `streak` | the agents of which a run ended `completed`, the day of the newest served run, the failure streak, each from the `run_ended` events | C4, C5, C6 |
-| `alone`, `extra` | the scheduler's starts of an agent that needs the person or of which no run had ended `completed`, and the starts with the trigger `person` that no move of the person led to | C5 |
+| `alone`, `extra` | the stored starts that no move of the person asked for, of an agent that needs the person or of which no run had ended `completed`; and the stored starts of a `start` move beyond its one | C5 |
 | `given`, `sched`, `after` | the slots that I5.3 gave the stored starts of an agent, the scheduler's starts for each slot, and those that came after a start that I5.3 gave the same slot | C6 |
 | `day`, `life` | the day of the last tick or restart, and the life of the app | C2, and the day of every stored start |
 | `gone`, `gonestarts` | for each workflow, whether it is in the owner's list (`listed`), left it (`gone`) or left it before a tick (`seen`), and the starts that were stored for a workflow outside the list | C8 |
@@ -137,7 +159,7 @@ answered `queue_full`.
 | C2 | no run is live in a life of the app that did not start it | every run of `h.live` has the life of `h` |
 | C3 | an agent has at most one live or queued run | for each agent, its runs in `h.live` and its starts in `h.wait` are at most one together |
 | C4 | a run starts only when no hold stands by the stored events and with an acknowledged `run_started` event | `h.heldstarts` and `h.unacked` are 0 |
-| C5 | a run of an agent that needs the person, and the first run of every agent, starts only by a move of the person, and one move of the person leads to at most one `run_started` event | `h.alone` and `h.extra` are 0 |
+| C5 | a run of an agent that needs the person, and the first run of every agent, starts only by a move of the person; a start that leaves the queue counts as one by the person only when a move of the person queued it, whatever trigger the step gives it; and one move of the person leads to at most one `run_started` event | `h.alone` and `h.extra` are 0 |
 | C6 | one slot leads to at most one start by the scheduler, and to none after a start that I5.3 gives that slot | `h.sched` is at most 1 for every agent and slot, and `h.after` is 0 |
 | C7 | an agent has at most `starts_per_day` `run_started` events on one day | `h.count` is at most `StartsPerDay` for every agent and day |
 | C8 | no run starts for a workflow that is not in the owner's list; a run whose workflow left the list is `stopping` or ended after the first tick that follows, and ended after the first tick at which the grace has passed since that stop | `h.gonestarts` is 0, and a run of `h.live` whose workflow is `seen` has `stop` and not `late` |
@@ -169,7 +191,8 @@ follow these readings.
    after it stops the run of that workflow with the cause `deleted`, also a run that was
    already `stopping`, and drops the agent's queued start and its `ready` item.
 9. `off` sets the hold at once and stops the agent's run. A queued start of that agent is
-   dropped with `hold` when it leaves the queue. No tick sets or ends the hold `off`.
+   dropped with `hold` when it leaves the queue, and an open `ready` item of it stays open
+   (I5.7). No tick sets or ends the hold `off`.
 10. A restart ends every run with `interrupted`, also a run that was `stopping`: a stop is
     no stored event, so recovery finds a `run_started` event with no `run_ended` and stores
     `interrupted` (I5.6, I5.8). It empties the queue and closes every `ready` item, and it
@@ -178,7 +201,8 @@ follow these readings.
     when the start is refused.
 12. The day changes only at a tick or at a restart. The kill comes at a tick at which
     `cancel_grace_s` have passed since the stop; a run that the same tick stopped is not
-    killed by it.
+    killed by it. The tick calls `Runs::kill` also for a stopped run whose runner ended in
+    between (I5.9); that call ends no run and stores nothing.
 13. The holds `off` and `check` are never cleared, because no move of a trace is the
     control `switch_on` or the person's answer to a `check`.
 
@@ -194,7 +218,10 @@ phases decide only which of `hello`, `wait` and `resume` is accepted, each of wh
 to a state of the same class, every stop, end, kill, switch-off and deletion treats the
 three alike, and the history holds neither. `VIEW` also takes a stop with `lapsed` for one
 with `cancelled`: no rule and no history tells the two causes apart but the cause that the
-end stores, so the `Reach` properties that name a cause run without the `VIEW` line. The model has no `skip`, no `switch_on`, no
+end stores, so the `Reach` properties that name a cause run without the `VIEW` line.
+`VIEW` also takes `dying` out: it decides only its own next value and the `Runs::kill`
+calls for runs that have ended, which change no history; `ReachKillEnded` reads it and runs
+without the `VIEW` line too. The model has no `skip`, no `switch_on`, no
 answer to a `check`, no items budget, no effect in `releasing`, and no time but the grace.
 
 ## Confirm4
@@ -207,9 +234,9 @@ names effect 1 with another digest, so its presenter is `page`.
 | Part of `h` | What happened | Read by |
 |---|---|---|
 | `shown` | for each item, the effects and digests of the request that was shown | L2 |
-| `moves` | for each item, the moves that were accepted, in order, a lapse with its cause | L4, L6 |
-| `answers` | each accepted `answer`: the item, the answer, the source, and whether the item's last accepted move was `arm` | L1 |
-| `minted` | for each item, the approval ids of its answer's decision | L3 |
+| `moves` | for each item, the moves whose answer was `ok`, in order, a lapse with its cause | L4, L6 |
+| `answers` | each `answer` move whose answer was `ok`: the item, the answer, the source, and whether the item's last accepted move was `arm` | L1 |
+| `minted` | for each item, the approval ids that the port minted for the answer of an `answer` move | L3 |
 | `stored`, `acked` | the `item_answered` rows in the store, and those whose acknowledgement came, as whole rows | L3, L5, L7, L8, L10 |
 | `got` | every decision that the runner received: the item, `release` or `lapse`, the entries, and whether the run had been stopped before | L1 to L3, L5 to L10 |
 | `released` | the `item_released` rows, which the move `release` stores | L5, L6 |
@@ -266,7 +293,7 @@ the line is `PROPERTY <name>`.
 | Model | Properties |
 |---|---|
 | `Schedule`, as `INVARIANT` | `ReachPerson`, `ReachAuto`, `ReachDeletableAuto`, `ReachFailures`, `ReachSlots`, `ReachCatchUp`, `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueFull`, `ReachBudget`, `ReachTwoLive`, `ReachGoneStart`, `ReachGoneSeen` |
-| `Schedule`, as `PROPERTY` | `ReachFailuresCleared`, `ReachQueue`, `ReachQueueIdle`, `ReachRestart`, `ReachRestartDay`, `ReachRestartStopping`, `ReachGoneQueued`, `ReachOffLive`, `ReachOffQueued`, `ReachKillCancelled`, `ReachKillOff`, `ReachKillLapsed`, `ReachKillDeleted`, `ReachRecause` |
+| `Schedule`, as `PROPERTY` | `ReachFailuresCleared`, `ReachQueue`, `ReachQueueIdle`, `ReachRestart`, `ReachRestartDay`, `ReachRestartStopping`, `ReachGoneQueued`, `ReachOffLive`, `ReachOffQueued`, `ReachKillCancelled`, `ReachKillOff`, `ReachKillLapsed`, `ReachKillDeleted`, `ReachKillEnded`, `ReachRecause` |
 | `Confirm4`, as `INVARIANT` | `ReachEffects`, `ReachSecond`, `ReachPresenters`, `ReachLostAck`, `ReachRestart`, `ReachReleasedRestart`, `ReachLapseRecorded`, `ReachOldApproval`, `ReachMoney`, `ReachPageRecord`, `ReachOtherEffect`, `ReachOtherApproval`, `ReachStopLapse`, `ReachStopPerson`, `ReachStoppedRequest`, `ReachStoppedRecord`, `ReachRejected` |
 
 Three more properties are stronger than the contract's sentences, and TLC reports each one
@@ -322,6 +349,7 @@ replay of that design gives another answer or state at some move.
 | 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | - |
 | 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | - |
 | 27 | a `releasing` record of the class `send` passes with another digest | L10 | - |
+| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | - |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0.

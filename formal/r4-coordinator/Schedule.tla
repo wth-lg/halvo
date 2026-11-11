@@ -10,7 +10,7 @@ VARIABLES st, h
 
 Agents == 1..NAgents
 Days == 1..MaxDay
-Triggers == {"person", "schedule"}
+Askers == {"person", "schedule"}
 Outcomes == {"completed", "nothing_to_do", "declined", "handed_back", "class_mismatch",
              "refused", "limit", "effect_unknown", "failed"}
 FailureClass == {"failed", "limit", "class_mismatch", "refused", "budget", "kind"}
@@ -29,7 +29,7 @@ ASSUME /\ NeedsPerson \subseteq Agents
 Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
      runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, check |-> {},
-     paused |-> {},
+     paused |-> {}, dying |-> {},
      fin |-> Finished,
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
      fails |-> [a \in Agents |-> 0],
@@ -40,7 +40,7 @@ InitH ==
     [day |-> 1, life |-> 1,
      live |-> {},
      gone |-> [a \in Agents |-> "listed"],
-     wait |-> [a \in Agents |-> [t \in Triggers |-> 0]],
+     wait |-> [a \in Agents |-> [t \in Askers |-> 0]],
      count |-> [a \in Agents |-> [d \in Days |-> 0]],
      done |-> Finished,
      served |-> [a \in Agents |-> 0],
@@ -81,31 +81,46 @@ SlotOf(s, a, trig) ==
     ELSE IF a \in s.fin /\ Open(s, a) THEN CurSlot(s.day)
     ELSE 0
 
+Streak(s, a, cause) ==
+    IF cause \notin FailureClass THEN 0
+    ELSE IF s.fails[a] < FailsToPause THEN s.fails[a] + 1
+    ELSE s.fails[a]
+
 Ended(s, a, cause, d) ==
-    LET n == IF cause \notin FailureClass THEN 0
-             ELSE IF s.fails[a] < FailsToPause THEN s.fails[a] + 1
-             ELSE s.fails[a]
+    LET n == Streak(s, a, cause)
     IN [s EXCEPT !.fin = IF cause = "completed" THEN @ \cup {a} ELSE @,
                  !.done[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
                  !.fails[a] = n,
                  !.paused = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {a} ELSE @,
                  !.check = IF cause = "effect_unknown" THEN @ \cup {a} ELSE @]
 
+Stored(run, a, cause) == [k |-> "run_ended", run |-> run, agent |-> a, cause |-> cause]
+State(a, x) == [k |-> "set_state", agent |-> a, state |-> x]
+
+EndOut(s, run, a, cause) ==
+    <<Stored(run, a, cause)>>
+    \o (IF cause \in FailureClass /\ Streak(s, a, cause) >= FailsToPause /\ a \notin s.paused
+        THEN <<[k |-> "hold_set", agent |-> a, cause |-> "failures"], State(a, "paused")>>
+        ELSE <<>>)
+
 Launch(s, a, trig, port, q) ==
     IF port = "no_ack"
     THEN [r |-> "no_service", st |-> s, run |-> 0,
-          ev |-> IF q THEN <<[k |-> "left", agent |-> a, trig |-> trig]>> ELSE <<>>]
+          out |-> <<[k |-> "defer"]>> \o (IF q THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)]
     ELSE LET slot == SlotOf(s, a, trig)
              id == s.nrun + 1
              s1 == [s EXCEPT !.nrun = id,
                              !.starts[a][s.day] = @ + 1,
                              !.slotrun[a] = IF slot > 0 THEN slot ELSE @,
                              !.ready = @ \ {a}]
-             e == [k |-> "start", run |-> id, agent |-> a, trig |-> trig, q |-> q,
-                   ack |-> port # "no_ack", live |-> port # "no_run"]
+             begin == <<[k |-> "defer"],
+                        [k |-> "run_started", run |-> id, agent |-> a, trig |-> trig, slot |-> slot],
+                        [k |-> "start_run", run |-> id],
+                        [k |-> "start", run |-> id, agent |-> a]>>
          IN IF port = "no_run"
-            THEN [r |-> "no_service", st |-> Ended(s1, a, "failed", s.day), run |-> id, ev |-> <<e>>]
-            ELSE [r |-> "ok", run |-> id, ev |-> <<e>>,
+            THEN [r |-> "no_service", st |-> Ended(s1, a, "failed", s.day), run |-> id,
+                  out |-> begin \o EndOut(s1, id, a, "failed")]
+            ELSE [r |-> "ok", run |-> id, out |-> begin,
                   st |-> [s1 EXCEPT !.runs = @ \cup
                              {[id |-> id, agent |-> a, phase |-> "starting", why |-> "none",
                                day |-> IF a \in Slotted THEN s.day ELSE 0]}]]
@@ -119,62 +134,69 @@ Enqueue(q, e) ==
 Start(s, a, trig, port) ==
     LET d == Decide(s, a)
     IN IF d = "go" THEN Launch(s, a, trig, port, FALSE)
-       ELSE IF d # "wait" THEN [r |-> d, st |-> s, run |-> 0, ev |-> <<>>]
-       ELSE IF Len(s.queue) >= QueueMax THEN [r |-> "queue_full", st |-> s, run |-> 0, ev |-> <<>>]
+       ELSE IF d # "wait" THEN [r |-> d, st |-> s, run |-> 0, out |-> <<>>]
+       ELSE IF Len(s.queue) >= QueueMax THEN [r |-> "queue_full", st |-> s, run |-> 0, out |-> <<>>]
        ELSE [r |-> "queued", run |-> 0,
-             ev |-> <<[k |-> "queued", agent |-> a, trig |-> trig]>>,
+             out |-> <<[k |-> "queued", agent |-> a]>>,
              st |-> [s EXCEPT !.queue = Enqueue(@, [agent |-> a, trigger |-> trig]),
                               !.ready = @ \ {a}]]
 
 Press(s, a, port) ==
-    Start(IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}], a, "person", port)
+    LET ends == a \notin s.gone /\ a \in s.paused
+        x == Start(IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}], a, "person", port)
+    IN [x EXCEPT !.out = (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
+                         \o (IF ends /\ a \notin s.off THEN <<State(a, "active")>> ELSE <<>>)
+                         \o @]
 
 Dequeue(s, port) ==
-    IF Len(s.queue) = 0 THEN [st |-> s, next |-> <<>>, ev |-> <<>>]
+    IF Len(s.queue) = 0 THEN [st |-> s, next |-> <<>>, out |-> <<>>]
     ELSE LET head == Head(s.queue)
              s0 == [s EXCEPT !.queue = Tail(@)]
              d == Decide(s0, head.agent)
          IN IF d = "wait"
-            THEN [st |-> s, next |-> <<[agent |-> head.agent, r |-> "queued", run |-> 0]>>, ev |-> <<>>]
+            THEN [st |-> s, next |-> <<[agent |-> head.agent, r |-> "queued", run |-> 0]>>, out |-> <<>>]
             ELSE IF d = "go"
             THEN LET l == Launch(s0, head.agent, head.trigger, port, TRUE)
                  IN [st |-> l.st, next |-> <<[agent |-> head.agent, r |-> l.r, run |-> l.run]>>,
-                     ev |-> l.ev]
+                     out |-> l.out]
             ELSE [st |-> s0, next |-> <<[agent |-> head.agent, r |-> d, run |-> 0]>>,
-                  ev |-> <<[k |-> "left", agent |-> head.agent, trig |-> head.trigger]>>]
+                  out |-> <<[k |-> "left", agent |-> head.agent]>>]
 
 EndRun(s, run, cause, port) ==
-    LET q == Dequeue(Ended([s EXCEPT !.runs = @ \ {run}], run.agent, cause, run.day), port)
-    IN [st |-> q.st, next |-> q.next,
-        ev |-> <<[k |-> "end", run |-> run.id, cause |-> cause]>> \o q.ev]
+    LET s1 == [s EXCEPT !.runs = @ \ {run}]
+        q == Dequeue(Ended(s1, run.agent, cause, run.day), port)
+    IN [st |-> q.st, next |-> q.next, out |-> EndOut(s1, run.id, run.agent, cause) \o q.out]
 
-RECURSIVE StopEvents(_)
-StopEvents(ids) ==
+RECURSIVE Cancels(_)
+Cancels(ids) ==
     IF ids = {} THEN <<>>
     ELSE LET m == CHOOSE x \in ids : \A y \in ids : x <= y
-         IN <<[k |-> "stop", run |-> m]>> \o StopEvents(ids \ {m})
+         IN <<[k |-> "cancel", run |-> m]>> \o Cancels(ids \ {m})
 
 Due(s) == {r.id : r \in {x \in s.runs : x.phase = "stopping"}}
 
 RECURSIVE Kill(_, _, _)
 Kill(acc, due, port) ==
-    LET S == {r \in acc.st.runs : r.id \in due}
-    IN IF S = {} THEN acc
-       ELSE LET run == CHOOSE x \in S : \A y \in S : x.id <= y.id
-                e == EndRun(acc.st, run, run.why, port)
-            IN Kill([st |-> e.st,
-                     ended |-> Append(acc.ended, [run |-> run.id, cause |-> run.why, next |-> e.next]),
-                     ev |-> acc.ev \o e.ev],
-                    due \ {run.id}, port)
+    IF due = {} THEN acc
+    ELSE LET id == CHOOSE x \in due : \A y \in due : x <= y
+             S == {r \in acc.st.runs : r.id = id}
+             call == <<[k |-> "kill", run |-> id]>>
+         IN IF S = {} THEN Kill([acc EXCEPT !.out = @ \o call], due \ {id}, port)
+            ELSE LET run == CHOOSE x \in S : TRUE
+                     e == EndRun(acc.st, run, run.why, port)
+                 IN Kill([st |-> e.st,
+                          ended |-> Append(acc.ended, [run |-> run.id, cause |-> run.why, next |-> e.next]),
+                          out |-> acc.out \o call \o e.out],
+                         due \ {id}, port)
 
 Sweep(s) ==
     LET hit == {r \in s.runs : r.agent \in s.gone /\ r.phase # "stopping"}
         Stays(e) == e.agent \notin s.gone
         Goes(e) == e.agent \in s.gone
-        out == SelectSeq(s.queue, Goes)
+        gone == SelectSeq(s.queue, Goes)
     IN [stopped |-> {r.id : r \in hit},
-        ev |-> StopEvents({r.id : r \in hit})
-               \o [i \in 1..Len(out) |-> [k |-> "left", agent |-> out[i].agent, trig |-> out[i].trigger]],
+        out |-> Cancels({r.id : r \in hit})
+                \o [i \in 1..Len(gone) |-> [k |-> "left", agent |-> gone[i].agent]],
         st |-> [s EXCEPT !.runs = {IF r.agent \in s.gone
                                    THEN [r EXCEPT !.phase = "stopping", !.why = "deleted"]
                                    ELSE r : r \in @},
@@ -183,86 +205,92 @@ Sweep(s) ==
 
 TickAgent(s, a, port) ==
     IF a \in s.gone \/ Held(s, a) \/ LiveOf(s, a) # {} \/ Queued(s, a)
-    THEN [st |-> s, raised |-> <<>>, started |-> <<>>, ev |-> <<>>]
+    THEN [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF a \in NeedsPerson \/ a \notin s.fin
     THEN IF (Open(s, a) \/ a \notin s.fin) /\ a \notin s.ready
-         THEN [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, ev |-> <<>>]
-         ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, ev |-> <<>>]
+         THEN [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, out |-> <<>>]
+         ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF /\ Open(s, a)
             /\ s.day - CurSlot(s.day) <= CatchUpDays
             /\ s.slotrun[a] # CurSlot(s.day)
     THEN LET x == Start(s, a, "schedule", port)
          IN [st |-> x.st, raised |-> <<>>, started |-> <<[agent |-> a, r |-> x.r, run |-> x.run]>>,
-             ev |-> x.ev]
-    ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, ev |-> <<>>]
+             out |-> x.out]
+    ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
 
 RECURSIVE TickFrom(_, _, _)
 TickFrom(acc, a, port) ==
     IF a > NAgents THEN acc
     ELSE LET t == TickAgent(acc.st, a, port)
          IN TickFrom([st |-> t.st, raised |-> acc.raised \o t.raised,
-                      started |-> acc.started \o t.started, ev |-> acc.ev \o t.ev], a + 1, port)
+                      started |-> acc.started \o t.started, out |-> acc.out \o t.out], a + 1, port)
 
 Tick(s, d, g, port) ==
     LET s0 == [s EXCEPT !.day = d]
+        again == IF s.runs = {} THEN <<>> ELSE <<[k |-> "defer"]>>
         due == IF g THEN Due(s0) ELSE {}
+        dead == IF g THEN s.dying ELSE {}
         v == Sweep(s0)
-        k == Kill([st |-> v.st, ended |-> <<>>, ev |-> <<>>], due, port)
+        k == Kill([st |-> [v.st EXCEPT !.dying = @ \ dead], ended |-> <<>>, out |-> <<>>], due \cup dead, port)
         i == IF Len(k.ended) = 0 /\ k.st.runs = {}
              THEN Dequeue(k.st, port)
-             ELSE [st |-> k.st, next |-> <<>>, ev |-> <<>>]
-        t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, ev |-> <<>>], 1, port)
+             ELSE [st |-> k.st, next |-> <<>>, out |-> <<>>]
+        t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, out |-> <<>>], 1, port)
     IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended, next |-> i.next,
         raised |-> t.raised, started |-> t.started, st |-> t.st,
-        ev |-> v.ev \o k.ev \o i.ev \o t.ev]
+        out |-> again \o v.out \o k.out \o i.out \o t.out]
 
 RECURSIVE Recover(_, _, _)
-Recover(s, out, ev) ==
-    IF s.runs = {} THEN [st |-> s, ended |-> out, ev |-> ev]
+Recover(s, ended, out) ==
+    IF s.runs = {} THEN [st |-> s, ended |-> ended, out |-> out]
     ELSE LET run == CHOOSE x \in s.runs : \A y \in s.runs : x.id <= y.id
-         IN Recover(Ended([s EXCEPT !.runs = @ \ {run}], run.agent, "interrupted", run.day),
-                    Append(out, [run |-> run.id, cause |-> "interrupted", next |-> <<>>]),
-                    Append(ev, [k |-> "end", run |-> run.id, cause |-> "interrupted"]))
+             s1 == [s EXCEPT !.runs = @ \ {run}]
+         IN Recover(Ended(s1, run.agent, "interrupted", run.day),
+                    Append(ended, [run |-> run.id, cause |-> "interrupted", next |-> <<>>]),
+                    out \o EndOut(s1, run.id, run.agent, "interrupted"))
 
 Restart(s, d) ==
-    LET v == Recover(s, <<>>, <<>>)
-    IN [r |-> "ok", ended |-> v.ended, ev |-> v.ev,
-        st |-> [v.st EXCEPT !.life = @ + 1, !.day = d, !.queue = <<>>, !.ready = {}]]
+    LET v == Recover(s, <<>>, <<[k |-> "reap"]>>)
+    IN [r |-> "ok", ended |-> v.ended, out |-> v.out,
+        st |-> [v.st EXCEPT !.life = @ + 1, !.day = d, !.queue = <<>>, !.ready = {}, !.dying = {}]]
 
 Delete(s, a) ==
-    [r |-> "ok", ev |-> <<>>,
+    [r |-> "ok", out |-> <<>>,
      st |-> [s EXCEPT !.gone = @ \cup {a}, !.dels = @ + 1]]
 
 Off(s, a) ==
     LET hit == {r \in s.runs : r.agent = a /\ r.phase # "stopping"}
-    IN [r |-> "ok", stopped |-> {r.id : r \in hit}, ev |-> StopEvents({r.id : r \in hit}),
+    IN [r |-> "ok", stopped |-> {r.id : r \in hit},
+        out |-> <<[k |-> "hold_set", agent |-> a, cause |-> "person"]>>
+                \o Cancels({r.id : r \in hit}) \o <<State(a, "paused")>>,
         st |-> [s EXCEPT !.off = @ \cup {a},
                          !.runs = (@ \ hit) \cup {[r EXCEPT !.phase = "stopping", !.why = "cancelled"] : r \in hit}]]
 
 RunStep(s, mv) ==
-    IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, ev |-> <<>>]
+    IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, out |-> <<>>]
     ELSE LET run == CHOOSE r \in s.runs : r.id = mv.run
-             To(p) == [r |-> "ok", ev |-> <<>>,
+             To(p) == [r |-> "ok", out |-> <<>>,
                        st |-> [s EXCEPT !.runs = (@ \ {run}) \cup {[run EXCEPT !.phase = p]}]]
-             No == [r |-> "state", st |-> s, ev |-> <<>>]
+             No == [r |-> "state", st |-> s, out |-> <<>>]
          IN CASE mv.m = "hello" -> IF run.phase = "starting" THEN To("working") ELSE No
               [] mv.m = "wait" -> IF run.phase = "working" THEN To("waiting") ELSE No
               [] mv.m = "resume" -> IF run.phase = "waiting" THEN To("working") ELSE No
               [] mv.m = "stop" ->
                     IF run.phase \in {"starting", "working", "waiting"}
-                    THEN [r |-> "ok", ev |-> <<[k |-> "stop", run |-> run.id]>>,
+                    THEN [r |-> "ok", out |-> <<[k |-> "cancel", run |-> run.id]>>,
                           st |-> [s EXCEPT !.runs = (@ \ {run}) \cup
                                      {[run EXCEPT !.phase = "stopping", !.why = mv.cause]}]]
                     ELSE No
 
 End(s, mv) ==
-    IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, ev |-> <<>>]
+    IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, out |-> <<>>]
     ELSE LET run == CHOOSE r \in s.runs : r.id = mv.run
              cause == IF run.phase = "stopping" THEN run.why
                       ELSE IF mv.frame # "none" THEN mv.frame
                       ELSE "interrupted"
              e == EndRun(s, run, cause, mv.port)
-         IN [r |-> "ok", st |-> e.st, cause |-> cause, next |-> e.next, ev |-> e.ev]
+         IN [r |-> "ok", cause |-> cause, next |-> e.next, out |-> e.out,
+             st |-> IF run.phase = "stopping" THEN [e.st EXCEPT !.dying = @ \cup {run.id}] ELSE e.st]
 
 Step(s, mv) ==
     CASE mv.m = "start" -> Press(s, mv.agent, mv.port)
@@ -288,7 +316,7 @@ Moves(s) ==
     \cup UNION {RunMoves(s, r) : r \in s.runs}
     \cup {[m |-> "tick", day |-> d, grace |-> g, port |-> p] :
             d \in {s.day, s.day + 1} \cap Days,
-            g \in IF \E r \in s.runs : r.phase = "stopping" THEN BOOLEAN ELSE {TRUE},
+            g \in IF s.dying # {} \/ \E r \in s.runs : r.phase = "stopping" THEN BOOLEAN ELSE {TRUE},
             p \in Ports}
     \cup (IF s.life <= MaxRestarts
           THEN {[m |-> "restart", day |-> d] : d \in {s.day, s.day + 1} \cap Days}
@@ -296,14 +324,16 @@ Moves(s) ==
     \cup (IF s.dels < MaxDeletes THEN {[m |-> "delete", agent |-> a] : a \in Deletable \ s.gone} ELSE {})
     \cup {[m |-> "off", agent |-> a] : a \in OffAgents \ s.off}
 
+PortOf(mv) == IF mv.m \in {"start", "tick", "end"} THEN mv.port ELSE "ok"
+
 HOpen(g, a) ==
     /\ a \in Slotted
     /\ CurSlot(g.day) > 0
     /\ \/ g.served[a] = 0
        \/ g.served[a] < CurSlot(g.day) - (Period \div 2)
 
-HSlot(g, a, trig) ==
-    IF trig = "schedule" THEN CurSlot(g.day)
+HSlot(g, a, person) ==
+    IF ~person THEN CurSlot(g.day)
     ELSE IF a \in g.done /\ HOpen(g, a) THEN CurSlot(g.day)
     ELSE 0
 
@@ -317,30 +347,26 @@ HEnded(g, a, cause, d) ==
                  !.holds[a] = (IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {"failures"} ELSE @)
                               \cup (IF cause = "effect_unknown" THEN {"check"} ELSE {})]
 
-HStart(acc, e) ==
-    LET g == acc.h
-        a == e.agent
-        slot == HSlot(g, a, e.trig)
-        person == e.trig = "person"
-        asked == IF e.q THEN g.wait[a]["person"] > 0 ELSE acc.press
-        g1 == [g EXCEPT
-                 !.count[a][g.day] = IF e.ack THEN @ + 1 ELSE @,
-                 !.unacked = IF e.ack THEN @ ELSE @ + 1,
-                 !.heldstarts = IF g.holds[a] # {} THEN @ + 1 ELSE @,
-                 !.alone = IF ~person /\ (a \in NeedsPerson \/ a \notin g.done) THEN @ + 1 ELSE @,
-                 !.extra = IF person /\ ~asked THEN @ + 1 ELSE @,
-                 !.gonestarts = IF g.gone[a] # "listed" THEN @ + 1 ELSE @,
-                 !.after = IF ~person /\ slot \in g.given[a] THEN @ + 1 ELSE @,
-                 !.sched[a] = IF ~person /\ slot > 0 THEN [@ EXCEPT ![slot] = @ + 1] ELSE @,
-                 !.given[a] = IF slot > 0 THEN @ \cup {slot} ELSE @,
-                 !.wait[a][e.trig] = IF e.q /\ @ > 0 THEN @ - 1 ELSE @,
-                 !.live = IF e.live
-                          THEN @ \cup {[id |-> e.run, agent |-> a, life |-> g.life,
-                                        day |-> IF a \in Slotted THEN g.day ELSE 0,
-                                        stop |-> FALSE, late |-> FALSE]}
-                          ELSE @]
-    IN [h |-> IF e.live THEN g1 ELSE HEnded(g1, a, "failed", g.day),
-        press |-> acc.press /\ e.q]
+HLess(w) ==
+    IF w["person"] > 0 THEN [w EXCEPT !["person"] = @ - 1]
+    ELSE IF w["schedule"] > 0 THEN [w EXCEPT !["schedule"] = @ - 1]
+    ELSE w
+
+HStopped(g, ids) ==
+    [g EXCEPT !.live = {IF r.id \in ids /\ ~r.stop THEN [r EXCEPT !.stop = TRUE] ELSE r : r \in @}]
+
+HMove(g, mv) ==
+    CASE mv.m = "tick" ->
+            [g EXCEPT !.day = mv.day]
+      [] mv.m = "restart" -> [g EXCEPT !.life = @ + 1, !.day = mv.day,
+                                       !.wait = [a \in Agents |-> [t \in Askers |-> 0]]]
+      [] mv.m = "delete" -> [g EXCEPT !.gone[mv.agent] = "gone"]
+      [] mv.m = "off" ->
+            [HStopped(g, {r.id : r \in {x \in g.live : x.agent = mv.agent}})
+                EXCEPT !.holds[mv.agent] = @ \cup {"off"}]
+      [] mv.m = "start" -> [g EXCEPT !.holds[mv.agent] = IF g.gone[mv.agent] = "listed" THEN @ \ {"failures"} ELSE @]
+      [] mv.m = "stop" -> HStopped(g, {mv.run})
+      [] OTHER -> g
 
 HEnd(g, e) ==
     LET S == {r \in g.live : r.id = e.run}
@@ -348,27 +374,49 @@ HEnd(g, e) ==
        ELSE LET r == CHOOSE x \in S : TRUE
             IN HEnded([g EXCEPT !.live = @ \ {r}], r.agent, e.cause, r.day)
 
-HStop(g, e) == [g EXCEPT !.live = {IF r.id = e.run THEN [r EXCEPT !.stop = TRUE] ELSE r : r \in @}]
+HStarted(acc, e, mv) ==
+    IF PortOf(mv) = "no_ack" THEN acc
+    ELSE LET g == acc.h
+             a == e.agent
+             direct == acc.press /\ mv.agent = a
+             person == direct \/ g.wait[a]["person"] > 0
+             slot == HSlot(g, a, person)
+         IN [acc EXCEPT
+               !.press = FALSE,
+               !.acked = @ \cup {e.run},
+               !.h = [g EXCEPT
+                        !.count[a][g.day] = @ + 1,
+                        !.heldstarts = IF g.holds[a] # {} THEN @ + 1 ELSE @,
+                        !.alone = IF ~person /\ (a \in NeedsPerson \/ a \notin g.done) THEN @ + 1 ELSE @,
+                        !.extra = IF mv.m = "start" /\ ~direct THEN @ + 1 ELSE @,
+                        !.gonestarts = IF g.gone[a] # "listed" THEN @ + 1 ELSE @,
+                        !.after = IF ~person /\ slot \in g.given[a] THEN @ + 1 ELSE @,
+                        !.sched[a] = IF ~person /\ slot > 0 THEN [@ EXCEPT ![slot] = @ + 1] ELSE @,
+                        !.given[a] = IF slot > 0 THEN @ \cup {slot} ELSE @,
+                        !.wait[a] = IF direct THEN @ ELSE HLess(@)]]
 
-RECURSIVE HFold(_, _, _)
-HFold(acc, evs, i) ==
-    IF i > Len(evs) THEN acc
-    ELSE LET e == evs[i]
-         IN HFold(CASE e.k = "start" -> HStart(acc, e)
-                    [] e.k = "end" -> [acc EXCEPT !.h = HEnd(@, e)]
-                    [] e.k = "stop" -> [acc EXCEPT !.h = HStop(@, e)]
-                    [] e.k = "queued" -> [acc EXCEPT !.h.wait[e.agent][e.trig] = @ + 1, !.press = FALSE]
-                    [] e.k = "left" -> [acc EXCEPT !.h.wait[e.agent][e.trig] = IF @ > 0 THEN @ - 1 ELSE @],
-                  evs, i + 1)
+HSpawned(acc, e, mv) ==
+    LET g == [acc.h EXCEPT !.unacked = IF e.run \in acc.acked THEN @ ELSE @ + 1]
+        r == [id |-> e.run, agent |-> e.agent, life |-> g.life,
+              day |-> IF e.agent \in Slotted THEN g.day ELSE 0,
+              stop |-> FALSE, late |-> FALSE]
+    IN IF PortOf(mv) = "no_run"
+       THEN [acc EXCEPT !.h = HEnded(g, e.agent, "failed", g.day)]
+       ELSE [acc EXCEPT !.h = [g EXCEPT !.live = @ \cup {r}]]
 
-HMove(g, mv) ==
-    CASE mv.m = "tick" -> [g EXCEPT !.day = mv.day]
-      [] mv.m = "restart" -> [g EXCEPT !.life = @ + 1, !.day = mv.day,
-                                       !.wait = [a \in Agents |-> [t \in Triggers |-> 0]]]
-      [] mv.m = "delete" -> [g EXCEPT !.gone[mv.agent] = "gone"]
-      [] mv.m = "off" -> [g EXCEPT !.holds[mv.agent] = @ \cup {"off"}]
-      [] mv.m = "start" -> [g EXCEPT !.holds[mv.agent] = IF g.gone[mv.agent] = "listed" THEN @ \ {"failures"} ELSE @]
-      [] OTHER -> g
+HOut(acc, e, mv) ==
+    CASE e.k = "run_started" -> HStarted(acc, e, mv)
+      [] e.k = "start" -> HSpawned(acc, e, mv)
+      [] e.k = "run_ended" -> [acc EXCEPT !.h = HEnd(@, e)]
+      [] e.k = "cancel" -> [acc EXCEPT !.h = HStopped(@, {e.run})]
+      [] e.k = "queued" ->
+            [acc EXCEPT !.h.wait[e.agent][IF acc.press /\ mv.agent = e.agent THEN "person" ELSE "schedule"] = @ + 1,
+                        !.press = FALSE]
+      [] e.k = "left" -> [acc EXCEPT !.h.wait[e.agent] = HLess(@)]
+      [] OTHER -> acc
+
+RECURSIVE HFold(_, _, _, _)
+HFold(acc, out, i, mv) == IF i > Len(out) THEN acc ELSE HFold(HOut(acc, out[i], mv), out, i + 1, mv)
 
 HAfter(g0, g, mv) ==
     IF mv.m # "tick" THEN g
@@ -378,14 +426,15 @@ HAfter(g0, g, mv) ==
                              ELSE r : r \in @}]
 
 Hist(g, mv, res) ==
-    HAfter(g, HFold([h |-> HMove(g, mv), press |-> mv.m = "start"], res.ev, 1).h, mv)
+    HAfter(g, HFold([h |-> HMove(g, mv), press |-> mv.m = "start", acked |-> {}], res.out, 1, mv).h, mv)
 
 Init == st = Init0 /\ h = InitH
 Next == \E mv \in Moves(st) : LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, mv, res)
 Bound == st.nrun <= MaxRuns
-View == <<[st EXCEPT !.ready = {},
-                     !.runs = {[r EXCEPT !.phase = IF @ = "stopping" THEN @ ELSE "live",
-                                         !.why = IF @ = "lapsed" THEN "cancelled" ELSE @] : r \in @}], h>>
+Fold(c) == IF c = "lapsed" THEN "cancelled" ELSE c
+View == <<[st EXCEPT !.ready = {}, !.dying = {},
+                     !.runs = {[r EXCEPT !.phase = IF @ = "stopping" THEN @ ELSE "live", !.why = Fold(@)] : r \in @}],
+          h>>
 
 LiveRuns(a) == {r \in h.live : r.agent = a}
 
@@ -452,6 +501,7 @@ ReachKillCancelled == [][~(\E r \in Stopping("cancelled") : r.agent \notin st.of
 ReachKillOff == [][~(\E r \in Stopping("cancelled") : r.agent \in st.off /\ KilledAt(r))]_vars
 ReachKillLapsed == [][~(\E r \in Stopping("lapsed") : KilledAt(r))]_vars
 ReachKillDeleted == [][~(\E r \in Stopping("deleted") : KilledAt(r))]_vars
+ReachKillEnded == [][~(st.dying # {} /\ st'.dying = {} /\ st'.life = st.life)]_vars
 ReachRecause == [][~(\E r \in Stopping("cancelled") : \E x \in st'.runs : x.id = r.id /\ x.why = "deleted")]_vars
 
 StaysLive == \A r \in h.live : h.gone[r.agent] = "listed"

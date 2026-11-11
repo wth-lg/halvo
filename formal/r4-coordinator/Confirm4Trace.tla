@@ -149,7 +149,7 @@ EntriesJson(entries) ==
 
 SentJson(res) ==
     LET IsSent(e) == e.k = "sent"
-        sent == SelectSeq(res.ev, IsSent)
+        sent == SelectSeq(res.out, IsSent)
     IN IF Len(sent) = 0 THEN "[]" ELSE EntriesJson(sent[1].entries)
 
 IdList(k, S) == LET xs == Sorted(S) IN Arr([i \in 1..Len(xs) |-> Id(k, xs[i])])
@@ -200,7 +200,7 @@ TraceInit ==
 Play(mv, x, dead) ==
     LET res == Step(st, mv)
     IN /\ st' = res.st
-       /\ h' = Hist(h, res)
+       /\ h' = Hist(h, mv, res)
        /\ w' = [w EXCEPT !.k = @ + 1, !.x = x, !.z = IF dead THEN @ + 1 ELSE 0,
                          !.acc = Append(@, MoveJson(st, mv, res))]
 
