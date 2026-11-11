@@ -203,8 +203,8 @@ TickFrom(acc, a, port) ==
          IN TickFrom([st |-> t.st, raised |-> acc.raised \o t.raised,
                       started |-> acc.started \o t.started, ev |-> acc.ev \o t.ev], a + 1, port)
 
-Tick(s, d, o, g, port) ==
-    LET s0 == [s EXCEPT !.day = d, !.off = o]
+Tick(s, d, g, port) ==
+    LET s0 == [s EXCEPT !.day = d]
         due == IF g THEN Due(s0) ELSE {}
         v == Sweep(s0)
         k == Kill([st |-> v.st, ended |-> <<>>, ev |-> <<>>], due, port)
@@ -229,6 +229,12 @@ Restart(s) ==
 Delete(s, a) ==
     [r |-> "ok", ev |-> <<>>,
      st |-> [s EXCEPT !.gone = @ \cup {a}, !.dels = @ + 1]]
+
+Off(s, a) ==
+    LET hit == {r \in s.runs : r.agent = a /\ r.phase # "stopping"}
+    IN [r |-> "ok", stopped |-> {r.id : r \in hit}, ev |-> StopEvents({r.id : r \in hit}),
+        st |-> [s EXCEPT !.off = @ \cup {a},
+                         !.runs = (@ \ hit) \cup {[r EXCEPT !.phase = "stopping", !.why = "cancelled"] : r \in hit}]]
 
 RunStep(s, mv) ==
     IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, ev |-> <<>>]
@@ -257,9 +263,10 @@ End(s, mv) ==
 
 Step(s, mv) ==
     CASE mv.m = "start" -> Press(s, mv.agent, mv.port)
-      [] mv.m = "tick" -> Tick(s, mv.day, mv.off, mv.grace, mv.port)
+      [] mv.m = "tick" -> Tick(s, mv.day, mv.grace, mv.port)
       [] mv.m = "restart" -> Restart(s)
       [] mv.m = "delete" -> Delete(s, mv.agent)
+      [] mv.m = "off" -> Off(s, mv.agent)
       [] mv.m = "end" -> End(s, mv)
       [] OTHER -> RunStep(s, mv)
 
@@ -275,12 +282,13 @@ RunMoves(s, r) ==
 Moves(s) ==
     {[m |-> "start", agent |-> a, port |-> p] : a \in Agents, p \in Ports}
     \cup UNION {RunMoves(s, r) : r \in s.runs}
-    \cup {[m |-> "tick", day |-> d, off |-> o, grace |-> g, port |-> p] :
-            d \in {s.day, s.day + 1} \cap Days, o \in SUBSET OffAgents,
+    \cup {[m |-> "tick", day |-> d, grace |-> g, port |-> p] :
+            d \in {s.day, s.day + 1} \cap Days,
             g \in IF \E r \in s.runs : r.phase = "stopping" THEN BOOLEAN ELSE {TRUE},
             p \in Ports}
     \cup (IF s.life <= MaxRestarts THEN {[m |-> "restart"]} ELSE {})
     \cup (IF s.dels < MaxDeletes THEN {[m |-> "delete", agent |-> a] : a \in Deletable \ s.gone} ELSE {})
+    \cup {[m |-> "off", agent |-> a] : a \in OffAgents \ s.off}
 
 HOpen(g, a) ==
     /\ a \in Slotted
@@ -348,12 +356,11 @@ HFold(acc, evs, i) ==
                   evs, i + 1)
 
 HMove(g, mv) ==
-    CASE mv.m = "tick" ->
-            [g EXCEPT !.day = mv.day,
-                      !.holds = [a \in Agents |-> IF a \in mv.off THEN @[a] \cup {"off"} ELSE @[a] \ {"off"}]]
+    CASE mv.m = "tick" -> [g EXCEPT !.day = mv.day]
       [] mv.m = "restart" -> [g EXCEPT !.life = @ + 1,
                                        !.wait = [a \in Agents |-> [t \in Triggers |-> 0]]]
       [] mv.m = "delete" -> [g EXCEPT !.gone[mv.agent] = "gone"]
+      [] mv.m = "off" -> [g EXCEPT !.holds[mv.agent] = @ \cup {"off"}]
       [] mv.m = "start" -> [g EXCEPT !.holds[mv.agent] = IF g.gone[mv.agent] = "listed" THEN @ \ {"failures"} ELSE @]
       [] OTHER -> g
 
