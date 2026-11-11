@@ -1525,11 +1525,14 @@ fn an_approved_workflow_with_no_agent_gets_one_and_the_state_follows_its_runtime
             "create_agent".to_string(),
             "create_agent".into(),
             "create_agent".into(),
-            "set_state active".into(),
             "log item_raised setup".into(),
-        ]
+        ],
+        "the creation sends no set_state"
     );
     assert_eq!(w.board.members.len(), 3);
+    for n in 0..3 {
+        w.owner_workflow(n, |f| f.agent = Some(minted(n as u128 + 1)));
+    }
     w.forget();
     assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
     assert_eq!(
@@ -2406,5 +2409,202 @@ fn a_second_switch_off_does_not_stop_a_stopping_run_again() {
     assert!(
         w.calls().contains(&format!("kill {run}")),
         "the kill comes cancel_grace_s after the first stop"
+    );
+}
+
+#[test]
+fn a_creation_decides_from_the_owners_list_alone() {
+    let mut w = world(&[]);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(approved(0, Category::CalendarCleanup)));
+    listed_agent(
+        &w,
+        0,
+        &minted(2),
+        &A {
+            runtime: "graph_calendar",
+            ..AUTO
+        },
+    );
+    w.ports.refuse(Method::Send, PortError::Busy);
+    assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
+    w.ports.clear_refusals();
+    w.forget();
+    let second = w.go(Move::Create);
+    assert_eq!(
+        w.calls(),
+        ["create_agent"],
+        "no acknowledgement came, so the body goes again"
+    );
+    assert_eq!(second.created, vec![minted(2)]);
+    assert_eq!(w.board.members.len(), 1, "the agent joined the board");
+    w.forget();
+    let third = w.go(Move::Create);
+    assert_eq!(
+        w.calls(),
+        ["create_agent"],
+        "the list still shows no agent, so the body goes again"
+    );
+    let made = third.created[0].clone();
+    w.owner_workflow(0, |f| f.agent = Some(made));
+    w.forget();
+    assert_eq!(w.go(Move::Create).created, Vec::<AgentId>::new());
+    assert_eq!(w.calls(), Vec::<String>::new(), "the list shows the agent");
+}
+
+#[test]
+fn a_creation_is_for_a_seed_category_and_the_types_hold_no_other() {
+    assert_eq!(Category::ALL.len(), 10);
+    assert_eq!(Category::parse("tax_filing"), Err(Cause::Malformed));
+    let mut w = world(&[]);
+    for (n, c) in Category::ALL.iter().enumerate() {
+        w.ports
+            .workflows
+            .borrow_mut()
+            .push(Workflow::Full(approved(n, *c)));
+    }
+    assert_eq!(w.go(Move::Create).created.len(), 10);
+}
+
+fn approved_listed(w: &World, n: usize) {
+    w.owner_workflow(n, |f| f.state = WorkflowState::Approved);
+}
+
+fn set_states(w: &World) -> Vec<String> {
+    w.calls()
+        .into_iter()
+        .filter(|c| c.starts_with("set_state"))
+        .collect()
+}
+
+#[test]
+fn an_agent_of_a_category_with_no_parameter_becomes_active_at_the_tick_after_its_creation() {
+    let mut w = world(&[]);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(approved(0, Category::CalendarCleanup)));
+    listed_agent(
+        &w,
+        0,
+        &minted(1),
+        &A {
+            runtime: "graph_calendar",
+            ..AUTO
+        },
+    );
+    w.go(Move::Create);
+    assert_eq!(set_states(&w), Vec::<String>::new());
+    w.owner_workflow(0, |f| f.agent = Some(minted(1)));
+    w.forget();
+    w.tick();
+    assert_eq!(set_states(&w), ["set_state active"]);
+    w.owner_workflow(0, |f| f.state = WorkflowState::Active);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "the list shows the agent active"
+    );
+}
+
+#[test]
+fn a_lost_acknowledgement_of_active_is_followed_by_a_second_send_at_the_next_tick() {
+    let mut w = world(&[manual()]);
+    approved_listed(&w, 0);
+    w.ports.refuse(Method::Send, PortError::Busy);
+    w.tick();
+    assert_eq!(set_states(&w), Vec::<String>::new());
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "no send on a failed read of the agents"
+    );
+    w.ports.clear_refusals();
+    w.forget();
+    w.tick();
+    assert_eq!(set_states(&w), ["set_state active"]);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        ["set_state active"],
+        "until the list shows it active"
+    );
+}
+
+#[test]
+fn a_web_agent_becomes_active_only_after_a_completed_run() {
+    let web = A {
+        runtime: "web",
+        playbook: false,
+        finished: false,
+        slotted: false,
+        ..AUTO
+    };
+    let mut w = world(&[web]);
+    approved_listed(&w, 0);
+    w.tick();
+    assert_eq!(set_states(&w), Vec::<String>::new(), "no completed run yet");
+    let run = ok_run(&w.start(0));
+    w.end(&run, Some(Outcome::Declined));
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "its last run did not complete"
+    );
+    w.clock(T0, DAY + 1);
+    let run = ok_run(&w.start(0));
+    w.end(&run, Some(Outcome::Completed));
+    w.owner_agent(0, |a| {
+        a.config = config(
+            0,
+            &A {
+                playbook: true,
+                ..web
+            },
+        )
+    });
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        ["set_state active"],
+        "the store holds the playbook of the completed compile run"
+    );
+}
+
+#[test]
+fn an_agent_on_which_a_hold_stands_gets_no_active() {
+    let email = A {
+        category: Category::Email,
+        runtime: "graph_mail",
+        slots: &[],
+        ..manual()
+    };
+    let none = A {
+        runtime: "none",
+        category: Category::RideOrder,
+        ..manual()
+    };
+    let mut w = world(&[email, none, manual()]);
+    for n in 0..3 {
+        approved_listed(&w, n);
+    }
+    w.go(Move::SwitchOff { agent: agent(2) });
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "setup, not_yet and off"
     );
 }

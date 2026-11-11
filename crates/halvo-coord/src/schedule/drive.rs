@@ -1,13 +1,13 @@
 use super::{
     active_state, current_slot, finished, holds, slot_open, start_step, tick_plan, tick_step,
-    Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing, Stop, Verdict, Waiting,
+    wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing, Stop, Verdict,
+    Waiting,
 };
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
     Doing, Event, Facts, HoldSetCause, ItemId, Live, Outcome, OwnItem, OwnItemKind, Raised,
-    ReadyAnswer, RunEnd, RunId, RunSpec, Runtime, Trigger, What, Workflow, WorkflowId,
-    WorkflowState,
+    ReadyAnswer, RunEnd, RunId, RunSpec, Trigger, What, Workflow, WorkflowId, WorkflowState,
 };
 use std::num::NonZeroU32;
 
@@ -722,6 +722,11 @@ where
     if plan.serve && starts {
         report.next.extend(serve(cx, board, &listed));
     }
+    for m in &board.members {
+        if starts && wants_active(&m.facts) {
+            send_state(cx, &m.facts, AgentState::Active);
+        }
+    }
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
@@ -758,10 +763,7 @@ where
     let mut made = Vec::new();
     for w in workflows {
         let Workflow::Full(f) = w else { continue };
-        let wanted = f.state == WorkflowState::Approved
-            && f.agent.is_none()
-            && !board.created.contains(&f.id)
-            && !board.members.iter().any(|m| m.facts.workflow.id == f.id);
+        let wanted = f.state == WorkflowState::Approved && f.agent.is_none();
         if !wanted {
             continue;
         }
@@ -777,7 +779,6 @@ where
             agent: agent.clone(),
         };
         if cx.ports.send(&body).is_ok() {
-            board.created.push(f.id.clone());
             report.created.push(agent.clone());
             made.push((f, agent));
         }
@@ -795,6 +796,13 @@ where
         else {
             continue;
         };
+        if board
+            .members
+            .iter()
+            .any(|m| m.facts.workflow.id == workflow.id)
+        {
+            continue;
+        }
         let member = Member {
             facts: Facts {
                 agent: id.clone(),
@@ -813,12 +821,8 @@ where
             .members
             .partition_point(|m| m.facts.agent < member.facts.agent);
         board.members.insert(at, member);
-        let standing = holds(&board.members[at].facts);
-        let runtime = board.members[at].facts.config.runtime();
-        if standing.contains(&Hold::Setup) {
+        if holds(&board.members[at].facts).contains(&Hold::Setup) {
             let _ = raise(cx, board, at, Raised::Setup, OwnItemKind::Setup);
-        } else if standing.is_empty() && runtime != Runtime::Web && runtime != Runtime::None {
-            send_state(cx, &board.members[at].facts, AgentState::Active);
         }
     }
     report
@@ -982,7 +986,9 @@ where
 /// agent's queued start and open item with nothing stored (I5.7); kills by `Runs::kill`, in the
 /// order of their starts, every run whose stop came at least `cancel_grace_s` before it, live
 /// or ended in between, and ends each live one with the cause of its stop; serves the queue
-/// only when no run was live before it; and then raises the `ready` items and makes the starts
+/// only when no run was live before it; sends `set_state` `active` for each agent that
+/// `wants_active` names (ruling IG-6a), again at each tick until the owner's list shows it
+/// `active`; and then raises the `ready` items and makes the starts
 /// that `tick_step` gives, agent by agent; it serves and starts only when its reads of the
 /// owner's list and of `Owner::agents` answered, and raises a `ready` item only then. Each
 /// move decides from what the owner answers in that move (ruling XB-9): the workflow's state,

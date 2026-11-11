@@ -1,5 +1,23 @@
 use super::{current_slot, finished, holds, needs_person, slot_due, slot_open, Board};
-use crate::types::{AgentId, ConfigView, Doing, Facts, Limits, RunEnd, RunId, What, WorkflowId};
+use crate::types::{
+    AgentId, ConfigView, Doing, Facts, Limits, Outcome, RunEnd, RunId, Runtime, What, WorkflowId,
+    WorkflowState,
+};
+
+/// Whether a tick sends `set_state` `active` for the agent (ruling IG-6a): the owner's list
+/// shows its workflow `approved`, no hold stands on it (so its runtime is not `none`, which is
+/// the hold `not_yet`), and for the runtime `web` its last run record has the outcome
+/// `completed`, which is its first run in the mode `compile`. The one rule for every runtime; the
+/// creation and the ends of runs send no `active`.
+pub fn wants_active<C: ConfigView>(facts: &Facts<C>) -> bool {
+    facts.workflow.state == WorkflowState::Approved
+        && holds(facts).is_empty()
+        && (facts.config.runtime() != Runtime::Web
+            || facts
+                .runs
+                .first()
+                .is_some_and(|r| r.outcome == Outcome::Completed))
+}
 
 /// What one tick raises or starts for an agent (I5.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

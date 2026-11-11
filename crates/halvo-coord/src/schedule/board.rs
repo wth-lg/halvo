@@ -86,8 +86,8 @@ pub struct Dying {
 /// The coordinator's state of the schedule in one life of the app, which `drive` reads and
 /// changes: the day of its last tick, the agents in ascending id, the queue, the live runs and
 /// the stopped runs that wait for their kill in the order of their starts, the workflows that a
-/// tick saw gone, the workflows for which this life sent `create_agent`, and whether the last
-/// creation found an approved workflow beyond `roster_max` (I2.5 `note.roster_full`).
+/// tick saw gone, whether the last creation found an approved workflow beyond `roster_max` (I2.5
+/// `note.roster_full`), and what the coordinator owes the owner.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Board<C> {
     /// The coordinator's day (I5.9).
@@ -102,8 +102,6 @@ pub struct Board<C> {
     pub dying: Vec<Dying>,
     /// The workflows that a tick saw gone from the owner's list.
     pub gone: Vec<WorkflowId>,
-    /// The workflows for which this life sent `create_agent`.
-    pub created: Vec<WorkflowId>,
     /// Whether the last creation left an approved workflow with no agent for `roster_max`.
     pub roster_full: bool,
     /// What the coordinator owes the owner, in the order in which it came to be owed.
@@ -126,7 +124,6 @@ impl<C> Board<C> {
             runs: Vec::new(),
             dying: Vec::new(),
             gone: Vec::new(),
-            created: Vec::new(),
             roster_full: false,
             owed: Vec::new(),
             ranks: 0,
