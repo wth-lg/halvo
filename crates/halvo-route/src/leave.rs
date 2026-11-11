@@ -581,7 +581,6 @@ mod tests {
             .copied()
             .collect();
         assert_eq!(attributes, ["#[derive(Debug)]"]);
-        assert!(!joined.contains("unsafe"));
     }
 
     fn crate_sources() -> Vec<(String, String)> {

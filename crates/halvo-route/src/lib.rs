@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod admit;
 pub mod cap;
 pub mod leave;
