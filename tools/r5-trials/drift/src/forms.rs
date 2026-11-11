@@ -136,7 +136,7 @@ fn only_step(case: &Case, control: &str) -> Result<usize, Rule> {
         .map(|(index, _)| index);
     match (steps.next(), steps.next()) {
         (Some(index), None) => Ok(index),
-        _ => Err(NO_CHANGE),
+        _ => Err(OTHER_CHANGE),
     }
 }
 
@@ -260,7 +260,6 @@ fn structure(case: &Case) -> Result<Plan, Rule> {
     let &change = events.first().ok_or(NO_CHANGE)?;
     let first = diff(pages[change - 1], pages[change]);
     let control = match first.changed[..] {
-        [] => return Err(NO_CHANGE),
         [control] => control.to_owned(),
         _ => return Err(OTHER_CHANGE),
     };
@@ -333,8 +332,13 @@ fn structure(case: &Case) -> Result<Plan, Rule> {
             let old = find(pages[change - 1], &plan.control).ok_or(NO_CHANGE)?;
             for at in change + 1..=last {
                 let form = if (at - change) % 2 == 0 { new } else { old };
-                if !same(&with(pages[at - 1], form), pages[at]) {
-                    return Err(NOT_IN_TURN);
+                let expected = with(pages[at - 1], form);
+                if !same(&expected, pages[at]) {
+                    return Err(if diff(&expected, pages[at]).changes_only(&plan.control) {
+                        NOT_IN_TURN
+                    } else {
+                        OTHER_CHANGE
+                    });
                 }
             }
         }

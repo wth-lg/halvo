@@ -1,3 +1,4 @@
+REFUSED case: BAD2.jsonl: the case name is not 1 to 32 bytes of a to z, 0 to 9 and -
 REFUSED case: alternates-early.jsonl: alternates: the change is before the third occurrence
 REFUSED case: alternates-no-return.jsonl: alternates: the page does not show the new and the old form in turn
 REFUSED case: alternates-short-tail.jsonl: alternates: fewer than four occurrences follow the change
@@ -64,12 +65,15 @@ REFUSED case: long-name-xxxxxxxxxxxxxxxxxxxxxxx.jsonl: the case name is not 1 to
 REFUSED case: name_underscore.jsonl: the case name is not 1 to 32 bytes of a to z, 0 to 9 and -
 REFUSED case: occurrences-seven.jsonl: the case has 7 occurrences, not 8 to 16
 REFUSED case: occurrences-seventeen.jsonl: the case has 17 occurrences, not 8 to 16
+REFUSED case: p1-filler-before.jsonl: renamed: the page changes other than the form says
+REFUSED case: p2-alt-filler.jsonl: alternates: the page changes other than the form says
+REFUSED case: p5-decoy-before.jsonl: decoy: the page changes other than the form says
 REFUSED case: p8-reused-tid-filler.jsonl: reused: another control of the case holds or held the test id of the other control
 REFUSED case: page-seventeen.jsonl: line 2: the page holds 17 controls, more than 16
 REFUSED case: renamed-early.jsonl: renamed: the change is before the third occurrence
-REFUSED case: renamed-filler-change.jsonl: renamed: the intended control of one step does not change
+REFUSED case: renamed-filler-change.jsonl: renamed: the page changes other than the form says
 REFUSED case: renamed-no-change.jsonl: renamed: the intended control of one step does not change
-REFUSED case: renamed-shared-control.jsonl: renamed: the intended control of one step does not change
+REFUSED case: renamed-shared-control.jsonl: renamed: the page changes other than the form says
 REFUSED case: renamed-short-tail.jsonl: renamed: fewer than three occurrences follow the change
 REFUSED case: renamed-twice-back.jsonl: renamed-twice: a change does not give the control a new test id and a new name alone
 REFUSED case: renamed-twice-close.jsonl: renamed-twice: the second change is fewer than three occurrences after the first
@@ -125,3 +129,4 @@ REFUSED case: text-bom.jsonl: the file is not UTF-8 text with LF line ends and o
 REFUSED case: text-empty.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
 REFUSED case: text-no-final-lf.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
 REFUSED case: text-not-utf8.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
+REFUSED case: text-two-final-lf.jsonl: the file is not UTF-8 text with LF line ends and one LF at its end
