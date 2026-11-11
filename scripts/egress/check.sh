@@ -62,6 +62,8 @@ sandbox_profile() {
     printf '(deny network-outbound (remote %s "*:*") (with message "%s %s any"))\n' "$family" "$1" "$family"
     printf '(deny network-outbound (remote %s "localhost:*") (with message "%s %s lo"))\n' "$family" "$1" "$family"
   done
+  printf '(deny network-outbound (socket-protocol 1) (with message "%s icmp4"))\n' "$1"
+  printf '(deny network-outbound (socket-protocol 58) (with message "%s icmp6"))\n' "$1"
   while read -r number part kind host port; do
     [ -n "$number" ] || continue
     case $kind:$part:$host in
@@ -480,6 +482,7 @@ want() {
     dns) printf '%s\n' 'dns *' ;;
     loopback) printf '%s\n' 'tcp 127.0.0.1:47201' ;;
     udp) printf '%s\n' 'udp 192.0.2.1:9' ;;
+    icmp) printf '%s\n' 'icmp *' ;;
     loopback2) printf '%s\n' 'tcp 127.0.0.1:47202' ;;
   esac
 }
@@ -500,6 +503,7 @@ classify() {
     BEGIN { split(want, w, " ") }
     {
       proto = field("proto"); dest = field("dest"); image = field("image")
+      if (w[1] == "icmp" && proto == "-") proto = "icmp"
       if (proto != w[1]) next
       if (image != "-" && image != "egress-probe" && image != "egress-probe.exe") next
       if (w[2] == "*" || dest == w[2]) found = 1
@@ -564,7 +568,7 @@ else
   lines="egress self-test mode=$mode deny=off"
 fi
 probes=ok
-for name in ipv4 ipv6 dns loopback udp; do
+for name in ipv4 ipv6 dns loopback udp icmp; do
   first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
   result=$(classify "$name" "$name")
   [ "$result" != missed ] || probes=miss

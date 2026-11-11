@@ -120,6 +120,10 @@ function Add-Rules {
             $null = New-NetFirewallRule -DisplayName "$group $count" -Group $group -Direction Outbound -Action Block -Program $program -Profile Any -Enabled True @spec
         }
     }
+    $count++
+    $null = New-NetFirewallRule -DisplayName "$group $count" -Group $group -Direction Outbound -Action Block -Protocol ICMPv4 -Profile Any -Enabled True
+    $count++
+    $null = New-NetFirewallRule -DisplayName "$group $count" -Group $group -Direction Outbound -Action Block -Protocol ICMPv6 -IcmpType 128 -Profile Any -Enabled True
     $count
 }
 
@@ -177,9 +181,10 @@ function Write-Log {
         if (-not $tree.ContainsKey($processId)) { continue }
         $seen["tree$($record.Id)"]++
         if ((Get-Field $xml 'Direction') -ne '%%14593') { continue }
-        $proto = switch (Get-Field $xml 'Protocol') { '6' { 'tcp' } '17' { 'udp' } default { '-' } }
+        $proto = switch (Get-Field $xml 'Protocol') { '6' { 'tcp' } '17' { 'udp' } '1' { 'icmp' } '58' { 'icmp' } default { '-' } }
         $address = Format-Address (Get-Field $xml 'DestAddress')
         $port = Get-Field $xml 'DestPort'
+        if ($proto -eq 'icmp') { $port = '-' }
         if ($record.Id -eq 5156) {
             if ($Deny -ne 1) { continue }
             if ($proto -ne '-' -and $allowed.ContainsKey("$address $port")) { continue }

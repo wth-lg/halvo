@@ -27,12 +27,13 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const LIMIT: Duration = Duration::from_secs(5);
-const NAMES: [&str; 8] = [
+const NAMES: [&str; 9] = [
     "ipv4",
     "ipv6",
     "dns",
     "loopback",
     "udp",
+    "icmp",
     "loopback2",
     "none",
     "listen",
@@ -114,10 +115,90 @@ fn attempt(name: &str) -> bool {
             .and_then(|socket| socket.send_to(&[0u8], v4(192, 0, 2, 1, 9)))
             .map(|sent| sent == 1)
             .unwrap_or(false),
+        "icmp" => icmp(),
         "none" => true,
         "listen" => listen(),
         _ => false,
     }
+}
+
+#[cfg(target_os = "macos")]
+fn icmp() -> bool {
+    extern "C" {
+        fn socket(domain: i32, kind: i32, protocol: i32) -> i32;
+        fn sendto(fd: i32, buf: *const u8, len: usize, flags: i32, addr: *const u8, len: u32)
+            -> isize;
+        fn close(fd: i32) -> i32;
+    }
+    let mut packet = [8u8, 0, 0, 0, 0x45, 0x47, 0, 1];
+    let mut sum: u32 = 0;
+    for pair in packet.chunks(2) {
+        sum += u32::from(u16::from_be_bytes([pair[0], pair[1]]));
+    }
+    while sum > 0xffff {
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+    let check = !(sum as u16);
+    packet[2..4].copy_from_slice(&check.to_be_bytes());
+    let addr: [u8; 16] = [16, 2, 0, 0, 192, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+    unsafe {
+        let fd = socket(2, 2, 1);
+        if fd < 0 {
+            return false;
+        }
+        let sent = sendto(fd, packet.as_ptr(), packet.len(), 0, addr.as_ptr(), 16);
+        close(fd);
+        sent == packet.len() as isize
+    }
+}
+
+#[cfg(windows)]
+fn icmp() -> bool {
+    #[link(name = "iphlpapi")]
+    extern "system" {
+        fn IcmpCreateFile() -> isize;
+        fn IcmpSendEcho(
+            handle: isize,
+            dest: u32,
+            data: *const u8,
+            size: u16,
+            options: *const u8,
+            reply: *mut u8,
+            reply_size: u32,
+            timeout: u32,
+        ) -> u32;
+        fn IcmpCloseHandle(handle: isize) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetLastError() -> u32;
+    }
+    let data = [0u8; 8];
+    let mut reply = [0u8; 256];
+    unsafe {
+        let handle = IcmpCreateFile();
+        if handle == -1 {
+            return false;
+        }
+        let count = IcmpSendEcho(
+            handle,
+            u32::from_ne_bytes([192, 0, 2, 1]),
+            data.as_ptr(),
+            data.len() as u16,
+            std::ptr::null(),
+            reply.as_mut_ptr(),
+            reply.len() as u32,
+            2000,
+        );
+        let error = GetLastError();
+        IcmpCloseHandle(handle);
+        count > 0 || error == 11010
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn icmp() -> bool {
+    false
 }
 
 fn listen() -> bool {
