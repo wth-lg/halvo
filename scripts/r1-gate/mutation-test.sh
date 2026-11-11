@@ -248,6 +248,8 @@ run_rows() {
       missing=$((missing + 1))
       [ "$strict" = no ] || say FAIL "$expected_name" "named in mutants.expected, and no row file holds or retires it"
     done < "$tree/scripts/r1-gate/mutants.expected"
+  elif [ "$strict" = yes ]; then
+    say FAIL expected "scripts/r1-gate/mutants.expected is missing, and --strict needs it"; failures=$((failures + 1))
   fi
   printf 'mutation rows: %s caught, %s failed, %s open, %s transitional, %s for the measuring Mac not run, %s expected names with no row\n' "$caught" "$failures" "$opens" "$transitionals" "$unrun" "$missing"
   [ "$failures" -eq 0 ] || return 1
@@ -261,6 +263,7 @@ fixture_tree() {
   printf 'echo one\n' > "$made/code/a.sh"
   printf 'echo two\n' > "$made/scripts/r1-gate/b.sh"
   : > "$made/scripts/r1-gate/mutants.rows"
+  : > "$made/scripts/r1-gate/mutants.expected"
 }
 
 row() {
@@ -469,6 +472,12 @@ cases() {
   t expected-name-with-no-row PASS fixture_run expected yes
   t expected-name-with-no-row-fails-strict FAIL fixture_run expected yes yes
   t expected-name-is-named PASS fixture_says expected 'FAIL mutation:never-written (named in mutants.expected' yes yes
+  fixture_tree no-expected
+  row no-expected/scripts/r1-gate/mutants.rows gone b.sh 's/two/2/' leak 'retired replaced by the test store::x' X-9
+  mv "$gate_scratch/no-expected/scripts/r1-gate/mutants.expected" "$gate_scratch/no-expected/expected-moved-away"
+  t expected-file-missing-fails-strict FAIL fixture_run no-expected yes yes
+  t expected-file-missing-is-named PASS fixture_says no-expected 'FAIL mutation:expected (scripts/r1-gate/mutants.expected is missing, and --strict needs it)' yes yes
+  t expected-file-missing-passes-without-strict PASS fixture_run no-expected yes
   fixture_tree empty
   t no-row-at-all FAIL fixture_run empty yes
   fixture_tree missing-file
