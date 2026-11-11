@@ -113,6 +113,7 @@ Release(s, i) ==
              st |-> [s EXCEPT !.items[i].st = "released",
                               !.table = {IF t.row.item = i THEN [t EXCEPT !.live = TRUE] ELSE t : t \in @}],
              ev |-> <<[k |-> "sent", item |-> i, via |-> "release", entries |-> es],
+                      [k |-> "released", item |-> i, entries |-> es],
                       Mv(i, "release", "none")>>]
 
 LapseOk(it, cause) ==
@@ -244,13 +245,15 @@ L3 == /\ \A c, d \in h.got : \A x \in c.entries : \A y \in d.entries :
             \A e \in d.entries : /\ e.approval \notin h.minted[d.item]
                                  /\ \A x \in h.stored : x.approval # e.approval
 L4 == \A i \in Items : \A k \in 1..Len(h.moves[i]) :
-        h.moves[i][k].m \in {"release", "lapse"} => k = Len(h.moves[i])
-
-L5 == \A d \in h.got : d.via = "release" =>
-        \A e \in d.entries : \E x \in h.acked : x.approval = e.approval
-
-L6 == \A d \in h.got : d.via = "lapse" => \A e \in d.entries : e.answer = "reject_once"
-
+        /\ h.moves[i][k].m \in {"release", "lapse"} => k = Len(h.moves[i])
+        /\ (h.moves[i][k].m = "lapse" /\ \E j \in 1..(k - 1) : h.moves[i][j].m = "record")
+              => h.moves[i][k].cause \in {"run_ended", "app_ended"}
+L5 == /\ \A d \in h.got : d.via = "release" =>
+            d.entries = {Entry(x) : x \in {y \in h.acked : y.item = d.item}}
+      /\ \A x \in h.released :
+            \E d \in h.got : d.via = "release" /\ d.item = x.item /\ d.entries = x.entries
+L6 == /\ \A d \in h.got : (d.via = "lapse" \/ d.after) => \A e \in d.entries : e.answer = "reject_once"
+      /\ \A x \in h.released : ~Lapsed(x.item)
 L7 == \A p \in h.passed : p.state = "approved" =>
         /\ p.first
         /\ \E x \in h.acked : /\ x.approval = p.approval
