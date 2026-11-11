@@ -39,7 +39,7 @@ and merge without an entry landing under the heading of another.
 - Added: Add the macOS capture sources for screen, keystroke, pointer, foreground app and window title
 - Added: Add the Windows capture dependencies for Graphics Capture, Raw Input and the registry
 - Added: Add the Windows capture backend behind cfg with the logon-task install and unit tests
-- Added: Add a CI grep lint banning low-level input hooks in the capture crate
+- Added: Add a gate lint banning low-level input hooks in the capture crate
 - Added: Reject attribution lines in commit messages with a commit-msg hook and a CI step
 - Added: Add AGENTS.md with the rule table and import it from CLAUDE.md
 - Added: Add failing fixtures for a trailer below scissors text that git keeps
@@ -64,7 +64,6 @@ and merge without an entry landing under the heading of another.
 - Changed: Name the parameters of expect and the one-mode rule of the option parser
 - Changed: Say in the CI log why the commit-message step checks every commit
 - Changed: Say newest exempt commit where the range check said baseline
-- Changed: Remove comments that restate the code in the commit-message check
 - Fixed: Read Windows raw input through an aligned buffer and close the pump start/stop race, carrying decoded payload sizes to an explicit metadata-only placement
 - Fixed: Watch every registry root and path the installed-software scan reads and parse SystemComponent to a bool at the boundary
 - Fixed: Quote every scheduled-task argument token and match the Task Scheduler Command element
@@ -89,7 +88,7 @@ and merge without an entry landing under the heading of another.
 - Fixed: Keep the Windows store root in a DPAPI-protected per-user file so delete-all destroys it
 - Fixed: Make the DPAPI protector crate-visible and the RSS pattern reader unix-only so Windows compiles
 - Added: Refuse attribution lines at push and at merge with a pre-push hook, scripts/merge-pr.sh, a tested CI script and tracked Claude Code settings, and lint line endings, the changelog and help text read by line number
-- Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, and pair each rule in AGENTS.md with its check and its limits
+- Changed: Decide every attribution check by one predicate, write the changelog as one flat list of typed entries, pair each rule in AGENTS.md with its check and its limits, and remove comments that restate the code in the commit-message check
 - Fixed: Check out shell scripts and git hooks with LF in every clone, and stop the commit-msg hook from refusing a clean git commit -v
 - Fixed: Release the store's writer lock explicitly so a spawned child cannot keep it held
 - Added: Add the per-run ci.d driver with the nine R1 checks, the bounds file of the R1 gate, its memory check and its mutant rows beside the code
