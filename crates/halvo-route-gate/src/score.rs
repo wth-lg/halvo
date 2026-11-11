@@ -229,8 +229,8 @@ struct ModelCell {
 }
 
 impl ModelCell {
-    fn has_rows(&self) -> bool {
-        self.tallies.iter().any(Tally::has_rows)
+    fn has_held_rows(&self) -> bool {
+        self.tallies.iter().any(|tally| tally.held.n > 0)
     }
 
     fn held_tiers(&self) -> Vec<Tier> {
@@ -308,7 +308,7 @@ pub fn score(
     for tier in Tier::ALL {
         if model_cells
             .iter()
-            .any(|cell| cell.tallies[tier as usize].has_rows())
+            .any(|cell| cell.tallies[tier as usize].held.n > 0)
         {
             let name = match tier {
                 Tier::OnDevice => "fixed_on_device",
@@ -433,7 +433,7 @@ fn route_sums(model_cells: &[ModelCell], choose: impl Fn(&ModelCell) -> Option<T
         sums: Sums::default(),
         attempted_cells: 0,
     };
-    for cell in model_cells.iter().filter(|cell| cell.has_rows()) {
+    for cell in model_cells.iter().filter(|cell| cell.has_held_rows()) {
         match choose(cell)
             .map(|tier| &cell.tallies[tier as usize])
             .filter(|tally| tally.held.n > 0)
@@ -449,25 +449,21 @@ fn route_sums(model_cells: &[ModelCell], choose: impl Fn(&ModelCell) -> Option<T
 }
 
 fn random_sums(model_cells: &[ModelCell], attempted: u64, draws: NonZeroU32) -> Sums {
-    let with_rows: Vec<&ModelCell> = model_cells.iter().filter(|cell| cell.has_rows()).collect();
-    let attemptable = with_rows
+    let with_rows: Vec<&ModelCell> = model_cells
         .iter()
-        .filter(|cell| !cell.held_tiers().is_empty())
-        .count();
+        .filter(|cell| cell.has_held_rows())
+        .collect();
     let mut sums = Sums::default();
-    let Some(attemptable) = NonZeroU64::new(attemptable as u64) else {
-        sums.handed_back = with_rows.len() as u128 * u128::from(draws.get());
+    let Some(attemptable) = NonZeroU64::new(with_rows.len() as u64) else {
         return sums;
     };
     let mut stream = SplitMix64::new(RANDOM_SEED);
     for _ in 0..draws.get() {
         for cell in &with_rows {
-            if cell.held_tiers().is_empty() {
-                sums.handed_back += 1;
-            } else if stream.below(attemptable) < attempted {
+            if stream.below(attemptable) < attempted {
                 let tiers = cell.held_tiers();
                 let count = NonZeroU64::new(tiers.len() as u64)
-                    .expect("a cell with rows has a tier with rows");
+                    .expect("a cell with held-out rows has a tier with held-out rows");
                 let tier = tiers[stream.below(count) as usize];
                 sums.attempt(&cell.tallies[tier as usize]);
             } else {
@@ -485,7 +481,7 @@ fn hindsight_sums(
     model_cells: &[ModelCell],
 ) -> Sums {
     let mut sums = Sums::default();
-    for cell in model_cells.iter().filter(|cell| cell.has_rows()) {
+    for cell in model_cells.iter().filter(|cell| cell.has_held_rows()) {
         let mut best: BTreeMap<(Seed, Machine, NonZeroU32), (u64, u64)> = BTreeMap::new();
         for tier in Tier::ALL {
             for row in tier_rows(table, setup, cell.category, cell.kind, tier)
