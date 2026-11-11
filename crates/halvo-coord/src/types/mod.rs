@@ -1,5 +1,8 @@
 //! The types of the coordinator (contracts I0.5, I0.10, I1.2, I3, I5, I8).
 
+pub mod commands;
+pub mod fixtures;
+
 mod cause;
 mod config;
 mod event;

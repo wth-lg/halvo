@@ -1,7 +1,8 @@
 use std::io::Write;
+use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "coord-words export";
+const USAGE: &str = "coord-words export | coord-words fixtures DIR";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -16,6 +17,18 @@ fn main() -> ExitCode {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(e) => {
                     eprintln!("coord-words: standard output could not be written: {e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        ["fixtures", dir] if !dir.is_empty() => {
+            match halvo_coord::types::fixtures::write(Path::new(dir)) {
+                Ok(n) => {
+                    println!("fixtures files={n}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("coord-words: the fixtures could not be written: {e}");
                     ExitCode::from(1)
                 }
             }
