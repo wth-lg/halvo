@@ -43,7 +43,10 @@ and `start_reruns_count` counts those starts. A run that gives no answer in 60 s
 The extraction cells run first, before any other window is on the display: on the Windows
 runner a prompt that Firefox raises at its first start stays on the display and would stand in
 every later frame. Every run of an address cell starts a browser process of its own with a new
-profile, so no other cell has touched the process that it reads.
+profile, so no other cell has touched the process that it reads. Safari has no switch for a
+profile directory and runs with the profile of the account; there a new process stands for a
+new profile (the coordinator's ruling of 2026-11-10), and the run writes `profile=account`
+where the others write `profile=new`.
 
 - `extract.RUNNER.ENGINE.TARGET.xSCALE`: a frame of the display through ScreenCaptureKit or
   Windows.Graphics.Capture, then two calls of the engine in the same process. `first_call_ms`
@@ -147,6 +150,8 @@ in 90 minutes, the median over every run on those frames decides. The cell names
 two it holds in `quiet_run` (`yes` or `none`; `pending` while the call waits), and gives the set
 medians, the lowest and the highest run and the load before and after. The cells whose names go
 on with `.first-set` and `.repeat-K` hold the single sets with their loads and decide nothing.
+A set timed on the frames of another hosted run stays out of the file, because a cell is tied to
+the `hosted-run` line of its frames (the coordinator's ruling of 2026-11-10).
 
 ## Checks
 

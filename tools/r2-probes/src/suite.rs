@@ -15,6 +15,33 @@ pub const WINDOW_MS: u64 = 2000;
 pub const DISPLAY: (usize, usize) = (1920, 1080);
 pub const SCALES: [&str; 2] = ["1.0", "0.5"];
 pub const ONE_ENGINE: &str = "pp-ocrv6-tiny";
+
+/// The profile that a run starts a browser with: a new directory where the browser has a
+/// switch for one, else the profile of the account, where a new process stands for a new
+/// profile.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Profile {
+    New,
+    Account,
+}
+
+impl Profile {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Profile::New => "new",
+            Profile::Account => "account",
+        }
+    }
+}
+
+/// Safari has no switch for a profile directory; every other browser of the suite has one.
+pub fn profile_of(browser: &Browser) -> Profile {
+    if browser.name == "safari" {
+        Profile::Account
+    } else {
+        Profile::New
+    }
+}
 const FIREFOX_PREFS: &str = "user_pref(\"browser.shell.checkDefaultBrowser\", false);\nuser_pref(\"browser.startup.homepage_override.mstone\", \"ignore\");\nuser_pref(\"startup.homepage_welcome_url\", \"about:blank\");\nuser_pref(\"startup.homepage_welcome_url.additional\", \"\");\nuser_pref(\"termsofuse.bypassNotification\", true);\nuser_pref(\"datareporting.policy.dataSubmissionPolicyBypassNotification\", true);\nuser_pref(\"browser.sessionstore.resume_from_crash\", false);\nuser_pref(\"browser.warnOnQuit\", false);\nuser_pref(\"app.update.disabledForTesting\", true);\nuser_pref(\"browser.aboutwelcome.enabled\", false);\n";
 
 #[derive(Default)]
@@ -45,6 +72,7 @@ struct Running {
     profile: PathBuf,
     webkit: bool,
     version: String,
+    starts_with: Profile,
 }
 
 impl Running {
@@ -345,6 +373,7 @@ impl Suite {
             profile,
             webkit,
             version,
+            starts_with: profile_of(browser),
         };
         if !self.server.wait_for(&token, Duration::from_secs(seconds)) {
             running.stop(&pages::title(page));
@@ -401,6 +430,7 @@ impl Suite {
             profile: dir,
             webkit: false,
             version: self.options.soffice_version.clone(),
+            starts_with: Profile::New,
         };
         Ok((running, file.to_string()))
     }
@@ -428,10 +458,12 @@ impl Suite {
                 let result = suite.child(&args, 60);
                 suite.snap(&cell, run);
                 let version = running.version.clone();
+                let profile = running.starts_with;
                 running.stop(&title);
                 Ok(result?
                     .text("served", "http-loopback")
-                    .text("version", &version))
+                    .text("version", &version)
+                    .text("profile", profile.as_str()))
             });
         }
     }
