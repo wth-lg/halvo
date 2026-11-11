@@ -98,8 +98,16 @@ mutant_builds() {
   case $1 in
     *.sh) sh -n "$tree/$1" > "$work/build.out" 2>&1 ;;
     *.c) cc -fsyntax-only "$tree/$1" > "$work/build.out" 2>&1 ;;
-    *) return 0 ;;
+    *.pl) perl -c "$tree/$1" > "$work/build.out" 2>&1 ;;
+    *.swift) swiftc -parse "$tree/$1" > "$work/build.out" 2>&1 ;;
+    *) return 1 ;;
   esac
+}
+
+buildable() {
+  needs_cargo "$1" && return 0
+  case $1 in *.sh|*.c|*.pl|*.swift) return 0 ;; esac
+  return 1
 }
 
 gate_lines() {
@@ -181,6 +189,7 @@ run_rows() {
     esac
     mutated=$(row_path)
     if [ ! -f "$tree/$mutated" ]; then say FAIL "$row_name" "the file $mutated is not in the copy"; failures=$((failures + 1)); continue; fi
+    if ! buildable "$mutated"; then say FAIL "$row_name" "the runner has no build for $mutated: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file"; failures=$((failures + 1)); continue; fi
     if needs_cargo "$mutated" && [ "$built_unmutated" = no ]; then
       if ! tree_build > "$work/unmutated.out" 2>&1; then
         first=$(head -1 "$work/unmutated.out")
@@ -421,6 +430,29 @@ cases() {
   fixture_tree not-a-substitution
   row not-a-substitution/scripts/r1-gate/mutants.rows other b.sh 'tr/a-z/A-Z/' leak required X-1
   t program-that-is-no-substitution FAIL fixture_run not-a-substitution yes
+  fixture_tree perl
+  printf 'use strict;\nprint 1;\n' > "$gate_scratch/perl/scripts/r1-gate/x.pl"
+  row perl/scripts/r1-gate/mutants.rows perl-broken x.pl 's/print 1;/print (;/' leak required X-1
+  t perl-mutant-with-a-syntax-error FAIL fixture_run perl yes
+  t perl-mutant-with-a-syntax-error-is-named PASS fixture_says perl 'FAIL mutation:perl-broken (the mutant does not build)' yes
+  fixture_tree perl-good
+  printf 'use strict;\nprint 1;\n' > "$gate_scratch/perl-good/scripts/r1-gate/x.pl"
+  row perl-good/scripts/r1-gate/mutants.rows perl-two x.pl 's/print 1;/print 2;/' leak required X-1
+  t perl-mutant-that-builds PASS fixture_says perl-good 'PASS mutation:perl-two (applies and builds)' yes
+  fixture_tree swift
+  printf 'let x = 1\n' > "$gate_scratch/swift/scripts/r1-gate/w.swift"
+  row swift/scripts/r1-gate/mutants.rows swift-broken w.swift 's/let x = 1/let x = (/' leak required X-1
+  t swift-mutant-with-a-syntax-error FAIL fixture_run swift yes
+  t swift-mutant-with-a-syntax-error-is-named PASS fixture_says swift 'FAIL mutation:swift-broken (the mutant does not build)' yes
+  fixture_tree swift-good
+  printf 'let x = 1\n' > "$gate_scratch/swift-good/scripts/r1-gate/w.swift"
+  row swift-good/scripts/r1-gate/mutants.rows swift-two w.swift 's/let x = 1/let x = 2/' leak required X-1
+  t swift-mutant-that-builds PASS fixture_says swift-good 'PASS mutation:swift-two (applies and builds)' yes
+  fixture_tree data
+  printf 'limit=1\n' > "$gate_scratch/data/scripts/r1-gate/data.txt"
+  row data/scripts/r1-gate/mutants.rows data-row data.txt 's/limit=1/limit=2/' leak required X-1
+  t row-on-a-file-of-another-kind FAIL fixture_run data yes
+  t row-on-a-file-of-another-kind-is-named PASS fixture_says data 'FAIL mutation:data-row (the runner has no build for scripts/r1-gate/data.txt: a row mutates a file that cargo builds, or a .sh, .c, .pl or .swift file)' yes
   fixture_tree outside
   row outside/scripts/r1-gate/mutants.rows outside ../../code/a.sh 's/one/1/' leak required X-1
   t file-outside-row-directory FAIL fixture_run outside yes
