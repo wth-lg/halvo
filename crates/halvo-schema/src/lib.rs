@@ -20,4 +20,6 @@ pub use request::{
     InterfaceRead, InterfaceRole, PushRefused, RawRequest, Read, Reply, ReplyResult, Role,
     RunnerBody, RunnerRequest, RunnerRole,
 };
-pub use site::{AppId, Domain, DomainSource, ObservedSite, SiteHash, SiteToken, SiteValue};
+pub use site::{
+    AppId, Domain, DomainSource, ObservedSite, SiteDomain, SiteHash, SiteToken, SiteValue,
+};

@@ -9,7 +9,8 @@ use halvo_schema::request::{
     INTERFACE_REQUEST_MAX,
 };
 use halvo_schema::{
-    Episode, EvidencePage, Position, RequestId, StoreId, SummaryId, Text, WorkflowId, WorkflowsPage,
+    AddressFieldLayer, Episode, EvidencePage, Position, RequestId, SiteDomain, StoreId, SummaryId,
+    Tagged, Text, WorkflowId, WorkflowsPage,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -1021,6 +1022,46 @@ fn not_malformed(cases: &[(&str, String)]) -> Vec<String> {
         })
         .map(|(label, _)| (*label).to_owned())
         .collect()
+}
+
+#[test]
+fn a_request_refuses_a_site_that_the_suffix_list_makes_a_suffix() {
+    let body = field(EXAMPLE, "body");
+    let one = |episode: String| with(&body, "episodes", &format!("[{episode}]"));
+    let observed = r#"{"domain":"github.io","source":"address_field"}"#;
+    let step = with(
+        STEP,
+        "site",
+        r#"{"value":"github.io","layer":"address_field"}"#,
+    );
+    let cases = [
+        (
+            "the site of an episode",
+            one(with(EPISODE, "site", observed)),
+        ),
+        (
+            "the site of a step",
+            one(with(EPISODE, "steps", &format!("[{step}]"))),
+        ),
+    ]
+    .map(|(label, body)| (label, line("analysis_write", &body)));
+    assert_eq!(not_malformed(&cases), Vec::<String>::new());
+    let mut episode = read::<Episode>(EPISODE);
+    let mut step = episode.steps[0].clone();
+    step.site = Some(Tagged {
+        value: SiteDomain::parse("github.io").unwrap(),
+        layer: AddressFieldLayer::AddressField,
+    });
+    episode.steps.push(step);
+    let mut write = example_write();
+    let refused = write.push(episode.clone()).unwrap_err();
+    assert_eq!(refused, PushRefused::Malformed(episode.clone()));
+    episode.steps[1].site = Some(Tagged {
+        value: SiteDomain::parse("northwind-power.test").unwrap(),
+        layer: AddressFieldLayer::AddressField,
+    });
+    write.push(episode).unwrap();
+    assert!(write.to_bytes().is_ok());
 }
 
 #[test]

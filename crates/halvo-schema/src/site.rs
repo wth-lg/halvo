@@ -104,6 +104,28 @@ impl Domain {
     }
 }
 
+fn site_domain(s: &str) -> Result<(), &'static str> {
+    domain_form(s)?;
+    if !s.contains('.') {
+        return Err("two_labels");
+    }
+    Ok(())
+}
+
+string_type! {
+    /// A domain as a stored record holds it: the written form of a `Domain` (its rules 1 to 4) with two labels or
+    /// more, and no check against the Public Suffix List, so that a stored key stays readable when the pin of the
+    /// list moves. `From<Domain>` is its one conversion; a caller that needs rule 5 calls `Domain::parse` on its
+    /// `as_str()`.
+    SiteDomain [Debug, PartialOrd, Ord, Hash] = site_domain
+}
+
+impl From<Domain> for SiteDomain {
+    fn from(domain: Domain) -> Self {
+        SiteDomain(domain.0)
+    }
+}
+
 fn token(s: &str) -> Result<(), &'static str> {
     if s.is_empty() || s.len() > 64 {
         return Err("length");
@@ -145,11 +167,15 @@ name_enum! {
 
 /// A site value as bounded and kept records store it, by its key and its source:
 /// `{"key":"<domain>","source":"address_field"|"sign_in"}` or `{"key":"<site hash>","source":"title"}`.
-/// A key whose form does not fit its source cannot be built and is refused by the reader.
+/// A key whose form does not fit its source cannot be built and is refused by the reader. The key of the domain
+/// form is a `SiteDomain`, which the reader does not check against the Public Suffix List.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SiteValue {
-    /// A registrable domain from the address field or a sign-in.
-    Domain { key: Domain, source: DomainSource },
+    /// A domain from the address field or a sign-in, stored from a registrable domain.
+    Domain {
+        key: SiteDomain,
+        source: DomainSource,
+    },
     /// The keyed hash of the title-derived site token. It is a hint and never an allowed origin.
     Title { key: SiteHash },
 }
@@ -180,8 +206,8 @@ impl<'de> Deserialize<'de> for SiteValue {
         #[derive(Deserialize)]
         #[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
         enum Stored {
-            AddressField { key: Domain },
-            SignIn { key: Domain },
+            AddressField { key: SiteDomain },
+            SignIn { key: SiteDomain },
             Title { key: SiteHash },
         }
         Ok(match object(deserializer)? {

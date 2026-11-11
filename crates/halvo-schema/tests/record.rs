@@ -176,6 +176,27 @@ fn a_refused_workflow_names_the_rule_of_its_shape() {
 }
 
 #[test]
+fn a_stored_record_reads_a_key_that_the_suffix_list_makes_a_suffix() {
+    for key in ["github.io", "www.northwind-power.test"] {
+        let site = format!(r#"{{"key":"{key}","source":"address_field"}}"#);
+        round_trip::<Summary>(&with(SUMMARY, "site", &site));
+        round_trip::<Workflow>(&with(PROPOSED, "site", &site));
+        let step = with(
+            STEP,
+            "site",
+            &format!(r#"{{"value":"{key}","layer":"address_field"}}"#),
+        );
+        round_trip::<ObservedStep>(&step);
+        round_trip::<Evidence>(&with(&evidence(), "steps", &format!("[{step}]")));
+        let error = refusal::<Episode>(&with(&episode(), "steps", &format!("[{step}]")));
+        assert!(error.starts_with("Domain: public_suffix"), "{error}");
+        let observed = format!(r#"{{"domain":"{key}","source":"address_field"}}"#);
+        let error = refusal::<Episode>(&with(&episode(), "site", &observed));
+        assert!(error.starts_with("Domain: public_suffix"), "{error}");
+    }
+}
+
+#[test]
 fn recurrence_and_confidence_keep_their_ranges() {
     let base = r#"{"count":3,"period":31,"first":20705,"last":20767}"#;
     for (key, value) in [
@@ -363,10 +384,7 @@ fn an_observed_step_takes_each_field_only_from_its_layers() {
         ("site", r#"{"value":"shop.test","layer":"floor"}"#),
         ("text", r#"{"value":"t","layer":"floor"}"#),
         ("text", r#"{"value":"t","layer":"address_field"}"#),
-        (
-            "site",
-            r#"{"value":"www.shop.test","layer":"address_field"}"#,
-        ),
+        ("site", r#"{"value":"shop","layer":"address_field"}"#),
         ("app", r#"{"value":"/usr/bin/vim","layer":"floor"}"#),
         ("input", r#"{"value":"keystroke","layer":"floor"}"#),
         ("input", r#"{"value":"click","layer":"floor","extra":1}"#),

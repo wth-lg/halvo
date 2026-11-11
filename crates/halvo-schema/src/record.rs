@@ -9,7 +9,7 @@ use crate::ids::{
     name_enum, object, parse_str, strict_struct, AgentId, ParseError, SummaryId, Version,
     WorkflowId, MAX_ORDINAL, VERSION,
 };
-use crate::site::{AppId, Domain, ObservedSite, SiteToken, SiteValue};
+use crate::site::{AppId, Domain, ObservedSite, SiteDomain, SiteToken, SiteValue};
 
 /// An instant: a signed count of nanoseconds since 1970-01-01T00:00:00Z, a JSON integer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -510,7 +510,7 @@ strict_struct! {
         pub app: Option<Tagged<AppId, FloorLayer>>,
         pub title: Option<Tagged<Text, FloorLayer>>,
         pub input: Option<Tagged<InputClass, FloorLayer>>,
-        pub site: Option<Tagged<Domain, AddressFieldLayer>>,
+        pub site: Option<Tagged<SiteDomain, AddressFieldLayer>>,
         pub text: Option<Tagged<Text, TextLayer>>,
     }
     rules(_s) {
@@ -539,7 +539,8 @@ strict_struct! {
 
 strict_struct! {
     /// An episode of the analysis write: the fields of its summary with the site in its observed form, and the
-    /// fields of its evidence without `summary` and `hint`. The rules of both hold.
+    /// fields of its evidence without `summary` and `hint`. The rules of both hold, and the site of each step is
+    /// a `Domain`, rule 5 included.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Episode {
         pub id: SummaryId,
@@ -560,7 +561,13 @@ strict_struct! {
     rules(e) {
         minutes("Episode", e.minutes)?;
         segments("Episode", &e.segments)?;
-        range("Episode", e.start, e.end)
+        range("Episode", e.start, e.end)?;
+        for step in &e.steps {
+            if let Some(site) = &step.site {
+                Domain::parse(site.value.as_str())?;
+            }
+        }
+        Ok(())
     }
 }
 

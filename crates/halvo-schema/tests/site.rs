@@ -1,7 +1,9 @@
 mod common;
 
 use common::{assert_strict, refused, round_trip};
-use halvo_schema::{AppId, Domain, ObservedSite, ParseError, SiteHash, SiteToken, SiteValue};
+use halvo_schema::{
+    AppId, Domain, ObservedSite, ParseError, SiteDomain, SiteHash, SiteToken, SiteValue,
+};
 
 const HASH: &str = "9f2c4b7a1d3e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e";
 
@@ -228,14 +230,14 @@ fn site_forms() {
     assert_eq!(
         round_trip::<SiteValue>(address),
         SiteValue::Domain {
-            key: domain.clone(),
+            key: SiteDomain::from(domain.clone()),
             source: halvo_schema::DomainSource::AddressField
         }
     );
     assert_eq!(
         round_trip::<SiteValue>(sign_in),
         SiteValue::Domain {
-            key: domain.clone(),
+            key: SiteDomain::from(domain.clone()),
             source: halvo_schema::DomainSource::SignIn
         }
     );
@@ -263,7 +265,7 @@ fn site_forms() {
     refused::<SiteValue>(r#"{"key":"northwind-power","source":"title"}"#);
     refused::<SiteValue>(&format!(r#"{{"key":"{HASH}","source":"address_field"}}"#));
     refused::<SiteValue>(&format!(r#"{{"key":"{HASH}","source":"sign_in"}}"#));
-    refused::<SiteValue>(r#"{"key":"www.northwind-power.test","source":"address_field"}"#);
+    refused::<SiteValue>(r#"{"key":"northwind-power","source":"address_field"}"#);
     refused::<SiteValue>(r#"{"key":"northwind-power.test","source":"sign-in"}"#);
     refused::<SiteValue>(r#"{"key":"northwind-power.test","source":null}"#);
     refused::<SiteValue>(observed_address);
@@ -305,6 +307,51 @@ fn a_domain_has_exactly_one_label_more_than_its_public_suffix() {
         Domain::parse("example.com").unwrap().as_str(),
         "example.com"
     );
+}
+
+#[test]
+fn a_site_domain_holds_rules_1_to_4_and_two_labels_and_not_rule_5() {
+    for ok in [
+        "github.io",
+        "www.shop.test",
+        "a.b.example.co.uk",
+        "shop.test",
+        "a.1x",
+    ] {
+        assert_eq!(SiteDomain::parse(ok).unwrap().as_str(), ok);
+        assert_eq!(SiteDomain::parse(ok).unwrap().to_string(), ok);
+    }
+    for (input, want) in [
+        ("northwind-power", "two_labels"),
+        ("test", "two_labels"),
+        ("", "ascii_length"),
+        ("caf\u{e9}.test", "ascii_length"),
+        ("shop..test", "label_join"),
+        ("Shop.test", "label_form"),
+        ("192.0.2.1", "numeric_last_label"),
+    ] {
+        assert_eq!(rule(SiteDomain::parse(input)), want, "{input:?}");
+    }
+    let domain = Domain::registrable("Pages.User.GitHub.io.").unwrap();
+    assert_eq!(domain.as_str(), "user.github.io");
+    assert_eq!(SiteDomain::from(domain).as_str(), "user.github.io");
+    assert_eq!(Domain::registrable("github.io"), None);
+    assert_eq!(rule(Domain::parse("github.io")), "public_suffix");
+    let a = SiteDomain::parse("a.test").unwrap();
+    let b = SiteDomain::parse("b.test").unwrap();
+    assert!(a < b);
+    let set: std::collections::HashSet<SiteDomain> = [a.clone(), a, b].into_iter().collect();
+    assert_eq!(set.len(), 2);
+}
+
+#[test]
+fn a_stored_site_value_keeps_a_key_that_the_suffix_list_makes_a_suffix() {
+    for key in ["github.io", "www.northwind-power.test"] {
+        for source in ["address_field", "sign_in"] {
+            assert_strict::<SiteValue>(&format!(r#"{{"key":"{key}","source":"{source}"}}"#));
+        }
+        refused::<ObservedSite>(&format!(r#"{{"domain":"{key}","source":"address_field"}}"#));
+    }
 }
 
 #[test]
