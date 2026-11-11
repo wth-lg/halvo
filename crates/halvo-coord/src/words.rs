@@ -289,6 +289,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ("confirm.submit.allow_many", "Submit all {count}"),
     ("confirm.submit.reject_many", "Don't submit these {count}"),
     ("confirm.new_site", "A site it has not used before"),
+    (
+        "confirm.changed",
+        "Something changed since you allowed this, so it asks you again.",
+    ),
     ("confirm.present", "See the details and answer"),
     ("from.you", "You gave this"),
     ("from.site", "From the site"),
