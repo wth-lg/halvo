@@ -18,7 +18,7 @@ modes_of() {
 }
 
 checks_line() {
-  printf '%s\n' "$1" | sed -n 's/^checks //p'
+  printf '%s\n' "$1" | sed -n 's/^checks //p' | sed 's/ lost=[0-9][0-9]*$//'
 }
 
 # decide KIND CODE OUTPUT: prints pass, or the cause of a failure, for one command of the file.
@@ -177,6 +177,8 @@ probe name=ipv4 result=denied
 checks probes=ok quiet=ok loopback=ok default=ok'
   fixture self-test-passes self-test 0 "$good" pass
   fixture self-test-exit-1 self-test 1 'checks probes=miss quiet=ok loopback=ok default=ok' fail
+  fixture self-test-passes-with-a-lost-report self-test 0 'checks probes=ok quiet=ok loopback=ok default=ok lost=1' pass
+  fixture self-test-lost-not-a-number self-test 0 'checks probes=ok quiet=ok loopback=ok default=ok lost=x' fail
   fixture self-test-default-miss self-test 0 'checks probes=ok quiet=ok loopback=ok default=miss' fail
   fixture self-test-no-checks self-test 0 'egress self-test mode=sandbox deny=on' fail
   fixture self-test-refused self-test 2 'REFUSED mode: wfp needs an elevated shell' fail

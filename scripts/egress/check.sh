@@ -693,6 +693,7 @@ lost_report() {
   [ "$1" = missed ] && [ "$deny" -eq 1 ] && [ "$run_status" != 0 ] && [ ! -s "$dir/denied.log" ]
 }
 
+lost_total=0
 for name in $names; do
   lost_runs=0
   while :; do
@@ -705,8 +706,9 @@ for name in $names; do
     break
   done
   [ "$result" != missed ] || probes=miss
+  lost_total=$((lost_total + lost_runs))
   lines="$lines
-probe name=$name result=$result lost=$lost_runs"
+probe name=$name result=$result"
 done
 first_form "$empty" "$deny" sh scripts/egress/probe.sh none </dev/null >/dev/null
 quiet=$(empty_ok)
@@ -730,7 +732,7 @@ first_form "$loopback" "$deny" sh scripts/egress/probe.sh listen </dev/null >/de
 listen=$(empty_ok)
 lines="$lines
 listed result=$listed
-unlisted result=$unlisted lost=$unlisted_lost
+unlisted result=$unlisted
 listen result=$listen"
 if [ "${GITHUB_ACTIONS:-}" != true ]; then
   lines="$lines
@@ -748,7 +750,7 @@ if [ -f "$trial" ]; then
     index($0, key) == 1 { rest = substr($0, length(key) + 1); sub(/[, ].*$/, "", rest); print rest; exit }' "$trial") || first=
   [ -z "$first" ] || [ "$first" != "$constant" ] || default=ok
 fi
-printf '%s\nchecks probes=%s quiet=%s loopback=%s default=%s\n' "$lines" "$probes" "$quiet" "$loop" "$default"
+printf '%s\nchecks probes=%s quiet=%s loopback=%s default=%s lost=%s\n' "$lines" "$probes" "$quiet" "$loop" "$default" "$((lost_total + unlisted_lost))"
 if [ "$probes" = ok ] && [ "$quiet" = ok ] && [ "$loop" = ok ] && [ "$default" = ok ]; then
   exit 0
 fi

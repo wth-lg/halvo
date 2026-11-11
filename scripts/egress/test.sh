@@ -449,8 +449,8 @@ TREE
   fi
   sh scripts/egress/check.sh --self-test >"$work/self-test.out" 2>"$work/self-test.err"
   code=$?
-  got=$(awk '/^(probe|unlisted) / && $NF !~ /^lost=[0-9]+$/ { bad++ } /^checks / { checks = $0 } END { printf "%d %s", bad, checks }' "$work/self-test.out")
-  result sandbox/self-test-lines-carry-lost "0 0 checks probes=ok quiet=ok loopback=ok default=ok" "$code $got"
+  got=$(awk '/^checks / { checks = $0; sub(/ lost=[0-9]+$/, " lost=<n>", checks) } END { print checks }' "$work/self-test.out")
+  result sandbox/self-test-checks-line-carries-lost "0 checks probes=ok quiet=ok loopback=ok default=ok lost=<n>" "$code $got"
   serve 47201
   expect_refusal sandbox/self-test-port-taken port sh scripts/egress/check.sh --self-test
   unserve
