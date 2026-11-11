@@ -521,6 +521,77 @@ fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
 }
 
 #[test]
+fn a_checkpoint_or_a_prepared_copy_is_taken_as_no_workbook() {
+    let scratch = Scratch::new("prepare-own-file");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let b5 = Range::parse("B5").expect("a range");
+    let _held = folder
+        .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0))
+        .expect("prepared");
+    let (checkpoint, copy) = names("values.xlsx");
+    let listing = scratch.names("");
+    let other = RunId::parse("fedcba9876543210fedcba9876543210").expect("a run id");
+    for file in [checkpoint.as_str(), copy.as_str()] {
+        let before = fs::read(scratch.path(file)).expect("read");
+        let got = folder.prepare(Path::new(file), &other, "Values", b5, &one(1.0));
+        let refused = Error::Path(halvo_sheet::PathRefusal::OwnFile);
+        assert_eq!(got.err(), Some(refused), "{file}");
+        assert_eq!(
+            fs::read(scratch.path(file)).expect("read"),
+            before,
+            "{file}"
+        );
+        assert_eq!(scratch.names(""), listing, "{file}");
+    }
+}
+
+#[test]
+fn a_checkpoint_name_that_is_a_link_to_a_file_outside_is_refused() {
+    let scratch = Scratch::new("prepare-checkpoint-link");
+    fs::create_dir_all(scratch.path("folder")).expect("make the folder");
+    fs::copy(corpus("values.xlsx"), scratch.path("folder/values.xlsx")).expect("copy");
+    let outside = scratch.write(
+        "outside.xlsx",
+        &fs::read(corpus("values.xlsx")).expect("read"),
+    );
+    let (checkpoint, _) = names("values.xlsx");
+    common::link_file(&outside, &scratch.path("folder").join(&checkpoint));
+    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let b5 = Range::parse("B5").expect("a range");
+    let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0));
+    assert_eq!(got.err(), Some(Error::Checkpoint));
+    assert_eq!(
+        fs::read(&outside).expect("read"),
+        fs::read(corpus("values.xlsx")).expect("read")
+    );
+    assert_eq!(
+        scratch.names("folder"),
+        sorted(vec![checkpoint, "values.xlsx".to_string()])
+    );
+}
+
+#[test]
+fn a_number_written_into_a_date_formatted_cell_holds_that_number() {
+    let scratch = Scratch::new("prepare-date-cell");
+    fs::copy(corpus("formats.xlsx"), scratch.path("formats.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let c2 = Range::parse("C2").expect("a range");
+    let prepared = folder
+        .prepare(
+            Path::new("formats.xlsx"),
+            &run(),
+            "Formats",
+            c2,
+            &one(46100.0),
+        )
+        .expect("a number fits a date-formatted cell");
+    folder.replace(&prepared).expect("replaced");
+    let read = folder.read(Path::new("formats.xlsx"), "Formats", c2);
+    assert_eq!(read, Ok(vec![vec![halvo_sheet::Cell::Number(46100.0)]]));
+}
+
+#[test]
 fn a_run_id_is_32_lower_case_hex_digits() {
     assert!(RunId::parse(RUN).is_ok());
     for bad in [

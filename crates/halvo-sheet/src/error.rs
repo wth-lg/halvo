@@ -39,6 +39,9 @@ pub enum PathRefusal {
     NotFile,
     /// A part of the path holds a colon, which on Windows names a stream of a file.
     Name,
+    /// The file name is one that this crate gives a checkpoint or a prepared copy: it holds
+    /// `.halvo-checkpoint-` or `.halvo-prepared-`. `prepare` takes no such file as a workbook.
+    OwnFile,
 }
 
 /// Why a source file is not of the form of contracts.md A1.2: one row per line, ended by LF,
@@ -113,6 +116,9 @@ pub enum Error {
     Sheet,
     /// `replace` left the workbook as it was.
     NotReplaced(Kept),
+    /// `replace` left the workbook as it was, and the system refused to remove the prepared
+    /// copy (a read-only directory, an immutable file), which stays beside the workbook.
+    CopyLeft(Kept),
 }
 
 impl Error {
@@ -131,7 +137,8 @@ impl Error {
             | Error::Value
             | Error::RunId
             | Error::Checkpoint
-            | Error::NotReplaced(_) => Cause::StepFailed,
+            | Error::NotReplaced(_)
+            | Error::CopyLeft(_) => Cause::StepFailed,
         }
     }
 }
@@ -158,6 +165,10 @@ impl fmt::Display for Error {
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),
             Error::NotReplaced(why) => write!(f, "the workbook was not replaced: {why:?}"),
+            Error::CopyLeft(why) => write!(
+                f,
+                "the workbook was not replaced: {why:?}; the prepared copy could not be removed"
+            ),
         }
     }
 }

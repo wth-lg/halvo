@@ -72,7 +72,9 @@ impl Folder {
     }
 
     /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
-    /// workbook at `workbook`. In this order, and before it writes any file: refuses `values`
+    /// workbook at `workbook`. In this order, and before it writes any file: refuses a workbook
+    /// whose name is one that it gives a checkpoint or a prepared copy
+    /// ([`PathRefusal::OwnFile`]); refuses `values`
     /// that do not have the rows and columns of `range` ([`Error::Shape`]) or that hold a text
     /// with a character that XML 1.0 does not allow or with more than the 32,767 UTF-16 code
     /// units of a cell ([`Error::Value`]); refuses with
@@ -100,6 +102,10 @@ impl Folder {
         values: &[Vec<Value>],
     ) -> Result<Prepared, Error> {
         let full = self.file(workbook)?;
+        let name = full.file_name().unwrap_or_default().to_string_lossy();
+        if name.contains(".halvo-checkpoint-") || name.contains(".halvo-prepared-") {
+            return Err(Error::Path(PathRefusal::OwnFile));
+        }
         write::prepare(&self.root, full, run, sheet, range, values)
     }
 
@@ -111,10 +117,13 @@ impl Folder {
     /// moment of the rename, the workbook's path is refused or the file is not the one that
     /// `prepare` read, the checkpoint is not that file either, the prepared copy is not the
     /// copy that `prepare` checked, or the system refuses the rename. With
-    /// [`Error::NotReplaced`] it removes the prepared copy when it can reach it with no link on
-    /// the way, so the checkpoint is the one file that stays beside the workbook after either
-    /// end. A second call with the same [`Prepared`] returns the answer of the first and
-    /// touches no file.
+    /// [`Error::NotReplaced`] it has removed the prepared copy when it could reach it with no
+    /// link on the way, so the checkpoint is the one file that stays beside the workbook after
+    /// either end; when the system refuses that removal too (a read-only directory, an
+    /// immutable copy) the answer is [`Error::CopyLeft`] and the copy stays. A second call with
+    /// the same [`Prepared`] returns the answer of the first call that a folder holding the
+    /// workbook made, and touches no file; a call refused as [`PathRefusal::Outside`] is no
+    /// such first call.
     pub fn replace(&self, prepared: &Prepared) -> Result<(), Error> {
         path::inside(&self.spellings, &prepared.workbook)?;
         prepared
@@ -124,12 +133,15 @@ impl Folder {
                     .file(&prepared.workbook)
                     .map_err(|_| Error::NotReplaced(Kept::Workbook))
                     .and_then(|_| write::replace(prepared));
-                if done.is_err() {
-                    if let Ok(copy) = self.file(&prepared.copy) {
-                        let _ = std::fs::remove_file(copy);
-                    }
+                match done {
+                    Err(Error::NotReplaced(why)) => match self.file(&prepared.copy) {
+                        Ok(copy) if std::fs::remove_file(&copy).is_err() => {
+                            Err(Error::CopyLeft(why))
+                        }
+                        _ => Err(Error::NotReplaced(why)),
+                    },
+                    other => other,
                 }
-                done
             })
             .clone()
     }

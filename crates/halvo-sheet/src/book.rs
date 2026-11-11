@@ -111,6 +111,7 @@ fn holds_new(value: &Value, cell: Option<&(Data, Option<String>)>) -> bool {
     match (value, cell) {
         (Value::Number(x), Some((Data::Float(y), None))) => x == y,
         (Value::Number(x), Some((Data::Int(y), None))) => *x == *y as f64,
+        (Value::Number(x), Some((Data::DateTime(date), None))) => *x == date.as_f64(),
         (Value::Text(text), Some((Data::String(read), None))) => text == read,
         (Value::Text(text), None) => text.is_empty(),
         _ => false,

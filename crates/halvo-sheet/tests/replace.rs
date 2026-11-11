@@ -192,6 +192,31 @@ fn a_folder_that_does_not_hold_the_workbook_touches_nothing_and_is_no_first_repl
     assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
 }
 
+#[cfg(unix)]
+#[test]
+fn a_copy_that_a_read_only_directory_keeps_is_named_in_the_answer_and_goes_at_the_drop() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("replace-read-only");
+    let (folder, prepared, before) = setup(&scratch);
+    let mode = |m: u32| {
+        fs::set_permissions(&scratch.dir, fs::Permissions::from_mode(m)).expect("chmod");
+    };
+    mode(0o555);
+    let got = folder.replace(&prepared);
+    let second = folder.replace(&prepared);
+    mode(0o755);
+    let left = Err(Error::CopyLeft(Kept::Rename(
+        std::io::ErrorKind::PermissionDenied,
+    )));
+    assert_eq!(got, left);
+    assert_eq!(second, left);
+    assert_eq!(Error::CopyLeft(Kept::Copy).cause(), Cause::StepFailed);
+    assert_eq!(fs::read(scratch.path(FILE)).expect("read"), before);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, COPY]));
+    drop(prepared);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT]));
+}
+
 #[cfg(target_os = "macos")]
 #[test]
 fn a_rename_that_the_system_refuses_keeps_the_workbook_on_macos() {

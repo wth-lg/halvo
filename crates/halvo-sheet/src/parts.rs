@@ -738,6 +738,18 @@ mod tests {
     }
 
     #[test]
+    fn a_validation_in_a_sheet_part_that_no_relationship_links_is_found_by_its_name() {
+        let mut all = corpus("values.xlsx");
+        let orphan = r#"<worksheet><sheetData/><dataValidations count="1"><dataValidation type="whole" sqref="A1"><formula1>0</formula1></dataValidation></dataValidations></worksheet>"#;
+        all.insert(
+            "xl/worksheets/sheet9.xml".to_string(),
+            orphan.as_bytes().to_vec(),
+        );
+        let found = inventory(&all).expect("an inventory");
+        assert_eq!(names(found.refused()), vec!["validation"]);
+    }
+
+    #[test]
     fn a_data_validations_element_with_no_child_is_no_validation() {
         let mut all = corpus("values.xlsx");
         edit(
