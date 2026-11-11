@@ -1,0 +1,8 @@
+{
+  "build": { "beforeBuildCommand": "sh spike/s6/stage.sh ." },
+  "bundle": {
+    "externalBin": ["../target/helpers/halvo-capture"],
+    "targets": ["app"],
+    "macOS": { "signingIdentity": "-", "minimumSystemVersion": "14.0" }
+  }
+}
