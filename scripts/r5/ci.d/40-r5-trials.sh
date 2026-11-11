@@ -20,9 +20,14 @@ note() {
 profile_ok() {
   [ -f "$1" ] || return 1
   awk '
-    $0 == "[profile.release]" { inside = 1; next }
-    /^\[/ { inside = 0 }
-    inside && $0 == "overflow-checks = true" { found = 1 }
+    {
+      line = $0
+      sub(/^[ \t]+/, "", line)
+      sub(/[ \t]+$/, "", line)
+    }
+    line == "[profile.release]" { inside = 1; next }
+    substr(line, 1, 1) == "[" { inside = 0 }
+    inside && line == "overflow-checks = true" { found = 1 }
     END { if (!found) exit 1 }
   ' "$1"
 }
@@ -286,6 +291,14 @@ self_test() {
   fixture profile-under-another-header
   printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\nopt-level = 3\n\n[profile.dev]\noverflow-checks = true\n' >"$work/profile-under-another-header/tools/r5-trials/Cargo.toml"
   check profile-under-another-header FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture profile-indented-header-before-the-line
+  printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\n  [profile.dev]\noverflow-checks = true\n' >"$work/profile-indented-header-before-the-line/tools/r5-trials/Cargo.toml"
+  check profile-indented-header-before-the-line FAIL-profile 'FAIL 40-r5-trials (profile)'
+
+  fixture profile-indented-release-header
+  printf '[workspace]\nmembers = [\n    "stat",\n]\n\n  [profile.release]\n  overflow-checks = true\n' >"$work/profile-indented-release-header/tools/r5-trials/Cargo.toml"
+  check profile-indented-release-header PASS "$all_same"
 
   fixture profile-false
   printf '[workspace]\nmembers = [\n    "stat",\n]\n\n[profile.release]\noverflow-checks = false\n' >"$work/profile-false/tools/r5-trials/Cargo.toml"
