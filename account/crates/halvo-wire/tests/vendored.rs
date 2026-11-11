@@ -92,40 +92,76 @@ fn lower_hex(text: &str, length: usize) -> bool {
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-fn record() -> Record {
-    let path = schema_dir().join("vendored.txt");
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
-    assert!(
-        text.ends_with('\n') && !text.contains('\r'),
-        "vendored.txt ends with a newline and holds no carriage return"
-    );
+fn parse_record(text: &str) -> Result<Record, String> {
+    if !text.ends_with('\n') || text.contains('\r') {
+        return Err("vendored.txt ends with a newline and holds no carriage return".to_string());
+    }
     let mut rows = text.lines();
     let commit = rows
         .next()
         .and_then(|first| first.strip_prefix("commit "))
-        .expect("the first line of vendored.txt is `commit <sha>`")
+        .filter(|commit| lower_hex(commit, 40))
+        .ok_or("the first line is `commit` and 40 lower-case hexadecimal digits")?
         .to_string();
-    assert!(
-        lower_hex(&commit, 40),
-        "the commit is 40 lower-case hexadecimal digits"
-    );
-    let lines = rows
-        .map(|row| {
-            let words: Vec<&str> = row.split(' ').collect();
-            assert_eq!(
-                words.len(),
-                3,
+    let mut lines = Vec::new();
+    for row in rows {
+        let words: Vec<&str> = row.split(' ').collect();
+        if words.len() != 3 || !lower_hex(words[0], 64) {
+            return Err(format!(
                 "a file line is `<sha256> <name> <backend path>`: {row:?}"
-            );
-            (
-                words[0].to_string(),
-                words[1].to_string(),
-                words[2].to_string(),
-            )
-        })
-        .collect();
-    Record { commit, lines }
+            ));
+        }
+        lines.push((
+            words[0].to_string(),
+            words[1].to_string(),
+            words[2].to_string(),
+        ));
+    }
+    Ok(Record { commit, lines })
+}
+
+fn record_text() -> String {
+    let path = schema_dir().join("vendored.txt");
+    fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()))
+}
+
+fn record() -> Record {
+    parse_record(&record_text()).unwrap_or_else(|error| panic!("{error}"))
+}
+
+#[test]
+fn the_record_parser_refuses_each_malformed_form() {
+    let good = record_text();
+    assert!(parse_record(&good).is_ok());
+    let commit = record().commit;
+    let first_sum = &record().lines[0].0;
+    let cases = [
+        ("carriage returns", good.replace('\n', "\r\n")),
+        ("no final newline", good.trim_end_matches('\n').to_string()),
+        (
+            "an upper-case commit",
+            good.replacen(&commit, &commit.to_uppercase(), 1),
+        ),
+        ("a short commit", good.replacen(&commit, &commit[1..], 1)),
+        (
+            "another first word",
+            good.replacen("commit ", "commit: ", 1),
+        ),
+        ("a short sum", good.replacen(first_sum, &first_sum[1..], 1)),
+        (
+            "an upper-case sum",
+            good.replacen(first_sum, &first_sum.to_uppercase(), 1),
+        ),
+        (
+            "a fourth word",
+            good.replacen(" contract/schema/v1.json", " contract/schema/v1.json x", 1),
+        ),
+    ];
+    for (label, text) in cases {
+        assert!(text != good, "{label}: the case changes the text");
+        assert!(parse_record(&text).is_err(), "{label} was read");
+    }
 }
 
 #[test]

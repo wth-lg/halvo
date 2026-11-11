@@ -428,6 +428,23 @@ fn the_compiled_routes_and_header_names_are_those_of_the_vendored_file() {
     assert_eq!(compiled_names, names);
 }
 
+fn edited(draw: &mut Draw, made: &str, alphabet: &[char]) -> String {
+    let mut text: Vec<char> = made.chars().collect();
+    for _ in 0..draw.below(3) {
+        let pick = alphabet[draw.below(alphabet.len() as u64) as usize];
+        let at = draw.below(text.len() as u64 + 1) as usize;
+        match draw.below(3) {
+            0 if at < text.len() => text[at] = pick,
+            1 => text.insert(at, pick),
+            _ if at < text.len() => {
+                text.remove(at);
+            }
+            _ => text.push(pick),
+        }
+    }
+    text.into_iter().collect()
+}
+
 #[test]
 fn ids_and_credentials_parse_exactly_what_the_vendored_patterns_match() {
     let routes = vendored("routes.v1.json");
@@ -439,47 +456,65 @@ fn ids_and_credentials_parse_exactly_what_the_vendored_patterns_match() {
         .expect("a pattern");
     let mut draw = Draw(SEED + 2);
     let alphabet: Vec<char> = "0123456789abcdefABCDEF-gz4 89".chars().collect();
-    let mut cases = 0;
+    let account = AccountId::from_random(draw.bytes());
+    let credential = Credential::from_random(draw.bytes());
+    let mut ids = vec![
+        String::new(),
+        account.as_str()[1..].to_string(),
+        account.as_str()[..35].to_string(),
+        format!("{}0", account.as_str()),
+    ];
+    let mut credentials = vec![
+        String::new(),
+        credential.as_str()[1..].to_string(),
+        format!("{}0", credential.as_str()),
+        format!("0{}", credential.as_str()),
+    ];
     for _ in 0..20_000 {
         let made = AccountId::from_random(draw.bytes());
-        let mut text: Vec<char> = made.as_str().chars().collect();
-        let edits = draw.below(3);
-        for _ in 0..edits {
-            let at = draw.below(text.len() as u64) as usize;
-            text[at] = alphabet[draw.below(alphabet.len() as u64) as usize];
-        }
-        if draw.below(10) == 0 {
-            text.push(alphabet[draw.below(alphabet.len() as u64) as usize]);
-        }
-        let text: String = text.into_iter().collect();
-        assert_eq!(
-            AccountId::parse(&text).is_some(),
-            matches(account_pattern, &text),
-            "{text:?}"
-        );
-        if edits == 0 {
-            assert!(matches(account_pattern, made.as_str()));
-        }
+        assert!(matches(account_pattern, made.as_str()));
+        ids.push(edited(&mut draw, made.as_str(), &alphabet));
         let made = Credential::from_random(draw.bytes());
-        let mut text: Vec<char> = made.as_str().chars().collect();
-        let edits = draw.below(3);
-        for _ in 0..edits {
-            let at = draw.below(text.len() as u64) as usize;
-            text[at] = alphabet[draw.below(alphabet.len() as u64) as usize];
-        }
-        if draw.below(10) == 0 {
-            text.pop();
-        }
-        let text: String = text.into_iter().collect();
-        let header = format!("Bearer {text}");
+        assert!(matches(
+            credential_pattern,
+            &format!("Bearer {}", made.as_str())
+        ));
+        credentials.push(edited(&mut draw, made.as_str(), &alphabet));
+    }
+    let lengths: std::collections::BTreeSet<usize> =
+        ids.iter().chain(&credentials).map(String::len).collect();
+    for length in [0, 35, 36, 37, 63, 64, 65] {
+        assert!(lengths.contains(&length), "no case of {length} characters");
+    }
+    for text in &ids {
         assert_eq!(
-            Credential::parse(&text).is_some(),
-            matches(credential_pattern, &header),
+            AccountId::parse(text).is_some(),
+            matches(account_pattern, text),
             "{text:?}"
         );
-        cases += 2;
     }
-    assert_eq!(cases, 40_000);
+    for text in &credentials {
+        assert_eq!(
+            Credential::parse(text).is_some(),
+            matches(credential_pattern, &format!("Bearer {text}")),
+            "{text:?}"
+        );
+    }
+    assert_eq!(ids.len() + credentials.len(), 40_008);
+}
+
+#[test]
+fn debug_output_holds_no_id_and_no_credential() {
+    let mut draw = Draw(SEED + 4);
+    let account = AccountId::from_random(draw.bytes());
+    let credential = Credential::from_random(draw.bytes());
+    let request = build(&Call::CapSet(cap(1, Period::Week)), &account, &credential)
+        .expect("a call within the bounds is built");
+    assert_eq!(format!("{account:?}"), "AccountId(..)");
+    assert_eq!(format!("{credential:?}"), "Credential(..)");
+    let printed = format!("{request:?} {:?}", Call::Status);
+    assert!(!printed.contains(account.as_str()) && !printed.contains(credential.as_str()));
+    assert!(printed.contains("header_names"));
 }
 
 #[test]
