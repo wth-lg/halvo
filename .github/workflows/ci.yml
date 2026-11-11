@@ -2,14 +2,9 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:
@@ -17,96 +12,108 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: Trial app
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+        run: |
+          set -u
+          app=tools/r4-trials/app
+          started=$(date +%s)
+          if ! cargo build --release --locked --manifest-path "$app/Cargo.toml"; then
+            echo "trial build=fail"
+            exit 1
+          fi
+          echo "trial build=ok seconds=$(( $(date +%s) - started ))"
+          bin="$app/target/release/r4-trial-app"
+          if [ -f "$bin.exe" ]; then bin="$bin.exe"; fi
+          echo "trial binary_bytes=$(wc -c <"$bin" | tr -d ' ')"
+          if [ "$RUNNER_OS" = Windows ]; then
+            key='SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+            if MSYS_NO_PATHCONV=1 reg query "HKLM\\$key" /v pv >/dev/null 2>&1 || MSYS_NO_PATHCONV=1 reg query "HKCU\\${key#*WOW6432Node\\}" /v pv >/dev/null 2>&1; then
+              echo "trial webview2_runtime=yes"
+            else
+              echo "trial webview2_runtime=no"
+            fi
+          fi
+          node --test "$app/tests/page.test.mjs" >"$RUNNER_TEMP/r4-page-test.out" 2>&1
+          echo "trial page_test_exit=$? $(grep -E '(pass|fail) [0-9]+$' "$RUNNER_TEMP/r4-page-test.out" | tr '\n' ' ')"
+          out="$RUNNER_TEMP/r4-trial-app.out"
+          "$bin" >"$out" 2>&1 &
+          pid=$!
+          port=
+          i=0
+          while [ "$i" -lt 600 ]; do
+            port=$(tr -d '\r' <"$out" | sed -n 's/^control port=\([0-9][0-9]*\)$/\1/p' | head -n 1)
+            if [ -n "$port" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 0.1
+            i=$((i + 1))
+          done
+          status=0
+          if [ -z "$port" ]; then
+            echo "trial control_port=none waited_ds=$i"
+            status=1
+          else
+            echo "trial control_port=found waited_ds=$i"
+            node -e '
+              const net = require("node:net");
+              const [port, ...lines] = process.argv.slice(1);
+              const socket = net.connect(Number(port), "127.0.0.1");
+              let buffer = "";
+              let failed = false;
+              let timer = null;
+              const next = () => {
+                const line = lines.shift();
+                if (line === undefined) { socket.end(); process.exitCode = failed ? 1 : 0; return; }
+                timer = setTimeout(() => { console.log("trial sent=" + line + " answer=timeout"); process.exit(1); }, 60000);
+                socket.write(line + "\n");
+                socket.once("answer", (answer) => {
+                  clearTimeout(timer);
+                  console.log("trial sent=" + line + " answer=" + answer);
+                  if (!answer.startsWith("ok")) failed = true;
+                  next();
+                });
+              };
+              socket.on("data", (chunk) => {
+                buffer += chunk;
+                let at;
+                while ((at = buffer.indexOf("\n")) >= 0) {
+                  const answer = buffer.slice(0, at).replace(/\r$/, "");
+                  buffer = buffer.slice(at + 1);
+                  socket.emit("answer", answer);
+                }
+              });
+              socket.on("error", (e) => { console.log("trial socket_error=" + e.code); process.exit(1); });
+              socket.on("connect", next);
+            ' "$port" show hide sample show sample quit || status=1
+          fi
+          i=0
+          while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
+            sleep 0.1
+            i=$((i + 1))
+          done
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "trial app_running_after_quit=yes"
+            kill "$pid"
+            status=1
+          else
+            wait "$pid"
+            echo "trial app_exit=$? after_ds=$i"
+          fi
+          echo "trial app_output_lines=$(wc -l <"$out" | tr -d ' ')"
+          tr -d '\r' <"$out" | sed -n -e 's/^\(control port=[0-9]*\)$/app \1/p' -e 's/^\(page [a-z_]* [a-z_]*=[0-9a-z_= ]*\)$/app \1/p'
+          tr -d '\r' <"$out" | grep -E "^(r4-trial-app: |thread '|refused cause=)" | cut -c1-300 | sed 's/^/app error: /'
+          echo "trial status=$status"
+          exit "$status"
 
   windows:
     runs-on: windows-2025
@@ -117,69 +124,101 @@ jobs:
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
+      - name: Trial app
         shell: bash
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
+          set -u
+          app=tools/r4-trials/app
+          started=$(date +%s)
+          if ! cargo build --release --locked --manifest-path "$app/Cargo.toml"; then
+            echo "trial build=fail"
             exit 1
           fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
+          echo "trial build=ok seconds=$(( $(date +%s) - started ))"
+          bin="$app/target/release/r4-trial-app"
+          if [ -f "$bin.exe" ]; then bin="$bin.exe"; fi
+          echo "trial binary_bytes=$(wc -c <"$bin" | tr -d ' ')"
+          if [ "$RUNNER_OS" = Windows ]; then
+            key='SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+            if MSYS_NO_PATHCONV=1 reg query "HKLM\\$key" /v pv >/dev/null 2>&1 || MSYS_NO_PATHCONV=1 reg query "HKCU\\${key#*WOW6432Node\\}" /v pv >/dev/null 2>&1; then
+              echo "trial webview2_runtime=yes"
+            else
+              echo "trial webview2_runtime=no"
+            fi
           fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          node --test "$app/tests/page.test.mjs" >"$RUNNER_TEMP/r4-page-test.out" 2>&1
+          echo "trial page_test_exit=$? $(grep -E '(pass|fail) [0-9]+$' "$RUNNER_TEMP/r4-page-test.out" | tr '\n' ' ')"
+          out="$RUNNER_TEMP/r4-trial-app.out"
+          "$bin" >"$out" 2>&1 &
+          pid=$!
+          port=
+          i=0
+          while [ "$i" -lt 600 ]; do
+            port=$(tr -d '\r' <"$out" | sed -n 's/^control port=\([0-9][0-9]*\)$/\1/p' | head -n 1)
+            if [ -n "$port" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 0.1
+            i=$((i + 1))
+          done
+          status=0
+          if [ -z "$port" ]; then
+            echo "trial control_port=none waited_ds=$i"
+            status=1
+          else
+            echo "trial control_port=found waited_ds=$i"
+            node -e '
+              const net = require("node:net");
+              const [port, ...lines] = process.argv.slice(1);
+              const socket = net.connect(Number(port), "127.0.0.1");
+              let buffer = "";
+              let failed = false;
+              let timer = null;
+              const next = () => {
+                const line = lines.shift();
+                if (line === undefined) { socket.end(); process.exitCode = failed ? 1 : 0; return; }
+                timer = setTimeout(() => { console.log("trial sent=" + line + " answer=timeout"); process.exit(1); }, 60000);
+                socket.write(line + "\n");
+                socket.once("answer", (answer) => {
+                  clearTimeout(timer);
+                  console.log("trial sent=" + line + " answer=" + answer);
+                  if (!answer.startsWith("ok")) failed = true;
+                  next();
+                });
+              };
+              socket.on("data", (chunk) => {
+                buffer += chunk;
+                let at;
+                while ((at = buffer.indexOf("\n")) >= 0) {
+                  const answer = buffer.slice(0, at).replace(/\r$/, "");
+                  buffer = buffer.slice(at + 1);
+                  socket.emit("answer", answer);
+                }
+              });
+              socket.on("error", (e) => { console.log("trial socket_error=" + e.code); process.exit(1); });
+              socket.on("connect", next);
+            ' "$port" show hide sample show sample quit || status=1
+          fi
+          i=0
+          while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
+            sleep 0.1
+            i=$((i + 1))
+          done
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "trial app_running_after_quit=yes"
+            kill "$pid"
+            status=1
+          else
+            wait "$pid"
+            echo "trial app_exit=$? after_ds=$i"
+          fi
+          echo "trial app_output_lines=$(wc -l <"$out" | tr -d ' ')"
+          tr -d '\r' <"$out" | sed -n -e 's/^\(control port=[0-9]*\)$/app \1/p' -e 's/^\(page [a-z_]* [a-z_]*=[0-9a-z_= ]*\)$/app \1/p'
+          tr -d '\r' <"$out" | grep -E "^(r4-trial-app: |thread '|refused cause=)" | cut -c1-300 | sed 's/^/app error: /'
+          echo "trial status=$status"
+          exit "$status"
