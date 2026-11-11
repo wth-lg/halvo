@@ -467,7 +467,7 @@ fn the_errors_of_c5_10_leave_the_state_that_their_table_gives() {
         client.read(),
         Err(ClientError::Refused(Cause::StoreError))
     ));
-    assert_eq!(client.position(), None);
+    assert_eq!(client.position(), Some(pos(1, 0)));
     assert!(matches!(client.close(), Err(ClientError::NotNow)));
     client
         .open(OpenCursor::at(store(), pos(1, 0), None, None).unwrap())
@@ -753,4 +753,66 @@ fn a_refusal_that_c5_9_allows_for_the_message_sent_stays_a_refusal() {
         Some(ClientError::Refused(Cause::BadRequest))
     );
     assert_eq!(sent(client).len(), 9);
+}
+
+#[test]
+fn after_store_error_the_position_of_the_last_batch_taken_stays_readable() {
+    let w = pos(3, 0);
+    let store_error = error_json("store-error", None);
+    let mut client = scripted(&[
+        opened(STORE, w, pos(1, 2)),
+        store_error.clone(),
+        opened(STORE, w, pos(1, 2)),
+        batch_json(STORE, w, &[], pos(2, 0)),
+        store_error,
+    ]);
+    let open = || OpenCursor::at(store(), pos(1, 2), None, None).unwrap();
+    client.open(open()).unwrap();
+    assert_eq!(client.read(), Err(ClientError::Refused(Cause::StoreError)));
+    assert_eq!(client.position(), Some(pos(1, 2)));
+    client.open(open()).unwrap();
+    client.read().unwrap();
+    assert_eq!(client.read(), Err(ClientError::Refused(Cause::StoreError)));
+    assert_eq!(client.position(), Some(pos(2, 0)));
+}
+
+#[test]
+fn after_store_changed_to_a_read_the_position_of_the_last_batch_taken_stays_readable() {
+    let w = pos(3, 0);
+    let mut client = scripted(&[
+        opened(STORE, w, pos(0, 0)),
+        batch_json(STORE, w, &[], pos(2, 0)),
+        error_json("store-changed", Some(OTHER)),
+    ]);
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    client.read().unwrap();
+    assert!(matches!(
+        client.read(),
+        Err(ClientError::Refused(Cause::StoreChanged(_)))
+    ));
+    assert_eq!(client.position(), Some(pos(2, 0)));
+
+    let files = store_files("after_store_changed_to_a_read", 2, 4);
+    let mut transport = FixtureTransport::open(&files, 1, None).unwrap();
+    let replace = transport.replace_handle();
+    let mut client = Client::new(&mut transport);
+    client.open(OpenCursor::fresh(None, None)).unwrap();
+    let b = client.read().unwrap();
+    replace.replace();
+    assert!(matches!(
+        client.read(),
+        Err(ClientError::Refused(Cause::StoreChanged(_)))
+    ));
+    assert_eq!(client.position(), Some(b.next));
+    let opened = client.open(OpenCursor::fresh(None, None)).unwrap();
+    assert_eq!(opened.watermark, pos(1, 0));
+    assert!(client.read().unwrap().records.is_empty());
+}
+
+#[test]
+fn after_bad_position_the_position_of_the_open_stays_readable() {
+    let mut client = scripted(&[error_json("bad-position", None)]);
+    let got = client.open(OpenCursor::at(store(), pos(9, 0), None, None).unwrap());
+    assert_eq!(got, Err(ClientError::Refused(Cause::BadPosition)));
+    assert_eq!(client.position(), Some(pos(9, 0)));
 }

@@ -140,6 +140,7 @@ enum State {
 pub struct Client<L> {
     link: L,
     state: State,
+    position: Option<Position>,
 }
 
 impl<L: Link> Client<L> {
@@ -148,6 +149,7 @@ impl<L: Link> Client<L> {
         Client {
             link,
             state: State::Idle,
+            position: None,
         }
     }
 
@@ -156,12 +158,12 @@ impl<L: Link> Client<L> {
         self.link
     }
 
-    /// The position of the open cursor, the `next` of its last Batch, or none when no cursor is open.
+    /// The position from which the reader goes on (C5.7 item 7, C5.12 item 8): the `next` of the last Batch
+    /// that the client took, or the position of the last `open_cursor` when its cursor took none. It stays
+    /// readable after `store-error`, `store-changed` or `bad-position` ended or refused a cursor, and after a
+    /// failed read; it is none before the first open and after a close.
     pub fn position(&self) -> Option<Position> {
-        match &self.state {
-            State::Open(open) => Some(open.position),
-            _ => None,
-        }
+        self.position
     }
 
     fn fail(&mut self, failure: Failure) -> ClientError {
@@ -228,6 +230,7 @@ impl<L: Link> Client<L> {
                 if !fits {
                     return Err(self.fail(Failure::Order("the reply to open_cursor")));
                 }
+                self.position = Some(b.next);
                 self.state = State::Open(Open {
                     store: b.store.clone(),
                     position: b.next,
@@ -240,7 +243,16 @@ impl<L: Link> Client<L> {
                     watermark: b.watermark,
                 })
             }
-            ServerMessage::Error(e) => Err(self.refused(e, Sent::Open(&open))),
+            ServerMessage::Error(e) => {
+                let refused = self.refused(e, Sent::Open(&open));
+                if let ClientError::Refused(
+                    Cause::StoreChanged(_) | Cause::BadPosition | Cause::StoreError,
+                ) = refused
+                {
+                    self.position = Some(open.position());
+                }
+                Err(refused)
+            }
             _ => Err(self.fail(Failure::Order("a reply other than batch or error"))),
         }
     }
@@ -269,6 +281,7 @@ impl<L: Link> Client<L> {
             open.position = b.next;
             open.watermark = b.watermark;
         }
+        self.position = Some(b.next);
         Ok(b)
     }
 
@@ -280,6 +293,7 @@ impl<L: Link> Client<L> {
         match self.send(&ClientMessage::Close)? {
             ServerMessage::Closed => {
                 self.state = State::Idle;
+                self.position = None;
                 Ok(())
             }
             ServerMessage::Error(e) => Err(self.refused(e, Sent::Close)),
