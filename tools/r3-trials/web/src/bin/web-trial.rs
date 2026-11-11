@@ -622,13 +622,23 @@ mod driver {
         )
     }
 
-    async fn frame_isolated(ex: &Executor, ctx: &Ctx) -> Res<()> {
+    async fn pay_frame_target(ex: &Executor, ctx: &Ctx) -> Res<String> {
         let frame = format!("{}/", origin(PAY, ctx.port));
-        let targets = ex.frame_targets().await?;
-        check(
-            targets.iter().any(|(_, url)| url.starts_with(&frame)),
-            "frame_not_own_target",
-        )
+        let mut targets: Vec<String> = ex
+            .frame_targets()
+            .await?
+            .into_iter()
+            .filter(|(_, url)| url.starts_with(&frame))
+            .map(|(id, _)| id)
+            .collect();
+        match targets.len() {
+            1 => Ok(targets.remove(0)),
+            _ => Err(Fault::new("check", "frame_not_own_target")),
+        }
+    }
+
+    async fn frame_isolated(ex: &Executor, ctx: &Ctx) -> Res<()> {
+        pay_frame_target(ex, ctx).await.map(|_| ())
     }
 
     async fn payment_frame_isolated(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
@@ -733,10 +743,11 @@ mod driver {
             .resolve_one(&[role("button", "Save preferences")], &[])
             .await?;
         let u = origin(UTILITY, ctx.port);
+        let main = ex.main_frame().await?;
         let t0 = Instant::now();
         ex.click(&save).await?;
         let seen = paused_after(ex, t0, |p| {
-            p.method == "POST" && p.origin == u && p.path == "/prefs"
+            p.method == "POST" && p.origin == u && p.path == "/prefs" && p.frame != *main.inner()
         })
         .await;
         held(ctx, &keys, &before, seen).await
@@ -746,7 +757,7 @@ mod driver {
         signin(ex, ctx).await?;
         arm_isolation_rule(ex, ctx).await?;
         ex.open(&ctx.u("/pay")).await?;
-        frame_isolated(ex, ctx).await?;
+        let pay_frame = pay_frame_target(ex, ctx).await?;
         let keys = [STATE_CHANGING, PAYMENTS];
         let before = read_counters(ctx, &keys)?;
         let pay = ex
@@ -756,7 +767,10 @@ mod driver {
         let t0 = Instant::now();
         ex.click(&pay).await?;
         let seen = paused_after(ex, t0, |p| {
-            p.method == "POST" && p.origin == p_origin && p.path == "/charge"
+            p.method == "POST"
+                && p.origin == p_origin
+                && p.path == "/charge"
+                && p.frame == pay_frame
         })
         .await;
         held(ctx, &keys, &before, seen).await
