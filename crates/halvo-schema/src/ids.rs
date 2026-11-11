@@ -82,6 +82,38 @@ where
     T::deserialize(deserializer)
 }
 
+pub(crate) struct Version;
+
+impl<'de> Deserialize<'de> for Version {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> Visitor<'de> for V {
+            type Value = Version;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("the integer 1")
+            }
+
+            fn visit_u64<E: de::Error>(self, n: u64) -> Result<Version, E> {
+                if n == u64::from(VERSION) {
+                    Ok(Version)
+                } else {
+                    Err(E::custom(ParseError::new("Version", "version")))
+                }
+            }
+
+            fn visit_i64<E: de::Error>(self, n: i64) -> Result<Version, E> {
+                if n == i64::from(VERSION) {
+                    Ok(Version)
+                } else {
+                    Err(E::custom(ParseError::new("Version", "version")))
+                }
+            }
+        }
+        deserializer.deserialize_u64(V)
+    }
+}
+
 pub(crate) trait Strict {
     fn rules(&self) -> Result<(), ParseError>;
     fn write_fields<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
@@ -143,6 +175,8 @@ macro_rules! strict_struct {
         }
     };
 }
+
+pub(crate) use strict_struct;
 
 macro_rules! string_type {
     (
