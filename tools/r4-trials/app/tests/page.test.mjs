@@ -188,9 +188,9 @@ test('the channel way counts what came while hidden and a step back as a miss', 
   const sub = page.named('subscribe')[0];
   const id = Number(sub.args.channel.slice('__CHANNEL__:'.length));
   const fn = page.callbacks.get(id);
-  fn({ message: { seq: 1, of: 4 }, index: 0 });
+  fn({ message: { seq: 1, of: 4, hidden: false }, index: 0 });
   page.ctx.__r4Window('hide');
-  fn({ message: { seq: 2, of: 4 }, index: 1 });
+  fn({ message: { seq: 2, of: 4, hidden: true }, index: 1 });
   page.ctx.__r4Window('show');
   fn({ message: { seq: 2, of: 4 }, index: 2 });
   fn({ message: { seq: 4, of: 4 }, index: 3 });
@@ -198,6 +198,39 @@ test('the channel way counts what came while hidden and a step back as a miss', 
   assert.deepEqual(page.reports(), [
     'window shown after_hide=1 hidden_ticks=0',
     'sync end last=4 order=miss after_hide=1 hidden_ticks=0'
+  ]);
+});
+
+test('a reply that the core sent before the hide and that resolves after it is not counted', async () => {
+  const pending = [];
+  const page = makePage({
+    config: { sync: 'get' },
+    next: () => new Promise((resolve) => pending.push(resolve))
+  });
+  page.load();
+  await settle();
+  assert.deepEqual(page.named('next').map((c) => c.args.seq), [0]);
+  page.ctx.__r4Window('hide');
+  pending.shift()({ seq: 5, of: 5, payload: 'x', hidden: false });
+  await settle();
+  assert.deepEqual(page.reports(), ['sync end last=5 order=ok after_hide=0 hidden_ticks=0']);
+});
+
+test('a change that the core sent after the hide is counted when it arrives before the show', async () => {
+  const page = makePage({ config: { sync: 'channel' }, subscribe: null });
+  page.load();
+  await settle();
+  const id = Number(page.named('subscribe')[0].args.channel.slice('__CHANNEL__:'.length));
+  const fn = page.callbacks.get(id);
+  fn({ message: { seq: 1, of: 3, hidden: false }, index: 0 });
+  page.ctx.__r4Window('hide');
+  fn({ message: { seq: 2, of: 3, hidden: true }, index: 1 });
+  page.ctx.__r4Window('show');
+  fn({ message: { seq: 3, of: 3, hidden: false }, index: 2 });
+  await settle();
+  assert.deepEqual(page.reports(), [
+    'window shown after_hide=1 hidden_ticks=0',
+    'sync end last=3 order=ok after_hide=1 hidden_ticks=0'
   ]);
 });
 
@@ -219,7 +252,7 @@ test('ticks after the page became hidden count as hidden ticks before the window
   page.tick(2);
   page.setVisibility('hidden');
   page.tick(3);
-  page.callbacks.get(id)({ message: { seq: 1, of: 2 }, index: 0 });
+  page.callbacks.get(id)({ message: { seq: 1, of: 2, hidden: true }, index: 0 });
   page.ctx.__r4Window('hide');
   page.tick(4);
   page.setVisibility('visible');

@@ -6,13 +6,16 @@ use serde::Serialize;
 /// The length of a change's payload, in bytes.
 pub const PAYLOAD_BYTES: usize = 256;
 
-/// One change of the sync trial: its `seq` from 1, the count `of` the send, and a payload of
-/// `PAYLOAD_BYTES` that differs from one `seq` to the next.
+/// One change of the sync trial: its `seq` from 1, the count `of` the send, a payload of
+/// `PAYLOAD_BYTES` that differs from one `seq` to the next, and `hidden`: whether the core had
+/// handled a hide and not yet the next show when it sent the change. The page counts a change
+/// with `hidden` in `after_hide`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Change {
     pub seq: u64,
     pub of: u64,
     pub payload: String,
+    pub hidden: bool,
 }
 
 /// The reply to one waiting call: the latest change, or `closed` when the window was hidden
@@ -23,7 +26,8 @@ pub enum Next {
     Closed,
 }
 
-/// The core's side of the way `get`: the latest change and whether the window is closed.
+/// The core's side of the sync ways: the latest change for the way `get`, whether that way is
+/// closed, and whether the core has handled a hide since the last show.
 pub struct Hub {
     state: Mutex<HubState>,
     changed: Condvar,
@@ -33,6 +37,7 @@ struct HubState {
     latest: Option<Change>,
     closed: bool,
     epoch: u64,
+    hidden: bool,
 }
 
 /// The change `seq` of a send of `of` changes.
@@ -47,7 +52,12 @@ pub fn change(seq: u64, of: u64) -> Change {
         z ^= z >> 31;
         payload.push_str(&format!("{z:016x}"));
     }
-    Change { seq, of, payload }
+    Change {
+        seq,
+        of,
+        payload,
+        hidden: false,
+    }
 }
 
 /// How many of `count` changes at `per_second` are due after `elapsed`.
@@ -73,6 +83,7 @@ impl Default for Hub {
                 latest: None,
                 closed: false,
                 epoch: 0,
+                hidden: false,
             }),
             changed: Condvar::new(),
         }
@@ -95,13 +106,26 @@ impl Hub {
         self.changed.notify_all();
     }
 
-    /// Marks the window open again.
+    /// Marks the window open again, and shown: a change sent from now on is not `hidden`.
     pub fn open(&self) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         state.closed = false;
+        state.hidden = false;
     }
 
-    /// Waits until the latest change has a `seq` above `seq`, or the window closes.
+    /// Marks that the core handled a hide: a change sent from now until `open` is `hidden`.
+    pub fn hide(&self) {
+        self.state.lock().unwrap_or_else(|e| e.into_inner()).hidden = true;
+    }
+
+    /// `change` with the mark of this moment, for a way that sends it now.
+    pub fn stamp(&self, change: Change) -> Change {
+        let hidden = self.state.lock().unwrap_or_else(|e| e.into_inner()).hidden;
+        Change { hidden, ..change }
+    }
+
+    /// Waits until the latest change has a `seq` above `seq`, or the window closes; the change
+    /// carries the mark of the moment of the reply.
     pub fn wait_next(&self, seq: u64) -> Next {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         let epoch = state.epoch;
@@ -110,7 +134,10 @@ impl Hub {
                 return Next::Closed;
             }
             if let Some(latest) = state.latest.as_ref().filter(|c| c.seq > seq) {
-                return Next::Change(latest.clone());
+                return Next::Change(Change {
+                    hidden: state.hidden,
+                    ..latest.clone()
+                });
             }
             state = self.changed.wait(state).unwrap_or_else(|e| e.into_inner());
         }
@@ -134,9 +161,11 @@ mod tests {
         assert_ne!(a.payload, b.payload);
         assert_eq!(change(1, 200_000), a);
         assert!(a.payload.bytes().all(|c| c.is_ascii_hexdigit()));
+        assert!(!a.hidden);
         let json = serde_json::to_value(&a).unwrap();
         assert_eq!(json["seq"], 1);
         assert_eq!(json["of"], 200_000);
+        assert_eq!(json["hidden"], false);
     }
 
     #[test]
@@ -195,6 +224,38 @@ mod tests {
         assert_eq!(hub.wait_next(0), Next::Closed);
         hub.open();
         assert_eq!(hub.wait_next(0), Next::Change(change(1, 10)));
+    }
+
+    #[test]
+    fn a_change_sent_after_the_hide_is_marked_hidden_until_the_show() {
+        let hub = Hub::default();
+        assert!(!hub.stamp(change(1, 3)).hidden);
+        hub.hide();
+        assert!(hub.stamp(change(2, 3)).hidden);
+        hub.open();
+        assert!(!hub.stamp(change(3, 3)).hidden);
+    }
+
+    #[test]
+    fn a_reply_carries_the_mark_of_the_moment_it_is_sent() {
+        let hub = Arc::new(Hub::default());
+        hub.publish(change(1, 10));
+        assert_eq!(hub.wait_next(0), Next::Change(change(1, 10)));
+        let waiter = {
+            let hub = hub.clone();
+            thread::spawn(move || hub.wait_next(1))
+        };
+        thread::sleep(Duration::from_millis(50));
+        hub.hide();
+        hub.publish(change(2, 10));
+        let reply = join(waiter);
+        assert_eq!(
+            reply,
+            Next::Change(Change {
+                hidden: true,
+                ..change(2, 10)
+            })
+        );
     }
 
     #[test]

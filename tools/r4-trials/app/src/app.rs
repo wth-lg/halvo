@@ -216,6 +216,7 @@ impl TrialCore {
         let Some(window) = self.window() else {
             return Answer::Err(ErrCause::NoWindow);
         };
+        self.hub.hide();
         self.hub.close();
         if matches!(self.options.arm, Arm::A | Arm::A2) {
             Self::eval(&window, "window.__r4Window && window.__r4Window('hide')");
@@ -236,6 +237,7 @@ impl TrialCore {
         let Some(window) = self.window() else {
             return Answer::Err(ErrCause::NoWindow);
         };
+        self.hub.hide();
         self.hub.close();
         self.page().alive = false;
         self.frames.cancel();
@@ -331,6 +333,7 @@ impl TrialCore {
     }
 
     fn deliver(&self, change: Change) {
+        let change = self.hub.stamp(change);
         match self.options.sync {
             Some(SyncWay::Channel) => {
                 let channel = self
@@ -378,6 +381,7 @@ impl TrialCore {
                 }
             }
             WindowEvent::CloseRequested { .. } => {
+                self.hub.hide();
                 self.hub.close();
                 self.page().alive = false;
                 self.frames.cancel();

@@ -49,7 +49,7 @@
     } else {
       sync.last = change.seq;
     }
-    if (hidden) {
+    if (change.hidden === true) {
       sync.afterHide += 1;
     }
     var mark = Math.floor(sync.last / 10000) * 10000;
