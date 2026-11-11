@@ -403,6 +403,10 @@ self_test() {
   lay d "docs/r3/x U1.4\n$d_rest"
   check pattern-is-anchored-at-the-start d outside 'layout outside=docs/r3/y/docs/r3/x'
 
+  make_repo e crates/halvo-runner/tests/injection_a.b.rs
+  lay e 'crates/halvo-runner/tests/injection_*.rs U6.2\n'
+  check star-matches-a-dot e PASS 'layout patterns=1 files=1 outside=0' --all
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
