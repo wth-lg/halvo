@@ -101,6 +101,32 @@ fn a_workbook_gone_or_turned_into_a_link_is_not_replaced() {
 }
 
 #[test]
+fn a_directory_turned_into_a_link_after_prepare_is_not_written_through() {
+    let scratch = Scratch::new("replace-dir-link");
+    fs::create_dir_all(scratch.path("sub")).expect("make the directory");
+    fs::copy(corpus(FILE), scratch.path("sub").join(FILE)).expect("copy");
+    let before = fs::read(scratch.path("sub").join(FILE)).expect("read");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let range = Range::parse("B5").expect("a range");
+    let values = vec![vec![Value::Number(77.0)]];
+    let prepared = folder
+        .prepare(Path::new("sub/values.xlsx"), &run, "Values", range, &values)
+        .expect("prepared");
+    fs::rename(scratch.path("sub"), scratch.path("real")).expect("move the directory");
+    common::link_dir(&scratch.path("real"), &scratch.path("sub"));
+    assert_eq!(
+        folder.replace(&prepared),
+        Err(Error::NotReplaced(Kept::Workbook))
+    );
+    assert_eq!(
+        fs::read(scratch.path("real").join(FILE)).expect("read"),
+        before
+    );
+    assert_eq!(scratch.names("real"), sorted(&[FILE, CHECKPOINT, COPY]));
+}
+
+#[test]
 fn a_checkpoint_gone_or_changed_keeps_the_workbook() {
     let scratch = Scratch::new("replace-checkpoint");
     let (folder, prepared, before) = setup(&scratch);

@@ -6,6 +6,8 @@ mod parts;
 mod path;
 mod range;
 mod source;
+#[cfg(test)]
+mod testing;
 mod write;
 
 use std::path::{Path, PathBuf};
@@ -18,8 +20,10 @@ pub use source::Value;
 pub use write::{Prepared, RunId};
 
 /// The directory that the permission `user_files` names, as the runner gives it. Every path
-/// that a call takes is the runner's: an absolute path under this directory or a path relative
-/// to it. A call follows no link, refuses a path that is a link, holds a link on its way, is a
+/// that a call takes is the runner's: a path relative to this directory, or an absolute path
+/// that starts with the directory as the runner gave it or with its canonical form (on Windows
+/// also that form without its `\\?\` prefix); any other absolute path is refused as outside.
+/// A call follows no link, refuses a path that is a link, holds a link on its way, is a
 /// directory or is not a regular file, and reads or writes no file outside this directory.
 #[derive(Debug)]
 pub struct Folder {

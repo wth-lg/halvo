@@ -27,8 +27,23 @@ fn a_folder_given_through_a_link_takes_both_spellings() {
     link_dir(&scratch.path("real"), &scratch.path("alias"));
     let folder = Folder::new(&scratch.path("alias")).expect("the folder opens through a link");
     let rows = Ok(vec![vec![halvo_sheet::Value::Number(1.0)]]);
+    let canonical = scratch.path("real").canonicalize().expect("canonical");
     assert_eq!(folder.read_source(&scratch.path("alias/a.csv")), rows);
-    assert_eq!(folder.read_source(&scratch.path("real/a.csv")), rows);
+    assert_eq!(folder.read_source(&canonical.join("a.csv")), rows);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_spelling_of_the_folder_that_is_neither_the_given_nor_the_canonical_one_is_refused() {
+    let scratch = Scratch::new("path-third-spelling");
+    scratch.write("real/a.csv", b"1\n");
+    link_dir(&scratch.path("real"), &scratch.path("alias"));
+    link_dir(&scratch.path("real"), &scratch.path("other"));
+    let folder = Folder::new(&scratch.path("alias")).expect("the folder opens through a link");
+    assert_eq!(
+        folder.read_source(&scratch.path("other/a.csv")),
+        refused(PathRefusal::Outside)
+    );
 }
 
 #[test]

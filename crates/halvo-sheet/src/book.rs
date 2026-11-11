@@ -164,3 +164,157 @@ pub(crate) fn same(
     let arrays = |bytes: &[u8]| parts::entries(bytes).and_then(|all| parts::array_formulas(&all));
     Ok(arrays(original)? == arrays(changed)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testing::{corpus, edit, zipped};
+
+    const SHEET: &str = "xl/worksheets/sheet1.xml";
+
+    fn bytes(file: &str, edits: &[(&str, &str, &str)]) -> Vec<u8> {
+        let mut all = corpus(file);
+        for (part, from, to) in edits {
+            edit(&mut all, part, from, to);
+        }
+        zipped(&all)
+    }
+
+    fn at(cell: &str) -> Range {
+        Range::parse(cell).expect("a range")
+    }
+
+    fn one(value: Value) -> Vec<Vec<Value>> {
+        vec![vec![value]]
+    }
+
+    #[test]
+    fn the_workbook_with_the_new_value_in_the_range_and_nothing_else_changed_is_the_same() {
+        let original = bytes("values.xlsx", &[]);
+        let b5 = [(
+            SHEET,
+            r#"<c r="B5"><v>12</v></c>"#,
+            r#"<c r="B5"><v>77</v></c>"#,
+        )];
+        let changed = bytes("values.xlsx", &b5);
+        let same_as = |values: &[Vec<Value>]| same(&original, &changed, "Values", at("B5"), values);
+        assert_eq!(same_as(&one(Value::Number(77.0))), Ok(true));
+        assert_eq!(same_as(&one(Value::Number(78.0))), Ok(false));
+        assert_eq!(same_as(&one(Value::Text("77".to_string()))), Ok(false));
+        let unchanged = same(
+            &original,
+            &original,
+            "Values",
+            at("B5"),
+            &one(Value::Number(77.0)),
+        );
+        assert_eq!(unchanged, Ok(false));
+    }
+
+    #[test]
+    fn an_empty_text_in_the_range_is_a_cell_that_holds_nothing() {
+        let original = bytes("values.xlsx", &[]);
+        let empty = one(Value::Text(String::new()));
+        assert_eq!(
+            same(&original, &original, "Values", at("F2"), &empty),
+            Ok(true)
+        );
+        let text = one(Value::Text("x".to_string()));
+        assert_eq!(
+            same(&original, &original, "Values", at("F2"), &text),
+            Ok(false)
+        );
+    }
+
+    type Case = (
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        (&'static str, &'static str, &'static str),
+    );
+
+    #[test]
+    fn another_value_another_formula_text_or_another_sheet_order_is_not_the_same() {
+        let cases: [Case; 3] = [
+            (
+                "values.xlsx",
+                "Values",
+                "B5",
+                "B6",
+                (
+                    SHEET,
+                    r#"<c r="B6"><v>15</v></c>"#,
+                    r#"<c r="B6"><v>16</v></c>"#,
+                ),
+            ),
+            (
+                "formulas.xlsx",
+                "Ledger",
+                "D2",
+                "D7",
+                (SHEET, "<f>SUM(D2:D6)</f>", "<f>SUM(D2:D5)</f>"),
+            ),
+            (
+                "two-sheets.xlsx",
+                "Input",
+                "B3",
+                "the sheet order",
+                (
+                    "xl/workbook.xml",
+                    r#"<sheet name="Input" sheetId="1" r:id="rId1"/><sheet name="Summary" sheetId="2" r:id="rId2"/>"#,
+                    r#"<sheet name="Summary" sheetId="2" r:id="rId2"/><sheet name="Input" sheetId="1" r:id="rId1"/>"#,
+                ),
+            ),
+        ];
+        for (file, sheet, target, what, change) in cases {
+            let original = bytes(file, &[]);
+            let changed = bytes(file, &[change]);
+            let values = one(Value::Number(1.0));
+            let control = bytes(file, &[]);
+            assert_eq!(
+                same(&original, &changed, sheet, at(target), &values),
+                Ok(false),
+                "{file} {what}"
+            );
+            let blank = same(&original, &control, sheet, at(target), &values);
+            assert_eq!(blank, Ok(false), "{file}: the target holds no new value");
+        }
+    }
+
+    #[test]
+    fn an_array_formula_that_covers_other_cells_is_compared_by_its_range() {
+        let row2 = r#"<c r="D2" t="b"><v>0</v></c></row>"#;
+        let row3 = r#"<c r="D3" t="b"><v>1</v></c></row>"#;
+        let f2 = r#"<c r="D2" t="b"><v>0</v></c><c r="F2"><f t="array" ref="F2:F3">B2:B3*2</f><v>6</v></c></row>"#;
+        let f3 = r#"<c r="D3" t="b"><v>1</v></c><c r="F3"><v>12</v></c></row>"#;
+        let mut original = corpus("values.xlsx");
+        edit(&mut original, SHEET, row2, f2);
+        edit(&mut original, SHEET, row3, f3);
+        let mut changed = original.clone();
+        edit(
+            &mut changed,
+            SHEET,
+            r#"<c r="B5"><v>12</v></c>"#,
+            r#"<c r="B5"><v>77</v></c>"#,
+        );
+        let values = one(Value::Number(77.0));
+        let kept = same(
+            &zipped(&original),
+            &zipped(&changed),
+            "Values",
+            at("B5"),
+            &values,
+        );
+        assert_eq!(kept, Ok(true));
+        edit(&mut changed, SHEET, r#"ref="F2:F3""#, r#"ref="F2:F2""#);
+        let shrunk = same(
+            &zipped(&original),
+            &zipped(&changed),
+            "Values",
+            at("B5"),
+            &values,
+        );
+        assert_eq!(shrunk, Ok(false));
+    }
+}
