@@ -71,6 +71,17 @@ test('a sync key needs every change in order, the end of the send, and for get n
   assert.equal(syncKey('channel', end, 'done', true, SENT_B), 'miss');
 });
 
+test('in the arms that hide and keep the page, channel and events need a change counted after the hide', () => {
+  const end = { last: SENT, order: 'ok', afterHide: 0 };
+  for (const way of ['channel', 'events']) {
+    assert.equal(syncKey(way, end, 'done', true, SENT, true), 'miss', way);
+    assert.equal(syncKey(way, { ...end, afterHide: 150 }, 'done', true, SENT, true), 'ok', way);
+    assert.equal(syncKey(way, end, 'done', true, SENT, false), 'ok', way);
+  }
+  assert.equal(syncKey('get', end, 'done', true, SENT, true), 'ok');
+  assert.equal(syncKey('get', { ...end, afterHide: 1 }, 'done', true, SENT, true), 'miss');
+});
+
 test('quiet reads the core quiet lines of arm a2 and wants none elsewhere', () => {
   const mac = ['core quiet system=macos call=background_throttling result=ok'];
   const done = { made: 1, hides: 1, shows: 3 };

@@ -94,11 +94,14 @@ export function parseEnd(line) {
 /** The key of a sync run: the page's end line holds the last change in order, the core ended
  * its send, and for the way `get` nothing that the core sent after a hide reached the page and,
  * after a hide, the page's waiting call got the reply `closed` (`closedAfterHide`, the line
- * `page sync closed last=<n>`; TA-13). */
-export function syncKey(way, end, sendDone, closedAfterHide, sent = SENT) {
+ * `page sync closed last=<n>`; TA-13). In an arm that hides its window and keeps its page
+ * (`keptHidden`, arms `a` and `a2`), the ways `channel` and `events` must show a change counted
+ * after the hide, so that a core that marks nothing it sends after the hide is a miss (TA-14). */
+export function syncKey(way, end, sendDone, closedAfterHide, sent = SENT, keptHidden = false) {
   if (!end || !sendDone) return 'miss';
   if (end.last !== sent || end.order !== 'ok') return 'miss';
   if (way === 'get' && (end.afterHide !== 0 || closedAfterHide !== true)) return 'miss';
+  if (way !== 'get' && keptHidden && !(end.afterHide > 0)) return 'miss';
   return 'ok';
 }
 
@@ -416,7 +419,7 @@ async function syncRun(options, arm, way, pages) {
     trace(`end=${end ? `last=${end.last},order=${end.order},after_hide=${end.afterHide}` : 'none'} send_done=${doneLine ? 'yes' : 'no'} closed_lines_after_hide=${closedLines}`);
     for (const line of app.lines.filter((l) => /^page (sync closed|window shown) /.test(l))) trace(`page_line=${line.slice(5).replace(/ /g, ',')}`);
     const key = steps.every((answer) => typeof answer === 'string' && answer.startsWith('ok'))
-      ? syncKey(way, end, doneLine, hidden ? closedLines > 0 : true, sent) : 'miss';
+      ? syncKey(way, end, doneLine, hidden ? closedLines > 0 : true, sent, hidden) : 'miss';
     await send('quit');
     await Promise.race([app.exited, sleep(QUIT_MS)]);
     return key;
