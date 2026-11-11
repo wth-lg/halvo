@@ -50,6 +50,8 @@ function emit(at, proto, dest, pid, image) {
 }
 
 {
+  if (jstr($0, "processImagePath") != "/kernel") next
+  if (jstr($0, "senderImagePath") !~ /\/Sandbox$/) next
   msg = jstr($0, "eventMessage")
   cut = index(msg, "\n")
   if (cut == 0) next
@@ -87,7 +89,7 @@ function emit(at, proto, dest, pid, image) {
   if (tag == "dns") { proto = "dns"; dest = "resolver" }
   else if (t[1] ~ /^(tcp|udp)[46]$/) {
     proto = substr(t[1], 1, 3)
-    if (t[2] == "lo") dest = (substr(t[1], 4, 1) == "4" ? "127.0.0.1" : "[::1]") ":" port
+    if (t[2] == "lo" && substr(t[1], 4, 1) == "4") dest = "127.0.0.1:" port
     else dest = "-:" port
   } else { proto = "-"; dest = "-" }
   if (dup == 0) { emit(at, proto, dest, pid, image); next }

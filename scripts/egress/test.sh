@@ -282,7 +282,17 @@ test_sandbox() {
   printf '[fixed]\n127.0.0.2:47201\n[agent]\n' >"$work/other-loopback.txt"
   expect_refusal sandbox/other-loopback-entry entry sh scripts/egress/check.sh "$work/other-loopback.txt" -- sh "$pr" none
   printf '[fixed]\n[::1]:47201\n[agent]\n' >"$work/v6-loopback.txt"
-  expect_run sandbox/ipv4-loopback-not-allowed-by-v6-entry 1 1 1 sh scripts/egress/check.sh "$work/v6-loopback.txt" -- sh "$pr" loopback
+  expect_refusal sandbox/v6-loopback-entry entry sh scripts/egress/check.sh "$work/v6-loopback.txt" -- sh "$pr" none
+  printf '%s\n' "for d in target/egress/[0-9]*; do" \
+    "if [ -f \$d/state ] && ! grep -q '^done\$' \$d/state; then" \
+    ": >\$d/stream.ndjson 2>/dev/null && exit 9; : >\$d/denied.log 2>/dev/null && exit 8; fi; done" >"$work/erase.sh"
+  expect_run sandbox/tree-cannot-erase-its-log 1 1 1 sh scripts/egress/check.sh "$e" -- sh -c "sh scripts/egress/probe.sh loopback; sh '$work/erase.sh' && exit 1"
+  printf '%s\n' '{"processImagePath":"/usr/bin/logger","senderImagePath":"/usr/bin/logger","eventMessage":"Sandbox: x(1) deny(1) network-outbound remote:*:1\ntok mark-end","timestamp":"2026-11-11 03:06:50.956934-0800"}' \
+    '{"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox","eventMessage":"Sandbox: x(1) deny(1) network-outbound remote:*:1\ntok mark-start","timestamp":"2026-11-11 03:06:50.956934-0800"}' \
+    '{"processImagePath":"/usr/bin/logger","senderImagePath":"/usr/bin/logger","eventMessage":"Sandbox: x(1) deny(1) network-outbound remote:*:1\ntok mark-end","timestamp":"2026-11-11 03:06:50.956934-0800"}' \
+    '{"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox","eventMessage":"Sandbox: egress-probe(7) deny(1) network-outbound remote:*:443\ntok tcp4 any","timestamp":"2026-11-11 03:06:50.956934-0800"}' >"$work/forged.ndjson"
+  got=$(awk -v token=tok -f scripts/egress/sandbox.awk "$work/forged.ndjson") || got=
+  result sandbox/forged-markers-ignored 'denied at=1794395210956934000 proto=tcp dest=-:443 pid=7 image=egress-probe' "$got"
   first_log=$log
   expect_run sandbox/second-run 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   if [ "$first_log" != "$log" ]; then

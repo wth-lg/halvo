@@ -4,7 +4,9 @@ param(
     [string]$Token = '',
     [int]$Deny = 1,
     [long]$CheckPid = 0,
-    [long]$Root = 0
+    [long]$Root = 0,
+    [string]$Start = '',
+    [string]$Listed = ''
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
@@ -138,11 +140,13 @@ function Format-Address([string]$address) {
 }
 
 function Get-Events([hashtable]$filter) {
-    try { @(Get-WinEvent -FilterHashtable $filter -ErrorAction Stop) } catch { @() }
+    try { @(Get-WinEvent -FilterHashtable $filter -ErrorAction Stop) } catch {
+        if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') { @() } else { throw }
+    }
 }
 
 function Write-Log {
-    $start = [DateTime]::Parse([IO.File]::ReadAllText((Join-Path $Dir 'start')).Trim(), $null, [Globalization.DateTimeStyles]::RoundtripKind)
+    $start = [DateTime]::Parse($Start, $null, [Globalization.DateTimeStyles]::RoundtripKind)
     Start-Sleep -Seconds 2
     $since = $start.ToLocalTime().AddSeconds(-1)
     $tree = @{}
@@ -160,8 +164,9 @@ function Write-Log {
             $images[$child] = $image
         }
     }
+    if (-not $images.ContainsKey([long]$Root)) { throw 'the process-creation audit holds no event for the runner' }
     $listed = @{}
-    foreach ($entry in @(Read-Entries)) { $listed["$($entry.Host) $($entry.Port)"] = $true }
+    foreach ($pair in $Listed.Split(';')) { if ($pair -ne '') { $listed[$pair] = $true } }
     $lines = @()
     $connections = @(Get-Events @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $since })
     $seen = @{ '5156' = 0; '5157' = 0; 'tree5156' = 0; 'tree5157' = 0 }
@@ -217,6 +222,7 @@ switch ($Action) {
             $null = & auditpol.exe /set "/subcategory:$ProcessCreation" /success:enable
             if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Process Creation audit' }
             $null = & wevtutil.exe sl $DnsChannel /e:true
+            if ($LASTEXITCODE -ne 0) { throw 'wevtutil could not enable the DNS client channel' }
             $off = @(Get-NetFirewallProfile | Where-Object { -not $_.Enabled })
             if ($off.Count -gt 0) {
                 Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled True
@@ -225,7 +231,9 @@ switch ($Action) {
             $rules = 0
             if ($Deny -eq 1) { $rules = Add-Rules }
             [IO.File]::WriteAllText((Join-Path $Dir 'rules'), "$rules`n", $Utf8)
-            [IO.File]::WriteAllText((Join-Path $Dir 'start'), [DateTime]::UtcNow.ToString('o') + "`n", $Utf8)
+            $now = [DateTime]::UtcNow.ToString('o')
+            [IO.File]::WriteAllText((Join-Path $Dir 'start'), $now + "`n", $Utf8)
+            Write-Output "start=$now"
         } catch {
             Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
             Write-Output "set-up failed: $($_.Exception.Message)"

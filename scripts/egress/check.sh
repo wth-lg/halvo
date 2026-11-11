@@ -35,7 +35,7 @@ built="sandbox wfp"
 
 sandbox_entry() {
   case $2:$3 in
-    v4:127.0.0.1 | 'v6:[::1]') return 0 ;;
+    v4:127.0.0.1) return 0 ;;
   esac
   return 1
 }
@@ -53,6 +53,7 @@ sandbox_rights() {
 
 sandbox_profile() {
   printf '(version 1)\n(allow default)\n'
+  printf '(deny file-write* (subpath "%s"))\n(allow file-write* (subpath "%s/run"))\n' "$real_dir" "$real_dir"
   [ "$2" -eq 1 ] || return 0
   printf '(deny network-outbound (with message "%s other"))\n' "$1"
   printf '(allow network-outbound (remote unix-socket))\n'
@@ -65,7 +66,6 @@ sandbox_profile() {
     [ -n "$number" ] || continue
     case $kind:$part:$host in
       v4:*) printf '(allow network-outbound (remote ip4 "localhost:%s"))\n' "$port" ;;
-      v6:*) printf '(allow network-outbound (remote ip6 "localhost:%s"))\n' "$port" ;;
     esac
   done <"$dir/entries"
 }
@@ -89,6 +89,10 @@ sandbox_mark() {
 }
 
 sandbox_setup() {
+  real_dir=$(cd "$1" && pwd -P) || refuse output "target/egress/$n"
+  case $real_dir in
+    *'"'* | *\\*) refuse output "target/egress/$n" ;;
+  esac
   sandbox_profile "$2" "$3" >"$1/profile.sb" || refuse output "target/egress/$n/profile.sb"
   [ "$3" -eq 1 ] || return 0
   /usr/bin/log stream --style ndjson --predicate "eventMessage CONTAINS \"$2\"" >"$1/stream.ndjson" 2>"$1/stream.err" &
@@ -203,20 +207,22 @@ wfp_setup() {
   win_dir=$(cygpath -w "$wfp_dir") || refuse output "target/egress/$n"
   out=$(wfp_ps -Action setup -Dir "$win_dir" -Token "$wfp_token" -Deny "$wfp_deny" -CheckPid "$checker" 2>&1) ||
     refuse mode "${out:-the wfp set-up failed}"
+  wfp_start=${out##*start=}
 }
 
 wfp_launch() {
   shift
-  "$@"
+  "$@" <&0 &
+  launched_pid=$!
+  root_pid=0
+  read -r root_pid <"/proc/$launched_pid/winpid" || root_pid=0
+  wait "$launched_pid"
 }
 
 wfp_collect() {
-  root_pid=0
-  if [ -f "$1/runner.pid" ]; then
-    read -r root_pid <"$1/runner.pid" || root_pid=0
-  fi
   win_dir=$(cygpath -w "$1") || refuse output "target/egress/$n"
-  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "$root_pid" 2>&1) || {
+  listed=$(printf '%s\n' "$entries" | awk 'NF == 5 { printf "%s%s %s", sep, $4, $5; sep = ";" }') || listed=
+  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Listed "$listed" 2>&1) || {
     wfp_teardown "$1" "$2"
     refuse mode "${out:-the wfp audit could not be read}"
   }
@@ -423,6 +429,7 @@ new_run() {
   token=halvo-egress-$n-$$-$(date +%s) || refuse output "target/egress/$n"
   printf 'pid=%s\ntoken=%s\n' "$$" "$token" >"$dir/state" || refuse output "target/egress/$n/state"
   : >"$dir/denied.log" || refuse output "target/egress/$n/denied.log"
+  mkdir "$dir/run" || refuse output "target/egress/$n/run"
 }
 
 # first_form LISTFILE DENY COMMAND...: one run of the first form; sets run_status, run_denied and run_code.
@@ -433,11 +440,11 @@ first_form() {
   new_run
   printf '%s\n' "$entries" >"$dir/entries" || refuse output "target/egress/$n/entries"
   mode_setup "$dir" "$token" "$run_deny" "$@"
-  mode_launch "$dir" "$runner" run "$dir/status" "$dir/runner.pid" -- "$@"
+  mode_launch "$dir" "$runner" run "$dir/run/status" "$dir/run/runner.pid" -- "$@"
   launched=$?
   run_status=
-  if [ -f "$dir/status" ]; then
-    read -r run_status <"$dir/status"
+  if [ -f "$dir/run/status" ]; then
+    read -r run_status <"$dir/run/status"
   fi
   if [ -z "$run_status" ]; then
     if [ "$launched" -gt 128 ]; then
@@ -500,7 +507,7 @@ classify() {
     }
     END { exit found ? 0 : 1 }' "$dir/denied.log"; then
     printf '%s\n' denied
-  elif [ ! -s "$dir/denied.log" ] && not_observable "$platform" "$mode" "$2"; then
+  elif [ ! -s "$dir/denied.log" ] && [ "$run_status" != 0 ] && not_observable "$platform" "$mode" "$2"; then
     printf '%s\n' not-observable
   else
     printf '%s\n' missed
