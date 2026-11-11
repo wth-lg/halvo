@@ -151,6 +151,10 @@ test_lists() {
   expect_refusal args/control-alone usage sh scripts/egress/check.sh --control-no-deny
   expect_refusal args/control-off-a-runner usage env -u GITHUB_ACTIONS sh scripts/egress/check.sh --self-test --control-no-deny
   expect_refusal args/self-test-with-list usage sh scripts/egress/check.sh --self-test scripts/egress/lists/empty.txt -- true
+  sh scripts/egress/check.sh --help >"$work/help.out" 2>"$work/help.err"
+  code=$?
+  got=$(grep -c -e '^sh scripts/egress/check.sh \[--mode MODE\] LISTFILE -- COMMAND \[ARG\.\.\.\]$' -e '^sh scripts/egress/check.sh \[--mode MODE\] --self-test \[--control-no-deny\]$' -e '^sh scripts/egress/probe.sh NAME$' "$work/help.out")
+  result args/help "0 3" "$code $got"
   cp scripts/egress/lists/empty.txt "$work/a
 b.txt"
   expect_refusal args/list-path-with-a-newline usage sh scripts/egress/check.sh "$work/a

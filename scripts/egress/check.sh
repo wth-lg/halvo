@@ -1,8 +1,6 @@
 #!/bin/sh
 # sh scripts/egress/check.sh [--mode MODE] LISTFILE -- COMMAND [ARG...]
 # sh scripts/egress/check.sh [--mode MODE] --self-test [--control-no-deny]
-# Denies and logs every outbound connection and name lookup of COMMAND's process tree to a
-# destination outside LISTFILE (contracts.md C26).
 set -u
 LC_ALL=C
 export LC_ALL
@@ -10,6 +8,18 @@ export LC_ALL
 refuse() {
   printf 'REFUSED %s: %s\n' "$1" "$2" >&2
   exit 2
+}
+
+help() {
+  cat <<'EOF'
+sh scripts/egress/check.sh [--mode MODE] LISTFILE -- COMMAND [ARG...]
+sh scripts/egress/check.sh [--mode MODE] --self-test [--control-no-deny]
+sh scripts/egress/check.sh --help
+sh scripts/egress/probe.sh NAME
+Runs COMMAND with its outbound connections, datagrams and name lookups outside LISTFILE denied,
+or logged where the mode cannot stop them, and writes each to target/egress/<n>/denied.log
+(contracts.md C26).
+EOF
 }
 
 # The constants of C26.3 and C26.7, set from docs/r2/trials/egress.md.
@@ -340,6 +350,10 @@ control=0
 list=
 while [ $# -gt 0 ]; do
   case $1 in
+    --help)
+      help
+      exit 0
+      ;;
     --mode)
       [ $# -ge 2 ] || refuse usage "--mode needs a MODE"
       [ "$given" -eq 0 ] || refuse usage "--mode given twice"
