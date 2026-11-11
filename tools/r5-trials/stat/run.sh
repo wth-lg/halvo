@@ -18,7 +18,8 @@ Exit status:
   0  the block was printed and its verdict is stat=ok
   1  the block was printed and its verdict is stat=miss
   2  refused: one line "REFUSED <cause>: <detail>" on standard error and
-     nothing on standard output; <cause> is usage, build or input
+     nothing on standard output; <cause> is usage, output (standard output
+     is closed or cannot be written), build or input
 EOF
 }
 
@@ -26,6 +27,8 @@ refuse() {
   printf 'REFUSED %s: %s\n' "$1" "$2" >&2
   exit 2
 }
+
+true 2>/dev/null 3>&1 || refuse output "standard output cannot be written"
 
 case $# in
 0) ;;
@@ -37,19 +40,21 @@ case $# in
 *) refuse usage "the trial takes no argument but --help" ;;
 esac
 
-export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+unset CDPATH
+export PATH="${CARGO_HOME:-${HOME:-}/.cargo}/bin:$PATH"
 
 here=$(dirname "$0")
-root=$(cd "$here" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null) ||
-  refuse input "the script is not in a git work tree"
-cd "$root" || refuse input "the root of the work tree cannot be entered"
+cd -P "$here/../../.." 2>/dev/null || refuse input "the root of the work tree cannot be entered"
+
+host=$(rustc -vV 2>/dev/null | sed -n 's/^host: \([^[:space:]]*\).*/\1/p')
+[ -n "$host" ] || refuse build "rustc -vV names no host"
 
 target=target/r5-trials
 mkdir -p "$target" 2>/dev/null || refuse build "the target directory cannot be made"
-cargo build --release --locked --manifest-path tools/r5-trials/Cargo.toml -p r5-stat --target-dir "$target" >"$target/build.log" 2>&1
+cargo build --release --locked --manifest-path tools/r5-trials/Cargo.toml -p r5-stat --target "$host" --target-dir "$target" >"$target/build.log" 2>&1
 code=$?
 [ "$code" -eq 0 ] || refuse build "cargo exited $code; its output is in the build log"
 
-bin=$target/release/r5-stat
+bin=$target/$host/release/r5-stat
 [ -f "$bin.exe" ] && bin=$bin.exe
 exec "$bin"
