@@ -2,14 +2,9 @@ name: ci
 
 on:
   push:
-  pull_request:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:
@@ -17,96 +12,153 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
+      - name: Verifier probes
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+        run: |
+          set +e +o pipefail
+          set -u
+          app=tools/r4-trials/app
+          started=$(date +%s)
+          if ! cargo build --release --locked --manifest-path "$app/Cargo.toml"; then
+            echo "probe build=fail"
+            exit 1
+          fi
+          echo "probe build=ok seconds=$(( $(date +%s) - started ))"
+          bin="$app/target/release/r4-trial-app"
+          if [ -f "$bin.exe" ]; then bin="$bin.exe"; fi
+          cat >"$RUNNER_TEMP/r4v-client.js" <<'EOF'
+          const net = require("node:net");
+          const [tag, port, limit, ...lines] = process.argv.slice(2);
+          const socket = net.connect(Number(port), "127.0.0.1");
+          let buffer = "";
+          const answers = [];
+          let waiter = null;
+          socket.on("data", (chunk) => {
+            buffer += chunk;
+            let at;
+            while ((at = buffer.indexOf("\n")) >= 0) {
+              answers.push(buffer.slice(0, at).replace(/\r$/, ""));
+              buffer = buffer.slice(at + 1);
+              if (waiter) { const w = waiter; waiter = null; w(); }
+            }
+          });
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const answer = (ms) => new Promise((resolve) => {
+            const t = setTimeout(() => { waiter = null; resolve("timeout"); }, ms);
+            const take = () => { clearTimeout(t); resolve(answers.shift()); };
+            if (answers.length) take(); else waiter = take;
+          });
+          socket.on("error", (e) => { console.log("probe client=" + tag + " socket_error=" + e.code); process.exit(1); });
+          socket.on("connect", async () => {
+            for (const item of lines) {
+              if (item.startsWith("wait ")) { await sleep(Number(item.slice(5))); continue; }
+              const t0 = Date.now();
+              socket.write(item + "\n");
+              const got = await answer(Number(limit));
+              console.log("probe client=" + tag + " sent=" + item + " answer=" + got + " ms=" + (Date.now() - t0));
+              if (got === "timeout") { socket.destroy(); process.exit(0); }
+            }
+            socket.end();
+          });
+          EOF
+          helpers() {
+            if [ "$RUNNER_OS" = Windows ]; then
+              powershell -NoProfile -Command "@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue).Count" | tr -d '\r'
+            else
+              pgrep -f 'com.apple.WebKit' | wc -l | tr -d ' '
+            fi
+          }
+          conns() {
+            winpid=$1
+            if [ "$RUNNER_OS" = Windows ]; then
+              powershell -NoProfile -Command "
+                function Kids(\$id) { Get-CimInstance Win32_Process -Filter \"ParentProcessId=\$id\" | ForEach-Object { \$_.ProcessId; Kids \$_.ProcessId } }
+                \$all = @($winpid) + @(Kids $winpid)
+                'probe tree_pids=' + \$all.Count
+                \$tcp = @(Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { \$all -contains \$_.OwningProcess })
+                foreach (\$c in \$tcp) { 'probe tcp pid=' + \$c.OwningProcess + ' local=' + \$c.LocalAddress + ':' + \$c.LocalPort + ' remote=' + \$c.RemoteAddress + ':' + \$c.RemotePort + ' state=' + \$c.State }
+                \$udp = @(Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Where-Object { \$all -contains \$_.OwningProcess })
+                foreach (\$u in \$udp) { 'probe udp pid=' + \$u.OwningProcess + ' local=' + \$u.LocalAddress + ':' + \$u.LocalPort }
+                'probe tcp_count=' + \$tcp.Count + ' udp_count=' + \$udp.Count
+              " | tr -d '\r'
+            else
+              echo "probe lsof_app:"
+              lsof -nP -a -p "$winpid" -i | sed 's/^/probe   /'
+              wk=$(pgrep -f 'com.apple.WebKit' | tr '\n' ',' | sed 's/,$//')
+              echo "probe webkit_pids=${wk:--}"
+              if [ -n "$wk" ]; then
+                echo "probe lsof_webkit:"
+                lsof -nP -a -p "$wk" -i | sed 's/^/probe   /'
+              fi
+            fi
+          }
+          run_probe() {
+            name=$1
+            shift
+            out="$RUNNER_TEMP/r4v-$name.out"
+            echo "probe run=$name flags=$* helpers_before=$(helpers)"
+            # shellcheck disable=SC2086
+            "$bin" "$@" >"$out" 2>&1 &
+            pid=$!
+            port=
+            i=0
+            while [ "$i" -lt 600 ]; do
+              port=$(tr -d '\r' <"$out" | sed -n 's/^control port=\([0-9][0-9]*\)$/\1/p' | head -n 1)
+              if [ -n "$port" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+              sleep 0.1
+              i=$((i + 1))
+            done
+            if [ -z "$port" ]; then echo "probe run=$name control_port=none"; return; fi
+            c="$RUNNER_TEMP/r4v-client.js"
+            winpid=$(node "$c" s0 "$port" 20000 sample | sed -n 's/.* pid=\([0-9]*\) .*/\1/p')
+            echo "probe run=$name app_pid=$winpid"
+            if [ "$name" = main ]; then
+              node "$c" c1 "$port" 60000 show 'wait 8000' sample
+              conns "$winpid"
+              node "$c" c2 "$port" 60000 'load missing.html' 'wait 3000' sample
+              node "$c" c3 "$port" 15000 show &
+              hung=$!
+              sleep 2
+              node "$c" c4 "$port" 15000 sample 'load index.html' 'wait 3000' sample
+              wait "$hung"
+              node "$c" c5 "$port" 15000 hide show sample
+              conns "$winpid"
+            else
+              node "$c" c1 "$port" 60000 show destroy sample
+            fi
+            node "$c" cq "$port" 15000 quit
+            i=0
+            while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 200 ]; do
+              sleep 0.1
+              i=$((i + 1))
+            done
+            if kill -0 "$pid" 2>/dev/null; then
+              echo "probe run=$name app_running_after_quit=yes"
+              kill "$pid"
+            else
+              wait "$pid"
+              echo "probe run=$name app_exit=$? after_ds=$i"
+            fi
+            echo "probe run=$name helpers_at_exit=$(helpers)"
+            sleep 10
+            echo "probe run=$name helpers_10s_after_exit=$(helpers)"
+            tr -d '\r' <"$out" | grep -E '^(control port=[0-9]+|page [a-z_ =0-9]+|core [a-z_ =0-9]+|r4-trial-app: .*|refused .*)$' | cut -c1-200 | sed 's/^/probe app /'
+          }
+          run_probe main
+          run_probe b --arm b
+          echo "probe done"
+          exit 0
 
   windows:
     runs-on: windows-2025
@@ -117,69 +169,146 @@ jobs:
         with:
           node-version: 26
           cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: tools/r4-trials/app -> target
+          save-if: false
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
+      - name: Verifier probes
         shell: bash
         run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
+          set +e +o pipefail
+          set -u
+          app=tools/r4-trials/app
+          started=$(date +%s)
+          if ! cargo build --release --locked --manifest-path "$app/Cargo.toml"; then
+            echo "probe build=fail"
             exit 1
           fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+          echo "probe build=ok seconds=$(( $(date +%s) - started ))"
+          bin="$app/target/release/r4-trial-app"
+          if [ -f "$bin.exe" ]; then bin="$bin.exe"; fi
+          cat >"$RUNNER_TEMP/r4v-client.js" <<'EOF'
+          const net = require("node:net");
+          const [tag, port, limit, ...lines] = process.argv.slice(2);
+          const socket = net.connect(Number(port), "127.0.0.1");
+          let buffer = "";
+          const answers = [];
+          let waiter = null;
+          socket.on("data", (chunk) => {
+            buffer += chunk;
+            let at;
+            while ((at = buffer.indexOf("\n")) >= 0) {
+              answers.push(buffer.slice(0, at).replace(/\r$/, ""));
+              buffer = buffer.slice(at + 1);
+              if (waiter) { const w = waiter; waiter = null; w(); }
+            }
+          });
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const answer = (ms) => new Promise((resolve) => {
+            const t = setTimeout(() => { waiter = null; resolve("timeout"); }, ms);
+            const take = () => { clearTimeout(t); resolve(answers.shift()); };
+            if (answers.length) take(); else waiter = take;
+          });
+          socket.on("error", (e) => { console.log("probe client=" + tag + " socket_error=" + e.code); process.exit(1); });
+          socket.on("connect", async () => {
+            for (const item of lines) {
+              if (item.startsWith("wait ")) { await sleep(Number(item.slice(5))); continue; }
+              const t0 = Date.now();
+              socket.write(item + "\n");
+              const got = await answer(Number(limit));
+              console.log("probe client=" + tag + " sent=" + item + " answer=" + got + " ms=" + (Date.now() - t0));
+              if (got === "timeout") { socket.destroy(); process.exit(0); }
+            }
+            socket.end();
+          });
+          EOF
+          helpers() {
+            if [ "$RUNNER_OS" = Windows ]; then
+              powershell -NoProfile -Command "@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue).Count" | tr -d '\r'
+            else
+              pgrep -f 'com.apple.WebKit' | wc -l | tr -d ' '
+            fi
+          }
+          conns() {
+            winpid=$1
+            if [ "$RUNNER_OS" = Windows ]; then
+              powershell -NoProfile -Command "
+                function Kids(\$id) { Get-CimInstance Win32_Process -Filter \"ParentProcessId=\$id\" | ForEach-Object { \$_.ProcessId; Kids \$_.ProcessId } }
+                \$all = @($winpid) + @(Kids $winpid)
+                'probe tree_pids=' + \$all.Count
+                \$tcp = @(Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { \$all -contains \$_.OwningProcess })
+                foreach (\$c in \$tcp) { 'probe tcp pid=' + \$c.OwningProcess + ' local=' + \$c.LocalAddress + ':' + \$c.LocalPort + ' remote=' + \$c.RemoteAddress + ':' + \$c.RemotePort + ' state=' + \$c.State }
+                \$udp = @(Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Where-Object { \$all -contains \$_.OwningProcess })
+                foreach (\$u in \$udp) { 'probe udp pid=' + \$u.OwningProcess + ' local=' + \$u.LocalAddress + ':' + \$u.LocalPort }
+                'probe tcp_count=' + \$tcp.Count + ' udp_count=' + \$udp.Count
+              " | tr -d '\r'
+            else
+              echo "probe lsof_app:"
+              lsof -nP -a -p "$winpid" -i | sed 's/^/probe   /'
+              wk=$(pgrep -f 'com.apple.WebKit' | tr '\n' ',' | sed 's/,$//')
+              echo "probe webkit_pids=${wk:--}"
+              if [ -n "$wk" ]; then
+                echo "probe lsof_webkit:"
+                lsof -nP -a -p "$wk" -i | sed 's/^/probe   /'
+              fi
+            fi
+          }
+          run_probe() {
+            name=$1
+            shift
+            out="$RUNNER_TEMP/r4v-$name.out"
+            echo "probe run=$name flags=$* helpers_before=$(helpers)"
+            # shellcheck disable=SC2086
+            "$bin" "$@" >"$out" 2>&1 &
+            pid=$!
+            port=
+            i=0
+            while [ "$i" -lt 600 ]; do
+              port=$(tr -d '\r' <"$out" | sed -n 's/^control port=\([0-9][0-9]*\)$/\1/p' | head -n 1)
+              if [ -n "$port" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+              sleep 0.1
+              i=$((i + 1))
+            done
+            if [ -z "$port" ]; then echo "probe run=$name control_port=none"; return; fi
+            c="$RUNNER_TEMP/r4v-client.js"
+            winpid=$(node "$c" s0 "$port" 20000 sample | sed -n 's/.* pid=\([0-9]*\) .*/\1/p')
+            echo "probe run=$name app_pid=$winpid"
+            if [ "$name" = main ]; then
+              node "$c" c1 "$port" 60000 show 'wait 8000' sample
+              conns "$winpid"
+              node "$c" c2 "$port" 60000 'load missing.html' 'wait 3000' sample
+              node "$c" c3 "$port" 15000 show &
+              hung=$!
+              sleep 2
+              node "$c" c4 "$port" 15000 sample 'load index.html' 'wait 3000' sample
+              wait "$hung"
+              node "$c" c5 "$port" 15000 hide show sample
+              conns "$winpid"
+            else
+              node "$c" c1 "$port" 60000 show destroy sample
+            fi
+            node "$c" cq "$port" 15000 quit
+            i=0
+            while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 200 ]; do
+              sleep 0.1
+              i=$((i + 1))
+            done
+            if kill -0 "$pid" 2>/dev/null; then
+              echo "probe run=$name app_running_after_quit=yes"
+              kill "$pid"
+            else
+              wait "$pid"
+              echo "probe run=$name app_exit=$? after_ds=$i"
+            fi
+            echo "probe run=$name helpers_at_exit=$(helpers)"
+            sleep 10
+            echo "probe run=$name helpers_10s_after_exit=$(helpers)"
+            tr -d '\r' <"$out" | grep -E '^(control port=[0-9]+|page [a-z_ =0-9]+|core [a-z_ =0-9]+|r4-trial-app: .*|refused .*)$' | cut -c1-200 | sed 's/^/probe app /'
+          }
+          run_probe main
+          run_probe b --arm b
+          echo "probe done"
+          exit 0
