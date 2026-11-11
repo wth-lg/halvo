@@ -46,8 +46,8 @@ the policy (ADR 0010).
 ## What else stays after a shred
 
 - Free blocks of the volume. Right after a shred the wrapped key of the segment came
-  back from a freed WAL frame of the raw volume image in 6 of 6 runs on APFS, and it
-  was gone after 5 MiB of further capture
+  back from the raw volume image, in a WAL frame and in a database page, in 6 of 6
+  runs on APFS, and it was gone from both after 5 MiB of further capture
   (evidence/interrogate-rr-store-3/it14_raw_volume_apfs_run1.log to
   it14_raw_volume_apfs_run3.log, and the three logs of the same names under
   rerun/). A reader of those blocks also needs the owner's root.
