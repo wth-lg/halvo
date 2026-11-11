@@ -91,7 +91,9 @@ fn answers_cover_each_case_of_t11_6() {
     assert_eq!(expect("ok_as_bytes"), "ok");
     assert_eq!(expect("byte_order_mark_bytes"), "malformed");
     assert_eq!(expect("invalid_byte_content"), "malformed");
+    assert_eq!(expect("usage_unknown_key"), "malformed");
     assert_eq!(expect("usage_missing_key"), "malformed");
+    assert_eq!(expect("usage_key_twice"), "malformed");
     let refusals: BTreeSet<&str> = answers
         .iter()
         .filter(|answer| answer["status"] == 403)
