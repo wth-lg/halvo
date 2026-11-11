@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -84,21 +73,10 @@ jobs:
         run: rustup component add clippy rustfmt
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 11-cap
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 11-cap
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -126,55 +104,85 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
+      - name: K-11 cells under a reduced token and a standard user (scratch branch only)
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          cargo build --locked --release -p halvo-cap --example hold --bin measure-peak
+          "build exit=$LASTEXITCODE"
+          $dir = Join-Path $env:RUNNER_TEMP ('k11-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          & icacls $dir /grant '*S-1-5-32-545:(OI)(CI)M' *> $null
+          "cells icacls-exit=$LASTEXITCODE"
+          $exe = Join-Path $dir 'measure-peak.exe'
+          $hold = Join-Path $dir 'hold.exe'
+          Copy-Item (Resolve-Path 'target/release/measure-peak.exe').Path $exe
+          Copy-Item (Resolve-Path 'target/release/examples/hold.exe').Path $hold
+          function Text($files) { $t = ''; foreach ($f in $files) { if (Test-Path $f) { $t += (Get-Content $f -Raw) + "`n" } }; return $t }
+          function HeaderMode($text) { if ($text -match '(?m)^measure-peak platform=windows mode=(\S+) ') { return $Matches[1] }; return '-' }
+          function Cell($label, $text, $started) {
+            $mode = HeaderMode $text
+            if (-not $started -or $text.Trim() -eq '') { return "cell $label runs=1 result=not-run error=- mode=-" }
+            if ($text -match 'REFUSED cap-unsupported: .*\(os error (\d+)\)') { return "cell $label runs=1 result=cap-unsupported error=$($Matches[1]) mode=$mode" }
+            if ($text -match '(?m)^checks control=ok') { return "cell $label runs=1 result=ok error=- mode=$mode" }
+            if ($text -match '(?m)^checks control=miss') { return "cell $label runs=1 result=miss error=- mode=$mode" }
+            return "cell $label runs=1 result=unknown error=- mode=$mode"
+          }
+          function Reduced($label, $command) {
+            $out = Join-Path $dir "$label.txt"
+            $batch = Join-Path $dir "$label.cmd"
+            Set-Content -Path $batch -Encoding ascii -Value @('@echo off', "$command > $out 2>&1", "echo exit=%errorlevel%>> $out")
+            & runas /trustlevel:0x20000 "cmd /c $batch" *> $null
+            Write-Host "$label runas-exit=$LASTEXITCODE"
+            $deadline = (Get-Date).AddSeconds(120)
+            while ((Get-Date) -lt $deadline -and -not ((Test-Path $out) -and (Select-String -Path $out -Pattern '^exit=' -Quiet))) { Start-Sleep -Milliseconds 500 }
+            if (Test-Path $out) { Get-Content $out | ForEach-Object { Write-Host "$label $_" } } else { Write-Host "$label no-output" }
+            return $out
+          }
+          & $exe --limit 268435456 --control 2>&1 | ForEach-Object { "runner-token $_" }
+          "runner-token exit=$LASTEXITCODE"
+          $reduced = Reduced 'reduced-token' "$exe --limit 268435456 --control"
+          Cell 'control-reduced-token.windows-2025' (Text @($reduced)) $true
+          $section = Reduced 'reduced-section' "$exe --limit 67108864 --runs 1 -- $hold section"
+          $st = Text @($section)
+          $mode = HeaderMode $st
+          $peak = '0'; $capped = 'no'; $held = '0'
+          if ($st -match '(?m)^run n=1 .*peak_bytes=(\d+) capped=(yes|no)') { $peak = $Matches[1]; $capped = $Matches[2] }
+          if ($st -match 'hold way=section held_bytes=(\d+)') { $held = $Matches[1] }
+          "limit section.windows-2025 runs=1 held_bytes=$held limit_bytes=67108864 peak_bytes=$peak capped=$capped mode=$mode"
+          $name = 'hc' + (Get-Random -Minimum 1000000 -Maximum 9999999)
+          $set = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+          $password = 'Aa7!' + (-join (1..9 | ForEach-Object { $set[(Get-Random -Maximum $set.Length)] }))
+          & net user $name $password /add *> $null
+          $added = ($LASTEXITCODE -eq 0)
+          "standard-user added=$added"
+          $admin = [bool]((& net localgroup Administrators 2>$null) -contains $name)
+          "standard-user in-administrators=$admin"
+          $started = $false
+          $out = Join-Path $dir 'standard.txt'
+          $err = Join-Path $dir 'standard-err.txt'
+          if ($added) {
+            $cred = New-Object System.Management.Automation.PSCredential ($name, (ConvertTo-SecureString $password -AsPlainText -Force))
+            try {
+              $p = Start-Process -FilePath $exe -ArgumentList '--limit', '268435456', '--control' -Credential $cred -WorkingDirectory $dir -RedirectStandardOutput $out -RedirectStandardError $err -Wait -PassThru -ErrorAction Stop
+              $started = $true
+              "standard-user started=True exit=$($p.ExitCode)"
+            } catch {
+              "standard-user started=False hresult=$($_.Exception.HResult) native=$($_.Exception.InnerException.NativeErrorCode)"
+            }
+            foreach ($f in @($out, $err)) { if (Test-Path $f) { Get-Content $f | ForEach-Object { "standard-user $_" } } }
+            & net user $name /delete *> $null
+            "standard-user removed=$($LASTEXITCODE -eq 0)"
+          }
+          Cell 'control-standard-user.windows-2025' (Text @($out, $err)) $started
+          exit 0
       - name: ci.d self-test
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 11-cap
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 11-cap
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
