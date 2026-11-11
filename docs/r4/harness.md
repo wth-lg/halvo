@@ -133,7 +133,7 @@ Playwright drives the browser through the browser's own protocol. Its documentat
 node tools/r4-page/selftest.mjs
 ```
 
-The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own: check 1 holds 4, check 2 holds 23, check 3 holds 3, check 4 holds 8, check 5 holds 7 and check 6 holds 7.
+The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view.js` on the states `a` and `b`, and runs each check on both states and on each planted fault of that check. `state-a.json` holds two agents and one setup item with a radio group and a typed input. `state-b.json` holds one agent and one confirmation, which the sample view shows in a modal dialog. The controls of each row carry the agent id as `data-param`. The faults are chosen by a query string of the view's address (`/view.js?fault=<name>`); the self-test also starts a listener on 127.0.0.1, whose port the view gets as `port=`, and a fault counts as caught only when that listener received nothing. Every deciding condition of the six checks has a fault of its own: check 1 holds 5, check 2 holds 23, check 3 holds 3, check 4 holds 8, check 5 holds 7 and check 6 holds 8.
 
 | check | fault | state | what the fault does | what must miss |
 |---|---|---|---|---|
@@ -141,6 +141,7 @@ The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view
 | 1 | `late_next` | a | the same grey text, set on the first `agents_next` reply | a violation |
 | 1 | `late_css` | a | the same grey text, by a CSS animation with a delay of 1.5 s | a violation |
 | 1 | `outside_request` | a | an image and a WebSocket to `localhost` | `outside_request` |
+| 1 | `outside_fetch` | a | an image to `localhost` and no socket | `outside_request` |
 | 2 | `unreachable` | a | a button with `tabindex="-1"` | `unreached` |
 | 2 | `focus_unseen` | a | a button whose outline is `none` with the focus | `focus_unseen` |
 | 2 | `focus_escapes` | b | the confirmation opens as a dialog that is not modal | `dialog_focus_lost` |
@@ -180,11 +181,12 @@ The self-test serves `tools/r4-page/sample/`, opens the sample view `sample/view
 | 5 | `narrow_scroll` | a | a line at least 400 pixels wide | the mode `width_320` alone |
 | 5 | `outside_mode` | a | a request to `localhost` with reduced motion only | the mode `reduced_motion` alone |
 | 5 | `inner_scroll` | a | a row of controls that scrolls sideways at 320 pixels | the mode `width_320` alone |
-| 5 | `engine_mode` | a | a page that stops the engine in forced colours only | the mode `forced_colors` alone |
+| 5 | `engine_mode` | a | a page that hides the engine in forced colours only, behind a property `ace` that holds no checker, and reports no error | the mode `forced_colors` alone |
 | 5 | `shadow_parse` | a | an open shadow root made by `Document.parseHTMLUnsafe` | `opaque` with the three modes in `modes_off` |
 | 6 | `inner_html` | a | the first line set as markup | `miss` |
 | 6 | `day_html` | a | the day of the first row set as markup | `miss` |
 | 6 | `frame` | a | an `iframe` | `opaque` |
+| 6 | `shadow_realm_open` | a | an open shadow root attached with the `attachShadow` of a frame that the view made and removed, which no hook sees | `opaque` |
 | 6 | `stub_forge` | a | the view writes the driver's binding global with a function that answers each call itself | `stub_tampered` |
 | 6 | `stub_deliver` | a | the view answers its first call through the controller's own `deliverBindingResult` before the harness does | `stub_tampered` |
 | 6 | `count_only` | a | the first line set as markup, with the marker attribute taken off | `miss` by the count of elements alone |

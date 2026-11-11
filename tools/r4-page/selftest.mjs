@@ -15,6 +15,7 @@ const FAULTS = {
     { fault: 'late_next', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'late_css', state: 'a', want: (r) => r.counts.violations > 0 },
     { fault: 'outside_request', state: 'a', want: (r) => r.names.includes('outside_request') },
+    { fault: 'outside_fetch', state: 'a', want: (r) => r.names.includes('outside_request') },
   ],
   2: [
     { fault: 'unreachable', state: 'a', want: (r) => r.names.includes('unreached') },
@@ -71,6 +72,7 @@ const FAULTS = {
     { fault: 'count_only', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'marker_only', state: 'a', want: (r) => r.counts.markup === 'miss' },
     { fault: 'frame', state: 'a', want: (r) => r.names.includes('opaque') },
+    { fault: 'shadow_realm_open', state: 'a', want: (r) => r.names.includes('opaque') },
     { fault: 'stub_forge', state: 'a', want: (r) => r.names.includes('stub_tampered') },
     { fault: 'stub_deliver', state: 'a', want: (r) => r.names.includes('stub_tampered') },
   ],

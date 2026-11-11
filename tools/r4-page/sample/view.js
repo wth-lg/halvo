@@ -29,7 +29,13 @@
   if (fault === 'late_css') CSS.push('@keyframes r4s-late { to { color: #c4c4c4; } } .r4s-row:first-child .r4s-line { animation: r4s-late 0.01s 1.5s forwards; }');
 
   if (fault === 'engine_mode' && matchMedia('(forced-colors: active)').matches) {
-    Object.defineProperty(window, 'ace', { value: undefined, writable: false, configurable: false });
+    Object.defineProperty(window, 'ace', {
+      get: function () {
+        return {};
+      },
+      set: function () {},
+      configurable: false
+    });
   }
 
   if (fault === 'stub_forge') {
@@ -332,6 +338,10 @@
           status.setAttribute('data-socket', 'refused');
         }
       }
+      if (fault === 'outside_fetch') {
+        var lone = new Image();
+        lone.src = 'http://localhost:' + port + '/image';
+      }
       var hidden = '<button type="button" tabindex="-1" style="height: 10px">Later</button>';
       if (fault === 'shadow_script') {
         var host = el('div', null, null);
@@ -363,6 +373,15 @@
         var words = document.createElement('script');
         words.src = '/word.js';
         document.head.appendChild(words);
+      }
+      if (fault === 'shadow_realm_open') {
+        var borrowed = document.createElement('iframe');
+        document.body.appendChild(borrowed);
+        var attach = borrowed.contentWindow.Element.prototype.attachShadow;
+        borrowed.remove();
+        var shadowHost = el('div', null, null);
+        root.appendChild(shadowHost);
+        attach.call(shadowHost, { mode: 'open' }).appendChild(document.createElement('button'));
       }
       if (fault === 'frame') {
         var inner = document.createElement('iframe');
