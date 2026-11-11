@@ -52,6 +52,7 @@ U2.1	crates/halvo-coord/src/schedule/**
 U2.1	crates/halvo-coord/tests/schedule_*.rs
 U2.2	crates/halvo-coord/src/items/**
 U2.2	crates/halvo-coord/src/guard.rs
+U2.2	crates/halvo-coord/src/mem/policy.rs
 U2.2	crates/halvo-coord/tests/items_*.rs
 U2.2	crates/halvo-coord/tests/guard_*.rs
 U2.3	crates/halvo-coord/src/run/**
