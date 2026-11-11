@@ -11,7 +11,7 @@ and committed. Nobody edits a trace file by hand.
 |---|---|
 | `Schedule.tla`, `Schedule.cfg` | the schedule model, its full configuration and the invariants C1 to C12 |
 | `Schedule-days.cfg`, `Schedule-queue.cfg`, `Schedule-store.cfg` | the three small configurations of the schedule model that CI runs |
-| `Confirm4.tla`, `Confirm4.cfg` | the confirmation model, its configuration and the invariants L1 to L10 |
+| `Confirm4.tla`, `Confirm4.cfg`, `Confirm4-apart.cfg` | the confirmation model, its configuration, a second small configuration and the invariants L1 to L10 |
 | `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla` | the modules that walk a model and print one JSON line per trace |
 | `limits.json` | the limits of the models, with the field names of the struct `Limits` |
 | `export.sh` | the command that writes the two trace files |
@@ -63,7 +63,9 @@ changes a file of this directory runs it, through the machine's helper for timed
 verifier runs it at the gate of the phase in which the change lands, and this table
 records its states and the commit. CI runs the small ones alone: `30-r4-formal.sh` runs
 each configuration whose row says `yes` under CI and prints their names, so that its PASS
-is never read as the full bound. To run a small configuration, name its file after
+is never read as the full bound. It also asks every configuration file of the table, one
+that CI does not run among them, for exactly the invariant lines of its model and for no
+comment, because TLC reads no line inside a comment. To run a small configuration, name its file after
 `-config` in the command above.
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
@@ -73,6 +75,7 @@ is never read as the full bound. To run a small configuration, name its file aft
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store ends a run at a move of its own, a request may have left, and `reap` may answer `alive` for one run | 7,926 | 120,127 | 12 |
 | `Confirm4` | `full` | `Confirm4.cfg` | yes | one run, two requests, two effects | 6,704 | 1,993,891 | 24 |
+| `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on | 2,304 | 528,219 | 20 |
 
 | Configuration | Rows of the table of wrong designs that TLC reports in it | `Reach` properties that TLC reports violated in it |
 |---|---|---|
@@ -81,6 +84,7 @@ is never read as the full bound. To run a small configuration, name its file aft
 | `queue` | 17 and 30: of the three, only `queue` holds `a5`, the agent with no schedule that needs no person. It holds no stop, so row 38 is no run of it | `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueIdle` |
 | `store` | 46 to 50: of the three, only `store` holds the time between the end of a runner and the store's end of its run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds` |
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37 and 39 to 45 | all of `Confirm4` |
+| `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
 
 The counts are TLC's own lines, with one worker, for `Schedule.tla` as it stands since
 commit 14e236f and `Confirm4.tla` as it stands since commit 6295574;
@@ -103,6 +107,11 @@ configuration, with three workers, in the hosted jobs of run -.
 | `Schedule` | `queue` | - s, one worker | - bytes | - | - s | - s |
 | `Schedule` | `store` | - s, one worker | - bytes | - | - s | - s |
 | `Confirm4` | `full` | - s, one worker | - bytes | - | - s | - s |
+| `Confirm4` | `apart` | - s, one worker | - bytes | - | - s | - s |
+
+In that run the check took - s and its self-test - s in the
+`macos` job, and - s and - s in the `windows` job; the
+export of both trace files is - s and - s of the check's.
 
 ## What a property is read from
 
@@ -349,7 +358,11 @@ calls for runs that have ended, which change no history; `ReachKillEnded` reads 
 without the `VIEW` line too. The model has no `skip`, no `switch_on`, no answer
 `went_through` to a `check`, no items budget, no effect and no state of an effect, and no
 time but the grace. An `end_run` that gets no acknowledgement is the time before the move
-`ack`; the model does not tell a lost `end_run` from a late one.
+`ack`; the model does not tell a lost `end_run` from a late one. No property counts a
+start that was refused: a coordinator that holds an agent longer than I5.4 asks, with a
+`check` that the person's answer does not end or that a restart brings back, breaks none
+of C1 to C12. The directed trace `store_not_ended` holds a start after an answered
+`check`, and `ReachCheckAnswered` is not reached under the first of those two designs.
 
 ## Confirm4
 
@@ -427,7 +440,8 @@ How the model reads I4:
    released `reject_once` or lapsed is final, and no runner asks for it again. So an
    `issue` that opens the second item comes only after the first was allowed and
    released. The model still offers every request that the coordinator refuses: while an
-   item is open, and after a stop.
+   item is open, and after a stop. In `apart` the second request names the other effect
+   and follows whatever became of the first.
 
 What the properties do not show. L3 reads the stored rows as a set, so a row that is
 written twice cannot be told from a row that is written once: a `release` that writes the
@@ -436,7 +450,10 @@ id; no record passes for it. Whether the guard marks a row at a repeat, or does 
 it at its first use, is the guard's own table and breaks no property: a second `approved`
 record on the row passes either way. The key `used` of a trace line shows the marks, and
 the replay holds the code to them. The model has one answer of the port `Policy` for a
-move and no agent whose configuration the coordinator does not hold.
+move and no agent whose configuration the coordinator does not hold. A guard that refuses
+a record of another state than `approved` and `releasing` breaks no property either: the
+history holds the records of those two states alone. The walks hold such records, each
+answered `ok`, and the replay holds the code to them.
 
 How `confirm_joint` reads a confirm trace (I5.13, ruling XA-5). The test follows each
 line with `halvo_policy::effect_step`. At a `release` line whose `sent` holds
@@ -451,8 +468,8 @@ exists only after an `allow_once` for it, so no trace asks `approve` of an effec
 
 A property whose name starts with `Reach` says that some part of the configuration never
 does its work. TLC must report each one violated. To run one, add the line
-`INVARIANT ReachQueueFull` to a copy of the `.cfg`; for the properties of the second row
-the line is `PROPERTY <name>`.
+`INVARIANT ReachQueueFull` to a copy of the `.cfg`; for a row that says
+`PROPERTY` the line is `PROPERTY <name>`.
 
 | Model | Properties |
 |---|---|
@@ -494,22 +511,22 @@ replay of that design gives another answer, event, call or state at some move.
 
 | # | Wrong design | TLC reports | Traces that differ |
 |---|---|---|---|
-| 1 | a restart rebuilds the day's count of starts from this life only | C7 | 46 of 213 |
-| 2 | a start that failed at step 7 or 8 is not counted | C7 | 77 of 213 |
-| 3 | the budget counts only the person's starts | C7 | 91 of 213 |
-| 4 | the budget counts only the scheduler's starts | C7 | 210 of 213 |
-| 5 | the hold `failures` is lost at a restart | C4 | 2 of 213 |
-| 6 | the scheduler starts an agent that never had a completed run | C5 | 149 of 213 |
-| 7 | a restart forgets which workflows are gone | C8 | 19 of 213 |
-| 8 | the kill comes only for runs stopped for `deleted` | C9 | 48 of 213 |
+| 1 | a restart rebuilds the day's count of starts from this life only | C7 | - of 213 |
+| 2 | a start that failed at step 7 or 8 is not counted | C7 | - of 213 |
+| 3 | the budget counts only the person's starts | C7 | - of 213 |
+| 4 | the budget counts only the scheduler's starts | C7 | - of 213 |
+| 5 | the hold `failures` is lost at a restart | C4 | - of 213 |
+| 6 | the scheduler starts an agent that never had a completed run | C5 | - of 213 |
+| 7 | a restart forgets which workflows are gone | C8 | - of 213 |
+| 8 | the kill comes only for runs stopped for `deleted` | C9 | - of 213 |
 | 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4; L3 when the lapse's decision also holds the approval ids of the answer; L9, checked alone, when the guard then also counts a row before its release | 175 of 215 |
 | 10 | the table takes the stored rows of a `no_record` lapse | L7, and not L9: the lapse's decision holds new ids | 27 of 215 |
 | 11 | the guard passes every `releasing` record of a native class | L8 | 202 of 215 |
-| 12 | a `releasing` record passes on an unused row | L8 | - of 215 |
-| 13 | the table pairs each approval id with the other effect | L7 | - of 215 |
-| 14 | the `approved` match does not ask for `allow_once` | L7 | - of 215 |
-| 15 | a `releasing` record with an unused row passes | L8 | - of 215 |
-| 16 | the `approved` match drops the effect id | L7 | - of 215 |
+| 12 | a `releasing` record passes on an unused row | L8 | 42 of 215 |
+| 13 | the table pairs each approval id with the other effect | L7 | 50 of 215 |
+| 14 | the `approved` match does not ask for `allow_once` | L7 | 190 of 215 |
+| 15 | a `releasing` record with an unused row passes | L8 | 42 of 215 |
+| 16 | the `approved` match drops the effect id | L7 | 47 of 215 |
 | 17 | step 3 asks only the live run, not the queue | C3 | - of 213 |
 | 18 | the tick asks "needs the person" only | C5 | - of 213 |
 | 19 | a person's start names no slot | C6 | - of 213 |
@@ -544,6 +561,8 @@ replay of that design gives another answer, event, call or state at some move.
 | 48 | recovery sends `end_run` for a run that `reap` answered `alive` | C12 | - of 213 |
 | 49 | recovery sends `end_run` only for the runs that it ends itself, so one that is owed from the earlier life is forgotten | C12 | - of 213 |
 | 50 | one answered `check` clears every later `check` | C4 | - of 213 |
+| 51 | a lapse sends its decision under new approval ids and the port's count of ids does not go on, so a later answer gets the same ids | L3, in `apart` alone | - of 215 |
+| 52 | the same for the decision of an `issue` whose digests do not hold | L3, in `apart` alone | - of 215 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -551,7 +570,8 @@ sends the event of row 34 again after the owner's `no_workflow` is row 34 at a l
 tick: the models hold no answer `no_workflow`, and C10 reports the first sending. Rows 15,
 18, 20 and 24 are the replacements of rows 12, 6, 2 and 11 under the words of an earlier
 round. Rows 40 to 45 are the round of rulings XA-1, XA-2 and XA-5, and rows 46 to 50 the
-round of ruling XB-4. `Confirm4` as it stood before this round is rows 43 and 45 at once,
+round of ruling XB-4. Rows 51 and 52 need a second item after a lapse of the first, which
+reading 9 of `Confirm4` takes out of `full`; `apart` holds it. `Confirm4` as it stood before this round is rows 43 and 45 at once,
 and none of its ten invariants reported either: it refused a repeat with `approval`, and
 its run asked again after a `reject_once`. Three more changes break no property and
 change traces alone: a tick that does not skip an agent whose run the store has not ended
@@ -623,7 +643,8 @@ The first line of a file is `{"seed":<n>,"count":<n>,"stamp":"<digest>"}`. The s
 the SHA-256, as 64 hex digits, of the bytes of `Schedule.tla`, `Schedule.cfg`,
 `Confirm4.tla`, `Confirm4.cfg`, `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla`
 and `limits.json`, in this order, with every carriage return taken out, so that a checkout
-with CRLF line ends gives the same stamp. Both files of one export hold the same stamp, and
+with CRLF line ends gives the same stamp. The digest joins the files with nothing between
+them, so it does not say where one file ends. Both files of one export hold the same stamp, and
 the export prints it. Whoever reads the two files compares the two stamps first and refuses
 a pair in which they differ: such a pair holds the traces of two versions of the models.
 The check `30-r4-formal.sh` refuses it with the cause `traces`, and the test
@@ -664,7 +685,7 @@ An entry of `p` is `{"call":"<name>"}` with the keys of the table after it.
 | `kill` | `run` | `Runs::kill` | a `tick` with `grace` `yes`, for each run that was `stopping` before it and for each stopped run whose runner ended before it |
 | `reap` | none | `Runs::reap` | `restart`; its answers are the key `alive` of the line |
 | `end_run` | `run` | `Owner::send` with the body `end_run` | `restart`, for each run that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each such run until the store has ended it |
-| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event; `active` with a `hold_cleared` event when the hold `off` does not stand |
+| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event; `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
 | `answer_confirm` | `item`, `answer` (`allow`, `reject`) | `Runs::answer_confirm` | an `answer` with `ok`; with `reject`, a `lapse` from `shown` or `armed` of a run that still lives and an `issue` with `digest_ok` `no` |
 
 The stored rows of an item stand in `e` of its `record` line, or of its lapse with
@@ -868,9 +889,10 @@ an `issue` makes an item that is `lapsed` with the cause `digest`, and sends
 after the run was stopped, and then nothing changes. `stored` is `yes` or `no` in a lapse
 with `no_record`, and says whether the store wrote the rows although no acknowledgement
 came, and with `yes` the line's `e` holds those rows; it is null in every other lapse, and
-`confirm_step` does not see it. A `stop` is the
-person's stop while no item is open; with an open item the trace holds the lapse of that
-item with `cancelled`. A trace has no line for a restart: the app's end is the lapse of
+`confirm_step` does not see it. A `stop` with `ok` is the
+person's stop while no item is open. With an open item, or once the run is stopped, a
+`stop` line is answered `state` and changes nothing; the person's stop of a run with an
+open item is the lapse of that item with `cancelled`. A trace has no line for a restart: the app's end is the lapse of
 the open item with `app_ended`, and no line follows it. The records of a `guard` line have
 the states `approved`, `releasing` and `committed`, and name any effect with any digest
 and any approval id that was minted. `approval` is null in a record that holds no
