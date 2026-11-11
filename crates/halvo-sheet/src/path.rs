@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -28,7 +29,7 @@ fn plain(_: &Path) -> Option<PathBuf> {
     None
 }
 
-pub(crate) fn file(root: &Path, spellings: &[PathBuf], path: &Path) -> Result<PathBuf, Error> {
+pub(crate) fn inside<'a>(spellings: &[PathBuf], path: &'a Path) -> Result<Vec<&'a OsStr>, Error> {
     let rel = if path.is_absolute() {
         spellings
             .iter()
@@ -47,6 +48,11 @@ pub(crate) fn file(root: &Path, spellings: &[PathBuf], path: &Path) -> Result<Pa
             }
         }
     }
+    Ok(names)
+}
+
+pub(crate) fn file(root: &Path, spellings: &[PathBuf], path: &Path) -> Result<PathBuf, Error> {
+    let names = inside(spellings, path)?;
     let Some((last, dirs)) = names.split_last() else {
         return Err(Error::Path(PathRefusal::NotFile));
     };
@@ -82,7 +88,7 @@ pub(crate) fn regular(full: &Path) -> Result<(), Error> {
 }
 
 #[cfg(windows)]
-fn named(name: &std::ffi::OsStr) -> Result<(), Error> {
+fn named(name: &OsStr) -> Result<(), Error> {
     if name.to_string_lossy().contains(':') {
         Err(Error::Path(PathRefusal::Name))
     } else {
@@ -91,6 +97,6 @@ fn named(name: &std::ffi::OsStr) -> Result<(), Error> {
 }
 
 #[cfg(not(windows))]
-fn named(_: &std::ffi::OsStr) -> Result<(), Error> {
+fn named(_: &OsStr) -> Result<(), Error> {
     Ok(())
 }

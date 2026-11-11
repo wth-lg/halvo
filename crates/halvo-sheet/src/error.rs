@@ -67,6 +67,19 @@ pub enum Refusal {
     Kinds(Vec<crate::Kind>),
 }
 
+/// Why [`crate::Folder::replace`] left the workbook as it was.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kept {
+    /// The workbook's path is refused now, or the file is not the one that `prepare` read.
+    Workbook,
+    /// The checkpoint is gone, or it is no longer the workbook as `prepare` found it.
+    Checkpoint,
+    /// The prepared copy is gone, or it is no longer the copy that `prepare` checked.
+    Copy,
+    /// The system refused the rename with an error of this kind.
+    Rename(io::ErrorKind),
+}
+
 /// An error of a call. No error holds the content of a cell, of a source row or of a part of
 /// the workbook.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,6 +111,8 @@ pub enum Error {
     /// The prepared copy did not read back with the sameness of A13.4, or it lost a part kind
     /// of the workbook, with the cause `sheet`.
     Sheet,
+    /// `replace` left the workbook as it was.
+    NotReplaced(Kept),
 }
 
 impl Error {
@@ -115,7 +130,8 @@ impl Error {
             | Error::Shape
             | Error::Value
             | Error::RunId
-            | Error::Checkpoint => Cause::StepFailed,
+            | Error::Checkpoint
+            | Error::NotReplaced(_) => Cause::StepFailed,
         }
     }
 }
@@ -141,6 +157,7 @@ impl fmt::Display for Error {
             Error::RunId => f.write_str("the text is not a run id"),
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),
+            Error::NotReplaced(why) => write!(f, "the workbook was not replaced: {why:?}"),
         }
     }
 }

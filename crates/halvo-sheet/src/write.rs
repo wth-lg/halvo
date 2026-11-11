@@ -2,11 +2,12 @@ use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use calamine::Reader;
 
 use crate::book::{self, guarded, unreadable};
-use crate::error::{Error, PathRefusal, Refusal};
+use crate::error::{Error, Kept, PathRefusal, Refusal};
 use crate::parts::{self, Inventory};
 use crate::path;
 use crate::range::Range;
@@ -34,13 +35,13 @@ impl RunId {
 /// copy of the workbook as it was, and the prepared copy `<name>.halvo-prepared-<run id><ext>`,
 /// the workbook with the new cells, whose content the sameness check of `prepare` read.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Prepared {
     pub(crate) workbook: PathBuf,
     pub(crate) checkpoint: PathBuf,
     pub(crate) copy: PathBuf,
     pub(crate) original: Vec<u8>,
     pub(crate) changed: Vec<u8>,
+    pub(crate) answer: OnceLock<Result<(), Error>>,
 }
 
 impl Prepared {
@@ -110,6 +111,7 @@ pub(crate) fn prepare(
             copy,
             original,
             changed: disk,
+            answer: OnceLock::new(),
         }),
         Err(error) => {
             let _ = fs::remove_file(&copy);
@@ -119,6 +121,23 @@ pub(crate) fn prepare(
             Err(error)
         }
     }
+}
+
+pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
+    let holds = |path: &Path, bytes: &[u8]| {
+        path::regular(path).is_ok() && fs::read(path).is_ok_and(|read| read == bytes)
+    };
+    if !holds(&prepared.workbook, &prepared.original) {
+        return Err(Error::NotReplaced(Kept::Workbook));
+    }
+    if !holds(&prepared.checkpoint, &prepared.original) {
+        return Err(Error::NotReplaced(Kept::Checkpoint));
+    }
+    if !holds(&prepared.copy, &prepared.changed) {
+        return Err(Error::NotReplaced(Kept::Copy));
+    }
+    fs::rename(&prepared.copy, &prepared.workbook)
+        .map_err(|error| Error::NotReplaced(Kept::Rename(error.kind())))
 }
 
 fn write_cells(

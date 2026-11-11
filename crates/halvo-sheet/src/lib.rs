@@ -11,7 +11,7 @@ mod write;
 use std::path::{Path, PathBuf};
 
 pub use book::Cell;
-pub use error::{Cause, Error, PathRefusal, Refusal, SourceRefusal};
+pub use error::{Cause, Error, Kept, PathRefusal, Refusal, SourceRefusal};
 pub use parts::Kind;
 pub use range::Range;
 pub use source::Value;
@@ -96,5 +96,36 @@ impl Folder {
     ) -> Result<Prepared, Error> {
         let full = self.file(workbook)?;
         write::prepare(full, run, sheet, range, values)
+    }
+
+    /// The second half of a file edit (contracts.md A11.3, A5.2), one step: it puts the
+    /// prepared copy in the workbook's place by one rename. It returns `Ok` when the workbook is
+    /// the prepared copy, and an error when the call left the workbook as it was:
+    /// [`Error::Path`] with [`PathRefusal::Outside`] when this folder does not hold the
+    /// workbook, which touches no file, and otherwise [`Error::NotReplaced`] when, at the
+    /// moment of the rename, the workbook's path is refused or the file is not the one that
+    /// `prepare` read, the checkpoint is not that file either, the prepared copy is not the
+    /// copy that `prepare` checked, or the system refuses the rename. With
+    /// [`Error::NotReplaced`] it removes the prepared copy when it can reach it with no link on
+    /// the way, so the checkpoint is the one file that stays beside the workbook after either
+    /// end. A second call with the same [`Prepared`] returns the answer of the first and
+    /// touches no file.
+    pub fn replace(&self, prepared: &Prepared) -> Result<(), Error> {
+        path::inside(&self.spellings, &prepared.workbook)?;
+        prepared
+            .answer
+            .get_or_init(|| {
+                let done = self
+                    .file(&prepared.workbook)
+                    .map_err(|_| Error::NotReplaced(Kept::Workbook))
+                    .and_then(|_| write::replace(prepared));
+                if done.is_err() {
+                    if let Ok(copy) = self.file(&prepared.copy) {
+                        let _ = std::fs::remove_file(copy);
+                    }
+                }
+                done
+            })
+            .clone()
     }
 }
