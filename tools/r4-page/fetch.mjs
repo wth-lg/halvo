@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { HERE, Refusal, refuse, choose, buildDir, marker } from './machine.mjs';
 
 const USAGE = 'sh tools/r4-page/fetch.sh DIR [--browser webkit|chromium]';
@@ -29,6 +29,58 @@ function sha256(bytes) {
 
 function matches(bytes, line) {
   return bytes.length === line.size && sha256(bytes) === line.sha256;
+}
+
+const HOPS = 10;
+const IDLE_MS = 60000;
+const TOTAL_MS = 1800000;
+
+async function download(line) {
+  const total = AbortSignal.timeout(TOTAL_MS);
+  const idle = new AbortController();
+  const signal = AbortSignal.any([total, idle.signal]);
+  let timer = setTimeout(() => idle.abort(), IDLE_MS);
+  const awake = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => idle.abort(), IDLE_MS);
+  };
+  try {
+    let url = new URL(line.address);
+    let res;
+    for (let hop = 0; ; hop++) {
+      if (url.protocol !== 'https:') return 'error=redirect_not_https';
+      if (hop > HOPS) return 'error=redirects';
+      res = await fetch(url, { redirect: 'manual', signal });
+      awake();
+      if (res.status < 300 || res.status > 399) break;
+      const next = res.headers.get('location');
+      await res.body?.cancel();
+      if (!next) return 'status=' + res.status;
+      url = new URL(next, url);
+    }
+    if (!res.ok) {
+      await res.body?.cancel();
+      return 'status=' + res.status;
+    }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of res.body) {
+      awake();
+      size += chunk.length;
+      if (size > line.size) {
+        idle.abort();
+        throw new Refusal('hash', line.address + ' sends more than the ' + line.size + ' bytes of its line in tools/r4-page/files.tsv; nothing is written');
+      }
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  } catch (err) {
+    if (err instanceof Refusal) throw err;
+    if (signal.aborted) return 'error=timeout';
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function failed(step, detail) {
@@ -59,12 +111,12 @@ async function main() {
   if (!(existsSync(archive) && matches(readFileSync(archive), line))) {
     let bytes;
     try {
-      const res = await fetch(line.address);
-      if (!res.ok) return failed('download', 'status=' + res.status);
-      bytes = Buffer.from(await res.arrayBuffer());
+      bytes = await download(line);
     } catch (err) {
+      if (err instanceof Refusal) throw err;
       return failed('download', 'error=' + String(err && err.code ? err.code : 'network'));
     }
+    if (typeof bytes === 'string') return failed('download', bytes);
     if (!matches(bytes, line)) {
       throw new Refusal('hash', line.address + ' has size ' + bytes.length + ' and SHA-256 ' + sha256(bytes) + ', and its line in tools/r4-page/files.tsv has size ' + line.size + ' and SHA-256 ' + line.sha256);
     }
@@ -76,9 +128,16 @@ async function main() {
   const mark = marker(dir, line);
   let extracted = 'no';
   if (!(existsSync(mark) && readFileSync(mark, 'utf8').trim() === line.sha256)) {
-    mkdirSync(dest, { recursive: true });
-    if (!unzip(archive, dest)) return failed('extract', 'build=' + line.build);
-    writeFileSync(mark, line.sha256 + '\n');
+    mkdirSync(dirname(dest), { recursive: true });
+    const fresh = mkdtempSync(dest + '.new-');
+    if (!unzip(archive, fresh)) return failed('extract', 'build=' + line.build);
+    writeFileSync(join(fresh, basename(mark)), line.sha256 + '\n');
+    if (existsSync(dest)) {
+      let n = 1;
+      while (existsSync(dest + '.old-' + n)) n++;
+      renameSync(dest, dest + '.old-' + n);
+    }
+    renameSync(fresh, dest);
     extracted = 'yes';
   }
   let pkg = 'kept';
