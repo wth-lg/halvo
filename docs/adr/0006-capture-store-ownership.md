@@ -7,7 +7,7 @@ evidence: row 69 of decisions.tsv of run 20261108-halvo-r1-capture; row 69 gives
 
 ## Context
 
-Row 69 completed P6 of R1 with a redesign around one owner of the capture store:
+Row 69 decided to complete P6 of R1 with a redesign around one owner of the capture store:
 the daemon owns the store, and the app is a client over a local control socket.
 
 ## Decision
