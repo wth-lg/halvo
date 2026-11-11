@@ -10,7 +10,9 @@ Usage: sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port N --r
        sh tools/r3-trials/web/run.sh --help
 
 The web executor trial of unit U0.2 (contract A13.2). It builds the trial program with
-cargo --locked, starts the fixture server of tools/fixture-server/variants on 127.0.0.1:N,
+cargo --locked into its own target directory for the host that rustc -vV names, whatever
+CARGO_TARGET_DIR or a build target of the caller says, and runs that binary. It starts the
+fixture server of tools/fixture-server/variants on 127.0.0.1:N,
 starts the browser headless with a new profile for every run, and stops both at the end.
 
   --candidate C     cdp, the adapter on chromiumoxide 0.9.1. webdriver and playwright have
@@ -143,11 +145,17 @@ else
   scratch_arg=$scratch
 fi
 
-cargo build --release --locked --quiet --manifest-path "$dir/Cargo.toml" || {
+host=$("${RUSTC:-rustc}" -vV | sed -n 's/^host: //p')
+[ -n "$host" ] || {
   echo "notrun candidate=cdp machine=$machine cause=build"
   exit 1
 }
-bin="$dir/target/release/web-trial$exe"
+cargo build --release --locked --quiet --target "$host" --target-dir "$dir/target" \
+  --manifest-path "$dir/Cargo.toml" || {
+  echo "notrun candidate=cdp machine=$machine cause=build"
+  exit 1
+}
+bin="$dir/target/$host/release/web-trial$exe"
 
 set -- --candidate cdp --browser "$browser" --port "$port" --machine "$machine" \
   --repo "$repo_arg" --scratch "$scratch_arg"
@@ -159,12 +167,12 @@ case "$mode" in
     ;;
   extras)
     with=$(wc -c <"$bin" | tr -d ' ')
-    CARGO_TARGET_DIR="$dir/target/no-driver" cargo build --release --locked --quiet \
+    cargo build --release --locked --quiet --target "$host" --target-dir "$dir/target/no-driver" \
       --no-default-features --manifest-path "$dir/Cargo.toml" || {
       echo "notrun candidate=cdp machine=$machine cause=build"
       exit 1
     }
-    without=$(wc -c <"$dir/target/no-driver/release/web-trial$exe" | tr -d ' ')
+    without=$(wc -c <"$dir/target/no-driver/$host/release/web-trial$exe" | tr -d ' ')
     echo "binary with_driver_bytes=$with without_driver_bytes=$without"
     set -- "$@" --extras --added-bytes "$((with - without))"
     ;;
