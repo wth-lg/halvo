@@ -22,7 +22,7 @@ pub use event::{
     Answered, Body, CheckAnswer, Cleared, DoneAnswer, Event, Raised, ReadyAnswer, Reply,
     SetupAnswer, Slot, What,
 };
-pub use facts::{Doing, Facts, Live, OpenItem};
+pub use facts::{Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, RunItem, RunItemKind};
 pub use ids::{
     hex, AgentId, ApprovalId, Digest, EffectId, ItemId, Name, Origin, RunId, WorkflowId,
 };

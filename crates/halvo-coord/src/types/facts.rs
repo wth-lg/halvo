@@ -18,52 +18,138 @@ pub struct Facts<C> {
     pub events: Vec<Event>,
     /// The day of the coordinator's `Clock` (I5.9).
     pub today: u32,
-    /// Whether it is idle, queued or live in a phase, with its open item.
+    /// Its run state and its open item.
     pub doing: Doing,
 }
 
-/// What an agent does, of the coordinator's own state (I5.1), in one value: idle, with the
-/// item that a hold or the scheduler raised or none; a start in the queue; or a live run in a
-/// phase of I5.6, the phase `waiting` holding the run's open item.
+/// What an agent does, of the coordinator's own state (I5.1): one run state, idle, queued or
+/// live in a phase of I5.6, and at most one open item. The phase `waiting` holds the item that
+/// its run raised; an idle or queued agent may hold an item of a kind that no run raises; no
+/// other pair can be written.
 ///
 /// ```
-/// use halvo_coord::types::{Doing, ItemId, ItemKind, Live, LivePhase, OpenItem};
-/// let item = OpenItem {
+/// use halvo_coord::types::{Doing, ItemId, OwnItem, OwnItemKind};
+/// let ready = OwnItem {
 ///     item: ItemId::parse("00000000000000000000000000000003").unwrap(),
-///     kind: ItemKind::Confirm,
+///     kind: OwnItemKind::Ready,
 /// };
-/// let doing = Doing::Live(Live::Waiting(item));
-/// assert_eq!(doing.phase(), Some(LivePhase::Waiting));
+/// let doing = Doing::Queued(Some(ready));
+/// assert_eq!(doing.phase(), None);
 /// ```
 ///
-/// A waiting run without its item cannot be written:
+/// An idle agent with an item that a run raised cannot be written:
 ///
 /// ```compile_fail,E0308
-/// use halvo_coord::types::{Doing, Live};
-/// let doing = Doing::Live(Live::Waiting);
+/// use halvo_coord::types::{Doing, ItemId, RunItem, RunItemKind};
+/// let confirm = RunItem {
+///     item: ItemId::parse("00000000000000000000000000000003").unwrap(),
+///     kind: RunItemKind::Confirm,
+/// };
+/// let doing = Doing::Idle(Some(confirm));
+/// ```
+///
+/// Nor a waiting run with an item that no run raises:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::{Doing, ItemId, Live, OwnItem, OwnItemKind};
+/// let ready = OwnItem {
+///     item: ItemId::parse("00000000000000000000000000000003").unwrap(),
+///     kind: OwnItemKind::Ready,
+/// };
+/// let doing = Doing::Live(Live::Waiting(ready));
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Doing {
-    /// No run of it is live and no start of it is queued; the item that a hold or the
-    /// scheduler raised, or none.
-    Idle(Option<OpenItem>),
-    /// A start of it stands in the queue.
-    Queued,
+    /// No run of it is live and no start of it is queued; an item that no run raised, or none.
+    Idle(Option<OwnItem>),
+    /// A start of it stands in the queue; an item that no run raised, or none.
+    Queued(Option<OwnItem>),
     /// A run of it is live.
     Live(Live),
 }
 
-/// The phase of a live run (I5.6); `waiting` holds the open item of the run.
+/// The phase of a live run (I5.6); `waiting` holds the item that the run raised.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Live {
     /// `starting`.
     Starting,
     /// `working`.
     Working,
-    /// `waiting`, with the item that the run opened.
-    Waiting(OpenItem),
+    /// `waiting`, with the item that the run raised.
+    Waiting(RunItem),
     /// `stopping`.
     Stopping,
+}
+
+/// An open item that a request of its run raised (I3.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RunItem {
+    /// The item.
+    pub item: ItemId,
+    /// Its kind.
+    pub kind: RunItemKind,
+}
+
+/// The kinds that a request of a run raises (I3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunItemKind {
+    /// `confirm`, from a confirm request.
+    Confirm,
+    /// `sign_in`, from a handback request.
+    SignIn,
+    /// `link_account`, from a handback request.
+    LinkAccount,
+    /// `stuck`, from a handback request.
+    Stuck,
+    /// `check`, from a handback request with the reason `effect_unknown`.
+    Check,
+    /// `show`, from the first run in the mode `compile`.
+    Show,
+}
+
+/// An open item that no run raised: the coordinator's own, from a hold or the scheduler (I3.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OwnItem {
+    /// The item.
+    pub item: ItemId,
+    /// Its kind.
+    pub kind: OwnItemKind,
+}
+
+/// The kinds that no run raises (I3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OwnItemKind {
+    /// `check`, from the hold `check`.
+    Check,
+    /// `setup`, from the hold `setup`.
+    Setup,
+    /// `ready`, from the scheduler.
+    Ready,
+}
+
+impl RunItemKind {
+    /// The kind's name in `ItemKind`.
+    pub const fn kind(self) -> ItemKind {
+        match self {
+            RunItemKind::Confirm => ItemKind::Confirm,
+            RunItemKind::SignIn => ItemKind::SignIn,
+            RunItemKind::LinkAccount => ItemKind::LinkAccount,
+            RunItemKind::Stuck => ItemKind::Stuck,
+            RunItemKind::Check => ItemKind::Check,
+            RunItemKind::Show => ItemKind::Show,
+        }
+    }
+}
+
+impl OwnItemKind {
+    /// The kind's name in `ItemKind`.
+    pub const fn kind(self) -> ItemKind {
+        match self {
+            OwnItemKind::Check => ItemKind::Check,
+            OwnItemKind::Setup => ItemKind::Setup,
+            OwnItemKind::Ready => ItemKind::Ready,
+        }
+    }
 }
 
 impl Live {
@@ -83,21 +169,27 @@ impl Doing {
     pub const fn phase(&self) -> Option<LivePhase> {
         match self {
             Doing::Live(live) => Some(live.phase()),
-            Doing::Idle(_) | Doing::Queued => None,
+            Doing::Idle(_) | Doing::Queued(_) => None,
         }
     }
 
-    /// Its open item, or none.
-    pub const fn item(&self) -> Option<&OpenItem> {
+    /// Its open item with its kind, or none.
+    pub fn item(&self) -> Option<OpenItem> {
         match self {
-            Doing::Idle(item) => item.as_ref(),
-            Doing::Live(Live::Waiting(item)) => Some(item),
-            Doing::Queued | Doing::Live(_) => None,
+            Doing::Idle(Some(own)) | Doing::Queued(Some(own)) => Some(OpenItem {
+                item: own.item.clone(),
+                kind: own.kind.kind(),
+            }),
+            Doing::Live(Live::Waiting(run)) => Some(OpenItem {
+                item: run.item.clone(),
+                kind: run.kind.kind(),
+            }),
+            Doing::Idle(None) | Doing::Queued(None) | Doing::Live(_) => None,
         }
     }
 }
 
-/// An open item of an agent.
+/// An open item of an agent with its kind, as `Doing::item` gives it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenItem {
     /// The item.

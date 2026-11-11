@@ -51,7 +51,7 @@
 //! the state-sync verdict `sync=get` of I8.2.
 
 use super::names::names;
-use super::{commands, Class, Doing, Live, Raised};
+use super::{commands, Class, Doing, Live, OwnItem, OwnItemKind, Raised, RunItem, RunItemKind};
 use super::{
     hex, AgentId, BoundFrom, Candidate, CandidateFrom, Card, CardLine, CardRun, Category, Cause,
     Choice, ChoiceText, ClosedReply, ConfigView, Control, ControlText, ErrorReply, Event, Facts,
@@ -440,13 +440,42 @@ fn config(spec: &Spec, workflow: &WorkflowId, agent: &AgentId) -> Config {
     Config::parse(&record).expect("a record of A-A2.1")
 }
 
+fn own(open: OpenItem) -> OwnItem {
+    let kind = match open.kind {
+        ItemKind::Check => OwnItemKind::Check,
+        ItemKind::Setup => OwnItemKind::Setup,
+        ItemKind::Ready => OwnItemKind::Ready,
+        _ => panic!("an item that a run raises, with no live run"),
+    };
+    OwnItem {
+        item: open.item,
+        kind,
+    }
+}
+
+fn of_run(open: OpenItem) -> RunItem {
+    let kind = match open.kind {
+        ItemKind::Confirm => RunItemKind::Confirm,
+        ItemKind::SignIn => RunItemKind::SignIn,
+        ItemKind::LinkAccount => RunItemKind::LinkAccount,
+        ItemKind::Stuck => RunItemKind::Stuck,
+        ItemKind::Check => RunItemKind::Check,
+        ItemKind::Show => RunItemKind::Show,
+        _ => panic!("an item that no run raises, in a waiting run"),
+    };
+    RunItem {
+        item: open.item,
+        kind,
+    }
+}
+
 fn doing(spec: &Spec, open: Option<OpenItem>) -> Doing {
     match (spec.live, spec.queued, open) {
-        (None, false, open) => Doing::Idle(open),
-        (None, true, None) => Doing::Queued,
+        (None, false, open) => Doing::Idle(open.map(own)),
+        (None, true, open) => Doing::Queued(open.map(own)),
         (Some(LivePhase::Starting), false, None) => Doing::Live(Live::Starting),
         (Some(LivePhase::Working), false, None) => Doing::Live(Live::Working),
-        (Some(LivePhase::Waiting), false, Some(open)) => Doing::Live(Live::Waiting(open)),
+        (Some(LivePhase::Waiting), false, Some(open)) => Doing::Live(Live::Waiting(of_run(open))),
         (Some(LivePhase::Stopping), false, None) => Doing::Live(Live::Stopping),
         _ => panic!("a spec of facts that I5 rules out"),
     }

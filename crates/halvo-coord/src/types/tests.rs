@@ -419,35 +419,77 @@ fn the_reply_ok_holds_nothing_but_ok() {
 }
 
 #[test]
-fn the_facts_say_in_one_value_whether_an_agent_is_idle_queued_or_live() {
-    let open = |kind| OpenItem {
-        item: ItemId::parse(&"3".repeat(32)).unwrap(),
-        kind,
-    };
-    let setup = open(ItemKind::Setup);
-    let confirm = open(ItemKind::Confirm);
+fn the_facts_hold_one_run_state_and_at_most_one_item_of_the_right_source() {
+    let id = || ItemId::parse(&"3".repeat(32)).unwrap();
+    let own = |kind| OwnItem { item: id(), kind };
+    let run = |kind| RunItem { item: id(), kind };
     let all = [
         Doing::Idle(None),
-        Doing::Idle(Some(setup.clone())),
-        Doing::Queued,
+        Doing::Idle(Some(own(OwnItemKind::Check))),
+        Doing::Idle(Some(own(OwnItemKind::Setup))),
+        Doing::Queued(None),
+        Doing::Queued(Some(own(OwnItemKind::Ready))),
         Doing::Live(Live::Starting),
         Doing::Live(Live::Working),
-        Doing::Live(Live::Waiting(confirm.clone())),
+        Doing::Live(Live::Waiting(run(RunItemKind::Confirm))),
+        Doing::Live(Live::Waiting(run(RunItemKind::Check))),
         Doing::Live(Live::Stopping),
     ];
-    let got: Vec<(Option<LivePhase>, Option<&OpenItem>)> =
-        all.iter().map(|d| (d.phase(), d.item())).collect();
+    let got: Vec<(Option<&str>, Option<&str>)> = all
+        .iter()
+        .map(|d| {
+            (
+                d.phase().map(LivePhase::name),
+                d.item().map(|i| i.kind.name()),
+            )
+        })
+        .collect();
     assert_eq!(
         got,
         [
             (None, None),
-            (None, Some(&setup)),
+            (None, Some("check")),
+            (None, Some("setup")),
             (None, None),
-            (Some(LivePhase::Starting), None),
-            (Some(LivePhase::Working), None),
-            (Some(LivePhase::Waiting), Some(&confirm)),
-            (Some(LivePhase::Stopping), None),
+            (None, Some("ready")),
+            (Some("starting"), None),
+            (Some("working"), None),
+            (Some("waiting"), Some("confirm")),
+            (Some("waiting"), Some("check")),
+            (Some("stopping"), None),
         ]
+    );
+    let raised: Vec<&str> = [
+        RunItemKind::Confirm,
+        RunItemKind::SignIn,
+        RunItemKind::LinkAccount,
+        RunItemKind::Stuck,
+        RunItemKind::Check,
+        RunItemKind::Show,
+    ]
+    .iter()
+    .map(|k| k.kind().name())
+    .collect();
+    assert_eq!(
+        raised,
+        [
+            "confirm",
+            "sign_in",
+            "link_account",
+            "stuck",
+            "check",
+            "show"
+        ],
+        "the kinds that a run raises, I3.1"
+    );
+    let own_kinds: Vec<&str> = [OwnItemKind::Check, OwnItemKind::Setup, OwnItemKind::Ready]
+        .iter()
+        .map(|k| k.kind().name())
+        .collect();
+    assert_eq!(
+        own_kinds,
+        ["check", "setup", "ready"],
+        "the kinds that a hold or the scheduler raises, I3.1"
     );
 }
 
