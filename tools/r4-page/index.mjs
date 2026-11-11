@@ -421,7 +421,10 @@ function lines(replies) {
 async function openWith(options, context, transform) {
   const o = options || {};
   if (typeof o.origin !== 'string' || (typeof o.state !== 'string' && !Array.isArray(o.replies))) {
-    throw new Refusal('usage', 'open({origin, state, views, frame, replies, out}) needs origin and a state or replies');
+    throw new Refusal('usage', 'open({origin, state, views, frame, replies, acts, out}) needs origin and a state or replies');
+  }
+  if (o.acts !== undefined && !(Array.isArray(o.acts) && o.acts.every((a) => a && typeof a === 'object' && typeof a.act === 'string'))) {
+    throw new Refusal('usage', 'open({acts}) takes a list of act arguments, each {act, param, n, text}');
   }
   const { browser, build } = await acquire();
   let ctx = null;
@@ -481,6 +484,7 @@ async function openWith(options, context, transform) {
     await settle(h);
     if (await h.page.evaluate(() => Boolean(window.__r4frame && window.__r4frame.failed))) throw new Refusal('fixture', 'a view script of views did not load');
     unheld(h, 'open');
+    for (const a of o.acts || []) await act(h, a);
     return h;
   } catch (err) {
     if (ctx) await ctx.close().catch(() => {});

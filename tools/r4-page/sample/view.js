@@ -76,6 +76,7 @@
       var b = el('button', null, text);
       b.type = 'button';
       b.setAttribute('data-act', c.control);
+      b.setAttribute('data-param', r.agent);
       if (first && i === 0 && fault === 'unreachable') b.tabIndex = -1;
       if (first && i === 0 && fault === 'focus_unseen') b.style.setProperty('outline', 'none', 'important');
       if (first && c.control === 'delete' && fault === 'small') {
