@@ -78,6 +78,7 @@ enum Fault {
     StoreChangedOnReadGetsStoreError,
     ServesOldRecordsAfterTheReplace,
     RestartAddsASegment,
+    RefusesPastASegmentEnd,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -182,6 +183,13 @@ struct Proxy {
     stop: Option<Entry>,
     changed_on_read: bool,
     old_files: Vec<PathBuf>,
+    lines: Vec<u64>,
+}
+
+impl Proxy {
+    fn past_an_inner_end(&self, p: Position) -> bool {
+        p.seg >= 1 && (p.seg as usize) < self.lines.len() && p.idx >= self.lines[p.seg as usize - 1]
+    }
 }
 
 impl Proxy {
@@ -492,6 +500,14 @@ impl Subject for Control {
             stop: None,
             changed_on_read: false,
             old_files: self.files.clone(),
+            lines: self
+                .files
+                .iter()
+                .map(|f| {
+                    let text = fs::read(f).unwrap_or_default();
+                    text.iter().filter(|b| **b == b'\n').count() as u64
+                })
+                .collect(),
         };
         let (mut requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, mut replies_out) = io::pipe().map_err(|e| e.to_string())?;
@@ -516,7 +532,13 @@ impl Subject for Control {
                             }
                             _ => unfiltered(&open, proxy.fault),
                         };
-                        let reply = t.handle(&ClientMessage::OpenCursor(sent));
+                        let reply = if proxy.fault == RefusesPastASegmentEnd
+                            && proxy.past_an_inner_end(p)
+                        {
+                            error(Cause::BadPosition)
+                        } else {
+                            t.handle(&ClientMessage::OpenCursor(sent))
+                        };
                         let reply = proxy.opened(&open, reply);
                         (ClientMessage::OpenCursor(open), reply)
                     }
@@ -1034,4 +1056,17 @@ fn control_a_server_that_drops_the_last_record_of_set_c() {
 #[test]
 fn a_server_whose_restart_adds_a_segment_passes() {
     check(RestartAddsASegment, [Pass, Pass, Pass, Pass]);
+}
+
+#[test]
+fn control_a_server_that_refuses_a_position_past_the_end_of_an_inner_segment() {
+    check(
+        RefusesPastASegmentEnd,
+        [
+            Fail("open_cursor at {seg 1, idx 12} got the error bad-position"),
+            Pass,
+            Pass,
+            Pass,
+        ],
+    );
 }

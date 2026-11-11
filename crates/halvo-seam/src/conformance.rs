@@ -503,8 +503,9 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
     ))
 }
 
-/// The case `resume` (C5.13 item 6): after `restart`, a read from each of five start positions serves the
-/// entries of the reference read at or after it, at the same positions, from the same store; a position
+/// The case `resume` (C5.13 item 6): after `restart`, a read from each of six start positions serves the
+/// entries of the reference read at or after it (the sixth is the position past the last entry of the first
+/// segment, which a server reads as the first position of the next segment), at the same positions, from the same store; a position
 /// beyond every watermark and the index 1 of the segment of the highest watermark after the restart get
 /// `bad-position`, and a legal open after them works.
 pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
@@ -517,7 +518,23 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
             .find(|e| e.pos.seg != rf.r[0].pos.seg)
             .map(|e| e.pos)
             .ok_or("the reference read served one segment")?;
-    let starts = [ZERO, rf.r[10].pos, second, rf.first_full_next, rf.w];
+    let first = rf.r[0].pos.seg;
+    let past_first =
+        rf.r.iter()
+            .rfind(|e| e.pos.seg == first)
+            .map(|e| Position {
+                seg: first,
+                idx: e.pos.idx + 1,
+            })
+            .ok_or("the reference read is empty")?;
+    let starts = [
+        ZERO,
+        rf.r[10].pos,
+        second,
+        rf.first_full_next,
+        rf.w,
+        past_first,
+    ];
     let mut top = rf.w;
     for (n, start) in starts.into_iter().enumerate() {
         let reading = read(&mut conn, Some(&rf.s), start, None, None)
