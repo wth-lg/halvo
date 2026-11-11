@@ -13,7 +13,9 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 use crate::custody::dev_fallback::DevFallbackCustody;
-use crate::custody::{custody_for, KeyCustody, RootId};
+use crate::custody::{
+    custody_for, opens_under_an_all_zero_root, CustodyError, KeyCustody, RootId, WrappedKey,
+};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
 
 use super::db::{db_error, EncryptedStore, KeyFile};
@@ -234,6 +236,21 @@ pub(crate) fn raw_key_at_rest(dir: &Path, key: &[u8; 32]) -> StoreResult<bool> {
     Ok(false)
 }
 
+#[derive(Debug)]
+pub(crate) enum RootState {
+    Destroyed,
+    Alive,
+    Unknown(CustodyError),
+}
+
+pub(crate) fn root_state(custody: &dyn KeyCustody, wrapped: &WrappedKey) -> RootState {
+    match custody.unwrap_store_key(wrapped) {
+        Ok(_) => RootState::Alive,
+        Err(CustodyError::RootMissing) => RootState::Destroyed,
+        Err(other) => RootState::Unknown(other),
+    }
+}
+
 /// What `--verify-deletion` measured: one force-expired segment crypto-shredded
 /// beside a live sibling, then delete-all.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -314,9 +331,13 @@ pub(crate) fn run_deletion_check_in(dir: &Path) -> StoreResult<DeletionCheck> {
     let key_file = KeyFile::read(dir)?;
     let all = store.crypto_shred_all()?;
     drop(store);
-    let root_destroyed = custody_for(key_file.custody_kind, key_file.root_id)?
-        .unwrap_store_key(&key_file.wrapped_store_key()?)
-        .is_err();
+    let retained = key_file.wrapped_store_key()?;
+    let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
+    let root_destroyed = match root_state(custody.as_ref(), &retained) {
+        RootState::Destroyed => !opens_under_an_all_zero_root(key_file.root_id, &retained),
+        RootState::Alive => false,
+        RootState::Unknown(e) => return Err(StoreError::Custody(e)),
+    };
     let store_sealed = matches!(
         EncryptedStore::open(dir, DEFAULT_RETENTION),
         Err(StoreError::Sealed)
@@ -380,6 +401,80 @@ mod tests {
         assert_eq!(remaining_wrapped_keys(&store).unwrap().len(), 1);
         assert!(!decryptable_with_remaining_keys(&store, &expired_cipher).unwrap());
         assert!(decryptable_with_remaining_keys(&store, &live_cipher).unwrap());
+    }
+
+    struct Answers(fn() -> Result<crate::custody::StoreKey, CustodyError>);
+
+    impl KeyCustody for Answers {
+        fn kind(&self) -> crate::custody::CustodyKind {
+            crate::custody::CustodyKind::DevFallback
+        }
+        fn root_id(&self) -> RootId {
+            RootId::fresh()
+        }
+        fn wrap_store_key(
+            &self,
+            _key: &crate::custody::StoreKey,
+        ) -> Result<WrappedKey, CustodyError> {
+            Ok(WrappedKey(Vec::new()))
+        }
+        fn unwrap_store_key(
+            &self,
+            _wrapped: &WrappedKey,
+        ) -> Result<crate::custody::StoreKey, CustodyError> {
+            (self.0)()
+        }
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn the_root_state_is_destroyed_only_for_a_missing_root_and_alive_only_for_an_unwrap() {
+        let wrapped = WrappedKey(vec![0u8; 72]);
+        let transient = root_state(&Answers(|| Err(CustodyError::RootLocked(-25308))), &wrapped);
+        assert!(
+            matches!(
+                transient,
+                RootState::Unknown(CustodyError::RootLocked(-25308))
+            ),
+            "{transient:?}"
+        );
+        let alive = root_state(
+            &Answers(|| Ok(crate::custody::StoreKey::from_bytes([1u8; 32]))),
+            &wrapped,
+        );
+        assert!(matches!(alive, RootState::Alive), "{alive:?}");
+        let destroyed = root_state(&Answers(|| Err(CustodyError::RootMissing)), &wrapped);
+        assert!(matches!(destroyed, RootState::Destroyed), "{destroyed:?}");
+        let others: [fn() -> Result<crate::custody::StoreKey, CustodyError>; 3] = [
+            || Err(CustodyError::RootDenied),
+            || Err(CustodyError::WrapAuthFailed),
+            || Err(CustodyError::Os(Some(5))),
+        ];
+        for other in others {
+            let answer = root_state(&Answers(other), &wrapped);
+            assert!(matches!(answer, RootState::Unknown(_)), "{answer:?}");
+        }
+    }
+
+    #[test]
+    fn the_all_zero_root_probe_opens_only_a_key_wrapped_under_an_all_zero_root() {
+        let root_id = RootId::fresh();
+        let key = [0x37u8; 32];
+        let under_zero =
+            crate::custody::dev_fallback::aead_seal(&[0u8; 32], &key, root_id.as_bytes()).unwrap();
+        let under_a_root =
+            crate::custody::dev_fallback::aead_seal(&[0x91u8; 32], &key, root_id.as_bytes())
+                .unwrap();
+        assert!(opens_under_an_all_zero_root(
+            root_id,
+            &WrappedKey(under_zero)
+        ));
+        assert!(!opens_under_an_all_zero_root(
+            root_id,
+            &WrappedKey(under_a_root)
+        ));
     }
 
     #[test]

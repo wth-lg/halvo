@@ -101,6 +101,10 @@ pub trait KeyCustody {
     fn destroy_root(&self) -> Result<(), CustodyError>;
 }
 
+pub(crate) fn opens_under_an_all_zero_root(root_id: RootId, wrapped: &WrappedKey) -> bool {
+    dev_fallback::aead_open(&[0u8; 32], &wrapped.0, root_id.as_bytes()).is_ok()
+}
+
 /// The custody that wrapped a store key, rebuilt from the kind and root id the
 /// store-key file records.
 pub fn custody_for(
