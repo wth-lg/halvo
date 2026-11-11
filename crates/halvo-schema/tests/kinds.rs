@@ -387,7 +387,7 @@ fn check_entries_reports_a_bounded_kind_with_0_days_or_without_a_day() {
         }]),
         [
             "kind \"probe_bounded\": a bounded kind without the key day of the type Day",
-            "kind \"probe_bounded\": a bounded kind with the key day of the type Count",
+            "kind \"probe_bounded\": a bounded kind whose key day has a pair of the type Count",
         ]
     );
 }
@@ -1173,7 +1173,7 @@ fn check_entries_reports_a_rule_key_with_a_pair_of_another_type() {
             ],
             ..LATER_BOUNDED
         }]),
-        ["kind \"probe_bounded\": a bounded kind with the key day of the type App"]
+        ["kind \"probe_bounded\": a bounded kind whose key day has a pair of the type App"]
     );
     assert_eq!(
         check_entries(&[&KindEntry {
@@ -1187,7 +1187,7 @@ fn check_entries_reports_a_rule_key_with_a_pair_of_another_type() {
             ],
             ..LATER_WINDOW
         }]),
-        ["kind \"probe_window\": a window kind with the key expires of the type Name"]
+        ["kind \"probe_window\": a window kind whose key expires has a pair of the type Name"]
     );
     assert_eq!(
         check_entries(&[&KindEntry {
@@ -1201,7 +1201,7 @@ fn check_entries_reports_a_rule_key_with_a_pair_of_another_type() {
             ],
             ..LATER_WINDOW
         }]),
-        ["kind \"probe_window\": a window kind with the key segments of the type Name"]
+        ["kind \"probe_window\": a window kind whose key segments has a pair of the type Name"]
     );
     assert_eq!(
         check_entries(&[&KindEntry {
@@ -1389,4 +1389,31 @@ fn check_record_reads_an_app_id_with_a_control_character_of_the_category_cc_as_n
         refused("app", &app, "string_form");
     }
     passes("app", "\"com.example\u{a0}app\"");
+}
+
+#[test]
+fn check_record_refuses_a_record_that_nests_deeper_than_128_levels_and_answers_at_any_depth() {
+    let bounded =
+        |count: &str| format!(r#"{{"v":1,"workflow":"{W1}","day":20767,"count":{count}}}"#);
+    let lists = |levels: usize| format!("{}2{}", "[".repeat(levels), "]".repeat(levels));
+    let objects = |levels: usize| format!("{}2{}", r#"{"a":"#.repeat(levels), "}".repeat(levels));
+    assert_eq!(check_record(&LATER_BOUNDED, &bounded(&lists(127))), Ok(()));
+    assert_eq!(
+        check_record(&LATER_BOUNDED, &bounded(&objects(127))),
+        Ok(())
+    );
+    for levels in [128, 5_000, 200_000] {
+        for value in [lists(levels), objects(levels)] {
+            assert_eq!(
+                check_record(&LATER_BOUNDED, &bounded(&value)),
+                Err("probe_bounded: the record: too_deep".to_owned()),
+                "{levels}"
+            );
+        }
+    }
+    let note = format!(r#""a\"{}{}""#, "[".repeat(300), "{".repeat(300));
+    let own = LATER_OWN
+        .example
+        .replacen(r#""Pay on the first of the month""#, &note, 1);
+    assert_eq!(check_record(&LATER_OWN, &own), Ok(()), "{own}");
 }

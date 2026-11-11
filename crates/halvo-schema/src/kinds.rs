@@ -291,7 +291,7 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 }
                 for other in other_types("day", FieldType::Day) {
                     reports.push(format!(
-                        "{kind}: a bounded kind with the key day of the type {other:?}"
+                        "{kind}: a bounded kind whose key day has a pair of the type {other:?}"
                     ));
                 }
             }
@@ -303,7 +303,7 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 }
                 for other in other_types("expires", FieldType::Instant) {
                     reports.push(format!(
-                        "{kind}: a window kind with the key expires of the type {other:?}"
+                        "{kind}: a window kind whose key expires has a pair of the type {other:?}"
                     ));
                 }
                 if !has(entry, "segments", FieldType::Ordinal) {
@@ -313,7 +313,7 @@ pub fn check_entries(entries: &[&KindEntry]) -> Vec<String> {
                 }
                 for other in other_types("segments", FieldType::Ordinal) {
                     reports.push(format!(
-                        "{kind}: a window kind with the key segments of the type {other:?}"
+                        "{kind}: a window kind whose key segments has a pair of the type {other:?}"
                     ));
                 }
             }
@@ -482,6 +482,38 @@ fn walk(value: &RawValue, types: &[FieldType]) -> Result<(), &'static str> {
     }
 }
 
+const MAX_DEPTH: usize = 128;
+
+fn within_depth(json: &str) -> bool {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for b in json.bytes() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if b == b'\\' {
+                escaped = true;
+            } else if b == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_string = true,
+            b'[' | b'{' => {
+                depth += 1;
+                if depth > MAX_DEPTH {
+                    return false;
+                }
+            }
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    true
+}
+
 enum Rule {
     One(Vec<FieldType>),
     Segments,
@@ -542,10 +574,15 @@ fn segments(value: &RawValue) -> Result<(), &'static str> {
 /// string or an integer passes when it has the JSON form of one of the types (`App`, `Domain` and `Token` through
 /// their parsers, `Text` and `OwnText` by their length alone, `Name` as 1 to 32 bytes of `a` to `z`, `0` to `9`
 /// and `_`); a boolean, a number with a fraction or an exponent, and `-0`, which serde reads as a float, never
-/// pass. The fullest shape alone passes: a dismissed workflow does not. The error is
+/// pass. A record whose lists and objects nest deeper than 128 levels, the record itself the first, is refused
+/// with the rule `too_deep` before it is read, so the walk always answers. The fullest shape alone passes: a
+/// dismissed workflow does not. The error is
 /// `<kind>: <key>: <rule>` and names a key only where the entry lists it, so it holds no value of the record.
 pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
     let fail = |key: &str, rule: &str| Err(format!("{}: {key}: {rule}", entry.name));
+    if !within_depth(json) {
+        return fail("the record", "too_deep");
+    }
     let Some(fields) = Fields::read(json.as_bytes()) else {
         return fail("the record", "not_an_object");
     };
