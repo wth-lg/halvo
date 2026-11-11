@@ -298,6 +298,35 @@ test_sandbox() {
     '{"processImagePath":"/kernel","senderImagePath":"/System/Library/Extensions/Sandbox.kext/Contents/MacOS/Sandbox","eventMessage":"Sandbox: egress-probe(7) deny(1) network-outbound remote:*:443\ntok tcp4 any","timestamp":"2026-11-11 03:06:50.956934-0800"}' >"$work/forged.ndjson"
   got=$(awk -v token=tok -f scripts/egress/sandbox.awk "$work/forged.ndjson") || got=
   result sandbox/forged-markers-ignored 'denied at=1794395210956934000 proto=tcp dest=-:443 pid=7 image=egress-probe' "$got"
+  expect_run sandbox/tree-cannot-write-the-check 0 0 0 sh scripts/egress/check.sh "$e" -- sh -c ': >>scripts/egress/sandbox.awk 2>/dev/null && exit 8; : >>target/egress/bin/egress-spawn 2>/dev/null && exit 9; exit 0'
+  cp "$bin/egress-spawn" "$work/real-spawn"
+  printf '%s\n' '#!/bin/sh' ": >'$work/planted-ran'" "exec '$work/real-spawn' \"\$@\"" >"$bin/egress-spawn"
+  chmod +x "$bin/egress-spawn"
+  sleep 1
+  touch "$bin/egress-probe"
+  expect_run sandbox/planted-helper-not-run 0 0 0 sh scripts/egress/check.sh "$e" -- true
+  if [ -f "$work/planted-ran" ]; then
+    result sandbox/planted-helper-not-run-marker absent present
+  else
+    result sandbox/planted-helper-not-run-marker absent absent
+  fi
+  copy=$work/copy
+  mkdir -p "$copy/scripts/egress/lists"
+  cp scripts/egress/check.sh scripts/egress/list.awk scripts/egress/sandbox.awk scripts/egress/probe.sh scripts/egress/probe.rs scripts/egress/wfp.ps1 "$copy/scripts/egress/"
+  cp scripts/egress/lists/empty.txt "$copy/scripts/egress/lists/"
+  git init -q "$copy"
+  (cd "$copy" && sh scripts/egress/check.sh scripts/egress/lists/empty.txt -- sh -c ': >"$1"; sleep 4' sh "$work/copy-started" >"$work/copy.out" 2>"$work/copy.err") &
+  copy_check=$!
+  n=0
+  while [ ! -f "$work/copy-started" ] && [ $n -lt 300 ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  printf '%s\n' '# changed' >>"$copy/scripts/egress/sandbox.awk"
+  wait "$copy_check"
+  code=$?
+  got=$(tail -n 1 "$work/copy.err")
+  result sandbox/script-changed-during-run 'exit-2:REFUSED mode: a script of the check changed' "exit-$code:$got"
   first_log=$log
   expect_run sandbox/second-run 0 0 0 sh scripts/egress/check.sh "$e" -- sh "$pr" none
   if [ "$first_log" != "$log" ]; then

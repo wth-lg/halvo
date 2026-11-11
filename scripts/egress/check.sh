@@ -53,7 +53,7 @@ sandbox_rights() {
 
 sandbox_profile() {
   printf '(version 1)\n(allow default)\n'
-  printf '(deny file-write* (subpath "%s"))\n' "$real_dir"
+  printf '(deny file-write* (subpath "%s/target/egress") (subpath "%s/scripts/egress"))\n' "$real_root" "$real_root"
   [ "$2" -eq 1 ] || return 0
   printf '(deny network-outbound (with message "%s other"))\n' "$1"
   printf '(allow network-outbound (remote unix-socket))\n'
@@ -94,8 +94,8 @@ sandbox_mark() {
 }
 
 sandbox_setup() {
-  real_dir=$(cd "$1" && pwd -P) || refuse output "target/egress/$n"
-  case $real_dir in
+  real_root=$(cd "$root" && pwd -P) || refuse output "target/egress/$n"
+  case $real_root in
     *'"'* | *\\*) refuse output "target/egress/$n" ;;
   esac
   sandbox_profile "$2" "$3" >"$1/profile.sb" || refuse output "target/egress/$n/profile.sb"
@@ -420,15 +420,44 @@ fi
 mode_rights || refuse mode "$rights"
 
 bin=$root/target/egress/bin
-runner=$bin/egress-spawn$exe
+runner=$bin/egress-spawn-$$$exe
+digest() {
+  if [ -x /usr/bin/shasum ]; then
+    /usr/bin/shasum -a 256 "$@"
+  else
+    sha256sum "$@"
+  fi
+}
+
+script_sums() {
+  digest "$here/check.sh" "$here/list.awk" "$here/sandbox.awk" "$here/probe.sh" "$here/probe.rs" "$here/wfp.ps1" 2>/dev/null |
+    awk '{ print $1 }'
+}
+
 build_probe() {
-  probe_out=$(sh "$here/probe.sh" none 2>&1)
-  probe_code=$?
-  case $probe_code:$probe_out in
-    0:) ;;
-    2:"REFUSED output: "*) refuse output "${probe_out#REFUSED output: }" ;;
-    *) refuse output target/egress/bin ;;
-  esac
+  scripts_sum=$(script_sums)
+  [ -n "$scripts_sum" ] || refuse mode "the scripts of the check have no digest"
+  mkdir -p "$bin" || refuse output target/egress/bin
+  rustc --edition 2021 -O -o "$runner" "$here/probe.rs" >"$bin/build-$$.log" 2>&1 ||
+    refuse output "target/egress/bin/egress-spawn$exe"
+  helper_sum=$(digest "$runner" | awk '{ print $1 }')
+  [ -n "$helper_sum" ] || refuse mode "the helper binary has no digest"
+  for name in egress-spawn egress-probe; do
+    cp "$runner" "$bin/$name-$$-copy$exe" && mv -f "$bin/$name-$$-copy$exe" "$bin/$name$exe" ||
+      refuse output "target/egress/bin/$name$exe"
+  done
+}
+
+parts_changed() {
+  kept=$(digest "$runner" "$bin/egress-spawn$exe" "$bin/egress-probe$exe" 2>/dev/null |
+    awk -v want="$helper_sum" '$1 == want { n++ } END { print n + 0 }')
+  if [ "$kept" != 3 ]; then
+    lost="a helper binary of the check changed"
+  elif [ "$(script_sums)" != "$scripts_sum" ]; then
+    lost="a script of the check changed"
+  else
+    return 1
+  fi
 }
 
 new_run() {
@@ -450,6 +479,9 @@ first_form() {
   run_list=$1
   run_deny=$2
   shift 2
+  if parts_changed; then
+    refuse mode "$lost"
+  fi
   new_run
   printf '%s\n' "$entries" >"$dir/entries" || refuse output "target/egress/$n/entries"
   mode_setup "$dir" "$token" "$run_deny" "$@"
@@ -472,6 +504,9 @@ first_form() {
   mode_collect "$dir" "$token" "$run_deny"
   mode_teardown "$dir" "$token"
   printf 'done\n' >>"$dir/state"
+  if parts_changed; then
+    refuse mode "$lost"
+  fi
   run_denied=$(awk 'END { print NR }' "$dir/denied.log") || refuse output "target/egress/$n/denied.log"
   printf 'egress mode=%s list=%s command=%s denied=%s log=target/egress/%s/denied.log\n' \
     "$mode" "$run_list" "$run_status" "$run_denied" "$n" >&2
@@ -554,6 +589,10 @@ stop_listeners() {
 }
 
 start_listener() {
+  if parts_changed; then
+    stop_listeners
+    refuse mode "$lost"
+  fi
   "$runner" serve "$1" "$work/stop" "$work/ready-$1" &
   listeners="$listeners $!"
   waited=0
