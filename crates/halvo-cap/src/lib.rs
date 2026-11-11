@@ -354,7 +354,10 @@ mod tests {
             (chosen.unwrap(), asked),
             (Mode::JobCommit, vec![true, false])
         );
-        for code in [5, 1313, 1315] {
+        for code in (1200..=1430)
+            .chain([2, 5, 6, 8, 87, 1450, 1453, 1455])
+            .filter(|&code| code != 1314)
+        {
             let (chosen, asked) = choose(&[Some(code)]);
             assert_eq!(
                 (chosen.unwrap_err().raw_os_error(), asked),
