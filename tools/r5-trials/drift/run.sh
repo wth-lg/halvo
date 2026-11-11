@@ -43,6 +43,8 @@ absolute() {
   esac
 }
 
+true 2>/dev/null 3>&1 || refuse output "standard output cannot be written"
+
 calls="the trial takes no argument, --help, --case FILE --arm none|plain, or --count DIR"
 help=no
 case $# in
@@ -66,22 +68,18 @@ case $# in
 *) refuse usage "$calls" ;;
 esac
 
-{ true 3>&1; } 2>/dev/null || refuse output "standard output cannot be written"
-
 if [ "$help" = yes ]; then
   usage
   exit 0
 fi
 
 unset CDPATH
-here=$(dirname "$0")
-root=$(cd -P "$here/../../.." 2>/dev/null && pwd -P) ||
-  refuse input "the root of the repository cannot be entered"
-cd -P "$root" 2>/dev/null || refuse input "the root of the repository cannot be entered"
-
 export PATH="${CARGO_HOME:-${HOME:-}/.cargo}/bin:$PATH"
 
-host=$(rustc -vV 2>/dev/null | sed -n 's/^host: //p')
+here=$(dirname "$0")
+cd -P "$here/../../.." 2>/dev/null || refuse input "the root of the repository cannot be entered"
+
+host=$(rustc -vV 2>/dev/null | sed -n 's/^host: \([^[:space:]]*\).*/\1/p')
 [ -n "$host" ] || refuse build "rustc -vV names no host"
 
 target=target/r5-trials
