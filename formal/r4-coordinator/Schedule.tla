@@ -396,6 +396,8 @@ C6 == /\ h.after = 0
 C7 == \A a \in Agents : \A d \in Days : h.count[a][d] <= StartsPerDay
 C8 == /\ h.gonestarts = 0
       /\ \A r \in h.live : h.gone[r.agent] = "seen" => r.stop /\ ~r.late
+C9 == \A r \in h.live : ~r.late
+
 vars == <<st, h>>
 Stopping(c) == {r \in st.runs : r.phase = "stopping" /\ r.why = c}
 KilledAt(r) == st'.day # st.day /\ st'.life = st.life /\ \A x \in st'.runs : x.id # r.id
