@@ -90,6 +90,10 @@ cases() {
   posted=crates/halvo-capture/src/macos/post.rs
   tree post-to-a-location "$posted" 'ev.post(CGEventTapLocation::HID);'
   t post-to-a-tap-location FAIL fails_naming "$gate_scratch/post-to-a-location" "active-tap at $posted:1"
+  tree post-with-a-module-path "$posted" 'ev.post(core_graphics::event::CGEventTapLocation::HID);'
+  t post-to-a-location-with-its-module-path FAIL fails_naming "$gate_scratch/post-with-a-module-path" "active-tap at $posted:1"
+  tree post-on-the-type "$posted" 'CGEvent::post(&ev, CGEventTapLocation::HID);'
+  t post-called-on-the-type FAIL fails_naming "$gate_scratch/post-on-the-type" "active-tap at $posted:1"
   tree post-to-a-pid "$posted" 'ev.post_to_pid(pid);'
   t post-to-a-pid FAIL fails_naming "$gate_scratch/post-to-a-pid" "active-tap at $posted:1"
   tree post-from-a-tap "$posted" 'ev.post_from_tap(proxy);'

@@ -866,7 +866,7 @@ source_scan_defect() {
       { printf 'not scanned: no tracked .rs file under %s\n' "${scan_root%/}"; return 2; }
   done
   source_rule windows-hook 'SetWindowsHookEx|WH_KEYBOARD_LL|WH_MOUSE_LL' 's/^//' "$scan_repo" || return $?
-  source_rule active-tap 'CGEventTapOptions::|kCGEventTapOptionDefault|CGEventTapCreate|CGEventPost|\.post\([[:space:]]*CGEventTapLocation|post_to_pid|post_from_tap|new_keyboard_event|new_mouse_event|new_scroll_event' 's/CGEventTapOptions::ListenOnly\([^A-Za-z0-9_]\)/\1/g; s/CGEventTapOptions::ListenOnly$//' "$scan_repo" || return $?
+  source_rule active-tap 'CGEventTapOptions::|kCGEventTapOptionDefault|CGEventTapCreate|CGEventPost|post\([^)]*CGEventTapLocation|post_to_pid|post_from_tap|new_keyboard_event|new_mouse_event|new_scroll_event' 's/CGEventTapOptions::ListenOnly\([^A-Za-z0-9_]\)/\1/g; s/CGEventTapOptions::ListenOnly$//' "$scan_repo" || return $?
   source_rule audio-capture 'setCapturesAudio|setCaptureMicrophone|SCStreamOutputType::' 's/SCStreamOutputType::Screen\([^A-Za-z0-9_]\)/\1/g; s/SCStreamOutputType::Screen$//' "$scan_repo" || return $?
   source_rule local-machine-key 'CRYPTPROTECT_LOCAL_MACHINE' 's/^//' "$scan_repo" || return $?
   git -C "$scan_repo" grep --cached -q -a -F -e 'CGEventTapOptions::ListenOnly' -- 'crates/halvo-capture/src/macos/*.rs' 2>/dev/null
