@@ -58,6 +58,7 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         slots: vec![],
         runs: vec![],
         events,
+        store_ended: true,
         today: 107,
         doing: Doing::Idle(None),
     }
@@ -406,4 +407,14 @@ fn a_finished_run_is_a_run_that_ended_completed() {
         let f = calendar(vec![(100, started(1, None)), (100, ended(1, *cause))]);
         assert_eq!(finished(&f), *cause == RunEnd::Completed, "{cause}");
     }
+}
+
+#[test]
+fn check_stands_only_for_a_newest_run_that_the_agent_store_has_ended() {
+    let mut f = calendar(vec![]);
+    f.runs = vec![past(2, 103, Outcome::EffectUnknown, 1)];
+    f.store_ended = false;
+    assert_eq!(holds(&f), Vec::<Hold>::new());
+    f.store_ended = true;
+    assert_eq!(holds(&f), vec![Hold::Check]);
 }

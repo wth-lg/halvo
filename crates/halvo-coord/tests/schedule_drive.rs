@@ -98,13 +98,25 @@ fn member(world: &World, n: usize) -> Member<Config> {
         .filter(|e| e.agent == agent(n))
         .cloned()
         .collect();
+    let newest = events.iter().rev().find_map(|e| match &e.what {
+        What::RunStarted { run, .. } => Some(run.clone()),
+        _ => None,
+    });
+    let last = world
+        .ports
+        .agents
+        .borrow()
+        .iter()
+        .find(|e| e.agent == agent(n))
+        .and_then(|e| e.last.clone());
     Member {
         facts: Facts {
             agent: agent(n),
             workflow: workflow(n, &a),
             config: config(n, &a),
             slots: names(a.slots),
-            runs: vec![],
+            store_ended: newest.is_none_or(|r| last.as_ref().is_some_and(|l| l.run == r)),
+            runs: last.into_iter().collect(),
             events,
             today: world.board.day,
             doing: Doing::Idle(None),
@@ -127,7 +139,12 @@ fn world_with(spec: &[A], limits: Limits) -> World {
             state: AgentState::Active,
             slots: names(a.slots),
             session: true,
-            last: None,
+            last: a.finished.then(|| PastRun {
+                run: RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap(),
+                day: DAY - 2,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            }),
             unknown: vec![],
         });
         if a.finished {
@@ -187,10 +204,46 @@ impl World {
     }
 
     fn end(&mut self, run: &RunId, outcome: Option<Outcome>) -> Report {
+        let r = self.end_only(run, outcome);
+        self.store_end(run, outcome);
+        r
+    }
+
+    fn end_only(&mut self, run: &RunId, outcome: Option<Outcome>) -> Report {
         self.go(Move::End {
             run: run.clone(),
             outcome,
         })
+    }
+
+    fn store_end(&self, run: &RunId, outcome: Option<Outcome>) {
+        let n = self
+            .stored()
+            .iter()
+            .find_map(|e| match &e.what {
+                What::RunStarted { run: r, .. } if r == run => Some(e.agent.clone()),
+                _ => None,
+            })
+            .unwrap();
+        let o = outcome.unwrap_or(Outcome::Failed);
+        self.ports.store_end(
+            &n,
+            PastRun {
+                run: run.clone(),
+                day: self.board.day,
+                outcome: o,
+                unknown: u32::from(o == Outcome::EffectUnknown),
+            },
+        );
+    }
+
+    fn fail_start(&mut self, n: usize) -> Report {
+        let r = self.start(n);
+        assert_eq!(r.answer, Err(Cause::NoService));
+        if let Some(run) = &r.run {
+            self.store_end(run, None);
+        }
+        r
     }
 
     fn tick(&mut self) -> Report {
@@ -461,14 +514,8 @@ fn refusal_hold_start() {
             },
         }])
         .unwrap();
-    let check_run = RunId::parse(&format!("{:032x}", 0x903)).unwrap();
     w.relife();
-    w.board.members[3].facts.runs = vec![PastRun {
-        run: check_run,
-        day: DAY - 2,
-        outcome: Outcome::EffectUnknown,
-        unknown: 1,
-    }];
+    with_check(&mut w, 3);
     w.forget();
     let tick = w.tick();
     assert_eq!(
@@ -718,10 +765,10 @@ fn a_failed_step_8_stores_failed_and_the_streak_sets_failures_with_paused() {
     let mut w = world(&[manual()]);
     w.ports.refuse(Method::Start, PortError::NoService);
     for _ in 0..2 {
-        assert_eq!(w.start(0).answer, Err(Cause::NoService));
+        w.fail_start(0);
     }
     w.forget();
-    assert_eq!(w.start(0).answer, Err(Cause::NoService));
+    w.fail_start(0);
     assert_eq!(
         w.calls(),
         vec![
@@ -756,20 +803,20 @@ fn a_failed_step_8_stores_failed_and_the_streak_sets_failures_with_paused() {
 fn an_end_of_another_cause_ends_the_streak() {
     let mut w = world(&[manual()]);
     w.ports.refuse(Method::Start, PortError::NoService);
-    w.start(0);
-    w.start(0);
+    w.fail_start(0);
+    w.fail_start(0);
     w.ports.clear_refusals();
     let run = ok_run(&w.start(0));
     w.end(&run, Some(Outcome::Declined));
     w.ports.refuse(Method::Start, PortError::NoService);
     w.forget();
-    w.start(0);
-    w.start(0);
+    w.fail_start(0);
+    w.fail_start(0);
     assert_eq!(
         w.calls().iter().filter(|c| c.contains("hold_set")).count(),
         0
     );
-    w.start(0);
+    w.fail_start(0);
     assert_eq!(
         w.calls().iter().filter(|c| c.contains("hold_set")).count(),
         1
@@ -910,9 +957,9 @@ fn a_tick_drops_the_ready_item_of_a_workflow_that_is_gone_and_stores_nothing() {
 fn a_start_of_the_person_for_a_workflow_that_is_gone_ends_no_hold() {
     let mut w = world(&[manual()]);
     w.ports.refuse(Method::Start, PortError::NoService);
-    w.start(0);
-    w.start(0);
-    w.start(0);
+    w.fail_start(0);
+    w.fail_start(0);
+    w.fail_start(0);
     w.ports.clear_refusals();
     w.delete(0);
     w.forget();
@@ -1153,12 +1200,15 @@ fn a_start_closes_the_ready_item_and_a_refused_one_leaves_it_open() {
 
 fn with_check(w: &mut World, n: usize) -> RunId {
     let run = RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap();
-    w.board.members[n].facts.runs = vec![PastRun {
-        run: run.clone(),
-        day: DAY - 2,
-        outcome: Outcome::EffectUnknown,
-        unknown: 1,
-    }];
+    w.ports.store_end(
+        &agent(n),
+        PastRun {
+            run: run.clone(),
+            day: DAY - 2,
+            outcome: Outcome::EffectUnknown,
+            unknown: 1,
+        },
+    );
     run
 }
 
@@ -1220,12 +1270,6 @@ fn went_through_skips_the_slot_that_the_checked_run_started_for() {
     let mut w = world(&[AUTO]);
     let run = ok_run(&w.tick().started[0].clone().into_report());
     w.end(&run, Some(Outcome::EffectUnknown));
-    w.board.members[0].facts.runs = vec![PastRun {
-        run,
-        day: DAY,
-        outcome: Outcome::EffectUnknown,
-        unknown: 1,
-    }];
     w.forget();
     w.go(Move::Check {
         agent: agent(0),
@@ -1256,7 +1300,7 @@ fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state(
     let mut w = world(&[manual()]);
     w.ports.refuse(Method::Start, PortError::NoService);
     for _ in 0..3 {
-        w.start(0);
+        w.fail_start(0);
     }
     w.ports.clear_refusals();
     w.go(Move::SwitchOff { agent: agent(0) });
@@ -1507,7 +1551,7 @@ fn a_move_for_an_agent_that_the_board_does_not_hold_is_unknown_agent() {
         assert_eq!(w.go(mv).answer, Err(Cause::UnknownAgent));
     }
     let unknown = RunId::parse(&format!("{:032x}", 0x77)).unwrap();
-    assert_eq!(w.end(&unknown, None).answer, Err(Cause::State));
+    assert_eq!(w.end_only(&unknown, None).answer, Err(Cause::State));
     assert_eq!(w.calls(), Vec::<String>::new());
 }
 
@@ -1528,4 +1572,231 @@ fn the_stored_events_of_one_agent_rise_by_one_from_its_last_seq() {
         .collect();
     assert_eq!(kinds, ["started", "ended"]);
     let _ = (Answered::Ready(ReadyAnswer::Skip), Raised::Ready);
+}
+
+#[test]
+fn refusal_store_not_ended() {
+    let mut w = world(&[manual(), manual()]);
+    let run = ok_run(&w.start(0));
+    w.end_only(&run, Some(Outcome::Completed));
+    w.forget();
+    let after_end = w.start(0);
+    assert_eq!(
+        after_end.answer,
+        Err(Cause::State),
+        "after the runner's end"
+    );
+    assert_eq!(w.calls(), Vec::<String>::new(), "Runs::start is not called");
+    w.store_end(&run, Some(Outcome::Completed));
+    let run = ok_run(&w.start(0));
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.clock(T0 + 5_000, DAY);
+    assert_eq!(w.tick().ended.len(), 1, "the kill ends the run");
+    w.go(Move::SwitchOn { agent: agent(0) });
+    assert_eq!(w.start(0).answer, Err(Cause::State), "after a kill");
+    w.store_end(&run, None);
+    w.ports.refuse(Method::Start, PortError::NoService);
+    let failed = w.start(0);
+    assert_eq!(failed.answer, Err(Cause::NoService));
+    w.ports.clear_refusals();
+    assert_eq!(
+        w.start(0).answer,
+        Err(Cause::State),
+        "after a failed step 8"
+    );
+    w.store_end(failed.run.as_ref().unwrap(), None);
+    let crashed = ok_run(&w.start(0));
+    w.relife();
+    w.forget();
+    assert_eq!(w.start(0).answer, Err(Cause::State), "after a crash");
+    assert_eq!(w.starts(), 0);
+    w.store_end(&crashed, None);
+    ok_run(&w.start(0));
+    let queued = w.start(1);
+    assert_eq!(queued.answer, Ok(Answer::Queued));
+}
+
+#[test]
+fn a_start_reads_the_agent_store_from_the_owner_and_not_from_the_facts_it_kept() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.end_only(&run, Some(Outcome::Completed));
+    w.board.members[0].facts.store_ended = true;
+    assert_eq!(w.start(0).answer, Err(Cause::State));
+    w.ports.refuse(Method::Agents, PortError::Busy);
+    assert_eq!(
+        w.start(0).answer,
+        Err(Cause::Busy),
+        "a failed read starts nothing"
+    );
+    w.ports.clear_refusals();
+    w.store_end(&run, Some(Outcome::Completed));
+    w.board.members[0].facts.store_ended = false;
+    ok_run(&w.start(0));
+}
+
+#[test]
+fn a_queued_start_of_an_agent_whose_run_the_store_has_not_ended_is_dropped_with_state() {
+    let mut w = world(&[manual(), manual()]);
+    let first = ok_run(&w.start(0));
+    assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+    w.end_only(&first, Some(Outcome::Completed));
+    let second = w.run_of(1);
+    w.end_only(&second, Some(Outcome::Completed));
+    w.forget();
+    w.store_end(&first, Some(Outcome::Completed));
+    let tick = w.tick();
+    assert_eq!(tick.next, Vec::<Served>::new(), "the queue is empty");
+    assert_eq!(w.start(1).answer, Err(Cause::State));
+}
+
+#[test]
+fn a_tick_takes_no_start_while_the_store_has_not_ended_the_newest_run() {
+    let mut w = world(&[AUTO]);
+    let run = ok_run(&w.tick().started[0].clone().into_report());
+    w.end_only(&run, Some(Outcome::Completed));
+    w.clock(T0, DAY + 2);
+    let tick = w.tick();
+    assert_eq!(tick.started.len(), 1);
+    assert_eq!(tick.started[0].answer, Err(Cause::State));
+    assert_eq!(w.starts(), 1);
+    w.store_end(&run, Some(Outcome::Completed));
+    w.ports.refuse(Method::Agents, PortError::NoService);
+    assert_eq!(
+        w.tick().started,
+        Vec::<Served>::new(),
+        "no start on a failed read"
+    );
+    w.ports.clear_refusals();
+    assert_eq!(w.tick().started[0].answer, Ok(Answer::Ok));
+}
+
+#[test]
+fn check_waits_for_the_store_to_end_the_run_and_then_holds_the_agent() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.end_only(&run, Some(Outcome::EffectUnknown));
+    assert_eq!(
+        w.go(Move::Check {
+            agent: agent(0),
+            answer: CheckAnswer::TryAgain
+        })
+        .answer,
+        Err(Cause::State),
+        "no check while the store has not ended the run"
+    );
+    w.store_end(&run, Some(Outcome::EffectUnknown));
+    assert_eq!(w.start(0).answer, Err(Cause::Hold));
+    assert_eq!(
+        w.go(Move::Check {
+            agent: agent(0),
+            answer: CheckAnswer::TryAgain
+        })
+        .answer,
+        Ok(Answer::Ok)
+    );
+    ok_run(&w.start(0));
+}
+
+#[test]
+fn a_stopped_run_is_killed_at_the_first_tick_after_its_grace_and_not_before() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.forget();
+    w.tick();
+    assert_eq!(
+        w.calls(),
+        vec!["defer".to_string()],
+        "a tick at the stop kills nothing"
+    );
+    w.clock(T0 + 4_999, DAY);
+    w.forget();
+    w.tick();
+    assert_eq!(w.calls(), vec!["defer".to_string()]);
+    assert_eq!(w.board.runs.len(), 1);
+    w.clock(T0 + 5_000, DAY);
+    w.forget();
+    let tick = w.tick();
+    assert_eq!(
+        w.calls(),
+        vec![
+            "defer".to_string(),
+            format!("kill {run}"),
+            "log run_ended cancelled".into()
+        ]
+    );
+    assert_eq!(tick.ended[0].cause, RunEnd::Cancelled);
+}
+
+#[test]
+fn a_run_that_a_tick_stopped_for_a_gone_workflow_ends_deleted_whatever_its_last_frame() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.delete(0);
+    assert_eq!(w.tick().stopped, vec![run.clone()]);
+    let end = w.end_only(&run, Some(Outcome::Completed));
+    assert_eq!(end.ended[0].cause, RunEnd::Deleted);
+    assert_eq!(
+        count(&w.stored(), "run_ended"),
+        1,
+        "the run before the test alone"
+    );
+}
+
+#[test]
+fn a_stopping_run_whose_workflow_goes_takes_deleted_from_the_next_tick() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.delete(0);
+    w.forget();
+    let tick = w.tick();
+    assert_eq!(
+        tick.stopped,
+        Vec::<RunId>::new(),
+        "a stopping run gets no second cancel"
+    );
+    assert!(!w.calls().iter().any(|c| c.starts_with("cancel")));
+    let end = w.end_only(&run, None);
+    assert_eq!(end.ended[0].cause, RunEnd::Deleted);
+}
+
+#[test]
+fn a_refused_kill_leaves_the_run_stopping_and_a_later_tick_kills_it() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.clock(T0 + 5_000, DAY);
+    w.ports.refuse(Method::Kill, PortError::Busy);
+    let tick = w.tick();
+    assert!(tick.ended.is_empty());
+    assert_eq!(w.board.runs.len(), 1);
+    assert_eq!(count(&w.stored(), "run_ended cancelled"), 0);
+    w.ports.clear_refusals();
+    w.forget();
+    let tick = w.tick();
+    assert_eq!(tick.ended[0].cause, RunEnd::Cancelled);
+    assert_eq!(w.calls()[1], format!("kill {run}"));
+}
+
+#[test]
+fn creation_sends_no_state_for_a_web_agent_even_with_a_playbook() {
+    let mut w = world(&[]);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .push(Workflow::Full(approved(0, Category::CalendarCleanup)));
+    listed_agent(
+        &w,
+        0,
+        &minted(1),
+        &A {
+            runtime: "web",
+            playbook: true,
+            ..AUTO
+        },
+    );
+    assert_eq!(w.go(Move::Create).created, vec![minted(1)]);
+    assert_eq!(w.calls(), vec!["create_agent".to_string()]);
 }

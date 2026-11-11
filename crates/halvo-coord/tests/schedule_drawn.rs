@@ -143,6 +143,8 @@ struct Hist {
     pending: BTreeMap<String, RunEnd>,
     count: BTreeMap<(usize, u32), u32>,
     day: u32,
+    unended: [Option<RunId>; N],
+    store_due: [Option<PastRun>; N],
 }
 
 struct Sim {
@@ -169,6 +171,17 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
         .filter(|e| e.agent == agent(n))
         .cloned()
         .collect();
+    let newest = events.iter().rev().find_map(|e| match &e.what {
+        What::RunStarted { run, .. } => Some(run.clone()),
+        _ => None,
+    });
+    let last = sim
+        .ports
+        .agents
+        .borrow()
+        .iter()
+        .find(|a| a.agent == agent(n))
+        .and_then(|a| a.last.clone());
     Member {
         facts: Facts {
             agent: agent(n),
@@ -176,6 +189,7 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             config: config(n),
             slots: Vec::<Name>::new(),
             runs: sim.store_runs[n].clone(),
+            store_ended: newest.is_none_or(|r| last.is_some_and(|l| l.run == r)),
             events,
             today: sim.h.day,
             doing: Doing::Idle(None),
@@ -206,6 +220,8 @@ impl Sim {
             pending: BTreeMap::new(),
             count: BTreeMap::new(),
             day: DAY,
+            unended: Default::default(),
+            store_due: Default::default(),
         };
         for (n, spec) in SPEC.iter().enumerate() {
             ports
@@ -219,7 +235,12 @@ impl Sim {
                 state: AgentState::Active,
                 slots: vec![],
                 session: true,
-                last: None,
+                last: spec.finished.then(|| PastRun {
+                    run: RunId::parse(&format!("{:032x}", 0x900 + n)).unwrap(),
+                    day: DAY - 2,
+                    outcome: Outcome::Completed,
+                    unknown: 0,
+                }),
                 unknown: vec![],
             });
             if spec.finished {
@@ -253,6 +274,7 @@ impl Sim {
                     .unwrap();
                 h.finished[n] = true;
                 h.served[n].push(DAY - 2);
+                h.unended[n] = None;
             }
         }
         let calls_seen = ports.calls.borrow().len();
@@ -290,9 +312,10 @@ impl Sim {
     }
 
     fn holds_by_history(&self, n: usize) -> bool {
-        let check = self.store_runs[n]
-            .first()
-            .is_some_and(|r| r.unknown > 0 && !self.h.checked.contains(&r.run));
+        let check = self.h.unended[n].is_none()
+            && self.store_runs[n]
+                .first()
+                .is_some_and(|r| r.unknown > 0 && !self.h.checked.contains(&r.run));
         self.h.off[n] || self.h.failures[n] || check
     }
 
@@ -343,17 +366,12 @@ impl Sim {
                     (None, None) => RunEnd::Interrupted,
                 };
                 self.h.pending.insert(run.to_string(), cause);
-                if let Some(o) = outcome {
-                    self.store_runs[r.agent].insert(
-                        0,
-                        PastRun {
-                            run: run.clone(),
-                            day: self.h.day,
-                            outcome: *o,
-                            unknown: u32::from(*o == Outcome::EffectUnknown),
-                        },
-                    );
-                }
+                self.h.store_due[r.agent] = Some(PastRun {
+                    run: run.clone(),
+                    day: self.h.day,
+                    outcome: outcome.unwrap_or(Outcome::Failed),
+                    unknown: u32::from(*outcome == Some(Outcome::EffectUnknown)),
+                });
             }
             _ => {}
         }
@@ -423,9 +441,22 @@ impl Sim {
             }
         }
         self.properties(label);
-        for (n, m) in self.board.members.iter_mut().enumerate() {
-            m.facts.runs = self.store_runs[n].iter().take(5).cloned().collect();
+    }
+
+    fn store_end(&mut self, n: usize, left: bool) -> bool {
+        let Some(mut run) = self.h.store_due[n].take() else {
+            return false;
+        };
+        if left && run.outcome != Outcome::Completed {
+            run.unknown = 1;
         }
+        self.ports.store_end(&agent(n), run.clone());
+        if self.h.unended[n].as_ref() == Some(&run.run) {
+            self.h.unended[n] = None;
+        }
+        self.store_runs[n].insert(0, run);
+        self.tally("store_end".into());
+        true
     }
 
     fn queue_answers(&mut self, report: &Report, direct: Option<usize>) {
@@ -500,6 +531,17 @@ impl Sim {
                     self.tally("kill".into());
                     if let Some(k) = self.h.live.iter().position(|r| r.run == run) {
                         let r = self.h.live.remove(k);
+                        let grace = self.limits.cancel_grace_s * 1000;
+                        if r.stop.is_none_or(|(at, _)| t.at.saturating_sub(at) < grace) {
+                            self.faults
+                                .push(format!("{label}: C9 a kill before the grace of its stop"));
+                        }
+                        self.h.store_due[r.agent] = Some(PastRun {
+                            run: run.clone(),
+                            day: self.h.day,
+                            outcome: Outcome::Failed,
+                            unknown: 0,
+                        });
                         if let Some((_, cause)) = r.stop {
                             self.h.pending.insert(run.to_string(), cause);
                         }
@@ -521,6 +563,14 @@ impl Sim {
                 self.fault(format!(
                     "{label}: C10 a start that failed after step 6 stored no end"
                 ));
+            }
+            if let Some(n) = self.h.run_agent.get(r.as_str()).copied() {
+                self.h.store_due[n] = Some(PastRun {
+                    run: r.clone(),
+                    day: self.h.day,
+                    outcome: Outcome::Failed,
+                    unknown: 0,
+                });
             }
             self.h.ended_mark(&r);
         }
@@ -544,6 +594,12 @@ impl Sim {
                 if self.holds_by_history(n) {
                     self.fault(format!("{label}: C4 a start while a hold stands"));
                 }
+                if self.h.unended[n].is_some() {
+                    self.fault(format!(
+                        "{label}: C4 a start while the agent store has not ended the newest run"
+                    ));
+                }
+                self.h.unended[n] = Some(run.clone());
                 if self.h.live.iter().any(|r| r.agent == n) {
                     self.fault(format!("{label}: C3 a second live run"));
                 }
@@ -729,6 +785,12 @@ impl Sim {
                     }])
                     .unwrap();
                 self.h.streak[n] = 0;
+                self.h.store_due[n] = Some(PastRun {
+                    run: run.clone(),
+                    day,
+                    outcome: Outcome::Failed,
+                    unknown: 0,
+                });
                 self.h.ended_mark(&run);
             }
         }
@@ -796,7 +858,7 @@ fn sequence(seed: u64, limits: Limits, moves: usize, seen: &mut BTreeMap<String,
                 agent: agent(a),
                 answer,
             }
-        } else if pick < 95 && sim.deletes < 2 && sim.listed(a) {
+        } else if pick < 94 && sim.deletes < 2 && sim.listed(a) {
             sim.deletes += 1;
             sim.ports
                 .workflows
@@ -804,6 +866,12 @@ fn sequence(seed: u64, limits: Limits, moves: usize, seen: &mut BTreeMap<String,
                 .retain(|w| w.id() != &flow(a));
             sim.h.gone[a] = true;
             log.push(format!("{k}: delete a{a}"));
+            continue;
+        } else if pick < 97 {
+            let left = d.below(4) == 0;
+            if sim.store_end(a, left) {
+                log.push(format!("{k}: store ends the run of a{a} left={left}"));
+            }
             continue;
         } else if pick < 99 {
             let day =

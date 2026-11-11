@@ -79,7 +79,8 @@ fn stands<C>(facts: &Facts<C>, hold: HoldSetCause) -> bool {
 }
 
 fn check<C>(facts: &Facts<C>) -> bool {
-    facts.runs.first().is_some_and(|newest| {
+    facts.store_ended
+        && facts.runs.first().is_some_and(|newest| {
         newest.unknown > 0
             && !facts.events.iter().any(|e| {
                 matches!(&e.what, What::HoldCleared { cause: Cleared::Check { run, .. } } if *run == newest.run)
@@ -91,10 +92,9 @@ fn check<C>(facts: &Facts<C>) -> bool {
 /// never from the state of its workflow: `not_yet` while its runtime is `none`; `off` from a
 /// `hold_set` event with the cause `person` until a later `hold_cleared` event with the cause
 /// `person`; `failures` from a `hold_set` event with the cause `failures` until a later
-/// `hold_cleared` event with the cause `failures`; `check` while its newest run record has an
-/// effect of an unknown outcome, which the agent store also counts for an effect that a dead
-/// runner left in `releasing` (A-A7.5, I5.8), and no `hold_cleared` event of the cause `check`
-/// names that run; `setup` while a parameter of its category (I3.5) has no slot in its newest
+/// `hold_cleared` event with the cause `failures`; `check` while the agent store has ended its
+/// newest run and that run's record has `unknown` above 0, and no `hold_cleared` event of the
+/// cause `check` names that run (ruling XB-2); `setup` while a parameter of its category (I3.5) has no slot in its newest
 /// bindings. Both `off` and `failures` are returned where both stand.
 pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
     let mut out = Vec::new();

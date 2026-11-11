@@ -4,9 +4,10 @@ use super::{
 };
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs};
 use crate::types::{
-    hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView, Doing,
-    Event, Facts, HoldSetCause, ItemId, Live, Outcome, OwnItem, OwnItemKind, Raised, ReadyAnswer,
-    RunEnd, RunId, RunSpec, Runtime, Trigger, What, Workflow, WorkflowId, WorkflowState,
+    hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
+    Doing, Event, Facts, HoldSetCause, ItemId, Live, Outcome, OwnItem, OwnItemKind, Raised,
+    ReadyAnswer, RunEnd, RunId, RunSpec, Runtime, Trigger, What, Workflow, WorkflowId,
+    WorkflowState,
 };
 use std::num::NonZeroU32;
 
@@ -158,6 +159,42 @@ fn known<C>(board: &Board<C>) -> Vec<WorkflowId> {
         .collect()
 }
 
+fn newest_started<C>(facts: &Facts<C>) -> Option<&RunId> {
+    facts.events.iter().rev().find_map(|e| match &e.what {
+        What::RunStarted { run, .. } => Some(run),
+        _ => None,
+    })
+}
+
+fn refresh<C>(facts: &mut Facts<C>, entry: Option<&Agent<C>>, history: usize) {
+    let last = entry.and_then(|a| a.last.as_ref());
+    facts.store_ended = match newest_started(facts) {
+        None => true,
+        Some(run) => last.is_some_and(|l| &l.run == run),
+    };
+    if let Some(l) = last {
+        facts.runs.retain(|r| r.run != l.run);
+        facts.runs.insert(0, l.clone());
+        facts.runs.truncate(history);
+    }
+}
+
+fn fresh<P: Owner<Config = C>, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    only: Option<usize>,
+) -> Result<(), PortError> {
+    let agents = cx.ports.agents()?;
+    let history = cx.limits.history_runs as usize;
+    for (k, m) in board.members.iter_mut().enumerate() {
+        if only.is_none_or(|i| i == k) {
+            let entry = agents.iter().find(|a| a.agent == m.facts.agent);
+            refresh(&mut m.facts, entry, history);
+        }
+    }
+    Ok(())
+}
+
 fn store<P: Owner, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -219,7 +256,6 @@ where
     C: ConfigView,
 {
     let facts = &board.members[i].facts;
-    let had = holds(facts).contains(&Hold::Failures);
     let before = facts
         .events
         .iter()
@@ -235,7 +271,7 @@ where
     } else {
         0
     };
-    let pause = cause.failure().is_some() && streak >= cx.limits.fails_to_pause as usize && !had;
+    let pause = cause.failure().is_some() && streak >= cx.limits.fails_to_pause as usize;
     let mut whats = vec![What::RunEnded {
         run: run.clone(),
         cause,
@@ -423,6 +459,7 @@ fn end_run<P, C>(
     cause: RunEnd,
     listed: &[WorkflowId],
     killed: bool,
+    serving: bool,
 ) -> Ended
 where
     P: Owner + Runs + Analysis + Rng,
@@ -447,7 +484,11 @@ where
     Ended {
         run: run.clone(),
         cause,
-        next: serve(cx, board, listed).into_iter().collect(),
+        next: if serving {
+            serve(cx, board, listed).into_iter().collect()
+        } else {
+            Vec::new()
+        },
     }
 }
 
@@ -486,6 +527,7 @@ where
         m.facts.today = day;
     }
     let listed = cx.ports.workflows().ok().map(|w| ids(&w));
+    let starts = listed.is_some() && fresh(cx, board, None).is_ok();
     let seen = listed.clone().unwrap_or_else(|| known(board));
     let plan = tick_plan(board, &seen, cx.now, cx.limits);
     let mut report = Report::default();
@@ -529,14 +571,14 @@ where
         match cause {
             Some(cause) => report
                 .ended
-                .push(end_run(cx, board, run, cause, &seen, true)),
+                .push(end_run(cx, board, run, cause, &seen, true, starts)),
             None => board.dying.retain(|d| &d.run != run),
         }
     }
     let Some(listed) = listed else {
         return report;
     };
-    if plan.serve {
+    if plan.serve && starts {
         report.next.extend(serve(cx, board, &listed));
     }
     for i in 0..board.members.len() {
@@ -548,11 +590,12 @@ where
                     report.raised.push(agent);
                 }
             }
-            Ask::Start => {
+            Ask::Start if starts => {
                 report
                     .started
-                    .push(start(cx, board, i, Trigger::Schedule, &listed, false))
+                    .push(start(cx, board, i, Trigger::Schedule, &listed, false));
             }
+            Ask::Start => {}
             Ask::Nothing => {}
         }
     }
@@ -618,6 +661,7 @@ where
                 slots: a.slots.clone(),
                 runs: a.last.clone().into_iter().collect(),
                 events: Vec::new(),
+                store_ended: true,
                 today: board.day,
                 doing: Doing::Idle(None),
             },
@@ -654,6 +698,7 @@ where
     let Some(i) = board.index(&agent) else {
         return refused(Cause::UnknownAgent);
     };
+    let read = fresh(cx, board, Some(i));
     let facts = &board.members[i].facts;
     let standing = holds(facts);
     let stored = |cx: &Cx<'_, P>, board: &mut Board<C>, whats| match store(cx, board, i, whats) {
@@ -666,9 +711,9 @@ where
     };
     match mv {
         Move::Start { .. } => {
-            let listed = match cx.ports.workflows() {
-                Ok(w) => ids(&w),
-                Err(e) => return refused(port_cause(&e)),
+            let listed = match (read, cx.ports.workflows()) {
+                (Ok(()), Ok(w)) => ids(&w),
+                (Err(e), _) | (_, Err(e)) => return refused(port_cause(&e)),
             };
             let s = start(cx, board, i, Trigger::Person, &listed, false);
             Report {
@@ -787,13 +832,17 @@ where
 /// order of their starts, every run whose stop came at least `cancel_grace_s` before it, live
 /// or ended in between, and ends each live one with the cause of its stop; serves the queue
 /// only when no run was live before it; and then raises the `ready` items and makes the starts
-/// that `tick_step` gives, agent by agent. A start goes through `start_step` and then steps 5
+/// that `tick_step` gives, agent by agent; it serves and starts only when its reads of the
+/// owner's list and of `Owner::agents` answered. Each move of an agent, and each end, reads
+/// `Owner::agents` and takes from the agent's entry whether the agent store has ended its
+/// newest run and that run's record (ruling XB-2); a start of the person whose read fails is
+/// answered `busy` or `no_service`. A start goes through `start_step` and then steps 5
 /// to 8 of I5.5: the request to defer, the `run_started` event, which closes an open `ready`
 /// item in the same body, the body `start_run` and `Runs::start`; a failed step 7 or 8 stores
 /// `run_ended` with `failed` and answers `no_service`. The end of a run stores `run_ended`
 /// unless its workflow is gone, with `hold_set` of `failures` and `set_state` `paused` when the
-/// last `fails_to_pause` ends each have a cause of the failure class and the hold does not
-/// stand, and then takes one start from the queue; a failed start takes none.
+/// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
+/// while that hold stands, and then takes one start from the queue; a failed start takes none.
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
@@ -821,12 +870,11 @@ where
                 (None, Some(outcome)) => RunEnd::from(outcome),
                 (None, None) => RunEnd::Interrupted,
             };
-            let listed = match ports.workflows() {
-                Ok(w) => ids(&w),
-                Err(_) => known(board),
-            };
+            let listed = ports.workflows().ok().map(|w| ids(&w));
+            let serving = listed.is_some() && fresh(&cx, board, None).is_ok();
+            let listed = listed.unwrap_or_else(|| known(board));
             Report {
-                ended: vec![end_run(&cx, board, &run, cause, &listed, false)],
+                ended: vec![end_run(&cx, board, &run, cause, &listed, false, serving)],
                 ..Report::default()
             }
         }

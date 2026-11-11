@@ -1,8 +1,8 @@
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
-    DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Reply, RunId, RunSpec,
-    Runtime, Workflow, WorkflowId, WorkflowState,
+    DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, PastRun, Reply, RunId,
+    RunSpec, Runtime, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -180,6 +180,20 @@ impl<C> Ports<C> {
             limits,
             created: RefCell::new(Vec::new()),
             trees: Cell::new(0),
+        }
+    }
+
+    /// Ends a run in the agent store as the store's handler of its end does: the agent's entry
+    /// in `agents` gets the run's record as its `last` (I6.1, A-A7.4), which the coordinator
+    /// reads to know that the store has ended the agent's newest run (ruling XB-2).
+    pub fn store_end(&self, agent: &AgentId, run: PastRun) {
+        if let Some(a) = self
+            .agents
+            .borrow_mut()
+            .iter_mut()
+            .find(|a| &a.agent == agent)
+        {
+            a.last = Some(run);
         }
     }
 

@@ -71,6 +71,7 @@ fn facts(spec: &Spec, whats: Vec<(u32, What)>) -> Facts<Config> {
         slots: Vec::<Name>::new(),
         runs: vec![],
         events,
+        store_ended: true,
         today: TODAY,
         doing: Doing::Idle(None),
     }
@@ -633,4 +634,55 @@ fn a_start_of_the_person_stands_before_every_start_of_the_scheduler() {
     assert_eq!(q.pop(), Some(waiting(3, Trigger::Schedule)));
     assert_eq!(q.pop(), None);
     assert!(q.is_empty());
+}
+
+#[test]
+fn step_3_a_newest_run_that_the_agent_store_has_not_ended_is_state() {
+    let mut f = facts(&AUTO, done_before());
+    f.store_ended = false;
+    assert_eq!(
+        cause(&start_step(&f, Trigger::Person, &L, &free())),
+        Some(Cause::State)
+    );
+    assert_eq!(
+        cause(&start_step(&f, Trigger::Schedule, &L, &free())),
+        Some(Cause::State)
+    );
+    let leaving = Around {
+        from_queue: true,
+        ..free()
+    };
+    assert_eq!(
+        cause(&start_step(&f, Trigger::Person, &L, &leaving)),
+        Some(Cause::State),
+        "a start that leaves the queue is dropped"
+    );
+    let full = Around {
+        live: 1,
+        queued: 4,
+        ..free()
+    };
+    assert_eq!(
+        cause(&start_step(&f, Trigger::Person, &L, &full)),
+        Some(Cause::State),
+        "step 3 comes before step 4"
+    );
+    let (mut spent, a) = failing(&[2]);
+    spent.store_ended = false;
+    assert_eq!(
+        cause(&start_step(&spent, Trigger::Person, &L, &a)),
+        Some(Cause::Budget),
+        "step 2 comes before step 3"
+    );
+    let (mut held, a) = failing(&[1]);
+    held.store_ended = false;
+    let s = start_step(&held, Trigger::Person, &L, &a);
+    assert_eq!(cause(&s), Some(Cause::State));
+    assert_eq!(
+        s.clear,
+        Some(Clear {
+            set_state: Some(AgentState::Active)
+        }),
+        "the end of failures comes before step 3"
+    );
 }
