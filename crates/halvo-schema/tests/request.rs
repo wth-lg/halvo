@@ -359,6 +359,50 @@ fn line(request: &str, body: &str) -> String {
 }
 
 #[test]
+fn decode_bounds_an_interface_request_at_4096_bytes() {
+    let padded = |request: &str, body: &str, len: usize| {
+        let bare = line(request, body).len();
+        line(request, &format!("{body}{}", " ".repeat(len - bare)))
+    };
+    let read = r#"{"read":"workflows","after":null}"#.to_owned();
+    let decision = format!(r#"{{"decision":"approve","workflow":"{HEX_A}"}}"#);
+    for (request, body) in [("interface_read", read), ("interface_decision", decision)] {
+        let at = padded(request, &body, 4096);
+        assert_eq!(at.len(), 4096);
+        assert!(decode(at.as_bytes()).is_ok(), "{request} of 4,096 bytes");
+        let over = padded(request, &body, 4097);
+        assert_eq!(over.len(), 4097);
+        assert_eq!(
+            error(over.as_bytes()).error,
+            ErrorName::TooLarge,
+            "{request} of 4,097 bytes"
+        );
+    }
+}
+
+#[test]
+fn to_bytes_refuses_a_decoded_write_that_commit_takes_over_the_bound() {
+    let wrap = |episodes: &str| {
+        format!(
+            r#"{{"v":1,"id":"{HEX_A}","request":"analysis_write","body":{{"store":"{HEX_B}","episodes":[{episodes}],"commit":null}}}}"#
+        )
+    };
+    let target = ANALYSIS_WRITE_MAX - 10;
+    let episode = episode_of_len(target - wrap("").len());
+    let bytes = wrap(&serde_json::to_string(&episode).unwrap());
+    assert_eq!(bytes.len(), target);
+    let mut write = match decode(bytes.as_bytes()).unwrap() {
+        Decoded::AnalysisWrite(w) => w,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(write.to_bytes().unwrap(), bytes.as_bytes());
+    write.commit(LONGEST);
+    assert_eq!(write.to_bytes(), Err(ErrorName::TooLarge));
+    write.commit(Position { seg: 1, idx: 1 });
+    assert_eq!(write.to_bytes(), Err(ErrorName::TooLarge));
+}
+
+#[test]
 fn decode_makes_its_checks_in_the_order_of_the_contract() {
     let id = Some(RequestId::parse(HEX_A).unwrap());
     let read_body = r#"{"read":"workflows","after":null}"#;

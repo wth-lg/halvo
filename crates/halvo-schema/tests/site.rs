@@ -298,6 +298,16 @@ fn site_values_are_clone_eq_and_hash() {
 }
 
 #[test]
+fn a_domain_has_exactly_one_label_more_than_its_public_suffix() {
+    assert_eq!(rule(Domain::parse("b.example.com")), "public_suffix");
+    assert_eq!(rule(Domain::parse("a.b.example.com")), "public_suffix");
+    assert_eq!(
+        Domain::parse("example.com").unwrap().as_str(),
+        "example.com"
+    );
+}
+
+#[test]
 fn a_site_value_is_refused_as_an_array() {
     common::refused_as_array::<SiteValue>(r#"["address_field","northwind-power.test"]"#);
     refused::<SiteValue>(r#"["sign_in","northwind-power.test"]"#);
