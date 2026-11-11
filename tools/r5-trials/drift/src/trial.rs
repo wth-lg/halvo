@@ -104,7 +104,10 @@ pub fn read_dir(dir: &Path, calendar_days_min: u64) -> Result<Vec<(String, Case)
 }
 
 pub fn trial(dir: &Path, targets: &Targets) -> Result<String, Refusal> {
-    let cases = read_dir(dir, targets.calendar_days_min)?;
+    block(&read_dir(dir, targets.calendar_days_min)?, targets)
+}
+
+pub fn block(cases: &[(String, Case)], targets: &Targets) -> Result<String, Refusal> {
     let of = |kind: Kind| {
         u64::try_from(cases.iter().filter(|(_, case)| case.kind == kind).count())
             .unwrap_or(u64::MAX)
@@ -118,7 +121,7 @@ pub fn trial(dir: &Path, targets: &Targets) -> Result<String, Refusal> {
     }
     let mut text = String::new();
     let mut rows = Vec::new();
-    for (name, case) in &cases {
+    for (name, case) in cases {
         let mut tallies = Vec::new();
         for arm in Arm::TRIAL {
             let tally = completed(name, arm, model::run(case, arm))?;
@@ -160,7 +163,14 @@ pub fn one(file: &Path, arm: Arm, targets: &Targets) -> Result<String, Refusal> 
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let case = read_one(&name, file, targets.calendar_days_min)?;
-    let tally = completed(&name, arm, model::run(&case, arm))?;
-    Ok(line(&case, arm, &tally))
+    case_line(
+        &name,
+        &read_one(&name, file, targets.calendar_days_min)?,
+        arm,
+    )
+}
+
+pub fn case_line(name: &str, case: &Case, arm: Arm) -> Result<String, Refusal> {
+    let tally = completed(name, arm, model::run(case, arm))?;
+    Ok(line(case, arm, &tally))
 }

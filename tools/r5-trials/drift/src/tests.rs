@@ -267,6 +267,41 @@ fn dev_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/r5/cases/dev")
 }
 
+fn dev_cases_with_an_occurrence_that_none_cannot_complete() -> Vec<(String, case::Case)> {
+    let mut cases = trial::read_dir(&dev_dir(), 240).expect("the development cases");
+    let (name, case) = &mut cases[8];
+    assert_eq!(name, "renamed-pay.jsonl");
+    let last = case.occurrences.len() - 1;
+    case.occurrences[last].repair[2].clear();
+    cases
+}
+
+#[test]
+fn the_trial_refuses_with_case_a_case_whose_occurrence_does_not_complete() {
+    let cases = dev_cases_with_an_occurrence_that_none_cannot_complete();
+    assert_eq!(
+        trial::block(&cases, &targets()),
+        Err(Refusal::Case(
+            "renamed-pay.jsonl: an occurrence did not complete in the arm none with sort=-"
+                .to_owned()
+        ))
+    );
+}
+
+#[test]
+fn case_refuses_with_case_a_case_whose_occurrence_does_not_complete() {
+    let cases = dev_cases_with_an_occurrence_that_none_cannot_complete();
+    let (name, case) = &cases[8];
+    assert_eq!(
+        trial::case_line(name, case, Arm::None),
+        Err(Refusal::Case(
+            "renamed-pay.jsonl: an occurrence did not complete in the arm none with sort=-"
+                .to_owned()
+        ))
+    );
+    assert!(trial::case_line(name, case, Arm::Plain).is_ok());
+}
+
 #[test]
 fn a_directory_whose_benign_count_is_not_dev_benign_is_refused_with_case() {
     let mut other = targets();
