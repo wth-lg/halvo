@@ -48,7 +48,8 @@ InitH ==
      holds |-> [a \in Agents |-> {}],
      given |-> [a \in Agents |-> {}],
      sched |-> [a \in Agents |-> [d \in Days |-> 0]],
-     heldstarts |-> 0, unacked |-> 0, alone |-> 0, extra |-> 0, after |-> 0, gonestarts |-> 0]
+     heldstarts |-> 0, unacked |-> 0, alone |-> 0, extra |-> 0, after |-> 0, gonestarts |-> 0,
+     wrongend |-> 0]
 
 CurSlot(d) ==
     LET S == {x \in 1..d : x >= FirstSlot /\ (x - FirstSlot) % Period = 0}
@@ -352,27 +353,30 @@ HLess(w) ==
     ELSE IF w["schedule"] > 0 THEN [w EXCEPT !["schedule"] = @ - 1]
     ELSE w
 
-HStopped(g, ids) ==
-    [g EXCEPT !.live = {IF r.id \in ids /\ ~r.stop THEN [r EXCEPT !.stop = TRUE] ELSE r : r \in @}]
+HStopped(g, ids, why) ==
+    [g EXCEPT !.live = {IF r.id \in ids /\ ~r.stop THEN [r EXCEPT !.stop = TRUE, !.why = why] ELSE r : r \in @}]
 
 HMove(g, mv) ==
     CASE mv.m = "tick" ->
-            [g EXCEPT !.day = mv.day]
+            [g EXCEPT !.day = mv.day,
+                      !.live = {IF r.stop /\ g.gone[r.agent] # "listed" THEN [r EXCEPT !.why = "deleted"] ELSE r :
+                                   r \in @}]
       [] mv.m = "restart" -> [g EXCEPT !.life = @ + 1, !.day = mv.day,
                                        !.wait = [a \in Agents |-> [t \in Askers |-> 0]]]
       [] mv.m = "delete" -> [g EXCEPT !.gone[mv.agent] = "gone"]
       [] mv.m = "off" ->
-            [HStopped(g, {r.id : r \in {x \in g.live : x.agent = mv.agent}})
+            [HStopped(g, {r.id : r \in {x \in g.live : x.agent = mv.agent}}, "cancelled")
                 EXCEPT !.holds[mv.agent] = @ \cup {"off"}]
       [] mv.m = "start" -> [g EXCEPT !.holds[mv.agent] = IF g.gone[mv.agent] = "listed" THEN @ \ {"failures"} ELSE @]
-      [] mv.m = "stop" -> HStopped(g, {mv.run})
+      [] mv.m = "stop" -> HStopped(g, {mv.run}, mv.cause)
       [] OTHER -> g
 
-HEnd(g, e) ==
-    LET S == {r \in g.live : r.id = e.run}
-    IN IF S = {} THEN g
-       ELSE LET r == CHOOSE x \in S : TRUE
-            IN HEnded([g EXCEPT !.live = @ \ {r}], r.agent, e.cause, r.day)
+HOwes(r, cause) == [id |-> r.id, agent |-> r.agent, day |-> r.day, cause |-> cause]
+
+HLeft(acc, S, reaped) ==
+    [acc EXCEPT !.h.live = @ \ S,
+                !.owed = @ \cup {HOwes(r, IF reaped THEN "interrupted" ELSE IF r.stop THEN r.why ELSE "none") :
+                                    r \in S}]
 
 HStarted(acc, e, mv) ==
     IF PortOf(mv) = "no_ack" THEN acc
@@ -399,16 +403,32 @@ HSpawned(acc, e, mv) ==
     LET g == [acc.h EXCEPT !.unacked = IF e.run \in acc.acked THEN @ ELSE @ + 1]
         r == [id |-> e.run, agent |-> e.agent, life |-> g.life,
               day |-> IF e.agent \in Slotted THEN g.day ELSE 0,
-              stop |-> FALSE, late |-> FALSE]
+              stop |-> FALSE, late |-> FALSE, why |-> "none"]
     IN IF PortOf(mv) = "no_run"
-       THEN [acc EXCEPT !.h = HEnded(g, e.agent, "failed", g.day)]
+       THEN [acc EXCEPT !.h = g, !.owed = @ \cup {HOwes([r EXCEPT !.day = g.day], "failed")}]
        ELSE [acc EXCEPT !.h = [g EXCEPT !.live = @ \cup {r}]]
+
+HStored(acc, e) ==
+    LET O == {o \in acc.owed : o.id = e.run}
+        L == {r \in acc.h.live : r.id = e.run}
+    IN IF O # {}
+       THEN LET o == CHOOSE x \in O : TRUE
+            IN [acc EXCEPT !.owed = @ \ {o},
+                           !.h = [HEnded(acc.h, o.agent, e.cause, o.day)
+                                     EXCEPT !.wrongend = IF e.cause = o.cause THEN @ ELSE @ + 1]]
+       ELSE IF L # {}
+       THEN LET r == CHOOSE x \in L : TRUE
+            IN [acc EXCEPT !.h = [HEnded(acc.h, r.agent, e.cause, r.day) EXCEPT !.wrongend = @ + 1]]
+       ELSE [acc EXCEPT !.h.wrongend = @ + 1]
 
 HOut(acc, e, mv) ==
     CASE e.k = "run_started" -> HStarted(acc, e, mv)
       [] e.k = "start" -> HSpawned(acc, e, mv)
-      [] e.k = "run_ended" -> [acc EXCEPT !.h = HEnd(@, e)]
-      [] e.k = "cancel" -> [acc EXCEPT !.h = HStopped(@, {e.run})]
+      [] e.k = "run_ended" -> HStored(acc, e)
+      [] e.k = "kill" -> HLeft(acc, {r \in acc.h.live : r.id = e.run}, FALSE)
+      [] e.k = "reap" -> HLeft(acc, {r \in acc.h.live : r.life < acc.h.life}, TRUE)
+      [] e.k = "cancel" ->
+            [acc EXCEPT !.h = HStopped(@, {e.run}, IF mv.m = "tick" THEN "deleted" ELSE "cancelled")]
       [] e.k = "queued" ->
             [acc EXCEPT !.h.wait[e.agent][IF acc.press /\ mv.agent = e.agent THEN "person" ELSE "schedule"] = @ + 1,
                         !.press = FALSE]
@@ -426,7 +446,13 @@ HAfter(g0, g, mv) ==
                              ELSE r : r \in @}]
 
 Hist(g, mv, res) ==
-    HAfter(g, HFold([h |-> HMove(g, mv), press |-> mv.m = "start", acked |-> {}], res.out, 1, mv).h, mv)
+    LET g1 == HMove(g, mv)
+        ends == IF mv.m = "end" THEN {r \in g1.live : r.id = mv.run} ELSE {}
+        owed == {HOwes(r, IF r.stop THEN r.why ELSE IF mv.frame # "none" THEN mv.frame ELSE "interrupted") :
+                    r \in ends}
+        acc == HFold([h |-> [g1 EXCEPT !.live = @ \ ends], owed |-> owed, press |-> mv.m = "start", acked |-> {}],
+                     res.out, 1, mv)
+    IN HAfter(g, [acc.h EXCEPT !.wrongend = @ + Cardinality(acc.owed)], mv)
 
 Init == st = Init0 /\ h = InitH
 Next == \E mv \in Moves(st) : LET res == Step(st, mv) IN st' = res.st /\ h' = Hist(h, mv, res)
@@ -434,7 +460,7 @@ Bound == st.nrun <= MaxRuns
 Fold(c) == IF c = "lapsed" THEN "cancelled" ELSE c
 View == <<[st EXCEPT !.ready = {}, !.dying = {},
                      !.runs = {[r EXCEPT !.phase = IF @ = "stopping" THEN @ ELSE "live", !.why = Fold(@)] : r \in @}],
-          h>>
+          [h EXCEPT !.live = {[r EXCEPT !.why = Fold(@)] : r \in @}]>>
 
 LiveRuns(a) == {r \in h.live : r.agent = a}
 
@@ -451,6 +477,7 @@ C7 == \A a \in Agents : \A d \in Days : h.count[a][d] <= StartsPerDay
 C8 == /\ h.gonestarts = 0
       /\ \A r \in h.live : h.gone[r.agent] = "seen" => r.stop /\ ~r.late
 C9 == \A r \in h.live : ~r.late
+C10 == h.wrongend = 0
 
 vars == <<st, h>>
 Stopping(c) == {r \in st.runs : r.phase = "stopping" /\ r.why = c}
@@ -503,6 +530,8 @@ ReachKillLapsed == [][~(\E r \in Stopping("lapsed") : KilledAt(r))]_vars
 ReachKillDeleted == [][~(\E r \in Stopping("deleted") : KilledAt(r))]_vars
 ReachKillEnded == [][~(st.dying # {} /\ st'.dying = {} /\ st'.life = st.life)]_vars
 ReachRecause == [][~(\E r \in Stopping("cancelled") : \E x \in st'.runs : x.id = r.id /\ x.why = "deleted")]_vars
+ReachFailedFrame == [][~(\E a \in Agents : h'.streak[a] > h.streak[a] /\ h'.count[a] = h.count[a])]_vars
+ReachFailedStart == [][~(\E a \in Agents : h'.streak[a] > h.streak[a] /\ h'.count[a] # h.count[a])]_vars
 
 StaysLive == \A r \in h.live : h.gone[r.agent] = "listed"
 =============================================================================
