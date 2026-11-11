@@ -91,7 +91,7 @@ check() {
     PATH=$work/bin:$PATH
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts/$1
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_OUT STUB_ERR STUB_RUN_EXIT STUB_NAMES
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_FEATURE_EXIT STUB_OUT STUB_ERR STUB_RUN_EXIT STUB_NAMES
     sh "$self" 2>&1
   )
   code=$?
@@ -107,6 +107,7 @@ check() {
   esac
   note "$1" "$2" "$got"
   STUB_TEST_EXIT=0
+  STUB_FEATURE_EXIT=0
   STUB_OUT=$good
   STUB_ERR=
   STUB_RUN_EXIT=0
@@ -135,6 +136,9 @@ case $* in
   'test --locked -p halvo-route-wire')
     exit "$STUB_TEST_EXIT"
     ;;
+  'test --locked -p halvo-route-wire --features serde_json/arbitrary_precision')
+    exit "$STUB_FEATURE_EXIT"
+    ;;
   'run -q --locked -p halvo-route-wire --bin gateway-check -- --dir docs/r6/gateway')
     [ -z "$STUB_NAMES" ] || exit 97
     ;;
@@ -155,6 +159,7 @@ EOF
   wrong=
   good='gateway vectors=81 ok=81 answers=36 answers_ok=36 closed=yes keys=6 forbidden=not_checked limits=ok'
   STUB_TEST_EXIT=0
+  STUB_FEATURE_EXIT=0
   STUB_OUT=$good
   STUB_ERR=
   STUB_RUN_EXIT=0
@@ -164,6 +169,9 @@ EOF
 PASS $name"
   STUB_TEST_EXIT=101
   check tests-fail FAIL "$good
+FAIL $name (tests)"
+  STUB_FEATURE_EXIT=101
+  check feature-tests-fail FAIL "$good
 FAIL $name (tests)"
   STUB_OUT="gateway miss file=vectors n=3 name=three_roles
 gateway vectors=81 ok=80 answers=36 answers_ok=36 closed=yes keys=6 forbidden=not_checked limits=ok"
