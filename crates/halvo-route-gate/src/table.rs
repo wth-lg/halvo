@@ -350,11 +350,13 @@ fn read_row(line: &str) -> Option<(Row, Split)> {
     };
     let split = Split::parse(cells[7]).ok()?;
     let generated = row.task == Task::Gen;
-    let fits = if generated {
-        matches!(row.machine, Machine::GenA | Machine::GenB) && row.source == Source::Generated
-    } else {
-        matches!(row.machine, Machine::Mac | Machine::HostedWin) && row.source != Source::Generated
-    };
+    let fits = generated == (row.model.as_str() == SYNTHETIC)
+        && if generated {
+            matches!(row.machine, Machine::GenA | Machine::GenB) && row.source == Source::Generated
+        } else {
+            matches!(row.machine, Machine::Mac | Machine::HostedWin)
+                && row.source != Source::Generated
+        };
     fits.then_some((row, split))
 }
 

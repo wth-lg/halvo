@@ -191,6 +191,16 @@ fn table_refusals() {
             fault(Fault::Cell, 2),
         ),
         (
+            "generated row of another model",
+            text(&[&cell(GEN_1, 4, "m_small")]),
+            fault(Fault::Cell, 2),
+        ),
+        (
+            "recorded row of the model synthetic",
+            text(&[&cell(BILL_1, 4, "synthetic")]),
+            fault(Fault::Cell, 2),
+        ),
+        (
             "split dev on seed 3",
             text(&[BILL_1, &cell(BILL_3, 7, "dev")]),
             fault(Fault::Split, 3),
@@ -211,6 +221,7 @@ fn table_refusals() {
                 GEN_1,
                 &cell(GEN_1, 0, "reply")
                     .replace("gen_a", "mac")
+                    .replace("synthetic", "m_small")
                     .replace("generated", "s1"),
             ]),
             fault(Fault::Mixed, 3),
