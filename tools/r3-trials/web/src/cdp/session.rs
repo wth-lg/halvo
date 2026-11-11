@@ -42,6 +42,7 @@ pub struct Stopped {
     pub adopted: Vec<u32>,
     pub left: Vec<u32>,
     pub profile: Option<PathBuf>,
+    pub temp: Option<PathBuf>,
     pub removed: bool,
 }
 
@@ -139,15 +140,30 @@ async fn evaluate(page: &Page, script: &str) -> Res<Value> {
     Ok(r.result.result.value.unwrap_or(Value::Null))
 }
 
-pub(crate) fn make_profile(dir: &Path) -> Res<()> {
-    match std::fs::symlink_metadata(dir) {
-        Ok(m) if m.file_type().is_symlink() => Err(Fault::new("start", "profile path is a link")),
-        Ok(_) => Err(Fault::new("start", "profile path exists")),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            std::fs::create_dir(dir).map_err(|e| Fault::new("start", e.to_string()))
+pub(crate) fn temp_of(profile: &Path) -> PathBuf {
+    let mut name = profile.as_os_str().to_owned();
+    name.push("-tmp");
+    PathBuf::from(name)
+}
+
+pub(crate) fn make_dirs(profile: &Path) -> Res<PathBuf> {
+    let temp = temp_of(profile);
+    for (dir, what) in [(profile, "profile"), (temp.as_path(), "temporary")] {
+        match std::fs::symlink_metadata(dir) {
+            Ok(m) if m.file_type().is_symlink() => {
+                return Err(Fault::new("start", format!("{what} path is a link")))
+            }
+            Ok(_) => return Err(Fault::new("start", format!("{what} path exists"))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(Fault::new("start", e.to_string())),
         }
-        Err(e) => Err(Fault::new("start", e.to_string())),
     }
+    std::fs::create_dir(profile).map_err(|e| Fault::new("start", e.to_string()))?;
+    if let Err(e) = std::fs::create_dir(&temp) {
+        let _ = std::fs::remove_dir(profile);
+        return Err(Fault::new("start", e.to_string()));
+    }
+    Ok(temp)
 }
 
 fn gone(dir: &Path) -> bool {
@@ -168,6 +184,12 @@ async fn remove_profile(dir: &Path) -> bool {
             Err(_) => return gone(dir),
         }
     }
+}
+
+pub(crate) async fn remove_dirs(profile: &Path, temp: &Path) -> bool {
+    let profile_gone = remove_profile(profile).await;
+    let temp_gone = remove_profile(temp).await;
+    profile_gone && temp_gone
 }
 
 fn push_new(into: &mut Vec<procs::Proc>, from: Vec<procs::Proc>) {
@@ -259,6 +281,7 @@ impl Executor {
 
     pub async fn stop_and_remove(self) -> Stopped {
         let profile = self.profile.clone();
+        let temp = self.temp.clone();
         let before = procs::table().unwrap_or_default();
         let root = self
             .pid
@@ -301,15 +324,16 @@ impl Executor {
             }
             tokio::time::sleep(POLL).await;
         };
-        let removed = match &profile {
-            Some(dir) => remove_profile(dir).await,
-            None => false,
+        let removed = match (&profile, &temp) {
+            (Some(p), Some(t)) => remove_dirs(p, t).await,
+            _ => false,
         };
         Stopped {
             pids: pids(&tree),
             adopted: pids(&adopted),
             left: pids(&left),
             profile,
+            temp,
             removed,
         }
     }
@@ -512,6 +536,33 @@ mod tests {
         assert_eq!(std::fs::read_dir(&profile).unwrap().count(), 0);
     }
 
+    #[tokio::test]
+    async fn start_refuses_a_temporary_path_that_exists_and_makes_no_profile() {
+        let dir = scratch("temp-exists");
+        let profile = dir.join("profile");
+        let temp = dir.join("profile-tmp");
+        std::fs::create_dir_all(&temp).unwrap();
+        let refused = Executor::start(&missing_browser(profile.clone()))
+            .await
+            .err();
+        assert_eq!(refused, Some(Fault::new("start", "temporary path exists")));
+        assert!(std::fs::symlink_metadata(&profile).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_failed_start_removes_both_directories_that_it_made() {
+        let dir = scratch("failed-start");
+        let profile = dir.join("profile");
+        std::fs::write(dir.join("beside.txt"), b"caller").unwrap();
+        let failed = Executor::start(&missing_browser(profile.clone()))
+            .await
+            .err();
+        assert_eq!(failed.map(|f| f.0), Some("browser_start"));
+        assert!(std::fs::symlink_metadata(&profile).is_err());
+        assert!(std::fs::symlink_metadata(dir.join("profile-tmp")).is_err());
+        assert!(dir.join("beside.txt").exists());
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn a_profile_path_turned_into_a_link_is_not_followed_and_is_not_removed() {
@@ -529,7 +580,7 @@ mod tests {
     async fn the_removal_takes_the_profile_and_leaves_a_file_beside_it() {
         let dir = scratch("beside");
         let profile = dir.join("profile");
-        make_profile(&profile).unwrap();
+        make_dirs(&profile).unwrap();
         std::fs::create_dir_all(profile.join("Default")).unwrap();
         std::fs::write(profile.join("Default").join("Cookies"), b"session").unwrap();
         std::fs::write(dir.join("beside.txt"), b"caller").unwrap();
@@ -544,7 +595,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let dir = scratch("stuck");
         let profile = dir.join("profile");
-        make_profile(&profile).unwrap();
+        make_dirs(&profile).unwrap();
         let locked = profile.join("locked");
         std::fs::create_dir_all(&locked).unwrap();
         std::fs::write(locked.join("file"), b"x").unwrap();
@@ -583,6 +634,7 @@ mod tests {
         let origin = "http://state.agent.test:18599".to_string();
         let a_dir = scratch.join("a");
         let a = Executor::start(&options(a_dir.clone())).await.unwrap();
+        assert!(scratch.join("a-tmp").is_dir());
         let set = a
             .in_origin_page(
                 &origin,
@@ -610,6 +662,8 @@ mod tests {
         let stopped = a.stop_and_remove().await;
         assert!(stopped.removed);
         assert!(!a_dir.exists());
+        assert_eq!(stopped.temp, Some(scratch.join("a-tmp")));
+        assert!(std::fs::symlink_metadata(scratch.join("a-tmp")).is_err());
         assert!(stopped.pids.len() >= 2, "{stopped:?}");
         assert!(stopped.left.is_empty(), "{stopped:?}");
         let table = procs::table().unwrap();

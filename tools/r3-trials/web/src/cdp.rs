@@ -163,6 +163,7 @@ pub struct Executor {
     recorder: Option<JoinHandle<()>>,
     owns_process: bool,
     profile: Option<PathBuf>,
+    temp: Option<PathBuf>,
 }
 
 fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
@@ -191,7 +192,22 @@ pub fn launch_args(opts: &StartOptions) -> Vec<String> {
 
 impl Executor {
     pub async fn start(opts: &StartOptions) -> Res<Executor> {
-        session::make_profile(&opts.profile)?;
+        let temp = session::make_dirs(&opts.profile)?;
+        match Executor::launch(opts, &temp).await {
+            Ok(mut started) => {
+                started.profile = Some(opts.profile.clone());
+                started.temp = Some(temp);
+                Ok(started)
+            }
+            Err(f) => {
+                session::remove_dirs(&opts.profile, &temp).await;
+                Err(f)
+            }
+        }
+    }
+
+    async fn launch(opts: &StartOptions, temp: &Path) -> Res<Executor> {
+        let temp_text = temp.to_string_lossy().into_owned();
         let mut builder = BrowserConfig::builder()
             .chrome_executable(&opts.browser)
             .disable_default_args()
@@ -203,6 +219,11 @@ impl Executor {
             builder.new_headless_mode()
         } else {
             builder.with_head()
+        };
+        builder = if cfg!(windows) {
+            builder.env("TMP", temp_text.clone()).env("TEMP", temp_text)
+        } else {
+            builder.env("TMPDIR", temp_text)
         };
         for flag in launch_args(opts) {
             let bare = flag.trim_start_matches('-');
@@ -224,9 +245,7 @@ impl Executor {
                 return Err(Fault::new("start", e.to_string()));
             }
         };
-        let mut started = Executor::wrap(browser, page, handler, pid, true);
-        started.profile = Some(opts.profile.clone());
-        Ok(started)
+        Ok(Executor::wrap(browser, page, handler, pid, true))
     }
 
     pub async fn connect(address: &str, url_prefix: &str) -> Res<Executor> {
@@ -277,6 +296,7 @@ impl Executor {
             recorder: None,
             owns_process,
             profile: None,
+            temp: None,
         }
     }
 

@@ -699,9 +699,19 @@ async fn run_items12(
     let outside = search_with(&outside_roots(&home, temp), &needles, Some(started));
     found.add(&outside);
     let host = search(&roots, UTILITY);
+    let made: Vec<&PathBuf> = [Some(&s.stopped_a), s.stopped_b.as_ref()]
+        .into_iter()
+        .flatten()
+        .flat_map(|st| st.profile.iter().chain(st.temp.iter()))
+        .collect();
+    let dirs_left = made
+        .iter()
+        .filter(|d| std::fs::symlink_metadata(d).is_ok())
+        .count() as u64
+        + 4u64.saturating_sub(made.len() as u64);
     let cookie_store: u64 = found.hits.iter().skip(3).sum();
     out(&format!(
-        "searched {cell} roots={} temp_entries={} outside_files={} files={} bytes={} unreadable={} skipped={} utf8={} utf16le={} utf16be={} marker_cookies={} cookie_store={}",
+        "searched {cell} roots={} temp_entries={} outside_files={} files={} bytes={} unreadable={} skipped={} utf8={} utf16le={} utf16be={} marker_cookies={} cookie_store={} dirs_left={}",
         roots.len(),
         fresh.len(),
         outside.files,
@@ -713,10 +723,14 @@ async fn run_items12(
         found.hits[1],
         found.hits[2],
         s.marker_cookies.len(),
-        cookie_store
+        cookie_store,
+        dirs_left
     ));
     out(&format!("trace {cell} host_hits={}", host.total()));
-    out(&format!("disk {cell} marker_hits={}", found.total()));
+    out(&format!(
+        "disk {cell} marker_hits={}",
+        found.total() + dirs_left
+    ));
     if s.marker_cookies.is_empty() && args.leave_out.is_empty() {
         out(&format!("notrun item=2 {cell} cause=marker_cookie"));
         return ExitCode::from(1);
