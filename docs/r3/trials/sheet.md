@@ -19,6 +19,9 @@ the run, and the verdict line at the end of the block follows from the
   `[workspace]` table and its own `Cargo.lock`, and no product build reads it.
   `cargo test` in that directory runs the reader's failing cases and the
   checks of the corpus.
+- `run.sh` builds the trial without `--offline`, so the first run on a
+  machine with no cached crates fetches the crates that `Cargo.lock` pins
+  from the registry. The binary itself makes no network call.
 
 ## The corpus
 
@@ -103,7 +106,10 @@ comparison of a cached result with the computed one is exact.
     their defaults), by `ref` for a merged range, by `formatCode` for a number format, and by
     `name`, `localSheetId` and the reference text for a defined name.
   The facts in the evidence print, for each file, what the presence rule
-  alone would give (`lost_by_presence_alone`).
+  alone would give (`lost_by_presence_alone`). Cell styles (fonts, fills,
+  borders, alignment, and which style a cell uses) are in no kind and are
+  not compared: `format` keys the codes of `numFmts` only, and
+  `other_cells_same` compares values and formula texts.
 - `cached_results`: calamine reads the cached result of each formula cell in
   the table above. A cell that holds the new result is `fresh`, one with no
   cached result is `absent`, and one with any other number is `stale`.
@@ -136,9 +142,11 @@ The licence lines name every crate that either candidate would put into a
 shipped bundle: the crates that `cargo tree` reaches from umya-spreadsheet,
 calamine and rust_xlsxwriter by normal edges for every target, without
 proc-macro crates and their own dependencies, which run only in the build.
-`python3 -I tools/r3-trials/sheet/licences.py --read 2026-11-10` prints them
-from the `license` field of each crate's manifest in the lock file's
-versions. For a crate with several licences joined by OR the line names the
+`PATH="$HOME/.cargo/bin:$PATH" python3 -I tools/r3-trials/sheet/licences.py --read 2026-11-10`
+prints them from the `license` field of each crate's manifest in the lock
+file's versions. The script runs `cargo metadata`, so cargo must be on the
+`PATH`: without it the script stops with `FileNotFoundError` and exit 1, and
+the `PATH=` part of the command puts rustup's `$HOME/.cargo/bin` there. For a crate with several licences joined by OR the line names the
 first of A0.8's list; a crate with an AND gets one line for each part. The
 registry pages of the three named crates were read on 2026-11-10 before they
 were added. Every item has `ok=yes`.
