@@ -79,11 +79,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.class_mismatch",
-        "Last time, it tried to do something that it is not allowed to do.",
+        "Last time, Halvo stopped it before it did something that it is not allowed to do.",
     ),
     (
         "line.problem.refused",
-        "Last time, Halvo stopped one of its steps.",
+        "Last time, Halvo stopped one of its steps, so the task was not done.",
     ),
     (
         "line.problem.budget",
@@ -102,20 +102,23 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.all_set.nothing", "Last time, it found nothing to do."),
     (
         "line.all_set.stopped_early",
-        "Last time, it stopped before the end, and it needs nothing from you now.",
+        "Last time, it stopped before the task was done, and it needs nothing from you now.",
     ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
     ("line.run.declined", "You said no, so it stopped."),
     (
         "line.run.handed_back",
-        "It gave the task back to you to finish.",
+        "It stopped because it could not go on without you, and it tries again next time.",
     ),
     (
         "line.run.class_mismatch",
         "It stopped before it did something that it is not allowed to do.",
     ),
-    ("line.run.refused", "Halvo stopped one of its steps."),
+    (
+        "line.run.refused",
+        "Halvo stopped one of its steps, so the task was not done.",
+    ),
     ("line.run.limit", "It took too long, so Halvo stopped it."),
     (
         "line.run.effect_unknown",
