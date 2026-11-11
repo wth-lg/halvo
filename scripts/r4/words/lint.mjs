@@ -358,6 +358,8 @@ function readSentences(repo) {
     }
     if (headings === 0) headingMissing = true;
   }
+  const hidden = sentences.find((s) => /[\p{Cf}­]/u.test(s.text));
+  if (hidden) throw new Stop('input', hidden.file);
   return { sentences, headingMissing, viewStrings };
 }
 
@@ -785,6 +787,31 @@ function selfTest(dir, repo) {
     ['view', 'never_read', { words: (w) => (w['line.time'] = NEVER), files: (f) => (f['ui/app/views/agents.js'] = view("  note: 'two words',\n")) }],
   ];
   for (const [a, b, edit] of twoFaults) expect(fixture(`order-${a}-before-${b}`, edit), `FAIL:${a}`);
+  for (const [name, mark] of [
+    ['zero-width-space', '​'],
+    ['soft-hyphen', '­'],
+    ['word-joiner', '⁠'],
+    ['left-to-right-mark', '‎'],
+  ]) {
+    expect(
+      fixture(`a-${name}-in-the-table-is-input`, { words: (w) => (w['line.time'] = `It is pau${mark}sed now.`) }),
+      'FAIL:input',
+    );
+  }
+  expect(
+    fixture('a-hidden-character-in-a-fixture-is-input', {
+      state: (s, doc) => {
+        if (s === 'queue') doc.snapshot.rows[0].line = 'It is wait​ing.';
+      },
+    }),
+    'FAIL:input',
+  );
+  expect(
+    fixture('a-hidden-character-in-a-heading-is-input', {
+      files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  heading: "What​ needs you",\n};\n'),
+    }),
+    'FAIL:input',
+  );
   expect(
     fixture('heading-line-without-its-comma', {
       files: (f) => {
