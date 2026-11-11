@@ -189,6 +189,8 @@ macro_rules! string_type {
     };
 }
 
+pub(crate) use string_type;
+
 macro_rules! name_enum {
     (
         $(#[$meta:meta])*
@@ -259,6 +261,10 @@ fn hex(s: &str, len: usize) -> Result<(), &'static str> {
 
 pub(crate) fn hex32(s: &str) -> Result<(), &'static str> {
     hex(s, 32)
+}
+
+pub(crate) fn hex64(s: &str) -> Result<(), &'static str> {
+    hex(s, 64)
 }
 
 fn episode(s: &str) -> Result<(), &'static str> {
