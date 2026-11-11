@@ -888,6 +888,14 @@ mod driver {
             Ok(Some(from_action)) => *from_action,
             _ => t0.elapsed().as_millis(),
         };
+        let faults = ex.attach_faults();
+        if !faults.is_empty() {
+            eprintln!(
+                "attach_faults step={name} i={i} n={} first={}",
+                faults.len(),
+                printable(&faults[0])
+            );
+        }
         ex.stop_and_remove().await;
         if let Err(f) = &outcome {
             if f.0 == "signal" {

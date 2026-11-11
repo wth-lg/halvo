@@ -9,20 +9,16 @@ use chromiumoxide::cdp::browser_protocol::dom::{
     BackendNodeId, DescribeNodeParams, FocusParams, GetContentQuadsParams, ResolveNodeParams,
     ScrollIntoViewIfNeededParams, SetFileInputFilesParams,
 };
-use chromiumoxide::cdp::browser_protocol::fetch::{
-    ContinueRequestParams, EnableParams as FetchEnableParams, EventRequestPaused,
-    FailRequestParams, RequestPattern, RequestStage,
-};
 use chromiumoxide::cdp::browser_protocol::input::{
     DispatchKeyEventParams, DispatchKeyEventType, DispatchMouseEventParams, DispatchMouseEventType,
     InsertTextParams, MouseButton,
 };
-use chromiumoxide::cdp::browser_protocol::network::{ErrorReason, LoaderId};
+use chromiumoxide::cdp::browser_protocol::network::LoaderId;
 use chromiumoxide::cdp::browser_protocol::page::{
     AddScriptToEvaluateOnNewDocumentParams, CreateIsolatedWorldParams, FrameId, FrameTree,
     GetFrameTreeParams, NavigateParams,
 };
-use chromiumoxide::cdp::browser_protocol::target::{GetTargetsParams, TargetId};
+use chromiumoxide::cdp::browser_protocol::target::{CloseTargetParams, GetTargetsParams, TargetId};
 use chromiumoxide::cdp::js_protocol::runtime::{
     AddBindingParams, CallArgument, CallFunctionOnParams, EvaluateParams, EventBindingCalled,
     ExecutionContextId, RemoteObjectId,
@@ -100,7 +96,9 @@ impl PausedRequest {
     }
 }
 
-fn body_of(request: &chromiumoxide::cdp::browser_protocol::network::Request) -> (Vec<u8>, bool) {
+pub(crate) fn body_of(
+    request: &chromiumoxide::cdp::browser_protocol::network::Request,
+) -> (Vec<u8>, bool) {
     use base64::Engine;
     let mut body = Vec::new();
     let mut complete = true;
@@ -166,8 +164,6 @@ pub struct Executor {
     handler: JoinHandle<()>,
     pid: Option<u32>,
     refs: Vec<Target>,
-    paused: Arc<Mutex<Vec<PausedRequest>>>,
-    rule: Option<JoinHandle<()>>,
     recorded: Arc<Mutex<Vec<String>>>,
     recorder: Option<JoinHandle<()>>,
     owns_process: bool,
@@ -277,6 +273,12 @@ impl Executor {
                 return Err(Fault::new("start", e.to_string()));
             }
         };
+        wire.set_home(page.target_id().inner());
+        if let Err(f) = Executor::close_other_pages(&browser, &page).await {
+            wire_task.abort();
+            let _ = browser.kill().await;
+            return Err(Fault::new("start", f.1));
+        }
         Ok(Executor::wrap(
             browser,
             page,
@@ -287,10 +289,25 @@ impl Executor {
         ))
     }
 
+    async fn close_other_pages(browser: &Browser, page: &Page) -> Res<()> {
+        let r = browser
+            .execute(GetTargetsParams::default())
+            .await
+            .map_err(cdp("start"))?;
+        for t in r.result.target_infos {
+            if t.r#type == "page" && &t.target_id != page.target_id() {
+                browser
+                    .execute(CloseTargetParams::new(t.target_id))
+                    .await
+                    .map_err(cdp("start"))?;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn connect(address: &str, url_prefix: &str) -> Res<Executor> {
         let config = HandlerConfig {
             ignore_https_errors: true,
-            request_timeout: STEP_TIMEOUT,
             ..HandlerConfig::default()
         };
         let (mut browser, mut handler) =
@@ -306,14 +323,17 @@ impl Executor {
             }
         };
         match Executor::page_of(&mut browser, url_prefix).await {
-            Ok(page) => Ok(Executor::wrap(
-                browser,
-                page,
-                handler,
-                None,
-                false,
-                (wire, wire_task),
-            )),
+            Ok(page) => {
+                wire.set_home(page.target_id().inner());
+                Ok(Executor::wrap(
+                    browser,
+                    page,
+                    handler,
+                    None,
+                    false,
+                    (wire, wire_task),
+                ))
+            }
             Err(f) => {
                 wire_task.abort();
                 handler.abort();
@@ -360,8 +380,6 @@ impl Executor {
             handler,
             pid,
             refs: Vec::new(),
-            paused: Arc::new(Mutex::new(Vec::new())),
-            rule: None,
             recorded: Arc::new(Mutex::new(Vec::new())),
             recorder: None,
             owns_process,
@@ -390,9 +408,6 @@ impl Executor {
     }
 
     pub async fn stop(mut self) -> Vec<u32> {
-        if let Some(t) = self.rule.take() {
-            t.abort();
-        }
         if let Some(t) = self.recorder.take() {
             t.abort();
         }
@@ -1103,63 +1118,23 @@ impl Executor {
             .unwrap_or_default())
     }
 
+    /// Arms the request rule: from now on every request of the browser, of every target that it
+    /// has and of every target that it opens later, before that target runs, is paused before it
+    /// leaves and let through only when its origin is one of `allowed_origins` and, for a
+    /// state-changing request, when `state_changing` is true; it is failed otherwise. `paused`
+    /// returns each paused request with its outcome. Arming again replaces the rule and drops the
+    /// paused requests of the earlier one.
     pub async fn arm_rule(
         &mut self,
         allowed_origins: Vec<String>,
         state_changing: bool,
     ) -> Res<()> {
-        let mut events = self
-            .page
-            .event_listener::<EventRequestPaused>()
+        self.wire
+            .arm_rule(wire::Rule {
+                allowed: allowed_origins,
+                state_changing,
+            })
             .await
-            .map_err(cdp("rule"))?;
-        let page = self.page.clone();
-        let paused = self.paused.clone();
-        if let Ok(mut p) = paused.lock() {
-            p.clear();
-        }
-        if let Some(t) = self.rule.take() {
-            t.abort();
-        }
-        self.rule = Some(tokio::spawn(async move {
-            while let Some(ev) = events.next().await {
-                let method = ev.request.method.clone();
-                let (origin, path) = split_url(&ev.request.url);
-                let (body, body_complete) = body_of(&ev.request);
-                let changes = !matches!(method.as_str(), "GET" | "HEAD" | "OPTIONS");
-                let let_through = allowed_origins.contains(&origin) && (state_changing || !changes);
-                let id = ev.request_id.clone();
-                let answered = if let_through {
-                    page.execute(ContinueRequestParams::new(id))
-                        .await
-                        .map(|_| Outcome::Continued)
-                } else {
-                    page.execute(FailRequestParams::new(id, ErrorReason::BlockedByClient))
-                        .await
-                        .map(|_| Outcome::Failed)
-                };
-                if let Ok(mut p) = paused.lock() {
-                    p.push(PausedRequest {
-                        method,
-                        origin,
-                        path,
-                        let_through,
-                        outcome: answered.unwrap_or(Outcome::Refused),
-                        body,
-                        body_complete,
-                    });
-                }
-            }
-        }));
-        let pattern = RequestPattern::builder()
-            .url_pattern("*")
-            .request_stage(RequestStage::Request)
-            .build();
-        self.page
-            .execute(FetchEnableParams::builder().pattern(pattern).build())
-            .await
-            .map_err(cdp("rule"))?;
-        Ok(())
     }
 
     /// Runs a script of the trial in the page's own world of the main frame, through the debugging
@@ -1195,7 +1170,7 @@ impl Executor {
     }
 
     pub fn paused(&self) -> Vec<PausedRequest> {
-        self.paused.lock().map(|p| p.clone()).unwrap_or_default()
+        self.wire.paused()
     }
 
     pub async fn add_recorder(&mut self) -> Res<()> {
