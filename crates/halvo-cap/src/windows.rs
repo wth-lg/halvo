@@ -140,6 +140,13 @@ impl Job {
         Ok(info.PeakProcessMemoryUsed as u64)
     }
 
+    fn terminate(&self) -> Result<(), CapError> {
+        if unsafe { TerminateJobObject(self.job.0, 1) } == 0 {
+            return Err(last("TerminateJobObject"));
+        }
+        Ok(())
+    }
+
     fn memory_limit_reported(&self) -> Result<bool, CapError> {
         let deadline = Instant::now() + DRAIN_LIMIT;
         let mut reported = false;
@@ -267,7 +274,7 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
         source,
     })?;
     let end = UnixNanos::now();
-    unsafe { TerminateJobObject(job.job.0, 1) };
+    job.terminate()?;
     let capped = job.memory_limit_reported()?;
     let peak_bytes = job.peak_process_memory()?;
     Ok(Outcome {
@@ -277,4 +284,19 @@ pub(crate) fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
         start,
         end,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_termination_of_the_job_names_its_call() {
+        let job = Job {
+            job: Handle(null_mut()),
+            port: Handle(null_mut()),
+        };
+        let error = job.terminate().unwrap_err();
+        assert_eq!(error.call, "TerminateJobObject");
+    }
 }
