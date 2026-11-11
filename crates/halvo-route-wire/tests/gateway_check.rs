@@ -597,6 +597,45 @@ fn a_line_holds_its_bytes_under_body_or_under_hex() {
 }
 
 #[test]
+fn a_write_to_a_pipe_whose_reader_has_ended_is_exit_1_with_nothing_on_standard_error() {
+    let (reader, writer) = std::io::pipe().unwrap();
+    drop(reader);
+    let output = Command::new(env!("CARGO_BIN_EXE_gateway-check"))
+        .args(["--dir", gateway().to_str().unwrap()])
+        .stdout(writer)
+        .output()
+        .unwrap();
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.status.code(), Some(1));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_write_to_a_file_at_its_size_limit_is_exit_1_with_nothing_on_standard_error() {
+    let out = fresh("size-limit").join("out.txt");
+    let output = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("trap '' XFSZ; ulimit -f 0; out=$1; shift; exec \"$@\" >\"$out\"")
+        .arg("sh")
+        .arg(&out)
+        .arg(env!("CARGO_BIN_EXE_gateway-check"))
+        .args(["--dir", gateway().to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(fs::metadata(&out).unwrap().len(), 0);
+}
+
+#[test]
 fn the_tool_writes_no_file() {
     let dir = fixture("quiet");
     check(&dir);
