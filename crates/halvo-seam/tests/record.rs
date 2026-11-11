@@ -684,3 +684,18 @@ fn lines_hold_one_line_and_count_a_long_one_without_holding_it() {
     assert_eq!(at_max.next_line(&mut buf).unwrap(), Some(Line::Bytes));
     assert_eq!(buf.len(), LINE_MAX);
 }
+
+#[test]
+fn lines_keep_a_line_of_16384_bytes_and_pass_over_one_of_16385() {
+    let mut data = vec![b'y'; LINE_MAX - 1];
+    data.push(b'\n');
+    data.extend(std::iter::repeat_n(b'z', LINE_MAX));
+    data.push(b'\n');
+    let mut lines = Lines::new(std::io::BufReader::with_capacity(4_096, Cursor::new(data)));
+    let mut buf = Vec::new();
+    assert_eq!(lines.next_line(&mut buf).unwrap(), Some(Line::Bytes));
+    assert_eq!(buf.len(), 16_384);
+    assert_eq!(lines.next_line(&mut buf).unwrap(), Some(Line::Long(16_385)));
+    assert!(buf.is_empty());
+    assert_eq!(lines.next_line(&mut buf).unwrap(), None);
+}

@@ -816,3 +816,46 @@ fn after_bad_position_the_position_of_the_open_stays_readable() {
     assert_eq!(got, Err(ClientError::Refused(Cause::BadPosition)));
     assert_eq!(client.position(), Some(pos(9, 0)));
 }
+
+#[test]
+fn a_reply_to_open_cursor_with_an_expiry_entry_stops_the_client() {
+    let reply = format!(
+        r#"{{"msg":"batch","store":"{STORE}","watermark":{{"seg":3,"idx":0}},"records":[],"expiry":[{{"seg":1,"at":{DAY}}}],"next":{{"seg":0,"idx":0}}}}"#
+    );
+    let mut client = scripted(&[reply]);
+    assert_eq!(
+        client.open(OpenCursor::fresh(None, None)),
+        Err(ClientError::Failed(Failure::Order(
+            "the reply to open_cursor"
+        )))
+    );
+    stopped_after_one_failure(client, 1);
+}
+
+#[test]
+fn an_expiry_out_of_rising_seg_order_or_with_a_seg_twice_stops_the_client() {
+    let rec = |i: u64| record(i, "keystroke", DAY + i as i64);
+    let records = format!(
+        r#"[{{"pos":{{"seg":1,"idx":0}},"record":{}}},{{"pos":{{"seg":2,"idx":0}},"record":{}}}]"#,
+        rec(0),
+        rec(1)
+    );
+    let later = DAY + 2_000_000_000_000_000;
+    for expiry in [
+        format!(r#"[{{"seg":2,"at":{later}}},{{"seg":1,"at":{later}}}]"#),
+        format!(r#"[{{"seg":1,"at":{later}}},{{"seg":1,"at":{later}}},{{"seg":2,"at":{later}}}]"#),
+    ] {
+        let reply = format!(
+            r#"{{"msg":"batch","store":"{STORE}","watermark":{{"seg":3,"idx":0}},"records":{records},"expiry":{expiry},"next":{{"seg":3,"idx":0}}}}"#
+        );
+        let mut client = open_then(reply);
+        assert_eq!(
+            client.read(),
+            Err(ClientError::Failed(Failure::Order(
+                "expiry in rising seg order with no seg twice"
+            ))),
+            "{expiry}"
+        );
+        stopped_after_one_failure(client, 2);
+    }
+}

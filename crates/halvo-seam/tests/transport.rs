@@ -818,3 +818,27 @@ fn an_input_set_reduces_records_and_changes_no_position_expiry_or_next() {
         .iter()
         .all(|t| t.ends_with(r#""p":{"text":"Title text of some length"}}"#)));
 }
+
+#[test]
+fn the_read_bound_takes_262144_bytes_of_lines_and_not_one_more() {
+    let padded = |i: u64, len: usize| {
+        let body = key(i, DAY + i as i64 * 1_000_000_000);
+        let body = body.trim_end();
+        format!("{body}{}\n", " ".repeat(len - body.len() - 1))
+    };
+    let exact: String = (0..32).map(|i| padded(i, 8_192)).collect();
+    let mut over: String = (0..31).map(|i| padded(i, 8_192)).collect();
+    over.push_str(&padded(31, 8_193));
+    assert_eq!(exact.len(), 262_144);
+    assert_eq!(over.len(), 262_145);
+    for (name, text, want) in [("exact", exact, vec![32]), ("over", over, vec![31, 1])] {
+        let paths = files(&format!("the_read_bound_{name}"), &[text]);
+        let mut t = open(&paths, 1);
+        let per_read: Vec<usize> = read_all(&mut t, fresh())
+            .iter()
+            .map(|b| b.records.len())
+            .filter(|n| *n > 0)
+            .collect();
+        assert_eq!(per_read, want, "{name}");
+    }
+}

@@ -257,8 +257,8 @@ impl<L: Link> Client<L> {
         }
     }
 
-    /// Reads the next Batch of the open cursor and checks it against C5.7 and C5.8: the store of the open
-    /// reply; a watermark that does not fall; `next` not below the cursor's position and not above the
+    /// Reads the next Batch of the open cursor and checks it against C5.5, C5.7 and C5.8: `expiry` in rising
+    /// `seg` order with no `seg` twice; the store of the open reply; a watermark that does not fall; `next` not below the cursor's position and not above the
     /// watermark; records at or after the position, below `next`, in rising order, of a served kind and
     /// inside the cursor's filters; and an empty `records` only with a risen `next` or at the watermark.
     pub fn read(&mut self) -> Result<Batch, ClientError> {
@@ -321,6 +321,9 @@ impl<L: Link> Client<L> {
 fn broken(open: &Open, b: &Batch) -> Option<&'static str> {
     if !b.has_form() {
         return Some("the watermark and the segment ordinals of C5.3");
+    }
+    if b.expiry.windows(2).any(|w| w[0].seg >= w[1].seg) {
+        return Some("expiry in rising seg order with no seg twice");
     }
     if b.store != open.store {
         return Some("one store per cursor");
