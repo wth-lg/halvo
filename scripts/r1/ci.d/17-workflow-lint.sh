@@ -43,11 +43,11 @@ measure() {
   actionlint "$file" || finding "actionlint reports a finding in ci.yml"
 
   uses_key="(^|[[:space:]{,-])[\"']?uses[\"']?[[:space:]]*:"
-  uses=$(grep -c -E "$uses_key" "$file")
-  pinned=$(grep -c -E "${uses_key}[[:space:]]*[\"']?[^ \"']+@[0-9a-f]{40}[\"']?([[:space:],}]|\$)" "$file")
+  uses=$(grep -o -E "$uses_key" "$file" | wc -l | tr -d ' ')
+  pinned=$(grep -o -E "${uses_key}[[:space:]]*[\"']?[^ \"',}]+@[0-9a-f]{40}[\"']?([[:space:],}]|\$)" "$file" | wc -l | tr -d ' ')
   [ "$uses" -gt 0 ] || finding "ci.yml holds no uses line"
   [ "$uses" -eq "$pinned" ] ||
-    finding "$((uses - pinned)) of $uses uses lines of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment"
+    finding "$((uses - pinned)) of $uses uses keys of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment"
 
   permissions=$(awk -v q="'" '
     BEGIN { key = "^[\"" q "]?permissions[\"" q "]?[[:space:]]*:" }
@@ -102,7 +102,7 @@ EOF
       ;;
   esac
 
-  printf 'jobs: %s, uses lines: %s, findings: %s\n' "$jobs" "$uses" "$findings"
+  printf 'jobs: %s, uses keys: %s, findings: %s\n' "$jobs" "$uses" "$findings"
   [ "$findings" -le 1 ] || first="$first; and $((findings - 1)) more above"
   [ "$findings" -eq 0 ] || fail "$first"
   printf 'PASS %s\n' "$name"
@@ -189,15 +189,15 @@ EOF
   ci=
 
   tree pinned-and-timed ''
-  check pinned-and-timed PASS 'jobs: 2, uses lines: 2, findings: 0'
+  check pinned-and-timed PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree action-on-a-tag '10s/@[0-9a-f]* # v7.0.1/@v7/'
-  check action-on-a-tag FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check action-on-a-tag FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree action-on-a-short-commit '15s/@[0-9a-f]\{33\}/@/'
-  check action-on-a-short-commit FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check action-on-a-short-commit FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree action-on-41-hex '15s/ # v7.0.1/a # v7.0.1/'
-  check action-on-41-hex FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check action-on-41-hex FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree named-step-on-a-tag "10s/.*/      - name: Checkout\\${nl}        uses: actions\\/checkout@v7/"
-  check named-step-on-a-tag FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check named-step-on-a-tag FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
   tree no-uses-line '10s/.*/      - run: "true"/;15s/.*/      - run: "true"/'
   check no-uses-line FAIL 'FAIL 17-workflow-lint (ci.yml holds no uses line)'
   tree second-workflow-file ''
@@ -235,9 +235,11 @@ EOF
   tree actionlint-finding '2s/push/pushed/'
   check actionlint-finding FAIL 'actionlint reports a finding in ci.yml)'
   tree two-findings '10s/@[0-9a-f]* # v7.0.1/@v7/;3,4d'
-  check two-findings FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment; and 1 more above)'
+  check two-findings FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment; and 1 more above)'
   tree quoted-uses-key '10s/.*/      - "uses": actions\/checkout@v7/'
-  check quoted-uses-key FAIL '1 of 2 uses lines of ci.yml take no 40-hex commit'
+  check quoted-uses-key FAIL '1 of 2 uses keys of ci.yml take no 40-hex commit'
+  tree flow-steps-with-an-unpinned-action '9s/.*/    steps: [{uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: actions\/setup-node@v4}]/;10d'
+  check flow-steps-with-an-unpinned-action FAIL '1 of 3 uses keys of ci.yml take no 40-hex commit'
   tree runs-on-block-list-without-timeout "12s/.*/    runs-on:\\${nl}      - windows-2025/;13d"
   check runs-on-block-list-without-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
   tree third-job "\$s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 30\\${nl}    steps:\\${nl}      - run: \"true\"/"
@@ -254,7 +256,7 @@ EOF
   tree actionlint-installed-in-ci ''
   path=$work/tools:/usr/bin:/bin
   ci=true
-  check actionlint-installed-in-ci PASS 'jobs: 2, uses lines: 2, findings: 0'
+  check actionlint-installed-in-ci PASS 'jobs: 2, uses keys: 2, findings: 0'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
