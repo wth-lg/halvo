@@ -1,0 +1,12 @@
+[package]
+name = "r5-routine"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "r5-routine"
+path = "src/main.rs"
+
+[dependencies]
+rand_chacha = "=0.10.0"
