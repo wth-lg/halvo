@@ -354,10 +354,142 @@ fn the_check_of_the_coarse_assertion_names_the_field_that_lost_its_assertion() {
     );
 }
 
+fn macro_names(text: &str) -> Vec<String> {
+    let t = tokens(text);
+    find(&t, &["macro_rules", "!"])
+        .into_iter()
+        .filter_map(|i| t.get(i + 2).cloned())
+        .collect()
+}
+
+fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) => panic!("{}: {e}", dir.display()),
+    };
+    for entry in entries {
+        let path = entry.expect("a directory entry").path();
+        if path.is_dir() {
+            rust_files(&path, out);
+        } else if path.extension().is_some_and(|x| x == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+fn macros_of_later_files() -> Vec<String> {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(&src).expect("src") {
+        let path = entry.expect("a directory entry").path();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if path.is_dir() && name != "bin" {
+            rust_files(&path, &mut files);
+        } else if path.is_file() && name.ends_with(".rs") && !LOCKED.contains(&name) {
+            files.push(path);
+        }
+    }
+    let mut names = Vec::new();
+    for file in files {
+        match std::fs::read_to_string(&file) {
+            Ok(text) => names.extend(macro_names(&text)),
+            Err(e) => panic!("{}: {e}", file.display()),
+        }
+    }
+    names
+}
+
+fn lock_faults(file: &str, text: &str, later_macros: &[String]) -> Vec<String> {
+    let t = tokens(text);
+    let mut faults = Vec::new();
+    let mut in_use = false;
+    for (i, token) in t.iter().enumerate() {
+        let next = t.get(i + 1).map(String::as_str);
+        let before = i.checked_sub(1).map(|j| t[j].as_str());
+        match token.as_str() {
+            "use" => in_use = true,
+            ";" => in_use = false,
+            _ => {}
+        }
+        if token == "path" && next == Some("=") && matches!(before, Some("[" | "," | "(")) {
+            faults.push(format!("{file} holds a path attribute"));
+        }
+        if token == "include" && next == Some("!") {
+            faults.push(format!("{file} holds include!"));
+        }
+        if later_macros.contains(token)
+            && before != Some("macro_rules")
+            && (next == Some("!") || in_use)
+        {
+            faults.push(format!(
+                "{file} calls or imports the macro {token}, which a file of a later run defines"
+            ));
+        }
+    }
+    faults
+}
+
+#[test]
+fn the_lock_test_refuses_a_path_attribute_include_and_a_macro_of_a_later_file() {
+    let later = macro_names(
+        "#[macro_export]\nmacro_rules! sneak_macro {\n    () => {\n        $crate::learning::KINDS.len()\n    };\n}\n",
+    );
+    assert_eq!(later, ["sneak_macro"]);
+    for (text, fault) in [
+        (
+            "#[path = \"learning.rs\"]\nmod sneak_path;\n",
+            "site.rs holds a path attribute",
+        ),
+        (
+            "#[cfg_attr(all(), path = \"learning.rs\")]\nmod sneak_path;\n",
+            "site.rs holds a path attribute",
+        ),
+        (
+            "mod sneak {\n    include!(\"learning.rs\");\n}\n",
+            "site.rs holds include!",
+        ),
+        (
+            "fn sneak_len() -> usize {\n    crate::sneak_macro!()\n}\n",
+            "site.rs calls or imports the macro sneak_macro",
+        ),
+        (
+            "fn sneak_len() -> usize {\n    sneak_macro![]\n}\n",
+            "site.rs calls or imports the macro sneak_macro",
+        ),
+        (
+            "use crate::{ids, sneak_macro as m};\n",
+            "site.rs calls or imports the macro sneak_macro",
+        ),
+    ] {
+        let faults = lock_faults("site.rs", text, &later);
+        assert_eq!(faults.len(), 1, "{text}: {faults:?}");
+        assert!(faults[0].starts_with(fault), "{text}: {faults:?}");
+    }
+    for twin in [
+        "let path = 1;\n",
+        "fn path(p: &str) -> &str {\n    p\n}\n",
+        "let s = include_str!(\"learning.rs\");\n",
+        "/// #[path = \"learning.rs\"] include!(\"learning.rs\") sneak_macro!()\nfn f() {}\n",
+        "let sneak_macro = \"sneak_macro!()\";\n",
+        "macro_rules! own {\n    () => {};\n}\nown!();\n",
+    ] {
+        assert_eq!(
+            lock_faults("site.rs", twin, &later),
+            Vec::<String>::new(),
+            "{twin}"
+        );
+    }
+}
+
 #[test]
 fn no_locked_file_names_an_item_of_the_files_of_later_runs_but_their_kind_lists() {
+    let later_macros = macros_of_later_files();
     for file in LOCKED {
         let text = source(file);
+        assert_eq!(
+            lock_faults(file, &text, &later_macros),
+            Vec::<String>::new()
+        );
         for module in LATER {
             let named = identifiers(&text, module);
             match file {
