@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
-  armLine, checkHosted, parseAnswer, parseArgs, parseEnd, quietKey, Refused, SENT, SENT_B, syncKey, SYSTEM
+  armLine, checkHosted, parseAnswer, parseArgs, parseEnd, quietKey, Refused, SENT, SENT_B, stepKey, syncKey, SYSTEM
 } from '../selfcheck.mjs';
 
 const script = fileURLToPath(new URL('../selfcheck.mjs', import.meta.url));
@@ -80,6 +80,30 @@ test('in the arms that hide and keep the page, channel and events need a change 
   }
   assert.equal(syncKey('get', end, 'done', true, SENT, true), 'ok');
   assert.equal(syncKey('get', { ...end, afterHide: 1 }, 'done', true, SENT, true), 'miss');
+});
+
+test('a step key is ok for the answer of its step and the state that the answer names, and miss for every other pair', () => {
+  const states = ['onscreen', 'hidden', 'absent', 'gone', 'alive', 'unread'];
+  const answers = ['ok', 'ok show_ms=0', 'ok show_ms=1504', 'ok show_ms=x', 'err timeout', 'err no_window', 'err busy', 'err unknown_line', '', null, undefined];
+  const okCells = new Set([
+    'show|ok show_ms=0|onscreen',
+    'show|ok show_ms=1504|onscreen',
+    'hide|ok|hidden',
+    'destroy|ok|absent',
+    'quit|ok|gone'
+  ]);
+  let cells = 0;
+  for (const step of ['show', 'hide', 'destroy', 'quit']) {
+    for (const answer of answers) {
+      for (const state of states) {
+        const want = okCells.has(`${step}|${answer}|${state}`) ? 'ok' : 'miss';
+        assert.equal(stepKey(step, answer, state), want, `${step} ${answer} ${state}`);
+        cells += 1;
+      }
+    }
+  }
+  assert.equal(cells, 264);
+  assert.throws(() => stepKey('sample', 'ok', 'onscreen'));
 });
 
 test('quiet reads the core quiet lines of arm a2 and wants none elsewhere', () => {

@@ -105,6 +105,19 @@ export function syncKey(way, end, sendDone, closedAfterHide, sent = SENT, keptHi
   return 'ok';
 }
 
+/** The state that the `ok` answer of each step names, as the readers of the system show it:
+ * the window on screen, not visible or absent, and for `quit` the app's tree gone. */
+export const STEP_STATES = Object.freeze({ show: 'onscreen', hide: 'hidden', destroy: 'absent', quit: 'gone' });
+
+/** The key of a step that compares an answer with what the reader of the system shows: `ok`
+ * for the step's `ok` answer (`ok show_ms=<n>` for `show`, `ok` for the others) together with
+ * the state that the answer names, `miss` for every other pair (TA-15). */
+export function stepKey(step, answer, read) {
+  if (!Object.hasOwn(STEP_STATES, step)) throw new Error(`no step key for ${step}`);
+  const answered = step === 'show' ? /^ok show_ms=\d+$/.test(answer ?? '') : answer === 'ok';
+  return answered && read === STEP_STATES[step] ? 'ok' : 'miss';
+}
+
 /** The key `quiet` from the app's `core quiet` lines: in arm `a2` one line per window made on
  * macOS, and on Windows one line per call at each hide and show, each with `result=ok`. */
 export function quietKey(arm, system, lines, { made, hides, shows }) {
@@ -321,9 +334,8 @@ async function windowRun(options, arm, pages) {
     const shows = [];
     const first = await send('show');
     const firstMs = Number(first.parsed?.pairs.show_ms);
-    shows.push(/^control port=\d+$/.test(app.firstLine ?? '') && first.parsed?.word === 'ok'
-      && Number.isFinite(firstMs) && first.ms <= firstMs + 1500);
-    shows.push((await look('onscreen')) === 'onscreen');
+    shows.push(/^control port=\d+$/.test(app.firstLine ?? '') && first.ms <= firstMs + 1500);
+    shows.push(stepKey('show', first.answer, await look('onscreen')) === 'ok');
     const tree = readTree(app.pid);
     trace(`read=tree count=${tree.count} webview=${tree.webview}`);
     const s1 = (await send('sample')).parsed;
@@ -336,14 +348,14 @@ async function windowRun(options, arm, pages) {
     let hides = 0;
     if (arm === 'b') {
       const d = await send('destroy');
-      const gone = (await look('absent')) === 'absent';
+      const destroyed = stepKey('destroy', d.answer, await look('absent'));
       const after = (await send('sample')).parsed;
-      keys.destroy = d.answer === 'ok' && gone && after?.word === 'ok'
+      keys.destroy = destroyed === 'ok' && after?.word === 'ok'
         && after.pairs.ticks === '-' && after.pairs.frames === '-' ? 'ok' : 'miss';
     } else {
       const h = await send('hide');
       hides += 1;
-      keys.hide = h.answer === 'ok' && (await look('hidden')) === 'hidden' ? 'ok' : 'miss';
+      keys.hide = stepKey('hide', h.answer, await look('hidden'));
       if (arm === 'a' || arm === 'a2') {
         const s3 = (await send('sample')).parsed;
         await sleep(3000);
@@ -354,8 +366,7 @@ async function windowRun(options, arm, pages) {
     }
     keys.counts = counts ? 'ok' : 'miss';
     const second = await send('show');
-    shows.push(second.parsed?.word === 'ok' && second.parsed.pairs.show_ms !== undefined);
-    shows.push((await look('onscreen')) === 'onscreen');
+    shows.push(stepKey('show', second.answer, await look('onscreen')) === 'ok');
     const load = await send('load slow.html');
     shows.push(load.answer === 'ok');
     await sleep(1000);
@@ -378,7 +389,8 @@ async function windowRun(options, arm, pages) {
       await sleep(250);
     }
     trace(`quit exit=${app.exitCode ?? 'none'} alive=${alive}`);
-    keys.quit = quit.answer === 'ok' && exited && app.exitCode === 0 && alive === 0
+    const quitRead = exited && app.exitCode === 0 && alive === 0 ? 'gone' : 'alive';
+    keys.quit = stepKey('quit', quit.answer, quitRead) === 'ok'
       && tree.webview >= 1 && atQuit.webview >= 1 ? 'ok' : 'miss';
   } catch (error) {
     trace(`error=${String(error && error.message).replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80)}`);
