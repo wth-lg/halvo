@@ -364,16 +364,6 @@ mod lowered {
             sid: *mut u8,
             size: *mut u32,
         ) -> i32;
-        fn SetTokenInformation(token: Handle, class: i32, info: *const c_void, size: u32) -> i32;
-        fn GetTokenInformation(
-            token: Handle,
-            class: i32,
-            info: *mut c_void,
-            size: u32,
-            needed: *mut u32,
-        ) -> i32;
-        fn InitializeAcl(acl: *mut u8, size: u32, revision: u32) -> i32;
-        fn AddAccessAllowedAce(acl: *mut u8, revision: u32, mask: u32, sid: *const c_void) -> i32;
         fn CreateProcessAsUserW(
             token: Handle,
             application: *const u16,
@@ -434,16 +424,12 @@ mod lowered {
         let mut wide: Vec<u16> = line.encode_utf16().chain(Some(0)).collect();
         let mut admins = [0u8; 68];
         let mut admins_size = admins.len() as u32;
-        let mut medium = [0u8; 68];
-        let mut medium_size = medium.len() as u32;
         unsafe {
             let mut own: Handle = std::ptr::null_mut();
             if OpenProcessToken(GetCurrentProcess(), 0xF01FF, &mut own) == 0 {
                 return "not-started".to_string();
             }
             if CreateWellKnownSid(26, std::ptr::null(), admins.as_mut_ptr(), &mut admins_size) == 0
-                || CreateWellKnownSid(66, std::ptr::null(), medium.as_mut_ptr(), &mut medium_size)
-                    == 0
             {
                 CloseHandle(own);
                 return "not-started".to_string();
@@ -468,49 +454,6 @@ mod lowered {
             if made == 0 {
                 return "not-started".to_string();
             }
-            let label = SidAndAttributes {
-                sid: medium.as_mut_ptr().cast(),
-                attributes: 0x20,
-            };
-            let label_size = std::mem::size_of::<SidAndAttributes>() as u32 + medium_size;
-            if SetTokenInformation(
-                token,
-                25,
-                (&label as *const SidAndAttributes).cast(),
-                label_size,
-            ) == 0
-            {
-                CloseHandle(token);
-                return "not-started".to_string();
-            }
-            let mut user = [0u8; 256];
-            let mut needed = 0u32;
-            let mut system = [0u8; 68];
-            let mut system_size = system.len() as u32;
-            let mut acl = [0u8; 512];
-            let holder: *const u8 = acl.as_ptr();
-            if GetTokenInformation(token, 1, user.as_mut_ptr().cast(), 256, &mut needed) == 0
-                || CreateWellKnownSid(22, std::ptr::null(), system.as_mut_ptr(), &mut system_size)
-                    == 0
-                || InitializeAcl(acl.as_mut_ptr(), acl.len() as u32, 2) == 0
-                || AddAccessAllowedAce(
-                    acl.as_mut_ptr(),
-                    2,
-                    0x1000_0000,
-                    std::ptr::read_unaligned(user.as_ptr().cast()),
-                ) == 0
-                || AddAccessAllowedAce(acl.as_mut_ptr(), 2, 0x1000_0000, system.as_ptr().cast())
-                    == 0
-                || SetTokenInformation(
-                    token,
-                    6,
-                    (&holder as *const *const u8).cast(),
-                    std::mem::size_of::<*const u8>() as u32,
-                ) == 0
-            {
-                CloseHandle(token);
-                return "not-started".to_string();
-            }
             let mut startup: StartupInfo = std::mem::zeroed();
             startup.cb = std::mem::size_of::<StartupInfo>() as u32;
             startup.flags = 0x100;
@@ -528,7 +471,7 @@ mod lowered {
                 std::ptr::null(),
                 std::ptr::null(),
                 1,
-                0x0800_0000,
+                0,
                 std::ptr::null(),
                 std::ptr::null(),
                 &startup,
