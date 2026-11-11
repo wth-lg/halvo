@@ -595,7 +595,6 @@ classify() {
     BEGIN { split(want, w, " ") }
     {
       proto = field("proto"); dest = field("dest"); image = field("image")
-      if (w[1] == "icmp" && proto == "-") proto = "icmp"
       if (proto != w[1]) next
       if (image != "-" && image != w[3] && image != w[3] ".exe") next
       if (w[2] == "*" || dest == w[2]) found = 1
