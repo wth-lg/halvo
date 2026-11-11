@@ -133,7 +133,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.run.interrupted", "It stopped because Halvo closed."),
     (
         "line.run.deleted",
-        "It stopped because the agent was removed.",
+        "It stopped because the agent was deleted.",
     ),
     (
         "line.run.budget",
