@@ -1,8 +1,20 @@
-//! The items of I3 and the confirmation of I4: the presenter table and the machine of a
-//! confirmation, as pure functions.
+//! The items of I3 and the confirmation of I4: the closed list of what may wait for the
+//! person, where each kind comes from and the budgets (`raise_step`), the item as the page gets
+//! it (`compose_*`), the presenter table and the machine of a confirmation, as pure functions.
 
+mod compose;
 mod confirm;
+mod key;
 mod presenter;
+mod raise;
 
+pub use compose::{
+    compose_check, compose_confirm, compose_plain, compose_setup, field_from, kept_source, Plain,
+    SetupParam,
+};
 pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
+pub use key::Key;
 pub use presenter::{presenter, request_presenter};
+pub use raise::{
+    choices, handback_kind, handback_result, params, raise_step, Raise, Source, CONFIRM_CLASSES,
+};
