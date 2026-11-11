@@ -73,6 +73,16 @@ const CASES: &[Case] = &[
         codes: &["E0277"],
     },
     Case {
+        name: "seal-by-its-module",
+        later: &["pub struct LaterNote;\nimpl crate::kinds::sealed::Sealed for LaterNote {}\nimpl crate::kinds::Coarse for LaterNote {}\n"],
+        codes: &["E0603"],
+    },
+    Case {
+        name: "seal-by-option",
+        later: &["pub struct LaterNote;\nimpl crate::kinds::Coarse for Option<LaterNote> {}\n"],
+        codes: &["E0277"],
+    },
+    Case {
         name: "strict-struct",
         later: &["pub struct Key(());\ncrate::ids::strict_struct! {\n    pub struct Note {\n        pub n: u32,\n    }\n    rules(_n) {\n        Ok(())\n    }\n}\n"],
         codes: &["E0277"],

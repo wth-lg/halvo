@@ -1392,3 +1392,66 @@ fn the_tests_of_the_chain_read_the_code_outside_macros() {
     assert_eq!(fn_body(&made, "registry"), None);
     assert_eq!(fn_body(&made, "check_registry"), None);
 }
+
+#[test]
+fn each_predicate_of_the_textual_tests_has_a_case_of_its_own() {
+    let macros = locked_macros();
+    let root = root_names();
+    let faults = lock_faults("site.rs", "r#include!(\"learning.rs\");\n", &macros, &root);
+    assert_eq!(faults, ["site.rs names include"]);
+    for (text, fault) in [
+        (
+            "fn f() -> Vec<u8> {\n    vec_sneak!()\n}\n",
+            "site.rs calls the macro vec_sneak, which no locked file defines",
+        ),
+        (
+            "fn f() -> String {\n    format_args!(\"x\").to_string()\n}\n",
+            "site.rs calls the macro format_args, which no locked file defines",
+        ),
+    ] {
+        assert_eq!(
+            lock_faults("site.rs", text, &macros, &root),
+            [fault],
+            "{text}"
+        );
+    }
+    assert_eq!(
+        lock_faults("lib.rs", "use sneak::Hidden;\n", &macros, &root),
+        ["lib.rs re-exports from sneak"]
+    );
+    let record = source("record.rs");
+    let open = "const _: fn(&KeyCounts, &PointerCounts) = |keys, pointer| {\n";
+    assert_eq!(record.matches(open).count(), 1);
+    for attribute in [
+        "#[cfg(any())]\n",
+        "#[cfg_attr(any(), allow(unused))]\n",
+        "#[r#cfg(any())]\n",
+    ] {
+        let faults =
+            coarse_assertion_faults(&record.replacen(open, &format!("{attribute}{open}"), 1));
+        assert_eq!(
+            faults,
+            ["src/record.rs: a cfg attribute can switch the assertion off"],
+            "{attribute}"
+        );
+    }
+    let kinds = source("kinds.rs");
+    assert_eq!(
+        later_names_faults(
+            "kinds.rs",
+            &format!("{kinds}pub fn twice() -> usize {{\n    crate::learning::KINDS.len()\n}}\n")
+        ),
+        [
+            "kinds.rs names learning 2 times",
+            "kinds.rs does not name learning as `crate : : learning : : KINDS` once"
+        ]
+    );
+    let lib = source("lib.rs");
+    assert_eq!(
+        later_names_faults(
+            "lib.rs",
+            &format!("{lib}pub use learning::KINDS as LEARNING;\n")
+        ),
+        ["lib.rs names learning 2 times"]
+    );
+}
