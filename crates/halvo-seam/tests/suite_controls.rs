@@ -67,6 +67,10 @@ enum Fault {
     EndsTheStream,
     NoLookAhead,
     OpensInsideTheWatermarkSegment,
+    IgnoresTheByteBound,
+    RepeatsAtAStop,
+    SkipsAtAStop,
+    LoadCutsSetC,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -167,6 +171,7 @@ struct Proxy {
     cursor: Option<Position>,
     open_w: Position,
     reads: usize,
+    stop: Option<Entry>,
 }
 
 impl Proxy {
@@ -180,6 +185,7 @@ impl Proxy {
         self.store = Some(b.store.clone());
         self.open_w = b.watermark;
         self.reads = 0;
+        self.stop = None;
         self.renamed = self.fault == OpenNamesAnotherStore && open.store().is_some();
         match self.fault {
             WatermarkFalls => b.watermark.seg += 1,
@@ -251,6 +257,31 @@ impl Proxy {
             ServerMessage::Error(e) => return self.refused(e.cause().clone(), None),
             other => return other,
         };
+        if self.fault == IgnoresTheByteBound && !b.records.is_empty() && b.next != b.watermark {
+            if let ServerMessage::Batch(more) = t.handle(&ClientMessage::ReadBatch) {
+                for x in more.expiry {
+                    if !b.expiry.iter().any(|e| e.seg == x.seg) {
+                        b.expiry.push(x);
+                    }
+                }
+                b.records.extend(more.records);
+                b.next = more.next;
+                b.watermark = more.watermark;
+            }
+        }
+        let stopped = self.stop.take();
+        if let (Some(last), Some(first)) = (&stopped, b.records.first_mut()) {
+            match self.fault {
+                RepeatsAtAStop => first.record = last.record.clone(),
+                SkipsAtAStop => {
+                    b.records.remove(0);
+                }
+                _ => {}
+            }
+        }
+        if b.next != b.watermark {
+            self.stop = b.records.last().cloned();
+        }
         self.cursor = Some(b.next);
         let reached = !b.records.is_empty() && b.next == b.watermark;
         match self.fault {
@@ -273,7 +304,7 @@ impl Proxy {
                 let copy = b.records[0].clone();
                 b.records.insert(1, copy);
             }
-            ServesBelowTheCursor if !b.records.is_empty() && cursor.idx >= 1 => {
+            ServesBelowTheCursor if self.set_a && !b.records.is_empty() && cursor.idx >= 1 => {
                 let entry = Entry {
                     pos: Position {
                         seg: cursor.seg,
@@ -390,9 +421,13 @@ impl Subject for Control {
             return self.reopen();
         }
         self.set_a = batch_files == conformance::SET_A;
+        let cut_c = self.fault == LoadCutsSetC && batch_files == conformance::SET_C;
         self.files = Vec::new();
         for (i, text) in batch_files.iter().enumerate() {
             let mut text = text.to_string();
+            if cut_c {
+                text = text.split_inclusive('\n').take(20).collect();
+            }
             if self.fault == LoadDropsALine && i == 1 {
                 let cut = text[..text.len() - 1].rfind('\n').map_or(0, |p| p + 1);
                 text.truncate(cut);
@@ -416,6 +451,7 @@ impl Subject for Control {
             cursor: None,
             open_w: ZERO,
             reads: 0,
+            stop: None,
         };
         let (mut requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, mut replies_out) = io::pipe().map_err(|e| e.to_string())?;
@@ -523,7 +559,10 @@ fn run_passes_a_conforming_server_and_fails_each_broken_one_in_the_case_that_sho
         IgnoreKinds,
         [Pass, Pass, Fail("the filter foreground_app: "), Pass],
     );
-    check(IgnoreRange, [Pass, Pass, Fail("the filter the range: "), Pass]);
+    check(
+        IgnoreRange,
+        [Pass, Pass, Fail("the filter the range: "), Pass],
+    );
     check(
         LoadKeepsTheOldStore,
         [
@@ -572,7 +611,10 @@ fn control_a_next_that_falls() {
 
 #[test]
 fn control_a_next_above_the_watermark() {
-    check(NextAboveWatermark, everywhere("next is above the watermark"));
+    check(
+        NextAboveWatermark,
+        everywhere("next is above the watermark"),
+    );
 }
 
 #[test]
@@ -624,7 +666,10 @@ fn control_an_expiry_instant_not_after_its_records() {
 
 #[test]
 fn control_a_screen_frame_record_served() {
-    check(ServesScreenFrame, everywhere("a screen_frame record was served"));
+    check(
+        ServesScreenFrame,
+        everywhere("a screen_frame record was served"),
+    );
 }
 
 #[test]
@@ -682,7 +727,12 @@ fn control_an_error_of_another_cause_than_bad_position() {
 fn control_a_store_changed_that_names_the_old_store() {
     check(
         StoreChangedNamesTheOldId,
-        [Pass, Pass, Pass, Fail("store-changed names the old store id")],
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("store-changed names the old store id"),
+        ],
     );
 }
 
@@ -702,7 +752,10 @@ fn control_an_error_of_another_cause_than_store_changed() {
 #[test]
 fn control_an_error_of_another_cause_than_bad_request_for_each_refused_message() {
     let filters = [
-        (Form::EmptyKinds, "an empty kinds got store-error; want bad-request"),
+        (
+            Form::EmptyKinds,
+            "an empty kinds got store-error; want bad-request",
+        ),
         (
             Form::ScreenFrameKind,
             "kinds with screen_frame got store-error; want bad-request",
@@ -717,10 +770,7 @@ fn control_an_error_of_another_cause_than_bad_request_for_each_refused_message()
         ),
     ];
     for (form, text) in filters {
-        check(
-            RefusalGetsStoreError(form),
-            [Pass, Pass, Fail(text), Pass],
-        );
+        check(RefusalGetsStoreError(form), [Pass, Pass, Fail(text), Pass]);
     }
     check(
         RefusalGetsStoreError(Form::NullStoreAtAPosition),
@@ -744,7 +794,10 @@ fn control_an_error_of_another_cause_than_bad_request_for_each_refused_message()
 
 #[test]
 fn control_replies_of_the_wrong_message() {
-    check(ReadGetsStoreError, everywhere("read_batch got the error store-error"));
+    check(
+        ReadGetsStoreError,
+        everywhere("read_batch got the error store-error"),
+    );
     check(
         OpenGetsClosed,
         everywhere("open_cursor got a reply other than batch or error"),
@@ -757,7 +810,10 @@ fn control_replies_of_the_wrong_message() {
         CloseGetsBadRequest,
         everywhere("close got a reply other than closed"),
     );
-    check(SendsNoMessage, everywhere("a reply that is no message of C5.5"));
+    check(
+        SendsNoMessage,
+        everywhere("a reply that is no message of C5.5"),
+    );
     check(
         EndsTheStream,
         everywhere("the server ended the stream before its reply"),
@@ -776,7 +832,9 @@ fn control_a_read_that_never_reaches_the_watermark() {
 fn control_a_server_without_look_ahead() {
     check(
         NoLookAhead,
-        everywhere("the reply that serves the last entry of the reference read has next {seg 4, idx 12}"),
+        everywhere(
+            "the reply that serves the last entry of the reference read has next {seg 4, idx 12}",
+        ),
     );
 }
 
@@ -789,6 +847,58 @@ fn control_a_server_that_opens_inside_the_watermark_segment() {
             Pass,
             Pass,
             Pass,
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_ignores_the_byte_bound() {
+    check(
+        IgnoresTheByteBound,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C: a reply frame of "),
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_repeats_the_record_at_a_stop() {
+    check(
+        RepeatsAtAStop,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C served 420 entries, the first that differs at {seg 1, idx "),
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_skips_the_record_at_a_stop() {
+    check(
+        SkipsAtAStop,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("at the stop of the read of set C at {seg 1, idx "),
+        ],
+    );
+}
+
+#[test]
+fn control_a_set_c_too_short_to_stop_a_batch() {
+    check(
+        LoadCutsSetC,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read of set C ended 0 Batches before the store ended; want at least 2"),
         ],
     );
 }

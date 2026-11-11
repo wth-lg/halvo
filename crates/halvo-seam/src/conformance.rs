@@ -163,6 +163,11 @@ pub const SET_B: [&str; 1] = [concat!(
     "\n",
 )];
 
+/// Set C of C5.13 item 3: 1 batch-file text of 420 `window_title` lines of 1,445 bytes each with its LF, so
+/// that the 262,144 bytes of C5.7 item 5 stop at least two Batches before its end. The script that writes sets
+/// A and B writes it.
+pub const SET_C: [&str; 1] = [include_str!("conformance/set_c.jsonl")];
+
 /// Runs the four cases in the order of `CASES` and returns, for each, its name and a pass or a failure text.
 pub fn run<S: Subject>(subject: &mut S) -> Vec<(&'static str, Result<(), String>)> {
     vec![
@@ -254,6 +259,7 @@ struct Reading {
     top: Position,
     first_full_next: Option<Position>,
     tail: Option<(Position, Position)>,
+    batches: Vec<(Option<Position>, Position, Position)>,
     expiry_segs: Vec<u64>,
 }
 
@@ -357,6 +363,7 @@ fn read<S: Subject>(
         top: opened.watermark,
         first_full_next: None,
         tail: None,
+        batches: Vec::new(),
         expiry_segs: Vec::new(),
     };
     let mut cursor = position;
@@ -377,6 +384,9 @@ fn read<S: Subject>(
         if !b.records.is_empty() {
             reading.tail = Some((b.next, b.watermark));
         }
+        reading
+            .batches
+            .push((b.records.first().map(|e| e.pos), b.next, b.watermark));
         last = b.records.last().map(|e| e.pos).or(last);
         cursor = b.next;
         watermark = b.watermark;
@@ -673,7 +683,9 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
 
 /// The case `store_changed` (C5.13 item 9): after `load(B)`, the old store id gets `store-changed` with
 /// another id and opens no cursor, a null store with a non-zero position gets `bad-request`, and the new
-/// store serves the records of set B from the zero position, with a null store and with its new id.
+/// store serves the records of set B from the zero position, with a null store and with its new id. Last,
+/// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
+/// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`.
 pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (conn, rf) = reference(subject)?;
     drop(conn);
@@ -732,6 +744,53 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
         .map_err(|e| format!("the new store with its new id: {e}"))?;
     if !same(&again.entries, &first.entries) {
         return Err("the new store served other entries with its new id".to_owned());
+    }
+    drop(conn);
+    subject.load(&SET_C)?;
+    let mut conn = connect(subject)?;
+    let c =
+        read(&mut conn, None, ZERO, None, None).map_err(|e| format!("the read of set C: {e}"))?;
+    let stops: Vec<usize> = (0..c.batches.len())
+        .filter(|&i| c.batches[i].0.is_some() && c.batches[i].1 != c.batches[i].2)
+        .collect();
+    if stops.len() < 2 {
+        return Err(format!(
+            "the read of set C ended {} Batches before the store ended; want at least 2",
+            stops.len()
+        ));
+    }
+    for i in stops {
+        let next = c.batches[i].1;
+        match c.batches.get(i + 1).and_then(|b| b.0) {
+            Some(first) if first == next => {}
+            Some(first) => {
+                return Err(format!(
+                    "at the stop of the read of set C at {}, the next Batch starts at {}",
+                    show(next),
+                    show(first)
+                ))
+            }
+            None => {
+                return Err(format!(
+                    "at the stop of the read of set C at {}, the next Batch holds no record",
+                    show(next)
+                ))
+            }
+        }
+    }
+    let data_c = records_of(&SET_C)?;
+    let differs = c
+        .entries
+        .iter()
+        .zip(&data_c)
+        .position(|(e, d)| !alike(&e.record, d));
+    if c.entries.len() != data_c.len() || differs.is_some() {
+        let at = differs.map_or("its end".to_owned(), |i| show(c.entries[i].pos));
+        return Err(format!(
+            "the read of set C served {} entries, the first that differs at {at}; want the {} records of C in order, each once",
+            c.entries.len(),
+            data_c.len()
+        ));
     }
     Ok(())
 }
