@@ -12,7 +12,7 @@ mod slot;
 mod start;
 mod tick;
 
-pub use board::{Board, Dying, LiveRun, Member, Stop};
+pub use board::{Board, Dying, LiveRun, Member, Owed, Owing, Stop};
 pub use drive::{drive, Answer, Ended, Move, Report, Served};
 pub use hold::{holds, params, Hold};
 pub use queue::{Queue, Waiting};

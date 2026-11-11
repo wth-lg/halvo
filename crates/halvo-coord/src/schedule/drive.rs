@@ -1,6 +1,6 @@
 use super::{
     active_state, current_slot, finished, holds, slot_open, start_step, tick_plan, tick_step,
-    Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Stop, Verdict, Waiting,
+    Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing, Stop, Verdict, Waiting,
 };
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs};
 use crate::types::{
@@ -195,6 +195,12 @@ fn fresh<P: Owner<Config = C>, C>(
     Ok(())
 }
 
+fn instant(now: u64) -> i64 {
+    i64::try_from(now)
+        .unwrap_or(i64::MAX)
+        .saturating_mul(1_000_000)
+}
+
 fn store<P: Owner, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -202,9 +208,17 @@ fn store<P: Owner, C>(
     whats: Vec<What>,
 ) -> Result<(), PortError> {
     let day = board.day;
-    let at = i64::try_from(cx.now)
-        .unwrap_or(i64::MAX)
-        .saturating_mul(1_000_000);
+    store_at(cx, board, i, whats, day, instant(cx.now))
+}
+
+fn store_at<P: Owner, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    whats: Vec<What>,
+    day: u32,
+    at: i64,
+) -> Result<(), PortError> {
     let facts = &mut board.members[i].facts;
     let last = facts.events.last().map_or(0, |e| e.seq.get());
     let events: Vec<Event> = whats
@@ -255,6 +269,35 @@ fn finish<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &Run
 where
     C: ConfigView,
 {
+    let (day, at) = (board.day, instant(cx.now));
+    match log_end(cx, board, i, run, cause, day, at) {
+        Ok(()) => {}
+        Err(e) if gone_refusal(&e) => {}
+        Err(_) => {
+            let facts = &board.members[i].facts;
+            let owed = Owed {
+                agent: facts.agent.clone(),
+                workflow: facts.workflow.id.clone(),
+                run: run.clone(),
+                what: Owing::RunEnded { cause, day, at },
+            };
+            board.owed.push(owed);
+        }
+    }
+}
+
+fn log_end<P: Owner, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    run: &RunId,
+    cause: RunEnd,
+    day: u32,
+    at: i64,
+) -> Result<(), PortError>
+where
+    C: ConfigView,
+{
     let facts = &board.members[i].facts;
     let before = facts
         .events
@@ -281,9 +324,11 @@ where
             cause: HoldSetCause::Failures,
         });
     }
-    if store(cx, board, i, whats).is_ok() && pause {
+    store_at(cx, board, i, whats, day, at)?;
+    if pause {
         send_state(cx, &board.members[i].facts, AgentState::Paused);
     }
+    Ok(())
 }
 
 fn launch<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, trigger: Trigger, go: Go) -> Served
@@ -335,6 +380,15 @@ where
     if cx.ports.send(&body).is_err() || cx.ports.start(&spec).is_err() {
         board.members[i].facts.doing = Doing::Idle(None);
         finish(cx, board, i, &run, RunEnd::Failed);
+        let owed = Owed {
+            agent: agent.clone(),
+            workflow,
+            run: run.clone(),
+            what: Owing::EndRun,
+        };
+        if !send_owed(cx, board, &owed) {
+            board.owed.push(owed);
+        }
         return served(Err(Cause::NoService), Some(run));
     }
     let rank = board.rank();
@@ -376,6 +430,10 @@ where
         queued: board.queue.len(),
         session: board.members[i].session,
         from_queue,
+        owed: board
+            .owed
+            .iter()
+            .any(|o| o.agent == agent && matches!(o.what, Owing::RunEnded { .. })),
     };
     let step = start_step(&board.members[i].facts, trigger, cx.limits, &around);
     board.members[i].facts.store_ended = kept;
@@ -501,6 +559,42 @@ where
     }
 }
 
+fn gone_refusal(error: &PortError) -> bool {
+    matches!(error, PortError::Refused(name) if name.as_str() == "no_workflow")
+}
+
+fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed: &Owed) -> bool {
+    match &owed.what {
+        Owing::EndRun => match cx.ports.send(&Body::EndRun {
+            run: owed.run.clone(),
+        }) {
+            Ok(_) => true,
+            Err(e) => gone_refusal(&e),
+        },
+        Owing::RunEnded { cause, day, at } => {
+            let Some(i) = board.index(&owed.agent) else {
+                return true;
+            };
+            match log_end(cx, board, i, &owed.run, *cause, *day, *at) {
+                Ok(()) => true,
+                Err(e) => gone_refusal(&e),
+            }
+        }
+    }
+}
+
+fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, listed: &[WorkflowId]) {
+    let owed = std::mem::take(&mut board.owed);
+    for o in owed {
+        if !listed.contains(&o.workflow) {
+            continue;
+        }
+        if !send_owed(cx, board, &o) {
+            board.owed.push(o);
+        }
+    }
+}
+
 fn raise<P: Owner + Rng, C>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
@@ -587,6 +681,7 @@ where
     let Some(listed) = listed else {
         return report;
     };
+    pay_owed(cx, board, &listed);
     if plan.serve && starts {
         report.next.extend(serve(cx, board, &listed));
     }

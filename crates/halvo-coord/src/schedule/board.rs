@@ -1,6 +1,37 @@
 use super::Queue;
 use crate::types::{AgentId, Facts, RunEnd, RunId, WorkflowId};
 
+/// What the coordinator owes the owner for a run of an agent, sent again at each tick until the
+/// owner acknowledges it (I5.9, rulings XB-14 and XB-17).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Owing {
+    /// The body `end_run`, for a run that has no runner: its step 7 or 8 failed (XB-14).
+    EndRun,
+    /// The event `run_ended` with its cause, its day and its instant in nanoseconds, which the
+    /// owner did not acknowledge (XB-17).
+    RunEnded {
+        /// The cause of I5.6.
+        cause: RunEnd,
+        /// The day of the end.
+        day: u32,
+        /// The instant of the end.
+        at: i64,
+    },
+}
+
+/// One thing that the coordinator owes for a run.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Owed {
+    /// The run's agent.
+    pub agent: AgentId,
+    /// The agent's workflow.
+    pub workflow: WorkflowId,
+    /// The run.
+    pub run: RunId,
+    /// What is owed.
+    pub what: Owing,
+}
+
 /// One agent on the board: its facts (I5.1) and whether it has a stored session, which the
 /// head of a run reads (I5.5).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -75,6 +106,8 @@ pub struct Board<C> {
     pub created: Vec<WorkflowId>,
     /// Whether the last creation left an approved workflow with no agent for `roster_max`.
     pub roster_full: bool,
+    /// What the coordinator owes the owner, in the order in which it came to be owed.
+    pub owed: Vec<Owed>,
     ranks: u64,
 }
 
@@ -95,6 +128,7 @@ impl<C> Board<C> {
             gone: Vec::new(),
             created: Vec::new(),
             roster_full: false,
+            owed: Vec::new(),
             ranks: 0,
         }
     }

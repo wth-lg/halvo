@@ -104,6 +104,7 @@ fn free() -> Around {
         queued: 0,
         session: true,
         from_queue: false,
+        owed: false,
     }
 }
 
@@ -684,5 +685,28 @@ fn step_3_a_newest_run_that_the_agent_store_has_not_ended_is_state() {
             set_state: Some(AgentState::Active)
         }),
         "the end of failures comes before step 3"
+    );
+}
+
+#[test]
+fn step_3_an_owed_run_ended_of_the_agent_is_state() {
+    let f = facts(&AUTO, done_before());
+    let owed = Around {
+        owed: true,
+        ..free()
+    };
+    assert_eq!(
+        cause(&start_step(&f, Trigger::Person, &L, &owed)),
+        Some(Cause::State)
+    );
+    let full = Around {
+        owed: true,
+        live: 1,
+        queued: 4,
+        ..free()
+    };
+    assert_eq!(
+        cause(&start_step(&f, Trigger::Person, &L, &full)),
+        Some(Cause::State)
     );
 }

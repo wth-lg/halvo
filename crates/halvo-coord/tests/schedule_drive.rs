@@ -240,9 +240,6 @@ impl World {
     fn fail_start(&mut self, n: usize) -> Report {
         let r = self.start(n);
         assert_eq!(r.answer, Err(Cause::NoService));
-        if let Some(run) = &r.run {
-            self.store_end(run, None);
-        }
         r
     }
 
@@ -363,6 +360,7 @@ fn act(call: &Call) -> Option<String> {
         Call::Send(Body::SetState { state, .. }) => format!("set_state {state}"),
         Call::Send(Body::CreateAgent { .. }) => "create_agent".into(),
         Call::Send(Body::SetBindings { .. }) => "set_bindings".into(),
+        Call::Send(Body::EndRun { run }) => format!("end_run {run}"),
         Call::Start(spec) => format!("start {}", spec.agent),
         Call::Cancel(run) => format!("cancel {run}"),
         Call::Kill(run) => format!("kill {run}"),
@@ -545,6 +543,7 @@ fn refusal_hold_start() {
             queued: 0,
             session: true,
             from_queue: false,
+            owed: false,
         },
     );
     assert_eq!(by_scheduler.verdict, Verdict::Refused(Cause::Hold));
@@ -768,7 +767,7 @@ fn a_failed_step_8_stores_failed_and_the_streak_sets_failures_with_paused() {
         w.fail_start(0);
     }
     w.forget();
-    w.fail_start(0);
+    let third = w.fail_start(0).run.unwrap();
     assert_eq!(
         w.calls(),
         vec![
@@ -777,6 +776,7 @@ fn a_failed_step_8_stores_failed_and_the_streak_sets_failures_with_paused() {
             "start_run".into(),
             "log run_ended failed, hold_set failures".into(),
             "set_state paused".into(),
+            format!("end_run {third}"),
         ]
     );
     assert_eq!(
@@ -1595,16 +1595,17 @@ fn refusal_store_not_ended() {
     w.go(Move::SwitchOn { agent: agent(0) });
     assert_eq!(w.start(0).answer, Err(Cause::State), "after a kill");
     w.store_end(&run, None);
-    w.ports.refuse(Method::Start, PortError::NoService);
+    w.ports.refuse(Method::Start, not_started());
+    w.ports.refuse(Method::EndRun, PortError::Busy);
     let failed = w.start(0);
     assert_eq!(failed.answer, Err(Cause::NoService));
     w.ports.clear_refusals();
     assert_eq!(
         w.start(0).answer,
         Err(Cause::State),
-        "after a failed step 8"
+        "after a failed step 8, before its end_run is acknowledged"
     );
-    w.store_end(failed.run.as_ref().unwrap(), None);
+    w.tick();
     let crashed = ok_run(&w.start(0));
     w.relife();
     w.forget();
@@ -1895,4 +1896,216 @@ fn a_start_that_leaves_the_queue_and_goes_is_no_longer_queued() {
         w.facts(1).doing,
         Doing::Live(halvo_coord::types::Live::Starting)
     ));
+}
+
+fn not_started() -> PortError {
+    PortError::Refused(Name::parse("not_started").unwrap())
+}
+
+fn last_record(w: &World, n: usize) -> Option<(RunId, Outcome, u32)> {
+    w.ports
+        .agents
+        .borrow()
+        .iter()
+        .find(|a| a.agent == agent(n))
+        .and_then(|a| {
+            a.last
+                .as_ref()
+                .map(|l| (l.run.clone(), l.outcome, l.unknown))
+        })
+}
+
+#[test]
+fn refusal_after_failed_step7() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Send, PortError::Busy);
+    let failed = w.start(0);
+    assert_eq!(failed.answer, Err(Cause::NoService));
+    let run = failed.run.clone().unwrap();
+    assert_eq!(
+        w.calls(),
+        ["defer", "log run_started", "log run_ended failed"],
+        "no start_run and no Runs::start were taken; the refused end_run is owed"
+    );
+    w.ports.clear_refusals();
+    w.forget();
+    assert_eq!(
+        w.start(0).answer,
+        Err(Cause::State),
+        "before the acknowledgement"
+    );
+    assert_eq!(w.starts(), 0);
+    w.tick();
+    assert_eq!(w.calls(), [format!("end_run {run}")]);
+    assert_eq!(last_record(&w, 0), Some((run, Outcome::Failed, 0)));
+    w.forget();
+    w.tick();
+    assert_eq!(
+        w.calls(),
+        Vec::<String>::new(),
+        "sent until acknowledged, and no more"
+    );
+    ok_run(&w.start(0));
+}
+
+#[test]
+fn refusal_after_failed_step8() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Start, not_started());
+    w.ports.refuse(Method::EndRun, PortError::Busy);
+    let failed = w.start(0);
+    assert_eq!(failed.answer, Err(Cause::NoService));
+    let run = failed.run.clone().unwrap();
+    assert_eq!(
+        w.calls(),
+        [
+            "defer",
+            "log run_started",
+            "start_run",
+            "log run_ended failed"
+        ]
+    );
+    w.ports.clear_refusals();
+    w.forget();
+    assert_eq!(
+        w.start(0).answer,
+        Err(Cause::State),
+        "before the acknowledgement"
+    );
+    w.tick();
+    assert_eq!(w.calls(), [format!("end_run {run}")]);
+    ok_run(&w.start(0));
+}
+
+#[test]
+fn a_failed_step_8_sends_end_run_in_its_move_and_the_next_start_goes_on() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Start, not_started());
+    let failed = w.start(0);
+    let run = failed.run.clone().unwrap();
+    assert_eq!(
+        w.calls(),
+        vec![
+            "defer".to_string(),
+            "log run_started".into(),
+            "start_run".into(),
+            "log run_ended failed".into(),
+            format!("end_run {run}"),
+        ]
+    );
+    assert_eq!(last_record(&w, 0), Some((run, Outcome::Failed, 0)));
+    w.ports.clear_refusals();
+    ok_run(&w.start(0));
+}
+
+#[test]
+fn a_tick_sends_what_is_owed_after_its_kills_and_before_its_agents() {
+    let mut w = world_with(
+        &[manual(), person(), manual()],
+        Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        },
+    );
+    let live = ok_run(&w.start(0));
+    w.ports.refuse(Method::Start, not_started());
+    w.ports.refuse(Method::EndRun, PortError::Busy);
+    let failed = w.start(2).run.unwrap();
+    w.ports.clear_refusals();
+    w.go(Move::SwitchOff { agent: agent(0) });
+    w.clock(T0 + 5_000, DAY);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        w.calls(),
+        vec![
+            "defer".to_string(),
+            format!("kill {live}"),
+            "log run_ended cancelled".into(),
+            format!("end_run {failed}"),
+            "log item_raised ready".into(),
+        ]
+    );
+}
+
+#[test]
+fn an_owed_end_run_of_a_workflow_that_is_gone_is_dropped() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Send, PortError::Busy);
+    w.start(0);
+    w.ports.clear_refusals();
+    w.delete(0);
+    w.forget();
+    w.tick();
+    w.tick();
+    assert_eq!(w.calls(), Vec::<String>::new());
+}
+
+#[test]
+fn a_run_ended_that_the_owner_did_not_acknowledge_is_owed_and_holds_the_agent() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let end = w.end(&run, Some(Outcome::Completed));
+    assert_eq!(end.ended[0].cause, RunEnd::Completed);
+    w.ports.clear_refusals();
+    assert_eq!(
+        count(&w.stored(), "run_ended"),
+        1,
+        "the run before the test alone"
+    );
+    w.forget();
+    assert_eq!(
+        w.start(0).answer,
+        Err(Cause::State),
+        "no start while its run_ended is owed"
+    );
+    assert_eq!(w.calls(), Vec::<String>::new());
+    w.clock(T0 + 1_000, DAY + 1);
+    w.tick();
+    assert_eq!(w.calls(), ["log run_ended completed"]);
+    let e = w.stored().last().cloned().unwrap();
+    assert_eq!(
+        e.what,
+        What::RunEnded {
+            run,
+            cause: RunEnd::Completed
+        }
+    );
+    assert_eq!(e.day, DAY, "the day of the end");
+    w.forget();
+    w.tick();
+    assert_eq!(w.calls(), Vec::<String>::new(), "logged once");
+    ok_run(&w.start(0));
+}
+
+#[test]
+fn an_owed_run_ended_is_logged_before_the_starts_of_the_tick() {
+    let mut w = world(&[manual(), AUTO]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.end(&run, Some(Outcome::Failed));
+    w.ports.clear_refusals();
+    w.forget();
+    w.tick();
+    let calls = w.calls();
+    assert_eq!(calls[0], "log run_ended failed");
+    assert_eq!(
+        calls[1], "defer",
+        "then the scheduler's start of the other agent"
+    );
+}
+
+#[test]
+fn an_owed_run_ended_of_a_workflow_that_is_gone_is_dropped() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.end(&run, Some(Outcome::Completed));
+    w.ports.clear_refusals();
+    w.delete(0);
+    w.forget();
+    w.tick();
+    w.tick();
+    assert_eq!(w.calls(), Vec::<String>::new());
 }

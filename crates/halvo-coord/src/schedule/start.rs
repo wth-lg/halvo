@@ -43,6 +43,9 @@ pub struct Around {
     /// step 3, a failed step 4 keeps it at the head of the queue, and a start of the person
     /// ends no hold.
     pub from_queue: bool,
+    /// Whether a `run_ended` of the agent that the owner did not acknowledge is owed (ruling
+    /// XB-17): the agent takes no start while it is.
+    pub owed: bool,
 }
 
 /// The end of the hold `failures` by a start of the person (I5.4): its `hold_cleared` event,
@@ -93,7 +96,8 @@ pub struct StartStep {
 /// in the owner's list, else `state`; a start of the person that does not leave the queue then
 /// ends the hold `failures`; (1) no hold stands, else `hold`; (2) fewer than `starts_per_day`
 /// `run_started` events of the agent have the facts' day, else `budget`; (3) no run of the
-/// agent is live or queued and the agent store has ended its newest run, else `state`; for a
+/// agent is live or queued, the agent store has ended its newest run and no `run_ended` of the
+/// agent is owed, else `state`; for a
 /// start of the scheduler the slot rule of I5.3 then holds, for an agent that needs no person
 /// and has a finished run, else `state`; (4) fewer than `max_live_runs` runs are live and, for
 /// an agent that needs the model, no live run holds it, else `queued`, or `queue_full` when
@@ -136,7 +140,7 @@ pub fn start_step<C: ConfigView>(
         Doing::Queued(_) => !around.from_queue,
         Doing::Idle(_) => false,
     };
-    if mine || !facts.store_ended {
+    if mine || !facts.store_ended || around.owed {
         return refused(clear, Cause::State);
     }
     let slot = match trigger {

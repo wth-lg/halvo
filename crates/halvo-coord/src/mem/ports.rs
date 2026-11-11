@@ -1,8 +1,8 @@
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
-    DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, PastRun, Reply, RunId,
-    RunSpec, Runtime, Workflow, WorkflowId, WorkflowState,
+    DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome, PastRun,
+    Reply, RunId, RunSpec, Runtime, What, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -25,6 +25,8 @@ pub enum Method {
     Agents,
     /// `Owner::send`.
     Send,
+    /// `Owner::send` with the body `end_run` alone.
+    EndRun,
     /// `Runs::start`.
     Start,
     /// `Runs::answer_confirm`.
@@ -194,6 +196,32 @@ impl<C> Ports<C> {
             .find(|a| &a.agent == agent)
         {
             a.last = Some(run);
+        }
+    }
+
+    fn end_in_store(&self, run: &RunId) {
+        let started = self.events.borrow().iter().find_map(|e| match &e.what {
+            What::RunStarted { run: r, .. } if r == run => Some((e.agent.clone(), e.day)),
+            _ => None,
+        });
+        let Some((agent, day)) = started else {
+            return;
+        };
+        let ended = self
+            .agents
+            .borrow()
+            .iter()
+            .any(|a| a.agent == agent && a.last.as_ref().is_some_and(|l| &l.run == run));
+        if !ended {
+            self.store_end(
+                &agent,
+                PastRun {
+                    run: run.clone(),
+                    day,
+                    outcome: Outcome::Failed,
+                    unknown: 0,
+                },
+            );
         }
     }
 
@@ -452,6 +480,9 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.refused(Method::Send)?;
+        if matches!(body, Body::EndRun { .. }) {
+            self.refused(Method::EndRun)?;
+        }
         if let Some(name) = self.send_refusal(body) {
             return Err(refusal(name));
         }
@@ -472,6 +503,10 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             }
             Body::SetState { state, .. } => serde_json::json!({ "state": state.name() }),
             Body::StartRun { .. } => serde_json::json!({ "ok": "yes" }),
+            Body::EndRun { run } => {
+                self.end_in_store(run);
+                serde_json::json!({ "ok": "yes" })
+            }
         })
     }
 }

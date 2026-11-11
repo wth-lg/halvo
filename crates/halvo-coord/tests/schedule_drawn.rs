@@ -2,9 +2,9 @@ use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Owner, PortError, Runs};
 use halvo_coord::schedule::{drive, Answer, Board, Member, Move, Report};
 use halvo_coord::types::{
-    Agent, AgentId, AgentState, Category, CheckAnswer, Doing, Event, Facts, FullWorkflow, Limits,
-    Name, Outcome, PastRun, RunEnd, RunId, Trigger, What, Workflow, WorkflowId, WorkflowState,
-    WorkflowTrigger,
+    Agent, AgentId, AgentState, Body, Category, CheckAnswer, Doing, Event, Facts, FullWorkflow,
+    Limits, Name, Outcome, PastRun, RunEnd, RunId, Trigger, What, Workflow, WorkflowId,
+    WorkflowState, WorkflowTrigger,
 };
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
@@ -145,6 +145,8 @@ struct Hist {
     day: u32,
     unended: [Option<RunId>; N],
     store_due: [Option<PastRun>; N],
+    owed_ends: BTreeMap<String, RunEnd>,
+    no_runner: Vec<RunId>,
 }
 
 struct Sim {
@@ -160,6 +162,7 @@ struct Sim {
     faults: Vec<String>,
     seen: BTreeMap<String, u32>,
     refused_log_now: bool,
+    refused_send_now: bool,
 }
 
 fn member(sim: &Sim, n: usize) -> Member<Config> {
@@ -222,6 +225,8 @@ impl Sim {
             day: DAY,
             unended: Default::default(),
             store_due: Default::default(),
+            owed_ends: BTreeMap::new(),
+            no_runner: Vec::new(),
         };
         for (n, spec) in SPEC.iter().enumerate() {
             ports
@@ -292,6 +297,7 @@ impl Sim {
             faults: vec![],
             seen: BTreeMap::new(),
             refused_log_now: false,
+            refused_send_now: false,
         };
         let members = (0..N).map(|n| member(&sim, n)).collect();
         sim.board = Board::new(DAY, members);
@@ -432,12 +438,54 @@ impl Sim {
         if tick {
             self.after_tick(label);
         }
-        for (run, _) in std::mem::take(&mut self.h.pending) {
+        for (run, cause) in std::mem::take(&mut self.h.pending) {
             let n = self.h.run_agent.get(&run).copied();
             if let Some(n) = n {
-                if self.listed(n) && !refused_log {
-                    self.fault(format!("{label}: no run_ended stored for {run}"));
+                if self.listed(n) {
+                    if refused_log {
+                        self.h.owed_ends.insert(run, cause);
+                    } else {
+                        self.fault(format!("{label}: no run_ended stored for {run}"));
+                    }
                 }
+            }
+        }
+        if tick && !self.refused_send_now {
+            let owed: Vec<RunId> = self
+                .h
+                .no_runner
+                .iter()
+                .filter(|r| {
+                    self.h
+                        .run_agent
+                        .get(r.as_str())
+                        .is_some_and(|n| self.listed(*n))
+                })
+                .cloned()
+                .collect();
+            if !owed.is_empty() {
+                self.fault(format!(
+                    "{label}: XB-14 an owed end_run was not sent: {owed:?}"
+                ));
+            }
+        }
+        if tick && !refused_log {
+            let owed: Vec<String> = self
+                .h
+                .owed_ends
+                .keys()
+                .filter(|r| {
+                    self.h
+                        .run_agent
+                        .get(r.as_str())
+                        .is_some_and(|n| self.listed(*n))
+                })
+                .cloned()
+                .collect();
+            if !owed.is_empty() {
+                self.fault(format!(
+                    "{label}: XB-17 an owed run_ended was not logged: {owed:?}"
+                ));
             }
         }
         self.properties(label);
@@ -527,6 +575,31 @@ impl Sim {
                         }
                     }
                 }
+                Call::Send(Body::EndRun { run }) => {
+                    self.tally("end_run".into());
+                    match self.h.no_runner.iter().position(|r| *r == run) {
+                        Some(k) => {
+                            self.h.no_runner.remove(k);
+                        }
+                        None => self.faults.push(format!(
+                            "{label}: C12 an end_run for a run that is not owed: {run}"
+                        )),
+                    }
+                    if let Some(n) = self.h.run_agent.get(run.as_str()).copied() {
+                        if self.h.unended[n].as_ref() == Some(&run) {
+                            self.h.unended[n] = None;
+                        }
+                        self.store_runs[n].insert(
+                            0,
+                            PastRun {
+                                run: run.clone(),
+                                day: self.h.day,
+                                outcome: Outcome::Failed,
+                                unknown: 0,
+                            },
+                        );
+                    }
+                }
                 Call::Kill(run) => {
                     self.tally("kill".into());
                     if let Some(k) = self.h.live.iter().position(|r| r.run == run) {
@@ -564,14 +637,6 @@ impl Sim {
                     "{label}: C10 a start that failed after step 6 stored no end"
                 ));
             }
-            if let Some(n) = self.h.run_agent.get(r.as_str()).copied() {
-                self.h.store_due[n] = Some(PastRun {
-                    run: r.clone(),
-                    day: self.h.day,
-                    outcome: Outcome::Failed,
-                    unknown: 0,
-                });
-            }
             self.h.ended_mark(&r);
         }
         refused_log
@@ -593,6 +658,16 @@ impl Sim {
                 }
                 if self.holds_by_history(n) {
                     self.fault(format!("{label}: C4 a start while a hold stands"));
+                }
+                if self
+                    .h
+                    .owed_ends
+                    .keys()
+                    .any(|r| self.h.run_agent.get(r.as_str()) == Some(&n))
+                {
+                    self.fault(format!(
+                        "{label}: XB-17 a start while a run_ended of the agent is owed"
+                    ));
                 }
                 if self.h.unended[n].is_some() {
                     self.fault(format!(
@@ -658,9 +733,14 @@ impl Sim {
                         "{label}: C10 a run_ended for a workflow that is gone"
                     ));
                 }
+                let failed_start = self.h.acked.contains(run) && !self.h.started.contains(run);
                 let expected = if let Some(c) = self.h.pending.remove(run.as_str()) {
                     Some(c)
-                } else if self.h.acked.contains(run) && !self.h.started.contains(run) {
+                } else if let Some(c) = self.h.owed_ends.remove(run.as_str()) {
+                    self.tally("owed run_ended logged".into());
+                    Some(c)
+                } else if failed_start {
+                    self.h.no_runner.push(run.clone());
                     Some(RunEnd::Failed)
                 } else {
                     None
@@ -752,6 +832,26 @@ impl Sim {
         self.ports.set_clock(self.now, day);
         self.h.day = day;
         let _ = self.ports.reap();
+        for run in std::mem::take(&mut self.h.no_runner) {
+            let Some(n) = self.h.run_agent.get(run.as_str()).copied() else {
+                continue;
+            };
+            if self.listed(n) && self.ports.send(&Body::EndRun { run: run.clone() }).is_ok() {
+                if self.h.unended[n].as_ref() == Some(&run) {
+                    self.h.unended[n] = None;
+                }
+                self.store_runs[n].insert(
+                    0,
+                    PastRun {
+                        run,
+                        day,
+                        outcome: Outcome::Failed,
+                        unknown: 0,
+                    },
+                );
+            }
+        }
+        self.h.owed_ends.clear();
         let events = self.ports.events.borrow().clone();
         for n in 0..N {
             if !self.listed(n) {
@@ -894,6 +994,7 @@ fn sequence(seed: u64, limits: Limits, moves: usize, seen: &mut BTreeMap<String,
         let label = format!("seed {seed} move {k} {mv:?} refusal {refusal:?}");
         log.push(label.clone());
         let refused_log = matches!(refusal, Some((Method::Log, _)));
+        sim.refused_send_now = matches!(refusal, Some((Method::Send, _)));
         if let Some((m, e)) = refusal {
             sim.ports.refuse(m, e);
         }
@@ -923,7 +1024,7 @@ fn run_all(limits: Limits, seeds: u64) -> BTreeMap<String, u32> {
     seen
 }
 
-const COVERED: [&str; 13] = [
+const COVERED: [&str; 15] = [
     "answer Ok(Ok)",
     "answer Ok(Queued)",
     "answer Err(Hold)",
@@ -937,6 +1038,8 @@ const COVERED: [&str; 13] = [
     "ended deleted",
     "run_ended failed",
     "left Err(Hold)",
+    "end_run",
+    "owed run_ended logged",
 ];
 
 fn covered(seen: &BTreeMap<String, u32>, keys: &[&str]) {
