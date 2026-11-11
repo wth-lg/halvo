@@ -1,0 +1,7 @@
+model	machine	bound_bytes	fits	group	source
+gemma_4_e2b	hosted-win	0	not-measured	routing	s2
+gemma_4_e2b	mac	4294967296	yes	routing	s2
+m_small	hosted-win	3825205248	yes	agents	s2
+m_small	mac	3758096384	yes	agents	s2
+m_tiny	hosted-win	2751463424	yes	agents	s2
+m_tiny	mac	2684354560	yes	agents	s2
