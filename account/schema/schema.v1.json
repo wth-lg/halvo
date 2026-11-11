@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Cap": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "period": {
+          "$ref": "#/$defs/Period"
+        }
+      },
+      "required": [
+        "amount",
+        "period"
+      ],
+      "additionalProperties": false
+    },
+    "Period": {
+      "type": "string",
+      "enum": [
+        "week",
+        "month"
+      ]
+    },
+    "Spend": {
+      "type": "object",
+      "properties": {
+        "spent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "held": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "period_end": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "spent",
+        "held",
+        "period_end"
+      ],
+      "additionalProperties": false
+    },
+    "Tier": {
+      "type": "string",
+      "enum": [
+        "low_cost_hosted",
+        "frontier"
+      ]
+    },
+    "Url": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "CapBody": {
+      "type": "object",
+      "properties": {
+        "cap": {
+          "$ref": "#/$defs/Cap"
+        }
+      },
+      "required": [
+        "cap"
+      ],
+      "additionalProperties": false
+    },
+    "CheckoutAnswer": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "session",
+            "account-exists",
+            "credential-mismatch",
+            "unavailable"
+          ]
+        },
+        "url": {
+          "$ref": "#/$defs/Url"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "StatusAnswer": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "active",
+            "payment-failed",
+            "cancelled",
+            "no-such-account",
+            "credential-mismatch"
+          ]
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "CapGetAnswer": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "cap",
+            "no-cap",
+            "pending",
+            "no-such-account",
+            "credential-mismatch"
+          ]
+        },
+        "cap": {
+          "$ref": "#/$defs/Cap"
+        },
+        "spend": {
+          "$ref": "#/$defs/Spend"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "CapSetAnswer": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "cap",
+            "pending",
+            "no-such-account",
+            "credential-mismatch"
+          ]
+        },
+        "cap": {
+          "$ref": "#/$defs/Cap"
+        },
+        "spend": {
+          "$ref": "#/$defs/Spend"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "ManageAnswer": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "page",
+            "pending",
+            "no-such-account",
+            "credential-mismatch",
+            "unavailable"
+          ]
+        },
+        "url": {
+          "$ref": "#/$defs/Url"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "DeleteAnswer": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "deleted",
+            "pending",
+            "not-finished",
+            "no-such-account",
+            "credential-mismatch"
+          ]
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "Rejected": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "rejected"
+          ]
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
