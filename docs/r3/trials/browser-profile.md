@@ -38,8 +38,8 @@ so `marker_hits=0` rests there on the removal. On macOS `tree-peak` misses a pea
 ```text
 licence item=libc@0.2.191 spdx=MIT read=2026-11-11 ok=yes
 licence item=windows-sys@0.61.2 spdx=MIT read=2026-11-11 ok=yes
-hosted machine=hosted-mac run=42960070038 sha=dc69cc0b8fb7f603eae167a7db0ecf17fae33681
-hosted machine=hosted-win run=42960070038 sha=dc69cc0b8fb7f603eae167a7db0ecf17fae33681
+hosted machine=hosted-mac run=42976989121 sha=6e1ade82f1c5db019bbb687e955adfb28f964b81
+hosted machine=hosted-win run=42976989121 sha=6e1ade82f1c5db019bbb687e955adfb28f964b81
 session machine=mac browser=chrome import=ok second_factor_asked_again=no
 session machine=hosted-mac browser=chrome import=ok second_factor_asked_again=no
 session machine=hosted-mac browser=edge import=ok second_factor_asked_again=no
@@ -55,22 +55,37 @@ disk machine=hosted-mac browser=chrome marker_hits=0
 disk machine=hosted-mac browser=edge marker_hits=0
 disk machine=hosted-win browser=chrome marker_hits=0
 disk machine=hosted-win browser=edge marker_hits=0
-browser machine=mac browser=chrome run=1 peak_bytes=974343656
-browser machine=mac browser=chrome run=2 peak_bytes=974098160
-browser machine=mac browser=chrome run=3 peak_bytes=1007752288
-browser machine=mac browser=chrome run=4 peak_bytes=972918248
-browser machine=mac browser=chrome run=5 peak_bytes=957172600
-browser machine=hosted-win browser=chrome run=1 peak_bytes=312467456
-browser machine=hosted-win browser=chrome run=2 peak_bytes=311422976
-browser machine=hosted-win browser=chrome run=3 peak_bytes=317095936
-browser machine=hosted-win browser=chrome run=4 peak_bytes=314404864
-browser machine=hosted-win browser=chrome run=5 peak_bytes=310804480
-browser machine=hosted-win browser=edge run=1 peak_bytes=353570816
-browser machine=hosted-win browser=edge run=2 peak_bytes=353222656
-browser machine=hosted-win browser=edge run=3 peak_bytes=353067008
-browser machine=hosted-win browser=edge run=4 peak_bytes=356106240
-browser machine=hosted-win browser=edge run=5 peak_bytes=358105088
-browser machine=hosted-win bound_bytes=444596224
-browser machine=mac bound_bytes=1224736768
-verdict profile=ephemeral egress=open browser_bound_bytes=1224736768
+browser machine=mac browser=chrome shape=steps run=1 peak_bytes=955682088
+browser machine=mac browser=chrome shape=steps run=2 peak_bytes=936364968
+browser machine=mac browser=chrome shape=steps run=3 peak_bytes=931302864
+browser machine=mac browser=chrome shape=steps run=4 peak_bytes=932891464
+browser machine=mac browser=chrome shape=steps run=5 peak_bytes=934693560
+browser machine=mac browser=chrome shape=task run=1 peak_bytes=969936600
+browser machine=mac browser=chrome shape=task run=2 peak_bytes=965299592
+browser machine=mac browser=chrome shape=task run=3 peak_bytes=973540768
+browser machine=mac browser=chrome shape=task run=4 peak_bytes=971787872
+browser machine=mac browser=chrome shape=task run=5 peak_bytes=977227432
+browser machine=hosted-win browser=chrome shape=steps run=1 peak_bytes=318840832
+browser machine=hosted-win browser=chrome shape=steps run=2 peak_bytes=311218176
+browser machine=hosted-win browser=chrome shape=steps run=3 peak_bytes=323117056
+browser machine=hosted-win browser=chrome shape=steps run=4 peak_bytes=309645312
+browser machine=hosted-win browser=chrome shape=steps run=5 peak_bytes=312881152
+browser machine=hosted-win browser=chrome shape=task run=1 peak_bytes=328699904
+browser machine=hosted-win browser=chrome shape=task run=2 peak_bytes=327753728
+browser machine=hosted-win browser=chrome shape=task run=3 peak_bytes=320552960
+browser machine=hosted-win browser=chrome shape=task run=4 peak_bytes=319766528
+browser machine=hosted-win browser=chrome shape=task run=5 peak_bytes=321466368
+browser machine=hosted-win browser=edge shape=steps run=1 peak_bytes=367345664
+browser machine=hosted-win browser=edge shape=steps run=2 peak_bytes=356491264
+browser machine=hosted-win browser=edge shape=steps run=3 peak_bytes=358514688
+browser machine=hosted-win browser=edge shape=steps run=4 peak_bytes=355037184
+browser machine=hosted-win browser=edge shape=steps run=5 peak_bytes=350990336
+browser machine=hosted-win browser=edge shape=task run=1 peak_bytes=367390720
+browser machine=hosted-win browser=edge shape=task run=2 peak_bytes=369782784
+browser machine=hosted-win browser=edge shape=task run=3 peak_bytes=360443904
+browser machine=hosted-win browser=edge shape=task run=4 peak_bytes=365957120
+browser machine=hosted-win browser=edge shape=task run=5 peak_bytes=370835456
+browser machine=hosted-win bound_bytes=461373440
+browser machine=mac bound_bytes=1216348160
+verdict profile=ephemeral egress=open browser_bound_bytes=1216348160
 ```
