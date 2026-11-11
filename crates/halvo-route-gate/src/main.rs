@@ -7,12 +7,14 @@ use std::io::Write;
 use std::num::NonZeroU32;
 use std::process::ExitCode;
 
+use halvo_route::policy::{Policy, PolicyError};
 use halvo_route::prices::Prices;
 use halvo_route_gate::derive::derive;
 use halvo_route_gate::generate::generate;
 use halvo_route_gate::out::{self, Refused};
+use halvo_route_gate::product::{build_product, recorded_setup, score_once, Freeze, ProductRouter};
 use halvo_route_gate::routers::{OneTier, PolicyRouter, Random};
-use halvo_route_gate::score::{score, DEFAULT_DRAWS};
+use halvo_route_gate::score::DEFAULT_DRAWS;
 use halvo_route_gate::selftest::self_test;
 use halvo_route_gate::table::Table;
 use halvo_route_gate::{Router, Setup};
@@ -161,17 +163,40 @@ fn write_new(path: &str, text: &str) -> Result<(), Refusal> {
     }
 }
 
-fn generated_only(table: &Table, found: &BTreeMap<String, &str>) -> Result<(), Refusal> {
-    if !table.is_generated() {
-        return not_built().map(|_| ());
+fn setup_for(table: &Table, found: &BTreeMap<String, &str>) -> Result<Setup, Refusal> {
+    let freeze = found.get("--freeze");
+    if table.is_generated() {
+        if freeze.is_some() {
+            return refuse(
+                "usage",
+                "--freeze names the freeze file of a recorded table",
+            );
+        }
+        return Ok(Setup::generated());
     }
-    if found.contains_key("--freeze") {
+    let Some(path) = freeze else {
+        return recorded_setup(None).or_else(|detail| refuse("file", detail));
+    };
+    let Ok(bytes) = std::fs::read(path) else {
+        return refuse("file", "--freeze cannot be read");
+    };
+    let Ok(text) = String::from_utf8(bytes) else {
+        return refuse("file", "--freeze is not UTF-8 text");
+    };
+    let setup = recorded_setup(Some(&text)).or_else(|detail| refuse("file", detail))?;
+    let rows = Freeze::parse(&text)
+        .map(|freeze| freeze.rows)
+        .or_else(|detail| refuse("file", detail))?;
+    if rows != table.rows().len() as u64 {
         return refuse(
-            "usage",
-            "--freeze names the freeze file of a recorded table",
+            "file",
+            format!(
+                "--freeze counts {rows} rows and --table holds {}",
+                table.rows().len()
+            ),
         );
     }
-    Ok(())
+    Ok(setup)
 }
 
 fn generate_command(args: &[String]) -> Result<Done, Refusal> {
@@ -187,9 +212,19 @@ fn derive_command(args: &[String]) -> Result<Done, Refusal> {
     let path = required(&found, "--table")?;
     let out = required(&found, "--out")?;
     let table = read_table(path)?;
-    generated_only(&table, &found)?;
-    write_new(out, &derive(&table, &Setup::generated()).to_text())?;
+    let setup = setup_for(&table, &found)?;
+    write_new(out, &derive(&table, &setup).to_text())?;
     Ok(Done::Pass(Vec::new()))
+}
+
+fn read_policy(path: &str, setup: &Setup) -> Result<Policy, Refusal> {
+    let Ok(bytes) = std::fs::read(path) else {
+        return refuse("file", "--policy cannot be read");
+    };
+    let Ok(text) = String::from_utf8(bytes) else {
+        return refuse("policy", PolicyError::Rows.as_str());
+    };
+    Policy::parse_for(&text, &setup.allowed).or_else(|error| refuse("policy", error.as_str()))
 }
 
 fn score_command(args: &[String]) -> Result<Done, Refusal> {
@@ -199,35 +234,39 @@ fn score_command(args: &[String]) -> Result<Done, Refusal> {
     )?;
     let path = required(&found, "--table")?;
     let name = required(&found, "--router")?;
-    match name {
-        "derived" | "one_tier" | "random" | "peek" => {}
-        "product" => return not_built(),
-        _ => {
-            return refuse(
-                "usage",
-                "--router is one of derived, product, one_tier, random, peek",
-            )
+    if !["derived", "product", "one_tier", "random", "peek"].contains(&name) {
+        return refuse(
+            "usage",
+            "--router is one of derived, product, one_tier, random, peek",
+        );
+    }
+    let policy = match (name, found.get("--policy")) {
+        ("product", Some(policy)) => Some(*policy),
+        ("product", None) => {
+            return refuse("usage", "--policy is required with the router product")
         }
-    }
-    if found.contains_key("--policy") {
-        return refuse("usage", "--policy goes with the router product alone");
-    }
+        (_, Some(_)) => return refuse("usage", "--policy goes with the router product alone"),
+        (_, None) => None,
+    };
     let draws = match found.get("--draws") {
         Some(text) => nonzero_u32(text, "--draws")?,
         None => DEFAULT_DRAWS,
     };
     let table = read_table(path)?;
-    generated_only(&table, &found)?;
-    let setup = Setup::generated();
-    let router: Box<dyn Router> = match name {
-        "derived" => Box::new(PolicyRouter::derived(&table, &setup)),
-        "one_tier" => Box::new(OneTier {
+    let setup = setup_for(&table, &found)?;
+    let router: Box<dyn Router> = match (name, policy) {
+        ("product", Some(policy)) => Box::new(ProductRouter::new(read_policy(policy, &setup)?)),
+        ("derived", _) => Box::new(PolicyRouter::derived(&table, &setup)),
+        ("one_tier", _) => Box::new(OneTier {
             recorded: setup.recorded,
         }),
-        "random" => Box::new(Random::new(&table, &setup)),
+        ("random", _) => Box::new(Random::new(&table, &setup)),
         _ => Box::new(PolicyRouter::peek(&table, &setup)),
     };
-    let result = score(&table, &setup, router.as_ref(), Prices::release(), draws);
+    let result = match score_once(&table, &setup, router.as_ref(), Prices::release(), draws) {
+        Ok(result) => result,
+        Err(panicked) => return Ok(Done::Fail(vec![panicked.line()])),
+    };
     if result.passed() {
         Ok(Done::Pass(result.lines()))
     } else {
@@ -239,7 +278,7 @@ fn self_test_command(args: &[String]) -> Result<Done, Refusal> {
     let found = options(args, &["--tables", "--seed"])?;
     let tables = nonzero_u32(required(&found, "--tables")?, "--tables")?;
     let seed = count(required(&found, "--seed")?, "--seed")?;
-    let Ok(result) = self_test(tables, seed, None) else {
+    let Ok(result) = self_test(tables, seed, Some(&build_product)) else {
         return refuse("usage", "the seeds from --seed on do not fit a u64");
     };
     if result.passed() {
