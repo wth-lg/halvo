@@ -3,6 +3,8 @@ pub mod control;
 mod options;
 pub mod pages;
 pub mod sync;
+#[cfg(test)]
+mod testing;
 pub mod waits;
 
 pub use options::{check_hosted, default_pages_dir, parse_args, Arm, Options, Refusal, SyncWay};

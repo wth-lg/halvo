@@ -120,6 +120,7 @@ impl Hub {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::join;
     use std::sync::Arc;
     use std::thread;
 
@@ -177,7 +178,7 @@ mod tests {
         thread::sleep(Duration::from_millis(50));
         assert!(!waiter.is_finished());
         hub.publish(change(2, 10));
-        assert_eq!(waiter.join().unwrap(), Next::Change(change(2, 10)));
+        assert_eq!(join(waiter), Next::Change(change(2, 10)));
     }
 
     #[test]
@@ -189,7 +190,7 @@ mod tests {
         };
         thread::sleep(Duration::from_millis(50));
         hub.close();
-        assert_eq!(waiter.join().unwrap(), Next::Closed);
+        assert_eq!(join(waiter), Next::Closed);
         hub.publish(change(1, 10));
         assert_eq!(hub.wait_next(0), Next::Closed);
         hub.open();
@@ -208,6 +209,6 @@ mod tests {
             hub.close();
             hub.open();
         }
-        assert_eq!(waiter.join().unwrap(), Next::Closed);
+        assert_eq!(join(waiter), Next::Closed);
     }
 }

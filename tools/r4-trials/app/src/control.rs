@@ -181,6 +181,7 @@ fn connection(stream: TcpStream, core: &dyn Core) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::BOUND;
     use std::sync::Mutex;
 
     #[test]
@@ -297,6 +298,12 @@ mod tests {
         }
     }
 
+    fn connect(addr: std::net::SocketAddr) -> TcpStream {
+        let stream = TcpStream::connect(addr).unwrap();
+        stream.set_read_timeout(Some(BOUND)).unwrap();
+        stream
+    }
+
     fn exchange(stream: &mut TcpStream, reader: &mut BufReader<TcpStream>, line: &str) -> String {
         stream.write_all(line.as_bytes()).unwrap();
         let mut answer = String::new();
@@ -313,7 +320,7 @@ mod tests {
         let fake = Arc::new(Fake::default());
         serve(listener, fake.clone()).unwrap();
 
-        let mut stream = TcpStream::connect(addr).unwrap();
+        let mut stream = connect(addr);
         let mut reader = BufReader::new(stream.try_clone().unwrap());
         assert_eq!(
             exchange(&mut stream, &mut reader, "show\n"),
@@ -352,7 +359,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         serve(listener, Arc::new(Fake::default())).unwrap();
 
-        let mut long = TcpStream::connect(addr).unwrap();
+        let mut long = connect(addr);
         let mut text = "x".repeat(MAX_LINE_BYTES + 1);
         text.push('\n');
         long.write_all(text.as_bytes()).unwrap();
@@ -363,7 +370,7 @@ mod tests {
         answer.clear();
         assert_eq!(reader.read_line(&mut answer).unwrap(), 0);
 
-        let mut stream = TcpStream::connect(addr).unwrap();
+        let mut stream = connect(addr);
         let mut reader = BufReader::new(stream.try_clone().unwrap());
         assert_eq!(exchange(&mut stream, &mut reader, "load a.html\n"), "ok\n");
     }
@@ -373,7 +380,7 @@ mod tests {
         let listener = listen(None).unwrap();
         let addr = listener.local_addr().unwrap();
         serve(listener, Arc::new(Fake::default())).unwrap();
-        let mut stream = TcpStream::connect(addr).unwrap();
+        let mut stream = connect(addr);
         stream.write_all(b"sh\xffow\n").unwrap();
         let mut reader = BufReader::new(stream.try_clone().unwrap());
         let mut answer = String::new();

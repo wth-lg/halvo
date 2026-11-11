@@ -88,6 +88,7 @@ impl<T: Clone> Reports<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::join;
     use std::sync::Arc;
     use std::thread;
     use std::time::Instant;
@@ -146,7 +147,7 @@ mod tests {
             } else {
                 r.cancel();
             }
-            assert_eq!(waiter.join().unwrap(), None, "{end}");
+            assert_eq!(join(waiter), None, "{end}");
             assert!(
                 ended.elapsed() < Duration::from_secs(1),
                 "{end} did not wake the wait"
@@ -169,6 +170,6 @@ mod tests {
         thread::sleep(Duration::from_millis(30));
         assert!(!waiter.is_finished());
         assert!(r.deliver(t, 9u32));
-        assert_eq!(waiter.join().unwrap(), Some(9));
+        assert_eq!(join(waiter), Some(9));
     }
 }

@@ -34,9 +34,10 @@ fn index_and_files_are_served_with_their_types() {
 
 #[test]
 fn call_js_is_served_for_any_pages_directory() {
+    assert_eq!(CALL_JS_PATH, "/__app/call.js");
     let dir = scratch("calljs");
     for pages in [dir.join("pages"), dir.join("no-such-dir")] {
-        let served = serve(&pages, CALL_JS_PATH);
+        let served = serve(&pages, "/__app/call.js");
         assert_eq!(served.status, 200);
         assert_eq!(served.content_type, "text/javascript; charset=utf-8");
         assert_eq!(served.body, CALL_JS.as_bytes());
