@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use r5_drift::case::{read_case, Case};
 use r5_drift::model::{run, Arm, Sort};
 use r5_drift::targets;
-use r5_drift::trial::line;
+use r5_drift::trial::{self, line};
+use r5_drift::Refusal;
 
 const TARGETS: &str = include_str!("../../../../docs/r5/targets.toml");
 const CASES_MD: &str = include_str!("../../../../docs/r5/cases.md");
@@ -54,6 +55,35 @@ fn the_reader_accepts_every_development_case() {
     for name in names {
         dev_case(name.strip_suffix(".jsonl").expect("a .jsonl file"));
     }
+}
+
+fn dev_without(file: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("dev-without-{file}"));
+    std::fs::create_dir_all(&dir).expect("a scratch directory");
+    for entry in std::fs::read_dir(dev()).expect("the development directory") {
+        let name = entry.expect("an entry").file_name();
+        if name != file {
+            std::fs::copy(dev().join(&name), dir.join(&name)).expect("a copy");
+        }
+    }
+    dir
+}
+
+#[test]
+fn a_directory_with_unequal_benign_and_fault_counts_is_refused_with_case() {
+    let targets = targets::parse(TARGETS).expect("the targets file parses");
+    assert_eq!(
+        trial::trial(&dev_without("reused-pay-2.jsonl"), &targets),
+        Err(Refusal::Case(
+            "the directory holds 8 benign and 7 fault cases, not 8 and 8".to_owned()
+        ))
+    );
+    assert_eq!(
+        trial::trial(&dev_without("renamed-pay.jsonl"), &targets),
+        Err(Refusal::Case(
+            "the directory holds 7 benign and 8 fault cases, not 8 and 8".to_owned()
+        ))
+    );
 }
 
 #[test]
