@@ -18,9 +18,13 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
                   profile B of another name, imports, opens /bill and reads the page it lands on.
                   Prints state, stop, profile, session, watch and keychain lines.
   --item 2        item 1, then searches every file under the parent directory of the profiles and
-                  every entry that the run made in the temporary directory of its process for the
-                  page marker of seed 1 in UTF-8, UTF-16LE and UTF-16BE. Prints searched, trace
-                  (the utility host name, counted the same way) and disk lines.
+                  every entry that appeared in the temporary directory of its process during the
+                  run, and on macOS the files changed during the run in the browser's per-user
+                  places outside the profile (Crashpad, the helper caches), for the page marker of
+                  seed 1 in UTF-8, UTF-16LE and UTF-16BE, and for the name of the cookie that
+                  carries the marker, because the browser stores that cookie's value encrypted.
+                  marker_hits on the disk line sums both. Prints searched, trace (the utility host
+                  name, counted the same way) and disk lines.
   --item 3        the egress item belongs to the second pull request of U0.3: a notrun line.
   --item 4        five runs of the nine steps of tools/r3-trials/web under tree-peak. Prints the
                   lines of both programs, one browser line per run and one bound line for this
@@ -37,8 +41,10 @@ first flag set of A13.2, the resolver rule and, on macOS, the mock keychain.
   --scratch DIR   the parent directory of the profiles; default a new mktemp directory.
 
 The keychain line says prompt=yes when the front application changed or a new on-screen window
-of a process of the browser's tree, or of a prompt process of the system, appeared between the
-reads before the start and after each phase. A read that fails makes a notrun line.
+of a process of the browser's tree, or of a prompt process of the system, appeared; the watch
+reads both every 250 ms from before the first start until 10 s after the last stop. A read that
+fails makes a notrun line. On macOS the library adds the mock keychain, so the browser does not
+read the system keychain, and the line can show only the other prompts of the system.
 Exit 0 when every cell ran, 1 when a cell could not run (a notrun line ends with its cause),
 2 for a refusal: one line REFUSED <usage|browser|port>: <detail> on standard error.
 run.sh ends by exec of the trial program, so a TERM or INT sent to run.sh reaches the program,

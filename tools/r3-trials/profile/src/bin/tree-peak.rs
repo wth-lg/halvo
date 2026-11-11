@@ -63,12 +63,15 @@ fn main() -> ExitCode {
         out("Starts COMMAND N times, one after the other. Every 250 ms it reads the memory of the");
         out("command and of every descendant: on macOS the sum of phys_footprint, where a process");
         out("that the reparenting to launchd took out of the tree counts when it started during the");
-        out("run and its executable lies in an .app bundle of the tree or in the directory of the");
-        out("command; on Windows the peak of a Job object that holds the command from its first");
-        out("instruction. Prints tree run=<i> exit=<status> peak_bytes=<n> per run, treeinfo and");
+        out("run and its executable lies in an .app bundle of the tree or is the command's own");
+        out("binary outside the system directories; such a process counts alone, without its");
         out(
-            "treepart lines, and tree median_bytes=<n>. It sets no cap. Exit 0 when every run ran,",
+            "children. A peak between two samples is not seen; treeinfo lifetime_max_sum adds each",
         );
+        out("seen process's own lifetime maximum, an upper bound. On Windows the peak of a Job");
+        out("object that holds the command from its first instruction, which the system keeps.");
+        out("Prints tree run=<i> exit=<status> peak_bytes=<n> per run, treeinfo and treepart lines,");
+        out("and tree median_bytes=<n>. It sets no cap. Exit 0 when every run ran,");
         out("1 when a run could not start or a signal stopped it, 2 for a refusal.");
         return ExitCode::SUCCESS;
     }
