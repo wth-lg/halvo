@@ -82,8 +82,9 @@ impl AnswerError {
 }
 
 /// One complete answer of the gateway once the upstream call has ended (T11.5): a success with the
-/// text, the input and output tokens and the settled cost in micro-units, or a refusal.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// text, the input and output tokens and the settled cost in micro-units, or a refusal. Its `Debug`
+/// writes `content` as its number of bytes and never as its text.
+#[derive(Clone, PartialEq, Eq)]
 pub enum Answer {
     Ok {
         content: String,
@@ -92,6 +93,26 @@ pub enum Answer {
         cost: u64,
     },
     Refused(Reason),
+}
+
+impl fmt::Debug for Answer {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Answer::Ok {
+                content,
+                tokens_in,
+                tokens_out,
+                cost,
+            } => formatter
+                .debug_struct("Ok")
+                .field("content", &format_args!("{} bytes", content.len()))
+                .field("tokens_in", tokens_in)
+                .field("tokens_out", tokens_out)
+                .field("cost", cost)
+                .finish(),
+            Answer::Refused(reason) => formatter.debug_tuple("Refused").field(reason).finish(),
+        }
+    }
 }
 
 impl Answer {

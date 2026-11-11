@@ -137,11 +137,22 @@ impl BodyError {
     }
 }
 
-/// One message of a request: its role and its text. A message holds text and nothing else.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// One message of a request: its role and its text. A message holds text and nothing else. Its
+/// `Debug` writes `content` as its number of bytes and never as its text.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Message {
     pub role: Role,
     pub content: String,
+}
+
+impl fmt::Debug for Message {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter
+            .debug_struct("Message")
+            .field("role", &self.role)
+            .field("content", &format_args!("{} bytes", self.content.len()))
+            .finish()
+    }
 }
 
 /// The body of `POST /v1/chat` (T11.3): the tier as a ceiling, the effort level, the output limit
