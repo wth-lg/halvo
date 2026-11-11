@@ -22,7 +22,7 @@ use chromiumoxide::cdp::browser_protocol::page::{
     AddScriptToEvaluateOnNewDocumentParams, CreateIsolatedWorldParams, FrameId, FrameTree,
     GetFrameTreeParams, NavigateParams,
 };
-use chromiumoxide::cdp::browser_protocol::target::TargetId;
+use chromiumoxide::cdp::browser_protocol::target::{GetTargetsParams, TargetId};
 use chromiumoxide::cdp::js_protocol::runtime::{
     AddBindingParams, CallArgument, CallFunctionOnParams, EvaluateParams, EventBindingCalled,
     ExecutionContextId, RemoteObjectId,
@@ -984,6 +984,38 @@ impl Executor {
             .await
             .map_err(cdp("rule"))?;
         Ok(())
+    }
+
+    /// Runs a script of the trial in the page's own world of the main frame, through the debugging
+    /// protocol, and returns its value. It is no operation of A11.1: the rows of A13.7 change the
+    /// page with it.
+    pub async fn run_page_script(&self, source: &str) -> Res<serde_json::Value> {
+        let params = EvaluateParams::builder()
+            .expression(source)
+            .return_by_value(true)
+            .build()
+            .map_err(|e| Fault::new("script", e))?;
+        let r = self.page.execute(params).await.map_err(cdp("script"))?;
+        if r.result.exception_details.is_some() {
+            return Err(Fault::new("script", "exception"));
+        }
+        Ok(r.result.result.value.unwrap_or(serde_json::Value::Null))
+    }
+
+    /// The frames that the browser runs as targets of their own, out of the process of the page
+    /// that holds them: the id and the address of each target of type `iframe`.
+    pub async fn frame_targets(&self) -> Res<Vec<(String, String)>> {
+        let r = self
+            .browser
+            .execute(GetTargetsParams::default())
+            .await
+            .map_err(cdp("targets"))?;
+        Ok(r.result
+            .target_infos
+            .into_iter()
+            .filter(|t| t.r#type == "iframe")
+            .map(|t| (t.target_id.inner().clone(), t.url))
+            .collect())
     }
 
     pub fn paused(&self) -> Vec<PausedRequest> {

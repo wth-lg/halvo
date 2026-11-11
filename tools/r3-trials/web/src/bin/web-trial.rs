@@ -3,7 +3,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use r3_web::{browser_kind, CANDIDATE, STEPS};
+use r3_web::{browser_kind, CANDIDATE, ISOLATION_STEPS, STEPS};
 
 #[derive(Default)]
 struct Args {
@@ -11,6 +11,8 @@ struct Args {
     port: Option<u16>,
     runs: Option<u32>,
     step: Option<String>,
+    isolation: bool,
+    add_flags: Vec<String>,
     machine: Option<String>,
     repo: Option<PathBuf>,
     scratch: Option<PathBuf>,
@@ -70,13 +72,14 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                         .ok_or("--runs takes a count from 1")?,
                 )
             }
-            "--step" => {
-                let s = take()?;
-                if !STEPS.contains(&s.as_str()) {
-                    return Err(format!("--step takes one of {}", STEPS.join(",")));
+            "--step" => a.step = Some(take()?),
+            "--rows" => {
+                if take()? != "isolation" {
+                    return Err("--rows takes isolation".into());
                 }
-                a.step = Some(s);
+                a.isolation = true;
             }
+            "--add-flag" => a.add_flags.push(take()?),
             "--machine" => {
                 let m = take()?;
                 if !["mac", "hosted-mac", "hosted-win"].contains(&m.as_str()) {
@@ -118,6 +121,22 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     }
     if a.fault.is_some() && a.mode != Mode::Cells {
         return Err("--fault runs cells only".into());
+    }
+    let rows: &[&str] = if a.isolation {
+        &ISOLATION_STEPS
+    } else {
+        &STEPS
+    };
+    if let Some(s) = &a.step {
+        if !rows.contains(&s.as_str()) {
+            return Err(format!("--step takes one of {}", rows.join(",")));
+        }
+    }
+    if a.isolation && (a.mode != Mode::Cells || a.fault.is_some()) {
+        return Err("--rows isolation runs cells with no fault".into());
+    }
+    if !a.isolation && !a.add_flags.is_empty() {
+        return Err("--add-flag belongs to --rows isolation".into());
     }
     Ok(a)
 }
@@ -181,12 +200,15 @@ mod driver {
     use std::process::ExitCode;
     use std::time::{Duration, Instant};
 
+    use r3_web::cdp::host_of;
     use r3_web::cdp::{
         Executor, Fault, Locator, Outcome, PausedRequest, Res, Resolved, SnapshotLine, StartOptions,
     };
     use r3_web::fixture::{count, fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
+    use r3_web::tls::{make_certificate, openssl_runs, CertFault, TlsListener};
     use r3_web::{
-        extract_amount, major_of, median, variants_of, CANDIDATE, FIRST_FLAGS, RESOLVER_RULE, STEPS,
+        extract_amount, major_of, median, variants_of, CANDIDATE, FIRST_FLAGS, ISOLATION_STEPS,
+        RESOLVER_RULE, STEPS,
     };
 
     use super::{out, Args, Mode};
@@ -255,15 +277,18 @@ mod driver {
         scratch: PathBuf,
         headless: bool,
         stop: Stop,
-    }
-
-    fn flags() -> Vec<String> {
-        let mut f: Vec<String> = FIRST_FLAGS.iter().map(|s| s.to_string()).collect();
-        f.push(RESOLVER_RULE.to_string());
-        f
+        added_flags: Vec<String>,
+        repo: PathBuf,
     }
 
     impl Ctx {
+        fn flags(&self) -> Vec<String> {
+            let mut f: Vec<String> = FIRST_FLAGS.iter().map(|s| s.to_string()).collect();
+            f.push(RESOLVER_RULE.to_string());
+            f.extend(self.added_flags.iter().cloned());
+            f
+        }
+
         fn options(&self, profile: &str, debug_port: Option<u16>) -> StartOptions {
             StartOptions {
                 browser: self.browser.clone(),
@@ -271,7 +296,7 @@ mod driver {
                     .scratch
                     .join(format!("{}-{profile}", std::process::id())),
                 headless: self.headless,
-                flags: flags(),
+                flags: self.flags(),
                 debug_port,
             }
         }
@@ -597,17 +622,215 @@ mod driver {
         )
     }
 
-    async fn step(ex: &mut Executor, ctx: &Ctx, name: &str, i: u32) -> Res<()> {
+    async fn frame_isolated(ex: &Executor, ctx: &Ctx) -> Res<()> {
+        let frame = format!("{}/", origin(PAY, ctx.port));
+        let targets = ex.frame_targets().await?;
+        check(
+            targets.iter().any(|(_, url)| url.starts_with(&frame)),
+            "frame_not_own_target",
+        )
+    }
+
+    async fn payment_frame_isolated(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+        payment_frame(ex, ctx).await?;
+        frame_isolated(ex, ctx).await
+    }
+
+    async fn changed_page_1_isolated(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+        changed_page_1(ex, ctx).await?;
+        frame_isolated(ex, ctx).await
+    }
+
+    type Key = (&'static str, &'static [&'static str]);
+
+    const STATE_CHANGING: Key = ("state_changing", &["requests", "state_changing"]);
+    const PREFS_SAVED: Key = ("prefs_saved", &["utility", "prefs_saved"]);
+    const PAYMENTS: Key = ("payments", &["utility", "payments"]);
+    const EVIL: Key = ("evil", &["requests", "evil"]);
+
+    fn read_counters(ctx: &Ctx, keys: &[Key]) -> Res<Vec<i64>> {
+        let s = state(ctx)?;
+        keys.iter()
+            .map(|(name, path)| {
+                count(&s, path).ok_or_else(|| Fault::new("check", format!("state_key_{name}")))
+            })
+            .collect()
+    }
+
+    async fn arm_isolation_rule(ex: &mut Executor, ctx: &Ctx) -> Res<()> {
+        ex.arm_rule(
+            vec![origin(UTILITY, ctx.port), origin(PAY, ctx.port)],
+            false,
+        )
+        .await
+    }
+
+    async fn paused_after(
+        ex: &Executor,
+        t0: Instant,
+        want: impl Fn(&PausedRequest) -> bool,
+    ) -> Option<(PausedRequest, u128)> {
+        let deadline = t0 + r3_web::cdp::STEP_TIMEOUT;
+        loop {
+            if let Some(p) = ex.paused().into_iter().find(|p| want(p)) {
+                return Some((p, t0.elapsed().as_millis()));
+            }
+            if Instant::now() > deadline {
+                return None;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    async fn held(
+        ctx: &Ctx,
+        keys: &[Key],
+        before: &[i64],
+        seen: Option<(PausedRequest, u128)>,
+    ) -> Res<Option<u128>> {
+        tokio::time::sleep(Duration::from_millis(2_000)).await;
+        let second = read_counters(ctx, keys)?;
+        let third = read_counters(ctx, keys)?;
+        let mut misses: Vec<&str> = Vec::new();
+        match &seen {
+            None => misses.push("paused_none"),
+            Some((p, _)) => {
+                if p.let_through {
+                    misses.push("let_through");
+                }
+                if p.outcome != Outcome::Failed {
+                    misses.push("not_failed");
+                }
+            }
+        }
+        for (i, (name, _)) in keys.iter().enumerate() {
+            if second[i] != before[i] || third[i] != before[i] {
+                misses.push(name);
+            }
+        }
+        if misses.is_empty() {
+            Ok(seen.map(|(_, ms)| ms))
+        } else {
+            Err(Fault::new("check", misses.join(".")))
+        }
+    }
+
+    const POPUP_SCRIPT: &str = r#"(() => { const f = document.querySelector('form[action="/prefs"]'); if (!f) return false; f.target = '_blank'; return true; })()"#;
+
+    async fn block_popup(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        signin(ex, ctx).await?;
+        arm_isolation_rule(ex, ctx).await?;
+        ex.open(&ctx.u("/prefs")).await?;
+        let changed = ex.run_page_script(POPUP_SCRIPT).await?;
+        check(changed == serde_json::Value::Bool(true), "script")?;
+        let keys = [STATE_CHANGING, PREFS_SAVED];
+        let before = read_counters(ctx, &keys)?;
+        let boxed = ex
+            .resolve_one(&[role("checkbox", "Paperless billing")], &[])
+            .await?;
+        ex.click(&boxed).await?;
+        let save = ex
+            .resolve_one(&[role("button", "Save preferences")], &[])
+            .await?;
+        let u = origin(UTILITY, ctx.port);
+        let t0 = Instant::now();
+        ex.click(&save).await?;
+        let seen = paused_after(ex, t0, |p| {
+            p.method == "POST" && p.origin == u && p.path == "/prefs"
+        })
+        .await;
+        held(ctx, &keys, &before, seen).await
+    }
+
+    async fn block_frame_post(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        signin(ex, ctx).await?;
+        arm_isolation_rule(ex, ctx).await?;
+        ex.open(&ctx.u("/pay")).await?;
+        frame_isolated(ex, ctx).await?;
+        let keys = [STATE_CHANGING, PAYMENTS];
+        let before = read_counters(ctx, &keys)?;
+        let pay = ex
+            .resolve_one(&[role("button", "Pay now")], &["Payment"])
+            .await?;
+        let p_origin = origin(PAY, ctx.port);
+        let t0 = Instant::now();
+        ex.click(&pay).await?;
+        let seen = paused_after(ex, t0, |p| {
+            p.method == "POST" && p.origin == p_origin && p.path == "/charge"
+        })
+        .await;
+        held(ctx, &keys, &before, seen).await
+    }
+
+    fn socket_script(port: u16) -> String {
+        format!(
+            "(() => {{ globalThis.halvoTrialSocket = new WebSocket(\"ws://evil.agent.test:{port}/\"); return true; }})()"
+        )
+    }
+
+    async fn block_websocket(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        signin(ex, ctx).await?;
+        arm_isolation_rule(ex, ctx).await?;
+        ex.open(&ctx.u("/bill")).await?;
+        let keys = [EVIL];
+        let before = read_counters(ctx, &keys)?;
+        let t0 = Instant::now();
+        let ran = ex.run_page_script(&socket_script(ctx.port)).await?;
+        check(ran == serde_json::Value::Bool(true), "script")?;
+        let seen = paused_after(ex, t0, |p| {
+            host_of(&p.origin) == "evil.agent.test" && p.path == "/"
+        })
+        .await;
+        held(ctx, &keys, &before, seen).await
+    }
+
+    async fn cert_error(ex: &mut Executor, ctx: &Ctx, i: u32) -> Res<Option<u128>> {
+        let dir = ctx.scratch.join(format!("{}-cert-{i}", std::process::id()));
+        let (cert, key) = make_certificate(&dir).map_err(|e| match e {
+            CertFault::NoOpenssl => Fault::new("openssl", "no openssl"),
+            CertFault::Failed(d) => Fault::new("certificate", d),
+        })?;
+        let program = ctx.repo.join("tools/r3-trials/web/tls-listener.mjs");
+        let mut listener =
+            TlsListener::start(&program, &cert, &key).map_err(|e| Fault::new("listener", e))?;
+        let address = format!("https://{UTILITY}:{}/", listener.port);
+        let opened = ex.navigate_error(&address).await;
+        let counts = listener.counts().map_err(|e| Fault::new("listener", e));
+        listener.stop();
+        let error = opened?;
+        let counts = counts?;
+        let mut misses: Vec<&str> = Vec::new();
+        if !error.as_deref().unwrap_or("").starts_with("net::ERR_CERT_") {
+            misses.push("no_certificate_error");
+        }
+        if counts.requests != 0 {
+            misses.push("request_counted");
+        }
+        if misses.is_empty() {
+            Ok(None)
+        } else {
+            Err(Fault::new("check", misses.join(".")))
+        }
+    }
+
+    async fn step(ex: &mut Executor, ctx: &Ctx, name: &str, i: u32) -> Res<Option<u128>> {
+        let whole = |r: Res<()>| r.map(|_| None);
         match name {
-            "signin_form" => signin_form(ex, ctx).await,
-            "table_read" => table_read(ex, ctx).await,
-            "form_fill" => form_fill(ex, ctx).await,
-            "payment_frame" => payment_frame(ex, ctx).await,
-            "file_upload" => file_upload(ex, ctx, i).await,
-            "session_expiry" => session_expiry(ex, ctx).await,
-            "changed_page_1" => changed_page_1(ex, ctx).await,
-            "block_request" => block_request(ex, ctx).await,
-            "credential_mark" => credential_mark(ex, ctx).await,
+            "signin_form" => whole(signin_form(ex, ctx).await),
+            "table_read" => whole(table_read(ex, ctx).await),
+            "form_fill" => whole(form_fill(ex, ctx).await),
+            "payment_frame" => whole(payment_frame(ex, ctx).await),
+            "file_upload" => whole(file_upload(ex, ctx, i).await),
+            "session_expiry" => whole(session_expiry(ex, ctx).await),
+            "changed_page_1" => whole(changed_page_1(ex, ctx).await),
+            "block_request" => whole(block_request(ex, ctx).await),
+            "credential_mark" => whole(credential_mark(ex, ctx).await),
+            "payment_frame_isolated" => whole(payment_frame_isolated(ex, ctx).await),
+            "changed_page_1_isolated" => whole(changed_page_1_isolated(ex, ctx).await),
+            "block_popup" => block_popup(ex, ctx).await,
+            "block_frame_post" => block_frame_post(ex, ctx).await,
+            "block_websocket" => block_websocket(ex, ctx).await,
+            "cert_error" => cert_error(ex, ctx, i).await,
             _ => Err(Fault::new("usage", name.to_string())),
         }
     }
@@ -661,7 +884,10 @@ mod driver {
         let version = ex.version().await.unwrap_or_else(|_| "-".into());
         let t0 = Instant::now();
         let outcome = ctx.stop.or(step(&mut ex, ctx, name, i)).await;
-        let ms = t0.elapsed().as_millis();
+        let ms = match &outcome {
+            Ok(Some(from_action)) => *from_action,
+            _ => t0.elapsed().as_millis(),
+        };
         ex.stop_and_remove().await;
         if let Err(f) = &outcome {
             if f.0 == "signal" {
@@ -690,6 +916,14 @@ mod driver {
     async fn cells(ctx: &Ctx, steps: &[&str], runs: u32) -> bool {
         let mut all_ran = true;
         for name in steps {
+            if *name == "cert_error" && !openssl_runs() {
+                out(&format!(
+                    "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=openssl",
+                    ctx.machine, ctx.kind
+                ));
+                all_ran = false;
+                continue;
+            }
             let mut ok = 0;
             let mut times = Vec::new();
             let mut majors = Vec::new();
@@ -1044,17 +1278,22 @@ mod driver {
             scratch: args.scratch.clone().unwrap_or_default(),
             headless: !args.headed,
             stop,
+            added_flags: args.add_flags.clone(),
+            repo: repo.clone(),
         };
         out(&format!(
-            "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} headless={}",
+            "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} added_flags={} rows={} headless={}",
             server.pid(),
             FIRST_FLAGS.len(),
+            ctx.added_flags.len(),
+            if args.isolation { "isolation" } else { "nine" },
             if ctx.headless { "yes" } else { "no" }
         ));
         let code = match args.mode {
             Mode::Cells => {
                 let steps: Vec<&str> = match &args.step {
                     Some(s) => vec![s.as_str()],
+                    None if args.isolation => ISOLATION_STEPS.to_vec(),
                     None => STEPS.to_vec(),
                 };
                 if cells(&ctx, &steps, args.runs.unwrap_or(10)).await {

@@ -2,6 +2,7 @@
 pub mod cdp;
 pub mod fixture;
 pub mod procs;
+pub mod tls;
 
 pub const CANDIDATE: &str = "cdp";
 
@@ -16,6 +17,22 @@ pub const STEPS: [&str; 9] = [
     "block_request",
     "credential_mark",
 ];
+
+/// The six rows of A13.7, which `--rows isolation` runs in place of the nine steps.
+pub const ISOLATION_STEPS: [&str; 6] = [
+    "payment_frame_isolated",
+    "changed_page_1_isolated",
+    "block_popup",
+    "block_frame_post",
+    "block_websocket",
+    "cert_error",
+];
+
+/// The one start flag that the rows of A13.7 add: it puts the payment frame of the fixture on
+/// `port` into a process of its own.
+pub fn isolate_flag(port: u16) -> String {
+    format!("--isolate-origins=http://pay.agent.test:{port}")
+}
 
 pub const FIRST_FLAGS: [&str; 11] = [
     "--disable-background-networking",
@@ -36,7 +53,7 @@ pub const RESOLVER_RULE: &str = "--host-resolver-rules=MAP *.test 127.0.0.1,MAP 
 pub fn variants_of(step: &str) -> &'static [&'static str] {
     match step {
         "session_expiry" => &["session_expiry"],
-        "changed_page_1" => &["changed_page_1"],
+        "changed_page_1" | "changed_page_1_isolated" => &["changed_page_1"],
         "credential_mark" => &["second_factor", "captcha"],
         _ => &[],
     }
@@ -161,6 +178,44 @@ mod tests {
         );
         assert!(variants_of("signin_form").is_empty());
         assert_eq!(STEPS.len(), 9);
+    }
+
+    #[test]
+    fn the_isolated_rows_take_the_variants_of_their_rows_of_a13_2() {
+        assert_eq!(variants_of("changed_page_1_isolated"), &["changed_page_1"]);
+        for row in ISOLATION_STEPS
+            .iter()
+            .filter(|r| **r != "changed_page_1_isolated")
+        {
+            assert!(variants_of(row).is_empty(), "{row}");
+        }
+        assert!(ISOLATION_STEPS.iter().all(|r| !STEPS.contains(r)));
+    }
+
+    #[test]
+    fn run_sh_adds_the_isolate_flag_and_takes_the_six_rows() {
+        assert_eq!(
+            isolate_flag(18190),
+            "--isolate-origins=http://pay.agent.test:18190"
+        );
+        let script = include_str!("../run.sh");
+        assert!(script.contains(r#"--add-flag "--isolate-origins=http://pay.agent.test:$port""#));
+        let line = script
+            .lines()
+            .find(|l| l.trim_start().starts_with("payment_frame_isolated |"))
+            .unwrap_or_default();
+        let mut taken: Vec<&str> = line
+            .trim()
+            .trim_end_matches(";;")
+            .trim()
+            .trim_end_matches(')')
+            .split('|')
+            .map(|n| n.trim())
+            .collect();
+        taken.sort_unstable();
+        let mut rows = ISOLATION_STEPS.to_vec();
+        rows.sort_unstable();
+        assert_eq!(taken, rows);
     }
 
     #[test]

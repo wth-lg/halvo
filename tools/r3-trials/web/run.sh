@@ -4,6 +4,7 @@ set -u
 usage() {
   cat <<'EOF'
 Usage: sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port N --runs N [--step NAME]
+       sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port N --runs N --rows isolation [--step NAME]
        sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port N --extras
        sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port N --resolver-probe
        sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port N --snapshot-pay FILE
@@ -22,6 +23,15 @@ starts the browser headless with a new profile for every run, and stops both at 
                     --fault also uses N+2 for the fixture behind the fault proxy.
   --runs N          runs per step, from 1 to 4294967295; a cell of A13.2 is 10.
   --step NAME       one of the nine steps; without it, all nine in the order of A13.2.
+  --rows isolation  runs the six rows of A13.7 of unit U0.7 in place of the nine steps, in the
+                    order of A13.7, or with --step one of them (payment_frame_isolated,
+                    changed_page_1_isolated, block_popup, block_frame_post, block_websocket,
+                    cert_error). Each browser of these rows starts with one start flag more,
+                    --isolate-origins=http://pay.agent.test:N, which puts the payment frame in a
+                    process of its own. cert_error makes a certificate with the system's openssl in
+                    the scratch directory and serves it with tools/r3-trials/web/tls-listener.mjs on
+                    a loopback port that the system picks; without openssl its cell is a notrun
+                    line with cause=openssl. --fault does not take these rows.
   --driver PATH     taken by the webdriver candidate only; refused here.
   --extras          prints the extras line: added_bytes (release binary with the driver crate
                     against one without it, both stripped), cold_ms (median of 10 starts to the
@@ -53,7 +63,7 @@ refuse() {
   exit 2
 }
 
-candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch=''
+candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch='' rows=nine
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
@@ -67,6 +77,7 @@ while [ $# -gt 0 ]; do
     --port) port=$2 ;;
     --runs) runs=$2 ;;
     --step) step=$2 ;;
+    --rows) rows=$2 ;;
     --driver) refuse usage "--driver belongs to the webdriver candidate, which has no adapter" ;;
     --snapshot-pay) mode=snapshot; out=$2 ;;
     --fault) fault=$2 ;;
@@ -92,10 +103,24 @@ if [ "$mode" = cells ]; then
   [ "${#runs}" -le 10 ] && [ "$runs" -le 4294967295 ] ||
     refuse usage "--runs takes a count from 1 to 4294967295"
 fi
-case "$step" in
-  '' | signin_form | table_read | form_fill | payment_frame | file_upload | session_expiry | \
-    changed_page_1 | block_request | credential_mark) ;;
-  *) refuse usage "--step takes one of the nine steps of A13.2" ;;
+case "$rows" in
+  nine)
+    case "$step" in
+      '' | signin_form | table_read | form_fill | payment_frame | file_upload | session_expiry | \
+        changed_page_1 | block_request | credential_mark) ;;
+      *) refuse usage "--step takes one of the nine steps of A13.2, or with --rows isolation one of the six rows of A13.7" ;;
+    esac
+    ;;
+  isolation)
+    [ "$mode" = cells ] || refuse usage "--rows isolation runs cells only"
+    [ -z "$fault" ] || refuse usage "--fault runs the nine steps only"
+    case "$step" in
+      '') ;;
+      payment_frame_isolated | changed_page_1_isolated | block_popup | block_frame_post | block_websocket | cert_error) ;;
+      *) refuse usage "--step with --rows isolation takes one of the six rows of A13.7" ;;
+    esac
+    ;;
+  *) refuse usage "--rows takes isolation" ;;
 esac
 case "$fault" in
   '') ;;
@@ -170,6 +195,8 @@ case "$mode" in
   cells)
     set -- "$@" --runs "$runs"
     [ -n "$step" ] && set -- "$@" --step "$step"
+    [ "$rows" = isolation ] &&
+      set -- "$@" --rows isolation --add-flag "--isolate-origins=http://pay.agent.test:$port"
     ;;
   extras)
     with=$(wc -c <"$bin" | tr -d ' ')
