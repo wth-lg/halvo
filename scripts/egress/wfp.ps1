@@ -178,10 +178,12 @@ function Write-Log {
         $xml = [xml]$record.ToXml()
         $seen["$($record.Id)"]++
         $processId = [long](Get-Field $xml 'ProcessID')
-        if (-not $tree.ContainsKey($processId)) { continue }
+        $protocol = Get-Field $xml 'Protocol'
+        $sentBySystem = $Deny -eq 1 -and $record.Id -eq 5157 -and ($protocol -eq '1' -or $protocol -eq '58') -and ($processId -eq 4 -or $processId -eq 0)
+        if (-not $tree.ContainsKey($processId) -and -not $sentBySystem) { continue }
         $seen["tree$($record.Id)"]++
         if ((Get-Field $xml 'Direction') -ne '%%14593') { continue }
-        $proto = switch (Get-Field $xml 'Protocol') { '6' { 'tcp' } '17' { 'udp' } '1' { 'icmp' } '58' { 'icmp' } default { '-' } }
+        $proto = switch ($protocol) { '6' { 'tcp' } '17' { 'udp' } '1' { 'icmp' } '58' { 'icmp' } default { '-' } }
         $address = Format-Address (Get-Field $xml 'DestAddress')
         $port = Get-Field $xml 'DestPort'
         if ($proto -eq 'icmp') { $port = '-' }
@@ -191,7 +193,9 @@ function Write-Log {
         }
         $image = [IO.Path]::GetFileName((Get-Field $xml 'Application'))
         if ($image -eq '') { $image = '-' }
-        $lines += [pscustomobject]@{ At = (Get-Instant $record); Order = $record.RecordId; Text = "proto=$proto dest=${address}:$port pid=$processId image=$image" }
+        $shown = "$processId"
+        if ($sentBySystem) { $shown = '-'; $image = '-' }
+        $lines += [pscustomobject]@{ At = (Get-Instant $record); Order = $record.RecordId; Text = "proto=$proto dest=${address}:$port pid=$shown image=$image" }
     }
     $dns = @()
     if ($Deny -eq 1) { $dns = @(Get-Events @{ LogName = $DnsChannel; Id = 3006; StartTime = $since }) }
