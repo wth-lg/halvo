@@ -806,6 +806,9 @@ fn decode_reply_reads_each_result_and_each_error_name() {
         assert_eq!(r.id, None);
         assert_eq!(r.outcome.unwrap_err(), *name);
     }
+    let internal = reply("null", "error", "\"internal\"");
+    let r = decode_reply(internal.as_bytes()).unwrap();
+    assert_eq!(r.outcome.unwrap_err().as_str(), "internal");
     let names: Vec<&str> = ErrorName::ALL.iter().map(|n| n.as_str()).collect();
     assert_eq!(
         names,
@@ -817,7 +820,8 @@ fn decode_reply_reads_each_result_and_each_error_name() {
             "store",
             "no_workflow",
             "state",
-            "unsupported"
+            "unsupported",
+            "internal"
         ]
     );
 }
