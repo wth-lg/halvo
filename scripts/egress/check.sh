@@ -256,7 +256,10 @@ wfp_collect() {
 
 wfp_teardown() {
   win_dir=$(cygpath -w "$1") || win_dir=$1
-  wfp_ps -Action teardown -Dir "$win_dir" -Token "$2" -CheckPid "$checker" >/dev/null 2>&1
+  lost=$(wfp_ps -Action teardown -Dir "$win_dir" -Token "$2" -CheckPid "$checker" 2>&1) || {
+    lost="the wfp teardown failed: ${lost:-no message}"
+    return 1
+  }
 }
 
 wfp_reap() {
@@ -517,7 +520,7 @@ first_form() {
     fi
   fi
   mode_collect "$dir" "$token" "$run_deny"
-  mode_teardown "$dir" "$token"
+  mode_teardown "$dir" "$token" || refuse mode "$lost"
   printf 'done\n' >>"$dir/state"
   if parts_changed; then
     refuse mode "$lost"

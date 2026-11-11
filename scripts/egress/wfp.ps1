@@ -329,10 +329,14 @@ switch ($Action) {
         exit 0
     }
     'teardown' {
-        $saved = Get-Saved (Get-Group)
-        Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
-        $others = @(Get-Groups | Where-Object { Test-Live $_ })
-        if ($others.Count -eq 0 -and $saved -ne '') { Set-Setting $saved }
+        try {
+            $saved = Get-Saved (Get-Group)
+            Remove-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue
+            $left = @(Get-NetFirewallRule -Group (Get-Group) -ErrorAction SilentlyContinue).Count
+            if ($left -ne 0) { throw "$left rules of the run are left" }
+            $others = @(Get-Groups | Where-Object { Test-Live $_ })
+            if ($others.Count -eq 0 -and $saved -ne '') { Set-Setting $saved }
+        } catch { Write-Output "teardown failed: $($_.Exception.Message)"; exit 1 }
         exit 0
     }
     'reap' {
