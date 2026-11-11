@@ -169,6 +169,18 @@ cases() {
   t strict-pressure-unread FAIL strict_verdict yes pressure=unread pressure=1 no
   t strict-other-capture FAIL strict_verdict yes pressure=1 pressure=1 yes
   t pressure-2-without-strict PASS strict_verdict no pressure=2 pressure=2 yes
+  t machine-state-reads-the-pressure-level PASS machine_state_reads 4 'load1=1.50 pressure=4'
+  t machine-state-names-an-unread-level PASS machine_state_reads fail 'load1=1.50 pressure=unread'
+}
+
+machine_state_reads() {
+  stub_bin=$gate_scratch/sysctl-$1
+  mkdir -p "$stub_bin"
+  printf '#!/bin/sh\ncase "$*" in\n  "-n vm.loadavg") printf "{ 1.50 1.40 1.30 }\\n" ;;\n  "-n kern.memorystatus_vm_pressure_level") [ %s != fail ] || exit 1; printf "%s\\n" ;;\n  *) exit 1 ;;\nesac\n' "$1" "$1" > "$stub_bin/sysctl"
+  chmod 755 "$stub_bin/sysctl"
+  PATH="$stub_bin:$PATH"
+  state=$(machine_state)
+  [ "$state" = "$2" ]
 }
 
 hanging_standin() {

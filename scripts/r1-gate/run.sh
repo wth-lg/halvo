@@ -127,6 +127,7 @@ case $verdict in
   SILENT) exit 0 ;;
   TWICE) printf 'PASS %s\nPASS %s\n' "$stub" "$stub"; exit 0 ;;
   MISMATCH) printf 'FAIL %s (a stub)\n' "$stub"; exit 0 ;;
+  DIRTY) : > "$GATE_ROOT/changed-during-the-run"; printf 'PASS %s\n' "$stub"; exit 0 ;;
 esac
 printf '%s %s\n' "$verdict" "$stub"
 case $verdict in PASS) exit 0 ;; NO-INPUT) exit 3 ;; esac
@@ -214,6 +215,22 @@ real_repository() {
   repo_tree=$(git -C "$repo" write-tree) || return 1
   repo_commit=$(printf 'tree %s\nauthor gate fixture <fixture@example.invalid> 1 +0000\ncommitter gate fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$repo_tree" | git -C "$repo" hash-object -t commit -w --stdin) || return 1
   git -C "$repo" update-ref HEAD "$repo_commit"
+}
+
+measured_run_says() {
+  run_line=$1; run_repo=$gate_scratch/$2; shift 2
+  gate_dir=$DIR
+  stub_checks "$@"
+  cp "$gate_dir/run.sh" "$gate_dir/lib.sh" "$stubs/" || return 1
+  GATE_ROOT=$run_repo sh "$stubs/run.sh" --duration 1 > "$stubs/run.out" 2> /dev/null
+  run_status=$?
+  [ "$run_status" -eq 1 ] || return 1
+  grep -qF -e "$run_line" "$stubs/run.out"
+}
+
+dirty_run_is_refused() {
+  measured_run_says "FAIL run (the work tree is dirty: commit first, or pass --allow-dirty for a run that is no done-when run)" "$1" || return 1
+  ! grep -q '^PASS ' "$stubs/run.out"
 }
 
 head_state_is() {
@@ -319,6 +336,13 @@ cases_run() {
   t assume-unchanged-entry-is-dirty PASS head_state_is dirty assumed
   real_repository skipped && git -C "$gate_scratch/skipped" update-index --skip-worktree a.txt
   t skip-worktree-entry-is-dirty PASS head_state_is dirty skipped
+  real_repository untracked && printf 'new\n' > "$gate_scratch/untracked/notes.txt"
+  t untracked-file-makes-the-head-dirty PASS head_state_is dirty untracked
+  t measured-run-on-a-dirty-tree-is-refused PASS dirty_run_is_refused untracked
+  real_repository changing
+  t measured-run-whose-tree-changes-fails PASS measured_run_says "FAIL run (the commit or the state of the work tree changed during the run: " changing timed-run=DIRTY
+  real_repository steady
+  t measured-run-on-a-steady-tree-has-no-change-line FAIL measured_run_says "FAIL run (the commit or the state of the work tree changed during the run: " steady memory=FAIL
   scratch_trees || { emit_fail "self-test:run" "git could not write the scratch trees"; return 1; }
   t tree-id-moves-with-a-source-file PASS tree_ids differ "$tree_new_record" "$tree_new_source"
   t tree-id-holds-under-docs-baseline PASS tree_ids same "$tree_first" "$tree_new_record"
