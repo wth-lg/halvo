@@ -227,6 +227,20 @@ impl ReadyAnswer {
 }
 
 /// The cause of a `hold_cleared` event: the hold that ended (I5.4, I7.1).
+///
+/// ```
+/// use halvo_coord::types::{CheckAnswer, Cleared, RunId};
+/// let run = RunId::parse("00000000000000000000000000000004").unwrap();
+/// let cleared = Cleared::Check { run, answer: CheckAnswer::TryAgain };
+/// ```
+///
+/// A check cleared by an answer other than its two cannot be written:
+///
+/// ```compile_fail,E0308
+/// use halvo_coord::types::{Choice, Cleared, RunId};
+/// let run = RunId::parse("00000000000000000000000000000004").unwrap();
+/// let cleared = Cleared::Check { run, answer: Choice::Present };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Cleared {
     /// `person`: the hold `off` ended.
@@ -238,7 +252,7 @@ pub enum Cleared {
         /// `run`.
         run: RunId,
         /// `answer`: `try_again` or `went_through`.
-        answer: Choice,
+        answer: CheckAnswer,
     },
 }
 
