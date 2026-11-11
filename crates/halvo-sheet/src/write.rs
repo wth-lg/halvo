@@ -99,7 +99,7 @@ pub(crate) fn prepare(
     };
     let texts_ok = values.iter().flatten().all(|value| match value {
         Value::Number(_) => true,
-        Value::Text(text) => text.chars().all(writable),
+        Value::Text(text) => text.chars().all(writable) && text.encode_utf16().count() <= 32_767,
     });
     if !texts_ok {
         return Err(Error::Value);

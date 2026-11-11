@@ -74,7 +74,8 @@ impl Folder {
     /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
     /// workbook at `workbook`. In this order, and before it writes any file: refuses `values`
     /// that do not have the rows and columns of `range` ([`Error::Shape`]) or that hold a text
-    /// with a character that XML 1.0 does not allow ([`Error::Value`]); refuses with
+    /// with a character that XML 1.0 does not allow or with more than the 32,767 UTF-16 code
+    /// units of a cell ([`Error::Value`]); refuses with
     /// [`Error::Workbook`] a workbook that holds a part kind of the sheet trial's refuses list
     /// ([`Refusal::Kinds`], found by the rule of A13.4) or that the crate cannot read; refuses a
     /// sheet that the workbook lacks ([`Error::NoSheet`]); and writes the values into a copy of

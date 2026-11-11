@@ -488,6 +488,39 @@ fn a_text_with_a_character_that_xml_cannot_hold_is_refused_before_any_write() {
 }
 
 #[test]
+fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
+    let f2 = Range::parse("F2").expect("a range");
+    let longest = "é".repeat(32_767);
+    let longer = format!("{longest}x");
+    let wide = "🙂".repeat(16_384);
+    for bad in [longer, wide] {
+        let scratch = Scratch::new("prepare-length");
+        fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", f2, &text(&bad));
+        assert_eq!(
+            got.err(),
+            Some(Error::Value),
+            "a text of {} bytes",
+            bad.len()
+        );
+        assert_eq!(scratch.names(""), vec!["values.xlsx".to_string()]);
+    }
+    let scratch = Scratch::new("prepare-length-fits");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    folder
+        .prepare(
+            Path::new("values.xlsx"),
+            &run(),
+            "Values",
+            f2,
+            &text(&longest),
+        )
+        .expect("a text of 32,767 characters fits a cell");
+}
+
+#[test]
 fn a_run_id_is_32_lower_case_hex_digits() {
     assert!(RunId::parse(RUN).is_ok());
     for bad in [

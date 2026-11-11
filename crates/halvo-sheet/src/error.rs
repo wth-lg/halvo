@@ -101,8 +101,8 @@ pub enum Error {
     /// The values do not have the rows and columns of the range.
     Shape,
     /// A text of the values holds a character that XML 1.0 does not allow in a part of a
-    /// workbook: a control character other than tab, line feed and carriage return, U+FFFE or
-    /// U+FFFF.
+    /// workbook (a control character other than tab, line feed and carriage return, U+FFFE or
+    /// U+FFFF), or more than the 32,767 UTF-16 code units that a cell of Excel holds.
     Value,
     /// The text is not a run id of the form of contracts.md A0.6.
     RunId,
