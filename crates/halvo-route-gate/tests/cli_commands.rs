@@ -46,6 +46,21 @@ fn path(dir: &Path, name: &str) -> String {
     dir.join(name).to_str().expect("utf-8 path").to_owned()
 }
 
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("the scratch directory")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .into_string()
+                .expect("utf-8")
+        })
+        .collect();
+    names.sort();
+    names
+}
+
 fn assert_refused(args: &[&str], line: &str) {
     let run = run(args);
     assert_eq!(
@@ -229,18 +244,7 @@ fn a_write_that_fails_leaves_no_file_at_out() {
         std::fs::read_to_string(&kept).expect("kept"),
         "bytes of another call\n"
     );
-    let mut names: Vec<String> = std::fs::read_dir(&dir)
-        .expect("the scratch directory")
-        .map(|entry| {
-            entry
-                .expect("an entry")
-                .file_name()
-                .into_string()
-                .expect("utf-8")
-        })
-        .collect();
-    names.sort();
-    assert_eq!(names, ["kept.tsv", "table.tsv"]);
+    assert_eq!(names(&dir), ["kept.tsv", "table.tsv"]);
 }
 
 #[cfg(unix)]
@@ -280,8 +284,7 @@ fn a_call_killed_by_the_size_limit_leaves_no_table_at_out() {
             .file_name()
             .into_string()
             .expect("utf-8");
-        let beside = (name.starts_with("generated.tsv.") || name.starts_with("policy.tsv."))
-            && name.ends_with(".part");
+        let beside = name.starts_with("route-gate-") && name.ends_with(".part");
         assert!(
             beside || name == "table.tsv" || name == "kept.tsv",
             "{name}"
@@ -299,6 +302,36 @@ fn a_call_killed_by_the_size_limit_leaves_no_table_at_out() {
         std::fs::read_to_string(&policy).expect("written"),
         derive(&generate(1), &Setup::generated()).to_text()
     );
+}
+
+#[test]
+fn an_out_name_of_250_bytes_is_written() {
+    let dir = scratch();
+    let name = format!("{}.tsv", "g".repeat(246));
+    assert_eq!(name.len(), 250);
+    let long = path(&dir, &name);
+    let run_long = run(&["generate", "--seed", "1", "--out", &long]);
+    assert_eq!(
+        (
+            run_long.code,
+            run_long.stdout.as_str(),
+            run_long.stderr.as_str()
+        ),
+        (Some(0), "", "")
+    );
+    assert_eq!(std::fs::read_to_string(&long).expect("written"), SPECIMEN);
+    let too_long = path(&dir, &format!("{}.tsv", "r".repeat(296)));
+    let run_too_long = run(&["generate", "--seed", "1", "--out", &too_long]);
+    assert_eq!(
+        (run_too_long.code, run_too_long.stdout.as_str()),
+        (Some(2), "")
+    );
+    assert!(
+        run_too_long.stderr.starts_with("REFUSED file: "),
+        "{}",
+        run_too_long.stderr
+    );
+    assert_eq!(names(&dir), [name]);
 }
 
 #[test]

@@ -1,7 +1,9 @@
 //! The `--out` file of `generate` and `derive`: always a new file, never one that stands at the path.
 
+use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Write};
+use std::path::{Path, PathBuf};
 
 /// Why `write_new` put nothing at its path.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -12,10 +14,11 @@ pub enum Refused {
     Unwritable,
 }
 
-/// Writes `text` to a new file at `path`. The bytes go to a new file of another name in the
-/// directory of `path` and are synced; `before_link` is then called once, and a hard link puts the
-/// file at `path`. A file that stands at `path` is never written over or removed: the call returns
-/// `Exists`. Whatever the outcome, the call removes the other name before it returns.
+/// Writes `text` to a new file at `path`. The bytes go to a new file in the directory of `path`,
+/// named `route-gate-<pid>-<n>.part` whatever the name of `path`, and are synced; `before_link` is
+/// then called once, and a hard link puts the file at `path`. A file that stands at `path` is never
+/// written over or removed: the call returns `Exists`. Whatever the outcome, the call removes the
+/// `.part` name before it returns.
 pub fn write_new(path: &str, text: &str, before_link: impl FnOnce()) -> Result<(), Refused> {
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(Refused::Exists);
@@ -39,9 +42,16 @@ pub fn write_new(path: &str, text: &str, before_link: impl FnOnce()) -> Result<(
     }
 }
 
-fn new_part(path: &str) -> Option<(String, File)> {
+fn new_part(path: &str) -> Option<(PathBuf, File)> {
+    let out = Path::new(path);
+    let dir = out.parent().unwrap_or(Path::new(""));
+    let own = out.file_name().and_then(OsStr::to_str).unwrap_or("");
     for n in 0..1_000u32 {
-        let part = format!("{path}.{}-{n}.part", std::process::id());
+        let name = format!("route-gate-{}-{n}.part", std::process::id());
+        if name.eq_ignore_ascii_case(own) {
+            continue;
+        }
+        let part = dir.join(name);
         match OpenOptions::new().write(true).create_new(true).open(&part) {
             Ok(file) => return Some((part, file)),
             Err(error) if error.kind() == ErrorKind::AlreadyExists => {}

@@ -83,3 +83,50 @@ fn the_directory_of_out_holds_no_side_name_after_a_call() {
     );
     assert_eq!(names(&dir), ["kept.tsv", "late.tsv", "written.tsv"]);
 }
+
+#[test]
+fn the_side_name_is_short_and_two_calls_at_once_do_not_share_it() {
+    let dir = scratch();
+    let first = path(&dir, "first.tsv");
+    let second = path(&dir, "second.tsv");
+    let mut during = Vec::new();
+    let made = write_new(&first, "the first table\n", || {
+        let inner = write_new(&second, "the second table\n", || during = names(&dir));
+        assert_eq!(inner, Ok(()));
+    });
+    assert_eq!(made, Ok(()));
+    assert_eq!(during.len(), 2, "{during:?}");
+    for name in &during {
+        assert!(
+            name.len() <= 32 && name.starts_with("route-gate-") && name.ends_with(".part"),
+            "{name}"
+        );
+    }
+    assert_eq!(names(&dir), ["first.tsv", "second.tsv"]);
+    assert_eq!(
+        std::fs::read_to_string(&first).expect("written"),
+        "the first table\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&second).expect("written"),
+        "the second table\n"
+    );
+}
+
+#[test]
+fn an_out_named_as_the_side_name_is_written() {
+    let dir = scratch();
+    let pid = std::process::id();
+    let lower = format!("route-gate-{pid}-0.part");
+    let upper = format!("ROUTE-GATE-{pid}-1.PART");
+    for name in [&lower, &upper] {
+        assert_eq!(
+            write_new(&path(&dir, name), "the table\n", || {}),
+            Ok(()),
+            "{name}"
+        );
+    }
+    let mut want = vec![lower, upper];
+    want.sort();
+    assert_eq!(names(&dir), want);
+}
