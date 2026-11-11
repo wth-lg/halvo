@@ -73,6 +73,31 @@ const CASES: &[Case] = &[
         codes: &["E0277"],
     },
     Case {
+        name: "parse-error-new-with-the-key-of-ids",
+        later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::ids::Key(()), \"AppId\", leak(text))\n}\n"],
+        codes: &["E0603"],
+    },
+    Case {
+        name: "parse-error-new-with-the-key-of-category",
+        later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::category::Key(()), \"AppId\", leak(text))\n}\n"],
+        codes: &["E0603"],
+    },
+    Case {
+        name: "parse-error-new-with-the-key-of-site",
+        later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::site::Key(()), \"AppId\", leak(text))\n}\n"],
+        codes: &["E0603"],
+    },
+    Case {
+        name: "parse-error-new-with-a-key-that-the-later-file-seals",
+        later: &[LEAK, "pub struct Key(());\nimpl crate::ids::key::Sealed for Key {}\npub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(Key(()), \"AppId\", leak(text))\n}\n"],
+        codes: &["E0603"],
+    },
+    Case {
+        name: "transmute-under-allow",
+        later: &["#[allow(unsafe_code)]\npub fn forge(s: String) -> crate::site::AppId {\n    unsafe { core::mem::transmute::<String, crate::site::AppId>(s) }\n}\n"],
+        codes: &["E0453", "unsafe_code"],
+    },
+    Case {
         name: "seal-by-its-module",
         later: &["pub struct LaterNote;\nimpl crate::kinds::sealed::Sealed for LaterNote {}\nimpl crate::kinds::Coarse for LaterNote {}\n"],
         codes: &["E0603"],

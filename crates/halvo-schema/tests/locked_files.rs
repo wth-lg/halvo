@@ -502,15 +502,46 @@ fn in_an_attribute_or_a_macro(t: &[String]) -> Vec<bool> {
     inside
 }
 
+fn in_a_matcher(t: &[String]) -> Vec<bool> {
+    let mut inside = vec![false; t.len()];
+    for i in 0..t.len() {
+        if !(bare(&t[i]) == "macro_rules"
+            && t.get(i + 1).is_some_and(|x| x == "!")
+            && is_open(t.get(i + 3)))
+        {
+            continue;
+        }
+        let close = matching(t, i + 3);
+        let mut j = i + 4;
+        while j < close {
+            if !is_open(t.get(j)) {
+                j += 1;
+                continue;
+            }
+            let end = matching(t, j);
+            if t.get(end + 1).is_some_and(|x| x == "=") && t.get(end + 2).is_some_and(|x| x == ">")
+            {
+                for flag in &mut inside[j..=end.min(t.len() - 1)] {
+                    *flag = true;
+                }
+            }
+            j = end + 1;
+        }
+    }
+    inside
+}
+
 fn reach_faults(file: &str, t: &[String]) -> Vec<String> {
     let inside = in_an_attribute_or_a_macro(t);
+    let matcher = in_a_matcher(t);
     let mut faults = Vec::new();
     for (i, token) in t.iter().enumerate() {
         if !is_ident(token) {
             continue;
         }
         let name = bare(token);
-        let fragment = i >= 3 && t[i - 1] == ":" && is_ident(&t[i - 2]) && t[i - 3] == "$";
+        let fragment =
+            matcher[i] && i >= 3 && t[i - 1] == ":" && is_ident(&t[i - 2]) && t[i - 3] == "$";
         if name == "path" && inside[i] && !fragment {
             faults.push(format!("{file} holds path in an attribute or a macro"));
         }
@@ -695,6 +726,18 @@ fn the_lock_test_refuses_path_among_the_tokens_of_a_macro_and_a_macro_called_thr
             "site.rs holds path in an attribute or a macro",
         ),
         (
+            "macro_rules! own_mod {\n    ($a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {a: path = \"learning.rs\"}\n",
+            "site.rs holds path in an attribute or a macro",
+        ),
+        (
+            "macro_rules! own_mod {\n    ($d:tt $a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {$ a: path = \"learning.rs\"}\n",
+            "site.rs holds path in an attribute or a macro",
+        ),
+        (
+            "macro_rules! inner {\n    ($x:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nmacro_rules! outer {\n    ($a:ident) => {\n        inner! {$a: path = \"learning.rs\"}\n    };\n}\nouter!(a);\n",
+            "site.rs holds path in an attribute or a macro",
+        ),
+        (
             "macro_rules! call {\n    ($vec:ident, $f:literal) => {\n        $vec!($f)\n    };\n}\npub const LATER_TEXT: &str = call!(vec, \"learning.rs\");\n",
             "site.rs calls a macro through a macro's argument",
         ),
@@ -734,7 +777,10 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.expect("a directory entry").path();
         if path.is_dir() {
             rust_files(&path, out);
-        } else if path.extension().is_some_and(|x| x == "rs") {
+        } else if path
+            .extension()
+            .is_some_and(|x| x.eq_ignore_ascii_case("rs"))
+        {
             out.push(path);
         }
     }
@@ -999,6 +1045,10 @@ fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
             "#[macro_export]\nmacro_rules! later {\n    () => {};\n}\n",
         ),
         ("other.rs", "pub fn shown() {}\n"),
+        (
+            "learning/upper.RS",
+            "#[macro_export]\nmacro_rules! upper {\n    () => {};\n}\n",
+        ),
         ("bin/tool.rs", "fn main() {}\n"),
         ("learning/macros.inc", "#[macro_export]\n"),
         ("routing/notes.txt", "notes\n"),
@@ -1018,6 +1068,7 @@ fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
             "learning.rs",
             "learning/deeper/most.rs",
             "learning/more.rs",
+            "learning/upper.RS",
             "other.rs"
         ]
     );
@@ -1025,7 +1076,13 @@ fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
         .iter()
         .flat_map(|(name, text)| later_faults(name, text))
         .collect();
-    assert_eq!(faults, ["learning/deeper/most.rs holds macro_export"]);
+    assert_eq!(
+        faults,
+        [
+            "learning/deeper/most.rs holds macro_export",
+            "learning/upper.RS holds macro_export"
+        ]
+    );
 }
 
 #[test]
@@ -1069,6 +1126,10 @@ fn the_test_of_the_later_files_refuses_a_path_attribute_and_the_include_macros()
         ),
         (
             "macro_rules! own_mod {\n    ($m:meta) => {\n        #[$m]\n        mod more;\n    };\n}\nown_mod! {path = \"more.rs\"}\n",
+            "learning.rs holds path in an attribute or a macro",
+        ),
+        (
+            "pub mod more {\n    #![cfg_attr(all(), path = \"elsewhere\")]\n    pub mod deeper;\n}\n",
             "learning.rs holds path in an attribute or a macro",
         ),
         (
