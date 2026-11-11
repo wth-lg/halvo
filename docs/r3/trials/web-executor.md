@@ -60,10 +60,7 @@ browser picks the port; `--extras` names one for the attach check), `--user-data
 off chromiumoxide's own list of 24 default flags (`disable_default_args`).
 
 The resolver rule is one flag with two rules:
-
-```text
---host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND
-```
+`--host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND`.
 
 `sh tools/r3-trials/web/run.sh --candidate cdp --browser PATH --port 18190 --resolver-probe` showed
 the rule at work on this Mac on 2026-11-11. The name `halvo-resolver-probe.localhost` got
