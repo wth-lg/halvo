@@ -16,10 +16,8 @@ use crate::sync::{self, Change, Hub};
 use crate::waits::{self, Reports};
 use crate::{Arm, Options, SyncWay};
 
-/// The label of the trial's one window.
 pub const WINDOW: &str = "main";
 
-/// The event of the sync way `events`.
 pub const CHANGE_EVENT: &str = "r4-change";
 
 const COUNTS_WAIT: Duration = Duration::from_millis(1000);
@@ -32,7 +30,6 @@ struct PageState {
     pending_show: Option<u64>,
 }
 
-/// The core of the trial app: it answers the control lines and the page's calls.
 pub struct TrialCore {
     app: AppHandle,
     options: Options,

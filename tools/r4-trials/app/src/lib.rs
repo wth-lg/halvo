@@ -11,8 +11,11 @@ pub use options::{check_hosted, default_pages_dir, parse_args, Arm, Options, Ref
 
 /// The trial app's builder for `options`. It binds the control port first and refuses with
 /// `port` when that fails, then refuses with `not_hosted` where neither `CI` nor `R4_GUEST` is
-/// set; both come before any Tauri code runs. The caller adds its own plugins and runs it with a
-/// context.
+/// set; both come before any Tauri code runs. The caller may add its own plugins.
+///
+/// `run` is the only way to start what this returns. Tauri 2.12.5 asks the app to exit when its
+/// last window is destroyed, and `tauri::Builder::run` lets it exit then, so in arm `b` an app
+/// started that way ends at its first `destroy`; `run` keeps it running until `quit`.
 pub fn builder(options: Options) -> Result<tauri::Builder<tauri::Wry>, Refusal> {
     let listener = control::listen(options.control_port).map_err(|e| {
         Refusal::Port(format!(
@@ -28,8 +31,9 @@ pub fn builder(options: Options) -> Result<tauri::Builder<tauri::Wry>, Refusal> 
     Ok(app::make(options, listener))
 }
 
-/// Builds and runs `builder` with `context`. The app keeps running when its last window is
-/// destroyed (arm `b`) and ends at `quit`, which exits with a code.
+/// Builds and runs `builder` with `context`, the only way to start what `builder` returns. The
+/// app keeps running when its last window is destroyed (arm `b`) and ends at `quit`, which
+/// exits with a code.
 pub fn run(
     builder: tauri::Builder<tauri::Wry>,
     context: tauri::Context<tauri::Wry>,
