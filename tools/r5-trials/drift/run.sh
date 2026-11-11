@@ -54,11 +54,15 @@ case $# in
   help=yes
   ;;
 2)
-  [ "$1" = --count ] && [ -n "$2" ] || refuse usage "$calls"
+  if [ "$1" != --count ] || [ -z "$2" ]; then
+    refuse usage "$calls"
+  fi
   set -- --count "$(absolute "$2")"
   ;;
 4)
-  [ "$1" = --case ] && [ -n "$2" ] && [ "$3" = --arm ] || refuse usage "$calls"
+  if [ "$1" != --case ] || [ -z "$2" ] || [ "$3" != --arm ]; then
+    refuse usage "$calls"
+  fi
   case $4 in
   none | plain) ;;
   *) refuse usage "the arm of --case is none or plain" ;;
@@ -89,5 +93,7 @@ code=$?
 [ "$code" -eq 0 ] || refuse build "cargo exited $code; its output is in the build log"
 
 bin=$target/$host/release/r5-drift
-[ -f "$bin.exe" ] && bin=$bin.exe
+if [ -f "$bin.exe" ]; then
+  bin=$bin.exe
+fi
 exec "$bin" ${1+"$@"}
