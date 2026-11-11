@@ -201,7 +201,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "item.check.text",
-        "Look at the details below, then tell it what happened.",
+        "Check on the site or in your account whether this happened, then answer.",
     ),
     ("item.setup.title", "Answer a few questions for “{name}”"),
     (
