@@ -628,7 +628,7 @@ pub struct DecodeError {
     pub error: ErrorName,
 }
 
-struct Fields<'a>(Vec<(String, &'a RawValue)>);
+pub(crate) struct Fields<'a>(pub(crate) Vec<(String, &'a RawValue)>);
 
 impl<'de: 'a, 'a> Deserialize<'de> for Fields<'a> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -653,7 +653,7 @@ impl<'de: 'a, 'a> Deserialize<'de> for Fields<'a> {
 }
 
 impl<'a> Fields<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Fields<'a>> {
+    pub(crate) fn read(bytes: &'a [u8]) -> Option<Fields<'a>> {
         serde_json::from_slice(bytes).ok()
     }
 
