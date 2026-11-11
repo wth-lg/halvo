@@ -193,8 +193,11 @@ impl TrialCore {
             }
             token
         };
-        self.frames.wait(token, None);
+        let reported = self.frames.wait(token, None);
         self.page().pending_show = None;
+        if reported.is_none() {
+            return Answer::Err(ErrCause::NoWindow);
+        }
         Answer::Shown {
             show_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         }
@@ -224,6 +227,7 @@ impl TrialCore {
         };
         self.hub.close();
         self.page().alive = false;
+        self.frames.cancel();
         let _ = window.destroy();
         self.forget_page();
         Answer::Ok
@@ -359,6 +363,7 @@ impl TrialCore {
             WindowEvent::CloseRequested { .. } => {
                 self.hub.close();
                 self.page().alive = false;
+                self.frames.cancel();
                 self.forget_page();
             }
             _ => {}

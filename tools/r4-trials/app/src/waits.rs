@@ -31,7 +31,16 @@ impl<T: Clone> Reports<T> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         state.token += 1;
         state.value = None;
+        self.arrived.notify_all();
         state.token
+    }
+
+    /// Ends every wait with `None` and drops a later report of the current token.
+    pub fn cancel(&self) {
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        state.token += 1;
+        state.value = None;
+        self.arrived.notify_all();
     }
 
     /// Keeps `value` when `token` is the newest; returns whether it was kept.
@@ -118,6 +127,32 @@ mod tests {
         assert!(!r.deliver(1, ()));
         assert_eq!(r.begin(), 1);
         assert_eq!(r.wait(1, Some(Duration::ZERO)), None);
+    }
+
+    #[test]
+    fn a_newer_token_or_a_cancel_ends_a_wait_with_none() {
+        let r = Arc::new(Reports::<u8>::default());
+        for end in ["begin", "cancel"] {
+            let t = r.begin();
+            let waiter = {
+                let r = r.clone();
+                thread::spawn(move || r.wait(t, Some(Duration::from_secs(2))))
+            };
+            thread::sleep(Duration::from_millis(30));
+            assert!(!waiter.is_finished());
+            let ended = Instant::now();
+            if end == "begin" {
+                r.begin();
+            } else {
+                r.cancel();
+            }
+            assert_eq!(waiter.join().unwrap(), None, "{end}");
+            assert!(
+                ended.elapsed() < Duration::from_secs(1),
+                "{end} did not wake the wait"
+            );
+            assert!(!r.deliver(t, 1));
+        }
     }
 
     #[test]

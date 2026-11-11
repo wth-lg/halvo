@@ -17,6 +17,23 @@ pub fn builder(options: Options) -> Result<tauri::Builder<tauri::Wry>, Refusal> 
     Ok(app::make(options))
 }
 
+/// Builds and runs `builder` with `context`. The app keeps running when its last window is
+/// destroyed (arm `b`) and ends at `quit`, which exits with a code.
+pub fn run(
+    builder: tauri::Builder<tauri::Wry>,
+    context: tauri::Context<tauri::Wry>,
+) -> tauri::Result<()> {
+    builder.build(context)?.run(|_, event| {
+        if let tauri::RunEvent::ExitRequested {
+            code: None, api, ..
+        } = event
+        {
+            api.prevent_exit();
+        }
+    });
+    Ok(())
+}
+
 /// The context of this crate's `tauri.conf.json` and capabilities.
 pub fn context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
