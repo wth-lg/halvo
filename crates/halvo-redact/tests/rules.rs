@@ -499,3 +499,49 @@ fn titles_with_no_identifier_are_kept_byte_for_byte() {
         unchanged(title);
     }
 }
+
+#[test]
+fn titles_built_from_pieces_of_every_rule_keep_the_properties_of_the_scan() {
+    let pieces = [
+        card(13),
+        card(16),
+        card(19),
+        grouped(&card(16), ' '),
+        grouped(&card(16), '-'),
+        de_iban(),
+        grouped(&de_iban(), ' '),
+        gb_iban_with_a_card_reading_inside(),
+        "247-61-3058".to_owned(),
+        key("ghp_", 'a', 36),
+        key("AKIA", 'Q', 16),
+        key("sk_live_", 'b', 12),
+        key("glpat-", 'z', 20),
+        key("pypi-AgEIcHlwaS5vcmc", 'x', 60),
+        " ".to_owned(),
+        "-".to_owned(),
+        "7".to_owned(),
+        "x".to_owned(),
+        "2026".to_owned(),
+        "AB12".to_owned(),
+        "[card]".to_owned(),
+        "\u{e9}".to_owned(),
+        "\u{200b}".to_owned(),
+        "\u{65e5}\u{672c}".to_owned(),
+    ];
+    let mut state = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = |bound: usize| {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        usize::try_from(state % bound as u64).unwrap_or(0)
+    };
+    for _ in 0..5000 {
+        let mut title = String::new();
+        for _ in 0..=next(10) {
+            title.push_str(&pieces[next(pieces.len())]);
+        }
+        let masked = mask(&title);
+        assert!(masked.len() <= title.len(), "mask of {title:?} is longer");
+        assert_eq!(mask(&masked), masked, "mask of the result of {title:?}");
+    }
+}
