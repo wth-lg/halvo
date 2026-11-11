@@ -8,6 +8,9 @@ use serde::ser::{Serialize, Serializer};
 /// A reader refuses any other number.
 pub const VERSION: u32 = 1;
 
+/// The names that this module writes in a record or a request: the keys of a position.
+pub const NAMES: &[&str] = &["seg", "idx"];
+
 /// The one error of every parser of this crate. It holds the Rust name of the type that refused the input
 /// and the token of the rule that refused it, and never the refused input.
 /// `Display` prints `<type name>: <rule token>`.

@@ -5,6 +5,12 @@ use crate::record::{Confidence, KeyCounts, PointerCounts, Recurrence};
 use crate::request::Fields;
 use crate::site::{AppId, SiteDomain, SiteHash, SiteToken, SiteValue};
 
+/// The names of the kind registry of this run: the four kind names, the family `workflow` and the three
+/// retention-class names. The names of `FieldType` and of `Origin` and the key `days` are none.
+pub const NAMES: &[&str] = &[
+    "workflow", "summary", "support", "evidence", "window", "bounded", "kept",
+];
+
 /// The type of a field of a record, one variant per row of the closed set of field types: the integer 1, a random
 /// id, a name of a closed list, an app id, a stored domain (`SiteDomain`), a site hash, a site value, a count, a
 /// day, an instant, a segment ordinal, a site token, a text after masking, and a text that capture did not supply.

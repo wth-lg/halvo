@@ -23,6 +23,38 @@ pub const INTERFACE_REQUEST_MAX: usize = 4_096;
 /// beside a request id.
 pub const REPLY_MAX: usize = 261_120;
 
+/// The names that this module writes in a request or a reply: the keys of the envelope, of the bodies and of a
+/// reply, the five request names, the two names of a read, the three decisions and the four roles. No error name
+/// is among them.
+pub const NAMES: &[&str] = &[
+    "v",
+    "id",
+    "request",
+    "body",
+    "analysis_write",
+    "interface_read",
+    "interface_decision",
+    "runner",
+    "coordinator_write",
+    "store",
+    "episodes",
+    "commit",
+    "read",
+    "after",
+    "workflow",
+    "workflows",
+    "evidence",
+    "decision",
+    "approve",
+    "dismiss",
+    "delete",
+    "analysis",
+    "interface",
+    "coordinator",
+    "ok",
+    "error",
+];
+
 const REQUEST_NAMES: [&str; 5] = [
     "analysis_write",
     "interface_read",

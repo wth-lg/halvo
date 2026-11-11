@@ -4,6 +4,18 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::ids::{hex64, name_enum, object, string_type, ParseError};
 
+/// The names that this module writes in a record or a request: the keys of a site value and of an observed site,
+/// and the three sources.
+pub const NAMES: &[&str] = &[
+    "key",
+    "source",
+    "address_field",
+    "sign_in",
+    "title",
+    "domain",
+    "token",
+];
+
 fn app(s: &str) -> Result<(), &'static str> {
     if s.is_empty() || s.len() > 255 {
         return Err("length");
