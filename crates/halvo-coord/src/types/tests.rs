@@ -392,6 +392,11 @@ fn an_item_is_made_by_one_constructor_per_kind() {
 }
 
 #[test]
+fn the_reply_ok_holds_nothing_but_ok() {
+    assert_eq!(serde_json::to_string(&OkReply).unwrap(), "{\"ok\":\"yes\"}");
+}
+
+#[test]
 fn names_serialize_as_strings() {
     assert_eq!(
         serde_json::to_string(&Status::NeedsYou).unwrap(),

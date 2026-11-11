@@ -912,7 +912,7 @@ pub fn write(dir: &Path) -> std::io::Result<u32> {
             line(&state_file(*state)),
         ));
     }
-    files.push(("reply-ok.json".into(), line(&OkReply { ok: YesNo::Yes })));
+    files.push(("reply-ok.json".into(), line(&OkReply)));
     files.push((
         "reply-closed.json".into(),
         line(&ClosedReply { closed: YesNo::Yes }),

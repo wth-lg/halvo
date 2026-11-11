@@ -393,11 +393,29 @@ pub struct ChoiceText {
     pub safe: YesNo,
 }
 
-/// The reply `{"ok":"yes"}` (I8.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-pub struct OkReply {
-    /// `ok`.
-    pub ok: YesNo,
+/// The reply `{"ok":"yes"}` (I8.1), which holds nothing but `ok`.
+///
+/// ```
+/// use halvo_coord::types::OkReply;
+/// assert_eq!(serde_json::to_string(&OkReply).unwrap(), r#"{"ok":"yes"}"#);
+/// ```
+///
+/// A reply `ok` that says `no` cannot be written:
+///
+/// ```compile_fail,E0560
+/// use halvo_coord::types::{OkReply, YesNo};
+/// let reply = OkReply { ok: YesNo::No };
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OkReply;
+
+impl Serialize for OkReply {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut reply = s.serialize_struct("OkReply", 1)?;
+        reply.serialize_field("ok", &YesNo::Yes)?;
+        reply.end()
+    }
 }
 
 /// The reply `{"closed":"yes"}` of `agents_next` (I8.1, I8.2).
