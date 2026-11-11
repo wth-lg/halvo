@@ -355,15 +355,20 @@ case $system in
   *) platform=none ;;
 esac
 
-if [ -n "$list" ]; then
-  [ -f "$list" ] && [ -r "$list" ] || refuse list "$list"
-  size=$(wc -c <"$list") || refuse list "$list"
-  entries=$(awk -v size="$((size))" -f "$here/list.awk" "$list") || {
+# read_list LISTFILE: sets entries to the entry lines of the list file, or refuses with the cause list.
+read_list() {
+  [ -f "$1" ] && [ -r "$1" ] || refuse list "$1"
+  size=$(wc -c <"$1") || refuse list "$1"
+  entries=$(awk -v BINMODE=3 -v size="$((size))" -f "$here/list.awk" "$1") || {
     case $entries in
-      "line "*) refuse list "$list $entries" ;;
-      *) refuse list "$list" ;;
+      "line "*) refuse list "$1 $entries" ;;
+      *) refuse list "$1" ;;
     esac
   }
+}
+
+if [ -n "$list" ]; then
+  read_list "$list"
 fi
 
 if [ "$given" -eq 0 ]; then
@@ -538,12 +543,13 @@ deny=1
 [ "$control" -eq 0 ] || deny=0
 build_probe
 work=$(mktemp -d "${TMPDIR:-/tmp}/egress-self-test.XXXXXX") || refuse output "${TMPDIR:-/tmp}"
+trap stop_listeners EXIT
 start_listener 47201
 start_listener 47202
 empty=scripts/egress/lists/empty.txt
 loopback=scripts/egress/lists/loopback.txt
 cd "$root" || refuse output "$root"
-entries=$(awk -f "$here/list.awk" "$empty") || refuse list "$empty"
+read_list "$empty"
 if [ "$deny" -eq 1 ]; then
   lines="egress self-test mode=$mode deny=on"
 else
@@ -561,7 +567,7 @@ first_form "$empty" "$deny" sh scripts/egress/probe.sh none </dev/null >/dev/nul
 quiet=$(empty_ok)
 lines="$lines
 quiet result=$quiet"
-entries=$(awk -f "$here/list.awk" "$loopback") || refuse list "$loopback"
+read_list "$loopback"
 first_form "$loopback" "$deny" sh scripts/egress/probe.sh loopback </dev/null >/dev/null
 listed=$(empty_ok)
 first_form "$loopback" "$deny" sh scripts/egress/probe.sh loopback2 </dev/null >/dev/null

@@ -290,6 +290,10 @@ test_sandbox() {
   else
     result sandbox/runs-get-new-directories yes no
   fi
+  serve 47201
+  expect_refusal sandbox/self-test-port-taken port sh scripts/egress/check.sh --self-test
+  unserve
+  expect_refusal sandbox/self-test-unknown-argument usage sh scripts/egress/check.sh --self-test --verbose
   expect_refusal sandbox/pf-off-a-runner mode env -u GITHUB_ACTIONS sh scripts/egress/check.sh --mode pf "$e" -- sh "$pr" none
   expect_refusal sandbox/wfp-on-macos mode sh scripts/egress/check.sh --mode wfp "$e" -- sh "$pr" none
 }
