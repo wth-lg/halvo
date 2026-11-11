@@ -814,27 +814,127 @@ fn later_files() -> Vec<(String, String)> {
     files_outside_the_lock(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
 }
 
-fn locked_names() -> Vec<String> {
-    LOCKED
-        .iter()
-        .flat_map(|file| tokens(&source(file)))
-        .filter(|t| is_ident(t))
-        .map(|t| bare(&t).to_owned())
+const MODULES: [&str; 6] = ["ids", "category", "site", "record", "request", "kinds"];
+
+const WRAPPERS: [&str; 2] = ["Box", "Pin"];
+
+fn macro_bodies(t: &[String]) -> Vec<(String, usize, usize)> {
+    (0..t.len())
+        .filter(|&i| {
+            bare(&t[i]) == "macro_rules"
+                && t.get(i + 1).is_some_and(|x| x == "!")
+                && t.get(i + 2).is_some_and(|x| is_name(x))
+                && is_open(t.get(i + 3))
+        })
+        .map(|i| (bare(&t[i + 2]).to_owned(), i + 3, matching(t, i + 3)))
         .collect()
 }
 
-fn module_paths(t: &[String], inside: &[bool]) -> Vec<String> {
-    let mut paths = vec![String::new(); t.len()];
+fn declares_a_fragment(body: &[String]) -> bool {
+    (0..body.len()).any(|i| {
+        matches!(body[i].as_str(), "struct" | "enum" | "union")
+            && body.get(i + 1).is_some_and(|x| x == "$")
+    })
+}
+
+fn first_name_of_a_call(t: &[String], open: usize) -> Option<String> {
+    let close = matching(t, open);
+    let mut j = open + 1;
+    while j < close {
+        if t[j] == "#" && t.get(j + 1).is_some_and(|x| x == "[") {
+            j = matching(t, j + 1) + 1;
+            continue;
+        }
+        if is_name(&t[j]) {
+            return Some(bare(&t[j]).to_owned());
+        }
+        j += 1;
+    }
+    None
+}
+
+struct Locked {
+    types: Vec<(String, String)>,
+    root: Vec<String>,
+}
+
+fn locked_types() -> Locked {
+    let files: Vec<(&str, Vec<String>)> = LOCKED.iter().map(|f| (*f, tokens(&source(f)))).collect();
+    let mut declaring: Vec<String> = Vec::new();
+    loop {
+        let before = declaring.len();
+        for (_, t) in &files {
+            for (name, open, close) in macro_bodies(t) {
+                let body = &t[open..close];
+                let calls_one = (0..body.len()).any(|i| {
+                    declaring.iter().any(|d| *d == bare(&body[i]))
+                        && body.get(i + 1).is_some_and(|x| x == "!")
+                });
+                if !declaring.contains(&name) && (declares_a_fragment(body) || calls_one) {
+                    declaring.push(name);
+                }
+            }
+        }
+        if declaring.len() == before {
+            break;
+        }
+    }
+    let mut types = Vec::new();
+    let mut root = Vec::new();
+    for (file, t) in &files {
+        let module = file.trim_end_matches(".rs").to_owned();
+        if *file == "lib.rs" {
+            for at in find(t, &["use"]) {
+                let from = t.get(at + 1).map_or("", |x| bare(x)).to_owned();
+                for token in t[at + 2..].iter().take_while(|x| *x != ";") {
+                    if is_name(token) {
+                        types.push((from.clone(), bare(token).to_owned()));
+                        root.push(bare(token).to_owned());
+                    }
+                }
+            }
+            continue;
+        }
+        for i in 0..t.len() {
+            if matches!(
+                t[i].as_str(),
+                "struct" | "enum" | "union" | "type" | "trait"
+            ) {
+                if let Some(name) = t.get(i + 1).filter(|x| is_name(x)) {
+                    types.push((module.clone(), bare(name).to_owned()));
+                }
+            }
+            let call =
+                is_name(&t[i]) && t.get(i + 1).is_some_and(|x| x == "!") && is_open(t.get(i + 2));
+            if call && declaring.iter().any(|d| *d == bare(&t[i])) {
+                if let Some(name) = first_name_of_a_call(t, i + 2) {
+                    types.push((module.clone(), name));
+                }
+            }
+        }
+    }
+    Locked { types, root }
+}
+
+fn module_of(file: &str) -> Vec<String> {
+    let stem = file.trim_end_matches(".rs").trim_end_matches(".RS");
+    let mut parts: Vec<String> = stem.split('/').map(str::to_owned).collect();
+    if parts.last().is_some_and(|p| p == "mod") {
+        parts.pop();
+    }
+    parts
+}
+
+fn module_paths(t: &[String], inside: &[bool], file_module: &[String]) -> Vec<Vec<String>> {
+    let mut paths = vec![Vec::new(); t.len()];
     let mut open: Vec<(String, usize)> = Vec::new();
     for i in 0..t.len() {
         while open.last().is_some_and(|(_, close)| i > *close) {
             open.pop();
         }
-        paths[i] = open
-            .iter()
-            .map(|(name, _)| name.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let mut path = file_module.to_vec();
+        path.extend(open.iter().map(|(name, _)| name.clone()));
+        paths[i] = path;
         if !inside[i]
             && t[i] == "mod"
             && t.get(i + 1).is_some_and(|x| is_name(x))
@@ -846,22 +946,416 @@ fn module_paths(t: &[String], inside: &[bool]) -> Vec<String> {
     paths
 }
 
-fn named_by_use_or_type(t: &[String], inside: &[bool]) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut in_use = false;
-    for (i, token) in t.iter().enumerate() {
-        if inside[i] {
-            continue;
-        }
-        if token == "use" {
-            in_use = true;
-        } else if token == ";" {
-            in_use = false;
-        } else if is_ident(token) && (in_use || (i > 0 && t[i - 1] == "type")) {
-            names.push(bare(token).to_owned());
+type Segments = Vec<String>;
+
+type Leaf = (Option<String>, Segments, bool);
+
+fn type_path(t: &[String]) -> Segments {
+    let mut i = 0;
+    loop {
+        match t.get(i).map(String::as_str) {
+            Some("&" | "mut" | "dyn") => i += 1,
+            Some("'") => i += 2,
+            _ => break,
         }
     }
-    names
+    let mut path = Vec::new();
+    loop {
+        match t.get(i).map(String::as_str) {
+            Some("$") => {
+                path.push("$".to_owned());
+                i += 1;
+            }
+            Some(x) if is_ident(x) => {
+                path.push(bare(x).to_owned());
+                i += 1;
+                if t.get(i).is_some_and(|x| x == ":") && t.get(i + 1).is_some_and(|x| x == ":") {
+                    i += 2;
+                    continue;
+                }
+                break;
+            }
+            _ => break,
+        }
+    }
+    if path.len() == 1 && WRAPPERS.contains(&path[0].as_str()) && t.get(i).is_some_and(|x| x == "<")
+    {
+        return type_path(&t[i + 1..]);
+    }
+    path
+}
+
+fn use_tree(t: &[String], i: &mut usize, prefix: &[String], out: &mut Vec<Leaf>) {
+    let mut path = prefix.to_vec();
+    loop {
+        match t.get(*i).map(String::as_str) {
+            Some("{") => {
+                let close = matching(t, *i);
+                *i += 1;
+                while *i < close {
+                    use_tree(t, i, &path, out);
+                    if *i < close {
+                        *i += 1;
+                    }
+                }
+                *i = close + 1;
+                return;
+            }
+            Some("*") => {
+                out.push((None, path, true));
+                *i += 1;
+                return;
+            }
+            Some(":") | Some("$") => {
+                if t[*i] == "$" {
+                    path.push("$".to_owned());
+                }
+                *i += 1;
+            }
+            Some(x) if is_ident(x) => {
+                path.push(bare(x).to_owned());
+                *i += 1;
+                if t.get(*i).is_some_and(|x| x == "as") {
+                    let alias = t.get(*i + 1).map(|a| bare(a).to_owned());
+                    *i += 2;
+                    if path.last().is_some_and(|p| p == "self") {
+                        path.pop();
+                    }
+                    out.push((alias, path, false));
+                    return;
+                }
+                if !t.get(*i).is_some_and(|x| x == ":") {
+                    if path.last().is_some_and(|p| p == "self") {
+                        path.pop();
+                    }
+                    let alias = path.last().cloned();
+                    out.push((alias, path, false));
+                    return;
+                }
+            }
+            _ => return,
+        }
+    }
+}
+
+#[derive(Default)]
+struct Tree {
+    declared: Vec<(Segments, String)>,
+    aliases: Vec<(Segments, String, Segments)>,
+    globs: Vec<(Segments, Segments)>,
+    selves: Vec<String>,
+    modules: Vec<(Segments, String)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Place {
+    Locked,
+    Own,
+    Other,
+}
+
+struct Lexed {
+    file: String,
+    t: Vec<String>,
+    matcher: Vec<bool>,
+    paths: Vec<Segments>,
+    bodies: Vec<(String, usize, usize)>,
+}
+
+impl Lexed {
+    fn body_of(&self, i: usize) -> Option<&(String, usize, usize)> {
+        self.bodies
+            .iter()
+            .find(|(_, open, close)| *open < i && i < *close)
+    }
+
+    fn calls(&self, name: &str) -> Vec<(Segments, usize, usize)> {
+        (0..self.t.len())
+            .filter(|&i| {
+                bare(&self.t[i]) == name
+                    && self.t.get(i + 1).is_some_and(|x| x == "!")
+                    && is_open(self.t.get(i + 2))
+                    && self.body_of(i).is_none()
+            })
+            .map(|i| (self.paths[i].clone(), i + 2, matching(&self.t, i + 2)))
+            .collect()
+    }
+}
+
+fn uses_in(t: &[String], from: usize, to: usize) -> Vec<(usize, Vec<Leaf>)> {
+    let mut out = Vec::new();
+    for i in from..to {
+        if t[i] == "use" {
+            let mut j = i + 1;
+            let mut leaves = Vec::new();
+            use_tree(t, &mut j, &[], &mut leaves);
+            out.push((i, leaves));
+        }
+    }
+    out
+}
+
+fn arguments_of(t: &[String], open: usize, close: usize) -> Vec<Segments> {
+    let mut out = Vec::new();
+    let mut j = open + 1;
+    while j < close {
+        let starts = is_ident(&t[j]) || (t[j] == "$" && t.get(j + 1).is_some_and(|x| x == "crate"));
+        let after_colon = j > 0 && t[j - 1] == ":" && j > 1 && t[j - 2] == ":";
+        if starts && !after_colon {
+            let path = type_path(&t[j..close]);
+            if !path.is_empty() {
+                out.push(path);
+            }
+        }
+        j += 1;
+    }
+    out
+}
+
+fn build_tree(lexed: &[Lexed]) -> Tree {
+    let mut tree = Tree::default();
+    for l in lexed {
+        let t = &l.t;
+        for i in 0..t.len() {
+            if t[i] == "extern"
+                && t.get(i + 1).is_some_and(|x| x == "crate")
+                && t.get(i + 2).is_some_and(|x| x == "self")
+                && t.get(i + 3).is_some_and(|x| x == "as")
+            {
+                if let Some(alias) = t.get(i + 4) {
+                    tree.selves.push(bare(alias).to_owned());
+                }
+            }
+            if l.body_of(i).is_some() {
+                continue;
+            }
+            if t[i] == "mod"
+                && t.get(i + 1).is_some_and(|x| is_name(x))
+                && t.get(i + 2).is_some_and(|x| x == ";" || x == "{")
+            {
+                tree.modules
+                    .push((l.paths[i].clone(), bare(&t[i + 1]).to_owned()));
+            }
+            if matches!(t[i].as_str(), "struct" | "enum" | "union" | "trait") {
+                if let Some(name) = t.get(i + 1).filter(|x| is_name(x)) {
+                    tree.declared
+                        .push((l.paths[i].clone(), bare(name).to_owned()));
+                }
+            }
+            if t[i] == "type" && t.get(i + 1).is_some_and(|x| is_name(x)) {
+                let end = (i..t.len()).find(|&k| t[k] == ";").unwrap_or(t.len());
+                if let Some(eq) = (i..end).find(|&k| t[k] == "=") {
+                    tree.aliases.push((
+                        l.paths[i].clone(),
+                        bare(&t[i + 1]).to_owned(),
+                        type_path(&t[eq + 1..end]),
+                    ));
+                }
+            }
+        }
+        for (at, leaves) in uses_in(t, 0, t.len()) {
+            if l.body_of(at).is_some() {
+                continue;
+            }
+            for (alias, path, glob) in leaves {
+                if glob {
+                    tree.globs.push((l.paths[at].clone(), path));
+                } else if let Some(alias) = alias.filter(|a| a != "_") {
+                    tree.aliases.push((l.paths[at].clone(), alias, path));
+                }
+            }
+        }
+    }
+    for l in lexed {
+        for (name, open, close) in &l.bodies {
+            let body = &l.t[*open..*close];
+            let declares = declares_a_fragment(body);
+            let mut alias_targets = Vec::new();
+            let mut literal_aliases = Vec::new();
+            let mut glob_targets = Vec::new();
+            for (_, leaves) in uses_in(&l.t, *open, *close) {
+                for (alias, path, glob) in leaves {
+                    match alias {
+                        _ if glob => glob_targets.push(path),
+                        Some(a) if a == "$" => alias_targets.push(path),
+                        Some(a) if a != "_" => literal_aliases.push((a, path)),
+                        _ => {}
+                    }
+                }
+            }
+            for k in *open..*close {
+                if l.t[k] != "type" {
+                    continue;
+                }
+                let end = (k..*close).find(|&m| l.t[m] == ";").unwrap_or(*close);
+                let Some(eq) = (k..end).find(|&m| l.t[m] == "=") else {
+                    continue;
+                };
+                let target = type_path(&l.t[eq + 1..end]);
+                match l.t.get(k + 1) {
+                    Some(x) if x == "$" => alias_targets.push(target),
+                    Some(x) if is_name(x) => literal_aliases.push((bare(x).to_owned(), target)),
+                    _ => {}
+                }
+            }
+            for caller in lexed {
+                for (module, c_open, c_close) in caller.calls(name) {
+                    for k in c_open + 1..c_close {
+                        if declares && matches!(caller.t[k].as_str(), "struct" | "enum" | "union") {
+                            if let Some(n) = caller.t.get(k + 1).filter(|x| is_name(x)) {
+                                tree.declared.push((module.clone(), bare(n).to_owned()));
+                            }
+                        }
+                    }
+                    if declares {
+                        if let Some(n) = first_name_of_a_call(&caller.t, c_open) {
+                            tree.declared.push((module.clone(), n));
+                        }
+                    }
+                    for target in &alias_targets {
+                        for k in c_open + 1..c_close {
+                            if is_name(&caller.t[k]) {
+                                tree.aliases.push((
+                                    module.clone(),
+                                    bare(&caller.t[k]).to_owned(),
+                                    target.clone(),
+                                ));
+                            }
+                        }
+                    }
+                    for target in &glob_targets {
+                        tree.globs.push((module.clone(), target.clone()));
+                    }
+                    for (alias, target) in &literal_aliases {
+                        tree.aliases
+                            .push((module.clone(), alias.clone(), target.clone()));
+                    }
+                }
+            }
+        }
+    }
+    tree
+}
+
+fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Option<Segments> {
+    if depth > 8 || path.is_empty() {
+        return None;
+    }
+    let first = path[0].as_str();
+    if first == "crate" {
+        return Some(path[1..].to_vec());
+    }
+    if first == "$" && path.get(1).is_some_and(|x| x == "crate") {
+        return Some(path[2..].to_vec());
+    }
+    if first == "self" {
+        return Some(
+            module
+                .iter()
+                .cloned()
+                .chain(path[1..].iter().cloned())
+                .collect(),
+        );
+    }
+    if first == "super" {
+        let ups = path.iter().take_while(|p| *p == "super").count();
+        let keep = module.len().checked_sub(ups)?;
+        return Some(
+            module[..keep]
+                .iter()
+                .cloned()
+                .chain(path[ups..].iter().cloned())
+                .collect(),
+        );
+    }
+    if tree.selves.iter().any(|s| s == first) {
+        return Some(path[1..].to_vec());
+    }
+    if tree.modules.iter().any(|(m, n)| m == module && n == first) {
+        return Some(module.iter().cloned().chain(path.iter().cloned()).collect());
+    }
+    let target = tree
+        .aliases
+        .iter()
+        .find(|(m, alias, _)| m == module && alias == first)
+        .map(|(_, _, target)| target.clone())?;
+    let joined: Segments = target
+        .into_iter()
+        .chain(path[1..].iter().cloned())
+        .collect();
+    absolute(tree, module, &joined, depth + 1)
+}
+
+fn place(tree: &Tree, locked: &Locked, module: &[String], path: &[String], depth: usize) -> Place {
+    if depth > 8 || path.is_empty() {
+        return Place::Other;
+    }
+    if path.len() == 1 && path[0] != "$" {
+        return place_name(tree, locked, module, &path[0], depth);
+    }
+    match absolute(tree, module, path, depth) {
+        Some(abs) => place_absolute(tree, locked, &abs, depth),
+        None => Place::Other,
+    }
+}
+
+fn place_absolute(tree: &Tree, locked: &Locked, abs: &[String], depth: usize) -> Place {
+    match abs {
+        [] => Place::Other,
+        [first, ..] if MODULES.contains(&first.as_str()) => Place::Locked,
+        [only] => {
+            if locked.root.contains(only) {
+                Place::Locked
+            } else {
+                Place::Other
+            }
+        }
+        [modules @ .., last] => place_name(tree, locked, modules, last, depth + 1),
+    }
+}
+
+fn place_name(tree: &Tree, locked: &Locked, module: &[String], name: &str, depth: usize) -> Place {
+    if depth > 8 {
+        return Place::Other;
+    }
+    let mut own = false;
+    for (m, alias, target) in &tree.aliases {
+        if m == module
+            && alias == name
+            && target.last().is_none_or(|t| t != name || target.len() > 1)
+        {
+            match place(tree, locked, module, target, depth + 1) {
+                Place::Locked => return Place::Locked,
+                Place::Own => own = true,
+                Place::Other => {}
+            }
+        }
+    }
+    if own || tree.declared.iter().any(|(m, n)| m == module && n == name) {
+        return Place::Own;
+    }
+    for (m, target) in &tree.globs {
+        if m != module {
+            continue;
+        }
+        match absolute(tree, module, target, depth + 1) {
+            Some(abs) if abs.is_empty() => {
+                if locked.root.iter().any(|r| r == name) {
+                    return Place::Locked;
+                }
+            }
+            Some(abs) if MODULES.contains(&abs[0].as_str()) => {
+                if abs.len() == 1 && locked.types.iter().any(|(m, n)| *m == abs[0] && n == name) {
+                    return Place::Locked;
+                }
+            }
+            Some(abs) if place_name(tree, locked, &abs, name, depth + 1) == Place::Locked => {
+                return Place::Locked;
+            }
+            _ => {}
+        }
+    }
+    Place::Other
 }
 
 fn type_position(before: Option<&str>) -> bool {
@@ -921,89 +1415,98 @@ fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
     (generics, self_type.unwrap_or(path))
 }
 
-fn own_type_name(self_type: &[String]) -> Option<String> {
-    let name = self_type.first().filter(|x| is_name(x))?;
-    if self_type.len() == 1 {
-        return Some(bare(name).to_owned());
-    }
-    if self_type[1] != "<" || self_type.last().is_none_or(|x| x != ">") {
-        return None;
-    }
-    let mut depth = 0i32;
-    for (k, x) in self_type.iter().enumerate().skip(1) {
-        match x.as_str() {
-            "<" => depth += 1,
-            ">" if self_type[k - 1] != "-" => depth -= 1,
-            _ => {}
-        }
-        if depth == 0 && k + 1 != self_type.len() {
-            return None;
-        }
-    }
-    Some(bare(name).to_owned())
-}
-
-fn impl_faults(file: &str, t: &[String], named: &[String], locked: &[String]) -> Vec<String> {
-    let inside = in_an_attribute_or_a_macro(t);
-    let paths = module_paths(t, &inside);
-    let declared: Vec<(String, String)> = (0..t.len())
-        .filter(|&i| !inside[i] && matches!(t[i].as_str(), "struct" | "enum" | "union"))
-        .filter_map(|i| {
-            let name = t.get(i + 1).filter(|x| is_name(x))?;
-            Some((paths[i].clone(), bare(name).to_owned()))
-        })
-        .collect();
+fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
     let mut faults = Vec::new();
-    for (i, token) in t.iter().enumerate() {
-        if inside[i] {
-            if matches!(token.as_str(), "impl" | "use" | "type") {
-                faults.push(format!("{file} holds {token} in an attribute or a macro"));
+    for l in lexed {
+        let t = &l.t;
+        for i in 0..t.len() {
+            if t[i] != "impl"
+                || l.matcher[i]
+                || type_position(i.checked_sub(1).map(|j| t[j].as_str()))
+            {
+                continue;
             }
-            continue;
-        }
-        if token != "impl" || type_position(i.checked_sub(1).map(|j| t[j].as_str())) {
-            continue;
-        }
-        let (generics, self_type) = impl_header(t, i);
-        let own = own_type_name(&self_type).filter(|name| {
-            !generics.contains(name)
-                && declared.contains(&(paths[i].clone(), name.clone()))
-                && !named.contains(name)
-                && !locked.contains(name)
-        });
-        if own.is_none() {
-            faults.push(format!(
-                "{file} holds an impl for `{}`, which is no struct, enum or union of its own module",
-                self_type.join(" ")
-            ));
+            let (generics, self_type) = impl_header(t, i);
+            let path = type_path(&self_type);
+            let shown = self_type.join(" ");
+            if path.len() == 1 && generics.contains(&path[0]) {
+                continue;
+            }
+            if let Some((name, open, close)) = l.body_of(i) {
+                if path.first().is_some_and(|p| p == "$")
+                    && path.get(1).is_some_and(|p| p != "crate")
+                {
+                    let fragment = &path[1];
+                    let body = &t[*open..*close];
+                    let declared = (0..body.len()).any(|k| {
+                        matches!(body[k].as_str(), "struct" | "enum" | "union" | "type")
+                            && body.get(k + 1).is_some_and(|x| x == "$")
+                            && body.get(k + 2).is_some_and(|x| x == fragment)
+                    });
+                    if declared {
+                        continue;
+                    }
+                    for caller in lexed {
+                        for (module, c_open, c_close) in caller.calls(name) {
+                            for argument in arguments_of(&caller.t, c_open, c_close) {
+                                if place(tree, locked, &module, &argument, 0) == Place::Locked {
+                                    faults.push(format!(
+                                        "{} passes `{}` to the macro {name} of {}, which implements its argument, and it is a type of a locked module",
+                                        caller.file,
+                                        argument.join("::"),
+                                        l.file
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                }
+            }
+            if place(tree, locked, &l.paths[i], &path, 0) == Place::Locked {
+                faults.push(format!(
+                    "{} holds an impl for `{shown}`, which is a type of a locked module",
+                    l.file
+                ));
+            }
         }
     }
     faults
 }
 
 fn outside_the_lock_faults(files: &[(String, String)]) -> Vec<String> {
-    let locked = locked_names();
+    let locked = locked_types();
     let mut faults = Vec::new();
     let mut lexed = Vec::new();
     for (file, text) in files {
         match lex(text) {
-            Ok(t) => lexed.push((file, t)),
+            Ok(t) => {
+                faults.extend(reach_faults(file, &t));
+                faults.extend(
+                    t.iter()
+                        .filter(|token| is_ident(token) && bare(token) == "macro_export")
+                        .map(|_| format!("{file} holds macro_export")),
+                );
+                if file.starts_with("bin/") {
+                    continue;
+                }
+                let inside = in_an_attribute_or_a_macro(&t);
+                let matcher = in_a_matcher(&t);
+                let paths = module_paths(&t, &inside, &module_of(file));
+                let bodies = macro_bodies(&t);
+                lexed.push(Lexed {
+                    file: file.clone(),
+                    t,
+                    matcher,
+                    paths,
+                    bodies,
+                });
+            }
             Err(cause) => faults.push(unread(file, &cause)),
         }
     }
-    let named: Vec<String> = lexed
-        .iter()
-        .flat_map(|(_, t)| named_by_use_or_type(t, &in_an_attribute_or_a_macro(t)))
-        .collect();
-    for (file, t) in &lexed {
-        faults.extend(reach_faults(file, t));
-        faults.extend(
-            t.iter()
-                .filter(|token| is_ident(token) && bare(token) == "macro_export")
-                .map(|_| format!("{file} holds macro_export")),
-        );
-        faults.extend(impl_faults(file, t, &named, &locked));
-    }
+    let tree = build_tree(&lexed);
+    faults.extend(impl_faults(&lexed, &tree, &locked));
     faults
 }
 
@@ -1271,81 +1774,128 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
 
 #[test]
 fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
-    let own = "pub struct LaterNote(u32);\n";
+    let cases = [
+        (
+            "crate::kinds::KindEntry",
+            "kinds",
+            "KindEntry",
+            "impl @ {\n    pub(crate) fn later_says_ok(&self) -> bool {\n        true\n    }\n}\n",
+        ),
+        (
+            "crate::kinds::KindEntry",
+            "kinds",
+            "KindEntry",
+            "impl<T: AsRef<str>> PartialEq<T> for @ {\n    fn eq(&self, other: &T) -> bool {\n        self.family == other.as_ref()\n    }\n}\n",
+        ),
+        (
+            "crate::site::AppId",
+            "site",
+            "AppId",
+            "impl @ {\n    pub(crate) const LATER_MAX: usize = 4096;\n}\n",
+        ),
+        (
+            "crate::record::TypedRecord",
+            "record",
+            "TypedRecord",
+            "impl std::fmt::Display for @ {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.write_str(&self.json)\n    }\n}\n",
+        ),
+    ];
+    for (path, module, name, body) in cases {
+        let forms = [
+            body.replace('@', path),
+            format!("use {path} as LaterAlias;\n{}", body.replace('@', "LaterAlias")),
+            format!("use crate::{module}::*;\n{}", body.replace('@', name)),
+            format!("pub type LaterAlias = {path};\n{}", body.replace('@', "LaterAlias")),
+            format!(
+                "macro_rules! give {{\n    ($t:ty) => {{\n        {}\n    }};\n}}\ngive!({path});\n",
+                body.replace('@', "$t")
+            ),
+        ];
+        for text in forms {
+            let faults = later_faults("learning.rs", &text);
+            assert!(
+                faults
+                    .iter()
+                    .any(|f| f.ends_with("a type of a locked module")),
+                "{text}: {faults:?}"
+            );
+        }
+    }
     for text in [
-        "impl crate::kinds::KindEntry {\n    pub(crate) fn later_says_ok(&self) -> bool {\n        self.family == \"never\"\n    }\n}\n",
-        "impl<T: AsRef<str>> PartialEq<T> for crate::kinds::KindEntry {\n    fn eq(&self, other: &T) -> bool {\n        self.family == other.as_ref()\n    }\n}\n",
-        "impl crate::site::AppId {\n    pub(crate) const LATER_MAX: usize = 4096;\n}\n",
-        "impl std::fmt::Display for crate::record::TypedRecord {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.write_str(&self.json)\n    }\n}\n",
-        "use crate::record::TypedRecord;\nimpl std::fmt::Display for TypedRecord {\n    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        Ok(())\n    }\n}\n",
-        "use crate::kinds::KindEntry as LaterNote;\nimpl LaterNote {}\n",
-        "pub type LaterAlias = crate::kinds::KindEntry;\nimpl LaterAlias {}\n",
-        "pub struct LaterNote;\nmod inner {\n    use crate::kinds::KindEntry as LaterNote;\n    impl LaterNote {}\n}\n",
-        "pub struct LaterNote;\npub fn f() {\n    use crate::kinds::KindEntry as LaterNote;\n    impl LaterNote {}\n}\n",
-        "pub struct KindEntry;\npub fn f() {\n    use crate::kinds::*;\n    impl KindEntry {}\n}\n",
-        "pub trait LaterTrait {}\nimpl<T> LaterTrait for T {}\n",
-        "pub trait LaterTrait {}\npub struct LaterNote;\nimpl<LaterNote> LaterTrait for LaterNote {}\n",
-        "impl dyn crate::kinds::Coarse {\n    pub fn later(&self) {}\n}\n",
-        "pub trait LaterTrait {}\nimpl LaterTrait for &crate::kinds::KindEntry {}\n",
-        "pub trait LaterTrait {}\nimpl LaterTrait for Box<crate::kinds::KindEntry> {}\n",
+        "use crate::{kinds::KindEntry};\nimpl KindEntry {}\n",
+        "use crate::kinds as k;\nimpl k::KindEntry {}\n",
+        "use crate::kinds::{self};\nimpl kinds::KindEntry {}\n",
+        "impl super::kinds::KindEntry {}\n",
         "extern crate self as me;\nimpl me::kinds::KindEntry {}\n",
-        "pub struct LaterNote;\nimpl self::LaterNote {}\n",
-        "pub struct LaterNote;\nunsafe impl Send for crate::kinds::KindEntry {}\n",
-        "#[doc = \"x\"]\nimpl crate::kinds::KindEntry {}\n",
+        "impl std::fmt::Display for crate::TypedRecord {\n    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        Ok(())\n    }\n}\n",
+        "pub trait LaterTrait {}\nimpl LaterTrait for &crate::record::TypedRecord {}\n",
+        "pub trait LaterTrait {}\nimpl LaterTrait for Box<crate::record::TypedRecord> {}\n",
+        "impl dyn crate::kinds::Coarse {\n    pub fn later(&self) {}\n}\n",
+        "pub struct KindEntry;\npub fn f() {\n    use crate::kinds::KindEntry;\n    impl KindEntry {}\n}\n",
+        "macro_rules! name_it {\n    ($n:ident) => {\n        use crate::kinds::KindEntry as $n;\n    };\n}\nname_it!(LaterAlias);\nimpl LaterAlias {}\n",
+        "macro_rules! open_kinds {\n    () => {\n        use $crate::kinds::*;\n    };\n}\nopen_kinds!();\nimpl KindEntry {}\n",
+        "macro_rules! alias_it {\n    () => {\n        type LaterAlias = crate::kinds::KindEntry;\n    };\n}\nalias_it!();\nimpl LaterAlias {}\n",
+        "macro_rules! own_impl {\n    () => {\n        impl $crate::kinds::KindEntry {}\n    };\n}\nown_impl!();\n",
+        "macro_rules! pass {\n    ($($t:tt)*) => {\n        $($t)*\n    };\n}\npass! {\n    impl crate::kinds::KindEntry {}\n}\n",
+        "use crate::kinds::KindEntry;\nmacro_rules! give {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\ngive!(KindEntry);\n",
     ] {
-        let faults = later_faults("learning.rs", &format!("{own}{text}"));
+        let faults = later_faults("learning.rs", text);
         assert!(
-            faults.iter().any(|f| f.starts_with("learning.rs holds an impl for")),
+            faults.iter().any(|f| f.ends_with("a type of a locked module")),
             "{text}: {faults:?}"
         );
     }
-    for (text, fault) in [
+    let across = |more: &str, learning: &str| {
+        outside_the_lock_faults(&[
+            (
+                "learning.rs".to_owned(),
+                format!("pub mod more;\n{learning}"),
+            ),
+            ("learning/more.rs".to_owned(), more.to_owned()),
+        ])
+    };
+    for (more, learning) in [
         (
-            "macro_rules! m {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\nm!(crate::kinds::KindEntry);\n",
-            "learning.rs holds impl in an attribute or a macro",
+            "pub use crate::kinds::KindEntry;\n",
+            "use self::more::*;\nimpl KindEntry {}\n",
         ),
         (
-            "macro_rules! m {\n    ($n:ident) => {\n        use crate::kinds::KindEntry as $n;\n    };\n}\nm!(LaterNote);\n",
-            "learning.rs holds use in an attribute or a macro",
+            "pub type Entry = crate::kinds::KindEntry;\n",
+            "use self::more::Entry;\nimpl Entry {}\n",
         ),
-        (
-            "macro_rules! m {\n    ($n:ident) => {\n        pub type $n = crate::kinds::KindEntry;\n    };\n}\nm!(LaterNote);\n",
-            "learning.rs holds type in an attribute or a macro",
-        ),
+        ("pub use crate::kinds::*;\n", "impl more::KindEntry {}\n"),
+        ("impl super::super::kinds::KindEntry {}\n", ""),
     ] {
-        let faults = later_faults("learning.rs", &format!("{own}{text}"));
-        assert!(faults.iter().any(|f| f == fault), "{text}: {faults:?}");
+        let faults = across(more, learning);
+        assert!(
+            faults
+                .iter()
+                .any(|f| f.ends_with("a type of a locked module")),
+            "{more} {learning}: {faults:?}"
+        );
     }
-    let across = outside_the_lock_faults(&[
-        (
-            "learning.rs".to_owned(),
-            "pub struct LaterTwin;\npub mod more;\npub fn f() {\n    use self::more::*;\n    impl LaterTwin {}\n}\n".to_owned(),
-        ),
-        (
-            "learning/more.rs".to_owned(),
-            "pub use crate::kinds::KindEntry as LaterTwin;\n".to_owned(),
-        ),
-    ]);
-    assert!(
-        across
-            .iter()
-            .any(|f| f.starts_with("learning.rs holds an impl for `LaterTwin`")),
-        "{across:?}"
-    );
     for twin in [
-        "pub struct LaterNote(u32);\nimpl LaterNote {\n    pub fn new() -> Self {\n        LaterNote(0)\n    }\n}\nimpl std::fmt::Display for LaterNote {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        write!(f, \"{}\", self.0)\n    }\n}\nimpl<'a> From<&'a str> for LaterNote {\n    fn from(s: &'a str) -> Self {\n        LaterNote(s.len() as u32)\n    }\n}\n",
-        "pub enum LaterMood {\n    Calm,\n}\nimpl Default for LaterMood {\n    fn default() -> Self {\n        LaterMood::Calm\n    }\n}\n",
-        "pub struct LaterWrap<T>(T);\nimpl<T: Clone> LaterWrap<T> {\n    pub fn get(&self) -> T {\n        self.0.clone()\n    }\n}\n",
-        "pub fn f() -> impl Iterator<Item = u8> {\n    0..3\n}\npub fn g(x: impl AsRef<str>) -> usize {\n    x.as_ref().len()\n}\npub fn h(x: &impl AsRef<str>, y: Box<impl AsRef<str>>) -> usize {\n    x.as_ref().len() + y.as_ref().as_ref().len()\n}\n",
-        "pub mod inner {\n    pub struct LaterInner;\n    impl LaterInner {}\n}\n",
+        "pub trait FromJson {}\nimpl FromJson for u32 {}\nimpl FromJson for std::num::NonZeroU32 {}\nuse std::num::NonZeroU64;\nimpl FromJson for NonZeroU64 {}\nimpl<T: FromJson> FromJson for Vec<T> {}\nimpl<T: FromJson> FromJson for Option<T> {}\n",
+        "pub trait LaterTrait {}\nimpl<T> LaterTrait for T {}\nimpl<KindEntry> LaterTrait for Box<KindEntry> {}\n",
+        "pub struct OwnText(String);\nimpl OwnText {\n    pub fn get(&self) -> &str {\n        &self.0\n    }\n}\npub struct Category;\nimpl Category {}\n",
+        "macro_rules! names {\n    ($(#[$m:meta])* pub enum $name:ident { $($v:ident = $s:literal),+ $(,)? }) => {\n        $(#[$m])*\n        pub enum $name { $($v),+ }\n        impl $name {\n            pub fn all() -> usize {\n                0\n            }\n        }\n        impl std::fmt::Display for $name {\n            fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n                Ok(())\n            }\n        }\n    };\n}\nnames! {\n    pub enum Mood {\n        Calm = \"calm\",\n    }\n}\n",
+        "macro_rules! with_fmt {\n    () => {\n        use std::fmt;\n    };\n}\nwith_fmt!();\n",
+        "pub struct LaterNote;\nmacro_rules! give {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\ngive!(LaterNote);\n",
         "pub struct LaterBody {\n    pub n: u32,\n}\nimpl crate::request::RunnerBody for LaterBody {\n    type Reply = u32;\n}\n",
-        "pub struct LaterNote;\n#[doc = \"x\"]\nimpl LaterNote {}\n",
+        "pub fn f() -> impl Iterator<Item = u8> {\n    0..3\n}\npub fn g(x: impl AsRef<str>) -> usize {\n    x.as_ref().len()\n}\n",
     ] {
         assert_eq!(
             later_faults("learning.rs", twin),
             Vec::<String>::new(),
             "{twin}"
         );
+    }
+    for (more, learning) in [
+        ("pub struct OwnText;\n", "pub trait FromJson {}\nuse self::more::OwnText;\nimpl FromJson for OwnText {}\n"),
+        ("pub struct OwnText;\n", "pub trait FromJson {}\nuse self::more::*;\nimpl FromJson for OwnText {}\n"),
+        ("pub enum Cause {\n    Late,\n}\n", "pub trait FromJson {}\nuse crate::learning::more::{self, Cause};\nimpl FromJson for Cause {}\nimpl FromJson for more::Cause {}\n"),
+    ] {
+        assert_eq!(across(more, learning), Vec::<String>::new(), "{more} {learning}");
     }
 }
 
