@@ -1,0 +1,337 @@
+use super::*;
+use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
+use crate::types::*;
+
+fn id<T>(parse: fn(&str) -> Result<T, Cause>, n: u8) -> T {
+    let mut b = [0u8; 16];
+    b[15] = n;
+    parse(&hex(b)).unwrap()
+}
+
+const BILL: &str = "{\"v\":1,\"workflow\":\"00000000000000000000000000000001\",\"agent\":\"00000000000000000000000000000002\",\"rev\":1,\"category\":\"utility_bill_payment\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"yes\"},\"limits\":{\"steps\":20,\"wall_s\":120,\"model_tokens\":0},\"budget\":null,\"permissions\":[],\"runtime\":\"web\",\"playbook\":null}";
+
+#[test]
+fn config_reads_the_record_of_a_a2_1_behind_config_view() {
+    let c = Config::parse(BILL).unwrap();
+    assert_eq!(c.tier(), Tier::OnDevice);
+    assert_eq!(c.reasoning(), Reasoning::Medium);
+    assert_eq!(c.autonomy(), Autonomy::DraftAndConfirm);
+    assert!(c.allow_is_empty());
+    assert!(c.caps_external());
+    assert_eq!(c.wall_s(), 120);
+    assert_eq!(c.model_tokens(), 0);
+    assert_eq!(c.budget(), None);
+    assert!(c.permissions().is_empty());
+    assert_eq!(c.runtime(), Runtime::Web);
+    assert_eq!(c.playbook(), None);
+    assert_eq!(c.rev(), 1);
+    assert_eq!(c.category, Category::UtilityBillPayment);
+    assert_eq!(c.workflow, id(WorkflowId::parse, 1));
+    assert_eq!(c.agent, id(AgentId::parse, 2));
+
+    let fill = BILL
+        .replace("\"external\":\"yes\"", "\"external\":\"no\"")
+        .replace("\"permissions\":[]", "\"permissions\":[\"user_files\"]")
+        .replace(
+            "\"budget\":null",
+            "\"budget\":{\"amount\":500,\"period\":\"month\"}",
+        )
+        .replace("\"allow\":[]", "\"allow\":[\"send\"]")
+        .replace("\"playbook\":null", "\"playbook\":3");
+    let c = Config::parse(&fill).unwrap();
+    assert!(!c.caps_external());
+    assert!(!c.allow_is_empty());
+    assert_eq!(c.permissions(), vec![Permission::UserFiles]);
+    assert_eq!(
+        c.budget(),
+        Some(Budget {
+            amount: 500,
+            period: Period::Month
+        })
+    );
+    assert_eq!(c.playbook(), Some(3));
+}
+
+#[test]
+fn config_refuses_every_other_shape() {
+    let bad = [
+        String::new(),
+        "[]".to_owned(),
+        BILL.replace("\"v\":1", "\"v\":2"),
+        BILL.replace("\"tier\":\"on_device\"", "\"tier\":\"gpt\""),
+        BILL.replace(",\"playbook\":null", ""),
+        BILL.replace("}", ",\"extra\":1}"),
+        BILL.replace("\"allow\":[]", "\"allow\":[\"payment\"]"),
+        BILL.replace("\"caps\":{", "\"caps\":{\"other\":\"yes\","),
+        BILL.replace("\"external\":\"yes\"", "\"external\":true"),
+        BILL.replace("\"wall_s\":120", "\"wall_s\":-1"),
+        BILL.replace("\"budget\":null", "\"budget\":{\"amount\":500}"),
+        BILL.replace("\"permissions\":[]", "\"permissions\":[\"camera\"]"),
+        BILL.replace(
+            "\"agent\":\"00000000000000000000000000000002\"",
+            "\"agent\":\"2\"",
+        ),
+    ];
+    for text in bad {
+        assert_eq!(Config::parse(&text).err(), Some(Cause::Malformed), "{text}");
+    }
+}
+
+#[test]
+fn rng_counts_up_from_one() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let first = p.bytes16().unwrap();
+    assert_eq!(hex(first), "00000000000000000000000000000001");
+    assert_eq!(
+        hex(p.bytes16().unwrap()),
+        "00000000000000000000000000000002"
+    );
+}
+
+#[test]
+fn clock_gives_what_the_test_set() {
+    let p: Ports<Config> = Ports::new(1_793_707_200_000, 20_760);
+    assert_eq!(p.now(), Ok(1_793_707_200_000));
+    assert_eq!(p.today(), Ok(20_760));
+    p.set_clock(1_793_707_205_000, 20_760);
+    assert_eq!(p.now(), Ok(1_793_707_205_000));
+}
+
+fn spec() -> RunSpec {
+    RunSpec {
+        run: id(RunId::parse, 9),
+        agent: id(AgentId::parse, 2),
+        workflow: id(WorkflowId::parse, 1),
+        mode: Mode::Compile,
+        headed: true,
+    }
+}
+
+fn answers() -> Vec<Answer> {
+    let digest = Digest::parse(&"d".repeat(64)).unwrap();
+    vec![
+        Answer {
+            effect: id(EffectId::parse, 5),
+            digest: digest.clone(),
+            answer: EffectAnswer::AllowOnce,
+        },
+        Answer {
+            effect: id(EffectId::parse, 6),
+            digest,
+            answer: EffectAnswer::AllowOnce,
+        },
+    ]
+}
+
+#[test]
+fn runs_records_each_call_with_the_clock_time() {
+    let p: Ports<Config> = Ports::new(1000, 1);
+    p.start(&spec()).unwrap();
+    p.set_clock(6000, 1);
+    p.cancel(&spec().run).unwrap();
+    p.kill(&spec().run).unwrap();
+    assert_eq!(p.reap(), Ok(0));
+    p.answer_handback(&spec().run, HandbackResult::Done)
+        .unwrap();
+    let calls = p.calls.borrow();
+    let at: Vec<u64> = calls.iter().map(|c| c.at).collect();
+    assert_eq!(at, vec![1000, 6000, 6000, 6000, 6000]);
+    assert!(matches!(calls[0].call, Call::Start(ref s) if s == &spec()));
+    assert!(matches!(calls[1].call, Call::Cancel(_)));
+    assert!(matches!(calls[2].call, Call::Kill(_)));
+    assert!(matches!(calls[3].call, Call::Reap));
+    assert!(matches!(
+        calls[4].call,
+        Call::AnswerHandback(_, HandbackResult::Done)
+    ));
+}
+
+#[test]
+fn answer_confirm_sends_the_decision_only_after_record_returned_success() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let mut seen = Vec::new();
+    p.answer_confirm(&spec().run, &answers(), &mut |d: &Decision| {
+        seen.push(d.clone());
+        p.log(&[]).map(|_| ())
+    })
+    .unwrap();
+    assert_eq!(seen.len(), 1);
+    let sent = p.sent_decisions();
+    assert_eq!(sent, seen);
+    let ids: Vec<&str> = sent[0]
+        .approvals
+        .iter()
+        .map(|e| e.approval.as_str())
+        .collect();
+    assert_eq!(
+        ids,
+        vec![
+            "00000000000000000000000000000001",
+            "00000000000000000000000000000002"
+        ]
+    );
+    assert!(sent[0]
+        .approvals
+        .iter()
+        .all(|e| e.answer == EffectAnswer::AllowOnce));
+    let order: Vec<&str> = p.calls.borrow().iter().map(|c| c.call.method()).collect();
+    assert_eq!(order, vec!["log", "answer_confirm"]);
+}
+
+#[test]
+fn answer_confirm_sends_reject_once_under_new_ids_when_record_fails() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let mut handed = Vec::new();
+    p.answer_confirm(&spec().run, &answers(), &mut |d: &Decision| {
+        handed.push(d.clone());
+        Err(PortError::NoService)
+    })
+    .unwrap();
+    let sent = p.sent_decisions();
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0]
+        .approvals
+        .iter()
+        .all(|e| e.answer == EffectAnswer::RejectOnce));
+    for e in &sent[0].approvals {
+        assert!(handed[0].approvals.iter().all(|h| h.approval != e.approval));
+    }
+    let effects: Vec<EffectId> = sent[0].approvals.iter().map(|e| e.effect.clone()).collect();
+    let asked: Vec<EffectId> = answers().into_iter().map(|a| a.effect).collect();
+    assert_eq!(effects, asked);
+}
+
+#[test]
+fn a_refusal_set_by_the_test_answers_that_method() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    p.refuse(Method::Log, PortError::NoService);
+    p.refuse(
+        Method::Send,
+        PortError::Refused(Name::parse("playbook").unwrap()),
+    );
+    assert_eq!(p.log(&[]), Err(PortError::NoService));
+    let body = Body::SetState {
+        workflow: id(WorkflowId::parse, 1),
+        agent: id(AgentId::parse, 2),
+        state: AgentState::Active,
+    };
+    assert_eq!(
+        p.send(&body),
+        Err(PortError::Refused(Name::parse("playbook").unwrap()))
+    );
+    p.clear_refusals();
+    assert!(p.log(&[]).is_ok());
+    assert_eq!(
+        p.send(&body).unwrap(),
+        serde_json::json!({"state": "active"})
+    );
+}
+
+#[test]
+fn owner_answers_each_body_as_a_a7_2_says() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let (w, a) = (id(WorkflowId::parse, 1), id(AgentId::parse, 2));
+    let create = Body::CreateAgent {
+        workflow: w.clone(),
+        agent: a.clone(),
+    };
+    let bind = Body::SetBindings {
+        workflow: w.clone(),
+        agent: a.clone(),
+        origins: vec![Origin::parse("https://site1.example:443").unwrap()],
+        slots: vec![Slot {
+            name: Name::parse("payee").unwrap(),
+            value: vec!["City Power".to_owned()],
+        }],
+    };
+    let start = Body::StartRun {
+        workflow: w,
+        agent: a,
+        run: id(RunId::parse, 9),
+        mode: Mode::Replay,
+    };
+    assert_eq!(p.send(&create).unwrap(), serde_json::json!({"rev": 1}));
+    assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 2}));
+    assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 3}));
+    assert_eq!(p.send(&start).unwrap(), serde_json::json!({"ok": "yes"}));
+}
+
+fn event(seq: u32, agent: u8) -> Event {
+    Event {
+        workflow: id(WorkflowId::parse, agent - 1),
+        agent: id(AgentId::parse, agent),
+        seq,
+        day: 1,
+        at: 1_000_000,
+        what: What::SlotSkipped { slot: None },
+    }
+}
+
+#[test]
+fn history_gives_the_logged_events_of_an_agent_above_a_seq() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    p.log(&[event(1, 2), event(1, 4), event(2, 2), event(3, 2)])
+        .unwrap();
+    let h = p.history(&id(AgentId::parse, 2), 1).unwrap();
+    assert_eq!(h.iter().map(|e| e.seq).collect::<Vec<_>>(), vec![2, 3]);
+    assert_eq!(p.history(&id(AgentId::parse, 4), 0).unwrap().len(), 1);
+}
+
+#[test]
+fn owner_lists_what_the_test_put_in() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    let w = FullWorkflow {
+        id: id(WorkflowId::parse, 1),
+        state: WorkflowState::Approved,
+        category: Category::Email,
+        site: Some("site5.example".to_owned()),
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: 20_700,
+        agent: None,
+    };
+    p.workflows.borrow_mut().push(Workflow::Full(w.clone()));
+    p.workflows
+        .borrow_mut()
+        .push(Workflow::Dismissed(DismissedWorkflow {
+            id: id(WorkflowId::parse, 3),
+            category: Category::Email,
+            site: None,
+        }));
+    let listed = p.workflows().unwrap();
+    assert_eq!(listed.len(), 2);
+    assert_eq!(listed[0], Workflow::Full(w));
+    assert_eq!(listed[1].id(), &id(WorkflowId::parse, 3));
+    p.agents.borrow_mut().push(Agent {
+        workflow: id(WorkflowId::parse, 1),
+        agent: id(AgentId::parse, 2),
+        config: Config::parse(BILL).unwrap(),
+        state: AgentState::Approved,
+        slots: vec![],
+        session: false,
+        last: None,
+        unknown: vec![],
+    });
+    assert_eq!(p.agents().unwrap().len(), 1);
+}
+
+#[test]
+fn analysis_tray_and_page_are_recorded() {
+    let p: Ports<Config> = Ports::new(7, 0);
+    p.defer(1234).unwrap();
+    p.attention(2).unwrap();
+    p.changed().unwrap();
+    let order: Vec<&str> = p.calls.borrow().iter().map(|c| c.call.method()).collect();
+    assert_eq!(order, vec!["defer", "attention", "changed"]);
+    assert!(matches!(p.calls.borrow()[0].call, Call::Defer(1234)));
+    assert!(matches!(p.calls.borrow()[1].call, Call::Attention(2)));
+}
+
+#[test]
+fn run_events_hold_an_outcome_or_none() {
+    let ended = RunEvent::Ended(Some(Outcome::Completed));
+    let gone = RunEvent::Ended(None);
+    assert_ne!(ended, gone);
+    let progress = RunEvent::Progress { step: 1, of: 3 };
+    assert!(matches!(progress, RunEvent::Progress { step: 1, of: 3 }));
+}

@@ -1,0 +1,169 @@
+use super::{AgentId, AgentState, Choice, DecisionEntry, HoldSetCause, ItemId, ItemKind};
+use super::{LapseCause, Mode, Name, Origin, RunEnd, RunId, Trigger, WorkflowId};
+
+/// A record `coord_event` of I7.1: the first seven keys and the event with its own keys.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Event {
+    /// `workflow`.
+    pub workflow: WorkflowId,
+    /// `agent`.
+    pub agent: AgentId,
+    /// `seq`: rises by 1 per agent, from 1.
+    pub seq: u32,
+    /// `day`: days since 1970-01-01.
+    pub day: u32,
+    /// `at`: nanoseconds since 1970-01-01T00:00:00Z, `Clock::now()` times 1,000,000.
+    pub at: i64,
+    /// `event` and the keys that it sets.
+    pub what: What,
+}
+
+/// The events of I7.1 with the keys that each sets; every other key is null.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum What {
+    /// `run_started`.
+    RunStarted {
+        /// `run`.
+        run: RunId,
+        /// `trigger`.
+        trigger: Trigger,
+        /// `slot`: the day of the slot, or null.
+        slot: Option<u32>,
+    },
+    /// `run_ended`.
+    RunEnded {
+        /// `run`.
+        run: RunId,
+        /// `cause`: the end of I5.6.
+        cause: RunEnd,
+    },
+    /// `item_raised`.
+    ItemRaised {
+        /// `item`.
+        item: ItemId,
+        /// `kind`.
+        kind: ItemKind,
+        /// `run`, or null for an item that a hold or the scheduler raised.
+        run: Option<RunId>,
+    },
+    /// `item_answered`: one row per answer, and for a confirmation one row per effect.
+    ItemAnswered {
+        /// `item`.
+        item: ItemId,
+        /// `kind`.
+        kind: ItemKind,
+        /// `answer`, with the effect's keys for a confirmation.
+        answer: Answered,
+    },
+    /// `item_lapsed`.
+    ItemLapsed {
+        /// `item`.
+        item: ItemId,
+        /// `kind`.
+        kind: ItemKind,
+        /// `cause`.
+        cause: LapseCause,
+    },
+    /// `item_released`: one row per entry of the released decision, kind `confirm`.
+    ItemReleased {
+        /// `item`.
+        item: ItemId,
+        /// `effect`, `approval`, `digest` and `answer`.
+        entry: DecisionEntry,
+    },
+    /// `hold_set`.
+    HoldSet {
+        /// `cause`: the hold that was set.
+        cause: HoldSetCause,
+    },
+    /// `hold_cleared`.
+    HoldCleared {
+        /// `cause`: the hold that ended, with `run` and `answer` for `check`.
+        cause: Cleared,
+    },
+    /// `slot_skipped`.
+    SlotSkipped {
+        /// `slot`: the day of the slot, or null.
+        slot: Option<u32>,
+    },
+}
+
+/// The answer of an `item_answered` row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Answered {
+    /// The choice of an item that is no confirmation.
+    Choice(Choice),
+    /// The entry of one effect of a confirmation: `effect`, `approval`, `digest` and `answer`.
+    Effect(DecisionEntry),
+}
+
+/// The cause of a `hold_cleared` event: the hold that ended (I5.4, I7.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Cleared {
+    /// `person`: the hold `off` ended.
+    Person,
+    /// `failures`: the hold `failures` ended.
+    Failures,
+    /// `check`: the hold `check` of a run ended by the person's answer.
+    Check {
+        /// `run`.
+        run: RunId,
+        /// `answer`: `try_again` or `went_through`.
+        answer: Choice,
+    },
+}
+
+/// A coordinator body of A-A7.2 that `Owner::send` carries (I5.10).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Body {
+    /// `create_agent`.
+    CreateAgent {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+    },
+    /// `set_bindings`.
+    SetBindings {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+        /// `origins`.
+        origins: Vec<Origin>,
+        /// `slots`.
+        slots: Vec<Slot>,
+    },
+    /// `set_state`.
+    SetState {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+        /// `state`.
+        state: AgentState,
+    },
+    /// `start_run`.
+    StartRun {
+        /// `workflow`.
+        workflow: WorkflowId,
+        /// `agent`.
+        agent: AgentId,
+        /// `run`.
+        run: RunId,
+        /// `mode`.
+        mode: Mode,
+    },
+}
+
+/// A slot of `set_bindings`: its name and its value in pieces (A-A7.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Slot {
+    /// `name`.
+    pub name: Name,
+    /// `value`.
+    pub value: Vec<String>,
+}
+
+/// The JSON value of a reply of the owner that is no error (I5.10).
+pub type Reply = serde_json::Value;
