@@ -573,8 +573,8 @@ want() {
     udp) printf '%s\n' 'udp 192.0.2.1:9 egress-probe' ;;
     icmp) printf '%s\n' 'icmp * egress-probe' ;;
     resolver) printf '%s\n' 'dns * nscurl' ;;
-    open) printf '%s\n' '- * open' ;;
-    session) printf '%s\n' '- * nscurl' ;;
+    open) printf '%s\n' '- -:- open' ;;
+    session) printf '%s\n' '- -:- nscurl' ;;
     loopback2) printf '%s\n' 'tcp 127.0.0.1:47202 egress-probe' ;;
   esac
 }
