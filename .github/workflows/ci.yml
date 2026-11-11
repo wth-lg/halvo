@@ -130,7 +130,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set -u
+          set +e -u
           cargo build --locked -p halvo-cap --bins
           cargo build --manifest-path scratch-probes/verprobe/Cargo.toml
           MP=target/debug/measure-peak.exe
@@ -145,6 +145,8 @@ jobs:
           probe mapfile --limit 67108864 --runs 1 -- "$PR" mapfile 134217728 2000 "$TMPW\\map.bin"
           probe breakaway --limit 67108864 --runs 1 -- "$PR" breakaway 134217728 2000 "$TMPW\\breakaway.log"
           probe wmi --limit 67108864 --runs 1 -- "$PR" wmi 134217728 3000 "$TMPW\\outside.log"
+          probe schtasks --limit 67108864 --runs 1 -- "$PR" schtasks 134217728 3000 "$TMPW\\outside-task.log"
+          probe two-processes-one-over --limit 67108864 --runs 1 -- "$PR" two 201326592 2000
           echo "== mutant: the memory-limit message of the Job is dropped"
           git worktree add --detach "$TMPU/mut" HEAD
           sed -i 's/JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => reported = true,/JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => {}/' "$TMPU/mut/crates/halvo-cap/src/windows.rs"

@@ -126,7 +126,26 @@ mod win {
         (total, false)
     }
 
-    fn mapped(file: Handle, bytes: usize, out: &mut Out) -> bool {
+    // After the hold: reads every page of the view again and counts those that still hold
+    // what was written.
+    fn mapped_and_held(file: Handle, bytes: usize, hold: Duration, out: &mut Out) -> bool {
+        let Some(view) = mapped(file, bytes, out) else {
+            return false;
+        };
+        std::thread::sleep(hold);
+        let mut kept = 0usize;
+        let mut offset = 0;
+        while offset < bytes {
+            if unsafe { view.add(offset).read_volatile() } == (offset / PAGE % 251 + 1) as u8 {
+                kept += 1;
+            }
+            offset += PAGE;
+        }
+        out.line(format!("pages that still hold their data={kept} of {}", bytes / PAGE));
+        true
+    }
+
+    fn mapped(file: Handle, bytes: usize, out: &mut Out) -> Option<*mut u8> {
         let mapping = unsafe {
             CreateFileMappingW(
                 file,
@@ -139,16 +158,16 @@ mod win {
         };
         if mapping.is_null() {
             out.line(format!("CreateFileMappingW refused error={}", unsafe { GetLastError() }));
-            return false;
+            return None;
         }
         let view = unsafe { MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, bytes) };
         if view.is_null() {
             out.line(format!("MapViewOfFile refused error={}", unsafe { GetLastError() }));
-            return false;
+            return None;
         }
         touch(view.cast(), bytes);
         out.line(format!("mapped and written bytes={bytes} {}", counters()));
-        true
+        Some(view.cast())
     }
 
     pub fn run() -> i32 {
@@ -190,8 +209,7 @@ mod win {
                 }
             }
             "section" => {
-                let ok = mapped(-1isize as Handle, bytes, &mut out);
-                std::thread::sleep(hold);
+                let ok = mapped_and_held(-1isize as Handle, bytes, hold, &mut out);
                 out.line(format!("end {}", counters()));
                 if ok {
                     0
@@ -208,8 +226,7 @@ mod win {
                     .open(&path)
                     .expect("open the file to map");
                 file.set_len(bytes as u64).expect("set_len");
-                let ok = mapped(file.as_raw_handle() as Handle, bytes, &mut out);
-                std::thread::sleep(hold);
+                let ok = mapped_and_held(file.as_raw_handle() as Handle, bytes, hold, &mut out);
                 out.line(format!("end {}", counters()));
                 if ok {
                     0
@@ -230,6 +247,23 @@ mod win {
                     Err(e) => out.line(format!("breakaway child not started: {e}")),
                 }
                 out.line(format!("log of the child: {:?}", std::fs::read_to_string(&path)));
+                0
+            }
+            "schtasks" => {
+                // A task of the Task Scheduler, created and run by this user, starts the process.
+                let line = format!("{} plain-log {} {} {}", exe.display(), bytes, hold.as_millis(), path);
+                let name = format!("r2-verifier4-u02-{}", std::process::id());
+                let made = Command::new("schtasks")
+                    .args(["/create", "/tn", &name, "/tr", &line, "/sc", "once", "/st", "23:59", "/f"])
+                    .status();
+                out.line(format!("schtasks /create ended: {made:?}"));
+                let ran = Command::new("schtasks").args(["/run", "/tn", &name]).status();
+                out.line(format!("schtasks /run ended: {ran:?}"));
+                std::thread::sleep(hold + Duration::from_millis(5000));
+                out.line(format!("log of the process that the task started: {:?}", std::fs::read_to_string(&path)));
+                let gone = Command::new("schtasks").args(["/delete", "/tn", &name, "/f"]).status();
+                out.line(format!("schtasks /delete ended: {gone:?}"));
+                out.line(format!("end {}", counters()));
                 0
             }
             "wmi" => {
