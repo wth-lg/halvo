@@ -53,6 +53,33 @@ fn every_refusal_file_is_refused_with_its_rule() {
 }
 
 #[test]
+fn a_case_at_each_upper_limit_of_l9_is_accepted() {
+    let file = "upper-limits-name-of-32-bytes-ok.jsonl";
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("limits")
+        .join(file);
+    let bytes = std::fs::read(path).expect("the case at the upper limits");
+    let case = read_case(file, &bytes, calendar_days_min())
+        .expect("the reader accepts the case at the upper limits");
+    assert_eq!(case.name.len(), 32);
+    assert!(case.steps.iter().any(|step| step.control.len() == 16));
+    let first = &case.occurrences[0].page;
+    assert!(first
+        .iter()
+        .any(|control| control.name.len() == 64 && control.test_id.len() == 64));
+    assert!(case
+        .occurrences
+        .iter()
+        .all(|occurrence| occurrence.page.len() == 16));
+    assert_eq!(case.steps.len(), 8);
+    assert_eq!(
+        case.occurrences.last().map(|occurrence| occurrence.day),
+        Some(4_294_967_295)
+    );
+}
+
+#[test]
 fn every_file_of_the_refusal_directory_has_its_expected_line() {
     let mut files: Vec<String> = std::fs::read_dir(refusals())
         .expect("the refusal directory")
