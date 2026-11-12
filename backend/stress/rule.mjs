@@ -73,6 +73,9 @@ function readMock(events) {
 
 const GATEWAY_STACK = /\.ts:\d+|Durable Object/;
 const gatewayFailed = (attempt) => attempt.why === "500" && GATEWAY_STACK.test(attempt.body);
+const PROXY_LOST_THE_REQUEST = "Network connection lost";
+const lostInTransport = (request) =>
+  request.status === 500 && typeof request.body === "string" && request.body.includes(PROXY_LOST_THE_REQUEST) && !GATEWAY_STACK.test(request.body);
 const EXPIRY_OF_DUE_HOLDS = 0;
 const OWN_WORK_OF_THE_STEP = 1;
 
@@ -132,7 +135,7 @@ export function judge({
         }
         break;
       default:
-        if (!diedInKill) bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
+        if (!diedInKill && !lostInTransport(request)) bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
     }
     for (const attempt of request.lost) {
       if (gatewayFailed(attempt)) {
@@ -395,6 +398,7 @@ export function judge({
       requests: sent.size,
       resets: [...sent.values()].reduce((total, request) => total + request.lost.filter((attempt) => attempt.why === "reset").length, 0),
       proxyLost: [...sent.values()].reduce((total, request) => total + request.lost.filter((attempt) => attempt.why === "500").length, 0),
+      lostInTransport: [...sent.values()].filter(lostInTransport).length,
       admitted: rows.size,
       settled,
       expired,
