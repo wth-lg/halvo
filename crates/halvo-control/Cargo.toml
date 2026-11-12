@@ -5,6 +5,9 @@ description = "Halvo control types shared by the app and the capture daemon: the
 edition = "2021"
 publish = false
 
+[features]
+r2 = []
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
