@@ -1,9 +1,7 @@
 //! The single-writer sink: the only path from a capture source to the store.
 //!
-//! [`channel`] returns a cloneable [`SinkHandle`] that sources emit through and a
-//! non-cloneable [`SinkWriter`] that the daemon owns and drains. Because the
-//! writer cannot be cloned, there is exactly one appender to the store, which is
-//! the concurrency invariant from the kickoff plan (capture is the sole writer).
+//! [`bounded`] and [`channel`] return a cloneable [`SinkHandle`] that sources emit
+//! through and a non-cloneable [`SinkWriter`] that the daemon owns and drains.
 //!
 //! Backpressure: the channel is bounded. A droppable modality (frames, audio,
 //! camera) is dropped when the queue is full; every other modality blocks until
@@ -25,6 +23,25 @@ use crate::source::{EmitOutcome, EventSink};
 pub enum SinkError {
     #[error("the capture writer has stopped; no more events can be queued")]
     Disconnected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Backpressure {
+    Drop,
+    Block,
+}
+
+fn backpressure(kind: Modality) -> Backpressure {
+    match kind {
+        Modality::ScreenFrame => Backpressure::Drop,
+        Modality::Keystroke => Backpressure::Block,
+        Modality::Pointer => Backpressure::Block,
+        Modality::ForegroundApp => Backpressure::Block,
+        Modality::WindowTitle => Backpressure::Block,
+        Modality::SystemAudio => Backpressure::Drop,
+        Modality::Microphone => Backpressure::Drop,
+        Modality::Camera => Backpressure::Drop,
+    }
 }
 
 const KINDS: usize = 8;
@@ -147,17 +164,16 @@ impl SinkHandle {
 impl EventSink for SinkHandle {
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
         let kind = event.modality;
-        if kind.is_droppable_under_backpressure() {
-            match self.tx.try_send(event) {
+        match backpressure(kind) {
+            Backpressure::Drop => match self.tx.try_send(event) {
                 Ok(()) => self.accepted(kind),
                 Err(TrySendError::Full(_)) => self.dropped(kind),
                 Err(TrySendError::Disconnected(_)) => self.refused(kind),
-            }
-        } else {
-            match self.tx.send(event) {
+            },
+            Backpressure::Block => match self.tx.send(event) {
                 Ok(()) => self.accepted(kind),
                 Err(SendError(_)) => self.refused(kind),
-            }
+            },
         }
     }
 }
@@ -493,6 +509,28 @@ mod tests {
         };
         assert_eq!(counts.of(Modality::Keystroke), refused_once);
         assert_eq!(counts.of(Modality::ScreenFrame), accepted_once);
+    }
+
+    #[test]
+    fn the_drop_policy_covers_every_kind() {
+        let table = [
+            (Modality::ScreenFrame, Backpressure::Drop),
+            (Modality::Keystroke, Backpressure::Block),
+            (Modality::Pointer, Backpressure::Block),
+            (Modality::ForegroundApp, Backpressure::Block),
+            (Modality::WindowTitle, Backpressure::Block),
+            (Modality::SystemAudio, Backpressure::Drop),
+            (Modality::Microphone, Backpressure::Drop),
+            (Modality::Camera, Backpressure::Drop),
+        ];
+        assert_eq!(EVERY_KIND.len(), KINDS);
+        for (index, kind) in EVERY_KIND.into_iter().enumerate() {
+            assert_eq!(kind_index(kind), index, "{kind:?}");
+            assert_eq!(table[index].0, kind);
+        }
+        for (kind, policy) in table {
+            assert_eq!(backpressure(kind), policy, "{kind:?}");
+        }
     }
 
     #[test]
