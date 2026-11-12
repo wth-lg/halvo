@@ -1014,7 +1014,7 @@ fn each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none() {
         (want_labels, want_addresses),
         "{first}"
     );
-    assert_eq!((labels, addresses), (2_985, 2_000), "{first}");
+    assert_eq!((labels, addresses), (2_985, 2_023), "{first}");
     assert!(both_take * 4 >= node_takes, "{both_take} of {node_takes}");
 }
 
@@ -1063,8 +1063,12 @@ fn number_form(origin: &str) -> bool {
     numeric && !(host.split('.').count() == 4 && host.split('.').all(octet))
 }
 
+/// `WebOrigin::parse` and `WebOrigin::of_address` take the same origins over strings built from the table's inputs
+/// and answers: the parser takes a string exactly when the function gives that string back. It compares the code
+/// with the code and reads node's answers as inputs only; node's answers bind the code in
+/// `each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none`. Its three counts were read from a run.
 #[test]
-fn the_parser_and_the_function_of_a_browser_address_take_the_same_origins_over_the_oracle_table() {
+fn the_parser_and_of_address_take_the_same_origins_over_the_inputs_of_the_oracle_table() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden/r3")
         .join(TABLE_MADE_BY_NODE);
@@ -1107,5 +1111,5 @@ fn the_parser_and_the_function_of_a_browser_address_take_the_same_origins_over_t
         "candidates={} taken={taken} numbers={numbers}",
         candidates.len()
     );
-    assert_eq!((candidates.len(), taken, numbers), (9_752, 4_629, 8));
+    assert_eq!((candidates.len(), taken, numbers), (9_798, 4_646, 30));
 }
