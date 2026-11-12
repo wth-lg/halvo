@@ -230,7 +230,7 @@ fn instant(now: u64) -> i64 {
         .saturating_mul(1_000_000)
 }
 
-fn store<P: Owner, C>(
+fn store<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     i: usize,
@@ -240,7 +240,7 @@ fn store<P: Owner, C>(
     store_at(cx, board, i, whats, day, instant(cx.now))
 }
 
-fn store_at<P: Owner, C>(
+fn store_at<P: Owner, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     i: usize,
@@ -248,9 +248,28 @@ fn store_at<P: Owner, C>(
     day: u32,
     at: i64,
 ) -> Result<(), PortError> {
+    store_read(cx, board, i, whats, day, at).map(|_| ())
+}
+
+/// What a store did: it logged the events or found them in the read after a refusal `seq`, or
+/// the read brought a lost start, which it closed, and it logged nothing of a `run_started`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stored {
+    Logged,
+    LostStart,
+}
+
+fn store_read<P: Owner, C: ConfigView>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    whats: Vec<What>,
+    day: u32,
+    at: i64,
+) -> Result<Stored, PortError> {
     let refusal = match log_at(cx, board, i, &whats, day, at) {
         Err(e) if seq_refusal(&e) => e,
-        other => return other,
+        other => return other.map(|()| Stored::Logged),
     };
     let facts = &mut board.members[i].facts;
     let before = facts.events.len();
@@ -262,10 +281,81 @@ fn store_at<P: Owner, C>(
         .filter(|w| !covered(&facts.events, before, w))
         .collect();
     settle(facts, before);
-    if rest.is_empty() {
-        return Ok(());
+    let starts = rest.iter().any(|w| matches!(w, What::RunStarted { .. }));
+    if close_lost_starts(cx, board, i, before, day, at) && starts {
+        return Ok(Stored::LostStart);
     }
-    log_at(cx, board, i, &rest, day, at)
+    if rest.is_empty() {
+        return Ok(Stored::Logged);
+    }
+    log_at(cx, board, i, &rest, day, at).map(|()| Stored::Logged)
+}
+
+/// Closes each `run_started` of the agent among its events from `from` on whose
+/// acknowledgement was lost (ruling RD-34 (b) (5)): the events hold no `run_ended` of the run,
+/// the board holds no live or dying run of it, and no `run_ended` or `end_run` of it is owed in
+/// this life. As recovery would in the next life (I5.8), its `run_ended` with `interrupted` and
+/// its `end_run` are sent, each owed until the owner acknowledges it, and the agent's newest run
+/// reads as not ended by the store, so that step 3 of I5.5 holds the agent's next start until
+/// the store has ended it. Such a row was never taken up: the start that logged it answered
+/// `no_service` and launched no runner. Whether it closed one.
+fn close_lost_starts<P: Owner, C: ConfigView>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    from: usize,
+    day: u32,
+    at: i64,
+) -> bool {
+    let facts = &board.members[i].facts;
+    let lost: Vec<RunId> = facts.events[from.min(facts.events.len())..]
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunStarted { run, .. } => Some(run.clone()),
+            _ => None,
+        })
+        .filter(|run| !holds_end(&facts.events, run))
+        .filter(|run| {
+            !board.runs.iter().any(|r| &r.run == run) && !board.dying.iter().any(|d| &d.run == run)
+        })
+        .filter(|run| {
+            !board.owed.iter().any(|o| {
+                o.agent == facts.agent
+                    && matches!(
+                        &o.what,
+                        Owing::RunEnded { run: r, .. } | Owing::EndRun { run: r } if r == run
+                    )
+            })
+        })
+        .collect();
+    if lost.is_empty() {
+        return false;
+    }
+    let agent = facts.agent.clone();
+    let workflow = facts.workflow.id.clone();
+    board.members[i].facts.store_ended = false;
+    for run in lost {
+        let debts = [
+            Owing::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Interrupted,
+                day,
+                at,
+            },
+            Owing::EndRun { run },
+        ];
+        for what in debts {
+            let owed = Owed {
+                agent: agent.clone(),
+                workflow: workflow.clone(),
+                what,
+            };
+            if !send_owed(cx, board, &owed) {
+                board.owed.push(owed);
+            }
+        }
+    }
+    true
 }
 
 fn log_at<P: Owner, C>(
@@ -388,7 +478,7 @@ where
     C: ConfigView,
 {
     let (day, at) = (board.day, instant(cx.now));
-    match log_end(cx, board, i, run, cause, day, at, false) {
+    match log_end(cx, board, i, run, cause, (day, at), false) {
         Ok(()) => {}
         Err(e) if gone_refusal(&e) => {}
         Err(_) => {
@@ -418,8 +508,7 @@ fn log_end<P: Owner, C>(
     i: usize,
     run: &RunId,
     cause: RunEnd,
-    day: u32,
-    at: i64,
+    (day, at): (u32, i64),
     debt: bool,
 ) -> Result<(), PortError>
 where
@@ -491,8 +580,11 @@ where
         trigger,
         slot: go.slot,
     });
-    if let Err(e) = store(cx, board, i, whats) {
-        return served(Err(port_cause(&e)), None);
+    let day = board.day;
+    match store_read(cx, board, i, whats, day, instant(cx.now)) {
+        Ok(Stored::Logged) => {}
+        Ok(Stored::LostStart) => return served(Err(Cause::State), None),
+        Err(e) => return served(Err(port_cause(&e)), None),
     }
     board.members[i].facts.store_ended = false;
     let workflow = board.members[i].facts.workflow.id.clone();
@@ -550,6 +642,8 @@ where
     C: ConfigView,
 {
     let agent = board.members[i].facts.agent.clone();
+    let day = board.day;
+    close_lost_starts(cx, board, i, 0, day, instant(cx.now));
     let kept = board.members[i].facts.store_ended;
     if unread.is_some() {
         board.members[i].facts.store_ended = true;
@@ -721,7 +815,7 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
             if holds_end(&board.members[i].facts.events, run) {
                 return true;
             }
-            match log_end(cx, board, i, run, *cause, *day, *at, true) {
+            match log_end(cx, board, i, run, *cause, (*day, *at), true) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => resync_end(cx, board, i, run),
                 Err(e) => gone_refusal(&e),
@@ -881,7 +975,7 @@ fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     }
 }
 
-fn raise<P: Owner + Rng, C>(
+fn raise<P: Owner + Rng, C: ConfigView>(
     cx: &Cx<'_, P>,
     board: &mut Board<C>,
     i: usize,

@@ -157,7 +157,7 @@ fn a_lost_acknowledgement_of_a_ready_item_is_taken_and_not_raised_twice() {
 }
 
 #[test]
-fn a_lost_acknowledgement_of_a_run_started_does_not_refuse_the_next_start() {
+fn a_lost_acknowledgement_of_a_run_started_holds_the_next_start_until_its_run_is_closed() {
     let mut w = world(&[MANUAL]);
     w.ports.refuse(Method::Log, PortError::NoService);
     let first = w.act(Act::Start { agent: agent(0) });
@@ -166,13 +166,43 @@ fn a_lost_acknowledgement_of_a_run_started_does_not_refuse_the_next_start() {
         Err(halvo_coord::types::Cause::NoService)
     );
     lose_the_acknowledgement(&w);
+    let lost = owner_events(&w, 0)
+        .iter()
+        .rev()
+        .find_map(|e| match &e.what {
+            What::RunStarted { run, .. } => Some(run.clone()),
+            _ => None,
+        })
+        .unwrap();
     let again = w.act(Act::Start { agent: agent(0) });
-    assert_eq!(again.report.answer, Ok(Answer::Ok));
+    assert_eq!(
+        again.report.answer,
+        Err(halvo_coord::types::Cause::State),
+        "step 3 of I5.5: the store has not ended the lost run"
+    );
     assert_eq!(
         count(&w, 0, |what| matches!(what, What::RunStarted { .. })),
-        3,
-        "the run of the world, the one with the lost acknowledgement and the new one"
+        2,
+        "the run of the world and the one with the lost acknowledgement; no second while it has no end"
     );
+    assert_eq!(
+        count(&w, 0, |what| matches!(
+            what,
+            What::RunEnded { run, cause: halvo_coord::types::RunEnd::Interrupted } if *run == lost
+        )),
+        1
+    );
+    assert!(w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .any(|t| t.call == Call::Send(halvo_coord::types::Body::EndRun { run: lost.clone() })));
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    let next = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(next.report.answer, Ok(Answer::Ok));
+    assert_ne!(next.report.run, Some(lost));
     agree(&w, 0);
 }
 

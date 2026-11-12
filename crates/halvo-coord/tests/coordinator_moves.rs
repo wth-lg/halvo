@@ -2012,3 +2012,169 @@ fn after_the_quits_first_step_a_tick_serves_no_queue_starts_nothing_and_raises_n
     assert_eq!(items_raised(&c), raised, "no check and no ready item");
     assert!(c.snapshot().items.is_empty());
 }
+
+/// The owner stored the body that it refused last, and only its acknowledgement was lost.
+fn lose_the_acknowledgement(c: &Coordinator<Both>) {
+    let tried = c.ports().ports.tried.borrow().clone();
+    let events = tried
+        .iter()
+        .rev()
+        .find_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .expect("a refused log");
+    c.ports().ports.events.borrow_mut().extend(events);
+    c.ports().ports.clear_refusals();
+}
+
+fn closing_rows(c: &Coordinator<Both>, item: &ItemId) -> usize {
+    events(c)
+        .iter()
+        .filter(|w| {
+            matches!(w, What::ItemAnswered { item: i, .. } | What::ItemLapsed { item: i, .. } if i == item)
+        })
+        .count()
+}
+
+#[test]
+fn a_run_started_whose_acknowledgement_was_lost_is_closed_in_this_life_and_counts_as_a_start_of_the_day(
+) {
+    let limits = Limits {
+        starts_per_day: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL], limits);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(c.control(&agent(0), Action::RunNow), Err(Cause::NoService));
+    lose_the_acknowledgement(&c);
+    let lost = started(&c).last().cloned().unwrap_or_else(|| {
+        events(&c)
+            .iter()
+            .rev()
+            .find_map(|w| match w {
+                What::RunStarted { run, .. } => Some(run.clone()),
+                _ => None,
+            })
+            .unwrap()
+    });
+    let starts = |c: &Coordinator<Both>| {
+        events(c)
+            .iter()
+            .filter(|w| matches!(w, What::RunStarted { .. }))
+            .count()
+    };
+    let before = starts(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::RunNow), Err(Cause::State));
+    assert_eq!(
+        starts(&c),
+        before,
+        "no second run_started while the first has no end"
+    );
+    assert!(!calls_since(&c, m)
+        .iter()
+        .any(|call| matches!(call, Call::Start(_))));
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.waiting_turn.store"));
+    assert!(events(&c).contains(&What::RunEnded {
+        run: lost.clone(),
+        cause: RunEnd::Interrupted
+    }));
+    assert!(calls_since(&c, m).contains(&Call::Send(Body::EndRun { run: lost.clone() })));
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    let next = start(&c, 0);
+    assert_ne!(next, lost);
+    c.ports().ports.end_runner(&next);
+    c.on_run(&next, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: next,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    assert_eq!(
+        row_line(&c.snapshot(), 0),
+        text(&halvo_coord::types::StatusLine::TriedToday.key()),
+        "the lost row and the next start make starts_per_day"
+    );
+}
+
+#[test]
+fn a_lapse_of_an_item_whose_answer_was_stored_with_a_lost_acknowledgement_stores_no_second_closing_row(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
+    lose_the_acknowledgement(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    assert_eq!(closing_rows(&c, &item), 1, "{:?}", events(&c));
+    assert_eq!(cancels_of(&c, m, &run), 1);
+}
+
+#[test]
+fn a_lapse_of_an_own_item_whose_answer_was_stored_with_a_lost_acknowledgement_stores_no_second_closing_row(
+) {
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[slotted], Limits::PRODUCT);
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(c.answer(&item, Choice::Start, None), Err(Cause::NoService));
+    lose_the_acknowledgement(&c);
+    let _ = c.quit_stop();
+    assert_eq!(closing_rows(&c, &item), 1, "{:?}", events(&c));
+}
+
+#[test]
+fn a_second_answer_after_a_lost_acknowledgement_takes_the_stored_answer_which_decides() {
+    for (second, decided) in [(Choice::Done, false), (Choice::Decline, true)] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+            .unwrap();
+        let (item, _) = open_item(&c);
+        c.ports().ports.refuse(Method::Log, PortError::NoService);
+        assert_eq!(c.answer(&item, Choice::Done, None), Err(Cause::NoService));
+        lose_the_acknowledgement(&c);
+        let m = mark(&c);
+        let out = c.answer(&item, second, None);
+        if decided {
+            assert_eq!(out, Err(Cause::UnknownItem), "{second:?}");
+        } else {
+            assert_eq!(out, Ok(()), "{second:?}");
+        }
+        assert_eq!(closing_rows(&c, &item), 1, "{second:?}: {:?}", events(&c));
+        let handed: Vec<Call> = calls_since(&c, m)
+            .into_iter()
+            .filter(|call| matches!(call, Call::AnswerHandback(..)))
+            .collect();
+        assert_eq!(
+            handed,
+            [Call::AnswerHandback(
+                run.clone(),
+                halvo_coord::types::HandbackResult::Done
+            )],
+            "{second:?}: the stored answer's result, once"
+        );
+        let s = c.snapshot();
+        assert!(s.items.is_empty(), "{second:?}");
+        assert_eq!(row_line(&s, 0), text("line.working.working"), "{second:?}");
+    }
+}

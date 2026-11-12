@@ -97,25 +97,55 @@ fn same_but_seq(a: &Event, b: &Event) -> bool {
 }
 
 /// Reads the owner's events after the last acknowledged one, takes the waiting events that the
-/// owner stored with no acknowledgement off the list, and numbers the rest after the owner's
-/// last; gives up after a fixed count of calls.
-fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<(), PortError> {
+/// owner stored with no acknowledgement off the list, and every waiting row that would close an
+/// item that those events already close, whatever row closed it (I7.2, ruling RD-34 (b) (1)),
+/// and numbers the rest after the owner's last; gives up after a fixed count of calls. Answers
+/// the events that it read.
+fn resync<P: Owner>(ports: &P, ledger: &mut Ledger) -> Result<Vec<Event>, PortError> {
     let mut after = ledger.last;
+    let mut read = Vec::new();
     for _ in 0..HISTORY_CALLS {
         let page = ports.history(&ledger.agent, after)?;
-        for e in &page {
-            if ledger.waiting.first().is_some_and(|w| same_but_seq(w, e)) {
+        let full = page.len() >= HISTORY_PAGE;
+        for e in page {
+            if ledger.waiting.first().is_some_and(|w| same_but_seq(w, &e)) {
                 ledger.waiting.remove(0);
             }
             after = after.max(e.seq.get());
+            read.push(e);
         }
-        if page.len() < HISTORY_PAGE {
+        if !full {
             break;
         }
     }
+    ledger
+        .waiting
+        .retain(|w| closed_item(&w.what).is_none_or(|item| !closes(&read, item)));
     ledger.last = after;
     ledger.renumber();
-    Ok(())
+    Ok(read)
+}
+
+/// The item that a row closes: an `item_answered` or an `item_lapsed`.
+fn closed_item(what: &What) -> Option<&ItemId> {
+    match what {
+        What::ItemAnswered { item, .. } | What::ItemLapsed { item, .. } => Some(item),
+        _ => None,
+    }
+}
+
+/// Whether the rows close the item: its `item_released` or its `item_lapsed`, or its
+/// `item_answered` of a kind other than `confirm`, whose rows without their acknowledgement
+/// count as not stored (I4.5, ruling RD-34 (b) (3)). The kind is the row's own, since the read
+/// need not hold the item's `item_raised`.
+fn closes(rows: &[Event], item: &ItemId) -> bool {
+    rows.iter().any(|e| match &e.what {
+        What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
+        What::ItemAnswered { item: i, answer } => {
+            i == item && !matches!(answer, Answered::Confirm(_))
+        }
+        _ => false,
+    })
 }
 
 /// Sends the waiting events in order, at most `request_records` in one body, and takes each
@@ -200,6 +230,47 @@ fn store_once<P: Owner>(
             Err(e) if refused_with(&e, "seq") && !resynced => {
                 resync(ports, ledger)?;
                 events = ledger.number(whats.clone(), now, today);
+                resynced = true;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// Stores the answer `row` of an item of a kind other than `confirm` once the waiting rows are
+/// stored, and keeps it not waiting. After a refusal `seq` the read decides (ruling RD-34
+/// (b) (2)): where the owner's events hold a row that closes the item, nothing is logged and
+/// that row is answered, the person's earlier answer whose acknowledgement was lost, or a
+/// lapse; else the row goes once more.
+fn store_answer<P: Owner>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    row: What,
+    now: u64,
+    today: u32,
+) -> Result<Option<What>, PortError> {
+    flush(ports, ledger, limits)?;
+    let item = closed_item(&row).cloned();
+    let mut events = ledger.number(vec![row.clone()], now, today);
+    let mut resynced = false;
+    loop {
+        match ports.log(&events) {
+            Ok(()) => {
+                ledger.last = events.last().map_or(ledger.last, |e| e.seq.get());
+                return Ok(None);
+            }
+            Err(e) if refused_with(&e, "seq") && !resynced => {
+                let read = resync(ports, ledger)?;
+                let earlier = read.iter().find(|e| {
+                    item.as_ref().is_some_and(|i| {
+                        closed_item(&e.what) == Some(i) && closes(std::slice::from_ref(e), i)
+                    })
+                });
+                if let Some(e) = earlier {
+                    return Ok(Some(e.what.clone()));
+                }
+                events = ledger.number(vec![row.clone()], now, today);
                 resynced = true;
             }
             Err(e) => return Err(e),
@@ -632,7 +703,11 @@ pub fn answer_from_check<P: Runs>(
 /// ruling IG-14), and only once the owner acknowledged it hands the run its result. A choice that
 /// is not one of the kind's, and a `link_account` request with no origin, are `malformed`; with
 /// no acknowledgement the answer is `no_service` and the run gets nothing; a run that ended
-/// (`ended`) takes nothing back.
+/// (`ended`) takes nothing back. Where the read after a refusal `seq` shows the item answered
+/// already, by an earlier choice whose acknowledgement was lost, nothing is stored: the same
+/// choice counts as stored and goes on, and another choice leaves the stored answer deciding,
+/// whose result the run gets, and is answered `unknown_item`, as a choice for an item that is
+/// no longer open (ruling RD-34 (b) (2)).
 pub fn answer_handback<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
@@ -662,14 +737,28 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     };
     let row = What::ItemAnswered {
         item: item.clone(),
-        answer,
+        answer: answer.clone(),
     };
-    store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
-    match ports.answer_handback(run, result) {
+    let earlier = store_answer(ports, ledger, limits, row, now, today).map_err(|e| cause_of(&e))?;
+    let (result, decided) = match earlier {
+        None => (result, false),
+        Some(What::ItemAnswered { answer: stored, .. }) if stored == answer => (result, false),
+        Some(What::ItemAnswered { answer: stored, .. }) => {
+            let choice = stored.choice().ok_or(Cause::Malformed)?;
+            (handback_result(kind, choice)?, true)
+        }
+        Some(_) => return Err(Cause::UnknownItem),
+    };
+    let handed = match ports.answer_handback(run, result) {
         Ok(()) => Ok(()),
         Err(e) if refused_with(&e, "ended") => Ok(()),
         Err(e) => Err(cause_of(&e)),
+    };
+    if decided {
+        handed?;
+        return Err(Cause::UnknownItem);
     }
+    handed
 }
 
 /// The state of a held second step of a `sign_in` item: open for the person's answer; its

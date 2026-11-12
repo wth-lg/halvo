@@ -929,7 +929,15 @@ where
                     let out =
                         items::answer_handback(&self.ports, l, &self.limits, item, &ask, choice);
                     self.read_back(board, i);
-                    out?;
+                    match out {
+                        Ok(()) => {}
+                        Err(Cause::UnknownItem) => {
+                            handbacks.retain(|(i, _)| i != item);
+                            self.act(st, Act::Resume { run })?;
+                            return Err(Cause::UnknownItem);
+                        }
+                        Err(e) => return Err(e),
+                    }
                     handbacks.retain(|(i, _)| i != item);
                     self.act(st, Act::Resume { run })
                 }
