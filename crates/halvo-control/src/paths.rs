@@ -1019,6 +1019,45 @@ mod tests {
     }
 
     #[test]
+    fn the_top_level_files_have_these_names() {
+        let data = DataDir::from_flag(absolute("data")).unwrap();
+        assert_eq!(
+            data.intent_file(),
+            absolute("data").join("delete-all.intent")
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            data.instance_lock_file(),
+            PathBuf::from(r"C:\data\daemon.lock")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_the_data_directory_lies_in_the_local_app_data_folder() {
+        use std::os::windows::ffi::OsStringExt;
+        use windows::Win32::System::Com::CoTaskMemFree;
+        use windows::Win32::UI::Shell::{
+            FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT,
+        };
+
+        // SAFETY: the folder id is a static GUID, and no token asks for this user's folder.
+        let path =
+            unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, None) }.unwrap();
+        // SAFETY: the call succeeded, so `path` points to a NUL-terminated string.
+        let local = PathBuf::from(OsString::from_wide(unsafe { path.as_wide() }));
+        // SAFETY: `path` is the buffer that the call allocated, and it is freed once here.
+        unsafe { CoTaskMemFree(Some(path.0 as *const _)) };
+        let data = DataDir::for_current_user().unwrap();
+        println!(
+            "local app data {}, data directory {}",
+            local.display(),
+            data.path().display()
+        );
+        assert!(data.path().starts_with(&local));
+    }
+
+    #[test]
     fn every_layout_accessor_lies_in_a_registered_entry_or_is_a_top_level_file() {
         let data = DataDir::from_flag(absolute("data")).unwrap();
         for path in [
@@ -1094,6 +1133,14 @@ mod tests {
         );
         std::fs::create_dir(real.join("Halvo-scratch")).unwrap();
         assert!(ScratchDir::new(firm.with_file_name("Halvo-scratch"), &data).is_ok());
+    }
+
+    #[test]
+    fn a_last_component_other_than_t_is_refused() {
+        for other in ["/var/folders/7n/abc/C", "/private/var/folders/7n/abc/0"] {
+            assert!(!is_darwin_user_temp_dir(Path::new(other)), "{other}");
+            assert_eq!(DarwinUserTempDir::new(PathBuf::from(other)), None);
+        }
     }
 
     #[test]

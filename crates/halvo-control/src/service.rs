@@ -1265,6 +1265,7 @@ mod start_value_tests {
             r"Halvo\halvo.exe",
             r"\Halvo\halvo.exe",
             r"C:halvo.exe",
+            r"C:\",
             r"\\server",
             "",
         ] {

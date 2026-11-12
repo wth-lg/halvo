@@ -869,6 +869,14 @@ mod tests {
     }
 
     #[test]
+    fn an_onboarding_state_a_row_or_a_step_without_one_of_its_keys_is_refused() {
+        let state: serde_json::Value = serde_json::from_str(ONBOARDING_JSON).unwrap();
+        crate::model::every_key_is_read::<OnboardingState>(&state);
+        crate::model::every_key_is_read::<PermissionStatus>(&state["permissions"][0]);
+        crate::model::every_key_is_read::<WalkbackStep>(&state["walkback"][0]);
+    }
+
+    #[test]
     fn each_grant_state_has_the_spelling_the_page_reads() {
         for (grant, text) in [
             (GrantState::Granted, "\"granted\""),

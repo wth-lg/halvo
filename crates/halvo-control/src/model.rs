@@ -561,6 +561,23 @@ impl<'de> Deserialize<'de> for StoreId {
     }
 }
 
+#[cfg(test)]
+pub(crate) fn every_key_is_read<T: serde::de::DeserializeOwned>(object: &serde_json::Value) {
+    let keys = object.as_object().unwrap();
+    assert!(
+        serde_json::from_value::<T>(object.clone()).is_ok(),
+        "{object}"
+    );
+    for key in keys.keys() {
+        let mut without = keys.clone();
+        without.remove(key);
+        assert!(
+            serde_json::from_value::<T>(serde_json::Value::Object(without)).is_err(),
+            "a reply without {key} was read"
+        );
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShredView {
     pub segments_shredded: u64,
@@ -711,6 +728,31 @@ mod tests {
     }
 
     const INVENTORY_JSON: &str = r#"{"rows":[{"day":"2026-11-08","modality":"screen_frame","events":3,"bytes":300},{"day":"2026-11-09","modality":"keystroke","events":7,"bytes":70}]}"#;
+
+    #[test]
+    fn a_row_or_an_inventory_without_one_of_its_keys_is_refused() {
+        every_key_is_read::<InventoryRow>(
+            &serde_json::from_str(
+                r#"{"day":"2026-11-08","modality":"screen_frame","events":3,"bytes":300}"#,
+            )
+            .unwrap(),
+        );
+        every_key_is_read::<Inventory>(&serde_json::from_str(INVENTORY_JSON).unwrap());
+    }
+
+    #[test]
+    fn a_delete_report_without_one_of_its_keys_is_refused_and_keeps_64_bit_counts() {
+        every_key_is_read::<ShredView>(
+            &serde_json::from_str(r#"{"segments_shredded":2,"keys_destroyed":3}"#).unwrap(),
+        );
+        let wide = r#"{"segments_shredded":4294967296,"keys_destroyed":4294967297}"#;
+        let report = ShredView {
+            segments_shredded: 4_294_967_296,
+            keys_destroyed: 4_294_967_297,
+        };
+        assert_eq!(serde_json::to_string(&report).unwrap(), wide);
+        assert_eq!(serde_json::from_str::<ShredView>(wide).unwrap(), report);
+    }
 
     #[test]
     fn the_inventory_object_and_its_row_have_golden_json() {
@@ -867,6 +909,8 @@ mod tests {
         assert!(!Modality::Pointer.is_droppable_under_backpressure());
         assert!(!Modality::ForegroundApp.is_droppable_under_backpressure());
         assert!(!Modality::WindowTitle.is_droppable_under_backpressure());
+        assert!(Modality::Microphone.is_droppable_under_backpressure());
+        assert!(Modality::Camera.is_droppable_under_backpressure());
     }
 
     #[test]
