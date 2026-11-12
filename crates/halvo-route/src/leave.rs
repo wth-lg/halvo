@@ -555,7 +555,6 @@ mod tests {
                 assert!(!text.contains(&field), "{name} names the private field");
             }
         }
-        assert!(text_of(&files, "lib.rs").starts_with("#![forbid(unsafe_code)]\n"));
         let leave = text_of(&files, "leave.rs");
         let mark = "\n#[cfg(test)]\nmod tests {\n";
         assert_eq!(leave.matches(mark).count(), 1);

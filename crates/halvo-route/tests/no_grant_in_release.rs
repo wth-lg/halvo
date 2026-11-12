@@ -33,3 +33,23 @@ fn no_grant_in_release() {
     }
     assert_eq!(calls, 3 * 3 * 7 * 2 * 2);
 }
+
+const CRATE_MODULES: [&str; 11] = [
+    "admit", "cap", "leave", "line", "pick", "policy", "prices", "release", "ruling", "spend",
+    "tier",
+];
+
+#[test]
+fn lib_rs_is_the_forbid_line_and_the_module_lines() {
+    let lib = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
+        .expect("the crate's lib.rs");
+    let modules: String = CRATE_MODULES
+        .iter()
+        .map(|module| format!("pub mod {module};\n"))
+        .collect();
+    assert_eq!(
+        lib,
+        format!("#![forbid(unsafe_code)]\n\n{modules}"),
+        "lib.rs holds the forbid line and the lines of CRATE_MODULES alone"
+    );
+}
