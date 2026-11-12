@@ -408,12 +408,9 @@ pub fn pipe_name(sid: &str, data_dir: &DataDir) -> String {
 
 #[cfg(windows)]
 fn final_path(data_dir: &DataDir) -> String {
-    data_dir
-        .path()
-        .canonicalize()
-        .ok()
-        .and_then(|path| path.to_str().map(str::to_string))
-        .unwrap_or_else(|| data_dir.text().to_string())
+    resolved(data_dir.path())
+        .to_str()
+        .map_or_else(|| data_dir.text().to_string(), str::to_string)
 }
 
 #[cfg(not(windows))]
@@ -1018,6 +1015,19 @@ mod tests {
         assert_eq!(by_real, format!(r"\\.\pipe\halvo-control-{sid}-{hash}"));
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn one_data_directory_keeps_its_pipe_name_when_it_is_made() {
+        let root = tempfile::tempdir().unwrap();
+        let data = DataDir::from_flag(root.path().join("Data")).unwrap();
+        let sid = "S-1-5-21-1-2-3-1001";
+        let before = pipe_name(sid, &data);
+        std::fs::create_dir(data.path()).unwrap();
+        let after = pipe_name(sid, &data);
+        println!("pipe name before {before}, after {after}");
+        assert_eq!(before, after);
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn a_scratch_path_is_refused_in_every_form_of_the_data_or_launch_agents_directory() {
@@ -1214,7 +1224,11 @@ mod tests {
         let a = DataDir::from_flag(absolute("Data A")).unwrap();
         let b = DataDir::from_flag(absolute("Data B")).unwrap();
         assert_ne!(pipe_name(sid, &a), pipe_name(sid, &b));
-        let hash = endpoint_hash(&a.path().to_str().unwrap().to_lowercase());
+        #[cfg(windows)]
+        let final_path = r"\\?\C:\Data A";
+        #[cfg(not(windows))]
+        let final_path = a.path().to_str().unwrap();
+        let hash = endpoint_hash(&final_path.to_lowercase());
         assert_eq!(
             pipe_name(sid, &a),
             format!(r"\\.\pipe\halvo-control-{sid}-{hash}")
