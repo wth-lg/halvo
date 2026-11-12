@@ -80,4 +80,5 @@ catalogue! {
     REMOVE_NAMING = "SELECT id, family FROM rows WHERE workflow = ?1";
     KEY_SUMMARIES = "SELECT summary FROM rows WHERE wkey = ?1 AND kind = 'summary'";
     REMOVE_OF_SUMMARY = "SELECT id, family FROM rows WHERE summary = ?1";
+    ROWS_READ = "SELECT body FROM rows WHERE kind = ?1 AND family <> 'workflow' ORDER BY body";
 }

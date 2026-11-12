@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::BTreeSet;
 
 use halvo_schema_core::category::SeedCategory;
@@ -10,10 +11,12 @@ use halvo_sqlcipher::rusqlite;
 
 use crate::db::{one, NewRow, Now, Tx};
 use crate::error::{Error, Fault};
+use crate::handler::{Committed, Refusal};
 use crate::hash::site_hash;
 use crate::host::IdSource;
 use crate::propose::{apply, SummaryReader};
 use crate::sql;
+use crate::typed::{typed_commit, Rows, Writer};
 use crate::Store;
 
 /// What one call of `commit_batch` did.
@@ -33,6 +36,9 @@ pub struct CommitOutcome {
     pub dropped: u64,
     /// What the store did with the proposals of the recurrence step.
     pub proposals: ProposalOutcome,
+    /// For each step that the host adds after the recurrence step, in the host's order, the typed commit of its
+    /// records.
+    pub steps: Vec<Result<Committed, Refusal>>,
 }
 
 /// What the store did with the proposals of one call of the recurrence step.
@@ -168,6 +174,11 @@ impl Store {
     /// After the batch's transaction the store calls the host's recurrence step, which reads the summaries inside
     /// their bound through `SummaryRead`, and applies its proposals in one further transaction (`proposals`). When
     /// that transaction or the read of the summaries fails, the batch stays committed and the call returns the fault.
+    /// Then it calls each step that the host added, in the host's order, with the summaries and the rows of the
+    /// step's own family as they stand at its call, and commits the records that the step returns by the typed
+    /// commit, in one transaction per step (`steps`). A step's refused list leaves the batch, the proposals and the
+    /// other steps' records as they are, and the store reports the refusal to its host in `steps` and nowhere else;
+    /// a record of a kind of origin own from a step is refused.
     pub fn commit_batch(
         &mut self,
         store: &StoreId,
@@ -252,6 +263,22 @@ impl Store {
             return Err(Error::Fault(fault));
         }
         out.proposals = db.write(|tx| apply(tx, now, proposals, ids))?;
+        for step in &self.steps {
+            let fault = Cell::new(None);
+            let summaries = SummaryReader::new(&db.conn, now);
+            let rows = Rows {
+                db,
+                family: step.family,
+                fault: &fault,
+            };
+            let records = step.step.after_commit(&summaries, &rows);
+            let result = match summaries.fault().or(fault.get()) {
+                Some(fault) => Err(Refusal::from(fault)),
+                None if records.is_empty() => Ok(Committed::default()),
+                None => typed_commit(db, step.family, Writer::Step, &records),
+            };
+            out.steps.push(result);
+        }
         Ok(out)
     }
 }

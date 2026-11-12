@@ -9,11 +9,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use halvo_derived::{Clock, DbKey, Host, IdSource, OpenError, Store};
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{Position, StoreId, SummaryId};
-use halvo_schema_core::kinds::{self, KindEntry};
+use halvo_schema_core::kinds::{self, FieldType, KindEntry, Origin, RetentionClass};
 use halvo_schema_core::record::{
     Confidence, Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Proposal, Recurrence,
     RecurrenceStep, Summary, SummaryRead, Tagged, Text, Trigger,
 };
+use halvo_schema_core::request::{self, Decoded, RawRequest};
 use halvo_schema_core::site::{AppId, Domain, ObservedSite, SiteToken};
 use halvo_sqlcipher::rusqlite::Connection;
 
@@ -280,5 +281,96 @@ pub fn episode(n: u64, day: u32, site: Option<ObservedSite>) -> Episode {
             site: None,
             text: None,
         }],
+    }
+}
+
+/// A test-only kind of origin capture, bounded at 93 days, of the family `test`, with the workflow key `workflow`.
+pub static NOTE: KindEntry = KindEntry {
+    name: "test_note",
+    class: RetentionClass::Bounded { days: 93 },
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("day", FieldType::Day),
+        ("n", FieldType::Count),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","day":20767,"n":1}"#,
+};
+
+/// The kind `test_note` with the workflow key left out of its entry.
+pub static NOTE_UNKEYED: KindEntry = KindEntry {
+    workflow_key: None,
+    ..NOTE
+};
+
+/// A test-only kind of origin own, kept, of the family `test`, with a text of its own and an instant.
+pub static OWN: KindEntry = KindEntry {
+    name: "test_own",
+    class: RetentionClass::Kept,
+    origin: Origin::Own,
+    family: "test",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("note", FieldType::OwnText),
+        ("at", FieldType::Instant),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","note":"Call the landlord","at":1794339000000000000}"#,
+};
+
+/// A test-only window kind of the family `test`.
+pub static TRACE: KindEntry = KindEntry {
+    name: "test_trace",
+    class: RetentionClass::Window,
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("segments", FieldType::Ordinal),
+        ("expires", FieldType::Instant),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","segments":[4410],"expires":1795478400000000000}"#,
+};
+
+/// A test-only kept kind of the family `front`, which a handler in front writes.
+pub static FRONT: KindEntry = KindEntry {
+    name: "front_mark",
+    class: RetentionClass::Kept,
+    origin: Origin::Capture,
+    family: "front",
+    workflow_key: Some("workflow"),
+    fields: &[
+        ("v", FieldType::Version),
+        ("workflow", FieldType::Id),
+        ("seen", FieldType::Count),
+    ],
+    example: r#"{"v":1,"workflow":"10000000000000000000000000000001","seen":1}"#,
+};
+
+pub fn open_entries(
+    scratch: &Scratch,
+    host: Host,
+    extra: &[&'static KindEntry],
+) -> Result<Store, OpenError> {
+    let mut entries = registry();
+    entries.extend_from_slice(extra);
+    Store::open(scratch.path(), &key(), &entries, host, &mut Seq(1 << 40))
+}
+
+/// The request that `request::decode` returns undecoded for `{"v":1,"id":..,"request":<name>,"body":<body>}`.
+pub fn raw_request(name: &str, body: &str) -> RawRequest {
+    let text = format!(
+        r#"{{"v":1,"id":"{}","request":"{name}","body":{body}}}"#,
+        "5".repeat(32)
+    );
+    match request::decode(text.as_bytes()) {
+        Ok(Decoded::Raw(raw)) => raw,
+        other => panic!("the request decodes as {:?}", other.map(|d| d.role())),
     }
 }
