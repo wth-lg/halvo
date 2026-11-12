@@ -932,6 +932,14 @@ mod login_item_tests {
             ScratchDir::new(root.path().join("missing"), &user),
             Err(PathError::Unresolved)
         );
+        let gone = root.path().join("gone");
+        std::fs::create_dir(&gone).unwrap();
+        let scratch = ScratchDir::new(&gone, &user).unwrap();
+        let target =
+            LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
+        std::fs::remove_dir(&gone).unwrap();
+        assert!(install_login_item(&spec, &target).is_err());
+        assert!(!gone.exists());
     }
 
     #[test]
