@@ -107,7 +107,7 @@ function http(port, method, host, path, { headers = {}, body } = {}) {
   });
 }
 
-function startServer(dir, args, input = 'ignore') {
+function startServer(dir, args, input = 'pipe') {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [join(dir, 'server.mjs'), ...args], { stdio: [input, 'pipe', 'pipe'], windowsHide: true });
     child.stdin?.on('error', () => {});
@@ -202,7 +202,7 @@ function firstLine(stream, ms) {
 
 async function lifetimeCases() {
   await run('lifetime-input-closed', async (c) => {
-    const s = await startServer(HERE, ['--port', '0'], 'pipe');
+    const s = await startServer(HERE, ['--port', '0']);
     try {
       if (!c.ok(s.child !== null, 'server_started')) return;
       await sleep(1000);
