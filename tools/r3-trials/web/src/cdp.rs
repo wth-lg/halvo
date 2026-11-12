@@ -233,6 +233,20 @@ impl BrowserChild {
     }
 }
 
+/// An executor that is dropped without `stop` ends its browser through the child that its start
+/// made and closes its channel, as the end of the executor's process would.
+impl Drop for Executor {
+    fn drop(&mut self) {
+        if !self.child.exited() {
+            self.child.kill();
+        }
+        self.wire_task.abort();
+        if let Some(relay) = &self.relay {
+            relay.trust(None);
+        }
+    }
+}
+
 /// Copies of the executor's two ends of the pipe, which keep the pipe from being freed while a
 /// check after the stop reads who holds it; dropping it closes them.
 pub struct PipeKeep(#[allow(dead_code)] std::sync::Arc<[std::fs::File; 2]>);
