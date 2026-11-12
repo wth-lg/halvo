@@ -33,6 +33,7 @@
   let tick = 0;
   let press = null;
   let pointer = null;
+  let pointedAt = null;
   let raising = false;
   const keys = new Map();
 
@@ -210,6 +211,7 @@
       keys.delete(event.key);
       press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false, end: true };
     } else if (type === 'pointerdown') {
+      pointedAt = controlName(event.target);
       pointer = { at: tick, target: event.target, raise: raising };
       raising = false;
       press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise, end: false };
@@ -220,6 +222,17 @@
 
   function raised(event) {
     if (event.target === window) raising = true;
+  }
+
+  function controlName(node) {
+    const mine = node && node.tagName === 'BUTTON' && node.hasAttribute('data-act') && list.contains(node);
+    return mine ? node.getAttribute('data-act') + ':' + node.getAttribute('data-param') : '';
+  }
+
+  function pointedOn(b) {
+    const began = pointedAt;
+    pointedAt = null;
+    return began === b.getAttribute('data-act') + ':' + b.getAttribute('data-param');
   }
 
   function freshFor(card, event) {
@@ -258,6 +271,7 @@
           return;
         }
         if (event.detail > 1) return;
+        if (!card.dialog && event.detail > 0 && !pointedOn(b)) return;
         answer(item, c, card);
       });
       controls.appendChild(b);

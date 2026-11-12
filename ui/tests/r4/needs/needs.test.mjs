@@ -854,6 +854,73 @@ async function confirms(origin, dir) {
   return faults;
 }
 
+async function crossed(origin, dir) {
+  const faults = [];
+  const base = stateFile(dir, 'needs_sign_in').snapshot.items[0];
+  const a = withId(base, 'a'.repeat(32));
+  const b = { ...withId(base, 'b'.repeat(32)), agent: 'f'.repeat(32) };
+  writeState(dir, 'test_two_sign_in', [a, b]);
+  const sel = (act, id) => '[data-act="' + act + '"][data-param="' + id + '"]';
+  const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
+  for (const choice of ['decline', 'done']) {
+    const answer = { call: 'agents_answer', args: { item: b.item, choice }, reply: { ok: 'yes' } };
+    let out = outDir();
+    let h = await open({ origin, state: 'test_two_sign_in', views: [VIEW], out });
+    try {
+      const pointerClick = (from, to) =>
+        h.page.evaluate(
+          ([f, t]) => {
+            document.querySelector(f).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
+            document.querySelector(t).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+          },
+          [from, to],
+        );
+      await pointerClick(sel(choice, a.item), sel(choice, b.item));
+      await frames(h);
+      const elsewhere = said(out).join(',');
+      if (elsewhere !== '') faults.push('pointer_begun_on_another_items_' + choice + ':calls=' + elsewhere);
+      await pointerClick(sel(choice, b.item), sel(choice, b.item));
+      await frames(h);
+      const own = said(out).join(',');
+      if (own !== 'agents_answer:' + choice + ':b') faults.push('pointer_begun_on_its_own_' + choice + ':calls=' + (own || '-'));
+    } finally {
+      await h.close();
+    }
+    if (engineOf(h) !== 'chromium') continue;
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [a, b]) }, gate, { state: snap(2, [b]) }, answer, answer], views: [VIEW], out });
+    try {
+      const box = await h.page.locator(sel(choice, a.item)).boundingBox();
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const cdp = await h.page.context().newCDPSession(h.page);
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+      const touch = (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
+      await touch('start');
+      await h.page.evaluate((agent) => window.Halvo.ipc.call('agents_card', { agent }), gate.args.agent);
+      await h.page.waitForFunction((s) => document.querySelector(s) === null, sel(choice, a.item), { timeout: 3000 });
+      await frames(h);
+      const under = await h.page.evaluate(([x, y]) => {
+        const e = document.elementFromPoint(x, y);
+        return e && e.tagName === 'BUTTON' ? e.getAttribute('data-act') + ':' + e.getAttribute('data-param').slice(0, 1) : '-';
+      }, [point.x, point.y]);
+      if (under !== choice + ':b') faults.push('touch_' + choice + ':not_under_the_finger=' + under);
+      await touch('end');
+      await frames(h);
+      const lifted = callsOf(out).filter((c) => c.call === 'agents_answer').map((c) => c.call + ':' + c.args.choice + ':' + c.args.item.slice(0, 1)).join(',');
+      if (lifted !== '') faults.push('touch_begun_on_another_items_' + choice + ':calls=' + lifted);
+      await h.page.waitForTimeout(800);
+      await touch('start');
+      await touch('end');
+      await frames(h);
+      const fresh = callsOf(out).filter((c) => c.call === 'agents_answer').map((c) => c.call + ':' + c.args.choice + ':' + c.args.item.slice(0, 1)).join(',');
+      if (fresh !== 'agents_answer:' + choice + ':b') faults.push('touch_fresh_' + choice + ':calls=' + (fresh || '-'));
+    } finally {
+      await h.close();
+    }
+  }
+  return faults;
+}
+
 async function bound(origin, dir) {
   const faults = [];
   const item = stateFile(dir, 'setup_three').snapshot.items[0];
@@ -922,7 +989,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'bound', 'features'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -939,6 +1006,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('setups')) report('setups', await setups(origin, dir));
     if (want('reorder')) report('reorder', await reorder(origin, dir));
     if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks', 'touches']);
+    if (want('crossed')) report('crossed', await crossed(origin, dir));
     if (want('bound')) report('bound', await bound(origin, dir));
     if (want('features')) report('features', await features(origin), ['features']);
   }
