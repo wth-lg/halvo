@@ -153,6 +153,31 @@ check() {
   script=$0
 }
 
+signalled() {
+  dir=$work/$1
+  (
+    CI_D_REPO=$dir
+    STUB_CALLS=$dir/calls
+    TMPDIR=$dir/tmp
+    export CI_D_REPO STUB_CALLS TMPDIR
+    unset GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA
+    exec dash "$0"
+  ) >"$dir/out" 2>&1 &
+  pid=$!
+  i=0
+  while [ ! -f "$dir/calls.started" ] && [ "$i" -lt 100 ]; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  kill -TERM "$pid"
+  wait "$pid"
+  got=exit-$?
+  left=$(find "$dir/tmp" -mindepth 1 -maxdepth 1)
+  [ -z "$left" ] || got=$got-with-leftovers
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" exit-143 "$got"
+  [ "$got" = exit-143 ] || wrong="$wrong $1"
+}
+
 # shellcheck disable=SC2016
 real_runner() {
   dir=$work/$1
@@ -253,6 +278,10 @@ self_test() {
   runner push-to-main-name-in-two-row-files "$applies; $twice; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-name-in-two-row-files PASS 'ran 1 of 5 rows' "$order1"
+  if command -v dash >/dev/null 2>&1; then
+    runner term-under-dash-leaves-no-directory "case \${1:-} in --apply-only) : >\"\$STUB_CALLS.started\"; sleep 2; printf \"PASS mutation:shredded-key-survives (applies and builds)\\n\" ;; esac"
+    signalled term-under-dash-leaves-no-directory
+  fi
   real_runner real-runner-rows-and-count
   ref=refs/heads/main
   check real-runner-rows-and-count PASS "PASS $name" '' "row mutation:gamma-gone PASS * s${nl}row mutation:alpha-gone PASS N s${nl}row mutation:beta-gone PASS * s${nl}ran 3 of 4 rows"
