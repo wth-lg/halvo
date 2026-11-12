@@ -1,0 +1,2091 @@
+//! Functional checks of the Windows capture sources on a real Windows desktop.
+//!
+//! Every test is ignored, so `cargo test --workspace` runs none of them.
+//! `scripts/r1/ci.d/50-windows-functional.sh` runs each test by name in its own
+//! process with `--ignored --exact --nocapture` and judges it by its exit status
+//! and its output. A test builds every source it needs in its own process and
+//! prints `TF <test> ...` lines that hold counts, sizes and booleans only.
+#![cfg(target_os = "windows")]
+#![deny(clippy::undocumented_unsafe_blocks)]
+
+use std::collections::BTreeMap;
+use std::io::Read;
+use std::path::Path;
+use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime};
+
+use halvo_capture::event::{CaptureStreamEvent, Modality};
+use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
+use halvo_capture::source::CaptureSource;
+use halvo_capture::windows::apps::scan_installed;
+use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
+use halvo_capture::windows::input::RawInputSource;
+use halvo_capture::windows::screen::ScreenSource;
+use halvo_capture::windows::window_title::WindowTitleSource;
+
+use windows::core::{HSTRING, PCWSTR};
+use windows::Win32::Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Gdi::{CreateSolidBrush, GetDC, GetPixel, ReleaseDC};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+use windows::Win32::System::Threading::{
+    AttachThreadInput, GetCurrentProcess, GetCurrentProcessId, GetCurrentThreadId,
+};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+    KEYEVENTF_KEYUP, MOUSEEVENTF_MOVE, MOUSEINPUT, VIRTUAL_KEY, VK_F15, VK_MENU,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    FindWindowW, GetForegroundWindow, GetSystemMetrics, GetWindowDisplayAffinity,
+    GetWindowThreadProcessId, PeekMessageW, RegisterClassW, SetForegroundWindow,
+    SetWindowDisplayAffinity, SetWindowPos, SetWindowTextW, ShowWindow, TranslateMessage,
+    UnregisterClassW, MSG, PM_REMOVE, SC_KEYMENU, SM_CMONITORS, SM_CXSCREEN, SM_CYSCREEN,
+    SM_REMOTESESSION, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_MINIMIZE, SW_RESTORE, SW_SHOW,
+    SYSTEM_METRICS_INDEX, WDA_EXCLUDEFROMCAPTURE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_SYSCOMMAND,
+    WNDCLASSW, WS_CHILD, WS_EX_TOPMOST, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+};
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn ProcessIdToSessionId(process_id: u32, session_id: *mut u32) -> i32;
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn GetProcessWindowStation() -> *mut core::ffi::c_void;
+    fn GetThreadDesktop(thread_id: u32) -> *mut core::ffi::c_void;
+    fn OpenInputDesktop(flags: u32, inherit: i32, access: u32) -> *mut core::ffi::c_void;
+    fn CloseDesktop(desktop: *mut core::ffi::c_void) -> i32;
+    fn GetUserObjectInformationW(
+        object: *mut core::ffi::c_void,
+        index: i32,
+        info: *mut core::ffi::c_void,
+        len: u32,
+        needed: *mut u32,
+    ) -> i32;
+}
+
+const UOI_NAME: i32 = 2;
+const DESKTOP_READOBJECTS: u32 = 0x0001;
+
+const ATTRIBUTION: &str = "halvo-verify-attributed-app";
+const CHILD_SECS_ENV: &str = "HALVO_VERIFY_CHILD_SECS";
+const CHILD_EXE_NAME: &str = "halvo-verify-child.exe";
+const CHILD_MODE_ENV: &str = "HALVO_VERIFY_CHILD_MODE";
+const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
+const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
+const FIXED_TITLE: &str = "halvo-verify-second-window-with-a-fixed-title";
+const MAGENTA: u32 = 0x00FF_00FF;
+// The 10 s wait for a first frame is the wait of c2 at 796923f; every run of it
+// on windows-2025 saw the first frame inside it (reports/verifier-windows-functional-1.md).
+const FIRST_FRAME_WAIT: Duration = Duration::from_secs(10);
+const BOUNDS_FILE: &str = "docs/baseline/r1-gate-bounds.txt";
+
+fn say(test: &str, message: impl AsRef<str>) {
+    println!("TF {test} {}", message.as_ref());
+}
+
+fn show<T, E: std::fmt::Display>(result: &Result<T, E>) -> String {
+    match result {
+        Ok(_) => "ok".to_string(),
+        Err(e) => format!("error({e})"),
+    }
+}
+
+fn with_deadline<F>(test: &'static str, limit: Duration, body: F)
+where
+    F: FnOnce() + Send + 'static,
+{
+    let (done, finished) = mpsc::channel();
+    let worker = std::thread::Builder::new()
+        .name(format!("tf-{test}"))
+        .spawn(move || {
+            body();
+            let _ = done.send(());
+        })
+        .expect("spawn the test body");
+    match finished.recv_timeout(limit) {
+        Ok(()) => worker.join().expect("test body finished"),
+        Err(RecvTimeoutError::Timeout) => {
+            say(
+                test,
+                format!("result=TIMEOUT limit_secs={}", limit.as_secs()),
+            );
+            panic!("{test} did not finish within {limit:?}");
+        }
+        Err(RecvTimeoutError::Disconnected) => {
+            if let Err(payload) = worker.join() {
+                std::panic::resume_unwind(payload);
+            }
+        }
+    }
+}
+
+fn user_object_name(handle: *mut core::ffi::c_void) -> String {
+    if handle.is_null() {
+        return String::new();
+    }
+    let mut buf = [0u16; 256];
+    let mut needed = 0u32;
+    // SAFETY: `handle` is a non-null window-station or desktop handle, and the
+    // buffer pointer and its byte length describe `buf`, which outlives the call.
+    let ok = unsafe {
+        GetUserObjectInformationW(
+            handle,
+            UOI_NAME,
+            buf.as_mut_ptr().cast(),
+            (buf.len() * 2) as u32,
+            &mut needed,
+        )
+    };
+    if ok == 0 {
+        return String::new();
+    }
+    let len = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
+    String::from_utf16_lossy(&buf[..len])
+}
+
+fn metric(index: SYSTEM_METRICS_INDEX) -> i32 {
+    // SAFETY: GetSystemMetrics reads a system value and takes no pointer.
+    unsafe { GetSystemMetrics(index) }
+}
+
+fn screen_size() -> (i32, i32) {
+    (metric(SM_CXSCREEN), metric(SM_CYSCREEN))
+}
+
+fn foreground_window() -> HWND {
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    unsafe { GetForegroundWindow() }
+}
+
+fn window_pid(hwnd: HWND) -> u32 {
+    if hwnd.0.is_null() {
+        return 0;
+    }
+    let mut pid = 0u32;
+    // SAFETY: `pid` is a live u32 that the call writes the process id into.
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    }
+    pid
+}
+
+fn foreground_pid() -> u32 {
+    window_pid(foreground_window())
+}
+
+fn set_foreground(hwnd: HWND) {
+    // SAFETY: SetForegroundWindow takes a window handle by value; a stale
+    // handle makes the call fail and changes nothing.
+    unsafe {
+        let _ = SetForegroundWindow(hwnd);
+    }
+}
+
+fn env_report(test: &str) {
+    let mut session = u32::MAX;
+    // SAFETY: `session` is a live u32 that the call writes the session id into.
+    let session_ok = unsafe { ProcessIdToSessionId(GetCurrentProcessId(), &mut session) } != 0;
+    // SAFETY: both calls return handles that this process does not own and
+    // must not close; they are only read by `user_object_name`.
+    let (station, desktop) = unsafe {
+        (
+            user_object_name(GetProcessWindowStation()),
+            user_object_name(GetThreadDesktop(GetCurrentThreadId())),
+        )
+    };
+    // SAFETY: OpenInputDesktop returns a desktop handle or null; a non-null
+    // handle is closed once, right after its name is read.
+    let input = unsafe {
+        let handle = OpenInputDesktop(0, 0, DESKTOP_READOBJECTS);
+        let name = user_object_name(handle);
+        if !handle.is_null() {
+            CloseDesktop(handle);
+        }
+        name
+    };
+    let (cx, cy) = screen_size();
+    say(
+        test,
+        format!(
+            "env session_id_ok={session_ok} session_id={session} \
+             window_station_is_winsta0={} desktop_is_default={} input_desktop_is_default={} \
+             screen={cx}x{cy} monitors={} remote_session={} \
+             foreground_window_present={} foreground_app_known={}",
+            station.eq_ignore_ascii_case("WinSta0"),
+            desktop.eq_ignore_ascii_case("Default"),
+            input.eq_ignore_ascii_case("Default"),
+            metric(SM_CMONITORS),
+            metric(SM_REMOTESESSION),
+            !foreground_window().0.is_null(),
+            current_foreground_app().is_some(),
+        ),
+    );
+}
+
+fn file_name(path: &str) -> &str {
+    path.rsplit(['\\', '/']).next().unwrap_or(path)
+}
+
+fn own_exe_file() -> String {
+    std::env::current_exe()
+        .map(|exe| file_name(&exe.to_string_lossy()).to_string())
+        .unwrap_or_default()
+}
+
+fn is_child_app(app: &str) -> bool {
+    file_name(app).eq_ignore_ascii_case(CHILD_EXE_NAME)
+}
+
+fn app_class(app: &str, own_exe: &str) -> &'static str {
+    if app.is_empty() {
+        "empty"
+    } else if app == ATTRIBUTION {
+        "attribution"
+    } else if is_child_app(app) {
+        "child"
+    } else if file_name(app).eq_ignore_ascii_case(own_exe) {
+        "test"
+    } else {
+        "other"
+    }
+}
+
+fn source_built_by_test(test: &str, source: &str) {
+    say(test, format!("source_built_by_test={source}"));
+}
+
+fn key_input(key: VIRTUAL_KEY, released: bool) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: key,
+                wScan: 0,
+                dwFlags: if released {
+                    KEYEVENTF_KEYUP
+                } else {
+                    KEYBD_EVENT_FLAGS(0)
+                },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn mouse_move(dx: i32, dy: i32) -> INPUT {
+    INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx,
+                dy,
+                mouseData: 0,
+                dwFlags: MOUSEEVENTF_MOVE,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn send(inputs: &[INPUT]) -> u32 {
+    // SAFETY: `inputs` is a live slice of INPUT values and the size argument
+    // is the size of one INPUT, as SendInput requires.
+    unsafe { SendInput(inputs, core::mem::size_of::<INPUT>() as i32) }
+}
+
+fn press_keys(presses: u32) -> u32 {
+    let mut accepted = 0;
+    for _ in 0..presses {
+        accepted += send(&[key_input(VK_F15, false)]);
+        std::thread::sleep(Duration::from_millis(5));
+        accepted += send(&[key_input(VK_F15, true)]);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    accepted
+}
+
+fn move_pointer(moves: u32) -> u32 {
+    let mut accepted = 0;
+    for i in 0..moves {
+        let dx = if i.is_multiple_of(2) { 3 } else { -3 };
+        accepted += send(&[mouse_move(dx, 0)]);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    accepted
+}
+
+struct Events(mpsc::Receiver<CaptureStreamEvent>);
+
+impl Events {
+    fn drain_for(&self, window: Duration) -> Vec<CaptureStreamEvent> {
+        let deadline = Instant::now() + window;
+        let mut events = Vec::new();
+        loop {
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            match self.0.recv_timeout(deadline - now) {
+                Ok(event) => events.push(event),
+                Err(_) => break,
+            }
+        }
+        events
+    }
+
+    fn first_within(&self, limit: Duration) -> Option<CaptureStreamEvent> {
+        self.0.recv_timeout(limit).ok()
+    }
+}
+
+fn forward(writer: SinkWriter) -> Events {
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("tf-sink-forward".to_string())
+        .spawn(move || {
+            while let Some(event) = writer.recv() {
+                if tx.send(event).is_err() {
+                    break;
+                }
+            }
+        })
+        .expect("spawn the sink forwarder");
+    Events(rx)
+}
+
+fn capture(capacity: usize) -> (SinkHandle, Events) {
+    let (sink, writer) = channel(capacity);
+    (sink, forward(writer))
+}
+
+fn count(events: &[CaptureStreamEvent], modality: Modality) -> usize {
+    events.iter().filter(|e| e.modality == modality).count()
+}
+
+fn summarize(test: &str, phase: &str, events: &[CaptureStreamEvent]) {
+    let own_exe = own_exe_file();
+    let mut groups: BTreeMap<(String, &'static str, u64), usize> = BTreeMap::new();
+    for event in events {
+        let key = (
+            format!("{:?}", event.modality),
+            app_class(&event.foreground_app, &own_exe),
+            event.segment_ref.byte_len,
+        );
+        *groups.entry(key).or_default() += 1;
+    }
+    say(
+        test,
+        format!(
+            "phase={phase} events={} groups={}",
+            events.len(),
+            groups.len()
+        ),
+    );
+    for ((modality, app, byte_len), n) in groups.iter().take(40) {
+        say(
+            test,
+            format!("phase={phase} modality={modality} app={app} byte_len={byte_len} count={n}"),
+        );
+    }
+    if groups.len() > 40 {
+        say(
+            test,
+            format!("phase={phase} groups_not_printed={}", groups.len() - 40),
+        );
+    }
+}
+
+unsafe extern "system" fn test_wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if msg == WM_SYSCOMMAND && (wparam.0 & 0xFFF0) == SC_KEYMENU as usize {
+        return LRESULT(0);
+    }
+    DefWindowProcW(hwnd, msg, wparam, lparam)
+}
+
+fn pump_thread(window: Duration) {
+    let deadline = Instant::now() + window;
+    let mut msg = MSG::default();
+    loop {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value is handed to TranslateMessage and DispatchMessageW.
+        unsafe {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+struct WindowSpec<'a> {
+    class: &'a str,
+    title: &'a str,
+    style: WINDOW_STYLE,
+    ex_style: WINDOW_EX_STYLE,
+    fill: u32,
+    x: i32,
+    y: i32,
+}
+
+const WINDOW_WIDTH: i32 = 360;
+const WINDOW_HEIGHT: i32 = 240;
+
+struct TestWindow {
+    hwnd: HWND,
+    class_name: HSTRING,
+    hinstance: HINSTANCE,
+}
+
+impl TestWindow {
+    fn create(spec: &WindowSpec) -> Result<Self, String> {
+        let class_name = HSTRING::from(spec.class);
+        // SAFETY: a null module name asks for the handle of this executable,
+        // which stays loaded for the life of the process.
+        let hinstance: HINSTANCE = unsafe { GetModuleHandleW(None) }
+            .map_err(|e| format!("GetModuleHandleW: {e}"))?
+            .into();
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(test_wnd_proc),
+            hInstance: hinstance,
+            lpszClassName: PCWSTR(class_name.as_ptr()),
+            // SAFETY: CreateSolidBrush takes a color by value and returns a brush
+            // that the class owns from here on.
+            hbrBackground: unsafe { CreateSolidBrush(COLORREF(spec.fill)) },
+            ..Default::default()
+        };
+        // SAFETY: `class` points at `class_name`, which lives in the returned
+        // value until Drop unregisters the class.
+        if unsafe { RegisterClassW(&class) } == 0 {
+            return Err(format!(
+                "RegisterClassW: {}",
+                windows::core::Error::from_thread()
+            ));
+        }
+        let title = HSTRING::from(spec.title);
+        // SAFETY: the class name and title point at live HSTRINGs for the
+        // duration of the call, and the class was registered above.
+        let hwnd = unsafe {
+            CreateWindowExW(
+                spec.ex_style,
+                PCWSTR(class_name.as_ptr()),
+                PCWSTR(title.as_ptr()),
+                spec.style,
+                spec.x,
+                spec.y,
+                WINDOW_WIDTH,
+                WINDOW_HEIGHT,
+                None,
+                None,
+                Some(hinstance),
+                None,
+            )
+        }
+        .map_err(|e| format!("CreateWindowExW: {e}"))?;
+        Ok(Self {
+            hwnd,
+            class_name,
+            hinstance,
+        })
+    }
+
+    fn child_control(&self, class: &str, style: WINDOW_STYLE, y: i32) -> Result<HWND, String> {
+        let class = HSTRING::from(class);
+        // SAFETY: the class name points at a live HSTRING for the call, and the
+        // parent is this window, which the calling thread owns.
+        unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                PCWSTR(class.as_ptr()),
+                PCWSTR::null(),
+                WS_CHILD | WS_VISIBLE | style,
+                10,
+                y,
+                300,
+                24,
+                Some(self.hwnd),
+                None,
+                Some(self.hinstance),
+                None,
+            )
+        }
+        .map_err(|e| format!("CreateWindowExW: {e}"))
+    }
+
+    fn set_title(&self, title: &str) -> Result<(), String> {
+        set_text(self.hwnd, title)
+    }
+
+    fn move_to(&self, x: i32, y: i32) {
+        // SAFETY: SetWindowPos takes this thread's window handle by value.
+        unsafe {
+            let _ = SetWindowPos(
+                self.hwnd,
+                None,
+                x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+        }
+    }
+
+    fn cover_screen(&self) {
+        let (cx, cy) = screen_size();
+        // SAFETY: SetWindowPos takes this thread's window handle by value.
+        unsafe {
+            let _ = SetWindowPos(self.hwnd, None, 0, 0, cx, cy, SWP_NOZORDER);
+        }
+    }
+
+    fn is_foreground(&self) -> bool {
+        foreground_window() == self.hwnd
+    }
+
+    fn activate(&self) -> (bool, &'static str) {
+        // SAFETY: the three calls take this thread's window handle by value.
+        unsafe {
+            let _ = ShowWindow(self.hwnd, SW_SHOW);
+            let _ = BringWindowToTop(self.hwnd);
+            let _ = SetForegroundWindow(self.hwnd);
+        }
+        pump_thread(Duration::from_millis(200));
+        if self.is_foreground() {
+            return (true, "SetForegroundWindow");
+        }
+
+        send(&[key_input(VK_MENU, false)]);
+        set_foreground(self.hwnd);
+        send(&[key_input(VK_MENU, true)]);
+        pump_thread(Duration::from_millis(200));
+        if self.is_foreground() {
+            return (true, "alt-key-unlock");
+        }
+
+        let current_thread = {
+            let mut pid = 0u32;
+            // SAFETY: `pid` is a live u32 that the call writes into.
+            unsafe { GetWindowThreadProcessId(foreground_window(), Some(&mut pid)) }
+        };
+        // SAFETY: GetCurrentThreadId takes no argument.
+        let this_thread = unsafe { GetCurrentThreadId() };
+        if current_thread != 0 && current_thread != this_thread {
+            // SAFETY: the input of the two threads is joined only around the two
+            // window calls and detached again before the block ends.
+            unsafe {
+                let _ = AttachThreadInput(this_thread, current_thread, true);
+                let _ = BringWindowToTop(self.hwnd);
+                let _ = SetForegroundWindow(self.hwnd);
+                let _ = AttachThreadInput(this_thread, current_thread, false);
+            }
+        }
+        pump_thread(Duration::from_millis(200));
+        if self.is_foreground() {
+            return (true, "attach-thread-input");
+        }
+
+        // SAFETY: ShowWindow takes this thread's window handle by value.
+        unsafe {
+            let _ = ShowWindow(self.hwnd, SW_MINIMIZE);
+            let _ = ShowWindow(self.hwnd, SW_RESTORE);
+        }
+        pump_thread(Duration::from_millis(200));
+        (self.is_foreground(), "minimize-restore")
+    }
+}
+
+impl Drop for TestWindow {
+    fn drop(&mut self) {
+        // SAFETY: the window and its class belong to this value; each is
+        // destroyed once, here, by the thread that created it.
+        unsafe {
+            let _ = DestroyWindow(self.hwnd);
+            let _ = UnregisterClassW(PCWSTR(self.class_name.as_ptr()), Some(self.hinstance));
+        }
+        pump_thread(Duration::from_millis(50));
+    }
+}
+
+fn set_text(hwnd: HWND, text: &str) -> Result<(), String> {
+    let text = HSTRING::from(text);
+    // SAFETY: `text` is a live HSTRING for the duration of the call.
+    unsafe { SetWindowTextW(hwnd, &text) }.map_err(|e| format!("SetWindowTextW: {e}"))
+}
+
+fn normal_window<'a>(class: &'a str, title: &'a str, x: i32, y: i32) -> WindowSpec<'a> {
+    WindowSpec {
+        class,
+        title,
+        style: WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        ex_style: WINDOW_EX_STYLE(0),
+        fill: 0x0000_80FF,
+        x,
+        y,
+    }
+}
+
+fn magenta_popup<'a>(class: &'a str, title: &'a str) -> WindowSpec<'a> {
+    WindowSpec {
+        class,
+        title,
+        style: WS_POPUP | WS_VISIBLE,
+        ex_style: WS_EX_TOPMOST,
+        fill: MAGENTA,
+        x: 100,
+        y: 100,
+    }
+}
+
+fn child_title(step: usize) -> String {
+    format!("halvo-verify-{}", "x".repeat(step % 8 + 1))
+}
+
+const CHILD_TITLE_LENGTHS: std::ops::RangeInclusive<u64> = 14..=21;
+
+#[test]
+#[ignore = "helper: does nothing unless a functional test launches it as a child process"]
+fn helper_child_window() {
+    let Ok(secs) = std::env::var(CHILD_SECS_ENV) else {
+        return;
+    };
+    let secs: u64 = secs.parse().expect("child seconds");
+    match std::env::var(CHILD_MODE_ENV).as_deref() {
+        Ok("scope") => return child_scope(),
+        Ok("hold") => return child_hold(secs),
+        _ => {}
+    }
+    let first = TestWindow::create(&normal_window(
+        "HalvoVerifyChildFirst",
+        &child_title(0),
+        40,
+        40,
+    ))
+    .expect("first child window");
+    let second = TestWindow::create(&normal_window(
+        "HalvoVerifyChildSecond",
+        FIXED_TITLE,
+        220,
+        180,
+    ))
+    .expect("second child window");
+    pump_thread(Duration::from_millis(300));
+    let (foreground, method) = first.activate();
+    say(
+        "child",
+        format!("first_window_foreground={foreground} method={method}"),
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    let mut step = 0usize;
+    let mut switches = 0u32;
+    let mut switches_confirmed = 0u32;
+    while Instant::now() < deadline {
+        step += 1;
+        first
+            .set_title(&child_title(step))
+            .expect("set the child title");
+        pump_thread(Duration::from_millis(250));
+        if step.is_multiple_of(2) {
+            let target = if (step / 2) % 2 == 1 { &second } else { &first };
+            set_foreground(target.hwnd);
+            pump_thread(Duration::from_millis(50));
+            switches += 1;
+            if target.is_foreground() {
+                switches_confirmed += 1;
+            }
+        }
+        pump_thread(Duration::from_millis(200));
+    }
+    say(
+        "child",
+        format!(
+            "title_changes={step} foreground_switches={switches} \
+             switches_confirmed={switches_confirmed}"
+        ),
+    );
+}
+
+fn child_scope() {
+    let first = TestWindow::create(&normal_window(
+        "HalvoVerifyScopeFirst",
+        "halvo-verify-scope-first",
+        40,
+        40,
+    ))
+    .expect("foreground window");
+    let label = first
+        .child_control("STATIC", WINDOW_STYLE(0), 10)
+        .expect("child control");
+    let background = TestWindow::create(&normal_window(
+        "HalvoVerifyScopeBackground",
+        "halvo-verify-scope-background",
+        260,
+        200,
+    ))
+    .expect("background window");
+    let hidden = TestWindow::create(&WindowSpec {
+        class: "HalvoVerifyScopeHidden",
+        title: "halvo-verify-scope-hidden",
+        style: WS_OVERLAPPEDWINDOW,
+        ex_style: WINDOW_EX_STYLE(0),
+        fill: 0x0000_80FF,
+        x: 300,
+        y: 300,
+    })
+    .expect("hidden window");
+    pump_thread(Duration::from_millis(300));
+    let (foreground, method) = first.activate();
+    pump_thread(Duration::from_millis(500));
+
+    first.set_title(&"f".repeat(30)).expect("foreground title");
+    pump_thread(Duration::from_millis(400));
+    let label_set = set_text(label, &"c".repeat(40)).is_ok();
+    pump_thread(Duration::from_millis(400));
+    let first_still_foreground = first.is_foreground();
+    background
+        .set_title(&"b".repeat(50))
+        .expect("background title");
+    pump_thread(Duration::from_millis(400));
+    hidden.set_title(&"h".repeat(60)).expect("hidden title");
+    pump_thread(Duration::from_millis(400));
+    say(
+        "child",
+        format!(
+            "mode=scope first_window_foreground={foreground} method={method} \
+             first_window_foreground_during_changes={first_still_foreground} \
+             control_text_set={label_set} background_window_is_foreground={}",
+            background.is_foreground()
+        ),
+    );
+}
+
+fn child_hold(secs: u64) {
+    let first = TestWindow::create(&normal_window(
+        "HalvoVerifyHoldFirst",
+        "halvo-verify-hold-first",
+        40,
+        40,
+    ))
+    .expect("first window");
+    let second = TestWindow::create(&normal_window(
+        "HalvoVerifyHoldSecond",
+        "halvo-verify-hold-second",
+        220,
+        180,
+    ))
+    .expect("second window");
+    pump_thread(Duration::from_millis(300));
+    let (foreground, method) = first.activate();
+    say(
+        "child",
+        format!("mode=hold first_window_foreground={foreground} method={method}"),
+    );
+    pump_thread(Duration::from_secs(secs));
+    let held = first.is_foreground();
+    set_foreground(second.hwnd);
+    pump_thread(Duration::from_millis(100));
+    say(
+        "child",
+        format!(
+            "mode=hold first_window_held_foreground={held} switched_to_second_window={}",
+            second.is_foreground()
+        ),
+    );
+    pump_thread(Duration::from_secs(3));
+}
+
+struct ChildProcess {
+    process: std::process::Child,
+    output: Option<std::thread::JoinHandle<String>>,
+    _dir: tempfile::TempDir,
+}
+
+impl ChildProcess {
+    fn id(&self) -> u32 {
+        self.process.id()
+    }
+
+    fn try_wait(&mut self) -> Option<std::process::ExitStatus> {
+        self.process.try_wait().expect("poll the child")
+    }
+
+    fn wait(&mut self) -> std::process::ExitStatus {
+        self.process.wait().expect("wait for the child")
+    }
+
+    fn print_output(&mut self) {
+        let Some(reader) = self.output.take() else {
+            return;
+        };
+        let text = reader.join().unwrap_or_default();
+        for line in text.lines() {
+            println!("child: {line}");
+        }
+    }
+}
+
+fn scratch_dir() -> tempfile::TempDir {
+    tempfile::Builder::new()
+        .prefix("tf-")
+        .tempdir_in(env!("CARGO_TARGET_TMPDIR"))
+        .expect("temp dir under CARGO_TARGET_TMPDIR")
+}
+
+fn spawn_child(mode: &str, secs: u64) -> ChildProcess {
+    let dir = scratch_dir();
+    let exe = dir.path().join(CHILD_EXE_NAME);
+    std::fs::copy(std::env::current_exe().expect("current exe"), &exe)
+        .expect("copy the test binary");
+    let mut process = Command::new(&exe)
+        .args(["helper_child_window", "--exact", "--ignored", "--nocapture"])
+        .env(CHILD_SECS_ENV, secs.to_string())
+        .env(CHILD_MODE_ENV, mode)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn the child");
+    let mut stdout = process.stdout.take().expect("the child's stdout");
+    let output = std::thread::spawn(move || {
+        let mut text = String::new();
+        let _ = stdout.read_to_string(&mut text);
+        text
+    });
+    ChildProcess {
+        process,
+        output: Some(output),
+        _dir: dir,
+    }
+}
+
+struct WindowScenario {
+    foreground_start: Result<(), String>,
+    title_start: Result<(), String>,
+    own_window_was_foreground: bool,
+    own_events: Vec<CaptureStreamEvent>,
+    own_exe_file: String,
+    child_was_foreground: bool,
+    last_app_was_child: bool,
+    child_exit_ok: bool,
+    child_events: Vec<CaptureStreamEvent>,
+}
+
+fn window_scenario(test: &'static str) -> WindowScenario {
+    env_report(test);
+    let (sink, events) = capture(8192);
+    let mut foreground = ForegroundAppSource::new();
+    let last_app = foreground.last_app();
+    let mut title = WindowTitleSource::new();
+    let foreground_start = foreground.start(sink.clone()).map_err(|e| e.to_string());
+    let title_start = title.start(sink.clone()).map_err(|e| e.to_string());
+    say(
+        test,
+        format!(
+            "foreground_start={} title_start={}",
+            show(&foreground_start),
+            show(&title_start)
+        ),
+    );
+
+    summarize(
+        test,
+        "ambient-1s",
+        &events.drain_for(Duration::from_secs(1)),
+    );
+
+    let own_exe_file = own_exe_file();
+    let own_title_first = "o".repeat(40);
+    let own_title_second = "o".repeat(41);
+    let own = TestWindow::create(&normal_window(
+        "HalvoVerifyOwnWindow",
+        &own_title_first,
+        60,
+        60,
+    ))
+    .expect("own window");
+    pump_thread(Duration::from_millis(300));
+    let (own_window_was_foreground, own_method) = own.activate();
+    own.set_title(&own_title_second).expect("own title");
+    pump_thread(Duration::from_millis(400));
+    drop(own);
+    let own_events = events.drain_for(Duration::from_secs(1));
+    say(
+        test,
+        format!(
+            "phase=own-process-window was_foreground={own_window_was_foreground} \
+             method={own_method}"
+        ),
+    );
+    summarize(test, "own-process-window", &own_events);
+
+    let mut child = spawn_child("cycle", 4);
+    let child_pid = child.id();
+    let mut child_events = Vec::new();
+    let mut child_was_foreground = false;
+    let mut last_app_was_child = false;
+    let exit = loop {
+        child_events.extend(events.drain_for(Duration::from_millis(100)));
+        child_was_foreground |= foreground_pid() == child_pid;
+        if let Ok(cell) = last_app.lock() {
+            last_app_was_child |= cell.as_deref().is_some_and(is_child_app);
+        }
+        if let Some(status) = child.try_wait() {
+            break status;
+        }
+    };
+    child_events.extend(events.drain_for(Duration::from_secs(1)));
+    foreground.stop();
+    title.stop();
+    child.print_output();
+    say(
+        test,
+        format!(
+            "phase=child-process-window child_exit_ok={} os_reported_child_foreground={child_was_foreground} \
+             last_app_cell_was_child={last_app_was_child}",
+            exit.success()
+        ),
+    );
+    summarize(test, "child-process-window", &child_events);
+
+    WindowScenario {
+        foreground_start,
+        title_start,
+        own_window_was_foreground,
+        own_events,
+        own_exe_file,
+        child_was_foreground,
+        last_app_was_child,
+        child_exit_ok: exit.success(),
+        child_events,
+    }
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
+    with_deadline("c1", Duration::from_secs(90), || {
+        const PRESSES: u32 = 10;
+        const MOVES: u32 = 10;
+        env_report("c1");
+        source_built_by_test("c1", "keyboard");
+        let (sink, events) = capture(4096);
+        let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
+        let keyboard_start = keyboard.start(sink.clone());
+        let pointer_start = pointer.start(sink.clone());
+        say(
+            "c1",
+            format!(
+                "keyboard_start={} pointer_start={}",
+                show(&keyboard_start),
+                show(&pointer_start)
+            ),
+        );
+
+        let quiet = events.drain_for(Duration::from_secs(1));
+        summarize("c1", "no-input-1s", &quiet);
+
+        let key_events_accepted = press_keys(PRESSES);
+        let after_keys = events.drain_for(Duration::from_millis(1500));
+        summarize("c1", "after-key-presses", &after_keys);
+
+        let move_events_accepted = move_pointer(MOVES);
+        let after_moves = events.drain_for(Duration::from_millis(1500));
+        summarize("c1", "after-pointer-moves", &after_moves);
+
+        keyboard.stop();
+        pointer.stop();
+        press_keys(3);
+        move_pointer(3);
+        let after_stop = events.drain_for(Duration::from_millis(700));
+        summarize("c1", "after-stop", &after_stop);
+
+        let keystrokes = count(&after_keys, Modality::Keystroke);
+        let pointers = count(&after_moves, Modality::Pointer);
+        let attributed = after_keys
+            .iter()
+            .chain(&after_moves)
+            .all(|e| e.foreground_app == ATTRIBUTION);
+        say(
+            "c1",
+            format!(
+                "key_presses_sent={PRESSES} sendinput_key_events_accepted={key_events_accepted} \
+                 keystroke_events={keystrokes} pointer_moves_sent={MOVES} \
+                 sendinput_move_events_accepted={move_events_accepted} pointer_events={pointers} \
+                 events_before_input={} events_after_stop={} attributed_to_last_app={attributed}",
+                quiet.len(),
+                after_stop.len(),
+            ),
+        );
+
+        assert!(keyboard_start.is_ok(), "the keyboard source must start");
+        assert!(pointer_start.is_ok(), "the pointer source must start");
+        assert!(
+            key_events_accepted > 0 && move_events_accepted > 0,
+            "INCONCLUSIVE: SendInput inserted no events on this machine"
+        );
+        assert!(quiet.is_empty(), "events arrived before any input");
+        assert_eq!(
+            keystrokes, PRESSES as usize,
+            "one keystroke event per press"
+        );
+        assert!(pointers >= 1, "no pointer event for the moves");
+        assert!(after_stop.is_empty(), "events arrived after stop");
+        assert!(
+            attributed,
+            "every event must carry the app in the shared cell"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn c2_screen_source_delivers_a_frame() {
+    with_deadline("c2", Duration::from_secs(120), || {
+        env_report("c2");
+        source_built_by_test("c2", "screen");
+        let (cx, cy) = screen_size();
+        let expected_len = cx as u64 * cy as u64 * 4;
+        let (sink, events) = capture(1024);
+        let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
+        let mut screen = ScreenSource::new(last_app);
+        let started = Instant::now();
+        let start = screen.start(sink.clone());
+        say(
+            "c2",
+            format!(
+                "screen_start={} start_ms={}",
+                show(&start),
+                started.elapsed().as_millis()
+            ),
+        );
+        assert!(start.is_ok(), "the screen source must start");
+
+        let first = events.first_within(FIRST_FRAME_WAIT);
+        say(
+            "c2",
+            format!(
+                "first_frame_within_10s={} first_frame_ms={}",
+                first.is_some(),
+                started.elapsed().as_millis()
+            ),
+        );
+        let mut idle: Vec<CaptureStreamEvent> = first.into_iter().collect();
+        idle.extend(events.drain_for(Duration::from_secs(4)));
+        summarize("c2", "unchanged-screen", &idle);
+
+        let window = TestWindow::create(&magenta_popup("HalvoVerifyFrames", "halvo-verify-frames"))
+            .expect("moving window");
+        for step in 0..20 {
+            window.move_to(100 + step * 20, 100 + step * 10);
+            pump_thread(Duration::from_millis(250));
+        }
+        drop(window);
+        let moving = events.drain_for(Duration::from_millis(700));
+        summarize("c2", "moving-window-5s", &moving);
+
+        screen.stop();
+        let after_stop = events.drain_for(Duration::from_millis(1500));
+        let frames: Vec<&CaptureStreamEvent> = idle
+            .iter()
+            .chain(&moving)
+            .filter(|e| e.modality == Modality::ScreenFrame)
+            .collect();
+        say(
+            "c2",
+            format!(
+                "frames_unchanged_screen={} frames_moving_window={} frames_after_stop={} \
+                 expected_byte_len={expected_len} every_frame_is_full_screen={} \
+                 attributed_to_last_app={} dropped={}",
+                count(&idle, Modality::ScreenFrame),
+                count(&moving, Modality::ScreenFrame),
+                after_stop.len(),
+                frames
+                    .iter()
+                    .all(|e| e.segment_ref.byte_len == expected_len),
+                frames.iter().all(|e| e.foreground_app == ATTRIBUTION),
+                sink.dropped_count(),
+            ),
+        );
+        assert!(!frames.is_empty(), "no frame of the desktop in 15 seconds");
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn c3_foreground_source_reports_an_activated_window() {
+    with_deadline("c3", Duration::from_secs(90), || {
+        let seen = window_scenario("c3");
+        let child_foreground = seen
+            .child_events
+            .iter()
+            .filter(|e| e.modality == Modality::ForegroundApp && is_child_app(&e.foreground_app))
+            .count();
+        let own_foreground = seen
+            .own_events
+            .iter()
+            .filter(|e| {
+                e.modality == Modality::ForegroundApp
+                    && file_name(&e.foreground_app).eq_ignore_ascii_case(&seen.own_exe_file)
+            })
+            .count();
+        say(
+            "c3",
+            format!(
+                "foreground_events_for_child_window={child_foreground} \
+                 os_reported_child_foreground={} last_app_cell_was_child={} \
+                 foreground_events_for_own_process_window={own_foreground} \
+                 own_window_was_foreground={}",
+                seen.child_was_foreground, seen.last_app_was_child, seen.own_window_was_foreground,
+            ),
+        );
+        assert!(
+            seen.foreground_start.is_ok(),
+            "the foreground source must start"
+        );
+        assert!(seen.child_exit_ok, "the child process must finish");
+        assert!(
+            seen.child_was_foreground,
+            "INCONCLUSIVE: the OS never made the child window the foreground window"
+        );
+        assert!(
+            child_foreground >= 1,
+            "no foreground event for the activated child window"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn c4_window_title_source_reports_a_title_change() {
+    with_deadline("c4", Duration::from_secs(90), || {
+        let seen = window_scenario("c4");
+        let child_titles: Vec<u64> = seen
+            .child_events
+            .iter()
+            .filter(|e| e.modality == Modality::WindowTitle && is_child_app(&e.foreground_app))
+            .map(|e| e.segment_ref.byte_len)
+            .collect();
+        let expected_sizes = child_titles
+            .iter()
+            .filter(|len| CHILD_TITLE_LENGTHS.contains(len))
+            .count();
+        let distinct_sizes: std::collections::BTreeSet<u64> = child_titles
+            .iter()
+            .copied()
+            .filter(|len| CHILD_TITLE_LENGTHS.contains(len))
+            .collect();
+        let own_titles = seen
+            .own_events
+            .iter()
+            .filter(|e| {
+                e.modality == Modality::WindowTitle
+                    && file_name(&e.foreground_app).eq_ignore_ascii_case(&seen.own_exe_file)
+            })
+            .count();
+        say(
+            "c4",
+            format!(
+                "title_events_for_child_window={} with_a_scripted_title_size={expected_sizes} \
+                 distinct_scripted_title_sizes={} title_events_for_own_process_window={own_titles}",
+                child_titles.len(),
+                distinct_sizes.len(),
+            ),
+        );
+        assert!(
+            seen.title_start.is_ok(),
+            "the window-title source must start"
+        );
+        assert!(seen.child_exit_ok, "the child process must finish");
+        assert!(
+            expected_sizes >= 1,
+            "no window-title event for the child's title changes"
+        );
+        assert!(
+            distinct_sizes.len() >= 2,
+            "the events must follow more than one title change"
+        );
+    });
+}
+
+const UNINSTALL: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
+const UNINSTALL_WOW: &str = r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
+const PROBE_KEY: &str = "HalvoVerifyProbe";
+
+#[test]
+#[ignore = "functional: reads and writes the Windows registry"]
+fn c5_installed_software_returns_registry_entries() {
+    with_deadline("c5", Duration::from_secs(90), || {
+        use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        for (hive_name, hive) in [("HKLM", &hklm), ("HKCU", &hkcu)] {
+            for (path_name, path) in [("native", UNINSTALL), ("wow6432node", UNINSTALL_WOW)] {
+                let subkeys = hive
+                    .open_subkey_with_flags(path, KEY_READ)
+                    .map(|key| key.enum_keys().flatten().count());
+                say(
+                    "c5",
+                    format!(
+                        "scanned_key={hive_name}/{path_name} exists={} subkeys={}",
+                        subkeys.is_ok(),
+                        subkeys.unwrap_or(0)
+                    ),
+                );
+            }
+        }
+
+        let before = scan_installed().expect("scan the registry");
+        let mut sorted = before.apps.clone();
+        sorted.sort();
+        sorted.dedup();
+        say(
+            "c5",
+            format!(
+                "entries={} with_version={} with_publisher={} sorted_and_deduplicated={}",
+                before.len(),
+                before.apps.iter().filter(|a| a.version.is_some()).count(),
+                before.apps.iter().filter(|a| a.publisher.is_some()).count(),
+                sorted == before.apps,
+            ),
+        );
+
+        let mut machine_keys_covered = Vec::new();
+        for (path_name, path) in [("native", UNINSTALL), ("wow6432node", UNINSTALL_WOW)] {
+            let first_listable = hklm
+                .open_subkey_with_flags(path, KEY_READ)
+                .ok()
+                .and_then(|key| {
+                    key.enum_keys().flatten().find_map(|name| {
+                        let sub = key.open_subkey_with_flags(&name, KEY_READ).ok()?;
+                        let display: String = sub.get_value("DisplayName").ok()?;
+                        let system = sub.get_value::<u32, _>("SystemComponent").ok() == Some(1);
+                        let display = display.trim().to_string();
+                        (!display.is_empty() && !system).then_some(display)
+                    })
+                });
+            let in_scan = first_listable
+                .as_ref()
+                .map(|name| before.apps.iter().any(|app| &app.name == name));
+            say(
+                "c5",
+                format!("hklm_{path_name}_first_listable_app_is_in_scan={in_scan:?}"),
+            );
+            machine_keys_covered.push(in_scan);
+        }
+
+        let probe_name = format!("Halvo Verify Probe {}", std::process::id());
+        let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
+        let hkcu_key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
+        assert!(
+            !before.apps.iter().any(|a| a.name == probe_name),
+            "the probe entry must not exist yet"
+        );
+
+        let (probe, _) = hkcu
+            .create_subkey(&probe_path)
+            .expect("create the probe key");
+        probe
+            .set_value("DisplayName", &format!("  {probe_name}  "))
+            .expect("probe name");
+        probe
+            .set_value("DisplayVersion", &"9.9.9")
+            .expect("probe version");
+        probe
+            .set_value("Publisher", &"halvo-verifier")
+            .expect("probe publisher");
+
+        let with_probe = scan_installed().expect("scan with the probe");
+        let found = with_probe.apps.iter().find(|a| a.name == probe_name);
+        let found_ok = found.is_some_and(|app| {
+            app.version.as_deref() == Some("9.9.9")
+                && app.publisher.as_deref() == Some("halvo-verifier")
+        });
+        say(
+            "c5",
+            format!(
+                "hkcu_uninstall_key_existed={hkcu_key_existed} probe_entry_found={} \
+                 probe_version_and_publisher_ok={found_ok} entries={}",
+                found.is_some(),
+                with_probe.len(),
+            ),
+        );
+
+        probe
+            .set_value("SystemComponent", &1u32)
+            .expect("probe system component");
+        let hidden = scan_installed().expect("scan with the hidden probe");
+        let system_component_hidden = !hidden.apps.iter().any(|a| a.name == probe_name);
+
+        drop(probe);
+        hkcu.delete_subkey_all(&probe_path)
+            .expect("delete the probe key");
+        if !hkcu_key_existed {
+            let _ = hkcu.delete_subkey(UNINSTALL);
+        }
+        let after = scan_installed().expect("scan after cleanup");
+        say(
+            "c5",
+            format!(
+                "system_component_probe_hidden={system_component_hidden} \
+                 probe_gone_after_delete={} entries_after={} same_as_before={}",
+                !after.apps.iter().any(|a| a.name == probe_name),
+                after.len(),
+                after == before,
+            ),
+        );
+
+        assert!(!before.is_empty(), "the registry scan returned no entries");
+        assert!(
+            machine_keys_covered
+                .iter()
+                .all(|covered| *covered != Some(false)),
+            "the scan missed an app that a machine-wide Uninstall key lists"
+        );
+        assert!(
+            found_ok,
+            "the scan must return the probe with its version and publisher"
+        );
+        assert!(system_component_hidden, "a system component must be hidden");
+        assert!(after == before, "the scan must return to its first result");
+    });
+}
+
+fn display_affinity(hwnd: HWND) -> Result<u32, String> {
+    let mut affinity = 0u32;
+    // SAFETY: `affinity` is a live u32 that the call writes into.
+    unsafe { GetWindowDisplayAffinity(hwnd, &mut affinity) }
+        .map(|()| affinity)
+        .map_err(|e| e.to_string())
+}
+
+fn exclude_from_capture(hwnd: HWND) -> Result<(), String> {
+    // SAFETY: SetWindowDisplayAffinity takes a window handle and a flag by
+    // value; a null or foreign handle makes the call fail.
+    unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) }.map_err(|e| e.to_string())
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn c8_a_window_can_be_excluded_from_capture() {
+    with_deadline("c8", Duration::from_secs(60), || {
+        env_report("c8");
+        let window =
+            TestWindow::create(&magenta_popup("HalvoVerifyExclude", "halvo-verify-exclude"))
+                .expect("window");
+        pump_thread(Duration::from_millis(300));
+        let before = display_affinity(window.hwnd);
+        let exclude = exclude_from_capture(window.hwnd);
+        let after = display_affinity(window.hwnd);
+        let null_window = exclude_from_capture(HWND(std::ptr::null_mut()));
+        say(
+            "c8",
+            format!(
+                "affinity_before={before:?} set_display_affinity={} affinity_after={after:?} \
+                 wda_excludefromcapture={} set_display_affinity_null_window={}",
+                show(&exclude),
+                WDA_EXCLUDEFROMCAPTURE.0,
+                show(&null_window),
+            ),
+        );
+        assert!(exclude.is_ok(), "the display-affinity call must succeed");
+        assert_eq!(after, Ok(WDA_EXCLUDEFROMCAPTURE.0));
+        assert!(null_window.is_err(), "a null window must be an error");
+    });
+}
+
+fn memory() -> PROCESS_MEMORY_COUNTERS {
+    let mut counters = PROCESS_MEMORY_COUNTERS::default();
+    // SAFETY: `counters` is a live PROCESS_MEMORY_COUNTERS and the size
+    // argument is its size; the pseudo handle of this process needs no close.
+    unsafe {
+        GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            &mut counters,
+            core::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+        )
+    }
+    .expect("GetProcessMemoryInfo");
+    counters
+}
+
+fn memory_line(phase: &str, counters: &PROCESS_MEMORY_COUNTERS) -> String {
+    format!(
+        "memory phase={phase} working_set_bytes={} peak_working_set_bytes={} \
+         private_bytes={} peak_private_bytes={}",
+        counters.WorkingSetSize,
+        counters.PeakWorkingSetSize,
+        counters.PagefileUsage,
+        counters.PeakPagefileUsage,
+    )
+}
+
+fn bound(key: &str) -> Result<u64, String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(BOUNDS_FILE);
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("read {BOUNDS_FILE}: {e}"))?;
+    let prefix = format!("{key}=");
+    let values: Vec<&str> = text
+        .lines()
+        .filter_map(|line| line.trim_end_matches('\r').strip_prefix(prefix.as_str()))
+        .collect();
+    match values.as_slice() {
+        [value] => value
+            .trim()
+            .parse()
+            .map_err(|e| format!("{key} in {BOUNDS_FILE} is not a count: {e}")),
+        [] => Err(format!("{BOUNDS_FILE} holds no line {key}=")),
+        _ => Err(format!("{BOUNDS_FILE} holds {} lines {key}=", values.len())),
+    }
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop; runs for 60 seconds"]
+fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
+    with_deadline("c9", Duration::from_secs(240), || {
+        const RUN: Duration = Duration::from_secs(60);
+        env_report("c9");
+        source_built_by_test("c9", "keyboard");
+        source_built_by_test("c9", "screen");
+        let rss_max_bytes = bound("rss_max_bytes");
+        say(
+            "c9",
+            format!(
+                "build_profile={} rss_max_bytes={}",
+                if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                },
+                show(&rss_max_bytes),
+            ),
+        );
+        let rss_max_bytes = rss_max_bytes.expect("the bound rss_max_bytes");
+        say("c9", memory_line("before-sources", &memory()));
+
+        let (sink, events) = capture(8192);
+        let mut foreground = ForegroundAppSource::new();
+        let last_app = foreground.last_app();
+        let mut title = WindowTitleSource::new();
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
+        let mut screen = ScreenSource::new(Arc::clone(&last_app));
+        let starts = [
+            ("foreground", foreground.start(sink.clone())),
+            ("window_title", title.start(sink.clone())),
+            ("keyboard", keyboard.start(sink.clone())),
+            ("pointer", pointer.start(sink.clone())),
+            ("screen", screen.start(sink.clone())),
+        ];
+        for (name, result) in &starts {
+            say("c9", format!("source={name} start={}", show(result)));
+        }
+        let all_started = starts.iter().all(|(_, result)| result.is_ok());
+        say("c9", memory_line("sources-started", &memory()));
+
+        let mut child = spawn_child("cycle", RUN.as_secs());
+        let began = Instant::now();
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let mut next_sample_at = 5u64;
+        let mut samples = 0u32;
+        let mut highest_working_set = 0usize;
+        let (mut keys_accepted, mut moves_accepted) = (0u32, 0u32);
+        while began.elapsed() < RUN {
+            keys_accepted += press_keys(1);
+            moves_accepted += move_pointer(2);
+            for event in events.drain_for(Duration::from_millis(80)) {
+                *counts.entry(format!("{:?}", event.modality)).or_default() += 1;
+            }
+            let now = memory();
+            samples += 1;
+            highest_working_set = highest_working_set.max(now.WorkingSetSize);
+            if began.elapsed().as_secs() >= next_sample_at {
+                say("c9", memory_line(&format!("t+{next_sample_at}s"), &now));
+                next_sample_at += 5;
+            }
+        }
+        let end = memory();
+        say("c9", memory_line("after-60s-before-stop", &end));
+
+        foreground.stop();
+        title.stop();
+        keyboard.stop();
+        pointer.stop();
+        screen.stop();
+        let child_exit = child.wait();
+        child.print_output();
+        for event in events.drain_for(Duration::from_millis(500)) {
+            *counts.entry(format!("{:?}", event.modality)).or_default() += 1;
+        }
+        say("c9", memory_line("sources-stopped", &memory()));
+        say(
+            "c9",
+            format!(
+                "events_by_modality={counts:?} frames_dropped_under_backpressure={} \
+                 sendinput_key_events_accepted={keys_accepted} sendinput_move_events_accepted={moves_accepted} \
+                 child_exit_ok={}",
+                sink.dropped_count(),
+                child_exit.success(),
+            ),
+        );
+        let peak = end.PeakWorkingSetSize as u64;
+        say(
+            "c9",
+            format!(
+                "result all_sources_started={all_started} run_secs={} working_set_samples={samples} \
+                 highest_sampled_working_set_bytes={highest_working_set} \
+                 peak_working_set_bytes={peak} peak_private_bytes={} \
+                 rss_max_bytes={rss_max_bytes} peak_within_bound={}",
+                RUN.as_secs(),
+                end.PeakPagefileUsage,
+                peak <= rss_max_bytes,
+            ),
+        );
+        assert!(
+            all_started,
+            "INCONCLUSIVE: not every source started, so the number is not for five sources"
+        );
+        for kind in [
+            "ForegroundApp",
+            "Keystroke",
+            "Pointer",
+            "ScreenFrame",
+            "WindowTitle",
+        ] {
+            assert!(
+                counts.get(kind).copied().unwrap_or(0) > 0,
+                "INCONCLUSIVE: no {kind} event in the run, so that source did no work"
+            );
+        }
+        assert!(
+            peak <= rss_max_bytes,
+            "the peak working set is above rss_max_bytes"
+        );
+    });
+}
+
+fn unix_millis(time: SystemTime) -> u128 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
+}
+
+fn integrity_is_medium() -> bool {
+    Command::new(r"C:\Windows\System32\whoami.exe")
+        .arg("/groups")
+        .output()
+        .map(|out| {
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .any(|line| line.contains(r"Mandatory Label\Medium Mandatory Level"))
+        })
+        .unwrap_or(false)
+}
+
+struct RestrictedProcess {
+    handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+impl RestrictedProcess {
+    fn wait(self, millis: u32) -> u32 {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+        let mut code = u32::MAX;
+        // SAFETY: `handle` is the process handle that CreateProcessAsUserW gave
+        // this value; it is waited on, read and closed once, here.
+        unsafe {
+            WaitForSingleObject(self.handle, millis);
+            GetExitCodeProcess(self.handle, &mut code);
+            CloseHandle(self.handle);
+        }
+        code
+    }
+}
+
+fn spawn_restricted(test_name: &str, env: &[(&str, String)]) -> Result<RestrictedProcess, String> {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Security::{
+        CreateRestrictedToken, SetTokenInformation, TokenIntegrityLevel, LUA_TOKEN, SID,
+        SID_AND_ATTRIBUTES, SID_IDENTIFIER_AUTHORITY, TOKEN_ALL_ACCESS, TOKEN_MANDATORY_LABEL,
+    };
+    use windows_sys::Win32::System::Threading::{
+        CreateProcessAsUserW, OpenProcessToken, CREATE_NO_WINDOW, PROCESS_INFORMATION, STARTUPINFOW,
+    };
+    const SE_GROUP_INTEGRITY: u32 = 0x20;
+    const MEDIUM_INTEGRITY_RID: u32 = 0x2000;
+    let last_error = || std::io::Error::last_os_error().to_string();
+
+    let mut token: HANDLE = std::ptr::null_mut();
+    // SAFETY: the pseudo handle of this process needs no close, and `token`
+    // is a live HANDLE that the call writes into.
+    let opened = unsafe {
+        OpenProcessToken(
+            windows_sys::Win32::System::Threading::GetCurrentProcess(),
+            TOKEN_ALL_ACCESS,
+            &mut token,
+        )
+    };
+    if opened == 0 {
+        return Err(format!("OpenProcessToken: {}", last_error()));
+    }
+    let mut limited: HANDLE = std::ptr::null_mut();
+    // SAFETY: `token` is the open token from above; the null pointers with
+    // zero counts pass no SID or privilege lists, and `limited` is written.
+    let restricted = unsafe {
+        CreateRestrictedToken(
+            token,
+            LUA_TOKEN,
+            0,
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            &mut limited,
+        )
+    };
+    let restricted_error = last_error();
+    // SAFETY: `token` is open and closed once, here.
+    unsafe {
+        CloseHandle(token);
+    }
+    if restricted == 0 {
+        return Err(format!("CreateRestrictedToken: {restricted_error}"));
+    }
+    let mut medium = SID {
+        Revision: 1,
+        SubAuthorityCount: 1,
+        IdentifierAuthority: SID_IDENTIFIER_AUTHORITY {
+            Value: [0, 0, 0, 0, 0, 16],
+        },
+        SubAuthority: [MEDIUM_INTEGRITY_RID],
+    };
+    let label = TOKEN_MANDATORY_LABEL {
+        Label: SID_AND_ATTRIBUTES {
+            Sid: (&mut medium as *mut SID).cast(),
+            Attributes: SE_GROUP_INTEGRITY,
+        },
+    };
+    // SAFETY: `label` points at `medium`, both live for the call, and the
+    // length covers the label and the one-authority SID it names.
+    let labelled = unsafe {
+        SetTokenInformation(
+            limited,
+            TokenIntegrityLevel,
+            (&label as *const TOKEN_MANDATORY_LABEL).cast(),
+            (core::mem::size_of::<TOKEN_MANDATORY_LABEL>() + core::mem::size_of::<SID>()) as u32,
+        )
+    };
+    if labelled == 0 {
+        let error = last_error();
+        // SAFETY: `limited` is open and closed once, here.
+        unsafe {
+            CloseHandle(limited);
+        }
+        return Err(format!("SetTokenInformation: {error}"));
+    }
+
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut command_line: Vec<u16> = format!(
+        "\"{}\" {test_name} --exact --ignored --nocapture",
+        exe.display()
+    )
+    .encode_utf16()
+    .chain(Some(0))
+    .collect();
+    for (name, value) in env {
+        std::env::set_var(name, value);
+    }
+    // SAFETY: STARTUPINFOW and PROCESS_INFORMATION are plain C structs for
+    // which all-zero bytes are a valid value.
+    let (mut startup, mut info): (STARTUPINFOW, PROCESS_INFORMATION) =
+        unsafe { (core::mem::zeroed(), core::mem::zeroed()) };
+    startup.cb = core::mem::size_of::<STARTUPINFOW>() as u32;
+    // SAFETY: `limited` is an open primary token, `command_line` is a
+    // writable NUL-terminated buffer, and `startup` and `info` are live.
+    let created = unsafe {
+        CreateProcessAsUserW(
+            limited,
+            std::ptr::null(),
+            command_line.as_mut_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0,
+            CREATE_NO_WINDOW,
+            std::ptr::null(),
+            std::ptr::null(),
+            &startup,
+            &mut info,
+        )
+    };
+    let created_error = last_error();
+    for (name, _) in env {
+        std::env::remove_var(name);
+    }
+    // SAFETY: `limited` is open and closed once, here.
+    unsafe {
+        CloseHandle(limited);
+    }
+    if created == 0 {
+        return Err(format!("CreateProcessAsUserW: {created_error}"));
+    }
+    // SAFETY: the thread handle of the new process is not used and is closed
+    // once, here; the process handle goes to the returned value.
+    unsafe {
+        CloseHandle(info.hThread);
+    }
+    Ok(RestrictedProcess {
+        handle: info.hProcess,
+    })
+}
+
+#[test]
+#[ignore = "helper: does nothing unless x8 launches it under a restricted token"]
+fn helper_limited_listener() {
+    let (Ok(out_path), Ok(secs)) = (
+        std::env::var(LISTENER_OUT_ENV),
+        std::env::var(CHILD_SECS_ENV),
+    ) else {
+        return;
+    };
+    let secs: u64 = secs.parse().expect("listener seconds");
+    let (sink, events) = capture(4096);
+    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+    let start = keyboard.start(sink.clone());
+    let window = TestWindow::create(&normal_window(
+        LISTENER_WINDOW_CLASS,
+        "halvo-verify-listener",
+        320,
+        60,
+    ));
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    let mut stamps = Vec::new();
+    while Instant::now() < deadline {
+        pump_thread(Duration::from_millis(20));
+        for event in events.drain_for(Duration::from_millis(20)) {
+            if event.modality == Modality::Keystroke {
+                stamps.push(unix_millis(event.captured_at.wall_clock).to_string());
+            }
+        }
+    }
+    keyboard.stop();
+    let report = format!(
+        "keyboard_start={} window_created={} integrity_is_medium={}\n{}",
+        show(&start),
+        window.is_ok(),
+        integrity_is_medium(),
+        stamps.join(",")
+    );
+    std::fs::write(out_path, report).expect("write the listener result");
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop and an elevated process"]
+fn x8_raw_input_across_the_integrity_boundary() {
+    with_deadline("x8", Duration::from_secs(120), || {
+        env_report("x8");
+        source_built_by_test("x8", "keyboard");
+        let dir = scratch_dir();
+        let out_path = dir.path().join("listener.txt");
+        say(
+            "x8",
+            format!("this_process_integrity_is_medium={}", integrity_is_medium()),
+        );
+        let listener = spawn_restricted(
+            "helper_limited_listener",
+            &[
+                (LISTENER_OUT_ENV, out_path.display().to_string()),
+                (CHILD_SECS_ENV, "9".to_string()),
+            ],
+        );
+        say(
+            "x8",
+            format!("listener_started={}", show(&listener.as_ref().map(|_| ()))),
+        );
+        let listener = listener.expect("INCONCLUSIVE: no process under the restricted token");
+
+        let own = TestWindow::create(&normal_window(
+            "HalvoVerifyElevatedWindow",
+            "halvo-verify-elevated",
+            60,
+            60,
+        ))
+        .expect("elevated window");
+        pump_thread(Duration::from_millis(2500));
+        let (own_foreground, method) = own.activate();
+        pump_thread(Duration::from_millis(300));
+        let elevated_from = unix_millis(SystemTime::now());
+        press_keys(5);
+        pump_thread(Duration::from_millis(400));
+        let elevated_to = unix_millis(SystemTime::now());
+        let own_foreground_after = own.is_foreground();
+
+        let class = HSTRING::from(LISTENER_WINDOW_CLASS);
+        // SAFETY: the class name is a live HSTRING for the call, and a null
+        // title matches any window of that class.
+        let listener_window = unsafe { FindWindowW(&class, PCWSTR::null()) };
+        let handed_over = match &listener_window {
+            Ok(hwnd) => {
+                set_foreground(*hwnd);
+                pump_thread(Duration::from_millis(400));
+                foreground_window() == *hwnd
+            }
+            Err(_) => false,
+        };
+        let medium_from = unix_millis(SystemTime::now());
+        press_keys(5);
+        pump_thread(Duration::from_millis(400));
+        let medium_to = unix_millis(SystemTime::now());
+        let still_handed_over = listener_window
+            .as_ref()
+            .is_ok_and(|hwnd| foreground_window() == *hwnd);
+
+        let exit_code = listener.wait(60_000);
+        let report = std::fs::read_to_string(&out_path).unwrap_or_default();
+        let mut lines = report.lines();
+        let header = lines.next().unwrap_or("").to_string();
+        let stamps: Vec<u128> = lines
+            .next()
+            .unwrap_or("")
+            .split(',')
+            .filter_map(|stamp| stamp.parse().ok())
+            .collect();
+        let within =
+            |from: u128, to: u128| stamps.iter().filter(|t| (from..=to).contains(*t)).count();
+        say("x8", format!("listener exit_code={exit_code} {header}"));
+        say(
+            "x8",
+            format!(
+                "elevated_window_foreground={own_foreground} method={method} \
+                 elevated_window_foreground_after_typing={own_foreground_after} \
+                 keys_typed_into_elevated_window=5 keystroke_events_in_medium_integrity_listener={} \
+                 listener_window_found={} foreground_handed_to_listener_window={handed_over} \
+                 still_foreground_after_typing={still_handed_over} \
+                 keys_typed_into_medium_integrity_window=5 keystroke_events_in_listener={} \
+                 listener_keystroke_events_total={}",
+                within(elevated_from, elevated_to),
+                listener_window.is_ok(),
+                within(medium_from, medium_to),
+                stamps.len(),
+            ),
+        );
+        assert!(
+            !header.is_empty(),
+            "INCONCLUSIVE: the listener wrote no report"
+        );
+        assert!(
+            own_foreground && own_foreground_after && handed_over && still_handed_over,
+            "INCONCLUSIVE: the foreground window was not where the test needed it"
+        );
+        assert!(
+            within(medium_from, medium_to) >= 1,
+            "INCONCLUSIVE: the listener saw no keys even for a window of its own integrity"
+        );
+        assert_eq!(
+            within(elevated_from, elevated_to),
+            0,
+            "keys typed into an elevated window reached a medium-integrity keyboard source"
+        );
+    });
+}
+
+fn yellow_edge_pixels() -> usize {
+    let (_, cy) = screen_size();
+    let mut yellow = 0;
+    // SAFETY: the screen DC is taken and released once in this block, and
+    // GetPixel reads it only between the two calls.
+    unsafe {
+        let dc = GetDC(None);
+        for x in 0..6 {
+            for y in [cy / 6, cy / 3, cy / 2, 2 * cy / 3, 5 * cy / 6] {
+                let color = GetPixel(dc, x, y).0;
+                let (r, g, b) = (color & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF);
+                if r > 200 && g > 150 && b < 100 {
+                    yellow += 1;
+                }
+            }
+        }
+        ReleaseDC(None, dc);
+    }
+    yellow
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x7_capture_border_on_the_screen() {
+    with_deadline("x7", Duration::from_secs(60), || {
+        env_report("x7");
+        source_built_by_test("x7", "screen");
+        let before = yellow_edge_pixels();
+        let (sink, events) = capture(256);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let start = screen.start(sink.clone());
+        let first = events.first_within(FIRST_FRAME_WAIT);
+        let frame_before_sampling = first
+            .as_ref()
+            .is_some_and(|e| e.modality == Modality::ScreenFrame);
+        let frames = usize::from(frame_before_sampling)
+            + count(
+                &events.drain_for(Duration::from_millis(500)),
+                Modality::ScreenFrame,
+            );
+        let during = yellow_edge_pixels();
+        screen.stop();
+        std::thread::sleep(Duration::from_secs(1));
+        let after = yellow_edge_pixels();
+        say(
+            "x7",
+            format!(
+                "screen_start={} frame_before_sampling={frame_before_sampling} frames={frames} \
+                 sampled_edge_pixels=30 yellow_before_capture={before} \
+                 yellow_during_capture={during} yellow_after_stop={after}",
+                show(&start)
+            ),
+        );
+        assert!(start.is_ok(), "the screen source must start");
+        assert!(
+            frame_before_sampling,
+            "INCONCLUSIVE: no frame before the edge was sampled"
+        );
+        assert_eq!(before, 0, "yellow edge pixels before the capture started");
+        assert!(during > 0, "no capture border on the screen during capture");
+        assert_eq!(after, 0, "the capture border stayed after stop");
+    });
+}
+
+fn set_resolution(width: i32, height: i32) -> bool {
+    Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-Command",
+            &format!("Set-DisplayResolution -Width {width} -Height {height} -Force"),
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop; changes the display mode"]
+fn x9_screen_source_across_a_display_mode_change() {
+    with_deadline("x9", Duration::from_secs(180), || {
+        env_report("x9");
+        source_built_by_test("x9", "screen");
+        let (start_w, start_h) = screen_size();
+        let (other_w, other_h) = if (start_w, start_h) == (1280, 720) {
+            (1024, 768)
+        } else {
+            (1280, 720)
+        };
+        let (sink, events) = capture(1024);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let start = screen.start(sink.clone());
+        let before = events.drain_for(Duration::from_secs(3));
+        summarize("x9", "before-mode-change", &before);
+
+        let changed = set_resolution(other_w, other_h);
+        let (now_w, now_h) = screen_size();
+        let window =
+            TestWindow::create(&magenta_popup("HalvoVerifyModeChange", "halvo-verify-mode"))
+                .expect("moving window");
+        for step in 0..12 {
+            window.move_to(100 + step * 20, 100 + step * 10);
+            pump_thread(Duration::from_millis(250));
+        }
+        drop(window);
+        let after = events.drain_for(Duration::from_secs(2));
+        summarize("x9", "after-mode-change", &after);
+        screen.stop();
+        let restored = set_resolution(start_w, start_h);
+        let with_new_size = after
+            .iter()
+            .filter(|e| e.segment_ref.byte_len == now_w as u64 * now_h as u64 * 4)
+            .count();
+        say(
+            "x9",
+            format!(
+                "screen_start={} mode_before={start_w}x{start_h} mode_change_command_ok={changed} \
+                 mode_after={now_w}x{now_h} frames_before={} frames_after_change={} \
+                 frames_after_with_new_size={with_new_size} frames_after_with_old_size={} \
+                 mode_restored={restored}",
+                show(&start),
+                count(&before, Modality::ScreenFrame),
+                count(&after, Modality::ScreenFrame),
+                after
+                    .iter()
+                    .filter(|e| e.segment_ref.byte_len == start_w as u64 * start_h as u64 * 4)
+                    .count(),
+            ),
+        );
+        assert!(start.is_ok(), "the screen source must start");
+        assert!(
+            changed && (now_w, now_h) == (other_w, other_h),
+            "INCONCLUSIVE: the display mode did not change"
+        );
+        assert!(
+            with_new_size >= 1,
+            "no frame of the new display size after the mode change"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x13_frames_on_a_static_screen() {
+    with_deadline("x13", Duration::from_secs(90), || {
+        env_report("x13");
+        source_built_by_test("x13", "screen");
+        let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
+            .expect("covering window");
+        cover.cover_screen();
+        pump_thread(Duration::from_secs(1));
+        let (sink, events) = capture(1024);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let start = screen.start(sink.clone());
+        let mut frames = 0;
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(8) {
+            pump_thread(Duration::from_millis(100));
+            frames += count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            );
+        }
+        let covered = cover.is_foreground();
+        drop(cover);
+        let after_uncover = count(
+            &events.drain_for(Duration::from_secs(2)),
+            Modality::ScreenFrame,
+        );
+        screen.stop();
+        say(
+            "x13",
+            format!(
+                "screen_start={} static_screen_secs=8 frames_while_static={frames} \
+                 cover_window_was_foreground={covered} frames_in_2s_after_uncover={after_uncover}",
+                show(&start)
+            ),
+        );
+        assert!(start.is_ok(), "the screen source must start");
+    });
+}
