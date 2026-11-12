@@ -1893,3 +1893,122 @@ fn a_start_puts_the_run_on_the_board_only_after_a_start_that_returned() {
         "the start got as far as its body"
     );
 }
+
+fn run_ends(c: &Coordinator<Both>) -> usize {
+    events(c)
+        .iter()
+        .filter(|w| matches!(w, What::RunEnded { .. }))
+        .count()
+}
+
+#[test]
+fn after_the_quits_first_step_a_tick_kills_each_stopping_run_at_its_own_grace_with_no_run_ended() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let grace = limits.cancel_grace_s * 1000;
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let first = start(&c, 0);
+    let second = start(&c, 1);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    let _ = c.quit_stop();
+    let ends = run_ends(&c);
+    let m = mark(&c);
+    c.ports().ports.set_clock(T0 + grace, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &first), 1, "the first run's own grace");
+    assert_eq!(kills_of(&c, m, &second), 0, "not the second's yet");
+    let m = mark(&c);
+    c.ports().ports.set_clock(T0 + 2_000 + grace - 1, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &second), 0);
+    c.ports().ports.set_clock(T0 + 2_000 + grace, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &second), 1);
+    assert_eq!(c.live(), 0);
+    assert_eq!(run_ends(&c), ends, "the kill stores no run_ended");
+}
+
+#[test]
+fn after_the_quits_first_step_a_tick_kills_a_dying_tree_at_its_grace() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(c.live(), 0, "the run ended; its tree waits for the kill");
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    let _ = c.quit_stop();
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(T0 + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(kills_of(&c, m, &run), 1);
+}
+
+#[test]
+fn after_the_quits_first_step_a_tick_sends_what_the_board_owes() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports().ports.end_runner(&run);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().ports.clear_refusals();
+    let ended = What::RunEnded {
+        run: run.clone(),
+        cause: RunEnd::Completed,
+    };
+    assert!(!events(&c).contains(&ended), "the end is owed");
+    let _ = c.quit_stop();
+    assert!(!events(&c).contains(&ended));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(events(&c).iter().filter(|w| **w == ended).count(), 1);
+}
+
+#[test]
+fn after_the_quits_first_step_a_tick_serves_no_queue_starts_nothing_and_raises_nothing() {
+    let limits = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let first = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(started(&c).len(), 1, "the second waits in the queue");
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: first.clone(),
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    let _ = c.quit_stop();
+    let raised = items_raised(&c);
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(T0 + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    c.ports()
+        .ports
+        .set_clock(T0 + 2 * limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    let calls = calls_since(&c, m);
+    assert_eq!(kills_of(&c, m, &first), 1);
+    assert!(
+        !calls
+            .iter()
+            .any(|call| matches!(call, Call::Start(_) | Call::Send(Body::StartRun { .. }))),
+        "{calls:?}"
+    );
+    assert_eq!(started(&c).len(), 1);
+    assert_eq!(items_raised(&c), raised, "no check and no ready item");
+    assert!(c.snapshot().items.is_empty());
+}

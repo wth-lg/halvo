@@ -53,6 +53,9 @@ pub enum Move {
     },
     /// The creation of an agent for each approved workflow with none (I5.5).
     Create,
+    /// What the board owes and nothing else, for a tick after the first step of the app's quit
+    /// (ruling RD-34 (d)).
+    Owed,
 }
 
 /// The answer of a move that was not refused.
@@ -1119,7 +1122,7 @@ where
         | Move::Check { agent, .. }
         | Move::SwitchOn { agent }
         | Move::SwitchOff { agent } => agent.clone(),
-        Move::Tick | Move::End { .. } | Move::Create => return refused(Cause::State),
+        Move::Tick | Move::End { .. } | Move::Create | Move::Owed => return refused(Cause::State),
     };
     let Some(i) = board.index(&agent) else {
         return refused(Cause::UnknownAgent);
@@ -1266,7 +1269,7 @@ where
             send_state(cx, &board.members[i].facts, AgentState::Paused);
             report
         }
-        Move::Tick | Move::End { .. } | Move::Create => refused(Cause::State),
+        Move::Tick | Move::End { .. } | Move::Create | Move::Owed => refused(Cause::State),
     }
 }
 
@@ -1333,6 +1336,10 @@ where
     match mv {
         Move::Tick => tick(&cx, board),
         Move::Create => create(&cx, board),
+        Move::Owed => {
+            pay_owed(&cx, board);
+            Report::default()
+        }
         Move::End { run, outcome } => {
             let Some(live) = board.runs.iter().find(|r| r.run == run) else {
                 return refused(Cause::State);

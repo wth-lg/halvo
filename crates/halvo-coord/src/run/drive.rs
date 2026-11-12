@@ -100,6 +100,13 @@ pub enum Act {
     /// and every dying tree, in the order of their starts, through the board; a run whose kill
     /// succeeded leaves the board, and nothing is stored or sent.
     KillAll,
+    /// A tick after the first step of the app's quit (ruling RD-34 (d)): the stages of I5.9 that
+    /// start nothing. `Runs::kill` for each stopping run and each dying tree once
+    /// `cancel_grace_s` have passed since that run's own stop, or where the clock reads earlier
+    /// than the stop (ruling RD-7), with nothing stored at the kill, as at the second step, so
+    /// that the next life's recovery ends those runs `interrupted`; then what the board owes. It
+    /// serves no queue, starts nothing and raises nothing.
+    QuitTick,
 }
 
 /// What a move of the run drive did: the schedule's report of the move, and the runs that a
@@ -453,6 +460,7 @@ where
         }
         Act::StopAll => stop_all(ports, board, table),
         Act::KillAll => kill_all(ports, board),
+        Act::QuitTick => quit_tick(ports, board, limits),
     }
 }
 
@@ -498,22 +506,69 @@ where
     trees.sort();
     let mut done = answer(None);
     for (_, run) in trees {
-        if ports.kill(&run).is_err() {
-            continue;
+        if kill_tree(ports, board, &run) {
+            done.killed.push(run);
         }
-        board.dying.retain(|d| d.run != run);
-        if let Some(k) = board.runs.iter().position(|r| r.run == run) {
-            let live = board.runs.remove(k);
-            if let Some(m) = board
-                .members
-                .iter_mut()
-                .find(|m| m.facts.agent == live.agent)
-            {
-                m.facts.doing = Doing::Idle(None);
-            }
-        }
-        done.killed.push(run);
     }
+    done
+}
+
+/// `Runs::kill` for the tree of `run`, which leaves the board when the kill succeeded, with
+/// nothing stored or sent: the quit's kill.
+fn kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
+where
+    P: Runs,
+{
+    if ports.kill(run).is_err() {
+        return false;
+    }
+    board.dying.retain(|d| &d.run != run);
+    if let Some(k) = board.runs.iter().position(|r| &r.run == run) {
+        let live = board.runs.remove(k);
+        if let Some(m) = board
+            .members
+            .iter_mut()
+            .find(|m| m.facts.agent == live.agent)
+        {
+            m.facts.doing = Doing::Idle(None);
+        }
+    }
+    true
+}
+
+fn quit_tick<P>(ports: &P, board: &mut Board<P::Config>, limits: &Limits) -> Done
+where
+    P: Owner + Runs + Analysis + Clock + Rng,
+    P::Config: ConfigView + Clone,
+{
+    let now = match ports.now() {
+        Ok(now) => now,
+        Err(PortError::Busy) => return answer(Some(Cause::Busy)),
+        Err(_) => return answer(Some(Cause::NoService)),
+    };
+    let grace = limits.cancel_grace_s.saturating_mul(1000);
+    let due = |at: u64| now < at || now - at >= grace;
+    let mut trees: Vec<(u64, RunId)> = board
+        .runs
+        .iter()
+        .filter(|r| r.stop.is_some_and(|s| due(s.at)))
+        .map(|r| (r.rank, r.run.clone()))
+        .chain(
+            board
+                .dying
+                .iter()
+                .filter(|d| due(d.stopped))
+                .map(|d| (d.rank, d.run.clone())),
+        )
+        .collect();
+    trees.sort();
+    let mut done = answer(None);
+    for (_, run) in trees {
+        if kill_tree(ports, board, &run) {
+            done.killed.push(run);
+        }
+    }
+    schedule::drive(ports, board, limits, Move::Owed);
     done
 }
 

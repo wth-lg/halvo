@@ -159,9 +159,12 @@ where
     }
 
     /// One tick (I5.9): the recovery of I5.8 at the first, the creation move of I5.5, the run
-    /// drive's tick, then each setup's owed body (`tick_setup`, dropped at `Closed` or `Gone`)
-    /// and each held confirmation's time (`items::drive::tick`), whose lapse with `wait_limit`
-    /// stops its run. After the first step of the quit a tick makes no move.
+    /// drive's tick, then each setup's owed body (`tick_setup`, dropped at `Closed` or `Gone`),
+    /// each held confirmation's time (`items::drive::tick`), whose lapse with `wait_limit` stops
+    /// its run, each second step's and each other item's wait limit. After the first step of the
+    /// quit a tick does only the stages that start nothing (ruling RD-34 (d)): it sends the rows
+    /// of the items' ledgers and makes the run drive's `QuitTick`, which kills each stopping run
+    /// and dying tree at its grace with nothing stored and sends what the board owes.
     pub fn tick(&self) {
         let mut st = self.lock();
         if st.quitting {
@@ -169,6 +172,7 @@ where
             if let Some(board) = board.as_mut() {
                 self.flush_ledgers(board, ledgers);
             }
+            let _ = self.act(&mut st, Act::QuitTick);
         } else {
             self.tick_in(&mut st);
         }
