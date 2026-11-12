@@ -1,8 +1,9 @@
 //! The ruling of contract T1.5: the owner's word on what may leave the machine, held as one line.
 //!
-//! This file is pinned as leave.rs is: the test `ruling_rs_is_pinned` holds the SHA-256 of its
-//! code from its first byte to its test module, and requires that the test module is its last
-//! item, so a change of that code writes the new hash in the same commit.
+//! This file is pinned whole, its test module included, as lib.rs, leave.rs and tier.rs are: the
+//! test `pinned_files_hold_their_hashes` of tests/no_grant_in_release.rs holds its SHA-256. A pin
+//! stops no change. It makes each change of the file come with a new hash line in the same commit,
+//! where the reviewer of that commit reads it.
 
 use crate::tier::Tier;
 
@@ -148,37 +149,4 @@ mod tests {
             assert_eq!(Ruling::parse(line), Err(RulingError), "{line:?}");
         }
     }
-
-    #[test]
-    fn ruling_rs_is_pinned() {
-        fn sha256_hex(bytes: &[u8]) -> String {
-            use sha2::{Digest, Sha256};
-            Sha256::digest(bytes)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect()
-        }
-
-        let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/ruling.rs"))
-            .expect("the crate's ruling.rs");
-        let mark = "\n#[cfg(test)]\nmod tests {\n";
-        assert_eq!(text.matches(mark).count(), 1);
-        let end = text.find(mark).expect("the test module") + mark.len();
-        assert_eq!(
-            sha256_hex(&text.as_bytes()[..end]),
-            RULING_ABOVE_TESTS_SHA256,
-            "ruling.rs changed above its test module: write the new hash in the same commit, and the reviewer of that commit reads the change"
-        );
-        let after: Vec<&str> = text[end..].lines().collect();
-        assert_eq!(after.last(), Some(&"}"));
-        for line in &after[..after.len() - 1] {
-            assert!(
-                line.is_empty() || line.starts_with(' '),
-                "an item after the tests: {line}"
-            );
-        }
-    }
-
-    const RULING_ABOVE_TESTS_SHA256: &str =
-        "c832ae1e001f69669ae0ae19a59fd383ecb02f632c06f5824691aa4199b7f5fc";
 }
