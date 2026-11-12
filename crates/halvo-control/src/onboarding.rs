@@ -32,22 +32,11 @@ impl Permission {
         }
     }
 
-    const fn pane_name(self) -> &'static str {
-        match self {
-            Permission::ScreenAndSystemAudioRecording => "Screen & System Audio Recording",
-            Permission::Accessibility => "Accessibility",
-            Permission::InputMonitoring => "Input Monitoring",
-        }
-    }
-
-    /// The title of the permission's pane in System Settings on a macOS major.
-    pub const fn pane_title_on_macos(self, major_version: Option<u32>) -> &'static str {
-        match (self, major_version) {
-            (Permission::Accessibility, Some(major)) if major >= 27 => {
-                "Device Control and Data Access"
-            }
-            _ => self.pane_name(),
-        }
+    /// The title of the permission's pane in System Settings on a macOS major:
+    /// the row of `MACOS_ROWS` at or below it, and the floor's row below the floor
+    /// or when the major is unknown.
+    pub fn pane_title_on_macos(self, major_version: Option<u32>) -> &'static str {
+        macos_row(major_version).pane_title(self)
     }
 
     /// The System Settings deep link of the permission's pane.
@@ -142,32 +131,66 @@ impl FromIterator<Permission> for PermissionSet {
     }
 }
 
+/// The oldest macOS major that Halvo supports (RD-09); package-mac declares the
+/// same minimum.
+pub const MACOS_FLOOR_MAJOR: u32 = 14;
+
 /// What macOS shows for the permissions on one major version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MacosRow {
     pub major: u32,
+    pub screen_pane: &'static str,
+    pub accessibility_pane: &'static str,
+    pub input_monitoring_pane: &'static str,
     /// The button of the permission alert that leads to System Settings: observed
     /// on 27; the other rows carry the same words until someone observes them.
     pub alert_button: &'static str,
 }
 
-/// The supported macOS majors, from the floor up.
+impl MacosRow {
+    pub const fn pane_title(&self, permission: Permission) -> &'static str {
+        match permission {
+            Permission::ScreenAndSystemAudioRecording => self.screen_pane,
+            Permission::Accessibility => self.accessibility_pane,
+            Permission::InputMonitoring => self.input_monitoring_pane,
+        }
+    }
+}
+
+const SCREEN_PANE: &str = "Screen & System Audio Recording";
+const INPUT_MONITORING_PANE: &str = "Input Monitoring";
+const ALERT_BUTTON: &str = "Open System Settings";
+
+/// The supported macOS majors, from the floor up. Nobody saw a pane title on a
+/// version other than 27.2.
 pub const MACOS_ROWS: [MacosRow; 4] = [
     MacosRow {
-        major: 14,
-        alert_button: "Open System Settings",
+        major: MACOS_FLOOR_MAJOR,
+        screen_pane: SCREEN_PANE,
+        accessibility_pane: "Accessibility",
+        input_monitoring_pane: INPUT_MONITORING_PANE,
+        alert_button: ALERT_BUTTON,
     },
     MacosRow {
         major: 15,
-        alert_button: "Open System Settings",
+        screen_pane: SCREEN_PANE,
+        accessibility_pane: "Accessibility",
+        input_monitoring_pane: INPUT_MONITORING_PANE,
+        alert_button: ALERT_BUTTON,
     },
     MacosRow {
         major: 26,
-        alert_button: "Open System Settings",
+        screen_pane: SCREEN_PANE,
+        accessibility_pane: "Accessibility",
+        input_monitoring_pane: INPUT_MONITORING_PANE,
+        alert_button: ALERT_BUTTON,
     },
     MacosRow {
         major: 27,
-        alert_button: "Open System Settings",
+        screen_pane: SCREEN_PANE,
+        accessibility_pane: "Device Control and Data Access",
+        input_monitoring_pane: INPUT_MONITORING_PANE,
+        alert_button: ALERT_BUTTON,
     },
 ];
 
@@ -547,12 +570,19 @@ mod tests {
             Permission::InputMonitoring.settings_url(),
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
         );
+        let floor = Some(MACOS_FLOOR_MAJOR);
         assert_eq!(
-            Permission::ScreenAndSystemAudioRecording.pane_name(),
+            Permission::ScreenAndSystemAudioRecording.pane_title_on_macos(floor),
             "Screen & System Audio Recording"
         );
-        assert_eq!(Permission::Accessibility.pane_name(), "Accessibility");
-        assert_eq!(Permission::InputMonitoring.pane_name(), "Input Monitoring");
+        assert_eq!(
+            Permission::Accessibility.pane_title_on_macos(floor),
+            "Accessibility"
+        );
+        assert_eq!(
+            Permission::InputMonitoring.pane_title_on_macos(floor),
+            "Input Monitoring"
+        );
     }
 
     #[test]
@@ -563,7 +593,10 @@ mod tests {
         } else {
             assert!(required.is_empty());
         }
-        let names: Vec<&str> = Permission::R1_MACOS.iter().map(|p| p.pane_name()).collect();
+        let names: Vec<&str> = Permission::R1_MACOS
+            .iter()
+            .map(|p| p.pane_title_on_macos(None))
+            .collect();
         assert!(!names
             .iter()
             .any(|n| n.contains("Microphone") || n.contains("Camera")));
@@ -758,6 +791,49 @@ mod tests {
     }
 
     #[test]
+    fn the_pane_titles_of_every_supported_major_are_pinned_from_the_floor_up() {
+        assert_eq!(MACOS_FLOOR_MAJOR, 14);
+        assert_eq!(MACOS_ROWS.map(|row| row.major), [14, 15, 26, 27]);
+        let before_27 = [
+            "Screen & System Audio Recording",
+            "Accessibility",
+            "Input Monitoring",
+        ];
+        let from_27 = [
+            "Screen & System Audio Recording",
+            "Device Control and Data Access",
+            "Input Monitoring",
+        ];
+        for (major, titles) in [
+            (14, before_27),
+            (15, before_27),
+            (26, before_27),
+            (27, from_27),
+        ] {
+            let got = Permission::R1_MACOS.map(|p| p.pane_title_on_macos(Some(major)));
+            assert_eq!(got, titles, "{major}");
+        }
+        for row in MACOS_ROWS {
+            assert_eq!(
+                [
+                    row.screen_pane,
+                    row.accessibility_pane,
+                    row.input_monitoring_pane
+                ],
+                Permission::R1_MACOS.map(|p| p.pane_title_on_macos(Some(row.major)))
+            );
+        }
+        assert_eq!(
+            Permission::R1_MACOS.map(|p| p.pane_title_on_macos(Some(28))),
+            from_27
+        );
+        assert_eq!(
+            Permission::R1_MACOS.map(|p| p.pane_title_on_macos(None)),
+            before_27
+        );
+    }
+
+    #[test]
     fn macos_27_retitles_the_accessibility_pane_and_nothing_else() {
         assert_eq!(
             Permission::Accessibility.pane_title_on_macos(Some(27)),
@@ -775,7 +851,10 @@ mod tests {
             Permission::ScreenAndSystemAudioRecording,
             Permission::InputMonitoring,
         ] {
-            assert_eq!(p.pane_title_on_macos(Some(27)), p.pane_name());
+            assert_eq!(
+                p.pane_title_on_macos(Some(27)),
+                p.pane_title_on_macos(Some(26))
+            );
         }
     }
 
