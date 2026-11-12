@@ -1,8 +1,101 @@
 use halvo_learn::{
-    admit, build_list, check_sources, counted, new_locators, routine_step, use_move, value_hit,
-    AdmitCause, AdmitFacts, EditCause, EditMove, EditSources, Locator, LogCause, Mark,
-    RoutineState, RunMode, RunSource, SourceCause, SourceFacts, Target, LOCATORS_MAX,
+    admit, build_list, candidate_move, check_sources, counted, new_locators, routine_step,
+    use_move, value_hit, AdmitCause, AdmitFacts, CandidateFacts, CandidateMove, EditCause,
+    EditMove, EditSources, Locator, LogCause, Mark, RoutineState, RunMode, RunSource, SourceCause,
+    SourceFacts, Target, LOCATORS_MAX,
 };
+
+fn kept(locators: Vec<Locator>) -> CandidateFacts {
+    CandidateFacts {
+        verified: true,
+        recovered: true,
+        pending: false,
+        current: true,
+        edits: 1,
+        locators,
+        base_list: Vec::new(),
+        barred: Vec::new(),
+    }
+}
+
+fn first_revision(runs: &[&str], first: u32, last: u32, run_day: u32) -> SourceFacts {
+    SourceFacts {
+        edit: EditSources {
+            workflow: "w1".to_owned(),
+            agent: "a1".to_owned(),
+            runs: runs.iter().map(|run| (*run).to_owned()).collect(),
+            first,
+            last,
+            clean: 0,
+        },
+        before: None,
+        run: Some(RunSource {
+            workflow: "w1".to_owned(),
+            agent: "a1".to_owned(),
+            run: "r1".to_owned(),
+            day: run_day,
+        }),
+    }
+}
+
+#[test]
+fn candidate_drops_a_barred_locator_beside_one_left() {
+    let facts = CandidateFacts {
+        barred: vec![loc("y")],
+        ..kept(vec![loc("x"), loc("y")])
+    };
+    assert_eq!(candidate_move(&facts), CandidateMove::Drop);
+    assert_eq!(
+        candidate_move(&kept(vec![loc("x"), loc("y")])),
+        CandidateMove::Keep(vec![loc("x"), loc("y")])
+    );
+}
+
+#[test]
+fn first_revision_days_are_its_run_day() {
+    for (first, last) in [(9, 10), (10, 11), (5, 20)] {
+        assert_eq!(
+            check_sources(&first_revision(&["r1"], first, last, 10)),
+            Err(SourceCause::Source),
+            "first {first} last {last} for a run of day 10"
+        );
+    }
+    assert_eq!(check_sources(&first_revision(&["r1"], 10, 10, 10)), Ok(()));
+}
+
+#[test]
+fn first_revision_holds_one_run() {
+    assert_eq!(
+        check_sources(&first_revision(&["r0", "r1"], 10, 10, 10)),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(check_sources(&first_revision(&["r1"], 10, 10, 10)), Ok(()));
+}
+
+#[test]
+fn first_revision_days_follow_the_run_not_each_other() {
+    assert_eq!(
+        check_sources(&first_revision(&["r1"], 10, 10, 30)),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(check_sources(&first_revision(&["r1"], 30, 30, 30)), Ok(()));
+}
+
+#[test]
+fn candidate_keeps_the_left_locators_in_their_order() {
+    assert_eq!(
+        candidate_move(&kept(vec![loc("a"), loc("b")])),
+        CandidateMove::Keep(vec![loc("a"), loc("b")])
+    );
+    let base_in_the_middle = CandidateFacts {
+        base_list: vec![loc("m")],
+        ..kept(vec![loc("a"), loc("m"), loc("b")])
+    };
+    assert_eq!(
+        candidate_move(&base_in_the_middle),
+        CandidateMove::Keep(vec![loc("a"), loc("b")])
+    );
+}
 
 fn loc(value: &str) -> Locator {
     Locator {
