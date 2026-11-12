@@ -1,7 +1,11 @@
-use halvo_schema::executable::{CoordinatorReply, RunnerReply};
+use std::collections::BTreeMap;
+
+use halvo_schema::executable::{CoordinatorReply, RunId, RunnerCall, RunnerReply};
 use halvo_schema::learning::body::Refinements;
 use halvo_schema::ErrorName;
 
+use crate::agent;
+use crate::facts::RunFacts;
 use crate::host::LearnHost;
 use crate::ids::Ids;
 
@@ -59,6 +63,7 @@ impl CoordinatorAnswer {
 #[derive(Default)]
 pub struct LearnHandlers {
     pub(crate) ids: Ids,
+    pub(crate) facts: BTreeMap<RunId, RunFacts>,
 }
 
 impl LearnHandlers {
@@ -73,8 +78,11 @@ impl LearnHandlers {
         host: &mut dyn LearnHost,
         body: &[u8],
     ) -> Result<RunnerReply, Refused> {
-        let now = host.agent_now();
-        Ok(halvo_agent_store::runner(host.agent_host(), now, body)?)
+        match RunnerCall::parse(body) {
+            Ok(RunnerCall::Load(b)) => self.load(host, body, &b),
+            Ok(RunnerCall::LoadSteps(b)) => self.load_steps(host, body, &b),
+            _ => Ok(agent::runner(host, body)?),
+        }
     }
 
     /// Answers one `coordinator_write` body (AG-A7.2, contracts.md L2.2), read from its bytes.
