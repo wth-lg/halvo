@@ -1,5 +1,6 @@
 //! Screen capture via Windows.Graphics.Capture (`FrameArrived`).
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -132,6 +133,7 @@ pub struct ScreenFlags {
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
     drop_within: Option<Duration>,
+    closed: Arc<AtomicBool>,
 }
 
 /// The `windows-capture` frame handler: one packet for each frame that it
@@ -141,6 +143,8 @@ pub struct ScreenHandler {
     last_app: Arc<Mutex<Option<String>>>,
     drop_within: Option<Duration>,
     last_kept: Option<Instant>,
+    #[allow(dead_code)]
+    closed: Arc<AtomicBool>,
 }
 
 impl GraphicsCaptureApiHandler for ScreenHandler {
@@ -153,6 +157,7 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             last_app: ctx.flags.last_app,
             drop_within: ctx.flags.drop_within,
             last_kept: None,
+            closed: ctx.flags.closed,
         })
     }
 
@@ -192,6 +197,7 @@ pub struct ScreenSource {
     min_interval: Duration,
     control: Option<Control>,
     handoff: Option<HandOff>,
+    closed: Arc<AtomicBool>,
     stopped: bool,
 }
 
@@ -202,6 +208,7 @@ impl ScreenSource {
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             control: None,
             handoff: None,
+            closed: Arc::default(),
             stopped: false,
         }
     }
@@ -229,10 +236,12 @@ impl CaptureSource for ScreenSource {
         let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;
         let handoff = HandOff::start(ctx.sink().clone(), "halvo-screen-forward")?;
+        let closed = Arc::new(AtomicBool::new(false));
         let flags = ScreenFlags {
             producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
             drop_within: choice.drop_within,
+            closed: Arc::clone(&closed),
         };
         let settings = Settings::new(
             monitor,
@@ -247,6 +256,7 @@ impl CaptureSource for ScreenSource {
         let control = ScreenHandler::start_free_threaded(settings).map_err(start_error)?;
         self.control = Some(control);
         self.handoff = Some(handoff);
+        self.closed = closed;
         self.stopped = false;
         Ok(Started::Running)
     }
@@ -264,15 +274,13 @@ impl CaptureSource for ScreenSource {
     }
 
     fn health(&self) -> SourceHealth {
-        let writer_gone = self.handoff.as_ref().is_some_and(HandOff::writer_gone);
-        let state = match &self.control {
-            Some(control) if control.is_finished() || writer_gone => super::thread_ended(),
-            Some(_) => SourceState::Running,
-            None if self.stopped => SourceState::Stopped(StopCause::Request),
-            None => SourceState::NotReported,
-        };
         SourceHealth {
-            state,
+            state: screen_state(
+                self.control.as_ref().map(Control::is_finished),
+                self.closed.load(Ordering::Relaxed),
+                self.handoff.as_ref().is_some_and(HandOff::writer_gone),
+                self.stopped,
+            ),
             counters: SourceCounters::default(),
         }
     }
@@ -281,6 +289,22 @@ impl CaptureSource for ScreenSource {
 impl Drop for ScreenSource {
     fn drop(&mut self) {
         let _ = self.shutdown();
+    }
+}
+
+/// The state of a screen source: `session` is `None` with no session, or
+/// whether the session's capture thread has finished.
+fn screen_state(
+    session: Option<bool>,
+    item_closed: bool,
+    writer_gone: bool,
+    stopped: bool,
+) -> SourceState {
+    match session {
+        Some(finished) if finished || item_closed || writer_gone => super::thread_ended(),
+        Some(_) => SourceState::Running,
+        None if stopped => SourceState::Stopped(StopCause::Request),
+        None => SourceState::NotReported,
     }
 }
 
@@ -432,6 +456,40 @@ mod tests {
         assert!([0, 1, 2]
             .into_iter()
             .all(|ms| keep_frame(None, &mut last, at(ms))));
+    }
+
+    #[test]
+    fn a_closed_capture_item_reads_as_failed_health() {
+        let (sink, _writer) = crate::sink::channel(4);
+        let handoff = HandOff::start(sink, "halvo-test-screen-forward").expect("hand-off");
+        let closed = Arc::new(AtomicBool::new(false));
+        let mut handler = ScreenHandler {
+            producer: handoff.producer(),
+            last_app: Arc::default(),
+            drop_within: None,
+            last_kept: None,
+            closed: Arc::clone(&closed),
+        };
+        assert!(handler.on_closed().is_ok());
+        let failed = crate::windows::thread_ended();
+        assert_eq!(
+            screen_state(Some(false), closed.load(Ordering::Relaxed), false, false),
+            failed
+        );
+        assert_eq!(
+            screen_state(Some(false), false, false, false),
+            SourceState::Running
+        );
+        assert_eq!(screen_state(Some(true), false, false, false), failed);
+        assert_eq!(screen_state(Some(false), false, true, false), failed);
+        assert_eq!(
+            screen_state(None, false, false, true),
+            SourceState::Stopped(StopCause::Request)
+        );
+        assert_eq!(
+            screen_state(None, false, false, false),
+            SourceState::NotReported
+        );
     }
 
     #[test]
