@@ -830,6 +830,7 @@ mod login_item_tests {
         let kept = [
             format!(".{name}.{live}.tmp"),
             format!(".{name}.x{dead}.tmp"),
+            format!(".{name}.+{dead}.tmp"),
             format!(".{name}..tmp"),
             format!(".{name}.{dead}.tmpx"),
             format!("{name}.{dead}.tmp"),
@@ -866,6 +867,28 @@ mod login_item_tests {
         for kept in &kept {
             assert!(dir.path().join(kept).exists(), "{kept} was taken away");
         }
+    }
+
+    #[test]
+    fn an_install_writes_over_a_leftover_temp_file_of_its_own_pid() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let spec = login_item();
+        let own = dir
+            .path()
+            .join(format!(".{}.{}.tmp", spec.file_name(), std::process::id()));
+        std::fs::write(&own, b"half").unwrap();
+        assert_eq!(
+            install_login_item(&spec, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        assert_eq!(
+            std::fs::read(login_item_path(&spec, &dir)).unwrap(),
+            spec.plist().as_bytes()
+        );
+        assert!(!own.exists());
     }
 
     #[test]
