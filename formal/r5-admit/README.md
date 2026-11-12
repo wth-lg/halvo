@@ -32,6 +32,7 @@ runs the jar. Nothing of the product links it and no bundle ships it (L0.8).
 | `Admit.tla` | the model: the step relation of one edit, the system, the properties Q1 to Q14 |
 | `Admit.cfg` | the configuration that TLC checks |
 | `Small.cfg` | the small bound that `scripts/r5/ci.d/30-r5-formal.sh` checks in every push: `Admit.cfg` with `RunsMax` 3 and `RunsOnBothSteps` 2 |
+| `record.txt` | the record of the runs that are too long for a push (see "The record") |
 | `Reach.tla` | states and steps that the system must be able to reach, each with its negation for TLC to violate |
 | `Export.tla`, `Export.cfg` | the module and the configuration under which TLC prints the table and the traces |
 | `export.sh` | the only writer of the two files below |
@@ -341,6 +342,40 @@ and the distinct states that TLC had found when it reported the line, with one w
 With `Fault = "never_keep"` the run of `NotStopLeavesEdits` ends with no error, at
 2,395 distinct states: the model that never learns is seen by this run and by no
 property of `Admit.cfg`.
+
+## The record
+
+The run of `Admit.cfg` (section "Running TLC"), the wrong designs of the table in
+"The wrong designs" and the reach runs of the commands above take too long for a
+push. A person runs them on the development machine, and `record.txt` holds their
+result. Each design and each reach run is one run with one worker through the
+machine's timed-run helper, as the sections above say. The record has these lines and
+no others:
+
+```
+stamp=<hex>
+full config=Admit.cfg states=<distinct states> properties=14 violated=0 workers=<n> run=<helper|nice19> seconds=<n>
+design fault=<Fault> reports=<property or nothing> states=<distinct states>
+reach property=<Not name or Never name> bound=<RunsMax>-<RunsOnBothSteps> reached=yes states=<distinct states>
+```
+
+`stamp` is the hash of the model's files: the SHA-256 of one line per tracked file
+under `formal/r5-admit/` whose name ends in `.tla` or `.cfg`, each line the 64 hex
+digits of the file's bytes, two spaces and the file's path from the root of the
+repository, the lines sorted by path (item L0.4 of the contract). The `full` line says
+how the run of `Admit.cfg` ran: `workers` is TLC's `-workers`, `run` is `helper` for a
+run through the timed-run helper and `nice19` for a run beside its lock at the lowest
+priority, and `seconds` is the wall time, an observation and not a measurement. There is one
+`design` line per row of the table of wrong designs, with the property of the row's
+column `TLC reports`, and one `reach` line per run of the reach commands.
+
+`scripts/r5/ci.d/30-r5-formal.sh` computes the stamp from the files in the tree and
+reads the table and the commands of this file. It fails with `record` when the record
+is missing, holds no stamp or another stamp, lacks one of these lines, or holds a line
+of another form or one line twice. So a
+change of a `.tla` or `.cfg` file, a row added to the table and a name added to the
+commands each need a new record from runs at those files. The check reads the form of
+`workers`, `run` and `seconds` and not their values, and it does not read `states`.
 
 ## `edit-table.tsv`
 
