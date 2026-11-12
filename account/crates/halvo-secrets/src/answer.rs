@@ -104,6 +104,11 @@ pub enum Locked {
     /// Something other than a directory, such as a link or a file, stands in the place of
     /// the directory.
     NotADirectory,
+    /// A directory above the store's directory can be changed by someone other than the
+    /// person and root: it belongs to another user, it lets the group or others write
+    /// without the sticky bit, or an access control list lets someone add, remove or
+    /// rename its entries; or it is no longer a directory.
+    Ancestor,
     /// The item holds no byte or more than the store keeps.
     Size,
     /// More than one Keychain item answers to the name.

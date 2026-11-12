@@ -1,5 +1,5 @@
 use crate::answer::{Fault, Locked};
-use crate::place::{Codec, EntryKind, Fs, Meta, Opened, Published, Sealed};
+use crate::place::{Codec, EntryKind, Fs, Last, Meta, Opened, Published, Sealed, Walk};
 use crate::secret::wipe_raw;
 use crate::{Secret, MAX_SECRET_LEN};
 use std::ffi::OsStr;
@@ -7,7 +7,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read as _, Write as _};
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     GetLastError, LocalFree, ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS,
@@ -42,6 +42,7 @@ fn meta_of(metadata: &fs::Metadata) -> Meta {
         mode: 0,
         len: metadata.len(),
         acl: false,
+        acl_write: false,
         links: 1,
     }
 }
@@ -51,6 +52,7 @@ fn wide(path: &Path) -> Vec<u16> {
 }
 
 impl Fs for WindowsFs {
+    type Dir = PathBuf;
     type Item = File;
     type Temp = File;
 
@@ -58,15 +60,23 @@ impl Fs for WindowsFs {
         0
     }
 
-    fn lstat(&self, path: &Path) -> io::Result<Option<Meta>> {
-        match fs::symlink_metadata(path) {
-            Ok(metadata) => Ok(Some(meta_of(&metadata))),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error),
-        }
+    fn walk(&self, path: &Path) -> io::Result<Walk<PathBuf>> {
+        let last = match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                let meta = meta_of(&metadata);
+                let dir = (meta.kind == EntryKind::Directory).then(|| path.to_path_buf());
+                Last::Found(meta, dir)
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Last::Absent,
+            Err(error) => return Err(error),
+        };
+        Ok(Walk {
+            ancestors: Vec::new(),
+            last,
+        })
     }
 
-    fn create_dir(&self, path: &Path) -> io::Result<()> {
+    fn make_dir(&self, path: &Path) -> io::Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -76,16 +86,28 @@ impl Fs for WindowsFs {
         }
     }
 
-    fn open_item(&self, path: &Path) -> io::Result<Opened<File>> {
-        match self.lstat(path)? {
-            None => return Ok(Opened::Absent),
-            Some(meta) if meta.kind != EntryKind::File => return Ok(Opened::NotAFile),
-            Some(_) => {}
+    fn exists(&self, dir: &PathBuf, name: &str) -> io::Result<bool> {
+        match fs::symlink_metadata(dir.join(name)) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn open_item(&self, dir: &PathBuf, name: &str) -> io::Result<Opened<File>> {
+        let path = dir.join(name);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if meta_of(&metadata).kind != EntryKind::File => {
+                return Ok(Opened::NotAFile)
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Opened::Absent),
+            Err(error) => return Err(error),
         }
         match OpenOptions::new()
             .read(true)
             .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
-            .open(path)
+            .open(&path)
         {
             Ok(file) => Ok(Opened::Item(file)),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Opened::Absent),
@@ -101,8 +123,12 @@ impl Fs for WindowsFs {
         item.read(buf)
     }
 
-    fn create_temp(&self, path: &Path) -> io::Result<Option<File>> {
-        match OpenOptions::new().write(true).create_new(true).open(path) {
+    fn create_temp(&self, dir: &PathBuf, name: &str) -> io::Result<Option<File>> {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.join(name))
+        {
             Ok(file) => Ok(Some(file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(None),
             Err(error) => Err(error),
@@ -117,9 +143,9 @@ impl Fs for WindowsFs {
         temp.sync_all()
     }
 
-    fn publish(&self, from: &Path, to: &Path) -> io::Result<Published> {
-        let from = wide(from);
-        let to = wide(to);
+    fn publish(&self, dir: &PathBuf, from: &str, to: &str) -> io::Result<Published> {
+        let from = wide(&dir.join(from));
+        let to = wide(&dir.join(to));
         if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), MOVEFILE_WRITE_THROUGH) } != 0 {
             return Ok(Published::Done);
         }
@@ -131,11 +157,11 @@ impl Fs for WindowsFs {
         }
     }
 
-    fn remove(&self, path: &Path) -> io::Result<()> {
-        fs::remove_file(path)
+    fn remove(&self, dir: &PathBuf, name: &str) -> io::Result<()> {
+        fs::remove_file(dir.join(name))
     }
 
-    fn sync_dir(&self, _path: &Path) -> io::Result<()> {
+    fn sync_dir(&self, _dir: &PathBuf) -> io::Result<()> {
         Ok(())
     }
 }

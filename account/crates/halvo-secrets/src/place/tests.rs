@@ -33,6 +33,7 @@ struct Entry {
     bytes: Vec<u8>,
     shown_len: Option<u64>,
     acl: bool,
+    acl_write: bool,
     links: u64,
 }
 
@@ -45,6 +46,7 @@ impl Entry {
             bytes: Vec::new(),
             shown_len: None,
             acl: false,
+            acl_write: false,
             links: 1,
         }
     }
@@ -57,6 +59,7 @@ impl Entry {
             bytes: bytes.to_vec(),
             shown_len: None,
             acl: false,
+            acl_write: false,
             links: 1,
         }
     }
@@ -74,6 +77,14 @@ impl Entry {
 
     fn with_acl(self) -> Entry {
         Entry { acl: true, ..self }
+    }
+
+    fn with_acl_write(self) -> Entry {
+        Entry {
+            acl: true,
+            acl_write: true,
+            ..self
+        }
     }
 
     fn with_links(self, links: u64) -> Entry {
@@ -94,6 +105,7 @@ impl Entry {
             mode: self.mode,
             len: self.shown_len.unwrap_or(self.bytes.len() as u64),
             acl: self.acl,
+            acl_write: self.acl_write,
             links: self.links,
         }
     }
@@ -105,6 +117,7 @@ fn shown(path: &Path) -> String {
 
 struct Memory {
     entries: RefCell<BTreeMap<PathBuf, Entry>>,
+    ancestors: RefCell<Vec<Entry>>,
     log: RefCell<Vec<String>>,
     fail: RefCell<Vec<(&'static str, usize, i32)>>,
     calls: RefCell<BTreeMap<&'static str, usize>>,
@@ -122,6 +135,7 @@ impl Memory {
     fn new() -> Memory {
         Memory {
             entries: RefCell::new(BTreeMap::new()),
+            ancestors: RefCell::new(vec![Entry::dir(0o755).owned_by(0)]),
             log: RefCell::new(Vec::new()),
             fail: RefCell::new(Vec::new()),
             calls: RefCell::new(BTreeMap::new()),
@@ -193,6 +207,7 @@ impl Memory {
 }
 
 impl Fs for Memory {
+    type Dir = PathBuf;
     type Item = Handle;
     type Temp = Handle;
 
@@ -200,13 +215,21 @@ impl Fs for Memory {
         USER
     }
 
-    fn lstat(&self, path: &Path) -> io::Result<Option<Meta>> {
-        self.step("lstat", path)?;
-        Ok(self.entries.borrow().get(path).map(Entry::meta))
+    fn walk(&self, path: &Path) -> io::Result<Walk<PathBuf>> {
+        self.step("walk", path)?;
+        let ancestors = self.ancestors.borrow().iter().map(Entry::meta).collect();
+        let last = match self.entries.borrow().get(path) {
+            None => Last::Absent,
+            Some(entry) => {
+                let dir = (entry.kind == EntryKind::Directory).then(|| path.to_path_buf());
+                Last::Found(entry.meta(), dir)
+            }
+        };
+        Ok(Walk { ancestors, last })
     }
 
-    fn create_dir(&self, path: &Path) -> io::Result<()> {
-        self.step("create_dir", path)?;
+    fn make_dir(&self, path: &Path) -> io::Result<()> {
+        self.step("make_dir", path)?;
         if self.makes_no_dir.get() {
             return Ok(());
         }
@@ -217,15 +240,19 @@ impl Fs for Memory {
         Ok(())
     }
 
-    fn open_item(&self, path: &Path) -> io::Result<Opened<Handle>> {
-        self.step("open_item", path)?;
-        Ok(match self.entries.borrow().get(path) {
+    fn exists(&self, dir: &PathBuf, name: &str) -> io::Result<bool> {
+        let path = dir.join(name);
+        self.step("exists", &path)?;
+        Ok(self.entries.borrow().contains_key(&path))
+    }
+
+    fn open_item(&self, dir: &PathBuf, name: &str) -> io::Result<Opened<Handle>> {
+        let path = dir.join(name);
+        self.step("open_item", &path)?;
+        Ok(match self.entries.borrow().get(&path) {
             None => Opened::Absent,
             Some(entry) if entry.kind == EntryKind::Link => Opened::NotAFile,
-            Some(_) => Opened::Item(Handle {
-                path: path.to_path_buf(),
-                offset: 0,
-            }),
+            Some(_) => Opened::Item(Handle { path, offset: 0 }),
         })
     }
 
@@ -249,20 +276,18 @@ impl Fs for Memory {
         Ok(n)
     }
 
-    fn create_temp(&self, path: &Path) -> io::Result<Option<Handle>> {
-        self.step("create_temp", path)?;
+    fn create_temp(&self, dir: &PathBuf, name: &str) -> io::Result<Option<Handle>> {
+        let path = dir.join(name);
+        self.step("create_temp", &path)?;
         if let Some((racer, entry)) = self.on_create_temp.borrow_mut().take() {
             self.entries.borrow_mut().insert(racer, entry);
         }
         let mut entries = self.entries.borrow_mut();
-        if entries.contains_key(path) {
+        if entries.contains_key(&path) {
             return Ok(None);
         }
-        entries.insert(path.to_path_buf(), Entry::file(0o600, b""));
-        Ok(Some(Handle {
-            path: path.to_path_buf(),
-            offset: 0,
-        }))
+        entries.insert(path.clone(), Entry::file(0o600, b""));
+        Ok(Some(Handle { path, offset: 0 }))
     }
 
     fn write_temp(&self, temp: &mut Handle, bytes: &[u8]) -> io::Result<()> {
@@ -280,30 +305,32 @@ impl Fs for Memory {
         self.step("sync_temp", &temp.path)
     }
 
-    fn publish(&self, from: &Path, to: &Path) -> io::Result<Published> {
-        self.step("publish", to)?;
+    fn publish(&self, dir: &PathBuf, from: &str, to: &str) -> io::Result<Published> {
+        let (from, to) = (dir.join(from), dir.join(to));
+        self.step("publish", &to)?;
         let mut entries = self.entries.borrow_mut();
-        if entries.contains_key(to) {
+        if entries.contains_key(&to) {
             return Ok(Published::Exists);
         }
         let entry = entries
-            .remove(from)
+            .remove(&from)
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
-        entries.insert(to.to_path_buf(), entry);
+        entries.insert(to, entry);
         Ok(Published::Done)
     }
 
-    fn remove(&self, path: &Path) -> io::Result<()> {
-        self.step("remove", path)?;
+    fn remove(&self, dir: &PathBuf, name: &str) -> io::Result<()> {
+        let path = dir.join(name);
+        self.step("remove", &path)?;
         self.entries
             .borrow_mut()
-            .remove(path)
+            .remove(&path)
             .map(|_| ())
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
     }
 
-    fn sync_dir(&self, path: &Path) -> io::Result<()> {
-        self.step("sync_dir", path)
+    fn sync_dir(&self, dir: &PathBuf) -> io::Result<()> {
+        self.step("sync_dir", dir)
     }
 }
 
@@ -441,7 +468,7 @@ fn the_codes_of_the_tests_have_the_kinds_that_the_tests_need() {
 #[test]
 fn a_write_answers_the_class_of_a_failed_second_look_at_its_directory() {
     for code in CODES {
-        let store = item(Memory::new().failing_call("lstat", 2, code));
+        let store = item(Memory::new().failing_call("walk", 2, code));
         assert_eq!(store.write(&secret(b"secret")), write_class(code), "{code}");
         assert!(!step_names(&store.fs).contains(&"create_temp".to_string()));
         assert_eq!(store.fs.entry(PATH), None);
@@ -451,7 +478,7 @@ fn a_write_answers_the_class_of_a_failed_second_look_at_its_directory() {
 #[test]
 fn a_write_answers_the_class_of_a_failed_look_at_the_name() {
     for code in CODES {
-        let memory = Memory::with(&[(DIR, Entry::dir(0o700))]).failing_call("lstat", 2, code);
+        let memory = Memory::with(&[(DIR, Entry::dir(0o700))]).failing("exists", code);
         let store = item(memory);
         assert_eq!(store.write(&secret(b"secret")), write_class(code), "{code}");
         assert!(!step_names(&store.fs).contains(&"create_temp".to_string()));
@@ -517,10 +544,10 @@ fn a_write_makes_the_bytes_durable_before_it_publishes_the_name_and_syncs_the_na
     assert_eq!(
         names,
         [
-            "lstat",
-            "create_dir",
-            "lstat",
-            "lstat",
+            "walk",
+            "make_dir",
+            "walk",
+            "exists",
             "create_temp",
             "write_temp",
             "sync_temp",
@@ -588,8 +615,9 @@ fn a_write_passes_over_a_temporary_name_that_is_taken() {
 #[test]
 fn a_failed_step_of_a_write_answers_its_class_and_publishes_nothing() {
     for step in [
-        "lstat",
-        "create_dir",
+        "walk",
+        "make_dir",
+        "exists",
         "create_temp",
         "write_temp",
         "sync_temp",
@@ -687,7 +715,7 @@ fn a_sealed_store_keeps_the_sealed_bytes_and_reads_them_back_open() {
 
 #[test]
 fn a_read_that_fails_never_answers_not_stored() {
-    for step in ["lstat", "open_item", "item_meta", "read_item"] {
+    for step in ["walk", "open_item", "item_meta", "read_item"] {
         for code in CODES {
             let store = item(stored().failing(step, code));
             let answer = store.read();
@@ -704,7 +732,7 @@ fn a_read_that_fails_never_answers_not_stored() {
 
 #[test]
 fn a_failed_step_of_a_delete_answers_its_class_and_keeps_the_item() {
-    for step in ["lstat", "open_item", "item_meta", "remove"] {
+    for step in ["walk", "open_item", "item_meta", "remove"] {
         for code in CODES {
             let store = item(stored().failing(step, code));
             let want = if step == "remove" && code == ENOENT {
@@ -786,7 +814,7 @@ fn a_directory_of_a_wider_mode_another_owner_or_another_kind_is_refused_by_every
         store.write(&secret(b"new")),
         Write::Locked(Locked::NotADirectory)
     );
-    assert!(!step_names(&store.fs).contains(&"create_dir".to_string()));
+    assert!(!step_names(&store.fs).contains(&"make_dir".to_string()));
 }
 
 #[test]
@@ -968,4 +996,91 @@ fn the_kind_only_rules_refuse_another_kind_and_take_any_mode_and_owner() {
         rules.item(&Entry::file(0o600, &[b'x'; 11]).meta(), USER, 10),
         Some(Locked::Size)
     );
+}
+
+fn with_ancestor(memory: Memory, ancestor: Entry) -> Memory {
+    *memory.ancestors.borrow_mut() = vec![Entry::dir(0o755).owned_by(0), ancestor];
+    memory
+}
+
+#[test]
+fn an_ancestor_that_someone_else_may_change_refuses_every_call() {
+    let cases = [
+        Entry::dir(0o777).owned_by(0),
+        Entry::dir(0o775),
+        Entry::dir(0o757),
+        Entry::dir(0o722),
+        Entry::dir(0o2775),
+        Entry::dir(0o755).owned_by(OTHER),
+        Entry::dir(0o1777).owned_by(OTHER),
+        Entry::dir(0o755).with_acl_write(),
+        Entry::of(EntryKind::File),
+        Entry::of(EntryKind::Link),
+        Entry::of(EntryKind::Other),
+    ];
+    for ancestor in cases {
+        let store = item(with_ancestor(stored(), ancestor.clone()));
+        let read = store.read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Ancestor)),
+            "{ancestor:?}: {read:?}"
+        );
+        assert_eq!(
+            store.write(&secret(b"new")),
+            Write::Locked(Locked::Ancestor)
+        );
+        assert_eq!(store.delete(), Delete::Locked(Locked::Ancestor));
+        assert_eq!(
+            store.fs.entry(PATH),
+            Some(Entry::file(0o600, b"the stored secret"))
+        );
+        let steps = step_names(&store.fs);
+        assert!(
+            steps.iter().all(|step| step == "walk"),
+            "{ancestor:?}: {steps:?}"
+        );
+
+        let fresh = item(with_ancestor(Memory::new(), ancestor.clone()));
+        assert_eq!(
+            fresh.write(&secret(b"new")),
+            Write::Locked(Locked::Ancestor)
+        );
+        assert!(fresh.fs.paths().is_empty(), "{ancestor:?}");
+    }
+}
+
+#[test]
+fn an_ancestor_of_root_or_of_the_user_that_others_may_not_change_is_taken() {
+    let cases = [
+        Entry::dir(0o755).owned_by(0),
+        Entry::dir(0o700),
+        Entry::dir(0o750),
+        Entry::dir(0o1777).owned_by(0),
+        Entry::dir(0o1777),
+        Entry::dir(0o3777),
+        Entry::dir(0o755).with_acl(),
+    ];
+    for ancestor in cases {
+        let store = item(with_ancestor(stored(), ancestor.clone()));
+        assert_eq!(found(store.read()), b"the stored secret", "{ancestor:?}");
+    }
+}
+
+#[test]
+fn the_kind_only_rules_refuse_an_ancestor_by_its_kind_and_its_access_list_alone() {
+    let rules = Rules::KindOnly;
+    assert_eq!(
+        rules.ancestor(&Entry::dir(0o777).owned_by(OTHER).meta(), USER),
+        None
+    );
+    assert_eq!(
+        rules.ancestor(&Entry::dir(0o700).with_acl_write().meta(), USER),
+        Some(Locked::Ancestor)
+    );
+    for kind in [EntryKind::File, EntryKind::Link, EntryKind::Other] {
+        assert_eq!(
+            rules.ancestor(&Entry::of(kind).meta(), USER),
+            Some(Locked::Ancestor)
+        );
+    }
 }
