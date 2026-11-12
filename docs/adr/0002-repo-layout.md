@@ -35,3 +35,11 @@ The backend lives in a separate repository.
   crates/halvo-control with control-1, and lists its members by a glob from gate-1
   on. ADR 0006 records the layout. The decision that the backend lives in a separate
   repository stands.
+- 2026-11-12: The owner overruled the Decision's sentence on the backend: "This
+  project will only have one repo so whatever backend that you build will have to
+  be merged onto the main repo. There cannot be a separate repo that lives
+  locally." The backend lives under backend/ of this repository and its model
+  under formal/r7-ledger/. Its tree came over as files from da7d398, the main of
+  the repository where it was built, without that repository's history. So the
+  Consequence that capture code and backend code never share a repository no
+  longer holds, and no check of this repository holds that boundary yet.
