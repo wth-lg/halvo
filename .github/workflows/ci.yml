@@ -88,6 +88,9 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: 30-mutants as on a push to main
+        shell: bash
+        run: GITHUB_REF=refs/heads/main sh scripts/ci/run-ci-d.sh macos 30-mutants
       - name: Build
         shell: bash
         run: npm run tauri build
