@@ -52,13 +52,25 @@ impl TapPort {
     fn reenable(&self) {
         let port = self.port.load(Ordering::Relaxed);
         if !port.is_null() {
-            // SAFETY: `port` is not null, so `store` received it, and
-            // `install_tap` stores only the mach port of a tap that it created.
-            // Callbacks run only on the tap thread's run loop, which stops
-            // before the tap drops. `enable` is `CGEventTapEnable`, set by
-            // `unset`, or a test's function that only reads its arguments.
+            // SAFETY: outside tests `port` is set only by `install_tap`, to the
+            // mach port of the tap that it returns beside a `PortClearedOnDrop`,
+            // which sets it back to null before that tap drops. So a port that
+            // is not null belongs to a tap that is alive, as long as the load
+            // above and this call do not straddle the drop: the one caller
+            // outside tests is the tap's callback, which runs on the tap thread,
+            // and that thread drops the tap only after its run loop returned.
+            // `enable` is `CGEventTapEnable`, set by `unset`, or a test's
+            // function that only reads its arguments.
             unsafe { (self.enable)(port, true) };
         }
+    }
+}
+
+struct PortClearedOnDrop(TapPort);
+
+impl Drop for PortClearedOnDrop {
+    fn drop(&mut self) {
+        self.0.store(std::ptr::null_mut());
     }
 }
 
@@ -213,7 +225,9 @@ fn current_secure_state() -> SecureInputState {
     }
 }
 
-fn install_tap(ctx: TapContext) -> Result<(CFRunLoopSource, CGEventTap<'static>), CaptureError> {
+fn install_tap(
+    ctx: TapContext,
+) -> Result<(PortClearedOnDrop, CFRunLoopSource, CGEventTap<'static>), CaptureError> {
     let port = ctx.port.clone();
     let tap = create_tap(move |_proxy, etype, _event| {
         on_tap_event(&ctx, etype);
@@ -221,18 +235,20 @@ fn install_tap(ctx: TapContext) -> Result<(CFRunLoopSource, CGEventTap<'static>)
     })
     .map_err(|()| CaptureError::PermissionDenied(Modality::Keystroke))?;
 
-    port.store(tap.mach_port().as_concrete_TypeRef() as *mut c_void);
-
     let source = tap
         .mach_port()
         .create_runloop_source(0)
         .map_err(|()| CaptureError::Start("could not create run loop source".into()))?;
+
+    port.store(tap.mach_port().as_concrete_TypeRef() as *mut c_void);
+    let port = PortClearedOnDrop(port);
+
     let run_loop = CFRunLoop::get_current();
     // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
     // CoreFoundation exports and never writes; reading it has no effect.
     run_loop.add_source(&source, unsafe { kCFRunLoopCommonModes });
     tap.enable();
-    Ok((source, tap))
+    Ok((port, source, tap))
 }
 
 struct TapThread {
@@ -518,6 +534,16 @@ mod tests {
         port.store(tap);
         port.reenable();
         ENABLE_CALLS.with(|calls| assert_eq!(*calls.borrow(), [(tap as usize, true)]));
+    }
+
+    #[test]
+    fn a_clone_of_the_port_calls_nothing_once_the_port_guard_drops() {
+        let port = TapPort::with_enable(record_enable);
+        let clone = port.clone();
+        port.store(std::ptr::NonNull::<c_void>::dangling().as_ptr());
+        drop(PortClearedOnDrop(port));
+        clone.reenable();
+        ENABLE_CALLS.with(|calls| assert_eq!(*calls.borrow(), []));
     }
 
     extern "C" fn never_fires(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
