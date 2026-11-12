@@ -65,6 +65,7 @@ required_gap() {
 
 required_targets() {
   awk -v pkg="$1" '
+    { sub(/\r$/, "") }
     NF == 3 && $1 == pkg && !seen[$2]++ { print $2 }
   ' "$required"
 }
@@ -81,8 +82,15 @@ listing() {
   [ "$code" -eq 0 ] || fail "$call exited $code"
   gap=$(
     awk -v target="$2" -v call="$call" '
+      { gsub(/\033\[[0-9;]*m/, "") }
       $1 == "Compiling" { compiled = 1 }
-      $1 == "Running" { at = $2; gsub(/\\/, "/", at); if (at == target) ran = 1 }
+      $1 == "Running" && !seen++ {
+        at = $0
+        sub(/^[ \t]*Running /, "", at)
+        sub(/ \([^(]*$/, "", at)
+        gsub(/\\/, "/", at)
+        ran = at == target
+      }
       END {
         if (!ran) print call " did not run " target
         else if (compiled) print call " compiled, so the test run did not build " target
@@ -428,6 +436,19 @@ names 3'
   lists_of core
   stub_listing "$STUB_LISTS" halvo-schema-core notice all 0 "     Running tests/notice.rs (target/debug/deps/notice-1)\n" 'the_notice_the_manifest_and_the_lock_name_one_version_of_psl: test\n\n1 test, 0 benchmarks\n'
   check core-name-not-listed FAIL "FAIL $name (the test the_notice_is_the_one_row_of_the_public_suffix_list of tests/notice.rs of halvo-schema-core is not in the list of its test binary)"
+  lists_of space
+  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '     Running tests/locked_files.rs (fake)/t.rs (target/debug/deps/locked_files-1)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
+  check listing-of-a-path-that-starts-like-the-target FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list did not run tests/locked_files.rs)"
+  lists_of stand-in
+  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '     Running src/stand_in.rs (target/debug/deps/locked_files-1)\n     Running tests/locked_files.rs (target/debug/deps/locked_files-0)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
+  check binary-prints-the-running-line FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list did not run tests/locked_files.rs)"
+  lists_of colour
+  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '\033[1m\033[92m   Compiling\033[0m halvo-schema v0.0.0 (crates/halvo-schema)\n\033[1m\033[92m     Running\033[0m tests/locked_files.rs (target/debug/deps/locked_files-1)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
+  STUB_SCHEMA_LOG=$work/forged.log
+  check coloured-cargo-lines FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list compiled, so the test run did not build tests/locked_files.rs)"
+  lists_of ignored-compiles
+  stub_listing "$STUB_LISTS" halvo-schema later_file_builds ignored 0 "   Compiling halvo-schema v0.0.0 (crates/halvo-schema)\n$later" '0 tests, 0 benchmarks\n'
+  check ignored-listing-compiles FAIL "FAIL $name (cargo test --locked -p halvo-schema --test later_file_builds -- --list --ignored compiled, so the test run did not build tests/later_file_builds.rs)"
   STUB_LISTS=$work/lists-windows
   stub_listing "$STUB_LISTS" halvo-schema locked_files ignored 0 '     Running tests\\locked_files.rs (target\\debug\\deps\\locked_files-1.exe)\r\n' 'each_lib_rs_holds_its_form: test\r\n\r\n1 test, 0 benchmarks\r\n'
   STUB_SCHEMA_LOG=$work/forged-ignored.log
@@ -472,6 +493,14 @@ $later_line
   stub_listing "$STUB_LISTS" halvo-schema notice ignored 0 "     Running tests/notice.rs (target/debug/deps/notice-2)\n" '0 tests, 0 benchmarks\n'
   STUB_SCHEMA_LOG=$work/both-packages.log
   check a-target-path-in-both-packages PASS "cargo test --locked -p halvo-schema --test notice -- --list: required names listed 1, ignored 0"
+  repo=$work/space-before-cr
+  make_repo "$repo" golden "$core_line
+$lock_line $cr
+$later_line
+"
+  lists_of space-before-cr
+  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "$lock" 'forged: test\n\n1 test, 0 benchmarks\n'
+  check list-line-with-a-space-before-cr FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   repo=$work/no-core
   make_repo "$repo" golden "$lock_line
 $later_line
@@ -504,7 +533,8 @@ halvo-schema each_lib_rs_holds_its_form
   fi
   mkdir "$work/victim" || self_fail "the fixture directory victim cannot be made"
   : >"$work/victim/kept" || self_fail "the fixture file victim/kept cannot be made"
-  victim=$(work=$work/victim CI_D_REPO=$work/missing sh "$self" 2>&1)
+  kept=$work/victim
+  victim=$(work=$kept CI_D_REPO=$kept/missing sh "$self" 2>&1)
   code=$?
   last=$(printf '%s\n' "$victim" | tail -n 1)
   if [ "$code:$last" = "1:FAIL $name (the repository root cannot be entered)" ] && [ -f "$work/victim/kept" ]; then
