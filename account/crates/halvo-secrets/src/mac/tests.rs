@@ -62,6 +62,10 @@ impl FileSide for MovedUnderTheRead {
     fn delete(&self) -> Delete {
         Delete::NotStored
     }
+
+    fn remove_if_holds(&self, _bytes: &[u8]) -> Claim {
+        Claim::Absent
+    }
 }
 
 fn moved_under_the_read(keeps: Keeps, bytes: &[u8]) -> (Mac<MovedUnderTheRead, SharedKeys>, Items) {
@@ -88,12 +92,14 @@ enum Fails {
     Locked(Locked),
     Fault(Fault),
     Absent,
+    Stranded,
 }
 
 struct File {
     bytes: RefCell<Option<Vec<u8>>>,
     read_fails: Option<Fails>,
     delete_fails: Option<Fails>,
+    claim_fails: Option<Fails>,
     log: RefCell<Vec<&'static str>>,
 }
 
@@ -103,8 +109,14 @@ impl File {
             bytes: RefCell::new(None),
             read_fails: None,
             delete_fails: None,
+            claim_fails: None,
             log: RefCell::new(Vec::new()),
         }
+    }
+
+    fn failing_claim(mut self, fails: Fails) -> File {
+        self.claim_fails = Some(fails);
+        self
     }
 
     fn holding(bytes: &[u8]) -> File {
@@ -138,7 +150,7 @@ impl FileSide for File {
         match self.read_fails {
             Some(Fails::Locked(locked)) => return Read::Locked(locked),
             Some(Fails::Fault(fault)) => return Read::Fault(fault),
-            Some(Fails::Absent) => return Read::NotStored,
+            Some(Fails::Absent | Fails::Stranded) => return Read::NotStored,
             None => {}
         }
         match self.bytes() {
@@ -162,12 +174,32 @@ impl FileSide for File {
         match self.delete_fails {
             Some(Fails::Locked(locked)) => return Delete::Locked(locked),
             Some(Fails::Fault(fault)) => return Delete::Fault(fault),
-            Some(Fails::Absent) => return Delete::NotStored,
+            Some(Fails::Absent | Fails::Stranded) => return Delete::NotStored,
             None => {}
         }
         match self.bytes.borrow_mut().take() {
             Some(_) => Delete::Deleted,
             None => Delete::NotStored,
+        }
+    }
+
+    fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
+        self.log.borrow_mut().push("claim");
+        match self.claim_fails {
+            Some(Fails::Locked(locked)) => return Claim::Locked(locked),
+            Some(Fails::Fault(fault)) => return Claim::Fault(fault),
+            Some(Fails::Absent) => return Claim::Absent,
+            Some(Fails::Stranded) => return Claim::Stranded,
+            None => {}
+        }
+        let mut held = self.bytes.borrow_mut();
+        match held.as_deref() {
+            Some(stored) if stored == bytes => {
+                *held = None;
+                Claim::Removed
+            }
+            Some(_) => Claim::Other,
+            None => Claim::Absent,
         }
     }
 }
@@ -399,7 +431,7 @@ fn a_build_without_the_feature_answers_the_failure_of_its_file_when_the_keychain
             Fails::Fault(fault) => {
                 assert!(matches!(read, Read::Fault(f) if f == fault), "{read:?}")
             }
-            Fails::Absent => unreachable!(),
+            Fails::Absent | Fails::Stranded => unreachable!(),
         }
     }
 }
@@ -440,7 +472,7 @@ fn adds(keys: &Keys) -> usize {
 fn assert_file_kept(store: &Mac<File, Keys>) {
     assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
     assert!(
-        !store.file.ops().contains(&"delete"),
+        !store.file.ops().contains(&"delete") && !store.file.ops().contains(&"claim"),
         "{:?}",
         store.file.ops()
     );
@@ -452,7 +484,7 @@ fn a_file_of_an_earlier_build_moves_once_into_the_keychain_and_reads_found_after
     assert_eq!(found(store.read()), FILE);
     assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
     assert_eq!(store.file.bytes(), None);
-    assert_eq!(store.file.ops(), ["read", "delete"]);
+    assert_eq!(store.file.ops(), ["read", "claim"]);
     assert_eq!(
         store.keychain.keychain.ops(),
         ["count", "count", "add", "count", "data"]
@@ -559,7 +591,7 @@ fn a_file_that_is_not_removed_after_an_equal_read_back_answers_locked() {
     ] {
         let mut store = mac(
             Keeps::Keychain,
-            File::holding(FILE).failing_delete(fails),
+            File::holding(FILE).failing_claim(fails),
             Keys::empty(),
         );
         let read = store.read();
@@ -567,10 +599,10 @@ fn a_file_that_is_not_removed_after_an_equal_read_back_answers_locked() {
             matches!(read, Read::Locked(locked) if locked == answer),
             "{read:?}"
         );
-        assert_eq!(store.file.ops(), ["read", "delete"]);
+        assert_eq!(store.file.ops(), ["read", "claim"]);
         assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
         assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
-        store.file.delete_fails = None;
+        store.file.claim_fails = None;
         assert_eq!(found(store.read()), FILE);
         assert_eq!(store.file.bytes(), None);
         assert_eq!(adds(&store.keychain.keychain), 1);
@@ -581,13 +613,13 @@ fn a_file_that_is_not_removed_after_an_equal_read_back_answers_locked() {
 fn a_move_whose_removal_of_the_file_faults_answers_the_fault_and_the_next_read_finishes_it() {
     let mut store = mac(
         Keeps::Keychain,
-        File::holding(FILE).failing_delete(Fails::Fault(Fault { code: 5 })),
+        File::holding(FILE).failing_claim(Fails::Fault(Fault { code: 5 })),
         Keys::empty(),
     );
     let read = store.read();
     assert!(matches!(read, Read::Fault(Fault { code: 5 })), "{read:?}");
     assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
-    store.file.delete_fails = None;
+    store.file.claim_fails = None;
     assert_eq!(found(store.read()), FILE);
     assert_eq!(store.file.bytes(), None);
     assert_eq!(adds(&store.keychain.keychain), 1);
@@ -612,6 +644,7 @@ fn with_both_places_full_a_build_with_the_feature_answers_locked_and_changes_not
     assert_eq!(adds(&store.keychain.keychain), 0);
     assert!(!store.keychain.keychain.ops().contains(&"delete"));
     assert!(!store.file.ops().contains(&"delete"));
+    assert!(!store.file.ops().contains(&"claim"));
 }
 
 #[test]
@@ -625,7 +658,7 @@ fn both_places_holding_equal_bytes_finish_the_move_that_stopped_before_the_file_
 
     let store = mac(
         Keeps::Keychain,
-        File::holding(FILE).failing_delete(Fails::Locked(refused(13))),
+        File::holding(FILE).failing_claim(Fails::Locked(refused(13))),
         Keys::holding(&[FILE]),
     );
     let read = store.read();
@@ -652,6 +685,7 @@ fn a_build_with_the_feature_reads_its_keychain_item_when_the_file_holds_none_or_
         assert_eq!(found(store.read()), b"in the keychain");
         assert_eq!(adds(&store.keychain.keychain), 0);
         assert!(!store.file.ops().contains(&"delete"));
+        assert!(!store.file.ops().contains(&"claim"));
     }
 }
 
@@ -677,7 +711,7 @@ fn a_build_with_the_feature_answers_its_file_when_the_keychain_holds_none() {
             Fails::Fault(fault) => {
                 assert!(matches!(read, Read::Fault(f) if f == fault), "{read:?}")
             }
-            Fails::Absent => unreachable!(),
+            Fails::Absent | Fails::Stranded => unreachable!(),
         }
         assert_eq!(adds(&store.keychain.keychain), 0);
     }
@@ -796,4 +830,130 @@ fn a_read_never_answers_not_stored_when_another_store_moves_the_file_between_its
     let read = store.read();
     assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
     assert_eq!(*items.borrow(), [FILE.to_vec()]);
+}
+
+#[test]
+fn a_file_left_under_its_private_name_answers_a_fault() {
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE).failing_claim(Fails::Stranded),
+        Keys::empty(),
+    );
+    let read = store.read();
+    assert!(matches!(read, Read::Fault(Fault { code: -1 })), "{read:?}");
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+}
+
+#[cfg(target_os = "macos")]
+mod real_files {
+    use super::*;
+    use crate::place::{Item, Plain, Rules};
+    use crate::unix::UnixFs;
+
+    type Hook = RefCell<Option<Box<dyn FnOnce()>>>;
+
+    struct BeforeAdd {
+        inner: SharedKeys,
+        hook: Hook,
+    }
+
+    impl Keychain for BeforeAdd {
+        fn count(&self, service: &str, account: &str) -> Result<usize, i32> {
+            self.inner.count(service, account)
+        }
+
+        fn data(&self, service: &str, account: &str) -> Result<Vec<u8>, i32> {
+            self.inner.data(service, account)
+        }
+
+        fn add(&self, service: &str, account: &str, bytes: &[u8]) -> Result<(), i32> {
+            if let Some(hook) = self.hook.borrow_mut().take() {
+                hook();
+            }
+            self.inner.add(service, account, bytes)
+        }
+
+        fn delete(&self, service: &str, account: &str) -> Result<(), i32> {
+            self.inner.delete(service, account)
+        }
+    }
+
+    fn parent(label: &str) -> std::path::PathBuf {
+        let parent =
+            std::env::temp_dir().join(format!("halvo-secrets-mac-{}-{label}", std::process::id()));
+        std::fs::create_dir_all(&parent).expect("the parent of the store directory");
+        parent
+    }
+
+    fn file_item(label: &str) -> Item<UnixFs, Plain> {
+        Item {
+            fs: UnixFs,
+            codec: Plain,
+            rules: Rules::Private,
+            dir: parent(label).join("store"),
+            name: Name::new("account").expect("a name"),
+        }
+    }
+
+    fn keys<K: Keychain>(keychain: K) -> KeychainItem<K> {
+        KeychainItem {
+            keychain,
+            service: Name::new("dev.halvo.test").expect("a service"),
+            account: Name::new("account").expect("an account"),
+        }
+    }
+
+    fn names_in(label: &str) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(parent(label).join("store"))
+            .expect("the store directory")
+            .map(|entry| {
+                entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn a_file_that_another_process_replaces_during_the_move_is_kept() {
+        let label = "replaced";
+        let x: &[u8] = b"credential X of an earlier build";
+        let y: &[u8] = b"credential Y of a later sign-in";
+        let items: Items = Rc::new(RefCell::new(Vec::new()));
+        assert_eq!(file_item(label).write(&secret(x)), Write::Stored);
+        let unsigned = Mac {
+            keeps: Keeps::File,
+            file: file_item(label),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        let later = y.to_vec();
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            assert_eq!(unsigned.delete(), Delete::Deleted);
+            assert_eq!(unsigned.write(&secret(&later)), Write::Stored);
+        });
+        let signed = Mac {
+            keeps: Keeps::Keychain,
+            file: file_item(label),
+            keychain: keys(BeforeAdd {
+                inner: SharedKeys {
+                    items: Rc::clone(&items),
+                },
+                hook: RefCell::new(Some(hook)),
+            }),
+        };
+        let read = signed.read();
+        assert!(
+            matches!(read, Read::Locked(locked) if locked == moved(-1)),
+            "{read:?}"
+        );
+        assert_eq!(found(file_item(label).read()), y);
+        assert_eq!(*items.borrow(), [x.to_vec()]);
+        assert_eq!(names_in(label), ["account"]);
+    }
 }

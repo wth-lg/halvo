@@ -69,6 +69,22 @@ pub(crate) enum Published {
     Exists,
 }
 
+/// What the removal of the file that a move read ends in.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Claim {
+    /// The file held the bytes and is removed.
+    Removed,
+    /// No file stood under the name.
+    Absent,
+    /// Another file stood under the name; it was named back and stands as it stood.
+    Other,
+    /// Another file stood under the name, and the name was taken again before it could be
+    /// named back: the file stays under its private name, where no read gives it.
+    Stranded,
+    Locked(Locked),
+    Fault(Fault),
+}
+
 pub(crate) trait Fs {
     type Dir;
     type Item;
@@ -284,6 +300,15 @@ impl From<Stop> for Delete {
     }
 }
 
+impl From<Stop> for Claim {
+    fn from(stop: Stop) -> Claim {
+        match stop {
+            Stop::Locked(locked) => Claim::Locked(locked),
+            Stop::Fault(fault) => Claim::Fault(fault),
+        }
+    }
+}
+
 enum Reached<D> {
     Dir(D),
     Absent(D),
@@ -312,7 +337,11 @@ impl<F: Fs, C: Codec> Item<F, C> {
     }
 
     fn open(&self, dir: &F::Dir) -> Result<Option<(F::Item, Meta)>, Stop> {
-        let item = match self.fs.open_item(dir, self.name.as_str()) {
+        self.open_at(dir, self.name.as_str())
+    }
+
+    fn open_at(&self, dir: &F::Dir, name: &str) -> Result<Option<(F::Item, Meta)>, Stop> {
+        let item = match self.fs.open_item(dir, name) {
             Ok(Opened::Item(item)) => item,
             Ok(Opened::Absent) => return Ok(None),
             Ok(Opened::NotAFile) => return Err(Stop::Locked(Locked::NotAFile)),
@@ -342,7 +371,11 @@ impl<F: Fs, C: Codec> Item<F, C> {
             Ok(Reached::Absent(_)) => return Read::NotStored,
             Err(stop) => return stop.into(),
         };
-        let (mut item, meta) = match self.open(&dir) {
+        self.read_at(&dir, self.name.as_str())
+    }
+
+    fn read_at(&self, dir: &F::Dir, name: &str) -> Read {
+        let (mut item, meta) = match self.open_at(dir, name) {
             Ok(Some(opened)) => opened,
             Ok(None) => return Read::NotStored,
             Err(stop) => return stop.into(),
@@ -442,6 +475,62 @@ impl<F: Fs, C: Codec> Item<F, C> {
         match self.fs.sync_dir(&dir) {
             Ok(()) => Delete::Deleted,
             Err(error) => Delete::Fault(Stop::fault(&error)),
+        }
+    }
+
+    #[cfg_attr(windows, allow(dead_code))]
+    pub(crate) fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
+        let dir = match self.place() {
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(_)) => return Claim::Absent,
+            Err(stop) => return stop.into(),
+        };
+        match self.open(&dir) {
+            Ok(Some(_)) => {}
+            Ok(None) => return Claim::Absent,
+            Err(stop) => return stop.into(),
+        }
+        let private = match self.claim(&dir) {
+            Ok(Some(private)) => private,
+            Ok(None) => return Claim::Absent,
+            Err(stop) => return stop.into(),
+        };
+        match self.read_at(&dir, &private) {
+            Read::Found(held) if held.expose() == bytes => match self.fs.remove(&dir, &private) {
+                Ok(()) => match self.fs.sync_dir(&dir) {
+                    Ok(()) => Claim::Removed,
+                    Err(error) => Claim::Fault(Stop::fault(&error)),
+                },
+                Err(error) => self.name_back(&dir, &private, Stop::of(&error).into()),
+            },
+            Read::NotStored => Claim::Absent,
+            Read::Found(_) => self.name_back(&dir, &private, Claim::Other),
+            Read::Locked(locked) => self.name_back(&dir, &private, Claim::Locked(locked)),
+            Read::Fault(fault) => self.name_back(&dir, &private, Claim::Fault(fault)),
+        }
+    }
+
+    #[cfg_attr(windows, allow(dead_code))]
+    fn claim(&self, dir: &F::Dir) -> Result<Option<String>, Stop> {
+        let name = self.name.as_str();
+        let pid = std::process::id();
+        for n in 0..TEMP_TRIES {
+            let private = format!(".{name}.{pid}.{n}.tmp");
+            match self.fs.publish(dir, name, &private) {
+                Ok(Published::Done) => return Ok(Some(private)),
+                Ok(Published::Exists) => {}
+                Err(error) if self.fs.is_absent(&error) => return Ok(None),
+                Err(error) => return Err(Stop::of(&error)),
+            }
+        }
+        Err(Stop::Fault(Fault { code: -1 }))
+    }
+
+    #[cfg_attr(windows, allow(dead_code))]
+    fn name_back(&self, dir: &F::Dir, private: &str, answer: Claim) -> Claim {
+        match self.fs.publish(dir, private, self.name.as_str()) {
+            Ok(Published::Done) => answer,
+            Ok(Published::Exists) | Err(_) => Claim::Stranded,
         }
     }
 }

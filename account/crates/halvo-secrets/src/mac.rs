@@ -1,6 +1,6 @@
 use crate::answer::{Delete, Fault, Locked, Read, Write};
 use crate::keychain::{Keychain, KeychainItem};
-use crate::place::{Codec, Fs, Item};
+use crate::place::{Claim, Codec, Fs, Item};
 use crate::Secret;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -13,9 +13,14 @@ pub(crate) trait FileSide {
     fn read(&self) -> Read;
     fn write(&self, secret: &Secret) -> Write;
     fn delete(&self) -> Delete;
+    fn remove_if_holds(&self, bytes: &[u8]) -> Claim;
 }
 
 impl<F: Fs, C: Codec> FileSide for Item<F, C> {
+    fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
+        Item::remove_if_holds(self, bytes)
+    }
+
     fn read(&self) -> Read {
         Item::read(self)
     }
@@ -78,11 +83,12 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     fn remove_the_file(&self, secret: Secret) -> Read {
-        match self.file.delete() {
-            Delete::Deleted => Read::Found(secret),
-            Delete::NotStored => not_moved(None),
-            Delete::Locked(locked) => not_moved(Some(Err(locked))),
-            Delete::Fault(fault) => Read::Fault(fault),
+        match self.file.remove_if_holds(secret.expose()) {
+            Claim::Removed => Read::Found(secret),
+            Claim::Absent | Claim::Other => not_moved(None),
+            Claim::Stranded => Read::Fault(Fault { code: -1 }),
+            Claim::Locked(locked) => not_moved(Some(Err(locked))),
+            Claim::Fault(fault) => Read::Fault(fault),
         }
     }
 

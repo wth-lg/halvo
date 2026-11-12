@@ -28,7 +28,12 @@ use crate::{Directory, Name, Secret};
 /// an allow entry that is not inherit-only and names another user or a group), or when a
 /// link that it followed belongs to another user. An access list that cannot be read
 /// answers `Fault`. The call opens the store directory once without following a link and
-/// makes every later call relative to that handle.
+/// makes every later call relative to that handle. A move into the Keychain removes the
+/// file only after it claims it by one rename, which never replaces a name, to a private
+/// name `.<name>.<pid>.<n>.tmp` in the store directory, the form of the place's own
+/// temporary files, and finds there the bytes that it moved; another file is named back. A
+/// file that stays under such a private name is a file that a move claimed and could not
+/// name back, because the name was taken again at that moment: no read gives it.
 ///
 /// Absent and missing, on both systems: a read answers `NotStored` only when the store
 /// directory or the item is absent under a parent that exists. A step above the store
