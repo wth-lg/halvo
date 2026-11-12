@@ -120,6 +120,68 @@ fn refusal_deleted_workflow() {
         .any(|e| matches!(&e.what, What::ItemLapsed { .. })));
 }
 
+fn attempts(w: &World, what: &str) -> Vec<Option<PortError>> {
+    w.ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| match (&t.call, what) {
+            (Call::Send(halvo_coord::types::Body::EndRun { .. }), "end_run") => true,
+            (Call::Log(events), "run_ended") => events
+                .iter()
+                .any(|e| matches!(e.what, What::RunEnded { .. })),
+            _ => false,
+        })
+        .map(|t| t.refused.clone())
+        .collect()
+}
+
+#[test]
+fn an_owed_end_run_of_a_gone_workflow_is_sent_once_more_and_ends_at_no_workflow() {
+    let mut w = world(&[MANUAL]);
+    w.ports.refuse(Method::StartRun, PortError::NoService);
+    w.ports.refuse(Method::EndRun, PortError::Busy);
+    w.act(Act::Start { agent: agent(0) });
+    assert_eq!(w.board.owed.len(), 1);
+    delete(&w, 0);
+    let gone = PortError::Refused(halvo_coord::types::Name::parse("no_workflow").unwrap());
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::EndRun, gone.clone());
+    w.set_clock(T0 + 1, DAY);
+    w.act(Act::Tick);
+    w.set_clock(T0 + 2, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        attempts(&w, "end_run"),
+        vec![Some(PortError::Busy), Some(gone)],
+        "sent once more, and the refusal no_workflow ends the debt"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn an_owed_run_ended_of_a_gone_workflow_is_logged_once_more_and_ends_at_no_workflow() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.act(Act::End {
+        run,
+        outcome: Some(halvo_coord::types::Outcome::Completed),
+    });
+    w.ports.clear_refusals();
+    delete(&w, 0);
+    w.set_clock(T0 + 1, DAY);
+    w.act(Act::Tick);
+    w.set_clock(T0 + 2, DAY);
+    w.act(Act::Tick);
+    let gone = PortError::Refused(halvo_coord::types::Name::parse("no_workflow").unwrap());
+    assert_eq!(
+        attempts(&w, "run_ended"),
+        vec![Some(PortError::NoService), Some(gone)]
+    );
+    assert!(w.board.owed.is_empty());
+}
+
 #[test]
 fn delete_step_stops_the_runs_of_a_workflow_that_is_gone_and_drops_its_queued_start() {
     let limits = Limits {

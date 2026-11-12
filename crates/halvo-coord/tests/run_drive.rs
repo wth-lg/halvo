@@ -82,6 +82,53 @@ fn refusal_stop_tree() {
     );
 }
 
+fn failed_in_the_tick(refuse: Method) {
+    let mut w = world(&[MANUAL, MANUAL]);
+    let first = started(&mut w, 0);
+    assert_eq!(
+        w.act(Act::Start { agent: agent(1) }).report.answer,
+        Ok(Answer::Queued)
+    );
+    w.act(Act::Stop {
+        run: first,
+        by: StopBy::Person,
+    });
+    w.ports.refuse(refuse, PortError::NoService);
+    w.ports.refuse(Method::EndRun, PortError::NoService);
+    w.set_clock(T0 + GRACE_MS, support::DAY);
+    let tick = w.act(Act::Tick);
+    let next = &tick.report.ended[0].next;
+    assert_eq!(next.len(), 1);
+    assert_eq!(next[0].answer, Err(Cause::NoService));
+    let starts_of_1 = tick
+        .report
+        .started
+        .iter()
+        .chain(tick.report.next.iter())
+        .filter(|s| s.agent == agent(1))
+        .count();
+    assert_eq!(starts_of_1, 0, "no other start of that agent in the tick");
+    assert!(
+        !w.facts(1).store_ended,
+        "its newest run is not ended by the store until the owner is read again"
+    );
+    w.ports.clear_refusals();
+    assert_eq!(
+        w.act(Act::Start { agent: agent(1) }).report.answer,
+        Err(Cause::State)
+    );
+}
+
+#[test]
+fn a_start_that_fails_at_step_7_in_a_tick_reads_its_run_as_not_ended_by_the_store() {
+    failed_in_the_tick(Method::StartRun);
+}
+
+#[test]
+fn a_start_that_fails_at_step_8_in_a_tick_reads_its_run_as_not_ended_by_the_store() {
+    failed_in_the_tick(Method::Start);
+}
+
 #[test]
 fn hello_wait_and_resume_move_the_phase_and_every_other_pair_is_state() {
     let mut w = world(&[MANUAL]);

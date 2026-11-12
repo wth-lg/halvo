@@ -2,10 +2,10 @@ use super::check::raise_checks;
 use super::{delete_step, run_step, Ending, Next, Phase, RunMove, StopCause};
 use crate::guard::Table;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
-use crate::schedule::{self, stop_run, Board, Move, Owing, Report, Stop};
+use crate::schedule::{self, stop_run, Board, Move, Report, Stop};
 use crate::types::{
     Agent, AgentId, Answer, Body, Cause, ConfigView, Decision, Doing, Event, HandbackResult,
-    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, What, Workflow, WorkflowId,
+    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow, WorkflowId,
 };
 use std::cell::RefCell;
 
@@ -274,37 +274,11 @@ where
     Some(report)
 }
 
-/// Whether the store's last record of an agent, of the run `last`, shows `run` ended: it names
-/// `run` or a run whose `run_started` comes after that of `run`, which the store could take
-/// only once it had ended `run` (I5.5 step 3).
-fn ended_since(events: &[Event], run: &RunId, last: &RunId) -> bool {
-    let at = |r: &RunId| {
-        events
-            .iter()
-            .position(|e| matches!(&e.what, What::RunStarted { run: x, .. } if x == r))
-    };
-    run == last || matches!((at(run), at(last)), (Some(a), Some(b)) if b > a)
-}
-
 fn tick<P>(ports: &P, board: &mut Board<P::Config>, table: &mut Table, limits: &Limits) -> Done
 where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
 {
-    if let Ok(agents) = ports.agents() {
-        let members = &board.members;
-        board.owed.retain(|o| {
-            let last = agents
-                .iter()
-                .find(|a| a.agent == o.agent)
-                .and_then(|a| a.last.as_ref());
-            let events = members
-                .iter()
-                .find(|m| m.facts.agent == o.agent)
-                .map_or(&[][..], |m| &m.facts.events[..]);
-            o.what != Owing::EndRun || !last.is_some_and(|l| ended_since(events, &o.run, &l.run))
-        });
-    }
     let watch = Watch {
         ports,
         unknown: RefCell::new(Vec::new()),

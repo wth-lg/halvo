@@ -389,6 +389,7 @@ where
     if let Err(e) = store(cx, board, i, whats) {
         return served(Err(port_cause(&e)), None);
     }
+    board.members[i].facts.store_ended = false;
     let workflow = board.members[i].facts.workflow.id.clone();
     let body = Body::StartRun {
         workflow: workflow.clone(),
@@ -618,10 +619,31 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
     }
 }
 
-fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, listed: &[WorkflowId]) {
+/// Whether the agent store's last record of the agent, as the move's read of `Owner::agents`
+/// gave it, shows the run of an owed `end_run` ended: it names the run, or a run whose
+/// `run_started` comes after that of the run, which the store could take only once it had ended
+/// it (I5.5 step 3, I5.8).
+fn store_took<C>(board: &Board<C>, owed: &Owed) -> bool {
+    let Some(i) = board.index(&owed.agent) else {
+        return false;
+    };
+    let facts = &board.members[i].facts;
+    let at = |run: &RunId| {
+        facts
+            .events
+            .iter()
+            .position(|e| matches!(&e.what, What::RunStarted { run: r, .. } if r == run))
+    };
+    facts.runs.first().is_some_and(|last| {
+        last.run == owed.run
+            || matches!((at(&owed.run), at(&last.run)), (Some(a), Some(b)) if b > a)
+    })
+}
+
+fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     let owed = std::mem::take(&mut board.owed);
     for o in owed {
-        if !listed.contains(&o.workflow) {
+        if o.what == Owing::EndRun && store_took(board, &o) {
             continue;
         }
         if !send_owed(cx, board, &o) {
@@ -720,7 +742,7 @@ where
     let Some(listed) = listed else {
         return report;
     };
-    pay_owed(cx, board, &listed);
+    pay_owed(cx, board);
     for m in &board.members {
         if starts && wants_active(&m.facts) {
             send_state(cx, &m.facts, AgentState::Active);
@@ -1010,7 +1032,13 @@ where
 /// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
 /// while that hold stands, and then takes one start from the queue; a failed start takes none. After what is owed
 /// and before any start, a tick sends `set_state` `active` for each agent that `wants_active`
-/// names (ruling IG-6a), again at each tick until the owner's list shows it `active`.
+/// names (ruling IG-6a), again at each tick until the owner's list shows it `active`. Once a
+/// start has stored `run_started`, every later step reads the agent's newest run as not ended
+/// by the agent store until the agent's entry of `Owner::agents` is read again (ruling XB-24).
+/// What is owed is sent at each tick until the owner acknowledges it, also for a workflow that
+/// the owner's list no longer holds, whose debt the owner's refusal `no_workflow` ends (ruling
+/// XB-26); an owed `end_run` is acknowledged too once the tick's read of the agent store's last
+/// record names its run or a later run of the agent (I5.8, ruling XB-30).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
