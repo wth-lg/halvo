@@ -53,7 +53,7 @@ predicate_peak() {
 }
 
 delete_defect() {
-  deleted_file=$1; inventory_file=$2; data=$3; old_id=$4; new_id=$5; elapsed_ms=$6; bound_s=$7
+  deleted_file=$1; inventory_file=$2; data=$3; old_id=$4; new_id=$5; elapsed_ms=$6; bound_s=$7; segment_hashes=$8; run_tmp=$9
   case $(head -1 "$deleted_file" 2>/dev/null) in deleted\ *) ;; *) printf 'ctl delete-all printed no deleted line\n'; return 1 ;; esac
   deleted_line=$(sed -n 1p "$deleted_file")
   wrong=$(report_defects "$deleted_line" root_destroyed=yes files_left=0 database_left=no)
@@ -61,6 +61,9 @@ delete_defect() {
   total_line=$(sed -n 's/^\(total events=[0-9]* bytes=[0-9]*\) .*/\1/p' "$inventory_file")
   [ "$total_line" = 'total events=0 bytes=0' ] ||
     { printf 'the inventory after the delete-all is not total events=0 bytes=0\n'; return 1; }
+  ! grep -q '^row ' "$inventory_file" || { printf 'the inventory after the delete-all still lists rows beside its total of zero\n'; return 1; }
+  copies=$(find "$data" "$run_tmp" -type f -exec shasum -a 256 {} + 2>/dev/null | awk 'NR == FNR { old[$1] = 1; next } ($1 in old) { $1 = ""; sub(/^ /, ""); print; exit }' "$segment_hashes" -)
+  [ -z "$copies" ] || { printf 'a copy of a segment file is left after the delete-all: %s\n' "$copies"; return 1; }
   left=$(find "$data/store/segments" -type f 2>/dev/null | head -1)
   [ -z "$left" ] || { printf 'a file is left under store/segments after the delete-all\n'; return 1; }
   case $new_id in ''|-) printf 'no fresh store id after the delete-all\n'; return 1 ;; esac
@@ -82,9 +85,35 @@ now_ms() {
   perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'
 }
 
+keychain_defect() {
+  security find-generic-password -a "$1" > /dev/null 2>&1
+  keychain=$?
+  [ "$keychain" -eq 44 ] && return 0
+  printf 'security find-generic-password for the old store id exited %s, not 44: a keychain item came back\n' "$keychain"
+  return 1
+}
+
+second_delete_defect() {
+  case $(sed -n 1p "$1" 2>/dev/null) in already_deleted\ *) return 0 ;; esac
+  printf 'the second delete-all with the old id printed no already_deleted line\n'
+  return 1
+}
+
+second_delete_ok() {
+  second_delete_defect "$1" > /dev/null
+}
+
+keychain_with() {
+  mkdir -p "$gate_scratch/keychain-$1"
+  printf '#!/bin/sh\nexit %s\n' "$1" > "$gate_scratch/keychain-$1/security"
+  chmod 755 "$gate_scratch/keychain-$1/security"
+  PATH="$gate_scratch/keychain-$1:$PATH" keychain_defect 0123456789abcdef0123456789abcdef > /dev/null
+}
+
 delete_steps() {
   ctl_or_defect before-delete status || return 1
   old_id=$(status_value "$ctl_out" store_id)
+  find "$svc_data/store/segments" -type f -exec shasum -a 256 {} + 2>/dev/null > "$svc_dir/segment-hashes"
   delete_start=$(now_ms)
   ctl_or_defect delete-all delete-all "$old_id" || return 1
   delete_ms=$(( $(now_ms) - delete_start ))
@@ -93,22 +122,21 @@ delete_steps() {
   after_inventory=$ctl_out
   ctl_or_defect after-delete-status status || return 1
   new_id=$(status_value "$ctl_out" store_id)
-  security find-generic-password -a "$old_id" > /dev/null 2>&1
-  keychain=$?
-  [ "$keychain" -eq 44 ] || { delete_found="security find-generic-password for the old store id exited $keychain, not 44: a keychain item came back"; return 1; }
+  delete_found=$(keychain_defect "$old_id") || return 1
   if use_bound delete_all_max_s; then delete_bound=$bound; else delete_bound='unset'; fi
-  delete_found=$(delete_defect "$deleted_out" "$after_inventory" "$svc_data" "$old_id" "$new_id" "$delete_ms" "$delete_bound") || return 1
+  delete_found=$(delete_defect "$deleted_out" "$after_inventory" "$svc_data" "$old_id" "$new_id" "$delete_ms" "$delete_bound" "$svc_dir/segment-hashes" "$svc_proc_tmp") || return 1
   ctl_or_defect delete-again delete-all "$old_id" || { delete_found="the second delete-all with the old id: $gate_defect"; return 1; }
-  case $(head -1 "$ctl_out") in already_deleted\ *) ;; *) delete_found="the second delete-all with the old id printed no already_deleted line"; return 1 ;; esac
+  delete_found=$(second_delete_defect "$ctl_out") || return 1
 }
 
 sample_until() {
   sample_end=$(( $(date +%s) + $1 ))
   next_inventory=$(( $(date +%s) + 15 ))
   ps_max_kib=0
+  ps_samples=0
   while sample_now=$(date +%s) && [ "$sample_now" -lt "$sample_end" ]; do
     sample_rss=$(ps -o rss= -p "$daemon_pid" 2>/dev/null | tr -d ' ')
-    case $sample_rss in ''|*[!0-9]*) ;; *) [ "$sample_rss" -le "$ps_max_kib" ] || ps_max_kib=$sample_rss ;; esac
+    case $sample_rss in ''|*[!0-9]*) ;; *) ps_samples=$((ps_samples + 1)); [ "$sample_rss" -le "$ps_max_kib" ] || ps_max_kib=$sample_rss ;; esac
     if [ "$((sample_now - svc_claimed))" -ge "$gate_claim_every_s" ]; then
       claim || { gate_defect=$(ctl_defect "$ctl_status" "$ctl_out.err" status); return 1; }
       last_status=$ctl_out
@@ -147,6 +175,7 @@ memory_steps() {
   first_inventory=$ctl_out
   last_status=''
   sample_until "$1" || return 1
+  [ "$ps_samples" -gt 0 ] || { gate_defect="ps took no sample of the daemon, so its peak was not measured"; return 1; }
   claim || { gate_defect=$(ctl_defect "$ctl_status" "$ctl_out.err" status); return 1; }
   last_status=$ctl_out
   found=$(sources_running_defect "$last_status" foreground screen input) || { gate_defect="at the last poll: $found"; return 1; }
@@ -236,27 +265,51 @@ cases() {
   t standin-good-run PASS against_the_standin good none
   t standin-main-names-the-mode PASS says 'FAIL service-memory (no --prefill-store mode' main none
   t standin-main-fails FAIL against_the_standin main none
+  t standin-status-pid-is-not-the-child FAIL against_the_standin wrong-pid none
+  t privacy-line-before-the-service PASS privacy_line_first main none
   name=service-delete
   old=0123456789abcdef0123456789abcdef
   new=fedcba9876543210fedcba9876543210
   printf 'store_id=%s\ntotal events=0 bytes=0 disk_bytes=4096\n' "$new" > "$gate_scratch/inv-empty"
+  mkdir -p "$gate_scratch/delete-tmp"
+  printf 'segment bytes of the old store\n' > "$gate_scratch/old-segment"
+  shasum -a 256 "$gate_scratch/old-segment" > "$gate_scratch/segment-hashes"
   good=$(delete_case good "$new")
-  t delete-all-good PASS predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 5
-  t time-above-bound FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 5001 5
-  t bound-unset FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 unset
-  t same-store-id FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$old" 900 5
+  t delete-all-good PASS predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  t time-above-bound FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 5001 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  t bound-unset FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 unset "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  t same-store-id FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$old" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
   left=$(delete_case segment-left "$new")
   mkdir -p "$left/store/segments/00" && : > "$left/store/segments/00/0123.seg"
-  t segment-left FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$left" "$old" "$new" 900 5
-  root=$(delete_case root-still-there "$new")
-  : > "$root/roots/root-$old"
-  t root-still-there FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$root" "$old" "$new" 900 5
+  t segment-left FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$left" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  root=$(delete_case root-still-there "$old")
+  t root-still-there FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$root" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
   outside=$(delete_case outside "$new")
   : > "$outside/notes.txt"
-  t file-outside-registered-names FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$outside" "$old" "$new" 900 5
+  t file-outside-registered-names FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$outside" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
   sed 's/root_destroyed=yes/root_destroyed=no/' "$GATE_FIXTURES/c2-deleted.txt" > "$gate_scratch/root-survived"
-  t root-not-destroyed FAIL predicate_delete_all "$gate_scratch/root-survived" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 5
-  t events-left FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-9" "$good" "$old" "$new" 900 5
+  t root-not-destroyed FAIL predicate_delete_all "$gate_scratch/root-survived" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  printf 'store_id=%s\nrow day=2026-11-12 modality=keystroke events=3 bytes=96\ntotal events=0 bytes=0 disk_bytes=4096\n' "$new" > "$gate_scratch/inv-rows-beside-zero"
+  t rows-beside-a-total-of-zero FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-rows-beside-zero" "$good" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  two=$(delete_case two-roots "$new")
+  : > "$two/roots/root-another"
+  t two-root-files FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$two" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  mkdir -p "$gate_scratch/tmp-with-a-copy"
+  cp "$gate_scratch/old-segment" "$gate_scratch/tmp-with-a-copy/cache.bin"
+  t copy-of-a-segment-in-the-run-tmpdir FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$good" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/tmp-with-a-copy"
+  kept=$(delete_case copy-in-data "$new")
+  cp "$gate_scratch/old-segment" "$kept/store/store.db-wal"
+  t copy-of-a-segment-in-the-data-directory FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$kept" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  spaced=$(delete_case spaced "$new")
+  : > "$spaced/store/store.db logs"
+  t name-made-of-two-registered-names FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-empty" "$spaced" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
+  t keychain-has-no-item-of-the-old-store PASS keychain_with 44
+  t keychain-item-came-back FAIL keychain_with 0
+  printf 'already_deleted store_id=%s\n' "$new" > "$gate_scratch/second-already"
+  printf 'deleted segments_shredded=0 keys_destroyed=1 root_destroyed=yes root_id=- files_left=0 database_left=no entries_removed=4 entries_left=0 unknown_entries=0 intent=written store_id=%s\n' "$new" > "$gate_scratch/second-deleted"
+  t second-delete-answers-already-deleted PASS second_delete_ok "$gate_scratch/second-already"
+  t second-delete-deletes-again FAIL second_delete_ok "$gate_scratch/second-deleted"
+  t events-left FAIL predicate_delete_all "$GATE_FIXTURES/c2-deleted.txt" "$gate_scratch/inv-9" "$good" "$old" "$new" 900 5 "$gate_scratch/segment-hashes" "$gate_scratch/delete-tmp"
   name=service-memory
 }
 

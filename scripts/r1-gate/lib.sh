@@ -1471,7 +1471,7 @@ privacy_rows_line() {
 
 privacy_line_first() {
   service_standin "$1" "$2"
-  first_out=$(measure 2>/dev/null)
+  first_out=$(measure 3 2>/dev/null)
   first_line=$(printf '%s\n' "$first_out" | sed -n 1p)
   first_want=$(privacy_rows_line)
   [ "$first_line" = "$first_want" ]
