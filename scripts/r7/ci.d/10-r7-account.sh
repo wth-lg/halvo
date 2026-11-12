@@ -561,7 +561,7 @@ case $1 in
     [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
     if [ -z "${STUB_NO_DEP_INFO:-}" ]; then
       mkdir -p "$CARGO_TARGET_DIR/debug/deps" || exit 98
-      printf '%s/debug/deps/halvo_wire-0.d: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/debug/build/halvo-wire-0/out/bounds.rs:\n%s\n# env-dep:STUB=../../../../../../../..\n' "$CARGO_TARGET_DIR" "$CARGO_TARGET_DIR" "${STUB_DEP:+$STUB_DEP:}" >"$CARGO_TARGET_DIR/debug/deps/halvo_wire-0.d" || exit 98
+      printf '%s/debug/deps/halvo_wire-0.d: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/debug/build/halvo-wire-0/out/bounds.rs:\n%s\n# env-dep:STUB=../../../../../../../..\n' "${STUB_TARGET_SPELLING:-$CARGO_TARGET_DIR}" "${STUB_TARGET_SPELLING:-$CARGO_TARGET_DIR}" "${STUB_DEP:+$STUB_DEP:}" >"$CARGO_TARGET_DIR/debug/deps/halvo_wire-0.d" || exit 98
       printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$CARGO_TARGET_DIR" >"$CARGO_TARGET_DIR/debug/deps/itoa-0.d" || exit 98
     fi
     exit "${STUB_BUILD_EXIT:-0}"
@@ -892,6 +892,13 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     run_case repository-through-a-link "PASS $name" stub CI_D_REPO="$work/link-to-the-repository"
   else
     printf 'case %s/repository-through-a-link not run: this system made no symbolic link\n' "$name"
+  fi
+  make_fixture target-in-another-spelling && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" &&
+    ln -s "${fixture##*/}/target/account" "$work/another-spelling-of-the-target" 2>/dev/null
+  if [ -L "$work/another-spelling-of-the-target" ]; then
+    run_case target-in-another-spelling "PASS $name" stub STUB_TARGET_SPELLING="$work/another-spelling-of-the-target"
+  else
+    printf 'case %s/target-in-another-spelling not run: this system made no symbolic link\n' "$name"
   fi
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
   want_packages=1
