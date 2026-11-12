@@ -364,3 +364,35 @@ test('a change after the end line is reported with the order', async () => {
     'sync after_end seq=1 last=2 order=miss'
   ]);
 });
+
+test('a way that gets no change for 150 ticks of a shown page reports where it stands, once per stall', async () => {
+  const page = makePage({ config: { sync: 'channel' }, subscribe: null });
+  page.load();
+  await settle();
+  const fn = page.callbacks.get(Number(page.named('subscribe')[0].args.channel.slice('__CHANNEL__:'.length)));
+  fn({ message: { seq: 1, of: 4, hidden: false }, index: 0 });
+  page.tick(149);
+  await settle();
+  assert.deepEqual(page.reports(), []);
+  page.tick(1);
+  await settle();
+  assert.deepEqual(page.reports(), ['sync stalled last=1 order=ok after_hide=0 hidden_ticks=0']);
+  page.tick(300);
+  fn({ message: { seq: 3, of: 4, hidden: false }, index: 1 });
+  page.tick(150);
+  await settle();
+  assert.deepEqual(page.reports().slice(1), ['sync stalled last=3 order=ok after_hide=0 hidden_ticks=0']);
+  fn({ message: { seq: 4, of: 4, hidden: false }, index: 2 });
+  page.tick(400);
+  await settle();
+  assert.deepEqual(page.reports().slice(2), ['sync end last=4 order=ok after_hide=0 hidden_ticks=0']);
+});
+
+test('a page without a sync way reports no stall', async () => {
+  const page = makePage({ config: { sync: null } });
+  page.load();
+  await settle();
+  page.tick(400);
+  await settle();
+  assert.deepEqual(page.reports(), []);
+});
