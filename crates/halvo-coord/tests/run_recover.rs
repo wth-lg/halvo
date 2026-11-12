@@ -1653,3 +1653,39 @@ fn a_run_ended_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_los
     assert_eq!(ends_of(&w, &run), 1);
     assert!(w.board.owed.is_empty());
 }
+
+#[test]
+fn review_m1_a_read_after_seq_takes_up_no_item_for_an_agent_that_holds_one() {
+    const PERSON: A = A {
+        person: true,
+        slotted: true,
+    };
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let before = format!("{:?}", w.facts(0).doing);
+    assert!(before.contains("Ready"), "{before}");
+    let run = RunId::parse(&format!("{:032x}", 0x7b01)).unwrap();
+    w.board.owed.push(halvo_coord::schedule::Owed {
+        agent: agent(0),
+        workflow: flow(0),
+        what: halvo_coord::schedule::Owing::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+            day: DAY,
+            at: 0,
+        },
+    });
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: ItemId::parse(&format!("{:032x}", 0x7b02)).unwrap(),
+            raised: Raised::Check(None),
+        },
+    );
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    let after = format!("{:?}", w.facts(0).doing);
+    println!("M1 before {before} | after the tick {after}");
+    assert!(after.contains("Ready"), "M1 after the tick {after}");
+}
