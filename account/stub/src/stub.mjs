@@ -109,11 +109,8 @@ export async function startStub({ record: dir, tlsCa }) {
     done = resolve;
   });
   const numbers = new WeakMap();
-  const refusedOn = new WeakSet();
   const refuse = (error, socket) => {
-    if (error.code === "ECONNRESET" || refusedOn.has(socket)) return;
-    refusedOn.add(socket);
-    record.refused({ connection: numbers.get(socket), error: String(error.code) });
+    if (error.code !== "ECONNRESET") record.refused({ connection: numbers.get(socket), error: String(error.code) });
   };
   const handler = serveApp(app, record, (socket) => numbers.get(socket));
   let appServer = createServer(handler);
