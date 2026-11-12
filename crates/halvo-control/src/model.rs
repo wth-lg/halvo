@@ -490,17 +490,11 @@ impl<'de> Deserialize<'de> for Inventory {
     }
 }
 
-fn modality_order(modality: Modality) -> u8 {
-    match modality {
-        Modality::ScreenFrame => 0,
-        Modality::Keystroke => 1,
-        Modality::Pointer => 2,
-        Modality::ForegroundApp => 3,
-        Modality::WindowTitle => 4,
-        Modality::SystemAudio => 5,
-        Modality::Microphone => 6,
-        Modality::Camera => 7,
-    }
+fn modality_order(modality: Modality) -> usize {
+    Modality::ALL
+        .iter()
+        .position(|&kind| kind == modality)
+        .unwrap_or(Modality::ALL.len())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
