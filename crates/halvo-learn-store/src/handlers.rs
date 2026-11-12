@@ -3,6 +3,7 @@ use halvo_schema::learning::body::Refinements;
 use halvo_schema::ErrorName;
 
 use crate::host::LearnHost;
+use crate::ids::Ids;
 
 /// Why the handlers refused a request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,7 +57,9 @@ impl CoordinatorAnswer {
 /// serve learned targets in the reply of `load_steps`, and make at most one typed commit of the family `learn`
 /// for a request, after the agent store's own.
 #[derive(Default)]
-pub struct LearnHandlers {}
+pub struct LearnHandlers {
+    pub(crate) ids: Ids,
+}
 
 impl LearnHandlers {
     /// Handlers that hold no facts of any run.
@@ -80,8 +83,6 @@ impl LearnHandlers {
         host: &mut dyn LearnHost,
         body: &[u8],
     ) -> Result<CoordinatorAnswer, Refused> {
-        let now = host.agent_now();
-        let reply = halvo_agent_store::coordinator(host.agent_host(), now, body)?;
-        Ok(CoordinatorAnswer::Agent(reply))
+        self.coordinator_write(host, body)
     }
 }

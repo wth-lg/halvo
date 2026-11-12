@@ -6,9 +6,14 @@
 //! halvo-learn gives; they answer the read `list_refinements`. They read no clock but the host's `Clock`, no file
 //! and no network.
 
+mod agent;
+mod convert;
+mod coordinator;
 mod handlers;
 mod host;
+mod ids;
 mod routine;
+mod rows;
 
 pub use handlers::{CoordinatorAnswer, LearnHandlers, Refused};
 pub use host::{Clock, LearnHost};
