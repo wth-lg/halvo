@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no skipped test and at least as many passed tests as its line says, and no other test file runs; the windows job does not run it, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
+# rule: The backend's test script, sh scripts/with-env.sh node_modules/.bin/vitest run in backend/ as its package.json words it, run with vitest's json reporter beside its default one, exits 0 with no failed file or test, every test file that scripts/r7/backend-tests.txt lists runs with no test that the json report gives a status other than passed or failed (skipped, todo or pending) and at least as many passed tests as its line says, and no other test file runs; the windows job does not run it, because on windows-2025 the stack needs lsof and ps -o, which Git Bash lacks, and the test script does not end.
 set -u
 name=21-r7-backend-test
 list=scripts/r7/backend-tests.txt
@@ -22,14 +22,14 @@ const ran = new Map();
 for (const file of JSON.parse(fs.readFileSync(report, "utf8")).testResults ?? []) {
   const path = file.name.startsWith(`${root}/`) ? file.name.slice(root.length + 1) : file.name;
   const statuses = (file.assertionResults ?? []).map((a) => a.status);
-  ran.set(path, { passed: statuses.filter((s) => s === "passed").length, skipped: statuses.filter((s) => ["skipped", "pending", "todo"].includes(s)).length });
+  ran.set(path, { passed: statuses.filter((s) => s === "passed").length, skipped: statuses.filter((s) => s !== "passed" && s !== "failed").length });
 }
 const tally = { listed: listed.size, ran: ran.size, missing: 0, short: 0, skipped: 0, unlisted: 0 };
 for (const [path, want] of listed) {
   const got = ran.get(path);
   if (!got) { tally.missing++; problems.push(`listed and did not run: ${path}`); continue; }
   if (got.passed < want) { tally.short++; problems.push(`ran ${got.passed} passed tests, fewer than the ${want} of its line: ${path}`); }
-  if (got.skipped > 0) { tally.skipped++; problems.push(`skipped ${got.skipped} tests: ${path}`); }
+  if (got.skipped > 0) { tally.skipped++; problems.push(`${got.skipped} tests neither passed nor failed (skipped, todo or pending): ${path}`); }
 }
 for (const [path, got] of ran) {
   if (!listed.has(path)) { tally.unlisted++; problems.push(`ran and is not listed (add the line "${path}<TAB>${got.passed}"): ${path}`); }
@@ -103,13 +103,22 @@ report() {
       path=${file%%:*}
       rest=${file#*:}
       passed=${rest%%:*}
-      skipped=${rest#*:}
+      rest=${rest#*:}
+      skipped=${rest%%:*}
+      rest=${rest#"$skipped"}
       printf '%s{"name":"@ROOT@/%s","assertionResults":[' "$separator" "$path"
       comma=
       n=0
       while [ "$n" -lt "$passed" ]; do printf '%s{"status":"passed"}' "$comma"; comma=,; n=$((n + 1)); done
       n=0
       while [ "$n" -lt "$skipped" ]; do printf '%s{"status":"skipped"}' "$comma"; comma=,; n=$((n + 1)); done
+      while [ -n "$rest" ]; do
+        rest=${rest#:}
+        status=${rest%%:*}
+        rest=${rest#"$status"}
+        printf '%s{"status":"%s"}' "$comma" "$status"
+        comma=,
+      done
       printf ']}'
       separator=,
     done
@@ -213,6 +222,14 @@ self_test() {
   report skipped-test test/a.test.ts:2:1 test/b/c.node.test.ts:3:0
   expect FAIL skipped-test
 
+  fixture todo-test
+  report todo-test test/a.test.ts:2:0:todo test/b/c.node.test.ts:3:0
+  expect FAIL todo-test
+
+  fixture pending-test
+  report pending-test test/a.test.ts:2:0 test/b/c.node.test.ts:3:0:pending
+  expect FAIL pending-test
+
   fixture unlisted-file-ran
   report unlisted-file-ran test/a.test.ts:2:0 test/b/c.node.test.ts:3:0 test/d.test.ts:1:0
   expect FAIL unlisted-file-ran
@@ -220,6 +237,10 @@ self_test() {
   fixture list-line-of-another-form
   printf 'test/e.test.ts 1\n' >>"$scratch/list-line-of-another-form/$list"
   expect FAIL list-line-of-another-form
+
+  fixture list-line-twice
+  printf 'test/a.test.ts\t2\n' >>"$scratch/list-line-twice/$list"
+  expect FAIL list-line-twice
 
   fixture list-missing
   mv "$scratch/list-missing/$list" "$scratch/list-missing/list.moved" || exit 2
