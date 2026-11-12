@@ -176,6 +176,7 @@ pub fn cap_state(room: Option<&Room>, refused_for_room: bool) -> CapState {
 mod tests {
     use super::*;
     use crate::release;
+    use crate::ruling::admit_under_test_value;
     use crate::spend::tests::Draw;
     use crate::spend::{step, Hold, Move, State};
     use crate::tier::Tier;
@@ -188,10 +189,6 @@ mod tests {
         held: 30_000,
         period_end_ms: END,
     };
-
-    fn open() -> Ruling {
-        Ruling::test_hosted(&["127.0.0.1:1"])
-    }
 
     #[test]
     fn refusal_admit_ruling() {
@@ -206,7 +203,10 @@ mod tests {
                 }
             }
         }
-        assert_eq!(admit(&open(), Some(&ROOM), 1, &[]), Admission::Admit);
+        assert_eq!(
+            admit_under_test_value(Some(&ROOM), 1, &[]),
+            Admission::Admit
+        );
     }
 
     #[test]
@@ -214,7 +214,7 @@ mod tests {
         for estimate in [1, 50_001, u64::MAX] {
             for running in [&[][..], &[u64::MAX]] {
                 assert_eq!(
-                    admit(&open(), None, estimate, running),
+                    admit_under_test_value(None, estimate, running),
                     Admission::Refuse(AdmitCause::NoCap),
                     "{estimate} {running:?}"
                 );
@@ -226,17 +226,20 @@ mod tests {
     fn refusal_admit_over_room() {
         assert_eq!(ROOM.left(), 50_000);
         assert_eq!(
-            admit(&open(), Some(&ROOM), 50_001, &[]),
+            admit_under_test_value(Some(&ROOM), 50_001, &[]),
             Admission::Wait { until_ms: END }
         );
-        assert_eq!(admit(&open(), Some(&ROOM), 50_000, &[]), Admission::Admit);
+        assert_eq!(
+            admit_under_test_value(Some(&ROOM), 50_000, &[]),
+            Admission::Admit
+        );
         let full = Room {
             spent: 70_000,
             period_end_ms: 7,
             ..ROOM
         };
         assert_eq!(
-            admit(&open(), Some(&full), 1, &[]),
+            admit_under_test_value(Some(&full), 1, &[]),
             Admission::Wait { until_ms: 7 }
         );
         let lowered = Room {
@@ -245,7 +248,7 @@ mod tests {
             ..ROOM
         };
         assert_eq!(
-            admit(&open(), Some(&lowered), 1, &[]),
+            admit_under_test_value(Some(&lowered), 1, &[]),
             Admission::Wait { until_ms: 9 }
         );
     }
@@ -254,22 +257,28 @@ mod tests {
     fn refusal_admit_sum() {
         let first = 30_000;
         let second = 20_001;
-        assert_eq!(admit(&open(), Some(&ROOM), first, &[]), Admission::Admit);
-        assert_eq!(admit(&open(), Some(&ROOM), second, &[]), Admission::Admit);
         assert_eq!(
-            admit(&open(), Some(&ROOM), second, &[first]),
-            Admission::Wait { until_ms: END }
-        );
-        assert_eq!(
-            admit(&open(), Some(&ROOM), 1, &[first, 20_000]),
-            Admission::Wait { until_ms: END }
-        );
-        assert_eq!(
-            admit(&open(), Some(&ROOM), 20_000, &[first]),
+            admit_under_test_value(Some(&ROOM), first, &[]),
             Admission::Admit
         );
         assert_eq!(
-            admit(&open(), Some(&ROOM), 1, &[first, 19_999]),
+            admit_under_test_value(Some(&ROOM), second, &[]),
+            Admission::Admit
+        );
+        assert_eq!(
+            admit_under_test_value(Some(&ROOM), second, &[first]),
+            Admission::Wait { until_ms: END }
+        );
+        assert_eq!(
+            admit_under_test_value(Some(&ROOM), 1, &[first, 20_000]),
+            Admission::Wait { until_ms: END }
+        );
+        assert_eq!(
+            admit_under_test_value(Some(&ROOM), 20_000, &[first]),
+            Admission::Admit
+        );
+        assert_eq!(
+            admit_under_test_value(Some(&ROOM), 1, &[first, 19_999]),
             Admission::Admit
         );
     }
@@ -291,28 +300,37 @@ mod tests {
         ] {
             for room in [&ROOM, &huge] {
                 assert_eq!(
-                    admit(&open(), Some(room), estimate, running),
+                    admit_under_test_value(Some(room), estimate, running),
                     Admission::Refuse(AdmitCause::Overflow),
                     "{estimate} {running:?}"
                 );
             }
         }
-        assert_eq!(admit(&open(), Some(&huge), u64::MAX, &[]), Admission::Admit);
         assert_eq!(
-            admit(&open(), Some(&huge), 1, &[u64::MAX - 1]),
+            admit_under_test_value(Some(&huge), u64::MAX, &[]),
+            Admission::Admit
+        );
+        assert_eq!(
+            admit_under_test_value(Some(&huge), 1, &[u64::MAX - 1]),
             Admission::Admit
         );
     }
 
+    fn under_release(room: Option<&Room>, estimate: Micro, running: &[Micro]) -> Admission {
+        admit(&release::ruling(), room, estimate, running)
+    }
+
     #[test]
     fn admit_estimate_zero_comes_first() {
-        for ruling in [release::ruling(), open()] {
+        type Ask = fn(Option<&Room>, Micro, &[Micro]) -> Admission;
+        let asks: [(&str, Ask); 2] = [("release", under_release), ("test", admit_under_test_value)];
+        for (ruling, ask) in asks {
             for room in [Some(&ROOM), None] {
                 for running in [&[][..], &[u64::MAX, u64::MAX], &[60_000]] {
                     assert_eq!(
-                        admit(&ruling, room, 0, running),
+                        ask(room, 0, running),
                         Admission::Admit,
-                        "{ruling:?} {room:?} {running:?}"
+                        "{ruling} {room:?} {running:?}"
                     );
                 }
             }
@@ -332,7 +350,7 @@ mod tests {
         assert_eq!(fits(&used_above_u64, 6_770, &[]), Fit::Fits);
         assert_eq!(fits(&used_above_u64, 6_771, &[]), Fit::Over);
         assert_eq!(
-            admit(&open(), Some(&used_above_u64), 6_771, &[]),
+            admit_under_test_value(Some(&used_above_u64), 6_771, &[]),
             Admission::Wait { until_ms: END }
         );
         let cap_above_u64 = Room {
@@ -343,7 +361,7 @@ mod tests {
         };
         assert_eq!(cap_above_u64.left(), u64::MAX);
         assert_eq!(
-            admit(&open(), Some(&cap_above_u64), u64::MAX, &[]),
+            admit_under_test_value(Some(&cap_above_u64), u64::MAX, &[]),
             Admission::Admit
         );
         assert_eq!(
@@ -585,7 +603,6 @@ mod tests {
 
     #[test]
     fn fits_beside_an_open_hold() {
-        let ruling = open();
         let mut account = Account {
             cap_minor: Some(10),
             active: true,
@@ -593,7 +610,10 @@ mod tests {
             held: 0,
         };
         let read = Room::of(&account, END).expect("a cap");
-        assert_eq!(admit(&ruling, Some(&read), 30_000, &[]), Admission::Admit);
+        assert_eq!(
+            admit_under_test_value(Some(&read), 30_000, &[]),
+            Admission::Admit
+        );
         let (next, held) =
             step(&account, &Hold::new(), Move::Reserve { amount: 25_000 }).expect("reserve");
         let (next, sent) = step(&next, &held, Move::Dispatch).expect("dispatch");
@@ -602,15 +622,15 @@ mod tests {
         let read = Room::of(&account, END).expect("a cap");
         assert_eq!(read.left(), 55_000);
         assert_eq!(
-            admit(&ruling, Some(&read), 55_000, &running),
+            admit_under_test_value(Some(&read), 55_000, &running),
             Admission::Admit
         );
         assert_eq!(
-            admit(&ruling, Some(&read), 55_001, &running),
+            admit_under_test_value(Some(&read), 55_001, &running),
             Admission::Wait { until_ms: END }
         );
         assert_eq!(
-            admit(&ruling, Some(&read), 55_000, &[30_000]),
+            admit_under_test_value(Some(&read), 55_000, &[30_000]),
             Admission::Wait { until_ms: END }
         );
         let (expired, _) = step(&account, &sent, Move::Expire).expect("expire");
@@ -632,7 +652,6 @@ mod tests {
 
     #[test]
     fn drawn_admissions_keep_the_model_invariants() {
-        let ruling = open();
         let mut draw = Draw::new(2);
         let mut answers = [0u32; 4];
         for sequence in 0..1_000 {
@@ -653,7 +672,7 @@ mod tests {
                         let any = 1 + draw.below(40_000);
                         let estimate = draw.pick(&[0, 1, left, left + 1, left / 2, any, u64::MAX]);
                         let running: Vec<Micro> = tasks.iter().map(|task| task.estimate).collect();
-                        let answer = admit(&ruling, read.as_ref(), estimate, &running);
+                        let answer = admit_under_test_value(read.as_ref(), estimate, &running);
                         let sum: u128 = running.iter().map(|each| *each as u128).sum::<u128>()
                             + estimate as u128;
                         let want = match read {

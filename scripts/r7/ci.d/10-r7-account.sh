@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy pass for account/.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
 set -u
 name=10-r7-account
 case $0 in
@@ -339,6 +339,34 @@ count_tests() {
   done <"$work/test-log.txt"
 }
 
+hosted_store() {
+  log=${CI_D_ARTIFACTS:-$work}/hosted-store-$1.log
+  CARGO_TARGET_DIR=$target cargo test --manifest-path account/Cargo.toml --locked --offline -p halvo-secrets --features "$2" --test hosted -- --test-threads=1 --nocapture >"$log" 2>&1
+  code=$?
+  cat "$log"
+  [ "$code" -eq 0 ] || fail "the hosted test of store=$1 exited $code"
+  without_cr "$log" hosted-store.txt
+  grep -qx "store=$1" "$work/hosted-store.txt" || fail "the hosted test printed no line store=$1"
+  stores="$stores store=$1"
+}
+
+hosted_stores() {
+  if [ "${GITHUB_ACTIONS:-}" != true ] || [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then
+    printf 'hosted stores not run: not a GitHub-hosted runner\n'
+    return 0
+  fi
+  stores=
+  case ${CI_D_JOB:-} in
+    macos)
+      hosted_store keychain hosted-store-tests,keychain
+      hosted_store file hosted-store-tests
+      ;;
+    windows) hosted_store dpapi hosted-store-tests ;;
+    *) fail 'CI_D_JOB names neither macos nor windows' ;;
+  esac
+  printf 'hosted stores:%s\n' "$stores"
+}
+
 measure() {
   enter_repository
   work=$(mktemp -d "${TMPDIR:-/tmp}/r7-account.XXXXXX") || fail 'mktemp -d failed'
@@ -364,10 +392,11 @@ measure() {
   [ "$code" -eq 0 ] || fail "cargo test --locked --offline exited $code"
   count_tests "$log"
   [ "$tests" -gt 0 ] || fail 'cargo test --locked --offline ran no test'
-  cargo fmt --manifest-path account/Cargo.toml --check
+  hosted_stores
+  cargo fmt --manifest-path account/Cargo.toml --all --check
   code=$?
   [ "$code" -eq 0 ] || fail "cargo fmt --check exited $code"
-  CARGO_TARGET_DIR=$target cargo clippy --manifest-path account/Cargo.toml --all-targets --locked --offline -- -D warnings
+  CARGO_TARGET_DIR=$target cargo clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked --offline -- -D warnings
   code=$?
   [ "$code" -eq 0 ] || fail "cargo clippy --all-targets --locked --offline exited $code"
   printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool"
@@ -396,6 +425,23 @@ case $1 in
   deny) exit "${STUB_DENY_EXIT:-0}" ;;
   build) exit "${STUB_BUILD_EXIT:-0}" ;;
   test)
+    case " $* " in
+      *' --test hosted '*)
+        case $* in
+          *hosted-store-tests,keychain*) store=keychain ;;
+          *)
+            if [ "$CI_D_JOB" = windows ]; then
+              store=dpapi
+            else
+              store=file
+            fi
+            ;;
+        esac
+        store=${STUB_HOSTED_STORE:-$store}
+        [ -n "${STUB_HOSTED_SILENT:-}" ] || printf 'test the_store_of_this_build ... \n%sstore=%s\nok\n' "${STUB_HOSTED_PREFIX:-}" "$store"
+        exit "${STUB_HOSTED_EXIT:-0}"
+        ;;
+    esac
     printf 'running 3 tests\ntest result: ok. %s passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n' "${STUB_TESTS:-3}"
     exit "${STUB_TEST_EXIT:-0}"
     ;;
@@ -468,7 +514,7 @@ run_case() {
   else
     path=$PATH
   fi
-  out=$(env PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
+  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
   code=$?
   last=${out##*"$nl"}
   case $want in
@@ -523,14 +569,17 @@ self_test() {
   check_metadata
   rejected=0
   wrong=
-  want_calls="deny --version
+  calls_before="deny --version
 fetch --locked --offline --manifest-path account/Cargo.toml
 metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
 deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
 build --manifest-path account/Cargo.toml --locked --offline
-test --manifest-path account/Cargo.toml --locked --offline
-fmt --manifest-path account/Cargo.toml --check
-clippy --manifest-path account/Cargo.toml --all-targets --locked --offline -- -D warnings"
+test --manifest-path account/Cargo.toml --locked --offline"
+  calls_after="fmt --manifest-path account/Cargo.toml --all --check
+clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked --offline -- -D warnings"
+  keychain_call='test --manifest-path account/Cargo.toml --locked --offline -p halvo-secrets --features hosted-store-tests,keychain --test hosted -- --test-threads=1 --nocapture'
+  file_call='test --manifest-path account/Cargo.toml --locked --offline -p halvo-secrets --features hosted-store-tests --test hosted -- --test-threads=1 --nocapture'
+  want_calls="$calls_before$nl$calls_after"
   cause_deny="cargo deny --version is not cargo-deny $pin; sh scripts/prerequisites.sh installs it"
   cause_fetch="cargo fetch --locked --offline exited 101; sh scripts/prerequisites.sh fetches the packages of account/Cargo.lock"
   cause_record='account/schema/vendored.txt does not name the four vendored files'
@@ -551,6 +600,21 @@ clippy --manifest-path account/Cargo.toml --all-targets --locked --offline -- -D
   stub_case deny-fails "FAIL $name (cargo deny check bans licenses sources exited 2)" stub STUB_DENY_EXIT=2
   stub_case fmt-fails "FAIL $name (cargo fmt --check exited 1)" stub STUB_FMT_EXIT=1
   stub_case clippy-fails "FAIL $name (cargo clippy --all-targets --locked --offline exited 101)" stub STUB_CLIPPY_EXIT=101
+  want_calls="$calls_before$nl$calls_after"
+  stub_case self-hosted-runner "PASS $name" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted CI_D_JOB=macos
+  stub_case actions-not-true "PASS $name" stub GITHUB_ACTIONS=1 RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=macos
+  want_calls="$calls_before$nl$keychain_call$nl$file_call$nl$calls_after"
+  stub_case hosted-macos "PASS $name" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=macos
+  want_calls="$calls_before$nl$file_call$nl$calls_after"
+  stub_case hosted-windows "PASS $name" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=windows
+  want_calls="$calls_before$nl$calls_after"
+  stub_case hosted-test-fails "FAIL $name (the hosted test of store=keychain exited 101)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=macos STUB_HOSTED_EXIT=101
+  stub_case hosted-line-missing "FAIL $name (the hosted test printed no line store=keychain)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=macos STUB_HOSTED_SILENT=1
+  stub_case hosted-line-of-another-store "FAIL $name (the hosted test printed no line store=keychain)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=macos STUB_HOSTED_STORE=file
+  stub_case hosted-file-line-missing "FAIL $name (the hosted test printed no line store=file)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=macos STUB_HOSTED_STORE=keychain
+  stub_case hosted-line-inside-another "FAIL $name (the hosted test printed no line store=dpapi)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=windows STUB_HOSTED_PREFIX=x
+  stub_case hosted-windows-line-missing "FAIL $name (the hosted test printed no line store=dpapi)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=windows STUB_HOSTED_SILENT=1
+  stub_case hosted-other-job "FAIL $name (CI_D_JOB names neither macos nor windows)" stub GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted CI_D_JOB=linux
   stub_case deny-other-version "FAIL $name ($cause_deny)" stub STUB_DENY_VERSION=0.0.1
   stub_case deny-absent "FAIL $name ($cause_deny)" stub STUB_DENY_ABSENT=1
   make_fixture empty-registry && mkdir "$fixture/empty-cargo-home" &&

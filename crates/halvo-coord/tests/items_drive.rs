@@ -35,6 +35,7 @@ fn ports() -> Ports<Config> {
         last: TODAY,
         agent: Some(agent_id(1)),
     }));
+    p.runner_of(&run_id(1));
     p
 }
 
@@ -358,7 +359,7 @@ impl Runs for Faulty<'_> {
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
         self.inner.kill(run)
     }
-    fn reap(&self) -> Result<u32, PortError> {
+    fn reap(&self) -> Result<Vec<(RunId, halvo_coord::ports::Reaped)>, PortError> {
         self.inner.reap()
     }
 }

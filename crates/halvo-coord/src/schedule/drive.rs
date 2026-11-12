@@ -304,8 +304,12 @@ where
             let owed = Owed {
                 agent: facts.agent.clone(),
                 workflow: facts.workflow.id.clone(),
-                run: run.clone(),
-                what: Owing::RunEnded { cause, day, at },
+                what: Owing::RunEnded {
+                    run: run.clone(),
+                    cause,
+                    day,
+                    at,
+                },
             };
             board.owed.push(owed);
         }
@@ -389,6 +393,7 @@ where
     if let Err(e) = store(cx, board, i, whats) {
         return served(Err(port_cause(&e)), None);
     }
+    board.members[i].facts.store_ended = false;
     let workflow = board.members[i].facts.workflow.id.clone();
     let body = Body::StartRun {
         workflow: workflow.clone(),
@@ -409,8 +414,7 @@ where
         let owed = Owed {
             agent: agent.clone(),
             workflow,
-            run: run.clone(),
-            what: Owing::EndRun,
+            what: Owing::EndRun { run: run.clone() },
         };
         if !send_owed(cx, board, &owed) {
             board.owed.push(owed);
@@ -541,7 +545,9 @@ where
     Some(served)
 }
 
-fn stop_run<C>(board: &mut Board<C>, run: &RunId, now: u64, cause: RunEnd) {
+/// Makes the live run `run` `stopping`, its stop at `now` with `cause`, and its member's phase
+/// `stopping` (I5.7); nothing for a run that is not live.
+pub fn stop_run<C>(board: &mut Board<C>, run: &RunId, now: u64, cause: RunEnd) {
     let Some(r) = board.runs.iter_mut().find(|r| &r.run == run) else {
         return;
     };
@@ -598,28 +604,174 @@ fn gone_refusal(error: &PortError) -> bool {
 
 fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed: &Owed) -> bool {
     match &owed.what {
-        Owing::EndRun => match cx.ports.send(&Body::EndRun {
-            run: owed.run.clone(),
-        }) {
+        Owing::EndRun { run } => match cx.ports.send(&Body::EndRun { run: run.clone() }) {
             Ok(_) => true,
             Err(e) => gone_refusal(&e),
         },
-        Owing::RunEnded { cause, day, at } => {
+        Owing::RunEnded {
+            run,
+            cause,
+            day,
+            at,
+        } => {
             let Some(i) = board.index(&owed.agent) else {
                 return true;
             };
-            match log_end(cx, board, i, &owed.run, *cause, *day, *at) {
+            if holds_end(&board.members[i].facts.events, run) {
+                return true;
+            }
+            match log_end(cx, board, i, run, *cause, *day, *at) {
                 Ok(()) => true,
+                Err(e) if seq_refusal(&e) => resync_end(cx, board, i, run),
+                Err(e) => gone_refusal(&e),
+            }
+        }
+        Owing::ItemLapsed {
+            item,
+            lapsed,
+            day,
+            at,
+        } => {
+            let Some(i) = board.index(&owed.agent) else {
+                return true;
+            };
+            if item_closed(&board.members[i].facts.events, item) {
+                return true;
+            }
+            let what = What::ItemLapsed {
+                item: item.clone(),
+                lapsed: *lapsed,
+            };
+            match store_at(cx, board, i, vec![what], *day, *at) {
+                Ok(()) => true,
+                Err(e) if seq_refusal(&e) => {
+                    let facts = &mut board.members[i].facts;
+                    read_after_seq(cx.ports, facts).is_ok() && item_closed(&facts.events, item)
+                }
                 Err(e) => gone_refusal(&e),
             }
         }
     }
 }
 
-fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, listed: &[WorkflowId]) {
+/// Whether the owner refused a log with `seq`: the record's `seq` is not the owner's last of the
+/// agent plus 1, because the owner stored an event whose acknowledgement was lost, or one of
+/// another writer (I7.2).
+pub(crate) fn seq_refusal(error: &PortError) -> bool {
+    matches!(error, PortError::Refused(name) if name.as_str() == "seq")
+}
+
+/// The events take the owner's events of the agent after the last one that they hold, page by
+/// page of at most 64, as `coord_history` gives them (I7.2, rulings XB-17 and XB-31).
+pub(crate) fn resync<P: Owner>(
+    ports: &P,
+    agent: &AgentId,
+    events: &mut Vec<Event>,
+) -> Result<(), PortError> {
+    loop {
+        let after = events.last().map_or(0, |e| e.seq.get());
+        let page = ports.history(agent, after)?;
+        let full = page.len() >= 64;
+        events.extend(page.into_iter().filter(|e| e.seq.get() > after));
+        if !full {
+            return Ok(());
+        }
+    }
+}
+
+/// The newest item of the coordinator's own kinds that an event after `after` raised and no
+/// event closes: the owner stored it with an acknowledgement that was lost (I7.2, XB-31).
+fn revealed(events: &[Event], after: u32) -> Option<OwnItem> {
+    events
+        .iter()
+        .rev()
+        .take_while(|e| e.seq.get() > after)
+        .find_map(|e| match &e.what {
+            What::ItemRaised { item, raised } if !item_closed(events, item) => {
+                let kind = match raised {
+                    Raised::Check(_) => OwnItemKind::Check,
+                    Raised::Ready => OwnItemKind::Ready,
+                    Raised::Setup => OwnItemKind::Setup,
+                    _ => return None,
+                };
+                Some(OwnItem {
+                    item: item.clone(),
+                    kind,
+                })
+            }
+            _ => None,
+        })
+}
+
+/// A read of the owner's events after a refusal `seq` (I7.2, XB-31, ruling RD-12 (b)): the facts
+/// take the owner's events after their last one, and an agent that is idle with no item holds
+/// the newest item of the coordinator's own kinds that those events raised and left open,
+/// whichever log was refused: the check's own or a debt's.
+pub(crate) fn read_after_seq<P: Owner, C>(
+    ports: &P,
+    facts: &mut Facts<C>,
+) -> Result<(), PortError> {
+    let after = facts.events.last().map_or(0, |e| e.seq.get());
+    resync(ports, &facts.agent, &mut facts.events)?;
+    if let Some(own) = revealed(&facts.events, after).filter(|_| facts.doing == Doing::Idle(None)) {
+        facts.doing = Doing::Idle(Some(own));
+    }
+    Ok(())
+}
+
+/// Whether the events close the item: they hold its `item_released` or its `item_lapsed`, or,
+/// for a kind other than `confirm`, its `item_answered` (I5.8, I7.1).
+pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
+    let confirm = events.iter().any(|e| {
+        matches!(&e.what, What::ItemRaised { item: i, raised: Raised::Confirm(_) } if i == item)
+    });
+    events.iter().any(|e| match &e.what {
+        What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
+        What::ItemAnswered { item: i, .. } => i == item && !confirm,
+        _ => false,
+    })
+}
+
+/// After the owner refused an owed `run_ended` with `seq` (I7.2): `read_after_seq` reads the
+/// owner's events after the last one that the facts hold, and the debt is paid when those hold
+/// the run's `run_ended`, which the owner stored with an acknowledgement that was lost; else the
+/// next tick logs it after them.
+fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
+    let facts = &mut board.members[i].facts;
+    read_after_seq(cx.ports, facts).is_ok() && holds_end(&facts.events, run)
+}
+
+/// Whether the events hold a `run_ended` of the run.
+fn holds_end(events: &[Event], run: &RunId) -> bool {
+    events
+        .iter()
+        .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
+}
+
+/// Whether the agent store's last record of the agent, as the move's read of `Owner::agents`
+/// gave it, shows the run of an owed `end_run` ended: it names the run, or a run whose
+/// `run_started` comes after that of the run, which the store could take only once it had ended
+/// it (I5.5 step 3, I5.8).
+fn store_took<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -> bool {
+    let Some(i) = board.index(agent) else {
+        return false;
+    };
+    let facts = &board.members[i].facts;
+    let at = |run: &RunId| {
+        facts
+            .events
+            .iter()
+            .position(|e| matches!(&e.what, What::RunStarted { run: r, .. } if r == run))
+    };
+    facts.runs.first().is_some_and(|last| {
+        &last.run == run || matches!((at(run), at(&last.run)), (Some(a), Some(b)) if b > a)
+    })
+}
+
+fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     let owed = std::mem::take(&mut board.owed);
     for o in owed {
-        if !listed.contains(&o.workflow) {
+        if matches!(&o.what, Owing::EndRun { run } if store_took(board, &o.agent, run)) {
             continue;
         }
         if !send_owed(cx, board, &o) {
@@ -718,7 +870,7 @@ where
     let Some(listed) = listed else {
         return report;
     };
-    pay_owed(cx, board, &listed);
+    pay_owed(cx, board);
     for m in &board.members {
         if starts && wants_active(&m.facts) {
             send_state(cx, &m.facts, AgentState::Active);
@@ -923,9 +1075,16 @@ where
                 });
                 whats.push(What::SlotSkipped { slot });
             }
-            match stored(cx, board, whats) {
-                Ok(()) => Report::default(),
-                Err(c) => refused(c),
+            let checked = own(&board.members[i].facts.doing, OwnItemKind::Check).is_some();
+            match store(cx, board, i, whats) {
+                Ok(()) => {
+                    if checked {
+                        let doing = without_item(&board.members[i].facts.doing);
+                        board.members[i].facts.doing = doing;
+                    }
+                    Report::default()
+                }
+                Err(e) => refused(port_cause(&e)),
             }
         }
         Move::SwitchOn { .. } => {
@@ -1008,7 +1167,17 @@ where
 /// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
 /// while that hold stands, and then takes one start from the queue; a failed start takes none. After what is owed
 /// and before any start, a tick sends `set_state` `active` for each agent that `wants_active`
-/// names (ruling IG-6a), again at each tick until the owner's list shows it `active`.
+/// names (ruling IG-6a), again at each tick until the owner's list shows it `active`. Once a
+/// start has stored `run_started`, every later step reads the agent's newest run as not ended
+/// by the agent store until the agent's entry of `Owner::agents` is read again (ruling XB-24).
+/// What is owed is sent at each tick until the owner acknowledges it, also for a workflow that
+/// the owner's list no longer holds, whose debt the owner's refusal `no_workflow` ends (ruling
+/// XB-26); an owed `end_run` is acknowledged too once the tick's read of the agent store's last
+/// record names its run or a later run of the agent (I5.8, ruling XB-30), and an owed
+/// `run_ended` or `item_lapsed` that the owner refuses with `seq` is paid when the owner's
+/// events, read again, hold it (I7.2). An owed `run_ended` or `item_lapsed` is paid with no log
+/// when the agent's events already hold the end of that run or a close of that item, which a
+/// read after a refusal `seq` brought in (ruling RD-11).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,

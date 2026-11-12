@@ -59,8 +59,30 @@ pub trait Runs {
     fn cancel(&self, run: &RunId) -> Result<(), PortError>;
     /// Ends the runner's whole tree.
     fn kill(&self, run: &RunId) -> Result<(), PortError>;
-    /// Ends every runner tree that an earlier life of the app left, and gives their count.
-    fn reap(&self) -> Result<u32, PortError>;
+    /// Leaves no process of an earlier life of the app running and answers for every mark
+    /// that the supervisor library holds, one answer per run (I5.8, I6.2): `gone` when the
+    /// run's runner is gone, after which the library holds no mark of it, and `alive` when it
+    /// lives.
+    fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError>;
+}
+
+/// The answer of `Runs::reap` for the mark of one run (I5.10, I6.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reaped {
+    /// The runner's process is gone.
+    Gone,
+    /// The runner's process lives.
+    Alive,
+}
+
+impl Reaped {
+    /// The answer's name.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Reaped::Gone => "gone",
+            Reaped::Alive => "alive",
+        }
+    }
 }
 
 /// The workflow run's analysis batch.
