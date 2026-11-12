@@ -28,6 +28,42 @@ pub enum Route {
 /// its HTTP client and the origin, and no token. The client is reqwest with rustls on the ring provider and the
 /// verifier of the OS trust store, TLS 1.2 or 1.3, HTTP/1.1, no proxy, no redirect, no retry, no cookie, and one
 /// time limit for each request.
+///
+/// It offers no request beyond the operations of `Mail` and `Calendar`: its own request calls cannot be reached from
+/// outside this crate. Each call below fails to compile, and the same text with a public operation in its place
+/// compiles:
+///
+/// ```compile_fail
+/// use halvo_connect::{Calendar, Graph, RunDay, Token};
+/// fn call(graph: &Graph, token: &Token, method: reqwest::Method, path: &str) -> bool {
+///     let _ = RunDay::from_unix_seconds(0);
+///     graph.effect(token, method, path, 204).is_ok()
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use halvo_connect::{Calendar, Graph, RunDay, Token};
+/// fn call(graph: &Graph, token: &Token, method: reqwest::Method, path: &str) -> bool {
+///     let _ = RunDay::from_unix_seconds(0);
+///     graph.json(token, method, path, None, 200).is_ok()
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use halvo_connect::{Calendar, Graph, RunDay, Token};
+/// fn call(graph: &Graph, token: &Token, method: reqwest::Method, path: &str) -> bool {
+///     let _ = RunDay::from_unix_seconds(0);
+///     graph.send(token, method, path, None, 202).is_ok()
+/// }
+/// ```
+///
+/// ```
+/// use halvo_connect::{Calendar, Graph, RunDay, Token};
+/// fn call(graph: &Graph, token: &Token, method: reqwest::Method, path: &str) -> bool {
+///     let _ = (method, path);
+///     graph.calendar_list(token, RunDay::from_unix_seconds(0)).is_ok()
+/// }
+/// ```
 pub struct Graph {
     client: Client,
     origin: String,
