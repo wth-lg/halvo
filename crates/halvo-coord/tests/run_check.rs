@@ -394,3 +394,31 @@ fn an_open_ready_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held(
         "the board holds the open item that the owner holds"
     );
 }
+
+#[test]
+fn no_check_item_after_a_read_that_shows_the_persons_answer_to_the_check() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    stored_unacknowledged(
+        &w,
+        0,
+        What::HoldCleared {
+            cause: halvo_coord::types::Cleared::Check {
+                run,
+                answer: CheckAnswer::TryAgain,
+            },
+        },
+    );
+    let tick = w.act(Act::Tick);
+    assert!(
+        tick.checked.is_empty(),
+        "the person answered the check: it is not asked again"
+    );
+    assert_eq!(check_items(&w, 0), 0);
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok)
+    );
+}
