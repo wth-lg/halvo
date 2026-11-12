@@ -885,3 +885,167 @@ fn a_recovery_body_refused_with_seq_is_read_again_from_the_owners_events_and_log
         "the agent's events hold the owner's last seq"
     );
 }
+
+#[test]
+fn review_life_1() {
+    let mut w = world(&[MANUAL]);
+    let item = ItemId::parse(&format!("{:032x}", 0x7001)).unwrap();
+    let last = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    });
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    let lapsed = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .any(|e| matches!(&e.what, What::ItemLapsed { item: i, .. } if i == &item));
+    assert!(
+        lapsed,
+        "I5.8: item_lapsed with app_ended for each open item; the refused lapse is never stored"
+    );
+}
+
+/// Stores `what` as the owner's next event of agent `n`, outside the coordinator's view.
+fn stored_outside(w: &World, n: usize, what: What) {
+    let last = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(n),
+        agent: agent(n),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what,
+    });
+}
+
+/// A new life whose recovery body for agent 0 the owner refuses: the open ready item `item`
+/// of the earlier life is owed its `item_lapsed`.
+fn owed_lapse(item: &ItemId) -> World {
+    let mut w = world(&[MANUAL]);
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    w.ports.clear_refusals();
+    assert_eq!(w.board.owed.len(), 1, "the lapse is owed");
+    w
+}
+
+fn lapses_of(w: &World, item: &ItemId) -> usize {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(&e.what, What::ItemLapsed { item: i, .. } if i == item))
+        .count()
+}
+
+#[test]
+fn an_owed_item_lapsed_that_the_owner_stored_with_a_lost_acknowledgement_is_paid_once() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7301)).unwrap();
+    let mut w = owed_lapse(&item);
+    stored_outside(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: item.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+        },
+    );
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    assert_eq!(lapses_of(&w, &item), 1, "stored once");
+    assert!(w.board.owed.is_empty(), "the owner holds it: paid");
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok),
+        "the agent's events hold the owner's last seq"
+    );
+}
+
+#[test]
+fn an_owed_item_lapsed_refused_with_seq_for_another_event_is_logged_after_it() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7302)).unwrap();
+    let mut w = owed_lapse(&item);
+    stored_outside(&w, 0, What::SlotSkipped { slot: None });
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    assert_eq!(lapses_of(&w, &item), 1, "logged after the other event");
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn an_owed_item_lapsed_of_a_gone_workflow_is_logged_once_more_and_ends_at_no_workflow() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7303)).unwrap();
+    let mut w = owed_lapse(&item);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .retain(|wf| wf.id() != &flow(0));
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    let gone = PortError::Refused(halvo_coord::types::Name::parse("no_workflow").unwrap());
+    let sends: Vec<Option<PortError>> = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| match &t.call {
+            halvo_coord::mem::Call::Log(events) => events
+                .iter()
+                .any(|e| matches!(&e.what, What::ItemLapsed { item: i, .. } if *i == item)),
+            _ => false,
+        })
+        .map(|t| t.refused.clone())
+        .collect();
+    assert_eq!(
+        sends,
+        vec![Some(PortError::NoService), Some(gone)],
+        "recovery's body, then once more, and the refusal no_workflow ends the debt"
+    );
+    assert!(w.board.owed.is_empty());
+}

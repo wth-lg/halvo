@@ -318,3 +318,79 @@ fn review_life_2() {
         "the agent is not held for good"
     );
 }
+
+/// Stores `what` as the owner's next event of agent `n`, as a log of the coordinator whose
+/// acknowledgement was lost.
+fn stored_unacknowledged(w: &World, n: usize, what: What) {
+    let last = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    w.ports.events.borrow_mut().push(halvo_coord::types::Event {
+        workflow: support::flow(n),
+        agent: agent(n),
+        seq: std::num::NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what,
+    });
+}
+
+#[test]
+fn a_check_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held_and_not_raised_again() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x7201)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Check(None),
+        },
+    );
+    let tick = w.act(Act::Tick);
+    assert_eq!(tick.checked, vec![agent(0)], "the check stands");
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(halvo_coord::types::OwnItem {
+            item,
+            kind: OwnItemKind::Check,
+        })),
+        "the agent holds the item that the owner stored"
+    );
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(check_items(&w, 0), 1, "no second check item");
+}
+
+#[test]
+fn an_open_ready_item_that_the_owner_stored_with_a_lost_acknowledgement_is_held() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x7202)).unwrap();
+    stored_unacknowledged(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    w.act(Act::Tick);
+    assert_eq!(
+        w.facts(0).doing,
+        Doing::Idle(Some(halvo_coord::types::OwnItem {
+            item,
+            kind: OwnItemKind::Ready,
+        })),
+        "the board holds the open item that the owner holds"
+    );
+}

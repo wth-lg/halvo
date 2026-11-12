@@ -304,8 +304,12 @@ where
             let owed = Owed {
                 agent: facts.agent.clone(),
                 workflow: facts.workflow.id.clone(),
-                run: run.clone(),
-                what: Owing::RunEnded { cause, day, at },
+                what: Owing::RunEnded {
+                    run: run.clone(),
+                    cause,
+                    day,
+                    at,
+                },
             };
             board.owed.push(owed);
         }
@@ -410,8 +414,7 @@ where
         let owed = Owed {
             agent: agent.clone(),
             workflow,
-            run: run.clone(),
-            what: Owing::EndRun,
+            what: Owing::EndRun { run: run.clone() },
         };
         if !send_owed(cx, board, &owed) {
             board.owed.push(owed);
@@ -601,19 +604,45 @@ fn gone_refusal(error: &PortError) -> bool {
 
 fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed: &Owed) -> bool {
     match &owed.what {
-        Owing::EndRun => match cx.ports.send(&Body::EndRun {
-            run: owed.run.clone(),
-        }) {
+        Owing::EndRun { run } => match cx.ports.send(&Body::EndRun { run: run.clone() }) {
             Ok(_) => true,
             Err(e) => gone_refusal(&e),
         },
-        Owing::RunEnded { cause, day, at } => {
+        Owing::RunEnded {
+            run,
+            cause,
+            day,
+            at,
+        } => {
             let Some(i) = board.index(&owed.agent) else {
                 return true;
             };
-            match log_end(cx, board, i, &owed.run, *cause, *day, *at) {
+            match log_end(cx, board, i, run, *cause, *day, *at) {
                 Ok(()) => true,
-                Err(e) if seq_refusal(&e) => resync_end(cx, board, i, &owed.run),
+                Err(e) if seq_refusal(&e) => resync_end(cx, board, i, run),
+                Err(e) => gone_refusal(&e),
+            }
+        }
+        Owing::ItemLapsed {
+            item,
+            lapsed,
+            day,
+            at,
+        } => {
+            let Some(i) = board.index(&owed.agent) else {
+                return true;
+            };
+            let what = What::ItemLapsed {
+                item: item.clone(),
+                lapsed: *lapsed,
+            };
+            match store_at(cx, board, i, vec![what], *day, *at) {
+                Ok(()) => true,
+                Err(e) if seq_refusal(&e) => {
+                    let facts = &mut board.members[i].facts;
+                    resync(cx.ports, &facts.agent, &mut facts.events).is_ok()
+                        && item_closed(&facts.events, item)
+                }
                 Err(e) => gone_refusal(&e),
             }
         }
@@ -675,8 +704,8 @@ fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: 
 /// gave it, shows the run of an owed `end_run` ended: it names the run, or a run whose
 /// `run_started` comes after that of the run, which the store could take only once it had ended
 /// it (I5.5 step 3, I5.8).
-fn store_took<C>(board: &Board<C>, owed: &Owed) -> bool {
-    let Some(i) = board.index(&owed.agent) else {
+fn store_took<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -> bool {
+    let Some(i) = board.index(agent) else {
         return false;
     };
     let facts = &board.members[i].facts;
@@ -687,15 +716,14 @@ fn store_took<C>(board: &Board<C>, owed: &Owed) -> bool {
             .position(|e| matches!(&e.what, What::RunStarted { run: r, .. } if r == run))
     };
     facts.runs.first().is_some_and(|last| {
-        last.run == owed.run
-            || matches!((at(&owed.run), at(&last.run)), (Some(a), Some(b)) if b > a)
+        &last.run == run || matches!((at(run), at(&last.run)), (Some(a), Some(b)) if b > a)
     })
 }
 
 fn pay_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>) {
     let owed = std::mem::take(&mut board.owed);
     for o in owed {
-        if o.what == Owing::EndRun && store_took(board, &o) {
+        if matches!(&o.what, Owing::EndRun { run } if store_took(board, &o.agent, run)) {
             continue;
         }
         if !send_owed(cx, board, &o) {

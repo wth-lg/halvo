@@ -220,9 +220,9 @@ impl<C> Found<C> {
 /// ends and `item_lapsed` with `app_ended` for each open item, in one body; and sends
 /// `end_run` for each owed run. When the owner refuses a body with `seq`, the agent's events
 /// take the owner's events after their last one, and the body that `recover_step` reads from
-/// them is logged once more (ruling XB-31). A `run_ended` that the owner does not acknowledge, and an
-/// `end_run` that it does not acknowledge, are owed on the board, which the schedule's tick
-/// sends again. The board takes the facts so read, with the day of the clock, an idle agent
+/// them is logged once more (ruling XB-31). A body that the owner does not acknowledge, with its
+/// `run_ended` and its `item_lapsed` entries, and an `end_run` that it does not acknowledge, are
+/// owed on the board, which the schedule's tick sends again (XB-32). The board takes the facts so read, with the day of the clock, an idle agent
 /// with no item, an empty queue and no live run; then recovery raises the item `check` where
 /// `check_due` holds, since it read the store's records.
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
@@ -291,15 +291,26 @@ where
             next: Vec::new(),
         }));
         if logged.is_err() {
-            owed.extend(f.step.ended.iter().map(|run| Owed {
-                agent: f.agent.agent.clone(),
-                workflow: f.workflow.id.clone(),
+            let runs = f.step.ended.iter().map(|run| Owing::RunEnded {
                 run: run.clone(),
-                what: Owing::RunEnded {
-                    cause: RunEnd::Interrupted,
+                cause: RunEnd::Interrupted,
+                day,
+                at,
+            });
+            let lapses = f
+                .step
+                .lapsed
+                .iter()
+                .map(|(item, lapsed)| Owing::ItemLapsed {
+                    item: item.clone(),
+                    lapsed: *lapsed,
                     day,
                     at,
-                },
+                });
+            owed.extend(runs.chain(lapses).map(|what| Owed {
+                agent: f.agent.agent.clone(),
+                workflow: f.workflow.id.clone(),
+                what,
             }));
         }
     }
@@ -309,8 +320,7 @@ where
                 owed.push(Owed {
                     agent: f.agent.agent.clone(),
                     workflow: f.workflow.id.clone(),
-                    run: run.clone(),
-                    what: Owing::EndRun,
+                    what: Owing::EndRun { run: run.clone() },
                 });
             }
         }

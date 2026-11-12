@@ -907,8 +907,10 @@ impl Sched {
                 self.board
                     .owed
                     .iter()
-                    .filter(|o| o.what == schedule::Owing::EndRun)
-                    .map(|o| names.run(&o.run))
+                    .filter_map(|o| match &o.what {
+                        schedule::Owing::EndRun { run } => Some(names.run(run)),
+                        _ => None,
+                    })
                     .collect(),
             ),
         );
