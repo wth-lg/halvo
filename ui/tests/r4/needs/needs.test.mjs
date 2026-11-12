@@ -733,6 +733,23 @@ async function confirms(origin, dir) {
     await keep(h);
     await h.close();
   }
+  out = outDir();
+  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  try {
+    const box = await h.page.locator(sel('allow', base.item)).boundingBox();
+    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await h.page.mouse.down();
+    await h.page.evaluate(() => document.querySelector('[role="alertdialog"]').close());
+    await frames(h);
+    const again = await openDialog(h);
+    if (!again) faults.push('pressed_then_reopened:not_reopened');
+    await h.page.mouse.up();
+    await frames(h);
+    if (callsOf(out).length !== 0) faults.push('pressed_then_reopened:calls=' + said(out).join(','));
+  } finally {
+    await keep(h);
+    await h.close();
+  }
   const allowA = { call: 'agents_answer', args: { item: a.item, choice: 'allow' }, reply: { ok: 'yes' } };
   const doneSign = { call: 'agents_answer', args: { item: sign.item, choice: 'done' }, reply: { ok: 'yes' } };
   let point = null;
