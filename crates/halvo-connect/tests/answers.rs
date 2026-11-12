@@ -98,7 +98,13 @@ fn an_answer_at_the_bound_is_read_and_one_byte_more_is_refused() {
 #[test]
 fn an_answer_of_64_mib_is_refused_before_it_is_read_whole() {
     let size = 64 << 20;
-    let stand_in = StandIn::serve(answer(head(Some(size)), inbox_of(size)));
+    let stand_in = StandIn::serve(Plan {
+        head_after: Duration::ZERO,
+        head: head(Some(size)),
+        body_after: Duration::from_secs(1),
+        body: inbox_of(size),
+        hold: Duration::ZERO,
+    });
     assert_eq!(
         list(&stand_in, Duration::from_secs(30)).0,
         Err(CallError::Answer(AnswerFault::Size))
