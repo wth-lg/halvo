@@ -438,7 +438,6 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
             "cancelled",
             "lapsed",
             "interrupted",
-            "deleted",
             "budget",
             "kind",
         ]
@@ -518,11 +517,21 @@ fn r4_record_refuses_an_answer_that_its_kind_does_not_have_and_an_origin_out_of_
     );
     refused(
         &answered("sign_in", "done", Some(&o)),
+        Some("origin"),
+        "not_null",
+    );
+    refused(
+        &answered("sign_in", "allow", None),
+        Some("origin"),
+        "no_origin",
+    );
+    refused(
+        &answered("sign_in", "skip", Some(&o)),
         Some("answer"),
         "unknown_name",
     );
     refused(
-        &answered("sign_in", "allow", None),
+        &answered("sign_in", "skip", None),
         Some("answer"),
         "unknown_name",
     );

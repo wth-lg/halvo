@@ -15,7 +15,7 @@ pub use ::halvo_schema_core::coordinator::{ERROR_NAMES, KINDS};
 
 /// The names that this run's record, bodies and replies write: the family, the kind name, the two `op` values,
 /// every key and every name of the closed lists that they hold. Left out: `role`, which the names file never
-/// holds, and `none`, the choice of `setup` that stores no row.
+/// holds, `none`, the choice of `setup` that stores no row, and `deleted`, the end of a run that stores no row.
 pub const NAMES: &[&str] = &[
     "coord",
     "coord_event",
@@ -75,7 +75,6 @@ pub const NAMES: &[&str] = &[
     "cancelled",
     "lapsed",
     "interrupted",
-    "deleted",
     "budget",
     "wait_limit",
     "no_record",

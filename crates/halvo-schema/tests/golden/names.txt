@@ -76,7 +76,6 @@ decision
 decline
 declined
 delete
-deleted
 desc
 digest
 dismiss

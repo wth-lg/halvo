@@ -120,8 +120,10 @@ names! {
 }
 
 names! {
-    /// The fifteen ends of a run, the `cause` of `run_ended`: the nine outcomes of the agent-setup run and the
-    /// coordinator's own six (contracts.md I5.6).
+    /// The fourteen ends of a run that a stored `run_ended` row may hold under `cause`: the nine outcomes of the
+    /// agent-setup run and five of the coordinator's own six (contracts.md I5.6). The sixth, `deleted`, is the end
+    /// of a run whose workflow is gone, "the cause of no stored row" (I5.6), and I7.1 stores no `run_ended` for
+    /// such a run, so no value of this list holds it and the reader refuses it as an unknown name.
     pub enum RunEnd {
         Completed = "completed",
         NothingToDo = "nothing_to_do",
@@ -135,7 +137,6 @@ names! {
         Cancelled = "cancelled",
         Lapsed = "lapsed",
         Interrupted = "interrupted",
-        Deleted = "deleted",
         Budget = "budget",
         Kind = "kind",
     }

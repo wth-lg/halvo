@@ -3,7 +3,10 @@ use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 /// The one kind of the interface run, `coord_event`, family `coord`: bounded at 93 days, of origin own, with the
 /// workflow id under the key `workflow`, so that the delete of a workflow removes its rows. A row holds ids, names,
 /// a day, an instant, a digest and, under `origin`, a web origin, and no text of a page, a mail, a slot or a bound
-/// field.
+/// field. This entry does not hold that: `check_record` takes free text of up to 1,024 bytes under `origin`, which
+/// the closed set of field types gives as `OwnText` for want of a type for an origin, and any name under the keys of
+/// the type `Name`. The guard is the interface run's typed reader, so a `coord_event` is committed only after
+/// `CoordEvent::parse` or `CoordLog::parse` of `halvo_schema::coordinator` has read it.
 pub const KINDS: &[KindEntry] = &[KindEntry {
     name: "coord_event",
     class: RetentionClass::Bounded { days: 93 },

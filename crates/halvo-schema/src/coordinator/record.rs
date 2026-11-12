@@ -260,7 +260,9 @@ impl What {
 /// A record of the kind `coord_event` (contracts.md I7.1): `{"v":1,"workflow":..,"agent":..,"seq":..,"day":..,
 /// "at":..,"event":..,"run":..,"slot":..,"item":..,"kind":..,"effect":..,"approval":..,"digest":..,"answer":..,
 /// "cause":..,"trigger":..,"origin":..}`, every key always written, those that the event does not set as null.
-/// `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z.
+/// `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
+/// what a row holds: the registry's `check_record` takes free text under `origin` and free names for this kind, so
+/// a `coord_event` is committed only after `CoordEvent::parse` or `CoordLog::parse` has read it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoordEvent {
     pub workflow: WorkflowId,
@@ -350,13 +352,22 @@ fn answered(obj: &Obj<'_>, kind: ItemKind) -> Result<Answered, Refusal> {
         ItemKind::SignIn => {
             obj.null_but(&OWN, &with_origin)?;
             match obj.read("origin", opt(web_origin))? {
-                None => Answered::SignIn(SignInAnswer::First(
-                    obj.read("answer", DoneAnswer::from_raw)?,
-                )),
-                Some(origin) => Answered::SignIn(SignInAnswer::Second(BindAnswer {
-                    answer: obj.read("answer", BindResult::from_raw)?,
-                    origin,
-                })),
+                None => match obj.read("answer", DoneAnswer::from_raw) {
+                    Ok(answer) => Answered::SignIn(SignInAnswer::First(answer)),
+                    Err(_) if obj.read("answer", BindResult::from_raw).is_ok() => {
+                        return Err(Refusal::new("CoordEvent", "no_origin").at("origin"))
+                    }
+                    Err(refused) => return Err(refused),
+                },
+                Some(origin) => match obj.read("answer", BindResult::from_raw) {
+                    Ok(answer) => {
+                        Answered::SignIn(SignInAnswer::Second(BindAnswer { answer, origin }))
+                    }
+                    Err(_) if obj.read("answer", DoneAnswer::from_raw).is_ok() => {
+                        return Err(Refusal::new("CoordEvent", "not_null").at("origin"))
+                    }
+                    Err(refused) => return Err(refused),
+                },
             }
         }
         ItemKind::LinkAccount => {
