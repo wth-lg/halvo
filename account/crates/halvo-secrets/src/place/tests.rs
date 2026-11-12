@@ -1,5 +1,5 @@
 use super::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 const USER: u32 = 501;
@@ -8,7 +8,6 @@ const ENOENT: i32 = 2;
 const EIO: i32 = 5;
 const EACCES: i32 = 13;
 const CODES: [i32; 3] = [ENOENT, EIO, EACCES];
-const CHUNK: usize = 7;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Entry {
@@ -66,6 +65,7 @@ struct Memory {
     log: RefCell<Vec<String>>,
     fail: RefCell<Vec<(&'static str, i32)>>,
     on_create_temp: RefCell<Option<(PathBuf, Entry)>>,
+    chunk: Cell<usize>,
 }
 
 struct Handle {
@@ -80,6 +80,7 @@ impl Memory {
             log: RefCell::new(Vec::new()),
             fail: RefCell::new(Vec::new()),
             on_create_temp: RefCell::new(None),
+            chunk: Cell::new(7),
         }
     }
 
@@ -175,7 +176,7 @@ impl Fs for Memory {
         let entries = self.entries.borrow();
         let bytes = &entries[&item.path].bytes;
         let rest = &bytes[item.offset.min(bytes.len())..];
-        let n = rest.len().min(buf.len()).min(CHUNK);
+        let n = rest.len().min(buf.len()).min(self.chunk.get());
         buf[..n].copy_from_slice(&rest[..n]);
         item.offset += n;
         Ok(n)
@@ -702,16 +703,23 @@ fn an_item_of_the_largest_size_is_read_whole() {
 
 #[test]
 fn a_read_stops_at_one_byte_past_the_limit_when_the_item_grew_after_its_size_was_read() {
-    let mut grown = Entry::file(0o600, &vec![b'x'; MAX_SECRET_LEN + 100]);
-    grown.shown_len = Some(10);
-    let entries = [(DIR, Entry::dir(0o700)), (PATH, grown)];
-    let store = item(Memory::with(&entries));
-    assert!(matches!(store.read(), Read::Locked(Locked::Size)));
-    let reads = step_names(&store.fs)
-        .iter()
-        .filter(|step| *step == "read_item")
-        .count();
-    assert_eq!(reads, (MAX_SECRET_LEN + 1).div_ceil(CHUNK));
+    for chunk in [1, 7, 8, 4096, MAX_SECRET_LEN, MAX_SECRET_LEN + 1] {
+        let mut grown = Entry::file(0o600, &vec![b'x'; MAX_SECRET_LEN + 100]);
+        grown.shown_len = Some(10);
+        let entries = [(DIR, Entry::dir(0o700)), (PATH, grown)];
+        let store = item(Memory::with(&entries));
+        store.fs.chunk.set(chunk);
+        let read = store.read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Size)),
+            "{chunk}: {read:?}"
+        );
+        let reads = step_names(&store.fs)
+            .iter()
+            .filter(|step| *step == "read_item")
+            .count();
+        assert_eq!(reads, (MAX_SECRET_LEN + 1).div_ceil(chunk), "{chunk}");
+    }
 }
 
 fn sealed_item(memory: Memory) -> Item<Memory, Reversed> {
