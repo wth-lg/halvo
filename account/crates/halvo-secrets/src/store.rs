@@ -40,6 +40,14 @@ use crate::{Directory, Name, Secret};
 /// stands there, a read answers `Locked::OtherStore` whatever the file holds. When the
 /// Keychain cannot be searched, a read that finds no file answers the Keychain's `Locked`
 /// or `Fault`, never `NotStored`. Its write and its delete never touch the Keychain.
+/// A build with the feature also reads the file `<dir>/<name>`. When the Keychain item and
+/// the file both stand, a read answers `Locked::OtherStore` and changes nothing. When the
+/// file stands and the Keychain holds no item, the read moves the file once: it adds its
+/// bytes to the Keychain (only-create), reads the item back, and only when the bytes are
+/// equal removes the file and answers `Found`. When a step fails, it answers
+/// `Locked::Move` with that step's code and keeps the file; an item that the add made
+/// stays. When the Keychain item stands and the file cannot be read, a read gives the
+/// item. Its write and its delete touch the Keychain alone.
 /// `Store::in_directory` reads and writes the file alone.
 ///
 /// The place on Windows: the crate makes the directory with a protected access list that
@@ -83,15 +91,7 @@ impl Store {
             } else {
                 Keeps::File
             };
-            Place::Mac(Mac {
-                keeps,
-                file: file_item(&dir, name.clone()),
-                keychain: KeychainItem {
-                    keychain: Box::new(SystemKeychain),
-                    service,
-                    account: name,
-                },
-            })
+            mac_place(keeps, &dir, service, name, Box::new(SystemKeychain))
         };
         #[cfg(windows)]
         let place = {
@@ -99,6 +99,29 @@ impl Store {
             dpapi_place(&dir, name)
         };
         Store { place }
+    }
+
+    /// Test builds with the features `hosted-store-tests` and `keychain` on macOS only: the
+    /// store of `Store::new`, whose Keychain fails the step `fault` of the move.
+    #[cfg(all(
+        target_os = "macos",
+        feature = "hosted-store-tests",
+        feature = "keychain"
+    ))]
+    #[doc(hidden)]
+    pub fn with_move_fault(
+        dir: Directory,
+        service: Name,
+        name: Name,
+        fault: crate::MoveFault,
+    ) -> Store {
+        let keychain = crate::keychain::failing::Failing {
+            inner: SystemKeychain,
+            fault,
+        };
+        Store {
+            place: mac_place(Keeps::Keychain, &dir, service, name, Box::new(keychain)),
+        }
     }
 
     /// Debug builds only: the file `name` in `dir` (sealed by DPAPI on Windows), whatever
@@ -163,6 +186,25 @@ impl Store {
             Place::Dpapi(item) => item.delete(),
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn mac_place(
+    keeps: Keeps,
+    dir: &Directory,
+    service: Name,
+    name: Name,
+    keychain: SharedKeychain,
+) -> Place {
+    Place::Mac(Mac {
+        keeps,
+        file: file_item(dir, name.clone()),
+        keychain: KeychainItem {
+            keychain,
+            service,
+            account: name,
+        },
+    })
 }
 
 #[cfg(target_os = "macos")]

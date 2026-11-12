@@ -1,4 +1,4 @@
-use crate::answer::{Delete, Locked, Read, Write};
+use crate::answer::{Delete, Fault, Locked, Read, Write};
 use crate::keychain::{Keychain, KeychainItem};
 use crate::place::{Codec, Fs, Item};
 use crate::Secret;
@@ -39,7 +39,42 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     pub(crate) fn read(&self) -> Read {
         match self.keeps {
             Keeps::File => self.read_beside_the_keychain(),
-            Keeps::Keychain => self.keychain.read(),
+            Keeps::Keychain => self.read_and_move(),
+        }
+    }
+
+    fn read_and_move(&self) -> Read {
+        match self.keychain.read() {
+            Read::Found(secret) => match self.file.read() {
+                Read::Found(_) => Read::Locked(Locked::OtherStore),
+                _ => Read::Found(secret),
+            },
+            Read::NotStored => match self.file.read() {
+                Read::Found(secret) => self.move_in(secret),
+                answer => answer,
+            },
+            answer => answer,
+        }
+    }
+
+    fn move_in(&self, secret: Secret) -> Read {
+        match self.keychain.write(&secret) {
+            Write::Stored => {}
+            Write::Occupied => return not_moved(None),
+            Write::Locked(locked) => return not_moved(Some(Err(locked))),
+            Write::Fault(fault) => return not_moved(Some(Ok(fault))),
+        }
+        match self.keychain.read() {
+            Read::Found(back) if back.expose() == secret.expose() => {}
+            Read::Found(_) | Read::NotStored => return not_moved(None),
+            Read::Locked(locked) => return not_moved(Some(Err(locked))),
+            Read::Fault(fault) => return not_moved(Some(Ok(fault))),
+        }
+        match self.file.delete() {
+            Delete::Deleted => Read::Found(secret),
+            Delete::NotStored => not_moved(None),
+            Delete::Locked(locked) => not_moved(Some(Err(locked))),
+            Delete::Fault(fault) => not_moved(Some(Ok(fault))),
         }
     }
 
@@ -70,6 +105,15 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             Keeps::Keychain => self.keychain.delete(),
         }
     }
+}
+
+fn not_moved(failed: Option<Result<Fault, Locked>>) -> Read {
+    let code = match failed {
+        Some(Ok(fault)) => fault.code,
+        Some(Err(Locked::Refused { code })) => code,
+        Some(Err(_)) | None => -1,
+    };
+    Read::Locked(Locked::Move { code })
 }
 
 #[cfg(test)]

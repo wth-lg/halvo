@@ -1,6 +1,12 @@
 use crate::answer::{Delete, Fault, Locked, Read, Write};
 use crate::{Name, Secret};
 
+#[cfg(all(
+    target_os = "macos",
+    feature = "hosted-store-tests",
+    feature = "keychain"
+))]
+pub(crate) mod failing;
 #[cfg(target_os = "macos")]
 pub(crate) mod system;
 

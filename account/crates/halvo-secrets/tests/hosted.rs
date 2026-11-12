@@ -77,12 +77,14 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
     println!("\nstore={}", kind.as_str());
 }
 
-#[cfg(all(target_os = "macos", not(feature = "keychain")))]
+#[cfg(target_os = "macos")]
 mod keychain_items {
     use super::*;
     use security_framework::item::{ItemClass, ItemSearchOptions};
+    #[cfg(not(feature = "keychain"))]
     use security_framework::os::macos::keychain::SecKeychain;
 
+    #[cfg(not(feature = "keychain"))]
     pub(crate) fn add(account: &Name, bytes: &[u8]) {
         SecKeychain::default()
             .expect("the default keychain")
@@ -105,6 +107,7 @@ mod keychain_items {
         }
     }
 
+    #[cfg(not(feature = "keychain"))]
     pub(crate) fn remove(account: &Name) {
         let mut options = ItemSearchOptions::new();
         options
@@ -115,7 +118,7 @@ mod keychain_items {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions, not(feature = "keychain")))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 fn file_store(label: &str) -> Store {
     Store::in_directory(
         Directory::new(dir(label)).expect("an absolute directory"),
@@ -166,6 +169,104 @@ mod beside_the_keychain {
         assert_eq!(found(store.read()), b"secret");
         assert_eq!(store.delete(), Delete::Deleted);
         assert_eq!(std::fs::read_dir(&place).expect("the directory").count(), 0);
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions, feature = "keychain"))]
+mod moves {
+    use super::*;
+    use halvo_secrets::{Locked, MoveFault};
+
+    const EARLIER: &[u8] = b"kept by an unsigned build";
+
+    fn failing(label: &str, fault: MoveFault) -> Store {
+        Store::with_move_fault(
+            Directory::new(dir(label)).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            name(label),
+            fault,
+        )
+    }
+
+    #[test]
+    fn a_file_of_an_earlier_build_moves_once_into_the_keychain_and_reads_found_after() {
+        on_a_hosted_runner();
+        let label = "move";
+        let store = store(label);
+        let file = file_store(label);
+        assert_eq!(store.kind(), StoreKind::Keychain);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(store.read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(found(store.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(store.delete(), Delete::Deleted);
+        assert!(matches!(store.read(), Read::NotStored));
+        println!("\na file of an earlier build moved once into the keychain and reads Found after");
+    }
+
+    #[test]
+    fn a_failed_add_leaves_the_file_and_answers_locked() {
+        on_a_hosted_runner();
+        let label = "failed-add";
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        let read = failing(label, MoveFault::Add).read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Move { code: -61 })),
+            "{read:?}"
+        );
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(store(label).read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(store(label).delete(), Delete::Deleted);
+        println!("\na failed add left the file and answered {read:?}");
+    }
+
+    #[test]
+    fn a_read_back_that_differs_leaves_the_file_and_answers_locked() {
+        on_a_hosted_runner();
+        let label = "read-back";
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        let read = failing(label, MoveFault::ReadBack).read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Move { code: -1 })),
+            "{read:?}"
+        );
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        let next = store(label).read();
+        assert!(matches!(next, Read::Locked(Locked::OtherStore)), "{next:?}");
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(store(label).delete(), Delete::Deleted);
+        assert_eq!(file.delete(), Delete::Deleted);
+        println!("\na read back that differs left the file and answered {read:?}, then {next:?}");
+    }
+
+    #[test]
+    fn with_both_places_full_the_read_answers_locked_never_not_stored() {
+        on_a_hosted_runner();
+        let label = "both";
+        let store = store(label);
+        let file = file_store(label);
+        assert_eq!(
+            store.write(&secret(b"kept by a signed build")),
+            Write::Stored
+        );
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        for _ in 0..2 {
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        }
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(store.delete(), Delete::Deleted);
+        assert_eq!(file.delete(), Delete::Deleted);
+        println!("\nwith both places full the read answered Locked(OtherStore) twice");
     }
 }
 

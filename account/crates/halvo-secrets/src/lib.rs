@@ -28,6 +28,13 @@ mod windows_place;
 
 pub use answer::{Delete, Fault, Locked, Read, StoreKind, Write};
 pub use directory::Directory;
+#[cfg(all(
+    target_os = "macos",
+    feature = "hosted-store-tests",
+    feature = "keychain"
+))]
+#[doc(hidden)]
+pub use keychain::failing::MoveFault;
 pub use name::Name;
 pub use secret::{Secret, MAX_SECRET_LEN};
 pub use store::Store;
