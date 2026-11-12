@@ -399,7 +399,7 @@ record() {
       [ "$have" != "$stamp" ] || stamped=same
     fi
     n=$(grep -c '^full ' "$tmp/record.txt")
-    m=$(grep -c '^full config=Admit\.cfg states=[1-9][0-9]* properties=14 violated=0$' "$tmp/record.txt")
+    m=$(grep -c -E '^full config=Admit\.cfg states=[1-9][0-9]* properties=14 violated=0 workers=[1-9][0-9]* run=(helper|nice19) seconds=[0-9]+$' "$tmp/record.txt")
     [ "$n:$m" != 1:1 ] || full=ok
     sed -n 's/^design fault=\([^ ]*\) reports=\([^ ]*\) states=[0-9][0-9]*$/\1 \2/p' "$tmp/record.txt" |
       sort >"$tmp/have-designs.txt" || fail record
@@ -536,7 +536,7 @@ EOF
 write_record() {
   {
     printf 'stamp=%s\n' "$1"
-    printf 'full config=Admit.cfg states=1660030 properties=14 violated=0\n'
+    printf 'full config=Admit.cfg states=1660030 properties=14 violated=0 workers=4 run=nice19 seconds=5009\n'
     while read -r f r; do
       printf 'design fault=%s reports=%s states=100\n' "$f" "$r"
     done <"$work/designs.txt"
@@ -773,8 +773,11 @@ CONSTANTS\
   printf '\n' >>"$work/record-older-model/formal/r5-admit/Admit.tla" || fail selftest
   expect record-older-model "1:FAIL $name (record)" good 'formal record stamp=differ'
   fixture record-full-violated
-  edit record-full-violated formal/r5-admit/record.txt 's/^\(full .*\) violated=0$/\1 violated=1/'
+  edit record-full-violated formal/r5-admit/record.txt 's/^\(full .*\) violated=0 /\1 violated=1 /'
   expect record-full-violated "1:FAIL $name (record)" good 'formal record stamp=same full=miss'
+  fixture record-full-how-unsaid
+  edit record-full-how-unsaid formal/r5-admit/record.txt 's/^\(full .*\) run=nice19 /\1 /'
+  expect record-full-how-unsaid "1:FAIL $name (record)" good 'formal record stamp=same full=miss'
   whole="designs=$designs_n reported=$designs_n reach=$reach_n reached=$reach_n"
   fixture record-design-missing
   edit record-design-missing formal/r5-admit/record.txt '/^design fault=no_scope /d'
