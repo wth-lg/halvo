@@ -860,3 +860,37 @@ fn a_capital_of_each_taken_range_gives_the_origin_of_its_small_letter_and_each_r
         assert_eq!(read_origin(&address), None, "{refused:?}");
     }
 }
+
+const CODEC: &[(&str, &str)] = &[
+    ("\u{3078}\u{305e}\u{3072}pay", "pay-q93bzd8a"),
+    ("x1-\u{576d}\u{9330}\u{7da9}", "x1--kx6er10oz80a"),
+    (
+        "x1-\u{3069}\u{3072}\u{3084}\u{3076}\u{305b}\u{3087}",
+        "x1--h93btcsc2a5i3a",
+    ),
+    (
+        "\u{b9f5}\u{bf44}\u{d113}\u{b87c}\u{b7d0}",
+        "2k2b9lo0bl9kk0z",
+    ),
+    ("x1-\u{3087}\u{305c}\u{3083}", "x1--l93buhwa"),
+    ("pay\u{305f}\u{3075}", "pay-x93b9d"),
+    ("\u{307f}\u{306a}\u{305b}pay", "pay-e93byc4f"),
+    ("\u{308e}\u{308d}\u{3079}\u{3067}pay", "pay-rb4bodtfg"),
+];
+
+#[test]
+fn a_label_takes_the_a_label_that_another_encoder_of_rfc_3492_gives() {
+    for (label, encoded) in CODEC {
+        let chars: Vec<char> = label.chars().collect();
+        assert_eq!(
+            punycode(&chars).as_deref(),
+            Some(*encoded),
+            "reader: {label}"
+        );
+        assert_eq!(
+            origin_of(&format!("http://{label}.test/")),
+            Some(format!("http://xn--{encoded}.test:80")),
+            "function: {label}"
+        );
+    }
+}
