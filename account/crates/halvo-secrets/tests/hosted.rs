@@ -259,21 +259,23 @@ mod moves {
         let label = "both";
         let store = store(label);
         let file = file_store(label);
-        assert_eq!(
-            store.write(&secret(b"kept by a signed build")),
-            Write::Stored
-        );
-        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        let signed = b"0123456789abcdef".repeat(4);
+        let mut earlier = signed.clone();
+        earlier[63] ^= 1;
+        assert_eq!((signed.len(), earlier.len()), (64, 64));
+        assert_eq!(store.write(&secret(&signed)), Write::Stored);
+        assert_eq!(file.write(&secret(&earlier)), Write::Stored);
         for _ in 0..2 {
             let read = store.read();
             assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
         }
-        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(found(file.read()), earlier);
         assert_eq!(keychain_items::count(&name(label)), 1);
         assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
         assert_eq!(file.delete(), Delete::Deleted);
+        assert_eq!(found(store.read()), signed);
         assert_eq!(store.delete(), Delete::Deleted);
-        println!("\nwith both places full the read answered Locked(OtherStore) twice, and so did a delete");
+        println!("\nwith both places full of two credentials of 64 bytes that differ in one byte, the read answered Locked(OtherStore) twice, and so did a delete");
     }
 }
 

@@ -288,7 +288,9 @@ impl Keychain for Keys {
         self.check("data")?;
         let mut bytes = self.items.borrow().first().cloned().ok_or(ITEM_NOT_FOUND)?;
         if self.gives_back_other_bytes {
-            bytes.push(b'!');
+            if let Some(last) = bytes.last_mut() {
+                *last ^= 1;
+            }
         }
         Ok(bytes)
     }
@@ -658,24 +660,54 @@ fn a_move_whose_removal_of_the_file_faults_answers_the_fault_and_the_next_read_f
 
 #[test]
 fn with_both_places_full_a_build_with_the_feature_answers_locked_and_changes_nothing() {
+    let mut one_byte_off = FILE.to_vec();
+    one_byte_off[FILE.len() / 2] ^= 1;
+    for in_keychain in [&b"in the keychain"[..], &one_byte_off] {
+        assert!(in_keychain != FILE);
+        let store = mac(
+            Keeps::Keychain,
+            File::holding(FILE),
+            Keys::holding(&[in_keychain]),
+        );
+        for _ in 0..2 {
+            let read = store.read();
+            assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        }
+        assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
+        assert_eq!(store.keychain.keychain.items(), [in_keychain.to_vec()]);
+        assert_eq!(adds(&store.keychain.keychain), 0);
+        assert!(!store.keychain.keychain.ops().contains(&"delete"));
+        assert!(!store.file.ops().contains(&"delete"));
+        assert!(!store.file.ops().contains(&"claim"));
+    }
+}
+
+#[test]
+fn credentials_of_one_length_that_differ_in_one_byte_are_never_taken_for_equal() {
+    let mut one_byte_off = FILE.to_vec();
+    one_byte_off[0] ^= 1;
+    assert_eq!(one_byte_off.len(), FILE.len());
     let store = mac(
         Keeps::Keychain,
         File::holding(FILE),
-        Keys::holding(&[b"in the keychain"]),
+        Keys::holding(&[&one_byte_off]),
     );
-    for _ in 0..2 {
-        let read = store.read();
-        assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
-    }
+    let read = store.read();
+    assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
     assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
-    assert_eq!(
-        store.keychain.keychain.items(),
-        [b"in the keychain".to_vec()]
+    assert_eq!(store.keychain.keychain.items(), [one_byte_off.clone()]);
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::empty().giving_back_other_bytes(),
     );
-    assert_eq!(adds(&store.keychain.keychain), 0);
-    assert!(!store.keychain.keychain.ops().contains(&"delete"));
-    assert!(!store.file.ops().contains(&"delete"));
-    assert!(!store.file.ops().contains(&"claim"));
+    let read = store.read();
+    assert!(
+        matches!(read, Read::Locked(locked) if locked == moved(-1)),
+        "{read:?}"
+    );
+    assert_file_kept(&store);
 }
 
 #[test]
