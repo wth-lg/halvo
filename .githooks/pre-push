@@ -1,2 +1,15 @@
 #!/bin/sh
-exec sh "$(dirname "$0")/../scripts/check-commit-messages.sh" --pre-push "$1"
+pushed=$(cat) || exit 1
+hooks=$(dirname "$0")
+messages=0
+printf '%s' "${pushed:+$pushed
+}" | sh "$hooks/../scripts/check-commit-messages.sh" --pre-push "$1" || messages=$?
+home_paths=0
+if [ -f "$hooks/../scripts/check-home-paths.sh" ]; then
+  printf '%s' "${pushed:+$pushed
+}" | sh "$hooks/../scripts/check-home-paths.sh" --pre-push "$1" || home_paths=$?
+else
+  printf 'pre-push: the scan for home paths did not run, because %s is missing beside this hook.\n' "$hooks/../scripts/check-home-paths.sh" >&2
+fi
+[ "$messages" = 0 ] || exit "$messages"
+exit "$home_paths"

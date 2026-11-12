@@ -957,6 +957,10 @@ self_test_hook() {
   push_case scan-cannot-run refused 'cannot check, so the commits count as refused' proof messages
   cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
 
+  mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
+  push_case scanner-missing-beside-the-hook pushed 'the scan for home paths did not run' proof messages
+  mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
+
   (cd "$repo" && printf 'not a line that git writes\n' | sh "$self" --allow "$list" --pre-push proof) >"$work/out-unreadable-line" 2>&1
   code=$?
   verdict pre-push-line-that-git-does-not-write 2 "$code"
