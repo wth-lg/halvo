@@ -4,8 +4,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::HWND;
-use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
 use windows_capture::capture::{
     CaptureControl, Context, GraphicsCaptureApiError, GraphicsCaptureApiHandler,
 };
@@ -31,13 +29,6 @@ pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
 /// Bytes per pixel of the captured `Bgra8` frame, used to measure the frame's
 /// payload size for the metadata-only placement.
 const BGRA8_BYTES_PER_PIXEL: u64 = 4;
-
-/// Exclude a window from screen capture, so Halvo never records its own windows.
-/// Call on each Halvo top-level window.
-pub fn exclude_window_from_capture(hwnd: HWND) -> Result<(), CaptureError> {
-    unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) }
-        .map_err(|e| CaptureError::Start(format!("WDA_EXCLUDEFROMCAPTURE: {e}")))
-}
 
 const SINK_GONE: &str = "the capture writer has stopped";
 const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
