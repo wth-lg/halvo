@@ -651,6 +651,59 @@ mod tests {
         );
     }
 
+    struct SlowUnwrap(FileRootCustody<TestProtector>);
+
+    const SLOW_UNWRAP_MS: u64 = 1100;
+
+    impl KeyCustody for SlowUnwrap {
+        fn kind(&self) -> CustodyKind {
+            self.0.kind()
+        }
+        fn root_id(&self) -> RootId {
+            self.0.root_id()
+        }
+        fn wrap_store_key(
+            &self,
+            key: &crate::custody::StoreKey,
+        ) -> Result<WrappedKey, CustodyError> {
+            self.0.wrap_store_key(key)
+        }
+        fn create_root(&self) -> Result<(), CustodyError> {
+            self.0.create_root()
+        }
+        fn unwrap_store_key(
+            &self,
+            wrapped: &WrappedKey,
+        ) -> Result<crate::custody::StoreKey, CustodyError> {
+            std::thread::sleep(std::time::Duration::from_millis(SLOW_UNWRAP_MS));
+            self.0.unwrap_store_key(wrapped)
+        }
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            self.0.destroy_root()
+        }
+    }
+
+    #[test]
+    fn the_store_check_prints_the_time_of_the_unwrap_that_opened_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, roots_dir, root_id) = file_root_store(dir.path());
+        let rebuild =
+            |_: CustodyKind, _: RootId| -> Result<Box<dyn KeyCustody + Send>, CustodyError> {
+                Ok(Box::new(SlowUnwrap(file_root_custody(&roots_dir, root_id))))
+            };
+        let check = check_store(store, "MARKER-OF-A-SLOW-UNWRAP", &rebuild).unwrap();
+        assert!(
+            check.unwrap_ms >= u128::from(SLOW_UNWRAP_MS),
+            "an unwrap of {SLOW_UNWRAP_MS} ms printed unwrap_ms={}",
+            check.unwrap_ms
+        );
+        let line = check.to_string();
+        assert!(
+            line.contains(&format!(" unwrap=ok unwrap_ms={} ", check.unwrap_ms)),
+            "{line}"
+        );
+    }
+
     #[test]
     fn the_deletion_check_fails_when_it_cannot_tell_the_state_of_the_root() {
         let dir = tempfile::tempdir().unwrap();
