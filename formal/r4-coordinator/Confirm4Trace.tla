@@ -1,7 +1,7 @@
 --------------------------- MODULE Confirm4Trace ---------------------------
 EXTENDS Confirm4, TraceText
 
-CONSTANTS Seed, Count, Depth
+CONSTANTS Seed, Count, Depth, Config
 
 VARIABLE w
 
@@ -47,29 +47,29 @@ GR(e, d, p) == [m |-> "guard", effect |-> e, state |-> "releasing", digest |-> d
 Allowed == <<I(TRUE), A(1), N(1, "allow", "native"), R(1), L(1)>>
 
 Directed ==
-    <<[case |-> "answer_twice",
+    <<[case |-> "answer_twice", cfg |-> "full",
        moves |-> <<I(TRUE), A(1), N(1, "allow", "native"), N(1, "reject", "native"), R(1),
                    N(1, "reject", "native"), L(1), N(1, "allow", "native")>>],
-      [case |-> "answer_early", moves |-> <<I(TRUE), N(1, "allow", "native")>>],
-      [case |-> "answer_page_native", moves |-> <<I(TRUE), A(1), N(1, "allow", "page")>>],
-      [case |-> "timer_allow", moves |-> <<I(TRUE), A(1), P(1, "wait_limit", FALSE)>>],
-      [case |-> "no_record",
+      [case |-> "answer_early", cfg |-> "full", moves |-> <<I(TRUE), N(1, "allow", "native")>>],
+      [case |-> "answer_page_native", cfg |-> "full", moves |-> <<I(TRUE), A(1), N(1, "allow", "page")>>],
+      [case |-> "timer_allow", cfg |-> "full", moves |-> <<I(TRUE), A(1), P(1, "wait_limit", FALSE)>>],
+      [case |-> "no_record", cfg |-> "full",
        moves |-> <<I(TRUE), A(1), N(1, "allow", "native"), L(1), P(1, "wait_limit", FALSE),
                    P(1, "no_record", TRUE)>>],
-      [case |-> "digest_shown", moves |-> <<I(FALSE)>>],
-      [case |-> "reason_unknown_id", moves |-> Allowed \o <<G(1, "approved", 1, 0)>>],
-      [case |-> "reason_used_row",
+      [case |-> "digest_shown", cfg |-> "full", moves |-> <<I(FALSE)>>],
+      [case |-> "reason_unknown_id", cfg |-> "full", moves |-> Allowed \o <<G(1, "approved", 1, 0)>>],
+      [case |-> "reason_used_row", cfg |-> "full",
        moves |-> Allowed \o <<G(1, "approved", 1, 1), G(1, "approved", 1, 1), G(2, "approved", 1, 1),
                                G(1, "approved", 3, 1)>>],
-      [case |-> "reason_digest", moves |-> Allowed \o <<G(1, "approved", 3, 1)>>],
-      [case |-> "reason_effect", moves |-> Allowed \o <<G(2, "approved", 1, 1)>>],
-      [case |-> "reason_reject_row",
+      [case |-> "reason_digest", cfg |-> "full", moves |-> Allowed \o <<G(1, "approved", 3, 1)>>],
+      [case |-> "reason_effect", cfg |-> "full", moves |-> Allowed \o <<G(2, "approved", 1, 1)>>],
+      [case |-> "reason_reject_row", cfg |-> "full",
        moves |-> <<I(TRUE), A(1), N(1, "reject", "native"), R(1), L(1), G(1, "approved", 1, 1)>>],
-      [case |-> "reason_releasing_no_row",
+      [case |-> "reason_releasing_no_row", cfg |-> "full",
        moves |-> Allowed \o <<GR(2, 2, NoApproval), G(2, "releasing", 2, 0)>>],
-      [case |-> "reason_releasing_unused_row", moves |-> Allowed \o <<G(2, "releasing", 2, 2)>>],
-      [case |-> "reason_stopped_run", moves |-> Allowed \o <<Z, G(1, "approved", 1, 1)>>],
-      [case |-> "guard_releasing_other",
+      [case |-> "reason_releasing_unused_row", cfg |-> "full", moves |-> Allowed \o <<G(2, "releasing", 2, 2)>>],
+      [case |-> "reason_stopped_run", cfg |-> "full", moves |-> Allowed \o <<Z, G(1, "approved", 1, 1)>>],
+      [case |-> "guard_releasing_other", cfg |-> "full",
        moves |-> <<I(TRUE), A(1), N(1, "allow", "native"), R(1), G(1, "releasing", 1, 1), L(1),
                    G(1, "releasing", 1, NoApproval), GR(1, 1, NoApproval), GR(1, 1, 0),
                    G(1, "releasing", 1, 1), G(1, "releasing", 3, 1), G(1, "releasing", 1, 2)>>]>>
@@ -234,7 +234,8 @@ Cases == Len(Directed)
 TraceInit ==
     /\ st = Init0
     /\ h = InitH
-    /\ w = [n |-> 1, k |-> 0, z |-> 0, x |-> 1 + (Seed % 2147483646), acc |-> <<>>]
+    /\ w = [n |-> IF Config = "full" THEN 1 ELSE Count + 1, k |-> 0, z |-> 0,
+            x |-> 1 + (Seed % 2147483646), acc |-> <<>>]
 
 Play(mv, x, dead) ==
     LET res == Step(st, mv)
@@ -249,6 +250,11 @@ Emit(head) ==
     /\ h' = InitH
     /\ w' = [w EXCEPT !.n = @ + 1, !.k = 0, !.z = 0, !.acc = <<>>]
 
+Skip ==
+    /\ st' = Init0
+    /\ h' = InitH
+    /\ w' = [w EXCEPT !.n = @ + 1, !.k = 0, !.z = 0, !.acc = <<>>]
+
 TraceNext ==
     /\ w.n <= Count + Cases
     /\ IF w.n <= Count
@@ -256,7 +262,11 @@ TraceNext ==
             THEN Emit(<<KV("n", ToString(w.n))>>)
             ELSE LET c == Choose(st, w.x) IN Play(c.mv, c.x, c.dead)
        ELSE LET d == Directed[w.n - Count]
-            IN IF w.k = Len(d.moves)
+            IN IF d.cfg # Config
+               THEN Skip
+               ELSE IF w.k = Len(d.moves)
                THEN Emit(<<KV("n", ToString(w.n)), KV("case", Str(d.case))>>)
-               ELSE Play(d.moves[w.k + 1], w.x, FALSE)
+               ELSE /\ Assert(d.moves[w.k + 1] \in Moves(st) /\ Offered(st, h, d.moves[w.k + 1]),
+                              <<"a move that the configuration does not allow", d.case, w.k + 1>>)
+                    /\ Play(d.moves[w.k + 1], w.x, FALSE)
 =============================================================================
