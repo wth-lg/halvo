@@ -24,6 +24,25 @@ interface Standing {
   periodEnd: Ms | null;
 }
 
+interface CancelTime {
+  endedAt: Ms | null;
+  first: Ms | null;
+}
+
+function keptTime(c: CancelTime): Ms | null {
+  return c.endedAt ?? c.first;
+}
+
+function withCancel(c: CancelTime, event: SubscriptionEvent): CancelTime {
+  if (event.state !== "cancelled") return c;
+  const endedAt = c.endedAt === null || event.endedAt === null ? (c.endedAt ?? event.endedAt) : Math.min(c.endedAt, event.endedAt);
+  return { endedAt, first: c.first === null ? event.providerTime : Math.min(c.first, event.providerTime) };
+}
+
+function cancelOf(row: Row): CancelTime {
+  return { endedAt: wholeOrNull(row.ended_at), first: wholeOrNull(row.cancel_first) };
+}
+
 const RANK: Record<SubscriptionState, number> = { "payment-failed": 0, active: 1, cancelled: 2 };
 const STATES: readonly string[] = ["active", "payment-failed", "cancelled"];
 const PERIODS: readonly string[] = ["week", "month"];
@@ -79,7 +98,7 @@ function isNewer(event: Standing, stored: Standing): boolean {
 
 function accountRow(sql: Sql): Row | null {
   const rows = sql.exec(
-    "SELECT account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time FROM account",
+    "SELECT account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time, ended_at, cancel_first FROM account",
   );
   if (rows.length > 1) return broken();
   return rows[0] ?? null;
@@ -100,40 +119,65 @@ function applySubscription(sql: Sql, event: SubscriptionEvent): Applied {
     const subscriptionId = textOrNull(account.subscription_id);
     if (subscriptionId !== null && subscriptionId !== event.subscriptionId) return { kind: "none" };
     const was = stateOf(account.state);
-    if (!isNewer(incoming, { state: was, providerTime: wholeOrNull(account.provider_time), periodEnd: wholeOrNull(account.period_end) })) return { kind: "none" };
+    const stored = cancelOf(account);
+    const cancel = withCancel(stored, event);
+    if (!isNewer(incoming, { state: was, providerTime: wholeOrNull(account.provider_time), periodEnd: wholeOrNull(account.period_end) })) {
+      if (cancel === stored) return { kind: "none" };
+      sql.exec("UPDATE account SET ended_at = ?, cancel_first = ?", cancel.endedAt, cancel.first);
+      const before = keptTime(stored);
+      const after = keptTime(cancel);
+      if (was === "cancelled" && after !== null && before !== null && after < before) return { kind: "cancel-time", at: after };
+      return { kind: "none" };
+    }
     sql.exec(
-      "UPDATE account SET state = ?, subscription_id = ?, period_start = ?, period_end = ?, provider_time = ?",
+      "UPDATE account SET state = ?, subscription_id = ?, period_start = ?, period_end = ?, provider_time = ?, ended_at = ?, cancel_first = ?",
       event.state,
       event.subscriptionId,
       event.period?.start ?? null,
       event.period?.end ?? null,
       event.providerTime,
+      cancel.endedAt,
+      cancel.first,
     );
+    const before = keptTime(stored);
+    const after = keptTime(cancel);
+    if (was === "cancelled" && event.state === "cancelled" && after !== null && before !== null && after < before) return { kind: "cancel-time", at: after };
     return { kind: "state", state: event.state, was, period: event.period };
   }
   const pending = pendingRow(sql);
   if (pending === null) return { kind: "none" };
-  const kept = sql.exec("SELECT state, provider_time, period_end FROM kept_event WHERE subscription_id = ?", event.subscriptionId)[0];
+  const kept = sql.exec("SELECT state, provider_time, period_end, ended_at, cancel_first FROM kept_event WHERE subscription_id = ?", event.subscriptionId)[0];
   if (kept !== undefined && !isNewer(incoming, { state: stateOf(kept.state), providerTime: whole(kept.provider_time), periodEnd: wholeOrNull(kept.period_end) })) {
+    const stored = cancelOf(kept);
+    const cancel = withCancel(stored, event);
+    if (cancel !== stored) {
+      sql.exec("UPDATE kept_event SET ended_at = ?, cancel_first = ? WHERE subscription_id = ?", cancel.endedAt, cancel.first, event.subscriptionId);
+    }
     return { kind: "none" };
   }
   if (kept === undefined) {
+    const cancel = withCancel({ endedAt: null, first: null }, event);
     sql.exec(
-      "INSERT INTO kept_event (subscription_id, state, period_start, period_end, provider_time, kept_order) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO kept_event (subscription_id, state, period_start, period_end, provider_time, kept_order, ended_at, cancel_first) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       event.subscriptionId,
       event.state,
       event.period?.start ?? null,
       event.period?.end ?? null,
       event.providerTime,
       sql.exec("SELECT subscription_id FROM kept_event").length,
+      cancel.endedAt,
+      cancel.first,
     );
   } else {
+    const cancel = withCancel(cancelOf(kept), event);
     sql.exec(
-      "UPDATE kept_event SET state = ?, period_start = ?, period_end = ?, provider_time = ? WHERE subscription_id = ?",
+      "UPDATE kept_event SET state = ?, period_start = ?, period_end = ?, provider_time = ?, ended_at = ?, cancel_first = ? WHERE subscription_id = ?",
       event.state,
       event.period?.start ?? null,
       event.period?.end ?? null,
       event.providerTime,
+      cancel.endedAt,
+      cancel.first,
       event.subscriptionId,
     );
   }
@@ -153,10 +197,12 @@ function complete(sql: Sql, s: CompletedSession): Extract<Applied, { kind: "acco
   const period = kept !== null ? periodOf(kept.period_start, kept.period_end) : null;
   const providerTime = kept !== null ? whole(kept.provider_time) : null;
   const subscriptionId = s.subscriptionId ?? (kept !== null ? text(kept.subscription_id) : null);
+  const keptCancel = kept !== null ? sql.exec("SELECT ended_at, cancel_first FROM kept_event WHERE subscription_id = ?", text(kept.subscription_id))[0] : undefined;
+  const cancel = keptCancel !== undefined ? cancelOf(keptCancel) : { endedAt: null, first: null };
   sql.exec("DELETE FROM kept_event");
   sql.exec("DELETE FROM pending_checkout");
   sql.exec(
-    "INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time, ended_at, cancel_first) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     text(pending.account_id),
     text(pending.credential_hash),
     state,
@@ -165,6 +211,8 @@ function complete(sql: Sql, s: CompletedSession): Extract<Applied, { kind: "acco
     period?.start ?? null,
     period?.end ?? null,
     providerTime,
+    cancel.endedAt,
+    cancel.first,
   );
   const made: Made = { kind: "account-made", cap: capOf(pending), period };
   return made;
@@ -174,13 +222,13 @@ export function makeAccounts(): Accounts {
   return {
     init(sql) {
       sql.exec(
-        "CREATE TABLE account (account_id TEXT NOT NULL, credential_hash TEXT NOT NULL, state TEXT NOT NULL, customer_id TEXT, subscription_id TEXT, period_start INTEGER, period_end INTEGER, provider_time INTEGER)",
+        "CREATE TABLE account (account_id TEXT NOT NULL, credential_hash TEXT NOT NULL, state TEXT NOT NULL, customer_id TEXT, subscription_id TEXT, period_start INTEGER, period_end INTEGER, provider_time INTEGER, ended_at INTEGER, cancel_first INTEGER)",
       );
       sql.exec(
         "CREATE TABLE pending_checkout (account_id TEXT NOT NULL, credential_hash TEXT NOT NULL, cap_amount INTEGER NOT NULL, cap_period TEXT NOT NULL, session_id TEXT NOT NULL, url TEXT NOT NULL, expires_at INTEGER NOT NULL, next_read INTEGER NOT NULL)",
       );
       sql.exec(
-        "CREATE TABLE kept_event (subscription_id TEXT NOT NULL, state TEXT NOT NULL, period_start INTEGER, period_end INTEGER, provider_time INTEGER NOT NULL, kept_order INTEGER NOT NULL)",
+        "CREATE TABLE kept_event (subscription_id TEXT NOT NULL, state TEXT NOT NULL, period_start INTEGER, period_end INTEGER, provider_time INTEGER NOT NULL, kept_order INTEGER NOT NULL, ended_at INTEGER, cancel_first INTEGER)",
       );
       sql.exec("CREATE TABLE processed_event (event_id TEXT NOT NULL, received_at INTEGER NOT NULL)");
     },
@@ -201,12 +249,15 @@ export function makeAccounts(): Accounts {
     subscription(sql): Subscription | null {
       const row = accountRow(sql);
       if (row === null) return null;
-      return {
+      const subscription: Subscription = {
         accountId: text(row.account_id),
         state: stateOf(row.state),
         customerId: textOrNull(row.customer_id),
         subscriptionId: textOrNull(row.subscription_id),
       };
+      const cancelledAt = keptTime(cancelOf(row));
+      if (subscription.state === "cancelled" && cancelledAt !== null) subscription.cancelledAt = cancelledAt;
+      return subscription;
     },
 
     isActive(sql) {
@@ -253,11 +304,13 @@ export function makeAccounts(): Accounts {
     seed(sql, a) {
       if (accountRow(sql) !== null || pendingRow(sql) !== null) return broken();
       sql.exec(
-        "INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO account (account_id, credential_hash, state, customer_id, subscription_id, period_start, period_end, provider_time, ended_at, cancel_first) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         a.accountId,
         a.credentialHash,
         a.state,
         a.customerId,
+        null,
+        null,
         null,
         null,
         null,

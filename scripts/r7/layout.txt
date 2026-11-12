@@ -83,5 +83,8 @@ P4	backend/docs/baseline/first-fail/cap.txt
 P4	backend/docs/baseline/first-fail/concurrency.txt
 P4	backend/docs/baseline/first-fail/model.txt
 P4	formal/r7-ledger/**
+P5	backend/src/metering/sync.ts
+P5	backend/src/metering/stripe-meter.ts
+P5	backend/test/metering/**
 F.1	backend/.shellcheckrc
 F.1	formal/r7-ledger/.gitattributes

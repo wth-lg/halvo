@@ -1,0 +1,11 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/ledger.ts",
+      "find": "{ state: \"voided\", unreported: 0 }",
+      "replace": "{ state: \"expired\", unreported: amount }"
+    }
+  ],
+  "only": "replay",
+  "line": ["FAIL model: ", "first failure: the object does not follow the model: trace "]
+}

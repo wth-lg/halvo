@@ -118,6 +118,7 @@ const waveAdmitted = waves.reduce((total, entry) => total + sum(entry.mine.filte
 const lost = runs.reduce((total, run) => total + (run.facts?.resets ?? 0) + (run.facts?.proxyLost ?? 0), 0);
 const settles = runs.filter((run) => run.level === 200 && !run.withKill && good(run)).flatMap((run) => run.facts.settleMs);
 const p99 = settles.length === 0 ? "unmeasured" : `${[...settles].sort((a, b) => a - b)[Math.max(0, Math.ceil(0.99 * settles.length) - 1)]}ms`;
+const uncrossed = runs.filter((run) => run.kind === "rollover" && run.facts?.crossed === false);
 const tokens = [
   `runs=${goodRuns} of ${expected}`,
   `cells=${cleanCells} of ${selected.length}`,
@@ -126,6 +127,7 @@ const tokens = [
   `lost-sends=${lost}`,
   `settle-p99-at-200=${p99}`,
   `second-attempts=${runs.filter((run) => run.discarded.length > 0).length}`,
+  `rollover-uncrossed=${uncrossed.length}`,
 ].join(" ");
 
 const results = { root: ROOT, cfg, ms: Date.now() - began, tokens, runs };
@@ -140,7 +142,9 @@ if (allViolations.length > 0) {
   const failedToRun = runs.find((run) => run.error && !run.counted);
   const neverCounted = runs.find((run) => !good(run));
   const incomplete = summary.find((entry) => !entry.complete);
-  if (failedToRun) failure = `${failedToRun.key} failed to run in ${config.attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
+  if (uncrossed.length > 0) {
+    failure = `${uncrossed.length} attempt(s) of a rollover cell lacked the crossing, which the driver builds before any kill (ruling B-15), first ${uncrossed[0].key}`;
+  } else if (failedToRun) failure = `${failedToRun.key} failed to run in ${config.attempts} attempts: ${failedToRun.error.split("\n")[0].slice(0, 200)}`;
   else if (neverCounted) {
     const facts = neverCounted.facts ?? {};
     failure = `${neverCounted.key} did not count in ${config.attempts} attempts (admitted ${facts.admitted ?? "unmeasured"}, holds open at the kill ${facts.openAtKill ?? "unmeasured"}, a stream in flight at the kill ${facts.streamAtKill ?? "unmeasured"}, voided ${facts.voided ?? "unmeasured"})`;
