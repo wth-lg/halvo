@@ -4,6 +4,18 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::ids::{hex64, name_enum, object, string_type, ParseError};
 
+/// The names that this module writes in a record or a request: the keys of a site value and of an observed site,
+/// and the three sources.
+pub const NAMES: &[&str] = &[
+    "key",
+    "source",
+    "address_field",
+    "sign_in",
+    "title",
+    "domain",
+    "token",
+];
+
 fn app(s: &str) -> Result<(), &'static str> {
     if s.is_empty() || s.len() > 255 {
         return Err("length");
@@ -11,7 +23,7 @@ fn app(s: &str) -> Result<(), &'static str> {
     if s.contains(['/', '\\']) {
         return Err("separator");
     }
-    if s.chars().any(|c| c < '\u{20}' || c == '\u{7f}') {
+    if s.chars().any(char::is_control) {
         return Err("control");
     }
     if s == "." || s == ".." {
@@ -22,8 +34,8 @@ fn app(s: &str) -> Result<(), &'static str> {
 
 string_type! {
     /// An app id: a bundle id or the file name of an executable, never a path. `parse` accepts 1 to 255 bytes
-    /// with no `/`, no `\`, no character below U+0020 and not U+007F, and neither `.` nor `..`, and keeps
-    /// the bytes as given.
+    /// with no `/`, no `\`, no control character (the Unicode category Cc: U+0000 to U+001F, U+007F and U+0080
+    /// to U+009F), and neither `.` nor `..`, and keeps the bytes as given.
     AppId [Debug, PartialOrd, Ord, Hash] = app
 }
 
@@ -275,4 +287,39 @@ impl Serialize for ObservedSite {
             .serialize(serializer),
         }
     }
+}
+
+macro_rules! conversion_case {
+    ($fence:literal, $from:literal, $into:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::{Domain, SiteDomain};\n",
+            "let from = ",
+            $from,
+            "::parse(\"shop.test\").unwrap();\n",
+            "let into = ",
+            $into,
+            "::from(from);\n",
+            "assert_eq!(into.as_str(), \"shop.test\");\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: no conversion runs from a stored `SiteDomain` to a `Domain`, because a stored key need
+/// not hold rule 5 under the list of this build. The case differs from its twin in `compiles` in the direction
+/// alone.
+pub mod compile_fail {
+    /// No `Domain::from` of a `SiteDomain`. Twin: `compiles::site_domain_from_domain`.
+    #[doc = conversion_case!("compile_fail", "SiteDomain", "Domain")]
+    pub mod domain_from_site_domain {}
+}
+
+/// The twin of the case of `compile_fail`, which compiles and runs.
+pub mod compiles {
+    /// A `SiteDomain` is built from a `Domain`.
+    #[doc = conversion_case!("", "Domain", "SiteDomain")]
+    pub mod site_domain_from_domain {}
 }

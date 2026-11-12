@@ -582,6 +582,11 @@ fn build(state: State) -> Vec<Built> {
             .collect();
         history.reverse();
         history.truncate(5);
+        let doing = doing(
+            &spec,
+            item.zip(spec.item)
+                .map(|(item, kind)| OpenItem { item, kind }),
+        );
         let facts = Facts {
             config: config(&spec, &workflow, &agent),
             workflow: FullWorkflow {
@@ -604,12 +609,9 @@ fn build(state: State) -> Vec<Built> {
                 .collect(),
             runs: history,
             events,
+            store_ended: !matches!(doing, Doing::Live(_)),
             today: TODAY,
-            doing: doing(
-                &spec,
-                item.zip(spec.item)
-                    .map(|(item, kind)| OpenItem { item, kind }),
-            ),
+            doing,
         };
         built.push(Built { spec, facts });
     }

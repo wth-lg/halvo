@@ -21,7 +21,7 @@ fn an_app_id_is_a_bundle_id_or_a_file_name_kept_as_given() {
         "Microsoft Edge",
         " padded ",
         "app\u{e9}",
-        "\u{80}",
+        "\u{a0}",
         "...",
         ".hidden",
         &"x".repeat(255),
@@ -367,4 +367,30 @@ fn an_observed_site_is_refused_as_an_array() {
     common::refused_as_array::<ObservedSite>(r#"["title","northwind-power"]"#);
     refused::<ObservedSite>(r#"["address_field","northwind-power.test"]"#);
     refused::<ObservedSite>(r#"["northwind-power","title"]"#);
+}
+
+#[test]
+fn an_app_id_refuses_every_character_of_the_unicode_category_cc_and_keeps_u_00a0() {
+    for c in ['\u{85}', '\u{9b}', '\u{80}', '\u{9f}'] {
+        let id = format!("com.example{c}app");
+        assert_eq!(rule(AppId::parse(&id)), "control", "{c:?}");
+        assert_eq!(
+            rule(AppId::from_capture(&format!("C:\\Apps\\{id}.exe"))),
+            "control",
+            "{c:?}"
+        );
+        refused::<AppId>(&serde_json::to_string(&id).unwrap());
+    }
+    for c in ['\u{a0}', '\u{7e}', '\u{a1}', '\u{ad}'] {
+        let id = format!("com.example{c}app");
+        assert_eq!(AppId::parse(&id).unwrap().as_str(), id, "{c:?}");
+    }
+    let cc: Vec<char> = (0..=0x10ffff)
+        .filter_map(char::from_u32)
+        .filter(|c| c.is_control())
+        .collect();
+    assert_eq!(cc.len(), 65);
+    for c in cc {
+        assert_eq!(rule(AppId::parse(&format!("a{c}b"))), "control", "{c:?}");
+    }
 }

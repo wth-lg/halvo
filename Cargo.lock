@@ -1427,6 +1427,9 @@ version = "0.0.0"
 [[package]]
 name = "halvo-route"
 version = "0.0.0"
+dependencies = [
+ "sha2",
+]
 
 [[package]]
 name = "halvo-route-gate"
@@ -1450,6 +1453,16 @@ dependencies = [
  "psl",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "halvo-seam"
+version = "0.0.0"
+dependencies = [
+ "halvo-schema",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

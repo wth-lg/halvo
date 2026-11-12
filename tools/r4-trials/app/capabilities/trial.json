@@ -1,0 +1,6 @@
+{
+  "identifier": "trial",
+  "description": "The trial page may listen to and stop listening to events, for the sync way events.",
+  "windows": ["main"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}
