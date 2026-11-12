@@ -97,13 +97,16 @@ impl Start for std::process::Command {
 
 /// The identity of the two pipes of a browser's debugging channel, by which a check finds a
 /// process that holds an end of them: on macOS the system's handles of the four ends, as
-/// `proc_pidfdinfo` reports them for a pipe; on Windows the names of the two pipes.
+/// `proc_pidfdinfo` reports them for a pipe; on Windows the values, in this process, of the
+/// executor's two ends and of the copies of the browser's two ends that `OnPipe::kept` holds, to
+/// which a check compares another process's handle with `CompareObjectHandles` (no query that
+/// waits on a pipe with a pending read). The Windows values are valid while those handles are open.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PipeIds {
     #[cfg(target_os = "macos")]
     pub handles: [u64; 4],
     #[cfg(windows)]
-    pub names: [String; 2],
+    pub handles: [usize; 4],
 }
 
 /// A child that a start of this module made. It is ended only through `kill`, which reaches the
@@ -124,12 +127,15 @@ unsafe impl Send for Started {}
 unsafe impl Sync for Started {}
 
 /// The browser on its pipe: the child, the end from which the executor reads the browser's
-/// messages, the end to which it writes its own, and the identity of both pipes.
+/// messages, the end to which it writes its own, the identity of both pipes, and on Windows the
+/// executor's copies of the browser's two ends, not inheritable, which `ids` names; a copy of the
+/// browser's write end keeps the executor's read from ending while it is held.
 pub struct OnPipe {
     pub child: Started,
     pub from_browser: File,
     pub to_browser: File,
     pub ids: PipeIds,
+    pub kept: Vec<File>,
 }
 
 /// What a start places into the child besides its standard streams.
@@ -463,6 +469,7 @@ mod sys {
             from_browser,
             to_browser,
             ids: PipeIds { handles },
+            kept: Vec::new(),
         })
     }
 
@@ -503,8 +510,8 @@ mod sys {
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::os::windows::io::FromRawHandle;
     use windows_sys::Win32::Foundation::{
-        CloseHandle, SetHandleInformation, GENERIC_READ, GENERIC_WRITE, HANDLE,
-        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
+        CloseHandle, DuplicateHandle, SetHandleInformation, DUPLICATE_SAME_ACCESS, GENERIC_READ,
+        GENERIC_WRITE, HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
     };
     use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
     use windows_sys::Win32::Storage::FileSystem::{
@@ -513,10 +520,11 @@ mod sys {
     };
     use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Threading::{
-        CreateProcessW, DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
-        TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
-        CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, INFINITE, PROCESS_INFORMATION,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES, STARTUPINFOEXW,
+        CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess,
+        InitializeProcThreadAttributeList, TerminateProcess, UpdateProcThreadAttribute,
+        WaitForSingleObject, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, INFINITE,
+        PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, STARTF_USESTDHANDLES,
+        STARTUPINFOEXW,
     };
 
     pub(super) fn reap(child: &Started, block: bool) -> bool {
@@ -730,13 +738,6 @@ mod sys {
         })
     }
 
-    /// The name of the pipe of `h`, which both ends of one anonymous pipe share.
-    fn pipe_name(h: HANDLE) -> Option<String> {
-        // SAFETY: the caller holds `h` open across this call.
-        let borrowed = unsafe { std::os::windows::io::BorrowedHandle::borrow_raw(h as _) };
-        crate::peer::pipe_name_of(borrowed)
-    }
-
     pub(super) fn start_on_pipe(_held: &StartLock, spec: &Spec<'_>) -> Result<OnPipe, StartFault> {
         let mut browser_reads: HANDLE = std::ptr::null_mut();
         let mut we_write: HANDLE = std::ptr::null_mut();
@@ -752,9 +753,33 @@ mod sys {
             close_all(&[browser_reads, we_write]);
             return Err(fault);
         }
-        let names = [
-            pipe_name(we_write).unwrap_or_default(),
-            pipe_name(we_read).unwrap_or_default(),
+        let copy = |h: HANDLE| -> Option<HANDLE> {
+            let mut dup: HANDLE = std::ptr::null_mut();
+            // SAFETY: duplicates an open handle of this process into this process, not inheritable.
+            let ok = unsafe {
+                DuplicateHandle(
+                    GetCurrentProcess(),
+                    h,
+                    GetCurrentProcess(),
+                    &mut dup,
+                    0,
+                    0,
+                    DUPLICATE_SAME_ACCESS,
+                )
+            };
+            (ok != 0).then_some(dup)
+        };
+        let (Some(kept_reads), Some(kept_writes)) = (copy(browser_reads), copy(browser_writes))
+        else {
+            let fault = StartFault::last("pipe_copy");
+            close_all(&[browser_reads, we_write, we_read, browser_writes]);
+            return Err(fault);
+        };
+        let handles = [
+            we_write as usize,
+            we_read as usize,
+            kept_reads as usize,
+            kept_writes as usize,
         ];
         let mut with_pipes = Spec {
             program: spec.program,
@@ -771,22 +796,27 @@ mod sys {
         let child = match started {
             Ok(c) => c,
             Err(f) => {
-                close_all(&[we_write, we_read]);
+                close_all(&[we_write, we_read, kept_reads, kept_writes]);
                 return Err(f);
             }
         };
-        // SAFETY: both handles are open, owned here alone, and moved into one `File` each.
-        let (to_browser, from_browser) = unsafe {
+        // SAFETY: the four handles are open, owned here alone, and moved into one `File` each.
+        let (to_browser, from_browser, kept) = unsafe {
             (
                 File::from_raw_handle(we_write as _),
                 File::from_raw_handle(we_read as _),
+                vec![
+                    File::from_raw_handle(kept_reads as _),
+                    File::from_raw_handle(kept_writes as _),
+                ],
             )
         };
         Ok(OnPipe {
             child,
             from_browser,
             to_browser,
-            ids: PipeIds { names },
+            ids: PipeIds { handles },
+            kept,
         })
     }
 
@@ -948,12 +978,13 @@ mod tests {
             .stdout(std::process::Stdio::null());
         let mut second = beside.start().expect("second");
         let values: Vec<usize> = (1..4096).map(|i| i * 4).collect();
-        let held = crate::peer::pipe_holders(on.child.pid(), &values, &on.ids.names).expect("read");
+        let held =
+            crate::peer::pipe_holders(on.child.pid(), &values, &on.ids.handles).expect("read");
         assert_eq!(held.len(), 2, "{held:?}");
-        let other = crate::peer::pipe_holders(second.id(), &values, &on.ids.names).expect("read");
+        let other = crate::peer::pipe_holders(second.id(), &values, &on.ids.handles).expect("read");
         assert!(other.is_empty(), "{other:?}");
-        assert_ne!(on.ids.names[0], on.ids.names[1]);
-        assert!(on.ids.names.iter().all(|n| !n.is_empty()));
+        assert!(crate::checks::holds_an_end(on.child.pid(), &on.ids));
+        assert!(!crate::checks::holds_an_end(second.id(), &on.ids));
         let _ = second.kill();
         let _ = second.wait();
         on.child.kill();

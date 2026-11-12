@@ -249,11 +249,11 @@ impl Drop for Executor {
 
 /// Copies of the executor's two ends of the pipe, which keep the pipe from being freed while a
 /// check after the stop reads who holds it; dropping it closes them.
-pub struct PipeKeep(#[allow(dead_code)] std::sync::Arc<[std::fs::File; 2]>);
+pub struct PipeKeep(#[allow(dead_code)] std::sync::Arc<Vec<std::fs::File>>);
 
 pub struct Executor {
     guard: Option<start::Started>,
-    kept: Option<std::sync::Arc<[std::fs::File; 2]>>,
+    kept: Option<std::sync::Arc<Vec<std::fs::File>>>,
     relay: Option<crate::relay::RelayHandle>,
     root: Option<crate::procs::Proc>,
     child: BrowserChild,
@@ -393,10 +393,12 @@ impl Executor {
                     start::start_on_pipe(&held, &spec)
                 };
                 let on = on.map_err(|f| Fault::new("browser_start", f.to_string()))?;
-                kept = match (on.from_browser.try_clone(), on.to_browser.try_clone()) {
-                    (Ok(a), Ok(b)) => Some(std::sync::Arc::new([a, b])),
-                    _ => None,
-                };
+                let mut copies = on.kept;
+                if let (Ok(a), Ok(b)) = (on.from_browser.try_clone(), on.to_browser.try_clone()) {
+                    copies.push(a);
+                    copies.push(b);
+                }
+                kept = Some(std::sync::Arc::new(copies));
                 let link =
                     wire::Link::Pipe(crate::pipe::PipeLink::new(on.from_browser, on.to_browser));
                 (BrowserChild::Pipe(on.child), link, Some(on.ids))

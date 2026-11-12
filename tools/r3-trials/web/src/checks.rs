@@ -232,7 +232,7 @@ mod sys {
 
     pub(super) fn holds_an_end(pid: u32, ids: &PipeIds) -> bool {
         let values: Vec<usize> = (1..VALUES).map(|i| i * 4).collect();
-        crate::peer::pipe_holders(pid, &values, &ids.names)
+        crate::peer::pipe_holders(pid, &values, &ids.handles)
             .map(|found| !found.is_empty())
             .unwrap_or(false)
     }

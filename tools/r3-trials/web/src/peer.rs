@@ -57,10 +57,10 @@ pub fn all_pids() -> Vec<u32> {
     sys::all_pids()
 }
 
+#[cfg(windows)]
+pub use sys::pipe_holders;
 #[cfg(target_os = "macos")]
 pub use sys::{fds_of, pipe_handle_of, pipe_handles_of};
-#[cfg(windows)]
-pub use sys::{pipe_holders, pipe_name_of};
 
 #[cfg(target_os = "macos")]
 mod sys {
@@ -267,16 +267,13 @@ mod sys {
     use super::{Proto, Socket};
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use windows_sys::Win32::Foundation::{
-        CloseHandle, DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE,
+        CloseHandle, CompareObjectHandles, DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE,
     };
     use windows_sys::Win32::NetworkManagement::IpHelper::{
         GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP6ROW_OWNER_PID, MIB_TCPROW_OWNER_PID,
         MIB_UDP6ROW_OWNER_PID, MIB_UDPROW_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
     };
     use windows_sys::Win32::Networking::WinSock::{AF_INET, AF_INET6};
-    use windows_sys::Win32::Storage::FileSystem::{
-        FileNameInfo, GetFileInformationByHandleEx, GetFileType, FILE_TYPE_PIPE,
-    };
     use windows_sys::Win32::System::Threading::{
         GetCurrentProcess, OpenProcess, PROCESS_DUP_HANDLE,
     };
@@ -398,39 +395,12 @@ mod sys {
         out
     }
 
-    /// The name of the pipe of `h`, which both ends of one anonymous pipe share.
-    pub fn pipe_name_of(h: std::os::windows::io::BorrowedHandle<'_>) -> Option<String> {
-        use std::os::windows::io::AsRawHandle;
-        let h = h.as_raw_handle() as HANDLE;
-        // SAFETY: GetFileType reads the type of an open handle.
-        if unsafe { GetFileType(h) } != FILE_TYPE_PIPE {
-            return None;
-        }
-        let mut buf = vec![0u32; 260];
-        // SAFETY: the buffer holds `buf.len() * 4` bytes, which the call is told; it starts with
-        // the name's length in bytes and the name's UTF-16 units follow.
-        let ok = unsafe {
-            GetFileInformationByHandleEx(
-                h,
-                FileNameInfo,
-                buf.as_mut_ptr() as *mut core::ffi::c_void,
-                (buf.len() * 4) as u32,
-            )
-        };
-        if ok == 0 {
-            return None;
-        }
-        let len = buf[0] as usize / 2;
-        let units: &[u16] =
-            // SAFETY: the name's units follow the length field and lie inside the buffer.
-            unsafe { std::slice::from_raw_parts((buf.as_ptr() as *const u16).add(2), len.min(512)) };
-        Some(String::from_utf16_lossy(units))
-    }
-
-    /// The handle values of `pid` that name an end of a pipe of `names`, read by duplicating each
-    /// of the process's handles that the system's handle list names into this process; none when
-    /// the process cannot be opened for duplication.
-    pub fn pipe_holders(pid: u32, values: &[usize], names: &[String]) -> Option<Vec<usize>> {
+    /// The handle values among `values` of process `pid` that name the same object as one of
+    /// `ours`, handles of this process: each value is duplicated into this process and compared
+    /// with `CompareObjectHandles`, which makes no request of the object, so a pipe with a pending
+    /// read in `pid` cannot hold the check up. None when the process cannot be opened for
+    /// duplication.
+    pub fn pipe_holders(pid: u32, values: &[usize], ours: &[usize]) -> Option<Vec<usize>> {
         // SAFETY: OpenProcess returns a new handle or null.
         let process = unsafe { OpenProcess(PROCESS_DUP_HANDLE, 0, pid) };
         if process.is_null() {
@@ -454,9 +424,12 @@ mod sys {
             if ok == 0 {
                 continue;
             }
-            // SAFETY: `dup` is open until the CloseHandle below.
-            let borrowed = unsafe { std::os::windows::io::BorrowedHandle::borrow_raw(dup as _) };
-            if pipe_name_of(borrowed).is_some_and(|n| names.contains(&n)) {
+            // SAFETY: both handles are open handles of this process; the call reads the objects
+            // that they name and nothing else.
+            if ours
+                .iter()
+                .any(|o| unsafe { CompareObjectHandles(dup, *o as HANDLE) } != 0)
+            {
                 found.push(*v);
             }
             // SAFETY: the duplicate is owned here and closed once.
