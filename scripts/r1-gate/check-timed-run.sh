@@ -36,6 +36,13 @@ cases() {
   t recorded-685d846-report FAIL predicate_timed_run_report "$GATE_FIXTURES/recorded-685d846-four-switches.txt"
   sed 's/^failed_sources=0$/failed_sources=1/' "$good" > "$gate_scratch/failed-count-only"
   t failed-sources-1-without-its-line FAIL predicate_timed_run_report "$gate_scratch/failed-count-only"
+  printf 'modality=screen_frame count=3\nmodality=foreground_app count=2\n' > "$gate_scratch/sources-report"
+  : > "$gate_scratch/sources-quiet"
+  for source_name in screen2 screen-frame Screen; do
+    printf 'halvo-capture: source %s did not start: os_error\n' "$source_name" > "$gate_scratch/sources-$source_name"
+    t "source-$source_name-did-not-start" FAIL predicate_sources_ran "$gate_scratch/sources-report" "$gate_scratch/sources-$source_name"
+  done
+  t sources-ran-with-a-quiet-stderr PASS predicate_sources_ran "$gate_scratch/sources-report" "$gate_scratch/sources-quiet"
   gate_input=none
   t foreground-count-1-under-no-input PASS predicate_foreground_switches "$gate_scratch/foreground-count-1"
   t report-missing FAIL predicate_modalities_present "$gate_scratch/no-such-report"

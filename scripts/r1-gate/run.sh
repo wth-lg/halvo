@@ -267,6 +267,12 @@ run_without_bounds_says() {
   measured_run_says "FAIL run (HEAD holds no docs/baseline/r1-gate-bounds.txt, and every line reads its bounds from that file)" "$1"
 }
 
+row_applies() {
+  row_file=$(mktemp "$gate_scratch/row.XXXXXX") || return 2
+  printf 'one\n' > "$row_file"
+  ROW_SUBST=$1 perl "$DIR/helper/apply-row.pl" "$row_file" > /dev/null
+}
+
 quoted_name_tree_holds() {
   quoted=$gate_scratch/quoted
   git init -q "$quoted" > /dev/null 2>&1 || return 1
@@ -499,6 +505,8 @@ cases_run() {
   t bounds-field-moves-and-tree-id-holds PASS bounds_field_moves_and_tree_holds bounds-moved
   t bounds-file-missing-from-head-fails PASS run_without_bounds_says no-bounds
   t tree-id-holds-under-a-quoted-name PASS quoted_name_tree_holds
+  t apply-row-refuses-the-e-modifier FAIL row_applies 's/one/"two"/e'
+  t apply-row-applies-a-plain-row PASS row_applies 's/one/two/'
 }
 
 
