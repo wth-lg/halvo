@@ -472,6 +472,12 @@ pub enum Body {
         /// `mode`.
         mode: Mode,
     },
+    /// `end_run`: the agent store stores the run's record with the outcome `failed` when none
+    /// is stored, and changes nothing for a run that has ended (A-A7.2, I5.10).
+    EndRun {
+        /// `run`.
+        run: RunId,
+    },
 }
 
 /// A slot of `set_bindings`: its name and its value in pieces (A-A7.4).

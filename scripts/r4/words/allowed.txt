@@ -1,0 +1,3 @@
+# The one use of a reserved term of another run that the interface run makes (I1.5): a words
+# key, a tab and the term, as the glossary docs/r4/words.md writes it.
+control.delete	delete
