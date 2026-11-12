@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use crate::event::Modality;
 
+mod boundary_proofs;
 pub mod exclude;
 pub mod payload;
 pub mod record;
