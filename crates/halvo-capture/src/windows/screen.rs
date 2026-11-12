@@ -1,7 +1,7 @@
 //! Screen capture via Windows.Graphics.Capture (`FrameArrived`).
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
@@ -9,7 +9,7 @@ use windows_capture::capture::{
     CaptureControl, Context, GraphicsCaptureApiError, GraphicsCaptureApiHandler,
 };
 use windows_capture::frame::Frame;
-use windows_capture::graphics_capture_api::InternalCaptureControl;
+use windows_capture::graphics_capture_api::{GraphicsCaptureApi, InternalCaptureControl};
 use windows_capture::monitor::Monitor;
 use windows_capture::settings::{
     ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings,
@@ -40,6 +40,54 @@ pub fn exclude_window_from_capture(hwnd: HWND) -> Result<(), CaptureError> {
 
 const SINK_GONE: &str = "the capture writer has stopped";
 const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
+
+/// What the running Windows build supports, as the capture settings need it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CaptureSupport {
+    pub(crate) minimum_update_interval: bool,
+    pub(crate) cursor_setting: bool,
+}
+
+/// The capture settings that the build allows: the interval to ask for, and
+/// the interval within which the handler drops a frame when the build takes
+/// no minimum update interval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ScreenChoice {
+    pub(crate) interval: MinimumUpdateIntervalSettings,
+    pub(crate) drop_within: Option<Duration>,
+}
+
+fn probe_support() -> Result<CaptureSupport, CaptureError> {
+    Ok(CaptureSupport {
+        minimum_update_interval: GraphicsCaptureApi::is_minimum_update_interval_supported()
+            .map_err(|e| api_error("probe the minimum update interval", e))?,
+        cursor_setting: GraphicsCaptureApi::is_cursor_settings_supported()
+            .map_err(|e| api_error("probe the cursor setting", e))?,
+    })
+}
+
+/// Choose the settings from what `probe` answers, asked once.
+pub(crate) fn choose_settings(
+    probe: impl FnOnce() -> Result<CaptureSupport, CaptureError>,
+    min_interval: Duration,
+) -> Result<ScreenChoice, CaptureError> {
+    let _ = probe;
+    Ok(ScreenChoice {
+        interval: MinimumUpdateIntervalSettings::Custom(min_interval),
+        drop_within: None,
+    })
+}
+
+/// Whether the handler keeps a frame that arrives at `now`, given the last
+/// frame that it kept.
+fn keep_frame(
+    drop_within: Option<Duration>,
+    last_kept: &mut Option<Instant>,
+    now: Instant,
+) -> bool {
+    let _ = (drop_within, last_kept, now);
+    true
+}
 const SCREEN_START_FAILED: &str = "the screen capture could not start";
 
 /// The packet of a frame of the given size, or `None` for a zero-area frame,
@@ -66,13 +114,16 @@ pub(crate) fn frame_packet(
 pub struct ScreenFlags {
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
+    drop_within: Option<Duration>,
 }
 
-/// The `windows-capture` frame handler: one packet for each frame, handed to
-/// the source's queue.
+/// The `windows-capture` frame handler: one packet for each frame that it
+/// keeps, handed to the source's queue.
 pub struct ScreenHandler {
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
+    drop_within: Option<Duration>,
+    last_kept: Option<Instant>,
 }
 
 impl GraphicsCaptureApiHandler for ScreenHandler {
@@ -83,6 +134,8 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         Ok(Self {
             producer: ctx.flags.producer,
             last_app: ctx.flags.last_app,
+            drop_within: ctx.flags.drop_within,
+            last_kept: None,
         })
     }
 
@@ -91,6 +144,9 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         frame: &mut Frame,
         _control: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
+        if !keep_frame(self.drop_within, &mut self.last_kept, Instant::now()) {
+            return Ok(());
+        }
         let (width, height) = (frame.width(), frame.height());
         let app = self
             .last_app
@@ -153,18 +209,20 @@ impl CaptureSource for ScreenSource {
         if self.control.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
+        let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;
         let handoff = HandOff::start(ctx.sink().clone(), "halvo-screen-forward")?;
         let flags = ScreenFlags {
             producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
+            drop_within: choice.drop_within,
         };
         let settings = Settings::new(
             monitor,
             CursorCaptureSettings::WithoutCursor,
             DrawBorderSettings::Default,
             SecondaryWindowSettings::Default,
-            MinimumUpdateIntervalSettings::Custom(self.min_interval),
+            choice.interval,
             DirtyRegionSettings::Default,
             ColorFormat::Bgra8,
             flags,
@@ -241,6 +299,16 @@ fn monitor_error(error: windows_capture::monitor::Error) -> CaptureError {
     }
 }
 
+fn api_error(
+    stage: &'static str,
+    error: windows_capture::graphics_capture_api::Error,
+) -> CaptureError {
+    match error {
+        windows_capture::graphics_capture_api::Error::WindowsError(e) => super::os_error(stage, &e),
+        _ => CaptureError::Start(SCREEN_START_FAILED.to_string()),
+    }
+}
+
 fn start_error(error: GraphicsCaptureApiError<CaptureError>) -> CaptureError {
     use windows_capture::graphics_capture_api::Error as Api;
     match error {
@@ -267,6 +335,86 @@ mod tests {
         assert_eq!(packet.kind, Modality::ScreenFrame);
         assert_eq!(packet.app, "C:\\browser.exe");
         assert_eq!(packet.byte_len, 1920 * 1080 * 4);
+    }
+
+    fn asked(
+        support: CaptureSupport,
+    ) -> (
+        Result<ScreenChoice, CaptureError>,
+        std::rc::Rc<std::cell::Cell<u32>>,
+    ) {
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let counted = std::rc::Rc::clone(&calls);
+        let choice = choose_settings(
+            move || {
+                counted.set(counted.get() + 1);
+                Ok(support)
+            },
+            Duration::from_millis(500),
+        );
+        (choice, calls)
+    }
+
+    #[test]
+    fn the_settings_choice_passes_the_default_interval_when_the_probe_answers_no() {
+        let (choice, calls) = asked(CaptureSupport {
+            minimum_update_interval: false,
+            cursor_setting: true,
+        });
+        assert_eq!(calls.get(), 1, "the probe was not asked once");
+        assert_eq!(
+            choice,
+            Ok(ScreenChoice {
+                interval: MinimumUpdateIntervalSettings::Default,
+                drop_within: Some(Duration::from_millis(500)),
+            })
+        );
+    }
+
+    #[test]
+    fn the_settings_choice_passes_the_custom_interval_when_the_probe_answers_yes() {
+        let (choice, calls) = asked(CaptureSupport {
+            minimum_update_interval: true,
+            cursor_setting: true,
+        });
+        assert_eq!(calls.get(), 1, "the probe was not asked once");
+        assert_eq!(
+            choice,
+            Ok(ScreenChoice {
+                interval: MinimumUpdateIntervalSettings::Custom(Duration::from_millis(500)),
+                drop_within: None,
+            })
+        );
+    }
+
+    #[test]
+    fn the_settings_choice_refuses_a_build_without_the_cursor_setting_and_names_the_build() {
+        let (choice, calls) = asked(CaptureSupport {
+            minimum_update_interval: true,
+            cursor_setting: false,
+        });
+        assert_eq!(calls.get(), 1, "the probe was not asked once");
+        assert!(
+            matches!(&choice, Err(CaptureError::Start(text)) if text.contains("19041")),
+            "{choice:?}"
+        );
+    }
+
+    #[test]
+    fn the_handler_keeps_one_frame_per_interval_when_it_drops_by_time() {
+        let start = Instant::now();
+        let at = |ms| start + Duration::from_millis(ms);
+        let within = Some(Duration::from_millis(500));
+        let mut last = None;
+        let kept: Vec<bool> = [0, 100, 499, 500, 900, 1_000]
+            .into_iter()
+            .map(|ms| keep_frame(within, &mut last, at(ms)))
+            .collect();
+        assert_eq!(kept, [true, false, false, true, false, true]);
+        let mut last = None;
+        assert!([0, 1, 2]
+            .into_iter()
+            .all(|ms| keep_frame(None, &mut last, at(ms))));
     }
 
     #[test]
