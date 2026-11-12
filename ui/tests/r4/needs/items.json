@@ -67,6 +67,60 @@
     },
     "card": null
   },
+  "test_long": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "00000000000000000000000000000011",
+          "agent": "00000000000000000000000000000010",
+          "kind": "ready",
+          "presenter": null,
+          "armed": "no",
+          "title": "“Paying a utility bill on myaccount.metropolitanwaterandelectricpowerauthorityofgreaterspringfield.com” is ready to start",
+          "text": "Start it now, or skip it this time.",
+          "fields": [],
+          "params": [],
+          "choices": [
+            { "choice": "skip", "text": "Skip this time", "safe": "yes" },
+            { "choice": "start", "text": "Start now", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
+  "test_empty_bound": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "00000000000000000000000000000013",
+          "agent": "00000000000000000000000000000012",
+          "kind": "confirm",
+          "presenter": "page",
+          "armed": "yes",
+          "title": "Send this?",
+          "text": "",
+          "fields": [
+            { "label": "To", "value": ["Ann Lee"], "from": "site", "from_text": "From the site" },
+            { "label": "Subject", "value": [""], "from": "agent", "from_text": "Written by the agent" },
+            { "label": "Message", "value": ["The repair is booked for Monday."], "from": "agent", "from_text": "Written by the agent" }
+          ],
+          "params": [],
+          "choices": [
+            { "choice": "reject", "text": "Don't send", "safe": "yes" },
+            { "choice": "allow", "text": "Send", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
   "test_changed": {
     "snapshot": {
       "seq": 1,

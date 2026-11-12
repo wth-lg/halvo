@@ -1,6 +1,6 @@
 (function () {
   const CSS = [
-    '.hn-items{list-style:none;margin:0;padding:0}',
+    '.hn-items{list-style:none;margin:0;padding:0;overflow-wrap:anywhere}',
     '.hn-item{border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#6b6b6b;padding-top:8px;padding-bottom:8px}',
     '.hn-title{font-size:1.1rem;margin-top:8px;margin-bottom:8px}',
     '.hn-text{margin-top:4px;margin-bottom:8px}',
@@ -57,7 +57,7 @@
   function addFields(box, fields) {
     let dl = null;
     fields.forEach(function (f) {
-      if (f.value.join('') === '') {
+      if (f.from === 'halvo' && f.value.join('') === '') {
         if (f.label) box.appendChild(el('p', 'hn-line', f.label));
         dl = null;
         return;

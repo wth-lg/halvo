@@ -47,29 +47,42 @@ export function words() {
 
 const joined = (value) => value.join('');
 
-/** The texts that a card of each item shows, in document order: what the reply holds and nothing else. */
-export function expectedUnits(items) {
-  const units = [];
+/** Whether a field is a line of Halvo with no value, which the card shows as its label alone. */
+export function isLine(field) {
+  return field.from === 'halvo' && joined(field.value) === '';
+}
+
+function texts(items, value) {
+  const out = [];
   const add = (text) => {
-    if (text !== '') units.push(text);
+    if (text !== '') out.push(text);
   };
   for (const item of items) {
     add(item.title);
     add(item.text);
     for (const f of item.fields) {
       add(f.label);
-      if (joined(f.value) !== '') {
-        add(joined(f.value));
-        add(f.from_text);
-      }
+      if (isLine(f)) continue;
+      value(f.value).forEach(add);
+      add(f.from_text);
     }
     for (const p of item.params) {
       add(p.label);
-      for (const c of p.candidates) add(joined(c.value));
+      for (const c of p.candidates) value(c.value).forEach(add);
     }
     for (const c of item.choices) add(c.text);
   }
-  return units;
+  return out;
+}
+
+/** The texts that a card of each item shows, one per element in document order: what the reply holds and nothing else. */
+export function expectedUnits(items) {
+  return texts(items, (value) => [joined(value)]);
+}
+
+/** The text nodes of the cards in document order: each piece of a value as one text node (I3.4). */
+export function expectedNodes(items) {
+  return texts(items, (value) => value);
 }
 
 /** The controls of each item in document order: [data-act, data-param, data-n, kind]. */
@@ -96,11 +109,16 @@ export async function read(h) {
     if (!heading) return null;
     const section = heading.parentNode;
     const units = [];
+    const nodes = [];
     const walk = (el) => {
       for (const node of el.children) {
         if (node === heading || node.tagName === 'STYLE') continue;
         let text = '';
-        for (const t of node.childNodes) if (t.nodeType === 3) text += t.data;
+        for (const t of node.childNodes) {
+          if (t.nodeType !== 3) continue;
+          text += t.data;
+          if (t.data !== '') nodes.push(t.data);
+        }
         if (text !== '') units.push(text);
         walk(node);
       }
@@ -116,7 +134,7 @@ export async function read(h) {
       rendered: d.getClientRects().length > 0,
       modal: d.matches(':modal'),
     }));
-    return { units, controls, dialogs };
+    return { units, nodes, controls, dialogs };
   });
 }
 

@@ -10,6 +10,7 @@ import {
   callsOf,
   commands,
   expectedControls,
+  expectedNodes,
   expectedUnits,
   firstDiff,
   fixtures,
@@ -116,6 +117,9 @@ async function render(origin, dir, states) {
       const want = expectedUnits(items);
       const u = firstDiff(r.units, want);
       if (u >= 0) faults.push(state + ':text_at=' + u + ':got=' + r.units.length + ':want=' + want.length);
+      const wantNodes = expectedNodes(items);
+      const t = firstDiff(r.nodes, wantNodes);
+      if (t >= 0) faults.push(state + ':node_at=' + t + ':got=' + r.nodes.length + ':want=' + wantNodes.length);
       seen.states += 1;
       seen.items += items.length;
       seen.texts += want.length;
