@@ -677,8 +677,8 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
 /// module made `Coarse`:
 ///
 /// ```compile_fail
-/// use halvo_schema::kinds::{assert_coarse, Coarse};
-/// use halvo_schema::SummaryId;
+/// use halvo_schema_core::kinds::{assert_coarse, Coarse};
+/// use halvo_schema_core::SummaryId;
 /// struct Note;
 /// impl Coarse for Note {}
 /// const _: () = assert_coarse::<SummaryId>();
@@ -687,8 +687,8 @@ pub fn check_record(entry: &KindEntry, json: &str) -> Result<(), String> {
 /// Its twin, which differs in the one `impl` line and compiles:
 ///
 /// ```
-/// use halvo_schema::kinds::{assert_coarse, Coarse};
-/// use halvo_schema::SummaryId;
+/// use halvo_schema_core::kinds::{assert_coarse, Coarse};
+/// use halvo_schema_core::SummaryId;
 /// struct Note;
 /// impl Note {}
 /// const _: () = assert_coarse::<SummaryId>();

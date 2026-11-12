@@ -16,7 +16,10 @@ const LOCKED: [&str; 7] = [
 const LATER: [&str; 4] = ["executable", "coordinator", "learning", "routing"];
 
 fn source(file: &str) -> String {
-    let path = format!("{}/src/{file}", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}/../halvo-schema-core/src/{file}",
+        env!("CARGO_MANIFEST_DIR")
+    );
     match std::fs::read_to_string(&path) {
         Ok(text) => text.replace("\r\n", "\n"),
         Err(e) => panic!("{path}: {e}"),

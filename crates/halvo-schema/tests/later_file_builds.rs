@@ -31,17 +31,17 @@ const CASES: &[Case] = &[
     Case {
         name: "parse-error-new",
         later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(\"AppId\", leak(text))\n}\n"],
-        codes: &["E0061", "E0277"],
+        codes: &["E0061", "E0277", "E0624"],
     },
     Case {
         name: "parse-error-new-with-a-locked-key",
         later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::record::Key(()), \"AppId\", leak(text))\n}\n"],
-        codes: &["E0603"],
+        codes: &["E0603", "E0624"],
     },
     Case {
         name: "parse-error-new-with-a-key-of-its-own",
         later: &[LEAK, "pub struct Key(());\npub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(Key(()), \"AppId\", leak(text))\n}\n"],
-        codes: &["E0277"],
+        codes: &["E0277", "E0624"],
     },
     Case {
         name: "unchecked-of-ids",
@@ -61,37 +61,37 @@ const CASES: &[Case] = &[
     Case {
         name: "write-fields-with-a-key-of-its-own",
         later: &[RECURRENCE, "pub struct Key(());\npub fn written() -> String {\n    let mut out = Vec::new();\n    let _ = crate::ids::Strict::write_fields(&broken(), &mut serde_json::Serializer::new(&mut out), Key(()));\n    String::from_utf8(out).unwrap_or_default()\n}\n"],
-        codes: &["E0277"],
+        codes: &["E0277", "E0603"],
     },
     Case {
         name: "string-type",
         later: &[LEAK, "pub struct Key(());\nfn any(s: &str) -> Result<(), &'static str> {\n    Err(leak(s))\n}\ncrate::ids::string_type! {\n    Note [Debug] = any\n}\n"],
-        codes: &["E0277"],
+        codes: &["E0603"],
     },
     Case {
         name: "name-enum",
         later: &["pub struct Key(());\ncrate::ids::name_enum! {\n    pub enum Mood {\n        Calm = \"calm\",\n    }\n}\n"],
-        codes: &["E0277"],
+        codes: &["E0603"],
     },
     Case {
         name: "parse-error-new-with-the-key-of-ids",
         later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::ids::Key(()), \"AppId\", leak(text))\n}\n"],
-        codes: &["E0603"],
+        codes: &["E0603", "E0624"],
     },
     Case {
         name: "parse-error-new-with-the-key-of-category",
         later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::category::Key(()), \"AppId\", leak(text))\n}\n"],
-        codes: &["E0603"],
+        codes: &["E0603", "E0624"],
     },
     Case {
         name: "parse-error-new-with-the-key-of-site",
         later: &[LEAK, "pub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(crate::site::Key(()), \"AppId\", leak(text))\n}\n"],
-        codes: &["E0603"],
+        codes: &["E0603", "E0624"],
     },
     Case {
         name: "parse-error-new-with-a-key-that-the-later-file-seals",
         later: &[LEAK, "pub struct Key(());\nimpl crate::ids::key::Sealed for Key {}\npub fn carry(text: &str) -> crate::ids::ParseError {\n    crate::ids::ParseError::new(Key(()), \"AppId\", leak(text))\n}\n"],
-        codes: &["E0603"],
+        codes: &["E0603", "E0624"],
     },
     Case {
         name: "transmute-under-allow",
@@ -106,12 +106,12 @@ const CASES: &[Case] = &[
     Case {
         name: "seal-by-option",
         later: &["pub struct LaterNote;\nimpl crate::kinds::Coarse for Option<LaterNote> {}\n"],
-        codes: &["E0277"],
+        codes: &["E0117"],
     },
     Case {
         name: "strict-struct",
         later: &["pub struct Key(());\ncrate::ids::strict_struct! {\n    pub struct Note {\n        pub n: u32,\n    }\n    rules(_n) {\n        Ok(())\n    }\n}\n"],
-        codes: &["E0277"],
+        codes: &["E0603"],
     },
     Case {
         name: "declared-name-by-hand",
@@ -183,11 +183,24 @@ fn fixture(root: &Path, name: &str, later: &[&str]) -> PathBuf {
     std::fs::write(dir.join("src").join("learning.rs"), text).expect("learning.rs of the fixture");
     let manifest = std::fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("the manifest");
     assert_eq!(manifest.matches("name = \"halvo-schema\"").count(), 1);
-    let manifest = manifest.replacen(
-        "name = \"halvo-schema\"",
-        &format!("name = \"later-file-{name}\""),
-        1,
-    ) + "\n[workspace]\n";
+    let core = manifest_dir.join("../halvo-schema-core");
+    let core = core.to_str().expect("a path of UTF-8").replace('\\', "/");
+    assert_eq!(
+        manifest.matches("path = \"../halvo-schema-core\"").count(),
+        1
+    );
+    let manifest = manifest
+        .replacen(
+            "name = \"halvo-schema\"",
+            &format!("name = \"later-file-{name}\""),
+            1,
+        )
+        .replacen(
+            "path = \"../halvo-schema-core\"",
+            &format!("path = \"{core}\""),
+            1,
+        )
+        + "\n[workspace]\n";
     std::fs::write(dir.join("Cargo.toml"), manifest).expect("the manifest of the fixture");
     std::fs::copy(
         manifest_dir.join("../../Cargo.lock"),
