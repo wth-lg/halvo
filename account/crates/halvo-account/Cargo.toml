@@ -1,0 +1,9 @@
+[package]
+name = "halvo-account"
+version = "0.0.0"
+description = "The account helper: the app's one path to the backend and the one reader and writer of the account's credential"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-wire = { path = "../halvo-wire" }
