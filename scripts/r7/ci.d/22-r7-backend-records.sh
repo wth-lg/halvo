@@ -7,9 +7,9 @@ records=docs/r7/gate
 
 records_in() {
   repo=$1
-  rev=$2
-  work=$3
-  problems=$4
+  rev=HEAD
+  work=$2
+  problems=$3
   : >"$problems" || return 2
   cd "$repo" || return 2
   tree=$(git rev-parse --verify --quiet "$rev:backend")
@@ -93,7 +93,7 @@ measure() {
   artifacts=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
   mkdir -p "$artifacts" || exit 2
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  records_in "$repo" HEAD "$work" "$artifacts/problems.txt"
+  records_in "$repo" "$work" "$artifacts/problems.txt"
   code=$?
   found=$(awk 'END { print NR }' "$artifacts/problems.txt")
   printf '%s problems=%s\n' "${counts:-unmeasured}" "$found"
@@ -108,12 +108,20 @@ record() {
   printf 'line: %s\nstamp: 2026-11-12T10:00:00Z\nload: 3.25\ntree: TREE\nmodel: MODEL\n' "$2" >"$1"
 }
 
+commit() {
+  git -C "$1" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m "$2" >/dev/null || exit 2
+}
+
 fixture() {
   dir=$scratch/$1
   mkdir -p "$dir/backend/gate/checks" "$dir/formal/r7-ledger" "$dir/$records" || exit 2
   git -C "$dir" init -q || exit 2
   printf 'echo\n' >"$dir/backend/gate/checks/10-subscription.sh"
   printf 'echo\n' >"$dir/backend/gate/checks/95-model.sh"
+  printf 'older\n' >"$dir/backend/other.txt"
+  printf 'older\n' >"$dir/formal/r7-ledger/m.tla"
+  git -C "$dir" add -A backend formal || exit 2
+  commit "$dir" 'An older backend and model'
   printf 'x\n' >"$dir/backend/other.txt"
   printf 'x\n' >"$dir/formal/r7-ledger/m.tla"
   record "$dir/$records/10-subscription.txt" 'PASS subscription: active=1'
@@ -131,14 +139,14 @@ seal() {
     sed -e "s/^tree: TREE$/tree: $backend/" -e "s/^model: MODEL$/model: $model/" "$file" >"$file.sealed" && mv "$file.sealed" "$file" || exit 2
   done
   git -C "$dir" add -A . || exit 2
-  sealed=$(git -C "$dir" write-tree) || exit 2
+  commit "$dir" 'The records of the backend and model of this commit'
 }
 
 expect() {
   want=$1
   case_name=$2
   work=$(mktemp -d "$scratch/work.XXXXXX") || exit 2
-  (records_in "$scratch/$case_name" "$sealed" "$work" "$work/problems") >/dev/null 2>&1
+  (records_in "$scratch/$case_name" "$work" "$work/problems") >/dev/null 2>&1
   code=$?
   case $code in
     0) got=PASS ;;
@@ -154,6 +162,10 @@ expect() {
 }
 
 self_test() {
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 || {
+    printf 'FAIL self-test:%s (the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n' "$name"
+    exit 1
+  }
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
   wrong=
@@ -161,6 +173,12 @@ self_test() {
   fixture good
   seal good
   expect PASS good
+
+  fixture staged-change-that-head-does-not-hold
+  seal staged-change-that-head-does-not-hold
+  printf 'y\n' >>"$scratch/staged-change-that-head-does-not-hold/backend/other.txt"
+  git -C "$scratch/staged-change-that-head-does-not-hold" add -A . || exit 2
+  expect PASS staged-change-that-head-does-not-hold
 
   fixture record-with-crlf
   seal record-with-crlf
@@ -189,14 +207,14 @@ self_test() {
   seal tree-of-an-older-backend
   printf 'y\n' >>"$scratch/tree-of-an-older-backend/backend/other.txt"
   git -C "$scratch/tree-of-an-older-backend" add -A . || exit 2
-  sealed=$(git -C "$scratch/tree-of-an-older-backend" write-tree) || exit 2
+  commit "$scratch/tree-of-an-older-backend" 'A later change that the records do not name'
   expect FAIL tree-of-an-older-backend
 
   fixture tree-of-an-older-model
   seal tree-of-an-older-model
   printf 'y\n' >>"$scratch/tree-of-an-older-model/formal/r7-ledger/m.tla"
   git -C "$scratch/tree-of-an-older-model" add -A . || exit 2
-  sealed=$(git -C "$scratch/tree-of-an-older-model" write-tree) || exit 2
+  commit "$scratch/tree-of-an-older-model" 'A later change that the records do not name'
   expect FAIL tree-of-an-older-model
 
   fixture record-without-the-model

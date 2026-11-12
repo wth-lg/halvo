@@ -78,6 +78,10 @@ stage() {
   git -C "$scratch/$1" add -A . || exit 2
 }
 
+commit() {
+  git -C "$scratch/$1" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m "$2" >/dev/null || exit 2
+}
+
 expect() {
   want=$1
   case_name=$2
@@ -97,6 +101,10 @@ expect() {
 }
 
 self_test() {
+  { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 || {
+    printf 'FAIL self-test:%s (the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n' "$name"
+    exit 1
+  }
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
   check=$repo/backend/scripts/check-machine-paths.sh
   if [ ! -f "$check" ]; then
@@ -115,6 +123,12 @@ self_test() {
   home_path >"$scratch/home-path-in-backend/backend/notes.txt"
   stage home-path-in-backend
   expect FAIL home-path-in-backend
+
+  fixture home-path-committed-to-backend
+  home_path >"$scratch/home-path-committed-to-backend/backend/notes.txt"
+  stage home-path-committed-to-backend
+  commit home-path-committed-to-backend 'A home path that the index and the last commit both hold'
+  expect FAIL home-path-committed-to-backend
 
   fixture windows-home-path-in-backend
   printf 'C:%sUsers%sada%snotes.txt\n' "\\" "\\" "\\" >"$scratch/windows-home-path-in-backend/backend/notes.txt"
