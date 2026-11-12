@@ -88,6 +88,17 @@ names! {
     }
 }
 
+names! {
+    /// What an entry of the reply of `list_refinements` says (contracts.md L2.2): an edit of the newest compile
+    /// number by the state of its newest row, or a routine marked `stale`.
+    pub enum RefinementKind {
+        TargetLearned = "target_learned",
+        TargetKept = "target_kept",
+        TargetRevoked = "target_revoked",
+        RoutineStale = "routine_stale",
+    }
+}
+
 /// The names of `learn_run`'s `state`, in the order of the contract.
 pub const RUN_STATES: [&str; 3] = ["started", "verified", "unverified"];
 

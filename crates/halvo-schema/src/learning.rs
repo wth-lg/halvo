@@ -1,10 +1,11 @@
 //! The types of the learning run: the records of its three kinds of the family `learn` (`learn_run`,
-//! `learn_edit` and `learn_routine`) with their closed lists. Every parser refuses what the run's contract
-//! refuses and never repairs; its error, `Refusal`, holds no value of the input, and a handler answers it with
-//! the error `malformed`.
+//! `learn_edit` and `learn_routine`) with their closed lists, and the coordinator body `list_refinements` with
+//! its reply. Every parser refuses what the run's contract refuses and never repairs; its error, `Refusal`,
+//! holds no value of the input, and a handler answers it with the error `malformed`.
 
 mod json;
 
+pub mod body;
 pub mod names;
 pub mod record;
 
