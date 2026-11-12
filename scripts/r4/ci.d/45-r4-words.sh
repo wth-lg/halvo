@@ -146,6 +146,7 @@ self_test() {
   script_case setup-artifacts-under-a-file FAIL:setup env CI_D_ARTIFACTS="$work/blocker/a" "$shell" "$me"
   script_case setup-no-temporary-directory FAIL:setup env TMPDIR="$work/blocker" "$shell" "$me" --self-test
   script_case a-self-test-inside-the-self-test FAIL:nested env PATH="$work/bin-20:$PATH" "$shell" "$me" --self-test
+  script_case a-self-test-with-no-job-is-not-nested FAIL:node env CI_D_JOB= PATH="$work/bin-20:$PATH" "$shell" "$me" --self-test
   as0="f=\$1; shift; . \"\$f\""
   script_case setup-own-directory-not-entered FAIL:setup env CI_D_REPO="$work/lint/base" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" -c "$as0" "$work/no-such-directory/$name.sh" "$me"
   script_case setup-no-repository-above-the-script FAIL:setup env CI_D_REPO= CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" -c "$as0" "$work/$name.sh" "$me"

@@ -909,7 +909,11 @@ function selfTest(dir, repo) {
     fixture('a-table-line-after-the-table-is-glossary', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n\n| a | b |\n`) }),
     'FAIL:glossary',
   );
-  expect(fixture('text-after-the-table-passes', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n`) }), 'PASS');
+  expect(
+    fixture('an-indented-table-line-after-the-table-is-glossary', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n   | a | b |\n`) }),
+    'FAIL:glossary',
+  );
+  expect(fixture('text-after-the-table-passes',{ files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n`) }), 'PASS');
   const glossaryLines = (edit) => (f) => (f[GLOSSARY] = splitLines(copies[GLOSSARY]).flatMap(edit).join('\n'));
   for (const term of ['paused', 'cap', 'delete', 'approve']) {
     expect(
@@ -1105,7 +1109,8 @@ function selfTest(dir, repo) {
     'FAIL:never_read',
     { findings: [`finding file=${FIXTURES}/state-queue.json line=1 rule=never_read class=enum key=snapshot.rows.1.line`] },
   );
-  expect(fixture('a-cause-with-a-hyphen', { words: say('It stopped: queue-full.') }), 'FAIL:never_read');
+  expect(fixture('a-closed-name-with-an-underscore-before-a-file-suffix', { words: say('It saved needs_you.pdf today.') }), 'FAIL:never_read');
+  expect(fixture('a-cause-with-a-hyphen',{ words: say('It stopped: queue-full.') }), 'FAIL:never_read');
   expect(fixture('a-closed-name-with-a-hyphen-in-capitals', { words: say('It is ALL-SET now.') }), 'FAIL:never_read');
   expect(fixture('a-closed-name-inside-a-longer-word-passes', { words: say('It needs-your answer on the sign-up page of a non-device plan.') }), 'PASS');
   expect(
