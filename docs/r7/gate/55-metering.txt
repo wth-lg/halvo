@@ -1,5 +1,5 @@
 line: FAIL metering: stub, not built yet (P5, unit 5.3)
-stamp: 2026-11-12T09:26:13Z
-load: 28.37
-tree: 6e8a0ee229e0b94afa97883e0a821decc8c9014e
+stamp: 2026-11-12T11:13:44Z
+load: 53.38
+tree: 3f8a9ce8417df58f7d50c2a4c05c9a3d081096c6
 model: bb31b9aac62f69a386c6249bb87c637b621a0748

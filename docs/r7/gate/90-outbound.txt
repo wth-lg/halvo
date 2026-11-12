@@ -1,5 +1,5 @@
-line: FAIL outbound: cannot count: concurrency reads FAIL inside the sandbox and PASS outside it
-stamp: 2026-11-12T09:37:13Z
-load: 32.81
-tree: 6e8a0ee229e0b94afa97883e0a821decc8c9014e
+line: PASS outbound: denied=0 over the stack and the other checks, which read 7 PASS and 5 FAIL inside the sandbox; probes left out=1; control=caught
+stamp: 2026-11-12T11:29:49Z
+load: 31.71
+tree: 3f8a9ce8417df58f7d50c2a4c05c9a3d081096c6
 model: bb31b9aac62f69a386c6249bb87c637b621a0748

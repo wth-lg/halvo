@@ -1,5 +1,5 @@
-line: PASS concurrency: runs=165 of 165 cells=28 of 28 violations=0 wave=600 of 600 lost-sends=57 settle-p99-at-200=127ms second-attempts=10
-stamp: 2026-11-12T09:26:13Z
-load: 28.37
-tree: 6e8a0ee229e0b94afa97883e0a821decc8c9014e
+line: FAIL concurrency: runs=112 of 165 cells=19 of 28 violations=6 wave=0 of 600 lost-sends=150 settle-p99-at-200=unmeasured second-attempts=10; first failure: ledger-usage-last-at-200-kill-1-try1: integrity 369ca164-cd15-44f3-88b9-00000000008a: the request ended with status 500 and error null
+stamp: 2026-11-12T11:13:44Z
+load: 53.38
+tree: 3f8a9ce8417df58f7d50c2a4c05c9a3d081096c6
 model: bb31b9aac62f69a386c6249bb87c637b621a0748

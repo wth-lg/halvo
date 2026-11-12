@@ -1,5 +1,5 @@
 line: PASS model: states=186993 gateway-states=792554 properties=8 violated=none seed=20261111 traces=200 actions=8000 differences=0 elements=26 of 26
-stamp: 2026-11-12T09:43:55Z
-load: 23.97
-tree: 6e8a0ee229e0b94afa97883e0a821decc8c9014e
+stamp: 2026-11-12T11:36:52Z
+load: 46.06
+tree: 3f8a9ce8417df58f7d50c2a4c05c9a3d081096c6
 model: bb31b9aac62f69a386c6249bb87c637b621a0748
