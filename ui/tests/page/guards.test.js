@@ -95,3 +95,54 @@ test("Cancel disarms and a later confirmation sends nothing", async () => {
   await page.click("confirm-delete");
   assert.equal(deletes(page), 0);
 });
+
+function togglePage() {
+  let state = "running";
+  return openPage({
+    replies: {
+      capture_status: () => ({ ...fixture("capture_status-running"), state }),
+      set_capture_state: ({ capture }) => {
+        state = capture;
+        return { ...fixture("capture_status-running"), state };
+      },
+    },
+  });
+}
+
+const sentStates = (page) => page.calls("set_capture_state").map((c) => c.args.capture);
+
+test("two clicks on Pause 100 ms apart send one request and capture stays paused", async () => {
+  const page = await togglePage();
+  await page.click("toggle");
+  await page.clock.advance(100);
+  await page.click("toggle");
+  assert.deepEqual(sentStates(page), ["paused"]);
+  assert.equal(page.text("state"), "paused");
+});
+
+test("a click on the toggle with a click count of 2 sends nothing", async () => {
+  const page = await togglePage();
+  await page.click("toggle", { detail: 2 });
+  assert.deepEqual(sentStates(page), []);
+});
+
+test("the toggle sends what its label names", async () => {
+  const page = await togglePage();
+  assert.equal(page.text("toggle"), "Pause");
+  await page.click("toggle");
+  await page.clock.advance(1100);
+  assert.equal(page.text("toggle"), "Resume");
+  await page.click("toggle");
+  assert.deepEqual(sentStates(page), ["paused", "running"]);
+});
+
+test("the toggle is held for about 1 s after the state changes", async () => {
+  const page = await togglePage();
+  await page.click("toggle");
+  await page.clock.advance(900);
+  await page.click("toggle");
+  assert.deepEqual(sentStates(page), ["paused"]);
+  await page.clock.advance(200);
+  await page.click("toggle");
+  assert.deepEqual(sentStates(page), ["paused", "running"]);
+});

@@ -26,26 +26,21 @@
 
   /**
    * Halvo.feed(name) is the shared reply of one read: `set(value)` hands the
-   * value to every function given to `on`, `latest()` returns the last value,
-   * and `refresh()` runs the reader that the owning view gave to `source`.
+   * value to every function given to `on`, and `refresh()` runs the reader
+   * that the owning view gave to `source`.
    */
   Halvo.feed = function (name) {
     if (!feeds[name]) {
       var listeners = [];
       var reader = null;
-      var latest = null;
       feeds[name] = {
         on: function (fn) {
           listeners.push(fn);
         },
         set: function (value) {
-          latest = value;
           listeners.forEach(function (fn) {
             fn(value);
           });
-        },
-        latest: function () {
-          return latest;
         },
         source: function (fn) {
           reader = fn;
