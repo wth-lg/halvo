@@ -81,7 +81,9 @@ impl SecureInputGuard for MacosSecureInput {
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use super::{hold_secure_input, SecureInputHold};
+    use super::{
+        hold_secure_input, DisableSecureEventInput, EnableSecureEventInput, SecureInputHold,
+    };
     use std::sync::{Mutex, MutexGuard, PoisonError};
     use std::time::{Duration, Instant};
 
@@ -92,16 +94,30 @@ pub(crate) mod test_support {
     }
 
     pub(crate) fn hold_or_skip(test: &str) -> Option<SecureInputHold> {
-        match hold_secure_input() {
-            Ok(hold) => Some(hold),
-            Err(refused) => {
-                eprintln!(
-                    "SKIP {test}: EnableSecureEventInput refused the hold with status {}",
-                    refused.0
-                );
-                None
-            }
+        let refused = match hold_secure_input() {
+            Ok(hold) => return Some(hold),
+            Err(refused) => refused,
+        };
+        // SAFETY: parameterless Carbon call that returns an OSStatus. The caller
+        // holds `one_hold_at_a_time`, which every test that holds or releases
+        // takes; another test may read the predicate meanwhile, which the
+        // header does not allow and which macos-2 settles, as for the hold above.
+        let system = unsafe { EnableSecureEventInput() };
+        if system == 0 {
+            // SAFETY: as above; it balances the hold that the line above took.
+            unsafe { DisableSecureEventInput() };
+            panic!(
+                "{test}: hold_secure_input reported the status {} although the system \
+                 accepts a hold",
+                refused.0
+            );
         }
+        eprintln!(
+            "SKIP {test}: EnableSecureEventInput refused the hold with status {system} \
+             (hold_secure_input: {})",
+            refused.0
+        );
+        None
     }
 
     pub(crate) fn reads_on_within(reader: impl Fn() -> bool, limit: Duration) -> bool {
