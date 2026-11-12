@@ -890,6 +890,37 @@ mod tests {
         assert!(child.exited());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn a_child_on_the_pipe_holds_its_two_ends_and_a_child_started_beside_it_holds_none() {
+        let ping = Path::new(r"C:\Windows\System32\PING.EXE");
+        let spec = Spec {
+            program: ping,
+            args: vec!["-n".into(), "6".into(), "127.0.0.1".into()],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let mut on = {
+            let held = lock();
+            start_on_pipe(&held, &spec).expect("start")
+        };
+        let mut beside = std::process::Command::new(ping);
+        beside
+            .args(["-n", "6", "127.0.0.1"])
+            .stdout(std::process::Stdio::null());
+        let mut second = beside.start().expect("second");
+        let values: Vec<usize> = (1..4096).map(|i| i * 4).collect();
+        let held = crate::peer::pipe_holders(on.child.pid(), &values, &on.ids.names).expect("read");
+        assert_eq!(held.len(), 2, "{held:?}");
+        let other = crate::peer::pipe_holders(second.id(), &values, &on.ids.names).expect("read");
+        assert!(other.is_empty(), "{other:?}");
+        assert_ne!(on.ids.names[0], on.ids.names[1]);
+        assert!(on.ids.names.iter().all(|n| !n.is_empty()));
+        let _ = second.kill();
+        let _ = second.wait();
+        on.child.kill();
+    }
+
     #[test]
     fn a_windows_argument_is_quoted_by_the_runtime_s_rules() {
         assert_eq!(quote_windows_arg("--no-first-run"), "--no-first-run");

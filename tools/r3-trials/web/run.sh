@@ -42,7 +42,10 @@ starts the browser headless with a new profile for every run, and stops both at 
   --driver PATH     taken by the webdriver candidate only; refused here.
   --extras          prints the extras line: added_bytes (release binary with the driver crate
                     against one without it, both stripped), cold_ms (median of 10 starts to the
-                    load of /signin), record, attach and pipe.
+                    load of /signin), record, attach and pipe. With --round 3 the binary with the
+                    driver is built with the protocol types and the pipe alone (no port control,
+                    --no-default-features --features driver), every start is the product's on the
+                    pipe with the relay and its probe, and the line has no attach and no pipe key.
   --resolver-probe  starts one browser, opens a name outside *.test and one inside, and prints
                     which error the first got and how many requests each sent to the fixture.
   --snapshot-pay F  writes the snapshot of /pay of seed 1 with its frame to F.
@@ -327,6 +330,15 @@ case "$mode" in
     [ -n "$channel" ] && set -- "$@" --channel "$channel"
     ;;
   extras)
+    if [ "$round" = 3 ]; then
+      cargo build --release --locked --quiet --target "$host" --target-dir "$dir/target/pipe-only" \
+        --no-default-features --features driver --manifest-path "$dir/Cargo.toml" || {
+        echo "notrun candidate=cdp machine=$machine cause=build"
+        exit 1
+      }
+      bin="$dir/target/pipe-only/$host/release/web-trial$exe"
+      set -- "$@" --round 3 --relay
+    fi
     with=$(wc -c <"$bin" | tr -d ' ')
     cargo build --release --locked --quiet --target "$host" --target-dir "$dir/target/no-driver" \
       --no-default-features --manifest-path "$dir/Cargo.toml" || {

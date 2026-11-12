@@ -2744,12 +2744,20 @@ mod driver {
         let t0 = Instant::now();
         let mut ex = ctx
             .stop
-            .or(Executor::start(&ctx.options(&format!("p-cold-{i}"))))
+            .or(start_for(ctx, &ctx.options(&format!("p-cold-{i}"))))
             .await?;
         let opened = ctx.stop.or(ex.open(&ctx.u("/signin"))).await;
         let ms = t0.elapsed().as_millis();
         ex.stop_and_remove().await;
         opened.map(|_| ms)
+    }
+
+    async fn start_for(ctx: &Ctx, opts: &StartOptions) -> Res<Executor> {
+        if ctx.round2 {
+            Executor::start_settled(opts).await
+        } else {
+            Executor::start(opts).await
+        }
     }
 
     async fn record(ctx: &Ctx) -> Res<()> {
@@ -2758,7 +2766,7 @@ mod driver {
             .map_err(|e| Fault::new("control", e))?;
         let mut ex = ctx
             .stop
-            .or(Executor::start(&ctx.options("p-record")))
+            .or(start_for(ctx, &ctx.options("p-record")))
             .await?;
         let outcome = ctx
             .stop

@@ -797,6 +797,49 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn no_other_socket_binds_the_relay_s_port_while_its_listener_lives() {
+        let listener = bind_listener().unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(std::net::TcpListener::bind(("127.0.0.1", port)).is_err());
+        use windows_sys::Win32::Networking::WinSock::{
+            bind, closesocket, setsockopt, socket, AF_INET, INADDR_LOOPBACK, IN_ADDR, IN_ADDR_0,
+            IPPROTO_TCP, SOCKADDR, SOCKADDR_IN, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR,
+        };
+        let on: i32 = 1;
+        let addr = SOCKADDR_IN {
+            sin_family: AF_INET,
+            sin_port: port.to_be(),
+            sin_addr: IN_ADDR {
+                S_un: IN_ADDR_0 {
+                    S_addr: INADDR_LOOPBACK.to_be(),
+                },
+            },
+            sin_zero: [0; 8],
+        };
+        // SAFETY: a new socket with SO_REUSEADDR tries the port and is closed once.
+        let bound = unsafe {
+            let s = socket(AF_INET as i32, SOCK_STREAM, IPPROTO_TCP);
+            setsockopt(
+                s,
+                SOL_SOCKET,
+                SO_REUSEADDR,
+                &on as *const i32 as *const u8,
+                4,
+            );
+            let r = bind(
+                s,
+                &addr as *const SOCKADDR_IN as *const SOCKADDR,
+                std::mem::size_of::<SOCKADDR_IN>() as i32,
+            );
+            closesocket(s);
+            r == 0
+        };
+        assert!(!bound, "a socket with SO_REUSEADDR bound the relay's port");
+        drop(listener);
+    }
+
     #[test]
     fn the_peer_check_takes_this_process_for_its_own_connection_and_no_other_root() {
         let held = crate::start::lock();
