@@ -1,8 +1,9 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs every mutant.
+# rule: Every substitution of a mutants.rows file still applies and builds, and a push to main runs mutants in an order that the commit decides for at most budget_s seconds and fails when a row that ran is not caught.
 set -u
 name=30-mutants
+budget_s=240
 nl='
 '
 
@@ -41,15 +42,60 @@ run_rows() {
   esac
 }
 
+budget_run() {
+  commit=${GITHUB_SHA:-}
+  case $commit in *[!0-9a-f]*) commit= ;; esac
+  [ "${#commit}" -eq 40 ] || fail "GITHUB_SHA is not a commit id of 40 hex digits"
+  rows=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh --list --remove-scratch 2>&1) ||
+    fail "mutation-test.sh --list exited $?"
+  printf '%s\n' "$rows" >"$scratch/list" || exit 2
+  awk -F '\t' 'sub(/^mutation:/, "", $1) { print $1 }' "$scratch/list" >"$scratch/names" || exit 2
+  mkdir "$scratch/order" || exit 2
+  m=0
+  while IFS= read -r row; do
+    m=$((m + 1))
+    printf '%s %s' "$commit" "$row" >"$scratch/order/$m" || exit 2
+  done <"$scratch/names"
+  [ "$m" -gt 0 ] || fail "mutation-test.sh --list printed no row"
+  (cd "$scratch/order" && shasum -a 256 -- *) >"$scratch/hashes" || fail "shasum failed"
+  awk 'NR == FNR { row[FNR] = $0; next } { print $1, row[$2] }' "$scratch/names" "$scratch/hashes" >"$scratch/keyed" || exit 2
+  sort -o "$scratch/ordered" "$scratch/keyed" || exit 2
+  set --
+  while read -r _ row; do
+    set -- "$@" --only "$row"
+  done <"$scratch/ordered"
+  label="mutation-test.sh --budget $budget_s"
+  out=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh --remove-scratch --budget "$budget_s" "$@" 2>&1)
+  code=$?
+  printf '%s\n' "$out"
+  printf '%s\n' "$out" >"$scratch/full" || exit 2
+  awk -v m="$m" '
+    /^[A-Z-]+ mutation:[^ ]+ \(/ { word[$2] = $1; next }
+    /^seconds mutation:[^ ]+ [0-9]+$/ {
+      if (word[$2] == "PASS" || word[$2] == "FAIL") { printf "row %s %s %s s\n", $2, word[$2], $3; n++ }
+    }
+    END { printf "ran %d of %d rows\n", n, m }' "$scratch/full" >"$scratch/ran" || exit 2
+  cat "$scratch/ran" || exit 2
+  ran=$(sed -n 's/^ran \([0-9]*\) of .*/\1/p' "$scratch/ran")
+  first=$(sed -n '/^FAIL /{p;q;}' "$scratch/full")
+  [ "$code" -eq 0 ] || fail "$label exited $code: ${first:-it printed no FAIL line}"
+  [ -z "$first" ] || fail "$label exited 0 and printed: $first"
+  grep -q '^mutation rows: ' "$scratch/full" || fail "$label printed no count line"
+  [ "$ran" -gt 0 ] || fail "$label ran no row"
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
   make_scratch
+  case $budget_s in
+    '' | *[!0-9]*) fail "the budget budget_s=$budget_s is not a number of seconds" ;;
+  esac
   [ -f scripts/r1-gate/mutation-test.sh ] || fail "scripts/r1-gate/mutation-test.sh is missing"
   grep -q -e '--apply-only' scripts/r1-gate/mutation-test.sh ||
     fail "scripts/r1-gate/mutation-test.sh takes no --apply-only"
   run_rows 'mutation-test.sh --apply-only' --apply-only
   if [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = refs/heads/main ]; then
-    run_rows 'mutation-test.sh'
+    budget_run
   fi
   printf 'PASS %s\n' "$name"
 }
@@ -60,13 +106,17 @@ check() {
     STUB_CALLS=$work/$1/calls
     TMPDIR=$work/$1/tmp
     export CI_D_REPO STUB_CALLS TMPDIR
-    unset GITHUB_EVENT_NAME GITHUB_REF
+    unset GITHUB_EVENT_NAME GITHUB_REF GITHUB_SHA
     if [ -n "$event" ]; then
       GITHUB_EVENT_NAME=$event
       GITHUB_REF=$ref
       export GITHUB_EVENT_NAME GITHUB_REF
     fi
-    sh "$0" 2>&1
+    if [ -n "$sha" ]; then
+      GITHUB_SHA=$sha
+      export GITHUB_SHA
+    fi
+    sh "$script" 2>&1
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -92,6 +142,8 @@ check() {
   fi
   event=push
   ref=refs/heads/a-branch
+  sha=$commit1
+  script=$0
 }
 
 # shellcheck disable=SC2016
@@ -107,11 +159,23 @@ self_test() {
   only='[ "${1:-}" = --apply-only ] || exit 9'
   applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and builds)\n"; exit 0 ;; esac'
   apply_only='call --apply-only --remove-scratch'
-  both="call --apply-only --remove-scratch${nl}call --remove-scratch"
+  commit1=1111111111111111111111111111111111111111
+  commit2=2222222222222222222222222222222222222222
+  commit3=3333333333333333333333333333333333333333
+  listing='case ${1:-} in --list) printf "mutation:%s\\trequired\\tleak\\trows\\n" shredded-key-survives checkpoint-not-verified key-row-deleted segment-roundtrip-broken delete-all-destroys-nothing; exit 0 ;; esac'
+  lists="call --apply-only --remove-scratch${nl}call --list --remove-scratch"
+  budgeted="$lists${nl}call --remove-scratch --budget 240"
+  order1="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only shredded-key-survives --only checkpoint-not-verified --only key-row-deleted"
+  order2="$budgeted --only key-row-deleted --only delete-all-destroys-nothing --only checkpoint-not-verified --only shredded-key-survives --only segment-roundtrip-broken"
+  order3="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only checkpoint-not-verified --only shredded-key-survives --only key-row-deleted"
+  caught='PASS mutation:segment-roundtrip-broken (test store::x: the one test failed)\nseconds mutation:segment-roundtrip-broken 31\nNOT-RUN mutation:delete-all-destroys-nothing (the budget of 240 s is used)'
+  counted='mutation rows: 1 caught, 0 failed, 0 open, 0 transitional, 0 for the measuring Mac not run, 0 expected names with no row'
   rejected=0
   wrong=
   event=push
   ref=refs/heads/a-branch
+  sha=$commit1
+  script=$0
 
   runner rows-apply "$applies; exit 9"
   check rows-apply PASS '' "$apply_only"
@@ -141,15 +205,43 @@ self_test() {
   event=
   check run-outside-github-actions PASS '' "$apply_only"
 
-  runner push-to-main-full-run-fails "$applies; printf \"FAIL mutation:event-rows-never-written (gate said: PASS store)\\n\"; exit 1"
+  runner push-to-main-runs-rows-in-the-order-of-the-commit "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-full-run-fails FAIL 'mutation-test.sh exited 1: FAIL mutation:event-rows-never-written (gate said: PASS store))' "$both"
-  runner push-to-main-full-run-prints-no-row "$applies; exit 0"
+  check push-to-main-runs-rows-in-the-order-of-the-commit PASS "row mutation:segment-roundtrip-broken PASS 31 s${nl}ran 1 of 5 rows${nl}PASS $name" "$order1"
+  runner push-to-main-same-commit-same-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-full-run-prints-no-row FAIL 'mutation-test.sh printed no PASS mutation line)' "$both"
-  runner push-to-main-full-run-passes "$applies; printf \"PASS mutation:shredded-key-survives (decryptable)\\n\""
+  check push-to-main-same-commit-same-rows PASS 'ran 1 of 5 rows' "$order1"
+  runner push-to-main-second-commit-other-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
-  check push-to-main-full-run-passes PASS '' "$both"
+  sha=$commit2
+  check push-to-main-second-commit-other-rows PASS 'ran 1 of 5 rows' "$order2"
+  runner push-to-main-third-commit-other-rows "$applies; $listing; printf \"$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  sha=$commit3
+  check push-to-main-third-commit-other-rows PASS 'ran 1 of 5 rows' "$order3"
+  runner push-to-main-row-not-caught "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
+  ref=refs/heads/main
+  check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
+  runner push-to-main-not-caught-with-exit-0 "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-not-caught-with-exit-0 FAIL 'mutation-test.sh --budget 240 exited 0 and printed: FAIL mutation:segment-roundtrip-broken' "$order1"
+  runner push-to-main-no-count-line "$applies; $listing; printf \"$caught\\n\""
+  ref=refs/heads/main
+  check push-to-main-no-count-line FAIL 'mutation-test.sh --budget 240 printed no count line)' "$order1"
+  runner push-to-main-no-row-ran "$applies; $listing; printf \"NOT-RUN mutation:segment-roundtrip-broken (the budget of 240 s is used)\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-no-row-ran FAIL 'mutation-test.sh --budget 240 ran no row)' "$order1"
+  runner push-to-main-list-fails "$applies; case \${1:-} in --list) exit 2 ;; esac; exit 9"
+  ref=refs/heads/main
+  check push-to-main-list-fails FAIL 'mutation-test.sh --list exited 2)' "$lists"
+  runner push-to-main-without-a-commit "$applies; $listing; exit 9"
+  ref=refs/heads/main
+  sha=
+  check push-to-main-without-a-commit FAIL 'GITHUB_SHA is not a commit id of 40 hex digits)' 'call --apply-only --remove-scratch'
+  runner budget-not-a-number "$applies; exit 9"
+  sed 's/^budget_s=.*/budget_s=4x/' "$0" >"$work/budget-not-a-number/30-mutants.sh" || exit 2
+  script=$work/budget-not-a-number/30-mutants.sh
+  check budget-not-a-number FAIL 'the budget budget_s=4x is not a number of seconds)' ''
   runner push-to-a-branch-that-ends-in-main "$applies; exit 9"
   ref=refs/heads/team/main
   check push-to-a-branch-that-ends-in-main PASS '' "$apply_only"
