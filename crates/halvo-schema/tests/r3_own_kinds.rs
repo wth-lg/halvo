@@ -1,3 +1,6 @@
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+
 use halvo_schema::executable::{
     self, AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentSession,
 };
@@ -253,4 +256,91 @@ fn the_names_list_of_the_file_lacks_exactly_the_six_kind_names_of_origin_own() {
         .filter(|name| !executable::NAMES.contains(name))
         .collect();
     assert_eq!(lacking, KIND_NAMES_THAT_NAMES_LACKS);
+}
+
+fn own_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/r3/own")
+}
+
+fn own_lines(name: &str) -> Vec<String> {
+    let file = own_dir().join(format!("{name}.jsonl"));
+    let text = std::fs::read_to_string(&file).unwrap_or_else(|e| panic!("{name}: {e}"));
+    assert!(text.ends_with('\n') && !text.contains('\r'), "{name}");
+    text.lines().map(str::to_owned).collect()
+}
+
+#[test]
+fn the_directory_of_own_rows_holds_one_file_for_each_kind_of_origin_own_and_nothing_else() {
+    let mut listed: Vec<String> = std::fs::read_dir(own_dir())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    listed.sort();
+    let mut expected: Vec<String> = OWN.iter().map(|k| format!("{k}.jsonl")).collect();
+    expected.sort();
+    assert_eq!(listed, expected);
+}
+
+#[test]
+fn every_own_row_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() {
+    for name in OWN {
+        let kind = entry(name);
+        let lines = own_lines(name);
+        assert!(lines.len() >= 2, "{name}");
+        assert_eq!(lines[0], kind.example, "{name}");
+        let distinct: BTreeSet<&String> = lines.iter().collect();
+        assert_eq!(distinct.len(), lines.len(), "{name}");
+        for line in &lines {
+            assert_eq!(check_record(kind, line), Ok(()), "{name}: {line}");
+            match strict(name, line) {
+                Some(read) => assert_eq!(read.as_ref(), Ok(line), "{name}"),
+                None => assert!(WITHOUT_STRICT_READER.contains(&name), "{name}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn the_checkpoint_rows_hold_the_four_states_of_the_shape() {
+    let pieces = |value: &serde_json::Value| -> String {
+        let list = value.as_array().unwrap();
+        assert!(!list.is_empty());
+        list.iter()
+            .map(|piece| {
+                let piece = piece.as_str().unwrap();
+                assert!(!piece.is_empty() && piece.len() <= 1024);
+                piece
+            })
+            .collect()
+    };
+    let mut states = BTreeSet::new();
+    for line in own_lines("agent_checkpoint") {
+        let row: serde_json::Value = serde_json::from_str(&line).unwrap();
+        let state = row["state"].as_str().unwrap();
+        states.insert(state.to_owned());
+        let digest = row["sha256"].as_str();
+        assert_eq!(digest.is_some(), row["bytes"].is_u64(), "{line}");
+        assert!(digest.is_none_or(|d| d.len() == 64), "{line}");
+        match state {
+            "planned" => assert_eq!((row["seq"].as_u64(), digest), (Some(1), None), "{line}"),
+            "made" => assert!(row["seq"] == 2 && digest.is_some(), "{line}"),
+            "gone" | "left" => assert!(row["seq"].as_u64() > Some(1), "{line}"),
+            _ => panic!("{line}"),
+        }
+        let left = row["left"].as_str();
+        assert_eq!(left.is_some(), state == "left", "{line}");
+        assert!(left.is_none_or(|l| {
+            ["changed", "link", "not_file", "name", "unreadable"].contains(&l)
+        }));
+        let folder = pieces(&row["folder"]);
+        let workbook = pieces(&row["workbook"]);
+        assert!(workbook.starts_with(&format!("{folder}/")), "{line}");
+        let run = row["run"].as_str().unwrap();
+        let copy = pieces(&row["copy"]);
+        assert_eq!(copy, format!("bills.halvo-checkpoint-{run}.xlsx"), "{line}");
+    }
+    let all: BTreeSet<String> = ["planned", "made", "gone", "left"]
+        .map(str::to_owned)
+        .into();
+    assert_eq!(states, all);
 }
