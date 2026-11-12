@@ -165,7 +165,7 @@ impl FromJson for Name {
     }
 }
 
-fn port(s: &str) -> bool {
+pub(in crate::executable) fn is_port(s: &str) -> bool {
     !s.is_empty()
         && !s.starts_with('0')
         && s.len() <= 5
@@ -192,7 +192,7 @@ fn web_origin(s: &str) -> bool {
     let Some((h, p)) = rest.rsplit_once(':') else {
         return false;
     };
-    (scheme == "http" || scheme == "https") && host(h) && port(p)
+    (scheme == "http" || scheme == "https") && host(h) && is_port(p)
 }
 
 /// A web origin, `<scheme>://<host>:<port>` in lower case with the port always written: the scheme `http` or
@@ -357,7 +357,7 @@ impl Endpoint {
     /// Returns the address when `s` is `127.0.0.1:` and a port, else the refusal with the rule `endpoint_form`.
     pub fn parse(s: &str) -> Result<Endpoint, Refusal> {
         match s.strip_prefix("127.0.0.1:") {
-            Some(p) if port(p) => Ok(Endpoint(s.to_owned())),
+            Some(p) if is_port(p) => Ok(Endpoint(s.to_owned())),
             _ => Err(Refusal::malformed("Endpoint", "endpoint_form")),
         }
     }

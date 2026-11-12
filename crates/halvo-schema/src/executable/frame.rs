@@ -533,7 +533,7 @@ object_type! {
 
 object_type! {
     /// `{"t":"bind","origin":<origin>}`: the origin of the address that the runner read once after the result `done`
-    /// of a handback of the reasons `sign_in`, `second_factor` or `captcha`.
+    /// of a handback of the reasons `sign_in`, `second_factor` or `captcha`, made by `WebOrigin::of_address`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Bind [t = "bind"] {
         pub origin: WebOrigin = "origin" => from_json,

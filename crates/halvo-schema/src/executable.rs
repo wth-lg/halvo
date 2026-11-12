@@ -3,6 +3,7 @@
 //! runner and coordinator bodies with their replies, and the record shapes of the family `agent`. Every parser
 //! refuses what the run's contract refuses and never repairs; its error, `Refusal`, holds no value of the input.
 
+mod address;
 mod json;
 
 pub mod body;
