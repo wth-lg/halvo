@@ -202,6 +202,7 @@ pub fn install_login_item(
 ) -> std::io::Result<InstallOutcome> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 
+    remove_temp_files_of_dead_installs(spec, dir)?;
     if login_item_state(spec, dir)? == LoginItemState::Current {
         return Ok(InstallOutcome::Unchanged);
     }
@@ -228,6 +229,45 @@ pub fn install_login_item(
 #[cfg(target_os = "macos")]
 fn temp_file_name(spec: &LoginItemSpec) -> String {
     format!(".{}.{}.tmp", spec.file_name(), std::process::id())
+}
+
+/// Removes `.<file name>.<pid>.tmp` of every process that is no longer alive: an
+/// install that crashed between the create and the rename leaves one.
+#[cfg(target_os = "macos")]
+fn remove_temp_files_of_dead_installs(
+    spec: &LoginItemSpec,
+    dir: &crate::paths::LoginItemDir,
+) -> std::io::Result<()> {
+    let prefix = format!(".{}.", spec.file_name());
+    let entries = match std::fs::read_dir(dir.path()) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let pid = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.strip_prefix(prefix.as_str()))
+            .and_then(|rest| rest.strip_suffix(".tmp"))
+            .filter(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|digits| digits.parse::<libc::pid_t>().ok());
+        if pid.is_some_and(|pid| pid > 0 && !process_is_alive(pid)) {
+            match std::fs::remove_file(entry.path()) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn process_is_alive(pid: libc::pid_t) -> bool {
+    // SAFETY: signal 0 sends nothing; kill only checks that the process exists.
+    let sent = unsafe { libc::kill(pid, 0) };
+    sent == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
 #[cfg(target_os = "macos")]
@@ -257,6 +297,7 @@ pub fn remove_login_item(
     spec: &LoginItemSpec,
     dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<RemoveOutcome> {
+    remove_temp_files_of_dead_installs(spec, dir)?;
     match std::fs::remove_file(login_item_path(spec, dir)) {
         Ok(()) => Ok(RemoveOutcome::Removed),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(RemoveOutcome::Absent),
@@ -701,6 +742,59 @@ mod login_item_tests {
             remove_login_item(&spec, &dir).unwrap(),
             RemoveOutcome::Absent
         );
+    }
+
+    #[test]
+    fn an_install_and_a_remove_take_away_the_temp_file_of_a_dead_install_alone() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let spec = login_item();
+        let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let dead = child.id();
+        child.wait().unwrap();
+        let live = std::os::unix::process::parent_id();
+        let name = spec.file_name();
+        let kept = [
+            format!(".{name}.{live}.tmp"),
+            format!(".{name}.x{dead}.tmp"),
+            format!(".{name}..tmp"),
+            format!(".{name}.{dead}.tmpx"),
+            format!("{name}.{dead}.tmp"),
+            format!(".com.halvo.other.plist.{dead}.tmp"),
+        ];
+        for kept in &kept {
+            std::fs::write(dir.path().join(kept), "kept").unwrap();
+        }
+        let left = dir.path().join(format!(".{name}.{dead}.tmp"));
+        let mut steps = Vec::new();
+        for (step, run) in [
+            ("an install that writes", true),
+            ("an install that finds the item current", true),
+            ("a remove that removes", false),
+            ("a remove that finds nothing", false),
+        ] {
+            std::fs::write(&left, "half of a plist").unwrap();
+            if run {
+                install_login_item(&spec, &dir).unwrap();
+            } else {
+                remove_login_item(&spec, &dir).unwrap();
+            }
+            steps.push((step, left.exists()));
+        }
+        assert_eq!(
+            steps,
+            [
+                ("an install that writes", false),
+                ("an install that finds the item current", false),
+                ("a remove that removes", false),
+                ("a remove that finds nothing", false),
+            ]
+        );
+        for kept in &kept {
+            assert!(dir.path().join(kept).exists(), "{kept} was taken away");
+        }
     }
 
     #[test]
