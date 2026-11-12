@@ -185,11 +185,34 @@ function samePrice(a: Price, b: Price): boolean {
   return a.input === b.input && a.output === b.output;
 }
 
+function isSumText(value: unknown): value is string {
+  return typeof value === "string" && value !== "" && (value === "0" || value[0] !== "0") && [...value].every((each) => each >= "0" && each <= "9");
+}
+
+function exactSum(row: Row, key: string): Micro {
+  const value = row[key];
+  if (!isSumText(value)) return rowBroken(key);
+  if (BigInt(value) > COUNTED_SPEND_MAX) throw new RangeError(`the ${key} sum of the sync interval is above the largest integer that a number holds exactly`);
+  return Number(value);
+}
+
 function settleOpen(call: Call, hold: Hold, usage: Usage): EndResult {
   const cost = costOf(hold.price, usage);
   const totals = readTotals(call.sql, hold.periodStart) ?? rowBroken("the totals of the hold's period");
   if (BigInt(totals.reported) + BigInt(totals.unreported) + BigInt(totals.open) - BigInt(hold.amount) + BigInt(cost) > COUNTED_SPEND_MAX) {
     throw new RangeError("the cost would take the counted spend of its period above the largest integer that a number holds exactly");
+  }
+  const interval = call.sql.exec("SELECT sync_interval FROM ledger_holds WHERE request_id = ?", hold.requestId)[0] ?? rowBroken("sync_interval");
+  const reported =
+    call.sql.exec(
+      "SELECT CAST(COALESCE(SUM(cost), 0) AS TEXT) AS reported FROM ledger_holds WHERE sync_interval = ? AND state = ?",
+      int(interval, "sync_interval"),
+      "settled",
+    )[0] ?? rowBroken("the reported sum of the sync interval");
+  const reportedText = reported.reported;
+  if (!isSumText(reportedText)) return rowBroken("the reported sum of the sync interval");
+  if (BigInt(reportedText) + BigInt(cost) > COUNTED_SPEND_MAX) {
+    throw new RangeError("the cost would take the reported sum of its sync interval above the largest integer that a number holds exactly");
   }
   const overrun = Math.max(0, cost - hold.amount);
   call.sql.exec(
@@ -397,13 +420,13 @@ export function makeLedger(config: { holdLifeMs: number }): Ledger {
     intervalTotals(sql, interval) {
       const row =
         sql.exec(
-          "SELECT COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS reported, COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS unreported, COUNT(CASE WHEN state = ? THEN 1 END) AS open FROM ledger_holds WHERE sync_interval = ?",
+          "SELECT CAST(COALESCE(SUM(CASE WHEN state = ? THEN cost END), 0) AS TEXT) AS reported, CAST(COALESCE(SUM(CASE WHEN state = ? THEN amount END), 0) AS TEXT) AS unreported, COUNT(CASE WHEN state = ? THEN 1 END) AS open FROM ledger_holds WHERE sync_interval = ?",
           "settled",
           "expired",
           "open",
           interval,
         )[0] ?? rowBroken("the interval totals");
-      return { reported: int(row, "reported"), unreported: int(row, "unreported"), open: int(row, "open") };
+      return { reported: exactSum(row, "reported"), unreported: exactSum(row, "unreported"), open: int(row, "open") };
     },
 
     openHolds(sql) {

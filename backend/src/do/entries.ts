@@ -189,6 +189,8 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     ledger.setCap(sql, made.cap, now);
     metering.begin(sql, accountId, now);
     if (made.period !== null) metering.billingPeriod(sql, made.period, now);
+    const cancelledAt = accounts.subscription(sql)?.cancelledAt;
+    if (cancelledAt !== undefined) metering.cut(sql, "cancel", cancelledAt, now);
   }
 
   async function removeAll(removal: Removal): Promise<void> {
@@ -469,8 +471,12 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
           if (!isMetered(open.sql)) return false;
           if (applied.period !== null) metering.billingPeriod(open.sql, applied.period, now);
           if (applied.state === "cancelled" && applied.was !== "cancelled") {
-            metering.cut(open.sql, "cancel", event.providerTime, now);
+            metering.cut(open.sql, "cancel", accounts.subscription(open.sql)?.cancelledAt ?? event.providerTime, now);
           }
+          return false;
+        }
+        if (applied.kind === "cancel-time") {
+          if (isMetered(open.sql)) metering.cut(open.sql, "cancel", applied.at, now);
           return false;
         }
         if (event.kind === "checkout-completed" && applied.kind === "none") {
