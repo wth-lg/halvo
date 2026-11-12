@@ -459,7 +459,8 @@ const EDIT_KEYS: [&str; 15] = [
 
 impl LearnEdit {
     /// Checks the rules of the contract that join keys of the row: the bounds of `runs` and `clean`, no run
-    /// twice, `first` at most `last`, and the rules of the target.
+    /// twice, `first` at most `last`, one run in `runs` more than `clean` (the proposing run and one run for
+    /// each clean use), and the rules of the target.
     pub fn rules(&self) -> Result<(), Refusal> {
         let refuse =
             |key: &'static str, rule: &'static str| Refusal::new("LearnEdit", rule).at(key);
@@ -476,6 +477,9 @@ impl LearnEdit {
         }
         if self.clean > CLEAN_BOUND {
             return Err(refuse("clean", "clean_bound"));
+        }
+        if self.runs.len() != self.clean as usize + 1 {
+            return Err(refuse("clean", "clean_of_runs"));
         }
         self.target.rules()
     }
@@ -562,7 +566,8 @@ impl<'de> Deserialize<'de> for LearnEdit {
 
 /// A `learn_routine` row: one state of the routine of one workflow (contracts.md L1.4, L6). `first` and `last`
 /// are set together, `first` at most `last`, and both are set when `seen` is above 0; `next` is `last` +
-/// `period` when both are set and else null; `missed` is 0 while `next` is null; the mark `stale` has a `since`.
+/// `period` when both are set and else null; `missed` is 0 while `next` is null or `day` is at or before `last`;
+/// the mark `stale` has a `since` and a `missed` above 0.
 /// The parser refuses every other row and reads the keys in any order; the writer writes them in the order of
 /// the contract and refuses a row that breaks a rule.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -619,8 +624,14 @@ impl LearnRoutine {
         if self.next.is_none() && self.missed > 0 {
             return Err(refuse("missed", "missed_without_next"));
         }
+        if self.missed > 0 && self.last.is_some_and(|last| self.day <= last) {
+            return Err(refuse("missed", "missed_on_or_before_last"));
+        }
         if self.mark == Mark::Stale && self.since.is_none() {
             return Err(refuse("since", "stale_without_since"));
+        }
+        if self.mark == Mark::Stale && self.missed == 0 {
+            return Err(refuse("mark", "stale_without_missed"));
         }
         Ok(())
     }

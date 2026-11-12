@@ -65,8 +65,20 @@ fn kinds_have_workflow_key() {
 #[test]
 fn the_two_kinds_with_no_text_are_bounded_at_93_days_of_origin_capture_in_the_family_learn() {
     let names: Vec<&str> = KINDS.iter().map(|k| k.name).collect();
-    assert_eq!(names, ["learn_run", "learn_routine"]);
+    for name in &names {
+        assert!(
+            ["learn_edit", "learn_run", "learn_routine"].contains(name),
+            "{name} is no kind of contracts.md L1.1"
+        );
+        assert_eq!(names.iter().filter(|n| *n == name).count(), 1, "{name}");
+    }
     for entry in KINDS {
+        assert_eq!(entry.family, "learn", "{}", entry.name);
+        if entry.name == "learn_edit" {
+            assert_eq!(entry.class, RetentionClass::Kept);
+            assert_eq!(entry.origin, Origin::Own);
+            continue;
+        }
         assert_eq!(
             entry.class,
             RetentionClass::Bounded { days: 93 },
@@ -74,7 +86,6 @@ fn the_two_kinds_with_no_text_are_bounded_at_93_days_of_origin_capture_in_the_fa
             entry.name
         );
         assert_eq!(entry.origin, Origin::Capture, "{}", entry.name);
-        assert_eq!(entry.family, "learn", "{}", entry.name);
     }
     assert_eq!(
         entry("learn_run").fields,

@@ -806,6 +806,16 @@ fn the_edit_parser_refuses_each_form_that_the_contract_refuses() {
             ("LearnEdit", Some("clean"), "clean_bound"),
         ),
         (
+            "clean 2 with one run",
+            changed(EDIT_EXAMPLE, r#""clean":0"#, r#""clean":2"#),
+            ("LearnEdit", Some("clean"), "clean_of_runs"),
+        ),
+        (
+            "clean 0 with two runs",
+            changed(EDIT_REVERTED, r#""clean":1"#, r#""clean":0"#),
+            ("LearnEdit", Some("clean"), "clean_of_runs"),
+        ),
+        (
             "first above last",
             changed(EDIT_REVERTED, r#""first":20767"#, r#""first":20771"#),
             ("LearnEdit", Some("first"), "first_after_last"),
@@ -998,6 +1008,29 @@ fn the_routine_parser_refuses_each_form_that_the_contract_refuses() {
             "the mark stale without a since",
             changed(ROUTINE_STALE, r#""since":20890"#, r#""since":null"#),
             ("LearnRoutine", Some("since"), "stale_without_since"),
+        ),
+        (
+            "a missed cycle written on the last day",
+            changed(
+                &changed(ROUTINE_EXAMPLE, r#""day":20767"#, r#""day":20765"#),
+                r#""missed":0"#,
+                r#""missed":1"#,
+            ),
+            ("LearnRoutine", Some("missed"), "missed_on_or_before_last"),
+        ),
+        (
+            "a missed cycle written before the last day",
+            changed(
+                &changed(ROUTINE_EXAMPLE, r#""day":20767"#, r#""day":20700"#),
+                r#""missed":0"#,
+                r#""missed":1"#,
+            ),
+            ("LearnRoutine", Some("missed"), "missed_on_or_before_last"),
+        ),
+        (
+            "the mark stale with no missed cycle",
+            changed(ROUTINE_STALE, r#""missed":3"#, r#""missed":0"#),
+            ("LearnRoutine", Some("mark"), "stale_without_missed"),
         ),
         (
             "period 0",
@@ -1218,6 +1251,20 @@ fn an_edit_id_is_32_lower_case_hex_digits_and_from_random_writes_its_bytes() {
 }
 
 #[test]
+fn a_refusal_prints_its_type_its_key_and_its_rule() {
+    let line = changed(EDIT_EXAMPLE, r#""locators":"#, r#""args":[],"locators":"#);
+    let refusal = LearnEdit::parse(line.as_bytes()).unwrap_err();
+    assert_eq!(refusal.to_string(), "LearnedTarget: target: unknown_key");
+    let whole = LearnRun::parse(b"[]").unwrap_err();
+    assert_eq!(whole.to_string(), "LearnRun: -: not_an_object");
+    let error = serde_json::from_str::<LearnRun>("[]").unwrap_err();
+    assert!(
+        error.to_string().starts_with("LearnRun: -: not_an_object"),
+        "{error}"
+    );
+}
+
+#[test]
 fn a_day_is_at_least_1() {
     assert_eq!(Day::new(0), None);
     assert_eq!(Day::new(1).unwrap().get(), 1);
@@ -1239,6 +1286,8 @@ fn a_writer_refuses_a_value_that_breaks_a_rule_and_the_error_names_it() {
     twice.runs[2] = twice.runs[0].clone();
     let mut clean = base.clone();
     clean.clean = 3;
+    let mut clean_of_runs = base.clone();
+    clean_of_runs.clean = 1;
     let mut days = base.clone();
     days.first = day(20772);
     let mut no_locator = base.clone();
@@ -1253,6 +1302,11 @@ fn a_writer_refuses_a_value_that_breaks_a_rule_and_the_error_names_it() {
     bad_locator.target.locators[0].name = None;
     let cases: Vec<(&str, LearnEdit, Want)> = vec![
         ("no run", no_run, ("LearnEdit", Some("runs"), "runs_bound")),
+        (
+            "clean 1 with three runs",
+            clean_of_runs,
+            ("LearnEdit", Some("clean"), "clean_of_runs"),
+        ),
         (
             "four runs",
             four_runs,
@@ -1315,7 +1369,23 @@ fn a_writer_refuses_a_value_that_breaks_a_rule_and_the_error_names_it() {
     let mut missed = seen.clone();
     missed.seen = 0;
     missed.missed = 1;
+    let mut early = routine.clone();
+    early.missed = 1;
+    early.day = day(20765);
+    let mut stale_none = routine.clone();
+    stale_none.mark = Mark::Stale;
+    stale_none.since = Some(day(20767));
     let cases: Vec<(&str, LearnRoutine, Want)> = vec![
+        (
+            "missed on the last day",
+            early,
+            ("LearnRoutine", Some("missed"), "missed_on_or_before_last"),
+        ),
+        (
+            "stale with no missed cycle",
+            stale_none,
+            ("LearnRoutine", Some("mark"), "stale_without_missed"),
+        ),
         (
             "a wrong next",
             next,

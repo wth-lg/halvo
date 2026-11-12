@@ -306,6 +306,21 @@ fn the_reply_parser_refuses_each_form_outside_the_contract() {
             ("Refinements", Some("refinements"), "repeated_stale"),
         ),
         (
+            "routine_stale before an entry of an earlier day",
+            r#"{"refinements":[{"day":20767,"what":"routine_stale"},{"day":20760,"what":"target_kept"}]}"#.to_owned(),
+            ("Refinements", Some("refinements"), "order"),
+        ),
+        (
+            "routine_stale after an entry of a later day",
+            r#"{"refinements":[{"day":20767,"what":"target_kept"},{"day":20760,"what":"routine_stale"}]}"#.to_owned(),
+            ("Refinements", Some("refinements"), "order"),
+        ),
+        (
+            "routine_stale after a target entry of the same day",
+            r#"{"refinements":[{"day":20767,"what":"target_kept"},{"day":20767,"what":"routine_stale"}]}"#.to_owned(),
+            ("Refinements", Some("refinements"), "order"),
+        ),
+        (
             "broken JSON",
             format!("{one} x"),
             ("Refinements", None, "json"),
@@ -340,6 +355,13 @@ fn a_writer_refuses_a_reply_out_of_order_or_with_routine_stale_twice() {
                 entry(20768, RefinementKind::RoutineStale),
             ],
             "repeated_stale",
+        ),
+        (
+            vec![
+                entry(20767, RefinementKind::TargetKept),
+                entry(20760, RefinementKind::RoutineStale),
+            ],
+            "order",
         ),
     ];
     for (refinements, rule) in cases {
