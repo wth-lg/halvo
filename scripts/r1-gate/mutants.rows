@@ -7,4 +7,4 @@ mutant-does-not-compile	crates/halvo-capture/src/lib.rs	s/\z/\nconst GATE_CONTRO
 m3-active-tap	crates/halvo-capture/src/macos/input.rs	s/CGEventTapOptions::ListenOnly/CGEventTapOptions::Default/	measured active-tap	transitional	B15-04
 lease-control-skipped	lib.sh	s/(lease_control\(\) \{\n)/$1  return 0\n/	test selftest:service-run/standin-lease-ignored	required	B15-14
 foreground-count-weakened	lib.sh	s/\[ "\$1" -ge 2 \] && return 0/[ "\$1" -ge 1 ] && return 0/	test selftest:timed-run/foreground-count-1	required	RR-gate-ci-01
-marker-scan-skips-a-missing-capture	lib.sh	s/    \[ -f "\$scan_file" \] \|\| \{ printf [^\n]*\n/    [ -f "\$scan_file" ] || continue\n/	test selftest:service-run/marker-scan-misses-a-capture-file	required	X-gate-ci-08
+marker-scan-skips-a-missing-capture	lib.sh	s/    \[ -f "\$scan_file" \] \|\| \{ printf [^\n]*\n/    [ -f "\$scan_file" ] || continue\n/; s/    missing\) printf [^\n]*\n/    missing) return 0 ;;\n/	test selftest:service-run/marker-scan-misses-a-capture-file	required	X-gate-ci-08

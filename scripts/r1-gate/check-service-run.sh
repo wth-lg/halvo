@@ -6,14 +6,7 @@ name=service-run
 
 tmp_scan_defect() {
   [ -d "$2" ] || { printf 'not scanned: the TMPDIR of the processes under test is missing\n'; return 1; }
-  find "$2" -type f -exec grep -l -F -e "$1" {} + > "$svc_dir/tmp-hits" 2> "$svc_dir/tmp-errors"
-  if [ -s "$svc_dir/tmp-errors" ]; then
-    printf 'not scanned: find or grep could not read a file under the TMPDIR of the processes under test\n'; return 1
-  fi
-  [ -s "$svc_dir/tmp-hits" ] || return 0
-  tmp_first=$(sed -n "1s#^$2/##p" "$svc_dir/tmp-hits")
-  printf 'leak: the marker is in a file under the TMPDIR of the processes under test: %s\n' "$tmp_first"
-  return 1
+  tree_scan_defect "the TMPDIR of the processes under test" "$1" "$2"
 }
 
 scan_into() {
@@ -66,7 +59,7 @@ unreadable_run_file() {
 
 unreadable_line_is() {
   unreadable_out=$(unreadable_run_file)
-  [ "$unreadable_out" = 'not scanned: find or grep could not read a file under the TMPDIR of the processes under test' ]
+  [ "$unreadable_out" = 'not scanned: locked under the TMPDIR of the processes under test cannot be read' ]
 }
 
 log_scan_note() {
@@ -74,19 +67,25 @@ log_scan_note() {
   log_probe=$(gate_marker)probe
   logger -t r1-gate "$log_probe" 2>/dev/null
   limited 60 log show --last 2m --style compact --predicate "eventMessage CONTAINS \"$log_probe\"" > "$svc_dir/log-probe" 2>/dev/null
+  log_status=$?
+  [ "$log_status" -eq 0 ] || { printf 'the unified log was not read: log show of the probe exited %s' "$log_status"; return 0; }
   log_found=$(grep -v '^Filtering' "$svc_dir/log-probe" | grep -c -F -e "$log_probe")
   if [ "${log_found:-0}" -eq 0 ]; then printf 'the unified log was not read: a probe that logs a marker was not found by log show'; return 0; fi
   limited 120 log show --last 10m --style compact --predicate "eventMessage CONTAINS \"$1\"" > "$svc_dir/log-marker" 2>/dev/null
+  log_status=$?
+  [ "$log_status" -eq 0 ] || { printf 'the unified log was not read: log show of the marker exited %s' "$log_status"; return 0; }
   log_hits=$(grep -v '^Filtering' "$svc_dir/log-marker" | grep -c -F -e "$1")
   if [ "${log_hits:-0}" -ne 0 ]; then printf 'leak: the marker is in the unified log'; return 1; fi
   printf 'the unified log was read and holds no marker'
 }
 
 scan_now() {
+  scan_when=$1
   set -- "$svc_dir/run.stdout" "$svc_dir/run.stderr"
   for capture_file in "$svc_dir"/ctl-*; do set -- "$@" "$capture_file"; done
-  scan_found=$(data_dir_scan_defect "$svc_data" "$scan_marker" "$@") || { scan_defect=$scan_found; return 1; }
-  scan_found=$(tmp_scan_defect "$scan_marker" "$svc_proc_tmp") || { scan_defect=$scan_found; return 1; }
+  scan_found=$(data_dir_scan_defect "$svc_data" "$scan_marker" "$@") || { scan_defect="$scan_when: $scan_found"; return 1; }
+  scan_found=$(tmp_scan_defect "$scan_marker" "$svc_proc_tmp") || { scan_defect="$scan_when: $scan_found"; return 1; }
+  scans_done="$scans_done $scan_when;"
 }
 
 control_run() {
@@ -101,6 +100,7 @@ control_run() {
   found=$(own_child_defect "$window_a" "$window_b") || { gate_defect="control run, helper window as the check's own child: $found"; return 1; }
   stop_steps || return 1
   helper_stop
+  control_done=yes
 }
 
 run_steps() {
@@ -139,7 +139,7 @@ run_steps() {
     found=$(growth_defect "$window_a" "$window_b" keystroke pointer) || { gate_defect="under --input $gate_input: $found"; return 1; }
     found=$(foreground_switches_defect "$((fore_b - fore_a))") || { gate_defect=$found; return 1; }
   fi
-  scan_now || scan_failed=yes
+  scan_now "while events were live" || scan_failed=yes
   lease_control || return 1
   ctl_or_defect before-delete status || return 1
   delete_id=$(status_value "$ctl_out" store_id)
@@ -147,17 +147,25 @@ run_steps() {
   case $(head -1 "$ctl_out") in deleted\ *) ;; *) gate_defect="ctl delete-all printed no deleted line: $(head -1 "$ctl_out" | cut -d ' ' -f 1)"; return 1 ;; esac
   if [ "$scan_failed" = no ]; then
     found=$(registered_names_defect "$svc_data") || { scan_defect="after the delete-all: $found"; scan_failed=yes; }
+    names_checked=yes
   fi
-  [ "$scan_failed" = yes ] || scan_now || scan_failed=yes
+  [ "$scan_failed" = yes ] || scan_now "after the delete-all" || scan_failed=yes
   log_note=$(log_scan_note "$scan_marker") || { scan_defect=$log_note; scan_failed=yes; }
   stop_steps || return 1
+  [ "$scan_failed" = yes ] || scan_now "after the stop" || scan_failed=yes
   helper_outside_stop
   control_run || return 1
 }
 
 measure() {
-  scan_failed=no; scan_defect=''; tm_note=''; run_counts=''; log_note=''
+  scan_failed=no; scan_defect=''; tm_note=''; run_counts=''; log_note=''; scans_done=''; names_checked=no; control_done=no
   if run_steps; then run_ok=yes; else run_ok=no; fi
+  if [ "$run_ok" = yes ] && [ "$control_done" != yes ]; then run_ok=no; gate_defect="the own-child control run did not run"; fi
+  if [ "$run_ok" = yes ] && [ "$scan_failed" = no ]; then
+    if [ "$scans_done" != " while events were live; after the delete-all; after the stop;" ] || [ "$names_checked" != yes ]; then
+      scan_failed=yes; scan_defect="the scans ran at:${scans_done:- no time}, and the registered names were checked: $names_checked; the line needs the three times of P1 and the names after the delete-all"
+    fi
+  fi
   stop_children
   where=$(service_line)
   scan_ran=yes
@@ -176,7 +184,7 @@ measure() {
   elif [ "$scan_failed" = yes ]; then
     emit_line FAIL data-dir-scan "$scan_defect"; rc=1
   else
-    emit_line PASS data-dir-scan "the data directory, the TMPDIR that the check gave the processes under test, the daemon's output and every ctl output hold no marker and no record field name, while events were live and after the delete-all, and only registered names are left; not read: a file that a process under test writes outside the TMPDIR it was given and outside the data directory; $log_note"
+    emit_line PASS data-dir-scan "the data directory, the TMPDIR that the check gave the processes under test, the daemon's output and every ctl output hold no marker and no record field name, in content and in names, while events were live, after the delete-all and after the stop, and only registered names are left after the delete-all; not read: a file that a process under test writes outside the TMPDIR it was given and outside the data directory; $log_note"
   fi
   return "$rc"
 }
@@ -219,6 +227,8 @@ cases() {
   t status-good PASS predicate_sources_running "$running" foreground screen input
   input_failed=$(status_with input-failed 's/^switch name=screen_activity value=off/switch name=screen_activity value=on/; s/^source name=screen state=off/source name=screen state=running/; s/^source name=input state=running/source name=input state=failed reason=permission/')
   t input-failed FAIL predicate_sources_running "$input_failed" foreground screen input
+  partial=$(status_with partial 's/^switch name=screen_activity value=off/switch name=screen_activity value=on/; s/^source name=screen state=off/source name=screen state=running/; s/^capture=running$/capture=partial/')
+  t capture-partial-with-every-source-running FAIL predicate_sources_running "$partial" foreground screen input
   t screen-source-off FAIL predicate_sources_running "$GATE_FIXTURES/c2-status-macos.txt" foreground screen input
   t store-open PASS predicate_store_open "$GATE_FIXTURES/c2-status-macos.txt"
   sealed=$(status_with sealed 's/^store=open$/store=sealed/')
@@ -236,6 +246,9 @@ cases() {
   t no-growth FAIL predicate_growth "$gate_scratch/inv-a" "$gate_scratch/inv-a" screen_frame
   t inventory-fixture-has-no-off-kind PASS predicate_no_off_kind_rows "$GATE_FIXTURES/c2-inventory.txt"
   t microphone-row FAIL predicate_no_off_kind_rows "$gate_scratch/inv-b-microphone"
+  rows_e=$(rows 9 9 'row day=2026-11-12 modality=camera events=1 bytes=1
+'); inventory_with inv-b-camera "$rows_e" 19
+  t camera-row FAIL predicate_no_off_kind_rows "$gate_scratch/inv-b-camera"
   t own-child-excluded PASS predicate_own_child_excluded "$gate_scratch/inv-a" "$gate_scratch/inv-b-no-screen"
   t screen-activity-from-own-child FAIL predicate_own_child_excluded "$gate_scratch/inv-a" "$gate_scratch/inv-b"
   t own-child-control-recorded-nothing FAIL predicate_own_child_excluded "$gate_scratch/inv-a" "$gate_scratch/inv-a"
@@ -274,7 +287,42 @@ cases() {
   t standin-main-names-the-mode PASS says 'FAIL service-run (no --prefill-store mode' main none
   t privacy-line-before-the-service PASS privacy_line_first main none
   t standin-main-fails FAIL against_the_standin main none
+  t standin-leak-while-live FAIL against_the_standin live-leak none
+  t standin-leak-at-the-stop FAIL against_the_standin stop-leak none
+  t standin-name-left-after-delete FAIL against_the_standin delete-leaves-name none
+  t standin-exit-1-after-the-stop FAIL against_the_standin exit-1-at-stop none
+  t standin-camera-rows FAIL against_the_standin camera-row none
+  t standin-no-backup-mark FAIL against_the_standin no-mark none
+  t standin-no-exclusion-of-the-own-child FAIL against_the_standin no-exclusion none
   name=data-dir-scan
+  mkdir -p "$gate_scratch/tmp-clean" "$gate_scratch/tmp-marker" "$gate_scratch/tmp-record" "$gate_scratch/tmp-name" "$gate_scratch/tmp-link"
+  printf 'nothing\n' > "$gate_scratch/tmp-clean/run-file"
+  printf 'spill r1gateMARKER-7\n' > "$gate_scratch/tmp-marker/halvo-spill.txt"
+  printf '{"kind":"keystroke","seq":7,"app":"com.example.mail"}\n' > "$gate_scratch/tmp-record/batch.json"
+  : > "$gate_scratch/tmp-name/r1gateMARKER-7.note"
+  ln -s "$gate_scratch/scan-captures/stdout" "$gate_scratch/tmp-link/link"
+  t run-tmpdir-clean PASS predicate_run_tmp_clean r1gateMARKER-7 "$gate_scratch/tmp-clean" "$gate_scratch/tmp-run"
+  t marker-in-the-run-tmpdir FAIL predicate_run_tmp_clean r1gateMARKER-7 "$gate_scratch/tmp-marker" "$gate_scratch/tmp-run"
+  t record-in-the-run-tmpdir FAIL predicate_run_tmp_clean r1gateMARKER-7 "$gate_scratch/tmp-record" "$gate_scratch/tmp-run"
+  t marker-in-a-name-under-the-run-tmpdir FAIL predicate_run_tmp_clean r1gateMARKER-7 "$gate_scratch/tmp-name" "$gate_scratch/tmp-run"
+  t symbolic-link-in-the-run-tmpdir FAIL predicate_run_tmp_clean r1gateMARKER-7 "$gate_scratch/tmp-link" "$gate_scratch/tmp-run"
+  printf '{"kind":"keystroke","seq":7,"app":"com.example.mail"}\n' > "$gate_scratch/scan-captures/stderr-record"
+  t record-in-the-daemon-stderr FAIL predicate_data_dir_clean "$gate_scratch/scan-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout" "$gate_scratch/scan-captures/stderr-record"
+  for field in kind seq app; do
+    mkdir -p "$gate_scratch/field-$field/store"
+    case $field in kind) printf '{"kind":"pointer"}\n' ;; seq) printf '{"seq":3}\n' ;; *) printf '{"app":"com.example.mail"}\n' ;; esac > "$gate_scratch/field-$field/store/record.json"
+    t "field-name-$field-in-the-data-directory" FAIL predicate_data_dir_clean "$gate_scratch/field-$field" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
+  done
+  mkdir -p "$gate_scratch/name-data/store" "$gate_scratch/dirname-data/store/r1gateMARKER-7"
+  : > "$gate_scratch/name-data/store/r1gateMARKER-7.txt"
+  t marker-in-a-file-name FAIL predicate_data_dir_clean "$gate_scratch/name-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
+  t marker-in-a-directory-name FAIL predicate_data_dir_clean "$gate_scratch/dirname-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
+  mkdir -p "$gate_scratch/utf16-data/store"
+  perl -e 'print join("", map { $_ . "\0" } split //, "r1gateMARKER-7")' > "$gate_scratch/utf16-data/store/note"
+  t marker-in-utf-16 FAIL predicate_data_dir_clean "$gate_scratch/utf16-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
+  mkdir -p "$gate_scratch/socket-data/run"
+  (cd "$gate_scratch/socket-data/run" && python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' control.sock)
+  t socket-in-the-data-directory PASS predicate_data_dir_clean "$gate_scratch/socket-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
   mkdir -p "$gate_scratch/batch-data/store"
   printf 'r1gateMARKER-7 plaintext batch\n' > "$gate_scratch/batch-data/store/batch.txt"
   t plaintext-batch-file FAIL predicate_data_dir_clean "$gate_scratch/batch-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
@@ -300,6 +348,14 @@ cases() {
   cp -R "$registered/." "$gate_scratch/derived/"
   mkdir -p "$gate_scratch/derived/derived"
   t reserved-name-after-delete FAIL predicate_registered_names "$gate_scratch/derived"
+  mkdir -p "$gate_scratch/spaced"
+  cp -R "$registered/." "$gate_scratch/spaced/"
+  : > "$gate_scratch/spaced/store/store.db logs"
+  t name-made-of-two-registered-names FAIL predicate_registered_names "$gate_scratch/spaced"
+  mkdir -p "$gate_scratch/errlog"
+  cp -R "$registered/." "$gate_scratch/errlog/"
+  printf 'an error kind\n' > "$gate_scratch/errlog/logs/daemon.err"
+  t daemon-err-not-empty-after-delete FAIL predicate_registered_names "$gate_scratch/errlog"
   name=service-run
 }
 

@@ -1006,11 +1006,11 @@ inventory_events() {
 }
 
 inventory_days_before() {
-  awk -v cut="$2" '$1 == "row" { day = $2; sub(/^day=/, "", day); if (day < cut) seen[day] = 1 } END { for (d in seen) n++; print n + 0 }' "$1" 2>/dev/null
+  awk -v cut="$2" '$1 == "row" { day = ""; for (i = 2; i <= NF; i++) if (index($i, "day=") == 1) day = substr($i, 5); if (day == "" || day < cut) seen[day] = 1 } END { for (d in seen) n++; print n + 0 }' "$1" 2>/dev/null
 }
 
 inventory_days_from() {
-  awk -v cut="$2" '$1 == "row" { day = $2; sub(/^day=/, "", day); if (day >= cut) seen[day] = 1 } END { for (d in seen) n++; print n + 0 }' "$1" 2>/dev/null
+  awk -v cut="$2" '$1 == "row" { day = ""; for (i = 2; i <= NF; i++) if (index($i, "day=") == 1) day = substr($i, 5); if (day != "" && day >= cut) seen[day] = 1 } END { for (d in seen) n++; print n + 0 }' "$1" 2>/dev/null
 }
 
 report_token() {
@@ -1236,15 +1236,19 @@ registered_names_defect() {
   [ -d "$1" ] || { printf 'the data directory is missing\n'; return 1; }
   names_roots=0
   names_list=$(cd "$1" && find . -mindepth 1 2>/dev/null) || { printf 'the data directory could not be listed\n'; return 1; }
-  for names_entry in $names_list; do
+  while IFS= read -r names_entry; do
+    [ -n "$names_entry" ] || continue
     names_entry=${names_entry#./}
     case $names_entry in
       daemon-state.json|store|store/store.key|store/store.db|store/store.db-wal|store/segments|roots|run|run/control.sock|run/running|logs) ;;
       logs/daemon.err) [ ! -s "$1/$names_entry" ] || { printf 'logs/daemon.err is not empty after the delete-all\n'; return 1; } ;;
+      roots/*/*) printf 'a name outside the registered names of C17: %s\n' "$names_entry"; return 1 ;;
       roots/*) names_roots=$((names_roots + 1)) ;;
       *) printf 'a name outside the registered names of C17: %s\n' "$names_entry"; return 1 ;;
     esac
-  done
+  done <<NAMES
+$names_list
+NAMES
   [ "$names_roots" -eq 1 ] && return 0
   printf 'roots/ holds %s root files, and the registry allows exactly one after a delete-all\n' "$names_roots"
   return 1
@@ -1258,25 +1262,33 @@ data_dir_scan_defect() {
   scan_data=$1; scan_marker=$2; shift 2
   [ -n "$scan_marker" ] || { printf 'not scanned: no marker\n'; return 1; }
   [ -d "$scan_data" ] || { printf 'not scanned: the data directory is missing\n'; return 1; }
-  scan_link=$(find "$scan_data" -type l 2>/dev/null | head -1)
-  [ -z "$scan_link" ] || { printf 'a symbolic link below the data directory: %s\n' "${scan_link#"$scan_data"/}"; return 1; }
-  scan_hit=$(grep -r -l -F -e "$scan_marker" -e '"kind":"' -e '"seq":' -e '"app":' -- "$scan_data" 2>/dev/null)
-  case $? in
-    1) ;;
-    0) scan_first=$(printf '%s\n' "$scan_hit" | sed -n "1s#^$scan_data/##p")
-       printf 'leak: the marker or a record field name is in the data directory: %s\n' "$scan_first"; return 1 ;;
-    *) printf 'not scanned: grep could not read every file of the data directory\n'; return 1 ;;
-  esac
+  tree_scan_defect "the data directory" "$scan_marker" "$scan_data" || return 1
   [ $# -gt 0 ] || { printf 'not scanned: no capture file\n'; return 1; }
   for scan_file in "$@"; do
     [ -f "$scan_file" ] || { printf 'not scanned: the capture file %s is missing\n' "${scan_file##*/}"; return 1; }
-    grep -q -F -e "$scan_marker" -- "$scan_file" 2>/dev/null
-    case $? in
-      1) ;;
-      0) printf 'leak: the marker is in %s\n' "${scan_file##*/}"; return 1 ;;
-      *) printf 'not scanned: grep could not read %s\n' "${scan_file##*/}"; return 1 ;;
-    esac
   done
+  tree_scan_defect "the captured output" "$scan_marker" "$@"
+}
+
+tree_scan_defect() {
+  scan_what=$1; scan_marker=$2; shift 2
+  [ -n "$scan_marker" ] || { printf 'not scanned: no marker\n'; return 1; }
+  scan_out=$(perl "$GATE_ROOT/scripts/r1-gate/helper/scan-tree.pl" "$scan_marker" "$@") || { printf 'not scanned: the scan of %s could not run\n' "$scan_what"; return 1; }
+  [ -n "$scan_out" ] || return 0
+  scan_first=$(printf '%s\n' "$scan_out" | sed -n 1p)
+  scan_tab=$(printf '\t')
+  scan_kind=${scan_first%%"$scan_tab"*}
+  scan_rel=${scan_first#*"$scan_tab"}
+  scan_rel=${scan_rel#*"$scan_tab"}
+  case $scan_kind in
+    link) printf 'a symbolic link under %s: %s\n' "$scan_what" "$scan_rel" ;;
+    name) printf 'leak: the marker or a record field name is in a name under %s: %s\n' "$scan_what" "$scan_rel" ;;
+    hit) printf 'leak: the marker or a record field name is in %s: %s\n' "$scan_what" "$scan_rel" ;;
+    unreadable) printf 'not scanned: %s under %s cannot be read\n' "$scan_rel" "$scan_what" ;;
+    missing) printf 'not scanned: %s is missing\n' "$scan_what" ;;
+    *) printf 'not scanned: the scan of %s printed %s\n' "$scan_what" "$scan_kind" ;;
+  esac
+  return 1
 }
 
 predicate_data_dir_clean() {

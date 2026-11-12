@@ -111,7 +111,7 @@ daemon() {
   if grep -q '"desired":"running"' "$data/daemon-state.json"; then echo running; else echo paused; fi > "$state/desired"
   if grep -q '"screen_activity":true' "$data/daemon-state.json"; then screen=on; else screen=off; fi
   printf '%s\n' "$screen" > "$state/screen"
-  expire
+  [ "$scenario" = expiry-late ] || expire
   printf 'starting\n' > "$state/capture"
   printf '%s\n' "$$" > "$state/pid"
   started_now=$(date +%s)
@@ -119,9 +119,11 @@ daemon() {
   echo 0 > "$state/lease"
   echo 0 > "$state/peak"
   : > "$data/logs/daemon.err"
-  touch "$data/run/running" "$data/run/control.sock"
-  xattr -w com.apple.metadata:com_apple_backup_excludeItem com.apple.backupd "$data"
+  touch "$data/run/running"
+  [ -S "$data/run/control.sock" ] || (cd "$data/run" && python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' control.sock)
+  [ "$scenario" = no-mark ] || xattr -w com.apple.metadata:com_apple_backup_excludeItem com.apple.backupd "$data"
   root=$PPID
+  leak_text=$(cat "$state/marker-text" 2>/dev/null)
   exec 3<&0
   cat <&3 > /dev/null &
   life=$!
@@ -132,9 +134,21 @@ daemon() {
     if [ "$capture" = running ]; then
       t=$(date +%s); day=$(date -u +%F)
       day_file=$(seg_of "$day")
-      touch "$day_file"
+      [ -f "$day_file" ] || head -c 64 /dev/urandom > "$day_file"
+      resumes=$(cat "$state/resumes" 2>/dev/null)
+      if [ "$scenario" != dead-after-resume ] || [ "${resumes:-0}" -lt 2 ]; then
       printf '%s %s foreground_app 0\n%s %s window_title 0\n' "$t" "$day" "$t" "$day" >> "$state/events"
-      if [ "$screen" = on ] && helper_outside "$root"; then printf '%s %s screen_frame 0\n' "$t" "$day" >> "$state/events"; fi
+      fi
+      case $scenario in
+        live-leak) printf '%s\n' "$leak_text" > "$data/store/segments/live-leak.txt" ;;
+        stderr-record) printf '{"kind":"keystroke","seq":7,"app":"com.example.mail"}\n' >&2 ;;
+        tmp-leak) printf '%s\n' "$leak_text" > "${TMPDIR:-/tmp}/halvo-spill.txt" ;;
+        name-leak) : > "$data/store/$leak_text.note" ;;
+        camera-row) printf '%s %s camera 0\n' "$t" "$day" >> "$state/events" ;;
+      esac
+      late_now=$(date +%s)
+      if [ "$scenario" = expiry-late ] && [ "$((late_now - started_now))" -ge "$((${GATE_OVERRIDE_expiry_bound_s:-6} + 3))" ]; then expire; fi
+      if [ "$screen" = on ] && { [ "$scenario" = no-exclusion ] || helper_outside "$root"; }; then printf '%s %s screen_frame 0\n' "$t" "$day" >> "$state/events"; fi
       if [ "$scenario" = typed ]; then printf '%s %s keystroke 0\n%s %s pointer 0\n%s %s foreground_app 0\n' "$t" "$day" "$t" "$day" "$t" "$day" >> "$state/events"; fi
     fi
     printf '%s\n' "$capture" > "$state/capture.new" && mv "$state/capture.new" "$state/capture"
@@ -144,6 +158,8 @@ daemon() {
   done
   kill "$life" 2>/dev/null
   rm -f "$data/run/running" "$state/stop"
+  if [ "$scenario" = stop-leak ]; then printf '%s\n' "$leak_text" > "$data/logs/flush.txt"; printf 'flushed %s\n' "$leak_text" >&2; fi
+  [ "$scenario" != exit-1-at-stop ] || exit 1
   exit 0
 }
 
@@ -163,6 +179,7 @@ status() {
   if [ "$screen" = on ]; then sources=foreground,screen,input; screen_state=$run_state; fi
   pid=$(cat "$state/pid"); started=$(cat "$state/started"); peak=$(cat "$state/peak"); desired=$(cat "$state/desired")
   read_id
+  [ "$scenario" != wrong-pid ] || pid=$((pid + 1))
   sed -e "s/^pid=.*/pid=$pid/" \
     -e "s/^started_at=.*/started_at=$started/" \
     -e "s/^rss_peak_bytes=.*/rss_peak_bytes=$((peak * 1024 + 65536))/" \
@@ -183,13 +200,13 @@ inventory() {
   read_id
   printf 'store_id=%s\n' "$store_id"
   awk '
-    BEGIN { split("screen_frame keystroke pointer foreground_app window_title", order, " ") }
+    BEGIN { split("screen_frame keystroke pointer foreground_app window_title system_audio microphone camera", order, " ") }
     { n[$2 " " $3]++; days[$2] = 1; total++ }
     END {
       count = 0
       for (d in days) list[++count] = d
       for (i = 1; i <= count; i++) for (j = i + 1; j <= count; j++) if (list[j] < list[i]) { x = list[i]; list[i] = list[j]; list[j] = x }
-      for (i = 1; i <= count; i++) for (k = 1; k <= 5; k++) if (n[list[i] " " order[k]] > 0) printf "row day=%s modality=%s events=%d bytes=%d\n", list[i], order[k], n[list[i] " " order[k]], n[list[i] " " order[k]] * 40
+      for (i = 1; i <= count; i++) for (k = 1; k <= 8; k++) if (n[list[i] " " order[k]] > 0) printf "row day=%s modality=%s events=%d bytes=%d\n", list[i], order[k], n[list[i] " " order[k]], n[list[i] " " order[k]] * 40
       printf "total events=%d bytes=%d disk_bytes=%d\n", total, total * 40, 4096 + total * 64
     }' "$state/events"
 }
@@ -210,6 +227,7 @@ delete_all() {
   fresh=$(new_id)
   put "$state/store_id" "$fresh"
   head -c 32 /dev/urandom > "$data/roots/root-$fresh"
+  [ "$scenario" != delete-leaves-name ] || printf 'left\n' > "$data/store/left-behind.txt"
   printf 'deleted segments_shredded=%s keys_destroyed=%s root_destroyed=yes root_id=- files_left=0 database_left=no entries_removed=4 entries_left=0 unknown_entries=0 intent=written' "$segments" "$((segments + 1))"
 }
 
@@ -226,6 +244,8 @@ ctl() {
       printf 'capture=paused\n' ;;
     resume)
       put "$state/desired" running
+      resumes=$(cat "$state/resumes" 2>/dev/null)
+      put "$state/resumes" "$(( ${resumes:-0} + 1 ))"
       perl -pi -e 's/"desired":"paused"/"desired":"running"/' "$data/daemon-state.json"
       capture=$(capture_state)
       printf 'capture=%s\n' "$capture" ;;
@@ -246,7 +266,8 @@ ctl() {
 
 prefill() {
   layout
-  if [ -n "$marker" ]; then md5 -q -s "$marker" > "$state/marker"; fi
+  if [ -n "$marker" ]; then md5 -q -s "$marker" > "$state/marker"; printf '%s\n' "$marker" > "$state/marker-text"; fi
+  [ "$scenario" != raw-leak ] || printf 'title %s in plain text\n' "$marker" > "$data/store/raw.txt"
   t=$(date +%s); i=0
   while [ "$i" -lt "$count" ]; do
     if [ "$count" -gt 1 ]; then at=$((t - span * 86400 * (count - 1 - i) / (count - 1))); else at=$t; fi
@@ -254,8 +275,12 @@ prefill() {
     case $((i % 5)) in 0) kind=screen_frame ;; 1) kind=keystroke ;; 2) kind=pointer ;; 3) kind=foreground_app ;; *) kind=window_title ;; esac
     printf '%s %s %s %s\n' "$at" "$day" "$kind" "${marker:+1}" >> "$state/events"
     day_file=$(seg_of "$day")
-    touch "$day_file"
+    [ -f "$day_file" ] || head -c 64 /dev/urandom > "$day_file"
     i=$((i + 1))
+  done
+  awk '{ print $2 }' "$state/events" | sort -u | while IFS= read -r seg_day; do
+    seg_file=$(seg_of "$seg_day")
+    printf 'segment day=%s file=%s\n' "$seg_day" "${seg_file#"$data"/}"
   done
   segments=$(segment_count)
   read_id
