@@ -837,7 +837,7 @@ impl Sched {
                         What::RunStarted { slot, .. } => slot,
                         _ => None,
                     })
-                    .last()
+                    .next_back()
                     .map_or(Value::Null, rel))
                 .collect::<Vec<_>>()),
         );
@@ -1238,14 +1238,8 @@ impl Conf {
                                     let d = self.mint(&conf, EffectAnswer::RejectOnce);
                                     sent = entries(&d);
                                 }
-                                if cause == LapseCause::NoRecord {
-                                    if a["stored"] == "yes" {
-                                        e.extend(rows(
-                                            "item_answered",
-                                            &name,
-                                            &self.pending[&name],
-                                        ));
-                                    }
+                                if cause == LapseCause::NoRecord && a["stored"] == "yes" {
+                                    e.extend(rows("item_answered", &name, &self.pending[&name]));
                                 }
                                 e.push(json!({"event": "item_lapsed", "item": name, "cause": cause.name()}));
                                 self.table = self.table.lapse(&conf_id(ItemId::parse, &name));
