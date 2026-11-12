@@ -1,12 +1,13 @@
 //! Keystroke and pointer capture via Raw Input (`WM_INPUT`).
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
+};
 
-use super::{HandOff, Packet, Producer, PumpHandle, PumpReady};
+use super::{Lifecycle, Packet, Producer, PumpReady};
 
 /// Which device a source listens to; also its modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,14 +17,6 @@ pub enum RawDevice {
 }
 
 impl RawDevice {
-    fn modality(self) -> Modality {
-        match self {
-            RawDevice::Keyboard => Modality::Keystroke,
-            RawDevice::Pointer => Modality::Pointer,
-        }
-    }
-
-    #[cfg(target_os = "windows")]
     fn hid_usage(self) -> u16 {
         use windows::Win32::Devices::HumanInterfaceDevice::{
             HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE,
@@ -123,46 +116,105 @@ use windows::Win32::UI::Input::{
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostQuitMessage,
-    RegisterClassW, UnregisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE,
-    WM_DESTROY, WM_INPUT, WNDCLASSW,
+    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE, WM_DESTROY,
+    WM_INPUT, WNDCLASSW,
 };
 
 #[cfg(target_os = "windows")]
 const HID_USAGE_PAGE_GENERIC: u16 =
     windows::Win32::Devices::HumanInterfaceDevice::HID_USAGE_PAGE_GENERIC;
 
-#[cfg(target_os = "windows")]
 struct InputState {
     device: RawDevice,
     producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
 }
 
-#[cfg(target_os = "windows")]
 thread_local! {
     static INPUT_CTX: std::cell::RefCell<Option<InputState>> =
         const { std::cell::RefCell::new(None) };
 }
 
-/// Raw Input capture source for one device. `start` opens a message-only window on
-/// its own pump thread and registers the device; `stop` quits the pump and tears
-/// the window down.
+impl RawDevice {
+    fn index(self) -> usize {
+        match self {
+            RawDevice::Keyboard => 0,
+            RawDevice::Pointer => 1,
+        }
+    }
+
+    fn class_name(self) -> windows::core::PCWSTR {
+        match self {
+            RawDevice::Keyboard => windows::core::w!("HalvoRawKeyboard"),
+            RawDevice::Pointer => windows::core::w!("HalvoRawPointer"),
+        }
+    }
+}
+
+/// Raw Input delivers a device class to one window of a process, so one source
+/// of each device runs in a process at a time: the claim holds that place until
+/// the pump has removed its registration.
+static DEVICES_IN_USE: Mutex<[bool; 2]> = Mutex::new([false; 2]);
+
+/// The window classes, registered once for the life of the process.
+static CLASSES_REGISTERED: Mutex<[bool; 2]> = Mutex::new([false; 2]);
+
+struct DeviceClaim(RawDevice);
+
+impl DeviceClaim {
+    fn take(device: RawDevice) -> Result<Self, CaptureError> {
+        let mut in_use = DEVICES_IN_USE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if in_use[device.index()] {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        in_use[device.index()] = true;
+        Ok(Self(device))
+    }
+}
+
+impl Drop for DeviceClaim {
+    fn drop(&mut self) {
+        DEVICES_IN_USE
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[self.0.index()] = false;
+    }
+}
+
+fn register_class(device: RawDevice, hinstance: HINSTANCE) -> Result<(), CaptureError> {
+    let mut registered = CLASSES_REGISTERED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if registered[device.index()] {
+        return Ok(());
+    }
+    let class = WNDCLASSW {
+        lpfnWndProc: Some(wnd_proc),
+        hInstance: hinstance,
+        lpszClassName: device.class_name(),
+        ..Default::default()
+    };
+    // SAFETY: `class` names a static wide string and a window procedure with
+    // the WNDPROC signature.
+    if unsafe { RegisterClassW(&class) } == 0 {
+        return Err(super::last_os_error("RegisterClassW"));
+    }
+    registered[device.index()] = true;
+    Ok(())
+}
+
+/// Raw Input capture source for one device. `begin` opens a message-only
+/// window on its own pump thread and registers the device; `shutdown` ends the
+/// pump inside [`super::INPUT_STOP_DEADLINE`], and dropping the source does
+/// the same. One source of each device runs in a process at a time.
 pub struct RawInputSource {
     device: RawDevice,
     last_app: Arc<Mutex<Option<String>>>,
-    pump: Option<PumpHandle>,
-    handoff: Option<HandOff>,
+    life: Lifecycle,
 }
 
 impl RawInputSource {
-    /// The counts of this source's hand-off queue in its last run.
-    pub fn handoff_counts(&self) -> super::HandOffCounts {
-        self.handoff
-            .as_ref()
-            .map(HandOff::counts)
-            .unwrap_or_default()
-    }
-
     /// A keyboard source, attributing keystrokes to `last_app` (shared with the
     /// foreground source).
     pub fn keyboard(last_app: Arc<Mutex<Option<String>>>) -> Self {
@@ -178,9 +230,13 @@ impl RawInputSource {
         Self {
             device,
             last_app,
-            pump: None,
-            handoff: None,
+            life: Lifecycle::default(),
         }
+    }
+
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.life.handoff_counts()
     }
 }
 
@@ -320,45 +376,49 @@ fn read_raw_input(handle: HRAWINPUT, tick: u32) {
 }
 
 impl CaptureSource for RawInputSource {
-    fn modality(&self) -> Modality {
-        self.device.modality()
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        if self.life.is_running() {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        let claim = DeviceClaim::take(self.device)?;
+        let device = self.device;
+        let last_app = Arc::clone(&self.last_app);
+        self.life
+            .begin(&ctx, "halvo-rawinput-forward", move |producer| {
+                let state = InputState {
+                    device,
+                    producer,
+                    last_app,
+                };
+                let name = format!("halvo-rawinput-{device:?}");
+                super::spawn_pump(name, move |ready, signal| {
+                    run_raw_input(state, claim, ready, &signal)
+                })
+            })
     }
 
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let handoff = HandOff::start(sink, "halvo-rawinput-forward")?;
-        let state = InputState {
-            device: self.device,
-            producer: handoff.producer(),
-            last_app: Arc::clone(&self.last_app),
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.life.shutdown()
+    }
+
+    fn health(&self) -> SourceHealth {
+        let counters = match self.device {
+            RawDevice::Keyboard => SourceCounters::default(),
+            RawDevice::Pointer => SourceCounters {
+                pointer_coalesced: self.life.handoff_counts().coalesced,
+                ..SourceCounters::default()
+            },
         };
-        let name = format!("halvo-rawinput-{:?}", self.device);
-        let pump = super::spawn_pump(name, move |ready, signal| {
-            run_raw_input(state, ready, &signal)
-        })?;
-        self.pump = Some(pump);
-        self.handoff = Some(handoff);
-        Ok(())
-    }
-
-    fn stop(&mut self) {
-        if let Some(mut pump) = self.pump.take() {
-            let _ = pump.stop(super::INPUT_STOP_DEADLINE);
-        }
-        if let Some(handoff) = &self.handoff {
-            handoff.close();
-        }
+        self.life.health(counters)
     }
 }
 
-/// Unregisters the raw input device on drop, so a scope exit or early return
-/// tears registration down in order rather than relying on prose.
-#[cfg(target_os = "windows")]
+/// Unregisters the raw input device on drop.
 struct DeviceGuard {
     usage_page: u16,
     usage: u16,
 }
 
-#[cfg(target_os = "windows")]
 impl Drop for DeviceGuard {
     fn drop(&mut self) {
         let remove = RAWINPUTDEVICE {
@@ -367,6 +427,8 @@ impl Drop for DeviceGuard {
             dwFlags: RIDEV_REMOVE,
             hwndTarget: HWND(core::ptr::null_mut()),
         };
+        // SAFETY: the slice holds one initialized RAWINPUTDEVICE that removes
+        // the registration, and the size argument is the size of that struct.
         unsafe {
             let _ =
                 RegisterRawInputDevices(&[remove], core::mem::size_of::<RAWINPUTDEVICE>() as u32);
@@ -375,10 +437,8 @@ impl Drop for DeviceGuard {
 }
 
 /// Clears the thread-local input context on drop, after the device is gone.
-#[cfg(target_os = "windows")]
 struct CtxGuard;
 
-#[cfg(target_os = "windows")]
 impl Drop for CtxGuard {
     fn drop(&mut self) {
         INPUT_CTX.with(|cell| *cell.borrow_mut() = None);
@@ -386,50 +446,30 @@ impl Drop for CtxGuard {
 }
 
 /// Destroys the message-only window on drop.
-#[cfg(target_os = "windows")]
 struct WindowGuard {
     hwnd: HWND,
 }
 
-#[cfg(target_os = "windows")]
 impl Drop for WindowGuard {
     fn drop(&mut self) {
+        // SAFETY: `hwnd` is the window that this thread created; a window that
+        // is already gone makes the call fail and changes nothing.
         unsafe {
             let _ = DestroyWindow(self.hwnd);
         }
     }
 }
 
-/// Unregisters the window class on drop (last, after the window is destroyed).
-#[cfg(target_os = "windows")]
-struct ClassGuard {
-    class_name: windows::core::HSTRING,
-    hinstance: HINSTANCE,
-}
-
-#[cfg(target_os = "windows")]
-impl Drop for ClassGuard {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = UnregisterClassW(
-                windows::core::PCWSTR(self.class_name.as_ptr()),
-                Some(self.hinstance),
-            );
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn run_raw_input(state: InputState, ready: PumpReady, signal: &super::StopSignal) {
-    use windows::core::{HSTRING, PCWSTR};
+fn run_raw_input(
+    state: InputState,
+    claim: DeviceClaim,
+    ready: PumpReady,
+    signal: &super::StopSignal,
+) {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 
+    let _claim = claim;
     let device = state.device;
-    let class_name = HSTRING::from(match device {
-        RawDevice::Keyboard => "HalvoRawKeyboard",
-        RawDevice::Pointer => "HalvoRawPointer",
-    });
-
     // SAFETY: GetModuleHandleW with no name reads the handle of this process's
     // executable and takes no pointer.
     let hinstance: HINSTANCE = match unsafe { GetModuleHandleW(None) } {
@@ -439,31 +479,17 @@ fn run_raw_input(state: InputState, ready: PumpReady, signal: &super::StopSignal
             return;
         }
     };
-
-    let class = WNDCLASSW {
-        lpfnWndProc: Some(wnd_proc),
-        hInstance: hinstance,
-        lpszClassName: PCWSTR(class_name.as_ptr()),
-        ..Default::default()
-    };
-    // SAFETY: `class` names a live wide string and a window procedure with the
-    // WNDPROC signature, both of which outlive the call.
-    let atom = unsafe { RegisterClassW(&class) };
-    if atom == 0 {
-        ready.report(Err(super::last_os_error("RegisterClassW")));
+    if let Err(error) = register_class(device, hinstance) {
+        ready.report(Err(error));
         return;
     }
-    // Teardown runs in reverse declaration order: device, context, window, class.
-    let _class_guard = ClassGuard {
-        class_name: class_name.clone(),
-        hinstance,
-    };
-
-    let hwnd = match unsafe {
+    // SAFETY: the class name is a static wide string of a registered class,
+    // and HWND_MESSAGE makes a message-only window with no other pointer.
+    let created = unsafe {
         CreateWindowExW(
             WINDOW_EX_STYLE(0),
-            PCWSTR(class_name.as_ptr()),
-            PCWSTR(class_name.as_ptr()),
+            device.class_name(),
+            device.class_name(),
             WINDOW_STYLE(0),
             0,
             0,
@@ -474,7 +500,8 @@ fn run_raw_input(state: InputState, ready: PumpReady, signal: &super::StopSignal
             Some(hinstance),
             None,
         )
-    } {
+    };
+    let hwnd = match created {
         Ok(h) => h,
         Err(error) => {
             ready.report(Err(super::os_error("CreateWindowExW", &error)));
@@ -505,8 +532,6 @@ fn run_raw_input(state: InputState, ready: PumpReady, signal: &super::StopSignal
         usage: device.hid_usage(),
     };
 
-    // The window exists, so the thread has a message queue; force it in and report
-    // readiness, then a stop() that races in posts WM_QUIT to a queue that keeps it.
     super::ensure_message_queue();
     ready.report(Ok(()));
     super::pump_messages(signal);
@@ -551,12 +576,6 @@ mod tests {
             ..PointerSample::default()
         };
         assert!(!wheel.is_motion_only());
-    }
-
-    #[test]
-    fn keyboard_and_pointer_devices_carry_their_modality() {
-        assert_eq!(RawDevice::Keyboard.modality(), Modality::Keystroke);
-        assert_eq!(RawDevice::Pointer.modality(), Modality::Pointer);
     }
 
     #[test]
@@ -711,26 +730,19 @@ mod tests {
     }
 
     #[test]
-    fn a_second_keyboard_source_names_the_step_that_failed() {
+    fn a_second_keyboard_source_in_the_process_waits_for_the_first_to_stop() {
         let _serial = crate::windows::tests::serial();
         let (sink, _writer) = crate::sink::channel(64);
         let mut first = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
         let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
         let first_started = first.begin(crate::source::SourceContext::new(sink.clone()));
-        let second_started = second.begin(crate::source::SourceContext::new(sink));
+        let while_first_runs = second.begin(crate::source::SourceContext::new(sink.clone()));
+        let first_stopped = first.shutdown();
+        let after_first_stopped = second.begin(crate::source::SourceContext::new(sink));
         let _ = second.shutdown();
-        let _ = first.shutdown();
         assert!(first_started.is_ok(), "{first_started:?}");
-        assert!(
-            matches!(
-                second_started,
-                Err(CaptureError::Os {
-                    stage: "RegisterClassW",
-                    domain: "HRESULT",
-                    ..
-                })
-            ),
-            "{second_started:?}"
-        );
+        assert_eq!(while_first_runs, Err(CaptureError::AlreadyStarted));
+        assert_eq!(first_stopped, Ok(()));
+        assert!(after_first_stopped.is_ok(), "{after_first_stopped:?}");
     }
 }

@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE};
-use windows_capture::capture::{Context, GraphicsCaptureApiHandler};
+use windows_capture::capture::{
+    CaptureControl, Context, GraphicsCaptureApiError, GraphicsCaptureApiHandler,
+};
 use windows_capture::frame::Frame;
 use windows_capture::graphics_capture_api::InternalCaptureControl;
 use windows_capture::monitor::Monitor;
@@ -15,8 +17,10 @@ use windows_capture::settings::{
 };
 
 use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+    StopCause,
+};
 
 use super::{HandOff, HandOffCounts, Packet, Producer};
 
@@ -35,6 +39,8 @@ pub fn exclude_window_from_capture(hwnd: HWND) -> Result<(), CaptureError> {
 }
 
 const SINK_GONE: &str = "the capture writer has stopped";
+const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
+const SCREEN_START_FAILED: &str = "the screen capture could not start";
 
 /// The packet of a frame of the given size, or `None` for a zero-area frame,
 /// which carries no image. No pixel is read: the size is the frame's byte
@@ -102,13 +108,18 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
     }
 }
 
-/// Screen capture source over the primary monitor. `start` opens a capture
-/// session on its own thread; `stop` ends it.
+type Control = CaptureControl<ScreenHandler, CaptureError>;
+
+/// Screen capture source over the primary monitor, read again at each `begin`.
+/// `begin` opens a capture session on its own thread; `shutdown` ends it
+/// inside [`super::SCREEN_STOP_DEADLINE`], and dropping the source does the
+/// same.
 pub struct ScreenSource {
     last_app: Arc<Mutex<Option<String>>>,
     min_interval: Duration,
-    control: Option<windows_capture::capture::CaptureControl<ScreenHandler, CaptureError>>,
+    control: Option<Control>,
     handoff: Option<HandOff>,
+    stopped: bool,
 }
 
 impl ScreenSource {
@@ -118,6 +129,7 @@ impl ScreenSource {
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             control: None,
             handoff: None,
+            stopped: false,
         }
     }
 
@@ -137,14 +149,12 @@ impl ScreenSource {
 }
 
 impl CaptureSource for ScreenSource {
-    fn modality(&self) -> Modality {
-        Modality::ScreenFrame
-    }
-
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let monitor =
-            Monitor::primary().map_err(|e| CaptureError::Start(format!("primary monitor: {e}")))?;
-        let handoff = HandOff::start(sink, "halvo-screen-forward")?;
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        if self.control.is_some() {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        let monitor = Monitor::primary().map_err(monitor_error)?;
+        let handoff = HandOff::start(ctx.sink().clone(), "halvo-screen-forward")?;
         let flags = ScreenFlags {
             producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
@@ -159,20 +169,90 @@ impl CaptureSource for ScreenSource {
             ColorFormat::Bgra8,
             flags,
         );
-        let control = ScreenHandler::start_free_threaded(settings)
-            .map_err(|e| CaptureError::Start(format!("screen capture: {e}")))?;
+        let control = ScreenHandler::start_free_threaded(settings).map_err(start_error)?;
         self.control = Some(control);
         self.handoff = Some(handoff);
-        Ok(())
+        self.stopped = false;
+        Ok(Started::Running)
     }
 
-    fn stop(&mut self) {
-        if let Some(control) = self.control.take() {
-            let _ = control.stop();
-        }
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        let Some(control) = self.control.take() else {
+            return Ok(());
+        };
+        let stopped = stop_within(control, super::SCREEN_STOP_DEADLINE);
         if let Some(handoff) = &self.handoff {
             handoff.close();
         }
+        self.stopped = true;
+        stopped
+    }
+
+    fn health(&self) -> SourceHealth {
+        let writer_gone = self.handoff.as_ref().is_some_and(HandOff::writer_gone);
+        let state = match &self.control {
+            Some(control) if control.is_finished() || writer_gone => super::thread_ended(),
+            Some(_) => SourceState::Running,
+            None if self.stopped => SourceState::Stopped(StopCause::Request),
+            None => SourceState::NotReported,
+        };
+        SourceHealth {
+            state,
+            counters: SourceCounters::default(),
+        }
+    }
+}
+
+impl Drop for ScreenSource {
+    fn drop(&mut self) {
+        let _ = self.shutdown();
+    }
+}
+
+/// Stop the capture on a thread of its own and wait for it up to `deadline`:
+/// `CaptureControl::stop` joins the capture thread without a bound.
+fn stop_within(control: Control, deadline: Duration) -> Result<(), CaptureError> {
+    let ended_before = control.is_finished();
+    let (done, stopped) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("halvo-screen-stop".to_string())
+        .spawn(move || {
+            let _ = done.send(control.stop().is_ok());
+        })
+        .map_err(|e| CaptureError::Os {
+            stage: "spawn the screen stop thread",
+            domain: "io",
+            code: i64::from(e.raw_os_error().unwrap_or(0)),
+        })?;
+    match stopped.recv_timeout(deadline) {
+        Ok(true) if !ended_before => Ok(()),
+        Ok(_) => Err(CaptureError::ThreadEnded),
+        Err(_) => Err(CaptureError::Timeout {
+            stage: "stop",
+            ms: u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX),
+        }),
+    }
+}
+
+fn monitor_error(error: windows_capture::monitor::Error) -> CaptureError {
+    match error {
+        windows_capture::monitor::Error::WindowsError(e) => super::os_error("primary monitor", &e),
+        _ => CaptureError::Start(NO_PRIMARY_MONITOR.to_string()),
+    }
+}
+
+fn start_error(error: GraphicsCaptureApiError<CaptureError>) -> CaptureError {
+    use windows_capture::graphics_capture_api::Error as Api;
+    match error {
+        GraphicsCaptureApiError::NewHandlerError(e)
+        | GraphicsCaptureApiError::FrameHandlerError(e) => e,
+        GraphicsCaptureApiError::GraphicsCaptureApiError(Api::WindowsError(e)) => {
+            super::os_error("start the screen capture", &e)
+        }
+        GraphicsCaptureApiError::DirectXError(windows_capture::d3d11::Error::WindowsError(e)) => {
+            super::os_error("create the Direct3D device", &e)
+        }
+        _ => CaptureError::Start(SCREEN_START_FAILED.to_string()),
     }
 }
 

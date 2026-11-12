@@ -11,7 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
-use halvo_capture::source::CaptureSource;
+use halvo_capture::source::{CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
 use halvo_capture::windows::input::RawInputSource;
@@ -75,6 +75,7 @@ const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
 const FIXED_TITLE: &str = "halvo-verify-second-window-with-a-fixed-title";
 const MAGENTA: u32 = 0x00FF_00FF;
 const FIRST_FRAME_WAIT: Duration = Duration::from_secs(10);
+const FULL_SINK_STOP_LIMIT: Duration = Duration::from_secs(2);
 const BOUNDS_FILE: &str = "docs/baseline/r1-gate-bounds.txt";
 
 fn say(test: &str, message: impl AsRef<str>) {
@@ -952,8 +953,14 @@ fn window_scenario(test: &'static str) -> WindowScenario {
     let mut foreground = ForegroundAppSource::new();
     let last_app = foreground.last_app();
     let mut title = WindowTitleSource::new();
-    let foreground_start = foreground.start(sink.clone()).map_err(|e| e.to_string());
-    let title_start = title.start(sink.clone()).map_err(|e| e.to_string());
+    let foreground_start = foreground
+        .begin(SourceContext::new(sink.clone()))
+        .map(|_| ())
+        .map_err(|e| e.to_string());
+    let title_start = title
+        .begin(SourceContext::new(sink.clone()))
+        .map(|_| ())
+        .map_err(|e| e.to_string());
     say(
         test,
         format!(
@@ -1010,8 +1017,8 @@ fn window_scenario(test: &'static str) -> WindowScenario {
         }
     };
     child_events.extend(events.drain_for(Duration::from_secs(1)));
-    foreground.stop();
-    title.stop();
+    let _ = foreground.shutdown();
+    let _ = title.shutdown();
     child.print_output();
     say(
         test,
@@ -1048,8 +1055,8 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
         let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
-        let keyboard_start = keyboard.start(sink.clone());
-        let pointer_start = pointer.start(sink.clone());
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
         say(
             "c1",
             format!(
@@ -1070,8 +1077,8 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let after_moves = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-pointer-moves", &after_moves);
 
-        keyboard.stop();
-        pointer.stop();
+        let _ = keyboard.shutdown();
+        let _ = pointer.shutdown();
         press_keys(3);
         move_pointer(3);
         let after_stop = events.drain_for(Duration::from_millis(700));
@@ -1127,7 +1134,7 @@ fn c2_screen_source_delivers_a_frame() {
         let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
         let mut screen = ScreenSource::new(last_app);
         let started = Instant::now();
-        let start = screen.start(sink.clone());
+        let start = screen.begin(SourceContext::new(sink.clone()));
         say(
             "c2",
             format!(
@@ -1162,7 +1169,7 @@ fn c2_screen_source_delivers_a_frame() {
         let moving = events.drain_for(Duration::from_millis(700));
         summarize("c2", "moving-window-5s", &moving);
 
-        screen.stop();
+        let _ = screen.shutdown();
         let after_stop = events.drain_for(Duration::from_millis(1500));
         let frames: Vec<&CaptureStreamEvent> = idle
             .iter()
@@ -1568,11 +1575,17 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let mut pointer = RawInputSource::pointer(Arc::clone(&last_app));
         let mut screen = ScreenSource::new(Arc::clone(&last_app));
         let starts = [
-            ("foreground", foreground.start(sink.clone())),
-            ("window_title", title.start(sink.clone())),
-            ("keyboard", keyboard.start(sink.clone())),
-            ("pointer", pointer.start(sink.clone())),
-            ("screen", screen.start(sink.clone())),
+            (
+                "foreground",
+                foreground.begin(SourceContext::new(sink.clone())),
+            ),
+            (
+                "window_title",
+                title.begin(SourceContext::new(sink.clone())),
+            ),
+            ("keyboard", keyboard.begin(SourceContext::new(sink.clone()))),
+            ("pointer", pointer.begin(SourceContext::new(sink.clone()))),
+            ("screen", screen.begin(SourceContext::new(sink.clone()))),
         ];
         for (name, result) in &starts {
             say("c9", format!("source={name} start={}", show(result)));
@@ -1604,11 +1617,11 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
         let end = memory();
         say("c9", memory_line("after-60s-before-stop", &end));
 
-        foreground.stop();
-        title.stop();
-        keyboard.stop();
-        pointer.stop();
-        screen.stop();
+        let _ = foreground.shutdown();
+        let _ = title.shutdown();
+        let _ = keyboard.shutdown();
+        let _ = pointer.shutdown();
+        let _ = screen.shutdown();
         let child_exit = child.wait();
         child.print_output();
         for event in events.drain_for(Duration::from_millis(500)) {
@@ -1865,7 +1878,7 @@ fn helper_limited_listener() {
     let secs: u64 = secs.parse().expect("listener seconds");
     let (sink, events) = capture(4096);
     let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-    let start = keyboard.start(sink.clone());
+    let start = keyboard.begin(SourceContext::new(sink.clone()));
     let started_ms = unix_millis(SystemTime::now());
     let window = TestWindow::create(&normal_window(
         LISTENER_WINDOW_CLASS,
@@ -1883,7 +1896,7 @@ fn helper_limited_listener() {
             }
         }
     }
-    keyboard.stop();
+    let _ = keyboard.shutdown();
     let report = format!(
         "keyboard_start={} window_created={} integrity_is_medium={}\n{started_ms}\n{}",
         show(&start),
@@ -2061,7 +2074,7 @@ fn x7_capture_border_on_the_screen() {
         let before = yellow_edge_pixels();
         let (sink, events) = capture(256);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.start(sink.clone());
+        let start = screen.begin(SourceContext::new(sink.clone()));
         let first = events.first_within(FIRST_FRAME_WAIT);
         let frame_before_sampling = first
             .as_ref()
@@ -2072,7 +2085,7 @@ fn x7_capture_border_on_the_screen() {
                 Modality::ScreenFrame,
             );
         let during = yellow_edge_pixels();
-        screen.stop();
+        let _ = screen.shutdown();
         std::thread::sleep(Duration::from_secs(1));
         let after = yellow_edge_pixels();
         say(
@@ -2122,7 +2135,7 @@ fn x9_screen_source_across_a_display_mode_change() {
         };
         let (sink, events) = capture(1024);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.start(sink.clone());
+        let start = screen.begin(SourceContext::new(sink.clone()));
         let before = events.drain_for(Duration::from_secs(3));
         summarize("x9", "before-mode-change", &before);
 
@@ -2138,7 +2151,7 @@ fn x9_screen_source_across_a_display_mode_change() {
         drop(window);
         let after = events.drain_for(Duration::from_secs(2));
         summarize("x9", "after-mode-change", &after);
-        screen.stop();
+        let _ = screen.shutdown();
         let restored = set_resolution(start_w, start_h);
         let with_new_size = after
             .iter()
@@ -2184,7 +2197,7 @@ fn x13_frames_on_a_static_screen() {
         pump_thread(Duration::from_secs(1));
         let (sink, events) = capture(1024);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.start(sink.clone());
+        let start = screen.begin(SourceContext::new(sink.clone()));
         let mut frames = 0;
         let began = Instant::now();
         while began.elapsed() < Duration::from_secs(8) {
@@ -2200,7 +2213,7 @@ fn x13_frames_on_a_static_screen() {
             &events.drain_for(Duration::from_secs(2)),
             Modality::ScreenFrame,
         );
-        screen.stop();
+        let _ = screen.shutdown();
         say(
             "x13",
             format!(
@@ -2222,7 +2235,7 @@ fn pointer_moves_coalesce() {
         source_built_by_test("coalesce", "pointer");
         let (sink, events) = capture(8192);
         let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-        let start = pointer.start(sink.clone());
+        let start = pointer.begin(SourceContext::new(sink.clone()));
         let first = move_pointer(MOVES / 2);
         let wheel = send(&[wheel_notch()]);
         let second = move_pointer(MOVES / 2);
@@ -2230,7 +2243,7 @@ fn pointer_moves_coalesce() {
             &events.drain_for(Duration::from_millis(1500)),
             Modality::Pointer,
         );
-        pointer.stop();
+        let _ = pointer.shutdown();
         let counts = pointer.handoff_counts();
         let accepted = first + second;
         say(
@@ -2274,8 +2287,8 @@ fn capture_times_follow_the_input_order() {
         let last_app = Arc::new(Mutex::new(None));
         let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
         let mut pointer = RawInputSource::pointer(last_app);
-        let keyboard_start = keyboard.start(sink.clone());
-        let pointer_start = pointer.start(sink.clone());
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
         let mut injected = Vec::new();
         let mut accepted = 0;
         for _ in 0..ROUNDS {
@@ -2289,8 +2302,8 @@ fn capture_times_follow_the_input_order() {
         }
         std::thread::sleep(Duration::from_millis(1500));
         let events = forward(writer).drain_for(Duration::from_secs(2));
-        keyboard.stop();
-        pointer.stop();
+        let _ = keyboard.shutdown();
+        let _ = pointer.shutdown();
         let mut stamped: Vec<(Modality, SystemTime)> = events
             .iter()
             .map(|e| (e.modality, e.captured_at.wall_clock))
@@ -2339,6 +2352,118 @@ fn capture_times_follow_the_input_order() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn stop_with_a_full_sink() {
+    with_deadline("full-sink", Duration::from_secs(60), || {
+        env_report("full-sink");
+        source_built_by_test("full-sink", "keyboard");
+        let (sink, writer) = channel(1);
+        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let accepted = press_keys(3);
+        std::thread::sleep(Duration::from_millis(500));
+        let (done, returned) = mpsc::channel();
+        let began = Instant::now();
+        std::thread::Builder::new()
+            .name("tf-full-sink-stop".to_string())
+            .spawn(move || {
+                let _ = done.send(keyboard.shutdown());
+            })
+            .expect("spawn the stop thread");
+        let stopped = returned.recv_timeout(FULL_SINK_STOP_LIMIT);
+        let waited_ms = began.elapsed().as_millis();
+        let events = forward(writer);
+        let delivered = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        );
+        say(
+            "full-sink",
+            format!(
+                "keyboard_start={} sink_capacity=1 sendinput_key_events_accepted={accepted} \
+                 stop={stopped:?} stop_ms={waited_ms} \
+                 keystroke_events_delivered_after_the_stop={delivered}",
+                show(&start),
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert_eq!(
+            accepted, 6,
+            "INCONCLUSIVE: SendInput did not insert the three key presses"
+        );
+        assert!(
+            delivered >= 2,
+            "INCONCLUSIVE: fewer than two keystrokes reached the sink, so it was not full when stop was called"
+        );
+        assert!(
+            matches!(stopped, Ok(Ok(()))),
+            "the stop did not return Ok within {FULL_SINK_STOP_LIMIT:?}: {stopped:?}"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_dropped_keyboard_source_stops_capturing() {
+    with_deadline("dropped", Duration::from_secs(60), || {
+        env_report("dropped");
+        source_built_by_test("dropped", "keyboard");
+        let (sink, events) = capture(4096);
+        let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let accepted_before = press_keys(1);
+        let before = count(
+            &events.drain_for(Duration::from_millis(700)),
+            Modality::Keystroke,
+        );
+        drop(keyboard);
+        std::thread::sleep(Duration::from_millis(300));
+        let accepted_after = press_keys(3);
+        let after = count(
+            &events.drain_for(Duration::from_secs(1)),
+            Modality::Keystroke,
+        );
+        let mut next = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let next_start = next.begin(SourceContext::new(sink.clone()));
+        let accepted_next = press_keys(1);
+        let next_keys = count(
+            &events.drain_for(Duration::from_millis(700)),
+            Modality::Keystroke,
+        );
+        let next_stop = next.shutdown();
+        say(
+            "dropped",
+            format!(
+                "keyboard_start={} sendinput_key_events_accepted_before_the_drop={accepted_before} \
+                 keystroke_events_before_the_drop={before} \
+                 sendinput_key_events_accepted_after_the_drop={accepted_after} \
+                 keystroke_events_after_the_drop={after} next_keyboard_start={} \
+                 keystroke_events_of_the_next_source={next_keys} next_keyboard_stop={}",
+                show(&start),
+                show(&next_start),
+                show(&next_stop),
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            accepted_before == 2 && accepted_after == 6 && accepted_next == 2,
+            "INCONCLUSIVE: SendInput did not insert every key event"
+        );
+        assert!(
+            before >= 1,
+            "INCONCLUSIVE: the keyboard source recorded no key before the drop"
+        );
+        assert_eq!(after, 0, "the dropped source recorded keys");
+        assert!(
+            next_start.is_ok(),
+            "a new keyboard source must start in the same process"
+        );
+        assert!(next_keys >= 1, "the new keyboard source recorded no key");
+        assert!(next_stop.is_ok(), "the new keyboard source must stop");
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -2355,8 +2480,6 @@ mod known_defect {
     use halvo_capture::windows::apps::wait_for_change;
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
     use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, ES_PASSWORD};
-
-    const FULL_SINK_STOP_DEADLINE: Duration = Duration::from_secs(10);
 
     fn title_len(hwnd: HWND) -> i32 {
         // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
@@ -2422,7 +2545,7 @@ mod known_defect {
             let (sink, events) = capture(4096);
             let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
             let mut keyboard = RawInputSource::keyboard(last_app);
-            let start = keyboard.start(sink.clone());
+            let start = keyboard.begin(SourceContext::new(sink.clone()));
             let window = TestWindow::create(&normal_window(
                 "HalvoVerifyPassword",
                 "halvo-verify-password",
@@ -2476,7 +2599,7 @@ mod known_defect {
             pump_thread(Duration::from_millis(300));
             let characters = title_len(password);
             let during = events.drain_for(Duration::from_secs(1));
-            keyboard.stop();
+            let _ = keyboard.shutdown();
             let typed = count(&during, Modality::Keystroke);
             say(
                 "x1",
@@ -2507,7 +2630,7 @@ mod known_defect {
             env_report("x2");
             let (sink, events) = capture(8192);
             let mut title = WindowTitleSource::new();
-            let start = title.start(sink.clone());
+            let start = title.begin(SourceContext::new(sink.clone()));
             let mut child = spawn_child("scope", 0);
             let mut seen = Vec::new();
             let exit = loop {
@@ -2517,7 +2640,7 @@ mod known_defect {
                 }
             };
             seen.extend(events.drain_for(Duration::from_secs(1)));
-            title.stop();
+            let _ = title.shutdown();
             child.print_output();
             summarize("x2", "scope", &seen);
             let with_size = |len: u64| {
@@ -2567,7 +2690,7 @@ mod known_defect {
             env_report("fixed-title");
             let (sink, events) = capture(8192);
             let mut title = WindowTitleSource::new();
-            let start = title.start(sink.clone());
+            let start = title.begin(SourceContext::new(sink.clone()));
             let mut child = spawn_child("cycle", 4);
             let child_pid = child.id();
             let fixed_len = FIXED_TITLE.len() as i32;
@@ -2583,7 +2706,7 @@ mod known_defect {
                 }
             };
             seen.extend(events.drain_for(Duration::from_secs(1)));
-            title.stop();
+            let _ = title.shutdown();
             child.print_output();
             summarize("fixed-title", "cycle", &seen);
             let titles_of = |wanted: &dyn Fn(u64) -> bool| {
@@ -2645,8 +2768,8 @@ mod known_defect {
             let mut foreground = ForegroundAppSource::new();
             let last_app = foreground.last_app();
             let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
-            let foreground_start = foreground.start(sink.clone());
-            let keyboard_start = keyboard.start(sink.clone());
+            let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
+            let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
             let settle = events.drain_for(Duration::from_secs(1));
             let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
             press_keys(5);
@@ -2665,8 +2788,8 @@ mod known_defect {
             press_keys(5);
             let after = events.drain_for(Duration::from_millis(700));
             let exit = child.wait();
-            foreground.stop();
-            keyboard.stop();
+            let _ = foreground.shutdown();
+            let _ = keyboard.shutdown();
             child.print_output();
 
             let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
@@ -2765,7 +2888,7 @@ mod known_defect {
             env_report("x14");
             let (sink, events) = capture(4096);
             let mut foreground = ForegroundAppSource::new();
-            let start = foreground.start(sink.clone());
+            let start = foreground.begin(SourceContext::new(sink.clone()));
             let launched = Command::new("cmd.exe")
                 .args(["/c", "start", "ms-settings:"])
                 .status()
@@ -2777,7 +2900,7 @@ mod known_defect {
             }
             let settings_processes = processes_named("SystemSettings.exe");
             let foreground_now = current_foreground_app().unwrap_or_default();
-            foreground.stop();
+            let _ = foreground.shutdown();
             let _ = Command::new("taskkill.exe")
                 .args(["/IM", "SystemSettings.exe", "/F"])
                 .output();
@@ -2827,7 +2950,7 @@ mod known_defect {
             source_built_by_test("x15", "keyboard");
             let (sink, events) = capture(4096);
             let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-            let start = keyboard.start(sink.clone());
+            let start = keyboard.begin(SourceContext::new(sink.clone()));
             let mut accepted = 0;
             for _ in 0..REPEATS {
                 accepted += send(&[key_input(VK_F15, false)]);
@@ -2835,7 +2958,7 @@ mod known_defect {
             }
             accepted += send(&[key_input(VK_F15, true)]);
             let seen = events.drain_for(Duration::from_secs(1));
-            keyboard.stop();
+            let _ = keyboard.shutdown();
             let keystrokes = count(&seen, Modality::Keystroke);
             say(
                 "x15",
@@ -2959,108 +3082,6 @@ mod known_defect {
                 "RR-windows-12",
                 terminal_in_inventory,
                 format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn stop_with_a_full_sink() {
-        with_deadline("full-sink", Duration::from_secs(60), || {
-            env_report("full-sink");
-            source_built_by_test("full-sink", "keyboard");
-            let (sink, writer) = channel(1);
-            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-            let start = keyboard.start(sink.clone());
-            let accepted = press_keys(3);
-            std::thread::sleep(Duration::from_millis(500));
-            let (done, returned) = mpsc::channel();
-            let began = Instant::now();
-            std::thread::Builder::new()
-                .name("tf-full-sink-stop".to_string())
-                .spawn(move || {
-                    keyboard.stop();
-                    let _ = done.send(());
-                })
-                .expect("spawn the stop thread");
-            let stopped = answer(&returned, FULL_SINK_STOP_DEADLINE, "the stop thread").is_some();
-            let waited_ms = began.elapsed().as_millis();
-            let events = forward(writer);
-            let delivered = count(
-                &events.drain_for(Duration::from_secs(1)),
-                Modality::Keystroke,
-            );
-            say(
-                "full-sink",
-                format!(
-                    "keyboard_start={} sink_capacity=1 sendinput_key_events_accepted={accepted} \
-                     waited_ms={waited_ms} keystroke_events_delivered_after_the_wait={delivered}",
-                    show(&start),
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert_eq!(
-                accepted, 6,
-                "INCONCLUSIVE: SendInput did not insert the three key presses"
-            );
-            assert!(
-                delivered >= 2,
-                "INCONCLUSIVE: fewer than two keystrokes reached the sink, so it was not full when stop was called"
-            );
-            defect!(
-                "RR-windows-11",
-                stopped,
-                format!(
-                    "TF full-sink stop_returned_within_{}s={stopped}",
-                    FULL_SINK_STOP_DEADLINE.as_secs()
-                )
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: needs an interactive Windows desktop"]
-    fn a_dropped_keyboard_source_keeps_capturing() {
-        with_deadline("dropped", Duration::from_secs(60), || {
-            env_report("dropped");
-            source_built_by_test("dropped", "keyboard");
-            let (sink, events) = capture(4096);
-            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
-            let start = keyboard.start(sink.clone());
-            let accepted_before = press_keys(1);
-            let before = count(
-                &events.drain_for(Duration::from_millis(700)),
-                Modality::Keystroke,
-            );
-            drop(keyboard);
-            std::thread::sleep(Duration::from_millis(300));
-            let accepted_after = press_keys(3);
-            let after = count(
-                &events.drain_for(Duration::from_secs(1)),
-                Modality::Keystroke,
-            );
-            say(
-                "dropped",
-                format!(
-                    "keyboard_start={} sendinput_key_events_accepted_before_the_drop={accepted_before} \
-                     keystroke_events_before_the_drop={before} \
-                     sendinput_key_events_accepted_after_the_drop={accepted_after}",
-                    show(&start),
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert!(
-                accepted_before == 2 && accepted_after == 6,
-                "INCONCLUSIVE: SendInput did not insert every key event"
-            );
-            assert!(
-                before >= 1,
-                "INCONCLUSIVE: the keyboard source recorded no key before the drop"
-            );
-            defect!(
-                "RR-windows-11",
-                after == 0,
-                format!("TF dropped keystroke_events_after_the_drop={after}")
             );
         });
     }

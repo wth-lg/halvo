@@ -1,10 +1,11 @@
 //! Window-title capture via `SetWinEventHook`.
 
 use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
+};
 
-use super::{HandOff, Packet, Producer, PumpHandle, PumpReady};
+use super::{Lifecycle, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use super::foreground::{foreground_app_for, set_win_event_hook, HookInstaller};
@@ -52,27 +53,18 @@ struct TitleState {
     producer: Producer,
 }
 
-/// Window-title capture source. `start` installs the name-change hook on its own
-/// pump thread; `stop` quits that thread and unhooks.
+/// Window-title capture source. `begin` installs the name-change hook on its
+/// own pump thread; `shutdown` ends the pump inside
+/// [`super::INPUT_STOP_DEADLINE`], and dropping the source does the same.
 pub struct WindowTitleSource {
-    pump: Option<PumpHandle>,
-    handoff: Option<HandOff>,
+    life: Lifecycle,
     installer: HookInstaller,
 }
 
 impl WindowTitleSource {
-    /// The counts of this source's hand-off queue in its last run.
-    pub fn handoff_counts(&self) -> super::HandOffCounts {
-        self.handoff
-            .as_ref()
-            .map(HandOff::counts)
-            .unwrap_or_default()
-    }
-
     pub fn new() -> Self {
         Self {
-            pump: None,
-            handoff: None,
+            life: Lifecycle::default(),
             installer: set_win_event_hook,
         }
     }
@@ -83,6 +75,11 @@ impl WindowTitleSource {
             installer,
             ..Self::new()
         }
+    }
+
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.life.handoff_counts()
     }
 }
 
@@ -125,31 +122,23 @@ unsafe extern "system" fn title_proc(
 }
 
 impl CaptureSource for WindowTitleSource {
-    fn modality(&self) -> Modality {
-        Modality::WindowTitle
-    }
-
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let handoff = HandOff::start(sink, "halvo-window-title-forward")?;
-        let state = TitleState {
-            producer: handoff.producer(),
-        };
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let installer = self.installer;
-        let pump = super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
-            run_title_hook(state, installer, ready, &signal)
-        })?;
-        self.pump = Some(pump);
-        self.handoff = Some(handoff);
-        Ok(())
+        self.life
+            .begin(&ctx, "halvo-window-title-forward", move |producer| {
+                let state = TitleState { producer };
+                super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
+                    run_title_hook(state, installer, ready, &signal)
+                })
+            })
     }
 
-    fn stop(&mut self) {
-        if let Some(mut pump) = self.pump.take() {
-            let _ = pump.stop(super::INPUT_STOP_DEADLINE);
-        }
-        if let Some(handoff) = &self.handoff {
-            handoff.close();
-        }
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.life.shutdown()
+    }
+
+    fn health(&self) -> SourceHealth {
+        self.life.health(SourceCounters::default())
     }
 }
 

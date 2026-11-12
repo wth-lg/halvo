@@ -10,7 +10,10 @@ pub mod window_title;
 use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
 use crate::sink::{SinkError, SinkHandle};
-use crate::source::{CaptureError, EmitOutcome, EventSink};
+use crate::source::{
+    CaptureError, EmitOutcome, EventSink, HealthReason, SourceContext, SourceCounters,
+    SourceHealth, SourceState, Started, StopCause,
+};
 use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime};
@@ -238,6 +241,12 @@ impl Producer {
     }
 }
 
+impl HandOff {
+    pub(crate) fn writer_gone(&self) -> bool {
+        self.shared.lock().writer_gone
+    }
+}
+
 fn forward(shared: &Shared) {
     let mut last_motion: Option<Instant> = None;
     while let Some(packet) = next_packet(shared, &mut last_motion) {
@@ -351,11 +360,52 @@ pub const INPUT_STOP_DEADLINE: Duration = Duration::from_millis(1_000);
 /// end (C12.7, first value).
 pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
 
-/// The signal that tells a pump to end, besides `WM_QUIT`.
-pub(crate) struct StopSignal(());
+const STOP_POLL: Duration = Duration::from_millis(5);
+
+fn deadline_ms(deadline: Duration) -> u64 {
+    u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX)
+}
+
+/// The signal that tells a pump to end besides `WM_QUIT`: a manual-reset event
+/// that the pump's wait watches beside its message queue.
+pub(crate) struct StopSignal(windows::Win32::Foundation::HANDLE);
+
+// SAFETY: an event handle names a kernel object of the process, which any of
+// its threads may set and wait on.
+unsafe impl Send for StopSignal {}
+// SAFETY: as for Send; SetEvent and a wait on the same event may run on two
+// threads at once.
+unsafe impl Sync for StopSignal {}
+
+impl StopSignal {
+    fn new() -> Result<Self, CaptureError> {
+        use windows::Win32::System::Threading::CreateEventW;
+        // SAFETY: CreateEventW with no attributes and no name makes a new
+        // unnamed manual-reset event, initially unset.
+        let event = unsafe { CreateEventW(None, true, false, windows::core::PCWSTR::null()) }
+            .map_err(|e| os_error("CreateEventW", &e))?;
+        Ok(Self(event))
+    }
+
+    fn set(&self) {
+        // SAFETY: `self.0` is the live event that this value owns.
+        unsafe {
+            let _ = windows::Win32::System::Threading::SetEvent(self.0);
+        }
+    }
+}
+
+impl Drop for StopSignal {
+    fn drop(&mut self) {
+        // SAFETY: `self.0` is the event that this value owns; it is closed once.
+        unsafe {
+            let _ = windows::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
 
 /// A started pump thread: its reported id, its join handle and its stop
-/// signal.
+/// signal. Dropping it stops the pump.
 pub(crate) struct PumpHandle {
     id: PumpThreadId,
     join: Option<std::thread::JoinHandle<()>>,
@@ -363,13 +413,125 @@ pub(crate) struct PumpHandle {
 }
 
 impl PumpHandle {
+    /// Set the stop signal and post `WM_QUIT` until the thread ends: `Ok` when
+    /// it ended and was joined, [`CaptureError::ThreadEnded`] when it had ended
+    /// before, [`CaptureError::Timeout`] when `deadline` passed first, which
+    /// leaves the thread running and unjoined.
     pub(crate) fn stop(&mut self, deadline: Duration) -> Result<(), CaptureError> {
-        let _ = (deadline, &self.signal);
-        if let Some(join) = self.join.take() {
+        let Some(join) = self.join.take() else {
+            return Ok(());
+        };
+        let ended_before = join.is_finished();
+        let began = Instant::now();
+        self.signal.set();
+        loop {
             post_quit_to(self.id);
-            let _ = join.join();
+            if join.is_finished() {
+                break;
+            }
+            if began.elapsed() >= deadline {
+                return Err(CaptureError::Timeout {
+                    stage: "stop",
+                    ms: deadline_ms(deadline),
+                });
+            }
+            std::thread::sleep(STOP_POLL);
+        }
+        if join.join().is_err() || ended_before {
+            return Err(CaptureError::ThreadEnded);
         }
         Ok(())
+    }
+
+    fn has_ended(&self) -> bool {
+        self.join
+            .as_ref()
+            .is_none_or(std::thread::JoinHandle::is_finished)
+    }
+}
+
+impl Drop for PumpHandle {
+    fn drop(&mut self) {
+        let _ = self.stop(INPUT_STOP_DEADLINE);
+    }
+}
+
+/// The run of a pump source: its pump and its hand-off, kept after a stop for
+/// the hand-off's counts. Dropping it stops the pump.
+#[derive(Default)]
+pub(crate) struct Lifecycle {
+    pump: Option<PumpHandle>,
+    handoff: Option<HandOff>,
+    stopped: bool,
+}
+
+impl Lifecycle {
+    /// Start a hand-off to the context's sink and the pump that `spawn` makes
+    /// with its producer; [`CaptureError::AlreadyStarted`] while a pump runs.
+    pub(crate) fn begin(
+        &mut self,
+        ctx: &SourceContext,
+        forwarder: &str,
+        spawn: impl FnOnce(Producer) -> Result<PumpHandle, CaptureError>,
+    ) -> Result<Started, CaptureError> {
+        if self.pump.is_some() {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        let handoff = HandOff::start(ctx.sink().clone(), forwarder)?;
+        let pump = spawn(handoff.producer())?;
+        self.pump = Some(pump);
+        self.handoff = Some(handoff);
+        self.stopped = false;
+        Ok(Started::Running)
+    }
+
+    pub(crate) fn is_running(&self) -> bool {
+        self.pump.is_some()
+    }
+
+    pub(crate) fn shutdown(&mut self) -> Result<(), CaptureError> {
+        let Some(mut pump) = self.pump.take() else {
+            return Ok(());
+        };
+        let stopped = pump.stop(INPUT_STOP_DEADLINE);
+        if let Some(handoff) = &self.handoff {
+            handoff.close();
+        }
+        self.stopped = true;
+        stopped
+    }
+
+    pub(crate) fn health(&self, counters: SourceCounters) -> SourceHealth {
+        let writer_gone = self.handoff.as_ref().is_some_and(HandOff::writer_gone);
+        let state = match &self.pump {
+            Some(pump) if pump.has_ended() || writer_gone => thread_ended(),
+            Some(_) => SourceState::Running,
+            None if self.stopped => SourceState::Stopped(StopCause::Request),
+            None => SourceState::NotReported,
+        };
+        SourceHealth { state, counters }
+    }
+
+    pub(crate) fn handoff_counts(&self) -> HandOffCounts {
+        self.handoff
+            .as_ref()
+            .map(HandOff::counts)
+            .unwrap_or_default()
+    }
+}
+
+impl Drop for Lifecycle {
+    fn drop(&mut self) {
+        let _ = self.shutdown();
+    }
+}
+
+/// The failed state of a source whose thread ended without a stop, or whose
+/// sink's writer is gone.
+pub(crate) fn thread_ended() -> SourceState {
+    SourceState::Failed {
+        reason: HealthReason::ThreadEnded,
+        error: CaptureError::ThreadEnded,
     }
 }
 
@@ -382,7 +544,7 @@ pub(crate) fn spawn_pump<F>(name: String, body: F) -> Result<PumpHandle, Capture
 where
     F: FnOnce(PumpReady, Arc<StopSignal>) + Send + 'static,
 {
-    let signal = Arc::new(StopSignal(()));
+    let signal = Arc::new(StopSignal::new()?);
     let pump_signal = Arc::clone(&signal);
     let (tx, rx) = std::sync::mpsc::channel();
     let join = std::thread::Builder::new()
@@ -410,10 +572,11 @@ where
     }
 }
 
-#[cfg(target_os = "windows")]
 pub(crate) fn post_quit_to(thread_id: PumpThreadId) {
     use windows::Win32::Foundation::{LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
+    // SAFETY: PostThreadMessageW takes a thread id and two plain values; a
+    // thread with no queue or one that ended makes it fail and changes nothing.
     unsafe {
         let _ = PostThreadMessageW(thread_id.get(), WM_QUIT, WPARAM(0), LPARAM(0));
     }
@@ -439,20 +602,41 @@ pub(crate) fn ensure_message_queue() {
     }
 }
 
-/// Pump the current thread's message queue until `WM_QUIT`. A WinEvent hook or a
-/// message-only window delivers its callbacks on the thread that runs this loop.
+/// Pump the current thread's message queue until `WM_QUIT` or the stop signal.
+/// A WinEvent hook or a message-only window delivers its callbacks on the
+/// thread that runs this loop.
 pub(crate) fn pump_messages(signal: &StopSignal) {
-    let _ = signal;
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::WAIT_OBJECT_0;
+    use windows::Win32::System::Threading::INFINITE;
     use windows::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, GetMessageW, TranslateMessage, MSG,
+        DispatchMessageW, MsgWaitForMultipleObjectsEx, PeekMessageW, TranslateMessage, MSG,
+        MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT, WM_QUIT,
     };
     let mut msg = MSG::default();
-    unsafe {
-        // GetMessageW returns 0 on WM_QUIT and -1 on error; either ends the pump.
-        while GetMessageW(&mut msg, Some(HWND(std::ptr::null_mut())), 0, 0).0 > 0 {
-            let _ = TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+    loop {
+        // SAFETY: `msg` is a live MSG that PeekMessageW fills, and the same
+        // value goes to TranslateMessage and DispatchMessageW.
+        unsafe {
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                if msg.message == WM_QUIT {
+                    return;
+                }
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        // SAFETY: the slice holds the live event of `signal`, which outlives
+        // the wait.
+        let woke = unsafe {
+            MsgWaitForMultipleObjectsEx(
+                Some(&[signal.0]),
+                INFINITE,
+                QS_ALLINPUT,
+                MWMO_INPUTAVAILABLE,
+            )
+        };
+        if woke.0 != WAIT_OBJECT_0.0 + 1 {
+            return;
         }
     }
 }

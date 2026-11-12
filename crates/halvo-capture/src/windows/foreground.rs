@@ -3,10 +3,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
+};
 
-use super::{HandOff, Packet, Producer, PumpHandle, PumpReady};
+use super::{Lifecycle, Packet, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
@@ -98,29 +99,20 @@ struct ForegroundState {
     last_app: Arc<Mutex<Option<String>>>,
 }
 
-/// Foreground-app capture source. `start` installs the WinEvent hook on its own
-/// pump thread; `stop` quits that thread and unhooks.
+/// Foreground-app capture source. `begin` installs the WinEvent hook on its
+/// own pump thread; `shutdown` ends the pump inside
+/// [`super::INPUT_STOP_DEADLINE`], and dropping the source does the same.
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
-    pump: Option<PumpHandle>,
-    handoff: Option<HandOff>,
+    life: Lifecycle,
     installer: HookInstaller,
 }
 
 impl ForegroundAppSource {
-    /// The counts of this source's hand-off queue in its last run.
-    pub fn handoff_counts(&self) -> super::HandOffCounts {
-        self.handoff
-            .as_ref()
-            .map(HandOff::counts)
-            .unwrap_or_default()
-    }
-
     pub fn new() -> Self {
         Self {
             last_app: Arc::new(Mutex::new(None)),
-            pump: None,
-            handoff: None,
+            life: Lifecycle::default(),
             installer: set_win_event_hook,
         }
     }
@@ -136,6 +128,11 @@ impl ForegroundAppSource {
     /// The shared last-foreground-app cell.
     pub fn last_app(&self) -> Arc<Mutex<Option<String>>> {
         Arc::clone(&self.last_app)
+    }
+
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.life.handoff_counts()
     }
 }
 
@@ -175,32 +172,24 @@ unsafe extern "system" fn foreground_proc(
 }
 
 impl CaptureSource for ForegroundAppSource {
-    fn modality(&self) -> Modality {
-        Modality::ForegroundApp
-    }
-
-    fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let handoff = HandOff::start(sink, "halvo-foreground-forward")?;
-        let state = ForegroundState {
-            producer: handoff.producer(),
-            last_app: Arc::clone(&self.last_app),
-        };
+    fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        let last_app = Arc::clone(&self.last_app);
         let installer = self.installer;
-        let pump = super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
-            run_foreground_hook(state, installer, ready, &signal)
-        })?;
-        self.pump = Some(pump);
-        self.handoff = Some(handoff);
-        Ok(())
+        self.life
+            .begin(&ctx, "halvo-foreground-forward", move |producer| {
+                let state = ForegroundState { producer, last_app };
+                super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
+                    run_foreground_hook(state, installer, ready, &signal)
+                })
+            })
     }
 
-    fn stop(&mut self) {
-        if let Some(mut pump) = self.pump.take() {
-            let _ = pump.stop(super::INPUT_STOP_DEADLINE);
-        }
-        if let Some(handoff) = &self.handoff {
-            handoff.close();
-        }
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.life.shutdown()
+    }
+
+    fn health(&self) -> SourceHealth {
+        self.life.health(SourceCounters::default())
     }
 }
 
