@@ -101,7 +101,7 @@ cygwin: cygwin-drive
 wsl-mnt: wsl-mnt-drive
 git-bash: git-bash-drive git-bash-upper-drive
 windows-old: windows-old-drive windows-old-root
-windows-drive: windows-drive-backslash windows-drive-forward-slash windows-drive-lower-case windows-drive-upper-case windows-drive-json-doubled windows-drive-percent-encoded windows-drive-long-path
+windows-drive: windows-drive-backslash windows-drive-forward-slash windows-drive-lower-case windows-drive-upper-case windows-drive-json-doubled windows-drive-percent-encoded windows-drive-long-path windows-drive-name-all
 windows-root: windows-root-exact-case windows-root-backslash windows-root-unc-share
 macos: macos-after-blank macos-in-double-quotes macos-in-single-quotes macos-after-equals macos-after-colon macos-json-escaped-slash macos-percent-encoded macos-percent-encoded-lower macos-after-encoded-byte macos-after-two-periods macos-file-url macos-file-url-one-slash macos-name-with-digit macos-name-with-underscore macos-name-non-ascii macos-in-curly-quotes macos-in-guillemets macos-at-line-start macos-carriage-return macos-after-tab macos-after-bracket macos-after-scp-host
 linux: linux-home linux-home-after-colon linux-home-numeric
@@ -538,6 +538,7 @@ FAIL|windows-drive|windows-drive-upper-case|C:\{UU}\ADA
 FAIL|windows-drive|windows-drive-json-doubled|"C:\\{U}\\ada"
 FAIL|windows-drive|windows-drive-percent-encoded|C%3A%5C{U}%5Cada
 FAIL|windows-drive|windows-drive-long-path|\\?\C:\{U}\ada
+FAIL|windows-drive|windows-drive-name-all|C:\{U}\All\x
 FAIL|windows-root|windows-root-backslash|\{u}\ada
 FAIL|windows-root|windows-root-unc-share|\\host\c$\{U}\ada
 FAIL|windows-old|windows-old-drive|C:\{D}\ada
@@ -822,7 +823,7 @@ self_test_commits() {
   scan_case merge-and-its-side-commit 1 "$short side.txt:1" --allow "$list" "$merge^1..$merge"
 
   in_repo checkout -q -b side2 "$merge^1" || die 'git checkout failed'
-  printf 'side2\n' >"$repo/side2.txt"
+  expand_fixture '/{U}/kim' >>"$repo/main.txt"
   commit_all 'side2' >/dev/null || die 'commit failed'
   in_repo checkout -q - || die 'git checkout failed'
   in_repo merge -q --no-ff --no-commit side2 >/dev/null 2>&1
@@ -830,7 +831,8 @@ self_test_commits() {
   in_repo add main.txt || die 'git add failed'
   in_repo commit -q -m 'merge with a new line' || die 'commit failed'
   merge=$(in_repo rev-parse HEAD) || die 'git rev-parse failed'
-  scan_case merge-adds-a-line-of-its-own 1 'main.txt:2: a home path (macos)' --allow "$list" "$merge^!"
+  scan_case merge-adds-a-line-of-its-own 1 'main.txt:3: a home path (macos)' --allow "$list" "$merge^!"
+  scan_case merge-reads-no-line-of-a-parent-beside-its-own 1 'commits read 1, lines with a home path 1.' --allow "$list" "$merge^!"
 
   in_repo mv fixtures/made-up.txt fixtures/moved.txt || die 'git mv failed'
   c=$(commit_all 'rename') || die 'commit failed'
@@ -926,6 +928,12 @@ self_test_hook() {
   push_case two-refs-one-with-a-home-path refused 'bad.txt:1' proof clean2 bad
   push_case force-push-over-main refused 'bad.txt:1' proof +bad:refs/heads/main
   push_case delete-a-branch pushed '' proof :refs/heads/clean
+
+  in_repo push -q --no-verify proof bad:refs/heads/old-bad >/dev/null 2>&1 || die 'the push without the hook failed'
+  in_repo checkout -q -b over-old-bad bad || die 'git checkout failed'
+  printf 'plain\n' >"$repo/over.txt"
+  commit_all 'over old bad' >/dev/null || die 'commit failed'
+  push_case update-of-a-ref-whose-remote-copy-holds-the-line pushed 'commits read 1, lines with a home path 0' proof over-old-bad:refs/heads/old-bad
 
   in_repo tag -a -m 'tag' t1 "$bad" || die 'git tag failed'
   push_case annotated-tag-on-a-commit-with-a-home-path refused 'bad.txt:1' proof refs/tags/t1
