@@ -194,7 +194,13 @@ fn fetch_shareable_content() -> Option<Retained<SCShareableContent>> {
             let _ = tx.send(retained);
         },
     );
-    // SAFETY: the handler matches the documented completion-handler signature.
+    // SAFETY: the handler has the completion signature
+    // `void (^)(SCShareableContent *, NSError *)`. ScreenCaptureKit calls it on
+    // a queue of its own, possibly after the 10 s wait below gave up. It holds
+    // nothing but `tx`; a send to a receiver that is gone returns an error,
+    // which the handler ignores, and the retained content drops with it. The
+    // content it sends crosses to the waiting thread, although neither objc2
+    // nor SCShareableContent.h marks the class as safe to share between threads.
     unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&handler) };
     rx.recv_timeout(Duration::from_secs(10)).ok().flatten()
 }
@@ -237,9 +243,13 @@ impl CaptureSource for ScreenSource {
         let queue = DispatchQueue::new("com.halvo.capture.screen", None);
         let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
         // SAFETY: `stream`, `output` (which `proto` borrows) and the serial
-        // dispatch queue `queue` are live for the call. When `start` succeeds the
-        // source keeps `output` and `queue` in its fields until `stop`; an error
-        // return below drops them with `stream`.
+        // dispatch queue `queue` are live for the call. This source releases
+        // `output` and `queue` only when the stream cannot run: after this call
+        // fails, after the start completion reports an error, or after the stop
+        // completion arrived. A start or a stop whose completion does not arrive
+        // within 5 s keeps both for the life of the process. Not held here: a
+        // second `start` without `stop`, or dropping a started source, releases
+        // them while the stream may run (RR-macos-sources-07).
         unsafe {
             stream
                 .addStreamOutput_type_sampleHandlerQueue_error(
@@ -262,8 +272,11 @@ impl CaptureSource for ScreenSource {
         // SAFETY: `stream` is live, and the handler has the completion signature
         // `void (^)(NSError *)`; it only stores a flag and sends on a channel.
         unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
-        let _ = srx.recv_timeout(Duration::from_secs(5));
+        let completed = srx.recv_timeout(Duration::from_secs(5)).is_ok();
         if !started.load(Ordering::Relaxed) {
+            if !completed {
+                keep_for_the_life_of_the_process(Some(output), Some(queue));
+            }
             return Err(CaptureError::Start("startCapture reported an error".into()));
         }
 
@@ -274,19 +287,34 @@ impl CaptureSource for ScreenSource {
     }
 
     fn stop(&mut self) {
-        if let Some(stream) = self.stream.take() {
-            let (tx, rx) = channel();
-            let handler = RcBlock::new(move |_err: *mut NSError| {
-                let _ = tx.send(());
-            });
-            // SAFETY: `stream` is live, and the handler has the completion
-            // signature `void (^)(NSError *)`; it only sends on a channel.
-            unsafe { stream.stopCaptureWithCompletionHandler(Some(&handler)) };
-            let _ = rx.recv_timeout(Duration::from_secs(5));
+        let stopped = match self.stream.take() {
+            None => true,
+            Some(stream) => {
+                let (tx, rx) = channel();
+                let handler = RcBlock::new(move |_err: *mut NSError| {
+                    let _ = tx.send(());
+                });
+                // SAFETY: `stream` is live, and the handler has the completion
+                // signature `void (^)(NSError *)`; it only sends on a channel.
+                unsafe { stream.stopCaptureWithCompletionHandler(Some(&handler)) };
+                rx.recv_timeout(Duration::from_secs(5)).is_ok()
+            }
+        };
+        if stopped {
+            self.output = None;
+            self.queue = None;
+        } else {
+            keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
         }
-        self.output = None;
-        self.queue = None;
     }
+}
+
+fn keep_for_the_life_of_the_process(
+    output: Option<Retained<ScreenOutput>>,
+    queue: Option<DispatchRetained<DispatchQueue>>,
+) {
+    std::mem::forget(output);
+    std::mem::forget(queue);
 }
 
 #[cfg(test)]
