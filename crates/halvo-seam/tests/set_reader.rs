@@ -60,6 +60,48 @@ fn a_set_path_that_is_no_regular_file_is_unreadable() {
     ));
 }
 
+#[test]
+fn a_set_path_that_is_a_symbolic_link_is_unreadable_also_when_it_names_a_regular_file() {
+    use std::io::{ErrorKind, Write};
+    let dir = new_dir("set_reader_link");
+    let file = dir.join("app-title.toml");
+    fs::write(&file, APP_TITLE).unwrap();
+    assert!(InputSet::read(&file).is_ok());
+    let link = dir.join("link.toml");
+    #[cfg(unix)]
+    let made = std::os::unix::fs::symlink(&file, &link);
+    #[cfg(windows)]
+    let made = std::os::windows::fs::symlink_file(&file, &link);
+    if let Err(e) = made {
+        writeln!(
+            std::io::stderr(),
+            "set_reader_link: no symbolic link could be made here ({:?}), so the link case did not run",
+            e.kind()
+        )
+        .unwrap();
+        return;
+    }
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+            && fs::metadata(&link).unwrap().is_file()
+    );
+    match InputSet::read(&link) {
+        Err(SetError::Unreadable { path, kind }) => {
+            assert_eq!(path, link);
+            assert_eq!(kind, ErrorKind::InvalidInput);
+        }
+        other => panic!("{other:?}"),
+    }
+    let none: &[PathBuf] = &[];
+    assert!(matches!(
+        FixtureTransport::open(none, 1, Some(&link)),
+        Err(OpenError::InputSet(SetError::Unreadable { .. }))
+    ));
+}
+
 #[cfg(unix)]
 #[test]
 fn the_set_reader_refuses_a_fifo_as_unreadable_without_waiting() {
