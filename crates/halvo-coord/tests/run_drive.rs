@@ -392,3 +392,68 @@ fn review_stop_1() {
         "no second kill of a run that the library does not know"
     );
 }
+
+/// Whether the calls since the last read hold a kill.
+fn killed(w: &mut World) -> bool {
+    w.calls().iter().any(|c| c == "kill")
+}
+
+#[test]
+fn a_tick_whose_clock_reads_earlier_than_a_stop_kills_the_run_and_the_tree_of_a_run_that_ended_after_it(
+) {
+    const HOUR: u64 = 3_600_000;
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.act(Act::Stop {
+        run: run.clone(),
+        by: StopBy::Person,
+    });
+    w.forget();
+    w.act(Act::Tick);
+    assert!(
+        !killed(&mut w),
+        "a clock that reads the instant of the stop kills nothing"
+    );
+    w.set_clock(T0 - HOUR, support::DAY);
+    let tick = w.act(Act::Tick);
+    assert!(
+        killed(&mut w),
+        "the clock stepped back one hour after the stop: the next tick kills the run"
+    );
+    assert_eq!(tick.report.ended[0].cause, RunEnd::Cancelled);
+    assert!(w.board.runs.is_empty());
+
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.act(Act::Stop {
+        run: run.clone(),
+        by: StopBy::Person,
+    });
+    w.ports.end_runner(&run);
+    w.act(Act::End {
+        run,
+        outcome: Some(Outcome::Completed),
+    });
+    assert_eq!(w.board.dying.len(), 1, "the runner ended after its stop");
+    w.forget();
+    w.act(Act::Tick);
+    assert!(!killed(&mut w));
+    w.set_clock(T0 - HOUR, support::DAY);
+    w.act(Act::Tick);
+    assert!(killed(&mut w), "the next tick kills the dying tree");
+    assert!(w.board.dying.is_empty());
+
+    let mut w = world(&[MANUAL]);
+    started(&mut w, 0);
+    w.ports
+        .workflows
+        .borrow_mut()
+        .retain(|wf| wf.id() != &support::flow(0));
+    w.forget();
+    let stop = w.act(Act::Tick);
+    assert_eq!(stop.report.stopped.len(), 1, "the tick stops the run");
+    assert!(!killed(&mut w), "a tick never kills a run that it stopped");
+    w.set_clock(T0 - HOUR, support::DAY);
+    w.act(Act::Tick);
+    assert!(killed(&mut w));
+}
