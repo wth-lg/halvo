@@ -61,43 +61,49 @@ function closes({ version, headers }) {
 
 function serve(socket, connection, app, record, idleMs) {
   let timer = null;
+  let ended = false;
   const quiet = () => clearTimeout(timer);
+  const onData = (chunk) => {
+    arm();
+    reader.feed(chunk);
+  };
+  const stop = (last) => {
+    if (ended) return;
+    ended = true;
+    quiet();
+    socket.removeListener("data", onData);
+    socket.pause();
+    socket.end(last ?? Buffer.alloc(0), () => socket.destroy());
+  };
   const reader = makeReader({
     request(message) {
       const { method, target, headers, trailers, body } = message;
       const answer = app.handle({ method, target, headers, body });
       record.request({ connection, method, target, headers, trailers, body, status: answer.status, result: answer.result });
       const close = closes(message);
-      socket.write(answerBytes(method, answer, close));
-      if (close) {
-        quiet();
-        socket.end();
-      }
+      if (close) stop(answerBytes(method, answer, close));
+      else socket.write(answerBytes(method, answer, close));
       return !close;
     },
     malformed(cause) {
-      quiet();
       record.refused({ connection, error: cause });
-      socket.end(answerBytes("", app.malformed(), true));
+      stop(answerBytes("", app.malformed(), true));
     },
   });
-  const arm = () => {
+  function arm() {
     quiet();
     timer = setTimeout(() => {
       if (reader.idle()) return;
       record.refused({ connection, error: "idle-close" });
-      socket.end();
+      stop();
     }, idleMs);
-  };
+  }
   arm();
-  socket.on("data", (chunk) => {
-    arm();
-    reader.feed(chunk);
-  });
+  socket.on("data", onData);
   socket.on("close", quiet);
   socket.on("end", () => {
     reader.end();
-    socket.end();
+    stop();
   });
   socket.on("error", () => {});
 }
@@ -137,7 +143,9 @@ function serveControl(app, stop) {
  * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
  * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection. A connection
  * that sends nothing for `idleMs` (IDLE_MS unless a test gives another) gets the rejection of a malformed request
- * when a request had begun, and is closed with the record line `idle-close` when none had.
+ * when a request had begun, and is closed with the record line `idle-close` when none had. Once the stub ends a
+ * connection, after the idle limit, a refusal, an answer that closes or the peer's end, it reads nothing more of it
+ * and destroys its socket when the last answer is written.
  * Throws RecordError or TlsError for a bad directory or file.
  */
 export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {

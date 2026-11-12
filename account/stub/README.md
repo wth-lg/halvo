@@ -40,6 +40,8 @@ The app-facing port reads HTTP/1.1 itself, so that every request reaches the che
 
 A connection that sends nothing for 5,000 ms (`IDLE_MS` of `src/stub.mjs`) is ended. When a byte of a request had arrived, it gets the 400 of the next paragraph with the cause `idle`; a request whose lines end in a bare LF is one such case, because the stub reads only CRLF as a line end. When no byte of a request had arrived, as on a keep-alive connection after its last answer, the stub closes it without an answer and records the line `idle-close`. The limit counts from the last byte received. It is far above any gap between the bytes of one request on loopback, and below the 10 s that a test of the stub waits for an answer.
 
+Once the stub ends a connection, after the idle limit, after a 400, after an answer that closes it or after the peer ends its side, it reads nothing more of it and closes its socket when the last answer is written. Bytes that arrive later are not read, recorded or judged, and start no idle limit.
+
 Bytes that are no request get status 400 with `content-type: application/json` and the body `{"result":"rejected"}`, as contract 1.4 answers a body that does not parse, and the stub closes the connection and reads no more of it. The causes are:
 
 | Cause | The bytes |

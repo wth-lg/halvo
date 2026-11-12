@@ -190,3 +190,15 @@ test("a field value with an inner run of 65,400 spaces is kept whole and trimmed
   assert.deepEqual(causes, []);
   assert.deepEqual(messages[0].headers, [["x-pad", value], ["x-empty", ""]]);
 });
+
+test("once the reader has stopped, idle() does nothing", () => {
+  const causes = [];
+  const refused = makeReader({ request: () => true, malformed: (cause) => causes.push(cause) });
+  refused.feed(Buffer.from("GET / HTTP/1.1\r\nbad header\r\n\r\nGET / HTTP/1.1\r\nhost: a\r\n"));
+  assert.equal(refused.idle(), false);
+  assert.deepEqual(causes, ["field-line"]);
+  const stopped = makeReader({ request: () => false, malformed: (cause) => causes.push(cause) });
+  stopped.feed(Buffer.from("GET / HTTP/1.1\r\nhost: a\r\n\r\nGET / HTTP/1.1\r\n"));
+  assert.equal(stopped.idle(), false);
+  assert.deepEqual(causes, ["field-line"]);
+});

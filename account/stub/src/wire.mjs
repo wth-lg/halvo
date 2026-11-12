@@ -171,7 +171,6 @@ export function makeReader({ request, malformed }) {
     },
     idle() {
       if (state === "done") return false;
-      while (buffer.subarray(0, 2).equals(CRLF)) take(2);
       if (state === "head" && buffer.length === 0) return false;
       fail("idle");
       return true;

@@ -173,3 +173,70 @@ test("the idle limit counts from the last byte, so a request sent in parts with 
   assert.equal(parse(await exchange(portOf(stub.app), parts)).status, 200);
   assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
 });
+
+function halfOpen(port) {
+  return new Promise((resolve) => {
+    const socket = connect({ host: "127.0.0.1", port, allowHalfOpen: true });
+    const got = [];
+    const closed = new Promise((done) => socket.on("close", done));
+    socket.on("data", (chunk) => got.push(chunk));
+    socket.on("error", () => {});
+    socket.on("connect", () => resolve({ socket, closed, got: () => Buffer.concat(got) }));
+  });
+}
+
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("a request sent after the idle close leaves no line and changes no state", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const port = portOf(stub.app);
+  const client = await halfOpen(port);
+  await pause(500);
+  client.socket.write(request("POST", "/v1/checkout", [...appHeaders(), ...json], CAP));
+  await pause(200);
+  client.socket.write(request("GET", "/v1/done"));
+  assert.equal(await within(client.closed, 1000), true, "the stub's socket is gone, so the late writes end the connection");
+  await pause(200);
+  client.socket.destroy();
+  assert.equal(client.got().length, 0);
+  assert.deepEqual(lines(dir).map((line) => [line.connection, line.status ?? line.error]), [[1, "idle-close"]]);
+  assert.equal(parse(await exchange(port, request("GET", "/v1/subscription", appHeaders()))).body, '{"result":"no-such-account"}');
+});
+
+test("after the peer ends its side behind an answer, no idle-close line follows", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const client = await halfOpen(portOf(stub.app));
+  client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+  await pause(100);
+  client.socket.end();
+  await pause(600);
+  client.socket.destroy();
+  assert.equal(parse(client.got()).status, 200);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+});
+
+test("after a 400, no idle-close line follows and bytes sent after it leave no line", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const client = await halfOpen(portOf(stub.app));
+  client.socket.write("GET /v1/done HTTP/1.1\r\nbad header\r\n\r\n");
+  await pause(100);
+  client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+  await pause(600);
+  client.socket.destroy();
+  assert.equal(parse(client.got()).status, 400);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), ["field-line"]);
+});
+
+test("after an answer that closes, no idle-close line follows", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const client = await halfOpen(portOf(stub.app));
+  client.socket.write(request("GET", "/v1/done"));
+  await pause(600);
+  client.socket.destroy();
+  assert.equal(parse(client.got()).status, 200);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+});
