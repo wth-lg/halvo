@@ -80,7 +80,9 @@ pub struct KindCounts {
 /// The counts of every kind, read by [`SinkHandle::counts`]. Every clone of a
 /// handle adds to the same counts, which start at 0 when the sink is built and
 /// only rise. An emit is counted when it returns, so an event can be received
-/// before its emit is counted.
+/// before its emit is counted. The counters are read one after another, not at
+/// one instant: a sum of counters is a value that the total held while it was
+/// read, and a difference or a comparison of two counters is not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SinkCounts {
     kinds: [KindCounts; KINDS],
