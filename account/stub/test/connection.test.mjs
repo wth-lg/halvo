@@ -111,6 +111,33 @@ test("a request still open when the stub stops gets one line incomplete, and a c
   }
 });
 
+test("at the stop, each request that the stub read and held unjudged at the bound gets its own line incomplete", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const one = `GET /v1/done HTTP/1.1\r\nhost: a\r\nx: ${"p".repeat(25)}\r\n\r\n`;
+  assert.equal(one.length, 64);
+  const socket = connect({ host: "127.0.0.1", port: portOf(stub.app) });
+  socket.on("error", () => {});
+  await new Promise((resolve) => socket.on("connect", resolve));
+  socket.pause();
+  socket.write(one.repeat(12000));
+  let held = -1;
+  for (let waited = 0; waited < 20000; waited += 500) {
+    await pause(500);
+    const now = lines(dir).length;
+    if (now === held) break;
+    held = now;
+  }
+  await stub.close();
+  socket.destroy();
+  const got = lines(dir);
+  const begun = Math.ceil(readFileSync(join(dir, "connection-000001.raw")).length / one.length);
+  assert.ok(begun < 12000, "the stub read only part of the pipeline");
+  assert.equal(got.length, begun, "one line for each request that the stub read");
+  assert.equal(got.filter((line) => line.status === 200).length, held);
+  assert.ok(got.slice(held).every((line) => line.error === "incomplete"));
+});
+
 test("a keep-alive connection serves requests in order until one asks to close, and HTTP/1.0 closes after its answer", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });

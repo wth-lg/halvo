@@ -64,6 +64,7 @@ function serve(socket, connection, app, record, idleMs) {
   let timer = null;
   let held = false;
   let ended = false;
+  let stopping = false;
   const quiet = () => clearTimeout(timer);
   const settle = () => {
     if (socket.writableEnded) return;
@@ -94,6 +95,10 @@ function serve(socket, connection, app, record, idleMs) {
   };
   const reader = makeReader({
     request(message) {
+      if (stopping) {
+        record.refused({ connection, error: "incomplete" });
+        return true;
+      }
       const { method, target, headers, trailers, body } = message;
       const answer = record.request({ connection, method, target, headers, trailers, body, judge: () => app.handle({ method, target, headers, body }) });
       if (answer === null) {
@@ -109,7 +114,7 @@ function serve(socket, connection, app, record, idleMs) {
       record.refused({ connection, error: cause });
       stop(answerBytes("", app.malformed(), true));
     },
-    full: () => socket.writableNeedDrain,
+    full: () => !stopping && socket.writableNeedDrain,
     interim: () => socket.write(CONTINUE),
   });
   function arm() {
@@ -136,6 +141,8 @@ function serve(socket, connection, app, record, idleMs) {
   socket.on("error", () => {});
   return () => {
     if (socket.writableEnded) return;
+    stopping = true;
+    reader.resume();
     reader.end();
     stop();
   };
