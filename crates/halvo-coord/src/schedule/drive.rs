@@ -245,10 +245,38 @@ fn store_at<P: Owner, C>(
     day: u32,
     at: i64,
 ) -> Result<(), PortError> {
+    let refusal = match log_at(cx, board, i, &whats, day, at) {
+        Err(e) if seq_refusal(&e) => e,
+        other => return other,
+    };
+    let facts = &mut board.members[i].facts;
+    let before = facts.events.len();
+    if resync(cx.ports, &facts.agent, &mut facts.events).is_err() {
+        return Err(refusal);
+    }
+    let rest: Vec<What> = whats
+        .into_iter()
+        .filter(|w| !covered(&facts.events, before, w))
+        .collect();
+    settle(facts, before);
+    if rest.is_empty() {
+        return Ok(());
+    }
+    log_at(cx, board, i, &rest, day, at)
+}
+
+fn log_at<P: Owner, C>(
+    cx: &Cx<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    whats: &[What],
+    day: u32,
+    at: i64,
+) -> Result<(), PortError> {
     let facts = &mut board.members[i].facts;
     let last = facts.events.last().map_or(0, |e| e.seq.get());
     let events: Vec<Event> = whats
-        .into_iter()
+        .iter()
         .zip(0u32..)
         .map(|(what, k)| Event {
             workflow: facts.workflow.id.clone(),
@@ -256,12 +284,71 @@ fn store_at<P: Owner, C>(
             seq: NonZeroU32::MIN.saturating_add(last.saturating_add(k)),
             day,
             at,
-            what,
+            what: what.clone(),
         })
         .collect();
     cx.ports.log(&events)?;
     facts.events.extend(events);
     Ok(())
+}
+
+/// Whether the owner's events, of which those from `before` on came with the read after a
+/// refusal `seq`, already hold what `what` would store (I7.2, ruling XB-31): an open item raised
+/// as `what` raises it, an item that `what` would close and that they close, or the same event.
+fn covered(events: &[Event], before: usize, what: &What) -> bool {
+    let read = &events[before.min(events.len())..];
+    match what {
+        What::ItemRaised { raised, .. } => read.iter().any(|e| {
+            matches!(&e.what, What::ItemRaised { item, raised: r } if r == raised && !item_closed(events, item))
+        }),
+        What::ItemAnswered { item, .. } | What::ItemLapsed { item, .. } => {
+            item_closed(events, item)
+        }
+        other => read.iter().any(|e| &e.what == other),
+    }
+}
+
+/// After a read of the owner's events: the agent's own item leaves its facts when those events
+/// close it, and an agent with no item takes the newest own item that the read brought and that
+/// is still open, so that the board holds what the owner's ledger holds.
+fn settle<C>(facts: &mut Facts<C>, before: usize) {
+    let open = match &facts.doing {
+        Doing::Idle(Some(o)) | Doing::Queued(Some(o)) => Some(o.item.clone()),
+        Doing::Idle(None) | Doing::Queued(None) => None,
+        Doing::Live(_) => return,
+    };
+    match open {
+        Some(item) if item_closed(&facts.events, &item) => {
+            facts.doing = without_item(&facts.doing);
+        }
+        Some(_) => {}
+        None => {
+            let revealed = facts.events[before.min(facts.events.len())..]
+                .iter()
+                .rev()
+                .find_map(|e| match &e.what {
+                    What::ItemRaised { item, raised } if !item_closed(&facts.events, item) => {
+                        let kind = match raised {
+                            Raised::Check(None) => OwnItemKind::Check,
+                            Raised::Ready => OwnItemKind::Ready,
+                            Raised::Setup => OwnItemKind::Setup,
+                            _ => return None,
+                        };
+                        Some(OwnItem {
+                            item: item.clone(),
+                            kind,
+                        })
+                    }
+                    _ => None,
+                });
+            if let Some(own) = revealed {
+                facts.doing = match facts.doing {
+                    Doing::Queued(_) => Doing::Queued(Some(own)),
+                    _ => Doing::Idle(Some(own)),
+                };
+            }
+        }
+    }
 }
 
 fn send_state<P: Owner, C>(cx: &Cx<'_, P>, facts: &Facts<C>, state: AgentState) {
@@ -749,7 +836,14 @@ fn raise<P: Owner + Rng, C>(
             raised,
         }],
     )?;
-    board.members[i].facts.doing = Doing::Idle(Some(OwnItem { item, kind }));
+    let facts = &mut board.members[i].facts;
+    let stored = facts
+        .events
+        .iter()
+        .any(|e| matches!(&e.what, What::ItemRaised { item: r, .. } if *r == item));
+    if stored {
+        facts.doing = Doing::Idle(Some(OwnItem { item, kind }));
+    }
     Ok(())
 }
 
@@ -1127,7 +1221,11 @@ where
 /// XB-26); an owed `end_run` is acknowledged too once the tick's read of the agent store's last
 /// record names its run or a later run of the agent (I5.8, ruling XB-30), and an owed
 /// `run_ended` that the owner refuses with `seq` is paid when the owner's events, read again,
-/// hold it (I7.2).
+/// hold it (I7.2). Every log of a move that the owner refuses with `seq` reads the owner's
+/// events of the agent after the last one that the board holds, logs nothing of what they
+/// already hold (the same event, an open item of the same kind, an item that they close), takes
+/// the agent's open item from them, and logs the rest once more; a second refusal waits for the
+/// next move (I7.2, ruling XB-31).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
