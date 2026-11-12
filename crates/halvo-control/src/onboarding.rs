@@ -557,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn the_three_r1_panes_deep_link_with_the_system_settings_scheme() {
+    fn the_three_settings_urls_and_floor_pane_titles_are_these_literals() {
         assert_eq!(
             Permission::ScreenAndSystemAudioRecording.settings_url(),
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn r1_requests_exactly_three_permissions_on_macos_and_none_elsewhere() {
+    fn the_required_list_is_the_three_macos_permissions_on_macos_and_empty_elsewhere() {
         let required = Permission::required_on_this_platform();
         if cfg!(target_os = "macos") {
             assert_eq!(required, Permission::R1_MACOS);

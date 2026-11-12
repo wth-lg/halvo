@@ -304,29 +304,29 @@ mod tests {
         }
     }
 
-    fn temp_settings() -> SettingsFile {
-        static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("halvo-consent-test-{}-{n}", std::process::id()));
-        SettingsFile::new(dir.join("consent.json"))
+    fn temp_settings() -> (tempfile::TempDir, SettingsFile) {
+        let dir = tempfile::tempdir().unwrap();
+        let file = SettingsFile::new(dir.path().join("settings").join("consent.json"));
+        (dir, file)
     }
 
-    fn controller(rows: Vec<InventoryRow>) -> ConsentController {
-        ConsentController::open(
+    fn controller(rows: Vec<InventoryRow>) -> (tempfile::TempDir, ConsentController) {
+        let (dir, file) = temp_settings();
+        let controller = ConsentController::open(
             Box::new(MockStore {
                 rows,
                 shred_all_calls: 0,
                 shred_before_calls: vec![],
             }),
-            temp_settings(),
+            file,
         )
-        .unwrap()
+        .unwrap();
+        (dir, controller)
     }
 
     #[test]
     fn status_starts_running_and_reflects_pause_and_resume() {
-        let mut c = controller(vec![row(0, Modality::Keystroke, 1, 10)]);
+        let (_dir, mut c) = controller(vec![row(0, Modality::Keystroke, 1, 10)]);
         assert_eq!(c.status().state, CaptureState::Running);
         c.set_capture_state(CaptureState::Paused).unwrap();
         assert_eq!(c.status().state, CaptureState::Paused);
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn pause_persists_so_the_daemon_can_read_it() {
-        let file = temp_settings();
+        let (_dir, file) = temp_settings();
         let mut c = ConsentController::open(
             Box::new(MockStore {
                 rows: vec![],
@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn inventory_lists_counts_and_bytes_by_modality_and_day_oldest_first() {
-        let mut c = controller(vec![
+        let (_dir, mut c) = controller(vec![
             row(20_000, Modality::ScreenFrame, 5, 500),
             row(19_999, Modality::Keystroke, 7, 70),
             row(19_999, Modality::ScreenFrame, 3, 300),
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn delete_all_calls_the_store_shred_all_and_empties_the_inventory() {
-        let mut c = controller(vec![
+        let (_dir, mut c) = controller(vec![
             row(1, Modality::Pointer, 2, 20),
             row(2, Modality::Keystroke, 2, 20),
         ]);
@@ -402,7 +402,7 @@ mod tests {
 
     #[test]
     fn delete_all_through_the_consent_view_trait() {
-        let mut c = controller(vec![row(1, Modality::Pointer, 2, 20)]);
+        let (_dir, mut c) = controller(vec![row(1, Modality::Pointer, 2, 20)]);
         ConsentView::delete_all(&mut c).unwrap();
         assert!(c.inventory().unwrap().is_empty());
     }
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn lowering_the_cap_shreds_oldest_first_until_under_the_cap() {
         let gib = StorageCap::GIB;
-        let mut c = controller(vec![
+        let (_dir, mut c) = controller(vec![
             row(10, Modality::ScreenFrame, 1, gib),
             row(11, Modality::ScreenFrame, 1, gib),
             row(12, Modality::ScreenFrame, 1, gib),
@@ -497,7 +497,7 @@ mod tests {
             }
         }
         for stored in ["0", "5", "1073741823"] {
-            let file = temp_settings();
+            let (_dir, file) = temp_settings();
             std::fs::create_dir_all(file.path().parent().unwrap()).unwrap();
             std::fs::write(file.path(), format!(r#"{{"storage_cap": {stored}}}"#)).unwrap();
             assert!(file.load().is_err(), "{stored}");
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn audio_and_camera_are_off_by_default_and_the_r1_modalities_on() {
-        let c = controller(vec![]);
+        let (_dir, c) = controller(vec![]);
         for m in [
             Modality::SystemAudio,
             Modality::Microphone,
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn settings_load_defaults_when_the_file_is_missing_and_save_is_atomic() {
-        let file = temp_settings();
+        let (_dir, file) = temp_settings();
         let s = file.load().unwrap();
         assert_eq!(s.capture, CaptureState::Running);
         assert_eq!(s.storage_cap, StorageCap::DEFAULT);
