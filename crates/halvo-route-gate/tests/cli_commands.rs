@@ -140,7 +140,7 @@ fn refusals_of_usage() {
         &[
             "score", "--table", "x", "--router", "product", "--policy", "y",
         ],
-        "REFUSED usage: not built",
+        "REFUSED file: --table cannot be read",
     );
     assert_refused(
         &["score", "--table", "x", "--router", "best"],
@@ -387,9 +387,20 @@ fn derive_writes_the_policy_of_a_generated_table() {
     );
     let header = path(&dir, "header.tsv");
     std::fs::write(&header, format!("{HEADER}\n")).expect("fixture");
-    assert_refused(
-        &["derive", "--table", &header, "--out", &path(&dir, "p3.tsv")],
-        "REFUSED usage: not built",
+    let recorded = crate::run(&[
+        "derive",
+        "--table",
+        &header,
+        "--out",
+        &path(&dir, "first.tsv"),
+    ]);
+    assert_eq!(
+        (
+            recorded.code,
+            recorded.stdout.as_str(),
+            recorded.stderr.as_str()
+        ),
+        (Some(0), "", "")
     );
     assert_refused(
         &[
@@ -482,10 +493,8 @@ fn score_prints_its_lines_and_exits_by_the_verdict() {
     }
     let header = path(&dir, "header.tsv");
     std::fs::write(&header, format!("{HEADER}\n")).expect("fixture");
-    assert_refused(
-        &["score", "--table", &header, "--router", "derived"],
-        "REFUSED usage: not built",
-    );
+    let recorded = run(&["score", "--table", &header, "--router", "derived"]);
+    assert_eq!((recorded.code, recorded.stderr.as_str()), (Some(0), ""));
     assert_refused(
         &[
             "score", "--table", &table, "--router", "derived", "--freeze", &table,
@@ -497,5 +506,5 @@ fn score_prints_its_lines_and_exits_by_the_verdict() {
 #[test]
 fn self_test_prints_its_line() {
     let run = run(&["self-test", "--tables", "3", "--seed", "7"]);
-    assert_eq!((run.code, run.stdout.as_str(), run.stderr.as_str()), (Some(0), "selftest tables=3 derived_pass=3 product_pass=- one_tier_fail=3 random_fail=3 peek_fail=3\n", ""));
+    assert_eq!((run.code, run.stdout.as_str(), run.stderr.as_str()), (Some(0), "selftest tables=3 derived_pass=3 product_pass=3 one_tier_fail=3 random_fail=3 peek_fail=3\n", ""));
 }

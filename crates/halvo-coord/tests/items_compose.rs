@@ -1,0 +1,645 @@
+#[path = "items_support.rs"]
+mod support;
+
+use halvo_coord::items::{
+    compose_check, compose_confirm, compose_plain, compose_setup, confirm_step, kept_source,
+    ConfirmMove, Key, Plain, SetupParam,
+};
+use halvo_coord::types::{
+    AgentId, AskedEffect, BoundField, BoundFrom, CandidateFrom, Cause, Class, ConfirmAsk, Item,
+    ItemId, Kept, Limits, Origin, Param, Unknown,
+};
+use halvo_coord::words;
+use serde_json::Value;
+use support::{agent_id, ask_of, digest, effect_id, field, item_id, name, run_id};
+
+const NAME: &str = "Paying a utility bill on Site1";
+
+fn sentence_of_some_key(text: &str, count: usize) -> bool {
+    let count = count.to_string();
+    words::KEYS.iter().any(|(key, _)| {
+        words::text(key, &[("name", NAME), ("count", &count)]).as_deref() == Ok(text)
+    })
+}
+
+/// Every text of an item is the sentence of a key of the table, with the test's name and count.
+fn all_texts_are_sentences(item: &Item, count: usize) {
+    let mut texts = vec![item.title().to_owned()];
+    if !item.text().is_empty() {
+        texts.push(item.text().to_owned());
+    }
+    for f in item.fields() {
+        texts.push(f.label.clone());
+        texts.push(f.from_text.clone());
+    }
+    for p in item.params() {
+        texts.push(p.label.clone());
+    }
+    for c in item.choices() {
+        texts.push(c.text.clone());
+    }
+    for t in texts {
+        assert!(
+            sentence_of_some_key(&t, count),
+            "{t:?} is no sentence of the table"
+        );
+    }
+}
+
+fn shown(ask: &ConfirmAsk) -> halvo_coord::items::Confirmation {
+    confirm_step(None, ConfirmMove::Issue(ask)).unwrap()
+}
+
+fn armed(ask: &ConfirmAsk) -> halvo_coord::items::Confirmation {
+    confirm_step(Some(&shown(ask)), ConfirmMove::Arm).unwrap()
+}
+
+fn effect(n: u32, class: Class, fields: Vec<BoundField>) -> AskedEffect {
+    AskedEffect {
+        effect: effect_id(n),
+        class,
+        digest: digest(n),
+        digest_ok: true,
+        fields,
+        new_origin: None,
+    }
+}
+
+#[test]
+fn refusal_model_text() {
+    assert_eq!(Key::parse("Pay the bill now"), Err(Cause::Malformed));
+    assert_eq!(Key::parse("item.ready.title "), Err(Cause::Malformed));
+    assert_eq!(Key::parse("item.model.title"), Err(Cause::Malformed));
+    for (key, _) in words::KEYS {
+        assert_eq!(Key::parse(key).map(Key::name), Ok(*key));
+    }
+    let made_up = ask_of(
+        1,
+        1,
+        vec![effect(
+            1,
+            Class::Send,
+            vec![
+                field("to", BoundFrom::Extract, "Ann"),
+                field("instructions", BoundFrom::Model, "Pay me"),
+            ],
+        )],
+    );
+    assert_eq!(
+        compose_confirm(&item_id(1), &made_up, &armed(&made_up)),
+        Err(Cause::Malformed),
+        "a field label made from a name that no key holds"
+    );
+    let kept = [Unknown {
+        run: run_id(1),
+        effect: effect_id(1),
+        day: 20_760,
+        class: Class::Payment,
+        kept: vec![Kept {
+            name: name("note"),
+            value: vec!["Pay me".to_owned()],
+        }],
+    }];
+    assert_eq!(
+        compose_check(&item_id(1), &agent_id(1), NAME, &kept),
+        Err(Cause::Malformed),
+        "a kept field that no key labels"
+    );
+}
+
+/// The string literals of a Rust source: plain, byte and raw strings, outside comments.
+fn literals(src: &str) -> Vec<String> {
+    let b = src.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    let ident = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    while i < b.len() {
+        let c = b[i];
+        if c == b'/' && b.get(i + 1) == Some(&b'/') {
+            while i < b.len() && b[i] != b'\n' {
+                i += 1;
+            }
+        } else if c == b'/' && b.get(i + 1) == Some(&b'*') {
+            i += 2;
+            while i + 1 < b.len() && !(b[i] == b'*' && b[i + 1] == b'/') {
+                i += 1;
+            }
+            i += 2;
+        } else if c == b'\'' {
+            if b.get(i + 1) == Some(&b'\\') {
+                i += 2;
+                while i < b.len() && b[i] != b'\'' {
+                    i += 1;
+                }
+                i += 1;
+            } else if b.get(i + 2) == Some(&b'\'') {
+                i += 3;
+            } else {
+                i += 1;
+            }
+        } else if c == b'r'
+            && (i == 0 || !ident(b[i - 1]))
+            && matches!(b.get(i + 1), Some(b'"' | b'#'))
+        {
+            let mut j = i + 1;
+            let mut hashes = 0;
+            while b.get(j) == Some(&b'#') {
+                hashes += 1;
+                j += 1;
+            }
+            if b.get(j) != Some(&b'"') {
+                i += 1;
+                continue;
+            }
+            let start = j + 1;
+            let close: Vec<u8> = std::iter::once(b'"')
+                .chain(std::iter::repeat_n(b'#', hashes))
+                .collect();
+            let mut k = start;
+            while k + close.len() <= b.len() && b[k..k + close.len()] != close[..] {
+                k += 1;
+            }
+            out.push(src[start..k].to_owned());
+            i = k + close.len();
+        } else if c == b'"' {
+            let start = i + 1;
+            let mut k = start;
+            while k < b.len() && b[k] != b'"' {
+                k += if b[k] == b'\\' { 2 } else { 1 };
+            }
+            out.push(src[start..k].to_owned());
+            i = k + 1;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+fn sources(dir: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(dir).expect("src/items") {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            sources(&path, found);
+        } else if path.extension().is_some_and(|e| e == "rs") {
+            found.push(path);
+        }
+    }
+}
+
+#[test]
+fn no_file_under_src_items_holds_a_sentence_as_a_string_literal() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/items");
+    let mut files = Vec::new();
+    sources(&dir, &mut files);
+    assert!(files.len() >= 5, "the files of src/items: {files:?}");
+    let mut seen = 0;
+    for path in &files {
+        let src = std::fs::read_to_string(path).unwrap();
+        for lit in literals(&src) {
+            seen += 1;
+            assert!(
+                lit.bytes()
+                    .all(|c| matches!(c, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'{' | b'}')),
+                "{}: the literal {lit:?} is no key, name or key pattern",
+                path.display()
+            );
+            assert!(
+                words::KEYS.iter().all(|(_, s)| *s != lit),
+                "{}: the literal {lit:?} is a sentence of the table",
+                path.display()
+            );
+        }
+    }
+    assert!(seen > 10, "{seen} literals read");
+}
+
+#[test]
+fn the_literal_reader_finds_a_sentence() {
+    let src = "let a = \"Pay this?\"; // \"not this\"\nlet b = r#\"Sign \"it\"\"#; let c = 'x';";
+    assert_eq!(
+        literals(src),
+        vec!["Pay this?".to_owned(), "Sign \"it\"".to_owned()]
+    );
+}
+
+#[test]
+fn a_plain_item_has_its_title_text_and_two_choices() {
+    for plain in [
+        Plain::SignIn,
+        Plain::LinkAccount,
+        Plain::Stuck,
+        Plain::Ready,
+        Plain::Show,
+    ] {
+        let kind = plain.kind();
+        let item = compose_plain(&item_id(1), &agent_id(1), plain, NAME).unwrap();
+        assert_eq!(item.kind(), kind);
+        assert_eq!(item.presenter(), None);
+        assert_eq!(
+            item.title(),
+            words::text(&format!("item.{kind}.title"), &[("name", NAME)]).unwrap()
+        );
+        assert_eq!(
+            item.text(),
+            words::text(&format!("item.{kind}.text"), &[]).unwrap()
+        );
+        let choices: Vec<_> = item
+            .choices()
+            .iter()
+            .map(|c| (c.choice, c.safe.name()))
+            .collect();
+        let [safe, other] = halvo_coord::items::choices(kind);
+        assert_eq!(choices, vec![(safe, "yes"), (other, "no")]);
+        for c in item.choices() {
+            assert_eq!(
+                c.text,
+                words::text(&format!("choice.{kind}.{}", c.choice), &[]).unwrap()
+            );
+        }
+        assert!(item.fields().is_empty() && item.params().is_empty());
+        all_texts_are_sentences(&item, 1);
+    }
+}
+
+#[test]
+fn a_confirmation_of_the_page_shows_its_fields_and_the_many_controls() {
+    let ask = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, support::fields_of(Class::Send)),
+            effect(2, Class::Delete, support::fields_of(Class::Delete)),
+        ],
+    );
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+    assert_eq!(item.presenter().map(|p| p.name()), Some("page"));
+    assert_eq!(item.armed().name(), "yes");
+    assert_eq!(item.text(), "");
+    assert_eq!(
+        item.title(),
+        words::text("confirm.send.title", &[]).unwrap()
+    );
+    let labels: Vec<_> = item.fields().iter().map(|f| f.label.clone()).collect();
+    let want: Vec<_> = [
+        "field.send.to",
+        "field.send.subject",
+        "field.send.body",
+        "field.delete.items",
+    ]
+    .iter()
+    .map(|k| words::text(k, &[]).unwrap())
+    .collect();
+    assert_eq!(labels, want);
+    let froms: Vec<_> = item.fields().iter().map(|f| f.from.name()).collect();
+    assert_eq!(froms, ["site", "site", "agent", "site"]);
+    let choices: Vec<_> = item
+        .choices()
+        .iter()
+        .map(|c| (c.choice.name(), c.text.clone(), c.safe.name()))
+        .collect();
+    assert_eq!(
+        choices,
+        vec![
+            (
+                "reject",
+                words::text("confirm.send.reject_many", &[("count", "2")]).unwrap(),
+                "yes"
+            ),
+            (
+                "allow",
+                words::text("confirm.send.allow_many", &[("count", "2")]).unwrap(),
+                "no"
+            ),
+        ]
+    );
+    all_texts_are_sentences(&item, 2);
+    let shown_item = compose_confirm(&item_id(1), &ask, &shown(&ask)).unwrap();
+    assert_eq!(
+        shown_item.armed().name(),
+        "no",
+        "armed only while the item is armed"
+    );
+}
+
+#[test]
+fn a_native_confirmation_has_the_one_choice_present_and_names_the_native_class() {
+    let mut payment = effect(2, Class::Payment, support::fields_of(Class::Payment));
+    payment.new_origin = Some(Origin::parse("https://pay.example:443").unwrap());
+    let ask = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, support::fields_of(Class::Send)),
+            payment,
+        ],
+    );
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+    assert_eq!(item.presenter().map(|p| p.name()), Some("native"));
+    assert_eq!(
+        item.title(),
+        words::text("confirm.payment.title", &[]).unwrap()
+    );
+    let choices: Vec<_> = item
+        .choices()
+        .iter()
+        .map(|c| (c.choice.name(), c.text.clone(), c.safe.name()))
+        .collect();
+    assert_eq!(
+        choices,
+        vec![(
+            "present",
+            words::text("confirm.present", &[]).unwrap(),
+            "yes"
+        )]
+    );
+    let last = item.fields().last().unwrap();
+    assert_eq!(last.label, words::text("confirm.new_site", &[]).unwrap());
+    assert_eq!(last.value, vec!["https://pay.example:443".to_owned()]);
+    assert_eq!(last.from.name(), "halvo");
+    assert_eq!(item.fields().len(), 3 + 4 + 1);
+    all_texts_are_sentences(&item, 2);
+}
+
+#[test]
+fn a_piece_longer_than_1024_bytes_is_malformed() {
+    let long = "a".repeat(1025);
+    let ask = ask_of(
+        1,
+        1,
+        vec![effect(
+            1,
+            Class::Delete,
+            vec![field("items", BoundFrom::Extract, &long)],
+        )],
+    );
+    assert_eq!(
+        compose_confirm(&item_id(1), &ask, &armed(&ask)),
+        Err(Cause::Malformed)
+    );
+    let ok = "a".repeat(1024);
+    let ask = ask_of(
+        1,
+        1,
+        vec![effect(
+            1,
+            Class::Delete,
+            vec![field("items", BoundFrom::Extract, &ok)],
+        )],
+    );
+    assert!(compose_confirm(&item_id(1), &ask, &armed(&ask)).is_ok());
+}
+
+#[test]
+fn a_confirmation_is_composed_only_with_its_own_request() {
+    let ask = ask_of(
+        1,
+        1,
+        vec![effect(1, Class::Send, support::fields_of(Class::Send))],
+    );
+    let other = ask_of(
+        1,
+        1,
+        vec![effect(2, Class::Send, support::fields_of(Class::Send))],
+    );
+    assert_eq!(
+        compose_confirm(&item_id(1), &other, &armed(&ask)),
+        Err(Cause::State)
+    );
+}
+
+#[test]
+fn the_kept_fields_take_the_source_that_a_a9_3_admits() {
+    use BoundFrom::*;
+    let table = [
+        (Class::Payment, "payee", Some(Slot)),
+        (Class::Payment, "amount", Some(Extract)),
+        (Class::Payment, "instrument", Some(Slot)),
+        (Class::Payment, "origin", Some(Const)),
+        (Class::Purchase, "seller", Some(Slot)),
+        (Class::Purchase, "items", None),
+        (Class::Purchase, "amount", Some(Extract)),
+        (Class::Purchase, "instrument", Some(Slot)),
+        (Class::Purchase, "origin", Some(Const)),
+        (Class::Send, "to", Some(Extract)),
+        (Class::Send, "subject", None),
+        (Class::Send, "body", None),
+        (Class::Delete, "items", Some(Extract)),
+        (Class::Submit, "origin", Some(Const)),
+        (Class::Submit, "fields", None),
+        (Class::Sign, "document", Some(Slot)),
+        (Class::Sign, "party", Some(Slot)),
+        (Class::LocalEdit, "file", Some(Slot)),
+        (Class::LocalEdit, "range", Some(Slot)),
+        (Class::Send, "payee", None),
+    ];
+    for (class, field_, want) in table {
+        assert_eq!(kept_source(class, field_), want, "{class}.{field_}");
+    }
+}
+
+#[test]
+fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
+    let params = [
+        SetupParam {
+            param: Param::Start,
+            candidates: vec![
+                (vec!["site1.example".to_owned()], CandidateFrom::Records),
+                (vec!["other.example".to_owned()], CandidateFrom::Site),
+            ],
+        },
+        SetupParam {
+            param: Param::Instrument,
+            candidates: vec![],
+        },
+    ];
+    let item = compose_setup(&item_id(1), &agent_id(1), NAME, &params, &Limits::PRODUCT).unwrap();
+    let got: Vec<_> = item
+        .params()
+        .iter()
+        .map(|p| {
+            (
+                p.name,
+                p.typed.name(),
+                p.candidates.iter().map(|c| c.n).collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            (Param::Start, "no", vec![1, 2]),
+            (Param::Instrument, "yes", vec![])
+        ]
+    );
+    all_texts_are_sentences(&item, 1);
+    let small = Limits {
+        setup_params: 1,
+        ..Limits::PRODUCT
+    };
+    assert_eq!(
+        compose_setup(&item_id(1), &agent_id(1), NAME, &params, &small),
+        Err(Cause::Malformed)
+    );
+    let few = Limits {
+        setup_candidates: 1,
+        ..Limits::PRODUCT
+    };
+    assert_eq!(
+        compose_setup(&item_id(1), &agent_id(1), NAME, &params, &few),
+        Err(Cause::Malformed)
+    );
+}
+
+fn fixture(state: &str) -> Value {
+    let path = format!(
+        "{}/../../ui/tests/fixtures/coord/state-{state}.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+fn bound(class: Class, values: &[&str]) -> Vec<BoundField> {
+    support::fields_of(class)
+        .into_iter()
+        .zip(values)
+        .map(|(f, v)| BoundField {
+            value: vec![(*v).to_owned()],
+            ..f
+        })
+        .collect()
+}
+
+const PAYMENT: [&str; 4] = [
+    "City Power",
+    "42.10 USD",
+    "Card ending 4242",
+    "site1.example",
+];
+
+/// The items of the fixture states, composed from what each state holds, equal the items that
+/// the fixture files hold (I8.3).
+#[test]
+fn the_composed_items_equal_the_items_of_the_fixtures() {
+    let states = [
+        "needs_sign_in",
+        "needs_link_account",
+        "needs_stuck",
+        "needs_ready",
+        "needs_show",
+        "needs_setup",
+        "setup_three",
+        "needs_check",
+        "needs_confirm_page",
+        "needs_confirm_native",
+    ];
+    for state in states {
+        let file = fixture(state);
+        let items = file["snapshot"]["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1, "{state}");
+        let want = &items[0];
+        let item = ItemId::parse(want["item"].as_str().unwrap()).unwrap();
+        let agent = AgentId::parse(want["agent"].as_str().unwrap()).unwrap();
+        let row = file["snapshot"]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["agent"] == want["agent"])
+            .unwrap();
+        let name = row["name"].as_str().unwrap();
+        let composed = match want["kind"].as_str().unwrap() {
+            "sign_in" => compose_plain(&item, &agent, Plain::SignIn, name),
+            "link_account" => compose_plain(&item, &agent, Plain::LinkAccount, name),
+            "stuck" => compose_plain(&item, &agent, Plain::Stuck, name),
+            "ready" => compose_plain(&item, &agent, Plain::Ready, name),
+            "show" => compose_plain(&item, &agent, Plain::Show, name),
+            "setup" => {
+                let params: Vec<SetupParam> = want["params"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|p| SetupParam {
+                        param: Param::parse(p["name"].as_str().unwrap()).unwrap(),
+                        candidates: p["candidates"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|c| {
+                                (
+                                    c["value"]
+                                        .as_array()
+                                        .unwrap()
+                                        .iter()
+                                        .map(|v| v.as_str().unwrap().to_owned())
+                                        .collect(),
+                                    CandidateFrom::parse(c["from"].as_str().unwrap()).unwrap(),
+                                )
+                            })
+                            .collect(),
+                    })
+                    .collect();
+                compose_setup(&item, &agent, name, &params, &Limits::PRODUCT)
+            }
+            "check" => {
+                let kept = ["payee", "amount", "instrument", "origin"]
+                    .iter()
+                    .zip(PAYMENT)
+                    .map(|(n, v)| Kept {
+                        name: support::name(n),
+                        value: vec![v.to_owned()],
+                    })
+                    .collect();
+                let unknown = [Unknown {
+                    run: run_id(1),
+                    effect: effect_id(1),
+                    day: 20_759,
+                    class: Class::Payment,
+                    kept,
+                }];
+                compose_check(&item, &agent, name, &unknown)
+            }
+            "confirm" if state == "needs_confirm_page" => {
+                let sends = [
+                    [
+                        "Ann Lee",
+                        "Rent receipt for October",
+                        "Thank you. Your rent for October came in.",
+                    ],
+                    [
+                        "Ben Ola",
+                        "Viewing on Friday",
+                        "Friday at 10 works for the viewing.",
+                    ],
+                    [
+                        "Cara Diaz",
+                        "Repair date",
+                        "The repair is booked for Monday.",
+                    ],
+                ];
+                let ask = ConfirmAsk::new(
+                    run_id(1),
+                    agent.clone(),
+                    sends
+                        .iter()
+                        .zip(1..)
+                        .map(|(v, n)| effect(n, Class::Send, bound(Class::Send, v)))
+                        .collect(),
+                )
+                .unwrap();
+                compose_confirm(&item, &ask, &armed(&ask))
+            }
+            "confirm" => {
+                let ask = ConfirmAsk::new(
+                    run_id(1),
+                    agent.clone(),
+                    vec![effect(1, Class::Payment, bound(Class::Payment, &PAYMENT))],
+                )
+                .unwrap();
+                compose_confirm(&item, &ask, &shown(&ask))
+            }
+            other => panic!("{state}: kind {other}"),
+        };
+        let composed = composed.unwrap_or_else(|e| panic!("{state}: {e}"));
+        assert_eq!(&serde_json::to_value(&composed).unwrap(), want, "{state}");
+    }
+}

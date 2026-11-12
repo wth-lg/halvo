@@ -2,11 +2,14 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use serde::de::{self, Deserialize, Deserializer, Visitor};
-use serde::ser::{Serialize, Serializer};
+use serde::ser::Serializer;
 
 /// The version of every serialized record, request and reply, written first under the key `v`.
 /// A reader refuses any other number.
 pub const VERSION: u32 = 1;
+
+/// The names that this module writes in a record or a request: the keys of a position.
+pub const NAMES: &[&str] = &["seg", "idx"];
 
 /// The one error of every parser of this crate. It holds the Rust name of the type that refused the input
 /// and the token of the rule that refused it, and never the refused input.
@@ -20,7 +23,7 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) const fn new(type_name: &'static str, rule: &'static str) -> Self {
+    pub(crate) fn new<K: Locked>(_: K, type_name: &'static str, rule: &'static str) -> Self {
         ParseError { type_name, rule }
     }
 
@@ -42,6 +45,22 @@ impl fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
+
+pub(crate) struct Key(());
+
+mod key {
+    pub trait Sealed {}
+}
+
+pub(crate) trait Locked: key::Sealed {}
+
+impl<K: key::Sealed> Locked for K {}
+
+impl key::Sealed for Key {}
+impl key::Sealed for crate::category::Key {}
+impl key::Sealed for crate::record::Key {}
+impl key::Sealed for crate::request::Key {}
+impl key::Sealed for crate::site::Key {}
 
 pub(crate) struct ParsedStr<T> {
     parse: fn(&str) -> Result<T, ParseError>,
@@ -141,7 +160,7 @@ impl<'de> Deserialize<'de> for Version {
                 if n == u64::from(VERSION) {
                     Ok(Version)
                 } else {
-                    Err(E::custom(ParseError::new("Version", "version")))
+                    Err(E::custom(ParseError::new(Key(()), "Version", "version")))
                 }
             }
 
@@ -149,7 +168,7 @@ impl<'de> Deserialize<'de> for Version {
                 if n == i64::from(VERSION) {
                     Ok(Version)
                 } else {
-                    Err(E::custom(ParseError::new("Version", "version")))
+                    Err(E::custom(ParseError::new(Key(()), "Version", "version")))
                 }
             }
         }
@@ -159,15 +178,11 @@ impl<'de> Deserialize<'de> for Version {
 
 pub(crate) trait Strict {
     fn rules(&self) -> Result<(), ParseError>;
-    fn write_fields<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
-}
-
-pub(crate) struct Unchecked<'a, T>(pub(crate) &'a T);
-
-impl<T: Strict> Serialize for Unchecked<'_, T> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.write_fields(serializer)
-    }
+    fn write_fields<S: Serializer, K: Locked>(
+        &self,
+        serializer: S,
+        key: K,
+    ) -> Result<S::Ok, S::Error>;
 }
 
 macro_rules! strict_struct {
@@ -189,7 +204,7 @@ macro_rules! strict_struct {
                 $rules
             }
 
-            fn write_fields<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            fn write_fields<S: serde::Serializer, K: $crate::ids::Locked>(&self, serializer: S, _: K) -> Result<S::Ok, S::Error> {
                 #[derive(serde::Serialize)]
                 struct Out<'a> {
                     $( $v: u32, )?
@@ -205,7 +220,7 @@ macro_rules! strict_struct {
         impl serde::Serialize for $name {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 $crate::ids::Strict::rules(self).map_err(<S::Error as serde::ser::Error>::custom)?;
-                $crate::ids::Strict::write_fields(self, serializer)
+                $crate::ids::Strict::write_fields(self, serializer, Key(()))
             }
         }
 
@@ -244,7 +259,7 @@ macro_rules! string_type {
             pub fn parse(s: &str) -> Result<Self, $crate::ids::ParseError> {
                 match $check(s) {
                     Ok(()) => Ok($name(s.to_owned())),
-                    Err(rule) => Err($crate::ids::ParseError::new(stringify!($name), rule)),
+                    Err(rule) => Err($crate::ids::ParseError::new(Key(()), stringify!($name), rule)),
                 }
             }
 
@@ -304,7 +319,7 @@ macro_rules! name_enum {
             pub fn parse(s: &str) -> Result<Self, $crate::ids::ParseError> {
                 match s {
                     $( $text => Ok($name::$variant), )+
-                    _ => Err($crate::ids::ParseError::new(stringify!($name), "unknown_name")),
+                    _ => Err($crate::ids::ParseError::new(Key(()), stringify!($name), "unknown_name")),
                 }
             }
         }
@@ -434,10 +449,60 @@ strict_struct! {
     }
     rules(p) {
         if p.seg > MAX_ORDINAL || p.idx > MAX_ORDINAL {
-            return Err(ParseError::new("Position", "range"));
+            return Err(ParseError::new(Key(()), "Position", "range"));
         }
         Ok(())
     }
 }
 
 pub(crate) const MAX_ORDINAL: u64 = i64::MAX as u64;
+
+macro_rules! store_id_case {
+    ($fence:literal, $id:literal, $bound:literal) => {
+        concat!(
+            "```",
+            $fence,
+            "\n",
+            "use halvo_schema::{RequestId, StoreId};\n",
+            "fn bound<T: ",
+            $bound,
+            ">(_: &T) {}\n",
+            "let id = ",
+            $id,
+            "::parse(\"0123456789abcdef0123456789abcdef\").unwrap();\n",
+            "bound(&id);\n",
+            "```"
+        )
+    };
+}
+
+/// What must not compile: `StoreId` has no `Ord`, no `PartialOrd` and no `Hash`, so no map is keyed by a store
+/// id and no list of store ids is sorted. Each case differs from its twin in `compiles` in the id type alone.
+pub mod compile_fail {
+    /// `StoreId` is not `Ord`. Twin: `compiles::request_id_ord`.
+    #[doc = store_id_case!("compile_fail", "StoreId", "Ord")]
+    pub mod store_id_ord {}
+
+    /// `StoreId` is not `PartialOrd`. Twin: `compiles::request_id_partial_ord`.
+    #[doc = store_id_case!("compile_fail", "StoreId", "PartialOrd")]
+    pub mod store_id_partial_ord {}
+
+    /// `StoreId` is not `Hash`. Twin: `compiles::request_id_hash`.
+    #[doc = store_id_case!("compile_fail", "StoreId", "std::hash::Hash")]
+    pub mod store_id_hash {}
+}
+
+/// The twins of the cases of `compile_fail`, which compile and run.
+pub mod compiles {
+    /// A `RequestId` is `Ord`.
+    #[doc = store_id_case!("", "RequestId", "Ord")]
+    pub mod request_id_ord {}
+
+    /// A `RequestId` is `PartialOrd`.
+    #[doc = store_id_case!("", "RequestId", "PartialOrd")]
+    pub mod request_id_partial_ord {}
+
+    /// A `RequestId` is `Hash`.
+    #[doc = store_id_case!("", "RequestId", "std::hash::Hash")]
+    pub mod request_id_hash {}
+}

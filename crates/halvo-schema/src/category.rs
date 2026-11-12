@@ -1,5 +1,22 @@
 use crate::ids::name_enum;
 
+pub(crate) struct Key(());
+
+/// The names that this module writes in a record or a request: the 11 category ids.
+pub const NAMES: &[&str] = &[
+    "utility_bill_payment",
+    "tenant_rent",
+    "lease_renewal_or_change",
+    "tenant_application_review",
+    "email",
+    "spreadsheet_fill",
+    "shop_order",
+    "calendar_cleanup",
+    "ride_order",
+    "daily_chart_check",
+    "other",
+];
+
 name_enum! {
     /// A category: the 10 seed categories and `other`, which is no seed category. A label row holds a `Category`.
     /// `as_str()`, `Display` and the serde form give the category id, and categories order as in `ALL`.

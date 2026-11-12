@@ -252,6 +252,10 @@ mod tests {
                 "default_cap amount=2000 period=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa status=provisional",
                 Form,
             ),
+            (
+                "default_cap amount=2000 period=month status=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                Form,
+            ),
             ("default_cap amount=0 period=x status=y", Amount),
             ("default_cap amount=0 period=month status=provisional", Amount),
             ("default_cap amount=100000001 period=month status=provisional", Amount),
@@ -271,12 +275,14 @@ mod tests {
             ("default_cap amount=2000 period=day status=provisional", P),
             ("default_cap amount=2000 period=year status=y", P),
             ("default_cap amount=2000 period=weeks status=provisional", P),
+            ("default_cap amount=2000 period=provisional status=provisional", P),
             (
                 "default_cap amount=2000 period=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa status=provisional",
                 P,
             ),
             ("default_cap amount=2000 period=month status=final", S),
             ("default_cap amount=2000 period=week status=provisional_", S),
+            ("default_cap amount=2000 period=month status=week", S),
             ("default_cap amount=1 period=month status=0", S),
         ];
         for (line, error) in cases {

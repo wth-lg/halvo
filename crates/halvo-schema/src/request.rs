@@ -6,10 +6,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
 use crate::ids::{
-    name_enum, object, strict_struct, Position, RequestId, StoreId, SummaryId, Unchecked,
-    WorkflowId, MAX_ORDINAL, VERSION,
+    name_enum, object, strict_struct, Position, RequestId, StoreId, Strict, SummaryId, WorkflowId,
+    MAX_ORDINAL, VERSION,
 };
 use crate::record::{Episode, EvidencePage, WorkflowsPage};
+
+pub(crate) struct Key(());
 
 /// The bound of a serialized analysis write in bytes, so that it fits the 65,536 payload bytes of the seam's
 /// frame with the 35 bytes of its wrapper.
@@ -17,6 +19,43 @@ pub const ANALYSIS_WRITE_MAX: usize = 65_500;
 
 /// The bound of a serialized interface request in bytes.
 pub const INTERFACE_REQUEST_MAX: usize = 4_096;
+
+/// The bound of a serialized reply in bytes, its envelope included, which every counter of a reply uses. The
+/// envelope takes 53 bytes beside a request id and 23 beside a null id, so a page holds at most 261,067 bytes
+/// beside a request id.
+pub const REPLY_MAX: usize = 261_120;
+
+/// The names that this module writes in a request or a reply: the keys of the envelope, of the bodies and of a
+/// reply, the five request names, the two names of a read, the three decisions and the four roles. No error name
+/// is among them.
+pub const NAMES: &[&str] = &[
+    "v",
+    "id",
+    "request",
+    "body",
+    "analysis_write",
+    "interface_read",
+    "interface_decision",
+    "runner",
+    "coordinator_write",
+    "store",
+    "episodes",
+    "commit",
+    "read",
+    "after",
+    "workflow",
+    "workflows",
+    "evidence",
+    "decision",
+    "approve",
+    "dismiss",
+    "delete",
+    "analysis",
+    "interface",
+    "coordinator",
+    "ok",
+    "error",
+];
 
 const REQUEST_NAMES: [&str; 5] = [
     "analysis_write",
@@ -158,6 +197,14 @@ const LONGEST_POSITION: Position = Position {
     seg: MAX_ORDINAL,
     idx: MAX_ORDINAL,
 };
+
+struct Unchecked<'a, T>(&'a T);
+
+impl<T: Strict> Serialize for Unchecked<'_, T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.write_fields(serializer, Key(()))
+    }
+}
 
 fn episode_len(episode: &Episode) -> usize {
     serde_json::to_vec(&Unchecked(episode)).map_or(usize::MAX, |b| b.len())
