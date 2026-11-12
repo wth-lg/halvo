@@ -421,6 +421,7 @@ reset_stubs() {
   STUB_CONTROL_OUT=$work/stub/control.out
   STUB_CONTROL_EXIT=0
   STUB_JOB_FLAG=
+  STUB_GITLINK=
   CASE_RUSTFLAGS=
   CASE_ENCODED=
   CASE_QUIET=
@@ -438,7 +439,7 @@ check() {
     STUB_TREE=$work/tree
     export CI_D_REPO CI_D_ARTIFACTS STUB_TREE STUB_COMMIT STUB_NO_COMMIT STUB_CHANGE_AT STUB_CHANGE_LINE
     export STUB_TREE_OUT STUB_TREE_EXIT STUB_DEBUG_OUT STUB_DEBUG_EXIT STUB_RELEASE_OUT STUB_RELEASE_EXIT
-    export STUB_PROBE_OUT STUB_PROBE_EXIT STUB_CONTROL_OUT STUB_CONTROL_EXIT STUB_JOB_FLAG
+    export STUB_PROBE_OUT STUB_PROBE_EXIT STUB_CONTROL_OUT STUB_CONTROL_EXIT STUB_JOB_FLAG STUB_GITLINK
     unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
     if [ -n "$CASE_RUSTFLAGS" ]; then
       RUSTFLAGS=$CASE_RUSTFLAGS
@@ -517,6 +518,7 @@ case $1:${2:-} in
     ;;
   ls-tree:-r)
     [ "$*" = "ls-tree -r --full-tree $head -- scripts/r6/egress" ] || exit 97
+    [ -z "$STUB_GITLINK" ] || printf '160000 commit 2222222222222222222222222222222222222222\tscripts/r6/egress/lists\n'
     [ -e "$STUB_COMMIT/scripts/r6/egress" ] || exit 0
     cd "$STUB_COMMIT" || exit 2
     find scripts/r6/egress -type f | while IFS= read -r path; do
@@ -843,6 +845,13 @@ full_cases() {
   cp "$work/u/recorded-on-device" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || exit 2
   STUB_COMMIT=$work/commit-recorded
   check recorded-rows-on-the-device PASS ' hosted_rows=0 net_crates=0 '
+  mkdir "$work/commit-recorded-directory" || exit 2
+  make_commit "$work/commit-recorded-directory"
+  mkdir -p "$work/commit-recorded-directory/docs/r6/outcomes/recorded.tsv" || exit 2
+  STUB_COMMIT=$work/commit-recorded-directory
+  check recorded-path-is-a-directory FAIL ' hosted_rows=1 net_crates=0 ' "FAIL $name (rows)"
+  STUB_GITLINK=1
+  check egress-entry-that-is-no-file FAIL ' entries=1 grants=0 ' "FAIL $name (entries)"
 
   mkdir -p "$work/commit-egress/scripts/r6/egress" || exit 2
   printf '[fixed]\n127.0.0.1:1\n[agent]\n' >"$work/commit-egress/scripts/r6/egress/gate.txt" || exit 2
