@@ -6,7 +6,7 @@ pub mod policy;
 mod ports;
 
 pub use config::Config;
-pub use ports::{Call, Method, Ports, Timed};
+pub use ports::{Call, Method, Ports, Timed, Tried};
 
 #[cfg(test)]
 mod tests;

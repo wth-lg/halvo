@@ -1,0 +1,13 @@
+{
+  "about": "the skeleton sets the platform alarm under a stored test time",
+  "edits": [
+    {
+      "file": "src/do/entries.ts",
+      "find": "    if (arm) host.setAlarm(tested ? null : due);",
+      "replace": "    if (arm) host.setAlarm(due);"
+    }
+  ],
+  "line": [
+    "no-platform-alarm=0"
+  ]
+}

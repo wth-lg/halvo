@@ -1,0 +1,6 @@
+{
+  "edits": [],
+  "traces": "bad-trace-admitted-over-the-cap.jsonl",
+  "only": "replay",
+  "line": ["FAIL model: ", "differences=1", "first failure: the object does not follow the model: trace "]
+}

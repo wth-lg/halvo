@@ -1,0 +1,22 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/schemas.ts",
+      "find": "export const StatusAnswer = z.strictObject({",
+      "replace": "export const StatusAnswer = z.object({"
+    }
+  ],
+  "then": [
+    [
+      "node",
+      "scripts/contract-rules",
+      "export",
+      "schema",
+      "--write"
+    ]
+  ],
+  "line": [
+    "rules=open-object at /$defs/StatusAnswer",
+    "open=7"
+  ]
+}

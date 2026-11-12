@@ -1,0 +1,92 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+
+packages:
+
+  first-document@1.0.0:
+    resolution: {integrity: sha512-first-document}
+
+snapshots:
+
+  first-document@1.0.0: {}
+
+---
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@scope/both':
+        specifier: 2.1.0
+        version: 2.1.0
+      native:
+        specifier: 1.0.0
+        version: 1.0.0
+      unstated:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  '@scope/both@2.1.0':
+    resolution: {integrity: sha512-scope-both}
+
+  absent@1.0.0:
+    resolution: {integrity: sha512-absent}
+
+  native@1.0.0:
+    resolution: {integrity: sha512-native}
+    peerDependencies:
+      plain: 1.0.0
+
+  no-integrity@1.0.0:
+    resolution: {directory: linked/no-integrity, type: directory}
+
+  no-license-cached@1.0.0:
+    resolution: {integrity: sha512-no-license-cached}
+    os: [linux]
+
+  other-os@1.0.0:
+    resolution: {integrity: sha512-other-os, tarball: other-os-1.0.0.tgz}
+    os: [linux]
+
+  plain@1.0.0:
+    resolution: {integrity: sha512-plain}
+
+  retagged@1.0.0:
+    resolution: {integrity: sha512-retagged-new}
+
+  unstated@1.0.0:
+    resolution: {integrity: sha512-unstated}
+
+snapshots:
+
+  '@scope/both@2.1.0': {}
+
+  absent@1.0.0: {}
+
+  native@1.0.0: {}
+
+  no-integrity@1.0.0: {}
+
+  no-license-cached@1.0.0:
+    optional: true
+
+  other-os@1.0.0:
+    optional: true
+
+  plain@1.0.0: {}
+
+  retagged@1.0.0: {}
+
+  unstated@1.0.0: {}

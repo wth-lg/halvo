@@ -1,0 +1,12 @@
+{
+  "about": "Synthetic buyer values that the provider fake puts into every completed event and every invoice event. No real person has them. Check 10 searches the storage of both entries for seven of them.",
+  "name": "Quill Testbuyer-Halvo",
+  "email": "quill.testbuyer@halvo-fake.example",
+  "phone": "+1 555 0100 7342",
+  "line1": "742 Fakeroute Lane",
+  "line2": "Unit 9Q-Halvo",
+  "city": "Testbury Springs",
+  "state": "CA",
+  "postal_code": "90999-0042",
+  "country": "US"
+}

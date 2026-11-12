@@ -3,5 +3,11 @@
 {"t":"store_reply","reply":{"v":1,"id":null,"error":"malformed"}}
 {"t":"confirm_reply","decision":{"v":1,"approvals":[{"approval":"70707070707070707070707070707070","effect":"60606060606060606060606060606060","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","answer":"allow_once"}]}}
 {"t":"handback_reply","result":{"v":1,"outcome":"done","secret":"fixture_token"}}
-{"t":"secret_reply","value":"tok_fixture"}
+{"t":"secret_reply","answer":"stored","value":"tok_fixture"}
+{"t":"secret_reply","answer":"none"}
+{"t":"secret_reply","answer":"unreadable","member":"locked"}
+{"t":"secret_reply","answer":"unreadable","member":"fault"}
 {"t":"cancel"}
+{"t":"bind_reply","bound":"yes"}
+{"t":"bind_reply","bound":"no"}
+{"t":"browser_reply"}

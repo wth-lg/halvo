@@ -7,6 +7,7 @@ pub mod guard;
 pub mod items;
 pub mod mem;
 pub mod ports;
+pub mod run;
 pub mod schedule;
 pub mod types;
 pub mod words;

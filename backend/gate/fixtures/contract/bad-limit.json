@@ -1,0 +1,19 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/routes.ts",
+      "find": "answer: \"CheckoutAnswer\",\n      limit: 45,",
+      "replace": "answer: \"CheckoutAnswer\",\n      limit: 46,"
+    }
+  ],
+  "then": [
+    [
+      "node",
+      "scripts/contract-rules",
+      "export",
+      "routes",
+      "--write"
+    ]
+  ],
+  "line": "routes=limit-of-checkout-start"
+}

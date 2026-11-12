@@ -389,7 +389,9 @@ fn act(call: &Call) -> Option<String> {
         Call::Kill(run) => format!("kill {run}"),
         Call::Defer(_) => "defer".into(),
         Call::Reap => "reap".into(),
-        Call::AnswerConfirm(..) | Call::AnswerHandback(..) => "answer".into(),
+        Call::AnswerConfirm(..) | Call::AnswerHandback(..) | Call::AnswerBind(..) => {
+            "answer".into()
+        }
         Call::Workflows | Call::Agents | Call::History(..) | Call::Attention(_) | Call::Changed => {
             return None
         }
@@ -2062,10 +2064,24 @@ fn an_owed_end_run_of_a_workflow_that_is_gone_is_dropped() {
     w.start(0);
     w.ports.clear_refusals();
     w.delete(0);
+    w.ports.refuse(
+        Method::EndRun,
+        PortError::Refused(Name::parse("no_workflow").unwrap()),
+    );
+    let before = w.ports.tried.borrow().len();
     w.forget();
     w.tick();
     w.tick();
     assert_eq!(w.calls(), Vec::<String>::new());
+    let sent = w.ports.tried.borrow()[before..]
+        .iter()
+        .filter(|t| matches!(t.call, Call::Send(Body::EndRun { .. })))
+        .count();
+    assert_eq!(
+        sent, 1,
+        "sent once more, and the owner's refusal no_workflow ends the debt (ruling XB-26)"
+    );
+    assert!(w.board.owed.is_empty());
 }
 
 #[test]

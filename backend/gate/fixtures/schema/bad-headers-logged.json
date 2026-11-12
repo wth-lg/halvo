@@ -1,0 +1,13 @@
+{
+  "edits": [
+    {
+      "file": "src/app.ts",
+      "find": "    const url = new URL(request.url);\n",
+      "replace": "    console.log(request.headers);\n    const url = new URL(request.url);\n"
+    }
+  ],
+  "line": [
+    "sentinel=810; first failure:",
+    "and 810 console calls were not one string argument"
+  ]
+}

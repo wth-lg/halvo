@@ -1,0 +1,13 @@
+FAIL subscription: no file 10-subscription.sh in the checks directory
+FAIL lifecycle: no file 15-lifecycle.sh in the checks directory
+FAIL card-entry: no file 20-card-entry.sh in the checks directory
+FAIL cap: no file 30-cap.sh in the checks directory
+FAIL prompts: no file 40-prompts.sh in the checks directory
+FAIL concurrency: no file 50-concurrency.sh in the checks directory
+FAIL metering: no file 55-metering.sh in the checks directory
+FAIL schema: no file 60-schema.sh in the checks directory
+FAIL contract: no file 70-contract.sh in the checks directory
+FAIL storage: no file 80-storage.sh in the checks directory
+FAIL licenses: no file 85-licenses.sh in the checks directory
+FAIL outbound: no file 90-outbound.sh in the checks directory
+FAIL model: no file 95-model.sh in the checks directory

@@ -1,15 +1,11 @@
 #![forbid(unsafe_code)]
 
-pub mod category;
 pub mod coordinator;
 pub mod executable;
-pub mod ids;
-pub mod kinds;
 pub mod learning;
-pub mod record;
-pub mod request;
 pub mod routing;
-pub mod site;
+
+pub use halvo_schema_core::{category, ids, kinds, record, request, site};
 
 pub use category::{Category, SeedCategory};
 pub use ids::{

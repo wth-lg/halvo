@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Inner": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    "Outer": {
+      "type": "object",
+      "properties": {
+        "inner": {
+          "$ref": "#/$defs/Inner"
+        },
+        "mode": {
+          "$ref": "#/$defs/Mode"
+        }
+      },
+      "required": [
+        "inner",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "only"
+      ]
+    }
+  }
+}

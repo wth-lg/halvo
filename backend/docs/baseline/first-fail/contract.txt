@@ -1,0 +1,1 @@
+FAIL contract: rules=unmeasured export=unmeasured routes=unmeasured samples=unmeasured types=unmeasured open=unmeasured bundle=clean deployable=0 of 4 test-paths=0 of 3 config=keys; first failure: scripts/contract-rules does not exist, so the export and the walk cannot run

@@ -1,0 +1,1 @@
+FAIL card-entry: fields=7 docs=7 unknown=0 page-inputs=unmeasured paid=unmeasured automatic-tax-off=7 stripe-seller-stripe-tax>=7 managed-payments>=7 three-d-secure=not measured wallet-prompt=not measured; first failure: the stack has no member provider-fake, which unit 3.3 adds

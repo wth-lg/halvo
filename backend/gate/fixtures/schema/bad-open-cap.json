@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/contract/schemas.ts",
+      "find": "export const Cap = z.strictObject({",
+      "replace": "export const Cap = z.object({"
+    }
+  ],
+  "line": "first failure: the validator group passed"
+}

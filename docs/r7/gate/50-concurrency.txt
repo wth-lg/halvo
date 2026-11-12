@@ -1,0 +1,5 @@
+line: FAIL concurrency: runs=124 of 165 cells=20 of 28 violations=1 wave=0 of 600 lost-sends=265 settle-p99-at-200=74ms second-attempts=11; first failure: ledger-usage-missing-at-200-plain-1-try1: no-late-settle 42e4beb0-e565-4b57-8903-0000000000c7: a settle arrived 362 ms after the expiry
+stamp: 2026-11-12T13:38:51Z
+load: 70.75
+tree: f02677a9ed2b11c6335ce40629171a1e5bcc207d
+model: bb31b9aac62f69a386c6249bb87c637b621a0748

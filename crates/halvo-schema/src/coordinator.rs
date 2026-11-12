@@ -1,1 +1,1 @@
-pub const KINDS: &[crate::kinds::KindEntry] = &[];
+pub use ::halvo_schema_core::coordinator::{ERROR_NAMES, KINDS};

@@ -1,0 +1,2 @@
+PASS here: ok
+FAIL gone: no file 20-gone.sh in the checks directory

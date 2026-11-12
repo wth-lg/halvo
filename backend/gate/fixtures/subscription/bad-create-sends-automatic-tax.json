@@ -1,0 +1,15 @@
+{
+  "about": "the adapter turns on automatic tax in the create call",
+  "edits": [
+    {
+      "file": "src/billing/stripe/adapter.ts",
+      "find": "          [\"allowed_payment_method_types[0]\", \"card\"],\n",
+      "replace": "          [\"allowed_payment_method_types[0]\", \"card\"],\n          [\"automatic_tax[enabled]\", \"true\"],\n"
+    }
+  ],
+  "line": [
+    "the create call of id 1 sent the names",
+    "automatic_tax[enabled]",
+    "the fake answered 400"
+  ]
+}

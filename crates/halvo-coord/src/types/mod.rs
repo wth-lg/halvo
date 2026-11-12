@@ -19,8 +19,8 @@ mod workflow;
 pub use cause::Cause;
 pub use config::{Budget, ConfigView};
 pub use event::{
-    Answered, Body, CheckAnswer, Cleared, DoneAnswer, Event, Lapsed, OtherLapse, Raised,
-    ReadyAnswer, Reply, SetupAnswer, Slot, What,
+    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event, Lapsed,
+    LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer, SignInAnswer, Slot, What,
 };
 pub use facts::{Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, RunItem, RunItemKind};
 pub use ids::{
@@ -38,8 +38,8 @@ pub use reply::{
     ErrorReply, Field, Item, OkReply, ParamEntry, Row, Snapshot,
 };
 pub use run::{
-    Answer, AskedEffect, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk, Progress,
-    RunEvent, RunSpec,
+    Answer, AskedEffect, BindAsk, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk,
+    Progress, RunEvent, RunSpec,
 };
 pub use status::StatusLine;
 pub use workflow::{Agent, DismissedWorkflow, FullWorkflow, Kept, PastRun, Unknown, Workflow};

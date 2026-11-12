@@ -1,0 +1,6 @@
+{
+  "name": "licenses-fixture-module",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "send_metrics": false
+}

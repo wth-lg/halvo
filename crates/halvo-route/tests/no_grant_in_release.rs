@@ -3,37 +3,41 @@ use halvo_route::release;
 use halvo_route::tier::Tier;
 use sha2::{Digest, Sha256};
 
-const PINNED: [(&str, &str); 4] = [
+const PINNED: [(&str, &str); 5] = [
     (
-        "leave.rs",
-        "08f15e050a0ba5feb9e9402259b182145969ce87bc09a52090a0c9a8a684e1f8",
+        "src/leave.rs",
+        "ff956fb7ccdb24692ae6c855ad27e082ba051d13d911e598a238991b5d59c0e9",
     ),
     (
-        "lib.rs",
+        "src/lib.rs",
         "82333428818c311344054ce975e49ee207a52c3dc4fef562e38f586892130036",
     ),
     (
-        "ruling.rs",
-        "df1d5ec7217cf6f5fc602f3fc1d8606ccb804c26823018c6f11ddffe60f9de8f",
+        "src/ruling.rs",
+        "507e4e9563c0b2c94695ba74484f6a42f667f99e99e38dc2f12aba79ad3ebb21",
     ),
     (
-        "tier.rs",
+        "src/tier.rs",
         "64850efc01ea0c73b1fcca18542592d47ce52be979dc421bba59aaf1eba17365",
+    ),
+    (
+        "Cargo.toml",
+        "929ccd4db5a3d67ddc15d258a5b941f5d3949873365be684d22bed88ce4b12d0",
     ),
 ];
 
 #[test]
 fn pinned_files_hold_their_hashes() {
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let crate_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut changed = Vec::new();
     for (name, pinned) in PINNED {
-        let bytes = std::fs::read(src.join(name)).expect("a pinned file under src");
+        let bytes = std::fs::read(crate_dir.join(name)).expect("a pinned file of the crate");
         let hash: String = Sha256::digest(&bytes)
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
         if hash != pinned {
-            changed.push(format!("src/{name} now hashes to {hash}"));
+            changed.push(format!("{name} now hashes to {hash}"));
         }
     }
     assert!(

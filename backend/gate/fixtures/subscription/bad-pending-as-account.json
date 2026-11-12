@@ -1,0 +1,13 @@
+{
+  "about": "look takes a pending checkout for an account",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "      return accountRow(sql) === null ? \"pending\" : \"account\";",
+      "replace": "      return \"account\";"
+    }
+  ],
+  "line": [
+    "delete-refused=0"
+  ]
+}

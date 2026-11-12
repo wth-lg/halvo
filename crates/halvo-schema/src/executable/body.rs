@@ -8,9 +8,10 @@ use crate::request::{CoordinatorBody, RunnerBody};
 
 use super::config::AgentConfig;
 use super::json::{self, each_once, from_json, list, object_type, opt};
-use super::names::{AgentState, Mode};
+use super::names::{AgentState, Mode, Way};
 use super::record::{
-    origins_and_slots, part_of, AgentEffect, AgentLog, AgentRun, Slot, SESSION_PARTS_MAX,
+    origins_and_slots, part_of, slot_names_once, AgentEffect, AgentLog, AgentRun, Slot,
+    SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{RunId, SessionData, WebOrigin};
@@ -443,15 +444,15 @@ object_type! {
 }
 
 object_type! {
-    /// `set_bindings`: a new revision of the bindings, each origin and each slot name once.
+    /// `set_bindings`: slots alone, each name once, which the handler merges by name into the newest revision of
+    /// the bindings; the body names no origin, so a body that holds the key `origins` is refused.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct SetBindings [op = "set_bindings"] {
         pub workflow: WorkflowId = "workflow" => json::workflow_id,
         pub agent: AgentId = "agent" => json::agent_id,
-        pub origins: Vec<WebOrigin> = "origins" => list(from_json),
         pub slots: Vec<Slot> = "slots" => list(Slot::from_raw),
     }
-    rules(b) { origins_and_slots("SetBindings", &b.origins, &b.slots) }
+    rules(b) { slot_names_once("SetBindings", &b.slots) }
 }
 
 object_type! {
@@ -488,6 +489,20 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `add_origin`: the one origin that the bindings gain, by one of three ways, after the act of the run `run`
+    /// with the person's answer; the handler stores the next revision with it, or nothing when it is there.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AddOrigin [op = "add_origin"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub origin: WebOrigin = "origin" => from_json,
+        pub way: Way = "way" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys. The `op` name `list_agents` is reserved and is no body yet.
@@ -497,6 +512,7 @@ op_enum! {
         SetState(SetState) = "set_state",
         StartRun(StartRun) = "start_run",
         EndRun(EndRun) = "end_run",
+        AddOrigin(AddOrigin) = "add_origin",
     }
 }
 
@@ -505,7 +521,8 @@ impl CoordinatorBody for CoordinatorCall {
 }
 
 object_type! {
-    /// The reply of `create_agent` and `set_bindings`: the revision stored.
+    /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
+    /// that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct RevReply {
         pub rev: NonZeroU32 = "rev" => from_json,
@@ -565,19 +582,22 @@ impl CoordinatorReply {
         }
     }
 
-    /// Whether the reply has the form that the body's call answers with.
+    /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
-        matches!(
-            (self, call),
+        match (self, call) {
+            (CoordinatorReply::Rev(r), CoordinatorCall::CreateAgent(_)) => r.rev.get() == 1,
             (
                 CoordinatorReply::Rev(_),
-                CoordinatorCall::CreateAgent(_) | CoordinatorCall::SetBindings(_)
-            ) | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
-                | (
-                    CoordinatorReply::Accepted(_),
-                    CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_)
-                )
-        )
+                CoordinatorCall::SetBindings(_) | CoordinatorCall::AddOrigin(_),
+            )
+            | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
+            | (
+                CoordinatorReply::Accepted(_),
+                CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),
+            ) => true,
+            _ => false,
+        }
     }
 }
 

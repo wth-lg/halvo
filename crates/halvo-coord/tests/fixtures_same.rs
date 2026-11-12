@@ -30,9 +30,9 @@ fn names(dir: &Path) -> BTreeSet<String> {
 #[test]
 fn fixtures_same() {
     let dir = fresh_dir("fixtures_same");
-    assert_eq!(fixtures::write(&dir).unwrap(), 37);
+    assert_eq!(fixtures::write(&dir).unwrap(), 38);
     let written = names(&dir);
-    assert_eq!(written.len(), 37);
+    assert_eq!(written.len(), 38);
     assert_eq!(
         names(Path::new(TRACKED)),
         written,
@@ -65,7 +65,7 @@ fn a_second_write_changes_no_file() {
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
         .collect();
-    assert_eq!(fixtures::write(&dir).unwrap(), 37);
+    assert_eq!(fixtures::write(&dir).unwrap(), 38);
     let second: Vec<Vec<u8>> = names(&dir)
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
@@ -110,8 +110,8 @@ fn the_files_are_the_37_of_i8_3() {
     ] {
         want.insert(format!("reply-error-{c}.json"));
     }
-    assert_eq!(State::ALL.len(), 20);
-    assert_eq!(want.len(), 37);
+    assert_eq!(State::ALL.len(), 21);
+    assert_eq!(want.len(), 38);
     assert_eq!(names(Path::new(TRACKED)), want);
     for command in LIST {
         for stem in command.replies {
@@ -348,7 +348,11 @@ fn each_kind_has_the_choices_of_i3_1_with_the_safe_one_first() {
             if item["presenter"] == "native" {
                 assert_eq!(got, [("present", "yes")], "{state}: the one choice of I3.4");
             } else {
-                let want = column.iter().find(|(k, _)| *k == kind).unwrap().1;
+                let want = if *state == State::NeedsSignInBind {
+                    ["decline", "allow"]
+                } else {
+                    column.iter().find(|(k, _)| *k == kind).unwrap().1
+                };
                 assert_eq!(got, [(want[0], "yes"), (want[1], "no")], "{state}: {kind}");
             }
             kinds.insert(kind.to_owned());
@@ -383,7 +387,7 @@ fn labels(class: &str, fields: &[&str], effects: usize) -> Vec<String> {
 
 #[test]
 fn the_states_hold_the_counts_of_i9_4() {
-    assert_eq!(State::ALL.len(), 20, "That is 20 states.");
+    assert_eq!(State::ALL.len(), 21, "That is 21 states.");
 
     let empty = snapshot("empty");
     assert_eq!(empty["rows"].as_array().unwrap().len(), 0);
