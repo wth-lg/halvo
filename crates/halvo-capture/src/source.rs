@@ -88,14 +88,14 @@ pub enum Started {
 /// What [`CaptureSource::health`] reports: a state and the source's counters. A
 /// health value holds fixed text and OS codes only, never an event field or a
 /// panic message.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SourceHealth {
     pub state: SourceState,
     pub counters: SourceCounters,
 }
 
 /// The state of a source.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum SourceState {
     /// The source has not reported a state.
     #[default]
@@ -201,16 +201,29 @@ pub enum EmitOutcome {
     Dropped,
 }
 
-#[derive(Debug, thiserror::Error)]
+/// Why a source could not start, run or stop. Every variant holds fixed text or
+/// an OS code, never an event field, an OS message or a panic message.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CaptureError {
+    /// The person has not granted the permission. Only for a real denial: a
+    /// service that cannot be reached is [`CaptureError::Os`] or
+    /// [`CaptureError::Timeout`].
     #[error("the capture permission for {0:?} is not granted")]
     PermissionDenied(Modality),
+    /// A start that failed for a reason with no OS code. The text is fixed.
     #[error("the capture source failed to start: {0}")]
     Start(String),
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
     #[error("the capture source timed out at {stage} after {ms} ms")]
     Timeout { stage: &'static str, ms: u64 },
+    /// An OS call at `stage` failed with `code` of the error `domain`.
+    #[error("the capture source failed at {stage}: {domain} code {code}")]
+    Os {
+        stage: &'static str,
+        domain: &'static str,
+        code: i64,
+    },
     #[error("the capture thread had ended before the source was shut down")]
     ThreadEnded,
     #[error("the capture source is already started")]
@@ -449,6 +462,69 @@ mod tests {
             refusing.start(handle),
             Err(CaptureError::Start(text)) if text == "scripted refusal"
         ));
+    }
+
+    #[test]
+    fn each_error_prints_fixed_text_and_its_code() {
+        let cases = [
+            (
+                CaptureError::PermissionDenied(Modality::ScreenFrame),
+                "the capture permission for ScreenFrame is not granted",
+            ),
+            (
+                CaptureError::Start("no display to capture".to_string()),
+                "the capture source failed to start: no display to capture",
+            ),
+            (
+                CaptureError::NotImplemented("system audio capture"),
+                "system audio capture is not implemented in this phase",
+            ),
+            (
+                CaptureError::Timeout {
+                    stage: "stop",
+                    ms: 1000,
+                },
+                "the capture source timed out at stop after 1000 ms",
+            ),
+            (
+                CaptureError::Os {
+                    stage: "start",
+                    domain: "OSStatus",
+                    code: -3801,
+                },
+                "the capture source failed at start: OSStatus code -3801",
+            ),
+            (
+                CaptureError::ThreadEnded,
+                "the capture thread had ended before the source was shut down",
+            ),
+            (
+                CaptureError::AlreadyStarted,
+                "the capture source is already started",
+            ),
+        ];
+        for (error, text) in &cases {
+            assert_eq!(error.to_string(), *text);
+            assert_eq!(error.clone(), *error);
+        }
+        for (left, (a, _)) in cases.iter().enumerate() {
+            for (right, (b, _)) in cases.iter().enumerate() {
+                assert_eq!(a == b, left == right, "{a:?} against {b:?}");
+            }
+        }
+        let failed = SourceHealth {
+            state: SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: CaptureError::Os {
+                    stage: "start",
+                    domain: "OSStatus",
+                    code: -3801,
+                },
+            },
+            counters: SourceCounters::default(),
+        };
+        assert_eq!(failed.clone(), failed);
+        assert_ne!(failed, SourceHealth::default());
     }
 
     #[test]
