@@ -268,6 +268,36 @@ fn the_origin_field_is_refused_when_the_request_goes_outside_the_bindings_to_ano
 }
 
 #[test]
+fn the_origin_field_is_refused_when_it_names_the_new_origin_and_the_request_goes_elsewhere() {
+    const OTHER: &str = "https://other.example:443";
+    let mut got = Vec::new();
+    for request in [FRAME, PAY] {
+        let mut f = facts();
+        f.request_origin = Some(origin(request));
+        f.new_origin = Some(origin(OTHER));
+        for (class, i) in [(C::Payment, 3), (C::Purchase, 4), (C::Submit, 0)] {
+            let named = bf("origin", "const", None, OTHER);
+            got.push((
+                request,
+                class,
+                admit(class, &bound(class, &with(class, i, named)), &f),
+            ));
+        }
+    }
+    let refused = Err(Provenance::Field(FieldName::Origin));
+    let want: Vec<(&str, C, Result<(), Provenance>)> = [FRAME, PAY]
+        .into_iter()
+        .flat_map(|request| {
+            [C::Payment, C::Purchase, C::Submit].map(|class| (request, class, refused))
+        })
+        .collect();
+    assert_eq!(
+        got, want,
+        "the request goes outside the bindings (FRAME) and inside them (PAY)"
+    );
+}
+
+#[test]
 fn an_amount_or_items_read_from_the_page_of_the_new_origin_is_refused_at_that_field() {
     let mut f = facts();
     f.request_origin = Some(origin(FRAME));

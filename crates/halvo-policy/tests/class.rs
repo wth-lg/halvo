@@ -167,6 +167,16 @@ fn an_api_step_without_an_api_target_is_credential() {
 }
 
 #[test]
+fn an_api_step_with_a_web_target_is_credential() {
+    for &category in S::ALL {
+        let mut step = api(1, "mail_send", C::Send);
+        step.target = web(1, "click", C::Prepare).target;
+        assert!(step.target.is_some(), "the web step has a target");
+        assert_eq!(class_of(category, &step), C::Credential, "{category:?}");
+    }
+}
+
+#[test]
 fn a_file_step_whose_verb_is_neither_read_nor_write_is_credential() {
     let others: Vec<Verb> = Verb::ALL
         .iter()
