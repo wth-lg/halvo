@@ -23,14 +23,52 @@ fn source(file: &str) -> String {
     }
 }
 
+const RUSTC_WHITESPACE: [char; 11] = [
+    ' ', '\t', '\n', '\r', '\u{b}', '\u{c}', '\u{85}', '\u{200e}', '\u{200f}', '\u{2028}',
+    '\u{2029}',
+];
+
+fn after_a_block_comment(s: &str) -> &str {
+    let mut depth = 0usize;
+    let mut i = 0;
+    let b = s.as_bytes();
+    while i + 1 < b.len() {
+        if b[i] == b'/' && b[i + 1] == b'*' {
+            depth += 1;
+            i += 2;
+        } else if b[i] == b'*' && b[i + 1] == b'/' {
+            depth -= 1;
+            i += 2;
+            if depth == 0 {
+                return &s[i..];
+            }
+        } else {
+            i += 1;
+        }
+    }
+    ""
+}
+
 fn starts_with_a_shebang_line(text: &str) -> bool {
-    let Some(rest) = text.strip_prefix("#!") else {
+    let Some(mut rest) = text.strip_prefix("#!") else {
         return false;
     };
-    let first = TokenStream::from_str(rest)
-        .ok()
-        .and_then(|stream| stream.into_iter().next());
-    !matches!(first, Some(TokenTree::Group(g)) if g.delimiter() == Delimiter::Bracket)
+    loop {
+        rest = rest.trim_start_matches(RUSTC_WHITESPACE);
+        let line_doc =
+            (rest.starts_with("///") && !rest.starts_with("////")) || rest.starts_with("//!");
+        let block_doc =
+            (rest.starts_with("/**") && !rest.starts_with("/**/") && !rest.starts_with("/***"))
+                || rest.starts_with("/*!");
+        if rest.starts_with("//") && !line_doc {
+            rest = rest.find('\n').map_or("", |n| &rest[n..]);
+        } else if rest.starts_with("/*") && !block_doc {
+            rest = after_a_block_comment(rest);
+        } else {
+            break;
+        }
+    }
+    !rest.starts_with('[')
 }
 
 fn flatten(stream: TokenStream, out: &mut Vec<String>) {
@@ -1045,6 +1083,7 @@ struct Tree {
     globs: Vec<(Segments, Segments, bool)>,
     selves: Vec<String>,
     modules: Vec<(Segments, String)>,
+    generic_aliases: Vec<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -1141,6 +1180,12 @@ fn build_tree(lexed: &[Lexed]) -> Tree {
                     tree.declared
                         .push((l.paths[i].clone(), bare(name).to_owned()));
                 }
+            }
+            if t[i] == "type"
+                && t.get(i + 1).is_some_and(|x| is_name(x))
+                && t.get(i + 2).is_some_and(|x| x == "<")
+            {
+                tree.generic_aliases.push(bare(&t[i + 1]).to_owned());
             }
             if t[i] == "type" && t.get(i + 1).is_some_and(|x| is_name(x)) {
                 let end = (i..t.len()).find(|&k| t[k] == ";").unwrap_or(t.len());
@@ -1455,6 +1500,26 @@ fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
     (generics, self_type.unwrap_or(path))
 }
 
+fn bound_paths(self_type: &[String]) -> Vec<Segments> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0;
+    for (k, x) in self_type.iter().enumerate() {
+        match x.as_str() {
+            "<" | "(" | "[" => depth += 1,
+            ">" if k == 0 || self_type[k - 1] != "-" => depth -= 1,
+            ")" | "]" => depth -= 1,
+            "+" if depth == 0 => {
+                parts.push(type_path(&self_type[start..k]));
+                start = k + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(type_path(&self_type[start..]));
+    parts.into_iter().filter(|p| !p.is_empty()).collect()
+}
+
 fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
     let mut faults = Vec::new();
     for l in lexed {
@@ -1503,7 +1568,14 @@ fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
                     continue;
                 }
             }
-            if place(tree, locked, &l.paths[i], &path, 0) == Place::Locked {
+            let mut reached = bound_paths(&self_type);
+            if path.len() == 1 && tree.generic_aliases.contains(&path[0]) {
+                reached.extend(arguments_of(&self_type, 0, self_type.len()));
+            }
+            if reached
+                .iter()
+                .any(|p| place(tree, locked, &l.paths[i], p, 0) == Place::Locked)
+            {
                 faults.push(format!(
                     "{} holds an impl for `{shown}`, which is a type of a locked module",
                     l.file
@@ -1771,7 +1843,17 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
     let root = root_names();
     let first_line =
         "its first line is a shebang line, which the compiler skips and the lexer reads";
-    for text in [shebang, backtick, &format!("\u{feff}{shebang}")] {
+    let nbsp = "#!\u{a0}[allow(dead_code)] /*\npub const KINDS: &[crate::kinds::KindEntry] = &[];\n#[macro_export]\nmacro_rules! hidden {\n    () => {};\n}\n// */\n";
+    let word = "#! x /*\npub const KINDS: &[crate::kinds::KindEntry] = &[];\n#[macro_export]\nmacro_rules! hidden {\n    () => {};\n}\n// */\n";
+    let paren = "#!(x) /*\npub const KINDS: &[crate::kinds::KindEntry] = &[];\n#[macro_export]\nmacro_rules! hidden {\n    () => {};\n}\n// */\n";
+    for text in [
+        shebang,
+        backtick,
+        &format!("\u{feff}{shebang}"),
+        nbsp,
+        word,
+        paren,
+    ] {
         assert_eq!(
             later_faults("learning.rs", text),
             [unread("learning.rs", first_line)]
@@ -1802,6 +1884,7 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
     for text in [
         "#![allow(dead_code)]\npub fn shown() {}\n",
         "#! /* a comment */ [allow(dead_code)]\npub fn shown() {}\n",
+        "#! // a comment\n[allow(dead_code)]\npub fn shown() {}\n",
         "\u{feff}pub fn shown() {}\n",
     ] {
         assert_eq!(
@@ -1871,6 +1954,8 @@ fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
         "pub trait LaterTrait {}\nimpl LaterTrait for &crate::record::TypedRecord {}\n",
         "pub trait LaterTrait {}\nimpl LaterTrait for Box<crate::record::TypedRecord> {}\n",
         "impl dyn crate::kinds::Coarse {\n    pub fn later(&self) {}\n}\n",
+        "impl dyn Send + crate::RowRead {\n    pub fn sneak(&self) -> usize {\n        7\n    }\n}\n",
+        "pub type Same<T> = T;\nimpl Same<crate::record::DismissedWorkflow> {\n    pub fn serialize(&self) {}\n}\n",
         "pub struct KindEntry;\npub fn f() {\n    use crate::kinds::KindEntry;\n    impl KindEntry {}\n}\n",
         "macro_rules! name_it {\n    ($n:ident) => {\n        use crate::kinds::KindEntry as $n;\n    };\n}\nname_it!(LaterAlias);\nimpl LaterAlias {}\n",
         "macro_rules! open_kinds {\n    () => {\n        use $crate::kinds::*;\n    };\n}\nopen_kinds!();\nimpl KindEntry {}\n",
