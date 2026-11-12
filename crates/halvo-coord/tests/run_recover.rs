@@ -1212,3 +1212,122 @@ fn a_new_life_knows_the_agent_of_a_dismissed_workflow_as_paused_manual_with_no_p
         "paused, with the trigger manual and no period (ruling XB-28 (a))"
     );
 }
+
+#[test]
+fn review_w9_an_owed_run_ended_that_the_checks_read_brought_in_is_stored_once() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+    let owed: Vec<String> = w
+        .board
+        .owed
+        .iter()
+        .map(|o| format!("{:?}", o.what))
+        .collect();
+    stored_outside(
+        &w,
+        0,
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+        },
+    );
+    w.ports.clear_refusals();
+    let ended_count = |w: &World| {
+        w.ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+            .count()
+    };
+    let start = w.act(Act::Start { agent: agent(0) });
+    let mut log = vec![
+        format!("owed after recovery: {owed:?}"),
+        format!(
+            "person's start: {:?}, checked {:?}, run_ended stored {}",
+            start.report.answer,
+            start.checked.len(),
+            ended_count(&w)
+        ),
+    ];
+    for k in 1..3u64 {
+        w.set_clock(T0 + 10_000 * k, DAY);
+        w.act(Act::Tick);
+    }
+    log.push(format!(
+        "after two ticks: run_ended stored {}, owed {}",
+        ended_count(&w),
+        w.board.owed.len()
+    ));
+    println!("W9 {}", log.join(" | "));
+    assert_eq!(ended_count(&w), 1, "W9 {}", log.join(" | "));
+}
+
+#[test]
+fn review_w5_owed_lapse_after_a_resync_of_its_body_is_stored_once() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7505)).unwrap();
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+    let owed: Vec<String> = w
+        .board
+        .owed
+        .iter()
+        .map(|o| format!("{:?}", o.what))
+        .collect();
+    stored_outside(
+        &w,
+        0,
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+        },
+    );
+    stored_outside(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: item.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+        },
+    );
+    w.ports.clear_refusals();
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    let ended = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+        .count();
+    println!(
+        "W5 owed after recovery: {owed:?} | run_ended of the run: {ended} | item_lapsed of the item: {} | owed after two ticks: {}",
+        lapses_of(&w, &item),
+        w.board.owed.len()
+    );
+    assert_eq!(ended, 1, "one run_ended");
+    assert_eq!(lapses_of(&w, &item), 1, "I5.8, L4: the item lapses once");
+}

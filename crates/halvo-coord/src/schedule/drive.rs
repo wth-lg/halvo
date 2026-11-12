@@ -617,6 +617,9 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
             let Some(i) = board.index(&owed.agent) else {
                 return true;
             };
+            if holds_end(&board.members[i].facts.events, run) {
+                return true;
+            }
             match log_end(cx, board, i, run, *cause, *day, *at) {
                 Ok(()) => true,
                 Err(e) if seq_refusal(&e) => resync_end(cx, board, i, run),
@@ -632,6 +635,9 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
             let Some(i) = board.index(&owed.agent) else {
                 return true;
             };
+            if item_closed(&board.members[i].facts.events, item) {
+                return true;
+            }
             let what = What::ItemLapsed {
                 item: item.clone(),
                 lapsed: *lapsed,
@@ -693,11 +699,14 @@ pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
 /// logs it after them.
 fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
     let facts = &mut board.members[i].facts;
-    resync(cx.ports, &facts.agent, &mut facts.events).is_ok()
-        && facts
-            .events
-            .iter()
-            .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
+    resync(cx.ports, &facts.agent, &mut facts.events).is_ok() && holds_end(&facts.events, run)
+}
+
+/// Whether the events hold a `run_ended` of the run.
+fn holds_end(events: &[Event], run: &RunId) -> bool {
+    events
+        .iter()
+        .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
 }
 
 /// Whether the agent store's last record of the agent, as the move's read of `Owner::agents`
@@ -1126,8 +1135,10 @@ where
 /// the owner's list no longer holds, whose debt the owner's refusal `no_workflow` ends (ruling
 /// XB-26); an owed `end_run` is acknowledged too once the tick's read of the agent store's last
 /// record names its run or a later run of the agent (I5.8, ruling XB-30), and an owed
-/// `run_ended` that the owner refuses with `seq` is paid when the owner's events, read again,
-/// hold it (I7.2).
+/// `run_ended` or `item_lapsed` that the owner refuses with `seq` is paid when the owner's
+/// events, read again, hold it (I7.2). An owed `run_ended` or `item_lapsed` is paid with no log
+/// when the agent's events already hold the end of that run or a close of that item, which a
+/// read after a refusal `seq` brought in (ruling RD-11).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
