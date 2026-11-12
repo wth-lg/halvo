@@ -1,0 +1,19 @@
+[package]
+name = "halvo-derived"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[features]
+test-host = []
+
+[dependencies]
+halvo-schema-core = { path = "../halvo-schema-core" }
+halvo-sqlcipher = { path = "../halvo-sqlcipher" }
+rusqlite = { version = "0.41", features = ["hooks"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+halvo-derived = { path = ".", features = ["test-host"] }

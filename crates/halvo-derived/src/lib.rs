@@ -1,0 +1,53 @@
+#![forbid(unsafe_code)]
+//! The derived store of Halvo: one SQLCipher database under `derived/` of a data directory, which holds what
+//! Halvo learns from what a person does.
+
+mod db;
+mod error;
+mod host;
+mod sql;
+
+use std::path::Path;
+
+use halvo_schema_core::kinds::KindEntry;
+
+pub use error::{Error, Fault, OpenError};
+pub use host::{Clock, DbKey, Host, IdSource};
+
+use db::Db;
+
+/// The derived store, open. It holds the writer lock of `derived/` and the exclusive lock of its database until it
+/// is dropped.
+pub struct Store {
+    db: Db,
+}
+
+impl Store {
+    /// Opens the store under `<data_dir>/derived/`, creating the directory and the database where they are missing.
+    ///
+    /// `entries` are the kind entries the store takes: `kinds::registry()` in every host, with the test-only entries
+    /// of a test host beside them. The open fails when `kinds::check_entries` reports a fault for them, when they lack
+    /// one of the four kinds of the workflow run, when another store holds the writer lock or the database, when
+    /// `key` does not open the database, when a setting that the store makes (secure delete, exclusive locking, the
+    /// write-ahead log, foreign keys, the page-cache cap) is not in effect after it, and when an existing database
+    /// holds another schema. The tables and their indexes are created only in a database that holds no table. At
+    /// every open the store reconciles: it runs the truncating checkpoint, adds a revision of 0 for each family of
+    /// `entries` that has none, and removes every evidence or support row whose summary is not stored and every row
+    /// that names a workflow that is not stored. `ids` gives the key of the site hash when the database is created.
+    pub fn open(
+        data_dir: &Path,
+        key: &DbKey,
+        entries: &[&'static KindEntry],
+        host: Host,
+        ids: &mut dyn IdSource,
+    ) -> Result<Store, OpenError> {
+        let db = Db::open(data_dir, key, entries, host.clock, ids)?;
+        Ok(Store { db })
+    }
+}
+
+#[cfg(feature = "test-host")]
+pub mod test_host {}
+
+#[cfg(test)]
+mod tests;
