@@ -40,4 +40,5 @@ process.on("message", (job) => {
     (error) => process.send({ id: job.id, error: `${error?.name ?? "Error"}: ${String(error?.message ?? error).split("\n")[0]}` }),
   );
 });
+process.on("disconnect", () => process.exit(0));
 process.send({ ready: cases.length });

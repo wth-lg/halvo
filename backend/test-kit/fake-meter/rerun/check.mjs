@@ -101,6 +101,8 @@ function runJobs(jobs) {
           return;
         }
         results.set(message.id, message);
+        const failure = message.error ?? message.result?.failure?.check ?? null;
+        console.error(`  job ${message.id} ended after ${message.result?.seconds?.toFixed(1) ?? "?"} s: ${failure === null ? "every check passed" : failure}`);
         const failed = message.error !== undefined || message.result?.failure !== null;
         current = null;
         if (failed && !stopped) {
