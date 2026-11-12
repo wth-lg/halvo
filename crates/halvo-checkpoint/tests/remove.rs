@@ -33,8 +33,6 @@ fn made(bytes: &[u8]) -> Expect {
     }
 }
 
-/// A folder with the workbook `folder/<rel>` and, beside it, the checkpoint of the run that
-/// holds `COPY`; the path of the checkpoint.
 fn with_checkpoint(scratch: &Scratch, rel: &str) -> PathBuf {
     let workbook = scratch.write(&format!("folder/{rel}"), b"the workbook now");
     let copy = workbook.with_file_name(copy_name(rel));

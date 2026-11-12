@@ -1,9 +1,6 @@
 use std::io;
 use std::path::Path;
 
-/// Carries to `made`, a file that `prepare` made beside the workbook and filled, what the
-/// workbook holds besides its bytes and its permissions: on macOS its extended attributes and
-/// its access list, on Windows its named streams and its access list.
 #[cfg(target_os = "macos")]
 pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
     use std::ffi::c_void;
@@ -33,8 +30,6 @@ pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
     }
 }
 
-/// Takes the access list off a file that `prepare` made, so that the crate can remove its own
-/// file when the list carried from the workbook denies that (macOS).
 #[cfg(target_os = "macos")]
 pub(crate) fn uncarry(made: &Path) -> io::Result<()> {
     use std::ffi::c_void;
@@ -143,8 +138,6 @@ mod windows {
         path.as_os_str().encode_wide().chain(Some(0)).collect()
     }
 
-    /// The names of the workbook's named streams, each as `:<name>:$DATA`, without the
-    /// unnamed stream of its bytes.
     fn stream_names(workbook: &Path) -> io::Result<Vec<OsString>> {
         let name = wide(workbook);
         let mut data = FindStreamData {
@@ -184,8 +177,6 @@ mod windows {
         }
     }
 
-    /// Writes each named stream of the workbook into `made` under its name, the streams
-    /// together read up to the bound of a workbook file.
     pub(super) fn streams(workbook: &Path, made: &Path) -> io::Result<()> {
         let mut room = FILE_MAX;
         for stream in stream_names(workbook)? {
@@ -206,8 +197,6 @@ mod windows {
         Ok(())
     }
 
-    /// Gives `made` the access list of the workbook, inherited entries marked as the
-    /// workbook's are, and its protection from inheritance.
     pub(super) fn access_list(workbook: &Path, made: &Path) -> io::Result<()> {
         let from = File::open(workbook)?;
         let to = OpenOptions::new()

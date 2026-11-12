@@ -63,8 +63,6 @@ impl Drop for Scratch {
 
 pub const RUN: &str = "0123456789abcdef0123456789abcdef";
 
-/// The locks that the tests' folders hold: `agents/locks/` under a data directory of the test
-/// target's own, with a wait of 10 s.
 pub fn locks() -> halvo_sheet::Locks {
     locks_waiting(std::time::Duration::from_secs(10))
 }

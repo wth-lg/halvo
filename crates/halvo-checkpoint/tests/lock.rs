@@ -170,8 +170,6 @@ fn the_debug_form_of_the_locks_names_no_path() {
     );
 }
 
-/// The child of `a_killed_holder_releases_the_lock`: it holds the lock, says so and waits to
-/// be killed. Without the two variables it does nothing.
 #[test]
 fn lock_holder_child() {
     let (Ok(data), Ok(dir)) = (std::env::var(CHILD_DATA), std::env::var(CHILD_DIR)) else {

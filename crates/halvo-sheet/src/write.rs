@@ -126,7 +126,6 @@ pub(crate) fn range_cells(range: Range) -> u64 {
     u64::from(range.rows()) * u64::from(range.cols())
 }
 
-/// The directory that holds the workbook at the full path `workbook`, whose lock a call holds.
 pub(crate) fn directory(workbook: &Path) -> &Path {
     workbook.parent().unwrap_or(workbook)
 }
@@ -214,8 +213,6 @@ pub(crate) fn prepare(
     }
 }
 
-/// Puts the prepared copy in the workbook's place by one rename, under the lock of the
-/// workbook's directory, which the caller holds.
 pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
     let holds = |path: &Path, bytes: &[u8]| {
         regular(path).is_ok() && fs::read(path).is_ok_and(|read| read == bytes)
@@ -233,9 +230,6 @@ pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
         .map_err(|error| Error::NotReplaced(Kept::Rename(error.kind())))
 }
 
-/// Creates `path`, which must not exist, with the bytes, then the workbook's permissions and
-/// what [`carry::carry`] carries; removes it when any of them fails. On Unix the file is made
-/// readable by its owner alone until it is full.
 fn create(path: &Path, bytes: &[u8], workbook: &Path, permissions: Permissions) -> io::Result<()> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -254,8 +248,6 @@ fn create(path: &Path, bytes: &[u8], workbook: &Path, permissions: Permissions) 
     filled
 }
 
-/// Removes a file that this crate made beside the workbook. When the access list that it
-/// carried from the workbook forbids the removal, it takes that list off first (macOS).
 pub(crate) fn remove_made(path: &Path) -> io::Result<()> {
     match fs::remove_file(path) {
         Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
@@ -297,8 +289,6 @@ static CALLS: AtomicU64 = AtomicU64::new(0);
 
 const PREPARED: &str = "prepared-";
 
-/// The name of a prepared copy of `workbook`: the run id, a part of the call's own and the
-/// first 16 hex digits of the SHA-256 of its bytes.
 fn prepared_name(workbook: &Path, run: &RunId, own: &str, sha256: &Sha256) -> PathBuf {
     let digest = sha256.hex();
     beside(
@@ -307,8 +297,6 @@ fn prepared_name(workbook: &Path, run: &RunId, own: &str, sha256: &Sha256) -> Pa
     )
 }
 
-/// The first 16 hex digits of the SHA-256 that `name` says a prepared copy of `workbook`
-/// holds, when `name` is, byte for byte, such a name of that workbook.
 fn prepared_digest(workbook: &Path, name: &OsStr) -> Option<String> {
     let template = own_name(workbook, PREPARED)?;
     let template = template.as_encoded_bytes();
@@ -329,12 +317,6 @@ fn prepared_digest(workbook: &Path, name: &OsStr) -> Option<String> {
     fits.then(|| String::from_utf8_lossy(&middle[50..]).into_owned())
 }
 
-/// Removes, under the lock of the workbook's directory, which the caller holds, each prepared
-/// copy of this workbook that a run left when it was killed: an entry of the directory whose
-/// own name is a prepared copy's name of the workbook byte for byte, that is a regular file
-/// and no link, whose mark no live call holds, and whose bytes, read under the bound of a
-/// file, still have the digest that its name says. Every other entry is left, and so is a
-/// copy that the system does not let go.
 fn sweep(workbook: &Path, locks: &Locks) {
     let dir = directory(workbook);
     let Ok(entries) = fs::read_dir(dir) else {
@@ -365,8 +347,6 @@ fn left_by_a_killed_run(path: &Path, digest: &str) -> bool {
 
 /// Writes the prepared copy under a name that no other call has: the run id, the process and
 /// a count of the calls of this process, the count taken again when a file of that name
-/// stands there, and the digest of its bytes. No file is removed or written over. The copy
-/// comes back with its mark, which the caller holds while it lives.
 fn write_copy(
     workbook: &Path,
     run: &RunId,

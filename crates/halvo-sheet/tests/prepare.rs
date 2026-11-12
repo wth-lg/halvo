@@ -17,8 +17,6 @@ fn checkpoint_name(file: &str) -> String {
     format!("{stem}.halvo-checkpoint-{RUN}.{ext}")
 }
 
-/// The name of a call's prepared copy:
-/// `<stem>.halvo-prepared-<run id>-<16 hex digits>-<16 hex digits of its SHA-256><ext>`.
 fn copy_name(prepared: &Prepared) -> String {
     let name = prepared.copy().file_name().expect("a name");
     let name = name.to_string_lossy().into_owned();

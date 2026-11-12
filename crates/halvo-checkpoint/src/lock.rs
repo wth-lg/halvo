@@ -168,8 +168,6 @@ impl Locks {
         }
     }
 
-    /// The file `name` of `agents/locks/`, made where it is missing, opened without following
-    /// a link and checked to be the file of that name.
     fn file(&self, name: &str) -> Result<File, LockError> {
         self.places()?;
         let path = self.dir.join(name);
@@ -189,8 +187,6 @@ impl Locks {
     }
 }
 
-/// Checks that `agents/` and `agents/locks/` are directories and no links, and gives what
-/// names `agents/locks/` on the system.
 fn places(dir: &Path) -> Result<Identity, LockError> {
     let agents = dir.parent().unwrap_or(dir);
     for part in [agents, dir] {

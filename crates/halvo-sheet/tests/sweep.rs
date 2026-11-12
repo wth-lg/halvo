@@ -36,8 +36,6 @@ fn copies_of(scratch: &Scratch, run: &str) -> Vec<String> {
     names.into_iter().filter(|n| n.contains(&mark)).collect()
 }
 
-/// The name that a prepared copy of `values.xlsx` with `bytes` has: the run, a part of its
-/// own, and the first 16 hex digits of the SHA-256 of its bytes.
 fn orphan_name(stem: &str, run: &str, bytes: &[u8]) -> String {
     let digest = Sha256::of(bytes).hex();
     format!(
@@ -46,9 +44,6 @@ fn orphan_name(stem: &str, run: &str, bytes: &[u8]) -> String {
     )
 }
 
-/// The child of `a_prepared_copy_that_a_killed_run_left_is_swept_by_the_next_prepare`: it
-/// prepares a fill of the run `OTHER`, says so and waits to be killed. Without the variable it
-/// does nothing.
 #[test]
 fn sweep_child() {
     let (Ok(dir), Ok(data)) = (std::env::var(CHILD_DIR), std::env::var(CHILD_DATA)) else {

@@ -7,7 +7,6 @@ use std::process::Command;
 use common::{corpus, locks, Scratch, RUN};
 use halvo_sheet::{Folder, Range, RunId, Value};
 
-/// The workbook `values.xlsx` in a new scratch folder, with `mark` applied to it; the folder.
 fn marked(name: &str, mark: impl Fn(&Path)) -> (Scratch, PathBuf) {
     let scratch = Scratch::new(name);
     let workbook = scratch.path("values.xlsx");
@@ -16,7 +15,6 @@ fn marked(name: &str, mark: impl Fn(&Path)) -> (Scratch, PathBuf) {
     (scratch, workbook)
 }
 
-/// The checkpoint, the prepared copy and, after the replace, the workbook.
 fn made(scratch: &Scratch, workbook: &Path) -> [PathBuf; 3] {
     let folder = Folder::new(&scratch.dir, locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");

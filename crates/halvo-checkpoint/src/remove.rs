@@ -143,7 +143,6 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
     answer
 }
 
-/// The walked directory of the workbook and the workbook's file name.
 fn place<'a>(folder: &Path, workbook: &'a Path) -> Result<(PathBuf, &'a OsStr), Removal> {
     let root = Root::new(folder).map_err(walked)?;
     root.parent(workbook).map_err(walked)
@@ -161,8 +160,6 @@ fn walked(walk: Walk) -> Removal {
     }
 }
 
-/// The checks of [`remove`] on the entry `name` of `dir`, made under the lock; the open copy
-/// when every one holds.
 fn checked(
     dir: &Path,
     name: &OsStr,
@@ -207,11 +204,6 @@ fn checked(
 
 static ASIDE: AtomicU64 = AtomicU64::new(0);
 
-/// Removes the checked copy `name` of `dir`, whose metadata at the check is `seen`: it moves
-/// the entry to a name of its own first and removes it only when the moved file is still the
-/// checked one, so that a file that took the copy's place after the check is never removed. A
-/// file that is not the checked one goes back to the copy's name, unless a new file stands
-/// there, and the answer is [`Left::Changed`].
 fn aside(dir: &Path, name: &OsStr, seen: &Metadata) -> Result<Removal, Undecided> {
     let path = dir.join(name);
     let mut moved = name.to_os_string();
@@ -245,8 +237,6 @@ fn aside(dir: &Path, name: &OsStr, seen: &Metadata) -> Result<Removal, Undecided
     }
 }
 
-/// Gives the file at `moved` the name `path` again without writing over a file that stands
-/// there now; when one does, the file keeps the name `moved`.
 fn put_back(moved: &Path, path: &Path) {
     if fs::hard_link(moved, path).is_ok() {
         let _ = fs::remove_file(moved);
@@ -255,8 +245,6 @@ fn put_back(moved: &Path, path: &Path) {
     }
 }
 
-/// The regular file at `path`, opened without following a link, with what the open file says
-/// of itself.
 fn opened(path: &Path) -> Result<(File, Metadata), Removal> {
     let named = match fs::symlink_metadata(path) {
         Ok(meta) => meta,
@@ -289,7 +277,6 @@ fn opened(path: &Path) -> Result<(File, Metadata), Removal> {
     Ok((file, seen))
 }
 
-/// Whether the directory `dir` holds an entry whose own name is `name` byte for byte.
 fn own_entry(dir: &Path, name: &OsStr) -> Result<bool, Removal> {
     let entries = fs::read_dir(dir).map_err(|_| Removal::Left(Left::Unreadable))?;
     for entry in entries {

@@ -84,7 +84,6 @@ pub fn link_dir(target: &Path, link: &Path) {
     std::os::windows::fs::symlink_dir(target, link).expect("make the link");
 }
 
-/// Whether the file system of `dir` answers for a name in another letter case.
 pub fn folds_case(dir: &Path) -> bool {
     let probe = dir.join("case-probe.txt");
     fs::write(&probe, b"x").expect("write the probe");
