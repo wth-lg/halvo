@@ -47,6 +47,27 @@ test("requests that Node's HTTP layer would answer itself each get one line and 
   assert.equal(got[3].connection, got[4].connection);
 });
 
+test("a request with expect: 100-continue gets 100 Continue before the stub reads its body, then its answer and one line", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const client = await halfOpen(portOf(stub.app));
+  const head = request("POST", "/v1/checkout", [...appHeaders(), ...json, ["expect", "100-continue"]]).toString("latin1").replace("\r\n\r\n", `\r\ncontent-length: ${CAP.length}\r\n\r\n`);
+  client.socket.write(head);
+  const interim = "HTTP/1.1 100 Continue\r\n\r\n";
+  for (let waited = 0; waited < 1000 && client.got().length < interim.length; waited += 50) await pause(50);
+  assert.equal(client.got().toString("latin1"), interim, "the interim answer came within 1,000 ms and nothing else did");
+  assert.deepEqual(lines(dir), []);
+  client.socket.write(CAP);
+  for (let waited = 0; waited < 2000 && !client.got().toString("latin1").includes('"result"'); waited += 50) await pause(50);
+  client.socket.destroy();
+  const answer = parse(client.got().subarray(interim.length));
+  assert.equal(answer.status, 200);
+  assert.equal(JSON.parse(answer.body).result, "session");
+  const got = lines(dir);
+  assert.deepEqual(got.map((line) => [line.method, line.target, line.status, line.bytes]), [["POST", "/v1/checkout", 200, CAP.length]]);
+  assert.deepEqual(got[0].headers.find(([name]) => name === "expect"), ["expect", "100-continue"]);
+});
+
 test("bytes that are no request get one line with the cause and the contract's 400, and the connection closes", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });

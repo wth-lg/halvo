@@ -181,6 +181,27 @@ test("a head with bare LF ends is held to HEAD_MAX as with CRLF", () => {
   assert.deepEqual(read([`${head}${"a".repeat(4)}`], { end: false }).causes, ["head-too-large"]);
 });
 
+test("a head that expects 100-continue and has a body to come asks for the interim answer once, before its body", () => {
+  const asked = (text) => {
+    const events = [];
+    const reader = makeReader({
+      request: (message) => (events.push(`request ${message.body.length}`), true),
+      malformed: (cause) => events.push(cause),
+      interim: () => events.push("continue"),
+    });
+    for (const chunk of bytewise(text)) reader.feed(chunk);
+    return events;
+  };
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 2\r\n\r\n{}"), ["continue", "request 2"]);
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.1\nExpect: 100-Continue \ncontent-length: 2\n\n{}"), ["continue", "request 2"]);
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.1\r\nexpect: 100-continue\r\ntransfer-encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n"), ["continue", "request 2"]);
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 0\r\n\r\n"), ["request 0"]);
+  assert.deepEqual(asked("GET /v1/done HTTP/1.1\r\nexpect: 100-continue\r\n\r\n"), ["request 0"]);
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.0\r\nexpect: 100-continue\r\ncontent-length: 2\r\n\r\n{}"), ["request 2"]);
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.1\r\nexpect: canary\r\ncontent-length: 2\r\n\r\n{}"), ["request 2"]);
+  assert.deepEqual(asked("POST /v1/checkout HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 1\r\ncontent-length: 2\r\n\r\n{}"), ["content-length"]);
+});
+
 test("while full() is true the reader reads no further head, and resume() reads on from where it held", () => {
   let full = false;
   const messages = [];

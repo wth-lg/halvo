@@ -15,6 +15,7 @@ export { BODY_CAP } from "./wire.mjs";
  */
 export const IDLE_MS = 5000;
 const HOST = "127.0.0.1";
+const CONTINUE = Buffer.from("HTTP/1.1 100 Continue\r\n\r\n", "latin1");
 const vendored = (name) => JSON.parse(readFileSync(new URL(`../../schema/${name}`, import.meta.url), "utf8"));
 
 /** Reads the three vendored files of account/schema/ that the stub uses: the schema, the route table and the samples. */
@@ -109,6 +110,7 @@ function serve(socket, connection, app, record, idleMs) {
       stop(answerBytes("", app.malformed(), true));
     },
     full: () => socket.writableNeedDrain,
+    interim: () => socket.write(CONTINUE),
   });
   function arm() {
     quiet();

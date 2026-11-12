@@ -61,9 +61,10 @@ const values = (list, name) => list.filter(([key]) => key.toLowerCase() === name
  * is one of `head-too-large`, `request-line`, `field-line`, `framing`, `content-length`, `transfer-encoding`,
  * `chunk`, `incomplete`, `idle`. `idle()` says that the peer sent nothing for the idle limit: inside a request it
  * calls `malformed("idle")` and returns true, and with no byte of a request read it returns false. Before it reads
- * the head of each request it asks `full()`; while that is true it holds the bytes and reads on at `resume()`.
+ * the head of each request it asks `full()`; while that is true it holds the bytes and reads on at `resume()`. When
+ * an HTTP/1.1 head expects `100-continue` and a body is to follow, it calls `interim()` before it reads the body.
  */
-export function makeReader({ request, malformed, full = () => false }) {
+export function makeReader({ request, malformed, full = () => false, interim = () => {} }) {
   let buffer = Buffer.alloc(0);
   let state = "head";
   let message = null;
@@ -99,6 +100,11 @@ export function makeReader({ request, malformed, full = () => false }) {
     return part;
   };
 
+  function awaitBody() {
+    const expectations = values(message.headers, "expect").flatMap((value) => value.split(","));
+    if (message.version === "1.1" && expectations.some((token) => token.trim().toLowerCase() === "100-continue")) interim();
+  }
+
   function head() {
     for (;;) {
       if (buffer[0] === LF) take(1);
@@ -123,12 +129,17 @@ export function makeReader({ request, malformed, full = () => false }) {
     if (encodings.length > 0) {
       if (encodings.join(",").trim().toLowerCase() !== "chunked") return stop("transfer-encoding");
       state = "size";
+      awaitBody();
       return true;
     }
     if (lengths.some((value) => !/^[0-9]{1,15}$/.test(value) || value !== lengths[0])) return stop("content-length");
     remaining = lengths.length > 0 ? Number(lengths[0]) : 0;
-    if (remaining === 0) finish();
-    else state = "length";
+    if (remaining === 0) {
+      finish();
+    } else {
+      state = "length";
+      awaitBody();
+    }
     return true;
   }
 
