@@ -57,17 +57,21 @@ fixture_commit() {
   git -C "$1" update-ref HEAD "$fixture_new" || exit 2
 }
 
+fixture_record() {
+  mkdir -p "$1/scripts/r1-gate" "$1/docs/baseline" || exit 2
+  git init -q "$1" >/dev/null 2>&1 || exit 2
+  [ -f "$1/scripts/r1-gate/lib.sh" ] || cp "$CI_D_REPO/scripts/r1-gate/lib.sh" "$1/scripts/r1-gate/lib.sh" || exit 2
+  [ -f "$1/docs/baseline/r1-gate-bounds.txt" ] || printf 'x=1\n' >"$1/docs/baseline/r1-gate-bounds.txt"
+  fixture_commit "$1"
+  recorded=$(GATE_ROOT=$1 sh -c '. "$0"; tree_id "$GATE_ROOT" HEAD' "$1/scripts/r1-gate/lib.sh") || exit 2
+  recorded_blob=$(git -C "$1" rev-parse HEAD:docs/baseline/r1-gate-bounds.txt) || exit 2
+  printf 'gate head=0 tree=%s bounds=%s state=clean input=none machine=host\n' "$recorded" "$recorded_blob" >"$1/docs/baseline/r1-gate-main.txt"
+  fixture_commit "$1"
+}
+
 record_case() {
   repo=$work/record-$1
-  mkdir -p "$repo/scripts/r1-gate" "$repo/docs/baseline" || exit 2
-  git init -q "$repo" >/dev/null 2>&1 || exit 2
-  cp "$CI_D_REPO/scripts/r1-gate/lib.sh" "$repo/scripts/r1-gate/lib.sh" || exit 2
-  printf 'x=1\n' >"$repo/docs/baseline/r1-gate-bounds.txt"
-  fixture_commit "$repo"
-  recorded=$(GATE_ROOT=$repo sh -c '. "$0"; tree_id "$GATE_ROOT" HEAD' "$repo/scripts/r1-gate/lib.sh") || exit 2
-  recorded_blob=$(git -C "$repo" rev-parse HEAD:docs/baseline/r1-gate-bounds.txt) || exit 2
-  printf 'gate head=0 tree=%s bounds=%s state=clean input=none machine=host\n' "$recorded" "$recorded_blob" >"$repo/docs/baseline/r1-gate-main.txt"
-  fixture_commit "$repo"
+  fixture_record "$repo"
   case $1 in
     stale) printf '# a later change\n' >>"$repo/scripts/r1-gate/lib.sh"; fixture_commit "$repo" ;;
     bounds-changed) printf 'x=2\n' >"$repo/docs/baseline/r1-gate-bounds.txt"; fixture_commit "$repo" ;;
@@ -128,6 +132,7 @@ gate() {
     printf '%s\n' "$2" | sed "s/@group@/$1/g" >"$directory/check-$1.sh"
     shift 2
   done
+  fixture_record "${directory%/scripts/r1-gate}"
 }
 
 self_test() {
@@ -183,12 +188,21 @@ self_test() {
   cp -R "$CI_D_REPO/scripts/r1-gate" "$work/check-script-renamed/scripts/" || exit 2
   cp -R "$CI_D_REPO/docs/baseline" "$work/check-script-renamed/docs/" || exit 2
   mv "$work/check-script-renamed/scripts/r1-gate/check-store.sh" "$work/check-script-renamed/scripts/r1-gate/check-store-old.sh" || exit 2
+  fixture_record "$work/check-script-renamed"
   check check-script-renamed FAIL 'FAIL self-test:run (check-store.sh is missing from'
+  gate gate-with-a-stale-record "$pass" store "$pass"
+  printf '# a change after the record\n' >>"$work/gate-with-a-stale-record/scripts/r1-gate/run.sh"
+  fixture_commit "$work/gate-with-a-stale-record"
+  check gate-with-a-stale-record FAIL ': make the record again)'
   record_case matches PASS
   record_case other-file-changed PASS
   record_case stale FAIL
   record_case bounds-changed FAIL
   gate dash-missing "$pass" store "$pass"
+  for tool in sh git sed tail cut awk; do
+    tool_path=$(command -v "$tool") || exit 2
+    ln -s "$tool_path" "$work/no-tools/$tool" || exit 2
+  done
   path=$work/no-tools
   check dash-missing SKIP 'SKIP 15-gate-self-test (dash is not installed)'
 
