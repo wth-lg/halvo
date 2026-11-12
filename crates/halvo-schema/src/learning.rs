@@ -10,7 +10,7 @@ pub mod record;
 
 pub use json::Refusal;
 
-pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};
+pub use ::halvo_schema_core::learning::{ERROR_NAMES, KINDS};
 
 /// The most learned locators of one edit's list; it equals `LOCATORS_MAX` of halvo-learn.
 pub const LOCATORS_BOUND: usize = 4;
