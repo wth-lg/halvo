@@ -40,6 +40,7 @@ impl LoginItemSpec {
         data_dir: Option<&crate::paths::DataDir>,
     ) -> Result<Self, SpecError> {
         let capture_agent = label
+            .to_ascii_lowercase()
             .strip_prefix(CAPTURE_AGENT_LABEL)
             .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
         let label_ok = !label.is_empty()
@@ -54,10 +55,12 @@ impl LoginItemSpec {
         if !program.is_absolute() {
             return Err(SpecError::RelativeProgram);
         }
-        if program
-            .components()
-            .any(|component| component.as_os_str() == "AppTranslocation")
-        {
+        if program.components().any(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .is_some_and(|name| name.eq_ignore_ascii_case("AppTranslocation"))
+        }) {
             return Err(SpecError::Translocated);
         }
         let program = plist_text(program)?;
@@ -590,6 +593,16 @@ mod login_item_tests {
     fn the_spec_refuses_a_relative_or_translocated_program_and_a_bad_label() {
         let translocated =
             "/private/var/folders/x/T/AppTranslocation/0A1B/d/Halvo.app/Contents/MacOS/Halvo";
+        for spelling in ["apptranslocation", "APPTRANSLOCATION", "AppTransLocation"] {
+            let program = format!(
+                "/private/var/folders/x/T/{spelling}/0A1B/d/Halvo.app/Contents/MacOS/Halvo"
+            );
+            assert_eq!(
+                LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(&program), None),
+                Err(SpecError::Translocated),
+                "{spelling}"
+            );
+        }
         for program in ["Halvo.app/Contents/MacOS/Halvo", "", translocated] {
             assert!(
                 LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(program), None).is_err(),
@@ -833,7 +846,13 @@ mod login_item_tests {
     fn the_builder_refuses_the_capture_agent_label() {
         assert_eq!(CAPTURE_AGENT_LABEL, "com.halvo.capture");
         assert_eq!(crate::paths::FALLBACK_SOCKET_DIR, CAPTURE_AGENT_LABEL);
-        for label in ["com.halvo.capture", "com.halvo.capture.test"] {
+        for label in [
+            "com.halvo.capture",
+            "com.halvo.capture.test",
+            "COM.HALVO.CAPTURE",
+            "com.halvo.Capture",
+            "Com.Halvo.Capture.Test",
+        ] {
             assert_eq!(
                 LoginItemSpec::new(label, Path::new(APP), None),
                 Err(SpecError::Label),
