@@ -347,3 +347,131 @@ Rows and their listeners:
   window here. Its page adds its frame and its two navigations after the load; a frame of another
   program's scheme in the page itself keeps the load from ending. `updater_wake` leaves an idle
   page open for 75 s, past the moment when the browser would wake its updater.
+
+## The third round (U0.7c, rulings CP-89, CP-93 and CP-95)
+
+`run.sh ... --round 3 --relay` runs a row of the third round. It starts the browser as the product
+does (CP-89 (b)): the trial program's own process starts it as a direct child on its debugging
+pipe and is its one client; nothing connects to a browser at an address, and the library's
+operation that did so is struck with the attach cell. `--channel port` runs the same row over a
+debugging port on the loopback address, a control that holds no verdict open.
+
+### The start (A11.1, CP-93 (1))
+
+`src/start.rs` holds every start of a child of the trial's process. `StartLock` is the one lock
+that each start takes, and `clippy.toml` refuses `Command::spawn`, `output` and `status`
+elsewhere in the crate, so a start that skips the lock does not pass clippy.
+
+- macOS: the two pipes are made, and each of their four ends is copied to a number of 10 or more
+  with close-on-exec, under the lock. The browser is started by `posix_spawn` with
+  `POSIX_SPAWN_CLOEXEC_DEFAULT`; the file actions open the null device at 0 and 1, the start's
+  stderr file at 2, and place the browser's read end at 3 and its write end at 4. The browser then
+  holds those five descriptors and nothing else of the trial's process, and the executor keeps its
+  two ends with close-on-exec. A placed descriptor is copied above the placed numbers first,
+  because `posix_spawn_file_actions_adddup2(3, 3)` keeps a close-on-exec flag.
+- Windows: the two pipes are made not inheritable. Under the lock the browser's two ends and its
+  standard handles are made inheritable, `CreateProcessW` starts the browser with
+  `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` naming those handles alone and
+  `--remote-debugging-io-pipes=<read>,<write>`, and the ends are made not inheritable again
+  before the lock is released.
+- The wire (`src/pipe.rs`, `src/cdp/wire.rs`) writes each command as its JSON and a NUL byte and
+  splits the browser's output at each NUL byte, with chromiumoxide's protocol types for every
+  message (`MethodCall`, `Message`, `CdpEventMessage` and the typed commands). The executor's
+  operations run on the session of its own page target, which the browser-level auto-attach
+  gives it, and on the session of each frame that runs apart. The executor enables the Network
+  domain on each page and frame target before it runs, so that the two pauses of one request
+  carry one network id, but not on a new window: Chrome 153 detaches a window that waits for the
+  debugger in its first navigation when that domain is enabled on it.
+- The browser's first reply on the pipe has a deadline, `FIRST_REPLY_WAIT` (30 s). When it passes,
+  the executor ends the browser and the start fails with `NO_CHANNEL_MESSAGE`.
+- The start names the browser's first process to the relay, starts the guard of the relay's port
+  and asks for `http://halvo-start-probe.invalid/`, an origin that no run binds; it goes on only
+  when the relay recorded that refusal within `PROBE_WAIT` (10 s), else it ends the browser with
+  `NO_ROUTE_MESSAGE`. `.invalid` resolves nowhere, so a browser whose route bypasses the relay
+  sends nothing for it.
+
+### The relay's peer check (CP-89 (e), CP-93 (6))
+
+The relay checks each connection after its accept and before it reads a byte (`check_peer` in
+`src/relay.rs`), under the start lock, while it holds the socket: the owners of the connection's
+other end, read from the system's table, must be exactly one process, and that process must be a
+process of the browser's tree by pid and creation time. On macOS the relay reads the descriptors of
+the tree's processes (`proc_pidinfo` and `proc_pidfdinfo`) and, when they name one owner, those of
+every other process that the user may read; on Windows it reads `GetExtendedTcpTable` with owner
+ids. It reads the owner again after the tree and refuses when the two reads differ. A refused peer
+is closed unread and recorded apart (`foreign`, at most `MAX_RECORD` entries, with a count of what
+the record did not keep); at most `MAX_OPEN` connections are open at once. On Windows the listener
+is bound with `SO_EXCLUSIVEADDRUSE`; on macOS it is bound under the start lock, because std makes a
+socket close-on-exec only after it exists.
+
+The three races of A11.1, and what is left of each:
+
+1. The peer closes before the table is read: the relay holds the accepted socket, a closed peer has
+   no owner, and the connection is refused and recorded apart (`no_owner` or `owner_changed`). The
+   runs show such records for the browser's own connections that closed early; nothing was read.
+2. The peer's process ends and its number is taken before the tree is checked: the tree is matched
+   by pid and creation time, and the owner is read twice, before and after the tree. Left: a new
+   process that takes the number between the two reads and holds the same connection, which only
+   inheritance from the old one gives.
+3. A socket inherited by a child or passed to another process: on macOS the walk finds every holder
+   of the connection among the processes that the user may read, and two holders are refused
+   (`several_owners`); the walk holds the start lock, so no child of the trial's process is between
+   its fork and its exec. Left: on Windows the table names one owner whatever other process holds a
+   copy, and on macOS a process of another user is not read.
+
+### The guard of the relay's port
+
+A11.1 says that the browser's processes are ended before the relay's listener closes because the
+pipe ends the browser with the executor's process. Under the system's hard kill that does not hold:
+the system closes the listener with the killed process at once, and the browser's tree ends
+seconds later. The executor therefore starts a guard for each browser: the trial program with
+`--relay-guard <pid> <creation time>`, started with `posix_spawn` and close-on-exec by default
+(a handle list on Windows) with the relay's listener as its one descriptor beside its standard
+streams. It never accepts; it reads the process table every 20 ms and exits when no process of the
+browser's tree runs, the adopted ones among them. The executor's stop waits for it.
+
+### The checks of a session (CP-89 (c))
+
+`src/checks.rs` reads six rules, each with a count that is 0 when the rule holds: `port_flag` (a
+process of the browser's tree with a debugging-port flag on its command line), `tcp_listen` (a TCP
+socket of the tree that accepts connections), `udp_wide` (a UDP socket of the tree bound to an
+address other than loopback), `active_port_file` (`DevToolsActivePort` in the profile),
+`executor_listener` (a listener of the trial's process other than the relay's) and `pipe_holder`
+(a process other than the browser's first one and the trial's that holds an end of the pipe, among
+those started at or after the browser). Every run of `--round 3` reads them after the start, after
+the row and after the stop, and each cell prints one `check` line with the sum of each rule over its
+runs and the number of runs in which all were 0. For the read after the stop the executor keeps
+copies of its two ends open: on macOS a freed pipe's handle can name a new pipe of another process.
+
+### Rows of the third round
+
+- `pipe_inherit`: a thread starts copies of the trial program in a holding mode, each under the
+  start lock, from just before the browser's start until it returns (up to 40); ok when none of them
+  holds an end of the pipe.
+- `relay_foreign`: after the sign-in, a copy of the trial program, a process outside the browser's
+  tree, connects to the relay and sends a SOCKS5 greeting, a CONNECT to an allowed host and a
+  request; ok when the relay sent it no byte, recorded it apart, recorded no refusal of that host,
+  `record-listener.mjs` counted no connection, and the agent's own route still works.
+- `start_probe`: ok when the relay recorded exactly one refusal of the probe's origin during the
+  start, the fixture had counted no request at that moment, and the agent's first open then reaches
+  the fixture.
+- `relay_port_free` (with `--rows driver`): the driver, with the relay in its process and the
+  browser on its pipe, is killed with the system's hard kill while a POST is paused; the trial then
+  reads every 2 ms whether a new socket can bind the relay's port (with `SO_REUSEADDR`) and whether
+  any process of the browser's tree still runs; ok when the browser's tree was gone first.
+- `org_debugging` and `org_proxy` (`--rows org`): the caller sets the organisation's setting before
+  the call and takes it away after it (the scratch workflow writes `RemoteDebuggingAllowed` off or
+  `ProxyMode` `direct` under `HKLM\SOFTWARE\Policies` on Windows and in
+  `/Library/Managed Preferences` on the hosted Mac). Ok when the start fails with the plain message
+  of its rule (`NO_CHANNEL_MESSAGE` after the first reply's deadline, or `NO_ROUTE_MESSAGE` when
+  the probe found no refusal) and the fixture counted no request. On this Mac the cell is a `notrun`
+  line with `cause=no_policy_place`: Chrome on macOS takes a policy from the system's managed
+  preferences, which this unit does not write here.
+- `same_site_pref`: the profile's Local State holds the flags entry `isolate-origins` with the pay
+  origin (`browser.enabled_labs_experiments` and `browser.enabled_lab_experiments_origin_lists`),
+  and no start flag names the site; ok when the pay frame runs as a target of its own and no
+  command line of the browser's tree holds `agent.test`.
+- `same_site_rule`: no setting and no flag isolates the frame; the rule is armed on the page's
+  target alone (`arm_rule_on_page_only`, a control of the trial), and the trial's script makes the
+  frame send a `fetch` POST to its own origin; ok when that request is paused and failed and the
+  fixture's `requests.state_changing` and `utility.payments` did not change.
