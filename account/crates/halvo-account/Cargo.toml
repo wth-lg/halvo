@@ -7,3 +7,5 @@ publish = false
 
 [dependencies]
 halvo-wire = { path = "../halvo-wire" }
+serde = "1"
+serde_json = "1"

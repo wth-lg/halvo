@@ -1,4 +1,5 @@
 //! The account helper of Halvo: the one part of the app that talks to the backend and the
 //! one reader and writer of the account's credential.
 
+pub mod answer;
 pub mod grammar;

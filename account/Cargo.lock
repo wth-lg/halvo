@@ -35,6 +35,8 @@ name = "halvo-account"
 version = "0.0.0"
 dependencies = [
  "halvo-wire",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
