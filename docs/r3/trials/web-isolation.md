@@ -515,3 +515,133 @@ way row=proxy_prefetch machine=all browser=all closed=yes runs=0
 way row=get_with_data machine=all browser=all closed=no runs=0
 verdict executor=cdp version=0.9.1 product=yes relay=open open_ways=peer_connection,reports,handler_launch,updater_wake,get_with_data
 ```
+
+## Third round (U0.7c)
+
+Unit U0.7c runs A13.7's third round under rulings CP-89, CP-93 and CP-95 (2): the trial program
+starts the browser as a direct child on its debugging pipe and is its one client, and the relay is
+its only route, in all five cells. `tools/r3-trials/web/README.md` ("The third round") says how the
+start, the wire, the relay's peer check, the guard of the relay's port, the checks of a session and
+each row work. The lines and verdicts of the first two rounds above stay as they were.
+
+What ran, at the unit's code commit e72f083 (`mac`: c296a1c, which differs from it in Windows code
+alone): every row with `run.sh ... --round 3 --relay` (the driver row with `--round 3`), 10 runs
+per cell and 20 kills per driver form: `--rows round3`, the nine rows, `--rows isolation`,
+`--rows relay` (`list_refuse`, `list_hops`, `list_close`), `--rows reach`, `--rows ways --step
+frame_doc` (and with `--channel port`, a control), `--rows driver` (four forms, `relay_port_free`)
+and `--rows org`. On `mac` (Chrome 153.0.8010.48) each row set was one call of the run helper on a
+lane that records no time, from 2026-11-12T20:47:33Z to 2026-11-12T21:36:43Z, so `median_ms` there is no timed measure. The hosted
+cells ran in run the sixth scratch run (pending): its lines join this block when it ends. A `check` line's `form=` comes from its call's `start` line.
+
+Choices that the text leaves, each with its reason in the README: the probe's origin
+`http://halvo-start-probe.invalid/`; `FIRST_REPLY_WAIT` 30 s, `PROBE_WAIT` 10 s, `MAX_OPEN` 512 and
+`MAX_RECORD` 4096; a `check` line sums each rule of A11.1's check over a cell's runs and three reads
+(after the start, after the row, after the stop). A hard kill closes the relay's listener with the
+killed process at once while the browser's tree ends seconds later (with no guard,
+`relay_port_free` read the port free at 1 ms and the browser gone at 2476 to 4036 ms, 3 of 3 runs
+on `mac`), so a guard process holds a copy of the listener until the tree is gone. `org_policy` on
+`mac` is a `notrun` line (`cause=no_policy_place`): Chrome on macOS takes a policy from the system's
+managed preferences alone. The hosted jobs write it for their life and remove it after each cell.
+The `org_` cells carry `major=0`: the start fails before the browser gives a version.
+
+Flags of the trial that the product does not carry (A13.3, CP-89 (g)): `--use-mock-keychain` (the
+product's browser keeps its cookies with the system's key store, A8.3); `--isolate-origins=` of the
+six rows (it names the payment site, CP-93 (5)); `--remote-debugging-port=0` of the port control;
+the resolver rule's map of `*.test` to loopback (the fixture's names). `same_site_pref` sets the
+profile's flags entry `isolate-origins` with its origin list (Local State
+`browser.enabled_labs_experiments`, `browser.enabled_labs_experiments_origin_lists`).
+
+The four open facts of CP-93: written when the hosted cells are in.
+
+What the lines show and cannot show: written when the hosted cells are in.
+
+```text
+check machine=mac browser=chrome form=pipe_relay step=pipe_inherit ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=pipe_inherit ok=10 of=10 median_ms=11 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=relay_foreign ok=9 of=10 port_flag=0 tcp_listen=0 udp_wide=1 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_foreign ok=10 of=10 median_ms=32 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=start_probe ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=start_probe ok=10 of=10 median_ms=198 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=same_site_pref ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=same_site_pref ok=10 of=10 median_ms=348 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=same_site_rule ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=same_site_rule ok=10 of=10 median_ms=54 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=signin_form ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=signin_form ok=10 of=10 median_ms=284 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=signin_form ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=table_read ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=table_read ok=10 of=10 median_ms=237 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=table_read ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=form_fill ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=form_fill ok=10 of=10 median_ms=422 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=form_fill ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=payment_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame ok=10 of=10 median_ms=412 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=payment_frame ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=file_upload ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=file_upload ok=10 of=10 median_ms=376 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=file_upload ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=session_expiry ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=session_expiry ok=10 of=10 median_ms=365 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=session_expiry ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1 ok=10 of=10 median_ms=456 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=changed_page_1 ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=block_request ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_request ok=10 of=10 median_ms=361 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=block_request ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=credential_mark ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=credential_mark ok=10 of=10 median_ms=347 relay=pipe_relay
+relay_cell machine=mac browser=chrome form=pipe_relay step=credential_mark ok=10 of=10
+check machine=mac browser=chrome form=pipe_relay step=payment_frame_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=payment_frame_isolated ok=10 of=10 median_ms=438 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=changed_page_1_isolated ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=changed_page_1_isolated ok=10 of=10 median_ms=415 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=block_popup ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_popup ok=10 of=10 median_ms=59 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=block_frame_post ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_frame_post ok=10 of=10 median_ms=101 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=block_websocket ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=block_websocket ok=10 of=10 median_ms=52 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=cert_error ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=cert_error ok=10 of=10 median_ms=350 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=list_refuse ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=list_refuse ok=10 of=10 median_ms=2424 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=list_hops ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=list_hops ok=10 of=10 median_ms=1433 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=list_close ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=list_close ok=10 of=10 median_ms=1490 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=reach_page ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_page ok=10 of=10 median_ms=3241 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=reach_opened ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_opened ok=10 of=10 median_ms=3256 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=reach_frame ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_frame ok=10 of=10 median_ms=3272 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=reach_worker ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_worker ok=10 of=10 median_ms=3221 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=reach_shared ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_shared ok=10 of=10 median_ms=3219 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=reach_service ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=reach_service ok=10 of=10 median_ms=3219 relay=pipe_relay
+check machine=mac browser=chrome form=pipe_relay step=frame_doc ok=10 of=10 port_flag=0 tcp_listen=0 udp_wide=0 active_port_file=0 executor_listener=0 pipe_holder=0
+way row=frame_doc form=pipe_relay machine=mac browser=chrome closed=yes runs=10 told=10
+check machine=mac browser=chrome form=port_relay step=frame_doc ok=0 of=10 port_flag=91 tcp_listen=20 udp_wide=0 active_port_file=20 executor_listener=0 pipe_holder=0
+way row=frame_doc form=port_relay machine=mac browser=chrome closed=yes runs=10 told=10
+control candidate=cdp machine=mac browser=chrome step=driver_killed_pipe let_through=yes browser_after=gone connections=1 bytes=458 seen=yes
+kill machine=mac form=pipe kills=20 arrived=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_pipe ok=20 of=20 median_ms=115
+control candidate=cdp machine=mac browser=chrome step=driver_killed_port let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
+kill machine=mac form=port kills=20 arrived=20
+cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_port ok=0 of=20 median_ms=0 bytes=9160
+control candidate=cdp machine=mac browser=chrome step=driver_killed_pipe_relay let_through=yes browser_after=gone connections=1 bytes=458 seen=yes
+kill machine=mac form=pipe_relay kills=20 arrived=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_pipe_relay ok=20 of=20 median_ms=146 relay=pipe_relay
+control candidate=cdp machine=mac browser=chrome step=driver_killed_port_relay let_through=yes browser_after=alive connections=1 bytes=458 seen=yes
+kill machine=mac form=port_relay kills=20 arrived=0
+cell candidate=cdp machine=mac browser=chrome major=153 step=driver_killed_port_relay ok=20 of=20 median_ms=0 relay=port_relay
+cell candidate=cdp machine=mac browser=chrome major=153 step=relay_port_free ok=10 of=10 median_ms=4217 relay=pipe_relay
+notrun candidate=cdp machine=mac browser=chrome step=org_debugging cause=no_policy_place
+notrun candidate=cdp machine=mac browser=chrome step=org_proxy cause=no_policy_place
+same_site pref=open rule=open start_writes_setting=open
+verdict executor=cdp version=0.9.1 form=pipe product=open relay=open library=protocol_types
+```

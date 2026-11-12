@@ -28,6 +28,13 @@ job; the nine steps ran on 156. No image holds a second major version of Chrome.
 `pipe=no`: chromiumoxide 0.9.1 connects only over a WebSocket at `--remote-debugging-port`. The
 licence lines cover the 138 packages of the trial's lock file, which U0.7 did not change.
 
+The third round (U0.7c) measured again, at commit e72f083, the cells that the library's connection
+decided: `--extras --round 3` on `mac` with Chrome 153.0.8010.48, one call of the timed-run helper
+from 2026-11-12T21:37:14Z to 2026-11-12T21:47:14Z at a 1-minute load of 93.42, so `cold_ms` is a
+time under load. `added_bytes` is the binary with the protocol types and the pipe alone
+(`--no-default-features --features driver`) against one with no driver crate; `cold_ms` starts as
+the product does (pipe, relay, probe); `attach` and `pipe` are struck with the connect operation.
+
 What the lines cannot show. Ten runs cannot show a miss rarer than about one in four. The verdict
 stands for these nine steps. It decides U2.1 only by the rule of A13.7, whose rows are in
 `docs/r3/trials/web-isolation.md`.
@@ -231,5 +238,6 @@ cell candidate=cdp machine=hosted-win browser=edge major=156 step=changed_page_1
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=block_request ok=10 of=10 median_ms=1384
 cell candidate=cdp machine=hosted-win browser=edge major=156 step=credential_mark ok=10 of=10 median_ms=1264
 extras candidate=cdp added_bytes=10867056 cold_ms=628 record=ok attach=ok pipe=no
+extras candidate=cdp form=pipe added_bytes=5651648 cold_ms=2131 record=ok
 verdict executor=cdp version=0.9.1
 ```
