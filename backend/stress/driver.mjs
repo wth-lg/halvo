@@ -705,7 +705,7 @@ async function runCounted(ctx, cell, variant, runNo, withKill) {
       ctx.progress(result, discarded.length);
       return { ...result, discarded };
     }
-    if (result.error) ctx.progress(result, discarded.length);
+    if (result.error || result.facts?.slow === true) ctx.progress(result, discarded.length);
     discarded.push({
       key: result.key,
       error: result.error,

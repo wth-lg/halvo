@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { config } from "../../../stress/config.mjs";
 import * as driver from "../../../stress/driver.mjs";
@@ -76,17 +76,19 @@ async function readAttempts(record) {
     ms: 1,
     error: null,
   });
+  const reported = [];
   const ctx = {
     cfg: { attempts: record.attempts.length },
     target: { command: () => ({}) },
     outDir: state,
     jobs: 1,
-    progress: () => undefined,
+    progress: (result) => reported.push(result.key),
     runOnce: async (...args) => scripted(...args),
   };
   const [run] = await driver.runCells(ctx, [record.cell], "counts-open-holds");
   const problems = [];
   if (run.discarded.length !== record.expect.discarded.length) problems.push(`${run.discarded.length} discarded attempts, expected ${record.expect.discarded.length}`);
+  if (record.expect.reported !== undefined && !isDeepStrictEqual(reported, record.expect.reported)) problems.push(`the driver reported ${JSON.stringify(reported)}, expected ${JSON.stringify(record.expect.reported)}`);
   record.expect.discarded.forEach((want, at) => {
     for (const [name, value] of Object.entries(want)) {
       if (!isDeepStrictEqual(run.discarded[at]?.[name], value)) problems.push(`discarded attempt ${at + 1} keeps ${name} as ${JSON.stringify(run.discarded[at]?.[name])}, expected ${JSON.stringify(value)}`);
@@ -95,7 +97,26 @@ async function readAttempts(record) {
   return { good: true, problems };
 }
 
-const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts };
+const CHECK = join(HERE, "..", "..", "..", "stress", "check.mjs");
+async function readLine(record) {
+  const good = record.expect.line.startsWith("PASS ");
+  if (!readFileSync(CHECK, "utf8").includes("export function lineOf(")) return { good, problems: ["stress/check.mjs exports no lineOf, and importing it would start the check"] };
+  const { lineOf } = await import(pathToFileURL(CHECK).href);
+  const got = lineOf({ selected: record.selected, runs: record.runs, halted: record.halted ?? false, attempts: record.attempts ?? 6 });
+  const problems = [];
+  if (got.line !== record.expect.line) problems.push(`the line is "${got.line}", expected "${record.expect.line}"`);
+  if (record.expect.lostInTransport !== undefined && got.lostInTransport !== record.expect.lostInTransport) problems.push(`lost in transport ${got.lostInTransport}, expected ${record.expect.lostInTransport}`);
+  return { good, problems };
+}
+
+async function readAttemptLine(record) {
+  if (!readFileSync(CHECK, "utf8").includes("export function attemptLineOf(")) return { good: true, problems: ["stress/check.mjs exports no attemptLineOf, and importing it would start the check"] };
+  const { attemptLineOf } = await import(pathToFileURL(CHECK).href);
+  const got = attemptLineOf(record.result, record.discarded);
+  return { good: true, problems: got === record.expect.line ? [] : [`the line is "${got}", expected "${record.expect.line}"`] };
+}
+
+const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
