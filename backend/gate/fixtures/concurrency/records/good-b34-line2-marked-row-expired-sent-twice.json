@@ -1,0 +1,41 @@
+{
+  "kind": "judge",
+  "ruling": "B-34 line 2",
+  "about": "as above, and the stream of the other attempt never reported, so the marked row expired at its amount",
+  "source": "by hand",
+  "request": {
+    "lost": [
+      {
+        "why": "reset",
+        "body": ""
+      }
+    ]
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "mockEvents": [
+    {
+      "t": 1500,
+      "id": "r",
+      "ev": "request"
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "expired": 1
+    }
+  }
+}

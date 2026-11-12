@@ -22,13 +22,30 @@ export const CLAUSES_OF_THE_DISPATCH_MARK = {
 
 const endedAtItsExpiry = (row) => row.ended_at !== null && row.ended_at >= row.expires_at;
 const answeredAtOrAfterItsExpiry = (request, row) => request.headersAt !== null && request.headersAt >= row.expires_at;
-const answeredStopped = (request) => {
+const bodyOf = (request) => {
   try {
-    return JSON.parse(request.body).result === "stopped";
+    return JSON.parse(request.body);
   } catch {
-    return false;
+    return null;
   }
 };
+const sentMoreThanOnce = (request) => request.lost.length > 0;
+const settlesOf = (row) => (row.state === "settled" ? 1 : 0) + (row.late_at !== null ? 1 : 0);
+const fitsTheRow = (body, row) =>
+  body.dispatched === (row.dispatched === 1) && (body.state === "open" ? body.dispatched === true : body.state === row.state);
+
+function legal409(request, row, upstream, ledger) {
+  const body = bodyOf(request);
+  if (!row || body === null) return false;
+  if (body.result === "stopped") {
+    const voidedWithoutTheMark = ledger.voidsUnmarkedAtExpiry === true && row.state === "voided" && row.dispatched === 0;
+    if (voidedWithoutTheMark && endedAtItsExpiry(row) && answeredAtOrAfterItsExpiry(request, row) && !upstream) return true;
+    if (!sentMoreThanOnce(request)) return false;
+    if (row.dispatched === 1) return (upstream?.calls ?? 0) <= 1 && settlesOf(row) <= 1;
+    return row.state === "voided" && row.ended_at < row.expires_at && !upstream;
+  }
+  return body.result === "repeat" && sentMoreThanOnce(request) && fitsTheRow(body, row);
+}
 const endedByTime = (row, ledger) => row.state === "expired" || (ledger.voidsUnmarkedAtExpiry === true && row.state === "voided" && endedAtItsExpiry(row));
 
 function readMock(events) {
@@ -36,10 +53,13 @@ function readMock(events) {
   for (const event of events) {
     let entry = byId.get(event.id);
     if (!entry) {
-      entry = { requestAt: null, endAt: null, clean: false, finalUsage: null };
+      entry = { requestAt: null, endAt: null, clean: false, finalUsage: null, calls: 0 };
       byId.set(event.id, entry);
     }
-    if (event.ev === "request") entry.requestAt = event.t;
+    if (event.ev === "request") {
+      entry.requestAt = event.t;
+      entry.calls++;
+    }
     if (event.ev === "usage" && event.final) {
       entry.finalUsage = { inputTokens: event.input_tokens, outputTokens: event.output_tokens };
     }
@@ -106,20 +126,13 @@ export function judge({
       case chatStatus.upstreamFailed:
         if (!row) bad("integrity", request.id, `answered ${request.status} with a receipt, but no row is stored`);
         break;
-      default: {
-        const stoppedAtTheExpiry =
-          request.status === 409 &&
-          ledger.voidsUnmarkedAtExpiry === true &&
-          answeredStopped(request) &&
-          row?.state === "voided" &&
-          row.dispatched === 0 &&
-          endedAtItsExpiry(row) &&
-          answeredAtOrAfterItsExpiry(request, row) &&
-          !mock.has(request.id);
-        if (!diedInKill && !stoppedAtTheExpiry) {
+      case 409:
+        if (!diedInKill && !legal409(request, row, mock.get(request.id), ledger)) {
           bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
         }
-      }
+        break;
+      default:
+        if (!diedInKill) bad("integrity", request.id, `the request ended with status ${request.status} and error ${request.error}`);
     }
     for (const attempt of request.lost) {
       if (gatewayFailed(attempt)) {
