@@ -8,6 +8,8 @@ use halvo_connect::{Graph, Route};
 use halvo_schema::executable::WebOrigin;
 use serde_json::Value;
 
+pub const HOLD: u16 = 0;
+
 #[derive(Debug, PartialEq)]
 pub struct Seen {
     pub method: String,
@@ -42,6 +44,13 @@ impl Stub {
                 if tx.send(seen).is_err() {
                     return;
                 }
+                if status == HOLD {
+                    thread::spawn(move || {
+                        thread::sleep(Duration::from_secs(3));
+                        drop(stream);
+                    });
+                    continue;
+                }
                 let _ = stream.write_all(
                     format!(
                         "HTTP/1.1 {status} Stub\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -55,9 +64,13 @@ impl Stub {
     }
 
     pub fn graph(&self, host: &str) -> Graph {
+        self.graph_within(host, Duration::from_secs(10))
+    }
+
+    pub fn graph_within(&self, host: &str, timeout: Duration) -> Graph {
         let origin = WebOrigin::parse(&format!("http://{host}.agent.test:{}", self.port))
             .expect("an origin");
-        Graph::new(&origin, Route::Loopback, Duration::from_secs(10)).expect("the client builds")
+        Graph::new(&origin, Route::Loopback, timeout).expect("the client builds")
     }
 
     pub fn seen(&self) -> Vec<Seen> {

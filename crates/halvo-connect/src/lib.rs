@@ -4,11 +4,13 @@
 //! that reads a kept list runs once per item of it, and the adapter offers no request beyond its operations.
 
 mod answer;
+mod calendar;
 mod error;
 mod graph;
 mod mail;
 mod token;
 
+pub use calendar::{Calendar, Event, EventToDelete, Events, RunDay};
 pub use error::{AnswerFault, BuildError, CallError, Effect};
 pub use graph::{Graph, Route};
 pub use mail::{Draft, DraftToSend, Drafts, Mail, Message, Messages, ReplyRule};

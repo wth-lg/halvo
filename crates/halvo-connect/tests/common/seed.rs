@@ -62,6 +62,16 @@ impl Seed {
             .and_then(|message| message["subject"].as_str())
     }
 
+    pub fn event_subject(&self, id: &str) -> Option<&str> {
+        self.get("/calendar/events")
+            .as_array()
+            .expect("the events")
+            .iter()
+            .chain(std::iter::once(self.get("/later/event")))
+            .find(|event| event["id"] == id)
+            .and_then(|event| event["subject"].as_str())
+    }
+
     pub fn end(&self, task: &str) -> &Value {
         self.get(&format!("/end/{task}"))
     }

@@ -1,7 +1,9 @@
 mod common;
 
-use common::stub::{Seen, Stub};
-use halvo_connect::{AnswerFault, CallError, Mail, ReplyRule, Token};
+use std::time::Duration;
+
+use common::stub::{Seen, Stub, HOLD};
+use halvo_connect::{AnswerFault, Calendar, CallError, Effect, Mail, ReplyRule, RunDay, Token};
 use serde_json::{json, Value};
 
 const INBOX: &str = "/v1.0/me/mailFolders/inbox/messages";
@@ -182,6 +184,103 @@ fn draft_reply_stops_at_the_first_error() {
             seen("GET", INBOX, None),
             seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
             seen("PATCH", "/v1.0/me/messages/d1", Some(patch)),
+        ]
+    );
+}
+
+fn event(id: &str, start: &str, cancelled: bool, response: &str) -> Value {
+    json!({
+        "id": id,
+        "subject": format!("s-{id}"),
+        "start": {"dateTime": start, "timeZone": "UTC"},
+        "end": {"dateTime": start, "timeZone": "UTC"},
+        "isCancelled": cancelled,
+        "responseStatus": {"response": response},
+    })
+}
+
+#[test]
+fn the_cleanup_task_makes_exactly_its_requests() {
+    let window =
+        "/v1.0/me/calendarView?startDateTime=2026-10-13T00:00:00Z&endDateTime=2026-11-13T00:00:00Z";
+    let view = json!({"value": [
+        event("e1", "2026-10-12T23:59:59.9999999", true, "organizer"),
+        event("e2", "2026-10-13T00:00:00.0000000", true, "organizer"),
+        event("e/3", "2026-11-12T23:59:59.9999999", false, "declined"),
+        event("e4", "2026-11-13T00:00:00.0000000", true, "organizer"),
+        event("e5", "2026-11-01T10:00:00.0000000", false, "accepted"),
+    ]});
+    let stub = Stub::start(vec![
+        (format!("GET {window}"), 200, view.to_string()),
+        ("DELETE /v1.0/me/events/e2".to_owned(), 204, String::new()),
+        (
+            "DELETE /v1.0/me/events/e%2F3".to_owned(),
+            204,
+            String::new(),
+        ),
+    ]);
+    let graph = stub.graph("calendar");
+    let events = graph
+        .calendar_list(&token(), RunDay::from_unix_seconds(1_794_441_600 + 86_399))
+        .expect("calendar_list answers");
+    let kept: Vec<_> = events
+        .iter()
+        .map(|e| (e.id(), e.subject(), e.start()))
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            ("e2", "s-e2", "2026-10-13T00:00:00.0000000"),
+            ("e/3", "s-e/3", "2026-11-12T23:59:59.9999999"),
+        ]
+    );
+    for handle in events.into_deletes() {
+        graph
+            .calendar_delete(&token(), handle)
+            .expect("calendar_delete answers");
+    }
+    assert_eq!(
+        stub.seen(),
+        [
+            seen("GET", window, None),
+            seen("DELETE", "/v1.0/me/events/e2", None),
+            seen("DELETE", "/v1.0/me/events/e%2F3", None),
+        ]
+    );
+}
+
+#[test]
+fn an_effect_without_an_answer_is_unknown_and_not_sent_again() {
+    let window =
+        "/v1.0/me/calendarView?startDateTime=2026-10-13T00:00:00Z&endDateTime=2026-11-13T00:00:00Z";
+    let view = json!({"value": [
+        event("e1", "2026-11-01T10:00:00.0000000", true, "organizer"),
+        event("e2", "2026-11-02T10:00:00.0000000", true, "organizer"),
+    ]});
+    let stub = Stub::start(vec![
+        (format!("GET {window}"), 200, view.to_string()),
+        ("DELETE /v1.0/me/events/e1".to_owned(), HOLD, String::new()),
+        ("DELETE /v1.0/me/events/e2".to_owned(), 204, String::new()),
+    ]);
+    let graph = stub.graph_within("calendar", Duration::from_millis(500));
+    let events = graph
+        .calendar_list(&token(), RunDay::from_unix_seconds(1_794_441_600))
+        .expect("calendar_list answers");
+    let mut deletes = events.into_deletes();
+    let error = graph
+        .calendar_delete(&token(), deletes.next().expect("an event"))
+        .expect_err("no answer");
+    assert_eq!(error, CallError::NoAnswer);
+    assert_eq!(error.effect(), Effect::Unknown);
+    graph
+        .calendar_delete(&token(), deletes.next().expect("an event"))
+        .expect("calendar_delete answers");
+    assert_eq!(
+        stub.seen(),
+        [
+            seen("GET", window, None),
+            seen("DELETE", "/v1.0/me/events/e1", None),
+            seen("DELETE", "/v1.0/me/events/e2", None),
         ]
     );
 }
