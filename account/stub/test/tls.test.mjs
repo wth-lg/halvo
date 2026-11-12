@@ -131,9 +131,12 @@ test("the authority's file is never written over, and a refused start writes no 
   const keys = fresh();
   const caFile = join(keys, "ca.pem");
   writeFileSync(caFile, "keep");
-  await assert.rejects(startStub({ record: fresh(), tlsCa: caFile }), TlsError);
+  const record = fresh();
+  await assert.rejects(startStub({ record, tlsCa: caFile }), TlsError);
   assert.equal(readFileSync(caFile, "utf8"), "keep");
-  await assert.rejects(startStub({ record: fresh(), tlsCa: join(keys, "missing", "ca.pem") }), TlsError);
+  assert.deepEqual(readdirSync(record), []);
+  await assert.rejects(startStub({ record, tlsCa: join(keys, "missing", "ca.pem") }), TlsError);
+  assert.deepEqual(readdirSync(record), []);
   const full = fresh();
   writeFileSync(join(full, "x"), "");
   const second = join(fresh(), "ca.pem");
@@ -150,9 +153,11 @@ test("the command line serves over TLS with --tls-ca and refuses a file that exi
   assert.equal(answer.body, '{"result":"no-such-account"}');
   await exchange(portOf(ready.control), request("POST", "/stop"));
   assert.equal(await exited(child), 0);
-  const again = await spawnStub(["--record", fresh(), "--tls-ca", caFile]);
+  const refused = fresh();
+  const again = await spawnStub(["--record", refused, "--tls-ca", caFile]);
   assert.equal(again.ready, null);
   assert.equal(await exited(again.child), 64);
+  assert.deepEqual(readdirSync(refused), []);
   const twice = await spawnStub(["--record", fresh(), "--tls-ca", join(fresh(), "a.pem"), "--tls-ca", join(fresh(), "b.pem")]);
   assert.equal(await exited(twice.child), 64);
 });

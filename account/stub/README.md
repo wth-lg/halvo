@@ -21,7 +21,7 @@ Start each command at the repository root.
 {"app":"http://127.0.0.1:50311","control":"http://127.0.0.1:50312"}
 ```
 
-It runs until the test call `POST /stop`, SIGINT or SIGTERM, ends every open connection, and exits 0. It exits 64 and serves nothing when an argument is unknown or given twice, when `--record` is missing, when `DIR` is missing, not a directory or not empty, and when `FILE` exists or its directory does not. When it cannot write the record, it answers nothing and exits with an error.
+It runs until the test call `POST /stop`, SIGINT or SIGTERM, ends every open connection, and exits 0. It exits 64 and serves nothing when an argument is unknown or given twice, when `--record` is missing, when `DIR` is missing, not a directory or not empty, and when `FILE` exists or its directory does not. A start that is refused writes nothing into `DIR`: the stub checks `DIR` and writes `FILE` before it writes the first file of the record. When it cannot write the record, it answers nothing and exits with an error.
 
 ## TLS with a test authority
 

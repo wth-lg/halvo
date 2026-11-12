@@ -147,7 +147,10 @@ function serveControl(app, stop) {
  * Throws RecordError or TlsError for a bad directory or file.
  */
 export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = IDLE_MS }) {
-  const record = openRecord(dir);
+  const made = tlsCa === undefined ? null : makeTestAuthority(Date.now());
+  const record = openRecord(dir, () => {
+    if (made !== null) writeAuthority(tlsCa, made.caPem);
+  });
   const app = makeApp({ ...readVendored(), now });
   let done;
   const stopped = new Promise((resolve) => {
@@ -155,11 +158,9 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   });
   const onSocket = (socket) => serve(socket, record.connection(socket), app, record, idleMs);
   let appServer;
-  if (tlsCa === undefined) {
+  if (made === null) {
     appServer = createPlainServer({ allowHalfOpen: true }, onSocket);
   } else {
-    const made = makeTestAuthority(Date.now());
-    writeAuthority(tlsCa, made.caPem);
     appServer = createTlsServer({ key: made.keyPem, cert: made.certPem, allowHalfOpen: true }, onSocket);
     appServer.on("tlsClientError", (error) => {
       if (error.code !== "ECONNRESET") record.refused({ error: String(error.code) });

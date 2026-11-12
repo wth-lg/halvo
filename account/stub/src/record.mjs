@@ -17,9 +17,10 @@ const number = (n) => String(n).padStart(6, "0");
  * that the stub kept of request NNNNNN; and `requests.jsonl`, one line for each request in the order of its answer,
  * `{seq, connection, method, target, headers, trailers, body, bytes, status, result}`, or `{seq, connection, error}` for bytes
  * that are no request. `connection(socket)` starts the raw file of a new connection and returns its number;
- * `request(...)` and `refused(...)` write one line each before the stub answers.
+ * `request(...)` and `refused(...)` write one line each before the stub answers. `first()` runs after `dir` is
+ * checked and before the record writes its first file, so that what it throws leaves `dir` as it was.
  */
-export function openRecord(dir) {
+export function openRecord(dir, first = () => {}) {
   let entries;
   try {
     entries = readdirSync(dir);
@@ -27,6 +28,7 @@ export function openRecord(dir) {
     throw new RecordError("the record directory is missing or not a directory");
   }
   if (entries.length > 0) throw new RecordError("the record directory is not empty");
+  first();
   const jsonl = join(dir, "requests.jsonl");
   writeFileSync(jsonl, "", { flag: "wx" });
   let connections = 0;
