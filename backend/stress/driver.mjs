@@ -316,8 +316,10 @@ function accountOf(random) {
 
 
 const MAX_RESENDS = 5;
-const resetBeforeTheServerAccepted = (record) => record.status === null && record.error === "ECONNRESET";
-const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
+const LOST_BEFORE_AN_ANSWER = new Set(["ECONNRESET", "EPIPE"]);
+const resetBeforeTheServerAccepted = (record) => record.status === null && LOST_BEFORE_AN_ANSWER.has(record.error);
+/** True when an attempt was lost on its way to the gateway and the driver sends it again under its id. */
+export const lostOnTheWayIn = (record) => resetBeforeTheServerAccepted(record) || record.status === 500;
 
 class Traffic {
   constructor(plan, level, port, chat) {

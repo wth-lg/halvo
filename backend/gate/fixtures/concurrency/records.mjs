@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
+import * as driver from "../../../stress/driver.mjs";
 import { judge } from "../../../stress/rule.mjs";
 import { testEntryApi } from "../../../stress/targets.mjs";
 
@@ -35,7 +36,14 @@ function readJudge(record) {
   return { good: want.length === 0, problems };
 }
 
-const READINGS = { judge: readJudge };
+function readSend(record) {
+  const good = record.expect.resend;
+  if (typeof driver.lostOnTheWayIn !== "function") return { good, problems: ["stress/driver.mjs exports no lostOnTheWayIn"] };
+  const got = driver.lostOnTheWayIn(record.attempt);
+  return { good, problems: got === good ? [] : [`sent again is ${got}, expected ${good}`] };
+}
+
+const READINGS = { judge: readJudge, send: readSend };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
