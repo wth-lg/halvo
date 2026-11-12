@@ -226,6 +226,13 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
             assert_eq!(keys, want, "{state}");
         }
         assert_eq!(o["card"].is_null(), *state != State::Card, "{state}");
+        for line in o["card"]["lines"].as_array().into_iter().flatten() {
+            let keys: Vec<&String> = line.as_object().unwrap().keys().collect();
+            assert!(
+                keys.len() == 2 && line["key"].is_string() && line["text"].is_string(),
+                "{state}: a card line holds {keys:?}"
+            );
+        }
         let snap = o["snapshot"].as_object().unwrap();
         assert_eq!(snap["seq"], 1);
         let rows = snap["rows"].as_array().unwrap();

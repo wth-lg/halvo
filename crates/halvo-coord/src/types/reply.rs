@@ -188,6 +188,21 @@ pub struct CardLine {
 /// assert_eq!(file("C:\\Users\\pat\\Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
 /// assert_eq!(file("Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
 /// assert_eq!(file("/home/pat/"), Err(Cause::Malformed));
+/// assert_eq!(file("C:Budget.xlsx"), Ok(vec!["Budget.xlsx".to_owned()]));
+/// assert_eq!(file("/home/pat/.."), Err(Cause::Malformed));
+/// assert_eq!(file("."), Err(Cause::Malformed));
+/// for (class, names) in [
+///     (Class::Payment, &["payee", "amount", "instrument", "origin"][..]),
+///     (Class::Purchase, &["seller", "amount", "instrument", "origin"][..]),
+///     (Class::Submit, &["origin"][..]),
+/// ] {
+///     let kept: Vec<Kept> = names
+///         .iter()
+///         .map(|n| one(n, if *n == "origin" { "https://shop.example:443" } else { "Plan 2" }))
+///         .collect();
+///     let e = CardEffect::committed(class, &kept).unwrap();
+///     assert_eq!(e.fields().last().unwrap().value, ["shop.example"], "{}", class.name());
+/// }
 /// ```
 ///
 /// An entry is made only from its class and its kept fields, so its sentence holds no value:
@@ -252,11 +267,16 @@ fn site_name(kept: &[String]) -> Result<String, Cause> {
     })
 }
 
-/// The name of a kept file alone, after the last separator of either kind.
+/// The name of a kept file alone, after the last separator of either kind and after the drive
+/// of a Windows path that has none; `.` and `..` name no file.
 fn file_name(kept: &[String]) -> Result<String, Cause> {
     let path = kept.concat();
-    let name = path.rsplit(['/', '\\']).next().unwrap_or_default();
-    if name.is_empty() {
+    let last = path.rsplit(['/', '\\']).next().unwrap_or_default();
+    let name = match last.as_bytes() {
+        [drive, b':', ..] if drive.is_ascii_alphabetic() => &last[2..],
+        _ => last,
+    };
+    if matches!(name, "" | "." | "..") {
         Err(Cause::Malformed)
     } else {
         Ok(name.to_owned())
