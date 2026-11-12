@@ -49,6 +49,10 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     fn read_and_move(&self) -> Read {
+        self.look_and_move(true)
+    }
+
+    fn look_and_move(&self, again: bool) -> Read {
         match self.keychain.read() {
             Read::Found(secret) => match self.file.read() {
                 Read::Found(other) if other.expose() == secret.expose() => {
@@ -58,7 +62,7 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
                 _ => Read::Found(secret),
             },
             Read::NotStored => match self.file.read() {
-                Read::Found(secret) => self.move_in(secret),
+                Read::Found(secret) => self.move_in(secret, again),
                 Read::NotStored => self.keychain.read(),
                 answer => answer,
             },
@@ -66,9 +70,10 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
         }
     }
 
-    fn move_in(&self, secret: Secret) -> Read {
+    fn move_in(&self, secret: Secret, again: bool) -> Read {
         match self.keychain.write(&secret) {
             Write::Stored => {}
+            Write::Occupied if again => return self.look_and_move(false),
             Write::Occupied => return not_moved(None),
             Write::Locked(locked) => return not_moved(Some(Err(locked))),
             Write::Fault(fault) => return not_moved(Some(Ok(fault))),
@@ -85,7 +90,8 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     fn remove_the_file(&self, secret: Secret) -> Read {
         match self.file.remove_if_holds(secret.expose()) {
             Claim::Removed => Read::Found(secret),
-            Claim::Absent | Claim::Other => not_moved(None),
+            Claim::Absent => self.keychain.read(),
+            Claim::Other => not_moved(None),
             Claim::Stranded => Read::Fault(Fault { code: -1 }),
             Claim::Locked(locked) => not_moved(Some(Err(locked))),
             Claim::Fault(fault) => Read::Fault(fault),

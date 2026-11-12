@@ -519,11 +519,36 @@ fn a_failed_add_leaves_the_file_and_answers_locked_with_its_code() {
 }
 
 #[test]
-fn a_move_that_loses_the_race_for_the_keychain_item_keeps_the_file_and_the_next_read_finishes_it() {
+fn a_move_that_loses_the_race_for_the_keychain_item_reads_again_and_finishes_it() {
     let store = mac(
         Keeps::Keychain,
         File::holding(FILE),
         Keys::empty().racing(FILE),
+    );
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert_eq!(adds(&store.keychain.keychain), 1);
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(adds(&store.keychain.keychain), 1);
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::empty().racing(b"another credential"),
+    );
+    let read = store.read();
+    assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+    assert_file_kept(&store);
+    assert_eq!(adds(&store.keychain.keychain), 1);
+}
+
+#[test]
+fn a_second_lost_race_for_the_keychain_item_answers_locked_with_move() {
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::empty().failing("add", DUPLICATE_ITEM),
     );
     let read = store.read();
     assert!(
@@ -531,12 +556,7 @@ fn a_move_that_loses_the_race_for_the_keychain_item_keeps_the_file_and_the_next_
         "{read:?}"
     );
     assert_file_kept(&store);
-    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
-    assert!(!store.keychain.keychain.ops().contains(&"data"));
-    assert_eq!(found(store.read()), FILE);
-    assert_eq!(store.file.bytes(), None);
-    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
-    assert_eq!(adds(&store.keychain.keychain), 1);
+    assert_eq!(adds(&store.keychain.keychain), 2);
 }
 
 #[test]
@@ -587,7 +607,6 @@ fn a_file_that_is_not_removed_after_an_equal_read_back_answers_locked() {
     for (fails, answer) in [
         (Fails::Locked(refused(13)), moved(13)),
         (Fails::Locked(Locked::Mode), moved(-1)),
-        (Fails::Absent, moved(-1)),
     ] {
         let mut store = mac(
             Keeps::Keychain,
@@ -833,6 +852,18 @@ fn a_read_never_answers_not_stored_when_another_store_moves_the_file_between_its
 }
 
 #[test]
+fn a_removal_that_finds_the_file_gone_answers_what_the_keychain_holds() {
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE).failing_claim(Fails::Absent),
+        Keys::empty(),
+    );
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert_eq!(adds(&store.keychain.keychain), 1);
+}
+
+#[test]
 fn a_file_left_under_its_private_name_answers_a_fault() {
     let store = mac(
         Keeps::Keychain,
@@ -916,6 +947,64 @@ mod real_files {
             .collect();
         names.sort();
         names
+    }
+
+    struct BeforeClaim {
+        inner: Item<UnixFs, Plain>,
+        hook: Hook,
+    }
+
+    impl FileSide for BeforeClaim {
+        fn read(&self) -> Read {
+            self.inner.read()
+        }
+
+        fn write(&self, secret: &Secret) -> Write {
+            self.inner.write(secret)
+        }
+
+        fn delete(&self) -> Delete {
+            self.inner.delete()
+        }
+
+        fn remove_if_holds(&self, bytes: &[u8]) -> Claim {
+            if let Some(hook) = self.hook.borrow_mut().take() {
+                hook();
+            }
+            self.inner.remove_if_holds(bytes)
+        }
+    }
+
+    #[test]
+    fn a_move_that_another_process_finishes_first_reads_found() {
+        let label = "finished";
+        let x: &[u8] = b"credential X of an earlier build";
+        let items: Items = Rc::new(RefCell::new(vec![x.to_vec()]));
+        assert_eq!(file_item(label).write(&secret(x)), Write::Stored);
+        let other = Mac {
+            keeps: Keeps::Keychain,
+            file: file_item(label),
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        let hook: Box<dyn FnOnce()> = Box::new(move || {
+            assert_eq!(found(other.read()), b"credential X of an earlier build");
+        });
+        let first = Mac {
+            keeps: Keeps::Keychain,
+            file: BeforeClaim {
+                inner: file_item(label),
+                hook: RefCell::new(Some(hook)),
+            },
+            keychain: keys(SharedKeys {
+                items: Rc::clone(&items),
+            }),
+        };
+        assert_eq!(found(first.read()), x);
+        assert!(matches!(file_item(label).read(), Read::NotStored));
+        assert_eq!(*items.borrow(), [x.to_vec()]);
+        assert!(names_in(label).is_empty(), "{:?}", names_in(label));
     }
 
     #[test]
