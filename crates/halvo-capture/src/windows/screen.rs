@@ -40,6 +40,8 @@ pub fn exclude_window_from_capture(hwnd: HWND) -> Result<(), CaptureError> {
 
 const SINK_GONE: &str = "the capture writer has stopped";
 const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
+const CURSOR_FLOOR: &str =
+    "screen capture without the cursor needs Windows 10 build 19041 or later";
 
 /// What the running Windows build supports, as the capture settings need it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,10 +73,19 @@ pub(crate) fn choose_settings(
     probe: impl FnOnce() -> Result<CaptureSupport, CaptureError>,
     min_interval: Duration,
 ) -> Result<ScreenChoice, CaptureError> {
-    let _ = probe;
+    let support = probe()?;
+    if !support.cursor_setting {
+        return Err(CaptureError::Start(CURSOR_FLOOR.to_string()));
+    }
+    if support.minimum_update_interval {
+        return Ok(ScreenChoice {
+            interval: MinimumUpdateIntervalSettings::Custom(min_interval),
+            drop_within: None,
+        });
+    }
     Ok(ScreenChoice {
-        interval: MinimumUpdateIntervalSettings::Custom(min_interval),
-        drop_within: None,
+        interval: MinimumUpdateIntervalSettings::Default,
+        drop_within: Some(min_interval),
     })
 }
 
@@ -85,7 +96,13 @@ fn keep_frame(
     last_kept: &mut Option<Instant>,
     now: Instant,
 ) -> bool {
-    let _ = (drop_within, last_kept, now);
+    let Some(within) = drop_within else {
+        return true;
+    };
+    if last_kept.is_some_and(|at| now.saturating_duration_since(at) < within) {
+        return false;
+    }
+    *last_kept = Some(now);
     true
 }
 const SCREEN_START_FAILED: &str = "the screen capture could not start";
