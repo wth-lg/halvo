@@ -78,11 +78,11 @@ fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, Daemon
         eprintln!("halvo-capture: {failure}");
     }
 
-    let _secure_hold = secure_gate.then(crate::secure_input_macos::hold_secure_input);
+    let secure_hold = secure_gate.then(crate::secure_input_macos::hold_secure_input);
 
     std::thread::sleep(Duration::from_secs(seconds));
 
-    drop(_secure_hold);
+    drop(secure_hold);
 
     foreground.stop();
     screen.stop();

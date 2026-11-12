@@ -58,7 +58,12 @@ define_class!(
 
     unsafe impl SCStreamOutput for ScreenOutput {
         #[unsafe(method(stream:didOutputSampleBuffer:ofType:))]
-        fn did_output(&self, _stream: &SCStream, sample: &CMSampleBuffer, ty: SCStreamOutputType) {
+        fn sample_buffer_arrived(
+            &self,
+            _stream: &SCStream,
+            sample: &CMSampleBuffer,
+            ty: SCStreamOutputType,
+        ) {
             on_sample(self.ivars(), sample, ty);
         }
     }
@@ -160,8 +165,8 @@ pub struct ScreenSource {
     cap: FrameRateCap,
     foreground: ForegroundReader,
     stream: Option<Retained<SCStream>>,
-    _output: Option<Retained<ScreenOutput>>,
-    _queue: Option<DispatchRetained<DispatchQueue>>,
+    output: Option<Retained<ScreenOutput>>,
+    queue: Option<DispatchRetained<DispatchQueue>>,
     _not_send: PhantomData<*const ()>,
 }
 
@@ -171,8 +176,8 @@ impl ScreenSource {
             cap,
             foreground,
             stream: None,
-            _output: None,
-            _queue: None,
+            output: None,
+            queue: None,
             _not_send: PhantomData,
         }
     }
@@ -266,8 +271,8 @@ impl CaptureSource for ScreenSource {
         }
 
         self.stream = Some(stream);
-        self._output = Some(output);
-        self._queue = Some(queue);
+        self.output = Some(output);
+        self.queue = Some(queue);
         Ok(())
     }
 
@@ -282,8 +287,8 @@ impl CaptureSource for ScreenSource {
             unsafe { stream.stopCaptureWithCompletionHandler(Some(&handler)) };
             let _ = rx.recv_timeout(Duration::from_secs(5));
         }
-        self._output = None;
-        self._queue = None;
+        self.output = None;
+        self.queue = None;
     }
 }
 
@@ -315,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    fn the_stream_asks_for_two_frames_a_second_the_named_queue_depth_and_no_audio() {
+    fn the_stream_asks_for_two_frames_a_second_the_named_depth_and_no_audio() {
         let config = stream_configuration(640, 480, SCREEN_FRAME_CAP);
         // SAFETY: property getters that take no argument, on a live configuration.
         let (interval, depth, audio, microphone, size) = unsafe {
