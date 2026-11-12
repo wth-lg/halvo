@@ -3,7 +3,9 @@
 //! ports, the board of the schedule and the guard's table.
 
 mod drive;
+mod recover;
 mod step;
 
 pub use drive::{drive, Act, Done, StopBy};
+pub use recover::{recover, recover_step, Earlier, Life, Recovery};
 pub use step::{run_step, Ending, Next, Phase, RunMove, StopCause};

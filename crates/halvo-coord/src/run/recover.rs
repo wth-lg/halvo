@@ -1,0 +1,314 @@
+use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
+use crate::schedule::{Board, Ended, Member, Owed, Owing};
+use crate::types::{
+    Agent, AgentId, Body, Cause, ConfigView, Doing, Event, Facts, ItemId, LapseCause, Lapsed,
+    Limits, OtherLapse, PastRun, Raised, RunEnd, RunId, What, Workflow,
+};
+use std::num::NonZeroU32;
+
+const HISTORY_PAGE: usize = 64;
+
+/// What recovery reads of one agent of an earlier life: its ledger events, every one, in
+/// ascending `seq`, and the agent store's last run record of it, or none (I5.8).
+#[derive(Clone, Copy, Debug)]
+pub struct Earlier<'a> {
+    /// The agent.
+    pub agent: &'a AgentId,
+    /// Its ledger events.
+    pub events: &'a [Event],
+    /// The agent store's last run record of it.
+    pub last: Option<&'a PastRun>,
+}
+
+/// What recovery does for one agent (I5.8): the runs whose `run_started` has no `run_ended`,
+/// which end `interrupted`; the items of the earlier life that are still open, each with its
+/// `item_lapsed` of the cause `app_ended`; and the run whose `end_run` is owed, or none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Recovery {
+    /// The runs that end `interrupted`, in the order of their `run_started` events.
+    pub ended: Vec<RunId>,
+    /// The open items with their lapse.
+    pub lapsed: Vec<(ItemId, Lapsed)>,
+    /// The run whose `end_run` is owed.
+    pub owed: Option<RunId>,
+}
+
+fn lapse_of(raised: &Raised) -> Lapsed {
+    let other = OtherLapse::AppEnded;
+    match raised {
+        Raised::Confirm(_) => Lapsed::Confirm(LapseCause::AppEnded),
+        Raised::SignIn(_) => Lapsed::SignIn(other),
+        Raised::LinkAccount(_) => Lapsed::LinkAccount(other),
+        Raised::Stuck(_) => Lapsed::Stuck(other),
+        Raised::Check(_) => Lapsed::Check(other),
+        Raised::Setup => Lapsed::Setup(other),
+        Raised::Ready => Lapsed::Ready(other),
+        Raised::Show(_) => Lapsed::Show(other),
+    }
+}
+
+/// Recovery of one agent from what an earlier life left (I5.8, rulings XB-3, XB-16, XB-20,
+/// H-4): every run whose `run_started` event has no `run_ended` event ends `interrupted`,
+/// whatever `reap` answered; every item with an `item_raised` event and neither
+/// `item_released` nor `item_lapsed`, and for a kind other than `confirm` no `item_answered`,
+/// lapses with `app_ended`; and `end_run` is owed for the newest run whose `run_started` the
+/// events hold when the store's last record does not name it, unless `reap` answered `alive`
+/// for it. What is owed is read from the events and the store's record alone; a run with no
+/// mark, which `reap` does not answer, is owed as one answered `gone`.
+pub fn recover_step(earlier: &Earlier<'_>, reaped: &[(RunId, Reaped)]) -> Recovery {
+    let started: Vec<&RunId> = earlier
+        .events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunStarted { run, .. } => Some(run),
+            _ => None,
+        })
+        .collect();
+    let has_end = |run: &RunId| {
+        earlier
+            .events
+            .iter()
+            .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
+    };
+    let ended = started
+        .iter()
+        .filter(|run| !has_end(run))
+        .map(|run| (*run).clone())
+        .collect();
+    let closed = |item: &ItemId, raised: &Raised| {
+        earlier.events.iter().any(|e| match &e.what {
+            What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
+            What::ItemAnswered { item: i, .. } => {
+                i == item && !matches!(raised, Raised::Confirm(_))
+            }
+            _ => false,
+        })
+    };
+    let mut lapsed: Vec<(ItemId, Lapsed)> = Vec::new();
+    for e in earlier.events {
+        if let What::ItemRaised { item, raised } = &e.what {
+            if !closed(item, raised) && !lapsed.iter().any(|(i, _)| i == item) {
+                lapsed.push((item.clone(), lapse_of(raised)));
+            }
+        }
+    }
+    let owed = started.last().and_then(|newest| {
+        let named = earlier.last.is_some_and(|l| &l.run == *newest);
+        let alive = reaped
+            .iter()
+            .any(|(run, answer)| run == *newest && *answer == Reaped::Alive);
+        (!named && !alive).then(|| (*newest).clone())
+    });
+    Recovery {
+        ended,
+        lapsed,
+        owed,
+    }
+}
+
+/// A new life of the coordinator, as `recover` builds it: the board, and the runs that
+/// recovery ended `interrupted`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Life<C> {
+    /// The board of the new life.
+    pub board: Board<C>,
+    /// The runs that recovery ended, each with the cause `interrupted` and no start taken.
+    pub ended: Vec<Ended>,
+}
+
+fn cause(error: &PortError) -> Cause {
+    match error {
+        PortError::Busy => Cause::Busy,
+        PortError::NoService | PortError::Refused(_) => Cause::NoService,
+    }
+}
+
+fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError> {
+    let mut events: Vec<Event> = Vec::new();
+    loop {
+        let after = events.last().map_or(0, |e| e.seq.get());
+        let page = ports.history(agent, after)?;
+        let full = page.len() >= HISTORY_PAGE;
+        events.extend(page.into_iter().filter(|e| e.seq.get() > after));
+        if !full {
+            return Ok(events);
+        }
+    }
+}
+
+fn started_at(events: &[Event], run: &RunId) -> i64 {
+    events
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunStarted { run: r, .. } if r == run => Some(e.at),
+            _ => None,
+        })
+        .unwrap_or(i64::MAX)
+}
+
+struct Found<C> {
+    agent: Agent<C>,
+    workflow: crate::types::FullWorkflow,
+    events: Vec<Event>,
+    step: Recovery,
+}
+
+/// The recovery of a new life of the app (I5.8, I5.10), the coordinator's first move: it
+/// calls `Runs::reap` before anything else, so that no `Runs::start` comes before it, and
+/// answers that call's error with no board, so that no start can come before `reap` has
+/// answered. It reads the owner's list of workflows and every agent of `Owner::agents` whose
+/// workflow the list holds, with every ledger event of the agent, page by page of at most 64,
+/// and the store's last record of it; then, by `recover_step` and in the order in which the
+/// runs started, it stores for each agent `run_ended` with `interrupted` for each run that
+/// ends and `item_lapsed` with `app_ended` for each open item, in one body; and sends
+/// `end_run` for each owed run. A `run_ended` that the owner does not acknowledge, and an
+/// `end_run` that it does not acknowledge, are owed on the board, which the schedule's tick
+/// sends again. The board takes the facts so read, with the day of the clock, an idle agent
+/// with no item, an empty queue and no live run.
+pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
+where
+    P: Owner + Runs + Analysis + Clock + Rng,
+    P::Config: ConfigView + Clone,
+{
+    let now = ports.now().map_err(|e| cause(&e))?;
+    let day = ports.today().map_err(|e| cause(&e))?;
+    let reaped = ports.reap().map_err(|e| cause(&e))?;
+    let workflows = ports.workflows().map_err(|e| cause(&e))?;
+    let agents = ports.agents().map_err(|e| cause(&e))?;
+    let mut found: Vec<Found<P::Config>> = Vec::new();
+    for agent in agents {
+        let Some(workflow) = workflows.iter().find_map(|w| match w {
+            Workflow::Full(f) if f.id == agent.workflow => Some(f.clone()),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let events = history(ports, &agent.agent).map_err(|e| cause(&e))?;
+        let step = recover_step(
+            &Earlier {
+                agent: &agent.agent,
+                events: &events,
+                last: agent.last.as_ref(),
+            },
+            &reaped,
+        );
+        found.push(Found {
+            agent,
+            workflow,
+            events,
+            step,
+        });
+    }
+    found.sort_by(|a, b| {
+        let first = |f: &Found<P::Config>| {
+            f.step
+                .ended
+                .first()
+                .or(f.step.owed.as_ref())
+                .map_or(i64::MAX, |r| started_at(&f.events, r))
+        };
+        first(a)
+            .cmp(&first(b))
+            .then_with(|| a.agent.agent.cmp(&b.agent.agent))
+    });
+    let at = i64::try_from(now)
+        .unwrap_or(i64::MAX)
+        .saturating_mul(1_000_000);
+    let mut owed: Vec<Owed> = Vec::new();
+    let mut ended: Vec<Ended> = Vec::new();
+    for f in &mut found {
+        let mut whats: Vec<What> = f
+            .step
+            .ended
+            .iter()
+            .map(|run| What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Interrupted,
+            })
+            .collect();
+        whats.extend(f.step.lapsed.iter().map(|(item, lapsed)| What::ItemLapsed {
+            item: item.clone(),
+            lapsed: *lapsed,
+        }));
+        ended.extend(f.step.ended.iter().map(|run| Ended {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+            next: Vec::new(),
+        }));
+        if whats.is_empty() {
+            continue;
+        }
+        let last = f.events.last().map_or(0, |e| e.seq.get());
+        let events: Vec<Event> = whats
+            .into_iter()
+            .zip(0u32..)
+            .map(|(what, k)| Event {
+                workflow: f.workflow.id.clone(),
+                agent: f.agent.agent.clone(),
+                seq: NonZeroU32::MIN.saturating_add(last.saturating_add(k)),
+                day,
+                at,
+                what,
+            })
+            .collect();
+        if ports.log(&events).is_ok() {
+            f.events.extend(events);
+        } else {
+            owed.extend(f.step.ended.iter().map(|run| Owed {
+                agent: f.agent.agent.clone(),
+                workflow: f.workflow.id.clone(),
+                run: run.clone(),
+                what: Owing::RunEnded {
+                    cause: RunEnd::Interrupted,
+                    day,
+                    at,
+                },
+            }));
+        }
+    }
+    for f in &found {
+        if let Some(run) = &f.step.owed {
+            if ports.send(&Body::EndRun { run: run.clone() }).is_err() {
+                owed.push(Owed {
+                    agent: f.agent.agent.clone(),
+                    workflow: f.workflow.id.clone(),
+                    run: run.clone(),
+                    what: Owing::EndRun,
+                });
+            }
+        }
+    }
+    let history_runs = limits.history_runs as usize;
+    let members = found
+        .into_iter()
+        .map(|f| {
+            let newest = f.events.iter().rev().find_map(|e| match &e.what {
+                What::RunStarted { run, .. } => Some(run.clone()),
+                _ => None,
+            });
+            let store_ended = match &newest {
+                None => true,
+                Some(run) => f.agent.last.as_ref().is_some_and(|l| &l.run == run),
+            };
+            let mut runs: Vec<PastRun> = f.agent.last.clone().into_iter().collect();
+            runs.truncate(history_runs);
+            Member {
+                facts: Facts {
+                    agent: f.agent.agent.clone(),
+                    workflow: f.workflow,
+                    config: f.agent.config,
+                    slots: f.agent.slots,
+                    runs,
+                    events: f.events,
+                    store_ended,
+                    today: day,
+                    doing: Doing::Idle(None),
+                },
+                session: f.agent.session,
+            }
+        })
+        .collect();
+    let mut board = Board::new(day, members);
+    board.owed = owed;
+    Ok(Life { board, ended })
+}

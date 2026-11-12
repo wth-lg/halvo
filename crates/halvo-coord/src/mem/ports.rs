@@ -260,9 +260,15 @@ impl<C> Ports<C> {
     }
 
     /// Leaves marks of the supervisor library, each with the answer that `Runs::reap` gives
-    /// for it (I5.10).
+    /// for it (I5.10); a mark of a run that the library holds already takes the new answer.
     pub fn leave_marks(&self, marks: &[(RunId, Reaped)]) {
-        self.marks.borrow_mut().extend_from_slice(marks);
+        let mut held = self.marks.borrow_mut();
+        for (run, answer) in marks {
+            match held.iter_mut().find(|(r, _)| r == run) {
+                Some(mark) => mark.1 = *answer,
+                None => held.push((run.clone(), *answer)),
+            }
+        }
     }
 
     /// A runner of `run` stands in this life of the supervisor library, as after its

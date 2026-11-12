@@ -1,10 +1,10 @@
 use super::{run_step, Ending, Next, Phase, RunMove, StopCause};
 use crate::guard::Table;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
-use crate::schedule::{self, stop_run, Board, Move, Report, Stop};
+use crate::schedule::{self, stop_run, Board, Move, Owing, Report, Stop};
 use crate::types::{
     Agent, AgentId, Answer, Body, Cause, ConfigView, Decision, Doing, Event, HandbackResult,
-    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow, WorkflowId,
+    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow,
 };
 use std::cell::RefCell;
 
@@ -263,6 +263,14 @@ where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
 {
+    if let Ok(agents) = ports.agents() {
+        board.owed.retain(|o| {
+            o.what != Owing::EndRun
+                || !agents
+                    .iter()
+                    .any(|a| a.agent == o.agent && a.last.as_ref().is_some_and(|l| l.run == o.run))
+        });
+    }
     let watch = Watch {
         ports,
         unknown: RefCell::new(Vec::new()),

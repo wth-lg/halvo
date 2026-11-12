@@ -38,6 +38,22 @@ impl<C> Policy<C> {
     }
 }
 
+impl<C: ConfigView> guard::Policy for Policy<C> {
+    type Config = C;
+
+    fn gives_run(&self, config: &C, class: Class) -> Result<bool, PortError> {
+        let autonomy = config.autonomy();
+        self.asked.borrow_mut().push((autonomy, class));
+        if let Some(e) = self.error.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self
+            .rows
+            .iter()
+            .any(|(a, c, run)| *a == autonomy && *c == class && *run))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Policy;
@@ -55,21 +71,5 @@ mod tests {
         let policy: Policy<Config> = Policy::new(&[(Autonomy::DraftAndConfirm, Class::Send, true)]);
         assert_eq!(policy.gives_run(&config, Class::Send), Ok(true));
         assert_eq!(policy.gives_run(&config, Class::LocalEdit), Ok(false));
-    }
-}
-
-impl<C: ConfigView> guard::Policy for Policy<C> {
-    type Config = C;
-
-    fn gives_run(&self, config: &C, class: Class) -> Result<bool, PortError> {
-        let autonomy = config.autonomy();
-        self.asked.borrow_mut().push((autonomy, class));
-        if let Some(e) = self.error.borrow().clone() {
-            return Err(e);
-        }
-        Ok(self
-            .rows
-            .iter()
-            .any(|(a, c, run)| *a == autonomy && *c == class && *run))
     }
 }

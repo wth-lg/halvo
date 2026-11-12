@@ -10,7 +10,7 @@ use halvo_coord::types::{
 };
 use support::{agent, world, World, MANUAL, T0};
 
-const GRACE_MS: u64 = Limits::PRODUCT.cancel_grace_s as u64 * 1000;
+const GRACE_MS: u64 = Limits::PRODUCT.cancel_grace_s * 1000;
 
 fn item() -> RunItem {
     RunItem {
