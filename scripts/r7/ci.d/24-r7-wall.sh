@@ -245,7 +245,7 @@ judge() {
       k = split($1, part, "/")
       link_name[part[k]] = 1
       name = part[k]
-      gsub(/[][.+*?(){}|^$\\]/, "\\\\&", name)
+      gsub(/[]+.*?(){}|^$\\[]/, "\\\\&", name)
       link_re = link_re (link_re == "" ? "" : "|") "(^|/)" name "(/|$)"
       link_path[++links] = $1
       next
@@ -349,8 +349,8 @@ check_in() {
   if git cat-file blob :backend/package.json >"$work/package.json" 2>/dev/null; then
     awk 'match($0, /^[ \t]*\{?[ \t]*"name"[ \t]*:[ \t]*"[^"]+"/) { v = substr($0, RSTART, RLENGTH); sub(/^[^:]*:[ \t]*"/, "", v); sub(/"$/, "", v); print "package\t" tolower(v); exit }' "$work/package.json" >>"$work/facts" || return 2
   fi
-  names=$(awk '{ gsub(/[][.+*?(){}|^$\\]/, "\\\\&"); printf "|(^|[^a-z0-9_-])%s", $0 }' "$work/app-only") || return 2
-  linked=$(awk -F "$tab" '{ n = split($1, part, "/"); name = part[n]; gsub(/[][.+*?(){}|^$\\]/, "\\\\&", name); printf "|%s", name }' "$work/links") || return 2
+  names=$(awk '{ gsub(/[]+.*?(){}|^$\\[]/, "\\\\&"); printf "|(^|[^a-z0-9_-])%s", $0 }' "$work/app-only") || return 2
+  linked=$(awk -F "$tab" '{ n = split($1, part, "/"); name = part[n]; gsub(/[]+.*?(){}|^$\\[]/, "\\\\&", name); printf "|%s", name }' "$work/links") || return 2
   git -c core.quotepath=off grep --cached -I -n -i -E -e "[.][.]$names$linked" -- ':(icase)backend/' >"$work/lines"
   found=$?
   [ "$found" -le 1 ] || return 2
@@ -533,8 +533,11 @@ expect() {
   want=$1
   case_name=$2
   work=$(mktemp -d "$scratch/work.XXXXXX") || exit 2
-  (check_in "$scratch/$case_name" "$work" "$work/problems") >/dev/null 2>&1
+  (check_in "$scratch/$case_name" "$work" "$work/problems") >/dev/null 2>"$work/stderr"
   code=$?
+  if [ "$code" -gt 1 ] && [ -n "${CI_D_ARTIFACTS:-}" ]; then
+    cp "$work/stderr" "$CI_D_ARTIFACTS/setup-$case_name.txt" || exit 2
+  fi
   case $code in
     0) got=PASS ;;
     1) got=FAIL ;;
