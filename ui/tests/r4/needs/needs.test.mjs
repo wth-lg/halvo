@@ -394,6 +394,17 @@ async function hold(origin, dir) {
   } finally {
     await h.close();
   }
+  const answered = outDir();
+  h = await open({ origin, replies: [{ state: first }, { ...done, reply: { ok: 'yes' } }, { ...done, reply: { error: 'state' } }], views: [VIEW], out: answered });
+  try {
+    await act(h, { act: 'done', param: item.item });
+    await act(h, { act: 'done', param: item.item });
+    if (callsOf(answered).length !== 2) faults.push('not_given_back_by_the_answer:calls=' + callsOf(answered).length);
+  } catch {
+    faults.push('not_given_back_by_the_answer');
+  } finally {
+    await h.close();
+  }
   return faults;
 }
 
@@ -466,10 +477,11 @@ async function setups(origin, dir) {
   const two = withId(one, 'e'.repeat(32));
   two.agent = 'f'.repeat(32);
   const odd = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'odd id x');
+  const dup = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], '9'.repeat(32));
   const out = outDir();
-  const h = await open({ origin, replies: [{ state: snap(1, [one, two, odd]) }], views: [VIEW], out });
+  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }], views: [VIEW], out });
   try {
-    await shows(h, [one, two, odd], 'two_setups', faults);
+    await shows(h, [one, two, dup, dup, odd], 'two_setups', faults);
     const facts = await h.page.evaluate((words) => {
       const section = document.getElementById('view-needs').parentNode;
       const named = [...section.querySelectorAll('[id],[name]')].map((e) => (e.id || '') + ' ' + (e.getAttribute('name') || ''));
