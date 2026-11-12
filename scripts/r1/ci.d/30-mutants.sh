@@ -91,6 +91,7 @@ measure() {
   case $budget_s in
     '' | *[!0-9]*) fail "the budget budget_s=$budget_s is not a number of seconds" ;;
   esac
+  [ "$budget_s" -ge 1 ] || fail "the budget budget_s=$budget_s is below 1 second"
   [ -f scripts/r1-gate/mutation-test.sh ] || fail "scripts/r1-gate/mutation-test.sh is missing"
   grep -q -e '--apply-only' scripts/r1-gate/mutation-test.sh ||
     fail "scripts/r1-gate/mutation-test.sh takes no --apply-only"
