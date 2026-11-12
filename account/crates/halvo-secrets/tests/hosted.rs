@@ -82,7 +82,132 @@ mod dpapi {
     use super::*;
     use halvo_secrets::Locked;
     use std::fs;
+    use std::process::Command;
     use std::sync::Arc;
+
+    fn store_at(place: PathBuf, label: &str) -> Store {
+        Store::new(
+            Directory::new(place).expect("an absolute directory"),
+            Name::new(SERVICE).expect("a service"),
+            name(label),
+        )
+    }
+
+    fn icacls(path: &Path, args: &[&str]) -> bool {
+        Command::new("icacls")
+            .arg(path)
+            .args(args)
+            .arg("/Q")
+            .status()
+            .expect("icacls")
+            .success()
+    }
+
+    fn cycle(store: &Store, label: &str) {
+        assert_eq!(
+            store.write(&secret(b"hosted secret")),
+            Write::Stored,
+            "{label}"
+        );
+        assert_eq!(found(store.read()), b"hosted secret", "{label}");
+        assert_eq!(store.delete(), Delete::Deleted, "{label}");
+    }
+
+    #[test]
+    fn the_store_directory_that_the_crate_makes_is_protected_and_names_three_accounts() {
+        on_a_hosted_runner();
+        let place = dir("descriptor");
+        let store = store_at(place.clone(), "descriptor");
+        assert_eq!(store.write(&secret(b"hosted secret")), Write::Stored);
+        let lines = halvo_secrets::access_list_lines(&place).expect("an access list");
+        for line in &lines {
+            println!("\ndescriptor {line}");
+        }
+        assert!(lines.contains(&"protected yes".to_string()), "{lines:?}");
+        let allowed: Vec<&String> = lines
+            .iter()
+            .filter(|line| line.starts_with("allow "))
+            .collect();
+        assert_eq!(allowed.len(), 3, "{lines:?}");
+        let sids: Vec<&str> = allowed
+            .iter()
+            .map(|line| line.split(' ').nth(1).expect("a SID"))
+            .collect();
+        assert!(
+            sids.contains(&"S-1-5-18") && sids.contains(&"S-1-5-32-544"),
+            "{sids:?}"
+        );
+        let person: Vec<&&str> = sids
+            .iter()
+            .filter(|sid| sid.starts_with("S-1-5-21-"))
+            .collect();
+        assert_eq!(person.len(), 1, "{sids:?}");
+        for line in &allowed {
+            assert!(line.ends_with("mask 0x001f01ff flags 0x03"), "{line}");
+        }
+        let owner = lines[0].strip_prefix("owner ").expect("an owner line");
+        assert!(sids.contains(&owner), "{owner} {sids:?}");
+        assert_eq!(store.delete(), Delete::Deleted);
+    }
+
+    #[test]
+    fn a_store_under_temp_and_under_the_work_directory_both_work() {
+        on_a_hosted_runner();
+        let temp =
+            std::env::temp_dir().join(format!("halvo-secrets-hosted-{}-temp", std::process::id()));
+        cycle(&store_at(temp, "temp"), "temp");
+        cycle(&store_at(dir("work"), "work"), "work");
+    }
+
+    #[test]
+    fn a_store_directory_that_grants_everyone_full_control_still_works() {
+        on_a_hosted_runner();
+        let place = dir("everyone");
+        let store = store_at(place.clone(), "everyone");
+        assert_eq!(store.write(&secret(b"hosted secret")), Write::Stored);
+        assert!(icacls(&place, &["/grant", "*S-1-1-0:(OI)(CI)F"]));
+        assert_eq!(found(store.read()), b"hosted secret");
+        assert_eq!(store.delete(), Delete::Deleted);
+        cycle(&store, "everyone");
+    }
+
+    #[test]
+    fn a_store_directory_of_another_owner_is_locked() {
+        on_a_hosted_runner();
+        let place = dir("owner");
+        fs::create_dir_all(&place).expect("a store directory");
+        if !icacls(&place, &["/setowner", "*S-1-5-32-545"]) {
+            println!("\nowner case not run: icacls could not set the owner");
+            return;
+        }
+        let store = store_at(place.clone(), "owner");
+        assert_eq!(
+            store.write(&secret(b"hosted secret")),
+            Write::Locked(Locked::Owner)
+        );
+        assert!(matches!(store.read(), Read::Locked(Locked::Owner)));
+        assert_eq!(store.delete(), Delete::Locked(Locked::Owner));
+        println!("\nowner case run: a store directory owned by BUILTIN\\Users is locked");
+    }
+
+    #[test]
+    fn a_store_on_a_drive_that_does_not_exist_answers_a_fault() {
+        on_a_hosted_runner();
+        let letter = ('E'..='Z')
+            .rev()
+            .find(|letter| fs::metadata(format!("{letter}:\\")).is_err())
+            .expect("a free drive letter");
+        let place = PathBuf::from(format!("{letter}:\\halvo\\store"));
+        let store = store_at(place, "drive");
+        let read = store.read();
+        assert!(matches!(read, Read::Fault(_)), "{read:?}");
+        assert!(matches!(
+            store.write(&secret(b"hosted secret")),
+            Write::Fault(_)
+        ));
+        assert!(matches!(store.delete(), Delete::Fault(_)));
+        println!("\na store on the drive that does not exist answers {read:?}");
+    }
 
     #[test]
     fn the_access_lists_of_the_runners_directories_are_read() {

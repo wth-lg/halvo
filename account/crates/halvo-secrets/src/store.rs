@@ -15,6 +15,22 @@ use crate::{Directory, Name, Secret};
 /// sealed by DPAPI in the scope of the user. A read that fails answers `Locked` or `Fault`
 /// and never `NotStored`; a write only creates; a delete removes the one item that a read
 /// gives.
+///
+/// The place on macOS: every call opens the directory once, from `/`, without following a
+/// link, refuses it as `Locked::Ancestor` when a step above it can be changed by someone
+/// other than the person and root, and makes every later call relative to that handle.
+///
+/// The place on Windows: the crate makes the directory with a protected access list that
+/// gives the person, SYSTEM and Administrators full control, and refuses a directory whose
+/// owner is anyone else as `Locked::Owner`; it reads no entry of that list and no step
+/// above the directory, because the blob is sealed for the person, so another directory
+/// put in its place can neither give the person another credential nor read theirs. Only
+/// "file not found" and "path not found" read as no item; a drive or a share that cannot
+/// be reached answers `Fault`. What this does not hold: whoever can rename or remove the
+/// directory or a step above it can make the credential read as `NotStored`. By default
+/// those are SYSTEM, the administrators and the person, so the caller passes a directory
+/// under `%LOCALAPPDATA%`, not under `%APPDATA%` or Documents, which a redirection or a
+/// sync service can move.
 pub struct Store {
     place: Place,
 }

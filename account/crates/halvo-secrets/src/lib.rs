@@ -21,6 +21,8 @@ mod security;
 mod store;
 #[cfg(target_os = "macos")]
 mod unix;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod windows_place;
 
 pub use answer::{Delete, Fault, Locked, Read, StoreKind, Write};
 pub use directory::Directory;

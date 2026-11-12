@@ -1,13 +1,15 @@
 use crate::answer::{Fault, Locked};
-use crate::place::{Codec, EntryKind, Fs, Last, Meta, Opened, Published, Sealed, Walk};
+use crate::place::{fault_with, Codec, EntryKind, Fs, Last, Meta, Opened, Published, Sealed, Walk};
 use crate::secret::wipe_raw;
+use crate::security::{make_store_dir, open_dir_following, owner_of, user_sid};
+use crate::windows_place::{is_absent, owner_is_trusted};
 use crate::{Secret, MAX_SECRET_LEN};
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read as _, Write as _};
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     GetLastError, LocalFree, ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS,
@@ -47,6 +49,18 @@ fn meta_of(metadata: &fs::Metadata) -> Meta {
     }
 }
 
+fn as_fault(error: io::Error) -> io::Error {
+    fault_with(error.raw_os_error().unwrap_or(-1))
+}
+
+fn reachable_root(path: &Path) -> io::Result<()> {
+    let root: PathBuf = path
+        .components()
+        .take_while(|step| matches!(step, Component::Prefix(_) | Component::RootDir))
+        .collect();
+    fs::metadata(&root).map(|_| ()).map_err(as_fault)
+}
+
 fn wide(path: &Path) -> Vec<u16> {
     OsStr::new(path).encode_wide().chain([0]).collect()
 }
@@ -61,18 +75,32 @@ impl Fs for WindowsFs {
     }
 
     fn walk(&self, path: &Path) -> io::Result<Walk<PathBuf>> {
-        let last = match fs::symlink_metadata(path) {
-            Ok(metadata) => {
-                let meta = meta_of(&metadata);
-                let dir = (meta.kind == EntryKind::Directory).then(|| path.to_path_buf());
-                Last::Found(meta, dir)
+        reachable_root(path)?;
+        let metadata = match fs::metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if is_absent(error.raw_os_error()) => {
+                return Ok(Walk {
+                    ancestors: Vec::new(),
+                    last: Last::Absent,
+                })
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Last::Absent,
             Err(error) => return Err(error),
         };
+        let mut meta = meta_of(&metadata);
+        if meta.kind != EntryKind::Directory {
+            return Ok(Walk {
+                ancestors: Vec::new(),
+                last: Last::Found(meta, None),
+            });
+        }
+        let handle = open_dir_following(path)?;
+        let owner = owner_of(&handle).map_err(as_fault)?;
+        let user = user_sid().map_err(as_fault)?;
+        let trusted = owner.is_some_and(|owner| owner_is_trusted(&owner, &user));
+        meta.owner = u32::from(!trusted);
         Ok(Walk {
             ancestors: Vec::new(),
-            last,
+            last: Last::Found(meta, Some(path.to_path_buf())),
         })
     }
 
@@ -80,16 +108,13 @@ impl Fs for WindowsFs {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        match fs::create_dir(path) {
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
-            other => other,
-        }
+        make_store_dir(path, &user_sid()?)
     }
 
     fn exists(&self, dir: &PathBuf, name: &str) -> io::Result<bool> {
         match fs::symlink_metadata(dir.join(name)) {
             Ok(_) => Ok(true),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) if is_absent(error.raw_os_error()) => Ok(false),
             Err(error) => Err(error),
         }
     }
@@ -101,7 +126,7 @@ impl Fs for WindowsFs {
                 return Ok(Opened::NotAFile)
             }
             Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Opened::Absent),
+            Err(error) if is_absent(error.raw_os_error()) => return Ok(Opened::Absent),
             Err(error) => return Err(error),
         }
         match OpenOptions::new()
@@ -110,7 +135,7 @@ impl Fs for WindowsFs {
             .open(&path)
         {
             Ok(file) => Ok(Opened::Item(file)),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Opened::Absent),
+            Err(error) if is_absent(error.raw_os_error()) => Ok(Opened::Absent),
             Err(error) => Err(error),
         }
     }

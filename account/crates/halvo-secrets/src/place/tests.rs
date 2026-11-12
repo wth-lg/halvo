@@ -974,8 +974,10 @@ fn the_kind_only_rules_refuse_another_kind_and_take_any_mode_and_owner() {
         .with_links(3)
         .meta();
     assert_eq!(rules.item(&file, USER, 10), None);
-    let dir = Entry::dir(0o777).owned_by(OTHER).with_acl().meta();
+    let dir = Entry::dir(0o777).with_acl().meta();
     assert_eq!(rules.dir(&dir, USER), None);
+    let foreign = Entry::dir(0o700).owned_by(OTHER).meta();
+    assert_eq!(rules.dir(&foreign, USER), Some(Locked::Owner));
     for kind in [EntryKind::Link, EntryKind::Directory, EntryKind::Other] {
         assert_eq!(
             rules.item(&Entry::of(kind).meta(), USER, 10),
@@ -1083,4 +1085,18 @@ fn the_kind_only_rules_refuse_an_ancestor_by_its_kind_and_its_access_list_alone(
             Some(Locked::Ancestor)
         );
     }
+}
+
+#[test]
+fn an_error_that_carries_a_code_answers_a_fault_with_that_code_and_never_locked() {
+    for code in [2, 5, 13, 1314] {
+        let error = fault_with(code);
+        assert!(
+            matches!(Stop::of(&error), Stop::Fault(Fault { code: got }) if got == i64::from(code))
+        );
+    }
+    assert_eq!(
+        Stop::fault(&io::Error::other("no code")),
+        Fault { code: -1 }
+    );
 }

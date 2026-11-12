@@ -148,10 +148,10 @@ impl Rules {
         if meta.kind != EntryKind::Directory {
             return Some(Locked::NotADirectory);
         }
+        if meta.owner != user {
+            return Some(Locked::Owner);
+        }
         if self == Rules::Private {
-            if meta.owner != user {
-                return Some(Locked::Owner);
-            }
             if meta.mode & 0o077 != 0 {
                 return Some(Locked::Mode);
             }
@@ -197,6 +197,22 @@ pub(crate) struct Item<F, C> {
 
 const TEMP_TRIES: u32 = 100;
 
+#[derive(Debug)]
+pub(crate) struct Code(pub(crate) i32);
+
+impl std::fmt::Display for Code {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "a failure with the code {}", self.0)
+    }
+}
+
+impl std::error::Error for Code {}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn fault_with(code: i32) -> io::Error {
+    io::Error::other(Code(code))
+}
+
 enum Stop {
     Locked(Locked),
     Fault(Fault),
@@ -213,8 +229,12 @@ impl Stop {
     }
 
     fn fault(error: &io::Error) -> Fault {
+        let carried = error
+            .get_ref()
+            .and_then(|inner| inner.downcast_ref::<Code>())
+            .map(|code| code.0);
         Fault {
-            code: error.raw_os_error().map_or(-1, i64::from),
+            code: error.raw_os_error().or(carried).map_or(-1, i64::from),
         }
     }
 }
