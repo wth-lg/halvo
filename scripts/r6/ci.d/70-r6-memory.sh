@@ -43,9 +43,13 @@ read_runs() {
     if [ "$at" -eq 1 ]; then
       mid=${line#measure-peak platform=}
       mid=${mid%" limit_bytes=$limit runs=$runs"}
-      case $line:$mid in
-        "measure-peak platform="*:'macos mode=poll' | "measure-peak platform="*:'macos mode=taskpolicy') ;;
-        "measure-peak platform="*:'windows mode=job' | "measure-peak platform="*:'windows mode=job-commit') ;;
+      case $line in
+        "measure-peak platform="*) ;;
+        *) well=no ;;
+      esac
+      case $platform:$mid in
+        macos:'macos mode=poll' | macos:'macos mode=taskpolicy') ;;
+        windows:'windows mode=job' | windows:'windows mode=job-commit') ;;
         *) well=no ;;
       esac
     elif [ "$at" -le $((runs + 1)) ]; then
@@ -119,10 +123,17 @@ measure() {
   system=$(uname -s 2>/dev/null)
   exe=${CARGO_TARGET_DIR:-target}/debug/route-gate
   case $system:${GITHUB_ACTIONS:-} in
-    Darwin:true) machine=hosted-mac ;;
-    Darwin:*) machine=mac ;;
+    Darwin:true)
+      machine=hosted-mac
+      platform=macos
+      ;;
+    Darwin:*)
+      machine=mac
+      platform=macos
+      ;;
     MINGW*:true | MSYS*:true | CYGWIN*:true)
       machine=hosted-win
+      platform=windows
       exe=$exe.exe
       ;;
     *)
@@ -282,8 +293,12 @@ EOF
   sed '/^checks /d' "$work/good.out" >"$work/short.out"
   sed 's/^median peak_bytes=1318912$/median bytes=1318912/' "$work/good.out" >"$work/median-form.out"
   sed 's/^median peak_bytes=1318912$/1318912/' "$work/good.out" >"$work/median-key.out"
+  write_runs "$work/last-high.out" 1310720 1310720 1310720 1310720 1310720 13421773
+  sed -e 's/^run n=1 /run n=X /' -e 's/^run n=2 /run n=1 /' -e 's/^run n=X /run n=2 /' "$work/good.out" >"$work/order.out"
+  sed 's/rounds=100000/rounds=1/' "$work/good.err" >"$work/rounds.err"
+  sed 's/^measure-peak platform=macos mode=poll /measure-peak platform=windows mode=job-commit /' "$work/good.out" >"$work/windows.out"
   sed 's/n=1 exit=0 peak_bytes=1310720 capped=no/n=1 exit=0 peak_bytes=1310720 rss=1 capped=no/' "$work/good.out" >"$work/key.out"
-  for each in breach four median checks limit exit zero extra capped short key median-form median-key; do
+  for each in breach four median checks limit exit zero extra capped short key median-form median-key order windows; do
     if cmp -s "$work/good.out" "$work/$each.out"; then
       setup_failed
     fi
@@ -303,6 +318,7 @@ PASS $name"
   case_actions=true
   check hosted-mac PASS 'bound part=router machine=hosted-mac bound_bytes=8388608'
   STUB_UNAME=MINGW64_NT-10.0-26100
+  STUB_OUT=$work/windows.out
   case_actions=true
   case_ext=.exe
   check hosted-win PASS 'bound part=router machine=hosted-win bound_bytes=8388608'
@@ -361,6 +377,22 @@ FAIL $name (run)"
   check median-line-of-another-form FAIL "FAIL $name (run)"
   STUB_OUT=$work/median-key.out
   check median-line-without-its-key FAIL "FAIL $name (run)"
+  STUB_OUT=$work/last-high.out
+  check last-run-in-another-step PASS "bound part=router machine=mac run=5 peak_bytes=13421773
+bound part=router machine=mac bound_bytes=8388608
+PASS $name"
+  STUB_OUT=$work/order.out
+  check run-lines-out-of-order FAIL "FAIL $name (run)"
+  STUB_ERR=$work/rounds.err
+  check probe-lines-of-other-rounds FAIL "FAIL $name (run)"
+  case_actions=false
+  check actions-not-true PASS "bound part=router machine=mac bound_bytes=8388608"
+  STUB_OUT=$work/windows.out
+  check header-of-another-system FAIL "FAIL $name (run)"
+  STUB_UNAME=MINGW64_NT-10.0-26100
+  case_actions=true
+  case_ext=.exe
+  check header-of-macos-on-windows FAIL "FAIL $name (run)"
   STUB_OUT=$work/capped.out
   check capped-with-checks-ok FAIL "FAIL $name (run)"
   STUB_OUT=$work/exit.out
