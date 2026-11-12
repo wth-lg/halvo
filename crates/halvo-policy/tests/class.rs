@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use common::{api, file, web, web_credential, web_request};
 use halvo_policy::{check_playbook, class_of};
-use halvo_schema::executable::names::{Cause, Verb};
+use halvo_schema::executable::names::{Cause, StepEffect, Verb};
 use halvo_schema::executable::ActionClass as C;
 use halvo_schema::SeedCategory as S;
 
@@ -103,6 +103,21 @@ fn a_web_step_without_a_request_is_read_or_prepare_by_its_verb() {
                 class_of(category, &web(1, verb, C::Prepare)),
                 C::Prepare,
                 "{verb}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_reading_verb_with_a_request_takes_the_class_of_the_request_and_is_not_read() {
+    for &category in S::ALL {
+        for verb in ["navigate", "extract", "wait"] {
+            let mut step = web(1, verb, C::Read);
+            step.effect = StepEffect::Request;
+            assert_eq!(
+                class_of(category, &step),
+                request_class(category),
+                "{verb} in {category:?}"
             );
         }
     }
