@@ -640,11 +640,14 @@ mod tests {
             })
             .expect("the tap thread starts");
             tap.wait_until_its_run_loop_waits();
+            let deadline = Duration::from_secs(1);
+            let stop_called = std::time::Instant::now();
             tap.stop();
-            assert_eq!(
-                alive_rx.recv_timeout(Duration::from_secs(1)),
-                Err(RecvTimeoutError::Disconnected),
-                "cycle {cycle}: the tap thread still runs 1 s after stop"
+            let ended = alive_rx.recv_timeout(deadline.saturating_sub(stop_called.elapsed()));
+            let took = stop_called.elapsed();
+            assert!(
+                ended == Err(RecvTimeoutError::Disconnected) && took <= deadline,
+                "cycle {cycle}: the tap thread ended {took:?} after stop was called ({ended:?})"
             );
         }
     }
