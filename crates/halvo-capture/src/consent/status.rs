@@ -15,8 +15,6 @@ pub const SETTINGS_FILE_NAME: &str = "consent.json";
 pub trait StoreInventory {
     fn inventory(&self) -> StoreResult<Inventory>;
 
-    /// Crypto-shred every segment captured before the start of `day` (UTC), so
-    /// the store is left holding `day` and newer only.
     fn crypto_shred_before(&mut self, day: UtcDay) -> StoreResult<ShredReport>;
 }
 

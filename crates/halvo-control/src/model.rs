@@ -1,18 +1,11 @@
-//! The stored model that both binaries share: the capture kinds, the capture
-//! state, the UTC day, the inventory, the storage cap, the observation window and
-//! the delete report.
-
 use std::fmt;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-/// The bundle id of the app (RD-08): the login-item label and a component of the
-/// Windows data directory.
 pub const APP_BUNDLE_ID: &str = "com.halvo.desktop";
 
-/// A spelling that the one codec does not know.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("not a spelling of a {what}")]
 pub struct UnknownSpelling {
@@ -29,8 +22,6 @@ where
     text.parse().map_err(serde::de::Error::custom)
 }
 
-/// What a capture event observed. Closed set; adding a modality is a code change,
-/// not an open string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Modality {
     ScreenFrame,
@@ -44,7 +35,6 @@ pub enum Modality {
 }
 
 impl Modality {
-    /// Every kind, in the order of contracts.md 0.2.
     pub const ALL: [Modality; 8] = [
         Modality::ScreenFrame,
         Modality::Keystroke,
@@ -56,8 +46,6 @@ impl Modality {
         Modality::Camera,
     ];
 
-    /// The one spelling of the kind (contracts.md 0.2): serde, the store and every
-    /// text line write this and read nothing else.
     pub const fn as_str(self) -> &'static str {
         match self {
             Modality::ScreenFrame => "screen_frame",
@@ -71,9 +59,6 @@ impl Modality {
         }
     }
 
-    /// Whether the sink may drop this modality under backpressure. Continuous
-    /// high-rate streams (frames, audio, camera) are droppable; discrete input
-    /// and context events are not, so a keystroke is never lost to backpressure.
     pub fn is_droppable_under_backpressure(self) -> bool {
         matches!(
             self,
@@ -105,7 +90,6 @@ impl<'de> Deserialize<'de> for Modality {
     }
 }
 
-/// Whether capture is currently running.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CaptureState {
     Running,
@@ -113,7 +97,6 @@ pub enum CaptureState {
 }
 
 impl CaptureState {
-    /// The one spelling of the state.
     pub const fn as_str(self) -> &'static str {
         match self {
             CaptureState::Running => "running",
@@ -147,7 +130,6 @@ impl<'de> Deserialize<'de> for CaptureState {
     }
 }
 
-/// The fixed observation window: what is kept and when the first report is due.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObservationWindow {
     pub rolling_days: u32,
@@ -158,7 +140,6 @@ impl ObservationWindow {
     pub const ROLLING_DAYS: u32 = 14;
     pub const FIRST_REPORT_DAY: u32 = 7;
 
-    /// The R1 window: 14 rolling days, the first report on day 7.
     pub const fn r1() -> Self {
         Self {
             rolling_days: Self::ROLLING_DAYS,
@@ -167,7 +148,6 @@ impl ObservationWindow {
     }
 }
 
-/// Why a storage cap was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum CapError {
     #[error("the storage cap must be at least {min} bytes")]
@@ -176,8 +156,6 @@ pub enum CapError {
     TooLarge { max: u64 },
 }
 
-/// The largest number of bytes the store may hold before the oldest days are
-/// crypto-shredded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct StorageCap(u64);
@@ -186,7 +164,6 @@ impl StorageCap {
     pub const GIB: u64 = 1024 * 1024 * 1024;
     pub const ESTIMATED_BYTES_PER_DAY: u64 = Self::GIB;
     pub const MIN: StorageCap = StorageCap(Self::ESTIMATED_BYTES_PER_DAY);
-    /// 1 TiB (RD-45), below 2^53 so that the page's number stays exact.
     pub const MAX: StorageCap = StorageCap(1024 * Self::GIB);
     const HEADROOM_BYTES: u64 = 11 * Self::GIB;
     pub const DEFAULT: StorageCap = StorageCap(
@@ -194,7 +171,6 @@ impl StorageCap {
             + Self::HEADROOM_BYTES,
     );
 
-    /// A cap of `bytes`, or the bound it breaks.
     pub fn from_bytes(bytes: u64) -> Result<Self, CapError> {
         if bytes < Self::MIN.0 {
             return Err(CapError::TooSmall { min: Self::MIN.0 });
@@ -223,7 +199,6 @@ impl<'de> Deserialize<'de> for StorageCap {
     }
 }
 
-/// Why a day was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum DayError {
     #[error("not a date in the form YYYY-MM-DD")]
@@ -234,8 +209,6 @@ pub enum DayError {
     NoSuchDay,
 }
 
-/// A UTC calendar day from 0000-01-01 to 9999-12-31, counted in days since
-/// 1970-01-01. Every constructor refuses a day outside that range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UtcDay(i64);
 
@@ -255,9 +228,7 @@ const MIN_DAYS: i64 = -719_528;
 const MAX_DAYS: i64 = 2_932_896;
 
 impl UtcDay {
-    /// 0000-01-01.
     pub const MIN: UtcDay = UtcDay(MIN_DAYS);
-    /// 9999-12-31.
     pub const MAX: UtcDay = UtcDay(MAX_DAYS);
 
     pub fn from_days_since_epoch(days: i64) -> Result<Self, DayError> {
@@ -272,8 +243,6 @@ impl UtcDay {
         self.0
     }
 
-    /// The UTC day that holds `at`, rounded down: one nanosecond before the epoch
-    /// is day -1.
     pub fn from_system_time(at: SystemTime) -> Result<Self, DayError> {
         let days = match at.duration_since(UNIX_EPOCH) {
             Ok(after) => i64::try_from(after.as_secs() / SECONDS_PER_DAY)
@@ -290,12 +259,10 @@ impl UtcDay {
         Self::from_days_since_epoch(days)
     }
 
-    /// The day after, or `None` after 9999-12-31.
     pub fn next(self) -> Option<Self> {
         Self::from_days_since_epoch(self.0.checked_add(1)?).ok()
     }
 
-    /// The proleptic Gregorian year, month and day.
     pub fn to_year_month_day(self) -> (i64, u32, u32) {
         let days_from_0000_03_01 = self.0 + DAYS_FROM_0000_03_01_TO_UNIX_EPOCH;
         let era = if days_from_0000_03_01 >= 0 {
@@ -322,8 +289,6 @@ impl UtcDay {
         (year, month, day)
     }
 
-    /// The day of a calendar date. The year range is checked before any
-    /// arithmetic, and a day the month lacks is refused by converting back.
     pub fn from_year_month_day(year: i64, month: u32, day: u32) -> Result<Self, DayError> {
         if !(MIN_YEAR..=MAX_YEAR).contains(&year) {
             return Err(DayError::OutOfRange);
@@ -384,7 +349,6 @@ impl fmt::Display for UtcDay {
 impl FromStr for UtcDay {
     type Err = DayError;
 
-    /// Exactly ten ASCII characters, YYYY-MM-DD, with no sign.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = s.as_bytes();
         if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
@@ -418,7 +382,6 @@ impl<'de> Deserialize<'de> for UtcDay {
     }
 }
 
-/// The events and bytes of one capture kind on one UTC day.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InventoryRow {
     pub day: UtcDay,
@@ -427,7 +390,6 @@ pub struct InventoryRow {
     pub bytes: u64,
 }
 
-/// Why an inventory was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum InventoryError {
     #[error("the inventory holds two rows for {day} and {}", .modality.as_str())]
@@ -436,17 +398,12 @@ pub enum InventoryError {
     TotalTooLarge,
 }
 
-/// The per-day rollup of the store, oldest day first and, within a day, in the
-/// kind order of contracts.md 0.2.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct Inventory {
     rows: Vec<InventoryRow>,
 }
 
 impl Inventory {
-    /// The inventory of `rows`, put in day and kind order. Two rows for one day
-    /// and one kind are an error, and so are rows whose total events or bytes do
-    /// not fit in a u64, so the totals never overflow.
     pub fn from_rows(mut rows: Vec<InventoryRow>) -> Result<Self, InventoryError> {
         rows.sort_by(|a, b| {
             a.day
@@ -513,13 +470,10 @@ fn modality_order(modality: Modality) -> u8 {
     }
 }
 
-/// Why a store id was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("not a store id: 32 lowercase hex digits, or the same with hyphens after 8, 12, 16 and 20")]
 pub struct StoreIdError;
 
-/// The id of a store (the custody root id): 16 bytes, written as 32 lowercase hex
-/// digits; the hyphenated 8-4-4-4-12 form is read as well (contracts.md 0.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StoreId([u8; 16]);
 
@@ -580,7 +534,6 @@ impl<'de> Deserialize<'de> for StoreId {
     }
 }
 
-/// What a delete-all reports: the segments it shredded and the keys it destroyed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShredView {
     pub segments_shredded: u64,

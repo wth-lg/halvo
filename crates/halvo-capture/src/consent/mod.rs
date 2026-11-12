@@ -1,8 +1,3 @@
-//! Consent and capture-status types the view binds to. Traits and types only;
-//! the persistent status indicator and the just-in-time permission onboarding are
-//! phase P5 (status.rs, onboarding.rs), added as the sibling files already
-//! declared here, so P5 never edits this file.
-
 pub mod onboarding;
 pub mod status;
 
@@ -12,8 +7,6 @@ pub use halvo_control::model::CaptureState;
 
 use crate::event::Modality;
 
-/// Whether the user has enabled a modality. Microphone, camera and system audio
-/// are disabled by default in R1 (researcher-3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModalityConsent {
@@ -21,8 +14,6 @@ pub enum ModalityConsent {
     Disabled,
 }
 
-/// The status the data view shows: running or paused, and the store's size
-/// against its cap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaptureStatus {
     pub state: CaptureState,
@@ -30,7 +21,6 @@ pub struct CaptureStatus {
     pub store_cap_bytes: u64,
 }
 
-/// What the data view reads and controls.
 pub trait ConsentView {
     fn status(&self) -> CaptureStatus;
     fn modality_consent(&self, modality: Modality) -> ModalityConsent;

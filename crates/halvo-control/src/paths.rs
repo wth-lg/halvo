@@ -1,13 +1,8 @@
-//! The per-user data directory, the registry of what Halvo keeps under it, and
-//! the control endpoint. This is the only file that performs a per-user lookup
-//! (contracts.md C3.4).
-
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
 use crate::model::APP_BUNDLE_ID;
 
-/// Why a directory or an endpoint could not be resolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum PathError {
     #[error("the account lookup failed with code {0}")]
@@ -30,22 +25,12 @@ pub enum PathError {
     SocketPathTooLong,
 }
 
-/// The per-user lookups, injected so that a test can give an unset, an empty or
-/// a relative answer.
 pub trait AccountLookup {
-    /// macOS: the home directory of the effective user from the account database
-    /// (getpwuid_r). Windows: the LocalAppData known folder. `None` when the
-    /// account gives none.
     fn base_dir(&self) -> Result<Option<OsString>, PathError>;
 
-    /// macOS: the per-user temporary directory, confstr(_CS_DARWIN_USER_TEMP_DIR),
-    /// only in the system's shape /var/folders/<a>/<b>/T. `None` where the system
-    /// has none or the answer has another shape.
     fn user_temp_dir(&self) -> Result<Option<PathBuf>, PathError>;
 }
 
-/// The lookups of the account this process runs as. No environment variable
-/// moves them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemAccount;
 
@@ -59,11 +44,8 @@ impl AccountLookup for SystemAccount {
     }
 }
 
-/// The components of the macOS data directory under the home directory.
 pub const MACOS_DATA_DIR: [&str; 3] = ["Library", "Application Support", "Halvo"];
-/// The components of the Windows data directory under LocalAppData (rulings B5).
 pub const WINDOWS_DATA_DIR: [&str; 2] = [APP_BUNDLE_ID, "data"];
-/// The components of the LaunchAgents directory under the home directory.
 pub const MACOS_LAUNCH_AGENTS_DIR: [&str; 2] = ["Library", "LaunchAgents"];
 
 #[cfg(windows)]
@@ -71,36 +53,21 @@ const DATA_DIR: &[&str] = &WINDOWS_DATA_DIR;
 #[cfg(not(windows))]
 const DATA_DIR: &[&str] = &MACOS_DATA_DIR;
 
-/// The state file of contracts.md C3.7.
 pub const STATE_FILE: &str = "daemon-state.json";
-/// The delete-all intent of contracts.md C17.3.
 pub const INTENT_FILE: &str = "delete-all.intent";
-/// The instance lock file, Windows only (contracts.md C3.5).
 pub const INSTANCE_LOCK_FILE: &str = "daemon.lock";
-/// The control socket under run/.
 pub const CONTROL_SOCKET: &str = "control.sock";
-/// The run marker under run/.
 pub const RUN_MARKER: &str = "running";
-/// The daemon's error log under logs/.
 pub const DAEMON_ERR: &str = "daemon.err";
 
-/// What an entry of the data directory holds; the daemon decides how delete-all
-/// handles each kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntryKind {
-    /// Captured content, readable only through its key files.
     Content,
-    /// The custody root files.
     Custody,
-    /// Files of the running daemon: the control socket and the run marker.
     Runtime,
-    /// The daemon's log, which holds neither captured nor derived content.
     Log,
 }
 
-/// One registered entry of the data directory (contracts.md C17.2). Only the
-/// rows of this file exist; no other crate can build one:
-///
 /// ```compile_fail
 /// use halvo_control::paths::{Entry, EntryKind};
 /// let outside = Entry { name: "..", kind: EntryKind::Log, key_files: &[], owner_pid_file: None };
@@ -114,7 +81,6 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// One path component under the data directory.
     pub const fn name(&self) -> &'static str {
         self.name
     }
@@ -123,13 +89,10 @@ impl Entry {
         self.kind
     }
 
-    /// The key files, relative to the data directory and inside the entry.
     pub const fn key_files(&self) -> &'static [&'static str] {
         self.key_files
     }
 
-    /// The file that names the process that owns the entry, relative to the data
-    /// directory and inside the entry.
     pub const fn owner_pid_file(&self) -> Option<&'static str> {
         self.owner_pid_file
     }
@@ -160,22 +123,16 @@ pub const LOGS: Entry = Entry {
     owner_pid_file: None,
 };
 
-/// Every registered entry, in the table order of contracts.md C17.2. Delete-all
-/// removes these and no other entry.
 pub const ENTRIES: [Entry; 4] = [STORE, ROOTS, RUN, LOGS];
 
-/// Names reserved for later runs (contracts.md C17.2); R1 registers and creates
-/// neither.
 pub const RESERVED_ENTRY_NAMES: [&str; 2] = ["derived", "agents"];
 
-/// Who removes a keychain item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemovedBy {
     DeleteAll,
     RemoveHalvo,
 }
 
-/// One keychain item that Halvo creates (contracts.md C17.7).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeychainItem {
     pub service: &'static str,
@@ -184,29 +141,22 @@ pub struct KeychainItem {
     pub removed_by: RemovedBy,
 }
 
-/// Every keychain item. R1 creates none (RD-24, RD-42).
 pub const KEYCHAIN_ITEMS: [KeychainItem; 0] = [];
 
-/// The per-user data directory: absolute, UTF-8 and with no parent-directory
-/// component.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDir(PathBuf);
 
 impl DataDir {
-    /// The default directory of the account this process runs as (contracts.md
-    /// C3.4).
     pub fn for_current_user() -> Result<Self, PathError> {
         Self::for_account(&SystemAccount)
     }
 
-    /// The default directory under `account`'s base directory.
     pub fn for_account(account: &dyn AccountLookup) -> Result<Self, PathError> {
         let mut path = base_dir(account)?;
         path.extend(DATA_DIR);
         Self::from_flag(path)
     }
 
-    /// The directory a `--data-dir` flag names: absolute or an error.
     pub fn from_flag(path: impl Into<PathBuf>) -> Result<Self, PathError> {
         checked(path.into()).map(Self)
     }
@@ -215,13 +165,10 @@ impl DataDir {
         &self.0
     }
 
-    /// Whether a daemon has provisioned this directory: its state file exists
-    /// (contracts.md C10.7).
     pub fn is_provisioned(&self) -> bool {
         self.state_file().exists()
     }
 
-    /// The directory of a registered entry.
     pub fn entry(&self, entry: &Entry) -> PathBuf {
         self.0.join(entry.name)
     }
@@ -230,7 +177,6 @@ impl DataDir {
         self.entry(&STORE)
     }
 
-    /// The root files of the custody (RD-24), on both systems.
     pub fn roots_dir(&self) -> PathBuf {
         self.entry(&ROOTS)
     }
@@ -272,8 +218,6 @@ impl DataDir {
     }
 }
 
-/// A scratch directory of a debug-only mode: absolute, and neither the user's
-/// data directory nor inside it (contracts.md C4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScratchDir(PathBuf);
 
@@ -295,9 +239,6 @@ impl ScratchDir {
     }
 }
 
-/// Where the login item's plist goes (macOS): the account's LaunchAgents
-/// directory, or, for the scratch form of contracts.md C14.7, a scratch directory
-/// that gets DIR/LABEL.plist and never the account's LaunchAgents.
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoginItemDir {
@@ -311,8 +252,6 @@ impl LoginItemDir {
         Self::for_account(&SystemAccount)
     }
 
-    /// The LaunchAgents directory of `account`, which the writer creates with mode
-    /// 0755 when it is missing.
     pub fn for_account(account: &dyn AccountLookup) -> Result<Self, PathError> {
         let mut path = base_dir(account)?;
         path.extend(MACOS_LAUNCH_AGENTS_DIR);
@@ -322,7 +261,6 @@ impl LoginItemDir {
         })
     }
 
-    /// The directory of the scratch form; the writer does not create it.
     pub fn scratch_form(dir: &ScratchDir) -> Self {
         Self {
             path: dir.path().to_path_buf(),
@@ -427,15 +365,10 @@ fn resolved(path: &Path) -> PathBuf {
     }
 }
 
-/// sun_path holds 104 bytes on macOS; a socket path this long or longer moves to
-/// the fallback (contracts.md C3.5).
 pub const SOCKET_PATH_MAX_BYTES: usize = 104;
 
-/// The directory under the user temp dir that holds the fallback sockets.
 pub const FALLBACK_SOCKET_DIR: &str = "com.halvo.capture";
 
-/// The endpoint hash of contracts.md C3.5: FNV-1a, 64 bit, over the UTF-8 bytes
-/// of the path, as 16 lowercase hex digits.
 pub fn endpoint_hash(text: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in text.bytes() {
@@ -445,10 +378,6 @@ pub fn endpoint_hash(text: &str) -> String {
     format!("{hash:016x}")
 }
 
-/// The Windows pipe of the control channel for the user with SID text `sid` and
-/// the data directory `data_dir` (contracts.md C15.1). The hash is over the final
-/// path in lower case: on Windows the path that the system resolves for the
-/// directory when it exists, else the path as given.
 pub fn pipe_name(sid: &str, data_dir: &DataDir) -> String {
     let hash = endpoint_hash(&final_path(data_dir).to_lowercase());
     format!(r"\\.\pipe\halvo-control-{sid}-{hash}")
@@ -469,9 +398,6 @@ fn final_path(data_dir: &DataDir) -> String {
     data_dir.text().to_string()
 }
 
-/// The unix socket of the control channel for `data_dir`: run/control.sock, or,
-/// when that path is 104 bytes or longer, the fallback in the user temp dir,
-/// which must be owned by this user with mode 0700 (contracts.md C3.5).
 #[cfg(target_os = "macos")]
 pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<PathBuf, PathError> {
     use std::os::unix::fs::MetadataExt;
@@ -499,9 +425,6 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
     Ok(fallback)
 }
 
-/// Whether `path` has the shape of the per-user temporary directory that the
-/// system gives, /var/folders/<a>/<b>/T, so that a suffix that an environment
-/// variable adds is refused.
 #[cfg(target_os = "macos")]
 fn is_darwin_user_temp_dir(path: &Path) -> bool {
     let names: Vec<&std::ffi::OsStr> = path

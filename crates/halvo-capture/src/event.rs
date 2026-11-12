@@ -1,10 +1,3 @@
-//! The capture stream event: the one record every capture source emits.
-//!
-//! The field set and the two enums are the kickoff plan's "Capture stream event"
-//! exactly. The types are built so illegal states cannot be represented: the
-//! modality and retention class are closed enums, and the monotonic sequence is
-//! handed out only by the single-writer sink (see [`crate::sink`]).
-
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
@@ -12,8 +5,6 @@ use uuid::Uuid;
 
 pub use halvo_control::model::Modality;
 
-/// How long a record may be kept. Raw capture and derived data have different
-/// retention bounds; the enum is closed so every store path handles both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RetentionClass {
@@ -21,8 +12,6 @@ pub enum RetentionClass {
     Derived,
 }
 
-/// A monotonic sequence number within one capture stream. The ordering authority
-/// is the single-writer sink; see [`crate::sink::SinkHandle::next_sequence`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct MonotonicSequence(u64);
 
@@ -35,17 +24,12 @@ impl MonotonicSequence {
     }
 }
 
-/// When a capture event happened: a wall-clock UTC instant plus the stream's
-/// monotonic sequence. The sequence totally orders events even when two share a
-/// wall-clock reading.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapturedAt {
     pub wall_clock: SystemTime,
     pub sequence: MonotonicSequence,
 }
 
-/// A handle into the encrypted segment store: which segment holds this event's
-/// bytes and the byte range within it. The store (phase P2) owns the file format.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentRef {
     pub segment_id: Uuid,
@@ -53,32 +37,22 @@ pub struct SegmentRef {
     pub byte_len: u64,
 }
 
-/// Selects the per-segment key that encrypts a segment, so destroying one key
-/// crypto-shreds exactly one segment. The integer is the key table's primary key
-/// inside the encrypted store (phase P2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentKeyId(pub i64);
 
-/// The capture stream event (kickoff plan, Core data structures).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CaptureStreamEvent {
-    /// UUID v7, so event ids sort by creation time.
     pub event_id: Uuid,
     pub captured_at: CapturedAt,
     pub modality: Modality,
-    /// Bundle id (macOS) or executable path (Windows) of the foreground app.
     pub foreground_app: String,
     pub segment_ref: SegmentRef,
     pub segment_key_id: SegmentKeyId,
-    /// False for raw capture; true for anything derived from it.
     pub is_derived: bool,
     pub retention_class: RetentionClass,
 }
 
 impl CaptureStreamEvent {
-    /// A raw capture event with a fresh UUID v7 id. The caller supplies the
-    /// timestamp (from the sink's sequence authority), modality and placement;
-    /// `is_derived` is false and the retention class is raw by construction.
     pub fn new_raw(
         captured_at: CapturedAt,
         modality: Modality,

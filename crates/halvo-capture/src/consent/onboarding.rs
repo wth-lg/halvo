@@ -4,10 +4,6 @@ pub use halvo_control::onboarding::{
 };
 use halvo_control::onboarding::{AssessInput, Grants, PermissionSet};
 
-/// The onboarding state of `required` as `probe` reads it now, for the settings
-/// controller that the daemon units replace: what the probe reads now counts as
-/// granted at the start, no permission counts as asked, the entry is named Halvo
-/// and the switch screen_activity is off.
 pub fn assess(
     probe: &dyn PermissionProbe,
     required: &[Permission],
@@ -135,8 +131,6 @@ pub mod macos {
 
     pub struct TccProbe;
 
-    /// The grant that an IOHIDCheckAccess answer means, by the values of
-    /// IOHIDLib.h: 0 granted, 1 denied, 2 unknown.
     pub fn grant_from_iohid_access(access: u32) -> GrantState {
         match access {
             IOHID_ACCESS_TYPE_GRANTED => GrantState::Granted,

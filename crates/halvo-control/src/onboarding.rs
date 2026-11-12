@@ -1,9 +1,5 @@
-//! The permission onboarding the view shows: which macOS permissions capture
-//! needs, their state, and the walk-back steps for a missing one.
-
 use serde::{Deserialize, Serialize};
 
-/// A macOS privacy permission that capture needs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Permission {
@@ -12,8 +8,6 @@ pub enum Permission {
     InputMonitoring,
 }
 
-/// The sentence for the screen while the switch `screen_activity` is off
-/// (contracts.md C10.6).
 pub const SCREEN_ACTIVITY_NOT_RECORDED: &str = "Screen activity is not recorded.";
 
 impl Permission {
@@ -23,7 +17,6 @@ impl Permission {
         Permission::InputMonitoring,
     ];
 
-    /// The permissions capture needs on the system this was built for.
     pub fn required_on_this_platform() -> &'static [Permission] {
         if cfg!(target_os = "macos") {
             &Self::R1_MACOS
@@ -32,14 +25,10 @@ impl Permission {
         }
     }
 
-    /// The title of the permission's pane in System Settings on a macOS major:
-    /// the row of `MACOS_ROWS` at or below it, and the floor's row below the floor
-    /// or when the major is unknown.
     pub fn pane_title_on_macos(self, major_version: Option<u32>) -> &'static str {
         macos_row(major_version).pane_title(self)
     }
 
-    /// The System Settings deep link of the permission's pane.
     pub const fn settings_url(self) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => {
@@ -54,8 +43,6 @@ impl Permission {
         }
     }
 
-    /// What Halvo records with the permission (RD-01), for the state of the switch
-    /// `screen_activity`.
     pub const fn why(self, screen_activity: bool) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => {
@@ -74,8 +61,6 @@ impl Permission {
         }
     }
 
-    /// Whether a grant takes effect in the capturing process only after it
-    /// restarts: the screen and Input Monitoring (RD-29).
     pub const fn restarts_capture(self) -> bool {
         matches!(
             self,
@@ -92,7 +77,6 @@ impl Permission {
     }
 }
 
-/// A set of permissions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct PermissionSet(u8);
 
@@ -107,13 +91,10 @@ impl PermissionSet {
         self.0 |= 1 << permission.index();
     }
 
-    /// Take a permission out, as the acknowledge of a lost permission does with
-    /// the once-granted set.
     pub fn remove(&mut self, permission: Permission) {
         self.0 &= !(1 << permission.index());
     }
 
-    /// The members, in the order of `Permission::R1_MACOS`.
     pub fn iter(self) -> impl Iterator<Item = Permission> {
         Permission::R1_MACOS
             .into_iter()
@@ -131,19 +112,14 @@ impl FromIterator<Permission> for PermissionSet {
     }
 }
 
-/// The oldest macOS major that Halvo supports (RD-09); package-mac declares the
-/// same minimum.
 pub const MACOS_FLOOR_MAJOR: u32 = 14;
 
-/// What macOS shows for the permissions on one major version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MacosRow {
     pub major: u32,
     pub screen_pane: &'static str,
     pub accessibility_pane: &'static str,
     pub input_monitoring_pane: &'static str,
-    /// The button of the permission alert that leads to System Settings: observed
-    /// on 27; the other rows carry the same words until someone observes them.
     pub alert_button: &'static str,
 }
 
@@ -161,8 +137,6 @@ const SCREEN_PANE: &str = "Screen & System Audio Recording";
 const INPUT_MONITORING_PANE: &str = "Input Monitoring";
 const ALERT_BUTTON: &str = "Open System Settings";
 
-/// The supported macOS majors, from the floor up. Nobody saw a pane title on a
-/// version other than 27.2.
 pub const MACOS_ROWS: [MacosRow; 4] = [
     MacosRow {
         major: MACOS_FLOOR_MAJOR,
@@ -194,8 +168,6 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
 ];
 
-/// The row of a macOS major: the last row at or below it, and the floor's row
-/// below the floor or when the major is unknown.
 fn macos_row(major: Option<u32>) -> &'static MacosRow {
     MACOS_ROWS
         .iter()
@@ -204,7 +176,6 @@ fn macos_row(major: Option<u32>) -> &'static MacosRow {
         .unwrap_or(&MACOS_ROWS[0])
 }
 
-/// What the system answers for a permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrantState {
@@ -213,7 +184,6 @@ pub enum GrantState {
     NotDetermined,
 }
 
-/// What a request for a permission did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RequestOutcome {
@@ -221,8 +191,6 @@ pub enum RequestOutcome {
     Requested,
 }
 
-/// What the system answers now for each permission; a permission that was not
-/// checked reads not_determined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Grants([GrantState; 3]);
 
@@ -242,7 +210,6 @@ impl Grants {
         self
     }
 
-    /// The permissions that read granted.
     pub fn granted(self) -> PermissionSet {
         Permission::R1_MACOS
             .into_iter()
@@ -251,7 +218,6 @@ impl Grants {
     }
 }
 
-/// Reads and requests the system's permissions.
 pub trait PermissionProbe {
     fn check(&self, permission: Permission) -> GrantState;
     fn request(&self, permission: Permission) -> RequestOutcome;
@@ -260,7 +226,6 @@ pub trait PermissionProbe {
     }
 }
 
-/// One permission row of the onboarding view (contracts.md C10.6).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermissionStatus {
     pub permission: Permission,
@@ -272,7 +237,6 @@ pub struct PermissionStatus {
     pub asked: bool,
 }
 
-/// What a walk-back step asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WalkbackAction {
@@ -281,7 +245,6 @@ pub enum WalkbackAction {
     RestartCapture,
 }
 
-/// One step that brings a missing permission back.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WalkbackStep {
     pub permission: Permission,
@@ -290,7 +253,6 @@ pub struct WalkbackStep {
     pub text: String,
 }
 
-/// The onboarding object of contracts.md C10.6.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OnboardingState {
     pub permissions: Vec<PermissionStatus>,
@@ -299,35 +261,18 @@ pub struct OnboardingState {
     pub walkback: Vec<WalkbackStep>,
 }
 
-/// What `assess` reads (contracts.md C10.6).
 #[derive(Debug, Clone, Copy)]
 pub struct AssessInput<'a> {
-    /// The permissions to walk, in order.
     pub required: &'a [Permission],
-    /// What the system answers now.
     pub now: Grants,
-    /// The permissions granted when the capturing process started.
     pub at_start: PermissionSet,
-    /// The permissions that Halvo has asked macOS for.
     pub asked: PermissionSet,
-    /// The permissions that were granted once.
     pub once_granted: PermissionSet,
-    /// The running macOS major, when known.
     pub macos_major: Option<u32>,
-    /// The name of the entry that the person turns on in System Settings.
     pub entry_name: &'a str,
-    /// Whether the switch screen_activity is on (contracts.md C13.5).
     pub screen_activity: bool,
 }
 
-/// The onboarding state of `input.required`; any permission may read
-/// not_determined. `all_granted` is true when every required permission reads
-/// granted now. A missing permission gets a request step unless it is in the
-/// asked set, lost, or a denied Input Monitoring; Input Monitoring that reads
-/// not_determined always gets one, because only its check tells a denial apart. The walk-back ends with one
-/// restart_capture step while a permission of the restart class is missing, or
-/// is granted now and was not when the capturing process started; the step
-/// names the first such permission in required order.
 pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
     let mut permissions = Vec::with_capacity(input.required.len());
     let mut lost_grants = Vec::new();
@@ -446,7 +391,6 @@ fn walkback_for(context: &StepContext<'_>) -> Vec<WalkbackStep> {
     steps
 }
 
-/// Why the System Settings pane could not be opened.
 #[derive(Debug, thiserror::Error)]
 pub enum PaneError {
     #[error("could not run open: {0}")]
@@ -460,7 +404,6 @@ pub enum PaneError {
     NotImplemented(&'static str),
 }
 
-/// Open the permission's pane in System Settings with /usr/bin/open.
 pub fn open_settings_pane(permission: Permission) -> Result<(), PaneError> {
     #[cfg(target_os = "macos")]
     {

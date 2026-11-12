@@ -1,11 +1,3 @@
-//! halvo-capture: the always-on capture pipeline for macOS and Windows.
-//!
-//! This crate is the shared skeleton every R1 phase extends. The cross-platform
-//! types and traits are the modules declared here. Per-OS backends live under
-//! [`macos`] and [`windows`] behind `cfg`, and the segment store, key custody,
-//! consent view and background service are filled in as sibling files inside
-//! their own modules, so a later phase adds files without editing this file.
-
 pub mod consent;
 pub mod custody;
 pub mod daemon;

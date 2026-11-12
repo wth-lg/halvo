@@ -1,21 +1,13 @@
-//! How the app and the daemon start: the service arguments, the login item's
-//! plist and the Windows start value.
-
 use crate::model::APP_BUNDLE_ID;
 
-/// The argument that starts the capture daemon (contracts.md C3.1).
 pub const DAEMON_ARG: &str = "--service-run";
 
-/// The argument of an app started at login, which shows no window (C14.7).
 pub const BACKGROUND_ARG: &str = "--background";
 
-/// The label of the app's login item (RD-08).
 pub const LOGIN_ITEM_LABEL: &str = APP_BUNDLE_ID;
 
-/// The argument that names the data directory of a start.
 pub const DATA_DIR_ARG: &str = "--data-dir";
 
-/// Why a start registration was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum SpecError {
     #[error(
@@ -30,10 +22,6 @@ pub enum SpecError {
     Text,
 }
 
-/// The app's login item (contracts.md C14.7): its label, the app executable and,
-/// when the app was started with one, a data directory. The capture agent's label
-/// com.halvo.capture is refused: R1 builds no plist for it (C19.11). KeepAlive is always
-/// {SuccessfulExit: false}, so a quit is not restarted and a crash is.
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoginItemSpec {
@@ -81,13 +69,10 @@ impl LoginItemSpec {
         &self.label
     }
 
-    /// The plist's file name in the LaunchAgents directory.
     pub fn file_name(&self) -> String {
         format!("{}.plist", self.label)
     }
 
-    /// The app executable and BACKGROUND_ARG, then DATA_DIR_ARG and the directory
-    /// when a data directory was given.
     pub fn program_arguments(&self) -> Vec<&str> {
         let mut arguments = vec![self.program.as_str(), BACKGROUND_ARG];
         if let Some(dir) = &self.data_dir {
@@ -96,7 +81,6 @@ impl LoginItemSpec {
         arguments
     }
 
-    /// The whole plist text.
     pub fn plist(&self) -> String {
         let arguments: String = self
             .program_arguments()
@@ -148,8 +132,6 @@ fn xml_escape(text: &str) -> String {
         .replace('\'', "&apos;")
 }
 
-/// What the plist on disk is against its spec: the same bytes with mode 0644
-/// and the current user as owner, anything else, or no file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoginItemState {
     Current,
@@ -157,21 +139,18 @@ pub enum LoginItemState {
     Absent,
 }
 
-/// What an install did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallOutcome {
     Written,
     Unchanged,
 }
 
-/// What a remove did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoveOutcome {
     Removed,
     Absent,
 }
 
-/// The plist file of `spec` in `dir`.
 #[cfg(target_os = "macos")]
 pub fn login_item_path(
     spec: &LoginItemSpec,
@@ -180,7 +159,6 @@ pub fn login_item_path(
     dir.path().join(spec.file_name())
 }
 
-/// Read the state of the plist of `spec` in `dir`.
 #[cfg(target_os = "macos")]
 pub fn login_item_state(
     spec: &LoginItemSpec,
@@ -205,10 +183,6 @@ pub fn login_item_state(
     }
 }
 
-/// Write the plist of `spec` into `dir` unless it is current: a temp file whose
-/// name does not end in .plist, mode 0644, synced, renamed over the plist, then
-/// the directory synced. A new LaunchAgents directory gets mode 0755. A failed
-/// write leaves the old plist as it was.
 #[cfg(target_os = "macos")]
 pub fn install_login_item(
     spec: &LoginItemSpec,
@@ -263,7 +237,6 @@ fn replace_with_temp(
     std::fs::File::open(dir)?.sync_all()
 }
 
-/// Remove the plist of `spec` from `dir`.
 #[cfg(target_os = "macos")]
 pub fn remove_login_item(
     spec: &LoginItemSpec,
@@ -276,15 +249,10 @@ pub fn remove_login_item(
     }
 }
 
-/// The key of the per-user start at logon, under HKEY_CURRENT_USER (RD-43).
 pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 
-/// The name of Halvo's value under the Run key.
 pub const RUN_VALUE_NAME: &str = "Halvo";
 
-/// The Windows start registration (contracts.md C14.7): a value under a key of
-/// HKEY_CURRENT_USER whose data is the quoted absolute path of the app
-/// executable, a space and BACKGROUND_ARG.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StartValueSpec {
     key: String,
@@ -293,13 +261,10 @@ pub struct StartValueSpec {
 }
 
 impl StartValueSpec {
-    /// The value `Halvo` under the Run key for the app executable at `program`.
     pub fn new(program: &std::path::Path) -> Result<Self, SpecError> {
         Self::with_key(RUN_KEY, RUN_VALUE_NAME, program)
     }
 
-    /// The same value under another key and name, for a check that must not
-    /// write the real one.
     pub fn with_key(
         key: &str,
         value_name: &str,
@@ -330,7 +295,6 @@ impl StartValueSpec {
         &self.value_name
     }
 
-    /// The value's data: the quoted program, a space and BACKGROUND_ARG.
     pub fn data(&self) -> String {
         format!("\"{}\" {BACKGROUND_ARG}", self.program)
     }
@@ -479,20 +443,16 @@ mod registry {
     }
 }
 
-/// Read the start value of `spec`: `None` only when the key or the value does
-/// not exist; any other failure is an error.
 #[cfg(windows)]
 pub fn read_start_value(spec: &StartValueSpec) -> std::io::Result<Option<String>> {
     registry::read(spec)
 }
 
-/// Write the start value of `spec` when the stored string differs.
 #[cfg(windows)]
 pub fn write_start_value(spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
     registry::write(spec)
 }
 
-/// Remove the start value of `spec`.
 #[cfg(windows)]
 pub fn remove_start_value(spec: &StartValueSpec) -> std::io::Result<RemoveOutcome> {
     registry::remove(spec)
