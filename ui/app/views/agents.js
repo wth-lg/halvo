@@ -8,7 +8,7 @@
     '.r4a-list{list-style:none;margin:0;padding:0}',
     '.r4a-row{padding-top:8px;padding-bottom:8px;border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#6b6b6b}',
     '.r4a-name{margin:0;font-size:1rem}',
-    '.r4a-status,.r4a-line,.r4a-next,.r4a-note,.r4a-did{margin-top:4px;margin-bottom:4px}',
+    '.r4a-status,.r4a-level,.r4a-line,.r4a-next,.r4a-note,.r4a-did{margin-top:4px;margin-bottom:4px}',
     '.r4a-word{font-weight:bold}',
     '.r4a-icon{display:inline-block;width:10px;height:10px;margin-right:8px;border-radius:50%;border-width:2px;border-style:solid;border-color:#1a1a1a;vertical-align:middle}',
     '.r4a-icon-needs_you{background-color:#b3261e}',
@@ -43,6 +43,8 @@
   var snapshot = null;
   var statuses = {};
   var card = null;
+  var asking = 0;
+  var pending = null;
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -144,18 +146,28 @@
     if (open) b.setAttribute('aria-controls', 'r4a-card-' + row.agent);
     b.addEventListener('click', function () {
       if (card !== null && card.agent === row.agent) {
+        asking += 1;
+        pending = null;
         card = null;
         render();
         return;
       }
+      if (pending === row.agent) return;
+      asking += 1;
+      var mine = asking;
       var asked = turn;
+      pending = row.agent;
       call('agents_card', { agent: row.agent })
         .then(function (reply) {
+          if (mine !== asking) return;
+          pending = null;
           if (asked !== turn || !reply || reply.agent !== row.agent || !Array.isArray(reply.runs)) return;
           card = reply;
           render();
         })
-        .catch(function () {});
+        .catch(function () {
+          if (mine === asking) pending = null;
+        });
     });
     return b;
   }
@@ -172,6 +184,7 @@
     word.appendChild(icon);
     word.appendChild(el('span', 'r4a-word', row.word));
     li.appendChild(word);
+    li.appendChild(el('p', 'r4a-level', row.level));
     li.appendChild(el('p', 'r4a-line', row.line));
     var controls = el('div', 'r4a-controls', null);
     row.controls.forEach(function (c) {
@@ -227,12 +240,9 @@
     });
     seq = reply.seq;
     snapshot = reply;
-    if (says.length > 0) {
-      clear(status);
-      says.forEach(function (s) {
-        status.appendChild(el('p', null, s));
-      });
-    }
+    says.forEach(function (s) {
+      status.appendChild(el('p', null, s));
+    });
     render();
   }
 

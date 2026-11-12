@@ -10,6 +10,7 @@
           - {"level":4,"name":"Paying a utility bill on Site1","role":"heading"}
             - {"name":"Paying a utility bill on Site1","role":"button"}
           - {"role":"paragraph","text":"Working"}
+          - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"It is doing its task now."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
@@ -21,6 +22,7 @@
           - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}
             - {"name":"Ordering from a shop on Site7","role":"button"}
           - {"role":"paragraph","text":"Waiting its turn"}
+          - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Only one agent works at a time, so it starts when its turn comes."}
           - {"name":"Switch off","role":"button"}
           - {"name":"Delete","role":"button"}
@@ -28,6 +30,7 @@
           - {"level":4,"name":"Writing or answering email on Site5","role":"heading"}
             - {"name":"Writing or answering email on Site5","role":"button"}
           - {"role":"paragraph","text":"Waiting its turn"}
+          - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"Only one agent works at a time, so it starts when its turn comes."}
           - {"name":"Switch off","role":"button"}
           - {"name":"Delete","role":"button"}

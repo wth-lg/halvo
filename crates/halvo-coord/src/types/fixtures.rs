@@ -872,7 +872,11 @@ fn committed(class: Class, bound: &[Bound]) -> CardEffect {
         .iter()
         .map(|(field, _, value)| Kept {
             name: Name::parse(field).expect("a field name"),
-            value: vec![(*value).to_owned()],
+            value: vec![if *field == "origin" {
+                format!("https://{value}:443")
+            } else {
+                (*value).to_owned()
+            }],
         })
         .collect();
     CardEffect::committed(class, &kept).expect("the kept fields of the class")

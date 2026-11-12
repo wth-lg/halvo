@@ -10,6 +10,7 @@
           - {"level":4,"name":"Writing or answering email on Site5","role":"heading"}
             - {"name":"Writing or answering email on Site5","role":"button"}
           - {"role":"paragraph","text":"Off"}
+          - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"You switched it off, so it does not start."}
           - {"name":"Switch on","role":"button"}
           - {"name":"Delete","role":"button"}

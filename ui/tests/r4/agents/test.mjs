@@ -91,6 +91,7 @@ function expectedModel(snapshot, card) {
           expanded: open ? 'true' : 'false',
           word: r.word,
           line: r.line,
+          level: r.level,
           controls: r.controls.map((c) => ({ act: c.control, param: r.agent, text: c.text })),
           card: open
             ? {
@@ -130,6 +131,7 @@ const MODEL = () => {
         expanded: toggle.getAttribute('aria-expanded'),
         word: text(li.querySelector('.r4a-word')),
         line: text(li.querySelector('.r4a-line')),
+        level: text(li.querySelector('.r4a-level')),
         controls: [...li.querySelectorAll('.r4a-controls button')].map((b) => ({
           act: b.getAttribute('data-act'),
           param: b.getAttribute('data-param'),
@@ -310,6 +312,56 @@ if (only.length === 0 || only.includes('ten')) {
     result('focus_stays_in_the_row_after_a_new_state', same(after.focus, ['open_card', row.agent]), after.focus);
     const model = await h.page.evaluate(MODEL);
     result('a_new_state_is_rendered', same(model, { ...expectedModel(second, null), status: 1 }), model);
+  } finally {
+    await h.close();
+  }
+}
+
+if (only.length === 0 || only.includes('ten')) {
+  const first = json('state-ten.json').snapshot;
+  const [a, b] = first.rows;
+  const flip = (snap, seq, row, say) => ({ ...snap, seq, rows: snap.rows.map((r) => (r.agent === row.agent ? { ...r, status: 'off', word: 'Off', say } : r)) });
+  const second = flip(first, 2, a, 'First change.');
+  const third = flip(second, 3, b, 'Second change.');
+  const h = await open({ origin, replies: [{ state: first }, { state: second }, { state: third }], views: [VIEW] });
+  try {
+    const says = await h.page.evaluate(() => [...document.querySelector('[role="status"]').children].map((p) => p.textContent));
+    result('each_change_adds_its_say_to_the_status_region', same(says, ['First change.', 'Second change.']), says);
+  } finally {
+    await h.close();
+  }
+}
+
+if (only.length === 0 || only.includes('card')) {
+  const agent = json('state-card.json').card.agent;
+  const out = outDir();
+  const h = await open({ origin, state: 'card', views: [VIEW], out });
+  try {
+    const seen = await h.page.evaluate(
+      (agent) =>
+        new Promise((done) => {
+          const pick = (a) => [...document.querySelectorAll('button')].find((x) => x.getAttribute('data-act') === a && x.getAttribute('data-param') === agent);
+          let closed = false;
+          const watch = new MutationObserver(() => {
+            const c = pick('close_card');
+            if (!closed && c) {
+              closed = true;
+              c.click();
+            }
+          });
+          watch.observe(document.body, { childList: true, subtree: true });
+          const b = pick('open_card');
+          b.click();
+          b.click();
+          setTimeout(() => {
+            watch.disconnect();
+            done({ closed, shown: document.getElementById('r4a-card-' + agent) !== null });
+          }, 1000);
+        }),
+      agent,
+    );
+    const asked = calls(out).filter((c) => c.call === 'agents_card').length;
+    result('a_second_press_while_a_card_is_asked_for_sends_nothing_and_a_close_holds', seen.closed && !seen.shown && asked === 1, { seen, asked });
   } finally {
     await h.close();
   }

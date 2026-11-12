@@ -10,6 +10,7 @@
           - {"level":4,"name":"Ordering from a shop on Site7","role":"heading"}
             - {"name":"Ordering from a shop on Site7","role":"button"}
           - {"role":"paragraph","text":"Needs you"}
+          - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"It needs you to show it how to do the task once."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}

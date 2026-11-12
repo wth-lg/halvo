@@ -10,6 +10,7 @@
           - {"level":4,"name":"Paying a utility bill on Site1","role":"heading"}
             - {"name":"Paying a utility bill on Site1","role":"button"}
           - {"role":"paragraph","text":"Working"}
+          - {"role":"paragraph","text":"Standard"}
           - {"role":"paragraph","text":"It is doing its task now."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
