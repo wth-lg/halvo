@@ -705,7 +705,6 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
         CoordinatorCall::SetBindings(SetBindings {
             workflow: workflow(),
             agent: agent(),
-            origins: vec![origin(UTILITY), origin(PAY)],
             slots: slots(),
         }),
         CoordinatorCall::SetState(SetState {

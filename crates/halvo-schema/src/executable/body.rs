@@ -10,7 +10,8 @@ use super::config::AgentConfig;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{AgentState, Mode};
 use super::record::{
-    origins_and_slots, part_of, AgentEffect, AgentLog, AgentRun, Slot, SESSION_PARTS_MAX,
+    origins_and_slots, part_of, slot_names_once, AgentEffect, AgentLog, AgentRun, Slot,
+    SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{RunId, SessionData, WebOrigin};
@@ -443,15 +444,15 @@ object_type! {
 }
 
 object_type! {
-    /// `set_bindings`: a new revision of the bindings, each origin and each slot name once.
+    /// `set_bindings`: slots alone, each name once, which the handler merges by name into the newest revision of
+    /// the bindings; the body names no origin, so a body that holds the key `origins` is refused.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct SetBindings [op = "set_bindings"] {
         pub workflow: WorkflowId = "workflow" => json::workflow_id,
         pub agent: AgentId = "agent" => json::agent_id,
-        pub origins: Vec<WebOrigin> = "origins" => list(from_json),
         pub slots: Vec<Slot> = "slots" => list(Slot::from_raw),
     }
-    rules(b) { origins_and_slots("SetBindings", &b.origins, &b.slots) }
+    rules(b) { slot_names_once("SetBindings", &b.slots) }
 }
 
 object_type! {

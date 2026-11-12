@@ -73,7 +73,9 @@ fn bindings(rest: &str) -> String {
     format!(r#"{{"v":1,"workflow":"{W}","agent":"{A}","rev":1,{rest}}}"#)
 }
 
-const ORIGINS_SLOTS: &str = r#""origins":["http://utility.test:18090","http://pay.test:18090"],"slots":[{"name":"payee","value":["Northwind Power"]},{"name":"instrument","value":["card 4242"]}]"#;
+const ORIGINS: &str = r#""origins":["http://utility.test:18090","http://pay.test:18090"]"#;
+
+const SLOTS: &str = r#""slots":[{"name":"payee","value":["Northwind Power"]},{"name":"instrument","value":["card 4242"]}]"#;
 
 fn expect(result: Result<impl std::fmt::Debug, Refusal>, type_name: &str, rule: &str, key: &str) {
     let refusal = result.expect_err("refused");
@@ -896,7 +898,7 @@ fn a_session_part_is_part_of_of_at_most_64_full_but_the_last() {
 
 #[test]
 fn bindings_name_each_origin_and_each_slot_once() {
-    let good = bindings(ORIGINS_SLOTS);
+    let good = bindings(&format!("{ORIGINS},{SLOTS}"));
     assert_eq!(
         AgentBindings::parse(good.as_bytes())
             .unwrap()
@@ -1282,7 +1284,7 @@ fn a_step_or_a_first_step_numbered_above_64_is_refused_with_length() {
 fn coordinator_bodies() -> Vec<String> {
     vec![
         format!(r#"{{"op":"create_agent","workflow":"{W}","agent":"{A}"}}"#),
-        format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{ORIGINS_SLOTS}}}"#),
+        format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{SLOTS}}}"#),
         format!(r#"{{"op":"set_state","workflow":"{W}","agent":"{A}","state":"active"}}"#),
         format!(
             r#"{{"op":"start_run","workflow":"{W}","agent":"{A}","run":"{R}","mode":"compile"}}"#
@@ -1372,11 +1374,11 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
         ),
         (
             format!(
-                r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","origins":["http://a.test:1","http://a.test:1"],"slots":[]}}"#
+                r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","slots":[{{"name":"payee","value":[]}},{{"name":"payee","value":["x"]}}]}}"#
             ),
             "SetBindings",
             "repeated_name",
-            "origins",
+            "slots",
         ),
         (
             format!(r#"{{"workflow":"{W}","agent":"{A}"}}"#),
@@ -1398,7 +1400,7 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
 #[test]
 fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     let load = format!(
-        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS_SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}]}}"#
+        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}]}}"#
     );
     let empty_load =
         format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
@@ -1568,4 +1570,105 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
         "reply_form",
         "-",
     );
+}
+
+#[test]
+fn a_set_bindings_body_that_holds_origins_is_refused() {
+    let slots_alone = format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{SLOTS}}}"#);
+    let Ok(CoordinatorCall::SetBindings(body)) = CoordinatorCall::parse(slots_alone.as_bytes())
+    else {
+        panic!("slots alone are taken")
+    };
+    assert_eq!(body.slots.len(), 2);
+    assert_eq!(body.to_json().unwrap(), slots_alone);
+    let no_slot = format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","slots":[]}}"#);
+    assert!(CoordinatorCall::parse(no_slot.as_bytes()).is_ok());
+    let with =
+        |keys: &str| format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}",{keys}}}"#);
+    for text in [
+        with(&format!("{ORIGINS},{SLOTS}")),
+        with(&format!("{SLOTS},{ORIGINS}")),
+        with(&format!(r#""origins":[],{SLOTS}"#)),
+        with(&format!(r#""origins":null,{SLOTS}"#)),
+        with(&format!(r#""origins":"http://pay.test:18090",{SLOTS}"#)),
+    ] {
+        expect(
+            CoordinatorCall::parse(text.as_bytes()),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        );
+    }
+    let cases: Vec<(String, &str, &str, &str)> = vec![
+        (
+            format!(r#"["set_bindings","{W}","{A}",[]]"#),
+            "CoordinatorCall",
+            "not_an_object",
+            "-",
+        ),
+        (
+            with(r#""slots":[["payee",["x"]]]"#),
+            "Slot",
+            "not_an_object",
+            "slots",
+        ),
+        (
+            with(r#""slots":[],"slots":[]"#),
+            "CoordinatorCall",
+            "repeated_key",
+            "-",
+        ),
+        (
+            with(r#""slots":[{"name":"payee","name":"payee","value":[]}]"#),
+            "Slot",
+            "repeated_key",
+            "slots",
+        ),
+        (with(r#""slots":null"#), "list", "not_a_list", "slots"),
+        (with(r#""slots":"[]""#), "list", "not_a_list", "slots"),
+        (
+            with(r#""slots":[{"name":"payee","value":["x"]}],"rev":1"#),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        ),
+        (
+            with(&format!(r#""run":"{R}",{SLOTS}"#)),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        ),
+        (
+            with(&format!(r#""way":"sign_in",{SLOTS}"#)),
+            "SetBindings",
+            "unknown_key",
+            "-",
+        ),
+        (
+            with(r#""slots":[{"name":"payee","value":["x"],"origin":null}]"#),
+            "Slot",
+            "unknown_key",
+            "slots",
+        ),
+        (
+            format!(r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}"}}"#),
+            "SetBindings",
+            "missing_key",
+            "slots",
+        ),
+        (
+            with(r#""slots":[{"name":"payee","value":"x"}]"#),
+            "list",
+            "not_a_list",
+            "value",
+        ),
+    ];
+    for (text, type_name, rule, key) in cases {
+        expect(
+            CoordinatorCall::parse(text.as_bytes()),
+            type_name,
+            rule,
+            key,
+        );
+    }
 }

@@ -2,7 +2,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use halvo_schema::executable::{AgentConfig, CoordinatorCall, Refusal, RefusalCause, RunnerCall};
+use halvo_schema::executable::{AgentBindings, AgentConfig, Refusal, RefusalCause, RunnerCall};
 
 const LIMIT: Duration = Duration::from_secs(60);
 const A: &str = "40000000000000000000000000000001";
@@ -63,27 +63,26 @@ fn an_object_of_200000_distinct_unknown_keys_is_refused_in_time_that_grows_with_
 }
 
 #[test]
-fn a_set_bindings_body_of_50000_distinct_origins_is_taken_in_time_that_grows_with_its_size() {
+fn an_agent_bindings_record_of_50000_distinct_origins_is_taken_in_time_that_grows_with_its_size() {
     let list = origins(50_000);
-    let body = format!(
-        r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","origins":[{}],"slots":[]}}"#,
+    let record = format!(
+        r#"{{"v":1,"workflow":"{W}","agent":"{A}","rev":1,"origins":[{}],"slots":[]}}"#,
         list.join(",")
     );
     let twice = format!(
-        r#"{{"op":"set_bindings","workflow":"{W}","agent":"{A}","origins":[{},{}],"slots":[]}}"#,
+        r#"{{"v":1,"workflow":"{W}","agent":"{A}","rev":1,"origins":[{},{}],"slots":[]}}"#,
         list.join(","),
         list[49_999]
     );
     let (taken, refused) = within(move || {
-        let taken = match CoordinatorCall::parse(body.as_bytes()) {
-            Ok(CoordinatorCall::SetBindings(b)) => b.origins.len(),
-            other => panic!("not taken: {:?}", other.map(|c| c.op())),
-        };
-        (taken, refusal(CoordinatorCall::parse(twice.as_bytes())))
+        let taken = AgentBindings::parse(record.as_bytes())
+            .map(|b| b.origins.len())
+            .unwrap_or_else(|e| panic!("not taken: {e}"));
+        (taken, refusal(AgentBindings::parse(twice.as_bytes())))
     });
     assert_eq!(taken, 50_000);
     assert_eq!(
         refused,
-        (RefusalCause::Malformed, "SetBindings", "repeated_name")
+        (RefusalCause::Malformed, "AgentBindings", "repeated_name")
     );
 }
