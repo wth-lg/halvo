@@ -701,6 +701,58 @@ mod login_item_tests {
     }
 
     #[test]
+    fn the_temp_file_of_a_live_process_of_another_account_is_kept() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let spec = login_item();
+        let other = dir.path().join(format!(".{}.1.tmp", spec.file_name()));
+        std::fs::write(&other, b"x").unwrap();
+        let sent = unsafe { libc::kill(1, 0) };
+        assert_eq!(
+            (sent, std::io::Error::last_os_error().raw_os_error()),
+            (-1, Some(libc::EPERM))
+        );
+        assert_eq!(
+            install_login_item(&spec, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        assert!(
+            other.exists(),
+            "the temp file of pid 1, alive under another account, was taken away"
+        );
+    }
+
+    #[test]
+    fn a_plist_that_is_a_link_to_the_right_bytes_is_stale_and_replaced() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let spec = login_item();
+        let target = elsewhere.path().join("copy.plist");
+        std::fs::write(&target, spec.plist()).unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let path = login_item_path(&spec, &dir);
+        std::os::unix::fs::symlink(&target, &path).unwrap();
+        assert_eq!(
+            login_item_state(&spec, &dir).unwrap(),
+            LoginItemState::Stale
+        );
+        assert_eq!(
+            install_login_item(&spec, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        assert!(std::fs::symlink_metadata(&path).unwrap().is_file());
+        assert_eq!(
+            login_item_state(&spec, &dir).unwrap(),
+            LoginItemState::Current
+        );
+    }
+
+    #[test]
     fn an_install_writes_the_plist_once_and_reports_its_state() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();

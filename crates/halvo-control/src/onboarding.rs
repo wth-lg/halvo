@@ -749,6 +749,18 @@ mod tests {
     }
 
     #[test]
+    fn each_grant_state_has_the_spelling_the_page_reads() {
+        for (grant, text) in [
+            (GrantState::Granted, "\"granted\""),
+            (GrantState::NotGranted, "\"not_granted\""),
+            (GrantState::NotDetermined, "\"not_determined\""),
+        ] {
+            assert_eq!(serde_json::to_string(&grant).unwrap(), text);
+            assert_eq!(serde_json::from_str::<GrantState>(text).unwrap(), grant);
+        }
+    }
+
+    #[test]
     fn the_walk_back_actions_have_their_wire_spellings() {
         for (action, text) in [
             (WalkbackAction::RequestFromSystem, "\"request_from_system\""),

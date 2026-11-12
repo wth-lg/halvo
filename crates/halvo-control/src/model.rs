@@ -651,6 +651,22 @@ mod tests {
     }
 
     #[test]
+    fn a_36_character_store_id_needs_hyphens_at_8_13_18_and_23() {
+        assert!("0123456789abcdef0123456789abcdef0123"
+            .parse::<StoreId>()
+            .is_err());
+        assert!("01234567x89abxcdefx0123x456789abcdef"
+            .parse::<StoreId>()
+            .is_err());
+        assert_eq!(
+            "01234567-89ab-cdef-0123-456789abcdef"
+                .parse::<StoreId>()
+                .map(|id| id.to_string()),
+            Ok("0123456789abcdef0123456789abcdef".to_string())
+        );
+    }
+
+    #[test]
     fn a_store_id_writes_32_lowercase_hex_and_reads_the_hyphenated_form_too() {
         let id = StoreId::from_bytes([
             0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
