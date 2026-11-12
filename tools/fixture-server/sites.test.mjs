@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { encodeValue, fill, parseSiteData, requestsOf } from './sites.mjs';
+import { encodeValue, fill, isPort, loadSites, parseSiteData, readArgs, requestsOf } from './sites.mjs';
 
 const CHECKER = fileURLToPath(new URL('./check-sites.mjs', import.meta.url));
 
@@ -452,30 +452,42 @@ test('checker: a file not of C11.1 is refused with site-data naming the file, an
   }
 });
 
-test('checker: a missing file and two files that name one service are refused (site-data, D8)', () => {
+test('arguments: one optional flag with a value, then one or more files', () => {
+  const any = () => true;
+  assert.deepEqual(readArgs(['a.json'], '--parameters', any), { value: null, files: ['a.json'] });
+  assert.deepEqual(readArgs(['a.json', '--parameters', 'r.md', 'b.json'], '--parameters', any), { value: 'r.md', files: ['a.json', 'b.json'] });
+  for (const argv of [[], ['--parameters'], ['--parameters', 'r.md'], ['--port', '1', 'a.json'], ['--parameters', 'r.md', '--parameters', 'r.md', 'a.json'], ['-', '--x']]) {
+    assert.equal(readArgs(argv, '--parameters', any), null, argv.join(' '));
+  }
+  assert.deepEqual(readArgs(['--port', '0', 'a.json'], '--port', isPort), { value: '0', files: ['a.json'] });
+  assert.equal(readArgs(['--port', 'x', 'a.json'], '--port', isPort), null);
+  for (const port of ['0', '1', '18080', '65535', '00080']) assert.equal(isPort(port), true, port);
+  for (const port of ['', '-1', '65536', '100000', ' 80', '80 ', '1e3', '0x50', '8.0']) assert.equal(isPort(port), false, port);
+});
+
+test('loading: a missing file, a directory and two files that name one service are refused by path (D8)', () => {
   const dir = scratch();
   const one = join(dir, 'one.json');
   const two = join(dir, 'two.json');
   writeFileSync(one, bytes(shop()));
   writeFileSync(two, bytes(shop()));
-  const missing = join(dir, 'missing.json');
-  assert.equal(runChecker([one, missing]).stderr, `REFUSED site-data: ${missing}\n`);
-  const twice = runChecker([one, two]);
-  assert.equal(twice.status, 2);
-  assert.equal(twice.stderr, `REFUSED site-data: ${two}\n`);
+  assert.equal(loadSites([one]).sites.length, 1);
+  assert.deepEqual(loadSites([one, join(dir, 'missing.json')]), { refused: join(dir, 'missing.json') });
+  assert.deepEqual(loadSites([dir, one]), { refused: dir });
+  assert.deepEqual(loadSites([one, two]), { refused: two });
+  assert.deepEqual(loadSites([one, one]), { refused: one });
 });
 
 test('checker: usage and parameters refusals', () => {
   const dir = scratch();
   const file = join(dir, 'acorn-shop.json');
   writeFileSync(file, bytes(shop()));
-  for (const args of [[], ['--parameters'], ['--parameters', join(dir, 'rows.md')], ['--port', '1', file], ['--parameters', file, '--parameters', file, file]]) {
-    const run = runChecker(args);
-    assert.equal(run.status, 2, args.join(' '));
-    assert.equal(run.stdout, '');
-    assert.match(run.stderr, /^REFUSED usage: /);
-  }
+  const usage = runChecker(['--parameters', file]);
+  assert.equal(usage.status, 2);
+  assert.equal(usage.stdout, '');
+  assert.match(usage.stderr, /^REFUSED usage: [^\n]*\n$/);
   const run = runChecker(['--parameters', join(dir, 'rows.md'), file]);
   assert.equal(run.status, 2);
+  assert.equal(run.stdout, '');
   assert.equal(run.stderr, `REFUSED parameters: ${join(dir, 'rows.md')}\n`);
 });

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { CATEGORIES, loadSites, references } from './sites.mjs';
+import { CATEGORIES, loadSites, readArgs, references } from './sites.mjs';
 
 function refuse(cause, detail) {
   process.stderr.write(`REFUSED ${cause}: ${detail}\n`);
@@ -7,24 +7,6 @@ function refuse(cause, detail) {
 }
 
 const USAGE = 'usage: node check-sites.mjs [--parameters FILE] SITE_DATA...';
-
-function parseArgs(argv) {
-  const out = { parameters: null, files: [] };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--parameters') {
-      if (out.parameters !== null || i + 1 >= argv.length) refuse('usage', USAGE);
-      out.parameters = argv[i + 1];
-      i += 1;
-    } else if (arg.startsWith('--')) {
-      refuse('usage', USAGE);
-    } else {
-      out.files.push(arg);
-    }
-  }
-  if (out.files.length === 0) refuse('usage', USAGE);
-  return out;
-}
 
 function readRows(path) {
   let text;
@@ -41,10 +23,11 @@ function readRows(path) {
   return rows;
 }
 
-const args = parseArgs(process.argv.slice(2));
+const args = readArgs(process.argv.slice(2), '--parameters', () => true);
+if (args === null) refuse('usage', USAGE);
 const loaded = loadSites(args.files);
 if (loaded.refused !== undefined) refuse('site-data', loaded.refused);
-const rows = args.parameters === null ? null : readRows(args.parameters);
+const rows = args.value === null ? null : readRows(args.value);
 
 const lines = [`checked files=${args.files.length}`];
 for (const category of CATEGORIES) {

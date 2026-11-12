@@ -29,6 +29,33 @@ const NAME = /^[a-z][a-z0-9_]{0,31}$/;
 const REFERENCE = /\{([a-z][a-z0-9_]{0,31})\}/g;
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/;
 
+/** Whether a value of --port is a port: decimal digits, 0 to 65535, where 0 asks the system for a free port. */
+export function isPort(value) {
+  return /^[0-9]{1,5}$/.test(value) && Number(value) <= 65535;
+}
+
+/**
+ * Reads the arguments of a command that takes one optional flag with a value, then one or more files.
+ * Returns `{ value, files }`, with `value` null where the flag is absent, or null for a usage error: an unknown
+ * flag, the flag twice or without a value, a value that `accepts` refuses, or no file.
+ */
+export function readArgs(argv, flag, accepts) {
+  let value = null;
+  const files = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === flag) {
+      if (value !== null || i + 1 >= argv.length || !accepts(argv[i + 1])) return null;
+      value = argv[i + 1];
+      i += 1;
+    } else if (argv[i].startsWith('--')) {
+      return null;
+    } else {
+      files.push(argv[i]);
+    }
+  }
+  return files.length === 0 ? null : { value, files };
+}
+
 /** The error of a file that is not of contracts.md C11.1; `rule` names the rule that failed. */
 export class SiteDataError extends Error {
   constructor(rule, detail) {
