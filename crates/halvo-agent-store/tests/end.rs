@@ -96,6 +96,124 @@ fn end_run_of_a_run_with_no_effect_stores_its_record_alone() {
     assert!(effects(&store).is_empty());
 }
 
+fn as_agent_2(mut value: serde_json::Value) -> serde_json::Value {
+    value["workflow"] = json!(wf(2));
+    value["agent"] = json!(agent(2));
+    value
+}
+
+fn second_agent(store: &mut MemoryStore) {
+    store.put_workflow(workflow(&wf(2), "utility_bill_payment", "approved", None));
+    create(store, 2, 2).expect("create_agent of the second agent");
+}
+
+#[test]
+fn a_runner_body_naming_a_run_of_another_agent_is_refused() {
+    let mut store = store_with("utility_bill_payment");
+    second_agent(&mut store);
+    payment_through_begin(&mut store, 1, 1);
+    assert_eq!(
+        put(
+            &mut store,
+            as_agent_2(row(1, 2, 1, "held", "payment", 1, None, None))
+        ),
+        Err(declared("binding"))
+    );
+    assert_eq!(
+        finish(
+            &mut store,
+            as_agent_2(run_record(1, Some("replay"), "failed"))
+        ),
+        Err(declared("binding"))
+    );
+    let line = json!({
+        "v": 1,
+        "workflow": wf(2),
+        "agent": agent(2),
+        "run": run(1),
+        "seq": 1,
+        "day": 20_770,
+        "at": 1_794_400_000_000_000_000_i64,
+        "event": "step_ok",
+        "step": 1,
+        "cause": null,
+        "model": null,
+        "ms": null,
+        "tokens_in": null,
+        "tokens_out": null,
+    });
+    assert_eq!(
+        runner(
+            &mut store,
+            json!({"op": "log", "agent": agent(2), "run": run(1), "records": [line]})
+        ),
+        Err(declared("binding"))
+    );
+    assert_eq!(effects(&store).len(), 3);
+    assert!(rows(&store, "agent_log").is_empty());
+    assert_eq!(
+        finish(&mut store, run_record(1, Some("replay"), "effect_unknown")),
+        Ok(stored(1))
+    );
+    assert_eq!(last_of(&store, &effect(1)).state, EffectState::Unknown);
+}
+
+#[test]
+fn a_run_that_another_agent_ended_or_logged_is_not_this_agent_s() {
+    let mut store = store_with("utility_bill_payment");
+    second_agent(&mut store);
+    assert_eq!(
+        coordinator(
+            &mut store,
+            json!({"op": "end_run", "workflow": wf(2), "agent": agent(2), "run": run(7)})
+        ),
+        Ok(accepted())
+    );
+    assert_eq!(
+        put(&mut store, row(7, 1, 1, "held", "payment", 1, None, None)),
+        Err(declared("binding"))
+    );
+    assert_eq!(end_run(&mut store, 7), Err(declared("binding")));
+    let mut line = json!({
+        "v": 1,
+        "workflow": wf(2),
+        "agent": agent(2),
+        "run": run(8),
+        "seq": 1,
+        "day": 20_770,
+        "at": 1_794_400_000_000_000_000_i64,
+        "event": "step_ok",
+        "step": 1,
+        "cause": null,
+        "model": null,
+        "ms": null,
+        "tokens_in": null,
+        "tokens_out": null,
+    });
+    assert_eq!(
+        runner(
+            &mut store,
+            json!({"op": "log", "agent": agent(2), "run": run(8), "records": [line.clone()]})
+        ),
+        Ok(stored(1))
+    );
+    assert_eq!(
+        put(&mut store, row(8, 1, 1, "held", "payment", 1, None, None)),
+        Err(declared("binding"))
+    );
+    line["workflow"] = json!(wf(1));
+    line["agent"] = json!(agent(1));
+    assert_eq!(
+        runner(
+            &mut store,
+            json!({"op": "log", "agent": agent(1), "run": run(8), "records": [line]})
+        ),
+        Err(declared("binding"))
+    );
+    assert!(effects(&store).is_empty());
+    assert_eq!(runs(&store).len(), 1);
+}
+
 #[test]
 fn the_end_of_a_run_is_for_its_own_agent_and_workflow() {
     let mut store = store_with("utility_bill_payment");

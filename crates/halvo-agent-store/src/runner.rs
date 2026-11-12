@@ -20,7 +20,9 @@ use crate::{bind, effect, end};
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
 /// bound of A7.1 `length`. Every body is refused with `binding` unless the agent's configuration is stored and the
-/// agent is its workflow's, and a body whose record names another workflow is refused with `binding`. Then:
+/// agent is its workflow's, and a body whose record names another workflow is refused with `binding`. A run belongs
+/// to the agent whose effect row, log line or `agent_run` record first names it: `effect`, `log` and `finish` are
+/// refused with `binding` for a run of which a stored row names another agent. Then:
 ///
 /// - `load`: the stored configuration; the newest playbook number with its count of stored steps; the newest
 ///   revision of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of`
@@ -52,7 +54,7 @@ use crate::{bind, effect, end};
 ///   Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
 ///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
-///   instant; `binding` where an effect row of the run names another agent.
+///   instant.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
         RunnerCall::Load(b) => load(&*host, &b),
@@ -266,6 +268,7 @@ fn put_log(host: &mut dyn Host, b: &PutLog) -> Result<RunnerReply, ErrorName> {
     if b.records.iter().any(|r| r.workflow != workflow.id) {
         return Err(Own::Binding.into());
     }
+    bind::own_run(&*host, &b.run, &b.agent)?;
     let mut held = rows::logs(host.rows())?;
     let mut new = Vec::new();
     for line in &b.records {

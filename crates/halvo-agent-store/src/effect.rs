@@ -15,6 +15,7 @@ pub(crate) fn put(host: &mut dyn Host, b: &PutEffect) -> Result<RunnerReply, Err
     if row.workflow != workflow.id {
         return Err(Own::Binding.into());
     }
+    bind::own_run(&*host, &row.run, &row.agent)?;
     let all = rows::effects(host.rows())?;
     let mut mine: Vec<&AgentEffect> = all.iter().filter(|r| r.effect == row.effect).collect();
     if mine

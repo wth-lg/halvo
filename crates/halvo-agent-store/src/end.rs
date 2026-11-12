@@ -7,7 +7,7 @@ use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
     AgentEffect, AgentRun, CoordinatorReply, EffectId, RunId, RunnerReply,
 };
-use halvo_schema::{AgentId, ErrorName, TypedRecord};
+use halvo_schema::{ErrorName, TypedRecord};
 
 use crate::bind;
 use crate::effect::rebinds;
@@ -20,6 +20,7 @@ pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<Runner
     if b.record.workflow != workflow.id {
         return Err(Own::Binding.into());
     }
+    bind::own_run(&*host, &b.run, &b.agent)?;
     match rows::runs(host.rows())?
         .into_iter()
         .find(|r| r.run == b.run)
@@ -28,7 +29,7 @@ pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<Runner
         Some(_) => return Err(Own::Effect.into()),
         None => {
             let mut records = vec![record(rows::AGENT_RUN, b.record.to_json())?];
-            records.extend(moves(&*host, &b.agent, &b.run, now)?);
+            records.extend(moves(&*host, &b.run, now)?);
             host.commit(records)?;
         }
     }
@@ -41,6 +42,7 @@ pub(crate) fn end_run(
     b: &EndRun,
 ) -> Result<CoordinatorReply, ErrorName> {
     bind::of_agent(&*host, &b.workflow, &b.agent)?;
+    bind::own_run(&*host, &b.run, &b.agent)?;
     if !rows::runs(host.rows())?.iter().any(|r| r.run == b.run) {
         let run = AgentRun {
             v: V1,
@@ -64,24 +66,16 @@ pub(crate) fn end_run(
             model: None,
         };
         let mut records = vec![record(rows::AGENT_RUN, run.to_json())?];
-        records.extend(moves(&*host, &b.agent, &b.run, now)?);
+        records.extend(moves(&*host, &b.run, now)?);
         host.commit(records)?;
     }
     Ok(CoordinatorReply::Accepted(Accepted {}))
 }
 
-fn moves(
-    host: &dyn Host,
-    agent: &AgentId,
-    run: &RunId,
-    now: Now,
-) -> Result<Vec<TypedRecord>, ErrorName> {
+fn moves(host: &dyn Host, run: &RunId, now: Now) -> Result<Vec<TypedRecord>, ErrorName> {
     let all = rows::effects(host.rows())?;
     let mut of_run: BTreeMap<&EffectId, Vec<&AgentEffect>> = BTreeMap::new();
     for row in all.iter().filter(|r| &r.run == run) {
-        if &row.agent != agent {
-            return Err(Own::Binding.into());
-        }
         of_run.entry(&row.effect).or_default().push(row);
     }
     let mut out = Vec::new();

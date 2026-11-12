@@ -32,10 +32,11 @@ use crate::{bind, bindings, end};
 ///   the origins stay. It answers the revision stored.
 /// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
 ///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
-/// - `end_run`: `no_workflow`; `binding`. Where the run's `agent_run` record is stored it changes nothing. Else,
-///   in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and no
-///   model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`; `binding`
-///   where an effect row of the run names another agent. It answers `{"ok":"yes"}`.
+/// - `end_run`: `no_workflow`; `binding`; `binding` for a run of which a stored effect row, log line or
+///   `agent_run` record names another agent. Where the run's `agent_run` record is stored it changes nothing.
+///   Else, in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and
+///   no model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`. It answers
+///   `{"ok":"yes"}`.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,

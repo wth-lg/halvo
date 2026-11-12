@@ -1,4 +1,4 @@
-use halvo_schema::executable::AgentConfig;
+use halvo_schema::executable::{AgentConfig, RunId};
 use halvo_schema::{AgentId, ErrorName, FullWorkflow, Workflow, WorkflowId};
 
 use crate::errors::Own;
@@ -29,4 +29,21 @@ pub(crate) fn runner_agent(
     let config = rows::newest_config(host.rows(), agent)?.ok_or(Own::Binding)?;
     let workflow = of_agent(host, &config.workflow, agent)?;
     Ok((config, workflow))
+}
+
+pub(crate) fn own_run(host: &dyn Host, run: &RunId, agent: &AgentId) -> Result<(), ErrorName> {
+    let rows = host.rows();
+    let another = rows::effects(rows)?
+        .iter()
+        .any(|r| &r.run == run && &r.agent != agent)
+        || rows::runs(rows)?
+            .iter()
+            .any(|r| &r.run == run && &r.agent != agent)
+        || rows::logs(rows)?
+            .iter()
+            .any(|r| &r.run == run && &r.agent != agent);
+    if another {
+        return Err(Own::Binding.into());
+    }
+    Ok(())
 }
