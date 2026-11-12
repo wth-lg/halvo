@@ -166,6 +166,7 @@ pub const LIST: [Command; 7] = [
             Cause::Stale,
             Cause::Presenter,
             Cause::Early,
+            Cause::State,
             Cause::UnknownItem,
             Cause::NoService,
             Cause::Busy,
@@ -183,7 +184,12 @@ pub const LIST: [Command; 7] = [
             arg("text", ArgType::Text),
         ],
         replies: OK,
-        errors: &[Cause::Stale, Cause::UnknownItem, Cause::Malformed],
+        errors: &[
+            Cause::Stale,
+            Cause::State,
+            Cause::UnknownItem,
+            Cause::Malformed,
+        ],
     },
     Command {
         name: "agents_present",

@@ -1,6 +1,7 @@
 use super::key::{say, Key};
 use super::raise::choices;
 use super::{ConfirmState, Confirmation};
+use crate::guard::Table;
 use crate::types::{
     AgentId, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class, ConfirmAsk,
     Field, FieldFrom, Item, ItemId, ItemKind, Limits, Param, ParamEntry, Presenter, Unknown, YesNo,
@@ -112,28 +113,50 @@ fn title_and_text(kind: ItemKind, name: &str) -> Result<(String, String), Cause>
     ))
 }
 
-/// The class whose entries name a confirmation: the first effect of the request whose
-/// presenter is the request's.
-fn named_class(ask: &ConfirmAsk, presenter: Presenter) -> Class {
-    let effects = ask.effects();
-    effects
-        .iter()
-        .find(|e| super::presenter(e.class) == presenter)
-        .unwrap_or(&effects[0])
-        .class
+/// What names a confirmation: the one class of all its effects, or none where its effects have
+/// more than one class (I4.3, ruling IG-4).
+#[derive(Clone, Copy)]
+enum Named {
+    One(Class),
+    Mixed,
+}
+
+fn named(ask: &ConfirmAsk) -> Named {
+    let first = ask.effects()[0].class;
+    if ask.effects().iter().all(|e| e.class == first) {
+        Named::One(first)
+    } else {
+        Named::Mixed
+    }
+}
+
+fn counted(key: &str, count: usize) -> Result<String, Cause> {
+    Key::parse(key)?.text(&[("count", &count.to_string())])
+}
+
+fn confirm_title(named: Named, count: usize) -> Result<String, Cause> {
+    match named {
+        Named::One(class) => say(&format!("confirm.{}.title", class.name())),
+        Named::Mixed => counted("confirm.mixed.title", count),
+    }
 }
 
 fn confirm_choice(
-    class: Class,
+    named: Named,
     choice: Choice,
     count: usize,
     safe: bool,
 ) -> Result<ChoiceText, Cause> {
-    let key = format!("confirm.{}.{}", class.name(), choice.name());
-    let text = if count > 1 {
-        Key::parse(&format!("{key}_many"))?.text(&[("count", &count.to_string())])?
-    } else {
-        say(&key)?
+    let text = match named {
+        Named::One(class) => {
+            let key = format!("confirm.{}.{}", class.name(), choice.name());
+            if count > 1 {
+                counted(&format!("{key}_many"), count)?
+            } else {
+                say(&key)?
+            }
+        }
+        Named::Mixed => counted(&format!("confirm.mixed.{}", choice.name()), count)?,
     };
     Ok(ChoiceText {
         choice,
@@ -142,17 +165,36 @@ fn confirm_choice(
     })
 }
 
-/// The item of a confirmation as the page gets it (I3.4, I4.3): the title and the two
-/// controls of the request's class, the `_many` entries with `{count}` for more than one
-/// effect, or for the presenter `native` the one choice `present`; for each effect every bound
-/// field in the request's order, labelled `field.<class>.<name>` with `from` by its source, and
-/// after them a line `confirm.new_site` for a `new_origin`; `armed` `yes` only while the item
-/// is `armed`. `malformed` for a field that the words table has no label for, or a piece of a
-/// value of more than 1,024 bytes; `state` for a confirmation of another request.
+/// A line of an item set by Halvo with no value: the sentence of `key` as its label.
+fn halvo_line(key: &str) -> Result<Field, Cause> {
+    Ok(Field {
+        label: say(key)?,
+        value: Vec::new(),
+        from: FieldFrom::Halvo,
+        from_text: say(&format!("from.{}", FieldFrom::Halvo.name()))?,
+    })
+}
+
+/// The item of a confirmation as the page gets it (I3.4, I4.3). A request whose effects have
+/// one class takes the title and the two controls of that class, the `_many` entries with
+/// `{count}` for more than one effect; a request whose effects have more than one class takes
+/// `confirm.mixed.title`, `confirm.mixed.reject` and `confirm.mixed.allow` with `{count}`,
+/// which name no class, and before the fields of each effect a line `confirm.<class>.action`
+/// of that effect's class, with no value and `from` `halvo` (ruling IG-4). For the presenter
+/// `native` the one choice is `present`. Above the values of an effect for which the newest
+/// decision released in `table`, the guard's table of this life as it stood at the item's
+/// issue, is `allow_once` for the effect in the request's run, stands the line
+/// `confirm.changed`, with no value and `from` `halvo` (`Table::newest_allows`, rulings IG-6d,
+/// IG-25). For each effect every bound field follows in the
+/// request's order, labelled `field.<class>.<name>` with `from` by its source, and after them a
+/// line `confirm.new_site` for a `new_origin`; `armed` `yes` only while the item is `armed`.
+/// `malformed` for a field that the words table has no label for, or a piece of a value of
+/// more than 1,024 bytes; `state` for a confirmation of another request.
 pub fn compose_confirm(
     item: &ItemId,
     ask: &ConfirmAsk,
     confirmation: &Confirmation,
+    table: &Table,
 ) -> Result<Item, Cause> {
     let same = ask.effects().len() == confirmation.asked().len()
         && ask
@@ -164,10 +206,19 @@ pub fn compose_confirm(
         return Err(Cause::State);
     }
     let presenter = confirmation.presenter();
-    let class = named_class(ask, presenter);
+    let named = named(ask);
     let count = ask.effects().len();
     let mut fields = Vec::new();
     for effect in ask.effects() {
+        if let Named::Mixed = named {
+            fields.push(halvo_line(&format!(
+                "confirm.{}.action",
+                effect.class.name()
+            ))?);
+        }
+        if table.newest_allows(ask.run(), &effect.effect) {
+            fields.push(halvo_line("confirm.changed")?);
+        }
         for f in &effect.fields {
             fields.push(field(
                 effect.class,
@@ -192,8 +243,8 @@ pub fn compose_confirm(
             safe: YesNo::Yes,
         }],
         Presenter::Page => vec![
-            confirm_choice(class, Choice::Reject, count, true)?,
-            confirm_choice(class, Choice::Allow, count, false)?,
+            confirm_choice(named, Choice::Reject, count, true)?,
+            confirm_choice(named, Choice::Allow, count, false)?,
         ],
     };
     Ok(Item::confirm(
@@ -201,7 +252,7 @@ pub fn compose_confirm(
         ask.agent().clone(),
         presenter,
         (*confirmation.state() == ConfirmState::Armed).into(),
-        say(&format!("confirm.{}.title", class.name()))?,
+        confirm_title(named, count)?,
         fields,
         choices,
     ))

@@ -2,7 +2,7 @@ use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
     DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome, PastRun,
-    Reply, RunId, RunSpec, Runtime, What, Workflow, WorkflowId, WorkflowState,
+    Reply, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -10,6 +10,16 @@ const HISTORY_MAX: usize = 64;
 
 fn refusal(name: &str) -> PortError {
     PortError::Refused(Name::parse(name).expect("an error name of I0.6's form"))
+}
+
+/// The bindings that `set_bindings` stored for one agent of one workflow: their slots and the
+/// number of the newest revision, 1 for the first body (ruling IG-20).
+#[derive(Clone, Debug)]
+struct Bound {
+    workflow: WorkflowId,
+    agent: AgentId,
+    slots: Vec<Slot>,
+    rev: u32,
 }
 
 /// A port method, by which a test makes it refuse.
@@ -133,7 +143,12 @@ pub struct Timed {
 /// `playbook` for `active` and an agent whose runtime is `web` and which has no playbook (an
 /// agent of `agents` by its configuration, and an agent that only a `create_agent` made by the
 /// preset of its workflow's category, A-A1.3), then with `state`. `set_bindings` refuses
-/// nothing, as A-A7.2 gives it no refusal. `start_run` is refused with `no_workflow` for a
+/// nothing, as A-A7.2 gives it no refusal, and merges its slots by name into the slots stored
+/// for its workflow and agent, as the agent-setup run's handler does (its CP-36): a slot of the
+/// body replaces the stored slot of its name or is added, and a slot that the body does not name
+/// stays; the agent's entry of `agents` then lists each name, and the answer is the revision
+/// that it stored: 1 for the first body of the agent, whatever `create_agent` answered, and the
+/// next number for each later one (ruling IG-20). `start_run` is refused with `no_workflow` for a
 /// workflow that is not in `workflows`, with `binding` for an agent that is not the workflow's,
 /// and with `state` unless the workflow is `active`, or `approved` for the mode `compile`
 /// (A-A7.2). `history` answers at most 64 events for one call.
@@ -152,7 +167,7 @@ pub struct Ports<C> {
     today: Cell<u32>,
     bytes: Cell<u128>,
     approvals: Cell<u128>,
-    bindings_rev: Cell<u32>,
+    bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
@@ -177,7 +192,7 @@ impl<C> Ports<C> {
             today: Cell::new(today),
             bytes: Cell::new(0),
             approvals: Cell::new(0),
-            bindings_rev: Cell::new(1),
+            bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
             limits,
             created: RefCell::new(Vec::new()),
@@ -223,6 +238,58 @@ impl<C> Ports<C> {
                 },
             );
         }
+    }
+
+    /// The slots that `set_bindings` stored for `agent` of `workflow`, in the order of their
+    /// first binding.
+    pub fn slots(&self, workflow: &WorkflowId, agent: &AgentId) -> Vec<Slot> {
+        self.bound_slots
+            .borrow()
+            .iter()
+            .find(|b| &b.workflow == workflow && &b.agent == agent)
+            .map(|b| b.slots.clone())
+            .unwrap_or_default()
+    }
+
+    fn merge_slots(&self, workflow: &WorkflowId, agent: &AgentId, slots: &[Slot]) -> u32 {
+        let mut bound = self.bound_slots.borrow_mut();
+        let at = match bound
+            .iter()
+            .position(|b| &b.workflow == workflow && &b.agent == agent)
+        {
+            Some(at) => at,
+            None => {
+                bound.push(Bound {
+                    workflow: workflow.clone(),
+                    agent: agent.clone(),
+                    slots: Vec::new(),
+                    rev: 0,
+                });
+                bound.len() - 1
+            }
+        };
+        bound[at].rev = bound[at].rev.saturating_add(1);
+        let rev = bound[at].rev;
+        let stored = &mut bound[at].slots;
+        for slot in slots {
+            match stored.iter_mut().find(|s| s.name == slot.name) {
+                Some(s) => s.value.clone_from(&slot.value),
+                None => stored.push(slot.clone()),
+            }
+        }
+        for entry in self
+            .agents
+            .borrow_mut()
+            .iter_mut()
+            .filter(|e| &e.workflow == workflow && &e.agent == agent)
+        {
+            for slot in slots {
+                if !entry.slots.contains(&slot.name) {
+                    entry.slots.push(slot.name.clone());
+                }
+            }
+        }
+        rev
     }
 
     /// Leaves `count` runner trees of an earlier life of the app, which the next `Runs::reap`
@@ -516,9 +583,12 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 }
                 serde_json::json!({ "rev": 1 })
             }
-            Body::SetBindings { .. } => {
-                let rev = self.bindings_rev.get() + 1;
-                self.bindings_rev.set(rev);
+            Body::SetBindings {
+                workflow,
+                agent,
+                slots,
+            } => {
+                let rev = self.merge_slots(workflow, agent, slots);
                 serde_json::json!({ "rev": rev })
             }
             Body::SetState { state, .. } => serde_json::json!({ "state": state.name() }),
