@@ -5,5 +5,7 @@
 //! validation, and the limits. No function reads a file, a clock or the network.
 
 mod class;
+mod decide;
 
 pub use class::{check_playbook, class_of, ClassDiffers};
+pub use decide::{decide_row, Checkpoint, Decision};
