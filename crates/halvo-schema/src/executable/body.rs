@@ -4,21 +4,28 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
 use crate::ids::{AgentId, WorkflowId};
-use crate::request::{CoordinatorBody, RunnerBody};
+use crate::record::Instant;
+use crate::request::{CoordinatorBody, RunnerBody, REPLY_MAX};
 
 use super::config::AgentConfig;
 use super::json::{self, each_once, from_json, list, object_type, opt};
-use super::names::{AgentState, Mode, Way};
+use super::names::{
+    AgentState, CheckpointState, EffectState, LeftReason, ListedState, MarkState, Mode, Way, YesNo,
+};
 use super::record::{
-    origins_and_slots, part_of, slot_names_once, AgentEffect, AgentLog, AgentRun, Slot,
-    SESSION_PARTS_MAX,
+    checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
+    AgentLog, AgentRun, Slot, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
-use super::text::{RunId, SessionData, WebOrigin};
+use super::text::{Digest, Null, OwnValue, RunId, SessionData, WebOrigin};
 use super::Refusal;
 
 /// The most steps of one `put_playbook` body and of one `load_steps` reply.
 pub const STEPS_PER_REQUEST_MAX: usize = 16;
+
+/// The most bytes of the reply of `list_checkpoints`: the bound of a reply less the 53 bytes of its envelope beside
+/// a request id.
+pub const CHECKPOINTS_REPLY_MAX: usize = REPLY_MAX - 53;
 
 macro_rules! op_enum {
     (
@@ -219,6 +226,23 @@ object_type! {
     rules(b) { same_run("Finish", (&b.agent, &b.run), (&b.record.agent, &b.record.run)) }
 }
 
+object_type! {
+    /// `checkpoint`: one row of the runner's checkpoint of a workbook, `planned` before `prepare` or `made` once the
+    /// copy is made; the rows `gone` and `left` are the supervisor library's, through `mark_checkpoint`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PutCheckpoint [op = "checkpoint"] {
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub record: AgentCheckpoint = "record" => AgentCheckpoint::from_raw,
+    }
+    rules(b) {
+        if !matches!(b.record.state, CheckpointState::Planned | CheckpointState::Made) {
+            return Err(Refusal::malformed("PutCheckpoint", "state_of_runner").at("record"));
+        }
+        same_run("PutCheckpoint", (&b.agent, &b.run), (&b.record.agent, &b.record.run))
+    }
+}
+
 op_enum! {
     /// The runner bodies (`RunnerCall`): each holds `op` first, then `agent` and `run`, then its keys. A body that
     /// holds a record refuses a record of another agent or run.
@@ -231,6 +255,7 @@ op_enum! {
         Effect(PutEffect) = "effect",
         Log(PutLog) = "log",
         Finish(Finish) = "finish",
+        Checkpoint(PutCheckpoint) = "checkpoint",
     }
 }
 
@@ -246,6 +271,7 @@ impl RunnerCall {
             RunnerCall::Effect(b) => &b.agent,
             RunnerCall::Log(b) => &b.agent,
             RunnerCall::Finish(b) => &b.agent,
+            RunnerCall::Checkpoint(b) => &b.agent,
         }
     }
 
@@ -260,6 +286,7 @@ impl RunnerCall {
             RunnerCall::Effect(b) => &b.run,
             RunnerCall::Log(b) => &b.run,
             RunnerCall::Finish(b) => &b.run,
+            RunnerCall::Checkpoint(b) => &b.run,
         }
     }
 }
@@ -410,6 +437,7 @@ impl RunnerReply {
                         | RunnerCall::Effect(_)
                         | RunnerCall::Log(_)
                         | RunnerCall::Finish(_)
+                        | RunnerCall::Checkpoint(_)
                 )
         )
     }
@@ -513,11 +541,108 @@ op_enum! {
         StartRun(StartRun) = "start_run",
         EndRun(EndRun) = "end_run",
         AddOrigin(AddOrigin) = "add_origin",
+        ListCheckpoints(ListCheckpoints) = "list_checkpoints",
+        MarkCheckpoint(MarkCheckpoint) = "mark_checkpoint",
     }
 }
 
 impl CoordinatorBody for CoordinatorCall {
     type Reply = CoordinatorReply;
+}
+
+object_type! {
+    /// `list_checkpoints`: one body over all agents, with `workflow` and `agent` null, for the checkpoints after the
+    /// run `after`, or from the first.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListCheckpoints [op = "list_checkpoints"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+        pub after: Option<RunId> = "after" => opt(from_json),
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
+    /// `mark_checkpoint`: the next row of the checkpoint of the run `run` and the workbook `workbook`, `gone` or
+    /// `left` with the reason, which stands exactly in a `left` body.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct MarkCheckpoint [op = "mark_checkpoint"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub workbook: OwnValue = "workbook" => from_json,
+        pub state: MarkState = "state" => from_json,
+        pub left: Option<LeftReason> = "left" => opt(from_json),
+    }
+    rules(b) {
+        let fail = |key, rule| Err(Refusal::malformed("MarkCheckpoint", rule).at(key));
+        if b.workbook.is_empty() {
+            return fail("workbook", "empty_path");
+        }
+        if b.left.is_some() != (b.state == MarkState::Left) {
+            return fail("left", "left_of_state");
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// One checkpoint of the reply of `list_checkpoints`, from its newest row, `planned` or `made`: `ended` says
+    /// whether the run's `agent_run` record is stored, `effect` is the state of the run's `local_edit` effect on the
+    /// workbook or null, and `superseded` whether a later run of the agent has a committed checkpoint of the same
+    /// path. An effect of a run whose end is stored is never `releasing`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListedCheckpoint {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub folder: OwnValue = "folder" => from_json,
+        pub workbook: OwnValue = "workbook" => from_json,
+        pub copy: OwnValue = "copy" => from_json,
+        pub state: ListedState = "state" => from_json,
+        pub sha256: Option<Digest> = "sha256" => opt(from_json),
+        pub bytes: Option<u32> = "bytes" => opt(from_json),
+        pub at: Instant = "at" => json::instant,
+        pub ended: YesNo = "ended" => from_json,
+        pub effect: Option<EffectState> = "effect" => opt(from_json),
+        pub superseded: YesNo = "superseded" => from_json,
+    }
+    rules(c) {
+        let state = match c.state {
+            ListedState::Planned => CheckpointState::Planned,
+            ListedState::Made => CheckpointState::Made,
+        };
+        checkpoint_copy(
+            "ListedCheckpoint",
+            [("folder", &c.folder), ("workbook", &c.workbook), ("copy", &c.copy)],
+            state,
+            c.sha256.as_ref(),
+            c.bytes,
+        )?;
+        if c.ended == YesNo::Yes && c.effect == Some(EffectState::Releasing) {
+            return Err(Refusal::malformed("ListedCheckpoint", "releasing_after_end").at("effect"));
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// The reply of `list_checkpoints`: the checkpoints in ascending order of run id, each run and workbook once,
+    /// and the run id to ask after for the next page, or null; at most `CHECKPOINTS_REPLY_MAX` bytes.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct CheckpointsReply {
+        pub checkpoints: Vec<ListedCheckpoint> = "checkpoints" => list(ListedCheckpoint::from_raw),
+        pub next: Option<RunId> = "next" => opt(from_json),
+    }
+    rules(r) {
+        if r.checkpoints.windows(2).any(|w| w[1].run < w[0].run) {
+            return Err(Refusal::malformed("CheckpointsReply", "run_order").at("checkpoints"));
+        }
+        let keys: Vec<(&RunId, &OwnValue)> =
+            r.checkpoints.iter().map(|c| (&c.run, &c.workbook)).collect();
+        each_once("CheckpointsReply", &keys).map_err(|e| e.at("checkpoints"))
+    }
+    max_len(CHECKPOINTS_REPLY_MAX)
 }
 
 object_type! {
@@ -552,6 +677,8 @@ pub enum CoordinatorReply {
     Rev(RevReply),
     State(StateReply),
     Accepted(Accepted),
+    Checkpoints(CheckpointsReply),
+    Stored(Stored),
 }
 
 impl CoordinatorReply {
@@ -563,6 +690,10 @@ impl CoordinatorReply {
             StateReply::from_raw(raw).map(CoordinatorReply::State)
         } else if obj.has("ok") {
             Accepted::from_raw(raw).map(CoordinatorReply::Accepted)
+        } else if obj.has("checkpoints") {
+            CheckpointsReply::from_raw(raw).map(CoordinatorReply::Checkpoints)
+        } else if obj.has("stored") {
+            Stored::from_raw(raw).map(CoordinatorReply::Stored)
         } else {
             Err(Refusal::malformed("CoordinatorReply", "reply_form"))
         }
@@ -579,19 +710,24 @@ impl CoordinatorReply {
             CoordinatorReply::Rev(r) => r.to_json(),
             CoordinatorReply::State(r) => r.to_json(),
             CoordinatorReply::Accepted(r) => r.to_json(),
+            CoordinatorReply::Checkpoints(r) => r.to_json(),
+            CoordinatorReply::Stored(r) => r.to_json(),
         }
     }
 
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
-    /// revision 1 alone, `set_bindings` and `add_origin` by any revision.
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` by the list and
+    /// `mark_checkpoint` by `stored` 0 or 1.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Rev(r), CoordinatorCall::CreateAgent(_)) => r.rev.get() == 1,
+            (CoordinatorReply::Stored(r), CoordinatorCall::MarkCheckpoint(_)) => r.stored <= 1,
             (
                 CoordinatorReply::Rev(_),
                 CoordinatorCall::SetBindings(_) | CoordinatorCall::AddOrigin(_),
             )
             | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
+            | (CoordinatorReply::Checkpoints(_), CoordinatorCall::ListCheckpoints(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),
@@ -607,6 +743,8 @@ impl Serialize for CoordinatorReply {
             CoordinatorReply::Rev(r) => r.serialize(serializer),
             CoordinatorReply::State(r) => r.serialize(serializer),
             CoordinatorReply::Accepted(r) => r.serialize(serializer),
+            CoordinatorReply::Checkpoints(r) => r.serialize(serializer),
+            CoordinatorReply::Stored(r) => r.serialize(serializer),
         }
     }
 }

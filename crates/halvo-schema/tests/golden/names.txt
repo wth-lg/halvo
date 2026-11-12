@@ -29,6 +29,7 @@ body
 bounded
 budget
 by
+bytes
 calendar_cleanup
 calendar_delete
 calendar_list
@@ -39,6 +40,7 @@ cause
 changed
 check
 checkpoint
+checkpoints
 class
 class_mismatch
 clean
@@ -55,6 +57,7 @@ confirmations
 const
 coordinator
 coordinator_write
+copy
 count
 count_is
 create_agent
@@ -102,9 +105,11 @@ fill
 finish
 first
 floor
+folder
 frame
 from
 frontier
+gone
 graph_calendar
 graph_mail
 handback
@@ -133,8 +138,11 @@ learn_edit
 learn_routine
 learn_run
 lease_renewal_or_change
+left
 limit
 limits
+link
+list_checkpoints
 list_refinements
 load
 load_session
@@ -144,11 +152,13 @@ locators
 log
 low
 low_cost_hosted
+made
 mail_draft_reply
 mail_list
 mail_send
 manual
 mark
+mark_checkpoint
 medium
 minutes
 missed
@@ -169,6 +179,7 @@ next
 night
 no
 none
+not_file
 nothing_to_do
 number
 observe
@@ -189,6 +200,7 @@ payee
 payment
 period
 permissions
+planned
 playbook
 pointer
 post
@@ -241,6 +253,7 @@ session_size
 sessions
 set_bindings
 set_state
+sha256
 sheet
 shop_order
 shortcut
@@ -267,6 +280,7 @@ stored
 submit
 summaries
 summary
+superseded
 support
 tab
 target
@@ -288,6 +302,7 @@ tokens_out
 trigger
 unattended
 unknown
+unreadable
 untrusted
 unverified
 upload

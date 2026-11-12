@@ -24,10 +24,12 @@ pub use frame::{
 };
 pub use json::{Refusal, RefusalCause};
 pub use names::{
-    ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning,
-    Runtime, Way,
+    ActionClass, AllowedClass, Autonomy, Cause, CheckpointState, EffectState, LeftReason,
+    ListedState, MarkState, ModelTier, Outcome, Reasoning, Runtime, Way,
 };
-pub use record::{AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession};
+pub use record::{
+    AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
+};
 pub use step::{ExecutableStep, Playbook};
 pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, WebOrigin};
 
@@ -239,4 +241,21 @@ pub const NAMES: &[&str] = &[
     "account_link",
     "new_origin",
     "secret",
+    "folder",
+    "copy",
+    "sha256",
+    "bytes",
+    "planned",
+    "made",
+    "gone",
+    "left",
+    "link",
+    "not_file",
+    "unreadable",
+    "list_checkpoints",
+    "mark_checkpoint",
+    "after",
+    "checkpoints",
+    "next",
+    "superseded",
 ];

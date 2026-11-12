@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use halvo_schema::executable::{
-    self, AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentSession,
+    self, AgentBindings, AgentCheckpoint, AgentEffect, AgentLog, AgentPlaybook, AgentSession,
 };
 use halvo_schema::kinds::{
     check_entries, check_record, check_registry, registry, KindEntry, Origin, RetentionClass,
@@ -26,8 +26,6 @@ const CLASSES: [(&str, RetentionClass); 6] = [
     ("agent_checkpoint", RetentionClass::Bounded { days: 93 }),
 ];
 
-const WITHOUT_STRICT_READER: [&str; 1] = ["agent_checkpoint"];
-
 const KIND_NAMES_THAT_NAMES_LACKS: [&str; 6] = OWN;
 
 fn entry(name: &str) -> &'static KindEntry {
@@ -37,7 +35,7 @@ fn entry(name: &str) -> &'static KindEntry {
         .unwrap_or_else(|| panic!("no kind {name}"))
 }
 
-fn strict(name: &str, text: &str) -> Option<Result<String, String>> {
+fn strict(name: &str, text: &str) -> Result<String, String> {
     let b = text.as_bytes();
     let read = match name {
         "agent_playbook" => AgentPlaybook::parse(b).and_then(|v| v.to_json()),
@@ -45,9 +43,10 @@ fn strict(name: &str, text: &str) -> Option<Result<String, String>> {
         "agent_effect" => AgentEffect::parse(b).and_then(|v| v.to_json()),
         "agent_log" => AgentLog::parse(b).and_then(|v| v.to_json()),
         "agent_session" => AgentSession::parse(b).and_then(|v| v.to_json()),
-        _ => return None,
+        "agent_checkpoint" => AgentCheckpoint::parse(b).and_then(|v| v.to_json()),
+        _ => panic!("the kind {name} has no strict reader"),
     };
-    Some(read.map_err(|e| e.to_string()))
+    read.map_err(|e| e.to_string())
 }
 
 fn swap(text: &str, from: &str, to: &str) -> String {
@@ -77,13 +76,11 @@ fn each_example_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() {
     for name in OWN {
         let kind = entry(name);
         assert_eq!(check_record(kind, kind.example), Ok(()), "{name}");
-        match strict(name, kind.example) {
-            Some(read) => {
-                assert!(!WITHOUT_STRICT_READER.contains(&name), "{name}");
-                assert_eq!(read.as_deref(), Ok(kind.example), "{name}");
-            }
-            None => assert!(WITHOUT_STRICT_READER.contains(&name), "{name}"),
-        }
+        assert_eq!(
+            strict(name, kind.example).as_deref(),
+            Ok(kind.example),
+            "{name}"
+        );
     }
 }
 
@@ -102,9 +99,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             )),
             "{name}"
         );
-        if let Some(read) = strict(name, &extra) {
-            assert!(read.is_err(), "{name}");
-        }
+        assert!(strict(name, &extra).is_err(), "{name}");
     }
     let cases = [
         (
@@ -182,9 +177,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             Err(format!("{name}: {rule}")),
             "{to}"
         );
-        if let Some(read) = strict(name, &text) {
-            assert!(read.is_err(), "{to}");
-        }
+        assert!(strict(name, &text).is_err(), "{to}");
     }
     for name in OWN {
         assert!(cases.iter().any(|(n, ..)| *n == name), "{name}");
@@ -292,10 +285,7 @@ fn every_own_row_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() 
         assert_eq!(distinct.len(), lines.len(), "{name}");
         for line in &lines {
             assert_eq!(check_record(kind, line), Ok(()), "{name}: {line}");
-            match strict(name, line) {
-                Some(read) => assert_eq!(read.as_ref(), Ok(line), "{name}"),
-                None => assert!(WITHOUT_STRICT_READER.contains(&name), "{name}"),
-            }
+            assert_eq!(strict(name, line).as_ref(), Ok(line), "{name}");
         }
     }
 }

@@ -502,6 +502,26 @@ impl FromJson for V1 {
     }
 }
 
+/// The JSON `null` of a key that a body always holds as null, as `workflow` and `agent` of `list_checkpoints`, a
+/// body over all agents: read from the text `null` alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Null;
+
+impl Serialize for Null {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_unit()
+    }
+}
+
+impl FromJson for Null {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        if raw.get() != "null" {
+            return Err(Refusal::malformed("Null", "not_null"));
+        }
+        Ok(Null)
+    }
+}
+
 /// The base64 text of one part of a stored session, `["<own_text>"...]`: 1 to 48 pieces of the base64 alphabet
 /// (`A` to `Z`, `a` to `z`, `0` to `9`, `+`, `/` and `=`), each 1,024 bytes but the last, which holds 1 to 1,024.
 /// `Debug` prints the number of pieces alone.
