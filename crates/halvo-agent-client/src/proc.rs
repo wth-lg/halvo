@@ -389,16 +389,21 @@ fn end_group(g: u32) -> bool {
 /// trial's `procs.rs` walks a tree.
 #[cfg(target_os = "macos")]
 fn descendants(root: u32, created_us: u64) -> Vec<sys::Info> {
-    let Ok(table) = sys::table() else {
-        return Vec::new();
-    };
+    sys::table()
+        .map(|table| descendants_in(&table, root, created_us))
+        .unwrap_or_default()
+}
+
+/// The descendants in `table` of the process `root` created at `created_us`, parents before children.
+#[cfg(target_os = "macos")]
+fn descendants_in(table: &[sys::Info], root: u32, created_us: u64) -> Vec<sys::Info> {
     let mut tree: Vec<(u32, u64)> = vec![(root, created_us)];
     let mut found = Vec::new();
     let mut i = 0;
     while i < tree.len() {
         let (parent, since) = tree[i];
         i += 1;
-        for p in &table {
+        for p in table {
             if p.ppid == parent
                 && p.pid != parent
                 && p.started_us >= since
@@ -427,5 +432,52 @@ fn end_descendant(d: &sys::Info, runner_group: u32) {
         end_group(d.pid);
     } else {
         sys::kill_pid(d.pid);
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    fn p(pid: u32, ppid: u32, started_us: u64) -> sys::Info {
+        sys::Info {
+            pid,
+            ppid,
+            pgid: pid,
+            started_us,
+            zombie: false,
+        }
+    }
+
+    fn pids(found: &[sys::Info]) -> Vec<u32> {
+        let mut v: Vec<u32> = found.iter().map(|i| i.pid).collect();
+        v.sort_unstable();
+        v
+    }
+
+    #[test]
+    fn the_walk_takes_every_generation_below_the_runner_and_nothing_beside_it() {
+        let table = vec![
+            p(1, 0, 1),
+            p(10, 1, 100),
+            p(11, 10, 101),
+            p(12, 11, 102),
+            p(13, 12, 103),
+            p(20, 1, 104),
+            p(21, 20, 105),
+        ];
+        assert_eq!(pids(&descendants_in(&table, 10, 100)), vec![11, 12, 13]);
+    }
+
+    #[test]
+    fn the_walk_takes_no_process_created_before_the_parent_that_its_parent_number_names() {
+        let table = vec![
+            p(10, 1, 100),
+            p(11, 10, 101),
+            p(30, 10, 50),
+            p(31, 30, 60),
+            p(32, 11, 90),
+        ];
+        assert_eq!(pids(&descendants_in(&table, 10, 100)), vec![11]);
     }
 }

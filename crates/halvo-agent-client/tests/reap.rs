@@ -453,3 +453,20 @@ fn a_runner_that_exits_while_a_child_holds_its_output_is_seen_gone_and_its_child
     );
     assert!(wait_until(SHORT, || gone(child[0].0, child[0].1)));
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn a_browser_frame_whose_group_neither_the_browser_nor_the_runner_leads_is_refused_and_both_are_ended(
+) {
+    let rig = Rig::new("browser-third-group");
+    let script = rig.script(&["hello", "on-eof hang", "browser in-group-of-child", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
+    assert!(!script.log().contains("browser_reply"), "{}", script.log());
+    let mut made = script.logged("browser-real");
+    made.extend(script.logged("child"));
+    assert_eq!(made.len(), 2, "{}", script.log());
+    assert!(wait_until(SHORT, || made.iter().all(|(p, c)| gone(*p, *c))));
+}

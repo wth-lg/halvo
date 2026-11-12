@@ -251,3 +251,31 @@ fn a_browser_in_the_runner_group_whose_runner_was_killed_first_is_ended_by_the_n
     );
     assert!(mark_of(&host.data, &host.run).is_none());
 }
+
+#[test]
+fn the_next_life_reap_of_a_living_runner_ends_what_it_started_outside_its_group() {
+    let dir = common::scratch("next-life-living-runner");
+    let script = Script::new(
+        &dir,
+        &[
+            "hello",
+            "on-eof hang",
+            "child-own-group",
+            "log ready",
+            "idle",
+        ],
+    );
+    let mut host = host(&dir, &script);
+    assert!(script.wait_log("ready", SHORT), "{}", script.log());
+    let child = script.logged("child");
+    assert_eq!(child.len(), 1, "{}", script.log());
+    host.child.kill().unwrap();
+    host.child.wait().unwrap();
+    let answers = reap_in(&host.data);
+    assert_eq!(answers.len(), 1);
+    assert_eq!(answers[0].answer, Reaped::Gone);
+    assert!(
+        wait_until(SHORT, || gone(child[0].0, child[0].1)),
+        "a child that the runner made in a group of its own outlived the next life's reap"
+    );
+}

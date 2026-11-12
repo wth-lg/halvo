@@ -186,3 +186,16 @@ pub struct ReapAnswer {
     pub answer: Reaped,
     pub left: Vec<NonZeroU32>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_new_config_waits_ten_seconds_for_hello_and_link_end_twenty_seconds_for_a_closed_link() {
+        let c = Config::new(PathBuf::from("data"), PathBuf::from("runner"));
+        assert_eq!(c.start_wait, Duration::from_secs(10));
+        assert_eq!(c.link_end, Duration::from_secs(20));
+        assert_eq!((START_WAIT, LINK_END), (c.start_wait, c.link_end));
+    }
+}

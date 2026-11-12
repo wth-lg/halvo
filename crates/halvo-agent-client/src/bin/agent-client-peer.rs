@@ -84,6 +84,32 @@ fn spawn_self_with(role: &str, own_group: bool, log: Option<&Path>) -> io::Resul
     cmd.spawn()
 }
 
+fn browser_in_group_of_last_child(
+    made: &Mutex<Vec<Child>>,
+    role: &str,
+    log: &Path,
+) -> io::Result<Child> {
+    let leader = made
+        .lock()
+        .ok()
+        .and_then(|list| list.last().map(Child::id))
+        .ok_or_else(|| io::Error::other("no child"))?;
+    let mut cmd = Command::new(std::env::current_exe()?);
+    cmd.arg(role)
+        .arg(log)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(i32::try_from(leader).map_err(io::Error::other)?);
+    }
+    #[cfg(not(unix))]
+    let _ = leader;
+    cmd.spawn()
+}
+
 #[cfg(unix)]
 fn close_stdout() {
     use std::os::fd::FromRawFd;
@@ -212,6 +238,19 @@ impl Peer {
                 Err(_) => self.log.line("child-failed"),
             },
             "breakaway" => self.breakaway(),
+            "child-own-group" => match spawn_self("child", true) {
+                Ok(c) => {
+                    let created = process::creation_time(c.id())
+                        .map(|t| t.to_string())
+                        .unwrap_or_default();
+                    self.log
+                        .line(&format!("child pid={} created={created}", c.id()));
+                    if let Ok(mut list) = self.browsers.lock() {
+                        list.push(c);
+                    }
+                }
+                Err(_) => self.log.line("child-failed"),
+            },
             "browser-foreign" => {
                 let pid: u32 = rest.parse().unwrap_or(0);
                 let created = process::creation_time(pid)
@@ -257,7 +296,13 @@ impl Peer {
         } else {
             "browser"
         };
-        let child = match spawn_self_with(role, own, Some(&self.log_path)) {
+        let spawned = if has("in-group-of-child") {
+            self.step("child-own-group");
+            browser_in_group_of_last_child(&self.browsers, role, &self.log_path)
+        } else {
+            spawn_self_with(role, own, Some(&self.log_path))
+        };
+        let child = match spawned {
             Ok(c) => c,
             Err(_) => {
                 self.log.line("browser-failed");
