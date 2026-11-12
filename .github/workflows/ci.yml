@@ -47,6 +47,35 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: F.1 probes (scratch branch only)
+        shell: bash
+        run: |
+          set +e
+          job=$RUNNER_OS
+          if command -v lsof >/dev/null 2>&1; then echo "probe $job lsof=yes"; else echo "probe $job lsof=no"; fi
+          if command -v java >/dev/null 2>&1; then
+            major=$(java -version 2>&1 | sed -n '1s/.*version "\([0-9][0-9]*\).*/\1/p')
+            echo "probe $job java-major=${major:-unknown}"
+          else
+            echo "probe $job java=none"
+          fi
+          probe=$PWD/target/ci-artifacts/f1-probe
+          bound=
+          if command -v timeout >/dev/null 2>&1; then bound="timeout -k 30 600"; fi
+          echo "probe $job timeout-present=$([ -n "$bound" ] && echo yes || echo no)"
+          mkdir -p "$probe"
+          start=$(date +%s)
+          $bound sh backend/scripts/stack.sh up >"$probe/stack-up.txt" 2>&1
+          code=$?
+          echo "probe $job stack-up-exit=$code seconds=$(( $(date +%s) - start ))"
+          $bound sh backend/scripts/stack.sh down >"$probe/stack-down.txt" 2>&1
+          echo "probe $job stack-down-exit=$?"
+          start=$(date +%s)
+          CI_D_REPO=$PWD CI_D_JOB=probe CI_D_ARTIFACTS=$probe LC_ALL=C $bound sh scripts/r7/ci.d/21-r7-backend-test.sh >"$probe/test.txt" 2>&1
+          code=$?
+          echo "probe $job backend-test-exit=$code seconds=$(( $(date +%s) - start ))"
+          tail -n 2 "$probe/test.txt"
+          exit 0
       - name: Changelog
         shell: bash
         run: |
@@ -122,6 +151,35 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: F.1 probes (scratch branch only)
+        shell: bash
+        run: |
+          set +e
+          job=$RUNNER_OS
+          if command -v lsof >/dev/null 2>&1; then echo "probe $job lsof=yes"; else echo "probe $job lsof=no"; fi
+          if command -v java >/dev/null 2>&1; then
+            major=$(java -version 2>&1 | sed -n '1s/.*version "\([0-9][0-9]*\).*/\1/p')
+            echo "probe $job java-major=${major:-unknown}"
+          else
+            echo "probe $job java=none"
+          fi
+          probe=$PWD/target/ci-artifacts/f1-probe
+          bound=
+          if command -v timeout >/dev/null 2>&1; then bound="timeout -k 30 600"; fi
+          echo "probe $job timeout-present=$([ -n "$bound" ] && echo yes || echo no)"
+          mkdir -p "$probe"
+          start=$(date +%s)
+          $bound sh backend/scripts/stack.sh up >"$probe/stack-up.txt" 2>&1
+          code=$?
+          echo "probe $job stack-up-exit=$code seconds=$(( $(date +%s) - start ))"
+          $bound sh backend/scripts/stack.sh down >"$probe/stack-down.txt" 2>&1
+          echo "probe $job stack-down-exit=$?"
+          start=$(date +%s)
+          CI_D_REPO=$PWD CI_D_JOB=probe CI_D_ARTIFACTS=$probe LC_ALL=C $bound sh scripts/r7/ci.d/21-r7-backend-test.sh >"$probe/test.txt" 2>&1
+          code=$?
+          echo "probe $job backend-test-exit=$code seconds=$(( $(date +%s) - start ))"
+          tail -n 2 "$probe/test.txt"
+          exit 0
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
