@@ -330,7 +330,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("tray.needs", "Agents that need you: {count}"),
     (
         "line.waiting_turn.store",
-        "It waits for Halvo to finish closing its last task, then it can start again.",
+        "It waits while Halvo wraps up the task it did before, and you need to do nothing.",
     ),
 ];
 
