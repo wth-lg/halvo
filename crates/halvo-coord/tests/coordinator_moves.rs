@@ -344,6 +344,35 @@ fn a_move_of_the_person_after_a_tick_saw_the_workflow_gone_is_unknown_agent_with
         c.ports().ports.tried.borrow().len(),
         tried + calls_since(&c, m).len()
     );
+    assert!(
+        c.snapshot().rows.is_empty(),
+        "the row of an agent whose workflow is gone goes"
+    );
+    assert_eq!(c.card(&agent(0)), Err(Cause::UnknownAgent));
+}
+
+#[test]
+fn the_runners_end_of_a_waiting_run_lapses_its_item_with_run_ended_and_ends_the_run() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.end_runner(&run);
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::HandedBack))),
+        Ok(())
+    );
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Stuck(OtherLapse::RunEnded)
+    }));
+    assert!(events(&c).contains(&What::RunEnded {
+        run,
+        cause: RunEnd::HandedBack
+    }));
+    assert!(c.snapshot().items.is_empty());
+    assert_eq!(c.live(), 0);
 }
 
 #[test]

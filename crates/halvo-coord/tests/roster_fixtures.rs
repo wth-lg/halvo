@@ -116,3 +116,27 @@ fn inside_needs_you_the_oldest_open_item_comes_first_and_elsewhere_the_name() {
         ]
     );
 }
+
+#[test]
+fn the_line_time_rounds_wall_s_up_to_whole_minutes() {
+    let mut f = facts(State::Ten).remove(0);
+    let text = |wall: u64| {
+        let record = format!(
+            "{{\"v\":1,\"workflow\":\"{}\",\"agent\":\"{}\",\"rev\":1,\"category\":\"utility_bill_payment\",\"tier\":\"on_device\",\"reasoning\":\"high\",\"autonomy\":\"observe\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":{wall},\"model_tokens\":0}},\"budget\":null,\"permissions\":[\"user_files\"],\"runtime\":\"web\",\"playbook\":null}}",
+            f.workflow.id, f.agent
+        );
+        halvo_coord::mem::Config::parse(&record).unwrap()
+    };
+    f.config = text(61);
+    let got = lines(&f.config);
+    let keys: Vec<&str> = got.iter().map(|l| l.key.name()).collect();
+    assert_eq!(keys, ["level", "runs_on", "asks", "time", "files"]);
+    assert_eq!(
+        got[3].text,
+        halvo_coord::words::text("line.time", &[("minutes", "2")]).unwrap()
+    );
+    assert_eq!(
+        lines(&text(120))[3].text,
+        halvo_coord::words::text("line.time", &[("minutes", "2")]).unwrap()
+    );
+}
