@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::event::{CaptureStreamEvent, Modality};
 use crate::sink::{SinkError, SinkHandle};
 
@@ -7,14 +9,17 @@ pub trait CaptureSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
+        let _call = DefaultPairCall::enter(&*self);
         self.begin(SourceContext::new(sink)).map(|_| ())
     }
 
     fn stop(&mut self) {
+        let _call = DefaultPairCall::enter(&*self);
         let _ = self.shutdown();
     }
 
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        let _call = DefaultPairCall::enter(&*self);
         self.start(ctx.sink).map(|()| Started::Running)
     }
 
@@ -22,12 +27,54 @@ pub trait CaptureSource {
     /// done, [`CaptureError::ThreadEnded`] when the thread had ended before,
     /// [`CaptureError::Timeout`] when the source's deadline passed.
     fn shutdown(&mut self) -> Result<(), CaptureError> {
+        let _call = DefaultPairCall::enter(&*self);
         self.stop();
         Ok(())
     }
 
     fn health(&self) -> SourceHealth {
         SourceHealth::default()
+    }
+}
+
+thread_local! {
+    static DEFAULT_PAIR_CALLS: RefCell<Vec<(usize, &'static str)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+struct DefaultPairCall {
+    source: (usize, &'static str),
+}
+
+impl DefaultPairCall {
+    fn enter<S: ?Sized>(source: &S) -> Self {
+        let source = (
+            (source as *const S).cast::<()>().addr(),
+            std::any::type_name::<S>(),
+        );
+        let again = DEFAULT_PAIR_CALLS.with(|calls| {
+            let mut calls = calls.borrow_mut();
+            let again = calls.contains(&source);
+            if !again {
+                calls.push(source);
+            }
+            again
+        });
+        if again {
+            panic!("CaptureSource implements neither begin and shutdown nor start and stop");
+        }
+        Self { source }
+    }
+}
+
+impl Drop for DefaultPairCall {
+    fn drop(&mut self) {
+        let _ = DEFAULT_PAIR_CALLS.try_with(|calls| {
+            let mut calls = calls.borrow_mut();
+            if let Some(at) = calls.iter().rposition(|source| *source == self.source) {
+                calls.remove(at);
+            }
+        });
     }
 }
 
@@ -506,6 +553,43 @@ mod tests {
         };
         assert_eq!(failed.clone(), failed);
         assert_ne!(failed, SourceHealth::default());
+    }
+
+    struct NeitherPair;
+
+    impl CaptureSource for NeitherPair {}
+
+    fn panic_text(outcome: std::thread::Result<()>) -> String {
+        let payload = outcome.expect_err("the call returned instead of panicking");
+        match payload.downcast::<&str>() {
+            Ok(text) => (*text).to_string(),
+            Err(payload) => *payload.downcast::<String>().expect("a text payload"),
+        }
+    }
+
+    #[test]
+    fn a_source_that_implements_neither_pair_panics_with_fixed_text() {
+        let neither = "CaptureSource implements neither begin and shutdown nor start and stop";
+        let mut source = NeitherPair;
+        let begin = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = source.begin(context());
+        }));
+        assert_eq!(panic_text(begin), neither);
+        let start = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let (handle, _writer) = sink::channel(1);
+            let _ = source.start(handle);
+        }));
+        assert_eq!(panic_text(start), neither);
+        let shutdown = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = source.shutdown();
+        }));
+        assert_eq!(panic_text(shutdown), neither);
+        let stop = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source.stop()));
+        assert_eq!(panic_text(stop), neither);
+        let mut old = OldPair::default();
+        assert!(matches!(old.begin(context()), Ok(Started::Running)));
+        assert!(old.shutdown().is_ok());
+        assert_eq!(old.calls, ["start", "stop"]);
     }
 
     #[test]
