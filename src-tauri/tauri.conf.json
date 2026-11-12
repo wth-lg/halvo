@@ -3,7 +3,7 @@
   "productName": "Halvo",
   "identifier": "com.halvo.desktop",
   "build": {
-    "frontendDist": "../ui"
+    "frontendDist": "../ui/app"
   },
   "app": {
     "withGlobalTauri": true,

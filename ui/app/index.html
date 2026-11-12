@@ -210,7 +210,12 @@
       }
 
       function renderInventory(inv) {
-        const rows = inv.rows || [];
+        if (!inv || !Array.isArray(inv.rows)) {
+          $("empty").classList.add("hidden");
+          $("inventory").classList.add("hidden");
+          throw new Error("the inventory reply has no list of rows");
+        }
+        const rows = inv.rows;
         $("empty").classList.toggle("hidden", rows.length > 0);
         $("inventory").classList.toggle("hidden", rows.length === 0);
         const body = $("inventory").querySelector("tbody");

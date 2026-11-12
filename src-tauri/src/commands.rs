@@ -1,14 +1,14 @@
 use std::sync::Mutex;
 
 use halvo_capture::consent::onboarding::{
-    assess, open_settings_pane, GrantState, OnboardingState, Permission, PermissionProbe,
-    RequestOutcome,
+    assess, GrantState, OnboardingState, Permission, PermissionProbe, RequestOutcome,
 };
 use halvo_capture::consent::status::{ConsentController, Inventory, ObservationWindow, StorageCap};
 use halvo_capture::consent::{CaptureState, CaptureStatus, ConsentView};
 use halvo_capture::store::ShredReport;
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::ipc::Invoke;
+use tauri::{AppHandle, Runtime, State};
 
 use crate::tray;
 
@@ -16,6 +16,7 @@ pub struct AppState {
     pub controller: Mutex<ConsentController>,
     pub probe: Box<dyn PermissionProbe + Send + Sync>,
     pub store_backend: &'static str,
+    pub open_pane: fn(Permission) -> Result<(), String>,
 }
 
 impl AppState {
@@ -54,6 +55,20 @@ impl From<ShredReport> for ShredView {
     }
 }
 
+/// The invoke handler of the capture commands.
+pub fn handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![
+        capture_status,
+        inventory,
+        set_capture_state,
+        delete_all,
+        set_storage_cap,
+        onboarding_state,
+        request_permission,
+        open_permission_pane,
+    ]
+}
+
 fn status_view(state: &AppState, controller: &mut ConsentController) -> Result<StatusView, String> {
     controller.inventory().map_err(|e| e.to_string())?;
     Ok(StatusView {
@@ -74,8 +89,8 @@ pub fn inventory(state: State<'_, AppState>) -> Result<Inventory, String> {
 }
 
 #[tauri::command]
-pub fn set_capture_state(
-    app: AppHandle,
+pub fn set_capture_state<R: Runtime>(
+    app: AppHandle<R>,
     state: State<'_, AppState>,
     capture: CaptureState,
 ) -> Result<StatusView, String> {
@@ -134,6 +149,9 @@ pub fn request_permission(
 }
 
 #[tauri::command]
-pub fn open_permission_pane(permission: Permission) -> Result<(), String> {
-    open_settings_pane(permission).map_err(|e| e.to_string())
+pub fn open_permission_pane(
+    state: State<'_, AppState>,
+    permission: Permission,
+) -> Result<(), String> {
+    (state.open_pane)(permission)
 }
