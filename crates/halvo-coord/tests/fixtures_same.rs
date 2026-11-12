@@ -30,9 +30,9 @@ fn names(dir: &Path) -> BTreeSet<String> {
 #[test]
 fn fixtures_same() {
     let dir = fresh_dir("fixtures_same");
-    assert_eq!(fixtures::write(&dir).unwrap(), 35);
+    assert_eq!(fixtures::write(&dir).unwrap(), 37);
     let written = names(&dir);
-    assert_eq!(written.len(), 35);
+    assert_eq!(written.len(), 37);
     assert_eq!(
         names(Path::new(TRACKED)),
         written,
@@ -65,7 +65,7 @@ fn a_second_write_changes_no_file() {
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
         .collect();
-    assert_eq!(fixtures::write(&dir).unwrap(), 35);
+    assert_eq!(fixtures::write(&dir).unwrap(), 37);
     let second: Vec<Vec<u8>> = names(&dir)
         .iter()
         .map(|n| std::fs::read(dir.join(n)).unwrap())
@@ -84,7 +84,7 @@ fn json(name: &str) -> Value {
 }
 
 #[test]
-fn the_files_are_the_35_of_i8_3() {
+fn the_files_are_the_37_of_i8_3() {
     let mut want: BTreeSet<String> = ["commands.json", "words.json", "reply-ok.json"]
         .iter()
         .map(|s| s.to_string())
@@ -110,8 +110,8 @@ fn the_files_are_the_35_of_i8_3() {
     ] {
         want.insert(format!("reply-error-{c}.json"));
     }
-    assert_eq!(State::ALL.len(), 18);
-    assert_eq!(want.len(), 35);
+    assert_eq!(State::ALL.len(), 20);
+    assert_eq!(want.len(), 37);
     assert_eq!(names(Path::new(TRACKED)), want);
     for command in LIST {
         for stem in command.replies {
@@ -373,7 +373,7 @@ fn labels(class: &str, fields: &[&str], effects: usize) -> Vec<String> {
 
 #[test]
 fn the_states_hold_the_counts_of_i9_4() {
-    assert_eq!(State::ALL.len(), 18, "That is 18 states.");
+    assert_eq!(State::ALL.len(), 20, "That is 20 states.");
 
     let empty = snapshot("empty");
     assert_eq!(empty["rows"].as_array().unwrap().len(), 0);

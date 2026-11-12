@@ -7,7 +7,7 @@ const FIXTURE: &str = concat!(
     "/../../ui/tests/fixtures/coord/commands.json"
 );
 
-const STATES: [&str; 18] = [
+const STATES: [&str; 20] = [
     "empty",
     "ten",
     "needs_confirm_page",
@@ -26,6 +26,8 @@ const STATES: [&str; 18] = [
     "working",
     "queue",
     "no_service",
+    "needs_confirm_mixed",
+    "needs_confirm_changed",
 ];
 
 fn arg(name: &str, kind: &str, when: Option<&str>, values: Option<Vec<&str>>) -> Value {
