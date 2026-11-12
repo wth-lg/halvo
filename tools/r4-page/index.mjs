@@ -357,7 +357,7 @@ async function wait(h) {
   for (;;) {
     const left = end - Date.now();
     if (left <= 0) break;
-    if (h.inflight > 0) {
+    if (h.inflight > 0 || h.writing > 0) {
       await sleep(10);
       continue;
     }
@@ -365,7 +365,7 @@ async function wait(h) {
     const moving = await h.page.evaluate(FINISH);
     const quiet = await h.page.evaluate(QUIET, [QUIET_MS, Math.max(1, end - Date.now())]);
     if (quiet === 'limit') break;
-    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
+    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.writing === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
   }
   h.flags.add('unsettled');
 }
@@ -383,19 +383,43 @@ function markup(value, key) {
   return value;
 }
 
+function note(h, line) {
+  h.trail.push(line);
+}
+
+function why(err) {
+  const c = err && (err.code || (err.cause && err.cause.code));
+  return String(c || (err && err.name) || 'unknown').replace(/\s+/g, '_');
+}
+
+/** Waits until the page has settled as a check reads it, the stub's own writes of calls.jsonl among what it waits for. */
+export async function settled(h) {
+  await settle(h);
+}
+
+/** The stub's lines for one page: each call that it rejected, refused or could not answer, and each fixture that it could not read. */
+export function trail(h) {
+  return h && Array.isArray(h.trail) ? h.trail.slice() : [];
+}
+
 async function fixture(h, name) {
   if (h.cache.has(name)) return h.cache.get(name);
   let res;
   try {
     res = await fetch(h.origin + '/__fixtures/' + name);
-  } catch {
+  } catch (err) {
+    note(h, 'stub fixture=' + name + ' cause=fetch_' + why(err));
     throw new Refusal('fixture', 'the fixtures directory could not be read at ' + name);
   }
-  if (!res.ok) throw new Refusal('fixture', 'no fixture ' + name);
+  if (!res.ok) {
+    note(h, 'stub fixture=' + name + ' cause=status_' + res.status);
+    throw new Refusal('fixture', 'no fixture ' + name);
+  }
   let value;
   try {
     value = JSON.parse(await res.text());
-  } catch {
+  } catch (err) {
+    note(h, 'stub fixture=' + name + ' cause=json_' + why(err));
     throw new Refusal('fixture', name + ' is no JSON');
   }
   h.cache.set(name, value);
@@ -461,7 +485,13 @@ function fromTranscript(h, name, args) {
 
 async function record(h, name, a) {
   h.calls++;
-  if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  if (!h.out) return;
+  h.writing++;
+  try {
+    await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  } finally {
+    h.writing--;
+  }
 }
 
 function unheld(h, fn) {
@@ -476,11 +506,25 @@ async function stub(h, name, args) {
   if (h.transcript) {
     const wrong = h.mismatch.length;
     const reply = fromTranscript(h, name, a);
-    if (logged && h.mismatch.length === wrong) await record(h, name, a);
-    if (reply === REJECT) throw new Error('the transcript rejects this call');
+    if (h.mismatch.length !== wrong) note(h, 'stub call=' + name + ' refused cause=not_next_in_transcript');
+    try {
+      if (logged && h.mismatch.length === wrong) await record(h, name, a);
+    } catch (err) {
+      note(h, 'stub call=' + name + ' unanswered cause=record_' + why(err));
+      throw err;
+    }
+    if (reply === REJECT) {
+      note(h, 'stub call=' + name + ' rejected by=transcript');
+      throw new Error('the transcript rejects this call');
+    }
     return reply;
   }
-  if (logged) await record(h, name, a);
+  try {
+    if (logged) await record(h, name, a);
+  } catch (err) {
+    note(h, 'stub call=' + name + ' unanswered cause=record_' + why(err));
+    throw err;
+  }
   if (name === 'agents_next') {
     h.nexts++;
     if (h.nexts > 1 || h.closed) return h.closed ? { closed: 'yes' } : new Promise((wake) => h.held.push(wake));
@@ -498,6 +542,9 @@ async function stub(h, name, args) {
       return reply;
     }
     return await fixture(h, 'reply-ok.json');
+  } catch (err) {
+    note(h, 'stub call=' + name + ' unanswered cause=' + why(err));
+    throw err;
   } finally {
     h.inflight--;
   }
@@ -547,6 +594,8 @@ async function openWith(options, context, transform, inner) {
       actions: 0,
       errors: 0,
       mismatch: [],
+      trail: [],
+      writing: 0,
       closed: false,
       modes: null,
       word: false,
@@ -912,7 +961,7 @@ const HELPER = () => {
       } catch {
         modals = [document.body];
       }
-      const next = modals.every((m) => more && role(m) === 'alertdialog' && !ids.includes(idOf(m)));
+      const next = modals.every((m) => more && role(m) === 'alertdialog');
       return gone && next && document.querySelector('[inert]') === null;
     },
     sizes() {

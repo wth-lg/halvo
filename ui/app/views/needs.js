@@ -48,14 +48,24 @@
     return node;
   }
 
-  function bounded(text) {
+  const letters = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+  function bytes(text) {
     let size = 0;
-    let out = '';
     for (const ch of text) {
       const code = ch.codePointAt(0);
       size += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
+    }
+    return size;
+  }
+
+  function bounded(text) {
+    let size = 0;
+    let out = '';
+    for (const part of letters.segment(text)) {
+      size += bytes(part.segment);
       if (size > 1024) break;
-      out += ch;
+      out += part.segment;
     }
     return out;
   }
@@ -194,17 +204,17 @@
     if (type === 'keydown') {
       if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
       if (!event.repeat) keys.set(event.key, { at: tick, target: event.target });
-      press = { target: event.target, repeat: event.repeat, at: event.repeat ? null : tick, from: event.target, raise: false };
+      press = { target: event.target, repeat: event.repeat, at: event.repeat ? null : tick, from: event.target, raise: false, end: false };
     } else if (type === 'keyup') {
       const down = keys.get(event.key) || null;
       keys.delete(event.key);
-      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false };
+      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false, end: true };
     } else if (type === 'pointerdown') {
       pointer = { at: tick, target: event.target, raise: raising };
       raising = false;
-      press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise };
+      press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise, end: false };
     } else {
-      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false };
+      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false, end: true };
     }
   }
 
@@ -215,7 +225,8 @@
   function freshFor(card, event) {
     const p = press;
     press = null;
-    if (!p || p.target !== event.currentTarget) return true;
+    if (!p) return true;
+    if (p.target !== event.currentTarget) return !(p.end && (p.at === null || p.at <= card.opened));
     if (p.repeat || p.raise || p.at === null || p.at <= card.opened) return false;
     return Boolean(p.from && card.dialog.contains(p.from));
   }
@@ -362,7 +373,7 @@
       element.appendChild(style);
       list = el('ul', 'hn-items', '');
       element.appendChild(list);
-      ['keydown', 'keyup', 'pointerdown', 'pointerup'].forEach(function (type) {
+      ['keydown', 'keyup', 'pointerdown', 'pointerup', 'pointercancel'].forEach(function (type) {
         window.addEventListener(type, input, true);
       });
       window.addEventListener('focus', raised);

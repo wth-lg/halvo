@@ -10,7 +10,7 @@ export const VIEW_FILE = join(ROOT, 'ui', 'app', 'views', 'needs.js');
 export const VIEW = '/app/views/needs.js';
 
 const harness = await import(pathToFileURL(join(ROOT, 'tools', 'r4-page', 'index.mjs')).href);
-export const { serve, open, act, check } = harness;
+export const { serve, open, act, check, trail, settled } = harness;
 
 /** The states of the fixture directory, read from its file names, and the test items of items.json. */
 export function fixtures() {

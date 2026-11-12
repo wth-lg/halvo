@@ -18,6 +18,8 @@ import {
   outDir,
   pageConfirms,
   read,
+  settled,
+  trail,
   serve,
   stateFile,
   words,
@@ -57,7 +59,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0 };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0, touches: 0 };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -272,6 +274,7 @@ async function hidden(origin, dir) {
 
 async function frames(h) {
   await h.page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  await settled(h);
 }
 
 async function escape(origin, dir, states) {
@@ -567,8 +570,30 @@ async function openDialog(h) {
   });
 }
 
+function engineOf(h) {
+  return h.page.context().browser().browserType().name();
+}
+
+async function transcript(h, tags) {
+  const facts = await h.page
+    .evaluate(() => ({
+      active: document.activeElement ? document.activeElement.tagName + ':' + (document.activeElement.getAttribute('data-act') || document.activeElement.getAttribute('role') || '-') : '-',
+      dialogs: [...document.querySelectorAll('[role="alertdialog"]')].map((d) => (d.matches(':modal') ? 'modal' : d.open ? 'open' : 'closed') + ':' + (d.isConnected ? 'in' : 'out')),
+    }))
+    .catch(() => null);
+  const head = 'transcript case=' + tags.join(';');
+  console.log(head + ' stub_lines=' + trail(h).length + ' calls=' + h.calls + ' started=' + h.started + ' errors=' + h.errors + ' flags=' + ([...h.flags].join(',') || '-'));
+  for (const line of trail(h)) console.log(head + ' ' + line);
+  console.log(head + ' page ' + JSON.stringify(facts));
+}
+
 async function confirms(origin, dir) {
   const faults = [];
+  let shown = 0;
+  const keep = async (h) => {
+    if (faults.length > shown) await transcript(h, faults.slice(shown));
+    shown = faults.length;
+  };
   const base = stateFile(dir, 'needs_confirm_page').snapshot.items[0];
   const a = withId(base, 'a'.repeat(32));
   const b = withId(base, 'b'.repeat(32));
@@ -589,7 +614,9 @@ async function confirms(origin, dir) {
       const got = said(out).join(',');
       if (got !== want) faults.push(tag + ':calls=' + (got || '-'));
     } finally {
-      await h.close();
+      await keep(h);
+      await keep(h);
+    await h.close();
     }
   };
   await keyed('held_enter', ['walk', 'down', 'down', 'down', 'up'], 'agents_answer:reject:a');
@@ -611,6 +638,7 @@ async function confirms(origin, dir) {
     const next = await openDialog(h);
     if (!next || next.item !== 'b' || !next.focused) faults.push('double_click_unsafe:second_not_open');
   } finally {
+    await keep(h);
     await h.close();
   }
   const sign = stateFile(dir, 'needs_sign_in').snapshot.items[0];
@@ -641,6 +669,7 @@ async function confirms(origin, dir) {
   } catch (err) {
     faults.push('held_key_reply:throws');
   } finally {
+    await keep(h);
     await h.close();
   }
   const typed = stateFile(dir, 'setup_three').snapshot.items[0];
@@ -674,6 +703,7 @@ async function confirms(origin, dir) {
   } catch (err) {
     faults.push('typing_reply:throws');
   } finally {
+    await keep(h);
     await h.close();
   }
   out = outDir();
@@ -684,6 +714,7 @@ async function confirms(origin, dir) {
     const r = await read(h);
     if (callsOf(out).length !== 1 || r.dialogs.some((x) => x.rendered)) faults.push('click_with_no_press:calls=' + callsOf(out).length);
   } finally {
+    await keep(h);
     await h.close();
   }
   out = outDir();
@@ -699,7 +730,107 @@ async function confirms(origin, dir) {
     }
     if (callsOf(out).length !== 1) faults.push('press_after_raise:calls=' + callsOf(out).length);
   } finally {
+    await keep(h);
     await h.close();
+  }
+  out = outDir();
+  h = await open({ origin, state: 'needs_confirm_page', views: [VIEW], out });
+  try {
+    const box = await h.page.locator(sel('allow', base.item)).boundingBox();
+    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await h.page.mouse.down();
+    await h.page.evaluate(() => document.querySelector('[role="alertdialog"]').close());
+    await frames(h);
+    const again = await openDialog(h);
+    if (!again) faults.push('pressed_then_reopened:not_reopened');
+    await h.page.mouse.up();
+    await frames(h);
+    if (callsOf(out).length !== 0) faults.push('pressed_then_reopened:calls=' + said(out).join(','));
+  } finally {
+    await keep(h);
+    await h.close();
+  }
+  const allowA = { call: 'agents_answer', args: { item: a.item, choice: 'allow' }, reply: { ok: 'yes' } };
+  const doneSign = { call: 'agents_answer', args: { item: sign.item, choice: 'done' }, reply: { ok: 'yes' } };
+  let point = null;
+  h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }], views: [VIEW] });
+  try {
+    const box = await h.page.locator(sel('allow', a.item)).boundingBox();
+    point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+  } finally {
+    await h.close();
+  }
+  const opens = (k) => k.page.waitForFunction(() => Boolean(document.querySelector('[role="alertdialog"]:modal')), null, { timeout: 10000 }).then(() => true, () => false);
+  out = outDir();
+  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+  try {
+    await h.page.mouse.move(point.x, point.y);
+    await h.page.mouse.down();
+    await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
+    if (!(await opens(h))) faults.push('mouse_before_open:not_opened');
+    await h.page.mouse.up();
+    await frames(h);
+    await frames(h);
+    if (said(out).join(',') !== 'agents_answer:done:0') faults.push('mouse_before_open:calls=' + said(out).join(','));
+  } finally {
+    await keep(h);
+    await h.close();
+  }
+  if (engineOf(h) !== 'chromium') {
+    console.log('confirms touch: not run on ' + engineOf(h) + ', which takes no touch input through the browser\'s protocol in this harness');
+  } else {
+    const touch = async (k, type) => {
+      const cdp = await k.page.context().newCDPSession(k.page);
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+      return (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
+    };
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+    try {
+      const send = await touch(h);
+      await send('start');
+      await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
+      if (!(await opens(h))) faults.push('touch_before_open:not_opened');
+      await send('end');
+      await frames(h);
+      await frames(h);
+      seen.touches += 1;
+      if (said(out).join(',') !== 'agents_answer:done:0') faults.push('touch_before_open:calls=' + said(out).join(','));
+    } finally {
+      await keep(h);
+      await h.close();
+    }
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+    try {
+      const cdp = await h.page.context().newCDPSession(h.page);
+      const pen = (type) => cdp.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1, pointerType: 'pen' });
+      await pen('mousePressed');
+      await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
+      if (!(await opens(h))) faults.push('pen_before_open:not_opened');
+      await pen('mouseReleased');
+      await frames(h);
+      await frames(h);
+      seen.touches += 1;
+      if (said(out).join(',') !== 'agents_answer:done:0') faults.push('pen_before_open:calls=' + said(out).join(','));
+    } finally {
+      await keep(h);
+      await h.close();
+    }
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, allowA], views: [VIEW], out });
+    try {
+      const send = await touch(h);
+      await send('start');
+      await send('end');
+      await frames(h);
+      await frames(h);
+      seen.touches += 1;
+      if (said(out).join(',') !== 'agents_answer:allow:a') faults.push('touch_after_open:calls=' + (said(out).join(',') || '-'));
+    } finally {
+      await keep(h);
+      await h.close();
+    }
   }
   const long = withId(base, 'f'.repeat(32));
   const body = long.fields.find((f) => f.value.join('') !== '');
@@ -717,6 +848,7 @@ async function confirms(origin, dir) {
     if (!top.taller) faults.push('long_confirm_not_long');
     if (top.scroll !== 0 || !top.inView || !top.focused) faults.push('long_confirm_top_out_of_view');
   } finally {
+    await keep(h);
     await h.close();
   }
   return faults;
@@ -731,6 +863,10 @@ async function bound(origin, dir) {
     ['bytes_1025', 'é'.repeat(512) + 'a', 'é'.repeat(512)],
     ['three_byte_edge', 'a'.repeat(1023) + '€', 'a'.repeat(1023)],
     ['four_byte_letters', '𝄞'.repeat(257), '𝄞'.repeat(256)],
+    ['combining_accent', 'a'.repeat(1022) + 'é', 'a'.repeat(1022)],
+    ['joined_emoji', 'a'.repeat(1016) + '\u{1F469}‍\u{1F4BB}', 'a'.repeat(1016)],
+    ['flag', 'a'.repeat(1020) + '\u{1F1EB}\u{1F1F7}', 'a'.repeat(1020)],
+    ['emoji_with_its_variation', 'a'.repeat(1021) + '❤️', 'a'.repeat(1021)],
   ];
   for (const [tag, typed, sent] of cases) {
     const out = outDir();
@@ -802,7 +938,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('replies')) report('replies', await replies(origin, dir));
     if (want('setups')) report('setups', await setups(origin, dir));
     if (want('reorder')) report('reorder', await reorder(origin, dir));
-    if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks']);
+    if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks', 'touches']);
     if (want('bound')) report('bound', await bound(origin, dir));
     if (want('features')) report('features', await features(origin), ['features']);
   }

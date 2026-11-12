@@ -55,6 +55,7 @@
   var seq = 0;
   var statuses = {};
   var answered = {};
+  var pending = [];
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -233,6 +234,22 @@
             items.appendChild(wait);
             wait.showModal();
           }
+          if (c.safe === 'yes' && fault === 'alert_left') {
+            var note = document.createElement('dialog');
+            note.setAttribute('role', 'alertdialog');
+            note.setAttribute('aria-label', 'Saved');
+            note.appendChild(el('p', null, 'Your answer is saved'));
+            items.appendChild(note);
+            note.showModal();
+          }
+          if (pending.length && fault === 'plain_next') {
+            var plain = document.createElement('dialog');
+            plain.appendChild(el('p', null, 'One more question'));
+            items.appendChild(plain);
+            plain.showModal();
+          } else if (pending.length) {
+            openConfirm(pending.shift());
+          }
         });
       });
       controls.appendChild(b);
@@ -274,23 +291,27 @@
       list.appendChild(row(r, i === 0));
     });
     clear(items);
+    pending = [];
     snapshot.items.forEach(function (item) {
       if (answered[item.item]) return;
-      if (item.kind === 'confirm' && item.presenter === 'page') {
-        var d = confirm(item);
-        items.appendChild(d);
-        if (fault === 'focus_escapes' || fault === 'dialog_not_inert' || fault === 'escape_row') {
-          d.show();
-          d.focus();
-        } else {
-          d.showModal();
-          d.focus();
-        }
-        if (fault === 'dialog_blur') document.activeElement.blur();
-      } else {
-        items.appendChild(setup(item));
-      }
+      if (item.kind === 'confirm' && item.presenter === 'page') pending.push(item);
+      else items.appendChild(setup(item));
     });
+    if (fault === 'skip_first') pending.shift();
+    if (pending.length) openConfirm(pending.shift());
+  }
+
+  function openConfirm(item) {
+    var d = confirm(item);
+    items.appendChild(d);
+    if (fault === 'focus_escapes' || fault === 'dialog_not_inert' || fault === 'escape_row') {
+      d.show();
+      d.focus();
+    } else {
+      d.showModal();
+      d.focus();
+    }
+    if (fault === 'dialog_blur') document.activeElement.blur();
   }
 
   function next() {
