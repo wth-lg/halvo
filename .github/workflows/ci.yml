@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,21 +78,32 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 55-r6-formal
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 55-r6-formal
+      - name: probe 55-r6-formal stops0
+        if: always()
         shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: |
+          set -u
+          d=$(mktemp -d)
+          for f in Hold.tla Spend.tla Spend.cfg; do git cat-file blob "HEAD:formal/r6-spend/$f" >"$d/$f"; done
+          cd "$d" || exit 1
+          curl -q -fsSL --retry 2 -o tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          sed 's/^    MaxStops = 1$/    MaxStops = 0/' Spend.cfg >Stops0.cfg
+          echo "probe stops0_lines=$(grep -c 'MaxStops = 0' Stops0.cfg) java_home_set=$([ -n "${JAVA_HOME:-}" ] && echo yes || echo no)"
+          if [ -n "${JAVA_HOME:-}" ]; then j=$JAVA_HOME/bin/java; else j=java; fi
+          "$j" -version 2>&1 | sed -n 1p
+          java -version 2>&1 | sed -n 1p
+          n=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
+          w=$n; [ "$w" -le 4 ] || w=4
+          echo "probe cores=$n workers=$w"
+          start=$(date +%s)
+          "$j" -Xmx2g -XX:+UseParallelGC -Djava.io.tmpdir=. -cp tla2tools.jar tlc2.TLC -workers "$w" -metadir meta -config Stops0.cfg Spend.tla >out.txt 2>&1
+          code=$?
+          echo "probe stops0 exit=$code seconds=$(( $(date +%s) - start ))"
+          grep -E '^[0-9]+ states generated|^Finished in|^Model checking completed' out.txt
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -140,21 +140,32 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 55-r6-formal
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 55-r6-formal
+      - name: probe 55-r6-formal stops0
+        if: always()
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: |
+          set -u
+          d=$(mktemp -d)
+          for f in Hold.tla Spend.tla Spend.cfg; do git cat-file blob "HEAD:formal/r6-spend/$f" >"$d/$f"; done
+          cd "$d" || exit 1
+          curl -q -fsSL --retry 2 -o tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          sed 's/^    MaxStops = 1$/    MaxStops = 0/' Spend.cfg >Stops0.cfg
+          echo "probe stops0_lines=$(grep -c 'MaxStops = 0' Stops0.cfg) java_home_set=$([ -n "${JAVA_HOME:-}" ] && echo yes || echo no)"
+          if [ -n "${JAVA_HOME:-}" ]; then j=$JAVA_HOME/bin/java; else j=java; fi
+          "$j" -version 2>&1 | sed -n 1p
+          java -version 2>&1 | sed -n 1p
+          n=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
+          w=$n; [ "$w" -le 4 ] || w=4
+          echo "probe cores=$n workers=$w"
+          start=$(date +%s)
+          "$j" -Xmx2g -XX:+UseParallelGC -Djava.io.tmpdir=. -cp tla2tools.jar tlc2.TLC -workers "$w" -metadir meta -config Stops0.cfg Spend.tla >out.txt 2>&1
+          code=$?
+          echo "probe stops0 exit=$code seconds=$(( $(date +%s) - start ))"
+          grep -E '^[0-9]+ states generated|^Finished in|^Model checking completed' out.txt
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
