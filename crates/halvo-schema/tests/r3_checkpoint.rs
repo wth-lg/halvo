@@ -815,6 +815,14 @@ fn a_list_reply_holds_at_most_the_bound_of_a_reply_with_the_envelope_that_the_co
 fn a_list_reply_is_counted_on_the_bytes_given_before_anything_is_read() {
     let exact = plain(copy_at_the_bound());
     let inside = exact.replacen(r#","next""#, r#", "next""#, 1);
+    let through_serde = serde_json::from_str::<CoordinatorReply>(&inside).unwrap_err();
+    assert!(
+        through_serde
+            .to_string()
+            .contains("length: CoordinatorReply: -: reply_bytes"),
+        "{through_serde}"
+    );
+    assert!(serde_json::from_str::<CoordinatorReply>(&exact).is_ok());
     for padded in [format!(" {exact}"), format!("{exact}\n"), inside] {
         assert_eq!(padded.len(), CHECKPOINTS_REPLY_MAX + 1);
         refused_by_the_bound(padded.as_bytes());
