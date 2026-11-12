@@ -736,6 +736,8 @@ enum Turn {
     /// It first stores this event at the `seq` of the log, as a log of the earlier life that
     /// lands after recovery read the ledger.
     Late(What),
+    /// It stores the log and answers `no_service`: the acknowledgement is lost.
+    Lose,
 }
 
 /// The ports with a late writer: the owner takes the turns in order, one for each log, and
@@ -761,6 +763,10 @@ impl<P: Owner> Owner for Late<'_, P> {
         let turn = self.turns.borrow_mut().pop_front();
         match (turn, events.first()) {
             (Some(Turn::Refuse(e)), _) => return Err(e),
+            (Some(Turn::Lose), _) => {
+                self.ports.log(events).expect("the owner stores the log");
+                return Err(PortError::NoService);
+            }
             (Some(Turn::Late(what)), Some(first)) => {
                 let late = Event {
                     what,
@@ -1330,4 +1336,103 @@ fn review_w5_owed_lapse_after_a_resync_of_its_body_is_stored_once() {
     );
     assert_eq!(ended, 1, "one run_ended");
     assert_eq!(lapses_of(&w, &item), 1, "I5.8, L4: the item lapses once");
+}
+
+/// A new life whose recovery runs on `turns`, one for each log of recovery.
+fn relife_with(w: &mut World, turns: Vec<Turn>) {
+    w.ports.new_life();
+    w.forget();
+    let life = recover(&Late::new(&w.ports, turns), &w.limits).expect("recovery");
+    w.board = life.board;
+    w.table = Table::new();
+}
+
+fn ends_of(w: &World, run: &RunId) -> usize {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
+        .count()
+}
+
+fn two_ticks(w: &mut World) {
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+}
+
+#[test]
+fn a_recovery_body_of_a_run_and_its_item_stored_with_a_lost_acknowledgement_is_stored_once() {
+    let mut w = world(&[MANUAL]);
+    let run = RunId::parse(&format!("{:032x}", 0xc001)).unwrap();
+    let item = ItemId::parse(&format!("{:032x}", 0xd001)).unwrap();
+    stored_outside(
+        &w,
+        0,
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    relife_with(&mut w, vec![Turn::Lose]);
+    assert_eq!(
+        (ends_of(&w, &run), lapses_of(&w, &item)),
+        (1, 1),
+        "the owner stored the body"
+    );
+    assert_eq!(
+        w.board
+            .owed
+            .iter()
+            .filter(|o| !matches!(o.what, halvo_coord::schedule::Owing::EndRun { .. }))
+            .count(),
+        2,
+        "its run_ended and its item_lapsed are owed"
+    );
+    two_ticks(&mut w);
+    assert_eq!(
+        (ends_of(&w, &run), lapses_of(&w, &item)),
+        (1, 1),
+        "the verifier's case x2: one run_ended and one item_lapsed (I5.8, L4)"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn a_recovery_body_of_two_runs_stored_with_a_lost_acknowledgement_ends_each_run_once() {
+    let mut w = world(&[MANUAL]);
+    let runs: Vec<RunId> = [0xc001, 0xc002]
+        .iter()
+        .map(|n| RunId::parse(&format!("{n:032x}")).unwrap())
+        .collect();
+    for run in &runs {
+        stored_outside(
+            &w,
+            0,
+            What::RunStarted {
+                run: run.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+        );
+    }
+    relife_with(&mut w, vec![Turn::Lose]);
+    two_ticks(&mut w);
+    assert_eq!(
+        runs.iter().map(|r| ends_of(&w, r)).collect::<Vec<_>>(),
+        vec![1, 1],
+        "the verifier's case x3: each run ends once"
+    );
+    assert!(w.board.owed.is_empty());
 }
