@@ -672,6 +672,47 @@ mod tests {
     }
 
     #[test]
+    fn every_droppable_kind_on_a_full_queue_is_dropped_and_counted_as_itself() {
+        let droppable = [
+            Modality::ScreenFrame,
+            Modality::SystemAudio,
+            Modality::Microphone,
+            Modality::Camera,
+        ];
+        for kind in droppable {
+            let (handle, writer) = bounded(NonZeroUsize::MIN);
+            let kept = unnumbered(kind, 0, 0);
+            assert_eq!(handle.emit(kept).unwrap(), EmitOutcome::Queued, "{kind:?}");
+            let dropping = emit_on_a_thread(&handle, unnumbered(kind, 0, 1));
+            let outcome = dropping
+                .outcome
+                .recv_timeout(Duration::from_secs(1))
+                .expect("the second emit of a droppable kind returned inside 1 s");
+            assert!(matches!(outcome, Ok(EmitOutcome::Dropped)), "{kind:?}");
+            dropping.thread.join().unwrap();
+            let counts = handle.counts();
+            let one_of_each = KindCounts {
+                accepted: 1,
+                dropped: 1,
+                ..KindCounts::default()
+            };
+            assert_eq!(counts.of(kind), one_of_each, "{kind:?}");
+            if kind != Modality::ScreenFrame {
+                let frames = counts.of(Modality::ScreenFrame);
+                assert_eq!(frames, KindCounts::default(), "{kind:?}");
+            }
+            assert_eq!(handle.dropped_count(), 1, "{kind:?}");
+            let received = writer.try_recv().unwrap();
+            assert_eq!(received.event().modality, kind);
+            assert_eq!(received.event().segment_ref.byte_offset, 0, "{kind:?}");
+            assert!(
+                matches!(writer.try_recv(), Err(TryRecvError::Empty)),
+                "{kind:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_dropped_frame_takes_no_number() {
         let (handle, writer) = bounded(NonZeroUsize::MIN);
         let frame = || unnumbered(Modality::ScreenFrame, 0, 0);
