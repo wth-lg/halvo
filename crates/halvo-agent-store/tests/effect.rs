@@ -21,6 +21,50 @@ fn refused(store: &mut MemoryStore, row: Value) {
 }
 
 #[test]
+fn a_second_approval_of_an_approved_effect_is_refused() {
+    let mut store = payment();
+    ok(&mut store, row(1, 1, 1, "held", "payment", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "approved", "payment", 1, Some(1), None),
+    );
+    refused(
+        &mut store,
+        row(1, 1, 3, "approved", "payment", 1, Some(2), None),
+    );
+    assert_eq!(
+        last_of(&store, &effect(1))
+            .approval
+            .map(|a| a.as_str().to_owned()),
+        Some(approval(1))
+    );
+}
+
+#[test]
+fn the_runner_ends_a_cleared_or_approved_effect_and_rejects_a_held_one_alone() {
+    let mut store = unattended_sender();
+    ok(&mut store, row(1, 1, 1, "cleared", "send", 1, None, None));
+    refused(&mut store, row(1, 1, 2, "rejected", "send", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "rejected", "send", 1, None, Some("ended")),
+    );
+    ok(&mut store, row(1, 2, 1, "held", "delete", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 2, 2, "approved", "delete", 1, Some(1), None),
+    );
+    refused(
+        &mut store,
+        row(1, 2, 3, "rejected", "delete", 1, None, None),
+    );
+    ok(
+        &mut store,
+        row(1, 2, 3, "rejected", "delete", 1, None, Some("ended")),
+    );
+}
+
+#[test]
 fn a_confirmed_payment_moves_through_its_rows() {
     let mut store = payment();
     ok(&mut store, row(1, 1, 1, "held", "payment", 1, None, None));

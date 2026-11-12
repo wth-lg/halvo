@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 pub const NOW: Now = Now {
     at: Instant(1_794_500_000_000_000_000),
-    day: 20_770,
+    day: 20_771,
 };
 
 pub fn id(prefix: char, n: u32) -> String {
