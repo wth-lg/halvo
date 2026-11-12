@@ -17,7 +17,7 @@ fn refused(scratch: &Scratch, label: &str, sheet: &str, cell: &str, want: Refusa
     let path = scratch.path("book.xlsx");
     let before = fs::read(&path).expect("read");
     let listing = scratch.names("");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse(cell).expect("a range");
     let values = [vec![Value::Number(1.0)]];
@@ -306,7 +306,7 @@ fn a_sheet_target_or_an_entry_in_another_case_is_written_where_the_reader_reads_
             each,
             &[],
         );
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let range = Range::parse("B5").expect("a range");
         let prepared = folder
@@ -334,7 +334,7 @@ fn a_sheet_target_or_an_entry_in_another_case_is_written_where_the_reader_reads_
 fn a_sheet_name_is_compared_byte_for_byte() {
     let scratch = Scratch::new("names-sheet");
     fs::copy(corpus("formulas.xlsx"), scratch.path("formulas.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let run = RunId::parse(RUN).expect("a run id");
     let range = Range::parse("B2").expect("a range");
     let values = vec![vec![Value::Number(1.0)]];
@@ -482,7 +482,7 @@ fn a_hyperlink_or_another_type_that_is_no_part_of_the_reader_stays_skipped_when_
             &with_link,
             &[],
         );
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let b3 = Range::parse("B3").expect("a range");
         let values = [vec![Value::Number(1.0)]];
@@ -519,7 +519,7 @@ fn an_address_outside_the_package_is_no_part_name_and_its_link_is_carried_as_it_
             &[],
         );
         let source_rels = common::entry(&scratch.path("book.xlsx"), SHEET_RELS);
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let b3 = Range::parse("B3").expect("a range");
         let values = [vec![Value::Number(640.0)]];

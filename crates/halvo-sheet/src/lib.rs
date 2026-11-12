@@ -20,7 +20,7 @@ use halvo_checkpoint::Root;
 
 pub use book::Cell;
 pub use error::{Cause, Error, Kept, PathRefusal, Refusal, SourceRefusal};
-pub use halvo_checkpoint::{RunId, Sha256};
+pub use halvo_checkpoint::{LockError, Locks, RunId, Sha256};
 pub use parts::Kind;
 pub use range::Range;
 pub use source::Value;
@@ -36,6 +36,7 @@ pub use write::Prepared;
 /// checkpoint also walks.
 pub struct Folder {
     root: Root,
+    locks: Locks,
 }
 
 impl fmt::Debug for Folder {
@@ -45,11 +46,13 @@ impl fmt::Debug for Folder {
 }
 
 impl Folder {
-    /// Takes the directory as the runner gives it. The directory itself may be reached
-    /// through a link; [`Error::Folder`] when it is not a directory.
-    pub fn new(dir: &Path) -> Result<Folder, Error> {
+    /// Takes the directory as the runner gives it, and the locks of `agents/locks/` under
+    /// Halvo's data directory, which [`Folder::prepare`] and [`Folder::replace`] hold for the
+    /// directory of the workbook. The directory itself may be reached through a link;
+    /// [`Error::Folder`] when it is not a directory.
+    pub fn new(dir: &Path, locks: Locks) -> Result<Folder, Error> {
         let root = Root::new(dir).map_err(|_| Error::Folder)?;
-        Ok(Folder { root })
+        Ok(Folder { root, locks })
     }
 
     fn file(&self, path: &Path) -> Result<PathBuf, Error> {
@@ -173,10 +176,15 @@ impl Folder {
     /// On a miss it removes its prepared copy, leaves the run's checkpoint, and returns
     /// [`Error::Sheet`], with the cause `sheet`; the workbook was not touched.
     ///
+    /// It writes the checkpoint and the prepared copy under the lock of the workbook's
+    /// directory, which it waits for up to the wait of the [`Locks`]; when it cannot take it,
+    /// it answers [`Error::Lock`] and has written nothing.
+    ///
     /// One `replace` of a workbook per run: after it, the run's checkpoint is no longer the
-    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]. Two `replace`
-    /// calls of two runs on one workbook at the same instant can both answer `Ok` with one
-    /// edit lost; the workbook is a whole checked copy either way. Nothing locks the workbook.
+    /// workbook, so a later `prepare` of the run answers [`Error::Checkpoint`]. `replace` holds
+    /// the same lock from its compare to its rename, so of two runs that prepared one workbook
+    /// from the same file, the `replace` that comes second finds the workbook changed and
+    /// leaves it: no edit is lost.
     ///
     /// What goes stale: a cached copy of a changed cell's value elsewhere in the package is not
     /// updated: a formula's cached result, a chart's cached points, the counts of the shared
@@ -202,17 +210,19 @@ impl Folder {
         if name.contains(".halvo-checkpoint-") || name.contains(".halvo-prepared-") {
             return Err(Error::Path(PathRefusal::OwnFile));
         }
-        write::prepare(&self.root, full, run, sheet, range, values)
+        write::prepare(&self.root, &self.locks, full, run, sheet, range, values)
     }
 
     /// The second half of a file edit (contracts.md A11.3, A5.2), one step: it puts the
     /// prepared copy in the workbook's place by one rename. It returns `Ok` when the workbook is
     /// the prepared copy, and an error when the call left the workbook as it was:
     /// [`Error::Path`] with [`PathRefusal::Outside`] when this folder does not hold the
-    /// workbook, which touches no file, and otherwise [`Error::NotReplaced`] when, at the
-    /// moment of the rename, the workbook's path is refused or the file is not the one that
-    /// `prepare` read, the checkpoint is not that file either, the prepared copy is not the
-    /// copy that `prepare` checked, or the system refuses the rename. With
+    /// workbook, which touches no file, and otherwise [`Error::NotReplaced`] when it cannot
+    /// take the lock of the workbook's directory within the wait of the [`Locks`]
+    /// ([`Kept::Lock`]), or when, under that lock, which it holds from its compare to its
+    /// rename, the workbook's path is refused or the file is not the one that `prepare` read,
+    /// the checkpoint is not that file either, the prepared copy is not the copy that
+    /// `prepare` checked, or the system refuses the rename. With
     /// [`Error::NotReplaced`] it has removed the prepared copy when it could reach it with no
     /// link on the way, so the checkpoint is the one file that stays beside the workbook after
     /// either end; when the system refuses that removal too (a read-only directory, an
@@ -225,11 +235,16 @@ impl Folder {
         prepared
             .answer
             .get_or_init(|| {
-                let done = self
-                    .file(&prepared.workbook)
-                    .map_err(|_| Error::NotReplaced(Kept::Workbook))
+                let held = self.locks.hold(write::directory(&prepared.workbook));
+                let done = held
+                    .as_ref()
+                    .map_err(|why| Error::NotReplaced(Kept::Lock(*why)))
+                    .and_then(|_| {
+                        self.file(&prepared.workbook)
+                            .map_err(|_| Error::NotReplaced(Kept::Workbook))
+                    })
                     .and_then(|_| write::replace(prepared));
-                match done {
+                let answer = match done {
                     Err(Error::NotReplaced(why)) => match self.file(&prepared.copy) {
                         Ok(copy) if std::fs::remove_file(&copy).is_err() => {
                             Err(Error::CopyLeft(why))
@@ -237,7 +252,9 @@ impl Folder {
                         _ => Err(Error::NotReplaced(why)),
                     },
                     other => other,
-                }
+                };
+                drop(held);
+                answer
             })
             .clone()
     }

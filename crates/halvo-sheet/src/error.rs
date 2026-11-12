@@ -1,6 +1,8 @@
 use std::fmt;
 use std::io;
 
+use halvo_checkpoint::LockError;
+
 /// A cause of the closed list of contracts.md A7.4 that an error of this crate gives the runner.
 /// Two errors have a cause of their own; every other error gives `step_failed`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,6 +116,9 @@ pub enum Kept {
     Copy,
     /// The system refused the rename with an error of this kind.
     Rename(io::ErrorKind),
+    /// The call could not take the lock of the workbook's directory, which another call held
+    /// for the whole wait ([`LockError::Busy`]) or which could not be opened.
+    Lock(LockError),
 }
 
 /// An error of a call. No error holds the content of a cell, of a source row or of a part of
@@ -153,6 +158,9 @@ pub enum Error {
     FillSize,
     /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
     Checkpoint,
+    /// `prepare` could not take the lock of the workbook's directory, which another call held
+    /// for the whole wait ([`LockError::Busy`]) or which could not be opened; it wrote nothing.
+    Lock(LockError),
     /// The check of `prepare` found the prepared copy different from what the write allows, or
     /// the named cells did not read back with their new values, with the cause `sheet`.
     Sheet,
@@ -181,6 +189,7 @@ impl Error {
             | Error::ReadOnly
             | Error::FillSize
             | Error::Checkpoint
+            | Error::Lock(_)
             | Error::NotReplaced(_)
             | Error::CopyLeft(_) => Cause::StepFailed,
         }
@@ -209,6 +218,7 @@ impl fmt::Display for Error {
             Error::ReadOnly => f.write_str("the workbook cannot be written"),
             Error::FillSize => f.write_str("the write would make a copy over the bounds of a read"),
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
+            Error::Lock(why) => write!(f, "the lock of the workbook's folder: {why:?}"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),
             Error::NotReplaced(why) => write!(f, "the workbook was not replaced: {why:?}"),
             Error::CopyLeft(why) => write!(

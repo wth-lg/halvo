@@ -63,6 +63,18 @@ impl Drop for Scratch {
 
 pub const RUN: &str = "0123456789abcdef0123456789abcdef";
 
+/// The locks that the tests' folders hold: `agents/locks/` under a data directory of the test
+/// target's own, with a wait of 10 s.
+pub fn locks() -> halvo_sheet::Locks {
+    locks_waiting(std::time::Duration::from_secs(10))
+}
+
+pub fn locks_waiting(wait: std::time::Duration) -> halvo_sheet::Locks {
+    let data = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-sheet-data");
+    fs::create_dir_all(&data).expect("make the data directory");
+    halvo_sheet::Locks::open(&data, wait).expect("the locks open")
+}
+
 pub struct Change {
     pub file: &'static str,
     pub sheet: &'static str,

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
-use halvo_checkpoint::{checkpoint_name, own_name, regular, Root, RunId, Sha256};
+use halvo_checkpoint::{checkpoint_name, own_name, regular, Locks, Root, RunId, Sha256};
 
 use crate::book::{self, guarded};
 use crate::error::{Error, Kept, Refusal};
@@ -118,8 +118,14 @@ pub(crate) fn range_cells(range: Range) -> u64 {
     u64::from(range.rows()) * u64::from(range.cols())
 }
 
+/// The directory that holds the workbook at the full path `workbook`, whose lock a call holds.
+pub(crate) fn directory(workbook: &Path) -> &Path {
+    workbook.parent().unwrap_or(workbook)
+}
+
 pub(crate) fn prepare(
     root: &Root,
+    locks: &Locks,
     workbook: PathBuf,
     run: &RunId,
     sheet: &str,
@@ -167,8 +173,10 @@ pub(crate) fn prepare(
     drop(entries);
     book::readable(&original, sheet)?;
     let checkpoint = workbook.with_file_name(checkpoint_name(&workbook, run).unwrap_or_default());
+    let held = locks.hold(directory(&workbook)).map_err(Error::Lock)?;
     keep_checkpoint(&checkpoint, &original, meta.permissions())?;
     let copy = write_copy(&workbook, run, &changed, meta.permissions())?;
+    drop(held);
     drop(changed);
     let checked = fs::read(&copy).map_err(Error::from).and_then(|disk| {
         check(&original, &disk, (&part, &book_part), sheet, range, values)?;
@@ -361,7 +369,7 @@ mod tests {
         let dir = scratch("check-seam");
         fs::copy(corpus_file(file), dir.join(file)).expect("copy");
         let before = fs::read(dir.join(file)).expect("read");
-        let folder = Folder::new(&dir).expect("the folder opens");
+        let folder = Folder::new(&dir, crate::testing::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let range = Range::parse(cells).expect("a range");
         SPOIL.with(|s| *s.borrow_mut() = Some(seam));
@@ -537,7 +545,7 @@ mod tests {
         let dir = scratch("check-miss");
         fs::copy(corpus_file("values.xlsx"), dir.join("values.xlsx")).expect("copy");
         let before = fs::read(dir.join("values.xlsx")).expect("read");
-        let folder = Folder::new(&dir).expect("the folder opens");
+        let folder = Folder::new(&dir, crate::testing::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let b5 = Range::parse("B5").expect("a range");
         let values = n(77.0);
@@ -582,7 +590,7 @@ mod tests {
     fn the_debug_form_of_a_prepared_copy_and_of_the_folder_names_no_path_and_no_byte() {
         let dir = scratch("debug-form");
         fs::copy(corpus_file("values.xlsx"), dir.join("values.xlsx")).expect("copy");
-        let folder = Folder::new(&dir).expect("the folder opens");
+        let folder = Folder::new(&dir, crate::testing::locks()).expect("the folder opens");
         let run = RunId::parse(RUN).expect("a run id");
         let b5 = Range::parse("B5").expect("a range");
         let prepared = folder

@@ -1,14 +1,17 @@
 //! The checkpoint of the sheet executor, with no reader of workbooks (contracts.md A11.3, A6.6,
 //! A7.4): the name of the copy that `prepare` keeps beside a workbook, the walk of a path inside
-//! a folder, and the SHA-256 of a file. The sheet executor and the supervisor library both use
-//! it, so that the app links no reader of workbooks (the coordinator's ruling CP-98 (2)).
+//! a folder, the SHA-256 of a file, and the lock of a workbook's directory, which `prepare` and
+//! `replace` hold. The sheet executor and the supervisor library both use it, so that the app
+//! links no reader of workbooks (the coordinator's ruling CP-98 (2)).
 
 mod digest;
+mod lock;
 mod name;
 mod run;
 mod walk;
 
 pub use digest::Sha256;
+pub use lock::{Held, LockError, Locks};
 pub use name::{checkpoint_name, own_name};
 pub use run::RunId;
 pub use walk::{regular, Root, Walk};

@@ -51,7 +51,7 @@ fn prepare_carries_each_workbook_that_the_verdict_does_not_refuse() {
         let original = scratch.path(change.file);
         fs::copy(corpus(change.file), &original).expect("copy");
         let before = fs::read(&original).expect("read");
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let range = Range::parse(change.cell).expect("a range");
         let prepared = folder
             .prepare(
@@ -146,7 +146,7 @@ fn prepare_refuses_a_workbook_with_a_refused_kind_before_it_writes_anything() {
         (macro_book.as_str(), "Values", Kind::Macro),
     ];
     let listing = scratch.names("");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     for (file, sheet, kind) in cases {
         let before = fs::read(scratch.path(file)).expect("read");
         let range = Range::parse("B3").expect("a range");
@@ -184,7 +184,7 @@ fn source_rows() -> Vec<Vec<Value>> {
 fn the_fill_writes_the_seed_rows_into_b2_d6_of_formulas_xlsx() {
     let scratch = Scratch::new("prepare-fill");
     fs::copy(corpus("formulas.xlsx"), scratch.path("formulas.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse("B2:D6").expect("a range");
     let held = folder
         .prepare(
@@ -238,7 +238,7 @@ fn the_fill_writes_the_seed_rows_into_b2_d6_of_formulas_xlsx() {
 fn prepare_refuses_a_shape_or_a_sheet_that_does_not_fit_before_it_writes() {
     let scratch = Scratch::new("prepare-shape");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let b5c6 = Range::parse("B5:C6").expect("a range");
     let wide = vec![vec![Value::Number(1.0), Value::Number(2.0)]];
@@ -267,7 +267,7 @@ fn prepare_refuses_a_shape_or_a_sheet_that_does_not_fit_before_it_writes() {
 fn each_prepare_of_a_run_writes_a_copy_of_its_own_and_the_first_makes_the_one_checkpoint() {
     let scratch = Scratch::new("prepare-twice");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse("B5").expect("a range");
     let checkpoint = checkpoint_name("values.xlsx");
     let first = folder
@@ -336,7 +336,7 @@ fn each_prepare_of_a_run_writes_a_copy_of_its_own_and_the_first_makes_the_one_ch
 fn a_second_prepare_of_the_run_leaves_the_first_copy_as_its_check_read_it() {
     let scratch = Scratch::new("prepare-twice-held");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let first = folder
         .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0))
@@ -367,7 +367,7 @@ fn a_checkpoint_of_the_run_that_is_not_the_workbook_is_kept_and_refused() {
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
     let checkpoint = checkpoint_name("values.xlsx");
     scratch.write(&checkpoint, b"another file");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let range = Range::parse("B5").expect("a range");
     let got = folder.prepare(
         Path::new("values.xlsx"),
@@ -405,7 +405,7 @@ fn prepare_writes_over_a_formula_inside_a_merged_range_and_inside_a_table() {
     for (file, sheet, cell, pos, value) in cases {
         let scratch = Scratch::new("prepare-edges");
         fs::copy(corpus(file), scratch.path(file)).expect("copy");
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let range = Range::parse(cell).expect("a range");
         let held = folder
             .prepare(
@@ -436,7 +436,7 @@ fn prepare_writes_over_a_formula_inside_a_merged_range_and_inside_a_table() {
 fn text_of_every_kind_comes_back_as_it_was_written() {
     let scratch = Scratch::new("prepare-text");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let texts = [
         " padded ",
         "a & b < c > d \" e ' f",
@@ -473,7 +473,7 @@ fn text(s: &str) -> Vec<Vec<Value>> {
 fn a_text_with_a_character_that_xml_cannot_hold_is_refused_before_any_write() {
     let scratch = Scratch::new("prepare-character");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let f2 = Range::parse("F2").expect("a range");
     for bad in [
         "\u{1}", "x\u{0}y", "a\u{b}b", "\u{1f}", "\u{fffe}", "\u{ffff}",
@@ -499,7 +499,7 @@ fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
     for bad in [longer, wide] {
         let scratch = Scratch::new("prepare-length");
         fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-        let folder = Folder::new(&scratch.dir).expect("the folder opens");
+        let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
         let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", f2, &text(&bad));
         assert_eq!(
             got.err(),
@@ -511,7 +511,7 @@ fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
     }
     let scratch = Scratch::new("prepare-length-fits");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     folder
         .prepare(
             Path::new("values.xlsx"),
@@ -527,7 +527,7 @@ fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
 fn a_number_that_is_not_finite_is_refused_before_any_write() {
     let scratch = Scratch::new("prepare-finite");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(x));
@@ -540,7 +540,7 @@ fn a_number_that_is_not_finite_is_refused_before_any_write() {
 fn a_checkpoint_or_a_prepared_copy_is_taken_as_no_workbook() {
     let scratch = Scratch::new("prepare-own-file");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let held = folder
         .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0))
@@ -573,7 +573,7 @@ fn a_checkpoint_name_that_is_a_link_to_a_file_outside_is_refused() {
     );
     let checkpoint = checkpoint_name("values.xlsx");
     common::link_file(&outside, &scratch.path("folder").join(&checkpoint));
-    let folder = Folder::new(&scratch.path("folder")).expect("the folder opens");
+    let folder = Folder::new(&scratch.path("folder"), common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0));
     assert_eq!(got.err(), Some(Error::Checkpoint));
@@ -591,7 +591,7 @@ fn a_checkpoint_name_that_is_a_link_to_a_file_outside_is_refused() {
 fn a_number_written_into_a_date_formatted_cell_holds_that_number() {
     let scratch = Scratch::new("prepare-date-cell");
     fs::copy(corpus("formats.xlsx"), scratch.path("formats.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let c2 = Range::parse("C2").expect("a range");
     let prepared = folder
         .prepare(
@@ -611,7 +611,7 @@ fn a_number_written_into_a_date_formatted_cell_holds_that_number() {
 fn a_text_of_more_than_1024_bytes_is_written_whole() {
     let scratch = Scratch::new("prepare-long-text");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let f2 = Range::parse("F2").expect("a range");
     let long = "Water meter reading, ".repeat(250);
     assert!(long.len() > 5_000);
@@ -636,7 +636,7 @@ fn a_workbook_that_the_person_cannot_write_is_refused_before_any_write() {
     let workbook = scratch.path("values.xlsx");
     fs::copy(corpus("values.xlsx"), &workbook).expect("copy");
     set_read_only(&workbook, true);
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0));
     let names = scratch.names("");
@@ -654,7 +654,7 @@ fn the_checkpoint_and_the_copy_get_the_workbooks_permission_bits() {
     let scratch = Scratch::new("prepare-mode");
     let workbook = scratch.path("values.xlsx");
     fs::copy(corpus("values.xlsx"), &workbook).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let runs = [
         "a0000000000000000000000000000640",
@@ -694,7 +694,7 @@ fn the_checkpoint_and_the_copy_get_the_workbooks_permission_bits() {
 fn the_checkpoint_and_the_copy_of_a_writable_workbook_are_writable() {
     let scratch = Scratch::new("prepare-mode");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let prepared = folder
         .prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(77.0))
@@ -716,7 +716,7 @@ fn two_threads_of_one_run_or_of_two_leave_the_original_or_a_checked_copy() {
             let scratch = Scratch::new("prepare-threads");
             fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
             let original = fs::read(scratch.path("values.xlsx")).expect("read");
-            let folder = Folder::new(&scratch.dir).expect("the folder opens");
+            let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
             let b5 = Range::parse("B5").expect("a range");
             let barrier = std::sync::Barrier::new(2);
             let checked: Vec<Option<Vec<u8>>> = std::thread::scope(|s| {
@@ -761,7 +761,7 @@ fn two_threads_of_one_run_or_of_two_leave_the_original_or_a_checked_copy() {
 fn a_drop_of_the_call_that_made_the_checkpoint_beside_another_calls_replace_never_takes_it() {
     let scratch = Scratch::new("prepare-drop-race");
     let source = fs::read(corpus("values.xlsx")).expect("read");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     for round in 0..50 {
         let name = format!("round{round}.xlsx");
@@ -815,7 +815,7 @@ fn prepare_gives_the_checkpoints_sha256_length_and_name() {
     let scratch = Scratch::new("prepare-made");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
     let source = fs::read(scratch.path("values.xlsx")).expect("read");
-    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let folder = Folder::new(&scratch.dir, common::locks()).expect("the folder opens");
     let name = checkpoint_name("values.xlsx");
     let mut seen = Vec::new();
     for cell in ["B5", "C7"] {
