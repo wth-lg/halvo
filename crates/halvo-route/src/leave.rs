@@ -555,77 +555,45 @@ mod tests {
                 assert!(!text.contains(&field), "{name} names the private field");
             }
         }
-        let leave = &files[names
-            .iter()
-            .position(|name| *name == "leave.rs")
-            .expect("leave.rs")]
-        .1;
-        let mark = "\n#[cfg(test)]\nmod tests {";
+        assert!(text_of(&files, "lib.rs").starts_with("#![forbid(unsafe_code)]\n"));
+        let leave = text_of(&files, "leave.rs");
+        let mark = "\n#[cfg(test)]\nmod tests {\n";
         assert_eq!(leave.matches(mark).count(), 1);
-        let code: Vec<&str> = leave
-            .split(mark)
-            .next()
-            .expect("the code above the tests")
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .collect();
-        for line in &code {
-            assert!(!words(line).any(|word| word == "mod"), "a module: {line}");
+        let end = leave.find(mark).expect("the test module") + mark.len();
+        assert_eq!(
+            sha256_hex(&leave.as_bytes()[..end]),
+            LEAVE_ABOVE_TESTS_SHA256,
+            "leave.rs changed above its test module: write the new hash in the same commit"
+        );
+        let after: Vec<&str> = leave[end..].lines().collect();
+        assert_eq!(after.last(), Some(&"}"));
+        for line in &after[..after.len() - 1] {
+            assert!(
+                line.is_empty() || line.starts_with(' '),
+                "an item after the tests: {line}"
+            );
         }
-        let named: usize = code
+    }
+
+    const LEAVE_ABOVE_TESTS_SHA256: &str =
+        "8ad7694237c1fbe9fdfa816e1049db0ff657fd647b9038a30e4a4292b676eea3";
+
+    fn text_of<'a>(files: &'a [(String, String)], wanted: &str) -> &'a str {
+        let at = files.iter().position(|(name, _)| name == wanted);
+        files[at.expect("a source file")].1.as_str()
+    }
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+        Sha256::digest(bytes)
             .iter()
-            .map(|line| words(line).filter(|word| *word == field).count())
-            .sum();
-        assert_eq!(named, 2);
-        let joined = code.join("\n");
-        let body = joined
-            .split("\npub fn grant(")
-            .nth(1)
-            .and_then(|rest| rest.split("\n}\n").next())
-            .expect("the body of grant");
-        assert_eq!(
-            body.matches(&format!("LeaveGrant {{ {field}: Seal }}"))
-                .count(),
-            1
-        );
-        assert_eq!(
-            attributes_above(&code, "pub struct LeaveGrant {"),
-            ["#[derive(Debug)]"]
-        );
-        let declared = format!("    {field}: Seal,");
-        assert!(code.iter().any(|line| *line == declared));
-        assert!(attributes_above(&code, "struct Seal;").is_empty());
-        let impls: Vec<&str> = code
-            .iter()
-            .filter(|line| words(line).any(|word| word == "impl"))
-            .filter(|line| words(line).any(|word| word == "Seal"))
-            .copied()
-            .collect();
-        assert_eq!(impls, ["impl fmt::Debug for Seal {"]);
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
     }
 
     #[test]
     fn leave_grant_is_of_no_size() {
         assert_eq!(std::mem::size_of::<LeaveGrant>(), 0);
-    }
-
-    fn attributes_above<'a>(code: &[&'a str], item: &str) -> Vec<&'a str> {
-        assert_eq!(
-            code.iter().filter(|line| **line == item).count(),
-            1,
-            "{item}"
-        );
-        let at = code
-            .iter()
-            .position(|line| *line == item)
-            .expect("the item");
-        code[..at]
-            .iter()
-            .rev()
-            .take_while(|line| **line != "}" && !line.ends_with(';'))
-            .filter(|line| !line.trim().is_empty())
-            .copied()
-            .collect()
     }
 
     fn crate_sources() -> Vec<(String, String)> {
