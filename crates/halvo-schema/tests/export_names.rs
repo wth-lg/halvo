@@ -73,10 +73,7 @@ fn export_names_writes_the_names_of_the_locked_lists_sorted_once_each_on_two_run
         && n.bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')));
     assert!(written[0].ends_with('\n') && !written[0].contains('\r'));
-    assert_eq!(
-        &lines[..3],
-        ["accessibility_text", "active", "address_field"]
-    );
+    assert_eq!(&lines[..3], ["accessibility_text", "active", "adapter"]);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

@@ -1,5 +1,7 @@
 use crate::ids::name_enum;
 
+pub(crate) struct Key(());
+
 /// The names that this module writes in a record or a request: the 11 category ids.
 pub const NAMES: &[&str] = &[
     "utility_bill_payment",
