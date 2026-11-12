@@ -13,7 +13,16 @@ use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy,
 /// let _ = EffectMove::Propose(own);
 /// ```
 ///
-/// Its twin, which takes the `Decided` from `decide` and compiles:
+/// Nor through the constructor of the crate's own test build:
+///
+/// ```compile_fail
+/// use halvo_policy::{Decided, Decision, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// let own = Decided::free(ActionClass::Payment, Decision::Run);
+/// let _ = EffectMove::Propose(own);
+/// ```
+///
+/// Their twin, which takes the `Decided` from `decide` and compiles:
 ///
 /// ```
 /// use halvo_policy::{decide, Checkpoint, Decided, Decision, EffectMove};
