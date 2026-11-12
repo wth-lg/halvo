@@ -7,8 +7,14 @@ address_field
 after
 afternoon
 agent
+agent_bindings
+agent_checkpoint
 agent_config
+agent_effect
+agent_log
+agent_playbook
 agent_run
+agent_session
 allow
 analysis
 analysis_write

@@ -35,12 +35,18 @@ pub use text::{ApprovalId, Digest, EffectId, Name, OwnText, OwnValue, RunId, Web
 
 pub use ::halvo_schema_core::executable::{ERROR_NAMES, KINDS};
 
-/// The keys and closed-list names that this run's records, bodies and replies write, the names of its two kinds and
-/// its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and
+/// The keys and closed-list names that this run's records, bodies and replies write, the names of its eight kinds
+/// and its family. Left out: `tier`, `amount`, `period`, `week` and `month`, which the billing run's wire holds, and
 /// `role`, which the names file never holds.
 pub const NAMES: &[&str] = &[
     "agent_config",
     "agent_run",
+    "agent_playbook",
+    "agent_bindings",
+    "agent_effect",
+    "agent_log",
+    "agent_session",
+    "agent_checkpoint",
     "agent",
     "v",
     "workflow",

@@ -26,7 +26,7 @@ const CLASSES: [(&str, RetentionClass); 6] = [
     ("agent_checkpoint", RetentionClass::Bounded { days: 93 }),
 ];
 
-const KIND_NAMES_THAT_NAMES_LACKS: [&str; 6] = OWN;
+const LEFT_OUT: [&str; 6] = ["tier", "amount", "period", "week", "month", "role"];
 
 fn entry(name: &str) -> &'static KindEntry {
     executable::KINDS
@@ -242,13 +242,32 @@ fn a_piece_of_own_text_longer_than_1024_bytes_is_refused() {
 }
 
 #[test]
-fn the_names_list_of_the_file_lacks_exactly_the_six_kind_names_of_origin_own() {
-    let lacking: Vec<&str> = executable::KINDS
-        .iter()
-        .map(|k| k.name)
-        .filter(|name| !executable::NAMES.contains(name))
+fn every_kind_name_family_and_field_key_of_kinds_stands_in_names_and_names_holds_no_other_kind() {
+    let mut wanted = BTreeSet::new();
+    for kind in executable::KINDS {
+        wanted.insert(kind.name);
+        wanted.insert(kind.family);
+        wanted.extend(kind.fields.iter().map(|(key, _)| *key));
+    }
+    let lacking: Vec<&str> = wanted
+        .into_iter()
+        .filter(|name| !LEFT_OUT.contains(name) && !executable::NAMES.contains(name))
         .collect();
-    assert_eq!(lacking, KIND_NAMES_THAT_NAMES_LACKS);
+    assert_eq!(lacking, Vec::<&str>::new());
+    for name in LEFT_OUT {
+        assert!(!executable::NAMES.contains(&name), "{name}");
+    }
+    let kinds: BTreeSet<&str> = executable::KINDS.iter().map(|k| k.name).collect();
+    let prefixes: BTreeSet<String> = executable::KINDS
+        .iter()
+        .map(|k| format!("{}_", k.family))
+        .collect();
+    let named: BTreeSet<&str> = executable::NAMES
+        .iter()
+        .copied()
+        .filter(|name| prefixes.iter().any(|p| name.starts_with(p.as_str())))
+        .collect();
+    assert_eq!(named, kinds);
 }
 
 fn own_dir() -> PathBuf {

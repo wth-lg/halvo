@@ -1141,13 +1141,11 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         }
     }
     let mut derived: BTreeSet<String> = keys;
-    let lists: Vec<&[&str]> = vec![
-        &["agent_config", "agent_run", "agent"],
-        &["yes", "no", "reply_body"],
-    ];
-    for list in lists {
-        derived.extend(list.iter().map(|s| (*s).to_owned()));
+    for kind in executable::KINDS {
+        derived.insert(kind.name.to_owned());
+        derived.insert(kind.family.to_owned());
     }
+    derived.extend(["yes", "no", "reply_body"].map(str::to_owned));
     macro_rules! all {
         ($($t:ty),+) => {
             $( derived.extend(<$t>::ALL.iter().map(|v| v.as_str().to_owned())); )+
