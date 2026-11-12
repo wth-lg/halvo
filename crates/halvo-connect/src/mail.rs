@@ -113,7 +113,14 @@ impl Message {
     }
 }
 
-/// The kept list `messages` of A11.2. Only `mail_list` makes one, and `mail_draft_reply` takes it whole.
+/// The kept list `messages` of A11.2. Only `mail_list` makes one, and `mail_draft_reply` takes it whole. It has no
+/// `Clone`, so that one list is drafted once:
+///
+/// ```compile_fail
+/// fn copy(messages: &halvo_connect::Messages) -> halvo_connect::Messages {
+///     messages.clone()
+/// }
+/// ```
 pub struct Messages(Vec<Message>);
 
 impl Messages {
@@ -165,7 +172,14 @@ impl Draft {
     }
 }
 
-/// The kept list `drafts` of A11.2. Only `mail_draft_reply` makes one.
+/// The kept list `drafts` of A11.2. Only `mail_draft_reply` makes one. It has no `Clone`, so that one list gives
+/// its handles once:
+///
+/// ```compile_fail
+/// fn copy(drafts: &halvo_connect::Drafts) -> halvo_connect::Drafts {
+///     drafts.clone()
+/// }
+/// ```
 pub struct Drafts(Vec<Draft>);
 
 impl Drafts {
@@ -191,7 +205,25 @@ impl Drafts {
 }
 
 /// The handle of one draft of `drafts` for one `mail_send`. It has no `Clone` and no constructor outside this
-/// crate.
+/// crate:
+///
+/// ```compile_fail
+/// fn copy(handle: &halvo_connect::DraftToSend) -> halvo_connect::DraftToSend {
+///     handle.clone()
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn make(item: &halvo_connect::Draft) -> halvo_connect::DraftToSend {
+///     halvo_connect::DraftToSend(item.clone())
+/// }
+/// ```
+///
+/// ```
+/// fn look(handle: &halvo_connect::DraftToSend) -> &halvo_connect::Draft {
+///     handle.draft()
+/// }
+/// ```
 pub struct DraftToSend(Draft);
 
 impl DraftToSend {

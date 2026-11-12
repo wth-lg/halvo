@@ -77,7 +77,14 @@ impl Event {
     }
 }
 
-/// The kept list `events` of A11.2. Only `calendar_list` makes one.
+/// The kept list `events` of A11.2. Only `calendar_list` makes one. It has no `Clone`, so that one list gives its
+/// handles once:
+///
+/// ```compile_fail
+/// fn copy(events: &halvo_connect::Events) -> halvo_connect::Events {
+///     events.clone()
+/// }
+/// ```
 pub struct Events(Vec<Event>);
 
 impl Events {
@@ -103,7 +110,25 @@ impl Events {
 }
 
 /// The handle of one event of `events` for one `calendar_delete`. It has no `Clone` and no constructor outside
-/// this crate.
+/// this crate:
+///
+/// ```compile_fail
+/// fn copy(handle: &halvo_connect::EventToDelete) -> halvo_connect::EventToDelete {
+///     handle.clone()
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn make(item: &halvo_connect::Event) -> halvo_connect::EventToDelete {
+///     halvo_connect::EventToDelete(item.clone())
+/// }
+/// ```
+///
+/// ```
+/// fn look(handle: &halvo_connect::EventToDelete) -> &halvo_connect::Event {
+///     handle.event()
+/// }
+/// ```
 pub struct EventToDelete(Event);
 
 impl EventToDelete {
