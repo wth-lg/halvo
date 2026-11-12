@@ -269,6 +269,7 @@ impl Db {
     }
 
     fn refuse_a_live_holder(store_dir: &Path) -> StoreResult<()> {
+        halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
         let path = Self::path(store_dir);
         let probe = match Connection::open_with_flags(
             &path,
@@ -305,6 +306,7 @@ impl Db {
         if database == Database::Existing {
             Self::require_file(store_dir)?;
         }
+        halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
         let path = Self::path(store_dir);
         if database == Database::New {
             OsFs.create_new(&path).map_err(io_error)?;

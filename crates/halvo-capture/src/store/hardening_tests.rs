@@ -247,6 +247,84 @@ fn a_held_store_answers_locked_before_its_custody_is_called() {
 }
 
 #[test]
+fn first_opens_for_parent() {
+    let Ok(out) = std::env::var("HALVO_TEST_FIRST_OPENS_OUT") else {
+        println!("first_opens_for_parent: HALVO_TEST_FIRST_OPENS_OUT is not set, so no parent asked for opens");
+        return;
+    };
+    const THREADS: usize = 8;
+    let barrier = Arc::new(std::sync::Barrier::new(THREADS));
+    let dirs: Vec<_> = (0..THREADS).map(|_| tempfile::tempdir().unwrap()).collect();
+    let opens: Vec<_> = dirs
+        .iter()
+        .map(|dir| {
+            let (barrier, dir) = (Arc::clone(&barrier), dir.path().to_path_buf());
+            std::thread::spawn(move || {
+                barrier.wait();
+                super::db::Db::open(&dir, &[7u8; 32]).map(drop)
+            })
+        })
+        .collect();
+    let failed: Vec<String> = opens
+        .into_iter()
+        .filter_map(|open| open.join().unwrap().err())
+        .map(|e| format!("{e:?}"))
+        .collect();
+    std::fs::write(
+        out,
+        format!(
+            "{}\n{}",
+            failed.len(),
+            failed.first().cloned().unwrap_or_default()
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn first_opens_from_several_threads_at_once_all_succeed() {
+    let launches: usize = std::env::var("HALVO_TEST_FIRST_OPENS_LAUNCHES")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(20);
+    let dir = tempfile::tempdir().unwrap();
+    let (mut failed_launches, mut failed_opens) = (0, 0);
+    let mut errors = std::collections::BTreeSet::new();
+    for launch in 0..launches {
+        let out = dir.path().join(format!("launch-{launch}"));
+        let status = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "store::hardening_tests::first_opens_for_parent",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("HALVO_TEST_FIRST_OPENS_OUT", &out)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+        let text = std::fs::read_to_string(&out)
+            .unwrap_or_else(|_| format!("8\nthe child wrote nothing and exited {status}"));
+        let mut lines = text.lines();
+        let failed: usize = lines.next().unwrap_or("8").parse().unwrap_or(8);
+        if failed > 0 {
+            failed_launches += 1;
+            failed_opens += failed;
+            errors.insert(lines.next().unwrap_or_default().to_string());
+        }
+    }
+    println!(
+        "launches={launches} opens_per_launch=8 launches_with_a_failed_open={failed_launches} \
+         failed_opens={failed_opens} errors={errors:?}"
+    );
+    assert_eq!(
+        failed_opens, 0,
+        "{failed_opens} first opens failed in {failed_launches} of {launches} launches: {errors:?}"
+    );
+}
+
+#[test]
 fn hold_store_for_parent() {
     let Ok(dir) = std::env::var("HALVO_TEST_HOLD_STORE") else {
         println!("hold_store_for_parent: HALVO_TEST_HOLD_STORE is not set, so no parent asked for a holder");

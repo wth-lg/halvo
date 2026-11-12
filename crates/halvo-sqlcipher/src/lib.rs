@@ -3,8 +3,21 @@
 //! takes rusqlite from here, so one manifest holds the pin and the binding.
 
 use std::ffi::c_int;
+use std::sync::OnceLock;
 
 pub use rusqlite;
+
+/// Initialize SQLite and SQLCipher once for the process, and return the
+/// result code of that one call. A thread that calls it while the first call
+/// runs waits until the first call has returned, so no connection is opened
+/// while SQLCipher is still starting. Call it before the first connection.
+pub fn initialize() -> Result<(), c_int> {
+    static INITIALIZED: OnceLock<c_int> = OnceLock::new();
+    match *INITIALIZED.get_or_init(|| unsafe { rusqlite::ffi::sqlite3_initialize() }) {
+        rusqlite::ffi::SQLITE_OK => Ok(()),
+        code => Err(code),
+    }
+}
 
 extern "C" {
     fn halvo_sqlcipher_os_entropy_hook_installed() -> c_int;
