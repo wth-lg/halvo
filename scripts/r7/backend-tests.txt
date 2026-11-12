@@ -52,6 +52,7 @@ test/metering/engines.test.ts	3
 test/metering/interval-bound.node.test.ts	1
 test/metering/limits.node.test.ts	2
 test/metering/review.node.test.ts	6
+test/metering/stamp.node.test.ts	11
 test/metering/stripe-meter-load.node.test.ts	2
 test/metering/stripe-meter.node.test.ts	31
 test/metering/sync.node.test.ts	21

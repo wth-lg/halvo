@@ -354,7 +354,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
         amount,
         carryOut,
         `${a.accountId}:${seconds(interval.start)}`,
-        seconds(interval.end - 1),
+        Math.max(seconds(interval.start), seconds(interval.end - 1)),
         now,
         interval.start,
       );
