@@ -69,6 +69,27 @@ fn probe_support() -> Result<CaptureSupport, CaptureError> {
     })
 }
 
+/// Take one reference on the process's multithreaded apartment before the
+/// first capture session and never release it, so that COM keeps loaded what a
+/// session that ended still has a callback in when a window of the process is
+/// destroyed after the last session (RR-windows-04; spike S4, variant mta-ref).
+fn hold_process_mta() -> Result<(), CaptureError> {
+    static HELD: Mutex<bool> = Mutex::new(false);
+    let mut held = HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if *held {
+        return Ok(());
+    }
+    // SAFETY: CoIncrementMTAUsage takes no pointer of ours; the cookie that it
+    // returns is never passed to CoDecrementMTAUsage, so the reference lasts
+    // for the life of the process.
+    unsafe { windows::Win32::System::Com::CoIncrementMTAUsage() }
+        .map_err(|e| super::os_error("CoIncrementMTAUsage", &e))?;
+    *held = true;
+    Ok(())
+}
+
 /// Choose the settings from what `probe` answers, asked once.
 pub(crate) fn choose_settings(
     probe: impl FnOnce() -> Result<CaptureSupport, CaptureError>,
@@ -241,6 +262,7 @@ impl CaptureSource for ScreenSource {
         if self.control.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
+        hold_process_mta()?;
         let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;
         let handoff = HandOff::start(ctx.sink().clone(), "halvo-screen-forward")?;
@@ -498,6 +520,24 @@ mod tests {
             screen_state(None, false, false, false),
             SourceState::NotReported
         );
+    }
+
+    #[test]
+    fn the_process_mta_reference_is_taken_once_and_holds_an_mta_for_a_new_thread() {
+        use windows::Win32::System::Com::{
+            CoGetApartmentType, APTTYPE, APTTYPEQUALIFIER, APTTYPE_MTA,
+        };
+        assert_eq!(hold_process_mta(), Ok(()));
+        assert_eq!(hold_process_mta(), Ok(()));
+        let apartment = std::thread::spawn(|| {
+            let mut kind = APTTYPE::default();
+            let mut qualifier = APTTYPEQUALIFIER::default();
+            // SAFETY: both pointers are live locals that the call writes.
+            unsafe { CoGetApartmentType(&mut kind, &mut qualifier) }.map(|()| kind)
+        })
+        .join()
+        .expect("the probe thread");
+        assert_eq!(apartment, Ok(APTTYPE_MTA));
     }
 
     #[test]
