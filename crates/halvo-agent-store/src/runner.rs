@@ -22,7 +22,10 @@ use crate::{bind, effect, end};
 /// bound of A7.1 `length`. Every body is refused with `binding` unless the agent's configuration is stored and the
 /// agent is its workflow's, and a body whose record names another workflow is refused with `binding`. A run belongs
 /// to the agent whose effect row, log line or `agent_run` record first names it: `effect`, `log` and `finish` are
-/// refused with `binding` for a run of which a stored row names another agent. Then:
+/// refused with `binding` for a run of which a stored row names another agent. Once the run's `agent_run` record is
+/// stored, by `finish` or `end_run`, every body that names the run is refused with `effect`, but for the repeat
+/// of the run's own `finish` and an `effect` row equal to the effect's last row, which are answered as the first.
+/// Then:
 ///
 /// - `load`: the stored configuration; the newest playbook number with its count of stored steps; the newest
 ///   revision of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of`
@@ -39,8 +42,7 @@ use crate::{bind, effect, end};
 /// - `log`: stores each record that is not stored and answers the count of the body's records.
 /// - `effect`: `binding` where a stored row of the effect id names another workflow, agent or run. A row equal to
 ///   the effect's last row by seq in its state, digest and approval is answered as the first, `{"stored":1}`, and
-///   stores nothing. Else `effect` for every row of a run whose `agent_run` record is stored, and for every row
-///   that A5.2 does not allow. A first row has seq 1 and the state that
+///   stores nothing. Else `effect` for every row of an ended run, and for every row that A5.2 does not allow. A first row has seq 1 and the state that
 ///   `effect_step` gives for `propose` with `decide` for the agent's stored configuration and the row's class, with
 ///   the checkpoint `yes` for a `cleared` row and `no` for any other. A later row has the next seq and the effect's
 ///   class, and its state names the move: `held` a `rebind` with the row's digest and class; `approved` an
@@ -90,6 +92,7 @@ fn own_sessions(host: &dyn Host, agent: &AgentId) -> Result<Vec<AgentSession>, E
 
 fn load(host: &dyn Host, b: &Load) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(host, &b.agent)?;
+    bind::open_run(host, &b.run)?;
     let steps = own_steps(host, &b.agent)?;
     let playbook = match steps.iter().map(|p| p.number).max() {
         None => None,
@@ -153,6 +156,7 @@ fn complete(parts: &[&AgentSession]) -> Option<NonZeroU32> {
 
 fn load_steps(host: &dyn Host, b: &LoadSteps) -> Result<RunnerReply, ErrorName> {
     bind::runner_agent(host, &b.agent)?;
+    bind::open_run(host, &b.run)?;
     let mut steps: Vec<AgentPlaybook> = own_steps(host, &b.agent)?
         .into_iter()
         .filter(|p| p.number == b.number)
@@ -174,6 +178,7 @@ fn load_steps(host: &dyn Host, b: &LoadSteps) -> Result<RunnerReply, ErrorName> 
 
 fn load_session(host: &dyn Host, b: &LoadSession) -> Result<RunnerReply, ErrorName> {
     bind::runner_agent(host, &b.agent)?;
+    bind::open_run(host, &b.run)?;
     let row = own_sessions(host, &b.agent)?
         .into_iter()
         .find(|s| s.origin == b.origin && s.rev == b.rev && s.part == b.part)
@@ -189,6 +194,7 @@ fn load_session(host: &dyn Host, b: &LoadSession) -> Result<RunnerReply, ErrorNa
 
 fn put_playbook(host: &mut dyn Host, b: &PutPlaybook) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(&*host, &b.agent)?;
+    bind::open_run(&*host, &b.run)?;
     let held = own_steps(&*host, &b.agent)?;
     let newest = held.iter().map(|p| p.number.get()).max().unwrap_or(0);
     if b.number.get() != newest && Some(b.number.get()) != newest.checked_add(1) {
@@ -238,6 +244,7 @@ fn put_playbook(host: &mut dyn Host, b: &PutPlaybook) -> Result<RunnerReply, Err
 
 fn put_session(host: &mut dyn Host, now: Now, b: &PutSession) -> Result<RunnerReply, ErrorName> {
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
+    bind::open_run(&*host, &b.run)?;
     let held = own_sessions(&*host, &b.agent)?;
     match held
         .iter()
@@ -269,6 +276,7 @@ fn put_log(host: &mut dyn Host, b: &PutLog) -> Result<RunnerReply, ErrorName> {
         return Err(Own::Binding.into());
     }
     bind::own_run(&*host, &b.run, &b.agent)?;
+    bind::open_run(&*host, &b.run)?;
     let mut held = rows::logs(host.rows())?;
     let mut new = Vec::new();
     for line in &b.records {

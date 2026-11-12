@@ -30,9 +30,7 @@ pub(crate) fn put(host: &mut dyn Host, b: &PutEffect) -> Result<RunnerReply, Err
     }) {
         return Ok(stored());
     }
-    if rows::runs(host.rows())?.iter().any(|r| r.run == row.run) {
-        return Err(Own::Effect.into());
-    }
+    bind::open_run(&*host, &row.run)?;
     match mine.split_first() {
         None => first(&config, row)?,
         Some((first_row, _)) => later(&all, &mine, first_row, row)?,

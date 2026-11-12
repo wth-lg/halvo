@@ -31,6 +31,13 @@ pub(crate) fn runner_agent(
     Ok((config, workflow))
 }
 
+pub(crate) fn open_run(host: &dyn Host, run: &RunId) -> Result<(), ErrorName> {
+    if rows::runs(host.rows())?.iter().any(|r| &r.run == run) {
+        return Err(Own::Effect.into());
+    }
+    Ok(())
+}
+
 pub(crate) fn own_run(host: &dyn Host, run: &RunId, agent: &AgentId) -> Result<(), ErrorName> {
     let rows = host.rows();
     let another = rows::effects(rows)?
