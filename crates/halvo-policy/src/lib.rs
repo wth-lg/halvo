@@ -4,6 +4,7 @@
 //! digest of a bound object, the admission of its fields, the presets of the seed categories with their
 //! validation, and the limits. No function reads a file, a clock or the network.
 
+mod admit;
 mod class;
 mod config;
 mod decide;
@@ -14,6 +15,7 @@ mod limits;
 #[cfg(test)]
 mod step_traces;
 
+pub use admit::{admit, Facts, Provenance};
 pub use class::{check_playbook, class_of, ClassDiffers};
 pub use config::{preset, validate, ConfigCause};
 pub use decide::{decide, decide_row, Checkpoint, Decided, Decision};
