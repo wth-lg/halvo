@@ -20,7 +20,7 @@ row grammar is in scripts/r1-gate/README.md.
       --strict also fails on a pending or transitional row, on a row for the
       measuring Mac that did not run, and on a name of mutants.expected that no
       row file holds or retires.
-      --only runs the named rows in the order given.
+      --only runs the named rows in the order given, each name once.
       --budget starts no row once SECONDS have passed since the first row
       started, lets a running row end, prints NOT-RUN mutation:<name> (the
       budget of SECONDS s is used) for each row that it did not start, and
@@ -168,7 +168,10 @@ run_rows() {
   built_unmutated=no
   if [ -n "$only" ]; then
     : > "$work/rows.loop"
+    only_seen=' '
     for only_name in $only; do
+      case $only_seen in *" $only_name "*) continue ;; esac
+      only_seen="$only_seen$only_name "
       awk -F '\t' -v n="$only_name" '$3 == n' "$table" >> "$work/rows.loop" || return 2
     done
     awk -F '\t' -v only=" $only " 'index(only, " " $3 " ") == 0' "$table" >> "$work/rows.loop" || return 2
@@ -378,6 +381,11 @@ fixture_in_order() {
   return 1
 }
 
+fixture_once() {
+  out=$(fixture_run "$1" yes)
+  printf '%s\n' "$out" | awk -v line="$2" 'index($0, line) == 1 { n++ } END { exit n != 1 }'
+}
+
 limit_status_is() {
   limit_want=$1; shift
   limited "$@"
@@ -454,6 +462,9 @@ cases() {
   t budget-used-starts-no-row PASS with_budget 0 with_only 'second first' fixture_says ordered 'NOT-RUN mutation:first (the budget of 0 s is used)' yes
   t budget-times-the-row-it-ran PASS with_budget 0 with_only 'second first' fixture_in_order ordered 'PASS mutation:second' 'seconds mutation:second '
   t budget-not-used-leaves-no-row-out FAIL with_budget 600 fixture_says ordered 'NOT-RUN mutation:' yes
+  t only-runs-a-name-given-twice-once PASS with_only 'second second first' fixture_once ordered 'PASS mutation:second'
+  t only-runs-a-name-given-once-once PASS with_only 'first' fixture_once ordered 'PASS mutation:first'
+  t only-skips-a-name-not-given FAIL with_only 'first' fixture_once ordered 'PASS mutation:second'
   t budget-not-a-number-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --budget 4x
   t unknown-argument-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --no-such-flag
   t limit-status-of-a-hang-is-124 PASS limit_status_is 124 1 sleep 5

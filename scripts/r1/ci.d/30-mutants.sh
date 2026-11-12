@@ -49,7 +49,8 @@ budget_run() {
   rows=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh --list --remove-scratch 2>&1) ||
     fail "mutation-test.sh --list exited $?"
   printf '%s\n' "$rows" >"$scratch/list" || exit 2
-  awk -F '\t' 'sub(/^mutation:/, "", $1) { print $1 }' "$scratch/list" >"$scratch/names" || exit 2
+  awk -F '\t' 'sub(/^mutation:/, "", $1) { print $1 }' "$scratch/list" >"$scratch/listed" || exit 2
+  sort -u -o "$scratch/names" "$scratch/listed" || exit 2
   mkdir "$scratch/order" || exit 2
   m=0
   while IFS= read -r row; do
@@ -163,6 +164,7 @@ self_test() {
   commit2=2222222222222222222222222222222222222222
   commit3=3333333333333333333333333333333333333333
   listing='case ${1:-} in --list) printf "mutation:%s\\trequired\\tleak\\trows\\n" shredded-key-survives checkpoint-not-verified key-row-deleted segment-roundtrip-broken delete-all-destroys-nothing; exit 0 ;; esac'
+  twice='case ${1:-} in --list) printf "mutation:%s\\trequired\\tleak\\trows\\n" shredded-key-survives checkpoint-not-verified key-row-deleted segment-roundtrip-broken delete-all-destroys-nothing; printf "mutation:shredded-key-survives\\ttransitional\\tleak\\tother\\n"; exit 0 ;; esac'
   lists="call --apply-only --remove-scratch${nl}call --list --remove-scratch"
   budgeted="$lists${nl}call --remove-scratch --budget 240"
   order1="$budgeted --only segment-roundtrip-broken --only delete-all-destroys-nothing --only shredded-key-survives --only checkpoint-not-verified --only key-row-deleted"
@@ -219,6 +221,9 @@ self_test() {
   ref=refs/heads/main
   sha=$commit3
   check push-to-main-third-commit-other-rows PASS 'ran 1 of 5 rows' "$order3"
+  runner push-to-main-name-in-two-row-files "$applies; $twice; printf \"$caught\\n$counted\\n\""
+  ref=refs/heads/main
+  check push-to-main-name-in-two-row-files PASS 'ran 1 of 5 rows' "$order1"
   runner push-to-main-row-not-caught "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
   check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
