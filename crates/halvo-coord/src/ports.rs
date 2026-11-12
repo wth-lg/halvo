@@ -3,8 +3,8 @@
 //! port and a port can call another while it runs, as `Runs::answer_confirm` calls `record`.
 
 use crate::types::{
-    Agent, AgentId, Answer, Body, ConfigView, Decision, Event, HandbackResult, Name, Reply,
-    RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
+    Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
@@ -67,6 +67,9 @@ pub trait Runs {
     ) -> Result<(), PortError>;
     /// Sends the result of a handback.
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError>;
+    /// Sends the answer of the second step of a `sign_in` item, with which the supervisor
+    /// library's call `Human::allow_origin` of the run returns (I3.1, I6.2).
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError>;
     /// Sends the frame `cancel`.
     fn cancel(&self, run: &RunId) -> Result<(), PortError>;
     /// Ends the runner's whole tree.

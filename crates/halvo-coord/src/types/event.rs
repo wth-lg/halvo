@@ -1,6 +1,6 @@
 use super::names::names;
 use super::{AgentId, AgentState, Choice, DecisionEntry, HoldSetCause, ItemId, ItemKind};
-use super::{LapseCause, Mode, Name, RunEnd, RunId, Trigger, WorkflowId};
+use super::{LapseCause, Mode, Name, Origin, RunEnd, RunId, Trigger, WorkflowId};
 use std::num::NonZeroU32;
 
 /// A record `coord_event` of I7.1: the first seven keys and the event with its own keys.
@@ -131,10 +131,10 @@ pub enum What {
 pub enum Answered {
     /// `confirm`: the entry of one effect, `effect`, `approval`, `digest` and `answer`.
     Confirm(DecisionEntry),
-    /// `sign_in`.
-    SignIn(DoneAnswer),
-    /// `link_account`.
-    LinkAccount(DoneAnswer),
+    /// `sign_in`: of its first step or of its second.
+    SignIn(SignInAnswer),
+    /// `link_account`, with the request's origin.
+    LinkAccount(LinkAnswer),
     /// `stuck`.
     Stuck(DoneAnswer),
     /// `check`.
@@ -166,7 +166,9 @@ impl Answered {
     pub const fn choice(&self) -> Option<Choice> {
         match self {
             Answered::Confirm(_) => None,
-            Answered::SignIn(a) | Answered::LinkAccount(a) | Answered::Stuck(a) => Some(a.choice()),
+            Answered::SignIn(SignInAnswer::First(a)) | Answered::Stuck(a) => Some(a.choice()),
+            Answered::SignIn(SignInAnswer::Second(a)) => Some(a.answer.choice()),
+            Answered::LinkAccount(a) => Some(a.answer.choice()),
             Answered::Show(a) => Some(a.choice()),
             Answered::Check(a) => Some(a.choice()),
             Answered::Setup(a) => Some(a.choice()),
@@ -181,6 +183,55 @@ names! {
         Decline = "decline",
         Done = "done",
     }
+}
+
+/// The answer of a `sign_in` item (I3.1, I7.1): of its first step, `decline` or `done`, or of
+/// its second, `decline` or `allow` with the key `origin`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SignInAnswer {
+    /// The first step.
+    First(DoneAnswer),
+    /// The second step.
+    Second(BindAnswer),
+}
+
+names! {
+    /// The two choices of the second step of a `sign_in` item, the safe one first, and the
+    /// answer that `Runs::answer_bind` gives the run (I3.1, I5.10).
+    BindResult {
+        Decline = "decline",
+        Allow = "allow",
+    }
+}
+
+impl BindResult {
+    /// The choice.
+    pub const fn choice(self) -> Choice {
+        match self {
+            BindResult::Decline => Choice::Decline,
+            BindResult::Allow => Choice::Allow,
+        }
+    }
+}
+
+/// The answer of the second step of a `sign_in` item with the key `origin`: the whole origin,
+/// whose site's name the step showed (I7.1, ruling IG-14).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BindAnswer {
+    /// `answer`: `decline` or `allow`.
+    pub answer: BindResult,
+    /// `origin`.
+    pub origin: Origin,
+}
+
+/// The answer of a `link_account` item with the key `origin`: the request's whole origin, whose
+/// site's name the item showed (I7.1, ruling IG-14).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinkAnswer {
+    /// `answer`: `decline` or `done`.
+    pub answer: DoneAnswer,
+    /// `origin`.
+    pub origin: Origin,
 }
 
 names! {

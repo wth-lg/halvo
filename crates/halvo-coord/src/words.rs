@@ -328,6 +328,17 @@ pub const KEYS: &[(&str, &str)] = &[
         "You have as many agents as Halvo can hold, so it cannot add one for a new task.",
     ),
     ("tray.needs", "Agents that need you: {count}"),
+    ("item.link_account.origin", "Site of your account"),
+    (
+        "item.sign_in.bind",
+        "This agent will now work on {origin}. Allow this site only if you know it.",
+    ),
+    ("choice.sign_in.bind_decline", "Don't allow this site"),
+    ("choice.sign_in.bind_allow", "Allow this site"),
+    (
+        "item.setup.not_taken",
+        "Halvo could not use those answers, so choose them again.",
+    ),
     (
         "line.waiting_turn.store",
         "It waits while Halvo wraps up the task it did before, and you need to do nothing.",

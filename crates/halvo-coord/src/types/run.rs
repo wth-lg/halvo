@@ -27,6 +27,9 @@ pub enum RunEvent {
     Confirm(ConfirmAsk),
     /// A handback request.
     Handback(HandbackAsk),
+    /// The second step of a `sign_in` item: the supervisor library's call
+    /// `Human::allow_origin` for an origin that the bindings do not hold (I3.1, I6.2).
+    Bind(BindAsk),
     /// A progress frame: the step and the count of steps.
     Progress(Progress),
     /// A request of a type that A-A6.2 does not list.
@@ -244,6 +247,18 @@ pub struct DecisionEntry {
     pub digest: Digest,
     /// `answer`.
     pub answer: EffectAnswer,
+}
+
+/// The request of the second step of a `sign_in` item (I5.10; the agent-setup run's CP-37): the
+/// origin that the runner read after the `done` of a sign-in and that the bindings do not hold.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BindAsk {
+    /// The run.
+    pub run: RunId,
+    /// The agent.
+    pub agent: AgentId,
+    /// The whole origin.
+    pub origin: Origin,
 }
 
 /// A handback request of A-A6.4.

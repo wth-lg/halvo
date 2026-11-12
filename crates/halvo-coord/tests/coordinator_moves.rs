@@ -83,7 +83,8 @@ fn handback(run: &RunId, n: usize, reason: HandbackReason) -> RunEvent {
         run: run.clone(),
         agent: agent(n),
         reason,
-        origin: None,
+        origin: (reason == HandbackReason::AccountLink)
+            .then(|| halvo_coord::types::Origin::parse("https://mail.site1.example:443").unwrap()),
     })
 }
 
@@ -704,4 +705,236 @@ fn a_runs_check_item_is_stored_as_the_check_of_that_run() {
         item,
         raised: halvo_coord::types::Raised::Check(Some(run)),
     }));
+}
+
+fn bind(run: &RunId, n: usize) -> RunEvent {
+    RunEvent::Bind(halvo_coord::types::BindAsk {
+        run: run.clone(),
+        agent: agent(n),
+        origin: halvo_coord::types::Origin::parse("https://pay.site1.example:443").unwrap(),
+    })
+}
+
+fn bind_answers(c: &Coordinator<Both>) -> Vec<(RunId, halvo_coord::types::BindResult)> {
+    c.ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::AnswerBind(run, result) => Some((run.clone(), *result)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_second_step_is_raised_answered_and_handed_to_the_runner_through_answer_bind() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    assert_eq!(c.on_run(&run, bind(&run, 0)), Ok(()));
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::SignIn);
+    let choices: Vec<Choice> = c.snapshot().items[0]
+        .choices()
+        .iter()
+        .map(|t| t.choice)
+        .collect();
+    assert_eq!(choices, [Choice::Decline, Choice::Allow]);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    assert_eq!(
+        bind_answers(&c),
+        [(run.clone(), halvo_coord::types::BindResult::Allow)]
+    );
+    assert!(c.snapshot().items.is_empty());
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.working.working"));
+    assert_eq!(
+        c.answer(&item, Choice::Allow, None),
+        Err(Cause::UnknownItem)
+    );
+}
+
+#[test]
+fn the_persons_stop_of_a_second_step_answers_decline_lapses_it_and_stops_the_run() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    let calls = calls_since(&c, m);
+    let decline = calls
+        .iter()
+        .position(|call| {
+            matches!(
+                call,
+                Call::AnswerBind(_, halvo_coord::types::BindResult::Decline)
+            )
+        })
+        .expect("decline first");
+    let cancel = calls
+        .iter()
+        .position(|call| matches!(call, Call::Cancel(r) if *r == run))
+        .expect("one cancel");
+    assert!(decline < cancel);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| matches!(call, Call::Cancel(_)))
+            .count(),
+        1
+    );
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::SignIn(OtherLapse::Cancelled)
+    }));
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.working.stopping"));
+}
+
+#[test]
+fn the_persons_stop_of_a_second_step_whose_row_is_stored_works_and_its_end_lapses_it() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerBind, PortError::NoService);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Err(Cause::NoService));
+    c.ports().ports.clear_refusals();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    let calls = calls_since(&c, m);
+    assert!(!calls
+        .iter()
+        .any(|call| matches!(call, Call::AnswerBind(..))));
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| matches!(call, Call::Cancel(_)))
+            .count(),
+        1
+    );
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.working.stopping"));
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::SignIn(OtherLapse::RunEnded)
+    }));
+}
+
+#[test]
+fn a_second_step_that_waited_wait_limit_lapses_at_a_tick_and_its_run_stops() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .set_clock(T0 + Limits::PRODUCT.wait_limit_s * 1000, DAY);
+    c.tick();
+    assert_eq!(
+        bind_answers(&c),
+        [(run.clone(), halvo_coord::types::BindResult::Decline)]
+    );
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::SignIn(OtherLapse::WaitLimit)
+    }));
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.working.stopping"));
+}
+
+#[test]
+fn the_quit_lapses_a_second_step_with_app_ended_once() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.quit_stop();
+    let lapses = events(&c)
+        .iter()
+        .filter(|w| matches!(w, What::ItemLapsed { item: i, .. } if *i == item))
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        lapses,
+        [What::ItemLapsed {
+            item,
+            lapsed: Lapsed::SignIn(OtherLapse::AppEnded)
+        }]
+    );
+}
+
+#[test]
+fn a_link_account_item_shows_its_origin_and_its_answer_stores_it() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::AccountLink))
+        .unwrap();
+    let s = c.snapshot();
+    assert_eq!(s.items.len(), 1);
+    assert_eq!(s.items[0].kind(), ItemKind::LinkAccount);
+    assert_eq!(s.items[0].fields().len(), 1, "the site of the account");
+    let item = s.items[0].item().clone();
+    assert_eq!(c.answer(&item, Choice::Done, None), Ok(()));
+    assert!(events(&c).iter().any(|w| matches!(
+        w,
+        What::ItemAnswered { item: i, answer: halvo_coord::types::Answered::LinkAccount(a) }
+            if *i == item && a.origin.as_str() == "https://mail.site1.example:443"
+    )));
+}
+
+#[test]
+fn a_confirm_request_for_an_effect_whose_newest_release_rejected_it_gets_no_card() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.on_screen(&item);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    assert_eq!(c.answer(&item, Choice::Reject, None), Ok(()));
+    let raised = |c: &Coordinator<Both>| {
+        events(c)
+            .iter()
+            .filter(|w| matches!(w, What::ItemRaised { .. }))
+            .count()
+    };
+    let before = raised(&c);
+    assert!(c.on_run(&run, ask_confirm(&run, 0)).is_err());
+    assert_eq!(raised(&c), before, "no card for the late request");
+    assert!(c.snapshot().items.is_empty());
+}
+
+#[test]
+fn an_agent_whose_setup_body_the_owner_refused_with_binding_is_unknown_agent() {
+    let (c, made, item) = setup_agent();
+    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
+        .unwrap();
+    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
+        .unwrap();
+    c.ports().ports.refuse(
+        Method::Send,
+        PortError::Refused(Name::parse("binding").unwrap()),
+    );
+    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    c.ports().ports.clear_refusals();
+    let m = mark(&c);
+    for action in [
+        Action::RunNow,
+        Action::SwitchOff,
+        Action::SwitchOn,
+        Action::Stop,
+    ] {
+        assert_eq!(c.control(&made, action), Err(Cause::UnknownAgent));
+    }
+    c.tick();
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Send(Body::SetBindings { .. }) | Call::Log(_))),
+        "nothing more is sent or stored for that agent"
+    );
+    assert!(c.snapshot().items.is_empty());
 }

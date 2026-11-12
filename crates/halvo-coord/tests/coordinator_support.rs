@@ -7,8 +7,8 @@ use halvo_coord::mem::policy::Policy;
 use halvo_coord::mem::{Call, Config, Ports};
 use halvo_coord::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
 use halvo_coord::types::{
-    Agent, AgentId, AgentState, Answer, Body, Class, Decision, Event, HandbackResult, Limits,
-    Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    Agent, AgentId, AgentState, Answer, BindResult, Body, Class, Decision, Event, HandbackResult,
+    Limits, Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 use halvo_coord::Coordinator;
 use std::cell::Cell;
@@ -86,6 +86,10 @@ impl Runs for Both {
 
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
         self.ports.answer_handback(run, result)
+    }
+
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        self.ports.answer_bind(run, result)
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {

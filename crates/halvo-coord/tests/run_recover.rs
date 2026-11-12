@@ -808,6 +808,14 @@ impl<P: Runs> Runs for Late<'_, P> {
         self.ports.answer_handback(run, result)
     }
 
+    fn answer_bind(
+        &self,
+        run: &RunId,
+        result: halvo_coord::types::BindResult,
+    ) -> Result<(), PortError> {
+        self.ports.answer_bind(run, result)
+    }
+
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         self.ports.cancel(run)
     }

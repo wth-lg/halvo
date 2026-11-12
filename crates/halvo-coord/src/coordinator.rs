@@ -1,8 +1,8 @@
 use crate::guard::{self, EffectRecord, Policy, Refusal, Table};
-use crate::items::drive::{self as items, Held, Ledger, SetupDone};
+use crate::items::drive::{self as items, Held, HeldBind, Ledger, SetupDone};
 use crate::items::{
-    compose_check, compose_plain, compose_setup, params, raise_step, ConfirmAnswer, ConfirmState,
-    Plain, Raise, Setup, SetupInput, SetupParam, Source,
+    compose_check, compose_link_account, compose_plain, params, raise_confirm, raise_step,
+    ConfirmAnswer, ConfirmState, Plain, Raise, Setup, SetupInput, SetupParam, Source,
 };
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::roster::{self, Placed};
@@ -11,8 +11,8 @@ use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
-    FullWorkflow, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse, OwnItemKind, Param,
-    Presenter, Row, RunEvent, RunId, RunItem, RunItemKind, Snapshot, Status,
+    FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
+    OwnItemKind, Param, Presenter, Row, RunEvent, RunId, RunItem, RunItemKind, Snapshot, Status,
 };
 use crate::words;
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -51,6 +51,8 @@ struct State<C> {
     table: Table,
     ledgers: Vec<(AgentId, Ledger)>,
     held: Vec<Held>,
+    binds: Vec<HeldBind>,
+    handbacks: Vec<(ItemId, HandbackAsk)>,
     setups: Vec<Setup>,
     forgotten: Vec<AgentId>,
     quitting: bool,
@@ -118,6 +120,8 @@ where
                 table: Table::new(),
                 ledgers: Vec::new(),
                 held: Vec::new(),
+                binds: Vec::new(),
+                handbacks: Vec::new(),
                 setups: Vec::new(),
                 forgotten: Vec::new(),
                 quitting: false,
@@ -166,6 +170,8 @@ where
             forgotten,
             ledgers,
             held,
+            binds,
+            handbacks,
             setups,
             ..
         } = st;
@@ -181,6 +187,8 @@ where
                 let agent = &m.facts.agent;
                 forgotten.push(agent.clone());
                 held.retain(|h| h.ask().agent() != agent);
+                binds.retain(|b| &b.ask().agent != agent);
+                handbacks.retain(|(_, a)| &a.agent != agent);
                 setups.retain(|s| s.agent() != agent);
                 for (a, l) in ledgers.iter_mut() {
                     if a == agent {
@@ -192,6 +200,7 @@ where
         self.open_setups(st);
         self.tick_setups(st);
         self.tick_confirms(st);
+        self.tick_binds(st);
     }
 
     fn open_setups(&self, st: &mut State<Cfg<P>>) {
@@ -227,10 +236,18 @@ where
     fn tick_setups(&self, st: &mut State<Cfg<P>>) {
         let mut k = 0;
         while k < st.setups.len() {
-            let done = match st.board.as_ref() {
-                Some(board) => match index(board, st.setups[k].agent()) {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let done = match board.as_ref() {
+                Some(board) => match index(board, setups[k].agent()) {
                     Some(i) => {
-                        items::tick_setup(&self.ports, &mut st.setups[k], &board.members[i].facts)
+                        let facts = &board.members[i].facts;
+                        let l = ledger(ledgers, facts);
+                        items::tick_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
                     }
                     None => Err(Cause::State),
                 },
@@ -245,8 +262,10 @@ where
     /// Takes what a move of the setup `k` answered; whether the setup stays.
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
         let agent = st.setups[k].agent().clone();
-        let stays = matches!(done, Ok(SetupDone::Open | SetupDone::Owed))
-            || matches!(done, Err(cause) if cause != Cause::Stale);
+        let stays = matches!(
+            done,
+            Ok(SetupDone::Open | SetupDone::Owed | SetupDone::NotTaken)
+        ) || matches!(done, Err(cause) if cause != Cause::Stale);
         if stays {
             return true;
         }
@@ -262,7 +281,7 @@ where
                 }
             }
         }
-        if matches!(done, Ok(SetupDone::Gone)) {
+        if matches!(done, Ok(SetupDone::Gone | SetupDone::AgentGone)) {
             st.forgotten.push(agent);
         }
         false
@@ -290,6 +309,54 @@ where
             self.read_back(board, i);
         }
         held.retain(|h| h.confirmation().state().is_open());
+        for run in stops {
+            run::drive(
+                &self.ports,
+                board,
+                table,
+                &self.limits,
+                Act::Stop {
+                    run,
+                    by: StopBy::WaitLimit,
+                },
+            );
+        }
+    }
+
+    fn tick_binds(&self, st: &mut State<Cfg<P>>) {
+        let Ok(now) = self.ports.now() else { return };
+        let State {
+            board,
+            table,
+            ledgers,
+            binds,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let mut stops = Vec::new();
+        for b in binds.iter_mut() {
+            if !items::bind_due(b, now, &self.limits) {
+                continue;
+            }
+            let Some(i) = index(board, &b.ask().agent) else {
+                continue;
+            };
+            let l = ledger(ledgers, &board.members[i].facts);
+            if items::lapse_bind(
+                &self.ports,
+                l,
+                table,
+                b,
+                OtherLapse::WaitLimit,
+                &self.limits,
+            )
+            .is_ok()
+            {
+                stops.push(b.ask().run.clone());
+            }
+            self.read_back(board, i);
+        }
+        binds.retain(|b| *b.state() != items::BindState::Closed);
         for run in stops {
             run::drive(
                 &self.ports,
@@ -347,6 +414,8 @@ where
                     self.act(st, Act::Resume { run: run.clone() })?;
                 }
                 self.lapse_held(st, i, run, LapseCause::RunEnded);
+                self.lapse_binds(st, i, run, OtherLapse::RunEnded);
+                st.handbacks.retain(|(_, a)| &a.run != run);
                 self.act(
                     st,
                     Act::End {
@@ -355,10 +424,17 @@ where
                     },
                 )
             }
-            RunEvent::Confirm(_) | RunEvent::Handback(_) | RunEvent::Other => {
-                let source = Source::of(event).ok_or(Cause::State)?;
-                match raise_step(&board.members[i].facts, source, &self.limits) {
+            RunEvent::Confirm(_) | RunEvent::Handback(_) | RunEvent::Bind(_) | RunEvent::Other => {
+                let facts = &board.members[i].facts;
+                let raise = match event {
+                    RunEvent::Confirm(ask) => raise_confirm(facts, &st.table, ask, &self.limits),
+                    _ => raise_step(facts, Source::of(event).ok_or(Cause::State)?, &self.limits),
+                };
+                match raise {
                     Raise::Run(RunItemKind::Confirm) => self.issue(st, i, run, event),
+                    Raise::Run(RunItemKind::SignIn) if matches!(event, RunEvent::Bind(_)) => {
+                        self.raise_bind(st, i, run, event)
+                    }
                     Raise::Run(kind) => {
                         let State { board, ledgers, .. } = st;
                         let Some(board) = board.as_mut() else {
@@ -367,6 +443,9 @@ where
                         let l = ledger(ledgers, &board.members[i].facts);
                         let open = items::raise_run_item(&self.ports, l, &self.limits, run, kind)?;
                         self.read_back(board, i);
+                        if let RunEvent::Handback(ask) = event {
+                            st.handbacks.push((open.item.clone(), ask.clone()));
+                        }
                         self.act(
                             st,
                             Act::Wait {
@@ -424,6 +503,43 @@ where
         )
     }
 
+    fn raise_bind(
+        &self,
+        st: &mut State<Cfg<P>>,
+        i: usize,
+        run: &RunId,
+        event: &RunEvent,
+    ) -> Result<(), Cause> {
+        let RunEvent::Bind(ask) = event else {
+            return Err(Cause::State);
+        };
+        let State {
+            board,
+            table,
+            ledgers,
+            binds,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else {
+            return Err(Cause::State);
+        };
+        let l = ledger(ledgers, &board.members[i].facts);
+        let b = items::raise_bind(&self.ports, l, table, &self.limits, ask)?;
+        self.read_back(board, i);
+        let item = b.item().clone();
+        binds.push(b);
+        self.act(
+            st,
+            Act::Wait {
+                run: run.clone(),
+                item: RunItem {
+                    item,
+                    kind: RunItemKind::SignIn,
+                },
+            },
+        )
+    }
+
     fn act(&self, st: &mut State<Cfg<P>>, act: Act) -> Result<(), Cause> {
         let State { board, table, .. } = st;
         let board = board.as_mut().ok_or(Cause::State)?;
@@ -446,11 +562,22 @@ where
             table,
             ledgers,
             held,
+            binds,
+            handbacks,
             ..
         } = st;
         let Some(board) = board.as_mut() else { return };
         let l = ledger(ledgers, &board.members[i].facts);
-        if open.kind == RunItemKind::Confirm {
+        let bind = binds.iter_mut().find(|b| b.item() == &open.item);
+        if let Some(b) = bind {
+            let cause = if stop {
+                OtherLapse::Cancelled
+            } else {
+                OtherLapse::RunEnded
+            };
+            let _ = items::lapse_bind(&self.ports, l, table, b, cause, &self.limits);
+            binds.retain(|b| *b.state() != items::BindState::Closed);
+        } else if open.kind == RunItemKind::Confirm {
             if let Some(h) = held.iter_mut().find(|h| h.item() == &open.item) {
                 if stop {
                     let _ = items::stop_confirm(&self.ports, l, table, h, &self.limits);
@@ -467,7 +594,27 @@ where
                 OtherLapse::RunEnded
             };
             let _ = items::lapse_item(&self.ports, l, table, run, open, cause, &self.limits);
+            handbacks.retain(|(item, _)| item != &open.item);
         }
+        self.read_back(board, i);
+    }
+
+    /// Lapses with `cause` every second step of `run` that the coordinator still holds, one whose
+    /// row is stored among them, and forgets them.
+    fn lapse_binds(&self, st: &mut State<Cfg<P>>, i: usize, run: &RunId, cause: OtherLapse) {
+        let State {
+            board,
+            table,
+            ledgers,
+            binds,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let l = ledger(ledgers, &board.members[i].facts);
+        for b in binds.iter_mut().filter(|b| &b.ask().run == run) {
+            let _ = items::lapse_bind(&self.ports, l, table, b, cause, &self.limits);
+        }
+        binds.retain(|b| &b.ask().run != run);
         self.read_back(board, i);
     }
 
@@ -507,8 +654,15 @@ where
             .filter(|r| r.agent == facts.agent)
             .map(|r| r.run.clone())
             .collect();
+        let bind_items: Vec<ItemId> = st
+            .binds
+            .iter()
+            .filter(|b| runs.contains(&b.ask().run))
+            .map(|b| b.item().clone())
+            .collect();
         for run in &runs {
             self.lapse_held(st, i, run, LapseCause::AppEnded);
+            self.lapse_binds(st, i, run, OtherLapse::AppEnded);
         }
         let State {
             board,
@@ -520,7 +674,9 @@ where
         let Some(board) = board.as_mut() else { return };
         let l = ledger(ledgers, &board.members[i].facts);
         match &doing {
-            Doing::Live(Live::Waiting(open)) if open.kind != RunItemKind::Confirm => {
+            Doing::Live(Live::Waiting(open))
+                if open.kind != RunItemKind::Confirm && !bind_items.contains(&open.item) =>
+            {
                 if let Some(run) = runs.first() {
                     let _ = items::lapse_item(
                         &self.ports,
@@ -606,21 +762,27 @@ where
                     .ok_or(Cause::State)?;
                 if open.kind == RunItemKind::Confirm {
                     self.confirm_answer(st, i, &run, item, choice, from)
+                } else if st.binds.iter().any(|b| b.item() == item) {
+                    self.bind_answer(st, i, &run, item, choice)
                 } else {
-                    let State { board, ledgers, .. } = st;
+                    let State {
+                        board,
+                        ledgers,
+                        handbacks,
+                        ..
+                    } = st;
                     let board = board.as_mut().ok_or(Cause::State)?;
+                    let ask = handbacks
+                        .iter()
+                        .find(|(i, _)| i == item)
+                        .map(|(_, a)| a.clone())
+                        .ok_or(Cause::State)?;
                     let l = ledger(ledgers, &board.members[i].facts);
-                    let out = items::answer_handback(
-                        &self.ports,
-                        l,
-                        &self.limits,
-                        item,
-                        &run,
-                        open.kind,
-                        choice,
-                    );
+                    let out =
+                        items::answer_handback(&self.ports, l, &self.limits, item, &ask, choice);
                     self.read_back(board, i);
                     out?;
+                    handbacks.retain(|(i, _)| i != item);
                     self.act(st, Act::Resume { run })
                 }
             }
@@ -679,6 +841,37 @@ where
         out
     }
 
+    fn bind_answer(
+        &self,
+        st: &mut State<Cfg<P>>,
+        i: usize,
+        run: &RunId,
+        item: &ItemId,
+        choice: Choice,
+    ) -> Result<(), Cause> {
+        let State {
+            board,
+            table,
+            ledgers,
+            binds,
+            ..
+        } = st;
+        let board = board.as_mut().ok_or(Cause::State)?;
+        let b = binds
+            .iter_mut()
+            .find(|b| b.item() == item)
+            .ok_or(Cause::Stale)?;
+        let l = ledger(ledgers, &board.members[i].facts);
+        let out = items::answer_bind(&self.ports, l, table, &self.limits, b, choice);
+        let closed = *b.state() == items::BindState::Closed;
+        self.read_back(board, i);
+        if closed {
+            binds.retain(|b| b.item() != item);
+            self.act(st, Act::Resume { run: run.clone() })?;
+        }
+        out
+    }
+
     fn setup(
         &self,
         st: &mut State<Cfg<P>>,
@@ -690,14 +883,17 @@ where
             .iter()
             .position(|s| s.item() == item)
             .ok_or(Cause::Stale)?;
-        let board = st.board.as_ref().ok_or(Cause::State)?;
-        let i = index(board, st.setups[k].agent()).ok_or(Cause::State)?;
-        let done = items::answer_setup(
-            &self.ports,
-            &mut st.setups[k],
-            &board.members[i].facts,
-            input,
-        );
+        let State {
+            board,
+            ledgers,
+            setups,
+            ..
+        } = &mut *st;
+        let board = board.as_ref().ok_or(Cause::State)?;
+        let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
+        let facts = &board.members[i].facts;
+        let l = ledger(ledgers, facts);
+        let done = items::answer_setup(&self.ports, l, &self.limits, &mut setups[k], facts, input);
         let out = done.map(|_| ());
         self.setup_done(st, k, done);
         out
@@ -1003,8 +1199,16 @@ where
         let plain = |p: Plain| compose_plain(item, agent, p, name).ok();
         match kind {
             ItemKind::Confirm => held.and_then(|h| h.page_item().ok()),
-            ItemKind::SignIn => plain(Plain::SignIn),
-            ItemKind::LinkAccount => plain(Plain::LinkAccount),
+            ItemKind::SignIn => match st.binds.iter().find(|b| b.item() == item) {
+                Some(b) => b.page_item(name).ok(),
+                None => plain(Plain::SignIn),
+            },
+            ItemKind::LinkAccount => st
+                .handbacks
+                .iter()
+                .find(|(i, _)| i == item)
+                .and_then(|(_, a)| a.origin.as_ref())
+                .and_then(|origin| compose_link_account(item, agent, name, origin).ok()),
             ItemKind::Stuck => plain(Plain::Stuck),
             ItemKind::Ready => plain(Plain::Ready),
             ItemKind::Show => plain(Plain::Show),
@@ -1012,7 +1216,7 @@ where
                 .setups
                 .iter()
                 .find(|s| s.item() == item)
-                .and_then(|s| compose_setup(item, agent, name, s.params(), &self.limits).ok()),
+                .and_then(|s| s.page_item(name, &self.limits).ok()),
             ItemKind::Check => {
                 let newest = facts.runs.first().map(|r| r.run.clone());
                 let unknown = match (&facts.doing, newest) {

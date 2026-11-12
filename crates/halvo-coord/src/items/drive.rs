@@ -3,16 +3,17 @@
 //! keeps the guard's table in step with the items, and sends the setup's body until the owner
 //! acknowledges it (I3.5).
 
-use super::{compose_confirm, confirm_step, handback_result, setup_step};
-use super::{ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
+use super::{compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
+use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
 use crate::ports::{Clock, Owner, PortError, Rng, Runs};
 use crate::schedule::wants_active;
 use crate::types::{
-    hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Choice, ConfigView, ConfirmAsk,
-    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, OtherLapse, OwnItem,
-    OwnItemKind, Presenter, Raised, RunId, RunItem, RunItemKind, What, WorkflowId,
+    hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
+    Choice, ConfigView, ConfirmAsk, DoneAnswer, Event, Facts, HandbackAsk, Item, ItemId,
+    LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse, OwnItem, OwnItemKind, Presenter, Raised,
+    RunId, RunItem, RunItemKind, SetupAnswer, SignInAnswer, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -151,9 +152,30 @@ pub fn store<P: Owner + Clock>(
     whats: Vec<What>,
 ) -> Result<(), PortError> {
     let (now, today) = (ports.now()?, ports.today()?);
-    let events = ledger.number(whats, now, today);
+    store_at(ports, ledger, limits, whats, (now, today))
+}
+
+/// Stores the events after the waiting ones at the time and on the day `at`, read before the
+/// move that makes them, so that no failure of the clock after the move can lose them; an event
+/// that gets no acknowledgement waits and goes again with the next write or `flush`.
+fn store_at<P: Owner>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    whats: Vec<What>,
+    at: (u64, u32),
+) -> Result<(), PortError> {
+    let events = ledger.number(whats, at.0, at.1);
     ledger.waiting.extend(events);
     flush(ports, ledger, limits)
+}
+
+/// The clock's time and day, or the cause of its failure.
+fn clock_at<P: Clock>(ports: &P) -> Result<(u64, u32), Cause> {
+    match (ports.now(), ports.today()) {
+        (Ok(now), Ok(today)) => Ok((now, today)),
+        (Err(e), _) | (_, Err(e)) => Err(cause_of(&e)),
+    }
 }
 
 /// Stores the events in one body once the waiting ones are stored, and keeps none of them
@@ -233,9 +255,11 @@ impl Held {
     }
 }
 
-/// Issues a confirmation for a confirm request that `raise_step` admitted (I4.2, I4.4): mints
+/// Issues a confirmation for a confirm request that `raise_confirm` admitted (I4.2, I4.4): mints
 /// the item id and stores `item_raised` with the run. A request of a run that the guard's table
-/// holds as stopped is refused with `state`: nothing is stored and nothing sent (I4.2). A request whose item does not compose is
+/// holds as stopped, and one that names an effect that has begun or whose newest released
+/// decision is `reject_once` (`Table::asks_too_late`, ruling IG-32), are refused with `state`:
+/// nothing is stored and nothing sent (I4.2). A request whose item does not compose is
 /// `malformed`: no item, nothing stored and nothing sent. A request whose digests do not hold is
 /// not shown: the port answers `reject` for every effect with a record that writes no row, and
 /// `item_lapsed` with the cause `digest` is stored, with no `item_raised`.
@@ -246,7 +270,11 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
     limits: &Limits,
     ask: &ConfirmAsk,
 ) -> Result<Held, Cause> {
-    if table.is_stopped(ask.run()) {
+    let late = ask
+        .effects()
+        .iter()
+        .any(|e| table.asks_too_late(ask.run(), &e.effect));
+    if table.is_stopped(ask.run()) || late {
         return Err(Cause::State);
     }
     let confirmation = confirm_step(None, ConfirmMove::Issue(ask))?;
@@ -570,24 +598,30 @@ pub fn answer_from_check<P: Runs>(
     }
 }
 
-/// The person's choice on an item that a handback of `run` raised (I3.1): stores its
-/// `item_answered` row, and only once the owner acknowledged it hands the run its result. A
-/// choice that is not one of the kind's is `malformed`; with no acknowledgement the answer is
-/// `no_service` and the run gets nothing; a run that ended (`ended`) takes nothing back.
+/// The person's choice on the item that the handback request `ask` raised (I3.1): stores its
+/// `item_answered` row, which for a `link_account` item holds the request's whole origin (I7.1,
+/// ruling IG-14), and only once the owner acknowledged it hands the run its result. A choice that
+/// is not one of the kind's, and a `link_account` request with no origin, are `malformed`; with
+/// no acknowledgement the answer is `no_service` and the run gets nothing; a run that ended
+/// (`ended`) takes nothing back.
 pub fn answer_handback<P: Owner + Runs + Clock>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
     item: &ItemId,
-    run: &RunId,
-    kind: RunItemKind,
+    ask: &HandbackAsk,
     choice: Choice,
 ) -> Result<(), Cause> {
+    let run = &ask.run;
+    let kind = handback_kind(ask.reason);
     let result = handback_result(kind, choice)?;
     let done = || DoneAnswer::parse(choice.name());
     let answer = match kind {
-        RunItemKind::SignIn => Answered::SignIn(done()?),
-        RunItemKind::LinkAccount => Answered::LinkAccount(done()?),
+        RunItemKind::SignIn => Answered::SignIn(SignInAnswer::First(done()?)),
+        RunItemKind::LinkAccount => Answered::LinkAccount(LinkAnswer {
+            answer: done()?,
+            origin: ask.origin.clone().ok_or(Cause::Malformed)?,
+        }),
         RunItemKind::Stuck => Answered::Stuck(done()?),
         RunItemKind::Show => Answered::Show(done()?),
         RunItemKind::Check => Answered::Check(CheckAnswer::parse(choice.name())?),
@@ -609,6 +643,201 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     }
 }
 
+/// The state of a held second step of a `sign_in` item: open for the person's answer; its
+/// `item_answered` row stored with this answer, which the run has not taken yet; or closed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BindState {
+    /// Waits for the person.
+    Open,
+    /// The row of this answer is stored and `Runs::answer_bind` has not taken it.
+    Recorded(BindResult),
+    /// Answered or lapsed.
+    Closed,
+}
+
+/// The second step of a `sign_in` item that the coordinator holds (I3.1): its item id, its
+/// request, when it was raised, in milliseconds of the clock, and its state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldBind {
+    item: ItemId,
+    ask: BindAsk,
+    raised_at: u64,
+    state: BindState,
+}
+
+impl HeldBind {
+    /// The item id.
+    pub fn item(&self) -> &ItemId {
+        &self.item
+    }
+
+    /// The request.
+    pub fn ask(&self) -> &BindAsk {
+        &self.ask
+    }
+
+    /// When the item was raised.
+    pub fn raised_at(&self) -> u64 {
+        self.raised_at
+    }
+
+    /// The state.
+    pub fn state(&self) -> &BindState {
+        &self.state
+    }
+
+    /// The item as the page gets it (I3.4), for the agent of the name `name` (I2.3).
+    pub fn page_item(&self, name: &str) -> Result<Item, Cause> {
+        compose_bind(&self.item, &self.ask.agent, name, &self.ask.origin)
+    }
+}
+
+/// Raises the second step of a `sign_in` item for a request `Bind` that `raise_step` admitted
+/// (I3.1): mints the item id and stores `item_raised` with the kind `sign_in` and the run. A
+/// request of a run that the guard's table holds as stopped is refused with `state`: nothing is
+/// stored and nothing sent.
+pub fn raise_bind<P: Owner + Clock + Rng>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    ask: &BindAsk,
+) -> Result<HeldBind, Cause> {
+    if table.is_stopped(&ask.run) {
+        return Err(Cause::State);
+    }
+    let now = ports.now().map_err(|e| cause_of(&e))?;
+    let item = ItemId::parse(&hex(ports.bytes16().map_err(|e| cause_of(&e))?))?;
+    let raised = What::ItemRaised {
+        item: item.clone(),
+        raised: Raised::SignIn(ask.run.clone()),
+    };
+    let _ = store(ports, ledger, limits, vec![raised]);
+    Ok(HeldBind {
+        item,
+        ask: ask.clone(),
+        raised_at: now,
+        state: BindState::Open,
+    })
+}
+
+/// Whether an open second step has waited `wait_limit_s` since it was raised at `now`, so that
+/// it lapses with `wait_limit` (I3.1, ruling IG-18).
+pub fn bind_due(held: &HeldBind, now: u64, limits: &Limits) -> bool {
+    let limit = held
+        .raised_at
+        .saturating_add(limits.wait_limit_s.saturating_mul(1000));
+    held.state == BindState::Open && now >= limit
+}
+
+/// The person's choice on a second step (I3.1): `stale` for a closed step, `malformed` for a
+/// choice other than `decline` and `allow`, and `state` for a run that the guard's table holds as
+/// stopped, after which no port is called. An open step stores its `item_answered` row, which
+/// holds the answer and the whole origin (I7.1, ruling IG-14), and only once the owner
+/// acknowledged it calls `Runs::answer_bind` with the row's answer; with no acknowledgement the
+/// answer is `no_service`, nothing is stored and the run gets nothing. A step whose row is stored
+/// and whose answer the run did not take sends the row's answer again, stores no second row, and
+/// refuses the other choice with `state`. An `answer_bind` refused with `ended` is dropped and
+/// the step closes (ruling IG-18).
+pub fn answer_bind<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    held: &mut HeldBind,
+    choice: Choice,
+) -> Result<(), Cause> {
+    if held.state == BindState::Closed {
+        return Err(Cause::Stale);
+    }
+    let result = BindResult::parse(choice.name())?;
+    if table.is_stopped(&held.ask.run) {
+        return Err(Cause::State);
+    }
+    match held.state {
+        BindState::Recorded(stored) if stored != result => return Err(Cause::State),
+        BindState::Recorded(_) | BindState::Closed => {}
+        BindState::Open => {
+            let (now, today) = match (ports.now(), ports.today()) {
+                (Ok(now), Ok(today)) => (now, today),
+                (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
+            };
+            let row = What::ItemAnswered {
+                item: held.item.clone(),
+                answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
+                    answer: result,
+                    origin: held.ask.origin.clone(),
+                })),
+            };
+            store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
+            held.state = BindState::Recorded(result);
+        }
+    }
+    match ports.answer_bind(&held.ask.run, result) {
+        Ok(()) => {
+            held.state = BindState::Closed;
+            Ok(())
+        }
+        Err(e) if refused_with(&e, "ended") => {
+            held.state = BindState::Closed;
+            Ok(())
+        }
+        Err(e) => Err(cause_of(&e)),
+    }
+}
+
+/// A lapse of a second step with `cause` (I3.1, ruling IG-18), as a confirmation lapses: `stale`
+/// for a closed step. For `wait_limit`, a lapse of a run that lives, of an open step, the waiting
+/// call is answered `decline` through `Runs::answer_bind`, whose refusal is dropped; then
+/// `item_lapsed` is stored; then the run is stopped in the guard's table and through
+/// `Runs::cancel`; a step whose row is stored is refused `wait_limit` with `state`, because the
+/// person answered it. For `cancelled`, the person's stop of the run (ruling RD-6), an open step
+/// lapses as for `wait_limit`, and a step whose row is stored keeps its row and stays to the end of
+/// its run, which is stopped in the guard's table and through `Runs::cancel`, the fact that
+/// `Act::Stop` reads. For `run_ended` and `app_ended`, of an open step or of one whose row is
+/// stored and whose answer the run did not take, only `item_lapsed` is stored, and the step
+/// closes.
+pub fn lapse_bind<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut HeldBind,
+    cause: OtherLapse,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    let run = held.ask.run.clone();
+    let lives = match cause {
+        OtherLapse::WaitLimit | OtherLapse::Cancelled => true,
+        OtherLapse::RunEnded | OtherLapse::AppEnded => false,
+    };
+    match held.state {
+        BindState::Closed => return Err(Cause::Stale),
+        BindState::Recorded(_) if cause == OtherLapse::Cancelled => {
+            if !table.is_stopped(&run) {
+                *table = table.stop(&run);
+                let _ = ports.cancel(&run);
+            }
+            return Ok(());
+        }
+        BindState::Recorded(_) if lives => return Err(Cause::State),
+        BindState::Recorded(_) | BindState::Open => {}
+    }
+    if lives {
+        let _ = ports.answer_bind(&run, BindResult::Decline);
+    }
+    held.state = BindState::Closed;
+    let lapsed = What::ItemLapsed {
+        item: held.item.clone(),
+        lapsed: Lapsed::SignIn(cause),
+    };
+    let _ = store(ports, ledger, limits, vec![lapsed]);
+    if lives {
+        *table = table.stop(&run);
+        let _ = ports.cancel(&run);
+    }
+    Ok(())
+}
+
 /// What a move of the setup flow did (I3.5).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SetupDone {
@@ -617,24 +846,72 @@ pub enum SetupDone {
     /// The body was sent and the owner did not acknowledge it: it is owed and goes again at the
     /// next tick, and the item stays open and takes no answer.
     Owed,
-    /// The owner acknowledged the body and the item closed; `active` says whether the rule of
-    /// `active` of I5.5 (`wants_active`) gave `set_state` `active` for the agent, which was then
-    /// sent once. The caller takes the item off the agent's facts.
+    /// The owner acknowledged the body and the item closed with its `item_answered` row of the
+    /// choice `choose`; `active` says whether the rule of `active` of I5.5 (`wants_active`) gave
+    /// `set_state` `active` for the agent, which was then sent once. The caller takes the item
+    /// off the agent's facts.
     Closed {
         /// Whether `set_state` `active` was sent.
         active: bool,
     },
+    /// The owner refused the body by a name after which another value can pass: nothing more is
+    /// sent until the person answers again, and the same item asks every parameter again with
+    /// its answers cleared and the line `item.setup.not_taken`; nothing is stored (I3.5, ruling
+    /// IG-34).
+    NotTaken,
     /// The owner refused the body with `no_workflow`: the item ends with its workflow, nothing
     /// is stored and nothing more is sent (I5.7).
     Gone,
+    /// The owner refused the body with `binding`: the agent is not the workflow's, the item
+    /// ends, nothing is stored and nothing more is sent, and the caller treats the agent as one
+    /// that the owner's list no longer holds (I3.5, ruling IG-36).
+    AgentGone,
 }
 
-fn same_agent<C>(setup: &Setup, facts: &Facts<C>) -> Result<(), Cause> {
-    if setup.agent() == &facts.agent && setup.workflow() == &facts.workflow.id {
+/// What the owner's refusal of a setup's body decides, in the three groups of names of I3.5
+/// (rulings IG-28, IG-34, IG-36) and with `no_workflow` (I5.7): still owed after a failure with
+/// no name, `busy`, `store_unavailable`, `internal` and `state`; gone after `no_workflow` and
+/// `binding`; asked again after `config`, `malformed`, `too_large`, `length` and every other
+/// name, so that the item always takes the person's answers again.
+fn refused_body(error: &PortError) -> SetupDone {
+    let PortError::Refused(name) = error else {
+        return SetupDone::Owed;
+    };
+    match name.as_str() {
+        "busy" | "store_unavailable" | "internal" | "state" => SetupDone::Owed,
+        "no_workflow" => SetupDone::Gone,
+        "binding" => SetupDone::AgentGone,
+        _ => SetupDone::NotTaken,
+    }
+}
+
+fn same_agent<C>(setup: &Setup, facts: &Facts<C>, ledger: &Ledger) -> Result<(), Cause> {
+    let ours = |workflow: &WorkflowId, agent: &AgentId| {
+        setup.agent() == agent && setup.workflow() == workflow
+    };
+    if ours(&facts.workflow.id, &facts.agent) && ours(&ledger.workflow, &ledger.agent) {
         Ok(())
     } else {
         Err(Cause::State)
     }
+}
+
+/// Stores the one `item_answered` row of a setup item, which closes at the owner's
+/// acknowledgement with the choice `choose` and holds no value (I7.1, rulings IG-30, IG-35,
+/// RD-23 (b)), at the time `at` that the clock gave before the move; a row that gets no
+/// acknowledgement waits in the ledger and goes with the next write.
+fn closed_row<P: Owner>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    setup: &Setup,
+    at: (u64, u32),
+) {
+    let row = What::ItemAnswered {
+        item: setup.item().clone(),
+        answer: Answered::Setup(SetupAnswer::Choose),
+    };
+    let _ = store_at(ports, ledger, limits, vec![row], at);
 }
 
 /// The rule of `active` of I5.5, once, for the agent's facts with the slots of the acknowledged
@@ -663,12 +940,15 @@ fn activate<P: Owner, C: ConfigView + Clone>(
     wants
 }
 
-/// Sends the owed body: at the acknowledgement the item closes and the rule of `active` runs
-/// once; a refusal `no_workflow` ends the item; any other failure leaves the body owed.
+/// Sends the owed body: at the acknowledgement the item closes, its row is stored and the rule
+/// of `active` runs once; a refusal decides by `refused_body`.
 fn send_owed<P: Owner, C: ConfigView + Clone>(
     ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
     setup: &mut Setup,
     facts: &Facts<C>,
+    at: (u64, u32),
 ) -> Result<SetupDone, Cause> {
     let SetupState::Owed(body) = setup.state().clone() else {
         return Ok(SetupDone::Open);
@@ -676,47 +956,72 @@ fn send_owed<P: Owner, C: ConfigView + Clone>(
     match ports.send(&body.body()) {
         Ok(_) => {
             *setup = setup_step(setup, SetupMove::Acknowledged)?;
+            closed_row(ports, ledger, limits, setup, at);
             Ok(SetupDone::Closed {
                 active: activate(ports, facts, &body),
             })
         }
-        Err(e) if refused_with(&e, "no_workflow") => {
-            *setup = setup_step(setup, SetupMove::Gone)?;
-            Ok(SetupDone::Gone)
+        Err(e) => {
+            let done = refused_body(&e);
+            match done {
+                SetupDone::Gone => *setup = setup_step(setup, SetupMove::Gone)?,
+                SetupDone::AgentGone => *setup = setup_step(setup, SetupMove::Binding)?,
+                SetupDone::NotTaken => *setup = setup_step(setup, SetupMove::NotTaken)?,
+                SetupDone::Open | SetupDone::Owed | SetupDone::Closed { .. } => {}
+            }
+            Ok(done)
         }
-        Err(_) => Ok(SetupDone::Owed),
     }
 }
 
-/// The person's answer to a setup item (I3.5), with the facts of its agent: `state` for the facts
-/// of another agent, and the refusal of `setup_step`, `stale` for an item that closed, `state`
-/// while its body is owed (ruling IG-10) and `malformed` for an answer that does not fit it; then
-/// nothing is sent. When the answer gives the last parameter, the one body `set_bindings` goes
-/// to the owner in this move; at its acknowledgement the item closes and the rule of `active` of
-/// I5.5 runs once for the agent, and without one the body is owed.
-pub fn answer_setup<P: Owner, C: ConfigView + Clone>(
+/// The person's answer to a setup item (I3.5), with the facts and the ledger of its agent:
+/// `state` for the facts or the ledger of another agent, and the refusal of `setup_step`, `stale`
+/// for an item that closed, `state` while its body is owed (ruling IG-10) and `malformed` for an
+/// answer that does not fit it; then nothing is sent and nothing stored. `none` keeps the item
+/// open with its answers and stores and sends nothing (I3.5, ruling RD-23 (b)). When the answer
+/// gives the last parameter, the one body
+/// `set_bindings` goes to the owner in this move; at its acknowledgement the item closes, its row
+/// is stored and the rule of `active` of I5.5 runs once for the agent, and a refusal decides as
+/// `refused_body` gives.
+pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
     ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
     setup: &mut Setup,
     facts: &Facts<C>,
     answer: SetupInput<'_>,
 ) -> Result<SetupDone, Cause> {
-    same_agent(setup, facts)?;
-    *setup = setup_step(setup, SetupMove::Input(answer))?;
-    send_owed(ports, setup, facts)
+    same_agent(setup, facts, ledger)?;
+    let next = setup_step(setup, SetupMove::Input(answer))?;
+    let at = match next.state() {
+        SetupState::Owed(_) => clock_at(ports)?,
+        SetupState::Open | SetupState::Closed | SetupState::Gone | SetupState::AgentGone => {
+            *setup = next;
+            return Ok(SetupDone::Open);
+        }
+    };
+    *setup = next;
+    send_owed(ports, ledger, limits, setup, facts, at)
 }
 
 /// One tick for a setup item (I3.5, I5.9), which the coordinator's tick calls: sends its owed
 /// body again, with what `answer_setup` does at the owner's answer; an open item sends nothing.
-/// `state` for the facts of another agent, and `stale` for an item that closed or whose workflow
+/// `state` for the facts or the ledger of another agent, and `stale` for an item that closed or
 /// is gone.
-pub fn tick_setup<P: Owner, C: ConfigView + Clone>(
+pub fn tick_setup<P: Owner + Clock, C: ConfigView + Clone>(
     ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
     setup: &mut Setup,
     facts: &Facts<C>,
 ) -> Result<SetupDone, Cause> {
-    same_agent(setup, facts)?;
+    same_agent(setup, facts, ledger)?;
     match setup.state() {
-        SetupState::Closed | SetupState::Gone => Err(Cause::Stale),
-        SetupState::Open | SetupState::Owed(_) => send_owed(ports, setup, facts),
+        SetupState::Closed | SetupState::Gone | SetupState::AgentGone => Err(Cause::Stale),
+        SetupState::Open => Ok(SetupDone::Open),
+        SetupState::Owed(_) => {
+            let at = clock_at(ports)?;
+            send_owed(ports, ledger, limits, setup, facts, at)
+        }
     }
 }
