@@ -39,7 +39,7 @@ measure() {
 
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail 'mktemp failed'
   tap=$CI_D_ARTIFACTS/stub-tests.tap
-  TMPDIR=$work TEMP=$work TMP=$work node --test --test-concurrency=1 --test-reporter=tap account/stub/test/*.test.mjs >"$tap" 2>&1
+  TMPDIR=$work TEMP=$work TMP=$work node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit --test-reporter=tap account/stub/test/*.test.mjs >"$tap" 2>&1
   code=$?
   n_tests=$(summary tests "$tap") || fail 'awk failed on the test output'
   n_pass=$(summary pass "$tap") || fail 'awk failed on the test output'
@@ -118,7 +118,7 @@ case ${1:-} in
   *) printf 'stub node: got the arguments: %s\n' "$*"; exit 97 ;;
 esac
 [ -f account/stub/package.json ] || { printf 'stub node: started outside the repo root\n'; exit 98; }
-[ "$*" = '--test --test-concurrency=1 --test-reporter=tap account/stub/test/a.test.mjs' ] ||
+[ "$*" = '--test --test-concurrency=1 --test-timeout=60000 --test-force-exit --test-reporter=tap account/stub/test/a.test.mjs' ] ||
   { printf 'stub node: got the arguments: %s\n' "$*"; exit 96; }
 [ -n "${TMPDIR:-}" ] && [ "$TMPDIR" = "${TEMP:-}" ] && [ "$TMPDIR" = "${TMP:-}" ] && [ -d "$TMPDIR" ] ||
   { printf 'stub node: TMPDIR, TEMP and TMP do not name one directory\n'; exit 95; }

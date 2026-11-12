@@ -8,6 +8,6 @@
     "node": ">=26"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit test/*.test.mjs"
   }
 }

@@ -5,8 +5,7 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { connect } from "node:tls";
 import { join } from "node:path";
 import { makeTestAuthority, TlsError } from "../src/tls.mjs";
-import { startStub } from "../src/stub.mjs";
-import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh } from "./support.mjs";
+import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, startStub } from "./support.mjs";
 
 const SERVER_AUTH = "1.3.6.1.5.5.7.3.1";
 const DAY = 86400000;
@@ -92,6 +91,7 @@ test("a connection that fails the TLS handshake is recorded with the error's cod
     const lines = readFileSync(join(record, "requests.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
     assert.equal(lines.length, 1);
     assert.deepEqual(Object.keys(lines[0]).sort(), ["error", "seq"]);
+    assert.equal(lines[0].seq, 1);
     assert.match(lines[0].error, /^ERR_SSL_/);
   } finally {
     await stub.close();

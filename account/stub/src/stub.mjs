@@ -121,7 +121,6 @@ export async function startStub({ record: dir, tlsCa }) {
     const made = makeTestAuthority(Date.now());
     writeAuthority(tlsCa, made.caPem);
     appServer = createSecureServer({ key: made.keyPem, cert: made.certPem }, handler);
-    appServer.on("tlsClientError", refuse);
   }
   appServer.on(tlsCa === undefined ? "connection" : "secureConnection", (socket) => numbers.set(socket, record.connection(socket)));
   appServer.on("clientError", (error, socket) => {

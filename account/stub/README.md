@@ -12,7 +12,7 @@ Start each command at the repository root.
 |---|---|
 | `node account/stub/src/stub.mjs --record DIR` | Serves the app-facing routes over HTTP and records every request in `DIR`. |
 | `node account/stub/src/stub.mjs --record DIR --tls-ca FILE` | Serves the app-facing routes over HTTPS, as the next section says. |
-| `node --test account/stub/test/*.test.mjs` | Runs the stub's self-test. |
+| `node --test --test-concurrency=1 --test-timeout=60000 --test-force-exit account/stub/test/*.test.mjs` | Runs the stub's self-test, one file at a time, ending a test after 60 s and the run after the last test. |
 | `sh scripts/ci/run-ci-d.sh macos 20-r7-stub` | Runs the check that the CI jobs run: the self-test and the package rule. |
 
 `DIR` must be an empty directory that exists. The stub listens on two ports of `127.0.0.1` that the system picks: one for the app-facing routes and one for the test calls. When it is ready, it prints one line on standard output and nothing more:

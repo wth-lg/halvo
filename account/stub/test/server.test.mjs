@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { connect } from "node:net";
-import { startStub, BODY_CAP } from "../src/stub.mjs";
-import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh } from "./support.mjs";
+import { BODY_CAP } from "../src/stub.mjs";
+import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, startStub } from "./support.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
 const json = [["content-type", "application/json"]];
@@ -123,8 +123,10 @@ if (process.platform !== "win32") {
 }
 
 test("the command line refuses an unknown argument with exit 64 and serves nothing", async () => {
-  const run = await spawnStub(["--port", "8080"]);
-  assert.equal(run.ready, null);
-  assert.equal(await exited(run.child), 64);
-  assert.match(run.stderr(), /usage/);
+  for (const args of [["--port", "8080"], ["--record", fresh(), "--port", "8080"], ["--record", fresh(), "--tls-ca"]]) {
+    const run = await spawnStub(args);
+    assert.equal(run.ready, null, args.join(" "));
+    assert.equal(await exited(run.child), 64, args.join(" "));
+    assert.match(run.stderr(), /usage/, args.join(" "));
+  }
 });

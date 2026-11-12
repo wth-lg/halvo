@@ -1,4 +1,4 @@
-import { appendFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Thrown when the directory that the caller names for the record is missing, not a directory, or not empty. */
@@ -22,11 +22,9 @@ const number = (n) => String(n).padStart(6, "0");
 export function openRecord(dir) {
   let entries;
   try {
-    if (!statSync(dir).isDirectory()) throw new RecordError("the record directory is not a directory");
     entries = readdirSync(dir);
-  } catch (error) {
-    if (error instanceof RecordError) throw error;
-    throw new RecordError("the record directory cannot be read");
+  } catch {
+    throw new RecordError("the record directory is missing or not a directory");
   }
   if (entries.length > 0) throw new RecordError("the record directory is not empty");
   const jsonl = join(dir, "requests.jsonl");

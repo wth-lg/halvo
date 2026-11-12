@@ -4,6 +4,20 @@ import { fileURLToPath } from "node:url";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { after } from "node:test";
+import { startStub as start } from "../src/stub.mjs";
+
+const ends = [];
+after(async () => {
+  for (const end of ends) await end();
+});
+
+/** Starts the stub in this process, as startStub does, and closes it after the last test of the file, also after a failure. */
+export async function startStub(options) {
+  const stub = await start(options);
+  ends.push(() => stub.close());
+  return stub;
+}
 
 export const STUB = fileURLToPath(new URL("../src/stub.mjs", import.meta.url));
 export const ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -53,6 +67,9 @@ export const fresh = () => mkdtempSync(join(tmpdir(), "halvo-stub-record-"));
 export function spawnStub(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [STUB, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    ends.push(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    });
     let out = "";
     let err = "";
     child.stderr.on("data", (chunk) => {

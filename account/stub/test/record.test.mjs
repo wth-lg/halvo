@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { startStub, BODY_CAP } from "../src/stub.mjs";
+import { BODY_CAP } from "../src/stub.mjs";
 import { openRecord, RecordError } from "../src/record.mjs";
-import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, ID, CRED } from "./support.mjs";
+import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, startStub, ID, CRED } from "./support.mjs";
 
 const lines = (dir) =>
   readFileSync(join(dir, "requests.jsonl"), "utf8")
@@ -94,6 +94,7 @@ test("a request that the HTTP parser refuses is recorded with its connection and
     const got = lines(dir);
     assert.equal(got.length, 1);
     assert.deepEqual(Object.keys(got[0]).sort(), ["connection", "error", "seq"]);
+    assert.equal(got[0].seq, 1);
     assert.equal(got[0].connection, 1);
     assert.match(got[0].error, /^HPE_[A-Z_]+$/);
     assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), bad);
