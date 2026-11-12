@@ -258,11 +258,6 @@ impl SinkWriter {
         self.rx.try_recv().map(|event| self.number(event))
     }
 
-    /// The raw receiver, for a writer that wants to select or batch.
-    pub fn receiver(&self) -> &Receiver<CaptureStreamEvent> {
-        &self.rx
-    }
-
     /// Draw a barrier at the next number that this writer will give. Every event
     /// received before the draw is before it. An event that was still queued, or
     /// still blocked in an emit, at the draw is not before it, so an owner that

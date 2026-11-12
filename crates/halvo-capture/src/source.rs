@@ -1,20 +1,24 @@
-//! The platform-agnostic capture traits. Each modality's OS-specific source
-//! implements [`CaptureSource`] and emits events through an [`EventSink`]. Per-OS
-//! implementations live under [`crate::macos`] / [`crate::windows`] behind `cfg`;
-//! the rest of the app sees only these traits.
+//! The platform-agnostic capture traits. Each OS-specific source implements
+//! [`CaptureSource`] and emits events through an [`EventSink`]. Per-OS
+//! implementations live under [`crate::macos`] / [`crate::windows`] behind `cfg`.
 
 use crate::event::{CaptureStreamEvent, Modality};
 use crate::sink::{SinkError, SinkHandle};
 
-/// One capture source for one modality. `start` installs the OS callback and
-/// returns; the callback does the minimum (stamp, package, emit) and returns, so
-/// a slow writer never blocks a capture callback.
+/// One capture source. `begin`, or the old `start`, installs the OS callback and
+/// returns. The callback emits through the sink: an event of a droppable kind is
+/// dropped when the queue is full, and an event of any other kind blocks the
+/// calling thread until the writer makes room.
 ///
 /// The two pairs reach each other through their default bodies, so a source
 /// implements `begin` and `shutdown` or `start` and `stop`. A source that
 /// implements neither pair recurses without end.
 pub trait CaptureSource {
-    fn modality(&self) -> Modality;
+    /// Retired: no product code calls it, and one source can emit several kinds.
+    /// The default body panics.
+    fn modality(&self) -> Modality {
+        panic!("CaptureSource::modality is retired and has no default answer")
+    }
 
     /// The old form of [`CaptureSource::begin`]. The default body begins with a
     /// context that holds `sink` and answers `Ok` for both [`Started`] values.
@@ -178,8 +182,10 @@ pub struct HeldSamples {
     pub taken: u64,
 }
 
-/// The non-blocking emit path a source uses to hand an event to the single
-/// writer. The only implementor is the sink handle (see [`crate::sink`]).
+/// The emit path a source uses to hand an event to the single writer: an event
+/// of a droppable kind is dropped when the queue is full, and an event of any
+/// other kind blocks the calling thread until the writer makes room. The only
+/// implementor is the sink handle (see [`crate::sink`]).
 pub trait EventSink {
     /// Enqueue an event for the single writer. Never drops a non-droppable
     /// modality; see [`crate::sink`] for the backpressure policy.
@@ -242,10 +248,6 @@ mod tests {
     }
 
     impl CaptureSource for PanickingSource {
-        fn modality(&self) -> Modality {
-            Modality::Keystroke
-        }
-
         fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
             if self.thread.is_some() {
                 return Err(CaptureError::AlreadyStarted);
@@ -329,10 +331,6 @@ mod tests {
     struct OffSource;
 
     impl CaptureSource for OffSource {
-        fn modality(&self) -> Modality {
-            Modality::SystemAudio
-        }
-
         fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
             Ok(Started::Off)
         }
@@ -368,10 +366,6 @@ mod tests {
     }
 
     impl CaptureSource for OldPair {
-        fn modality(&self) -> Modality {
-            Modality::ForegroundApp
-        }
-
         fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
             self.calls.push("start");
             self.sink = Some(sink);
@@ -391,10 +385,6 @@ mod tests {
     }
 
     impl CaptureSource for NewPair {
-        fn modality(&self) -> Modality {
-            Modality::Pointer
-        }
-
         fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
             self.calls.push("begin");
             if self.refuse {
