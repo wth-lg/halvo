@@ -2,6 +2,7 @@ pub mod consent;
 pub mod custody;
 pub mod daemon;
 pub mod event;
+pub mod floor;
 pub mod secure_input;
 pub mod sink;
 pub mod source;
