@@ -116,8 +116,8 @@ impl Folder {
     /// ([`Error::RangeSize`]), and values whose cell elements alone would hold more than
     /// 32 MiB, the bound of an entry that the next read keeps ([`Error::FillSize`]), both before
     /// anything else is done with them; a path that the folder
-    /// refuses, or a workbook whose name is one that it gives a checkpoint or a prepared copy
-    /// ([`PathRefusal::OwnFile`]); `values` that do not have the rows and columns of `range`
+    /// refuses, or a workbook whose name is one that it gives a checkpoint or a prepared copy,
+    /// in any letter case ([`PathRefusal::OwnFile`]); `values` that do not have the rows and columns of `range`
     /// ([`Error::Shape`]), or that hold a number that is not finite or a text with a character
     /// that XML 1.0 does not allow or with more than the 32,767 UTF-16 code units of a cell
     /// ([`Error::Value`]); a workbook that the person cannot write ([`Error::ReadOnly`]). Then,
@@ -150,11 +150,13 @@ impl Folder {
     /// the workbook without writing it again ([`Error::Checkpoint`] when it differs or is no
     /// regular file). It writes a prepared copy under a name of this call's own,
     /// `<name>.halvo-prepared-<run id>-<part of its own>-<digest><ext>`, `<digest>` being the
-    /// first 16 hex digits of the copy's SHA-256, and holds a shared lock of the system on it
-    /// while the [`Prepared`] lives, so that no other call writes or removes it. Before it
-    /// writes, under the lock of the directory, it sweeps the prepared copies of this workbook
-    /// that a killed run left: it removes an entry whose own name is such a name of this
-    /// workbook byte for byte, that is a regular file and no link, whose lock no live call
+    /// first 16 hex digits of the copy's SHA-256, and holds the copy's mark in `agents/locks/`
+    /// while the [`Prepared`] lives, so that no other call writes or removes it; no handle of
+    /// the call stays open on a file of the person's folder. Under the lock of the directory it
+    /// walks the workbook's path again (a directory that became a link while it waited is
+    /// [`PathRefusal::Link`]) and, before it writes, sweeps the prepared copies of this
+    /// workbook that a killed run left: it removes an entry whose own name is such a name of
+    /// this workbook byte for byte, that is a regular file and no link, whose mark no live call
     /// holds, and whose bytes still have the digest that its name says; it leaves every other
     /// entry. Both get the workbook's permissions: its permission bits on Unix, its read-only
     /// attribute on Windows; and what the workbook holds besides its bytes: on macOS its
@@ -222,6 +224,7 @@ impl Folder {
         }
         let full = self.file(workbook)?;
         let name = full.file_name().unwrap_or_default().to_string_lossy();
+        let name = name.to_ascii_lowercase();
         if name.contains(".halvo-checkpoint-") || name.contains(".halvo-prepared-") {
             return Err(Error::Path(PathRefusal::OwnFile));
         }
@@ -261,9 +264,7 @@ impl Folder {
                     .and_then(|_| write::replace(prepared));
                 let answer = match done {
                     Err(Error::NotReplaced(why)) => match self.file(&prepared.copy) {
-                        Ok(copy) if std::fs::remove_file(&copy).is_err() => {
-                            Err(Error::CopyLeft(why))
-                        }
+                        Ok(copy) if write::remove_made(&copy).is_err() => Err(Error::CopyLeft(why)),
                         _ => Err(Error::NotReplaced(why)),
                     },
                     other => other,

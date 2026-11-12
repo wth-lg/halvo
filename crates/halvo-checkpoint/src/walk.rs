@@ -194,7 +194,8 @@ pub(crate) fn is_loop(_: &io::Error) -> bool {
 #[cfg(unix)]
 pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
     use std::os::unix::fs::MetadataExt;
-    (a.dev(), a.ino()) == (b.dev(), b.ino()) && a.len() == b.len()
+    (a.dev(), a.ino(), a.len(), a.mtime(), a.mtime_nsec())
+        == (b.dev(), b.ino(), b.len(), b.mtime(), b.mtime_nsec())
 }
 
 #[cfg(windows)]

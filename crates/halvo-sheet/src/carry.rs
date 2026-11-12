@@ -33,6 +33,36 @@ pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
     }
 }
 
+/// Takes the access list off a file that `prepare` made, so that the crate can remove its own
+/// file when the list carried from the workbook denies that (macOS).
+#[cfg(target_os = "macos")]
+pub(crate) fn uncarry(made: &Path) -> io::Result<()> {
+    use std::ffi::c_void;
+    use std::fs::File;
+    use std::os::fd::AsRawFd;
+
+    extern "C" {
+        fn acl_init(count: i32) -> *mut c_void;
+        fn acl_set_fd(fd: i32, acl: *mut c_void) -> i32;
+        fn acl_free(object: *mut c_void) -> i32;
+    }
+
+    let file = File::open(made)?;
+    let empty = unsafe { acl_init(0) };
+    if empty.is_null() {
+        return Err(io::Error::last_os_error());
+    }
+    let done = unsafe { acl_set_fd(file.as_raw_fd(), empty) };
+    let error = (done < 0).then(io::Error::last_os_error);
+    unsafe { acl_free(empty) };
+    error.map_or(Ok(()), Err)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn uncarry(_: &Path) -> io::Result<()> {
+    Err(io::Error::from(io::ErrorKind::Unsupported))
+}
+
 #[cfg(windows)]
 pub(crate) fn carry(workbook: &Path, made: &Path) -> io::Result<()> {
     windows::streams(workbook, made)?;

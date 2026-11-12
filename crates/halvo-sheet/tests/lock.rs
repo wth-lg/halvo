@@ -5,8 +5,10 @@ use std::path::Path;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
-use common::{corpus, locks, locks_waiting, Scratch, RUN};
-use halvo_sheet::{Cell, Error, Folder, Kept, LockError, Prepared, Range, RunId, Value};
+use common::{corpus, link_dir, locks, locks_waiting, Scratch, RUN};
+use halvo_sheet::{
+    Cell, Error, Folder, Kept, LockError, Locks, PathRefusal, Prepared, Range, RunId, Value,
+};
 
 const OTHER: &str = "fedcba9876543210fedcba9876543210";
 
@@ -121,5 +123,75 @@ fn two_runs_on_one_workbook_lose_no_edit() {
         lost,
         Vec::<String>::new(),
         "edits lost; both Ok in {both} rounds"
+    );
+}
+
+#[test]
+fn a_directory_swapped_for_a_link_while_prepare_waits_for_the_lock_is_never_written_through() {
+    let scratch = Scratch::new("lock-prepare-swap");
+    fs::create_dir_all(scratch.path("folder/sub")).expect("mkdir");
+    fs::create_dir_all(scratch.path("outside")).expect("mkdir");
+    fs::copy(
+        corpus("values.xlsx"),
+        scratch.path("folder/sub/values.xlsx"),
+    )
+    .expect("copy");
+    fs::copy(corpus("values.xlsx"), scratch.path("outside/values.xlsx")).expect("copy");
+    let shared = locks();
+    let folder = Folder::new(&scratch.path("folder"), shared.clone()).expect("the folder opens");
+    let held = shared.hold(&scratch.path("folder/sub")).expect("held");
+    let worker = std::thread::spawn(move || {
+        let range = Range::parse("B5").expect("a range");
+        let values = [vec![Value::Number(5.0)]];
+        let run = RunId::parse(RUN).expect("a run id");
+        folder
+            .prepare(Path::new("sub/values.xlsx"), &run, "Values", range, &values)
+            .map(drop)
+    });
+    std::thread::sleep(Duration::from_millis(800));
+    fs::rename(
+        scratch.path("folder/sub"),
+        scratch.path("folder/sub-before"),
+    )
+    .expect("move");
+    link_dir(&scratch.path("outside"), &scratch.path("folder/sub"));
+    drop(held);
+    let got = worker.join().expect("the prepare thread");
+    assert_eq!(got, Err(Error::Path(PathRefusal::Link)));
+    assert_eq!(scratch.names("outside"), vec!["values.xlsx".to_string()]);
+}
+
+#[test]
+fn a_live_prepared_copy_is_marked_in_agents_locks_and_no_handle_holds_the_copy() {
+    let scratch = Scratch::new("lock-mark");
+    fs::create_dir_all(scratch.path("data")).expect("mkdir");
+    fs::create_dir_all(scratch.path("folder")).expect("mkdir");
+    fs::copy(corpus("values.xlsx"), scratch.path("folder/values.xlsx")).expect("copy");
+    let own = Locks::open(&scratch.path("data"), Duration::from_secs(10)).expect("the locks");
+    let folder = Folder::new(&scratch.path("folder"), own).expect("the folder opens");
+    let prepared = prepare(&folder, "values.xlsx", RUN, "B5", 5.0);
+    let kinds = |names: Vec<String>| -> Vec<String> {
+        let mut kinds: Vec<String> = names
+            .iter()
+            .map(|name| name.rsplit('.').next().unwrap_or_default().to_string())
+            .collect();
+        kinds.sort();
+        kinds
+    };
+    let marks = kinds(scratch.names("data/agents/locks"));
+    assert_eq!(marks, vec!["live".to_string(), "lock".to_string()]);
+    let mut other = fs::OpenOptions::new()
+        .append(true)
+        .open(prepared.copy())
+        .expect("another handle opens the copy");
+    std::io::Write::write_all(&mut other, b"x").expect("another handle writes the copy");
+    drop(other);
+    let moved = scratch.path("moved");
+    fs::rename(scratch.path("folder"), &moved).expect("the folder can be moved");
+    fs::rename(&moved, scratch.path("folder")).expect("and moved back");
+    drop(prepared);
+    assert_eq!(
+        kinds(scratch.names("data/agents/locks")),
+        vec!["lock".to_string()]
     );
 }

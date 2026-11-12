@@ -4,15 +4,15 @@ use std::fs::{self, File, OpenOptions, Permissions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::OnceLock;
 
 use halvo_checkpoint::{
-    checkpoint_name, open_regular, own_name, regular, Locks, Root, RunId, Sha256,
+    checkpoint_name, open_regular, own_name, regular, Locks, Mark, Root, RunId, Sha256,
 };
 
 use crate::book::{self, guarded};
 use crate::carry;
-use crate::error::{Error, Kept, Refusal};
+use crate::error::{Error, Kept, PathRefusal, Refusal};
 use crate::parts;
 use crate::patch;
 use crate::range::Range;
@@ -28,9 +28,11 @@ use crate::xml;
 /// hex digits of the copy's SHA-256.
 ///
 /// It holds the workbook as `prepare` read it and the prepared copy in memory until it is
-/// dropped, and a shared lock of the system on the prepared copy until `replace` renames it or
-/// it is dropped, so that the sweep of another `prepare` leaves the copy. Dropping one that no `replace` put in place removes its prepared copy when no link
-/// stands on the way to it and it still holds the bytes that `prepare` checked. It never
+/// dropped, and the copy's mark in `agents/locks/` (a shared lock of the system on a file of
+/// Halvo's own, no handle on a file of the person's folder), so that the sweep of another
+/// `prepare` leaves the copy. Dropping one that no `replace` put in place removes its prepared
+/// copy when no link stands on the way to it and it still holds the bytes that `prepare`
+/// checked, also when the access list that it carried forbids that on macOS. It never
 /// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it;
 /// `remove` of the crate halvo-checkpoint removes it once the run has ended.
 pub struct Prepared {
@@ -41,7 +43,7 @@ pub struct Prepared {
     pub(crate) original: Vec<u8>,
     pub(crate) changed: Vec<u8>,
     pub(crate) sha256: Sha256,
-    pub(crate) live: Mutex<Option<File>>,
+    pub(crate) _mark: Mark,
     pub(crate) answer: OnceLock<Result<(), Error>>,
 }
 
@@ -99,7 +101,7 @@ impl Drop for Prepared {
                 .filter(|full| fs::read(full).is_ok_and(|read| read == bytes))
         };
         if let Some(copy) = holding(&self.copy, &self.changed) {
-            let _ = fs::remove_file(copy);
+            let _ = remove_made(&copy);
         }
     }
 }
@@ -180,9 +182,12 @@ pub(crate) fn prepare(
     book::readable(&original, sheet)?;
     let checkpoint = workbook.with_file_name(checkpoint_name(&workbook, run).unwrap_or_default());
     let held = locks.hold(directory(&workbook)).map_err(Error::Lock)?;
-    sweep(&workbook);
+    if root.file(&workbook)? != workbook {
+        return Err(Error::Path(PathRefusal::Link));
+    }
+    sweep(&workbook, locks);
     keep_checkpoint(&checkpoint, &original, &workbook, meta.permissions())?;
-    let (copy, live) = write_copy(&workbook, run, &changed, meta.permissions())?;
+    let (copy, mark) = write_copy(&workbook, run, &changed, meta.permissions(), locks)?;
     drop(held);
     drop(changed);
     let checked = fs::read(&copy).map_err(Error::from).and_then(|disk| {
@@ -198,26 +203,20 @@ pub(crate) fn prepare(
             sha256: Sha256::of(&original),
             original,
             changed: disk,
-            live: Mutex::new(Some(live)),
+            _mark: mark,
             answer: OnceLock::new(),
         }),
         Err(error) => {
-            let _ = fs::remove_file(&copy);
-            drop(live);
+            let _ = remove_made(&copy);
+            drop(mark);
             Err(error)
         }
     }
 }
 
 /// Puts the prepared copy in the workbook's place by one rename, under the lock of the
-/// workbook's directory, which the caller holds; it lets the copy's own lock go first.
+/// workbook's directory, which the caller holds.
 pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
-    let live = prepared
-        .live
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take();
-    drop(live);
     let holds = |path: &Path, bytes: &[u8]| {
         regular(path).is_ok() && fs::read(path).is_ok_and(|read| read == bytes)
     };
@@ -250,9 +249,21 @@ fn create(path: &Path, bytes: &[u8], workbook: &Path, permissions: Permissions) 
         .and_then(|()| fs::set_permissions(path, permissions))
         .and_then(|()| carry::carry(workbook, path));
     if filled.is_err() {
-        let _ = fs::remove_file(path);
+        let _ = remove_made(path);
     }
     filled
+}
+
+/// Removes a file that this crate made beside the workbook. When the access list that it
+/// carried from the workbook forbids the removal, it takes that list off first (macOS).
+pub(crate) fn remove_made(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+            carry::uncarry(path)?;
+            fs::remove_file(path)
+        }
+        other => other,
+    }
 }
 
 fn fill(mut file: File, bytes: &[u8]) -> io::Result<()> {
@@ -321,10 +332,10 @@ fn prepared_digest(workbook: &Path, name: &OsStr) -> Option<String> {
 /// Removes, under the lock of the workbook's directory, which the caller holds, each prepared
 /// copy of this workbook that a run left when it was killed: an entry of the directory whose
 /// own name is a prepared copy's name of the workbook byte for byte, that is a regular file
-/// and no link, whose lock no live call holds, and whose bytes, read under the bound of a
+/// and no link, whose mark no live call holds, and whose bytes, read under the bound of a
 /// file, still have the digest that its name says. Every other entry is left, and so is a
 /// copy that the system does not let go.
-fn sweep(workbook: &Path) {
+fn sweep(workbook: &Path, locks: &Locks) {
     let dir = directory(workbook);
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -334,31 +345,35 @@ fn sweep(workbook: &Path) {
         let Some(digest) = prepared_digest(workbook, &name) else {
             continue;
         };
+        if locks.marked(dir, &name) != Ok(false) {
+            continue;
+        }
         let path = dir.join(&name);
-        if let Some(left) = left_by_a_killed_run(&path, &digest) {
-            let _ = fs::remove_file(&path);
-            drop(left);
+        if left_by_a_killed_run(&path, &digest) {
+            let _ = remove_made(&path);
         }
     }
 }
 
-fn left_by_a_killed_run(path: &Path, digest: &str) -> Option<File> {
-    let file = open_regular(path).ok()?;
-    file.try_lock().ok()?;
-    let (held, count) = Sha256::of_reader(&file, parts::FILE_MAX).ok()?;
-    (count <= parts::FILE_MAX && held.hex().starts_with(digest)).then_some(file)
+fn left_by_a_killed_run(path: &Path, digest: &str) -> bool {
+    let Ok(file) = open_regular(path) else {
+        return false;
+    };
+    Sha256::of_reader(&file, parts::FILE_MAX)
+        .is_ok_and(|(held, count)| count <= parts::FILE_MAX && held.hex().starts_with(digest))
 }
 
 /// Writes the prepared copy under a name that no other call has: the run id, the process and
 /// a count of the calls of this process, the count taken again when a file of that name
 /// stands there, and the digest of its bytes. No file is removed or written over. The copy
-/// comes back with a shared lock of the system on it, held by the file that comes with it.
+/// comes back with its mark, which the caller holds while it lives.
 fn write_copy(
     workbook: &Path,
     run: &RunId,
     bytes: &[u8],
     permissions: Permissions,
-) -> Result<(PathBuf, File), Error> {
+    locks: &Locks,
+) -> Result<(PathBuf, Mark), Error> {
     let sha256 = Sha256::of(bytes);
     for _ in 0..64 {
         let call = CALLS.fetch_add(1, Ordering::Relaxed);
@@ -369,12 +384,12 @@ fn write_copy(
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error.into()),
         }
-        let live = File::open(&copy).and_then(|file| file.lock_shared().map(|()| file));
-        return match live {
-            Ok(file) => Ok((copy, file)),
+        let name = copy.file_name().unwrap_or_default();
+        return match locks.mark(directory(&copy), name) {
+            Ok(mark) => Ok((copy, mark)),
             Err(error) => {
-                let _ = fs::remove_file(&copy);
-                Err(error.into())
+                let _ = remove_made(&copy);
+                Err(Error::Lock(error))
             }
         };
     }
@@ -612,9 +627,10 @@ mod tests {
             taken.push(name);
         }
         let permissions = fs::metadata(&workbook).expect("metadata").permissions();
-        let (copy, live) =
-            write_copy(&workbook, &run, b"the copy", permissions).expect("another name");
-        drop(live);
+        let locks = crate::testing::locks();
+        let (copy, mark) =
+            write_copy(&workbook, &run, b"the copy", permissions, &locks).expect("another name");
+        drop(mark);
         assert!(!taken.contains(&copy), "{copy:?}");
         assert_eq!(fs::read(&copy).expect("read"), b"the copy");
         for name in &taken {

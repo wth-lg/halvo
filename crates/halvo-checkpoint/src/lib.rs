@@ -12,7 +12,7 @@ mod run;
 mod walk;
 
 pub use digest::Sha256;
-pub use lock::{Held, LockError, Locks};
+pub use lock::{Held, LockError, Locks, Mark};
 pub use name::{checkpoint_name, own_name};
 pub use remove::{remove, Expect, Left, Removal, Row, Undecided};
 pub use run::RunId;

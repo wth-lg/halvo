@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use std::fs::{self, File, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::walk::{is_loop, no_follow, same_file, Root, Walk};
 use crate::{checkpoint_name, digest, LockError, Locks, RunId, Sha256, FILE_MAX};
@@ -106,9 +107,10 @@ pub enum Undecided {
 /// Removes the checkpoint of `row.run` beside `row.workbook`, inside `row.folder` alone
 /// (contracts.md A11.3, A6.6; the coordinator's rulings CP-96 (e) and CP-98 (3)). It builds the
 /// copy's name with [`checkpoint_name`] and never searches a folder for another; it walks from
-/// the folder, which may itself be reached through a link, to the workbook's directory, and
-/// holds the lock of that directory from its first look at the copy to the removal, so that it
-/// never overlaps a `prepare` or a `replace` of the sheet executor. It removes the copy only
+/// the folder, which may itself be reached through a link, to the workbook's directory, takes
+/// the lock of that directory and walks the way again under it, and holds the lock from its
+/// first look at the copy to the removal, so that it never overlaps a `prepare` or a `replace`
+/// of the sheet executor. It removes the copy only
 /// when all of these hold: no directory on the way below the folder is a link, and the copy is a
 /// regular file and no link; the directory holds an entry whose own name is the built name byte
 /// for byte; and the copy's length and SHA-256, read under the bound of a file, are the row's
@@ -125,14 +127,15 @@ pub fn remove(locks: &Locks, row: &Row<'_>) -> Result<Removal, Undecided> {
         return Ok(Removal::Left(Left::NotFile));
     };
     let held = locks.hold(&dir).map_err(Undecided::Lock)?;
-    let answer = match checked(&dir, &name, last, row.expect) {
-        Ok(file) => {
+    let walked_again = match place(row.folder, row.workbook) {
+        Ok((again, _)) if again == dir => Ok(()),
+        Ok(_) => Err(Removal::Left(Left::Link)),
+        Err(answer) => Err(answer),
+    };
+    let answer = match walked_again.and_then(|()| checked(&dir, &name, last, row.expect)) {
+        Ok((file, seen)) => {
             drop(file);
-            match fs::remove_file(dir.join(&name)) {
-                Ok(()) => Ok(Removal::Removed),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Removal::Absent),
-                Err(error) => Err(Undecided::Remove(error.kind())),
-            }
+            aside(&dir, &name, &seen)
         }
         Err(answer) => Ok(answer),
     };
@@ -160,7 +163,12 @@ fn walked(walk: Walk) -> Removal {
 
 /// The checks of [`remove`] on the entry `name` of `dir`, made under the lock; the open copy
 /// when every one holds.
-fn checked(dir: &Path, name: &OsStr, workbook: &OsStr, expect: Expect) -> Result<File, Removal> {
+fn checked(
+    dir: &Path,
+    name: &OsStr,
+    workbook: &OsStr,
+    expect: Expect,
+) -> Result<(File, Metadata), Removal> {
     let path = dir.join(name);
     let (file, seen) = opened(&path)?;
     if !own_entry(dir, name)? {
@@ -194,7 +202,57 @@ fn checked(dir: &Path, name: &OsStr, workbook: &OsStr, expect: Expect) -> Result
     if !same_file(&seen, &now) {
         return Err(Removal::Left(Left::Changed));
     }
-    Ok(file)
+    Ok((file, seen))
+}
+
+static ASIDE: AtomicU64 = AtomicU64::new(0);
+
+/// Removes the checked copy `name` of `dir`, whose metadata at the check is `seen`: it moves
+/// the entry to a name of its own first and removes it only when the moved file is still the
+/// checked one, so that a file that took the copy's place after the check is never removed. A
+/// file that is not the checked one goes back to the copy's name, unless a new file stands
+/// there, and the answer is [`Left::Changed`].
+fn aside(dir: &Path, name: &OsStr, seen: &Metadata) -> Result<Removal, Undecided> {
+    let path = dir.join(name);
+    let mut moved = name.to_os_string();
+    let count = ASIDE.fetch_add(1, Ordering::Relaxed);
+    moved.push(format!(
+        ".halvo-removing-{:08x}{count:08x}",
+        std::process::id()
+    ));
+    let moved = dir.join(moved);
+    match fs::symlink_metadata(&moved) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        _ => return Err(Undecided::Remove(io::ErrorKind::AlreadyExists)),
+    }
+    match fs::rename(&path, &moved) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Removal::Absent),
+        Err(error) => return Err(Undecided::Remove(error.kind())),
+    }
+    let still = fs::symlink_metadata(&moved)
+        .is_ok_and(|now| !now.file_type().is_symlink() && now.is_file() && same_file(seen, &now));
+    if !still {
+        put_back(&moved, &path);
+        return Ok(Removal::Left(Left::Changed));
+    }
+    match fs::remove_file(&moved) {
+        Ok(()) => Ok(Removal::Removed),
+        Err(error) => {
+            put_back(&moved, &path);
+            Err(Undecided::Remove(error.kind()))
+        }
+    }
+}
+
+/// Gives the file at `moved` the name `path` again without writing over a file that stands
+/// there now; when one does, the file keeps the name `moved`.
+fn put_back(moved: &Path, path: &Path) {
+    if fs::hard_link(moved, path).is_ok() {
+        let _ = fs::remove_file(moved);
+    } else if fs::symlink_metadata(path).is_err() {
+        let _ = fs::rename(moved, path);
+    }
 }
 
 /// The regular file at `path`, opened without following a link, with what the open file says

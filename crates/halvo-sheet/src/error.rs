@@ -44,7 +44,9 @@ pub enum PathRefusal {
     /// A part of the path holds a colon, which on Windows names a stream of a file.
     Name,
     /// The file name is one that this crate gives a checkpoint or a prepared copy: it holds
-    /// `.halvo-checkpoint-` or `.halvo-prepared-`. `prepare` takes no such file as a workbook.
+    /// `.halvo-checkpoint-` or `.halvo-prepared-` in any letter case, because a volume that folds
+    /// case answers for such a name with a copy of the crate's. `prepare` takes no such file
+    /// as a workbook.
     OwnFile,
 }
 
