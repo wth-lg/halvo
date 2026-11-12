@@ -471,8 +471,19 @@ mod sys {
         spec: &Spec<'_>,
         placed: RawPlaced,
     ) -> Result<Started, StartFault> {
-        let pid = spawn(spec, &[placed])?;
-        Ok(Started { pid, reaped: false })
+        // SAFETY: F_DUPFD_CLOEXEC makes a new descriptor of 10 or more for the open `placed`, so
+        // that the action that places it at 3 never copies a descriptor onto itself, which
+        // would keep its close-on-exec flag.
+        let lifted = unsafe { libc::fcntl(placed, libc::F_DUPFD_CLOEXEC, 10) };
+        if lifted < 0 {
+            return Err(StartFault::last("placed"));
+        }
+        let spawned = spawn(spec, &[lifted]);
+        close_all(&[lifted]);
+        Ok(Started {
+            pid: spawned?,
+            reaped: false,
+        })
     }
 }
 
@@ -790,6 +801,94 @@ mod sys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_child_on_the_pipe_holds_its_standard_streams_and_its_two_ends_alone() {
+        use std::os::fd::AsRawFd;
+        let (spare_read, spare_write) = {
+            let _held = lock();
+            let mut fds = [0; 2];
+            // SAFETY: pipe writes two new descriptors into the array; they are not close-on-exec.
+            assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+            (fds[0], fds[1])
+        };
+        let spec = Spec {
+            program: Path::new("/bin/sleep"),
+            args: vec!["5".into()],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let mut on = {
+            let held = lock();
+            start_on_pipe(&held, &spec).expect("start")
+        };
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let pid = on.child.pid();
+        let mut fds = crate::peer::fds_of(pid).expect("fds");
+        fds.sort_unstable();
+        let numbers: Vec<i32> = fds.iter().map(|(fd, _)| *fd).collect();
+        assert_eq!(numbers, vec![0, 1, 2, 3, 4]);
+        let held: Vec<u64> = crate::peer::pipe_handles_of(pid)
+            .expect("pipes")
+            .iter()
+            .map(|(_, h)| *h)
+            .collect();
+        assert_eq!(held, vec![on.ids.handles[0], on.ids.handles[3]]);
+        let mine = crate::peer::pipe_handles_of(std::process::id()).expect("own pipes");
+        let ends_here: Vec<u64> = mine
+            .iter()
+            .map(|(_, h)| *h)
+            .filter(|h| on.ids.handles.contains(h))
+            .collect();
+        assert_eq!(ends_here.len(), 2);
+        assert!(ends_here.contains(&on.ids.handles[1]) && ends_here.contains(&on.ids.handles[2]));
+        for fd in [on.to_browser.as_raw_fd(), on.from_browser.as_raw_fd()] {
+            // SAFETY: F_GETFD reads the flags of an open descriptor of this process.
+            assert_eq!(
+                unsafe { libc::fcntl(fd, libc::F_GETFD) } & libc::FD_CLOEXEC,
+                libc::FD_CLOEXEC
+            );
+        }
+        on.child.kill();
+        // SAFETY: the two spare descriptors are owned here and closed once.
+        unsafe {
+            libc::close(spare_read);
+            libc::close(spare_write);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_child_started_with_a_placed_descriptor_holds_it_at_3_and_nothing_else() {
+        let listener = {
+            let _held = lock();
+            std::net::TcpListener::bind("127.0.0.1:0").expect("bind")
+        };
+        let spec = Spec {
+            program: Path::new("/bin/sleep"),
+            args: vec!["5".into()],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let mut child = {
+            let held = lock();
+            start_with(&held, &spec, std::os::fd::AsRawFd::as_raw_fd(&listener)).expect("start")
+        };
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let mut fds = crate::peer::fds_of(child.pid()).expect("fds");
+        fds.sort_unstable();
+        assert_eq!(
+            fds.iter().map(|(fd, _)| *fd).collect::<Vec<_>>(),
+            vec![0, 1, 2, 3]
+        );
+        let port = listener.local_addr().expect("addr").port();
+        assert!(crate::peer::sockets(&[child.pid()])
+            .iter()
+            .any(|s| s.listening && s.local.1 == port));
+        child.kill();
+        assert!(child.exited());
+    }
 
     #[test]
     fn a_windows_argument_is_quoted_by_the_runtime_s_rules() {

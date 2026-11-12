@@ -86,11 +86,7 @@ pub fn check(s: &Subject<'_>) -> Vec<Count> {
         .count();
     let active_port_file = usize::from(s.profile.join("DevToolsActivePort").exists());
     let me = std::process::id();
-    let executor_listener = peer::sockets(&[me])
-        .iter()
-        .filter(|x| x.pid == me && x.proto == Proto::Tcp && x.listening)
-        .filter(|x| Some(x.local.1) != s.relay_port)
-        .count();
+    let executor_listener = listeners_beside(&peer::sockets(&[me]), me, s.relay_port);
     let pipe_holder = s
         .pipe
         .map(|ids| pipe_holders(&table, s.root, ids))
@@ -121,6 +117,15 @@ pub fn check(s: &Subject<'_>) -> Vec<Count> {
             count: pipe_holder,
         },
     ]
+}
+
+/// The TCP listeners of process `pid` among `sockets` but the one on `relay_port`.
+pub fn listeners_beside(sockets: &[peer::Socket], pid: u32, relay_port: Option<u16>) -> usize {
+    sockets
+        .iter()
+        .filter(|x| x.pid == pid && x.proto == Proto::Tcp && x.listening)
+        .filter(|x| Some(x.local.1) != relay_port)
+        .count()
 }
 
 /// The processes but the browser's first one and this process that hold an end of the pipe,
@@ -281,6 +286,82 @@ mod tests {
         assert!(names_a_port("chrome --remote-debugging-port=0 about:blank"));
         assert!(!names_a_port("chrome --remote-debugging-pipe about:blank"));
         assert_eq!(RULES.len(), 6);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn each_rule_counts_what_breaks_it() {
+        use crate::start::Start;
+        let root = |pid: u32| {
+            procs::table()
+                .unwrap()
+                .into_iter()
+                .find(|p| p.pid == pid)
+                .unwrap()
+        };
+        let dir = std::env::temp_dir().join(format!("r3-web-checks-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut child = std::process::Command::new("/bin/sh")
+            .args(["-c", "sleep 5; true", "sh", "--remote-debugging-port=0"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .start()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let counts = |pid: u32, relay: Option<u16>| {
+            let r = root(pid);
+            check(&Subject {
+                root: &r,
+                profile: &dir,
+                pipe: None,
+                relay_port: relay,
+            })
+        };
+        let of = |c: &[Count], rule: &str| c.iter().find(|x| x.rule == rule).unwrap().count;
+        let quiet = counts(child.id(), None);
+        assert_eq!(of(&quiet, "port_flag"), 1);
+        assert_eq!(of(&quiet, "tcp_listen"), 0);
+        assert_eq!(of(&quiet, "active_port_file"), 0);
+        let _ = child.kill();
+        let _ = child.wait();
+        let held = crate::start::lock();
+        let tcp = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let udp = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+        drop(held);
+        std::fs::write(dir.join("DevToolsActivePort"), b"0\n").unwrap();
+        let me = std::process::id();
+        let loud = counts(me, None);
+        assert_eq!(of(&loud, "port_flag"), 0);
+        assert!(of(&loud, "tcp_listen") >= 1);
+        assert!(of(&loud, "udp_wide") >= 1);
+        assert_eq!(of(&loud, "active_port_file"), 1);
+        assert!(of(&loud, "executor_listener") >= 1);
+        drop((tcp, udp));
+        let _ = std::fs::remove_file(dir.join("DevToolsActivePort"));
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn the_relay_s_listener_is_the_one_listener_that_the_executor_may_hold() {
+        use std::net::{IpAddr, Ipv4Addr};
+        let at = |pid: u32, port: u16, listening: bool, proto: Proto| peer::Socket {
+            pid,
+            proto,
+            local: (IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            remote: (IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
+            listening,
+        };
+        let socks = vec![
+            at(7, 5000, true, Proto::Tcp),
+            at(7, 5001, true, Proto::Tcp),
+            at(7, 5002, false, Proto::Tcp),
+            at(7, 5003, false, Proto::Udp),
+            at(8, 5004, true, Proto::Tcp),
+        ];
+        assert_eq!(listeners_beside(&socks, 7, Some(5000)), 1);
+        assert_eq!(listeners_beside(&socks, 7, None), 2);
+        assert_eq!(listeners_beside(&socks, 7, Some(5001)), 1);
+        assert_eq!(listeners_beside(&socks, 9, None), 0);
     }
 
     #[test]

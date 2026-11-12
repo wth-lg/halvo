@@ -767,6 +767,36 @@ mod tests {
         assert_eq!(relay.handle().foreign_count(), 2);
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_connection_that_a_second_process_also_holds_is_refused_as_several_owners() {
+        let held = crate::start::lock();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let relay_port = listener.local_addr().unwrap().port();
+        let c = std::net::TcpStream::connect(("127.0.0.1", relay_port)).unwrap();
+        let _accepted = listener.accept().unwrap();
+        let spec = crate::start::Spec {
+            program: std::path::Path::new("/bin/sleep"),
+            args: vec!["5".into()],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let mut second =
+            crate::start::start_with(&held, &spec, std::os::fd::AsRawFd::as_raw_fd(&c)).unwrap();
+        drop(held);
+        std::thread::sleep(Duration::from_millis(300));
+        let peer = c.local_addr().unwrap().port();
+        assert_eq!(
+            check_peer(Some(&me()), peer, relay_port).map_err(|f| (f.cause, f.owners)),
+            Err(("several_owners", 2))
+        );
+        second.kill();
+        assert_eq!(
+            check_peer(Some(&me()), peer, relay_port),
+            Ok(std::process::id())
+        );
+    }
+
     #[test]
     fn the_peer_check_takes_this_process_for_its_own_connection_and_no_other_root() {
         let held = crate::start::lock();

@@ -58,7 +58,7 @@ pub fn all_pids() -> Vec<u32> {
 }
 
 #[cfg(target_os = "macos")]
-pub use sys::{pipe_handle_of, pipe_handles_of};
+pub use sys::{fds_of, pipe_handle_of, pipe_handles_of};
 #[cfg(windows)]
 pub use sys::{pipe_holders, pipe_name_of};
 
