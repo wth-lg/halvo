@@ -438,6 +438,54 @@ pub(crate) mod tests {
         );
     }
 
+    fn seal_a_segment_key(store_key: &[u8; 32], seg_key: &[u8; 32], label: &[u8]) -> Vec<u8> {
+        use aead::{Aead, KeyInit};
+
+        let nonce = [0x19u8; 24];
+        let cipher = XChaCha20Poly1305::new(store_key.into());
+        let sealed = cipher
+            .encrypt(
+                &chacha20poly1305::XNonce::from(nonce),
+                Payload {
+                    msg: seg_key,
+                    aad: label,
+                },
+            )
+            .unwrap();
+        [nonce.as_slice(), &sealed].concat()
+    }
+
+    const A_WRAP_UNDER_THE_LABEL: &str = concat!(
+        "191919191919191919191919191919191919191919191919",
+        "5d39fb6accf83487449a704bce9b15ec898e476744abeb99687e75ca35a2f38b",
+        "6935d051c9dde65d3301ebc7244fd8a3"
+    );
+
+    #[test]
+    fn a_segment_key_wrap_opens_only_under_its_label() {
+        let (store_key, seg_key) = ([0x6eu8; 32], [0x2du8; 32]);
+        let with_the_label = seal_a_segment_key(&store_key, &seg_key, b"halvo-segment-key");
+        let hex: String = with_the_label.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex, A_WRAP_UNDER_THE_LABEL, "the fixed wrap changed");
+        let opened = unwrap_segment_key(&store_key, &with_the_label);
+        assert!(
+            opened.as_ref().is_ok_and(|key| key.expose() == &seg_key),
+            "the fixed wrap under the label did not open: {:?}",
+            opened.err()
+        );
+        for (case, label) in [
+            ("no label", b"".as_slice()),
+            ("another label", b"halvo-segment-key-2".as_slice()),
+        ] {
+            let other = seal_a_segment_key(&store_key, &seg_key, label);
+            let opened = unwrap_segment_key(&store_key, &other);
+            assert!(
+                matches!(opened, Err(StoreError::Corrupt(_))),
+                "the key sealed under the store key with {case} opened as a segment key"
+            );
+        }
+    }
+
     #[test]
     fn segment_key_wraps_under_one_store_key_use_distinct_nonces_that_vary_in_every_byte() {
         const XNONCE: usize = 24;

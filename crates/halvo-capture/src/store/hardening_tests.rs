@@ -1096,6 +1096,161 @@ fn a_segment_file_that_exists_and_cannot_be_read_reads_as_io_permission_denied()
     );
 }
 
+#[test]
+fn delete_all_zeroes_the_store_key_file_through_every_name_before_it_removes_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let second_name = dir.path().join("a-second-name-of-store.key");
+    std::fs::hard_link(KeyFile::path(&store_dir), &second_name).unwrap();
+    let before = std::fs::read(&second_name).unwrap();
+    let mut store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    store.crypto_shred_all().unwrap();
+    drop(store);
+    let after = std::fs::read(&second_name).unwrap();
+    assert!(
+        !KeyFile::path(&store_dir).exists(),
+        "delete-all left store.key"
+    );
+    assert_eq!(
+        after.len(),
+        before.len(),
+        "the second name of store.key changed its length"
+    );
+    let nonzero = after.iter().filter(|&&b| b != 0).count();
+    assert_eq!(
+        nonzero, 0,
+        "store.key was removed with {nonzero} of its bytes not zeroed"
+    );
+}
+
+#[test]
+fn a_write_ahead_log_left_in_the_directory_is_gone_after_delete_all_and_after_a_failed_create() {
+    let log = b"a write-ahead log that outlived its database";
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(&dir.path().join("deleted"));
+    let mut store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    super::db::failpoint::arm("key_file_destroy");
+    let stopped = store.crypto_shred_all();
+    assert!(
+        stopped.is_err(),
+        "the delete-all did not stop at its key file"
+    );
+    std::fs::write(store_dir.join("store.db-wal"), log).unwrap();
+    store.crypto_shred_all().unwrap();
+    drop(store);
+    let after_delete_all = store_dir.join("store.db-wal").exists();
+
+    let failed_dir = dir.path().join("failed");
+    std::fs::create_dir_all(failed_dir.join("store.db-shm")).unwrap();
+    std::fs::write(failed_dir.join("store.db-wal"), log).unwrap();
+    let created = EncryptedStore::create(
+        &failed_dir,
+        Box::new(file_root_custody(
+            &dir.path().join("roots-of-the-failed-create"),
+            TestProtector::new(0x5a).0,
+            RootId::fresh(),
+        )),
+        DEFAULT_RETENTION,
+    );
+    let create_failed = created.is_err();
+    drop(created);
+    let after_failed_create = failed_dir.join("store.db-wal").exists();
+
+    assert!(
+        !after_delete_all,
+        "a write-ahead log that was in the directory outlived delete-all"
+    );
+    assert!(
+        create_failed,
+        "a create over a store.db-shm that is a directory succeeded"
+    );
+    assert!(
+        !after_failed_create,
+        "a write-ahead log that was in the directory outlived a failed create"
+    );
+}
+
+#[test]
+fn a_segment_write_whose_key_commit_fails_leaves_no_segment_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .execute_batch(
+            "CREATE TEMP TRIGGER refuse_the_key_commit BEFORE UPDATE OF wrapped_key ON segment_keys \
+             BEGIN SELECT RAISE(ABORT, 'the key commit is refused'); END;",
+        )
+        .unwrap();
+    let mut before = files_under(&segment::segments_root(&store_dir));
+    let written = store.write_segment(&mut Cursor::new(b"a segment whose key never commits"));
+    let mut after = files_under(&segment::segments_root(&store_dir));
+    before.sort();
+    after.sort();
+    assert!(
+        written.is_err(),
+        "a write whose key commit was refused succeeded"
+    );
+    assert_eq!(
+        after, before,
+        "a write whose key commit failed left a file under segments/"
+    );
+}
+
+#[test]
+fn a_create_over_a_database_and_segment_files_without_a_key_file_starts_from_nothing() {
+    let mut problems = Vec::new();
+    for keep_the_database in [true, false] {
+        let case = if keep_the_database {
+            "store.db and a segment file"
+        } else {
+            "a segment file"
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, _, segment_id) = file_root_store(dir.path());
+        let old_segment = segment_path(&store_dir, segment_id);
+        KeyFile::destroy(&store_dir).unwrap();
+        if !keep_the_database {
+            super::db::Db::destroy(&store_dir).unwrap();
+        }
+        let created = EncryptedStore::create(
+            &store_dir,
+            Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                RootId::fresh(),
+            )),
+            DEFAULT_RETENTION,
+        );
+        match &created {
+            Err(e) => problems.push(format!("a create over {case} answered {e:?}")),
+            Ok(store) => {
+                let keys: i64 = store
+                    .db()
+                    .unwrap()
+                    .connection()
+                    .query_row("SELECT count(*) FROM segment_keys", [], |r| r.get(0))
+                    .unwrap();
+                if keys != 0 {
+                    problems.push(format!("a create over {case} holds {keys} segment keys"));
+                }
+                let read = store.read_segment(segment_id, &mut Vec::new());
+                if !matches!(read, Err(StoreError::Sealed)) {
+                    problems.push(format!(
+                        "a create over {case} read the old segment: {read:?}"
+                    ));
+                }
+            }
+        }
+        if old_segment.exists() {
+            problems.push(format!("a create over {case} left the old segment file"));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
 fn reopened_file_root_store(store_dir: &Path, roots_dir: &Path, root_id: RootId) -> EncryptedStore {
     EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, _| {
         Ok(Box::new(file_root_custody(
