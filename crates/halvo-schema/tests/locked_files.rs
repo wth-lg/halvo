@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::str::FromStr;
 
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
@@ -15,12 +16,23 @@ const LOCKED: [&str; 7] = [
 
 const LATER: [&str; 4] = ["executable", "coordinator", "learning", "routing"];
 
-fn source(file: &str) -> String {
-    let path = format!("{}/src/{file}", env!("CARGO_MANIFEST_DIR"));
-    match std::fs::read_to_string(&path) {
+fn read(path: &Path) -> String {
+    match std::fs::read_to_string(path) {
         Ok(text) => text.replace("\r\n", "\n"),
-        Err(e) => panic!("{path}: {e}"),
+        Err(e) => panic!("{}: {e}", path.display()),
     }
+}
+
+fn schema_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn core_dir() -> PathBuf {
+    schema_dir().join("..").join("halvo-schema-core")
+}
+
+fn source(file: &str) -> String {
+    read(&core_dir().join("src").join(file))
 }
 
 const RUSTC_WHITESPACE: [char; 11] = [
@@ -455,16 +467,6 @@ fn the_check_of_the_coarse_assertion_names_the_field_that_lost_its_assertion() {
     );
 }
 
-const STD_MACROS: [&str; 7] = [
-    "concat",
-    "format",
-    "matches",
-    "stringify",
-    "vec",
-    "write",
-    "forward_to_deserialize_any",
-];
-
 const KEYWORDS: [&str; 38] = [
     "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
     "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
@@ -476,38 +478,6 @@ const INCLUDE: [&str; 3] = ["include", "include_str", "include_bytes"];
 
 fn is_name(token: &str) -> bool {
     is_ident(token) && (token.starts_with("r#") || !KEYWORDS.contains(&token))
-}
-
-fn macro_names(t: &[String]) -> Vec<String> {
-    (0..t.len())
-        .filter(|&i| bare(&t[i]) == "macro_rules" && t.get(i + 1).is_some_and(|x| x == "!"))
-        .filter_map(|i| t.get(i + 2).map(|name| bare(name).to_owned()))
-        .collect()
-}
-
-fn locked_macros() -> Vec<String> {
-    LOCKED
-        .iter()
-        .flat_map(|file| macro_names(&tokens(&source(file))))
-        .collect()
-}
-
-fn root_names() -> Vec<String> {
-    let mut names: Vec<String> = LOCKED
-        .iter()
-        .filter(|file| **file != "lib.rs")
-        .map(|file| file.trim_end_matches(".rs").to_owned())
-        .chain(LATER.iter().map(|module| (*module).to_owned()))
-        .collect();
-    let t = tokens(&source("lib.rs"));
-    for at in find(&t, &["use"]) {
-        for token in t[at + 1..].iter().take_while(|x| *x != ";") {
-            if is_name(token) {
-                names.push(bare(token).to_owned());
-            }
-        }
-    }
-    names
 }
 
 fn in_an_attribute_or_a_macro(t: &[String]) -> Vec<bool> {
@@ -590,220 +560,11 @@ fn reach_faults(file: &str, t: &[String]) -> Vec<String> {
     faults
 }
 
-fn called_through_an_argument(t: &[String], name_at: usize) -> bool {
-    let mut j = name_at;
-    while j >= 3 && t[j - 1] == ":" && t[j - 2] == ":" && is_ident(&t[j - 3]) {
-        j -= 3;
+fn later_faults(file: &str, text: &str) -> Vec<String> {
+    match lex(text) {
+        Ok(t) => reach_faults(file, &t),
+        Err(cause) => vec![unread(file, &cause)],
     }
-    j >= 1 && t[j - 1] == "$" && bare(&t[j]) != "crate"
-}
-
-fn lock_faults(file: &str, text: &str, macros: &[String], root: &[String]) -> Vec<String> {
-    let t = match lex(text) {
-        Ok(t) => t,
-        Err(cause) => return vec![unread(file, &cause)],
-    };
-    let own = macro_names(&t);
-    let mut faults = reach_faults(file, &t);
-    for (i, token) in t.iter().enumerate() {
-        let name = bare(token);
-        let next = t.get(i + 1).map(String::as_str);
-        if is_ident(token) && name == "macro_use" {
-            faults.push(format!("{file} holds macro_use"));
-        }
-        let call = is_name(token) && next == Some("!") && is_open(t.get(i + 2));
-        if call
-            && !INCLUDE.contains(&name)
-            && !macros.iter().chain(&own).any(|m| m == name)
-            && !STD_MACROS.contains(&name)
-        {
-            faults.push(format!(
-                "{file} calls the macro {name}, which no locked file defines"
-            ));
-        }
-        if call && called_through_an_argument(&t, i) {
-            faults.push(format!("{file} calls a macro through a macro's argument"));
-        }
-        if is_ident(token)
-            && matches!(name, "crate" | "super")
-            && next == Some(":")
-            && t.get(i + 2).is_some_and(|x| x == ":")
-        {
-            let items: Vec<String> = match t.get(i + 3).map(String::as_str) {
-                Some("{") => split_at_commas(&t[i + 4..matching(&t, i + 3)])
-                    .into_iter()
-                    .map(|part| bare(&part[0]).to_owned())
-                    .collect(),
-                Some(item) => vec![bare(item).to_owned()],
-                None => Vec::new(),
-            };
-            for item in items {
-                if item != "self" && !root.contains(&item) {
-                    faults.push(format!(
-                        "{file} names {name}::{item}, which is no module of the crate and no re-export of lib.rs"
-                    ));
-                }
-            }
-        }
-        if file == "lib.rs" && is_ident(token) && name == "use" {
-            let from = t.get(i + 1).map_or("", |x| bare(x));
-            if !LOCKED.contains(&format!("{from}.rs").as_str()) {
-                faults.push(format!("lib.rs re-exports from {from}"));
-            }
-        }
-    }
-    faults
-}
-
-#[test]
-fn the_lock_test_refuses_a_path_attribute_include_macro_use_and_a_macro_that_no_locked_file_defines(
-) {
-    let macros = locked_macros();
-    let root = root_names();
-    for name in ["name_enum", "strict_struct", "string_type", "coarse_types"] {
-        assert!(macros.iter().any(|m| m == name), "{name}");
-    }
-    for name in ["ids", "kinds", "learning", "Coarse", "RowRead", "SiteValue"] {
-        assert!(root.iter().any(|m| m == name), "{name}");
-    }
-    for (text, fault) in [
-        (
-            "#[path = \"learning.rs\"]\nmod sneak_path;\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "#[cfg_attr(all(), path = \"learning.rs\")]\nmod sneak_path;\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "mod sneak {\n    include!(\"learning.rs\");\n}\n",
-            "site.rs names include",
-        ),
-        (
-            "mod sneak {\n    use core::include as grab;\n    grab!(\"executable.rs\");\n}\n",
-            "site.rs names include",
-        ),
-        (
-            "fn sneak_len() -> usize {\n    crate::sneak_macro!()\n}\n",
-            "site.rs calls the macro sneak_macro",
-        ),
-        (
-            "fn sneak_len() -> usize {\n    crate::r#sneak!()\n}\n",
-            "site.rs calls the macro sneak",
-        ),
-        (
-            "fn sneak_len() -> usize {\n    sneak_macro![]\n}\n",
-            "site.rs calls the macro sneak_macro",
-        ),
-        (
-            "fn sneak_len() -> usize {\n    hidden!()\n}\n",
-            "site.rs calls the macro hidden",
-        ),
-        (
-            "use crate::{ids, sneak_macro as m};\n",
-            "site.rs names crate::sneak_macro",
-        ),
-        (
-            "use crate::sneak_macro as format;\nfn f() -> String {\n    format!(\"x\")\n}\n",
-            "site.rs names crate::sneak_macro",
-        ),
-        (
-            "fn sneak_len() -> usize {\n    super::sneak!()\n}\n",
-            "site.rs names super::sneak",
-        ),
-        (
-            "#[macro_use]\npub mod learning;\n",
-            "site.rs holds macro_use",
-        ),
-    ] {
-        let faults = lock_faults("site.rs", text, &macros, &root);
-        assert!(
-            faults.iter().any(|f| f.starts_with(fault)),
-            "{text}: {faults:?}"
-        );
-    }
-    assert_eq!(
-        lock_faults("lib.rs", "pub use sneak::Hidden;\n", &macros, &root),
-        ["lib.rs re-exports from sneak"]
-    );
-    for twin in [
-        "let path = 1;\n",
-        "fn path(p: &str) -> &str {\n    p\n}\n",
-        "/// #[path = \"learning.rs\"] include!(\"learning.rs\") sneak_macro!() #[macro_use]\nfn f() {}\n",
-        "let sneak_macro = \"sneak_macro!()\";\n",
-        "macro_rules! own {\n    () => {};\n}\nown!();\n",
-        "fn f() -> String {\n    format!(\"{}\", concat!(\"a\", \"b\"))\n}\n",
-        "use crate::ids::{name_enum, ParseError};\nuse crate::{kinds, record::Summary};\npub(crate) use name_enum;\n",
-        "fn f(_: &dyn crate::RowRead) -> bool {\n    !(1 == 2) && matches!(1, 1)\n}\n",
-        "fn g(a: bool) -> bool {\n    if !(a) {\n        return !(a);\n    }\n    a\n}\n",
-        "macro_rules! typed {\n    ($check:path) => {};\n}\n",
-    ] {
-        assert_eq!(
-            lock_faults("site.rs", twin, &macros, &root),
-            Vec::<String>::new(),
-            "{twin}"
-        );
-    }
-}
-
-#[test]
-fn the_lock_test_refuses_path_among_the_tokens_of_a_macro_and_a_macro_called_through_an_argument() {
-    let macros = locked_macros();
-    let root = root_names();
-    for (text, fault) in [
-        (
-            "macro_rules! own_mod {\n    ($m:meta) => {\n        #[$m]\n        mod sneak;\n    };\n}\nown_mod! {path = \"learning.rs\"}\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "macro_rules! own_mod {\n    ($a:ident $b:literal) => {\n        #[$a = $b]\n        mod sneak;\n    };\n}\nown_mod!(r#path \"learning.rs\");\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "macro_rules! own_mod {\n    () => {\n        #[path = \"learning.rs\"]\n        mod sneak;\n    };\n}\nown_mod!();\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "macro_rules! own_mod {\n    ($a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {a: path = \"learning.rs\"}\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "macro_rules! own_mod {\n    ($d:tt $a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {$ a: path = \"learning.rs\"}\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "macro_rules! inner {\n    ($x:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nmacro_rules! outer {\n    ($a:ident) => {\n        inner! {$a: path = \"learning.rs\"}\n    };\n}\nouter!(a);\n",
-            "site.rs holds path in an attribute or a macro",
-        ),
-        (
-            "macro_rules! call {\n    ($vec:ident, $f:literal) => {\n        $vec!($f)\n    };\n}\npub const LATER_TEXT: &str = call!(vec, \"learning.rs\");\n",
-            "site.rs calls a macro through a macro's argument",
-        ),
-        (
-            "macro_rules! call {\n    ($m:ident) => {\n        $m::sneak![]\n    };\n}\n",
-            "site.rs calls a macro through a macro's argument",
-        ),
-        (
-            "pub const LATER_TEXT: &str = include_str!(\"learning.rs\");\n",
-            "site.rs names include_str",
-        ),
-        (
-            "pub const LATER_BYTES: &[u8] = core::include_bytes!(\"learning.rs\");\n",
-            "site.rs names include_bytes",
-        ),
-    ] {
-        let faults = lock_faults("site.rs", text, &macros, &root);
-        assert!(faults.iter().any(|f| f == fault), "{text}: {faults:?}");
-    }
-    assert_eq!(
-        lock_faults(
-            "ids.rs",
-            "macro_rules! own {\n    () => {\n        $crate::ids::own_too!()\n    };\n}\nmacro_rules! own_too {\n    () => {};\n}\n",
-            &macros,
-            &root
-        ),
-        Vec::<String>::new()
-    );
 }
 
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -835,7 +596,7 @@ fn files_outside_the_lock(src: &Path) -> Vec<(String, String)> {
                 .expect("a path under src")
                 .to_string_lossy()
                 .replace('\\', "/");
-            if LOCKED.contains(&name.as_str()) {
+            if name == "lib.rs" {
                 return None;
             }
             match std::fs::read_to_string(&path) {
@@ -850,882 +611,6 @@ fn files_outside_the_lock(src: &Path) -> Vec<(String, String)> {
 
 fn later_files() -> Vec<(String, String)> {
     files_outside_the_lock(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
-}
-
-const MODULES: [&str; 6] = ["ids", "category", "site", "record", "request", "kinds"];
-
-const WRAPPERS: [&str; 2] = ["Box", "Pin"];
-
-fn macro_bodies(t: &[String]) -> Vec<(String, usize, usize)> {
-    (0..t.len())
-        .filter(|&i| {
-            bare(&t[i]) == "macro_rules"
-                && t.get(i + 1).is_some_and(|x| x == "!")
-                && t.get(i + 2).is_some_and(|x| is_name(x))
-                && is_open(t.get(i + 3))
-        })
-        .map(|i| (bare(&t[i + 2]).to_owned(), i + 3, matching(t, i + 3)))
-        .collect()
-}
-
-fn declares_a_fragment(body: &[String]) -> bool {
-    (0..body.len()).any(|i| {
-        matches!(body[i].as_str(), "struct" | "enum" | "union")
-            && body.get(i + 1).is_some_and(|x| x == "$")
-    })
-}
-
-fn first_name_of_a_call(t: &[String], open: usize) -> Option<String> {
-    let close = matching(t, open);
-    let mut j = open + 1;
-    while j < close {
-        if t[j] == "#" && t.get(j + 1).is_some_and(|x| x == "[") {
-            j = matching(t, j + 1) + 1;
-            continue;
-        }
-        if is_name(&t[j]) {
-            return Some(bare(&t[j]).to_owned());
-        }
-        j += 1;
-    }
-    None
-}
-
-struct Locked {
-    types: Vec<(String, String)>,
-    root: Vec<String>,
-}
-
-fn locked_types() -> Locked {
-    let files: Vec<(&str, Vec<String>)> = LOCKED.iter().map(|f| (*f, tokens(&source(f)))).collect();
-    let mut declaring: Vec<String> = Vec::new();
-    loop {
-        let before = declaring.len();
-        for (_, t) in &files {
-            for (name, open, close) in macro_bodies(t) {
-                let body = &t[open..close];
-                let calls_one = (0..body.len()).any(|i| {
-                    declaring.iter().any(|d| *d == bare(&body[i]))
-                        && body.get(i + 1).is_some_and(|x| x == "!")
-                });
-                if !declaring.contains(&name) && (declares_a_fragment(body) || calls_one) {
-                    declaring.push(name);
-                }
-            }
-        }
-        if declaring.len() == before {
-            break;
-        }
-    }
-    let mut types = Vec::new();
-    let mut root = Vec::new();
-    for (file, t) in &files {
-        let module = file.trim_end_matches(".rs").to_owned();
-        if *file == "lib.rs" {
-            for at in find(t, &["use"]) {
-                let from = t.get(at + 1).map_or("", |x| bare(x)).to_owned();
-                for token in t[at + 2..].iter().take_while(|x| *x != ";") {
-                    if is_name(token) {
-                        types.push((from.clone(), bare(token).to_owned()));
-                        root.push(bare(token).to_owned());
-                    }
-                }
-            }
-            continue;
-        }
-        for i in 0..t.len() {
-            if matches!(
-                t[i].as_str(),
-                "struct" | "enum" | "union" | "type" | "trait"
-            ) {
-                if let Some(name) = t.get(i + 1).filter(|x| is_name(x)) {
-                    types.push((module.clone(), bare(name).to_owned()));
-                }
-            }
-            let call =
-                is_name(&t[i]) && t.get(i + 1).is_some_and(|x| x == "!") && is_open(t.get(i + 2));
-            if call && declaring.iter().any(|d| *d == bare(&t[i])) {
-                if let Some(name) = first_name_of_a_call(t, i + 2) {
-                    types.push((module.clone(), name));
-                }
-            }
-        }
-    }
-    Locked { types, root }
-}
-
-fn module_of(file: &str) -> Vec<String> {
-    let stem = file.trim_end_matches(".rs").trim_end_matches(".RS");
-    let mut parts: Vec<String> = stem.split('/').map(str::to_owned).collect();
-    if parts.last().is_some_and(|p| p == "mod") {
-        parts.pop();
-    }
-    parts
-}
-
-fn module_paths(t: &[String], inside: &[bool], file_module: &[String]) -> Vec<Vec<String>> {
-    let mut paths = vec![Vec::new(); t.len()];
-    let mut open: Vec<(String, usize)> = Vec::new();
-    for i in 0..t.len() {
-        while open.last().is_some_and(|(_, close)| i > *close) {
-            open.pop();
-        }
-        let mut path = file_module.to_vec();
-        path.extend(open.iter().map(|(name, _)| name.clone()));
-        paths[i] = path;
-        if !inside[i]
-            && t[i] == "mod"
-            && t.get(i + 1).is_some_and(|x| is_name(x))
-            && t.get(i + 2).is_some_and(|x| x == "{")
-        {
-            open.push((bare(&t[i + 1]).to_owned(), matching(t, i + 2)));
-        }
-    }
-    paths
-}
-
-type Segments = Vec<String>;
-
-type Leaf = (Option<String>, Segments, bool);
-
-fn type_path(t: &[String]) -> Segments {
-    let mut i = 0;
-    loop {
-        match t.get(i).map(String::as_str) {
-            Some("&" | "mut" | "dyn") => i += 1,
-            Some("'") => i += 2,
-            _ => break,
-        }
-    }
-    let mut path = Vec::new();
-    loop {
-        match t.get(i).map(String::as_str) {
-            Some("$") => {
-                path.push("$".to_owned());
-                i += 1;
-            }
-            Some(x) if is_ident(x) => {
-                path.push(bare(x).to_owned());
-                i += 1;
-                if t.get(i).is_some_and(|x| x == ":") && t.get(i + 1).is_some_and(|x| x == ":") {
-                    i += 2;
-                    continue;
-                }
-                break;
-            }
-            _ => break,
-        }
-    }
-    if path.len() == 1 && WRAPPERS.contains(&path[0].as_str()) && t.get(i).is_some_and(|x| x == "<")
-    {
-        return type_path(&t[i + 1..]);
-    }
-    path
-}
-
-fn use_tree(t: &[String], i: &mut usize, prefix: &[String], out: &mut Vec<Leaf>) {
-    let mut path = prefix.to_vec();
-    loop {
-        match t.get(*i).map(String::as_str) {
-            Some("{") => {
-                let close = matching(t, *i);
-                *i += 1;
-                while *i < close {
-                    use_tree(t, i, &path, out);
-                    if *i < close {
-                        *i += 1;
-                    }
-                }
-                *i = close + 1;
-                return;
-            }
-            Some("*") => {
-                out.push((None, path, true));
-                *i += 1;
-                return;
-            }
-            Some(":") | Some("$") => {
-                if t[*i] == "$" {
-                    path.push("$".to_owned());
-                }
-                *i += 1;
-            }
-            Some(x) if is_ident(x) => {
-                path.push(bare(x).to_owned());
-                *i += 1;
-                if t.get(*i).is_some_and(|x| x == "as") {
-                    let alias = t.get(*i + 1).map(|a| bare(a).to_owned());
-                    *i += 2;
-                    if path.last().is_some_and(|p| p == "self") {
-                        path.pop();
-                    }
-                    out.push((alias, path, false));
-                    return;
-                }
-                if !t.get(*i).is_some_and(|x| x == ":") {
-                    if path.last().is_some_and(|p| p == "self") {
-                        path.pop();
-                    }
-                    let alias = path.last().cloned();
-                    out.push((alias, path, false));
-                    return;
-                }
-            }
-            _ => return,
-        }
-    }
-}
-
-#[derive(Default)]
-struct Tree {
-    declared: Vec<(Segments, String)>,
-    aliases: Vec<(Segments, String, Segments)>,
-    globs: Vec<(Segments, Segments, bool)>,
-    selves: Vec<String>,
-    modules: Vec<(Segments, String)>,
-    generic_aliases: Vec<String>,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Place {
-    Locked,
-    Own,
-    Other,
-}
-
-struct Lexed {
-    file: String,
-    t: Vec<String>,
-    matcher: Vec<bool>,
-    paths: Vec<Segments>,
-    bodies: Vec<(String, usize, usize)>,
-}
-
-impl Lexed {
-    fn body_of(&self, i: usize) -> Option<&(String, usize, usize)> {
-        self.bodies
-            .iter()
-            .find(|(_, open, close)| *open < i && i < *close)
-    }
-
-    fn calls(&self, name: &str) -> Vec<(Segments, usize, usize)> {
-        (0..self.t.len())
-            .filter(|&i| {
-                bare(&self.t[i]) == name
-                    && self.t.get(i + 1).is_some_and(|x| x == "!")
-                    && is_open(self.t.get(i + 2))
-                    && self.body_of(i).is_none()
-            })
-            .map(|i| (self.paths[i].clone(), i + 2, matching(&self.t, i + 2)))
-            .collect()
-    }
-}
-
-fn uses_in(t: &[String], from: usize, to: usize) -> Vec<(usize, Vec<Leaf>)> {
-    let mut out = Vec::new();
-    for i in from..to {
-        if t[i] == "use" {
-            let mut j = i + 1;
-            let mut leaves = Vec::new();
-            use_tree(t, &mut j, &[], &mut leaves);
-            out.push((i, leaves));
-        }
-    }
-    out
-}
-
-fn arguments_of(t: &[String], open: usize, close: usize) -> Vec<Segments> {
-    let mut out = Vec::new();
-    let mut j = open + 1;
-    while j < close {
-        let starts = is_ident(&t[j]) || (t[j] == "$" && t.get(j + 1).is_some_and(|x| x == "crate"));
-        let after_colon = j > 0 && t[j - 1] == ":" && j > 1 && t[j - 2] == ":";
-        if starts && !after_colon {
-            let path = type_path(&t[j..close]);
-            if !path.is_empty() {
-                out.push(path);
-            }
-        }
-        j += 1;
-    }
-    out
-}
-
-fn build_tree(lexed: &[Lexed]) -> Tree {
-    let mut tree = Tree::default();
-    for l in lexed {
-        let t = &l.t;
-        for i in 0..t.len() {
-            if t[i] == "extern"
-                && t.get(i + 1).is_some_and(|x| x == "crate")
-                && t.get(i + 2).is_some_and(|x| x == "self")
-                && t.get(i + 3).is_some_and(|x| x == "as")
-            {
-                if let Some(alias) = t.get(i + 4) {
-                    tree.selves.push(bare(alias).to_owned());
-                }
-            }
-            if l.body_of(i).is_some() {
-                continue;
-            }
-            if t[i] == "mod"
-                && t.get(i + 1).is_some_and(|x| is_name(x))
-                && t.get(i + 2).is_some_and(|x| x == ";" || x == "{")
-            {
-                tree.modules
-                    .push((l.paths[i].clone(), bare(&t[i + 1]).to_owned()));
-            }
-            if matches!(t[i].as_str(), "struct" | "enum" | "union" | "trait") {
-                if let Some(name) = t.get(i + 1).filter(|x| is_name(x)) {
-                    tree.declared
-                        .push((l.paths[i].clone(), bare(name).to_owned()));
-                }
-            }
-            if t[i] == "type"
-                && t.get(i + 1).is_some_and(|x| is_name(x))
-                && t.get(i + 2).is_some_and(|x| x == "<")
-            {
-                tree.generic_aliases.push(bare(&t[i + 1]).to_owned());
-            }
-            if t[i] == "type" && t.get(i + 1).is_some_and(|x| is_name(x)) {
-                let end = (i..t.len()).find(|&k| t[k] == ";").unwrap_or(t.len());
-                if let Some(eq) = (i..end).find(|&k| t[k] == "=") {
-                    tree.aliases.push((
-                        l.paths[i].clone(),
-                        bare(&t[i + 1]).to_owned(),
-                        type_path(&t[eq + 1..end]),
-                    ));
-                }
-            }
-        }
-        for (at, leaves) in uses_in(t, 0, t.len()) {
-            if l.body_of(at).is_some() {
-                continue;
-            }
-            for (alias, path, glob) in leaves {
-                if glob {
-                    tree.globs
-                        .push((l.paths[at].clone(), path, in_a_block(t, at)));
-                } else if let Some(alias) = alias.filter(|a| a != "_") {
-                    tree.aliases.push((l.paths[at].clone(), alias, path));
-                }
-            }
-        }
-    }
-    for l in lexed {
-        for (name, open, close) in &l.bodies {
-            let body = &l.t[*open..*close];
-            let declares = declares_a_fragment(body);
-            let mut alias_targets = Vec::new();
-            let mut literal_aliases = Vec::new();
-            let mut glob_targets = Vec::new();
-            for (_, leaves) in uses_in(&l.t, *open, *close) {
-                for (alias, path, glob) in leaves {
-                    match alias {
-                        _ if glob => glob_targets.push(path),
-                        Some(a) if a == "$" => alias_targets.push(path),
-                        Some(a) if a != "_" => literal_aliases.push((a, path)),
-                        _ => {}
-                    }
-                }
-            }
-            for k in *open..*close {
-                if l.t[k] != "type" {
-                    continue;
-                }
-                let end = (k..*close).find(|&m| l.t[m] == ";").unwrap_or(*close);
-                let Some(eq) = (k..end).find(|&m| l.t[m] == "=") else {
-                    continue;
-                };
-                let target = type_path(&l.t[eq + 1..end]);
-                match l.t.get(k + 1) {
-                    Some(x) if x == "$" => alias_targets.push(target),
-                    Some(x) if is_name(x) => literal_aliases.push((bare(x).to_owned(), target)),
-                    _ => {}
-                }
-            }
-            for caller in lexed {
-                for (module, c_open, c_close) in caller.calls(name) {
-                    for k in c_open + 1..c_close {
-                        if declares && matches!(caller.t[k].as_str(), "struct" | "enum" | "union") {
-                            if let Some(n) = caller.t.get(k + 1).filter(|x| is_name(x)) {
-                                tree.declared.push((module.clone(), bare(n).to_owned()));
-                            }
-                        }
-                    }
-                    if declares {
-                        if let Some(n) = first_name_of_a_call(&caller.t, c_open) {
-                            tree.declared.push((module.clone(), n));
-                        }
-                    }
-                    for target in &alias_targets {
-                        for k in c_open + 1..c_close {
-                            if is_name(&caller.t[k]) {
-                                tree.aliases.push((
-                                    module.clone(),
-                                    bare(&caller.t[k]).to_owned(),
-                                    target.clone(),
-                                ));
-                            }
-                        }
-                    }
-                    for target in &glob_targets {
-                        tree.globs.push((
-                            module.clone(),
-                            target.clone(),
-                            in_a_block(&caller.t, c_open),
-                        ));
-                    }
-                    for (alias, target) in &literal_aliases {
-                        tree.aliases
-                            .push((module.clone(), alias.clone(), target.clone()));
-                    }
-                }
-            }
-        }
-    }
-    tree
-}
-
-fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Option<Segments> {
-    if depth > 8 || path.is_empty() {
-        return None;
-    }
-    let first = path[0].as_str();
-    if first == "crate" {
-        return Some(path[1..].to_vec());
-    }
-    if first == "$" && path.get(1).is_some_and(|x| x == "crate") {
-        return Some(path[2..].to_vec());
-    }
-    if first == "self" {
-        return Some(
-            module
-                .iter()
-                .cloned()
-                .chain(path[1..].iter().cloned())
-                .collect(),
-        );
-    }
-    if first == "super" {
-        let ups = path.iter().take_while(|p| *p == "super").count();
-        let keep = module.len().checked_sub(ups)?;
-        return Some(
-            module[..keep]
-                .iter()
-                .cloned()
-                .chain(path[ups..].iter().cloned())
-                .collect(),
-        );
-    }
-    if tree.selves.iter().any(|s| s == first) {
-        return Some(path[1..].to_vec());
-    }
-    if tree.modules.iter().any(|(m, n)| m == module && n == first) {
-        return Some(module.iter().cloned().chain(path.iter().cloned()).collect());
-    }
-    let target = tree
-        .aliases
-        .iter()
-        .find(|(m, alias, _)| m == module && alias == first)
-        .map(|(_, _, target)| target.clone())?;
-    let joined: Segments = target
-        .into_iter()
-        .chain(path[1..].iter().cloned())
-        .collect();
-    absolute(tree, module, &joined, depth + 1)
-}
-
-fn place(tree: &Tree, locked: &Locked, module: &[String], path: &[String], depth: usize) -> Place {
-    if depth > 8 || path.is_empty() {
-        return Place::Other;
-    }
-    if path.len() == 1 && path[0] != "$" {
-        return place_name(tree, locked, module, &path[0], depth);
-    }
-    match absolute(tree, module, path, depth) {
-        Some(abs) => place_absolute(tree, locked, &abs, depth),
-        None => Place::Other,
-    }
-}
-
-fn place_absolute(tree: &Tree, locked: &Locked, abs: &[String], depth: usize) -> Place {
-    match abs {
-        [] => Place::Other,
-        [first, ..] if MODULES.contains(&first.as_str()) => Place::Locked,
-        [only] => {
-            if locked.root.contains(only) {
-                Place::Locked
-            } else {
-                Place::Other
-            }
-        }
-        [modules @ .., last] => place_name(tree, locked, modules, last, depth + 1),
-    }
-}
-
-fn place_name(tree: &Tree, locked: &Locked, module: &[String], name: &str, depth: usize) -> Place {
-    if depth > 8 {
-        return Place::Other;
-    }
-    let mut own = false;
-    for (m, alias, target) in &tree.aliases {
-        if m == module
-            && alias == name
-            && target.last().is_none_or(|t| t != name || target.len() > 1)
-        {
-            match place(tree, locked, module, target, depth + 1) {
-                Place::Locked => return Place::Locked,
-                Place::Own => own = true,
-                Place::Other => {}
-            }
-        }
-    }
-    if own {
-        return Place::Own;
-    }
-    if glob_reaches_a_locked_type(tree, locked, module, name, depth, true) {
-        return Place::Locked;
-    }
-    if tree.declared.iter().any(|(m, n)| m == module && n == name) {
-        return Place::Own;
-    }
-    if glob_reaches_a_locked_type(tree, locked, module, name, depth, false) {
-        return Place::Locked;
-    }
-    Place::Other
-}
-
-fn in_a_block(t: &[String], at: usize) -> bool {
-    let mut open: Vec<bool> = Vec::new();
-    for i in 0..at.min(t.len()) {
-        match t[i].as_str() {
-            "{" => open.push(!(i >= 2 && t[i - 2] == "mod")),
-            "(" | "[" => open.push(false),
-            "}" | ")" | "]" => {
-                open.pop();
-            }
-            _ => {}
-        }
-    }
-    open.contains(&true)
-}
-
-fn glob_reaches_a_locked_type(
-    tree: &Tree,
-    locked: &Locked,
-    module: &[String],
-    name: &str,
-    depth: usize,
-    in_block: bool,
-) -> bool {
-    for (m, target, block) in &tree.globs {
-        if m != module || *block != in_block {
-            continue;
-        }
-        match absolute(tree, module, target, depth + 1) {
-            Some(abs) if abs.is_empty() => {
-                if locked.root.iter().any(|r| r == name) {
-                    return true;
-                }
-            }
-            Some(abs) if MODULES.contains(&abs[0].as_str()) => {
-                if abs.len() == 1 && locked.types.iter().any(|(m, n)| *m == abs[0] && n == name) {
-                    return true;
-                }
-            }
-            Some(abs) if place_name(tree, locked, &abs, name, depth + 1) == Place::Locked => {
-                return true;
-            }
-            _ => {}
-        }
-    }
-    false
-}
-
-fn type_position(before: Option<&str>) -> bool {
-    matches!(
-        before,
-        Some(":" | "," | "<" | ">" | "&" | "mut" | "=" | "(" | "const" | "+" | "dyn" | "*" | "[")
-    )
-}
-
-fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
-    let mut j = at + 1;
-    let mut generics = Vec::new();
-    if t.get(j).is_some_and(|x| x == "<") {
-        let mut depth = 0i32;
-        while j < t.len() {
-            match t[j].as_str() {
-                "<" => depth += 1,
-                ">" if t[j - 1] != "-" => {
-                    depth -= 1;
-                    if depth == 0 {
-                        j += 1;
-                        break;
-                    }
-                }
-                x if is_ident(x) => generics.push(bare(x).to_owned()),
-                _ => {}
-            }
-            j += 1;
-        }
-    }
-    let mut path = Vec::new();
-    let mut self_type: Option<Vec<String>> = None;
-    let mut depth = 0i32;
-    while j < t.len() {
-        let x = t[j].as_str();
-        if depth == 0 && (x == "{" || x == ";" || x == "where") {
-            break;
-        }
-        if depth == 0 && x == "for" && self_type.is_none() && t.get(j + 1).is_none_or(|n| n != "<")
-        {
-            self_type = Some(Vec::new());
-            j += 1;
-            continue;
-        }
-        match x {
-            "<" | "(" | "[" => depth += 1,
-            ">" if t[j - 1] != "-" => depth -= 1,
-            ")" | "]" => depth -= 1,
-            _ => {}
-        }
-        match &mut self_type {
-            Some(s) => s.push(x.to_owned()),
-            None => path.push(x.to_owned()),
-        }
-        j += 1;
-    }
-    (generics, self_type.unwrap_or(path))
-}
-
-fn bound_paths(self_type: &[String]) -> Vec<Segments> {
-    let mut parts = Vec::new();
-    let mut depth = 0i32;
-    let mut start = 0;
-    for (k, x) in self_type.iter().enumerate() {
-        match x.as_str() {
-            "<" | "(" | "[" => depth += 1,
-            ">" if k == 0 || self_type[k - 1] != "-" => depth -= 1,
-            ")" | "]" => depth -= 1,
-            "+" if depth == 0 => {
-                parts.push(type_path(&self_type[start..k]));
-                start = k + 1;
-            }
-            _ => {}
-        }
-    }
-    parts.push(type_path(&self_type[start..]));
-    parts.into_iter().filter(|p| !p.is_empty()).collect()
-}
-
-fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
-    let mut faults = Vec::new();
-    for l in lexed {
-        let t = &l.t;
-        for i in 0..t.len() {
-            if t[i] != "impl"
-                || l.matcher[i]
-                || type_position(i.checked_sub(1).map(|j| t[j].as_str()))
-            {
-                continue;
-            }
-            let (generics, self_type) = impl_header(t, i);
-            let path = type_path(&self_type);
-            let shown = self_type.join(" ");
-            if path.len() == 1 && generics.contains(&path[0]) {
-                continue;
-            }
-            if let Some((name, open, close)) = l.body_of(i) {
-                if path.first().is_some_and(|p| p == "$")
-                    && path.get(1).is_some_and(|p| p != "crate")
-                {
-                    let fragment = &path[1];
-                    let body = &t[*open..*close];
-                    let declared = (0..body.len()).any(|k| {
-                        matches!(body[k].as_str(), "struct" | "enum" | "union" | "type")
-                            && body.get(k + 1).is_some_and(|x| x == "$")
-                            && body.get(k + 2).is_some_and(|x| x == fragment)
-                    });
-                    if declared {
-                        continue;
-                    }
-                    for caller in lexed {
-                        for (module, c_open, c_close) in caller.calls(name) {
-                            for argument in arguments_of(&caller.t, c_open, c_close) {
-                                if place(tree, locked, &module, &argument, 0) == Place::Locked {
-                                    faults.push(format!(
-                                        "{} passes `{}` to the macro {name} of {}, which implements its argument, and it is a type of a locked module",
-                                        caller.file,
-                                        argument.join("::"),
-                                        l.file
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    continue;
-                }
-            }
-            let mut reached = bound_paths(&self_type);
-            if path.len() == 1 && tree.generic_aliases.contains(&path[0]) {
-                reached.extend(arguments_of(&self_type, 0, self_type.len()));
-            }
-            if reached
-                .iter()
-                .any(|p| place(tree, locked, &l.paths[i], p, 0) == Place::Locked)
-            {
-                faults.push(format!(
-                    "{} holds an impl for `{shown}`, which is a type of a locked module",
-                    l.file
-                ));
-            }
-        }
-    }
-    faults
-}
-
-fn outside_the_lock_faults(files: &[(String, String)]) -> Vec<String> {
-    let locked = locked_types();
-    let mut faults = Vec::new();
-    let mut lexed = Vec::new();
-    for (file, text) in files {
-        match lex(text) {
-            Ok(t) => {
-                faults.extend(reach_faults(file, &t));
-                faults.extend(
-                    t.iter()
-                        .filter(|token| is_ident(token) && bare(token) == "macro_export")
-                        .map(|_| format!("{file} holds macro_export")),
-                );
-                if file.starts_with("bin/") {
-                    continue;
-                }
-                let inside = in_an_attribute_or_a_macro(&t);
-                let matcher = in_a_matcher(&t);
-                let paths = module_paths(&t, &inside, &module_of(file));
-                let bodies = macro_bodies(&t);
-                lexed.push(Lexed {
-                    file: file.clone(),
-                    t,
-                    matcher,
-                    paths,
-                    bodies,
-                });
-            }
-            Err(cause) => faults.push(unread(file, &cause)),
-        }
-    }
-    let tree = build_tree(&lexed);
-    faults.extend(impl_faults(&lexed, &tree, &locked));
-    faults
-}
-
-fn later_faults(file: &str, text: &str) -> Vec<String> {
-    outside_the_lock_faults(&[(file.to_owned(), text.to_owned())])
-}
-
-#[test]
-fn no_file_of_a_later_run_holds_macro_export() {
-    let files = later_files();
-    let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
-    for module in LATER {
-        assert!(
-            names.contains(&format!("{module}.rs").as_str()),
-            "{names:?}"
-        );
-    }
-    assert_eq!(outside_the_lock_faults(&files), Vec::<String>::new());
-}
-
-#[test]
-fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
-    let src = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("walk")
-        .join("src");
-    let written = [
-        ("lib.rs", ""),
-        ("ids.rs", ""),
-        ("category.rs", ""),
-        ("site.rs", ""),
-        ("record.rs", ""),
-        ("request.rs", ""),
-        ("kinds.rs", ""),
-        ("kinds/inner.rs", "pub fn shown() {}\n"),
-        ("learning.rs", "pub const KINDS: &[u8] = &[];\n"),
-        ("learning/more.rs", "pub fn shown() {}\n"),
-        (
-            "learning/deeper/most.rs",
-            "#[macro_export]\nmacro_rules! later {\n    () => {};\n}\n",
-        ),
-        ("other.rs", "pub fn shown() {}\n"),
-        (
-            "learning/upper.RS",
-            "#[macro_export]\nmacro_rules! upper {\n    () => {};\n}\n",
-        ),
-        ("bin/tool.rs", "fn main() {}\n"),
-        ("learning/macros.inc", "#[macro_export]\n"),
-        ("routing/notes.txt", "notes\n"),
-    ];
-    for (name, text) in written {
-        let path = src.join(name);
-        std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
-        std::fs::write(&path, text).expect("a fixture file");
-    }
-    let files = files_outside_the_lock(&src);
-    let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
-    assert_eq!(
-        names,
-        [
-            "bin/tool.rs",
-            "kinds/inner.rs",
-            "learning.rs",
-            "learning/deeper/most.rs",
-            "learning/more.rs",
-            "learning/upper.RS",
-            "other.rs"
-        ]
-    );
-    let faults: Vec<String> = files
-        .iter()
-        .flat_map(|(name, text)| later_faults(name, text))
-        .collect();
-    assert_eq!(
-        faults,
-        [
-            "learning/deeper/most.rs holds macro_export",
-            "learning/upper.RS holds macro_export"
-        ]
-    );
-}
-
-#[test]
-fn the_test_of_the_later_files_refuses_macro_export_in_every_form() {
-    for text in [
-        "#[macro_export]\nmacro_rules! name_enum {\n    () => {};\n}\n",
-        "#[cfg_attr(all(), macro_export)]\nmacro_rules! own {\n    () => {};\n}\n",
-        "macro_rules! make {\n    ($n:ident) => {\n        #[macro_export]\n        macro_rules! $n {\n            () => {};\n        }\n    };\n}\nmake!(hidden);\n",
-        "#[r#macro_export]\nmacro_rules! own {\n    () => {};\n}\n",
-    ] {
-        assert_eq!(
-            later_faults("learning.rs", text),
-            ["learning.rs holds macro_export"],
-            "{text}"
-        );
-    }
-    for twin in [
-        "/// #[macro_export]\nfn f() {}\n",
-        "let s = \"#[macro_export]\";\n",
-        "macro_rules! own {\n    () => {};\n}\nown!();\n",
-        "#[macro_use]\nmod inner {}\n",
-    ] {
-        assert_eq!(
-            later_faults("learning.rs", twin),
-            Vec::<String>::new(),
-            "{twin}"
-        );
-    }
 }
 
 #[test]
@@ -1790,7 +675,6 @@ fn the_reader_reads_strings_chars_and_comments_as_the_compiler_does() {
     let all = [
         "learning.rs holds path in an attribute or a macro",
         "learning.rs names include_str",
-        "learning.rs holds macro_export",
     ];
     for before in [
         "pub const C: &core::ffi::CStr = cr#\"\\\"#;\n",
@@ -1839,8 +723,6 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
     let backtick = "#!/usr/bin/env `run`\npub const KINDS: &[crate::kinds::KindEntry] = &[];\n";
     assert!(TokenStream::from_str(backtick).is_err());
     assert!(TokenStream::from_str(shebang).is_ok());
-    let macros = locked_macros();
-    let root = root_names();
     let first_line =
         "its first line is a shebang line, which the compiler skips and the lexer reads";
     let nbsp = "#!\u{a0}[allow(dead_code)] /*\npub const KINDS: &[crate::kinds::KindEntry] = &[];\n#[macro_export]\nmacro_rules! hidden {\n    () => {};\n}\n// */\n";
@@ -1858,10 +740,7 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
             later_faults("learning.rs", text),
             [unread("learning.rs", first_line)]
         );
-        assert_eq!(
-            lock_faults("site.rs", text, &macros, &root),
-            [unread("site.rs", first_line)]
-        );
+        assert_eq!(list_file(text).err(), Some(FIRST_LINE.to_owned()));
         assert_eq!(
             coarse_assertion_faults(text),
             [unread("src/record.rs", first_line)]
@@ -1892,143 +771,6 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
             Vec::<String>::new(),
             "{text}"
         );
-    }
-}
-
-#[test]
-fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
-    let cases = [
-        (
-            "crate::kinds::KindEntry",
-            "kinds",
-            "KindEntry",
-            "impl @ {\n    pub(crate) fn later_says_ok(&self) -> bool {\n        true\n    }\n}\n",
-        ),
-        (
-            "crate::kinds::KindEntry",
-            "kinds",
-            "KindEntry",
-            "impl<T: AsRef<str>> PartialEq<T> for @ {\n    fn eq(&self, other: &T) -> bool {\n        self.family == other.as_ref()\n    }\n}\n",
-        ),
-        (
-            "crate::site::AppId",
-            "site",
-            "AppId",
-            "impl @ {\n    pub(crate) const LATER_MAX: usize = 4096;\n}\n",
-        ),
-        (
-            "crate::record::TypedRecord",
-            "record",
-            "TypedRecord",
-            "impl std::fmt::Display for @ {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.write_str(&self.json)\n    }\n}\n",
-        ),
-    ];
-    for (path, module, name, body) in cases {
-        let forms = [
-            body.replace('@', path),
-            format!("use {path} as LaterAlias;\n{}", body.replace('@', "LaterAlias")),
-            format!("use crate::{module}::*;\n{}", body.replace('@', name)),
-            format!("pub type LaterAlias = {path};\n{}", body.replace('@', "LaterAlias")),
-            format!(
-                "macro_rules! give {{\n    ($t:ty) => {{\n        {}\n    }};\n}}\ngive!({path});\n",
-                body.replace('@', "$t")
-            ),
-        ];
-        for text in forms {
-            let faults = later_faults("learning.rs", &text);
-            assert!(
-                faults
-                    .iter()
-                    .any(|f| f.ends_with("a type of a locked module")),
-                "{text}: {faults:?}"
-            );
-        }
-    }
-    for text in [
-        "use crate::{kinds::KindEntry};\nimpl KindEntry {}\n",
-        "use crate::kinds as k;\nimpl k::KindEntry {}\n",
-        "use crate::kinds::{self};\nimpl kinds::KindEntry {}\n",
-        "impl super::kinds::KindEntry {}\n",
-        "extern crate self as me;\nimpl me::kinds::KindEntry {}\n",
-        "impl std::fmt::Display for crate::TypedRecord {\n    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        Ok(())\n    }\n}\n",
-        "pub trait LaterTrait {}\nimpl LaterTrait for &crate::record::TypedRecord {}\n",
-        "pub trait LaterTrait {}\nimpl LaterTrait for Box<crate::record::TypedRecord> {}\n",
-        "impl dyn crate::kinds::Coarse {\n    pub fn later(&self) {}\n}\n",
-        "impl dyn Send + crate::RowRead {\n    pub fn sneak(&self) -> usize {\n        7\n    }\n}\n",
-        "pub type Same<T> = T;\nimpl Same<crate::record::DismissedWorkflow> {\n    pub fn serialize(&self) {}\n}\n",
-        "pub struct KindEntry;\npub fn f() {\n    use crate::kinds::KindEntry;\n    impl KindEntry {}\n}\n",
-        "macro_rules! name_it {\n    ($n:ident) => {\n        use crate::kinds::KindEntry as $n;\n    };\n}\nname_it!(LaterAlias);\nimpl LaterAlias {}\n",
-        "macro_rules! open_kinds {\n    () => {\n        use $crate::kinds::*;\n    };\n}\nopen_kinds!();\nimpl KindEntry {}\n",
-        "macro_rules! alias_it {\n    () => {\n        type LaterAlias = crate::kinds::KindEntry;\n    };\n}\nalias_it!();\nimpl LaterAlias {}\n",
-        "macro_rules! own_impl {\n    () => {\n        impl $crate::kinds::KindEntry {}\n    };\n}\nown_impl!();\n",
-        "macro_rules! pass {\n    ($($t:tt)*) => {\n        $($t)*\n    };\n}\npass! {\n    impl crate::kinds::KindEntry {}\n}\n",
-        "use crate::kinds::KindEntry;\nmacro_rules! give {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\ngive!(KindEntry);\n",
-    ] {
-        let faults = later_faults("learning.rs", text);
-        assert!(
-            faults.iter().any(|f| f.ends_with("a type of a locked module")),
-            "{text}: {faults:?}"
-        );
-    }
-    let across = |more: &str, learning: &str| {
-        outside_the_lock_faults(&[
-            (
-                "learning.rs".to_owned(),
-                format!("pub mod more;\n{learning}"),
-            ),
-            ("learning/more.rs".to_owned(), more.to_owned()),
-        ])
-    };
-    for (more, learning) in [
-        (
-            "pub use crate::kinds::KindEntry;\n",
-            "use self::more::*;\nimpl KindEntry {}\n",
-        ),
-        (
-            "pub type Entry = crate::kinds::KindEntry;\n",
-            "use self::more::Entry;\nimpl Entry {}\n",
-        ),
-        ("pub use crate::kinds::*;\n", "impl more::KindEntry {}\n"),
-        ("impl super::super::kinds::KindEntry {}\n", ""),
-        (
-            "pub use crate::kinds::KindEntry as LaterTwin;\n",
-            "pub struct LaterTwin;\npub fn f() {\n    use self::more::*;\n    impl LaterTwin {}\n}\n",
-        ),
-    ] {
-        let faults = across(more, learning);
-        assert!(
-            faults
-                .iter()
-                .any(|f| f.ends_with("a type of a locked module")),
-            "{more} {learning}: {faults:?}"
-        );
-    }
-    for twin in [
-        "pub trait FromJson {}\nimpl FromJson for u32 {}\nimpl FromJson for std::num::NonZeroU32 {}\nuse std::num::NonZeroU64;\nimpl FromJson for NonZeroU64 {}\nimpl<T: FromJson> FromJson for Vec<T> {}\nimpl<T: FromJson> FromJson for Option<T> {}\n",
-        "pub trait LaterTrait {}\nimpl<T> LaterTrait for T {}\nimpl<KindEntry> LaterTrait for Box<KindEntry> {}\n",
-        "pub struct OwnText(String);\nimpl OwnText {\n    pub fn get(&self) -> &str {\n        &self.0\n    }\n}\npub struct Category;\nimpl Category {}\n",
-        "macro_rules! names {\n    ($(#[$m:meta])* pub enum $name:ident { $($v:ident = $s:literal),+ $(,)? }) => {\n        $(#[$m])*\n        pub enum $name { $($v),+ }\n        impl $name {\n            pub fn all() -> usize {\n                0\n            }\n        }\n        impl std::fmt::Display for $name {\n            fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n                Ok(())\n            }\n        }\n    };\n}\nnames! {\n    pub enum Mood {\n        Calm = \"calm\",\n    }\n}\n",
-        "macro_rules! with_fmt {\n    () => {\n        use std::fmt;\n    };\n}\nwith_fmt!();\n",
-        "pub struct LaterNote;\nmacro_rules! give {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\ngive!(LaterNote);\n",
-        "pub struct LaterBody {\n    pub n: u32,\n}\nimpl crate::request::RunnerBody for LaterBody {\n    type Reply = u32;\n}\n",
-        "pub fn f() -> impl Iterator<Item = u8> {\n    0..3\n}\npub fn g(x: impl AsRef<str>) -> usize {\n    x.as_ref().len()\n}\n",
-    ] {
-        assert_eq!(
-            later_faults("learning.rs", twin),
-            Vec::<String>::new(),
-            "{twin}"
-        );
-    }
-    for (more, learning) in [
-        ("pub struct OwnText;\n", "pub trait FromJson {}\nuse self::more::OwnText;\nimpl FromJson for OwnText {}\n"),
-        ("pub struct OwnText;\n", "pub trait FromJson {}\nuse self::more::*;\nimpl FromJson for OwnText {}\n"),
-        (
-            "pub use crate::kinds::KindEntry as LaterTwin;\n",
-            "pub struct LaterTwin;\nuse self::more::*;\nimpl LaterTwin {}\n",
-        ),
-        ("pub enum Cause {\n    Late,\n}\n", "pub trait FromJson {}\nuse crate::learning::more::{self, Cause};\nimpl FromJson for Cause {}\nimpl FromJson for more::Cause {}\n"),
-    ] {
-        assert_eq!(across(more, learning), Vec::<String>::new(), "{more} {learning}");
     }
 }
 
@@ -2068,15 +810,12 @@ fn later_names_faults(file: &str, text: &str) -> Vec<String> {
 
 #[test]
 fn no_locked_file_names_an_item_of_the_files_of_later_runs_but_their_kind_lists() {
-    let macros = locked_macros();
-    let root = root_names();
     for file in LOCKED {
-        let text = source(file);
         assert_eq!(
-            lock_faults(file, &text, &macros, &root),
-            Vec::<String>::new()
+            later_names_faults(file, &source(file)),
+            Vec::<String>::new(),
+            "{file}"
         );
-        assert_eq!(later_names_faults(file, &text), Vec::<String>::new());
     }
 }
 
@@ -2115,227 +854,12 @@ fn registry_chains_the_kinds_of_this_run_and_the_four_lists_of_later_runs_in_the
 
 const DECLARED_ERROR_NAMES: &str = "let lists: [&'static [&'static str]; 4] = [crate::executable::ERROR_NAMES, crate::coordinator::ERROR_NAMES, crate::learning::ERROR_NAMES, crate::routing::ERROR_NAMES,]; lists.into_iter().flatten().copied()";
 
-fn unescape(body: &str) -> Option<String> {
-    let mut out = String::new();
-    let mut chars = body.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            out.push(c);
-            continue;
-        }
-        match chars.next()? {
-            'n' => out.push('\n'),
-            't' => out.push('\t'),
-            'r' => out.push('\r'),
-            '0' => out.push('\0'),
-            '\\' => out.push('\\'),
-            '"' => out.push('"'),
-            '\'' => out.push('\''),
-            'x' => {
-                let hex: String = [chars.next()?, chars.next()?].iter().collect();
-                out.push(char::from(
-                    u8::from_str_radix(&hex, 16).ok().filter(|b| *b < 0x80)?,
-                ));
-            }
-            'u' => {
-                if chars.next()? != '{' {
-                    return None;
-                }
-                let hex: String = chars.by_ref().take_while(|c| *c != '}').collect();
-                out.push(char::from_u32(
-                    u32::from_str_radix(&hex.replace('_', ""), 16).ok()?,
-                )?);
-            }
-            '\n' => {
-                while chars.peek().is_some_and(|c| c.is_whitespace()) {
-                    chars.next();
-                }
-            }
-            _ => return None,
-        }
-    }
-    Some(out)
-}
-
-fn string_value(token: &TokenTree) -> Option<String> {
-    let TokenTree::Literal(literal) = token else {
-        return None;
-    };
-    let text = literal.to_string();
-    if let Some(rest) = text.strip_prefix('r') {
-        let hashes = rest.len() - rest.trim_start_matches('#').len();
-        let body = rest[hashes..]
-            .strip_prefix('"')?
-            .strip_suffix(&"#".repeat(hashes))?
-            .strip_suffix('"')?;
-        return Some(body.to_owned());
-    }
-    unescape(text.strip_prefix('"')?.strip_suffix('"')?)
-}
-
 fn is_punct(token: Option<&TokenTree>, c: char) -> bool {
     matches!(token, Some(TokenTree::Punct(p)) if p.as_char() == c)
 }
 
 fn is_word(token: Option<&TokenTree>, word: &str) -> bool {
     matches!(token, Some(TokenTree::Ident(i)) if i == word)
-}
-
-fn is_group(token: Option<&TokenTree>, delimiter: Delimiter) -> bool {
-    matches!(token, Some(TokenTree::Group(g)) if g.delimiter() == delimiter)
-}
-
-fn is_doc(attribute: &TokenTree) -> bool {
-    let TokenTree::Group(group) = attribute else {
-        return false;
-    };
-    let inner: Vec<TokenTree> = group.stream().into_iter().collect();
-    inner.len() == 3
-        && is_word(inner.first(), "doc")
-        && is_punct(inner.get(1), '=')
-        && string_value(&inner[2]).is_some()
-}
-
-fn error_names_of(text: &str) -> Result<Vec<String>, String> {
-    let stream = TokenStream::from_str(text).map_err(|e| format!("the lexer refuses it: {e}"))?;
-    let top: Vec<TokenTree> = stream.into_iter().collect();
-    let starts: Vec<usize> = (0..top.len())
-        .filter(|&i| {
-            is_word(top.get(i), "pub")
-                && is_word(top.get(i + 1), "const")
-                && is_word(top.get(i + 2), "ERROR_NAMES")
-        })
-        .collect();
-    let [at] = starts[..] else {
-        return Err(format!(
-            "holds {} items `pub const ERROR_NAMES` at the top level of the file, not one",
-            starts.len()
-        ));
-    };
-    let mut before = at;
-    while before >= 2 && is_punct(top.get(before - 2), '#') {
-        if !is_doc(&top[before - 1]) {
-            return Err("puts an attribute on its list ERROR_NAMES".to_owned());
-        }
-        before -= 2;
-    }
-    let form = is_punct(top.get(at + 3), ':')
-        && is_punct(top.get(at + 4), '&')
-        && is_group(top.get(at + 5), Delimiter::Bracket)
-        && top[at + 5].to_string() == TokenStream::from_str("[&str]").unwrap().to_string()
-        && is_punct(top.get(at + 6), '=')
-        && is_punct(top.get(at + 7), '&')
-        && is_group(top.get(at + 8), Delimiter::Bracket)
-        && is_punct(top.get(at + 9), ';');
-    if !form {
-        return Err(
-            "does not write its list as `pub const ERROR_NAMES: &[&str] = &[..];`".to_owned(),
-        );
-    }
-    let TokenTree::Group(list) = &top[at + 8] else {
-        unreachable!()
-    };
-    let elements: Vec<TokenTree> = list.stream().into_iter().collect();
-    let mut names = Vec::new();
-    for (k, element) in elements.iter().enumerate() {
-        if k % 2 == 1 {
-            if !is_punct(Some(element), ',') {
-                return Err(format!("holds `{element}` between two names of its list"));
-            }
-            continue;
-        }
-        match string_value(element) {
-            Some(name) => names.push(name),
-            None => {
-                return Err(format!(
-                    "holds `{element}`, which is no string literal, in its list"
-                ))
-            }
-        }
-    }
-    Ok(names)
-}
-
-#[test]
-fn each_file_of_a_later_run_lists_its_error_names_as_string_literals() {
-    for module in LATER {
-        let file = format!("{module}.rs");
-        assert!(
-            error_names_of(&source(&file)).is_ok(),
-            "src/{file}: {:?}",
-            error_names_of(&source(&file))
-        );
-    }
-    for (text, names) in [
-        ("pub const ERROR_NAMES: &[&str] = &[];\n", vec![]),
-        ("pub const ERROR_NAMES: &[&str] = &[\"a\", \"b_2\"];\n", vec!["a", "b_2"]),
-        ("pub const ERROR_NAMES: &[&str] = &[\n    \"a\",\n];\n", vec!["a"]),
-        ("/// The names.\npub const ERROR_NAMES: &[&str] = &[r#\"raw\"#, \"esc\\x61pe\"];\n", vec!["raw", "escape"]),
-        ("pub const ERROR_NAMES: &[&str] = &[r\"one\", r#\"two\"#, r##\"three\"##];\n", vec!["one", "two", "three"]),
-        ("pub mod inner {\n    pub const ERROR_NAMES: &[&str] = &[\"inner\"];\n}\npub const ERROR_NAMES: &[&str] = &[\"top\"];\n", vec!["top"]),
-    ] {
-        let want: Vec<String> = names.iter().map(|n| (*n).to_owned()).collect();
-        assert_eq!(error_names_of(text), Ok(want), "{text}");
-    }
-    let raw_identifier = "pub const ERROR_NAMES: &[&str] = &[r#LATER_NAME];\nconst LATER_NAME: &str = match option_env!(\"HALVO_U11D_NAME\") {\n    Some(name) => name,\n    None => \"later_name\",\n};\n";
-    let glob = "pub mod shown {\n    pub const ERROR_NAMES: &[&str] = &[];\n}\nmod names;\npub use names::*;\n";
-    let macro_rewrite = "macro_rules! listed {\n    (pub const $list:ident : $ty:ty = & [ $($name:literal),* $(,)? ] ;) => {\n        pub const $list: $ty = &[$(concat!($name, \"_x\")),*];\n    };\n}\nlisted! {\n    pub const ERROR_NAMES: &[&str] = &[\"learned\"];\n}\n";
-    for (text, fault) in [
-        (
-            raw_identifier,
-            "holds `r#LATER_NAME`, which is no string literal, in its list",
-        ),
-        (
-            glob,
-            "holds 0 items `pub const ERROR_NAMES` at the top level of the file, not one",
-        ),
-        (
-            macro_rewrite,
-            "holds 0 items `pub const ERROR_NAMES` at the top level of the file, not one",
-        ),
-        (
-            "pub const ERROR_NAMES: &[&str] = &[NAME];\n",
-            "holds `NAME`, which is no string literal, in its list",
-        ),
-        (
-            "pub const ERROR_NAMES: &[&str] = &[b\"a\"];\n",
-            "holds `b\"a\"`, which is no string literal, in its list",
-        ),
-        (
-            "pub const ERROR_NAMES: &[&str] = &[\"a\"x];\n",
-            "holds `\"a\"x`, which is no string literal, in its list",
-        ),
-        (
-            "pub const ERROR_NAMES: &[&str] = &[\"a\" \"b\"];\n",
-            "holds `\"b\"` between two names of its list",
-        ),
-        (
-            "#[cfg(all())]\npub const ERROR_NAMES: &[&str] = &[\"a\"];\n",
-            "puts an attribute on its list ERROR_NAMES",
-        ),
-        (
-            "pub static ERROR_NAMES: &[&str] = &[\"a\"];\n",
-            "holds 0 items `pub const ERROR_NAMES` at the top level of the file, not one",
-        ),
-        (
-            "pub const ERROR_NAMES: &[&str] = OTHER;\n",
-            "does not write its list as `pub const ERROR_NAMES: &[&str] = &[..];`",
-        ),
-    ] {
-        assert_eq!(error_names_of(text), Err(fault.to_owned()), "{text}");
-    }
-}
-
-#[test]
-fn declared_error_names_yields_the_literals_that_the_four_later_files_list_in_order() {
-    let mut listed = Vec::new();
-    for module in LATER {
-        listed.extend(error_names_of(&source(&format!("{module}.rs"))).unwrap_or_default());
-    }
-    let declared: Vec<String> = halvo_schema::kinds::declared_error_names()
-        .map(str::to_owned)
-        .collect();
-    assert_eq!(declared, listed);
 }
 
 #[test]
@@ -2378,29 +902,9 @@ fn the_tests_of_the_chain_read_the_code_outside_macros() {
 
 #[test]
 fn each_predicate_of_the_textual_tests_has_a_case_of_its_own() {
-    let macros = locked_macros();
-    let root = root_names();
-    let faults = lock_faults("site.rs", "r#include!(\"learning.rs\");\n", &macros, &root);
-    assert_eq!(faults, ["site.rs names include"]);
-    for (text, fault) in [
-        (
-            "fn f() -> Vec<u8> {\n    vec_sneak!()\n}\n",
-            "site.rs calls the macro vec_sneak, which no locked file defines",
-        ),
-        (
-            "fn f() -> String {\n    format_args!(\"x\").to_string()\n}\n",
-            "site.rs calls the macro format_args, which no locked file defines",
-        ),
-    ] {
-        assert_eq!(
-            lock_faults("site.rs", text, &macros, &root),
-            [fault],
-            "{text}"
-        );
-    }
     assert_eq!(
-        lock_faults("lib.rs", "use sneak::Hidden;\n", &macros, &root),
-        ["lib.rs re-exports from sneak"]
+        later_faults("site.rs", "r#include!(\"learning.rs\");\n"),
+        ["site.rs names include"]
     );
     let record = source("record.rs");
     let open = "const _: fn(&KeyCounts, &PointerCounts) = |keys, pointer| {\n";
@@ -2459,4 +963,1588 @@ fn each_predicate_of_the_textual_tests_has_a_case_of_its_own() {
         ),
         ["lib.rs names learning 2 times"]
     );
+}
+
+fn core_files() -> Vec<(String, String)> {
+    let src = core_dir().join("src");
+    let mut paths = Vec::new();
+    rust_files(&src, &mut paths);
+    let mut files: Vec<(String, String)> = paths
+        .into_iter()
+        .map(|path| {
+            let name = path
+                .strip_prefix(&src)
+                .expect("a path under src")
+                .to_string_lossy()
+                .replace('\\', "/");
+            let text = read(&path);
+            (name, text)
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn no_file_of_either_crate_holds_a_path_attribute_or_an_include_macro() {
+    let later = later_files();
+    let core = core_files();
+    let names = |files: &[(String, String)]| -> Vec<String> {
+        files.iter().map(|(name, _)| name.clone()).collect()
+    };
+    for module in LATER {
+        assert!(names(&later).contains(&format!("{module}.rs")), "{later:?}");
+        assert!(names(&core).contains(&format!("{module}.rs")), "{core:?}");
+    }
+    for file in LOCKED {
+        assert!(names(&core).contains(&file.to_owned()), "{file}");
+    }
+    assert!(!names(&later).contains(&"lib.rs".to_owned()));
+    let faults: Vec<String> = later
+        .iter()
+        .chain(&core)
+        .flat_map(|(name, text)| later_faults(name, text))
+        .collect();
+    assert_eq!(faults, Vec::<String>::new());
+}
+
+#[test]
+fn the_test_of_the_core_files_refuses_a_path_attribute_and_the_include_macros() {
+    for (file, text, fault) in [
+        (
+            "kinds.rs",
+            "#[path = \"../../halvo-schema/src/learning.rs\"]\nmod later;\n",
+            "kinds.rs holds path in an attribute or a macro",
+        ),
+        (
+            "kinds.rs",
+            "macro_rules! own_mod {\n    ($m:meta) => {\n        #[$m]\n        mod later;\n    };\n}\nown_mod! {path = \"../../halvo-schema/src/learning.rs\"}\n",
+            "kinds.rs holds path in an attribute or a macro",
+        ),
+        (
+            "learning.rs",
+            "include!(\"../../halvo-schema/src/learning.rs\");\n",
+            "learning.rs names include",
+        ),
+        (
+            "site.rs",
+            "pub const LATER_TEXT: &str = include_str!(\"../../halvo-schema/src/learning.rs\");\n",
+            "site.rs names include_str",
+        ),
+    ] {
+        let changed = format!("{}{text}", source(file));
+        assert_eq!(later_faults(file, &changed), [fault], "{file}: {text}");
+    }
+}
+
+#[test]
+fn the_path_rule_reads_a_raw_identifier_and_exempts_a_fragment_only_inside_a_matcher() {
+    for text in [
+        "macro_rules! own_mod {\n    ($a:ident $b:literal) => {\n        #[$a = $b]\n        mod sneak;\n    };\n}\nown_mod!(r#path \"learning.rs\");\n",
+        "macro_rules! own_mod {\n    ($d:tt $a:ident : $($m:tt)*) => {\n        #[$($m)*]\n        mod sneak;\n    };\n}\nown_mod! {$ a: path = \"learning.rs\"}\n",
+    ] {
+        assert_eq!(
+            later_faults("learning.rs", text),
+            ["learning.rs holds path in an attribute or a macro"],
+            "{text}"
+        );
+        assert_eq!(
+            later_faults("kinds.rs", &format!("{}{text}", source("kinds.rs"))),
+            ["kinds.rs holds path in an attribute or a macro"],
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
+    let src = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("walk-outside-lib")
+        .join("src");
+    let written = [
+        ("lib.rs", "#[path = \"other.rs\"]\nmod again;\n"),
+        (
+            "learning.rs",
+            "pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n",
+        ),
+        ("learning/more.rs", "pub fn shown() {}\n"),
+        (
+            "learning/deeper/most.rs",
+            "#[path = \"../../other.rs\"]\nmod again;\n",
+        ),
+        ("other.rs", "pub fn shown() {}\n"),
+        ("learning/upper.RS", "include!(\"macros.inc\");\n"),
+        ("bin/tool.rs", "fn main() {}\n"),
+        ("learning/macros.inc", "#[path = \"x.rs\"]\n"),
+        ("routing/notes.txt", "include!(\"x.rs\")\n"),
+    ];
+    for (name, text) in written {
+        let path = src.join(name);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
+        std::fs::write(&path, text).expect("a fixture file");
+    }
+    let files = files_outside_the_lock(&src);
+    let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "bin/tool.rs",
+            "learning.rs",
+            "learning/deeper/most.rs",
+            "learning/more.rs",
+            "learning/upper.RS",
+            "other.rs"
+        ]
+    );
+    let faults: Vec<String> = files
+        .iter()
+        .flat_map(|(name, text)| later_faults(name, text))
+        .collect();
+    assert_eq!(
+        faults,
+        [
+            "learning/deeper/most.rs holds path in an attribute or a macro",
+            "learning/upper.RS names include"
+        ]
+    );
+}
+
+const SIX: [&str; 6] = ["category", "ids", "kinds", "record", "request", "site"];
+
+const CORE_HEAD: &str = "#![forbid(unsafe_code)]\npub mod category;\n#[allow(unused_imports)]\npub mod coordinator;\n#[allow(unused_imports)]\npub mod executable;\npub mod ids;\npub mod kinds;\n#[allow(unused_imports)]\npub mod learning;\npub mod record;\npub mod request;\n#[allow(unused_imports)]\npub mod routing;\npub mod site;\n";
+
+const SCHEMA_HEAD: &str = "#![forbid(unsafe_code)]\npub mod coordinator;\npub mod executable;\npub mod learning;\npub mod routing;\npub use halvo_schema_core::{category, ids, kinds, record, request, site};\n";
+
+fn re_exports(t: &[String]) -> Result<(), String> {
+    let mut i = 0;
+    while i < t.len() {
+        let end = (i..t.len()).find(|&k| t[k] == ";").unwrap_or(t.len());
+        let item = &t[i..end];
+        let form = item.len() > 3
+            && item[0] == "pub"
+            && item[1] == "use"
+            && SIX.contains(&item[2].as_str())
+            && item[3..].iter().all(|x| {
+                matches!(x.as_str(), ":" | "{" | "}" | ",")
+                    || (is_ident(x) && !x.starts_with("r#") && !KEYWORDS.contains(&x.as_str()))
+            });
+        if !form || end == t.len() {
+            return Err(format!(
+                "holds `{}` where only a re-export of a locked module stands",
+                item.join(" ")
+            ));
+        }
+        i = end + 1;
+    }
+    Ok(())
+}
+
+fn lib_faults(core: &str, schema: &str) -> Vec<String> {
+    let core = match lex(core) {
+        Ok(t) => t,
+        Err(cause) => return vec![unread("halvo-schema-core/src/lib.rs", &cause)],
+    };
+    let head = tokens(CORE_HEAD);
+    if !core.starts_with(&head) {
+        return vec!["halvo-schema-core/src/lib.rs does not start with the line that forbids unsafe code and the module lines of its ten modules".to_owned()];
+    }
+    let uses = &core[head.len()..];
+    if uses.is_empty() {
+        return vec!["halvo-schema-core/src/lib.rs re-exports nothing".to_owned()];
+    }
+    if let Err(fault) = re_exports(uses) {
+        return vec![format!("halvo-schema-core/src/lib.rs {fault}")];
+    }
+    let schema = match lex(schema) {
+        Ok(t) => t,
+        Err(cause) => return vec![unread("halvo-schema/src/lib.rs", &cause)],
+    };
+    if schema != [tokens(SCHEMA_HEAD).as_slice(), uses].concat() {
+        return vec!["halvo-schema/src/lib.rs holds other than the line that forbids unsafe code, the module lines of the four later files and the re-exports of the core crate".to_owned()];
+    }
+    Vec::new()
+}
+
+#[test]
+fn each_lib_rs_holds_its_form() {
+    let core = source("lib.rs");
+    let schema = read(&schema_dir().join("src").join("lib.rs"));
+    assert_eq!(lib_faults(&core, &schema), Vec::<String>::new());
+    let one = |text: &str, old: &str, new: &str| {
+        assert_eq!(text.matches(old).count(), 1, "{old}");
+        text.replacen(old, new, 1)
+    };
+    let not_schema = ["halvo-schema/src/lib.rs holds other than the line that forbids unsafe code, the module lines of the four later files and the re-exports of the core crate"];
+    for (old, new) in [
+        ("#![forbid(unsafe_code)]\n", ""),
+        ("#![forbid(unsafe_code)]", "#![deny(unsafe_code)]"),
+        ("pub mod learning;", "#[macro_use]\npub mod learning;"),
+        (
+            "pub mod learning;",
+            "#[path = \"learning.rs\"]\npub mod learning;",
+        ),
+        ("pub mod routing;\n", "pub mod routing;\npub mod later;\n"),
+        ("pub mod routing;\n", ""),
+        (
+            "pub use halvo_schema_core::{category, ids, kinds, record, request, site};",
+            "pub use halvo_schema_core::{category, ids, kinds, record, request};",
+        ),
+        (
+            "pub use category::{Category, SeedCategory};",
+            "pub use category::Category;",
+        ),
+        (
+            "pub use category::{Category, SeedCategory};",
+            "pub use category::{Category, SeedCategory};\npub use learning::KINDS;",
+        ),
+    ] {
+        assert_eq!(
+            lib_faults(&core, &one(&schema, old, new)),
+            not_schema,
+            "{new}"
+        );
+    }
+    let not_core = ["halvo-schema-core/src/lib.rs does not start with the line that forbids unsafe code and the module lines of its ten modules"];
+    for (old, new) in [
+        ("#![forbid(unsafe_code)]\n", ""),
+        (
+            "pub mod learning;",
+            "#[path = \"../../halvo-schema/src/learning.rs\"]\npub mod learning;",
+        ),
+        (
+            "#[allow(unused_imports)]\npub mod routing;",
+            "pub mod routing;",
+        ),
+    ] {
+        assert_eq!(
+            lib_faults(&one(&core, old, new), &schema),
+            not_core,
+            "{new}"
+        );
+    }
+    for (new, item) in [
+        ("pub fn later() {}\n", "pub fn later ( ) { }"),
+        ("pub mod later;\n", "pub mod later"),
+        (
+            "pub use kinds::KindEntry as Entry;\n",
+            "pub use kinds : : KindEntry as Entry",
+        ),
+        ("pub use kinds::{self};\n", "pub use kinds : : { self }"),
+        (
+            "pub use crate::learning::KINDS;\n",
+            "pub use crate : : learning : : KINDS",
+        ),
+        ("pub use learning::*;\n", "pub use learning : : *"),
+        ("pub use kinds::*;\n", "pub use kinds : : *"),
+    ] {
+        assert_eq!(
+            lib_faults(&format!("{core}{new}"), &format!("{schema}{new}")),
+            [format!("halvo-schema-core/src/lib.rs holds `{item}` where only a re-export of a locked module stands")],
+            "{new}"
+        );
+    }
+    assert_eq!(
+        lib_faults(
+            &core.replace("\n\n", "\n// a comment\n\n"),
+            &schema.replace("\n\n", "\n/* a comment */\n\n")
+        ),
+        Vec::<String>::new()
+    );
+}
+
+const CORE_FILES: [&str; 15] = [
+    ".gitattributes",
+    "Cargo.toml",
+    "NOTICE",
+    "src/category.rs",
+    "src/coordinator.rs",
+    "src/executable.rs",
+    "src/ids.rs",
+    "src/kinds.rs",
+    "src/learning.rs",
+    "src/lib.rs",
+    "src/record.rs",
+    "src/request.rs",
+    "src/routing.rs",
+    "src/site.rs",
+    "tests/notice.rs",
+];
+
+fn files_of(root: &Path, dir: &Path, out: &mut Vec<String>) {
+    let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    for entry in entries {
+        let path = entry.expect("a directory entry").path();
+        if path.is_dir() {
+            files_of(root, &path, out);
+        } else {
+            out.push(
+                path.strip_prefix(root)
+                    .expect("a path under the root")
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+        }
+    }
+}
+
+fn set_faults(dir: &Path) -> Vec<String> {
+    let mut have = Vec::new();
+    files_of(dir, dir, &mut have);
+    have.sort();
+    let mut faults: Vec<String> = have
+        .iter()
+        .filter(|file| !CORE_FILES.contains(&file.as_str()))
+        .map(|file| format!("the core crate holds {file}, which is none of its files"))
+        .collect();
+    faults.extend(
+        CORE_FILES
+            .iter()
+            .filter(|file| !have.iter().any(|h| h == *file))
+            .map(|file| format!("the core crate lacks {file}")),
+    );
+    faults
+}
+
+fn fixture_dir(name: &str, files: &[&str]) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("crate-files")
+        .join(name);
+    for file in files {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
+        std::fs::write(&path, "").expect("a fixture file");
+    }
+    dir
+}
+
+#[test]
+fn the_core_crate_holds_its_set_of_files() {
+    assert_eq!(set_faults(&core_dir()), Vec::<String>::new());
+    assert_eq!(
+        set_faults(&fixture_dir("whole", &CORE_FILES)),
+        Vec::<String>::new()
+    );
+    let more = [CORE_FILES.as_slice(), &["src/learning/more.rs"]].concat();
+    assert_eq!(
+        set_faults(&fixture_dir("more", &more)),
+        ["the core crate holds src/learning/more.rs, which is none of its files"]
+    );
+    let built = [CORE_FILES.as_slice(), &["build.rs"]].concat();
+    assert_eq!(
+        set_faults(&fixture_dir("built", &built)),
+        ["the core crate holds build.rs, which is none of its files"]
+    );
+    let less: Vec<&str> = CORE_FILES
+        .iter()
+        .copied()
+        .filter(|file| *file != "src/routing.rs")
+        .collect();
+    assert_eq!(
+        set_faults(&fixture_dir("less", &less)),
+        ["the core crate lacks src/routing.rs"]
+    );
+}
+
+fn build_script_faults(name: &str, dir: &Path) -> Vec<String> {
+    if dir.join("build.rs").exists() {
+        vec![format!("{name} has a build script")]
+    } else {
+        Vec::new()
+    }
+}
+
+#[test]
+fn neither_crate_has_a_build_script() {
+    assert_eq!(
+        build_script_faults("halvo-schema", &schema_dir()),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        build_script_faults("halvo-schema-core", &core_dir()),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        build_script_faults("a crate", &fixture_dir("built", &["build.rs"])),
+        ["a crate has a build script"]
+    );
+    assert_eq!(
+        build_script_faults("a crate", &fixture_dir("whole", &CORE_FILES)),
+        Vec::<String>::new()
+    );
+}
+
+const CORE_MANIFEST: &str = "[package]\nname = \"halvo-schema-core\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\npsl = \"=2.1.246\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n";
+
+const SCHEMA_MANIFEST: &str = "[package]\nname = \"halvo-schema\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nhalvo-schema-core = { path = \"../halvo-schema-core\" }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n\n[dev-dependencies]\nproc-macro2 = { version = \"1.0.107\", default-features = false }\n";
+
+fn manifest_faults(name: &str, text: &str, want: &str) -> Vec<String> {
+    if text == want {
+        Vec::new()
+    } else {
+        vec![format!("the manifest of {name} is not its fixed file")]
+    }
+}
+
+#[test]
+fn both_manifests_are_the_fixed_files() {
+    let core = read(&core_dir().join("Cargo.toml"));
+    let schema = read(&schema_dir().join("Cargo.toml"));
+    assert_eq!(
+        manifest_faults("halvo-schema-core", &core, CORE_MANIFEST),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        manifest_faults("halvo-schema", &schema, SCHEMA_MANIFEST),
+        Vec::<String>::new()
+    );
+    for (text, want) in [
+        (format!("{core}\n[features]\nlater = []\n"), CORE_MANIFEST),
+        (
+            core.replace(
+                "psl = \"=2.1.246\"\n",
+                "psl = \"=2.1.246\"\nlater = { path = \"../later\", optional = true }\n",
+            ),
+            CORE_MANIFEST,
+        ),
+        (
+            core.replace(
+                "[dependencies]\n",
+                "build = \"later.rs\"\n\n[dependencies]\n",
+            ),
+            CORE_MANIFEST,
+        ),
+        (
+            schema.replace(
+                "features = [\"raw_value\"]",
+                "features = [\"raw_value\", \"arbitrary_precision\"]",
+            ),
+            SCHEMA_MANIFEST,
+        ),
+        (format!("{schema}later = \"1\"\n"), SCHEMA_MANIFEST),
+    ] {
+        assert_eq!(
+            manifest_faults("a crate", &text, want),
+            ["the manifest of a crate is not its fixed file"],
+            "{text}"
+        );
+    }
+}
+
+const USE_LINE: &str = "use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};";
+
+const KINDS_HEADER: &str = "pub const KINDS: &[KindEntry] =";
+
+const NAMES_HEADER: &str = "pub const ERROR_NAMES: &[&str] =";
+
+const ENTRY_FIELDS: [&str; 7] = [
+    "name",
+    "class",
+    "origin",
+    "family",
+    "workflow_key",
+    "fields",
+    "example",
+];
+
+const FIELD_TYPES: [&str; 14] = [
+    "Version", "Id", "Name", "App", "Domain", "Hash", "Site", "Count", "Day", "Instant", "Ordinal",
+    "Token", "Text", "OwnText",
+];
+
+const ENTRY_HEAD: &str = "holds an entry that is no literal `KindEntry { .. }`";
+
+const FIRST_LINE: &str =
+    "its first line is neither the use line nor a doc comment in the three-slash form";
+
+#[derive(Debug, PartialEq)]
+struct Listed {
+    kinds: Vec<String>,
+    error_names: Vec<String>,
+}
+
+fn trees(text: &str) -> Vec<TokenTree> {
+    TokenStream::from_str(text)
+        .expect("a text that the lexer reads")
+        .into_iter()
+        .collect()
+}
+
+fn flat(trees: &[TokenTree]) -> Vec<String> {
+    let mut out = Vec::new();
+    flatten(trees.iter().cloned().collect(), &mut out);
+    out
+}
+
+fn outside(trees: &[TokenTree]) -> String {
+    format!(
+        "holds `{}` where the grammar of a list file has no place for it",
+        flat(trees).join(" ")
+    )
+}
+
+fn inner(tree: &TokenTree, delimiter: Delimiter) -> Option<Vec<TokenTree>> {
+    match tree {
+        TokenTree::Group(g) if g.delimiter() == delimiter => Some(g.stream().into_iter().collect()),
+        _ => None,
+    }
+}
+
+fn string_value(tree: &TokenTree) -> Result<String, String> {
+    let TokenTree::Literal(literal) = tree else {
+        return Err(outside(std::slice::from_ref(tree)));
+    };
+    let text = literal.to_string();
+    if let Some(rest) = text.strip_prefix('r') {
+        let hashes = rest.len() - rest.trim_start_matches('#').len();
+        return rest[hashes..]
+            .strip_prefix('"')
+            .and_then(|body| body.strip_suffix(&"#".repeat(hashes)))
+            .and_then(|body| body.strip_suffix('"'))
+            .map(str::to_owned)
+            .ok_or_else(|| outside(std::slice::from_ref(tree)));
+    }
+    let Some(body) = text.strip_prefix('"').and_then(|b| b.strip_suffix('"')) else {
+        return Err(outside(std::slice::from_ref(tree)));
+    };
+    if body.contains('\\') {
+        return Err(format!(
+            "holds `{text}`, a string literal with an escape or a line continuation"
+        ));
+    }
+    Ok(body.to_owned())
+}
+
+fn parts(trees: &[TokenTree]) -> Result<Vec<&[TokenTree]>, String> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    for (i, tree) in trees.iter().enumerate() {
+        if is_punct(Some(tree), ',') {
+            if i == start {
+                return Err(outside(&trees[i..=i]));
+            }
+            parts.push(&trees[start..i]);
+            start = i + 1;
+        }
+    }
+    if start < trees.len() {
+        parts.push(&trees[start..]);
+    }
+    Ok(parts)
+}
+
+fn path_is(trees: &[TokenTree], head: &str, names: &[&str]) -> bool {
+    let t = flat(trees);
+    t.len() == 4 && t[0] == head && t[1] == ":" && t[2] == ":" && names.contains(&t[3].as_str())
+}
+
+fn days(trees: &[TokenTree]) -> bool {
+    let n = if is_punct(trees.get(3), ',') { 4 } else { 3 };
+    trees.len() == n
+        && is_word(trees.first(), "days")
+        && is_punct(trees.get(1), ':')
+        && matches!(&trees[2], TokenTree::Literal(l) if l.to_string().bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn field_pair(pair: &[TokenTree]) -> Result<(), String> {
+    let tuple = match pair {
+        [tree] => inner(tree, Delimiter::Parenthesis),
+        _ => None,
+    }
+    .ok_or_else(|| outside(pair))?;
+    if !is_punct(tuple.get(1), ',') {
+        return Err(outside(pair));
+    }
+    string_value(&tuple[0])?;
+    if path_is(&tuple[2..], "FieldType", &FIELD_TYPES) {
+        Ok(())
+    } else {
+        Err(outside(pair))
+    }
+}
+
+fn entry_value(field: &str, value: &[TokenTree]) -> Result<(), String> {
+    let form = match field {
+        "name" | "family" | "example" => {
+            if value.len() != 1 {
+                return Err(outside(value));
+            }
+            string_value(&value[0])?;
+            true
+        }
+        "class" => {
+            path_is(value, "RetentionClass", &["Window", "Kept"])
+                || (value.len() == 5
+                    && path_is(&value[..4], "RetentionClass", &["Bounded"])
+                    && inner(&value[4], Delimiter::Brace).is_some_and(|t| days(&t)))
+        }
+        "origin" => path_is(value, "Origin", &["Capture", "Own"]),
+        "workflow_key" => match value {
+            [none] => is_word(Some(none), "None"),
+            [some, group] if is_word(Some(some), "Some") => {
+                match inner(group, Delimiter::Parenthesis).as_deref() {
+                    Some([key]) => {
+                        string_value(key)?;
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        },
+        "fields" => match value {
+            [and, group] if is_punct(Some(and), '&') => match inner(group, Delimiter::Bracket) {
+                Some(pairs) => {
+                    for pair in parts(&pairs)? {
+                        field_pair(pair)?;
+                    }
+                    true
+                }
+                None => false,
+            },
+            _ => false,
+        },
+        _ => false,
+    };
+    if form {
+        Ok(())
+    } else {
+        Err(outside(value))
+    }
+}
+
+fn entry(trees: &[TokenTree]) -> Result<String, String> {
+    let body = match trees {
+        [kind, body] if is_word(Some(kind), "KindEntry") => inner(body, Delimiter::Brace),
+        _ => None,
+    }
+    .ok_or_else(|| ENTRY_HEAD.to_owned())?;
+    let mut seen: Vec<String> = Vec::new();
+    let mut name = String::new();
+    for field in parts(&body)? {
+        let key = match field {
+            [TokenTree::Ident(key), colon, ..] if is_punct(Some(colon), ':') => key.to_string(),
+            _ => return Err(outside(field)),
+        };
+        if !ENTRY_FIELDS.contains(&key.as_str()) || seen.contains(&key) {
+            return Err(outside(field));
+        }
+        entry_value(&key, &field[2..])?;
+        if key == "name" {
+            name = string_value(&field[2])?;
+        }
+        seen.push(key);
+    }
+    if seen.len() != ENTRY_FIELDS.len() {
+        return Err(format!(
+            "holds a KindEntry without each of its {} fields",
+            ENTRY_FIELDS.len()
+        ));
+    }
+    Ok(name)
+}
+
+fn is_doc(attribute: &TokenTree) -> bool {
+    inner(attribute, Delimiter::Bracket).is_some_and(|t| {
+        t.len() == 3
+            && is_word(t.first(), "doc")
+            && is_punct(t.get(1), '=')
+            && matches!(&t[2], TokenTree::Literal(l) if l.to_string().starts_with('"'))
+    })
+}
+
+fn without_three_slash_lines(text: &str) -> String {
+    text.split('\n')
+        .map(|line| {
+            let start = line.trim_start();
+            if start.starts_with("///") && !start.starts_with("////") {
+                ""
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn three_slash_docs(text: &str) -> Option<Vec<String>> {
+    let mut docs = Vec::new();
+    for line in text.split('\n') {
+        let start = line.trim_start();
+        if !start.starts_with("///") || start.starts_with("////") {
+            continue;
+        }
+        match TokenStream::from_str(start)
+            .ok()?
+            .into_iter()
+            .collect::<Vec<_>>()[..]
+        {
+            [ref hash, ref doc] if is_punct(Some(hash), '#') && is_doc(doc) => {
+                docs.push(doc.to_string())
+            }
+            _ => return None,
+        }
+    }
+    Some(docs)
+}
+
+fn list_file(text: &str) -> Result<Listed, String> {
+    let first = text.split('\n').next().unwrap_or_default();
+    if first != USE_LINE && !(first.starts_with("///") && !first.starts_with("////")) {
+        return Err(FIRST_LINE.to_owned());
+    }
+    let top: Vec<TokenTree> = TokenStream::from_str(text)
+        .map_err(|e| format!("the lexer refuses it: {e}"))?
+        .into_iter()
+        .collect();
+    let use_line = trees(USE_LINE);
+    let kinds_header = trees(KINDS_HEADER);
+    let names_header = trees(NAMES_HEADER);
+    let mut listed = Listed {
+        kinds: Vec::new(),
+        error_names: Vec::new(),
+    };
+    let mut kept: Vec<TokenTree> = Vec::new();
+    let mut docs: Vec<String> = Vec::new();
+    let (mut items, mut kinds, mut names) = (0, 0, 0);
+    let mut i = 0;
+    while i < top.len() {
+        while is_punct(top.get(i), '#') {
+            match top.get(i + 1) {
+                Some(attribute) if is_doc(attribute) => {
+                    docs.push(attribute.to_string());
+                    i += 2;
+                }
+                _ => return Err("holds an attribute other than a doc comment".to_owned()),
+            }
+        }
+        let rest = &top[i..];
+        if items == 0 {
+            if rest.len() < use_line.len() || flat(&rest[..use_line.len()]) != flat(&use_line) {
+                return Err("does not start with the use line".to_owned());
+            }
+            kept.extend_from_slice(&rest[..use_line.len()]);
+            i += use_line.len();
+            items += 1;
+            continue;
+        }
+        let header = [(&kinds_header, "KINDS"), (&names_header, "ERROR_NAMES")]
+            .into_iter()
+            .find(|(header, _)| {
+                rest.len() >= header.len() && flat(&rest[..header.len()]) == flat(header)
+            });
+        let Some((header, list)) = header else {
+            return Err(outside(&rest[..rest.len().min(4)]));
+        };
+        let n = header.len();
+        let Some(values) = (is_punct(rest.get(n), '&'))
+            .then(|| rest.get(n + 1).and_then(|t| inner(t, Delimiter::Bracket)))
+            .flatten()
+        else {
+            return Err(outside(&rest[..rest.len().min(n + 2)]));
+        };
+        if !is_punct(rest.get(n + 2), ';') {
+            let after = rest.get(n + 2).map_or("nothing".to_owned(), |t| {
+                format!("`{}`", flat(std::slice::from_ref(t)).join(" "))
+            });
+            return Err(format!(
+                "holds {after} after the bracket of its list {list}, where only `;` stands"
+            ));
+        }
+        for part in parts(&values)? {
+            if list == "KINDS" {
+                listed.kinds.push(entry(part)?);
+            } else {
+                match part {
+                    [name] => listed.error_names.push(string_value(name)?),
+                    _ => return Err(outside(part)),
+                }
+            }
+        }
+        if list == "KINDS" {
+            kinds += 1;
+        } else {
+            names += 1;
+        }
+        kept.extend_from_slice(&rest[..n + 3]);
+        i += n + 3;
+        items += 1;
+    }
+    if items == 0 {
+        return Err("does not start with the use line".to_owned());
+    }
+    if kinds != 1 || names != 1 {
+        return Err(format!(
+            "holds {kinds} lists KINDS and {names} lists ERROR_NAMES, not one of each"
+        ));
+    }
+    let stripped = TokenStream::from_str(&without_three_slash_lines(text))
+        .map(|stream| {
+            let mut out = Vec::new();
+            flatten(stream, &mut out);
+            out
+        })
+        .unwrap_or_default();
+    if stripped != flat(&kept) || three_slash_docs(text) != Some(docs) {
+        return Err("holds a doc comment that is no line of the three-slash form".to_owned());
+    }
+    Ok(listed)
+}
+
+const LIST_FILE: &str = r####"/// The lists of a later run.
+use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
+
+/// The error names.
+pub const ERROR_NAMES: &[&str] = &["binding", r#"playbook"#];
+
+/// The kinds.
+pub const KINDS: &[KindEntry] = &[
+    KindEntry {
+        name: "later_run",
+        class: RetentionClass::Bounded { days: 93 },
+        origin: Origin::Capture,
+        family: "later",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("day", FieldType::Day),
+        ],
+        example: r#"{"v":1,"workflow":"30000000000000000000000000000001","day":20768}"#,
+    },
+    KindEntry {
+        name: "later_config",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "later",
+        workflow_key: None,
+        fields: &[("v", FieldType::Version)],
+        example: r#"{"v":1}"#,
+    },
+];
+"####;
+
+fn changed(old: &str, new: &str) -> String {
+    assert_eq!(LIST_FILE.matches(old).count(), 1, "{old}");
+    LIST_FILE.replacen(old, new, 1)
+}
+
+#[test]
+fn each_file_of_a_later_run_lists_its_error_names_as_string_literals() {
+    let mut kinds = Vec::new();
+    for module in LATER {
+        let listed = list_file(&source(&format!("{module}.rs")))
+            .unwrap_or_else(|fault| panic!("halvo-schema-core/src/{module}.rs {fault}"));
+        kinds.extend(listed.kinds);
+    }
+    let registered: Vec<String> = halvo_schema::kinds::registry()
+        .skip(halvo_schema::kinds::KINDS.len())
+        .map(|entry| entry.name.to_owned())
+        .collect();
+    assert_eq!(kinds, registered);
+    let want = |kinds: &[&str], names: &[&str]| {
+        Ok(Listed {
+            kinds: kinds.iter().map(|k| (*k).to_owned()).collect(),
+            error_names: names.iter().map(|n| (*n).to_owned()).collect(),
+        })
+    };
+    assert_eq!(
+        list_file(LIST_FILE),
+        want(&["later_run", "later_config"], &["binding", "playbook"])
+    );
+    for text in [
+        LIST_FILE.replacen("/// The lists of a later run.\n", "", 1),
+        changed("/// The kinds.\n", ""),
+        changed(
+            "/// The error names.\n",
+            "/// The error names.\n//// Not a doc comment.\n/* Nor this. */\n",
+        ),
+        changed(
+            "RetentionClass::Bounded { days: 93 }",
+            "RetentionClass::Bounded { days: 93, }",
+        ),
+        changed(
+            "&[\"binding\", r#\"playbook\"#];",
+            "&[\n    \"binding\",\n    r#\"playbook\"#,\n];",
+        ),
+        changed(
+            "fields: &[(\"v\", FieldType::Version)],",
+            "fields: &[(\"v\", FieldType::Version),],",
+        ),
+        LIST_FILE.replacen("    },\n];", "    }\n];", 1),
+    ] {
+        assert_eq!(
+            list_file(&text),
+            want(&["later_run", "later_config"], &["binding", "playbook"]),
+            "{text}"
+        );
+    }
+    let turned = changed(
+        "/// The error names.\npub const ERROR_NAMES: &[&str] = &[\"binding\", r#\"playbook\"#];\n\n",
+        "",
+    ) + "\npub const ERROR_NAMES: &[&str] = &[r##\"play\"#book\"##];\n";
+    assert_eq!(
+        list_file(&turned),
+        want(&["later_run", "later_config"], &["play\"#book"])
+    );
+    let empty = format!(
+        "{USE_LINE}\n\npub const KINDS: &[KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n"
+    );
+    assert_eq!(list_file(&empty), want(&[], &[]));
+}
+
+#[test]
+fn the_grammar_of_a_list_file_refuses_each_form_outside_it() {
+    let names = "&[\"binding\", r#\"playbook\"#]";
+    let start = "does not start with the use line";
+    let attribute = "holds an attribute other than a doc comment";
+    let three = "holds a doc comment that is no line of the three-slash form";
+    for (text, fault) in [
+        (
+            format!("#! x pub const ERROR_NAMES: &[&str] = &[\"shown\"];\n{LIST_FILE}"),
+            FIRST_LINE.to_owned(),
+        ),
+        (format!("\u{feff}{LIST_FILE}"), FIRST_LINE.to_owned()),
+        (format!("\n{LIST_FILE}"), FIRST_LINE.to_owned()),
+        (
+            format!("//! The lists.\n{LIST_FILE}"),
+            FIRST_LINE.to_owned(),
+        ),
+        (format!("// The lists.\n{LIST_FILE}"), FIRST_LINE.to_owned()),
+        (
+            format!("//// The lists.\n{LIST_FILE}"),
+            FIRST_LINE.to_owned(),
+        ),
+        (
+            changed(&format!("{names};"), &format!("{names} as &[&str];")),
+            "holds `as` after the bracket of its list ERROR_NAMES, where only `;` stands"
+                .to_owned(),
+        ),
+        (
+            changed(&format!("{names};"), names),
+            "holds `#` after the bracket of its list ERROR_NAMES, where only `;` stands".to_owned(),
+        ),
+        (
+            LIST_FILE.replacen("    },\n];\n", "    },\n].as_slice();\n", 1),
+            "holds `.` after the bracket of its list KINDS, where only `;` stands".to_owned(),
+        ),
+        (
+            LIST_FILE.replacen("    },\n];\n", "    },\n]\n", 1),
+            "holds nothing after the bracket of its list KINDS, where only `;` stands".to_owned(),
+        ),
+        (
+            changed("\"binding\"", "\"bind\\x69ng\""),
+            "holds `\"bind\\x69ng\"`, a string literal with an escape or a line continuation"
+                .to_owned(),
+        ),
+        (
+            changed("\"binding\"", "\"\\u{62}inding\""),
+            "holds `\"\\u{62}inding\"`, a string literal with an escape or a line continuation"
+                .to_owned(),
+        ),
+        (
+            changed("\"binding\"", "\"bind\\\n    ing\""),
+            "holds `\"bind\\\n    ing\"`, a string literal with an escape or a line continuation"
+                .to_owned(),
+        ),
+        (
+            changed(
+                "family: \"later\",\n        workflow_key: Some",
+                "family: \"lat\\x65r\",\n        workflow_key: Some",
+            ),
+            "holds `\"lat\\x65r\"`, a string literal with an escape or a line continuation"
+                .to_owned(),
+        ),
+        (changed(USE_LINE, "use crate::kinds::*;"), start.to_owned()),
+        (
+            changed(
+                USE_LINE,
+                "use crate::kinds::{FieldType, KindEntry, Origin};",
+            ),
+            start.to_owned(),
+        ),
+        (
+            changed(
+                USE_LINE,
+                "/// The error names.\npub const ERROR_NAMES: &[&str] = &[];",
+            ),
+            start.to_owned(),
+        ),
+        (
+            changed("/// The kinds.\n", &format!("{USE_LINE}\n/// The kinds.\n")),
+            outside(&trees("use crate ::")),
+        ),
+        (
+            changed(
+                "pub const ERROR_NAMES: &[&str] =",
+                "pub const ERROR_NAMES: &'static [&str] =",
+            ),
+            outside(&trees("pub const ERROR_NAMES :")),
+        ),
+        (
+            changed(
+                "pub const KINDS: &[KindEntry] =",
+                "pub static KINDS: &[KindEntry] =",
+            ),
+            outside(&trees("pub static KINDS :")),
+        ),
+        (
+            changed(
+                "pub const KINDS: &[KindEntry] =",
+                "pub(crate) const KINDS: &[KindEntry] =",
+            ),
+            outside(&trees("pub (crate) const KINDS")),
+        ),
+        (
+            changed(
+                &format!("{names};"),
+                &format!("{names};\npub const ERROR_NAMES: &[&str] = &[];"),
+            ),
+            "holds 1 lists KINDS and 2 lists ERROR_NAMES, not one of each".to_owned(),
+        ),
+        (
+            LIST_FILE
+                .split("\n/// The kinds.\n")
+                .next()
+                .unwrap_or_default()
+                .to_owned(),
+            "holds 0 lists KINDS and 1 lists ERROR_NAMES, not one of each".to_owned(),
+        ),
+        (
+            changed(&format!("= {names};"), "= OTHER;"),
+            outside(&trees("pub const ERROR_NAMES: &[&str] = OTHER;")),
+        ),
+        (
+            changed("\"binding\"", "b\"binding\""),
+            outside(&trees("b\"binding\"")),
+        ),
+        (
+            changed("\"binding\"", "c\"binding\""),
+            outside(&trees("c\"binding\"")),
+        ),
+        (
+            changed("\"binding\"", "\"binding\"x"),
+            outside(&trees("\"binding\"x")),
+        ),
+        (
+            changed("\"binding\"", "BINDING"),
+            outside(&trees("BINDING")),
+        ),
+        (
+            changed("\"binding\"", "r#BINDING"),
+            outside(&trees("r#BINDING")),
+        ),
+        (
+            changed("\"binding\"", "concat!(\"bind\", \"ing\")"),
+            outside(&trees("concat ! (\"bind\" , \"ing\")")),
+        ),
+        (
+            changed("\"binding\"", "{ \"binding\" }"),
+            outside(&trees("{ \"binding\" }")),
+        ),
+        (
+            changed("\"binding\"", "const { \"binding\" }"),
+            outside(&trees("const { \"binding\" }")),
+        ),
+        (
+            changed("\"binding\"", "\"binding\".trim_ascii()"),
+            outside(&trees("\"binding\" . trim_ascii ()")),
+        ),
+        (
+            changed("\"binding\"", "\"binding\" as &str"),
+            outside(&trees("\"binding\" as & str")),
+        ),
+        (
+            changed(names, "&[\"binding\"; 2]"),
+            outside(&trees("\"binding\" ; 2")),
+        ),
+        (
+            changed("\"binding\", r#", "\"binding\",, r#"),
+            outside(&trees(",")),
+        ),
+        (
+            changed("days: 93", "days: 93u16"),
+            outside(&trees("RetentionClass :: Bounded { days : 93u16 }")),
+        ),
+        (
+            changed("days: 93", "days: 9_3"),
+            outside(&trees("RetentionClass :: Bounded { days : 9_3 }")),
+        ),
+        (
+            changed("days: 93", "days: 0x5d"),
+            outside(&trees("RetentionClass :: Bounded { days : 0x5d }")),
+        ),
+        (
+            changed("days: 93", "days: 90 + 3"),
+            outside(&trees("RetentionClass :: Bounded { days : 90 + 3 }")),
+        ),
+        (
+            changed("days: 93", "days: DAYS"),
+            outside(&trees("RetentionClass :: Bounded { days : DAYS }")),
+        ),
+        (
+            changed("name: \"later_run\"", "name: \"later_run\".trim_ascii()"),
+            outside(&trees("\"later_run\" . trim_ascii ()")),
+        ),
+        (
+            changed("workflow_key: None,", "workflow_key: NONE,"),
+            outside(&trees("NONE")),
+        ),
+        (
+            changed("Some(\"workflow\")", "Some(WORKFLOW)"),
+            outside(&trees("WORKFLOW")),
+        ),
+        (
+            changed("Some(\"workflow\")", "Some(\"workflow\").or(None)"),
+            outside(&trees("Some (\"workflow\") . or (None)")),
+        ),
+        (
+            changed("Some(\"workflow\")", "Some(\"workflow\", )"),
+            outside(&trees("Some (\"workflow\" ,)")),
+        ),
+        (
+            changed(
+                "example: r#\"{\"v\":1}\"#,\n",
+                "example: r#\"{\"v\":1}\"#,\n        ..OTHER\n",
+            ),
+            outside(&trees(". . OTHER")),
+        ),
+        (
+            changed(
+                "        family: \"later\",\n        workflow_key: None,",
+                "        workflow_key: None,",
+            ),
+            "holds a KindEntry without each of its 7 fields".to_owned(),
+        ),
+        (
+            changed(
+                "family: \"later\",\n        workflow_key: None,",
+                "family: \"later\",\n        family: \"later\",\n        workflow_key: None,",
+            ),
+            outside(&trees("family : \"later\"")),
+        ),
+        (
+            changed(
+                "family: \"later\",\n        workflow_key: None,",
+                "kind: \"later\",\n        workflow_key: None,",
+            ),
+            outside(&trees("kind : \"later\"")),
+        ),
+        (
+            changed(
+                "family: \"later\",\n        workflow_key: None,",
+                "r#family: \"later\",\n        workflow_key: None,",
+            ),
+            outside(&trees("r#family : \"later\"")),
+        ),
+        (
+            changed(
+                "    KindEntry {\n        name: \"later_config\"",
+                "    crate::kinds::KindEntry {\n        name: \"later_config\"",
+            ),
+            ENTRY_HEAD.to_owned(),
+        ),
+        (
+            changed(
+                "class: RetentionClass::Kept",
+                "class: crate::kinds::RetentionClass::Kept",
+            ),
+            outside(&trees("crate :: kinds :: RetentionClass :: Kept")),
+        ),
+        (
+            changed("origin: Origin::Own", "origin: Origins::Own"),
+            outside(&trees("Origins :: Own")),
+        ),
+        (
+            changed("class: RetentionClass::Kept", "class: Origin::Kept"),
+            outside(&trees("Origin :: Kept")),
+        ),
+        (
+            changed("(\"v\", FieldType::Version)]", "(\"v\", Origin::Version)]"),
+            outside(&trees("(\"v\" , Origin :: Version)")),
+        ),
+        (
+            changed("origin: Origin::Own", "origin: Origin::Own.clone()"),
+            outside(&trees("Origin :: Own . clone ()")),
+        ),
+        (
+            changed("origin: Origin::Own", "origin: crate::kinds::Origin::Own"),
+            outside(&trees("crate :: kinds :: Origin :: Own")),
+        ),
+        (
+            changed(
+                "(\"v\", FieldType::Version)]",
+                "(\"v\", FieldType::Version, )]",
+            ),
+            outside(&trees("(\"v\" , FieldType :: Version ,)")),
+        ),
+        (
+            changed("(\"v\", FieldType::Version)]", "(V, FieldType::Version)]"),
+            outside(&trees("V")),
+        ),
+        (
+            changed(
+                "(\"v\", FieldType::Version)]",
+                "(\"v\", self::FieldType::Version)]",
+            ),
+            outside(&trees("(\"v\" , self :: FieldType :: Version)")),
+        ),
+        (
+            changed(
+                "fields: &[(\"v\", FieldType::Version)]",
+                "fields: &[(\"v\", FieldType::Version); 1]",
+            ),
+            outside(&trees("(\"v\" , FieldType :: Version) ; 1")),
+        ),
+        (
+            changed("/// The error names.\n", "#[doc = \"The error names.\"]\n"),
+            three.to_owned(),
+        ),
+        (
+            changed(
+                "/// The error names.\n",
+                "/*\n/// */ #[doc = \"The error names: \\x41.\"] /*\n*/\n",
+            ),
+            three.to_owned(),
+        ),
+        (
+            changed(
+                "/// The error names.\n",
+                "/*\n/// */ /** The error names. */ /*\n*/\n",
+            ),
+            three.to_owned(),
+        ),
+        (
+            changed("/// The error names.\n", "/*\n/// The error names.\n*/\n"),
+            three.to_owned(),
+        ),
+        (
+            format!("{USE_LINE}\n\n/*\n/// X\n*/\n/** X*/\npub const KINDS: &[KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n"),
+            three.to_owned(),
+        ),
+        (
+            changed("/// The error names.\n", "/** The error names. */\n"),
+            three.to_owned(),
+        ),
+        (
+            changed(&format!("{names};"), &format!("{names}; /// Trailing.")),
+            three.to_owned(),
+        ),
+        (
+            changed("/// The error names.\n", "#[cfg(all())]\n"),
+            attribute.to_owned(),
+        ),
+        (
+            changed(
+                "/// The error names.\n",
+                "#[doc = include_str!(\"names.txt\")]\n",
+            ),
+            attribute.to_owned(),
+        ),
+        (
+            changed("/// The error names.\n", "#![allow(unused)]\n"),
+            attribute.to_owned(),
+        ),
+        (
+            changed("/// The error names.\n", "//! The error names.\n"),
+            attribute.to_owned(),
+        ),
+        (
+            format!("{LIST_FILE}pub fn later() {{}}\n"),
+            outside(&trees("pub fn later ()")),
+        ),
+        (
+            format!("{LIST_FILE}mod names;\npub use names::*;\n"),
+            outside(&trees("mod names ; pub")),
+        ),
+        (
+            format!("{LIST_FILE}macro_rules! listed {{\n    () => {{}};\n}}\n"),
+            outside(&trees("macro_rules ! listed { () => { } ; }")),
+        ),
+        (
+            changed(
+                &format!("pub const ERROR_NAMES: &[&str] = {names};"),
+                "listed! {\n    pub const ERROR_NAMES: &[&str] = &[\"learned\"];\n}",
+            ),
+            outside(&trees(
+                "listed ! { pub const ERROR_NAMES : & [& str] = & [\"learned\"] ; } #",
+            )),
+        ),
+    ] {
+        assert_eq!(list_file(&text).err(), Some(fault), "{text}");
+    }
+}
+
+const FIXTURE_LISTS: [(&str, &str); 4] = [
+    ("executable", "&[\"fixture_a\", r#\"fixture_b\"#]"),
+    ("coordinator", "&[\"fixture_c\"]"),
+    ("learning", "&[\"fixture_d\", \"fixture_e\"]"),
+    ("routing", "&[r\"fixture_f\"]"),
+];
+
+fn list_text(names: &str) -> String {
+    format!("{USE_LINE}\n\npub const KINDS: &[KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = {names};\n")
+}
+
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap_or_else(|e| panic!("{}: {e}", to.display()));
+    let entries = std::fs::read_dir(from).unwrap_or_else(|e| panic!("{}: {e}", from.display()));
+    for entry in entries {
+        let path = entry.expect("a directory entry").path();
+        let target = to.join(path.file_name().expect("a file name"));
+        if path.is_dir() {
+            copy_tree(&path, &target);
+        } else {
+            std::fs::copy(&path, &target).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        }
+    }
+}
+
+fn names_read_by_a_build(lists: &[(String, String)]) -> Vec<String> {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("declared-names");
+    let dir = root.join("crate");
+    copy_tree(&core_dir().join("src"), &dir.join("src"));
+    for (module, text) in lists {
+        std::fs::write(dir.join("src").join(format!("{module}.rs")), text).expect("a list file");
+    }
+    let manifest = read(&core_dir().join("Cargo.toml"));
+    assert_eq!(manifest.matches("name = \"halvo-schema-core\"").count(), 1);
+    let manifest = manifest.replacen(
+        "name = \"halvo-schema-core\"",
+        "name = \"declared-names\"",
+        1,
+    ) + "\n[workspace]\n";
+    std::fs::write(dir.join("Cargo.toml"), manifest).expect("the manifest of the fixture");
+    std::fs::copy(
+        schema_dir().join("../../Cargo.lock"),
+        dir.join("Cargo.lock"),
+    )
+    .expect("the root Cargo.lock");
+    std::fs::create_dir_all(dir.join("examples")).expect("a directory");
+    std::fs::write(
+        dir.join("examples").join("names.rs"),
+        "fn main() {\n    for name in declared_names::kinds::declared_error_names() {\n        println!(\"{name}\");\n    }\n}\n",
+    )
+    .expect("the example");
+    let out = Command::new(env!("CARGO"))
+        .args(["run", "--offline", "--quiet", "--example", "names"])
+        .current_dir(&dir)
+        .env("CARGO_TARGET_DIR", root.join("target"))
+        .env_remove("RUSTFLAGS")
+        .env_remove("CARGO_ENCODED_RUSTFLAGS")
+        .env_remove("CARGO_BUILD_RUSTFLAGS")
+        .output()
+        .expect("cargo starts");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+fn names_faults(read: &[String], lists: &[(String, String)]) -> Vec<String> {
+    let mut listed = Vec::new();
+    for (module, text) in lists {
+        match list_file(text) {
+            Ok(file) => listed.extend(file.error_names),
+            Err(fault) => return vec![format!("{module}.rs {fault}")],
+        }
+    }
+    if listed == read {
+        Vec::new()
+    } else {
+        vec![format!(
+            "the crate reads the names {read:?}, and the four list files hold {listed:?}"
+        )]
+    }
+}
+
+#[test]
+fn declared_error_names_yields_the_literals_that_the_four_later_files_list_in_order() {
+    let files: Vec<(String, String)> = LATER
+        .iter()
+        .map(|module| ((*module).to_owned(), source(&format!("{module}.rs"))))
+        .collect();
+    let read: Vec<String> = halvo_schema::kinds::declared_error_names()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(names_faults(&read, &files), Vec::<String>::new());
+    let lists: Vec<(String, String)> = FIXTURE_LISTS
+        .iter()
+        .map(|(module, names)| ((*module).to_owned(), list_text(names)))
+        .collect();
+    let read = names_read_by_a_build(&lists);
+    assert_eq!(
+        read,
+        [
+            "fixture_a",
+            "fixture_b",
+            "fixture_c",
+            "fixture_d",
+            "fixture_e",
+            "fixture_f"
+        ]
+    );
+    assert_eq!(names_faults(&read, &lists), Vec::<String>::new());
+    let with = |module: &str, old: &str, new: &str| -> Vec<(String, String)> {
+        lists
+            .iter()
+            .map(|(m, text)| {
+                if m == module {
+                    assert_eq!(text.matches(old).count(), 1, "{old}");
+                    (m.clone(), text.replacen(old, new, 1))
+                } else {
+                    (m.clone(), text.clone())
+                }
+            })
+            .collect()
+    };
+    let another_value = with("coordinator", "\"fixture_c\"", "\"fixture_x\"");
+    assert_eq!(
+        names_faults(&read, &another_value),
+        [format!("the crate reads the names {read:?}, and the four list files hold [\"fixture_a\", \"fixture_b\", \"fixture_x\", \"fixture_d\", \"fixture_e\", \"fixture_f\"]")]
+    );
+    let another_order = with(
+        "learning",
+        "\"fixture_d\", \"fixture_e\"",
+        "\"fixture_e\", \"fixture_d\"",
+    );
+    assert_eq!(
+        names_faults(&read, &another_order),
+        [format!("the crate reads the names {read:?}, and the four list files hold [\"fixture_a\", \"fixture_b\", \"fixture_c\", \"fixture_e\", \"fixture_d\", \"fixture_f\"]")]
+    );
+}
+
+#[test]
+fn each_later_file_re_exports_its_two_lists_at_their_old_paths() {
+    assert_eq!(
+        halvo_schema::executable::KINDS,
+        halvo_schema_core::executable::KINDS
+    );
+    assert_eq!(
+        halvo_schema::executable::ERROR_NAMES,
+        halvo_schema_core::executable::ERROR_NAMES
+    );
+    assert_eq!(
+        halvo_schema::coordinator::KINDS,
+        halvo_schema_core::coordinator::KINDS
+    );
+    assert_eq!(
+        halvo_schema::coordinator::ERROR_NAMES,
+        halvo_schema_core::coordinator::ERROR_NAMES
+    );
+    assert_eq!(
+        halvo_schema::learning::KINDS,
+        halvo_schema_core::learning::KINDS
+    );
+    assert_eq!(
+        halvo_schema::learning::ERROR_NAMES,
+        halvo_schema_core::learning::ERROR_NAMES
+    );
+    assert_eq!(
+        halvo_schema::routing::KINDS,
+        halvo_schema_core::routing::KINDS
+    );
+    assert_eq!(
+        halvo_schema::routing::ERROR_NAMES,
+        halvo_schema_core::routing::ERROR_NAMES
+    );
+    for module in LATER {
+        let text = read(&schema_dir().join("src").join(format!("{module}.rs")));
+        assert_eq!(old_path_faults(module, &text), Vec::<String>::new());
+    }
+    let line = "pub use ::halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let old = "pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let fake = "pub mod fake;\nmod halvo_schema_core {\n    pub use super::fake as learning;\n}\n";
+    let own =
+        "pub const KINDS: &[crate::KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n";
+    let file = "halvo-schema/src/learning.rs";
+    let no_line = format!(
+        "{file} does not hold the line `{}` once at the top level",
+        line.trim_end()
+    );
+    let attribute = format!("{file} puts an attribute on the line `{}`", line.trim_end());
+    let named = format!(
+        "{file} names KINDS or ERROR_NAMES outside the line `{}`",
+        line.trim_end()
+    );
+    for (text, faults) in [
+        (own.to_owned(), vec![no_line.clone()]),
+        (String::new(), vec![no_line.clone(), named.clone()]),
+        (format!("#[cfg(any())]\n{line}"), vec![attribute.clone()]),
+        (format!("#[cfg(any())]\n{line}{own}"), vec![attribute.clone(), named.clone()]),
+        (
+            format!("#[cfg(any())]\n{line}pub const KINDS: &[crate::KindEntry; 0] = &[];\npub const ERROR_NAMES: &[&str; 0] = &[];\n"),
+            vec![attribute.clone(), named.clone()],
+        ),
+        (
+            format!("mod inner {{\n    {line}}}\npub use inner::*;\n"),
+            vec![no_line.clone()],
+        ),
+        (
+            format!("{line}mod other {{\n    pub const KINDS: u8 = 0;\n}}\n"),
+            vec![named.clone()],
+        ),
+        (
+            format!("{line}pub use crate::kinds::KindEntry as r#ERROR_NAMES;\n"),
+            vec![named.clone()],
+        ),
+        (format!("{line}{line}"), vec![no_line.clone(), named.clone()]),
+        (old.to_owned(), vec![no_line.clone()]),
+        (
+            format!("{old}mod halvo_schema_core {{\n    pub use ::halvo_schema_core::routing as learning;\n}}\n"),
+            vec![no_line.clone()],
+        ),
+        (format!("{old}{fake}"), vec![no_line.clone()]),
+    ] {
+        assert_eq!(old_path_faults("learning", &text), faults, "{text}");
+    }
+    for twin in [
+        format!(
+            "/// The lists of the learning run.\npub mod more {{}}\n{line}pub fn shown() {{}}\n"
+        ),
+        format!("#![allow(unused)]\n{line}"),
+        format!("{line}{fake}"),
+    ] {
+        assert_eq!(
+            old_path_faults("learning", &twin),
+            Vec::<String>::new(),
+            "{twin}"
+        );
+    }
+}
+
+fn old_path_faults(module: &str, text: &str) -> Vec<String> {
+    let file = format!("halvo-schema/src/{module}.rs");
+    let top: Vec<TokenTree> = match TokenStream::from_str(text) {
+        Ok(stream) => stream.into_iter().collect(),
+        Err(cause) => return vec![unread(&file, &cause.to_string())],
+    };
+    let line = format!("pub use ::halvo_schema_core::{module}::{{ERROR_NAMES, KINDS}};");
+    let want = trees(&line);
+    let at: Vec<usize> = (0..top.len())
+        .filter(|&i| top.len() >= i + want.len() && flat(&top[i..i + want.len()]) == flat(&want))
+        .collect();
+    let mut faults = Vec::new();
+    if at.len() != 1 {
+        faults.push(format!(
+            "{file} does not hold the line `{line}` once at the top level"
+        ));
+    }
+    if at.iter().any(|&i| {
+        i >= 2 && is_punct(top.get(i - 2), '#') && inner(&top[i - 1], Delimiter::Bracket).is_some()
+    }) {
+        faults.push(format!("{file} puts an attribute on the line `{line}`"));
+    }
+    let all = flat(&top);
+    let named = |name: &str| all.iter().filter(|t| bare(t) == name).count();
+    if named("KINDS") != 1 || named("ERROR_NAMES") != 1 {
+        faults.push(format!(
+            "{file} names KINDS or ERROR_NAMES outside the line `{line}`"
+        ));
+    }
+    faults
 }

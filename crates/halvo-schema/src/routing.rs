@@ -1,2 +1,1 @@
-pub const KINDS: &[crate::kinds::KindEntry] = &[];
-pub const ERROR_NAMES: &[&str] = &[];
+pub use ::halvo_schema_core::routing::{ERROR_NAMES, KINDS};
