@@ -79,4 +79,4 @@ pub(crate) unsafe fn wipe_raw(start: *mut u8, len: usize) {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

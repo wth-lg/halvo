@@ -297,3 +297,67 @@ fn an_item_of_no_byte_or_of_too_many_is_locked_by_its_size() {
         assert!(matches!(store.read(), Read::Locked(Locked::Size)));
     }
 }
+
+struct Holder {
+    held: RefCell<Option<Secret>>,
+}
+
+impl Keychain for Holder {
+    fn count(&self, _service: &str, _account: &str) -> Result<usize, i32> {
+        match self.held.borrow().as_ref() {
+            Some(_) => Ok(1),
+            None => Err(ITEM_NOT_FOUND),
+        }
+    }
+
+    fn data(&self, _service: &str, _account: &str) -> Result<Vec<u8>, i32> {
+        let held = self.held.borrow();
+        let secret = held.as_ref().ok_or(ITEM_NOT_FOUND)?;
+        let mut bytes = Vec::with_capacity(secret.expose().len());
+        bytes.extend_from_slice(secret.expose());
+        Ok(bytes)
+    }
+
+    fn add(&self, _service: &str, _account: &str, bytes: &[u8]) -> Result<(), i32> {
+        let mut copy = Vec::with_capacity(bytes.len());
+        copy.extend_from_slice(bytes);
+        *self.held.borrow_mut() = Secret::new(copy);
+        Ok(())
+    }
+
+    fn delete(&self, _service: &str, _account: &str) -> Result<(), i32> {
+        self.held
+            .borrow_mut()
+            .take()
+            .map(drop)
+            .ok_or(ITEM_NOT_FOUND)
+    }
+}
+
+#[test]
+fn a_keychain_round_trip_frees_no_copy_of_the_secret() {
+    use crate::secret::tests::{seen, CANARIES};
+    let store = KeychainItem {
+        keychain: Holder {
+            held: RefCell::new(None),
+        },
+        service: Name::new(SERVICE).expect("a service"),
+        account: Name::new(ACCOUNT).expect("an account"),
+    };
+    let mut bytes = Vec::with_capacity(16);
+    bytes.extend_from_slice(CANARIES[3]);
+    let secret = Secret::new(bytes).expect("a secret");
+    assert_eq!(store.write(&secret), Write::Stored);
+    drop(secret);
+    match store.read() {
+        Read::Found(found) => assert!(found.expose() == CANARIES[3]),
+        other => panic!("read answered {other:?}"),
+    }
+    assert_eq!(store.delete(), Delete::Deleted);
+    drop(store);
+    assert_eq!(
+        seen(3),
+        0,
+        "a keychain call freed a copy of the secret as it was"
+    );
+}

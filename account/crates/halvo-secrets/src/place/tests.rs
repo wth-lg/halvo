@@ -13,7 +13,17 @@ const EIO: i32 = 1117;
 const EACCES: i32 = 13;
 #[cfg(windows)]
 const EACCES: i32 = 5;
-const CODES: [i32; 3] = [ENOENT, EIO, EACCES];
+#[cfg(unix)]
+const EPERM: i32 = 1;
+const NO_CODE: i32 = 0;
+#[cfg(unix)]
+const REFUSALS: [i32; 2] = [EACCES, EPERM];
+#[cfg(windows)]
+const REFUSALS: [i32; 1] = [EACCES];
+#[cfg(unix)]
+const CODES: [i32; 5] = [ENOENT, EIO, EACCES, EPERM, NO_CODE];
+#[cfg(windows)]
+const CODES: [i32; 4] = [ENOENT, EIO, EACCES, NO_CODE];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Entry {
@@ -96,7 +106,9 @@ fn shown(path: &Path) -> String {
 struct Memory {
     entries: RefCell<BTreeMap<PathBuf, Entry>>,
     log: RefCell<Vec<String>>,
-    fail: RefCell<Vec<(&'static str, i32)>>,
+    fail: RefCell<Vec<(&'static str, usize, i32)>>,
+    calls: RefCell<BTreeMap<&'static str, usize>>,
+    makes_no_dir: Cell<bool>,
     on_create_temp: RefCell<Option<(PathBuf, Entry)>>,
     chunk: Cell<usize>,
 }
@@ -112,6 +124,8 @@ impl Memory {
             entries: RefCell::new(BTreeMap::new()),
             log: RefCell::new(Vec::new()),
             fail: RefCell::new(Vec::new()),
+            calls: RefCell::new(BTreeMap::new()),
+            makes_no_dir: Cell::new(false),
             on_create_temp: RefCell::new(None),
             chunk: Cell::new(7),
         }
@@ -130,7 +144,11 @@ impl Memory {
     }
 
     fn failing(self, step: &'static str, code: i32) -> Memory {
-        self.fail.borrow_mut().push((step, code));
+        self.failing_call(step, 0, code)
+    }
+
+    fn failing_call(self, step: &'static str, call: usize, code: i32) -> Memory {
+        self.fail.borrow_mut().push((step, call, code));
         self
     }
 
@@ -138,8 +156,21 @@ impl Memory {
         self.log
             .borrow_mut()
             .push(format!("{name} {}", shown(path)));
-        match self.fail.borrow().iter().find(|(step, _)| *step == name) {
-            Some((_, code)) => Err(io::Error::from_raw_os_error(*code)),
+        let call = {
+            let mut calls = self.calls.borrow_mut();
+            let count = calls.entry(name).or_insert(0);
+            *count += 1;
+            *count
+        };
+        let failing = self
+            .fail
+            .borrow()
+            .iter()
+            .find(|(step, nth, _)| *step == name && (*nth == 0 || *nth == call))
+            .map(|(_, _, code)| *code);
+        match failing {
+            Some(NO_CODE) => Err(io::Error::other("a failure with no code")),
+            Some(code) => Err(io::Error::from_raw_os_error(code)),
             None => Ok(()),
         }
     }
@@ -176,6 +207,9 @@ impl Fs for Memory {
 
     fn create_dir(&self, path: &Path) -> io::Result<()> {
         self.step("create_dir", path)?;
+        if self.makes_no_dir.get() {
+            return Ok(());
+        }
         self.entries
             .borrow_mut()
             .entry(path.to_path_buf())
@@ -344,10 +378,12 @@ fn step_names(memory: &Memory) -> Vec<String> {
 }
 
 fn class(code: i32) -> Result<Locked, Fault> {
-    if code == EACCES {
+    if REFUSALS.contains(&code) {
         Ok(Locked::Refused {
             code: i64::from(code),
         })
+    } else if code == NO_CODE {
+        Err(Fault { code: -1 })
     } else {
         Err(Fault {
             code: i64::from(code),
@@ -383,6 +419,65 @@ fn the_codes_of_the_tests_have_the_kinds_that_the_tests_need() {
     assert_eq!(kind(EACCES), io::ErrorKind::PermissionDenied);
     assert_ne!(kind(EIO), io::ErrorKind::PermissionDenied);
     assert_ne!(kind(EIO), io::ErrorKind::NotFound);
+    for code in REFUSALS {
+        assert_eq!(kind(code), io::ErrorKind::PermissionDenied);
+    }
+    assert_eq!(
+        io::Error::other("a failure with no code").raw_os_error(),
+        None
+    );
+}
+
+#[test]
+fn a_write_answers_the_class_of_a_failed_second_look_at_its_directory() {
+    for code in CODES {
+        let store = item(Memory::new().failing_call("lstat", 2, code));
+        assert_eq!(store.write(&secret(b"secret")), write_class(code), "{code}");
+        assert!(!step_names(&store.fs).contains(&"create_temp".to_string()));
+        assert_eq!(store.fs.entry(PATH), None);
+    }
+}
+
+#[test]
+fn a_write_answers_the_class_of_a_failed_look_at_the_name() {
+    for code in CODES {
+        let memory = Memory::with(&[(DIR, Entry::dir(0o700))]).failing_call("lstat", 2, code);
+        let store = item(memory);
+        assert_eq!(store.write(&secret(b"secret")), write_class(code), "{code}");
+        assert!(!step_names(&store.fs).contains(&"create_temp".to_string()));
+        assert_eq!(store.fs.paths(), [DIR]);
+    }
+}
+
+#[test]
+fn a_write_whose_directory_is_absent_after_it_was_made_answers_a_fault() {
+    let store = item(Memory::new());
+    store.fs.makes_no_dir.set(true);
+    assert_eq!(
+        store.write(&secret(b"secret")),
+        Write::Fault(Fault { code: -1 })
+    );
+    assert!(!step_names(&store.fs).contains(&"create_temp".to_string()));
+    assert!(store.fs.paths().is_empty());
+}
+
+#[test]
+fn a_write_that_finds_every_temporary_name_taken_answers_a_fault() {
+    let memory = Memory::with(&[(DIR, Entry::dir(0o700))]);
+    let leftover = Entry::file(0o600, b"a leftover");
+    for n in 0..TEMP_TRIES {
+        memory.put(
+            &format!("{DIR}/.account.{}.{n}.tmp", std::process::id()),
+            leftover.clone(),
+        );
+    }
+    let store = item(memory);
+    assert_eq!(
+        store.write(&secret(b"secret")),
+        Write::Fault(Fault { code: -1 })
+    );
+    assert_eq!(store.fs.entry(PATH), None);
+    assert_eq!(temp_paths(&store.fs).len(), TEMP_TRIES as usize);
 }
 
 #[test]

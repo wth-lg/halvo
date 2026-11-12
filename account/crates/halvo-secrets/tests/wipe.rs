@@ -2,14 +2,16 @@ use halvo_secrets::{Secret, MAX_SECRET_LEN};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const CANARIES: [&[u8; 16]; 4] = [
+const CANARIES: [&[u8; 16]; 6] = [
     b"wipe-canary-0001",
     b"wipe-canary-0002",
     b"wipe-canary-0003",
     b"wipe-canary-0004",
+    b"wipe-canary-0005",
+    b"wipe-canary-0006",
 ];
 
-static SEEN: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
+static SEEN: [AtomicUsize; 6] = [const { AtomicUsize::new(0) }; 6];
 
 struct Detector;
 
@@ -77,4 +79,43 @@ fn a_secret_overwrites_its_whole_buffer_before_the_buffer_is_freed() {
     long.resize(MAX_SECRET_LEN + 1, b'a');
     assert!(Secret::new(long).is_none());
     assert_eq!(seen(3), 0, "a refused secret freed its bytes as they were");
+}
+
+#[test]
+fn a_refused_empty_secret_overwrites_its_spare_capacity() {
+    let mut empty = bytes_with(CANARIES[4], 64);
+    empty.clear();
+    assert!(Secret::new(empty).is_none());
+    assert_eq!(
+        seen(4),
+        0,
+        "a refused empty secret freed its spare capacity as it was"
+    );
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[test]
+fn a_store_round_trip_frees_no_copy_of_the_secret() {
+    use halvo_secrets::{Delete, Directory, Name, Read, Store, Write};
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("halvo-secrets-wipe-{}", std::process::id()))
+        .join("store");
+    let store = Store::in_directory(
+        Directory::new(dir).expect("an absolute directory"),
+        Name::new("account").expect("a name"),
+    );
+    let secret = Secret::new(bytes_with(CANARIES[5], 24)).expect("a secret");
+    assert_eq!(store.write(&secret), Write::Stored);
+    drop(secret);
+    match store.read() {
+        Read::Found(found) => assert_eq!(found.expose().len(), 24),
+        other => panic!("read answered {other:?}"),
+    }
+    assert_eq!(store.delete(), Delete::Deleted);
+    drop(store);
+    assert_eq!(
+        seen(5),
+        0,
+        "a store call freed a copy of the secret as it was"
+    );
 }

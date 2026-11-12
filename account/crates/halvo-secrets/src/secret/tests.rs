@@ -2,13 +2,14 @@ use super::*;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::AtomicUsize;
 
-const CANARIES: [&[u8; 16]; 3] = [
+pub(crate) const CANARIES: [&[u8; 16]; 4] = [
     b"buffer-canary-01",
     b"buffer-canary-02",
     b"buffer-canary-03",
+    b"keychain-canary1",
 ];
 
-static SEEN: [AtomicUsize; 3] = [const { AtomicUsize::new(0) }; 3];
+static SEEN: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
 
 struct Detector;
 
@@ -35,7 +36,7 @@ unsafe impl GlobalAlloc for Detector {
 #[global_allocator]
 static DETECTOR: Detector = Detector;
 
-fn seen(index: usize) -> usize {
+pub(crate) fn seen(index: usize) -> usize {
     SEEN[index].load(Ordering::SeqCst)
 }
 
