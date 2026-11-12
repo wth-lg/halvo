@@ -2230,7 +2230,7 @@ fn a_start_reads_the_bindings_and_the_session_from_the_owners_entry() {
 }
 
 #[test]
-fn a_tick_whose_read_of_the_agents_fails_raises_no_ready_from_kept_facts() {
+fn refusal_agents_unread() {
     let mut w = world(&[person()]);
     w.ports.refuse(Method::Agents, PortError::NoService);
     let tick = w.tick();
@@ -2413,20 +2413,6 @@ fn a_second_switch_off_does_not_stop_a_stopping_run_again() {
     );
 }
 
-#[test]
-fn a_creation_is_for_a_seed_category_and_the_types_hold_no_other() {
-    assert_eq!(Category::ALL.len(), 10);
-    assert_eq!(Category::parse("tax_filing"), Err(Cause::Malformed));
-    let mut w = world(&[]);
-    for (n, c) in Category::ALL.iter().enumerate() {
-        w.ports
-            .workflows
-            .borrow_mut()
-            .push(Workflow::Full(approved(n, *c)));
-    }
-    assert_eq!(w.go(Move::Create).created.len(), 10);
-}
-
 fn approved_listed(w: &World, n: usize) {
     w.owner_workflow(n, |f| f.state = WorkflowState::Approved);
 }
@@ -2574,7 +2560,7 @@ fn next_minted(w: &mut World) -> RunId {
 }
 
 #[test]
-fn a_creation_decides_from_the_owners_list_alone() {
+fn refusal_create_again() {
     let mut w = world(&[manual()]);
     w.ports
         .workflows
@@ -2621,24 +2607,32 @@ fn a_creation_decides_from_the_owners_list_alone() {
         RunId::parse(&format!("{:032x}", 5)).unwrap(),
         "the list shows the agent: no id was made and nothing was sent"
     );
-}
-
-#[test]
-fn the_memory_owner_refuses_a_second_agent_for_a_workflow_and_takes_a_repeat() {
-    let w = world(&[]);
-    w.ports
-        .workflows
-        .borrow_mut()
-        .push(Workflow::Full(approved(0, Category::CalendarCleanup)));
-    let body = |n: u128| Body::CreateAgent {
-        workflow: flow(0),
+    assert!(
+        !w.calls().iter().any(|c| c.starts_with("set_state")),
+        "no set_state in a creation"
+    );
+    let stored = |n: u128| Body::CreateAgent {
+        workflow: flow(1),
         agent: minted(n),
     };
-    assert!(w.ports.send(&body(1)).is_ok());
-    assert!(w.ports.send(&body(1)).is_ok(), "a repeat of the pair");
+    assert!(
+        w.ports.send(&stored(2)).is_ok(),
+        "a repeat of the stored pair"
+    );
     assert_eq!(
-        w.ports.send(&body(2)),
-        Err(PortError::Refused(Name::parse("binding").unwrap()))
+        w.ports.send(&stored(3)),
+        Err(PortError::Refused(Name::parse("binding").unwrap())),
+        "the refused body stored nothing: another agent stays refused"
+    );
+    assert_eq!(
+        Category::ALL.len(),
+        10,
+        "the type of a category holds the ten seeds alone"
+    );
+    assert_eq!(
+        Category::parse("tax_filing"),
+        Err(Cause::Malformed),
+        "so the read of the owner's list refuses a workflow of another category"
     );
 }
 
@@ -2718,4 +2712,80 @@ fn a_tick_sends_active_before_the_start_that_it_serves_from_the_queue() {
     let active = calls.iter().position(|c| c == "set_state active").unwrap();
     let start = calls.iter().position(|c| c == "log run_started").unwrap();
     assert!(active < start, "{calls:?}");
+}
+
+#[test]
+fn refusal_active_tick() {
+    let none = A {
+        runtime: "none",
+        category: Category::RideOrder,
+        ..manual()
+    };
+    let email = A {
+        category: Category::Email,
+        runtime: "graph_mail",
+        slots: &[],
+        ..manual()
+    };
+    let web = A {
+        runtime: "web",
+        playbook: false,
+        finished: false,
+        ..manual()
+    };
+    let mut w = world(&[none, email, web, manual()]);
+    for n in 0..4 {
+        approved_listed(&w, n);
+    }
+    w.ports.refuse(Method::Send, PortError::Busy);
+    w.forget();
+    w.tick();
+    assert_eq!(set_states(&w), Vec::<String>::new(), "no acknowledgement");
+    w.ports.clear_refusals();
+    let web_run = ok_run(&w.start(2));
+    w.forget();
+    w.end(&web_run, Some(Outcome::Declined));
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "none at the end of a run"
+    );
+    for _ in 0..2 {
+        w.forget();
+        w.tick();
+        let sent: Vec<_> = w
+            .ports
+            .calls
+            .borrow()
+            .iter()
+            .filter_map(|c| match &c.call {
+                Call::Send(Body::SetState {
+                    agent: a, state, ..
+                }) => Some((a.clone(), *state)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            sent,
+            [(agent(3), AgentState::Active)],
+            "the last agent alone"
+        );
+    }
+    approved_listed(&w, 3);
+    w.owner_workflow(3, |f| f.state = WorkflowState::Active);
+    w.forget();
+    w.tick();
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "the list shows it active"
+    );
+    let run = ok_run(&w.start(3));
+    w.forget();
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(
+        set_states(&w),
+        Vec::<String>::new(),
+        "none at the end of a run"
+    );
 }
