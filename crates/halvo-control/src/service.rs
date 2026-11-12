@@ -31,7 +31,8 @@ pub enum SpecError {
 }
 
 /// The app's login item (contracts.md C14.7): its label, the app executable and,
-/// when the app was started with one, a data directory. KeepAlive is always
+/// when the app was started with one, a data directory. The capture agent's label
+/// com.halvo.capture is refused: R1 builds no plist for it (C19.11). KeepAlive is always
 /// {SuccessfulExit: false}, so a quit is not restarted and a crash is.
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +49,9 @@ impl LoginItemSpec {
         program: &std::path::Path,
         data_dir: Option<&crate::paths::DataDir>,
     ) -> Result<Self, SpecError> {
+        let capture_agent = label == "com.halvo.capture" || label.starts_with("com.halvo.capture.");
         let label_ok = !label.is_empty()
+            && !capture_agent
             && !label.starts_with('.')
             && label
                 .bytes()
@@ -83,8 +86,8 @@ impl LoginItemSpec {
         format!("{}.plist", self.label)
     }
 
-    /// [app executable, --background], then --data-dir DIR when a data
-    /// directory was given.
+    /// The app executable and BACKGROUND_ARG, then DATA_DIR_ARG and the directory
+    /// when a data directory was given.
     pub fn program_arguments(&self) -> Vec<&str> {
         let mut arguments = vec![self.program.as_str(), BACKGROUND_ARG];
         if let Some(dir) = &self.data_dir {
@@ -172,7 +175,7 @@ pub enum RemoveOutcome {
 #[cfg(target_os = "macos")]
 pub fn login_item_path(
     spec: &LoginItemSpec,
-    dir: &crate::paths::LaunchAgentsDir,
+    dir: &crate::paths::LoginItemDir,
 ) -> std::path::PathBuf {
     dir.path().join(spec.file_name())
 }
@@ -181,7 +184,7 @@ pub fn login_item_path(
 #[cfg(target_os = "macos")]
 pub fn login_item_state(
     spec: &LoginItemSpec,
-    dir: &crate::paths::LaunchAgentsDir,
+    dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<LoginItemState> {
     use std::os::unix::fs::MetadataExt;
 
@@ -209,14 +212,14 @@ pub fn login_item_state(
 #[cfg(target_os = "macos")]
 pub fn install_login_item(
     spec: &LoginItemSpec,
-    dir: &crate::paths::LaunchAgentsDir,
+    dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<InstallOutcome> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 
     if login_item_state(spec, dir)? == LoginItemState::Current {
         return Ok(InstallOutcome::Unchanged);
     }
-    if !dir.path().exists() {
+    if dir.create_missing() && !dir.path().exists() {
         std::fs::DirBuilder::new()
             .recursive(true)
             .mode(0o755)
@@ -264,7 +267,7 @@ fn replace_with_temp(
 #[cfg(target_os = "macos")]
 pub fn remove_login_item(
     spec: &LoginItemSpec,
-    dir: &crate::paths::LaunchAgentsDir,
+    dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<RemoveOutcome> {
     match std::fs::remove_file(login_item_path(spec, dir)) {
         Ok(()) => Ok(RemoveOutcome::Removed),
@@ -281,7 +284,7 @@ pub const RUN_VALUE_NAME: &str = "Halvo";
 
 /// The Windows start registration (contracts.md C14.7): a value under a key of
 /// HKEY_CURRENT_USER whose data is the quoted absolute path of the app
-/// executable, a space and --background.
+/// executable, a space and BACKGROUND_ARG.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StartValueSpec {
     key: String,
@@ -327,7 +330,7 @@ impl StartValueSpec {
         &self.value_name
     }
 
-    /// The value's data: the quoted program, a space and --background.
+    /// The value's data: the quoted program, a space and BACKGROUND_ARG.
     pub fn data(&self) -> String {
         format!("\"{}\" {BACKGROUND_ARG}", self.program)
     }
@@ -515,7 +518,7 @@ mod login_item_tests {
     use std::sync::Mutex;
 
     use super::*;
-    use crate::paths::{AccountLookup, DataDir, LaunchAgentsDir, PathError};
+    use crate::paths::{AccountLookup, DataDir, LoginItemDir, PathError, ScratchDir};
 
     static PROCESS_STATE: Mutex<()> = Mutex::new(());
 
@@ -643,8 +646,8 @@ mod login_item_tests {
         }
     }
 
-    fn agents(home: &Path) -> LaunchAgentsDir {
-        LaunchAgentsDir::for_account(&Home(home.to_path_buf())).unwrap()
+    fn agents(home: &Path) -> LoginItemDir {
+        LoginItemDir::for_account(&Home(home.to_path_buf())).unwrap()
     }
 
     fn mode(path: &Path) -> u32 {
@@ -763,9 +766,52 @@ mod login_item_tests {
     }
 
     #[test]
+    fn the_scratch_form_writes_label_plist_into_the_given_directory_through_the_same_writer() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let root = tempfile::tempdir().unwrap();
+        let user = DataDir::for_account(&Home(PathBuf::from("/Users/a b"))).unwrap();
+        let scratch = ScratchDir::new(root.path(), &user).unwrap();
+        let target = LoginItemDir::scratch_form(&scratch);
+        let data = DataDir::from_flag(root.path()).unwrap();
+        let spec = LoginItemSpec::new("com.halvo.check-l", Path::new(APP), Some(&data)).unwrap();
+        assert_eq!(
+            install_login_item(&spec, &target).unwrap(),
+            InstallOutcome::Written
+        );
+        let path = login_item_path(&spec, &target);
+        assert_eq!(path, root.path().join("com.halvo.check-l.plist"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), spec.plist());
+        assert!(spec
+            .plist()
+            .contains("<key>SuccessfulExit</key>\n\t\t<false/>"));
+        assert_eq!(mode(&path), 0o644);
+        assert!(!root.path().join("Library").exists());
+        assert_eq!(
+            login_item_state(&spec, &target).unwrap(),
+            LoginItemState::Current
+        );
+        let user_dir = std::fs::read_dir(root.path()).unwrap().count();
+        assert_eq!(user_dir, 1);
+        let gone = ScratchDir::new(root.path().join("missing"), &user).unwrap();
+        assert!(install_login_item(&spec, &LoginItemDir::scratch_form(&gone)).is_err());
+    }
+
+    #[test]
+    fn the_builder_refuses_the_capture_agent_label() {
+        for label in ["com.halvo.capture", "com.halvo.capture.test"] {
+            assert_eq!(
+                LoginItemSpec::new(label, Path::new(APP), None),
+                Err(SpecError::Label),
+                "{label}"
+            );
+        }
+        assert!(LoginItemSpec::new("com.halvo.capturing-check", Path::new(APP), None).is_ok());
+    }
+
+    #[test]
     fn an_empty_or_relative_home_gives_no_launch_agents_directory() {
         for home in ["", "Users/a"] {
-            assert!(LaunchAgentsDir::for_account(&Home(PathBuf::from(home))).is_err());
+            assert!(LoginItemDir::for_account(&Home(PathBuf::from(home))).is_err());
         }
     }
 }

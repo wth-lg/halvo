@@ -295,25 +295,47 @@ impl ScratchDir {
     }
 }
 
-/// The LaunchAgents directory of an account (macOS).
+/// Where the login item's plist goes (macOS): the account's LaunchAgents
+/// directory, or, for the scratch form of contracts.md C14.7, a scratch directory
+/// that gets DIR/LABEL.plist and never the account's LaunchAgents.
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LaunchAgentsDir(PathBuf);
+pub struct LoginItemDir {
+    path: PathBuf,
+    create_missing: bool,
+}
 
 #[cfg(target_os = "macos")]
-impl LaunchAgentsDir {
+impl LoginItemDir {
     pub fn for_current_user() -> Result<Self, PathError> {
         Self::for_account(&SystemAccount)
     }
 
+    /// The LaunchAgents directory of `account`, which the writer creates with mode
+    /// 0755 when it is missing.
     pub fn for_account(account: &dyn AccountLookup) -> Result<Self, PathError> {
         let mut path = base_dir(account)?;
         path.extend(MACOS_LAUNCH_AGENTS_DIR);
-        checked(path).map(Self)
+        Ok(Self {
+            path: checked(path)?,
+            create_missing: true,
+        })
+    }
+
+    /// The directory of the scratch form; the writer does not create it.
+    pub fn scratch_form(dir: &ScratchDir) -> Self {
+        Self {
+            path: dir.path().to_path_buf(),
+            create_missing: false,
+        }
     }
 
     pub fn path(&self) -> &Path {
-        &self.0
+        &self.path
+    }
+
+    pub(crate) fn create_missing(&self) -> bool {
+        self.create_missing
     }
 }
 
@@ -1067,21 +1089,21 @@ mod tests {
     #[test]
     fn the_launch_agents_directory_comes_from_the_account() {
         assert_eq!(
-            LaunchAgentsDir::for_account(&account(BASE)).unwrap().path(),
+            LoginItemDir::for_account(&account(BASE)).unwrap().path(),
             Path::new("/Users/a b/Library/LaunchAgents")
         );
         assert_eq!(
-            LaunchAgentsDir::for_account(&account("")),
+            LoginItemDir::for_account(&account("")),
             Err(PathError::Empty)
         );
         assert_eq!(
-            LaunchAgentsDir::for_account(&account("Users/a")),
+            LoginItemDir::for_account(&account("Users/a")),
             Err(PathError::Relative)
         );
         let unset = Account {
             base: None,
             temp: None,
         };
-        assert_eq!(LaunchAgentsDir::for_account(&unset), Err(PathError::Unset));
+        assert_eq!(LoginItemDir::for_account(&unset), Err(PathError::Unset));
     }
 }
