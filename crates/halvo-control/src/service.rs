@@ -813,6 +813,19 @@ mod login_item_tests {
             LoginItemState::Stale
         );
         assert_eq!(
+            install_login_item(&other, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("/Other/Halvo") && !text.contains(APP),
+            "{text}"
+        );
+        assert_eq!(
+            login_item_state(&spec, &dir).unwrap(),
+            LoginItemState::Stale
+        );
+        assert_eq!(
             remove_login_item(&spec, &dir).unwrap(),
             RemoveOutcome::Removed
         );
