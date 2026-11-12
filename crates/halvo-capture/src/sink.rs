@@ -1462,9 +1462,12 @@ mod tests {
                 broken.push(format!("a counter write other than fetch_add ({write})"));
             }
         }
-        for counter in [".accepted.", ".dropped.", ".coalesced.", ".refused."] {
+        for counter in [".accepted", ".dropped", ".coalesced", ".refused"] {
             for (at, _) in product.match_indices(counter) {
-                let method = &product[at + counter.len()..];
+                let after = product[at + counter.len()..].trim_start();
+                let Some(method) = after.strip_prefix('.') else {
+                    continue;
+                };
                 if !method.starts_with("fetch_add(") && !method.starts_with("load(") {
                     broken.push(format!("{counter} changed by other than fetch_add"));
                 }
@@ -1475,7 +1478,7 @@ mod tests {
 
     #[test]
     fn the_emit_path_has_no_timed_wait_and_every_counter_changes_by_fetch_add_alone() {
-        let source = include_str!("sink.rs");
+        let source = include_str!("sink.rs").replace("\r\n", "\n");
         let product = &source[..source.find("#[cfg(test)]\nmod tests {").unwrap()];
         assert!(product.contains("pub fn emit_event("));
         assert_eq!(rules_broken(product), Vec::<String>::new());

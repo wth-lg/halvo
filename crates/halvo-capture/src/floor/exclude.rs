@@ -432,6 +432,30 @@ mod tests {
     }
 
     #[test]
+    fn a_parent_loop_stops_at_the_first_repeat() {
+        struct Counted(Table, std::sync::atomic::AtomicUsize);
+
+        impl Lineage for Counted {
+            fn parent_of(&self, pid: ProcessId) -> Parent {
+                self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.0.parent_of(pid)
+            }
+        }
+
+        let lineage = Arc::new(Counted(table(), std::sync::atomic::AtomicUsize::new(0)));
+        let floor = FloorHandle::new(
+            Some(ProcessId::new(APP)),
+            lineage.clone(),
+            Switches::default(),
+        );
+        assert_eq!(
+            pointer(&floor, subject(300)),
+            Some(DropReason::UnknownLineage)
+        );
+        assert_eq!(lineage.1.load(std::sync::atomic::Ordering::Relaxed), 2);
+    }
+
+    #[test]
     fn with_no_root_the_tree_rule_matches_nothing() {
         let floor = handle(None, Switches::default());
         for pid in [APP, 101, 300, 555] {

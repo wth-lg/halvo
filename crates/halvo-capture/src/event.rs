@@ -141,9 +141,8 @@ impl EventId {
         let seconds = nanos / 1_000_000_000;
         let subsec = u32::try_from(nanos % 1_000_000_000).unwrap_or(0);
         let context = context.lock().unwrap_or_else(PoisonError::into_inner);
-        EventId(Uuid::new_v7(Timestamp::from_unix(
-            &*context, seconds, subsec,
-        )))
+        let timestamp = Timestamp::from_unix(&*context, seconds, subsec);
+        EventId(Uuid::new_v7(timestamp))
     }
 
     pub const fn uuid(&self) -> Uuid {

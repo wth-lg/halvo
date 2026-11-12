@@ -74,10 +74,6 @@ fn known_domain(host: &str) -> Option<String> {
     if !host.split('.').all(is_dns_label) {
         return None;
     }
-    let top = host.rsplit('.').next()?;
-    if top.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
     let domain = psl::domain(host.as_bytes())?;
     if !domain.suffix().is_known() {
         return None;
