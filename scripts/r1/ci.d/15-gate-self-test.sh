@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: The self-tests of the R1 gate pass, and each check script passes its self-test under dash.
+# rule: The self-tests of the R1 gate pass, each rejects at least one failing fixture, and each check script passes its self-test under dash.
 set -u
 name=15-gate-self-test
 nl='
@@ -23,6 +23,8 @@ self_tested() {
   [ -z "$first" ] || fail "$label printed: $first"
   zero=$(printf '%s\n' "$out" | sed -n '/^PASS self-test:[^ ]* (0 cases/{p;q;}')
   [ -z "$zero" ] || fail "$label printed a PASS line with 0 cases: $zero"
+  none=$(printf '%s\n' "$out" | sed -n '/^PASS self-test:[^ ]* (.*[( ]0 failing fixtures rejected)/{p;q;}')
+  [ -z "$none" ] || fail "$label rejected 0 failing fixtures: $none"
   case $group:$nl$out$nl in
     :*"${nl}PASS self-test:"*) ;;
     *"${nl}PASS self-test:$group ("* | *"${nl}PASS self-test:$group$nl"*) ;;
@@ -120,6 +122,12 @@ self_test() {
   check check-group-is-a-prefix FAIL 'dash check-store.sh --self-test printed no PASS self-test:store line)'
   gate check-passes-with-0-cases "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 cases)\n"'
   check check-passes-with-0-cases FAIL 'dash check-store.sh --self-test printed a PASS line with 0 cases: PASS self-test:store (0 cases))'
+  gate check-rejects-no-fixture "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (3 cases, 0 failing fixtures rejected)\n"'
+  check check-rejects-no-fixture FAIL 'dash check-store.sh --self-test rejected 0 failing fixtures: PASS self-test:store (3 cases, 0 failing fixtures rejected))'
+  gate run-rejects-no-fixture 'printf "PASS self-test:run (5 cases, 0 failing fixtures rejected)\n"' store "$pass"
+  check run-rejects-no-fixture FAIL 'run.sh --self-test rejected 0 failing fixtures: PASS self-test:run (5 cases, 0 failing fixtures rejected))'
+  gate ten-fixtures-rejected "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (12 cases, 10 failing fixtures rejected)\n"'
+  check ten-fixtures-rejected PASS
   mkdir -p "$work/check-script-renamed/scripts" "$work/check-script-renamed/docs" || exit 2
   cp -R "$CI_D_REPO/scripts/r1-gate" "$work/check-script-renamed/scripts/" || exit 2
   cp -R "$CI_D_REPO/docs/baseline" "$work/check-script-renamed/docs/" || exit 2
