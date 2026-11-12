@@ -220,6 +220,41 @@ fn put_session_stores_a_part_once_with_the_day_of_the_request() {
 }
 
 #[test]
+fn put_session_refuses_the_same_data_at_a_stored_place_with_another_of() {
+    let mut store = store_with("utility_bill_payment");
+    let origin = "https://bank.test:443";
+    assert_eq!(
+        put_session(&mut store, origin, 1, 1, 2, full_part()),
+        Ok(stored(1))
+    );
+    assert_eq!(
+        put_session(&mut store, origin, 1, 1, 3, full_part()),
+        Err(declared("binding"))
+    );
+    assert_eq!(session_rows(&store).len(), 1);
+}
+
+#[test]
+fn load_takes_no_session_revision_whose_parts_disagree_on_of() {
+    let mut store = store_with("utility_bill_payment");
+    let origin = "https://bank.test:443";
+    assert_eq!(
+        put_session(&mut store, origin, 1, 1, 2, full_part()),
+        Ok(stored(1))
+    );
+    assert_eq!(
+        put_session(&mut store, origin, 1, 2, 3, full_part()),
+        Ok(stored(1))
+    );
+    assert_eq!(
+        put_session(&mut store, origin, 1, 3, 3, vec!["QUJD".into()]),
+        Ok(stored(1))
+    );
+    let reply = load(&mut store, 1).expect("load");
+    assert!(reply.sessions.is_empty(), "{:?}", reply.sessions);
+}
+
+#[test]
 fn load_session_reads_one_stored_part() {
     let mut store = store_with("utility_bill_payment");
     let origin = "https://pay.test:443";

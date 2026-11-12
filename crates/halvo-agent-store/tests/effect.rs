@@ -384,3 +384,69 @@ fn an_effect_body_whose_record_is_not_the_form_is_malformed() {
     );
     assert!(effects(&store).is_empty());
 }
+
+#[test]
+fn a_repeat_after_the_run_s_end_is_answered_as_the_first() {
+    let mut store = payment();
+    let commit = row(1, 1, 4, "committed", "payment", 1, Some(1), None);
+    ok(&mut store, row(1, 1, 1, "held", "payment", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "approved", "payment", 1, Some(1), None),
+    );
+    ok(
+        &mut store,
+        row(1, 1, 3, "releasing", "payment", 1, Some(1), None),
+    );
+    ok(&mut store, commit.clone());
+    assert_eq!(
+        finish(&mut store, run_record(1, Some("replay"), "completed")),
+        Ok(stored(1))
+    );
+    let count = effects(&store).len();
+    assert_eq!(put(&mut store, commit), Ok(stored(1)));
+    assert_eq!(effects(&store).len(), count);
+    refused(&mut store, row(1, 2, 1, "held", "payment", 1, None, None));
+}
+
+#[test]
+fn a_commit_a_reject_or_an_end_row_with_another_digest_is_refused() {
+    let mut store = payment();
+    ok(&mut store, row(1, 1, 1, "held", "payment", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "approved", "payment", 1, Some(1), None),
+    );
+    ok(
+        &mut store,
+        row(1, 1, 3, "releasing", "payment", 1, Some(1), None),
+    );
+    refused(
+        &mut store,
+        row(1, 1, 4, "committed", "payment", 2, Some(1), None),
+    );
+    ok(
+        &mut store,
+        row(1, 1, 4, "committed", "payment", 1, Some(1), None),
+    );
+
+    ok(&mut store, row(1, 2, 1, "held", "payment", 1, None, None));
+    refused(
+        &mut store,
+        row(1, 2, 2, "rejected", "payment", 2, None, None),
+    );
+    ok(
+        &mut store,
+        row(1, 2, 2, "rejected", "payment", 1, None, None),
+    );
+
+    ok(&mut store, row(1, 3, 1, "held", "payment", 1, None, None));
+    refused(
+        &mut store,
+        row(1, 3, 2, "rejected", "payment", 2, None, Some("ended")),
+    );
+    ok(
+        &mut store,
+        row(1, 3, 2, "rejected", "payment", 1, None, Some("ended")),
+    );
+}
