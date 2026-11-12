@@ -28,6 +28,8 @@ pub enum PathError {
 }
 
 pub trait AccountLookup {
+    /// The home directory of the account on macOS, and its LocalAppData known
+    /// folder on Windows; `None` when the account gives none.
     fn base_dir(&self) -> Result<Option<OsString>, PathError>;
 
     fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError>;

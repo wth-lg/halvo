@@ -4,6 +4,10 @@ pub use halvo_control::onboarding::{
 };
 use halvo_control::onboarding::{AssessInput, Grants, PermissionSet};
 
+/// The onboarding state of `required` as `probe` reads it now, with four fixed
+/// inputs: what the probe reads now counts as granted at the capture start, no
+/// permission counts as asked, the settings entry is named Halvo, and the
+/// switch screen_activity is off.
 pub fn assess(
     probe: &dyn PermissionProbe,
     required: &[Permission],

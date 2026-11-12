@@ -43,6 +43,8 @@ impl Permission {
         }
     }
 
+    /// The sentence that tells what Halvo records with the permission, for the
+    /// state of the switch screen_activity.
     pub const fn why(self, screen_activity: bool) -> &'static str {
         match self {
             Permission::ScreenAndSystemAudioRecording => {
@@ -61,6 +63,8 @@ impl Permission {
         }
     }
 
+    /// Whether a grant of the permission takes effect in the capturing process
+    /// only after that process restarts.
     pub const fn restarts_capture(self) -> bool {
         matches!(
             self,
@@ -137,6 +141,8 @@ const SCREEN_PANE: &str = "Screen & System Audio Recording";
 const INPUT_MONITORING_PANE: &str = "Input Monitoring";
 const ALERT_BUTTON: &str = "Open System Settings";
 
+/// Only the row for 27 was observed, on macOS 27.2. The other rows carry its
+/// words, with the older Accessibility title, until someone observes them.
 pub const MACOS_ROWS: [MacosRow; 4] = [
     MacosRow {
         major: MACOS_FLOOR_MAJOR,
