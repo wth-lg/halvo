@@ -137,8 +137,50 @@ pub struct HeldSamples {
     pub taken: u64,
 }
 
-pub trait EventSink {
+/// Only the sink handle implements it; an implementation in another crate does
+/// not compile:
+///
+/// ```compile_fail
+/// use halvo_capture::event::CaptureStreamEvent;
+/// use halvo_capture::sink::SinkError;
+/// use halvo_capture::source::{EmitOutcome, EventSink};
+///
+/// struct Elsewhere;
+///
+/// impl EventSink for Elsewhere {
+///     fn emit(&self, _event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
+///         Ok(EmitOutcome::Queued)
+///     }
+/// }
+/// ```
+///
+/// The same code compiles when the method is not an implementation of the trait:
+///
+/// ```
+/// use halvo_capture::event::CaptureStreamEvent;
+/// use halvo_capture::sink::SinkError;
+/// use halvo_capture::source::{EmitOutcome, EventSink};
+///
+/// struct Elsewhere;
+///
+/// impl Elsewhere {
+///     fn emit(&self, _event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
+///         Ok(EmitOutcome::Queued)
+///     }
+/// }
+///
+/// fn emits_through(_sink: &impl EventSink) {}
+/// let (handle, _writer) = halvo_capture::sink::channel(1);
+/// emits_through(&handle);
+/// ```
+pub trait EventSink: sealed::Sealed {
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError>;
+}
+
+mod sealed {
+    pub trait Sealed {}
+
+    impl Sealed for crate::sink::SinkHandle {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
