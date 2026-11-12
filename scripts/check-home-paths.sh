@@ -1437,8 +1437,14 @@ self_test_hook() {
   push_case added-entry-with-a-trailing-slash-in-home refused 'this entry names the home directory of the account that runs this push' proof add-sam
   push_home="C:\\$u\\sam\\"
   push_case added-entry-with-home-in-the-windows-form refused 'this entry names the home directory of the account that runs this push' proof add-sam
-  push_home=UNSET
-  push_case added-entry-with-home-unset refused 'HOME is unset or empty' proof add-sam
+  case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*) printf 'case %s/added-entry-with-home-unset not run: this system sets HOME for every process\n' "$NAME" ;;
+    *)
+      push_home=UNSET
+      push_case added-entry-with-home-unset refused 'HOME is unset or empty' proof add-sam
+      rejected=$((rejected - 1))
+      ;;
+  esac
   in_repo checkout -q -b add-ann-sam trunk || die 'git checkout failed'
   mkdir -p "$repo/scripts" || die 'mkdir failed'
   printf 'y.txt\t/%s/Ann\ta made-up name\n' "$u" >"$repo/$LIST_IN_THE_REPOSITORY"

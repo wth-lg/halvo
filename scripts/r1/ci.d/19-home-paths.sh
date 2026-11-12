@@ -105,6 +105,7 @@ self_test() {
     printf 'case %s/predicate-self-test want=PASS got=PASS (%s failing fixtures rejected)\n' "$name" "$predicate"
   else
     printf 'case %s/predicate-self-test want=PASS got=exit-%s\n' "$name" "$code"
+    grep '^FAIL self-test:check-home-paths (wrong verdict in:' "$scratch/predicate.out"
     wrong="$wrong predicate-self-test"
     predicate=0
   fi
