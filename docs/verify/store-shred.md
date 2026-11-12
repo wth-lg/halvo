@@ -897,7 +897,7 @@ it in the plan before weakening an assertion.
   `Db::require_schema`, `Db::refuse_a_live_holder` where it answers that no
   process holds the store, the read-backs `require_checkpoint_fullfsync`,
   `require_cipher_log_level_none` and `require_pinned_cipher`, the mode of
-  `writer.lock` in `WriterLock::take`, and
+  `writer.lock` in `WriterLock::open_lock_file`, and
   `EncryptedStore::{open_with, seal, read_segment}` outside the one call
   that the row of check 2 turns; in `durable.rs` `write_durably`,
   `remove_durably`, `make_private` and `no_follow`;
@@ -977,6 +977,12 @@ it in the plan before weakening an assertion.
   those edges passes.
   `store::hardening_tests::a_held_store_answers_locked_before_its_custody_is_called`
   counts the custody calls of one open of a held store.
+- The retry of the open of the lock file, in `WriterLock::open_lock_file`.
+  With the retry taken out, check 2 failed 4 of 376 runs, so one run of it
+  passes that store about 99 times in 100, and no row of check 2 names the
+  retry.
+  `db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file`
+  judges it, with the row `lock-file-open-not-retried`.
 - Two writers in different user accounts, or over a network filesystem.
 - The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
   the lock. Check 1 fails when the lock outlives the store, and check 2
@@ -1034,12 +1040,12 @@ every 1 or 7 ms, none in 142,013 takes from one thread, and no failure of
 the narrowing of the directory in 1,845,217 calls.
 
 The cause is the open of `writer.lock` with the create flag. When two
-processes are in that open while a third unlinks the name, macOS answers it
-with "no such file". The narrowing of the directory before every take made
+processes are in that open while a third unlinks the name, macOS can answer
+it with "no such file". The narrowing of the directory before every take made
 that about 36 times more frequent: in a changed copy, 8 in 1,450,310 takes
 with it and 1 in 6,490,549 without it. Since the fix of ruling ST-23,
-`WriterLock::take` tries that open again, at most 4 times, while it answers
-"no such file", with no sleep and no clock. The narrowing before every take
+`WriterLock::take` tries that open again while it answers "no such file",
+at most 4 tries in all, with no sleep and no clock. The narrowing before every take
 stays. A directory that is gone answers so on every try, and `open` still
 answers `Io(NotFound)` for it
 (`db::tests::a_take_of_the_writer_lock_in_a_directory_that_is_gone_answers_not_found`).
@@ -1054,3 +1060,18 @@ load of 41 to 95. The row `lock-file-open-not-retried` of
 Windows a delete of the name while a holder keeps it open leaves it
 delete-pending, and the open answers access denied, not "no such file", so
 the retry changes no answer there.
+
+The fourth formal step read the fix at its head. Both checks pass, and
+check 2 alone passed 100 more runs of 100, at a 1-minute load of 48 to 59.
+The retry admits no second holder. A try keeps nothing of the try before
+it, so a take with the retry ends as a take without it that began later
+could end: with the lock on the file that had the name at that moment, or
+with an error. A process whose locked file was unlinked, beside one that
+locked a new file of that name, is the case that check 2 makes in every
+case with an unlink cadence, with or without the retry, and
+`Db::refuse_a_live_holder` and the database lock refuse the second of
+them. Check 2 does not decide the retry itself (see Not covered). How
+often a second try fails was counted outside the store, with the same two
+system calls from five processes while a sixth unlinked the name every
+1 ms: the first try answered "no such file" in 23 of 2,867,815 takes, and
+the second try in none of those 23.
