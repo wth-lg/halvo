@@ -692,6 +692,9 @@ mod tests {
         ));
         assert_eq!(writer.barrier(), Barrier(1), "an empty poll took a number");
         assert_eq!(handle.emit(frame()).unwrap(), EmitOutcome::Queued);
+        assert!(writer.recv().is_some());
+        assert_eq!(writer.barrier(), Barrier(1), "recv took a number");
+        assert_eq!(handle.emit(frame()).unwrap(), EmitOutcome::Queued);
         let second = writer.recv_timeout(Duration::from_secs(1)).unwrap();
         assert_eq!(second.number(), ArrivalNumber::for_test(1));
         assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
