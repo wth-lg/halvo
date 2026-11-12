@@ -118,6 +118,12 @@ impl PermissionSet {
         self.0 |= 1 << permission.index();
     }
 
+    /// Take a permission out, as the acknowledge of a lost permission does with
+    /// the once-granted set.
+    pub fn remove(&mut self, permission: Permission) {
+        self.0 &= !(1 << permission.index());
+    }
+
     /// The members, in the order of `Permission::R1_MACOS`.
     pub fn iter(self) -> impl Iterator<Item = Permission> {
         Permission::R1_MACOS
@@ -396,7 +402,7 @@ fn walkback_for(context: &StepContext<'_>) -> Vec<WalkbackStep> {
         ));
     }
     let lead = if lost {
-        format!("macOS removed the {pane} permission of {entry}. This happens after a macOS update, a periodic re-check or a new Halvo version. ")
+        format!("{entry} no longer has the {pane} permission. If you turned it off, nothing else is needed. ")
     } else {
         String::new()
     };
@@ -905,7 +911,7 @@ mod tests {
             format!("Open System Settings > Privacy & Security > {pane} and turn on Halvo.{relist}")
         };
         let lost = |pane: &str| {
-            format!("macOS removed the {pane} permission of Halvo. This happens after a macOS update, a periodic re-check or a new Halvo version. ")
+            format!("Halvo no longer has the {pane} permission. If you turned it off, nothing else is needed. ")
         };
         let restart = |pane: &str| {
             format!("Click Restart recorder: Halvo restarts its recorder so that macOS applies the {pane} permission.")
@@ -944,6 +950,34 @@ mod tests {
                 expected_restart
             );
         }
+    }
+
+    #[test]
+    fn a_lost_permission_is_not_blamed_on_macos() {
+        every_state(|_, state| {
+            for step in &state.walkback {
+                assert!(!step.text.contains("macOS removed"), "{}", step.text);
+            }
+        });
+    }
+
+    #[test]
+    fn an_acknowledged_lost_permission_is_no_longer_lost_and_still_not_granted() {
+        let mut input = input(&[Screen], &[(Screen, GrantState::NotGranted)]);
+        input.once_granted = [Screen, InputMonitoring].into_iter().collect();
+        let state = assess(&input);
+        assert_eq!(state.lost_grants, vec![Screen]);
+        assert!(state.permissions[0].lost);
+        input.once_granted.remove(Screen);
+        assert_eq!(
+            input.once_granted.iter().collect::<Vec<_>>(),
+            vec![InputMonitoring]
+        );
+        let state = assess(&input);
+        assert!(state.lost_grants.is_empty());
+        assert!(!state.permissions[0].lost);
+        assert_eq!(state.permissions[0].grant, GrantState::NotGranted);
+        assert!(!state.all_granted);
     }
 
     const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"}]}"#;
