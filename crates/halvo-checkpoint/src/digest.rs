@@ -39,6 +39,14 @@ impl Sha256 {
     }
 }
 
+impl Sha256 {
+    /// The digest and the length of what `reader` holds, read to its end but never past
+    /// `bound` bytes and one more: a length over `bound` says that it holds more.
+    pub fn of_reader(reader: impl Read, bound: u64) -> io::Result<(Sha256, u64)> {
+        read(reader, bound)
+    }
+}
+
 impl fmt::Debug for Sha256 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Sha256({})", self.hex())

@@ -149,8 +149,14 @@ impl Folder {
     /// id><ext>` beside it, or takes a checkpoint of the run that is already there and equal to
     /// the workbook without writing it again ([`Error::Checkpoint`] when it differs or is no
     /// regular file). It writes a prepared copy under a name of this call's own,
-    /// `<name>.halvo-prepared-<run id>-<part of its own><ext>`, which no other call writes or
-    /// removes. Both get the workbook's permissions: its permission bits on Unix, its read-only
+    /// `<name>.halvo-prepared-<run id>-<part of its own>-<digest><ext>`, `<digest>` being the
+    /// first 16 hex digits of the copy's SHA-256, and holds a shared lock of the system on it
+    /// while the [`Prepared`] lives, so that no other call writes or removes it. Before it
+    /// writes, under the lock of the directory, it sweeps the prepared copies of this workbook
+    /// that a killed run left: it removes an entry whose own name is such a name of this
+    /// workbook byte for byte, that is a regular file and no link, whose lock no live call
+    /// holds, and whose bytes still have the digest that its name says; it leaves every other
+    /// entry. Both get the workbook's permissions: its permission bits on Unix, its read-only
     /// attribute on Windows; and what the workbook holds besides its bytes: on macOS its
     /// extended attributes (a quarantine mark among them, which the system writes again with
     /// its flags kept) and its access list, on Windows its named streams (the zone of a file

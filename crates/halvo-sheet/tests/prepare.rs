@@ -17,19 +17,25 @@ fn checkpoint_name(file: &str) -> String {
     format!("{stem}.halvo-checkpoint-{RUN}.{ext}")
 }
 
-/// The name of a call's prepared copy: `<stem>.halvo-prepared-<run id>-<16 hex digits><ext>`.
+/// The name of a call's prepared copy:
+/// `<stem>.halvo-prepared-<run id>-<16 hex digits>-<16 hex digits of its SHA-256><ext>`.
 fn copy_name(prepared: &Prepared) -> String {
     let name = prepared.copy().file_name().expect("a name");
     let name = name.to_string_lossy().into_owned();
     let stem = name.split(".halvo-prepared-").next().expect("a stem");
     let rest = &name[stem.len() + ".halvo-prepared-".len()..];
     let (own, ext) = rest.split_once('.').expect("an extension");
-    let (run, part) = own.split_once('-').expect("a part of its own");
+    let (run, parts) = own.split_once('-').expect("a part of its own");
+    let (part, digest) = parts.split_once('-').expect("a digest");
     assert_eq!(run, RUN, "{name}");
-    assert!(
-        part.len() == 16 && part.bytes().all(|b| b.is_ascii_hexdigit()),
-        "{name}"
-    );
+    for hex in [part, digest] {
+        assert!(
+            hex.len() == 16 && hex.bytes().all(|b| b.is_ascii_hexdigit()),
+            "{name}"
+        );
+    }
+    let bytes = fs::read(prepared.copy()).expect("read the copy");
+    assert!(Sha256::of(&bytes).hex().starts_with(digest), "{name}");
     assert!(!ext.is_empty(), "{name}");
     name
 }

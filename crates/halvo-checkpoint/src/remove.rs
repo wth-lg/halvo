@@ -1,9 +1,9 @@
 use std::ffi::OsStr;
-use std::fs::{self, File, Metadata, OpenOptions};
+use std::fs::{self, File, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::walk::{Root, Walk};
+use crate::walk::{is_loop, no_follow, same_file, Root, Walk};
 use crate::{checkpoint_name, digest, LockError, Locks, RunId, Sha256, FILE_MAX};
 
 /// What a row of the list of checkpoints names (contracts.md A7.4): the folder that `prepare`
@@ -241,49 +241,4 @@ fn own_entry(dir: &Path, name: &OsStr) -> Result<bool, Removal> {
         }
     }
     Ok(false)
-}
-
-fn no_follow(path: &Path) -> io::Result<File> {
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(target_os = "macos")]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(0x0100);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        options.custom_flags(0x0020_0000);
-    }
-    options.open(path)
-}
-
-#[cfg(target_os = "macos")]
-fn is_loop(error: &io::Error) -> bool {
-    error.raw_os_error() == Some(62)
-}
-
-#[cfg(not(target_os = "macos"))]
-fn is_loop(_: &io::Error) -> bool {
-    false
-}
-
-#[cfg(unix)]
-fn same_file(a: &Metadata, b: &Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    (a.dev(), a.ino()) == (b.dev(), b.ino()) && a.len() == b.len()
-}
-
-#[cfg(windows)]
-fn same_file(a: &Metadata, b: &Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    a.len() == b.len()
-        && a.creation_time() == b.creation_time()
-        && a.last_write_time() == b.last_write_time()
-}
-
-#[cfg(not(any(unix, windows)))]
-fn same_file(a: &Metadata, b: &Metadata) -> bool {
-    a.len() == b.len()
 }

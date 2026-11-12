@@ -16,7 +16,7 @@ pub use lock::{Held, LockError, Locks};
 pub use name::{checkpoint_name, own_name};
 pub use remove::{remove, Expect, Left, Removal, Row, Undecided};
 pub use run::RunId;
-pub use walk::{regular, Root, Walk};
+pub use walk::{open_regular, regular, Root, Walk};
 
 /// The bound of a workbook file and so of a checkpoint, 64 MiB (contracts.md A11.3): a file is
 /// read up to it and no further.

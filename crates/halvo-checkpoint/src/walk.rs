@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 use std::fmt;
-use std::fs;
+use std::fs::{self, File, Metadata, OpenOptions};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
@@ -140,6 +140,74 @@ pub fn regular(full: &Path) -> Result<(), Walk> {
     } else {
         Ok(())
     }
+}
+
+/// Opens the regular file at `full` for reading without following a link: [`Walk::Link`] when
+/// it is a link, [`Walk::Directory`] or [`Walk::NotFile`] when it is no regular file, and also
+/// [`Walk::NotFile`] when another file took its place between the look and the open.
+pub fn open_regular(full: &Path) -> Result<File, Walk> {
+    regular(full)?;
+    let named = fs::symlink_metadata(full)?;
+    let file = no_follow(full).map_err(|error| {
+        if is_loop(&error) {
+            Walk::Link
+        } else {
+            Walk::from(error)
+        }
+    })?;
+    let seen = file.metadata()?;
+    if seen.file_type().is_symlink() {
+        return Err(Walk::Link);
+    }
+    if !seen.is_file() || !same_file(&named, &seen) {
+        return Err(Walk::NotFile);
+    }
+    Ok(file)
+}
+
+pub(crate) fn no_follow(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(0x0100);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.custom_flags(0x0020_0000);
+    }
+    options.open(path)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn is_loop(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(62)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn is_loop(_: &io::Error) -> bool {
+    false
+}
+
+#[cfg(unix)]
+pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    (a.dev(), a.ino()) == (b.dev(), b.ino()) && a.len() == b.len()
+}
+
+#[cfg(windows)]
+pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    a.len() == b.len()
+        && a.creation_time() == b.creation_time()
+        && a.last_write_time() == b.last_write_time()
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) fn same_file(a: &Metadata, b: &Metadata) -> bool {
+    a.len() == b.len()
 }
 
 #[cfg(windows)]
