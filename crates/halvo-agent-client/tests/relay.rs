@@ -303,3 +303,43 @@ fn a_finish_that_the_owner_did_not_store_still_owes_end_run_and_keeps_the_relay_
     assert_eq!(rig.store.count(r#""op":"end_run""#), 1);
     assert!(rig.mark(&run).is_none());
 }
+
+#[test]
+fn no_row_written_on_the_runner_output_after_the_library_closed_its_input_reaches_the_owner() {
+    let rig = Rig::new("relay-after-close");
+    let row = format!(
+        r#"{{"t":"store","request":{{"v":1,"id":"{}","request":"runner","body":{}}}}}"#,
+        id(0x40),
+        effect(&id(0x69), 1, "held")
+    );
+    let script = rig.script(&[
+        "hello",
+        &format!("writer-child 3000 5 {row}"),
+        "log spawned",
+        "exit 1",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("spawned", SHORT), "{}", script.log());
+    assert!(rig.rec.wait_end(&run, SHORT).is_some());
+    assert!(
+        !script.log().contains("writer wrote"),
+        "the row was written before the library closed the input: {}",
+        script.log()
+    );
+    if cfg!(windows) {
+        let writer = script.logged("child");
+        assert!(wait_until(SHORT, || writer
+            .iter()
+            .all(|(p, c)| common::gone(*p, *c))));
+    } else {
+        assert!(script.wait_log("writer wrote=", SHORT), "{}", script.log());
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    assert_eq!(
+        rig.store.count(&id(0x69)),
+        0,
+        "a row written on the runner's output after the close reached the owner"
+    );
+}

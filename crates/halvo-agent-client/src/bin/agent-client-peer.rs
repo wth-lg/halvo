@@ -238,6 +238,42 @@ impl Peer {
                 Err(_) => self.log.line("child-failed"),
             },
             "breakaway" => self.breakaway(),
+            "writer-child" => {
+                let mut parts = rest.splitn(3, ' ');
+                let delay = parts.next().unwrap_or("0").to_owned();
+                let count = parts.next().unwrap_or("0").to_owned();
+                let frame = self.fill(parts.next().unwrap_or(""));
+                let made = std::env::current_exe().and_then(|exe| {
+                    let mut cmd = Command::new(exe);
+                    cmd.arg("writer")
+                        .arg(&delay)
+                        .arg(&count)
+                        .arg(&frame)
+                        .arg(&self.log_path)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::inherit())
+                        .stderr(Stdio::null());
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::process::CommandExt;
+                        cmd.process_group(0);
+                    }
+                    cmd.spawn()
+                });
+                match made {
+                    Ok(c) => {
+                        let created = process::creation_time(c.id())
+                            .map(|t| t.to_string())
+                            .unwrap_or_default();
+                        self.log
+                            .line(&format!("child pid={} created={created}", c.id()));
+                        if let Ok(mut list) = self.browsers.lock() {
+                            list.push(c);
+                        }
+                    }
+                    Err(_) => self.log.line("child-failed"),
+                }
+            }
             "child-own-group" => match spawn_self("child", true) {
                 Ok(c) => {
                     let created = process::creation_time(c.id())
@@ -458,6 +494,26 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("browser") => sleep_forever(),
+        Some("writer") => {
+            let delay = args.get(1).and_then(|d| d.parse().ok()).unwrap_or(0);
+            let count: u32 = args.get(2).and_then(|c| c.parse().ok()).unwrap_or(0);
+            let frame = args.get(3).cloned().unwrap_or_default();
+            thread::sleep(Duration::from_millis(delay));
+            let mut out = io::stdout().lock();
+            let mut wrote = 0;
+            for _ in 0..count {
+                if write_frame(&mut out, &frame).is_ok() {
+                    wrote += 1;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            if let Some(log) = args.get(4) {
+                if let Ok(mut f) = OpenOptions::new().append(true).open(log) {
+                    let _ = f.write_all(format!("writer wrote={wrote}\n").as_bytes());
+                }
+            }
+            sleep_forever();
+        }
         Some("browser-with-child") => {
             if let Ok(c) = spawn_self("child", false) {
                 let created = process::creation_time(c.id())
