@@ -339,7 +339,6 @@ function under(p, dir) { return index(p, dir "/") == 1 }
 BEGIN {
   account = normal(ENVIRON["DEP_INFO_ACCOUNT"])
   target = normal(ENVIRON["DEP_INFO_TARGET"])
-  target_physical = normal(ENVIRON["DEP_INFO_TARGET_PHYSICAL"])
   while ((getline file) > 0) {
     n = 0; local = 0
     while ((getline line < file) > 0) {
@@ -354,7 +353,7 @@ BEGIN {
     if (!local) continue
     print "local"
     for (i = 1; i <= n; i++) {
-      if (!under(read[i], account) && !under(read[i], target) && !under(read[i], target_physical)) print "outside\t" read[i]
+      if (!under(read[i], account) && !under(read[i], target)) print "outside\t" read[i]
     }
   }
 }'
@@ -362,8 +361,7 @@ BEGIN {
 
 check_sources() {
   find "$target" -name '*.d' -type f >"$work/dep-info.txt" 2>/dev/null
-  target_physical=$(cd "$target" 2>/dev/null && pwd -P) || target_physical=$target
-  DEP_INFO_ACCOUNT=$account_dir DEP_INFO_TARGET=$target DEP_INFO_TARGET_PHYSICAL=$target_physical dep_info_reads <"$work/dep-info.txt" >"$work/dep-info.reads" || fail 'cannot read the dep-info files of the build'
+  DEP_INFO_ACCOUNT=$account_dir DEP_INFO_TARGET=$target dep_info_reads <"$work/dep-info.txt" >"$work/dep-info.reads" || fail 'cannot read the dep-info files of the build'
   dep_info=0
   outside=0
   while IFS="$tab" read -r kind value || [ -n "$kind" ]; do
