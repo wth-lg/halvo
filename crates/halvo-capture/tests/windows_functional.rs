@@ -20,7 +20,9 @@ use halvo_capture::windows::window_title::WindowTitleSource;
 
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{CreateSolidBrush, GetDC, GetPixel, ReleaseDC};
+use windows::Win32::Graphics::Gdi::{
+    CreateSolidBrush, DeleteObject, GetDC, GetPixel, ReleaseDC, HBRUSH,
+};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows::Win32::System::Threading::{
@@ -437,44 +439,90 @@ struct WindowSpec<'a> {
 const WINDOW_WIDTH: i32 = 360;
 const WINDOW_HEIGHT: i32 = 240;
 
-struct TestWindow {
-    hwnd: HWND,
-    class_name: HSTRING,
+struct Brush(HBRUSH);
+
+impl Brush {
+    fn solid(color: u32) -> Self {
+        // SAFETY: CreateSolidBrush takes a color by value and returns a brush
+        // that this value owns until it is deleted or given to a class.
+        Self(unsafe { CreateSolidBrush(COLORREF(color)) })
+    }
+
+    fn give_to_class(self) {
+        std::mem::forget(self);
+    }
+}
+
+impl Drop for Brush {
+    fn drop(&mut self) {
+        // SAFETY: no registered class holds this brush, so this value is its
+        // one owner and deletes it once, here.
+        unsafe {
+            let _ = DeleteObject(self.0.into());
+        }
+    }
+}
+
+struct ClassRegistration {
+    name: HSTRING,
     hinstance: HINSTANCE,
 }
 
-impl TestWindow {
-    fn create(spec: &WindowSpec) -> Result<Self, String> {
-        let class_name = HSTRING::from(spec.class);
+impl ClassRegistration {
+    fn register(name: &str, fill: u32) -> Result<Self, String> {
+        let name = HSTRING::from(name);
         // SAFETY: a null module name asks for the handle of this executable,
         // which stays loaded for the life of the process.
         let hinstance: HINSTANCE = unsafe { GetModuleHandleW(None) }
             .map_err(|e| format!("GetModuleHandleW: {e}"))?
             .into();
+        let brush = Brush::solid(fill);
         let class = WNDCLASSW {
             lpfnWndProc: Some(test_wnd_proc),
             hInstance: hinstance,
-            lpszClassName: PCWSTR(class_name.as_ptr()),
-            // SAFETY: CreateSolidBrush takes a color by value and returns a brush
-            // that the class owns from here on.
-            hbrBackground: unsafe { CreateSolidBrush(COLORREF(spec.fill)) },
+            lpszClassName: PCWSTR(name.as_ptr()),
+            hbrBackground: brush.0,
             ..Default::default()
         };
-        // SAFETY: `class` points at `class_name`, which lives in the returned
-        // value until Drop unregisters the class.
+        // SAFETY: `class` points at `name`, which the returned value holds
+        // until its Drop unregisters the class; on failure `brush` deletes
+        // the brush.
         if unsafe { RegisterClassW(&class) } == 0 {
             return Err(format!(
                 "RegisterClassW: {}",
                 windows::core::Error::from_thread()
             ));
         }
+        brush.give_to_class();
+        Ok(Self { name, hinstance })
+    }
+}
+
+impl Drop for ClassRegistration {
+    fn drop(&mut self) {
+        // SAFETY: this value registered the class and unregisters it once,
+        // here; the system then deletes the class's background brush.
+        unsafe {
+            let _ = UnregisterClassW(PCWSTR(self.name.as_ptr()), Some(self.hinstance));
+        }
+    }
+}
+
+struct TestWindow {
+    hwnd: HWND,
+    class: ClassRegistration,
+}
+
+impl TestWindow {
+    fn create(spec: &WindowSpec) -> Result<Self, String> {
+        let class = ClassRegistration::register(spec.class, spec.fill)?;
         let title = HSTRING::from(spec.title);
         // SAFETY: the class name and title point at live HSTRINGs for the
         // duration of the call, and the class was registered above.
         let hwnd = unsafe {
             CreateWindowExW(
                 spec.ex_style,
-                PCWSTR(class_name.as_ptr()),
+                PCWSTR(class.name.as_ptr()),
                 PCWSTR(title.as_ptr()),
                 spec.style,
                 spec.x,
@@ -483,16 +531,12 @@ impl TestWindow {
                 WINDOW_HEIGHT,
                 None,
                 None,
-                Some(hinstance),
+                Some(class.hinstance),
                 None,
             )
         }
         .map_err(|e| format!("CreateWindowExW: {e}"))?;
-        Ok(Self {
-            hwnd,
-            class_name,
-            hinstance,
-        })
+        Ok(Self { hwnd, class })
     }
 
     fn child_control(&self, class: &str, style: WINDOW_STYLE, y: i32) -> Result<HWND, String> {
@@ -511,7 +555,7 @@ impl TestWindow {
                 24,
                 Some(self.hwnd),
                 None,
-                Some(self.hinstance),
+                Some(self.class.hinstance),
                 None,
             )
         }
@@ -603,11 +647,11 @@ impl TestWindow {
 
 impl Drop for TestWindow {
     fn drop(&mut self) {
-        // SAFETY: the window and its class belong to this value; each is
-        // destroyed once, here, by the thread that created it.
+        // SAFETY: the window belongs to this value and is destroyed once,
+        // here, by the thread that created it; its class is unregistered
+        // after this, when the field `class` drops.
         unsafe {
             let _ = DestroyWindow(self.hwnd);
-            let _ = UnregisterClassW(PCWSTR(self.class_name.as_ptr()), Some(self.hinstance));
         }
         pump_thread(Duration::from_millis(50));
     }
@@ -1072,7 +1116,8 @@ fn c2_screen_source_delivers_a_frame() {
         say(
             "c2",
             format!(
-                "first_frame_within_10s={} first_frame_ms={}",
+                "first_frame_within_{}s={} first_frame_ms={}",
+                FIRST_FRAME_WAIT.as_secs(),
                 first.is_some(),
                 started.elapsed().as_millis()
             ),
@@ -2098,7 +2143,7 @@ mod known_defect {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
     use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, ES_PASSWORD};
 
-    const STOP_DEADLINE: Duration = Duration::from_secs(10);
+    const FULL_SINK_STOP_DEADLINE: Duration = Duration::from_secs(10);
 
     fn title_len(hwnd: HWND) -> i32 {
         // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
@@ -2696,7 +2741,7 @@ mod known_defect {
                     let _ = done.send(());
                 })
                 .expect("spawn the stop thread");
-            let stopped = returned.recv_timeout(STOP_DEADLINE).is_ok();
+            let stopped = returned.recv_timeout(FULL_SINK_STOP_DEADLINE).is_ok();
             say(
                 "full-sink",
                 format!(
@@ -2714,7 +2759,10 @@ mod known_defect {
             defect!(
                 "RR-windows-11",
                 stopped,
-                format!("TF full-sink stop_returned_within_10s={stopped}")
+                format!(
+                    "TF full-sink stop_returned_within_{}s={stopped}",
+                    FULL_SINK_STOP_DEADLINE.as_secs()
+                )
             );
             drop(writer);
         });
