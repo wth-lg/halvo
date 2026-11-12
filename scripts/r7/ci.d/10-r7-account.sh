@@ -209,7 +209,8 @@ check_fetched() {
 }
 
 json_pairs() {
-  awk '
+  sed 's/,/,\
+/g' | awk '
 function opened() {
   if (d == 1) where[d] = "root"
   else if (type[d - 1] == "o") where[d] = where[d - 1] "." key[d - 1]
@@ -239,9 +240,9 @@ function value(v, is_string,   k, w) {
     path_of[++paths] = v
   }
 }
-BEGIN {
-  while ((getline line) > 0) text = text line "\n"
-  n = length(text); i = 1; d = 0; in_string = 0
+BEGIN { d = 0; in_string = 0 }
+{
+  text = $0; n = length(text); i = 1
   while (i <= n) {
     c = substr(text, i, 1)
     if (in_string) {
