@@ -22,17 +22,48 @@ pub const PERSON: A = A {
 
 /// The memory ports and the memory policy as one value, which `Coordinator` needs; a test can
 /// make the next `answer_confirm` fail after its record returned, so that an item stays
-/// `recorded`.
+/// `recorded`, and can have each call of `log` and `send` name the function that made it.
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
     pub drop_decision: Cell<bool>,
+    pub trace: Cell<bool>,
+    pub callers: std::cell::RefCell<Vec<String>>,
+}
+
+impl Both {
+    /// Notes the function that called `log` or `send`: the first frame of the stack below this
+    /// wrapper's own method.
+    fn note(&self, method: &str) {
+        if !self.trace.get() {
+            return;
+        }
+        let stack = std::backtrace::Backtrace::force_capture().to_string();
+        let mut below = false;
+        for line in stack.lines().map(str::trim_start) {
+            if line.starts_with("at ") {
+                continue;
+            }
+            let name = line.split_once(": ").map_or(line, |(_, n)| n);
+            if name.contains("Both as halvo_coord::ports::") && name.ends_with(method) {
+                below = true;
+                continue;
+            }
+            if below {
+                self.callers
+                    .borrow_mut()
+                    .push(format!("{method} <- {name}"));
+                return;
+            }
+        }
+    }
 }
 
 impl Owner for Both {
     type Config = Config;
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        self.note("::log");
         self.ports.log(events)
     }
 
@@ -49,6 +80,7 @@ impl Owner for Both {
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        self.note("::send");
         self.ports.send(body)
     }
 
@@ -173,6 +205,8 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         ports,
         policy: Policy::new(&[]),
         drop_decision: Cell::new(false),
+        trace: Cell::new(false),
+        callers: std::cell::RefCell::new(Vec::new()),
     }
 }
 

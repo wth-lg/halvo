@@ -1506,3 +1506,163 @@ fn the_next_life_raises_no_setup_for_an_agent_of_a_dismissed_workflow_or_one_wit
         "open check: the first life's raise only"
     );
 }
+
+fn cancels_of(c: &Coordinator<Both>, m: usize, run: &RunId) -> usize {
+    calls_since(c, m)
+        .iter()
+        .filter(|call| matches!(call, Call::Cancel(r) if r == run))
+        .count()
+}
+
+fn kills_of(c: &Coordinator<Both>, m: usize, run: &RunId) -> usize {
+    calls_since(c, m)
+        .iter()
+        .filter(|call| matches!(call, Call::Kill(r) if r == run))
+        .count()
+}
+
+#[test]
+fn a_confirmation_that_waited_wait_limit_lapses_and_its_run_stops_and_ends_lapsed() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    let limit = T0 + limits.wait_limit_s * 1000;
+    c.ports().ports.set_clock(limit - 1, DAY);
+    c.tick();
+    assert_eq!(
+        c.snapshot().items.len(),
+        1,
+        "not lapsed before wait_limit_s"
+    );
+    let m = mark(&c);
+    c.ports().ports.set_clock(limit, DAY);
+    c.tick();
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Confirm(LapseCause::WaitLimit)
+    }));
+    assert_eq!(cancels_of(&c, m, &run), 1);
+    let s = c.snapshot();
+    assert!(s.items.is_empty());
+    assert_eq!(row_line(&s, 0), text("line.working.stopping"));
+    let m = mark(&c);
+    c.ports()
+        .ports
+        .set_clock(limit + limits.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(
+        kills_of(&c, m, &run),
+        1,
+        "the grace tick kills the stopped run"
+    );
+    assert!(events(&c).contains(&What::RunEnded {
+        run,
+        cause: RunEnd::Lapsed
+    }));
+    assert_eq!(c.live(), 0);
+}
+
+#[test]
+fn a_confirmation_answered_and_not_yet_released_shows_no_card() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let (_, item) = recorded_with_the_answer_failed_by_the_stand_in(&c);
+    let s = c.snapshot();
+    assert_eq!(s.rows[0].status, Status::Working);
+    assert!(
+        s.items.iter().all(|i| i.item() != &item),
+        "no card for a recorded confirmation: {s:?}"
+    );
+}
+
+#[test]
+fn the_coordinator_calls_neither_log_nor_send_itself() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    c.ports().trace.set(true);
+    let first = start(&c, 0);
+    c.on_run(&first, ask_confirm(&first, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.on_screen(&item);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let _ = c.answer(&item, Choice::Allow, None);
+    c.ports().ports.end_runner(&first);
+    let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
+    let second = start(&c, 1);
+    c.on_run(&second, handback(&second, 1, HandbackReason::StepFailed))
+        .unwrap();
+    assert_eq!(c.control(&agent(1), Action::Stop), Ok(()));
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+    c.ports().ports.set_clock(T0 + 30_000, DAY);
+    c.tick();
+    let quit = coordinator(&[MANUAL], Limits::PRODUCT);
+    quit.ports().trace.set(true);
+    let third = start(&quit, 0);
+    quit.on_run(&third, handback(&third, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let _ = quit.quit_stop();
+    quit.tick();
+    quit.quit_kill();
+    let (setup, made, open) = setup_agent();
+    setup.ports().trace.set(true);
+    setup
+        .answer(&open, Choice::Choose, Some((Param::Start, 1)))
+        .unwrap();
+    setup
+        .answer(&open, Choice::Choose, Some((Param::Payee, 1)))
+        .unwrap();
+    assert_eq!(
+        setup.setup_typed(&open, Param::Instrument, "Card 4242"),
+        Ok(())
+    );
+    let _ = setup.control(&made, Action::RunNow);
+    let mut callers = c.ports().callers.borrow().clone();
+    callers.extend(quit.ports().callers.borrow().iter().cloned());
+    callers.extend(setup.ports().callers.borrow().iter().cloned());
+    assert!(
+        callers.iter().any(|c| c.starts_with("::log <- "))
+            && callers.iter().any(|c| c.starts_with("::send <- ")),
+        "the check saw calls of both: {callers:?}"
+    );
+    let own: Vec<&String> = callers
+        .iter()
+        .filter(|c| c.contains("<- halvo_coord::coordinator::"))
+        .collect();
+    assert!(
+        own.is_empty(),
+        "the coordinator called them itself: {own:?}"
+    );
+}
+
+#[test]
+fn a_stop_while_every_log_answers_no_service_stores_its_lapse_before_the_run_ended_once_the_owner_is_back(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(None));
+    let lapse = What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Stuck(OtherLapse::Cancelled),
+    };
+    assert!(!events(&c).contains(&lapse));
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let stored = events(&c);
+    assert_eq!(stored.iter().filter(|w| **w == lapse).count(), 1);
+    let ended = What::RunEnded {
+        run: run.clone(),
+        cause: RunEnd::Cancelled,
+    };
+    assert_eq!(stored.iter().filter(|w| **w == ended).count(), 1);
+    let at = |what: &What| stored.iter().position(|w| w == what);
+    assert!(at(&lapse) < at(&ended), "{stored:?}");
+}

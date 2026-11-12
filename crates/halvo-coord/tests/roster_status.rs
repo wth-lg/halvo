@@ -238,3 +238,51 @@ fn the_store_line_stands_after_queued_and_before_problem_in_the_order_of_i1_3() 
         at(StatusLine::Store) + 1
     );
 }
+
+#[test]
+fn a_day_whose_last_start_has_no_end_yet_counts_that_start_for_tried_today() {
+    let mut f = utility();
+    let limits = Limits::PRODUCT;
+    for n in 0..limits.starts_per_day - 1 {
+        ended(&mut f, n as u8, TODAY, RunEnd::Completed);
+    }
+    push(
+        &mut f,
+        TODAY,
+        What::RunStarted {
+            run: run(98),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    assert_eq!(line(&f), StatusLine::TriedToday);
+}
+
+#[test]
+fn rows_that_tie_in_group_and_name_stand_in_ascending_agent_id() {
+    use halvo_coord::roster::{order, row, Placed};
+    let named = |n: u32, raised: Option<u64>, line: StatusLine| {
+        let mut f = utility();
+        f.agent = halvo_coord::types::AgentId::parse(&format!("{:032x}", 0x5000 + n)).unwrap();
+        Placed {
+            row: row(&f, line, "Same name").unwrap(),
+            raised,
+        }
+    };
+    for (line, raised) in [
+        (StatusLine::Done, None),
+        (StatusLine::NeedsYou(ItemKind::Stuck), Some(7)),
+    ] {
+        let mut rows = vec![
+            named(3, raised, line),
+            named(1, raised, line),
+            named(2, raised, line),
+        ];
+        order(&mut rows);
+        let agents: Vec<u32> = rows
+            .iter()
+            .map(|p| u32::from_str_radix(p.row.agent.as_str(), 16).unwrap() - 0x5000)
+            .collect();
+        assert_eq!(agents, [1, 2, 3], "{line:?}");
+    }
+}
