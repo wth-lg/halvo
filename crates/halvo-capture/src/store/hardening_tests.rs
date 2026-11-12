@@ -1129,6 +1129,63 @@ fn open_tightens_a_store_directory_made_at_0755_to_0700() {
 
 #[cfg(unix)]
 #[test]
+fn open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_through_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let target = outside.path().join("store.db");
+    std::fs::rename(store_dir.join("store.db"), &target).unwrap();
+    std::os::unix::fs::symlink(&target, store_dir.join("store.db")).unwrap();
+    let names = |d: &Path| -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(d)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    };
+    let bytes_before = std::fs::read(&target).unwrap();
+    let beside_before = names(outside.path());
+    let custody_calls = AtomicUsize::new(0);
+
+    let opened = EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+        custody_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )))
+    });
+    let beside_while_open = names(outside.path());
+    let answer = match &opened {
+        Ok(_) => "Ok".to_string(),
+        Err(e) => format!("{e:?}"),
+    };
+    drop(opened);
+
+    assert!(
+        answer == "Corrupt(\"the database file of the store is a link\")",
+        "an open of a store whose store.db is a link answered {answer}; beside the target \
+         while it was open: {beside_while_open:?}"
+    );
+    assert_eq!(
+        custody_calls.load(Ordering::SeqCst),
+        0,
+        "open called the custody"
+    );
+    assert!(
+        std::fs::read(&target).unwrap() == bytes_before,
+        "the bytes of the target changed"
+    );
+    assert_eq!(
+        names(outside.path()),
+        beside_before,
+        "an entry appeared beside the target"
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it() {
     let dir = tempfile::tempdir().unwrap();
     let outside = tempfile::tempdir().unwrap();

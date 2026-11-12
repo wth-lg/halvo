@@ -250,6 +250,17 @@ impl Db {
         Self::open_file(store_dir, key, Database::Existing)
     }
 
+    fn refuse_a_linked_file(store_dir: &Path) -> StoreResult<()> {
+        match std::fs::symlink_metadata(Self::path(store_dir)) {
+            Ok(meta) if meta.file_type().is_symlink() => Err(StoreError::Corrupt(
+                "the database file of the store is a link".to_string(),
+            )),
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(io_error(e)),
+        }
+    }
+
     fn refuse_a_live_holder(store_dir: &Path) -> StoreResult<()> {
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
         let path = Self::path(store_dir);
@@ -812,6 +823,7 @@ impl EncryptedStore {
         let key_file = KeyFile::read(dir)?;
         let wrapped = key_file.wrapped_store_key()?;
         segment::refuse_a_linked_segments_root(dir)?;
+        Db::refuse_a_linked_file(dir)?;
         Db::refuse_a_live_holder(dir)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
         let started = Instant::now();
