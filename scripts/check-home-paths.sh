@@ -5,6 +5,7 @@ LC_ALL=C
 export LC_ALL
 
 LIST_IN_THE_REPOSITORY=scripts/home-path-allow.txt
+TAB=$(printf '\t')
 NAME=check-home-paths
 
 script_dir=$(dirname "$0")
@@ -47,7 +48,9 @@ A name starts with an ASCII letter, a digit, an underscore or a byte above
 character of Unicode's General Punctuation (U+2000 to U+206F: quotation
 marks, dashes, an ellipsis, blanks), before the guillemets and the no-break
 space (U+00AB, U+00BB, U+00A0) and before CJK punctuation (U+3000 to
-U+303F), so "/Users/<name>" in curly quotes ends at the name. Any other first character
+U+303F), so "/Users/<name>" in curly quotes ends at the name. A name of one
+letter after a backslash and before +, *, ? or { is the escape of a regular
+expression (/Users/\w+) and passes. Any other first character
 makes a placeholder, which passes: /Users/<name>, /Users/$USER,
 /home/${USER}, C:\Users\%USERNAME%, /home/*, /Users/{name}, /Users/... and
 /home/.config. The directory alone passes, as in "under /Users/ or /home/".
@@ -56,8 +59,11 @@ Shared, Public, Default (so Default User too) and All Users.
 
 The forms. A form in this list counts where an earlier form of the list did
 not already take the same characters.
-  wsl-unc        a backslash, wsl$ or wsl.localhost, a separator, the name
-                 of a distribution, a separator, home, a separator
+  wsl-unc        separators, wsl$ or wsl.localhost, a separator, the name
+                 of a distribution, a separator, home, a separator; or
+                 separators, wsl+ or wsl%2B and the distribution, as an
+                 editor's remote address writes it, a separator, home, a
+                 separator
   macos-volume   /System/Volumes/Data/Users/ or /Volumes/<volume>/Users/
   file-url-host  file: and separators, a host, a separator, then Users or
                  home in any case, a separator
@@ -84,8 +90,11 @@ Where a form may start. The forms but dash and url-file-host count at the
 start of a line and after any character but an ASCII letter, a digit, an
 underscore, a hyphen or a period: after a blank, a quote, an equals sign, a
 colon, a bracket, a comma or a slash, so also in file:///Users/<name>. They
-count after two periods (../../Users/<name>) and after a percent-encoded byte
-(%3D/Users/<name>). They do not count inside a path below another directory
+count after two periods (../../Users/<name>), after a percent-encoded byte
+(%3D/Users/<name>), after a backslash and a letter (the escape \n or \t of a
+JSON or a Python string), and after a hyphen and a letter at the start of a
+word (a flag of a compiler or a linker: -I/Users/<name>). They do not count
+inside a path below another directory
 (src/home/<name>) or in the path of a web address (https://<host>/home/<name>).
 url-file-host counts anywhere. dash counts at the start of a line and after
 a blank, a tab, a quote, a backtick, a slash, a backslash, an equals sign, a
@@ -93,7 +102,7 @@ colon, a comma, or an opening bracket of any kind.
 
 The self-test fixtures that hold each form (form: fixture...):
 FIXTURES-BEGIN
-wsl-unc: wsl-unc-dollar wsl-unc-localhost
+wsl-unc: wsl-unc-dollar wsl-unc-localhost wsl-unc-forward-slashes wsl-unc-file-url wsl-unc-editor-remote
 macos-volume: macos-volume-data macos-volume-named
 file-url-host: file-url-host-localhost file-url-host-linux file-url-host-drive
 url-file-host: url-file-host-editor-link
@@ -103,8 +112,8 @@ git-bash: git-bash-drive git-bash-upper-drive
 windows-old: windows-old-drive windows-old-root
 windows-drive: windows-drive-backslash windows-drive-forward-slash windows-drive-lower-case windows-drive-upper-case windows-drive-json-doubled windows-drive-percent-encoded windows-drive-long-path windows-drive-name-all
 windows-root: windows-root-exact-case windows-root-backslash windows-root-unc-share
-macos: macos-after-blank macos-in-double-quotes macos-in-single-quotes macos-after-equals macos-after-colon macos-json-escaped-slash macos-percent-encoded macos-percent-encoded-lower macos-after-encoded-byte macos-after-two-periods macos-file-url macos-file-url-one-slash macos-name-with-digit macos-name-with-underscore macos-name-non-ascii macos-in-curly-quotes macos-in-guillemets macos-at-line-start macos-carriage-return macos-after-tab macos-after-bracket macos-after-scp-host
-linux: linux-home linux-home-after-colon linux-home-numeric
+macos: macos-after-blank macos-in-double-quotes macos-in-single-quotes macos-after-equals macos-after-colon macos-json-escaped-slash macos-percent-encoded macos-percent-encoded-lower macos-after-encoded-byte macos-after-two-periods macos-file-url macos-file-url-one-slash macos-name-with-digit macos-name-with-underscore macos-name-non-ascii macos-in-curly-quotes macos-in-guillemets macos-at-line-start macos-carriage-return macos-after-tab macos-after-bracket macos-after-scp-host macos-after-json-newline-escape macos-after-one-letter-flag
+linux: linux-home linux-home-after-colon linux-home-numeric linux-after-python-escape linux-after-one-letter-flag
 dash: dash-macos dash-linux dash-after-slash dash-windows
 FIXTURES-END
 
@@ -112,7 +121,11 @@ What is read. For each commit, the lines that it adds: against its parent, a
 root commit against the empty tree, and a merge only the lines that stand in
 none of its parents (git log --cc), since a line that a merge takes from a
 parent was added by a commit of that parent, which is read itself or is
-already on the remote. Every file is read: a file that git calls binary, a
+already on the remote. For a file that git calls binary, git log --cc prints
+no lines of a merge, so the merge's own lines in it are found by comparing
+the merge's copy of the file with the copies of its parents, line by line;
+when git quotes the name of such a file, the commits count as refused.
+Every file is read: a file that git calls binary, a
 lock file and a generated file by their bytes (git log --text, with no
 textconv and no external diff), split at each newline, with every NUL byte
 taken out first, so that UTF-16 text reads as ASCII; the target of a symbolic
@@ -120,15 +133,21 @@ link; and the name of a file that a commit adds, as line 0. A renamed file
 counts as added in full. A line that a later commit removes again still
 counts, because the commit that holds it is pushed. A carriage return at the
 end of a line changes no answer. The settings of a clone that change what git
-log prints (colour, prefixes, a relative diff, renames, submodule logs, blank
-context lines, quoted names) are set for the call.
+log prints (colour, prefixes, a relative diff, renames, submodule logs,
+ignored submodules, blank context lines, quoted names) are set for the call.
 
 The commits of a push are the ones that the hook's check of commit messages
 reads (sh scripts/check-commit-messages.sh --help, layer 2): for each pushed
 ref the commits that are on neither the remote's copy of that ref nor the
 default branch as this clone last fetched it, and not the newest exempt
 commit of that script or a commit below it. A deleted ref adds none. A tag
-is read through the commit that it names.
+is read through the commit that it names. So a commit that the default
+branch held when this clone last fetched it is not read, also after the
+remote's default branch was rewritten to drop it, and a push to a remote
+that is named by its URL, or whose default branch this clone does not know,
+leaves out the commits of origin's default branch: fetch before you push
+after a rewrite, and run sh scripts/check-home-paths.sh <base>..<head>
+yourself before a push to another remote.
 
 The list. scripts/home-path-allow.txt in the checkout where this script
 runs, or the file that --allow names, holds one entry per line: the path of
@@ -159,7 +178,9 @@ email address or a host name. It reads no commit message, no tag message, no
 author or committer, and no blob or tree that a tag names without a commit.
 The list is read from the work tree, not from the pushed commits. The hook
 does not run for git push --no-verify, or in a clone where
-sh scripts/prerequisites.sh has not set core.hooksPath.
+sh scripts/prerequisites.sh has not set core.hooksPath, and when this script
+is not beside .githooks/pre-push the hook says that the scan did not run
+and lets the push go on.
 EOF
 }
 
@@ -199,7 +220,8 @@ function init(   S) {
   unicode_end[6] = "\343\200"
   S = "([/\\\\]|%2[Ff]|%5[Cc])+"
   NAMED = "([^[:space:][:cntrl:][:punct:]]|_)([^[:space:][:cntrl:][:punct:]]|[._-])*"
-  add("wsl-unc", 1, "(\\\\|%5c)+wsl(\\$|\\.localhost)" S "[^/\\\\%]+" S "home" S, "path")
+  add("wsl-unc", 1, S "wsl(\\$|\\.localhost)" S "[^/\\\\%]+" S "home" S, "path")
+  add("wsl-unc", 1, S "wsl(%2b|\\+)[^/\\\\%]+" S "home" S, "path")
   add("macos-volume", 0, S "System" S "Volumes" S "Data" S "Users" S, "path")
   add("macos-volume", 0, S "Volumes" S "[^/\\\\%]+" S "Users" S, "path")
   add("file-url-host", 1, "file:" S "[^/\\\\%[:space:]]+" S "(users|home)" S, "path")
@@ -219,8 +241,12 @@ function starts_here(text, p, k,   c) {
   if (k == "any" || p == 1) return 1
   c = substr(text, p - 1, 1)
   if (k == "word") return index(" \t\"'`/\\=:,([{<", c) > 0
-  if (c ~ /[A-Za-z0-9_-]/)
-    return p >= 4 && substr(text, p - 3, 1) == "%" && substr(text, p - 2, 2) ~ /^[0-9A-Fa-f][0-9A-Fa-f]$/
+  if (c ~ /[A-Za-z0-9_-]/) {
+    if (p >= 4 && substr(text, p - 3, 1) == "%" && substr(text, p - 2, 2) ~ /^[0-9A-Fa-f][0-9A-Fa-f]$/) return 1
+    if (c !~ /[A-Za-z]/ || p < 3) return 0
+    if (substr(text, p - 2, 1) == "\\") return 1
+    return substr(text, p - 2, 1) == "-" && (p == 3 || index(" \t\"'`=,([{<", substr(text, p - 3, 1)) > 0)
+  }
   if (c == ".") return p >= 3 && substr(text, p - 2, 1) == "."
   return 1
 }
@@ -268,6 +294,7 @@ function scan_text(text, file, use_list,   lowered, i, t, off, rest, p, n, m, nm
         k = name_length(nm)
         m = substr(m, 1, length(m) - length(nm) + k)
         n = length(m)
+        if (k == 1 && substr(text, p + n - 2, 1) == "\\" && index("+*?{", substr(text, p + n, 1)) > 0) k = 0
         if (k > 0 && !own_directory(substr(nm, 1, k), substr(text, p + n, 8), i)) {
           ncov++
           cs[ncov] = p
@@ -369,12 +396,22 @@ BEGIN {
     in_hunk = 0
   }
   if (substr(line, 1, 1) == "\001") {
-    commit = substr(line, 9)
-    commits++
+    if (substr(line, 2, 6) == "again ") {
+      commit = substr(line, 8)
+    } else {
+      commit = substr(line, 9)
+      commits++
+    }
+    combined = 0
     next
   }
   if (substr(line, 1, 5) == "diff ") {
     file = name_from(line)
+    combined = substr(line, 1, 10) == "diff --cc " || substr(line, 1, 16) == "diff --combined "
+    next
+  }
+  if (combined && substr(line, 1, 13) == "Binary files ") {
+    print "BINARY-MERGE " commit "\t" file
     next
   }
   if (substr(line, 1, 2) == "@@") {
@@ -394,6 +431,36 @@ run_scan() {
   awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -f "$work/scan.awk" "$2"
 }
 
+scan_stream() {
+  run_scan "$allow" "$1" >"$2" </dev/null
+  scan_status=$?
+  error=$(sed -n 's/^ERROR //p' "$2") || error=
+  [ -z "$error" ] || die "cannot use the list: $error"
+  [ "$scan_status" = 0 ] || die "awk could not scan the commits of $label (exit $scan_status)"
+  read_line=$(sed -n 's/^READ //p' "$2") || read_line=
+  [ -n "$read_line" ] || die "awk printed no count for $label"
+  stream_commits=${read_line% *}
+  stream_found=${read_line#* }
+}
+
+lines_of_a_merge_in_a_binary_file() {
+  case $2 in
+    '"'*) die "cannot read the lines that merge $1 adds to the binary file $2, whose name git quotes" ;;
+  esac
+  git cat-file blob "$1:$2" >"$work/merge-blob" 2>/dev/null </dev/null || die "cannot read $2 in merge $1"
+  tr -d '\000' <"$work/merge-blob" >"$work/merge-blob.text" || die 'tr failed'
+  git rev-parse "$1^@" >"$work/parents" </dev/null || die "cannot list the parents of merge $1"
+  : >"$work/parent-lines"
+  while read -r parent; do
+    git cat-file -e "$parent:$2" 2>/dev/null </dev/null || continue
+    git cat-file blob "$parent:$2" >"$work/parent-blob" </dev/null || die "cannot read $2 in commit $parent"
+    tr -d '\000' <"$work/parent-blob" >>"$work/parent-lines" || die 'tr failed'
+  done <"$work/parents"
+  printf '\001again %s\ndiff --git a/%s b/%s\n' "$1" "$2" "$2"
+  awk 'FILENAME == ARGV[1] { seen[$0] = 1; next } !($0 in seen) { printf "@@ -0,0 +%d @@\n+%s\n", FNR, $0 }' \
+    "$work/parent-lines" "$work/merge-blob.text" || die 'awk could not compare the lines of a merge'
+}
+
 short_id() {
   printf '%s' "$1" | cut -c1-12
 }
@@ -402,24 +469,28 @@ scan() {
   label=$1
   shift
   git -c core.quotepath=off -c diff.suppressBlankEmpty=false -c diff.noprefix=false \
-    -c diff.mnemonicPrefix=false -c diff.relative=false -c diff.submodule=short \
+    -c diff.mnemonicPrefix=false -c diff.relative=false -c diff.submodule=short -c diff.ignoreSubmodules=none \
     -c color.ui=never -c log.showSignature=false \
     log --no-color --format='%x01commit %H' -p --cc -U0 --root --no-renames --text \
-    --no-ext-diff --no-textconv --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ \
+    --no-ext-diff --no-textconv --no-relative --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ \
     --reverse --end-of-options "$@" -- >"$work/log" 2>"$work/log-error" </dev/null || {
     first_error=$(sed -n 1p "$work/log-error") || first_error=
     die "git log could not read the commits of $label: $first_error"
   }
   tr -d '\000' <"$work/log" >"$work/log.text" || die 'tr could not read the output of git log'
-  run_scan "$allow" "$work/log.text" >"$work/hits" </dev/null
-  scan_status=$?
-  error=$(sed -n 's/^ERROR //p' "$work/hits") || error=
-  [ -z "$error" ] || die "the list is malformed: $error"
-  [ "$scan_status" = 0 ] || die "awk could not scan the commits of $label (exit $scan_status)"
-  read_line=$(sed -n 's/^READ //p' "$work/hits") || read_line=
-  [ -n "$read_line" ] || die "awk printed no count for $label"
-  commits=${read_line% *}
-  found=${read_line#* }
+  scan_stream "$work/log.text" "$work/hits"
+  commits=$stream_commits
+  found=$stream_found
+  sed -n 's/^BINARY-MERGE //p' "$work/hits" >"$work/binary-merges" || die 'sed could not read the output of awk'
+  if [ -s "$work/binary-merges" ]; then
+    : >"$work/supplement"
+    while IFS="$TAB" read -r commit file; do
+      lines_of_a_merge_in_a_binary_file "$commit" "$file" >>"$work/supplement"
+    done <"$work/binary-merges"
+    scan_stream "$work/supplement" "$work/hits-of-merges"
+    found=$((found + stream_found))
+    cat "$work/hits-of-merges" >>"$work/hits" || die 'cat failed'
+  fi
   while read -r tag commit number forms file; do
     [ "$tag" = HIT ] || continue
     short=$(short_id "$commit")
@@ -527,10 +598,14 @@ FAIL|macos|macos-carriage-return|/{U}/ada{CR}
 FAIL|macos|macos-after-tab|x{T}/{U}/ada
 FAIL|macos|macos-after-bracket|(/{U}/ada)
 FAIL|macos|macos-after-scp-host|host:/{U}/ada
+FAIL|macos|macos-after-json-newline-escape|{"msg":"panicked\n/{U}/zed/src/main.rs:3"}
+FAIL|macos|macos-after-one-letter-flag|cc -I/{U}/zed/include
 FAIL|windows-root|windows-root-exact-case|"\{U}\ada"
 FAIL|linux|linux-home|cd /{H}/ada/.cache
 FAIL|linux|linux-home-after-colon|scp x host:/{H}/ada
 FAIL|linux|linux-home-numeric|/{H}/1000
+FAIL|linux|linux-after-python-escape|'out\n/{H}/zed/x.py'
+FAIL|linux|linux-after-one-letter-flag|rustc -L/{H}/zed/.cache/lib
 FAIL|windows-drive|windows-drive-backslash|C:\{U}\ada
 FAIL|windows-drive|windows-drive-forward-slash|"C:/{U}/ada"
 FAIL|windows-drive|windows-drive-lower-case|c:/{u}/ada
@@ -549,6 +624,9 @@ FAIL|wsl-mnt|wsl-mnt-drive|/mnt/c/{U}/ada
 FAIL|cygwin|cygwin-drive|/cygdrive/c/{U}/ada
 FAIL|wsl-unc|wsl-unc-dollar|\\wsl$\Ubuntu\{H}\ada
 FAIL|wsl-unc|wsl-unc-localhost|\\wsl.localhost\Ubuntu-22.04\{H}\ada
+FAIL|wsl-unc|wsl-unc-forward-slashes|cd //wsl$/Ubuntu-22.04/{H}/zed
+FAIL|wsl-unc|wsl-unc-file-url|file://wsl.localhost/Ubuntu/{H}/zed
+FAIL|wsl-unc|wsl-unc-editor-remote|vscode-remote://wsl%2Bubuntu/{H}/zed
 FAIL|macos-volume|macos-volume-data|/System/Volumes/Data/{U}/ada
 FAIL|macos-volume|macos-volume-named|/Volumes/Macintosh HD/{U}/ada
 FAIL|file-url-host|file-url-host-localhost|file://localhost/{U}/ada
@@ -583,6 +661,9 @@ PASS|-|relative-from-dot|./{H}/page.tsx
 PASS|-|macos-lower-case-is-not-read|/{u}/ada
 PASS|-|xml-closing-tag|</{U}>
 PASS|-|regex-source|[/\\]+({U}|{H})[/\\]+
+PASS|-|regex-escape-as-name|Regex::new(r"^/{U}/\w+/")
+PASS|-|regex-escape-in-sed|sed -E 's#/{H}/\S+#~#g'
+PASS|-|hyphen-and-letter-inside-a-word|foo-I/{U}/zed
 PASS|-|long-flag|--{H}-dir
 PASS|-|word-alone|{U} and {H}
 PASS|-|environment-variable|$HOME/x and ~/x
@@ -833,6 +914,40 @@ self_test_commits() {
   merge=$(in_repo rev-parse HEAD) || die 'git rev-parse failed'
   scan_case merge-adds-a-line-of-its-own 1 'main.txt:3: a home path (macos)' --allow "$list" "$merge^!"
   scan_case merge-reads-no-line-of-a-parent-beside-its-own 1 'commits read 1, lines with a home path 1.' --allow "$list" "$merge^!"
+
+  printf '*.lock -diff\n' >"$repo/.gitattributes"
+  printf 'v1\n' >"$repo/merge.lock"
+  printf 'v1\000\n' >"$repo/merge.bin"
+  commit_all 'binary files before a merge' >/dev/null || die 'commit failed'
+  in_repo checkout -q -b side3 || die 'git checkout failed'
+  printf 'side3\n' >"$repo/side3.txt"
+  commit_all 'side3' >/dev/null || die 'commit failed'
+  in_repo checkout -q - || die 'git checkout failed'
+  printf 'trunk\n' >"$repo/trunk3.txt"
+  commit_all 'trunk3' >/dev/null || die 'commit failed'
+  in_repo merge -q --no-ff --no-commit side3 >/dev/null 2>&1
+  expand_fixture '/{H}/nell' >>"$repo/merge.lock"
+  expand_fixture '/{H}/nell@' | tr '@' '\000' >>"$repo/merge.bin"
+  in_repo add merge.lock merge.bin || die 'git add failed'
+  in_repo commit -q -m 'merge with lines of its own in binary files' || die 'commit failed'
+  merge=$(in_repo rev-parse HEAD) || die 'git rev-parse failed'
+  scan_case merge-adds-a-line-to-a-file-marked-binary 1 'merge.lock:2: a home path (linux)' --allow "$list" "$merge^!"
+  scan_case merge-adds-a-line-to-a-file-binary-by-content 1 'merge.bin:2: a home path (linux)' --allow "$list" "$merge^!"
+
+  dashed=$(expand_fixture '-{U}-otto-module') || die 'expand failed'
+  in_repo update-index --add --cacheinfo "160000,$merge,$dashed" || die 'git update-index failed'
+  in_repo commit -q -m 'submodule' || die 'commit failed'
+  c=$(in_repo rev-parse HEAD) || die 'git rev-parse failed'
+  (cd "$repo" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.ignoreSubmodules GIT_CONFIG_VALUE_0=all \
+    sh "$self" --allow "$list" "$c^!") >"$work/out-submodule-ignored-by-the-clone" 2>&1
+  code=$?
+  case $(cat "$work/out-submodule-ignored-by-the-clone") in
+    *'module:0: a home path (dash)'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict submodule-name-with-the-clone-ignoring-submodules 1 "$got"
+  in_repo rm -q --cached -- "$dashed" || die 'git rm failed'
+  in_repo commit -q -m 'remove the submodule' || die 'commit failed'
 
   in_repo mv fixtures/made-up.txt fixtures/moved.txt || die 'git mv failed'
   c=$(commit_all 'rename') || die 'commit failed'
