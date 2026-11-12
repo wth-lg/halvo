@@ -84,6 +84,14 @@ impl Ruling {
     }
 }
 
+/// The one `Drop` of `Ruling` in a build that sets `cfg(test)`. It does nothing. It stands here so
+/// that no other file of the crate can write a `Drop` of `Ruling` that keeps a test value as the
+/// value is dropped: a second one does not compile (E0119).
+#[cfg(test)]
+impl Drop for Ruling {
+    fn drop(&mut self) {}
+}
+
 /// `admit` under the test value that allows no origin, for the tests of admit.rs: the answer
 /// leaves this file and the value does not, and under that value `grant` makes no grant.
 #[cfg(test)]
