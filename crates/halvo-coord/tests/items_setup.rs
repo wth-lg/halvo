@@ -999,6 +999,35 @@ fn a_drive_for_another_agent_is_refused_and_sends_nothing() {
     assert!(p.sends.borrow().is_empty());
 }
 
+/// The setup drive refuses with `state` a ledger of another agent or of another workflow, and
+/// then sends nothing and stores nothing, so that an item's row is never logged for another agent
+/// (I7.1).
+#[test]
+fn a_drive_with_the_ledger_of_another_agent_is_refused_and_stores_nothing() {
+    let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
+    let inner = ports(&f);
+    let p = Lossy::new(&inner);
+    let mut s = spreadsheet();
+    let other_agent = AgentId::parse("000000000000000000000000000000a2").unwrap();
+    let other_flow = WorkflowId::parse("000000000000000000000000000000f2").unwrap();
+    for mut l in [
+        Ledger::new(flow(), other_agent, 0),
+        Ledger::new(other_flow, agent(), 0),
+    ] {
+        assert_eq!(
+            answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
+            Err(Cause::State)
+        );
+        assert_eq!(
+            tick_setup(&p, &mut l, &LIMITS, &mut s, &f),
+            Err(Cause::State)
+        );
+        assert!(l.waiting().is_empty());
+    }
+    assert_eq!(s.state(), &SetupState::Open);
+    assert!(inner.events.borrow().is_empty() && p.sends.borrow().is_empty());
+}
+
 /// A step of a drawn sequence: an answer of the item, a tick, or a change of whether the owner's
 /// acknowledgement of `send` is lost.
 #[derive(Clone, Copy, Debug)]
