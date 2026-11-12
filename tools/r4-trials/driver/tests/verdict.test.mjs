@@ -121,3 +121,17 @@ test('a line is a word and key=value pairs, each key once, no value empty', () =
   }
   assert.deepEqual(splitLines('a\nb\n'), ['a', 'b']);
 });
+
+test('a result file may open with one paragraph of sentences and an empty line before its lines', () => {
+  const lines = [R.webdriverOk, cell('hosted-mac', 'webdriver', 5), cell('hosted-win', 'webdriver', 5), 'verdict driver hosted_mac=webdriver hosted_win=webdriver'];
+  const text = `Read on every target, the candidate would miss.\nA second sentence.\n\n${lines.join('\n')}\n`;
+  assert.equal(checkFile('driver', text).computed, lines[3]);
+  for (const bad of [
+    `Read on every target.\n${lines.join('\n')}\n`,
+    `Read on every target.\n\n\n${lines.join('\n')}\n`,
+    `${lines[0]}\n\nA sentence after a line.\n${lines.slice(1).join('\n')}\n`,
+    `\n${lines.join('\n')}\n`,
+  ]) {
+    assert.throws(() => checkFile('driver', bad), JSON.stringify(bad.slice(0, 40)));
+  }
+});

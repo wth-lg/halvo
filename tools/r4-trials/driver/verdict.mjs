@@ -1,5 +1,6 @@
 // The rules of the driver and native dialog trial (contracts.md I11.5) over a result file.
 // usage: node verdict.mjs driver|dialog FILE
+// A paragraph of sentences and one empty line may stand before the lines.
 // Prints the verdict line that the file's reading and cell lines give and `verdict_matches=<yes|no>`;
 // exits 0 when the file's last line is that verdict, 1 when it is not, 2 on a refusal.
 import fs from 'node:fs';
@@ -82,7 +83,13 @@ export function dialogVerdict(readings, cells) {
 }
 
 export function checkFile(trial, text) {
-  const lines = splitLines(text);
+  let lines = splitLines(text);
+  const blank = lines.indexOf('');
+  if (blank >= 0) {
+    const prose = lines.slice(0, blank);
+    if (prose.length === 0 || !prose.every((l) => /^[A-Z]/.test(l))) throw new Error('only a paragraph of sentences stands before an empty line');
+    lines = lines.slice(blank + 1);
+  }
   const parsed = lines.map(parseLine);
   let at = 0;
   parsed.forEach((line, i) => {
