@@ -16,7 +16,11 @@ that let the request through. On `mac` each cell was one call of the timed-run h
 2026-11-12T01:42:48Z to 2026-11-12T02:16:36Z, under a 1-minute load average between 88.34 and 503.72.
 The hosted cells ran in run 43103175522, on a scratch branch that holds the head plus one commit on the
 workflow file. The `--browser` paths are those of `docs/r3/trials/web-executor.md`. Edge on the
-macOS image updated itself from 156 to 157 during that job, between the six rows and the driver row.
+macOS image updated itself from 156 to 157 during the six rows (corrected in U0.7b, ruling CP-73).
+In the cells of `hosted-mac` with Edge, the nine steps and the first four of the six rows ran on
+Edg/156.0.4314.58. `block_websocket` ran on 156 in its first 2 runs and on Edg/157.0.4341.46 in the
+other 8; its line says `major=156`, the major of its first run. `cert_error` and the driver row ran
+on 157.
 
 Choices that the contract leaves. A frame runs "as a target of its own, out of the page's process"
 when `Target.getTargets` lists a target of type `iframe` on the pay origin, which Chromium makes

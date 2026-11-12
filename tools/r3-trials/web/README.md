@@ -284,3 +284,62 @@ the system's table of established TCP connections to the fixture's port (`lsof` 
 the trial program holds, which is the relay, and how many any other process holds. A run with
 `--routes` and no relay is the control of that check: there every connection belongs to a browser
 process.
+
+## The second round (U0.7b, rulings CP-64 to CP-79)
+
+`run.sh ... --round 2 --relay` runs a row of the second round. Every browser then starts with the
+relay as its only route, with the start flags of `ROUND2_FLAGS` in `src/lib.rs`, and with the
+agent's settings written into its new profile before the start (`AGENT_LOCAL_STATE` and
+`AGENT_PREFERENCES`). After the start the executor makes the browser refuse every download.
+
+The relay holds a list by state (CP-64). Before each run the list holds the fixture's utility and
+pay hosts on its port, and a row adds what it needs. The relay refuses a host outside the list at
+the SOCKS5 request, before any byte and before its own lookup, and records each refusal by host
+and port. When a host leaves the list, the relay closes that host's open tunnels. A refused tunnel
+ends no run (CP-65).
+
+| start flag or setting | what it closes |
+|---|---|
+| `--dns-prefetch-disable`, `net.network_prediction_options=2`, `dns_prefetching.enabled=false` | lookups and preconnects for links |
+| `--no-pings`, `--disable-features=FetchLaterAPI` | a ping and a request sent when the page is gone |
+| `--disable-features=SignedHTTPExchange,SignedExchangeSubresourcePrefetch` and `web_package.signed_exchange.enabled=false` | signed exchanges; Chrome 153 still offers them in its Accept header without the setting |
+| `--disable-features=Prerender2,PrefetchProxy` | prerendered documents and prefetch through a proxy |
+| `--disable-features=NetworkErrorLogging,Reporting,DocumentReporting` | the reports that a site asks the browser to upload |
+| `--disable-features=MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider` | discovery on the local network |
+| `--disable-features=FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs` | federated sign-in, payment handlers, a passkey on another device, measurement reports |
+| `--disable-features=WebRtcHideLocalIpsWithMdns` and `webrtc.ip_handling_policy=disable_non_proxied_udp`, `webrtc.multiple_routes_enabled=false`, `webrtc.nonproxied_udp_enabled=false` | WebRTC's STUN and mDNS packets; the start flag `--force-webrtc-ip-handling-policy` alone left 39 STUN and 55 mDNS denials in one run |
+| `dns_over_https.mode=off` in Local State | secure lookups of the browser's own |
+| content settings 2 for notifications, devices, the clipboard, the file system and the rest; password manager, autofill and payment methods off | every permission that a page can ask for, and saved credentials |
+| the executor fails a request with the header `Service-Worker: script` | a service worker, and with it push messages and background sync |
+
+The executor adds the policy `connect-src http: https: data: blob:` as a header line of its own
+(CP-67). It pauses the responses of documents, scripts and other resources at the response stage.
+It answers a document by fulfilment with the document's own status, headers and body and the line,
+and lets a script go on with the line added. Without the relay, on plain http on a loopback address,
+the browser's Local Network Access checks fail a fulfilled page's fetch
+(`net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS`). Through the relay they do not.
+
+Rows and their listeners:
+
+- `--rows relay`: `list_refuse`, `list_hops`, `list_close` (`chain-listener.mjs` serves the hops)
+  and `own_traffic`.
+- `--rows reach` (CP-78): a page on 127.0.0.1, a secure context, makes one kind of context read
+  `evil.agent.test` on the listener's port. The relay's list holds that host, and the request rule
+  does not, so only the rule stands between the read and the listener. `ways-listener.mjs` counts
+  each request to that host with its bytes, and each context's report that it ran.
+- `--rows ways`: `ws_allowed` with its control (`ws-listener.mjs`) and `frame_doc`.
+- `--rows egress`: the rows of the ways out, served by `ways-listener.mjs`. In these rows the
+  executor starts the trial program in the browser's place. That program runs
+  `sh scripts/egress/check.sh LIST -- BROWSER ARGS` in the repository, with a list that holds the
+  relay's port alone (CP-71). The check's standard error goes to a file, which the program
+  follows. A pipe would end the check with SIGPIPE when the executor's stop ends the program first.
+  After the stop, the trial ends any process that is still running with the run's profile path in
+  its command line, except the check's own shell and runner. It then reads the check's
+  `denied.log`.
+  On macOS the browser gets `--no-sandbox`: inside the check's sandbox Chrome 153 cannot start its
+  own ("sandbox initialization failed: Operation not permitted", then "GPU process isn't usable").
+  Its network service makes the same connections either way. The browser also writes its network
+  log. A UDP denial that matches a UDP connect that the check refused (net error -10) is read as no
+  packet: the connect of a UDP socket sends none. Chrome makes such a connect to
+  `[2001:4860:4860::8888]:443` to learn whether IPv6 reaches the internet. `handler_launch` does
+  not run on this Mac, because a handler could open a window here.
