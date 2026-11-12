@@ -324,14 +324,18 @@ st_queue() {
     TMPDIR=$st_d/tmp
     export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
     st_t0=$(date +%s)
-    sh "$st_q_file" --self-test </dev/null >"$st_d/out" 2>"$st_d/err" &
-    printf '%s\n' "$!" >"$st_d/pid"
-    wait "$!"
-    st_c=$?
+    {
+      sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
+      printf '%s\n' "$!" >"$st_d/pid"
+      wait "$!"
+      printf '%s\n' "$?" >"$st_d/status"
+    } | cat >"$st_d/out"
     st_t1=$(date +%s)
+    st_c=none
+    [ ! -s "$st_d/status" ] || read -r st_c <"$st_d/status"
     printf '%s %s\n' "$st_c" "$((st_t1 - st_t0))" >"$st_d/code"
     : >"$st_d/done"
-  ) &
+  ) </dev/null >/dev/null 2>&1 &
   st_track script "$!" "$st_d" "$st_q_name"
   [ -z "$st_q_solo" ] || st_wait_below 1
 }
@@ -405,9 +409,9 @@ st_print() {
   printf 'seconds %s %s\n' "$script_name" "$st_sec"
   last=
   [ ! -e "$st_d/out" ] || last=$(tail -n 1 "$st_d/out")
-  case $st_x in
-    timeout) record FAIL "FAIL self-test:$script_name (time limit $st_limit s)" ;;
-    lost) record FAIL "FAIL self-test:$script_name (it ended without an exit status)" ;;
+  case $st_x:$code in
+    timeout:*) record FAIL "FAIL self-test:$script_name (time limit $st_limit s)" ;;
+    lost:* | *:none) record FAIL "FAIL self-test:$script_name (it ended without an exit status)" ;;
     *) judge ;;
   esac
 }
@@ -443,8 +447,14 @@ st_wait_below() {
 
 whole_number() {
   case $1 in
-    '' | 0* | *[!0-9]*) return 1 ;;
+    '' | 0* | *[!0-9]* | ??????????*) return 1 ;;
   esac
+}
+
+st_first_word() {
+  st_word=${1%"$cr"}
+  st_word=${st_word#"${st_word%%[![:blank:]]*}"}
+  st_word=${st_word%%[[:blank:]]*}
 }
 
 new_repo() {
@@ -482,7 +492,7 @@ own_case() {
     CARGO_HOME=$tmp/cargo-home
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    printf 'a line on standard input\n' | RUN_CI_D_NESTED=yes sh "$self" "$@" 2>&1
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} sh "$self" "$@" 2>&1
   )
   got_exit=$?
   [ -z "$case_max_s" ] || case_t1=$(date +%s)
@@ -519,6 +529,7 @@ own_case() {
   case_first=
   case_then=
   case_max_s=
+  case_nested=
 }
 
 # shellcheck disable=SC2016
@@ -541,7 +552,7 @@ own_self_test() {
   case_first=
   case_then=
   case_max_s=
-  tab=$(printf '\t')
+  case_nested=
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
@@ -549,6 +560,7 @@ own_self_test() {
   new_repo && add_script r1 10-a.sh "$good" "$pass_a" && add_script r1 20-b.sh "$good" "$pass_b"
   own_case all-pass 0 'ci.d macos: 2 passed, 0 failed, 0 skipped' macos
   if [ -n "${RUN_CI_D_NESTED:-}" ]; then
+    [ "$RUN_CI_D_NESTED" != fail ] || wrong="$wrong nested-run-asked-to-fail"
     if [ -n "$wrong" ]; then
       record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
     else
@@ -767,11 +779,34 @@ own_self_test() {
   own_case alone-list-names-no-script 1 "FAIL run-ci-d ($alone_list names 99-gone, which is no script)" macos --self-test 10-a
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
   case_jobs=x
-  own_case jobs-not-a-number 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=x is not a whole number from 1)' macos --self-test 10-a
+  own_case jobs-not-a-number 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=x is not a whole number from 1 to 999999999)' macos --self-test 10-a
   case_jobs=0
-  own_case jobs-zero 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=0 is not a whole number from 1)' macos --self-test 10-a
+  own_case jobs-zero 1 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=0 is not a whole number from 1 to 999999999)' macos --self-test 10-a
   case_limit=2s
-  own_case limit-not-a-number 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=2s is not a whole number from 1)' macos --self-test 10-a
+  own_case limit-not-a-number 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=2s is not a whole number from 1 to 999999999)' macos --self-test 10-a
+  case_limit=99999999999999999999
+  own_case limit-of-twenty-digits 1 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=99999999999999999999 is not a whole number from 1 to 999999999)' macos --self-test 10-a
+  case_limit=999999999
+  own_case limit-of-nine-digits 0 'ci.d macos self-test: 1 passed, 0 failed' macos --self-test 10-a
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( sleep 1; printf \"FAIL self-test:%s (a check that ended late)\\n\" \"\$me\" ) & $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $passes"
+  case_jobs=2
+  own_case output-of-a-child-that-outlives-its-self-test 1 'FAIL self-test:10-a (exit 0)' macos --self-test 10-a 20-b
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 1; $passes" &&
+    add_script r1 20-x.sh '# rule: A fixture rule.' "$prelude; $passes" &&
+    add_script r1 30-c.sh "$good" "$prelude; $passes"
+  case_jobs=2
+  case_first="PASS self-test:10-a (1 failing fixtures rejected)${nl}FAIL 20-x (its first 10 lines hold no single '# jobs:' line)${nl}PASS self-test:30-c (1 failing fixtures rejected)"
+  case_then='ci.d macos self-test: 2 passed, 1 failed'
+  own_case refusal-keeps-its-place-in-the-recap 1 "FAIL 20-x (its first 10 lines hold no single '# jobs:' line)" macos --self-test 10-a 30-c
+  case_scripts=$(mktemp -d "$tmp/empty.XXXXXX")
+  case_nested=fail
+  own_case own-cases-that-fail-in-a-nested-run 1 'ci.d macos self-test: 0 passed, 1 failed' macos --self-test run-ci-d
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $alone; $ends; $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $starts; sleep 1; $ends; $passes" &&
+    mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
+  case_jobs=2
+  own_case alone-list-line-with-leading-blanks 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
 
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
@@ -795,7 +830,9 @@ st_t=
 st_k=
 st_x=
 st_l=
+st_word=
 cr=$(printf '\r')
+tab=$(printf '\t')
 if [ "$mode" = self-test ]; then
   if [ -z "$st_jobs_set" ]; then
     st_jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || st_jobs=
@@ -803,18 +840,18 @@ if [ "$mode" = self-test ]; then
     whole_number "$st_jobs" || st_jobs=1
   else
     whole_number "$st_jobs" || {
-      printf 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=%s is not a whole number from 1)\n' "$st_jobs"
+      printf 'FAIL run-ci-d (CI_D_SELF_TEST_JOBS=%s is not a whole number from 1 to 999999999)\n' "$st_jobs"
       exit 1
     }
   fi
   whole_number "$st_limit" || {
-    printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1)\n' "$st_limit"
+    printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1 to 999999999)\n' "$st_limit"
     exit 1
   }
   if [ -e "$st_list" ]; then
     while IFS= read -r st_line || [ -n "$st_line" ]; do
-      st_line=${st_line%"$cr"}
-      st_alone="$st_alone${st_line%% *} "
+      st_first_word "$st_line"
+      st_alone="$st_alone$st_word "
     done <"$st_list" || {
       printf 'FAIL run-ci-d (%s cannot be read)\n' "$st_list"
       exit 1
@@ -855,8 +892,7 @@ done
 if [ "$mode" = self-test ]; then
   if [ -e "$st_list" ]; then
     while IFS= read -r st_line || [ -n "$st_line" ]; do
-      st_line=${st_line%"$cr"}
-      st_word=${st_line%% *}
+      st_first_word "$st_line"
       [ -n "$st_word" ] || continue
       case $seen in
         *" $st_word "*) ;;
