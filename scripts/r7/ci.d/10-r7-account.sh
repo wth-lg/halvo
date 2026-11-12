@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, no tracked file differs from HEAD after cargo ran, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, no tracked file differs from HEAD after cargo ran, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job, while its self-test runs every case in the macos job and, in the windows job, only the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/ and the windows job's hosted stores) and three controls, because the windows job is held under ST-22's line; the windows job no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; a tree that such a case stands for is refused by the macos job of the same commit.
 set -u
 name=10-r7-account
 case $0 in
@@ -17,6 +17,32 @@ prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
 outside_licences='webpki-root-certs 1.0.11'
+windows_cases='no-repository unchanged hosted-windows hosted-line-inside-another
+hosted-windows-line-missing deny-other-version deny-absent
+vendored-byte-schema.v1.json recorded-sha256-schema.v1.json vendored-byte-routes.v1.json
+recorded-sha256-routes.v1.json vendored-byte-samples.v1.json recorded-sha256-samples.v1.json
+vendored-byte-prompt-budget.json recorded-sha256-prompt-budget.json record-without-a-file
+record-with-another-commit-line commit-of-41-digits commit-in-upper-case sum-of-65-digits
+sum-in-upper-case record-with-a-fifth-line fifth-line-without-newline config-source-replacement
+config-patch-under-account config-name-in-another-case link-out-of-account escaped-path-key
+escaped-build-key path-outside-account git-source-in-lock crlf-line-ends licence-added-to-list
+licence-exception git-allowed unknown-git-warns extra-line-without-newline ban-with-wrappers
+ban-name-with-other-characters ban-reason-with-a-quote ban-deleted ban-renamed
+deny-targets-fifth deny-targets-lack-one deny-targets-gone tracked-unchanged
+tracked-file-changed untracked-file-written no-deny-pin pin-with-other-characters
+banned-package-in-graph edit-that-changes-nothing crlf-without-carriage-returns job-read-once
+no-job-runs-every-case windows-job-runs-its-list-alone macos-job-misses-a-case
+windows-job-misses-a-case case-on-no-list'
+macos_cases='tests-fail no-test-ran test-count-not-a-number build-fails deny-fails fmt-fails
+clippy-fails self-hosted-runner actions-not-true hosted-macos hosted-test-fails
+hosted-line-missing hosted-line-of-another-store hosted-file-line-missing hosted-other-job
+empty-registry respelled-lock-entry metadata-source-outside-crates-io
+metadata-name-with-sqlite-in-mixed-case metadata-name-with-sqlcipher metadata-without-a-package
+sqlite-in-lock sqlite-in-lock-mixed-case sqlcipher-in-lock git-source-in-lock-without-spaces
+git-source-in-manifest registry-in-manifest patch-in-workspace patch-as-dotted-key
+patch-in-quoted-header path-in-literal-string path-absolute multi-line-string
+member-outside-crates outside-licence-another outside-licence-unnamed outside-licence-exit
+outside-licence-one-less licence-outside-list'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -545,6 +571,10 @@ git_fixture() {
 
 make_fixture() {
   fixture=$work/$1
+  if ! takes_case "$1"; then
+    left_out "$1"
+    return 1
+  fi
   mkdir "$fixture" "$fixture/account" || return 1
   for entry in Cargo.toml Cargo.lock deny.toml schema crates; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
@@ -593,9 +623,63 @@ selected() {
   return 1
 }
 
+in_list() {
+  for listed in $2; do
+    [ "$listed" = "$1" ] && return 0
+  done
+  return 1
+}
+
+takes_case() {
+  in_list "$1" "$windows_cases" && return 0
+  [ "${2-$self_test_job}" != windows ]
+}
+
+all_taken() {
+  for listed_case in $2; do
+    takes_case "$listed_case" "$1" || return 1
+  done
+}
+
+none_taken() {
+  for listed_case in $2; do
+    takes_case "$listed_case" "$1" && return 1
+  done
+  return 0
+}
+
+left_out() {
+  selected "$1" || return 0
+  printf 'case %s/%s not run: the windows job leaves it to the macos job\n' "$name" "$1"
+  left=$((left + 1))
+}
+
+note_case() {
+  ran="$ran $1"
+  in_list "$1" "$windows_cases $macos_cases" || unlisted="$unlisted $1"
+}
+
+cases_missing() {
+  case $1 in
+    windows) required=$windows_cases ;;
+    macos) required="$windows_cases $macos_cases" ;;
+    *) required= ;;
+  esac
+  for required_case in $required; do
+    [ "$1" = windows ] && [ "$required_case" = link-out-of-account ] && continue
+    selected "$required_case" || continue
+    in_list "$required_case" "$2" || printf ' %s' "$required_case"
+  done
+}
+
 run_case() {
   case=$1
   selected "$case" || return 0
+  if ! takes_case "$case"; then
+    left_out "$case"
+    return 0
+  fi
+  note_case "$case"
   want=$2
   mode=$3
   shift 3
@@ -633,12 +717,20 @@ run_case() {
 }
 
 stub_case() {
-  make_fixture "$1" || fail "cannot make the fixture $1"
+  if ! make_fixture "$1"; then
+    takes_case "$1" && fail "cannot make the fixture $1"
+    return 0
+  fi
   run_case "$@"
 }
 
 harness_case() {
   selected "$1" || return 0
+  if ! takes_case "$1"; then
+    left_out "$1"
+    return 0
+  fi
+  note_case "$1"
   printf 'case %s/%s want=refused got=%s\n' "$name" "$1" "$2"
   if [ "$2" = refused ]; then
     rejected=$((rejected + 1))
@@ -648,6 +740,10 @@ harness_case() {
 }
 
 self_test() {
+  self_test_job=${CI_D_JOB:-}
+  ran=
+  left=0
+  unlisted=
   enter_repository
   work=$(mktemp -d "${TMPDIR:-/tmp}/r7-account-self-test.XXXXXX") || fail 'mktemp -d failed'
   real_cargo=$(command -v cargo) || fail 'cargo is not on the PATH'
@@ -767,16 +863,18 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     edit Cargo.lock sed "s/^name = \"sqlite-shim\"\$/name = 'sqlite-shim'/" &&
     run_case respelled-lock-entry "FAIL $name ($cause_name)" stub
 
-  make_fixture metadata-base
-  base=$work/metadata-base.json
-  (cd "$fixture" && "$real_cargo" metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml >"$base" 2>/dev/null)
-  sed 's|"source":"registry+https://github.com/rust-lang/crates.io-index"|"source":"git+https://example.invalid/x.git#0"|' <"$base" >"$work/source.json"
-  sed 's|"name":"itoa","version":|"name":"LibSQLite3-ffi","version":|' <"$base" >"$work/sqlite.json"
-  sed 's|"name":"itoa","version":|"name":"SQLCipher-sys","version":|' <"$base" >"$work/sqlcipher.json"
-  printf '{"packages":[],"workspace_members":[],"resolve":null,"version":1}\n' >"$work/empty.json"
-  for crafted in source sqlite sqlcipher; do
-    cmp -s "$base" "$work/$crafted.json" && wrong="$wrong metadata-$crafted"
-  done
+  if takes_case metadata-source-outside-crates-io; then
+    make_fixture metadata-base
+    base=$work/metadata-base.json
+    (cd "$fixture" && "$real_cargo" metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml >"$base" 2>/dev/null)
+    sed 's|"source":"registry+https://github.com/rust-lang/crates.io-index"|"source":"git+https://example.invalid/x.git#0"|' <"$base" >"$work/source.json"
+    sed 's|"name":"itoa","version":|"name":"LibSQLite3-ffi","version":|' <"$base" >"$work/sqlite.json"
+    sed 's|"name":"itoa","version":|"name":"SQLCipher-sys","version":|' <"$base" >"$work/sqlcipher.json"
+    printf '{"packages":[],"workspace_members":[],"resolve":null,"version":1}\n' >"$work/empty.json"
+    for crafted in source sqlite sqlcipher; do
+      cmp -s "$base" "$work/$crafted.json" && wrong="$wrong metadata-$crafted"
+    done
+  fi
   run_case metadata-source-outside-crates-io "FAIL $name (account/'s metadata holds a package from a source outside crates.io)" stub STUB_METADATA="$work/source.json"
   run_case metadata-name-with-sqlite-in-mixed-case "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlite.json"
   run_case metadata-name-with-sqlcipher "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlcipher.json"
@@ -896,6 +994,70 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     harness_case crlf-without-carriage-returns refused
   fi
 
+  saved_job=${CI_D_JOB:-}
+  CI_D_JOB=windows
+  if takes_case tests-fail; then first=yes; else first=no; fi
+  CI_D_JOB=macos
+  if takes_case tests-fail; then second=yes; else second=no; fi
+  CI_D_JOB=$saved_job
+  if [ "$first" = "$second" ]; then
+    harness_case job-read-once refused
+  else
+    harness_case job-read-once "followed CI_D_JOB after the start"
+  fi
+  if all_taken '' "$windows_cases $macos_cases"; then
+    harness_case no-job-runs-every-case refused
+  else
+    harness_case no-job-runs-every-case "left a case out with no job named"
+  fi
+  if all_taken windows "$windows_cases" && none_taken windows "$macos_cases"; then
+    harness_case windows-job-runs-its-list-alone refused
+  else
+    harness_case windows-job-runs-its-list-alone "ran another set"
+  fi
+  all_cases="$windows_cases $macos_cases"
+  without_one=$(for listed_case in $all_cases; do [ "$listed_case" = tests-fail ] || printf '%s ' "$listed_case"; done)
+  if [ "$(R7_ACCOUNT_CASES='' cases_missing macos "$without_one")" = ' tests-fail' ] &&
+    [ -z "$(R7_ACCOUNT_CASES='' cases_missing macos "$all_cases")" ]; then
+    harness_case macos-job-misses-a-case refused
+  else
+    harness_case macos-job-misses-a-case "missed no case"
+  fi
+  without_one=$(for listed_case in $windows_cases; do [ "$listed_case" = unchanged ] || printf '%s ' "$listed_case"; done)
+  without_link=$(for listed_case in $windows_cases; do [ "$listed_case" = link-out-of-account ] || printf '%s ' "$listed_case"; done)
+  if [ "$(R7_ACCOUNT_CASES='' cases_missing windows "$without_one")" = ' unchanged' ] &&
+    [ -z "$(R7_ACCOUNT_CASES='' cases_missing windows "$windows_cases")" ] &&
+    [ -z "$(R7_ACCOUNT_CASES='' cases_missing windows "$without_link")" ]; then
+    harness_case windows-job-misses-a-case refused
+  else
+    harness_case windows-job-misses-a-case "missed no case"
+  fi
+  saved_unlisted=$unlisted
+  unlisted=
+  note_case case-of-no-list
+  noted=$unlisted
+  unlisted=$saved_unlisted
+  if [ "$noted" = ' case-of-no-list' ]; then
+    harness_case case-on-no-list refused
+  else
+    harness_case case-on-no-list "took a case of no list"
+  fi
+
+  for missing_case in $(cases_missing "$self_test_job" "$ran"); do
+    wrong="$wrong not-run:$missing_case"
+  done
+  for unlisted_case in $unlisted; do
+    wrong="$wrong on-no-list:$unlisted_case"
+  done
+  expected_left=0
+  if [ "$self_test_job" = windows ]; then
+    for listed_case in $macos_cases; do
+      selected "$listed_case" && expected_left=$((expected_left + 1))
+    done
+  fi
+  [ "$left" -eq "$expected_left" ] || wrong="$wrong left-out-count:$left-not-$expected_left"
+  [ "$self_test_job" = "${CI_D_JOB:-}" ] || wrong="$wrong job-not-read"
+  printf 'cases left to the macos job: %s\n' "$left"
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
