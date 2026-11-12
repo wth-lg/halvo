@@ -40,6 +40,23 @@ list_target() {
   list_code=$?
   cargo test --locked -p "$package" "$@" -- --list --ignored >"$listing-ignored.txt" 2>>"$listing.err" </dev/null
   ignored_code=$?
+  awk -v target="$package $source" '($1 " " $2) == target && !seen[$3]++ { print $3 }' "$wanted" >"$listing-names.txt"
+  set -- "$@" -- --exact
+  while read -r test_name; do
+    set -- "$@" "$test_name"
+  done <"$listing-names.txt"
+  cargo test --locked -p "$package" "$@" >"$listing-run.txt" 2>&1 </dev/null
+  run_code=$?
+  awk -v target="$package $source" -v run_code="$run_code" '
+    FILENAME == ARGV[1] {
+      sub(/\r$/, "")
+      if ($0 ~ /^test [^ ]+ \.\.\. ok$/) passed[substr($0, 6, length($0) - 12)] = 1
+      if ($0 ~ /^test result: ok\. /) summary = 1
+      next
+    }
+    ($1 " " $2) != target || seen[$0]++ { next }
+    run_code == 0 && summary && ($3 in passed) { print "ran " $0 }
+  ' "$listing-run.txt" "$wanted" >>"$result"
   awk -v target="$package $source" -v list_code="$list_code" -v ignored_code="$ignored_code" '
     FILENAME == ARGV[1] {
       if ($0 ~ /: test$/) listed[substr($0, 1, length($0) - 6)] = 1
@@ -126,9 +143,11 @@ require_tests() {
         if (("clean " entry) in got) clean++
         else if (("ignored " entry) in got) print "required ignored=" entry
         else print "required no_ignored_list=" entry
+        if (("ran " entry) in got) ran++
+        else print "required not_run=" entry
       }
-      printf "required tests=%d ok=%d listed=%d ignored=%d\n", tests, ok, listed, tests - clean
-      exit (ok != tests || listed != tests || clean != tests)
+      printf "required tests=%d ok=%d listed=%d ignored=%d ran=%d\n", tests, ok, listed, tests - clean, ran
+      exit (ok != tests || listed != tests || clean != tests || ran != tests)
     }
   ' "$wanted" "$result"
 }
@@ -165,7 +184,13 @@ hold_pins() {
       if (length($1) == 64 && $1 ~ /^[0-9a-f]+$/) hash[file] = $1
       next
     }
-    /^const PINNED/ { blocks++; inside = 1 }
+    /^[ \t]*(pub(\([^)]*\))? )?(const|static) PINNED[^A-Za-z0-9_]/ { declared++ }
+    /^const PINNED/ {
+      blocks++
+      inside = 1
+      if (previous ~ /^[ \t]*#/) broken = 1
+    }
+    $0 !~ /^[ \t]*$/ { previous = $0 }
     inside {
       line = $0
       sub(/\/\/.*/, "", line)
@@ -175,21 +200,30 @@ hold_pins() {
     }
     END {
       count = split(paths, path, " ")
-      if (blocks != 1 || broken) {
-        print "pins unreadable=PINNED"
-        printf "pins tool=%s files=%d same=0\n", tool, count
-        exit 1
-      }
       gsub(/[ \t]/, "", text)
-      while (match(text, /\("[^"]*","[^"]*",?\)/)) {
-        entry = substr(text, RSTART + 2, RLENGTH - 3)
-        text = substr(text, RSTART + RLENGTH)
+      if (match(text, /^constPINNED:\[\(&str,&str\);[0-9]+\]=\[/)) {
+        size = substr(text, 26, RLENGTH - 28) + 0
+        rest = substr(text, RLENGTH + 1)
+      } else {
+        broken = 1
+      }
+      while (!broken && match(rest, /^\("[^"]*","[^"]*",?\),?/)) {
+        entry = substr(rest, 3, RLENGTH - 2)
+        rest = substr(rest, RLENGTH + 1)
+        sub(/,$/, "", entry)
+        sub(/\)$/, "", entry)
         sub(/,$/, "", entry)
         sub(/"$/, "", entry)
         split(entry, part, "\",\"")
         entries++
         name[entries] = part[1]
         value[entries] = part[2]
+      }
+      if (rest != "];" || entries != size) broken = 1
+      if (declared != 1 || blocks != 1 || broken) {
+        print "pins unreadable=PINNED"
+        printf "pins tool=%s files=%d same=0\n", tool, count
+        exit 1
       }
       for (i = 1; i <= count; i++) {
         have = (path[i] in hash)
@@ -260,7 +294,7 @@ check() {
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts/$1
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
-    export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED
+    export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     sh "$self" 2>&1
   )
   code=$?
@@ -293,6 +327,9 @@ check() {
   STUB_NO_TARGETS=
   STUB_NO_IGNORED=
   STUB_PATH=
+  STUB_NOT_RUN=
+  STUB_NO_SUMMARY=
+  STUB_RUN_EXIT=
 }
 
 stub_case() {
@@ -360,6 +397,9 @@ make_stub() {
   STUB_NO_TARGETS=
   STUB_NO_IGNORED=
   STUB_PATH=
+  STUB_NOT_RUN=
+  STUB_NO_SUMMARY=
+  STUB_RUN_EXIT=
 }
 
 required_cases() {
@@ -438,11 +478,11 @@ required_cases() {
 
   stub_case carriage-returns
   awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
-  check carriage-returns PASS 'required tests=21 ok=21 listed=21 ignored=0'
+  check carriage-returns PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
 
   stub_case windows-paths
   awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
-  check windows-paths PASS 'required tests=21 ok=21 listed=21 ignored=0'
+  check windows-paths PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
 
   stub_case running-line-without-a-binary
   awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "     Running tests/forge.rs" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
@@ -455,15 +495,24 @@ required_cases() {
   stub_case ok-line-with-another-ending
   awk '$0 == "test no_grant_in_release ... ok" { $0 = "test no_grant_in_release ... no" } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
   check ok-line-with-another-ending FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release"
+
+  STUB_NOT_RUN=refusal_spend
+  check written-ok-lines-and-an-early-exit FAIL "required not_run=$t tests/refusal_spend.rs refusal_no_hold"
+  STUB_NOT_RUN=lib
+  check library-lines-from-another-binary FAIL "required not_run=$t src/lib.rs leave::tests::refusal_leave_part"
+  STUB_NO_SUMMARY=no_grant_in_release
+  check exact-run-without-its-summary FAIL "required not_run=$t tests/no_grant_in_release.rs no_grant_in_release"
+  STUB_RUN_EXIT=101
+  check exact-run-that-fails FAIL "required not_run=$t tests/refusal_spend.rs refusal_final_state"
 }
 
 pin_cases() {
   pins=$work/pristine/$pin_file
-  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") == 0) printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  awk '/^const PINNED/ { sub(/; 5\]/, "; 4]") } $0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") == 0) printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
   check pinned-row-taken-out FAIL 'pins missing=crates/halvo-route/src/tier.rs'
   restore_repo
 
-  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"Cargo.toml\"") == 0) printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  awk '/^const PINNED/ { sub(/; 5\]/, "; 4]") } $0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"Cargo.toml\"") == 0) printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
   check manifest-entry-dropped FAIL 'pins missing=crates/halvo-route/Cargo.toml'
   restore_repo
 
@@ -479,7 +528,7 @@ pin_cases() {
   check changed-lib-rs FAIL 'pins differs=crates/halvo-route/src/lib.rs'
   restore_repo
 
-  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") > 0) { gsub(/\n */, " ", held); sub(/^    \( /, "    // (", held); sub(/, \),? *$/, "),", held); held = held "\n" }; printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  awk '/^const PINNED/ { sub(/; 5\]/, "; 4]") } $0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") > 0) { gsub(/\n */, " ", held); sub(/^    \( /, "    // (", held); sub(/, \),? *$/, "),", held); held = held "\n" }; printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
   check pinned-row-commented-out FAIL 'pins missing=crates/halvo-route/src/tier.rs'
   restore_repo
 
@@ -495,8 +544,28 @@ pin_cases() {
   check pinned-list-twice FAIL 'pins unreadable=PINNED'
   restore_repo
 
-  awk '{ print } $0 == "        \"src/tier.rs\"," { stale = 1 } stale && $0 == "    )," { stale = 0; print "    (\n        \"src/tier.rs\",\n        \"0000000000000000000000000000000000000000000000000000000000000000\",\n    )," }' "$pins" >"$work/repo/$pin_file" || exit 2
+  awk '/^const PINNED/ { sub(/; 5\]/, "; 6]") } { print } $0 == "        \"src/tier.rs\"," { stale = 1 } stale && $0 == "    )," { stale = 0; print "    (\n        \"src/tier.rs\",\n        \"0000000000000000000000000000000000000000000000000000000000000000\",\n    )," }' "$pins" >"$work/repo/$pin_file" || exit 2
   check pinned-path-twice-one-stale FAIL 'pins differs=crates/halvo-route/src/tier.rs'
+  restore_repo
+
+  awk '/^const PINNED/ { print "#[cfg(any())]" } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check attribute-above-the-pinned-list FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '{ print } /^fn pinned_files_hold_their_hashes/ { print "    const PINNED: [(&str, &str); 1] = [(\"Cargo.toml\", \"x\")];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-list-shadowed-in-the-test FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '/^const PINNED/ { sub(/= \[$/, "= pins![") } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-list-from-a-macro FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '/^\];/ { $0 = $0 " const _: (&str, &str) = (\"src/tier.rs\", \"x\");" } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check item-after-the-closing-line FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '/^const PINNED/ { sub(/; 5\]/, "; 6]") } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-size-not-its-rows FAIL 'pins unreadable=PINNED'
   restore_repo
 
   awk '{ print } END { print "const OLD: [(&str, &str); 1] = [(\"src/tier.rs\", \"0000000000000000000000000000000000000000000000000000000000000000\")];" }' "$pins" >"$work/repo/$pin_file" || exit 2
@@ -533,6 +602,25 @@ case $* in
   'test --locked -p halvo-route -p halvo-route-gate')
     cat "$STUB_DIR/test.out"
     exit "$STUB_TEST_EXIT"
+    ;;
+  'test --locked -p '*' --lib -- --exact '* | 'test --locked -p '*' --test '*' -- --exact '*)
+    stem=lib
+    [ "$5" = --test ] && stem=$6
+    case " $STUB_NOT_RUN " in
+      *" $stem "*) exit 0 ;;
+    esac
+    while [ "$1" != --exact ]; do
+      shift
+    done
+    shift
+    for test_name in "$@"; do
+      printf 'test %s ... ok\n' "$test_name"
+    done
+    case " $STUB_NO_SUMMARY " in
+      *" $stem "*) ;;
+      *) printf '\ntest result: ok. %s passed; 0 failed\n' "$#" ;;
+    esac
+    exit "${STUB_RUN_EXIT:-0}"
     ;;
   'test --locked -p '*' --lib -- --list' | 'test --locked -p '*' --lib -- --list --ignored' | \
     'test --locked -p '*' --test '*' -- --list' | 'test --locked -p '*' --test '*' -- --list --ignored')
@@ -580,7 +668,7 @@ EOF
   STUB_SELFTEST_EXIT=0
   STUB_FRESH=$work/fresh.tsv
 
-  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0' ' files=5 same=5' "$want_line
+  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21' ' files=5 same=5' "$want_line
 specimen rows=540 same=yes
 PASS $name"
   required_cases
