@@ -126,7 +126,9 @@ fail() {
 tree_check() {
   started=$(date +%s)
   found=
+  counted=0
   for target in $built_targets; do
+    counted=$((counted + 1))
     if ! cargo tree --workspace --all-features -e all --target "$target" --prefix none --locked >"$artifacts/tree-$target.txt" 2>&1; then
       printf 'tree target=%s cargo=failed\n' "$target"
       fail tree
@@ -138,7 +140,7 @@ tree_check() {
       printf 'tree target=%s webpki-root-certs=no\n' "$target"
     fi
   done
-  printf 'tree targets=4 seconds=%s\n' "$(($(date +%s) - started))"
+  printf 'tree targets=%s seconds=%s\n' "$counted" "$(($(date +%s) - started))"
   [ -z "$found" ] || fail tree
 }
 
