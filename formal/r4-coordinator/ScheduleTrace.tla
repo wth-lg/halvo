@@ -1,7 +1,7 @@
 --------------------------- MODULE ScheduleTrace ---------------------------
 EXTENDS Schedule, TraceText
 
-CONSTANTS Seed, Count, Depth
+CONSTANTS Seed, Count, Depth, Config
 
 VARIABLE w
 
@@ -11,7 +11,7 @@ FrameSeq == <<"completed", "nothing_to_do", "declined", "handed_back", "class_mi
               "refused", "limit", "effect_unknown", "failed", "none">>
 KindSeq == <<"start", "hello", "wait", "resume", "stop", "end", "tick", "restart", "delete", "off",
              "ack", "check">>
-RefusalSeq == <<"hold", "budget", "state", "queue_full", "no_service">>
+RefusalSeq == <<"hold", "budget", "state", "queue_full", "no_service", "unknown_agent">>
 
 Weight(k) ==
     CASE k = "start" -> 30
@@ -49,27 +49,28 @@ O(a) == [m |-> "off", agent |-> a]
 H(id) == [m |-> "hello", run |-> id]
 
 Directed ==
-    <<[case |-> "two_models", moves |-> <<S(1, "ok"), H(1), S(2, "ok")>>],
-      [case |-> "two_runs_agent", moves |-> <<S(1, "ok"), S(2, "ok"), S(2, "ok"), S(1, "ok")>>],
-      [case |-> "hold_start",
+    <<[case |-> "two_models", cfg |-> "full", moves |-> <<S(1, "ok"), H(1), S(2, "ok")>>],
+      [case |-> "two_runs_agent", cfg |-> "full", moves |-> <<S(1, "ok"), S(2, "ok"), S(2, "ok"), S(1, "ok")>>],
+      [case |-> "hold_start", cfg |-> "holds",
        moves |-> <<T(1, TRUE, "no_run"), S(2, "ok"), K(2), S(2, "no_store"), K(2), T(2, TRUE, "ok"),
                    T(3, TRUE, "ok"), S(2, "ok"), O(3), S(3, "ok"), S(4, "ok"), E(4, "effect_unknown", "ok"),
                    S(4, "ok")>>],
-      [case |-> "unrecorded_start", moves |-> <<S(1, "no_ack")>>],
-      [case |-> "second_slot_run", moves |-> <<T(1, TRUE, "ok"), B(1), K(2), T(1, TRUE, "ok")>>],
-      [case |-> "auto_needs_person", moves |-> <<T(1, TRUE, "ok")>>],
-      [case |-> "over_budget",
+      [case |-> "unrecorded_start", cfg |-> "full", moves |-> <<S(1, "no_ack")>>],
+      [case |-> "second_slot_run", cfg |-> "full", moves |-> <<T(1, TRUE, "ok"), B(1), K(2), T(1, TRUE, "ok")>>],
+      [case |-> "auto_needs_person", cfg |-> "full", moves |-> <<T(1, TRUE, "ok")>>],
+      [case |-> "over_budget", cfg |-> "full",
        moves |-> <<S(4, "ok"), E(1, "completed", "ok"), S(4, "ok"), H(2), [m |-> "wait", run |-> 2],
                    X(2, "lapsed"), E(2, "none", "ok"), S(4, "ok")>>],
-      [case |-> "queue_full", moves |-> <<S(1, "ok"), S(3, "ok"), S(2, "ok"), S(4, "ok"), S(5, "ok")>>],
-      [case |-> "outlives_app", moves |-> <<S(1, "ok"), S(3, "ok"), X(1, "cancelled"), B(1)>>],
-      [case |-> "stop_tree",
+      [case |-> "queue_full", cfg |-> "full", moves |-> <<S(1, "ok"), S(3, "ok"), S(2, "ok"), S(4, "ok"), S(5, "ok")>>],
+      [case |-> "outlives_app", cfg |-> "full", moves |-> <<S(1, "ok"), S(3, "ok"), X(1, "cancelled"), B(1)>>],
+      [case |-> "stop_tree", cfg |-> "full",
        moves |-> <<S(1, "ok"), H(1), X(1, "cancelled"), T(1, FALSE, "ok"), T(2, TRUE, "ok")>>],
-      [case |-> "deleted_workflow", moves |-> <<S(4, "ok"), D(4), T(1, TRUE, "ok"), T(1, TRUE, "ok")>>],
-      [case |-> "store_not_ended",
+      [case |-> "deleted_workflow", cfg |-> "full", moves |-> <<S(4, "ok"), D(4), T(1, TRUE, "ok"), T(1, TRUE, "ok")>>],
+      [case |-> "store_not_ended", cfg |-> "left",
        moves |-> <<S(4, "ok"), H(1), X(1, "cancelled"), T2(1, TRUE, "no_ack", TRUE), S(4, "ok"), K(4),
-                   S(4, "ok"), C(4), S(4, "ok"), S(5, "ok"), E(3, "none", "ok"), S(5, "ok")>>],
-      [case |-> "reap_alive",
+                   S(4, "ok"), C(4), S(4, "ok"), S(5, "ok"), X(3, "cancelled"), E(3, "none", "ok"),
+                   S(5, "ok")>>],
+      [case |-> "reap_alive", cfg |-> "reap",
        moves |-> <<S(1, "ok"), S(5, "ok"), B2(1, {1}, TRUE), S(1, "ok"), K(5), S(5, "ok"),
                    B2(1, {}, FALSE)>>]>>
 
@@ -93,7 +94,7 @@ TickCands(s) ==
 OtherCands(s) ==
     (IF s.life <= MaxRestarts THEN <<B(s.day)>> ELSE <<>>)
     \o Cat([a \in 1..NAgents |->
-              IF s.dels < MaxDeletes /\ a \in Deletable \ s.gone THEN <<D(a)>> ELSE <<>>])
+              IF s.dels < MaxDeletes /\ a \in Deletable \ (s.gone \cup s.lost) THEN <<D(a)>> ELSE <<>>])
     \o Cat([a \in 1..NAgents |-> IF a \in OffAgents \ s.off THEN <<O(a)>> ELSE <<>>])
 
 EnvCands(g) ==
@@ -178,7 +179,8 @@ Snap(s0, f) ==
          KV("starts", PerAgent(Starts)),
          KV("slot", PerAgent(Slot)),
          KV("fails", PerAgent(Fails)),
-         KV("gone", AgentList(Sorted(s.gone))),
+         KV("gone", AgentList(Sorted(s.gone \cup s.lost))),
+         KV("lost", AgentList(Sorted(s.lost))),
          KV("open", RunList({f.open[a] : a \in Agents} \ {0})),
          KV("unknown", RunList({f.unknown[a] : a \in Agents} \ {0})),
          KV("cleared", RunList(s.cleared)),
@@ -248,7 +250,8 @@ Cases == Len(Directed)
 TraceInit ==
     /\ st = Init0
     /\ h = InitH
-    /\ w = [n |-> 1, k |-> 0, x |-> 1 + (Seed % 2147483646), acc |-> <<>>]
+    /\ w = [n |-> IF Config = "full" THEN 1 ELSE Count + 1, k |-> 0, x |-> 1 + (Seed % 2147483646),
+            acc |-> <<>>]
 
 Play(mv, x) ==
     LET res == Step(st, mv, Facts(h))
@@ -263,6 +266,11 @@ Emit(head) ==
     /\ h' = InitH
     /\ w' = [w EXCEPT !.n = @ + 1, !.k = 0, !.acc = <<>>]
 
+Skip ==
+    /\ st' = Init0
+    /\ h' = InitH
+    /\ w' = [w EXCEPT !.n = @ + 1, !.k = 0, !.acc = <<>>]
+
 TraceNext ==
     /\ w.n <= Count + Cases
     /\ IF w.n <= Count
@@ -270,7 +278,11 @@ TraceNext ==
             THEN Emit(<<KV("n", ToString(w.n))>>)
             ELSE LET c == Choose(st, w.x) IN Play(c.mv, c.x)
        ELSE LET d == Directed[w.n - Count]
-            IN IF w.k = Len(d.moves)
+            IN IF d.cfg # Config
+               THEN Skip
+               ELSE IF w.k = Len(d.moves)
                THEN Emit(<<KV("n", ToString(w.n)), KV("case", Str(d.case))>>)
-               ELSE Play(d.moves[w.k + 1], w.x)
+               ELSE /\ Assert(d.moves[w.k + 1] \in Moves(st) \cup EnvMoves(h),
+                              <<"a move that the configuration does not allow", d.case, w.k + 1>>)
+                    /\ Play(d.moves[w.k + 1], w.x)
 =============================================================================

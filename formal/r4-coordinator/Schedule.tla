@@ -35,7 +35,7 @@ NoMark == [run |-> 0, dead |-> FALSE, left |-> FALSE, sent |-> FALSE, by |-> "no
 
 Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
-     runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, cleared |-> {},
+     runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, lost |-> {}, cleared |-> {},
      paused |-> {}, dying |-> {}, owing |-> {}, f |-> NoFacts,
      fin |-> Finished,
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
@@ -74,7 +74,7 @@ Open(s, a) ==
        \/ s.done[a] < CurSlot(s.day) - (Period \div 2)
 
 Checked(s, a) == s.f.unknown[a] # 0 /\ s.f.unknown[a] \notin s.cleared
-Held(s, a) == a \in s.off \/ a \in s.paused \/ Checked(s, a)
+Held(s, a) == a \notin s.lost /\ (a \in s.off \/ a \in s.paused \/ Checked(s, a))
 
 LiveOf(s, a) == {r \in s.runs : r.agent = a}
 Queued(s, a) == \E i \in DOMAIN s.queue : s.queue[i].agent = a
@@ -166,12 +166,15 @@ Start(s, a, trig, port) ==
              st |-> [s EXCEPT !.queue = Enqueue(@, [agent |-> a, trigger |-> trig]),
                               !.ready = @ \ {a}]]
 
-Press(s, a, port) ==
+Pressed(s, a, port) ==
     LET ends == a \notin s.gone /\ a \in s.paused
         x == Start(IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}], a, "person", port)
     IN [x EXCEPT !.out = (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
                          \o (IF ends /\ a \notin s.off THEN <<State(a, "active")>> ELSE <<>>)
                          \o @]
+
+Press(s, a, port) ==
+    IF a \in s.lost THEN [r |-> "unknown_agent", st |-> s, run |-> 0, out |-> <<>>] ELSE Pressed(s, a, port)
 
 Dequeue(s, port) ==
     IF Len(s.queue) = 0 THEN [st |-> s, next |-> <<>>, out |-> <<>>]
@@ -234,7 +237,7 @@ Sweep(s) ==
                          !.ready = @ \ s.gone]]
 
 TickAgent(s, a, port) ==
-    IF a \in s.gone \/ Held(s, a) \/ LiveOf(s, a) # {} \/ Queued(s, a) \/ s.f.open[a] # 0
+    IF a \in s.gone \/ Held(s, a) \/ LiveOf(s, a) # {} \/ Queued(s, a) \/ a \in s.lost
     THEN [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF a \in NeedsPerson \/ a \notin s.fin
     THEN IF (Open(s, a) \/ a \notin s.fin) /\ a \notin s.ready
@@ -260,21 +263,24 @@ Sends(ids) ==
          IN <<[k |-> "end_run", run |-> m]>> \o Sends(ids \ {m})
 
 Owed(s) == {id \in s.owing : \E a \in Agents : s.f.open[a] = id}
+Kept(s, pay) == {id \in pay : \E a \in Agents \ s.gone : s.f.open[a] = id}
 
 Tick(s, d, g, port) ==
-    LET s0 == [s EXCEPT !.day = d, !.owing = Owed(s)]
+    LET s0 == [s EXCEPT !.day = d]
         again == IF s.runs = {} THEN <<>> ELSE <<[k |-> "defer"]>>
         due == IF g THEN Due(s0) ELSE {}
         dead == IF g THEN s.dying ELSE {}
         v == Sweep(s0)
         k == Kill([st |-> [v.st EXCEPT !.dying = @ \ dead], ended |-> <<>>, out |-> <<>>], due \cup dead, port)
+        pay == Owed(k.st)
+        paid == [k.st EXCEPT !.owing = Kept(k.st, pay)]
         i == IF Len(k.ended) = 0 /\ k.st.runs = {}
-             THEN Dequeue(k.st, port)
-             ELSE [st |-> k.st, next |-> <<>>, out |-> <<>>]
+             THEN Dequeue(paid, port)
+             ELSE [st |-> paid, next |-> <<>>, out |-> <<>>]
         t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, out |-> <<>>], 1, port)
     IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended, next |-> i.next,
         raised |-> t.raised, started |-> t.started, st |-> t.st,
-        out |-> again \o v.out \o k.out \o Sends(Owed(s)) \o i.out \o t.out]
+        out |-> again \o v.out \o k.out \o Sends(pay) \o i.out \o t.out]
 
 RECURSIVE Recover(_, _, _)
 Recover(s, ended, out) ==
@@ -282,7 +288,8 @@ Recover(s, ended, out) ==
     ELSE LET run == CHOOSE x \in s.runs : \A y \in s.runs : x.id <= y.id
              s1 == [s EXCEPT !.runs = @ \ {run}]
          IN Recover(Ended(s1, run.agent, "interrupted", run.day),
-                    Append(ended, [run |-> run.id, cause |-> "interrupted", next |-> <<>>]),
+                    IF run.agent \in s.gone THEN ended
+                    ELSE Append(ended, [run |-> run.id, cause |-> "interrupted", next |-> <<>>]),
                     out \o EndOut(s1, run.id, run.agent, "interrupted"))
 
 Marks(s, alive) == {s.f.open[a] : a \in {x \in Agents \ s.gone : s.f.open[x] # 0}} \ alive
@@ -292,6 +299,7 @@ Restart(s, d, alive) ==
         owed == Marks(s, alive)
     IN [r |-> "ok", ended |-> v.ended, out |-> v.out \o Sends(owed),
         st |-> [v.st EXCEPT !.life = @ + 1, !.day = d, !.queue = <<>>, !.ready = {}, !.dying = {},
+                            !.lost = @ \cup s.gone, !.gone = {}, !.off = @ \ s.gone, !.paused = @ \ s.gone,
                             !.owing = owed]]
 
 Check(s, a) ==
@@ -383,7 +391,7 @@ Moves(s) ==
                     A \in {X \in SUBSET {r.id : r \in s.runs} : Cardinality(X) <= MaxAlive},
                     l \in IF s.runs = {} THEN {FALSE} ELSE Lefts}
           ELSE {})
-    \cup (IF s.dels < MaxDeletes THEN {[m |-> "delete", agent |-> a] : a \in Deletable \ s.gone} ELSE {})
+    \cup (IF s.dels < MaxDeletes THEN {[m |-> "delete", agent |-> a] : a \in Deletable \ (s.gone \cup s.lost)} ELSE {})
     \cup {[m |-> "off", agent |-> a] : a \in OffAgents \ s.off}
 
 Acked(g, a) == g.store[a].run # 0 /\ g.store[a].dead /\ g.store[a].sent /\ g.gone[a] = "listed"
@@ -647,6 +655,7 @@ ReachRestart == [][~(st'.life > st.life /\ st.runs # {} /\ Len(st.queue) > 0)]_v
 ReachRestartDay == [][~(st'.life > st.life /\ st'.day > st.day)]_vars
 ReachRestartStopping == [][~(st'.life > st.life /\ \E r \in st.runs : r.phase = "stopping")]_vars
 ReachGoneStart == \A a \in Agents : ~(a \in st.gone /\ Press(Now, a, "ok").r = "state")
+ReachUnknownAgent == \A a \in Agents : ~(a \in st.lost /\ Press(Now, a, "ok").r = "unknown_agent")
 ReachGoneSeen == \A r \in h.live : ~(h.gone[r.agent] = "seen" /\ r.stop)
 ReachGoneQueued == [][~(\E a \in Agents : /\ h.gone[a] = "gone"
                                           /\ h.wait[a]["person"] + h.wait[a]["schedule"] = 1
