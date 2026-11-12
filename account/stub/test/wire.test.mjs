@@ -134,6 +134,8 @@ test("bytes that are no request get one cause, and nothing after them is read", 
       `POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n0\r\n${"t: v\r\n".repeat(HEAD_MAX / 6 + 1)}\r\n`,
     ],
   };
+  assert.deepEqual(read(["POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n2\r\nabXY0\r\n\r\n"]), { messages: [], causes: ["chunk"] });
+  assert.deepEqual(read([`POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n1;${"e".repeat(5000)}`], { end: false }).causes, ["chunk"]);
   for (const [cause, texts] of Object.entries(cases)) {
     for (const text of texts) {
       const result = read([text, GET], { end: false });
@@ -161,6 +163,9 @@ test("a head of exactly HEAD_MAX bytes is read", () => {
   const long = read([`POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n0\r\n${trailer}\r\n\r\n`]);
   assert.deepEqual(long.causes, []);
   assert.deepEqual(long.messages[0].trailers, [["t", "v".repeat(HEAD_MAX - 7)]]);
+  const pieces = read(["POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n0\r\n", trailer.slice(0, 5000), `${trailer.slice(5000)}\r\n\r\n`]);
+  assert.deepEqual(pieces.causes, []);
+  assert.equal(pieces.messages[0].trailers[0][1].length, HEAD_MAX - 7);
 });
 
 test("a peer that stops inside a request gives the cause incomplete, and one that stops between requests gives none", () => {

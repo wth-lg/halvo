@@ -309,6 +309,12 @@ test("the end of the first cap period follows contract 4 from the time of the co
   route(app, "cap-set", { body: '{"cap":{"amount":5,"period":"month"}}' });
   assert.equal(JSON.parse(route(app, "cap-get").body).spend.period_end, T + 1000 + 604800000);
   assert.notEqual(JSON.parse(route(app, "cap-get").body).spend.period_end, 0);
+  for (const move of [() => app.failPayment(), () => app.cancel()]) {
+    move();
+    clock = T + 5000000;
+    app.complete();
+    assert.equal(JSON.parse(route(app, "cap-get").body).spend.period_end, T + 1000 + 604800000);
+  }
 });
 
 test("a credential that does not match changes nothing, also with a body", () => {

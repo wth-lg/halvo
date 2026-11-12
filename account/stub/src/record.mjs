@@ -38,7 +38,7 @@ export function openRecord(dir) {
       connections += 1;
       const raw = join(dir, `connection-${number(connections)}.raw`);
       writeFileSync(raw, "", { flag: "wx" });
-      socket.prependListener("data", (chunk) => appendFileSync(raw, chunk));
+      socket.on("data", (chunk) => appendFileSync(raw, chunk));
       return connections;
     },
     request({ connection, method, target, headers, trailers, body, status, result }) {

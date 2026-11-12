@@ -9,7 +9,7 @@ import { startStub as start } from "../src/stub.mjs";
 
 const ends = [];
 after(async () => {
-  for (const end of ends) await end();
+  for (const end of ends) await Promise.race([end(), new Promise((resolve) => setTimeout(resolve, 5000))]);
 });
 
 /** Starts the stub in this process, as startStub does, and closes it after the last test of the file, also after a failure. */
@@ -50,15 +50,26 @@ export function parseAll(bytes) {
 
 /**
  * Sends raw bytes to a port of 127.0.0.1 through `open` (net.connect by default) and resolves to every byte read until
- * the peer closes. `bytes` may be a list of parts, written 50 ms apart; with `half`, the client ends its side after the last part.
+ * the peer closes, or rejects when the peer has not closed after 10 s. `bytes` may be a list of parts, written 50 ms
+ * apart; with `half`, the client ends its side after the last part.
  */
 export function exchange(port, bytes, open = (options) => connect(options), { half = false } = {}) {
   return new Promise((resolve, reject) => {
     const socket = open({ host: "127.0.0.1", port });
     const chunks = [];
+    const timer = setTimeout(() => {
+      socket.destroy();
+      reject(new Error("the peer did not close within 10 s"));
+    }, 10000);
     socket.on("data", (chunk) => chunks.push(chunk));
-    socket.on("error", reject);
-    socket.on("close", () => resolve(Buffer.concat(chunks)));
+    socket.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    socket.on("close", () => {
+      clearTimeout(timer);
+      resolve(Buffer.concat(chunks));
+    });
     const parts = Array.isArray(bytes) ? bytes : [bytes];
     const next = (index) => {
       if (index === parts.length) {

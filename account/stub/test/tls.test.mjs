@@ -4,6 +4,7 @@ import { X509Certificate } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { connect } from "node:tls";
+import { connect as netConnect } from "node:net";
 import { join } from "node:path";
 import { makeTestAuthority, TlsError } from "../src/tls.mjs";
 import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh, startStub } from "./support.mjs";
@@ -99,6 +100,19 @@ test("a connection that fails the TLS handshake is recorded with the error's cod
   } finally {
     await stub.close();
   }
+});
+
+test("a connection that the peer resets inside the TLS handshake leaves no line", async () => {
+  const record = fresh();
+  const stub = await startStub({ record, tlsCa: join(fresh(), "ca.pem") });
+  const socket = netConnect({ host: "127.0.0.1", port: portOf(stub.app) });
+  socket.on("error", () => {});
+  await new Promise((resolve) => socket.on("connect", resolve));
+  socket.write(Buffer.from([0x16, 0x03, 0x01, 0x00, 0x40, 0x01, 0x00, 0x00, 0x3c]));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  socket.resetAndDestroy();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(readFileSync(join(record, "requests.jsonl"), "utf8"), "");
 });
 
 test("a client that checks the name localhost refuses the certificate, which names only the address", async () => {
