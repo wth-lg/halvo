@@ -540,12 +540,31 @@ fn in_an_attribute_or_a_macro(t: &[String]) -> Vec<bool> {
     inside
 }
 
+fn in_a_call(t: &[String]) -> Vec<bool> {
+    let mut inside = vec![false; t.len()];
+    for i in 1..t.len() {
+        if t[i] == "!"
+            && is_name(&t[i - 1])
+            && bare(&t[i - 1]) != "macro_rules"
+            && is_open(t.get(i + 1))
+        {
+            let close = matching(t, i + 1).min(t.len() - 1);
+            for flag in &mut inside[i + 1..=close] {
+                *flag = true;
+            }
+        }
+    }
+    inside
+}
+
 fn in_a_matcher(t: &[String]) -> Vec<bool> {
     let mut inside = vec![false; t.len()];
+    let call = in_a_call(t);
     for i in 0..t.len() {
         if !(bare(&t[i]) == "macro_rules"
             && t.get(i + 1).is_some_and(|x| x == "!")
             && is_open(t.get(i + 3)))
+            || call[i]
         {
             continue;
         }
@@ -1724,16 +1743,43 @@ fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Op
     if tree.modules.iter().any(|(m, n)| m == module && n == first) {
         return Some(module.iter().cloned().chain(path.iter().cloned()).collect());
     }
-    let target = tree
+    let Some(target) = tree
         .aliases
         .iter()
         .find(|(m, alias, _)| m == module && alias == first)
-        .map(|(_, _, target)| target.clone())?;
+        .map(|(_, _, target)| target.clone())
+    else {
+        return through_a_glob(tree, module, path, depth);
+    };
     let joined: Segments = target
         .into_iter()
         .chain(path[1..].iter().cloned())
         .collect();
     absolute(tree, module, &joined, depth + 1)
+}
+
+fn through_a_glob(
+    tree: &Tree,
+    module: &[String],
+    path: &[String],
+    depth: usize,
+) -> Option<Segments> {
+    for (m, target, _) in &tree.globs {
+        if m != module {
+            continue;
+        }
+        match absolute(tree, module, target, depth + 1) {
+            Some(g) if g.is_empty() => return Some(path.to_vec()),
+            Some(g) if g[0] == ABOVE => return Some(g),
+            Some(g) if g != module => {
+                if let Some(found) = absolute(tree, &g, path, depth + 1) {
+                    return Some(found);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn place(tree: &Tree, locked: &Locked, module: &[String], path: &[String], depth: usize) -> Place {
@@ -1878,7 +1924,9 @@ fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
                         break;
                     }
                 }
-                x if is_ident(x) => generics.push(bare(x).to_owned()),
+                x if depth == 1 && is_name(x) && (t[j - 1] == "<" || t[j - 1] == ",") => {
+                    generics.push(bare(x).to_owned())
+                }
                 _ => {}
             }
             j += 1;
@@ -1943,15 +1991,33 @@ fn impl_faults(
     for l in lexed {
         let t = &l.t;
         for i in 0..t.len() {
+            let item_group = i >= 2
+                && matches!(t[i - 1].as_str(), "(" | "[")
+                && (t[i - 2] == "!"
+                    || t[i - 2] == "$"
+                    || (t[i - 2] == ">" && i >= 3 && t[i - 3] == "="));
             if t[i] != "impl"
                 || l.matcher[i]
-                || type_position(i.checked_sub(1).map(|j| t[j].as_str()))
+                || (type_position(i.checked_sub(1).map(|j| t[j].as_str())) && !item_group)
             {
                 continue;
             }
             let (generics, self_type) = impl_header(t, i);
             let path = type_path(&self_type);
             let shown = self_type.join(" ");
+            if self_type
+                .first()
+                .is_none_or(|x| matches!(x.as_str(), ")" | "]" | "}" | "," | ";" | "=" | "{"))
+            {
+                faults.push((
+                    Rule::LockedImpl,
+                    format!(
+                        "{} holds an impl whose type the test cannot read: write the keyword impl and its type together",
+                        l.file
+                    ),
+                ));
+                continue;
+            }
             if path.len() == 1 && generics.contains(&path[0]) {
                 continue;
             }
@@ -3346,7 +3412,10 @@ fn the_test_of_the_later_files_refuses_an_impl_in_a_macro_for_a_type_that_its_ar
         cfg_passed("outer"),
     ));
     assert_refused(&cases);
-    assert_passed(&[&format!("{TR}{own}own!(#[doc = \"a doc\"] Mine);\n")]);
+    assert_passed(&[
+        &format!("{TR}{own}own!(#[doc = \"a doc\"] Mine);\n"),
+        &format!("{TR}macro_rules! two {{\n    (decl $n:ident) => {{\n        pub struct $n;\n        impl Tr for $n {{}}\n    }};\n    (check) => {{\n        #[cfg(test)]\n        pub fn checked() {{}}\n    }};\n}}\ntwo!(decl Mine);\n"),
+    ]);
     assert_passed(&[
         &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub struct $n;\n        impl Tr for $n {{}}\n        impl $n {{\n            pub fn f() {{}}\n        }}\n    }};\n}}\nown!(Mine);\n"),
         &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub enum $n {{\n            One,\n        }}\n        impl<'de> serde::Deserialize<'de> for $n {{\n            fn deserialize<D: serde::Deserializer<'de>>(_: D) -> Result<Self, D::Error> {{\n                Ok($n::One)\n            }}\n        }}\n    }};\n}}\nown!(Mine);\n"),
@@ -3444,6 +3513,42 @@ fn the_test_of_the_later_files_reads_a_wrapper_by_any_path_a_type_macro_generic_
             locked_impl("KindEntry"),
         ),
         (
+            "use crate::*;\nimpl KindEntry {}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+        (
+            "pub mod via_glob {\n    use crate::*;\n    impl record::TypedRecord {}\n}\n".to_owned(),
+            locked_impl("record::TypedRecord"),
+        ),
+        (
+            "use super::*;\nimpl kinds::KindEntry {}\n".to_owned(),
+            locked_impl("kinds::KindEntry"),
+        ),
+        (
+            "pub mod more {\n    pub use crate::kinds;\n}\nuse self::more::*;\nimpl kinds::KindEntry {}\n".to_owned(),
+            locked_impl("kinds::KindEntry"),
+        ),
+        (
+            "use crate::record::TypedRecord;\nimpl<'TypedRecord> std::fmt::Display for TypedRecord {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.write_str(\"x\")\n    }\n}\n".to_owned(),
+            locked_impl("TypedRecord"),
+        ),
+        (
+            "macro_rules! pass {\n    ($($t:tt)*) => {\n        $($t)*\n    };\n}\npass!(impl crate::kinds::KindEntry {});\n".to_owned(),
+            locked_impl("crate::kinds::KindEntry"),
+        ),
+        (
+            "macro_rules! paren {\n    () => (\n        impl crate::kinds::KindEntry {}\n    );\n}\nparen!();\n".to_owned(),
+            locked_impl("crate::kinds::KindEntry"),
+        ),
+        (
+            "macro_rules! keyword {\n    ($i:tt) => {\n        $i crate::kinds::KindEntry {}\n    };\n}\nkeyword! { impl }\n".to_owned(),
+            "learning.rs holds an impl whose type the test cannot read: write the keyword impl and its type together".to_owned(),
+        ),
+        (
+            "macro_rules! unwrap_arm {\n    (macro_rules! $n:ident { { $($t:tt)* } => {}; }) => {\n        $($t)*\n    };\n}\nunwrap_arm! {\n    macro_rules! never_defined {\n        { impl crate::kinds::KindEntry {} } => {};\n    }\n}\n".to_owned(),
+            locked_impl("crate::kinds::KindEntry"),
+        ),
+        (
             "use crate::kinds::*;\n#[cfg_attr(all(), cfg(any()))]\npub(crate) struct KindEntry;\nimpl KindEntry {}\n".to_owned(),
             locked_impl("KindEntry"),
         ),
@@ -3457,6 +3562,7 @@ fn the_test_of_the_later_files_reads_a_wrapper_by_any_path_a_type_macro_generic_
         &format!("macro_rules! t {{\n    () => {{\n        u8\n    }};\n}}\n{TR}impl Tr for t!() {{}}\n"),
         "pub mod deep {\n    impl self::super::Mine {}\n}\npub struct Mine;\n",
         "use crate::kinds::*;\n#[derive(Debug)]\npub struct KindEntry;\nimpl KindEntry {}\n",
+        "pub trait Tr {}\nimpl<'a, T: Tr> Tr for &'a T {}\npub fn f() -> (impl Tr, u8) {\n    (Own, 0)\n}\npub struct Own;\nimpl Tr for Own {}\n",
         &format!("{TR}{PICK}pub struct W<T = u8>(T);\nimpl<T> Pick for W<T> {{\n    type Out = T;\n}}\nimpl Tr for <W as Pick>::Out {{}}\n"),
     ]);
 }
