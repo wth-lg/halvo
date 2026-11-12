@@ -341,6 +341,8 @@ pub struct DeletionCheck {
     /// Bytes left in the WAL after the shred pass.
     pub wal_bytes: u64,
     pub delete_all_keys: u64,
+    /// The custody answers RootMissing for the wrap retained from before
+    /// delete-all, and that wrap does not open under an all-zero root.
     pub root_destroyed: bool,
     /// `open` on the directory after delete-all returns `Sealed`.
     pub store_sealed: bool,

@@ -58,12 +58,17 @@ pub trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
-    /// Crypto-shred everything and destroy the store key (delete-all). A second
-    /// call on a handle that delete-all has sealed destroys the root, the key
-    /// file, the database files and the segments directory again where they
-    /// are left, and returns an empty report. Once
-    /// that handle is gone, `create` answers
-    /// [`StoreError::AlreadyExists`] for as long as the key file is left.
+    /// Crypto-shred everything and destroy the store key (delete-all). A call
+    /// that stopped after its root step is finished by a second call on the
+    /// same handle, which destroys the root, the key file, the database files
+    /// and the segments directory again where they are left, and returns an
+    /// empty report. Once that handle is gone, no call finishes it while the
+    /// key file is left: `open` answers [`StoreError::Custody`] with
+    /// [`CustodyError::RootMissing`] for a whole key file and
+    /// [`StoreError::KeyFileUnparseable`] for one that the stop left zeroed,
+    /// and `create` answers [`StoreError::AlreadyExists`]. Once the key file is
+    /// gone, `open` answers [`StoreError::Sealed`], and `create` removes what is
+    /// left and makes a new store.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
 
@@ -112,13 +117,17 @@ pub enum StoreError {
     #[error("the store key does not open the store database")]
     DatabaseUnreadable,
     /// store.key or store.db has a format version above the one this build
-    /// reads.
+    /// reads. The refused open writes to no file of the store but writer.lock,
+    /// which it makes when it is missing, and it narrows the directory to its
+    /// owner.
     #[error(
         "the store has format version {found}, above version {supported} that this build reads"
     )]
     NewerStore { found: i64, supported: i64 },
     /// store.key or store.db has a format version below the one this build
-    /// reads. No migration exists.
+    /// reads. No migration exists. The refused open writes to no file of the
+    /// store but writer.lock, which it makes when it is missing, and it narrows
+    /// the directory to its owner.
     #[error(
         "the store has format version {found}, below version {supported} that this build reads"
     )]
@@ -154,7 +163,8 @@ pub fn verify_deletion() -> StoreResult<String> {
 }
 
 /// Run the `--verify-store` measurements on a fresh store made in `dir` that
-/// holds `marker`, and return the line that the gate judges.
+/// holds `marker`, and return the line that the gate judges. It reads neither
+/// HALVO_STORE_DIR nor HALVO_GATE_MARKER and uses no default marker.
 /// Fails when a file of the store holds the raw store key.
 pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
     verify::run_store_check_in(dir, marker).map(|check| check.to_string())
@@ -162,8 +172,9 @@ pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
 
 /// Run the `--verify-deletion` measurements on a fresh store made in `dir`:
 /// one expired segment shredded beside a live one, then delete-all. Returns
-/// the line that the gate judges. Fails when the state
-/// of the root after delete-all is unknown.
+/// the line that the gate judges. It reads neither HALVO_STORE_DIR nor
+/// HALVO_GATE_MARKER. Fails when the state of the root after delete-all is
+/// unknown.
 pub fn measure_deletion(dir: &Path) -> StoreResult<String> {
     verify::run_deletion_check_in(dir).map(|check| check.to_string())
 }

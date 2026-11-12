@@ -1127,6 +1127,84 @@ fn open_tightens_a_store_directory_made_at_0755_to_0700() {
     assert_eq!(mode, 0o700, "open left the store directory at {mode:o}");
 }
 
+fn answer_of_open_and_create(store_dir: &Path, roots_dir: &Path) -> (String, String) {
+    let opened = match open_by_the_recorded_root(store_dir, roots_dir) {
+        Ok(_) => "Ok".to_string(),
+        Err(e) => format!("{e:?}"),
+    };
+    let created = match EncryptedStore::create(
+        store_dir,
+        Box::new(file_root_custody(
+            roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh(),
+        )),
+        DEFAULT_RETENTION,
+    ) {
+        Ok(store) => {
+            drop(store);
+            "Ok".to_string()
+        }
+        Err(StoreError::AlreadyExists(_)) => "AlreadyExists".to_string(),
+        Err(e) => format!("{e:?}"),
+    };
+    (opened, created)
+}
+
+fn a_delete_all_stopped_after_its_root_step(dir: &Path) -> (PathBuf, PathBuf) {
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    super::db::failpoint::arm("key_file_destroy");
+    assert!(
+        store.crypto_shred_all().is_err(),
+        "the failpoint did not stop delete-all"
+    );
+    drop(store);
+    (store_dir, roots_dir)
+}
+
+#[test]
+fn after_a_stopped_delete_all_open_and_create_answer_by_what_the_stop_left() {
+    let whole = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = a_delete_all_stopped_after_its_root_step(whole.path());
+    let key_file_whole = answer_of_open_and_create(&store_dir, &roots_dir);
+
+    let zeroed = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = a_delete_all_stopped_after_its_root_step(zeroed.path());
+    let len = std::fs::metadata(KeyFile::path(&store_dir)).unwrap().len() as usize;
+    std::fs::write(KeyFile::path(&store_dir), vec![0u8; len]).unwrap();
+    let key_file_zeroed = answer_of_open_and_create(&store_dir, &roots_dir);
+
+    let gone = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = a_delete_all_stopped_after_its_root_step(gone.path());
+    std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+    let segment = segment_path(&store_dir, Uuid::now_v7());
+    std::fs::create_dir_all(segment.parent().unwrap()).unwrap();
+    std::fs::write(&segment, b"a segment file that the stop left").unwrap();
+    assert!(store_dir.join("store.db").exists() && segment.exists());
+    let key_file_gone = answer_of_open_and_create(&store_dir, &roots_dir);
+    let segment_left_after_create = segment.exists();
+
+    assert_eq!(
+        [key_file_whole, key_file_zeroed, key_file_gone],
+        [
+            (
+                "Custody(RootMissing)".to_string(),
+                "AlreadyExists".to_string()
+            ),
+            (
+                "KeyFileUnparseable".to_string(),
+                "AlreadyExists".to_string()
+            ),
+            ("Sealed".to_string(), "Ok".to_string()),
+        ]
+    );
+    assert!(
+        !segment_left_after_create,
+        "the create over a store whose key file was gone left its segment file"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn open_refuses_a_store_db_that_is_a_link_before_its_custody_and_writes_nothing_through_it() {
@@ -1478,6 +1556,53 @@ fn open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_fi
             "user_version -1: OlderStore { found: -1, supported: 1 }",
         ]
     );
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        set_user_version(&store_dir, &roots_dir, root_id, 99);
+        std::fs::remove_file(store_dir.join("writer.lock")).unwrap();
+        std::fs::set_permissions(&store_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let contents = |store_dir: &Path| -> Vec<(PathBuf, Vec<u8>)> {
+            let mut files: Vec<(PathBuf, Vec<u8>)> = files_under(store_dir)
+                .into_iter()
+                .filter(|path| !path.ends_with("writer.lock"))
+                .map(|path| {
+                    let bytes = std::fs::read(&path).unwrap();
+                    (path, bytes)
+                })
+                .collect();
+            files.sort();
+            files
+        };
+        let before = contents(&store_dir);
+
+        let refused = open_by_the_recorded_root(&store_dir, &roots_dir).map(drop);
+
+        let mode = std::fs::metadata(&store_dir).unwrap().permissions().mode() & 0o777;
+        assert!(
+            matches!(
+                refused,
+                Err(StoreError::NewerStore {
+                    found: 99,
+                    supported: 1
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(mode, 0o700, "a refused open left the directory at {mode:o}");
+        assert!(
+            store_dir.join("writer.lock").exists(),
+            "a refused open made no writer.lock"
+        );
+        assert!(
+            contents(&store_dir) == before,
+            "a refused open changed a file of the store other than writer.lock"
+        );
+    }
 }
 
 #[test]

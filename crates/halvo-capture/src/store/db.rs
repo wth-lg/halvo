@@ -713,7 +713,10 @@ impl EncryptedStore {
     /// key, wrap that key with `custody` and write the store-key file. A
     /// directory with a store-key file already holds a store; one without is
     /// free, and any keyless leftovers in it are removed. When a step fails,
-    /// the directory and its `writer.lock` stay.
+    /// the call removes the database and key files that it made and destroys
+    /// the root that it made, and answers the step's error; when one of those
+    /// removals fails, it answers that removal's error in its place, and what
+    /// it could not remove is left. The directory and its `writer.lock` stay.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
