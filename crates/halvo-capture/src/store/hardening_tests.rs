@@ -483,6 +483,62 @@ fn a_shred_whose_file_removal_fails_still_destroys_the_key_and_the_next_pass_rem
 }
 
 #[test]
+fn a_shred_clears_the_key_durably_before_it_removes_the_file_and_syncs_the_shard_after() {
+    use super::durable::test_support::{Call, RecordingFs};
+    use std::sync::Mutex;
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (expired, _) = store
+        .write_segment_with_expiry(&mut Cursor::new(b"cleared before removal"), 0, 1)
+        .unwrap();
+    store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    let path = segment_path(dir.path(), expired.segment_id);
+    let shard = path.parent().unwrap().to_path_buf();
+    let cipher = std::fs::read(&path).unwrap();
+    let store_key = *store.store_key().unwrap().expose();
+    let at_removal = Arc::new(Mutex::new(Vec::new()));
+    let fs = {
+        let (dir, path, at_removal) = (
+            dir.path().to_path_buf(),
+            path.clone(),
+            Arc::clone(&at_removal),
+        );
+        RecordingFs::observed_by(move |call| {
+            if *call == Call::RemoveFile(path.clone()) {
+                let in_main_file =
+                    wrapped_key_in_copy_of_main_file_without_wal(&dir, &store_key, expired.segment_id)
+                        .unwrap();
+                at_removal.lock().unwrap().push((
+                    recoverable(&cipher, &store_key, in_main_file),
+                    wal_len(&dir),
+                ));
+            }
+        })
+    };
+    let fs = Arc::new(fs);
+    store.use_fs(fs.clone());
+
+    assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+
+    assert_eq!(
+        *at_removal.lock().unwrap(),
+        vec![(false, 0)],
+        "when the file was removed, store.db or its log still held the key of the segment"
+    );
+    let calls = fs.calls();
+    let removal = calls
+        .iter()
+        .position(|call| *call == Call::RemoveFile(path.clone()))
+        .expect("the shred removed the segment file through the seam");
+    assert!(
+        calls[removal + 1..].contains(&Call::SyncDir(shard.clone())),
+        "the shard was not synced after the removal: {calls:?}"
+    );
+    assert!(!path.exists());
+}
+
+#[test]
 fn delete_all_leaves_a_directory_a_fresh_create_can_use() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());

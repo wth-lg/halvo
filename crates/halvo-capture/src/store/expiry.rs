@@ -83,7 +83,7 @@ impl EncryptedStore {
                     continue;
                 }
             }
-            match segment::remove_segment_file(file.path()) {
+            match segment::remove_segment_file(self.fs(), file.path()) {
                 Ok(()) => removed += 1,
                 Err(e) => failures.push(e),
             }

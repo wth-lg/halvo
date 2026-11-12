@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
 use super::dev_fallback::{aead_open, aead_seal, fill_random, store_key_from};
+use crate::store::durable::{self, OsFs};
 use super::{CustodyError, RootId, StoreKey, WrappedKey};
 
 const ROOT_EXT: &str = "root";
@@ -27,21 +28,9 @@ fn root_io(e: std::io::Error) -> CustodyError {
 }
 
 fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), CustodyError> {
-    let mut file = std::fs::File::options()
-        .write(true)
-        .create_new(true)
-        .open(partial)
-        .map_err(root_io)?;
-    let written = file.write_all(blob).and_then(|()| file.sync_all());
-    drop(file);
-    let written = written.and_then(|()| std::fs::rename(partial, path));
-    match written {
-        Ok(()) => Ok(()),
-        Err(e) => match scrub_and_remove(partial) {
-            Ok(()) => Err(root_io(e)),
-            Err(left_behind) => Err(left_behind),
-        },
-    }
+    durable::write_durably(&OsFs, partial, path, root_io, scrub_and_remove, |out| {
+        out.write_all(blob).map_err(root_io)
+    })
 }
 
 fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {

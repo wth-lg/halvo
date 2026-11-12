@@ -1,6 +1,7 @@
 //! The encrypted segment store: its traits, types and errors.
 
 pub mod db;
+pub(crate) mod durable;
 pub mod expiry;
 pub mod segment;
 pub mod verify;

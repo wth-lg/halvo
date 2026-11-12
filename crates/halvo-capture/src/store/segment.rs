@@ -15,7 +15,7 @@ use crate::custody::dev_fallback::{aead_open, aead_seal};
 use crate::custody::wiped_on_drop;
 use crate::event::SegmentKeyId;
 
-use super::db::remove_if_present;
+use super::durable::{self, DurableFs};
 use super::{StoreError, StoreResult};
 
 pub(crate) const CHUNK: usize = 64 * 1024;
@@ -294,6 +294,7 @@ fn emit_plaintext(out: &mut dyn Write, opened: Result<Vec<u8>, aead::Error>) -> 
 
 pub(crate) fn write_segment_file(
     store_dir: &Path,
+    fs: &dyn DurableFs,
     seg_key: &SegmentKey,
     header: &SegmentHeader,
     plaintext: &mut dyn Read,
@@ -303,28 +304,17 @@ pub(crate) fn write_segment_file(
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(io_error)?;
     }
-    let written = write_complete(&partial, seg_key, header, plaintext).and_then(|written| {
-        std::fs::rename(&partial, &path).map_err(io_error)?;
-        Ok(written)
-    });
-    if written.is_err() {
-        let _ = std::fs::remove_file(&partial);
-    }
-    written
-}
-
-fn write_complete(
-    partial: &Path,
-    seg_key: &SegmentKey,
-    header: &SegmentHeader,
-    plaintext: &mut dyn Read,
-) -> StoreResult<u64> {
-    let file = std::fs::File::create(partial).map_err(io_error)?;
-    let mut writer = io::BufWriter::new(file);
-    let written = encrypt_segment(plaintext, &mut writer, seg_key, header)?;
-    writer.flush().map_err(io_error)?;
-    writer.get_ref().sync_all().map_err(io_error)?;
-    Ok(written)
+    durable::write_durably(
+        fs,
+        &partial,
+        &path,
+        io_error,
+        |partial| {
+            let _ = std::fs::remove_file(partial);
+            Ok(())
+        },
+        |out| encrypt_segment(plaintext, out, seg_key, header),
+    )
 }
 
 pub(crate) fn read_segment_file(
@@ -350,24 +340,8 @@ pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> Stor
     Ok(plaintext)
 }
 
-pub(crate) fn remove_segment_file(path: &Path) -> StoreResult<()> {
-    remove_if_present(path)?;
-    sync_shard(path)
-}
-
-#[cfg(unix)]
-fn sync_shard(path: &Path) -> StoreResult<()> {
-    match path.parent() {
-        Some(shard) => std::fs::File::open(shard)
-            .and_then(|dir| dir.sync_all())
-            .map_err(io_error),
-        None => Ok(()),
-    }
-}
-
-#[cfg(not(unix))]
-fn sync_shard(_path: &Path) -> StoreResult<()> {
-    Ok(())
+pub(crate) fn remove_segment_file(fs: &dyn DurableFs, path: &Path) -> StoreResult<()> {
+    durable::remove_durably(fs, path).map_err(io_error)
 }
 
 #[cfg(test)]
@@ -557,6 +531,7 @@ pub(crate) mod tests {
         };
         let written = write_segment_file(
             dir.path(),
+            &crate::store::durable::OsFs,
             &seg_key,
             &header,
             &mut io::Cursor::new(&plaintext),
@@ -592,6 +567,7 @@ pub(crate) mod tests {
         };
         write_segment_file(
             dir.path(),
+            &crate::store::durable::OsFs,
             &seg_key,
             &header,
             &mut io::Cursor::new(b"secret bytes"),

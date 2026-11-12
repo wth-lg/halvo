@@ -3,6 +3,7 @@
 use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -16,6 +17,7 @@ use crate::custody::{
 };
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
+use super::durable::{self, DurableFs, OsFs};
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{SegmentStore, StoreError, StoreResult};
 
@@ -32,10 +34,21 @@ impl KeyFile {
         store_dir.join("store.key")
     }
 
+    fn temp_path(store_dir: &Path) -> PathBuf {
+        store_dir.join("store.key.tmp")
+    }
+
     fn write(&self, store_dir: &Path) -> StoreResult<()> {
         let json =
             serde_json::to_vec_pretty(self).map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
-        std::fs::write(Self::path(store_dir), json).map_err(io_error)
+        durable::write_durably(
+            &OsFs,
+            &Self::temp_path(store_dir),
+            &Self::path(store_dir),
+            io_error,
+            remove_if_present,
+            |out| out.write_all(&json).map_err(io_error),
+        )
     }
 
     pub(crate) fn read(store_dir: &Path) -> StoreResult<Self> {
@@ -616,6 +629,7 @@ pub struct EncryptedStore {
     retention: Duration,
     custody: Box<dyn KeyCustody + Send>,
     keyed: Keyed,
+    fs: Arc<dyn DurableFs>,
     _writer_lock: WriterLock,
 }
 
@@ -638,6 +652,7 @@ impl EncryptedStore {
         }
         Db::destroy(dir)?;
         remove_dir_if_present(&segment::segments_root(dir))?;
+        remove_if_present(&KeyFile::temp_path(dir))?;
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
@@ -647,6 +662,7 @@ impl EncryptedStore {
                 retention,
                 custody,
                 keyed: Keyed::Open { db, store_key },
+                fs: Arc::new(OsFs),
                 _writer_lock,
             }),
             Err(e) => {
@@ -737,6 +753,7 @@ impl EncryptedStore {
             retention,
             custody,
             keyed: Keyed::Open { db, store_key },
+            fs: Arc::new(OsFs),
             _writer_lock,
         })
     }
@@ -754,6 +771,15 @@ impl EncryptedStore {
 
     pub(crate) fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    pub(crate) fn fs(&self) -> &dyn DurableFs {
+        self.fs.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn use_fs(&mut self, fs: Arc<dyn DurableFs>) {
+        self.fs = fs;
     }
 
     pub(crate) fn store_key(&self) -> StoreResult<&StoreKey> {
@@ -814,7 +840,8 @@ impl EncryptedStore {
             segment_id,
             segment_key_id,
         };
-        let byte_len = segment::write_segment_file(&self.dir, &seg_key, &header, bytes)?;
+        let byte_len =
+            segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
         if let Err(e) = db.commit_segment_key(segment_key_id, &wrapped) {
             remove_if_present(&segment::segment_path(&self.dir, segment_id))?;
             return Err(e);
