@@ -424,7 +424,7 @@ edit() {
     return 1
   fi
   if cmp -s "$file" "$file.edited"; then
-    printf 'the edit of %s changed nothing\n' "$file"
+    printf 'the edit of %s changed nothing\n' "${file#"$work"/}"
     wrong="$wrong ${fixture##*/}"
     return 1
   fi
@@ -699,7 +699,7 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
 
   make_fixture edit-that-changes-nothing
   before=$wrong
-  if edit Cargo.toml sed 's/^no such line$/x/'; then
+  if edit Cargo.toml cat; then
     got=applied
   elif [ "$wrong" = "$before edit-that-changes-nothing" ]; then
     got=refused
@@ -709,7 +709,7 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   wrong=$before
   harness_case edit-that-changes-nothing "$got"
   mkdir "$work/awk-that-copies"
-  printf '#!/bin/sh\ncat\n' >"$work/awk-that-copies/awk"
+  printf '#!/bin/sh\ntr -d %s\n' "'\\r'" >"$work/awk-that-copies/awk"
   chmod +x "$work/awk-that-copies/awk"
   make_fixture crlf-without-carriage-returns
   if (PATH="$work/awk-that-copies:$PATH" && to_crlf Cargo.toml); then
