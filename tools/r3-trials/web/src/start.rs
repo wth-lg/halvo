@@ -56,8 +56,11 @@ impl StartLock {
     }
 }
 
-/// Starts `cmd` under the start lock and waits for its output with the lock released.
+/// Starts `cmd` under the start lock with its standard output and error captured, as std's
+/// `output` does, and waits for its output with the lock released.
 pub fn output(cmd: &mut std::process::Command) -> std::io::Result<std::process::Output> {
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     let child = {
         let held = lock();
         held.spawn(cmd)?

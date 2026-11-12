@@ -485,9 +485,11 @@ mod tests {
 
     #[test]
     fn the_table_names_this_process_as_the_one_owner_of_its_own_connection() {
+        let held = crate::start::lock();
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         let relay_port = listener.local_addr().expect("addr").port();
         let client = std::net::TcpStream::connect(("127.0.0.1", relay_port)).expect("connect");
+        drop(held);
         let (_accepted, _) = listener.accept().expect("accept");
         let peer_port = client.local_addr().expect("addr").port();
         let me = std::process::id();

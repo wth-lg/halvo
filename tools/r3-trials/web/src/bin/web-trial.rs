@@ -7,7 +7,7 @@ use std::process::ExitCode;
 
 use r3_web::{
     browser_kind, CANDIDATE, DRIVER_STEPS, EGRESS_STEPS, EGRESS_WRAP_FLAG, ISOLATION_STEPS,
-    REACH_STEPS, RELAY_STEPS, STEPS, WAY_STEPS,
+    ORG_STEPS, PORT_FREE_STEP, REACH_STEPS, RELAY_STEPS, ROUND3_STEPS, STEPS, WAY_STEPS,
 };
 
 #[derive(Default)]
@@ -37,6 +37,8 @@ struct Args {
     routes: bool,
     round3: bool,
     port_channel: bool,
+    round3_rows: bool,
+    org_rows: bool,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -89,19 +91,22 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                 )
             }
             "--step" => a.step = Some(take()?),
-            "--rows" => match take()?.as_str() {
-                "isolation" => a.isolation = true,
-                "driver" => a.driver = true,
-                "relay" => a.relay_rows = true,
-                "ways" => a.way_rows = true,
-                "egress" => a.egress_rows = true,
-                "reach" => a.reach_rows = true,
-                _ => {
-                    return Err(
-                        "--rows takes isolation, driver, relay, ways, egress or reach".into(),
-                    )
+            "--rows" => {
+                match take()?.as_str() {
+                    "isolation" => a.isolation = true,
+                    "driver" => a.driver = true,
+                    "relay" => a.relay_rows = true,
+                    "ways" => a.way_rows = true,
+                    "egress" => a.egress_rows = true,
+                    "reach" => a.reach_rows = true,
+                    "round3" => a.round3_rows = true,
+                    "org" => a.org_rows = true,
+                    _ => return Err(
+                        "--rows takes isolation, driver, relay, ways, egress, reach, round3 or org"
+                            .into(),
+                    ),
                 }
-            },
+            }
             "--add-flag" => a.add_flags.push(take()?),
             "--machine" => {
                 let m = take()?;
@@ -161,7 +166,16 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if a.fault.is_some() && a.mode != Mode::Cells {
         return Err("--fault runs cells only".into());
     }
-    let rows: &[&str] = if a.reach_rows {
+    let driver_rows: Vec<&str> = DRIVER_STEPS
+        .iter()
+        .copied()
+        .chain(a.round3.then_some(PORT_FREE_STEP))
+        .collect();
+    let rows: &[&str] = if a.round3_rows {
+        &ROUND3_STEPS
+    } else if a.org_rows {
+        &ORG_STEPS
+    } else if a.reach_rows {
         &REACH_STEPS
     } else if a.egress_rows {
         &EGRESS_STEPS
@@ -170,7 +184,7 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     } else if a.relay_rows {
         &RELAY_STEPS
     } else if a.driver {
-        &DRIVER_STEPS
+        &driver_rows
     } else if a.isolation {
         &ISOLATION_STEPS
     } else {
@@ -192,6 +206,9 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     }
     if (a.relay_rows || a.way_rows || a.egress_rows || a.reach_rows) && !a.round2 {
         return Err("--rows relay belongs to --round 2".into());
+    }
+    if (a.round3_rows || a.org_rows) && !(a.round3 && a.relay) {
+        return Err("--rows round3 and --rows org belong to --round 3 with --relay".into());
     }
     if !a.isolation && !a.add_flags.is_empty() {
         return Err("--add-flag belongs to --rows isolation".into());
@@ -263,6 +280,41 @@ fn egress_wrap(spec: &str, argv: &[String]) -> ExitCode {
     }
 }
 
+/// The foreign process of the row `relay_foreign`: connects to the relay's port as a process
+/// outside the browser's tree, sends a SOCKS5 greeting and a CONNECT to HOST:PORT and a request,
+/// and prints how many bytes the relay sent back before it closed or 5 s passed.
+fn foreign_probe(argv: &[String]) -> ExitCode {
+    use std::io::Read;
+    let (Some(relay), Some(host), Some(port)) = (
+        argv.first().and_then(|p| p.parse::<u16>().ok()),
+        argv.get(1),
+        argv.get(2).and_then(|p| p.parse::<u16>().ok()),
+    ) else {
+        eprintln!("REFUSED usage: --foreign-probe RELAY_PORT HOST PORT");
+        return ExitCode::from(2);
+    };
+    let Ok(mut c) = std::net::TcpStream::connect(("127.0.0.1", relay)) else {
+        println!("foreign connected=no bytes=0");
+        return ExitCode::SUCCESS;
+    };
+    let _ = c.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+    let mut req = vec![5u8, 1, 0, 5, 1, 0, 3, host.len() as u8];
+    req.extend_from_slice(host.as_bytes());
+    req.extend_from_slice(&port.to_be_bytes());
+    req.extend_from_slice(b"GET /foreign HTTP/1.1\r\nHost: x\r\n\r\n");
+    let _ = c.write_all(&req);
+    let mut got = Vec::new();
+    let mut buf = [0u8; 512];
+    loop {
+        match c.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => got.extend_from_slice(&buf[..n]),
+        }
+    }
+    println!("foreign connected=yes bytes={}", got.len());
+    ExitCode::SUCCESS
+}
+
 fn port_free(port: u16) -> bool {
     TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
@@ -274,6 +326,17 @@ fn main() -> ExitCode {
     }
     if argv.first().map(String::as_str) == Some("--driver-child") {
         return driver_child(&argv[1..]);
+    }
+    #[cfg(feature = "driver")]
+    if argv.first().map(String::as_str) == Some(r3_web::relay::GUARD_FLAG) {
+        return ExitCode::from(r3_web::relay::guard_main(&argv[1..]).clamp(0, 255) as u8);
+    }
+    if argv.first().map(String::as_str) == Some("--hold-child") {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        return ExitCode::SUCCESS;
+    }
+    if argv.first().map(String::as_str) == Some("--foreign-probe") {
+        return foreign_probe(&argv[1..]);
     }
     let args = match parse(&argv) {
         Ok(a) => a,
@@ -344,13 +407,16 @@ mod driver {
         Channel, Executor, Fault, Locator, Outcome, PausedRequest, Res, Resolved, SnapshotLine,
         StartOptions,
     };
+    use r3_web::cdp::{NO_CHANNEL_MESSAGE, NO_ROUTE_MESSAGE, PROBE_HOST, PROBE_PORT};
+    use r3_web::checks;
     use r3_web::fixture::{count, fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
     use r3_web::relay::{relay_flags, HostPort, Relay, RelayHandle};
     use r3_web::tls::{make_certificate, openssl_runs, CertFault, Listener};
     use r3_web::{
-        extract_amount, major_of, median, variants_of, CANDIDATE, EGRESS_STEPS, EGRESS_WRAP_FLAG,
-        FIRST_FLAGS, ISOLATION_STEPS, REACH_STEPS, RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, STEPS,
-        WAY_STEPS, WS_POLICY,
+        extract_amount, major_of, median, same_site_local_state, variants_of, CANDIDATE,
+        EGRESS_STEPS, EGRESS_WRAP_FLAG, FIRST_FLAGS, ISOLATION_STEPS, ORG_STEPS, PORT_FREE_STEP,
+        REACH_STEPS, RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, ROUND3_STEPS, STEPS, WAY_STEPS,
+        WS_POLICY,
     };
 
     use super::{out, Args, Mode};
@@ -428,6 +494,9 @@ mod driver {
         net_log: Option<PathBuf>,
         repo: PathBuf,
         channel: Channel,
+        round3: bool,
+        probe_before: std::cell::Cell<usize>,
+        siblings: std::cell::RefCell<Vec<std::process::Child>>,
     }
 
     impl Ctx {
@@ -447,6 +516,8 @@ mod driver {
                 headless: self.headless,
                 flags: self.flags(),
                 channel: self.channel,
+                relay: self.relay.clone(),
+                local_state: None,
             }
         }
 
@@ -1962,6 +2033,237 @@ mod driver {
         outcome(misses, None)
     }
 
+    /// The second children of the row `pipe_inherit`: a thread that starts copies of the trial
+    /// program in a holding mode, each under the start lock, from just before the browser's start
+    /// until it returns.
+    struct Siblings {
+        go: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        thread: std::thread::JoinHandle<Vec<std::process::Child>>,
+    }
+
+    impl Siblings {
+        fn start(_ctx: &Ctx) -> Siblings {
+            let go = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+            let running = go.clone();
+            let ready = std::sync::Arc::new(std::sync::Barrier::new(2));
+            let started = ready.clone();
+            let thread = std::thread::spawn(move || {
+                let mut kids = Vec::new();
+                started.wait();
+                let Ok(exe) = std::env::current_exe() else {
+                    return kids;
+                };
+                while running.load(std::sync::atomic::Ordering::SeqCst) && kids.len() < 40 {
+                    let mut cmd = std::process::Command::new(&exe);
+                    cmd.arg("--hold-child")
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null());
+                    if let Ok(c) = cmd.start() {
+                        kids.push(c);
+                    }
+                }
+                kids
+            });
+            ready.wait();
+            Siblings { go, thread }
+        }
+
+        fn stop(self) -> Vec<std::process::Child> {
+            self.go.store(false, std::sync::atomic::Ordering::SeqCst);
+            self.thread.join().unwrap_or_default()
+        }
+    }
+
+    async fn pipe_inherit(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let ids = ex
+            .pipe_ids()
+            .cloned()
+            .ok_or_else(|| Fault::new("check", "no_pipe"))?;
+        let pids: Vec<u32> = ctx.siblings.borrow().iter().map(|c| c.id()).collect();
+        let holders = pids
+            .iter()
+            .filter(|p| checks::holds_an_end(**p, &ids))
+            .count();
+        eprintln!("pipe_inherit siblings={} holders={holders}", pids.len());
+        check(!pids.is_empty(), "no_sibling")?;
+        check(holders == 0, "sibling_holds_an_end")?;
+        Ok(None)
+    }
+
+    async fn relay_foreign(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        signin(ex, ctx).await?;
+        let program = ctx.repo.join("tools/r3-trials/web/record-listener.mjs");
+        let mut listener =
+            Listener::start_record(&program, "/foreign").map_err(|e| Fault::new("listener", e))?;
+        relay.allow(UTILITY, listener.port);
+        let foreign_before = relay.foreign_count();
+        let listener_port = listener.port;
+        let refusals_before = relay.refusals_of(UTILITY, listener_port);
+        let exe = std::env::current_exe().map_err(|e| Fault::new("probe", e.to_string()))?;
+        let t0 = Instant::now();
+        let mut cmd = std::process::Command::new(exe);
+        cmd.arg("--foreign-probe")
+            .arg(ctx.relay_port.to_string())
+            .arg(UTILITY)
+            .arg(listener.port.to_string())
+            .stdin(std::process::Stdio::null());
+        let out = tokio::task::spawn_blocking(move || r3_web::start::output(&mut cmd))
+            .await
+            .map_err(|_| Fault::new("probe", "join"))?
+            .map_err(|e| Fault::new("probe", e.kind().to_string()))?;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while relay.foreign_count() == foreign_before && Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        let ms = t0.elapsed().as_millis();
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        let bytes: Option<u64> = text
+            .split_whitespace()
+            .find_map(|w| w.strip_prefix("bytes="))
+            .and_then(|v| v.parse().ok());
+        let counts = listener.record_counts();
+        listener.stop();
+        let c = counts.map_err(|e| Fault::new("listener", e))?;
+        let foreign = relay.foreign_count() - foreign_before;
+        let refusals = relay.refusals_of(UTILITY, listener_port) - refusals_before;
+        eprintln!(
+            "relay_foreign answer_bytes={} foreign={foreign} agent_refusals={refusals} listener_connections={} last={:?}",
+            bytes.map(|b| b.to_string()).unwrap_or("-".into()),
+            c.connections,
+            relay.foreign().last()
+        );
+        check(text.contains("connected=yes"), "probe_not_connected")?;
+        check(bytes == Some(0), "relay_answered")?;
+        check(foreign == 1, "not_recorded_apart")?;
+        check(refusals == 0, "recorded_as_the_agent_s")?;
+        check(c.connections == 0 && c.bytes == 0, "listener_reached")?;
+        let back = ex.resolve_one(&[role("link", "Pay bill")], &[]).await;
+        check(back.is_ok(), "agent_route_lost")?;
+        Ok(Some(ms))
+    }
+
+    async fn start_probe(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        let probed = relay.refusals_of(PROBE_HOST, PROBE_PORT) - ctx.probe_before.get();
+        let total = counter(ctx, &["requests", "total"])?;
+        eprintln!("start_probe refusals={probed} fixture_requests_before_act={total}");
+        check(probed == 1, "no_probe_refusal")?;
+        check(total == 0, "request_before_the_probe")?;
+        ex.open(&ctx.u("/signin")).await?;
+        check(
+            counter(ctx, &["requests", "total"])? > 0,
+            "agent_did_not_act",
+        )?;
+        Ok(None)
+    }
+
+    async fn tree_lines_hold(ex: &Executor, needle: &str) -> Res<usize> {
+        let root = ex
+            .root()
+            .cloned()
+            .ok_or_else(|| Fault::new("check", "no_root"))?;
+        let table = r3_web::procs::table().map_err(|e| Fault::new("check", e.to_string()))?;
+        Ok(checks::tree_of(&table, &root)
+            .iter()
+            .filter(|p| {
+                checks::command_line(p.pid)
+                    .map(|l| l.contains(needle))
+                    .unwrap_or(false)
+            })
+            .count())
+    }
+
+    async fn same_site_pref(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        signin(ex, ctx).await?;
+        ex.open(&ctx.u("/pay")).await?;
+        let apart = pay_frame_target(ex, ctx).await.is_ok();
+        let named = tree_lines_hold(ex, "agent.test").await?;
+        eprintln!("same_site_pref frame_apart={apart} lines_naming_the_site={named}");
+        check(apart, "frame_in_page_process")?;
+        check(named == 0, "site_on_a_command_line")?;
+        Ok(None)
+    }
+
+    async fn same_site_rule(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        signin(ex, ctx).await?;
+        ex.open(&ctx.u("/pay")).await?;
+        let apart = pay_frame_target(ex, ctx).await.is_ok();
+        ex.arm_rule_on_page_only(
+            vec![origin(UTILITY, ctx.port), origin(PAY, ctx.port)],
+            false,
+        )
+        .await?;
+        let keys = [STATE_CHANGING, PAYMENTS];
+        let before = read_counters(ctx, &keys)?;
+        let pay = origin(PAY, ctx.port);
+        let t0 = Instant::now();
+        let sent = ex
+            .run_frame_script(
+                &format!("{pay}/"),
+                "(() => { fetch('/charge', {method: 'POST', body: 'halvo-same-site', mode: 'no-cors'}).catch(() => {}); return true; })()",
+            )
+            .await?;
+        check(sent == serde_json::Value::Bool(true), "script")?;
+        let seen = paused_after(ex, t0, |p| {
+            p.method == "POST" && p.origin == pay && p.path == "/charge"
+        })
+        .await;
+        eprintln!(
+            "same_site_rule frame_apart={apart} paused={}",
+            seen.as_ref()
+                .map(|(p, _)| format!("{:?}", p.outcome))
+                .unwrap_or("none".into())
+        );
+        if let Some((p, _)) = &seen {
+            check(p.outcome == Outcome::Failed, "not_failed")?;
+        }
+        held(ctx, &keys, &before, seen).await
+    }
+
+    async fn org_outcome(ctx: &Ctx, name: &str, started: Res<Executor>) -> Result<Run, NotRun> {
+        let (want_cause, want_message) = if name == "org_debugging" {
+            ("no_channel", NO_CHANNEL_MESSAGE)
+        } else {
+            ("no_route", NO_ROUTE_MESSAGE)
+        };
+        let (ok, cause, version) = match started {
+            Ok(ex) => {
+                let v = ex.version().await.unwrap_or_else(|_| "-".into());
+                ex.stop_and_remove().await;
+                (false, "started".to_string(), v)
+            }
+            Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
+            Err(f) => {
+                let message = f.1.split(" stderr_kept_bytes_").next().unwrap_or("");
+                let total = counter(ctx, &["requests", "total"]).unwrap_or(-1);
+                let left = std::fs::read_dir(&ctx.scratch)
+                    .map(|d| d.count())
+                    .unwrap_or(0);
+                eprintln!(
+                    "org step={name} cause={} message_is_plain={} fixture_requests={total} scratch_entries={left}",
+                    f.0,
+                    message == want_message
+                );
+                let ok = f.0 == want_cause && message == want_message && total == 0;
+                (ok, f.0.to_string(), "-".to_string())
+            }
+        };
+        Ok(Run {
+            ok,
+            cause: if ok { "-".into() } else { cause },
+            ms: 0,
+            version: if version == "-" {
+                format!("{}/0", ctx.kind)
+            } else {
+                version
+            },
+            peers: None,
+            checks: None,
+        })
+    }
+
     async fn step(ex: &mut Executor, ctx: &Ctx, name: &str, i: u32) -> Res<Option<u128>> {
         let whole = |r: Res<()>| r.map(|_| None);
         match name {
@@ -1989,6 +2291,11 @@ mod driver {
             "frame_doc" => frame_doc(ex, ctx).await,
             "reach_page" | "reach_opened" | "reach_frame" | "reach_worker" | "reach_shared"
             | "reach_service" => reach(ex, ctx, &name["reach_".len()..]).await,
+            "pipe_inherit" => pipe_inherit(ex, ctx).await,
+            "relay_foreign" => relay_foreign(ex, ctx).await,
+            "start_probe" => start_probe(ex, ctx).await,
+            "same_site_pref" => same_site_pref(ex, ctx).await,
+            "same_site_rule" => same_site_rule(ex, ctx).await,
             "after_unload" => after_unload(ex, ctx).await,
             "handler_launch" => handler_launch(ex, ctx).await,
             "no_worker_paths" => no_worker_paths(ex, ctx).await,
@@ -2005,6 +2312,7 @@ mod driver {
         ms: u128,
         version: String,
         peers: Option<(u32, u32)>,
+        checks: Option<Vec<checks::Count>>,
     }
 
     #[cfg(unix)]
@@ -2086,11 +2394,24 @@ mod driver {
         } else {
             None
         };
+        if let Some(r) = &ctx.relay {
+            ctx.probe_before.set(r.refusals_of(PROBE_HOST, PROBE_PORT));
+        }
+        if name == "same_site_pref" {
+            opts.local_state = Some(same_site_local_state(ctx.port));
+        }
+        let siblings = (name == "pipe_inherit").then(|| Siblings::start(ctx));
         let started = if ctx.round2 {
             ctx.stop.or(Executor::start_settled(&opts)).await
         } else {
             ctx.stop.or(Executor::start(&opts)).await
         };
+        if let Some(s) = siblings {
+            ctx.siblings.replace(s.stop());
+        }
+        if ORG_STEPS.contains(&name) {
+            return org_outcome(ctx, name, started).await;
+        }
         let mut ex = match started {
             Ok(ex) => ex,
             Err(f) if f.0 == "signal" => return Err(NotRun::new("signal", "")),
@@ -2104,8 +2425,34 @@ mod driver {
             }
         };
         let version = ex.version().await.unwrap_or_else(|_| "-".into());
+        let subject = match (ctx.round3, ex.root().cloned()) {
+            (true, Some(root)) => Some((root, ex.pipe_ids().cloned())),
+            _ => None,
+        };
+        let read =
+            |at: &str, subject: &Option<(r3_web::procs::Proc, Option<r3_web::start::PipeIds>)>| {
+                subject.as_ref().map(|(root, pipe)| {
+                    let counts = checks::check(&checks::Subject {
+                        root,
+                        profile: &opts.profile,
+                        pipe: pipe.as_ref(),
+                        relay_port: ctx.relay.as_ref().map(|_| ctx.relay_port),
+                    });
+                    eprintln!(
+                        "check step={name} i={i} at={at} {}",
+                        counts
+                            .iter()
+                            .map(|c| format!("{}={}", c.rule, c.count))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    );
+                    counts
+                })
+            };
+        let at_start = read("start", &subject);
         let t0 = Instant::now();
         let outcome = ctx.stop.or(step(&mut ex, ctx, name, i)).await;
+        let at_session = read("session", &subject);
         let ms = match &outcome {
             Ok(Some(from_action)) => *from_action,
             _ => t0.elapsed().as_millis(),
@@ -2123,7 +2470,27 @@ mod driver {
                 printable(&faults[0])
             );
         }
+        let keep = ex.keep_pipe();
         ex.stop_and_remove().await;
+        let at_end = read("end", &subject);
+        drop(keep);
+        let checked = match (at_start, at_session, at_end) {
+            (Some(a), Some(b), Some(c)) => Some(
+                a.iter()
+                    .zip(b.iter())
+                    .zip(c.iter())
+                    .map(|((x, y), z)| checks::Count {
+                        rule: x.rule,
+                        count: x.count + y.count + z.count,
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        };
+        for mut child in ctx.siblings.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
         if egress.is_some() {
             end_left_browser(&opts.profile);
         }
@@ -2161,6 +2528,7 @@ mod driver {
             ms,
             version,
             peers,
+            checks: checked,
         })
     }
 
@@ -2182,8 +2550,19 @@ mod driver {
                 ));
                 continue;
             }
+            if ORG_STEPS.contains(name) && ctx.machine == "mac" {
+                out(&format!(
+                    "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=no_policy_place",
+                    ctx.machine, ctx.kind
+                ));
+                continue;
+            }
             let mut ok = 0;
             let mut open_runs = 0;
+            let mut checked_runs = 0;
+            let mut check_ok = 0;
+            let mut check_sums: Vec<(&'static str, usize)> =
+                checks::RULES.iter().map(|r| (*r, 0)).collect();
             let mut peers = (0u32, 0u32);
             let mut times = Vec::new();
             let mut majors = Vec::new();
@@ -2203,6 +2582,19 @@ mod driver {
                         if let Some((all, own)) = r.peers {
                             peers.0 += all;
                             peers.1 += own;
+                        }
+                        if let Some(counts) = &r.checks {
+                            checked_runs += 1;
+                            if counts.iter().all(|c| c.count == 0) {
+                                check_ok += 1;
+                            }
+                            for c in counts {
+                                if let Some(slot) =
+                                    check_sums.iter_mut().find(|(r, _)| *r == c.rule)
+                                {
+                                    slot.1 += c.count;
+                                }
+                            }
                         }
                         if r.ok {
                             ok += 1;
@@ -2261,6 +2653,18 @@ mod driver {
                         .map(|m| m.to_string())
                         .collect::<Vec<_>>()
                         .join(",")
+                ));
+            }
+            if checked_runs > 0 {
+                out(&format!(
+                    "check machine={} browser={} step={name} ok={check_ok} of={checked_runs} {}",
+                    ctx.machine,
+                    ctx.kind,
+                    check_sums
+                        .iter()
+                        .map(|(r, n)| format!("{r}={n}"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
                 ));
             }
             if EGRESS_STEPS.contains(name) {
@@ -2530,6 +2934,12 @@ mod driver {
         relay: bool,
     }
 
+    const PORT_FREE_FORM: Form = Form {
+        step: PORT_FREE_STEP,
+        channel: Channel::Pipe,
+        relay: true,
+    };
+
     const FORMS: [Form; 4] = [
         Form {
             step: "driver_killed_pipe",
@@ -2645,6 +3055,7 @@ mod driver {
         let relay = if a.relay {
             match rt.block_on(Relay::start()) {
                 Ok(r) => {
+                    out(&format!("relay_port {}", r.port));
                     flags.extend(relay_flags(r.port));
                     if a.round2 {
                         let list: Vec<HostPort> = [&a.page, &a.target]
@@ -2666,18 +3077,20 @@ mod driver {
         if a.round2 {
             flags.extend(ROUND2_FLAGS.iter().map(|f| f.to_string()));
         }
-        let code = rt.block_on(port_child(&a, flags));
+        let code = rt.block_on(port_child(&a, flags, relay.as_ref().map(Relay::handle)));
         drop(relay);
         code
     }
 
-    async fn port_child(a: &ChildArgs, flags: Vec<String>) -> ExitCode {
+    async fn port_child(a: &ChildArgs, flags: Vec<String>, relay: Option<RelayHandle>) -> ExitCode {
         let opts = StartOptions {
             browser: a.browser.clone(),
             profile: a.profile.clone(),
             headless: true,
             flags,
             channel: a.channel,
+            relay,
+            local_state: None,
         };
         let started = if a.round2 {
             Executor::start_settled(&opts).await
@@ -2739,8 +3152,68 @@ mod driver {
         connections: u64,
         path_requests: u64,
         gone_ms: Option<u128>,
+        free_ms: Option<u128>,
         version: String,
         left: bool,
+    }
+
+    /// Whether another socket can bind 127.0.0.1:`port` now, as a process that wants the port
+    /// would try: on macOS with `SO_REUSEADDR`, as std binds; on Windows plainly and with
+    /// `SO_REUSEADDR`.
+    fn port_bindable(port: u16) -> bool {
+        if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return true;
+        }
+        reuse_bind(port)
+    }
+
+    #[cfg(windows)]
+    fn reuse_bind(port: u16) -> bool {
+        use windows_sys::Win32::Networking::WinSock::{
+            bind, closesocket, setsockopt, socket, AF_INET, INADDR_LOOPBACK, INVALID_SOCKET,
+            IN_ADDR, IN_ADDR_0, IPPROTO_TCP, SOCKADDR, SOCKADDR_IN, SOCK_STREAM, SOL_SOCKET,
+            SO_REUSEADDR,
+        };
+        // SAFETY: socket makes a new socket or returns INVALID_SOCKET; std's own bind above has
+        // started the socket layer.
+        let s = unsafe { socket(AF_INET as i32, SOCK_STREAM, IPPROTO_TCP) };
+        if s == INVALID_SOCKET {
+            return false;
+        }
+        let on: i32 = 1;
+        let addr = SOCKADDR_IN {
+            sin_family: AF_INET,
+            sin_port: port.to_be(),
+            sin_addr: IN_ADDR {
+                S_un: IN_ADDR_0 {
+                    S_addr: INADDR_LOOPBACK.to_be(),
+                },
+            },
+            sin_zero: [0; 8],
+        };
+        // SAFETY: the option and the address are live values of the sizes given; the socket is
+        // owned here and closed once.
+        unsafe {
+            setsockopt(
+                s,
+                SOL_SOCKET,
+                SO_REUSEADDR,
+                &on as *const i32 as *const u8,
+                4,
+            );
+            let bound = bind(
+                s,
+                &addr as *const SOCKADDR_IN as *const SOCKADDR,
+                std::mem::size_of::<SOCKADDR_IN>() as i32,
+            ) == 0;
+            closesocket(s);
+            bound
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn reuse_bind(_port: u16) -> bool {
+        false
     }
 
     fn remove_made_dir(dir: &Path) -> bool {
@@ -2845,6 +3318,7 @@ mod driver {
         let mut pid = None;
         let mut version = "-".to_string();
         let mut paused = false;
+        let mut relay_port = None;
         let deadline = Instant::now() + CHILD_WAIT;
         while Instant::now() < deadline && !ctx.stop.is_set() {
             match rx.recv_timeout(Duration::from_millis(100)) {
@@ -2857,6 +3331,8 @@ mod driver {
                                 _ => {}
                             }
                         }
+                    } else if let Some(p) = line.strip_prefix("relay_port ") {
+                        relay_port = p.trim().parse::<u16>().ok();
                     } else if line.starts_with("paused ") {
                         paused = true;
                         break;
@@ -2889,11 +3365,31 @@ mod driver {
                 waited.elapsed().as_millis()
             );
         }
+        let tree: Vec<r3_web::procs::Proc> = match (&root, r3_web::procs::table()) {
+            (Some(r), Ok(t)) => r3_web::checks::tree_of(&t, r),
+            _ => Vec::new(),
+        };
+        let watch_port = if form.step == PORT_FREE_STEP {
+            relay_port
+        } else {
+            None
+        };
         let t_kill = Instant::now();
         let _ = child.kill();
         let _ = child.wait();
         let mut gone_ms = None;
-        if paused {
+        let mut free_ms = None;
+        if paused && watch_port.is_some() {
+            while t_kill.elapsed() < KILL_WATCH && (gone_ms.is_none() || free_ms.is_none()) {
+                if free_ms.is_none() && watch_port.is_some_and(port_bindable) {
+                    free_ms = Some(t_kill.elapsed().as_millis());
+                }
+                if gone_ms.is_none() && !tree.iter().any(r3_web::procs::running) {
+                    gone_ms = Some(t_kill.elapsed().as_millis());
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        } else if paused {
             while t_kill.elapsed() < KILL_WATCH {
                 if gone_ms.is_none() {
                     if let Some(r) = &root {
@@ -2928,9 +3424,64 @@ mod driver {
             connections: c.connections,
             path_requests: c.path_requests,
             gone_ms,
+            free_ms,
             version,
             left,
         })
+    }
+
+    async fn port_free_form(ctx: &Ctx, form: &Form, runs: u32) -> bool {
+        let head = format!(
+            "candidate={CANDIDATE} machine={} browser={}",
+            ctx.machine, ctx.kind
+        );
+        let name = form.step;
+        let mut ok = 0;
+        let mut gone = Vec::new();
+        let mut majors = Vec::new();
+        for i in 1..=runs {
+            let k = match kill_once(ctx, form, i, false).await {
+                Ok(k) => k,
+                Err(e) => {
+                    out(&format!("notrun {head} step={name} cause={}", e.cause));
+                    return false;
+                }
+            };
+            let first = match (k.gone_ms, k.free_ms) {
+                (Some(g), Some(f)) => g <= f,
+                (Some(_), None) => true,
+                _ => false,
+            };
+            if first {
+                ok += 1;
+            }
+            if let Some(g) = k.gone_ms {
+                gone.push(g);
+            }
+            if let Some(m) = major_of(&k.version) {
+                majors.push(m);
+            }
+            out(&format!(
+                "run {head} step={name} i={i} result={} gone_ms={} free_ms={} version={} left={}",
+                if first { "ok" } else { "miss" },
+                k.gone_ms.map(|v| v.to_string()).unwrap_or("-".into()),
+                k.free_ms.map(|v| v.to_string()).unwrap_or("-".into()),
+                k.version,
+                if k.left { "yes" } else { "no" }
+            ));
+        }
+        majors.sort_unstable();
+        let majors_key = r3_web::majors_key(&majors);
+        majors.dedup();
+        let Some(major) = majors.first() else {
+            out(&format!("notrun {head} step={name} cause=version"));
+            return false;
+        };
+        out(&format!(
+            "cell {head} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={} relay=pipe_relay",
+            median(&mut gone)
+        ));
+        true
     }
 
     async fn driver_form(ctx: &Ctx, form: &Form, runs: u32) -> bool {
@@ -3030,6 +3581,9 @@ mod driver {
             }
             all &= driver_form(ctx, form, runs).await;
         }
+        if ctx.round3 && step.is_none_or(|s| s == PORT_FREE_STEP) && !ctx.stop.is_set() {
+            all &= port_free_form(ctx, &PORT_FREE_FORM, runs.min(10)).await;
+        }
         all
     }
 
@@ -3112,6 +3666,9 @@ mod driver {
             relay_port: 0,
             net_log: args.net_log.clone(),
             repo: repo.clone(),
+            round3: args.round3,
+            probe_before: std::cell::Cell::new(0),
+            siblings: std::cell::RefCell::new(Vec::new()),
             channel: if args.round3 && !args.port_channel {
                 Channel::Pipe
             } else {
@@ -3147,7 +3704,11 @@ mod driver {
             server.pid(),
             FIRST_FLAGS.len(),
             ctx.added_flags.len(),
-            if args.reach_rows {
+            if args.round3_rows {
+                "round3"
+            } else if args.org_rows {
+                "org"
+            } else if args.reach_rows {
                 "reach"
             } else if args.egress_rows {
                 "egress"
@@ -3183,6 +3744,8 @@ mod driver {
             Mode::Cells => {
                 let steps: Vec<&str> = match &args.step {
                     Some(s) => vec![s.as_str()],
+                    None if args.round3_rows => ROUND3_STEPS.to_vec(),
+                    None if args.org_rows => ORG_STEPS.to_vec(),
                     None if args.reach_rows => REACH_STEPS.to_vec(),
                     None if args.egress_rows => EGRESS_STEPS.to_vec(),
                     None if args.way_rows => WAY_STEPS.to_vec(),

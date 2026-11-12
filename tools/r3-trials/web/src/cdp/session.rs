@@ -633,6 +633,8 @@ mod tests {
             headless: true,
             flags: Vec::new(),
             channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
         }
     }
 
@@ -801,6 +803,8 @@ mod tests {
             headless: true,
             flags,
             channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
         }
     }
 

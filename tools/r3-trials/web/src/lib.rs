@@ -1,5 +1,6 @@
 #[cfg(feature = "driver")]
 pub mod cdp;
+pub mod checks;
 pub mod fixture;
 pub mod peer;
 #[cfg(feature = "driver")]
@@ -79,6 +80,41 @@ pub const EGRESS_STEPS: [&str; 11] = [
     "handler_launch",
     "updater_wake",
 ];
+
+/// The rows of U0.7c (A13.7) that `--rows round3 --round 3` runs, one for each rule of A11.1's
+/// start, check and relay that a run of the trial program can show, and the two rows of a payment
+/// frame of the same site as its page (CP-95 (2)).
+pub const ROUND3_STEPS: [&str; 5] = [
+    "pipe_inherit",
+    "relay_foreign",
+    "start_probe",
+    "same_site_pref",
+    "same_site_rule",
+];
+
+/// The row of U0.7c in which the driver is killed and the browser must be gone before the
+/// relay's port is free (`--rows driver --round 3`).
+pub const PORT_FREE_STEP: &str = "relay_port_free";
+
+/// The two cells of `org_policy` (U0.7c): the caller sets the organisation's setting before the
+/// run and takes it away after it (`--rows org --round 3`).
+pub const ORG_STEPS: [&str; 2] = ["org_debugging", "org_proxy"];
+
+/// The `Local State` entry of the profile that isolates the origin `http://pay.agent.test:<port>`
+/// without a flag on the command line (row `same_site_pref`): the flags entry `isolate-origins`
+/// with its origin list, written before the start.
+pub fn same_site_local_state(port: u16) -> String {
+    serde_json::json!({
+        "dns_over_https": {"mode": "off", "templates": ""},
+        "browser": {
+            "enabled_labs_experiments": ["isolate-origins"],
+            "enabled_lab_experiments_origin_lists": {
+                "isolate-origins": format!("http://pay.agent.test:{port}")
+            }
+        }
+    })
+    .to_string()
+}
 
 /// The flag by which the trial program, started in the browser's place, knows that it is the
 /// browser's launcher under the egress check; its value is the hex of a JSON array.

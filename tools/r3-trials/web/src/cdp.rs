@@ -47,6 +47,20 @@ pub const FIRST_REPLY_WAIT: Duration = Duration::from_secs(30);
 /// The plain message that the person gets when the browser gave no first reply in time.
 pub const NO_CHANNEL_MESSAGE: &str = "The browser did not answer Halvo. A setting of your organisation on this computer may forbid the channel that Halvo uses to work in the browser.";
 
+/// The origin that the start asks for, which no run binds, so that the relay refuses it and records
+/// the refusal before the agent acts (A11.1): `.invalid` resolves nowhere (RFC 6761), so a browser
+/// whose route bypasses the relay sends nothing for it.
+pub const PROBE_HOST: &str = "halvo-start-probe.invalid";
+
+/// The port of `PROBE_HOST`'s origin.
+pub const PROBE_PORT: u16 = 80;
+
+/// How long the start waits for the relay to record the probe's refusal.
+pub const PROBE_WAIT: Duration = Duration::from_secs(10);
+
+/// The plain message that the person gets when the start found no refusal of its probe.
+pub const NO_ROUTE_MESSAGE: &str = "Halvo could not make the browser use its own guard for the sites that you allowed. A setting of your organisation on this computer may set another route for the browser.";
+
 /// The debugging channel of a started browser: the pipe, the product's form, or a debugging port,
 /// a control of the trial alone (CP-89 (b)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,6 +86,11 @@ pub struct StartOptions {
     pub headless: bool,
     pub flags: Vec<String>,
     pub channel: Channel,
+    /// The relay that is the browser's only route: the start names the browser's first process to
+    /// it, and asks for `PROBE_HOST` before the agent acts.
+    pub relay: Option<crate::relay::RelayHandle>,
+    /// The `Local State` that `start_settled` writes in place of `crate::AGENT_LOCAL_STATE`.
+    pub local_state: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -214,7 +233,15 @@ impl BrowserChild {
     }
 }
 
+/// Copies of the executor's two ends of the pipe, which keep the pipe from being freed while a
+/// check after the stop reads who holds it; dropping it closes them.
+pub struct PipeKeep(#[allow(dead_code)] std::sync::Arc<[std::fs::File; 2]>);
+
 pub struct Executor {
+    guard: Option<start::Started>,
+    kept: Option<std::sync::Arc<[std::fs::File; 2]>>,
+    relay: Option<crate::relay::RelayHandle>,
+    root: Option<crate::procs::Proc>,
     child: BrowserChild,
     home: String,
     pid: Option<u32>,
@@ -248,12 +275,16 @@ fn keep_stderr(profile: &Path, temp: &Path) -> usize {
 /// Writes the agent's settings of U0.7b into a new profile directory: `Local State` and
 /// `Default/Preferences` (`crate::AGENT_LOCAL_STATE`, `crate::AGENT_PREFERENCES`).
 pub fn write_agent_settings(profile: &Path) -> Res<()> {
-    write_settings(profile)
+    write_settings(profile, None)
 }
 
-fn write_settings(profile: &Path) -> Res<()> {
+fn write_settings(profile: &Path, local_state: Option<&str>) -> Res<()> {
     let fault = |e: std::io::Error| Fault::new("start", format!("settings {}", e.kind()));
-    std::fs::write(profile.join("Local State"), crate::AGENT_LOCAL_STATE).map_err(fault)?;
+    std::fs::write(
+        profile.join("Local State"),
+        local_state.unwrap_or(crate::AGENT_LOCAL_STATE),
+    )
+    .map_err(fault)?;
     let default = profile.join("Default");
     std::fs::create_dir(&default).map_err(fault)?;
     std::fs::write(default.join("Preferences"), crate::AGENT_PREFERENCES).map_err(fault)?;
@@ -298,7 +329,7 @@ impl Executor {
         let made = session::RemoveOnDrop::new(&profile, &temp);
         let launched = async {
             if settled {
-                write_settings(&profile)?;
+                write_settings(&profile, opts.local_state.as_deref())?;
             }
             let ex = Executor::launch(opts, &temp).await?;
             if settled {
@@ -340,6 +371,7 @@ impl Executor {
             env,
             stderr: Some(&stderr),
         };
+        let kept;
         let (mut child, link, pipe_ids) = match opts.channel {
             Channel::Pipe => {
                 let on = {
@@ -347,14 +379,37 @@ impl Executor {
                     start::start_on_pipe(&held, &spec)
                 };
                 let on = on.map_err(|f| Fault::new("browser_start", f.to_string()))?;
+                kept = match (on.from_browser.try_clone(), on.to_browser.try_clone()) {
+                    (Ok(a), Ok(b)) => Some(std::sync::Arc::new([a, b])),
+                    _ => None,
+                };
                 let link =
                     wire::Link::Pipe(crate::pipe::PipeLink::new(on.from_browser, on.to_browser));
                 (BrowserChild::Pipe(on.child), link, Some(on.ids))
             }
-            Channel::Port => Executor::start_on_port(&spec, temp).await?,
+            Channel::Port => {
+                kept = None;
+                Executor::start_on_port(&spec, temp).await?
+            }
+        };
+        let root = crate::procs::table()
+            .ok()
+            .and_then(|t| t.into_iter().find(|p| p.pid == child.pid()));
+        if let Some(relay) = &opts.relay {
+            relay.trust(root.clone());
+        }
+        let mut guard = match (&opts.relay, &root, std::env::current_exe()) {
+            (Some(relay), Some(r), Ok(program)) => relay.start_guard(&program, r),
+            _ => None,
         };
         let (wire, wire_task) = wire::Wire::open(link);
-        let fail = |child: &mut BrowserChild, task: &JoinHandle<()>, f: Fault| {
+        let mut fail = |child: &mut BrowserChild, task: &JoinHandle<()>, f: Fault| {
+            if let Some(relay) = &opts.relay {
+                relay.trust(None);
+            }
+            if let Some(g) = guard.as_mut() {
+                g.kill();
+            }
             child.kill();
             task.abort();
             let kept = keep_stderr(&opts.profile, temp);
@@ -403,8 +458,32 @@ impl Executor {
             Ok(h) => h,
             Err(f) => return Err(fail(&mut child, &wire_task, Fault::new("start", f.1))),
         };
+        if let Some(relay) = &opts.relay {
+            let before = relay.refusals_of(PROBE_HOST, PROBE_PORT);
+            let _ = wire
+                .call(
+                    Some(&home),
+                    NavigateParams::new(format!("http://{PROBE_HOST}:{PROBE_PORT}/")),
+                )
+                .await;
+            let deadline = Instant::now() + PROBE_WAIT;
+            while relay.refusals_of(PROBE_HOST, PROBE_PORT) == before {
+                if Instant::now() > deadline {
+                    return Err(fail(
+                        &mut child,
+                        &wire_task,
+                        Fault::new("no_route", NO_ROUTE_MESSAGE),
+                    ));
+                }
+                tokio::time::sleep(POLL).await;
+            }
+        }
         let pid = Some(child.pid());
         Ok(Executor {
+            guard,
+            kept,
+            relay: opts.relay.clone(),
+            root,
             child,
             home,
             pid,
@@ -508,6 +587,17 @@ impl Executor {
         Err(Fault::new("browser_start", "no_port_control"))
     }
 
+    /// Keeps the pipe from being freed until the value is dropped, for a check after the stop: a
+    /// freed pipe's handles may name a new pipe of another process (macOS).
+    pub fn keep_pipe(&self) -> Option<PipeKeep> {
+        self.kept.clone().map(PipeKeep)
+    }
+
+    /// The browser's first process as the process table read it after the start.
+    pub fn root(&self) -> Option<&crate::procs::Proc> {
+        self.root.as_ref()
+    }
+
     /// The channel on which the executor drives its browser.
     pub fn channel(&self) -> Channel {
         self.channel
@@ -558,6 +648,16 @@ impl Executor {
             self.child.kill();
         }
         self.wire_task.abort();
+        if let Some(relay) = &self.relay {
+            relay.trust(None);
+        }
+        if let Some(g) = self.guard.as_mut() {
+            let deadline = Instant::now() + Duration::from_secs(20);
+            while !g.exited() && Instant::now() < deadline {
+                tokio::time::sleep(POLL).await;
+            }
+            g.kill();
+        }
         self.pid.into_iter().collect()
     }
 
@@ -1362,6 +1462,47 @@ impl Executor {
         self.wire.policy_counts()
     }
 
+    /// For the row `same_site_rule` of U0.7c alone, and no operation of A11.1: arms the rule as
+    /// `arm_rule` does on the executor's own page target and on nothing else, neither at the
+    /// browser's level nor on a target that the page opens or holds apart.
+    pub async fn arm_rule_on_page_only(
+        &mut self,
+        allowed_origins: Vec<String>,
+        state_changing: bool,
+    ) -> Res<()> {
+        let home = self.home.clone();
+        self.wire
+            .arm_one(
+                &home,
+                wire::Rule {
+                    allowed: allowed_origins,
+                    state_changing,
+                    hold: false,
+                    policy: None,
+                },
+            )
+            .await
+    }
+
+    /// Runs a script of the trial in an isolated world of the first frame of the page whose
+    /// address starts with `prefix`, and returns its value; no operation of A11.1.
+    pub async fn run_frame_script(&self, prefix: &str, source: &str) -> Res<serde_json::Value> {
+        fn find(t: &FrameTree, prefix: &str) -> Option<FrameId> {
+            for c in t.child_frames.iter().flatten() {
+                if c.frame.url.starts_with(prefix) {
+                    return Some(c.frame.id.clone());
+                }
+                if let Some(f) = find(c, prefix) {
+                    return Some(f);
+                }
+            }
+            None
+        }
+        let tree = self.frame_tree().await?;
+        let frame = find(&tree, prefix).ok_or_else(|| Fault::new("frame", "no frame"))?;
+        self.eval_value(&frame, source).await
+    }
+
     /// For the trial of a driver that dies while a request is paused (U0.7, CP-22), and no
     /// operation of A11.1: arms a rule that lets through the reads of `allowed_origins` and leaves
     /// every other request paused with no answer, recorded with the outcome `Held`.
@@ -1591,6 +1732,8 @@ mod tests {
             headless: true,
             flags: Vec::new(),
             channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
         };
         let refused = Executor::start(&opts).await.err();
         assert_eq!(
@@ -1671,6 +1814,8 @@ mod tests {
             headless: true,
             flags,
             channel: Channel::Pipe,
+            relay: None,
+            local_state: None,
         };
         let mut ex = Executor::start(&opts).await.expect("start");
         let utility = crate::fixture::origin(crate::fixture::UTILITY, port);

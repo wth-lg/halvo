@@ -58,6 +58,15 @@ starts the browser headless with a new profile for every run, and stops both at 
                     started by the trial program on its debugging pipe and driven over it alone.
   --channel C       with --round 3: pipe (the default, the product's form) or port, the control
                     in which the browser is driven over a debugging port on the loopback address.
+                    With --round 3 every run on the pipe also reads the checks of A11.1 at the
+                    start, after the row and after the stop, and each cell prints a check line.
+  --rows round3     with --round 3 and --relay, runs the rows of U0.7c: pipe_inherit,
+                    relay_foreign, start_probe, same_site_pref and same_site_rule.
+  --rows org        with --round 3 and --relay and --step org_debugging or org_proxy, runs a cell
+                    of org_policy: the caller has set the organisation's setting (debugging
+                    forbidden, or a proxy) for the browser before the call and takes it away
+                    after it; on this Mac the cell is a notrun line with cause=no_policy_place.
+  --rows driver     with --round 3 also runs relay_port_free after the four forms.
   --rows relay      with --round 2, runs the rows of the relay's list: list_refuse, list_hops,
                     list_close and own_traffic (tools/r3-trials/web/chain-listener.mjs serves the
                     hops).
@@ -171,7 +180,22 @@ case "$rows" in
     [ -z "$fault" ] || refuse usage "--fault runs the nine steps only"
     case "$step" in
       '' | driver_killed_pipe | driver_killed_port | driver_killed_pipe_relay | driver_killed_port_relay) ;;
-      *) refuse usage "--step with --rows driver takes one of the four forms of driver_killed" ;;
+      relay_port_free) [ "$round" = 3 ] || refuse usage "relay_port_free belongs to --round 3" ;;
+      *) refuse usage "--step with --rows driver takes one of the four forms of driver_killed, or with --round 3 relay_port_free" ;;
+    esac
+    ;;
+  round3)
+    [ "$round" = 3 ] || refuse usage "--rows round3 belongs to --round 3"
+    case "$step" in
+      '' | pipe_inherit | relay_foreign | start_probe | same_site_pref | same_site_rule) ;;
+      *) refuse usage "--step with --rows round3 takes one of pipe_inherit, relay_foreign, start_probe, same_site_pref and same_site_rule" ;;
+    esac
+    ;;
+  org)
+    [ "$round" = 3 ] || refuse usage "--rows org belongs to --round 3"
+    case "$step" in
+      org_debugging | org_proxy) ;;
+      *) refuse usage "--step with --rows org takes org_debugging or org_proxy" ;;
     esac
     ;;
   relay)
@@ -202,7 +226,7 @@ case "$rows" in
       *) refuse usage "--step with --rows reach takes one of the six contexts of CP-78" ;;
     esac
     ;;
-  *) refuse usage "--rows takes isolation, driver, relay, ways, egress or reach" ;;
+  *) refuse usage "--rows takes isolation, driver, relay, ways, egress, reach, round3 or org" ;;
 esac
 case "$fault" in
   '') ;;
@@ -296,6 +320,8 @@ case "$mode" in
     [ "$rows" = ways ] && set -- "$@" --rows ways
     [ "$rows" = egress ] && set -- "$@" --rows egress
     [ "$rows" = reach ] && set -- "$@" --rows reach
+    [ "$rows" = round3 ] && set -- "$@" --rows round3
+    [ "$rows" = org ] && set -- "$@" --rows org
     [ -n "$netlog" ] && set -- "$@" --net-log "$netlog"
     [ -n "$round" ] && set -- "$@" --round "$round"
     [ -n "$channel" ] && set -- "$@" --channel "$channel"

@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -8,7 +8,28 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::{AbortHandle, JoinHandle};
 
+use crate::procs::{self, Proc};
+
 const HANDSHAKE_WAIT: Duration = Duration::from_secs(10);
+
+/// The most connections that the relay holds open at one time; a connection beyond it is closed at
+/// its accept and counted (A11.1).
+pub const MAX_OPEN: usize = 512;
+
+/// The most entries that each record of the relay keeps (the refusals, the closed tunnels and the
+/// foreign peers); an entry beyond it is counted and not kept (A11.1).
+pub const MAX_RECORD: usize = 4096;
+
+/// A connection that the relay refused because its other end was not one process of the
+/// browser's tree, as the system's table read it while the relay held the socket: the port of the
+/// other end and how many owners the table named, and of them how many were in the tree.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForeignPeer {
+    pub peer_port: u16,
+    pub owners: usize,
+    pub in_tree: usize,
+    pub cause: &'static str,
+}
 
 /// A host and a port, the unit of the relay's list and of its record.
 pub type HostPort = (String, u16);
@@ -35,12 +56,245 @@ pub struct RelayHandle {
 
 #[derive(Default)]
 struct Shared {
+    port: u16,
+    listener: Mutex<Option<ListenerRaw>>,
     list: Mutex<Option<BTreeSet<HostPort>>>,
     refusals: Mutex<Vec<HostPort>>,
     open: Mutex<HashMap<u64, (HostPort, AbortHandle)>>,
     closed: Mutex<Vec<HostPort>>,
     next: AtomicU64,
     tunnels: AtomicU64,
+    browser: Mutex<Option<Proc>>,
+    foreign: Mutex<Vec<ForeignPeer>>,
+    foreign_count: AtomicU64,
+    connections: AtomicUsize,
+    over_bound: AtomicU64,
+    unkept: AtomicU64,
+}
+
+/// The relay's listener as the system names it, for a start that places it in the guard.
+#[cfg(unix)]
+type ListenerRaw = std::os::fd::RawFd;
+#[cfg(windows)]
+type ListenerRaw = usize;
+
+/// How often the guard reads the process table.
+const GUARD_POLL: Duration = Duration::from_millis(20);
+
+/// The flag of the program that the guard runs: `--relay-guard <pid> <creation time in µs>`.
+pub const GUARD_FLAG: &str = "--relay-guard";
+
+/// The guard of the relay's port (A11.1: the browser's processes are ended before the relay's
+/// listener closes, also when the executor's process is killed): run as `--relay-guard PID US`
+/// in a process that holds the relay's listener and nothing else of the executor's process, it
+/// reads the process table until no process of the tree of the browser PID with creation time US
+/// runs, the processes that the stop reports as adopted among them, and returns; the system then
+/// closes its copy of the listener. While the executor lives it holds the listener too, and only
+/// the executor accepts.
+pub fn guard_main(argv: &[String]) -> i32 {
+    let (Some(pid), Some(started_us)) = (
+        argv.first().and_then(|v| v.parse::<u32>().ok()),
+        argv.get(1).and_then(|v| v.parse::<u64>().ok()),
+    ) else {
+        return 2;
+    };
+    let mut known: Vec<Proc> = Vec::new();
+    loop {
+        let table = procs::table().unwrap_or_default();
+        let root = table
+            .iter()
+            .find(|p| p.pid == pid && p.started_us == started_us)
+            .cloned();
+        if let Some(root) = &root {
+            for p in crate::checks::tree_of(&table, root) {
+                if !known.iter().any(|k| procs::same(k, &p)) {
+                    known.push(p);
+                }
+            }
+        }
+        let living = known
+            .iter()
+            .any(|k| table.iter().any(|t| procs::same(t, k)));
+        if root.is_none() && !living {
+            return 0;
+        }
+        std::thread::sleep(GUARD_POLL);
+    }
+}
+
+fn keep<T>(record: &Mutex<Vec<T>>, entry: T, unkept: &AtomicU64) {
+    if let Ok(mut r) = record.lock() {
+        if r.len() < MAX_RECORD {
+            r.push(entry);
+            return;
+        }
+    }
+    unkept.fetch_add(1, Ordering::SeqCst);
+}
+
+/// Whether the other end of the relay's connection from `peer_port` belongs to exactly one process,
+/// and that process to the tree of the browser `root`, read from the system's table while the
+/// caller holds the accepted socket: on macOS the descriptors of the tree's processes and then of
+/// every other process that this user may read, on Windows the table of TCP connections with owner
+/// ids. The owner is read twice, before and after the tree, and must be the same process both
+/// times; a pid whose creation time is not the one that the tree recorded is not in the tree. The
+/// reads hold the start lock, so that no child of this process is between its fork and its exec,
+/// when it holds a copy of every descriptor of this process.
+pub fn check_peer(
+    root: Option<&Proc>,
+    peer_port: u16,
+    relay_port: u16,
+) -> Result<u32, ForeignPeer> {
+    let _held = crate::start::lock();
+    let foreign = |owners: usize, in_tree: usize, cause: &'static str| ForeignPeer {
+        peer_port,
+        owners,
+        in_tree,
+        cause,
+    };
+    let Some(root) = root else {
+        return Err(foreign(0, 0, "no_browser"));
+    };
+    let first = owners(peer_port, relay_port, root);
+    let table = procs::table().map_err(|_| foreign(0, 0, "table"))?;
+    let tree: Vec<u32> = procs::descendants(&table, std::slice::from_ref(root))
+        .into_iter()
+        .filter(|p| table.iter().any(|t| procs::same(t, p)))
+        .map(|p| p.pid)
+        .collect();
+    let in_tree = first.iter().filter(|p| tree.contains(p)).count();
+    match first.as_slice() {
+        [] => return Err(foreign(0, 0, "no_owner")),
+        [one] if tree.contains(one) => {}
+        [_] => return Err(foreign(1, 0, "outside_tree")),
+        many => return Err(foreign(many.len(), in_tree, "several_owners")),
+    }
+    let again = owners(peer_port, relay_port, root);
+    if again != first {
+        return Err(foreign(again.len(), in_tree, "owner_changed"));
+    }
+    Ok(first[0])
+}
+
+#[cfg(target_os = "macos")]
+fn owners(peer_port: u16, relay_port: u16, root: &Proc) -> Vec<u32> {
+    let table = procs::table().unwrap_or_default();
+    let tree: Vec<u32> = procs::descendants(&table, std::slice::from_ref(root))
+        .iter()
+        .map(|p| p.pid)
+        .collect();
+    let mut found = crate::peer::owners_of_connection(peer_port, relay_port, &tree);
+    if found.len() == 1 {
+        let me = std::process::id();
+        let others: Vec<u32> = crate::peer::all_pids()
+            .into_iter()
+            .filter(|p| !tree.contains(p) && *p != me)
+            .collect();
+        found.extend(crate::peer::owners_of_connection(
+            peer_port, relay_port, &others,
+        ));
+    }
+    found.sort_unstable();
+    found.dedup();
+    found
+}
+
+#[cfg(not(target_os = "macos"))]
+fn owners(peer_port: u16, relay_port: u16, _root: &Proc) -> Vec<u32> {
+    crate::peer::owners_of_connection(peer_port, relay_port, &[])
+}
+
+/// Binds the relay's listener on a loopback port that the system picks: on macOS under the start
+/// lock, because a socket is made close-on-exec only after it exists, so that no child that this
+/// process starts inherits it; on Windows for the relay's exclusive use (`SO_EXCLUSIVEADDRUSE`),
+/// so that no other socket binds the port while the listener lives or one of its connections
+/// waits to close, and with no inheritance from its creation on.
+fn bind_listener() -> std::io::Result<std::net::TcpListener> {
+    #[cfg(windows)]
+    {
+        exclusive::bind_exclusive()
+    }
+    #[cfg(not(windows))]
+    {
+        let _held = crate::start::lock();
+        std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+    }
+}
+
+#[cfg(windows)]
+mod exclusive {
+    use std::os::windows::io::FromRawSocket;
+    use windows_sys::Win32::Networking::WinSock::{
+        bind, closesocket, listen, setsockopt, WSASocketW, AF_INET, INADDR_LOOPBACK,
+        INVALID_SOCKET, IN_ADDR, IN_ADDR_0, IPPROTO_TCP, SOCKADDR, SOCKADDR_IN, SOCK_STREAM,
+        SOL_SOCKET, SO_EXCLUSIVEADDRUSE, WSA_FLAG_NO_HANDLE_INHERIT, WSA_FLAG_OVERLAPPED,
+    };
+
+    pub(super) fn bind_exclusive() -> std::io::Result<std::net::TcpListener> {
+        // Starting std's socket layer first runs WSAStartup, which WSASocketW needs.
+        drop(std::net::UdpSocket::bind("127.0.0.1:0"));
+        // SAFETY: WSASocketW makes a new socket or returns INVALID_SOCKET; nothing is borrowed.
+        let s = unsafe {
+            WSASocketW(
+                AF_INET as i32,
+                SOCK_STREAM,
+                IPPROTO_TCP,
+                std::ptr::null(),
+                0,
+                WSA_FLAG_OVERLAPPED | WSA_FLAG_NO_HANDLE_INHERIT,
+            )
+        };
+        if s == INVALID_SOCKET {
+            return Err(std::io::Error::last_os_error());
+        }
+        let fail = |s| {
+            let e = std::io::Error::last_os_error();
+            // SAFETY: the socket is owned here and closed once.
+            unsafe { closesocket(s) };
+            Err(e)
+        };
+        let on: i32 = 1;
+        // SAFETY: the option value is a live i32 of the size given.
+        if unsafe {
+            setsockopt(
+                s,
+                SOL_SOCKET,
+                SO_EXCLUSIVEADDRUSE,
+                &on as *const i32 as *const u8,
+                4,
+            )
+        } != 0
+        {
+            return fail(s);
+        }
+        let addr = SOCKADDR_IN {
+            sin_family: AF_INET,
+            sin_port: 0,
+            sin_addr: IN_ADDR {
+                S_un: IN_ADDR_0 {
+                    S_addr: INADDR_LOOPBACK.to_be(),
+                },
+            },
+            sin_zero: [0; 8],
+        };
+        // SAFETY: `addr` is a live SOCKADDR_IN of the size given.
+        if unsafe {
+            bind(
+                s,
+                &addr as *const SOCKADDR_IN as *const SOCKADDR,
+                std::mem::size_of::<SOCKADDR_IN>() as i32,
+            )
+        } != 0
+        {
+            return fail(s);
+        }
+        // SAFETY: the socket is bound above.
+        if unsafe { listen(s, 128) } != 0 {
+            return fail(s);
+        }
+        // SAFETY: the socket is open, owned here alone and moved into the listener.
+        Ok(unsafe { std::net::TcpListener::from_raw_socket(s as u64) })
+    }
 }
 
 /// The start flags that make the relay the browser's only route, each with what it closes.
@@ -78,16 +332,35 @@ fn key(host: &str, port: u16) -> HostPort {
 }
 
 impl Relay {
+    /// Starts the relay on a loopback port that the system picks. Until `trust` names a browser,
+    /// every connection is refused as foreign.
     pub async fn start() -> std::io::Result<Relay> {
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await?;
+        let std_listener = bind_listener()?;
+        std_listener.set_nonblocking(true)?;
+        #[cfg(unix)]
+        let raw = std::os::fd::AsRawFd::as_raw_fd(&std_listener);
+        #[cfg(windows)]
+        let raw = std::os::windows::io::AsRawSocket::as_raw_socket(&std_listener) as usize;
+        let listener = TcpListener::from_std(std_listener)?;
         let port = listener.local_addr()?.port();
-        let shared = Arc::new(Shared::default());
+        let shared = Arc::new(Shared {
+            port,
+            listener: Mutex::new(Some(raw)),
+            ..Shared::default()
+        });
         let serving = shared.clone();
         let task = tokio::spawn(async move {
             while let Ok((socket, _)) = listener.accept().await {
                 let shared = serving.clone();
+                if shared.connections.fetch_add(1, Ordering::SeqCst) >= MAX_OPEN {
+                    shared.connections.fetch_sub(1, Ordering::SeqCst);
+                    shared.over_bound.fetch_add(1, Ordering::SeqCst);
+                    drop(socket);
+                    continue;
+                }
                 tokio::spawn(async move {
-                    let _ = tunnel(socket, shared).await;
+                    let _ = accept(socket, shared.clone()).await;
+                    shared.connections.fetch_sub(1, Ordering::SeqCst);
                 });
             }
         });
@@ -109,17 +382,84 @@ impl Relay {
     }
 
     pub fn stop(self) {
+        self.close();
+    }
+
+    fn close(&self) {
+        if let Ok(mut l) = self.shared.listener.lock() {
+            *l = None;
+        }
         self.task.abort();
     }
 }
 
 impl Drop for Relay {
     fn drop(&mut self) {
-        self.task.abort();
+        self.close();
     }
 }
 
 impl RelayHandle {
+    /// Starts the guard of the relay's port for the browser `root` (`guard_main`): `program` run
+    /// with `GUARD_FLAG`, the root's pid and creation time, and the relay's listener placed in it
+    /// by `start::start_with`, under the start lock. None when the relay is closed or the start
+    /// failed.
+    pub fn start_guard(
+        &self,
+        program: &std::path::Path,
+        root: &Proc,
+    ) -> Option<crate::start::Started> {
+        let listener = self.shared.listener.lock().ok()?;
+        let raw = (*listener)?;
+        let spec = crate::start::Spec {
+            program,
+            args: vec![
+                GUARD_FLAG.into(),
+                root.pid.to_string().into(),
+                root.started_us.to_string().into(),
+            ],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let held = crate::start::lock();
+        #[cfg(unix)]
+        let placed = raw;
+        #[cfg(windows)]
+        let placed = raw as crate::start::RawPlaced;
+        crate::start::start_with(&held, &spec, placed).ok()
+    }
+
+    /// Names the first process of the browser whose tree the relay serves, or none: from now on a
+    /// connection is accepted only from a process of that tree (`check_peer`).
+    pub fn trust(&self, browser: Option<Proc>) {
+        if let Ok(mut b) = self.shared.browser.lock() {
+            *b = browser;
+        }
+    }
+
+    /// The connections that the relay refused as foreign, in order, at most `MAX_RECORD`.
+    pub fn foreign(&self) -> Vec<ForeignPeer> {
+        self.shared
+            .foreign
+            .lock()
+            .map(|f| f.clone())
+            .unwrap_or_default()
+    }
+
+    /// How many connections the relay refused as foreign, kept or not.
+    pub fn foreign_count(&self) -> u64 {
+        self.shared.foreign_count.load(Ordering::SeqCst)
+    }
+
+    /// How many connections the relay closed at their accept because `MAX_OPEN` were open, and how
+    /// many entries its records did not keep because of `MAX_RECORD`.
+    pub fn over_bounds(&self) -> (u64, u64) {
+        (
+            self.shared.over_bound.load(Ordering::SeqCst),
+            self.shared.unkept.load(Ordering::SeqCst),
+        )
+    }
+
     /// Sets the list to exactly `entries`, or takes the list away with `None` (every name that
     /// `destination` takes passes). Every open tunnel to a host and port that the new list does not
     /// hold is closed.
@@ -170,9 +510,7 @@ impl RelayHandle {
         };
         for (_, hp, abort) in leaving {
             abort.abort();
-            if let Ok(mut c) = self.shared.closed.lock() {
-                c.push(hp);
-            }
+            keep(&self.shared.closed, hp, &self.shared.unkept);
         }
     }
 
@@ -229,10 +567,34 @@ async fn read_exact_in_time(socket: &mut TcpStream, buf: &mut [u8]) -> std::io::
 }
 
 async fn refuse(socket: &mut TcpStream, shared: &Shared, hp: HostPort, code: u8) {
-    if let Ok(mut r) = shared.refusals.lock() {
-        r.push(hp);
-    }
+    keep(&shared.refusals, hp, &shared.unkept);
     let _ = socket.write_all(&[5, code, 0, 1, 0, 0, 0, 0, 0, 0]).await;
+}
+
+/// Checks the peer of a new connection while it holds the socket, before it reads a byte: a
+/// foreign peer is recorded apart and its socket closed unread.
+async fn accept(socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
+    let peer_port = socket.peer_addr()?.port();
+    let root = shared.browser.lock().ok().and_then(|b| b.clone());
+    let relay_port = shared.port;
+    let verdict =
+        tokio::task::spawn_blocking(move || check_peer(root.as_ref(), peer_port, relay_port))
+            .await
+            .unwrap_or(Err(ForeignPeer {
+                peer_port,
+                owners: 0,
+                in_tree: 0,
+                cause: "check",
+            }));
+    match verdict {
+        Ok(_) => tunnel(socket, shared).await,
+        Err(f) => {
+            shared.foreign_count.fetch_add(1, Ordering::SeqCst);
+            keep(&shared.foreign, f, &shared.unkept);
+            drop(socket);
+            Ok(())
+        }
+    }
 }
 
 async fn tunnel(mut socket: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
@@ -349,10 +711,94 @@ mod tests {
         assert!(flags.contains(&"--disable-quic".to_string()));
     }
 
+    /// A connection to `port` whose socket no child that another test starts can inherit: on macOS
+    /// a socket is made close-on-exec only after it exists, so it is made under the start lock.
+    fn client(port: u16) -> TcpStream {
+        let c = {
+            let _held = crate::start::lock();
+            std::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).unwrap()
+        };
+        c.set_nonblocking(true).unwrap();
+        TcpStream::from_std(c).unwrap()
+    }
+
+    fn me() -> Proc {
+        procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == std::process::id())
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_peer_outside_the_trusted_tree_is_refused_unread_and_recorded_apart() {
+        let relay = Relay::start().await.unwrap();
+        let (echo, accepted) = echo_server().await;
+        for trusted in [
+            None,
+            Some(Proc {
+                pid: 1,
+                ppid: 0,
+                started_us: 1,
+                exe: None,
+            }),
+        ] {
+            relay.handle().trust(trusted);
+            let mut c = client(relay.port);
+            let mut req = vec![5, 1, 0, 5, 1, 0, 3, 14];
+            req.extend_from_slice(b"utility.a.test");
+            req.extend_from_slice(&echo.to_be_bytes());
+            let _ = c.write_all(&req).await;
+            let mut got = Vec::new();
+            let read = tokio::time::timeout(Duration::from_secs(5), c.read_to_end(&mut got)).await;
+            assert!(matches!(read, Ok(Ok(0)) | Ok(Err(_))), "{read:?}");
+            assert!(got.is_empty());
+        }
+        let foreign = relay.handle().foreign();
+        assert_eq!(foreign.len(), 2);
+        assert_eq!(foreign[0].cause, "no_browser");
+        assert_eq!(foreign[1].cause, "no_owner");
+        assert_eq!(relay.handle().foreign_count(), 2);
+        assert!(relay.handle().refusals().is_empty());
+        assert_eq!(accepted.load(Ordering::SeqCst), 0);
+        relay.handle().trust(Some(me()));
+        let (_c, code) = connect_via(relay.port, "utility.a.test", echo).await;
+        assert_eq!(code, 0);
+        assert_eq!(relay.handle().foreign_count(), 2);
+    }
+
+    #[test]
+    fn the_peer_check_takes_this_process_for_its_own_connection_and_no_other_root() {
+        let held = crate::start::lock();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let relay_port = listener.local_addr().unwrap().port();
+        let c = std::net::TcpStream::connect(("127.0.0.1", relay_port)).unwrap();
+        drop(held);
+        let _held = listener.accept().unwrap();
+        let peer = c.local_addr().unwrap().port();
+        assert_eq!(
+            check_peer(Some(&me()), peer, relay_port),
+            Ok(std::process::id())
+        );
+        let mut stale = me();
+        stale.started_us += 1;
+        assert_eq!(
+            check_peer(Some(&stale), peer, relay_port).map_err(|f| f.cause),
+            Err("outside_tree")
+        );
+        assert_eq!(
+            check_peer(None, peer, relay_port).map_err(|f| f.cause),
+            Err("no_browser")
+        );
+        assert_eq!(
+            check_peer(Some(&me()), peer, relay_port.wrapping_add(1)).map_err(|f| f.cause),
+            Err("no_owner")
+        );
+        assert_eq!((MAX_OPEN, MAX_RECORD), (512, 4096));
+    }
+
     async fn connect_via(relay: u16, host: &str, port: u16) -> (TcpStream, u8) {
-        let mut c = TcpStream::connect((Ipv4Addr::LOCALHOST, relay))
-            .await
-            .unwrap();
+        let mut c = client(relay);
         c.write_all(&[5, 1, 0]).await.unwrap();
         let mut r = [0u8; 2];
         c.read_exact(&mut r).await.unwrap();
@@ -390,6 +836,7 @@ mod tests {
     async fn a_tunnel_passes_bytes_both_ways_and_a_name_outside_test_is_refused() {
         let (echo, _) = echo_server().await;
         let relay = Relay::start().await.unwrap();
+        relay.handle().trust(Some(me()));
         let (mut c, code) = connect_via(relay.port, "echo.agent.test", echo).await;
         assert_eq!(code, 0);
         c.write_all(b"hello").await.unwrap();
@@ -410,6 +857,7 @@ mod tests {
     async fn a_host_outside_the_list_is_refused_before_any_connection_and_recorded() {
         let (echo, accepted) = echo_server().await;
         let relay = Relay::start().await.unwrap();
+        relay.handle().trust(Some(me()));
         let h = relay.handle();
         h.set_list(Some(vec![("allowed.agent.test".into(), echo)]));
         let (_, code) = connect_via(relay.port, "evil.agent.test", echo).await;
@@ -433,6 +881,7 @@ mod tests {
     async fn a_host_that_leaves_the_list_has_its_open_tunnels_closed() {
         let (echo, _) = echo_server().await;
         let relay = Relay::start().await.unwrap();
+        relay.handle().trust(Some(me()));
         let h = relay.handle();
         h.set_list(Some(vec![
             ("a.agent.test".into(), echo),
