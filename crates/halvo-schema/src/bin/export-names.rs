@@ -8,6 +8,7 @@ pub(crate) const LISTS: &[&[&str]] = &[
     halvo_schema::executable::NAMES,
     halvo_schema::ids::NAMES,
     halvo_schema::kinds::NAMES,
+    halvo_schema::learning::NAMES,
     halvo_schema::record::NAMES,
     halvo_schema::request::NAMES,
     halvo_schema::site::NAMES,

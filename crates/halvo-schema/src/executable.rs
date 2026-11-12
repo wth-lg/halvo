@@ -3,6 +3,7 @@
 //! runner and coordinator bodies with their replies, and the record shapes of the family `agent`. Every parser
 //! refuses what the run's contract refuses and never repairs; its error, `Refusal`, holds no value of the input.
 
+mod address;
 mod json;
 
 pub mod body;
@@ -23,7 +24,8 @@ pub use frame::{
 };
 pub use json::{Refusal, RefusalCause};
 pub use names::{
-    ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning, Runtime,
+    ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning,
+    Runtime, Way,
 };
 pub use record::{AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession};
 pub use step::{ExecutableStep, Playbook};
@@ -231,4 +233,10 @@ pub const NAMES: &[&str] = &[
     "parts",
     "stored",
     "ok",
+    "add_origin",
+    "way",
+    "sign_in",
+    "account_link",
+    "new_origin",
+    "secret",
 ];
