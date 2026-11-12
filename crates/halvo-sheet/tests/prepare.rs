@@ -6,7 +6,7 @@ use std::path::Path;
 use common::{
     book, corpus, element_counts, entry_names, number_at, same_but, Scratch, CARRIED, REFUSED, RUN,
 };
-use halvo_sheet::{Cause, Error, Folder, Kind, Prepared, Range, Refusal, RunId, Value};
+use halvo_sheet::{Cause, Error, Folder, Kind, Prepared, Range, Refusal, RunId, Sha256, Value};
 
 fn run() -> RunId {
     RunId::parse(RUN).expect("a run id")
@@ -797,7 +797,7 @@ fn a_drop_of_the_call_that_made_the_checkpoint_beside_another_calls_replace_neve
 
 #[test]
 fn a_run_id_is_32_lower_case_hex_digits() {
-    assert!(RunId::parse(RUN).is_ok());
+    assert!(RunId::parse(RUN).is_some());
     for bad in [
         "",
         "0123456789ABCDEF0123456789abcdef",
@@ -806,6 +806,32 @@ fn a_run_id_is_32_lower_case_hex_digits() {
         "g123456789abcdef0123456789abcdef",
         "../23456789abcdef0123456789abcdef",
     ] {
-        assert_eq!(RunId::parse(bad).err(), Some(Error::RunId), "{bad:?}");
+        assert_eq!(RunId::parse(bad), None, "{bad:?}");
     }
+}
+
+#[test]
+fn prepare_gives_the_checkpoints_sha256_length_and_name() {
+    let scratch = Scratch::new("prepare-made");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let source = fs::read(scratch.path("values.xlsx")).expect("read");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let name = checkpoint_name("values.xlsx");
+    let mut seen = Vec::new();
+    for cell in ["B5", "C7"] {
+        let range = Range::parse(cell).expect("a range");
+        let values = [vec![Value::Number(77.0)]];
+        let prepared = folder
+            .prepare(Path::new("values.xlsx"), &run(), "Values", range, &values)
+            .expect("prepared");
+        assert_eq!(prepared.checkpoint_name(), std::ffi::OsStr::new(&name));
+        let file = prepared.checkpoint().file_name().expect("a name");
+        assert_eq!(file, std::ffi::OsStr::new(&name), "{cell}");
+        assert_eq!(prepared.checkpoint_bytes(), source.len() as u64, "{cell}");
+        assert_eq!(prepared.checkpoint_sha256(), Sha256::of(&source), "{cell}");
+        assert_eq!(fs::read(prepared.checkpoint()).expect("read"), source);
+        seen.push(prepared);
+    }
+    let built = halvo_checkpoint::checkpoint_name(Path::new("values.xlsx"), &run());
+    assert_eq!(built, Some(std::ffi::OsString::from(&name)));
 }

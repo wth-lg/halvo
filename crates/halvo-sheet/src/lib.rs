@@ -16,12 +16,15 @@ mod xml;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use halvo_checkpoint::Root;
+
 pub use book::Cell;
 pub use error::{Cause, Error, Kept, PathRefusal, Refusal, SourceRefusal};
+pub use halvo_checkpoint::{RunId, Sha256};
 pub use parts::Kind;
 pub use range::Range;
 pub use source::Value;
-pub use write::{Prepared, RunId};
+pub use write::Prepared;
 
 /// The directory that the permission `user_files` names, as the runner gives it. Every path
 /// that a call takes is the runner's: a path relative to this directory, or an absolute path
@@ -29,9 +32,10 @@ pub use write::{Prepared, RunId};
 /// also that form without its `\\?\` prefix); any other absolute path is refused as outside.
 /// A call follows no link, refuses a path that is a link, holds a link on its way, is a
 /// directory or is not a regular file, and reads or writes no file outside this directory.
+/// The walk of a path is the one of the crate halvo-checkpoint, which the removal of a
+/// checkpoint also walks.
 pub struct Folder {
-    root: PathBuf,
-    spellings: Vec<PathBuf>,
+    root: Root,
 }
 
 impl fmt::Debug for Folder {
@@ -44,12 +48,12 @@ impl Folder {
     /// Takes the directory as the runner gives it. The directory itself may be reached
     /// through a link; [`Error::Folder`] when it is not a directory.
     pub fn new(dir: &Path) -> Result<Folder, Error> {
-        let (root, spellings) = path::folder(dir)?;
-        Ok(Folder { root, spellings })
+        let root = Root::new(dir).map_err(|_| Error::Folder)?;
+        Ok(Folder { root })
     }
 
     fn file(&self, path: &Path) -> Result<PathBuf, Error> {
-        path::file(&self.root, &self.spellings, path)
+        Ok(self.root.file(path)?)
     }
 
     /// Returns the values of `range` on the sheet named `sheet` (compared byte for byte) of
@@ -217,7 +221,7 @@ impl Folder {
     /// workbook made, and touches no file; a call refused as [`PathRefusal::Outside`] is no
     /// such first call.
     pub fn replace(&self, prepared: &Prepared) -> Result<(), Error> {
-        path::inside(&self.spellings, &prepared.workbook)?;
+        self.root.names(&prepared.workbook)?;
         prepared
             .answer
             .get_or_init(|| {

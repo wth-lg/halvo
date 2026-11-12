@@ -151,8 +151,6 @@ pub enum Error {
     /// would hold a sheet part or another entry of more than 32 MiB, entries of more than
     /// 128 MiB in all, or more than 64 MiB as a file. Refused before any write.
     FillSize,
-    /// The text is not a run id of the form of contracts.md A0.6.
-    RunId,
     /// A checkpoint of this run stands beside the workbook and is not a copy of it as it is.
     Checkpoint,
     /// The check of `prepare` found the prepared copy different from what the write allows, or
@@ -182,7 +180,6 @@ impl Error {
             | Error::RangeSize
             | Error::ReadOnly
             | Error::FillSize
-            | Error::RunId
             | Error::Checkpoint
             | Error::NotReplaced(_)
             | Error::CopyLeft(_) => Cause::StepFailed,
@@ -211,7 +208,6 @@ impl fmt::Display for Error {
             Error::RangeSize => f.write_str("the range holds more than 100,000 cells"),
             Error::ReadOnly => f.write_str("the workbook cannot be written"),
             Error::FillSize => f.write_str("the write would make a copy over the bounds of a read"),
-            Error::RunId => f.write_str("the text is not a run id"),
             Error::Checkpoint => f.write_str("a checkpoint of this run is not the workbook"),
             Error::Sheet => f.write_str("the prepared copy did not read back the same"),
             Error::NotReplaced(why) => write!(f, "the workbook was not replaced: {why:?}"),

@@ -1,0 +1,18 @@
+//! The checkpoint of the sheet executor, with no reader of workbooks (contracts.md A11.3, A6.6,
+//! A7.4): the name of the copy that `prepare` keeps beside a workbook, the walk of a path inside
+//! a folder, and the SHA-256 of a file. The sheet executor and the supervisor library both use
+//! it, so that the app links no reader of workbooks (the coordinator's ruling CP-98 (2)).
+
+mod digest;
+mod name;
+mod run;
+mod walk;
+
+pub use digest::Sha256;
+pub use name::{checkpoint_name, own_name};
+pub use run::RunId;
+pub use walk::{regular, Root, Walk};
+
+/// The bound of a workbook file and so of a checkpoint, 64 MiB (contracts.md A11.3): a file is
+/// read up to it and no further.
+pub const FILE_MAX: u64 = 64 << 20;

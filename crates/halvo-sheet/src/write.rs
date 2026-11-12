@@ -1,4 +1,4 @@
-use std::ffi::OsString;
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs::{self, File, OpenOptions, Permissions};
 use std::io::{self, Write};
@@ -6,32 +6,16 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
+use halvo_checkpoint::{checkpoint_name, own_name, regular, Root, RunId, Sha256};
+
 use crate::book::{self, guarded};
 use crate::error::{Error, Kept, Refusal};
 use crate::parts;
 use crate::patch;
-use crate::path;
 use crate::range::Range;
 use crate::same;
 use crate::source::Value;
 use crate::xml;
-
-/// A run id of the form of contracts.md A0.6: 32 lower-case hex digits. It names the
-/// checkpoint and the prepared copies of a run.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RunId(String);
-
-impl RunId {
-    /// Takes 32 lower-case hex digits; [`Error::RunId`] for any other text.
-    pub fn parse(text: &str) -> Result<RunId, Error> {
-        let hex = |b: u8| b.is_ascii_digit() || (b'a'..=b'f').contains(&b);
-        if text.len() == 32 && text.bytes().all(hex) {
-            Ok(RunId(text.to_string()))
-        } else {
-            Err(Error::RunId)
-        }
-    }
-}
 
 /// What [`crate::Folder::prepare`] made beside the workbook and what
 /// [`crate::Folder::replace`] needs: the checkpoint `<name>.halvo-checkpoint-<run id><ext>`, a
@@ -45,12 +29,13 @@ impl RunId {
 /// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it,
 /// and it stays until the run's owner removes it at the run's end.
 pub struct Prepared {
-    pub(crate) root: PathBuf,
+    pub(crate) root: Root,
     pub(crate) workbook: PathBuf,
     pub(crate) checkpoint: PathBuf,
     pub(crate) copy: PathBuf,
     pub(crate) original: Vec<u8>,
     pub(crate) changed: Vec<u8>,
+    pub(crate) sha256: Sha256,
     pub(crate) answer: OnceLock<Result<(), Error>>,
 }
 
@@ -74,6 +59,22 @@ impl Prepared {
         &self.checkpoint
     }
 
+    /// The checkpoint's file name, `<name>.halvo-checkpoint-<run id><ext>`, as the crate
+    /// halvo-checkpoint builds it; the runner writes it into the list's row (contracts.md A7.4).
+    pub fn checkpoint_name(&self) -> &OsStr {
+        self.checkpoint.file_name().unwrap_or_default()
+    }
+
+    /// The SHA-256 of the checkpoint, which is the workbook as `prepare` read it.
+    pub fn checkpoint_sha256(&self) -> Sha256 {
+        self.sha256
+    }
+
+    /// The length of the checkpoint in bytes.
+    pub fn checkpoint_bytes(&self) -> u64 {
+        self.original.len() as u64
+    }
+
     /// This call's prepared copy, which `replace` renames into the workbook's place.
     pub fn copy(&self) -> &Path {
         &self.copy
@@ -85,9 +86,9 @@ impl Drop for Prepared {
         if self.answer.get() == Some(&Ok(())) {
             return;
         }
-        let roots = std::slice::from_ref(&self.root);
         let holding = |path: &Path, bytes: &[u8]| {
-            path::file(&self.root, roots, path)
+            self.root
+                .file(path)
                 .ok()
                 .filter(|full| fs::read(full).is_ok_and(|read| read == bytes))
         };
@@ -98,14 +99,7 @@ impl Drop for Prepared {
 }
 
 fn beside(workbook: &Path, tag: &str) -> PathBuf {
-    let mut name = OsString::new();
-    name.push(workbook.file_stem().unwrap_or_default());
-    name.push(format!(".halvo-{tag}"));
-    if let Some(ext) = workbook.extension() {
-        name.push(".");
-        name.push(ext);
-    }
-    workbook.with_file_name(name)
+    workbook.with_file_name(own_name(workbook, tag).unwrap_or_default())
 }
 
 /// Whether the person cannot write the file: read-only, or on Unix no write bit for its owner.
@@ -125,7 +119,7 @@ pub(crate) fn range_cells(range: Range) -> u64 {
 }
 
 pub(crate) fn prepare(
-    root: &Path,
+    root: &Root,
     workbook: PathBuf,
     run: &RunId,
     sheet: &str,
@@ -172,7 +166,7 @@ pub(crate) fn prepare(
     let changed = spoiled(changed);
     drop(entries);
     book::readable(&original, sheet)?;
-    let checkpoint = beside(&workbook, &format!("checkpoint-{}", run.0));
+    let checkpoint = workbook.with_file_name(checkpoint_name(&workbook, run).unwrap_or_default());
     keep_checkpoint(&checkpoint, &original, meta.permissions())?;
     let copy = write_copy(&workbook, run, &changed, meta.permissions())?;
     drop(changed);
@@ -182,10 +176,11 @@ pub(crate) fn prepare(
     });
     match checked {
         Ok(disk) => Ok(Prepared {
-            root: root.to_path_buf(),
+            root: root.clone(),
             workbook,
             checkpoint,
             copy,
+            sha256: Sha256::of(&original),
             original,
             changed: disk,
             answer: OnceLock::new(),
@@ -199,7 +194,7 @@ pub(crate) fn prepare(
 
 pub(crate) fn replace(prepared: &Prepared) -> Result<(), Error> {
     let holds = |path: &Path, bytes: &[u8]| {
-        path::regular(path).is_ok() && fs::read(path).is_ok_and(|read| read == bytes)
+        regular(path).is_ok() && fs::read(path).is_ok_and(|read| read == bytes)
     };
     if !holds(&prepared.workbook, &prepared.original) {
         return Err(Error::NotReplaced(Kept::Workbook));
@@ -247,7 +242,7 @@ fn keep_checkpoint(
     match create(checkpoint, original, permissions) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            path::regular(checkpoint).map_err(|_| Error::Checkpoint)?;
+            regular(checkpoint).map_err(|_| Error::Checkpoint)?;
             if fs::read(checkpoint)? == original {
                 Ok(())
             } else {
@@ -272,7 +267,7 @@ fn write_copy(
     for _ in 0..64 {
         let call = CALLS.fetch_add(1, Ordering::Relaxed);
         let own = format!("{:08x}{call:08x}", std::process::id());
-        let copy = beside(workbook, &format!("prepared-{}-{own}", run.0));
+        let copy = beside(workbook, &format!("prepared-{}-{own}", run.as_str()));
         match create(&copy, bytes, permissions.clone()) {
             Ok(()) => return Ok(copy),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
@@ -508,7 +503,7 @@ mod tests {
         let mut taken = Vec::new();
         for call in next..next + 32 {
             let own = format!("{:08x}{call:08x}", std::process::id());
-            let name = beside(&workbook, &format!("prepared-{}-{own}", run.0));
+            let name = beside(&workbook, &format!("prepared-{}-{own}", run.as_str()));
             fs::write(&name, b"a file of another call").expect("write");
             taken.push(name);
         }

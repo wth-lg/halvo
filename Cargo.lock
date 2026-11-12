@@ -1484,6 +1484,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-checkpoint"
+version = "0.0.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "halvo-coord"
 version = "0.0.0"
 dependencies = [
@@ -1568,6 +1575,7 @@ name = "halvo-sheet"
 version = "0.0.0"
 dependencies = [
  "calamine",
+ "halvo-checkpoint",
  "quick-xml",
  "zip",
 ]

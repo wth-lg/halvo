@@ -128,8 +128,9 @@ fn part() -> Error {
     Error::Workbook(Refusal::Part)
 }
 
-/// The bound of a workbook file (CP-56).
-pub(crate) const FILE_MAX: u64 = 64 << 20;
+/// The bound of a workbook file (CP-56), the one that the crate halvo-checkpoint reads a
+/// checkpoint under.
+pub(crate) const FILE_MAX: u64 = halvo_checkpoint::FILE_MAX;
 /// The bound of one entry, uncompressed.
 pub(crate) const ENTRY_MAX: u64 = 32 << 20;
 /// The bound of all entries together, uncompressed.
