@@ -36,7 +36,9 @@ pub struct Count {
 }
 
 /// The browser's tree as the process table reads it now: the first process with every descendant
-/// by creation time, and the processes that the stop reports as adopted (A11.1).
+/// by creation time, and the processes that the stop reports as adopted (A11.1) whose arguments
+/// name the first process's profile directory, as the crash handler's `--database=` does; an
+/// adopted process of another browser of the same app, such as the person's own, is no member.
 pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
     let mut tree = procs::descendants(table, std::slice::from_ref(root));
     tree.retain(|p| table.iter().any(|t| procs::same(t, p)));
@@ -46,9 +48,18 @@ pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
         .map(procs::bundle_root)
         .into_iter()
         .collect();
+    let profile = command_args(root.pid).and_then(|args| {
+        args.iter()
+            .find_map(|a| a.strip_prefix("--user-data-dir=").map(str::to_string))
+    });
+    let Some(profile) = profile.filter(|p| !p.is_empty()) else {
+        return tree;
+    };
     let adopted = procs::adopted(table, &tree, root.started_us, &roots);
     for a in adopted {
-        if !tree.iter().any(|t| procs::same(t, &a)) {
+        let ours = command_args(a.pid)
+            .is_some_and(|args| args.iter().any(|x| x.contains(profile.as_str())));
+        if ours && !tree.iter().any(|t| procs::same(t, &a)) {
             tree.push(a);
         }
     }
@@ -152,7 +163,13 @@ pub fn holds_an_end(pid: u32, ids: &PipeIds) -> bool {
 
 /// The command line of `pid`, as the system gives it to a process of the same user.
 pub fn command_line(pid: u32) -> Option<String> {
-    sys::command_line(pid)
+    sys::command_args(pid).map(|a| a.join(" "))
+}
+
+/// The arguments of `pid`, as the system gives them to a process of the same user; on Windows the
+/// command line as one argument.
+pub fn command_args(pid: u32) -> Option<Vec<String>> {
+    sys::command_args(pid)
 }
 
 #[cfg(target_os = "macos")]
@@ -165,7 +182,7 @@ mod sys {
             .unwrap_or(false)
     }
 
-    pub(super) fn command_line(pid: u32) -> Option<String> {
+    pub(super) fn command_args(pid: u32) -> Option<Vec<String>> {
         let mut mib = [libc::CTL_KERN, libc::KERN_PROCARGS2, pid as i32];
         let mut size: libc::size_t = 0;
         // SAFETY: a null buffer asks for the size of the arguments area.
@@ -213,7 +230,7 @@ mod sys {
             .take(argc)
             .map(|a| String::from_utf8_lossy(a).into_owned())
             .collect();
-        Some(args.join(" "))
+        Some(args)
     }
 }
 
@@ -237,7 +254,7 @@ mod sys {
             .unwrap_or(false)
     }
 
-    pub(super) fn command_line(pid: u32) -> Option<String> {
+    pub(super) fn command_args(pid: u32) -> Option<Vec<String>> {
         // SAFETY: OpenProcess returns a new handle or null.
         let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
         if h.is_null() {
@@ -266,7 +283,7 @@ mod sys {
             let us = &*(buf.as_ptr() as *const UNICODE_STRING);
             std::slice::from_raw_parts(us.Buffer, us.Length as usize / 2)
         };
-        Some(String::from_utf16_lossy(text))
+        Some(vec![String::from_utf16_lossy(text)])
     }
 }
 
@@ -276,7 +293,7 @@ mod sys {
     pub(super) fn holds_an_end(_pid: u32, _ids: &PipeIds) -> bool {
         false
     }
-    pub(super) fn command_line(_pid: u32) -> Option<String> {
+    pub(super) fn command_args(_pid: u32) -> Option<Vec<String>> {
         None
     }
 }
