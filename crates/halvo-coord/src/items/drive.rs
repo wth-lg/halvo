@@ -1,14 +1,18 @@
-//! The drive of the items (I5.10): it carries out through the ports what `confirm_step` and
-//! `handback_result` decided, records an answer before it releases it (I4.5), and keeps the
-//! guard's table in step with the items.
+//! The drive of the items (I5.10): it carries out through the ports what `confirm_step`,
+//! `handback_result` and `setup_step` decided, records an answer before it releases it (I4.5),
+//! keeps the guard's table in step with the items, and sends the setup's body until the owner
+//! acknowledges it (I3.5).
 
-use super::{compose_confirm, confirm_step, handback_result};
+use super::{compose_confirm, confirm_step, handback_result, setup_step};
 use super::{ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
+use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
 use crate::ports::{Clock, Owner, PortError, Rng, Runs};
+use crate::schedule::wants_active;
 use crate::types::{
-    hex, AgentId, Answered, Cause, CheckAnswer, Choice, ConfirmAsk, DoneAnswer, Event, Item,
-    ItemId, LapseCause, Lapsed, Limits, Presenter, Raised, RunId, RunItemKind, What, WorkflowId,
+    hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Choice, ConfigView, ConfirmAsk,
+    DoneAnswer, Event, Facts, Item, ItemId, LapseCause, Lapsed, Limits, Presenter, Raised, RunId,
+    RunItemKind, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -478,5 +482,117 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         Ok(()) => Ok(()),
         Err(e) if refused_with(&e, "ended") => Ok(()),
         Err(e) => Err(cause_of(&e)),
+    }
+}
+
+/// What a move of the setup flow did (I3.5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SetupDone {
+    /// The item stays open and takes more answers.
+    Open,
+    /// The body was sent and the owner did not acknowledge it: it is owed and goes again at the
+    /// next tick, and the item stays open and takes no answer.
+    Owed,
+    /// The owner acknowledged the body and the item closed; `active` says whether the rule of
+    /// `active` of I5.5 (`wants_active`) gave `set_state` `active` for the agent, which was then
+    /// sent once. The caller takes the item off the agent's facts.
+    Closed {
+        /// Whether `set_state` `active` was sent.
+        active: bool,
+    },
+    /// The owner refused the body with `no_workflow`: the item ends with its workflow, nothing
+    /// is stored and nothing more is sent (I5.7).
+    Gone,
+}
+
+fn same_agent<C>(setup: &Setup, facts: &Facts<C>) -> Result<(), Cause> {
+    if setup.agent() == &facts.agent && setup.workflow() == &facts.workflow.id {
+        Ok(())
+    } else {
+        Err(Cause::State)
+    }
+}
+
+/// The rule of `active` of I5.5, once, for the agent's facts with the slots of the acknowledged
+/// body among its newest bindings: sends `set_state` `active` where `wants_active` gives it and
+/// drops the answer, which the tick's own rule sends again until the owner's list shows the
+/// agent `active` (ruling IG-6a).
+fn activate<P: Owner, C: ConfigView + Clone>(
+    ports: &P,
+    facts: &Facts<C>,
+    body: &SetupBody,
+) -> bool {
+    let mut after = facts.clone();
+    for slot in body.slots() {
+        if !after.slots.contains(&slot.name) {
+            after.slots.push(slot.name.clone());
+        }
+    }
+    let wants = wants_active(&after);
+    if wants {
+        let _ = ports.send(&Body::SetState {
+            workflow: facts.workflow.id.clone(),
+            agent: facts.agent.clone(),
+            state: AgentState::Active,
+        });
+    }
+    wants
+}
+
+/// Sends the owed body: at the acknowledgement the item closes and the rule of `active` runs
+/// once; a refusal `no_workflow` ends the item; any other failure leaves the body owed.
+fn send_owed<P: Owner, C: ConfigView + Clone>(
+    ports: &P,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+) -> Result<SetupDone, Cause> {
+    let SetupState::Owed(body) = setup.state().clone() else {
+        return Ok(SetupDone::Open);
+    };
+    match ports.send(&body.body()) {
+        Ok(_) => {
+            *setup = setup_step(setup, SetupMove::Acknowledged)?;
+            Ok(SetupDone::Closed {
+                active: activate(ports, facts, &body),
+            })
+        }
+        Err(e) if refused_with(&e, "no_workflow") => {
+            *setup = setup_step(setup, SetupMove::Gone)?;
+            Ok(SetupDone::Gone)
+        }
+        Err(_) => Ok(SetupDone::Owed),
+    }
+}
+
+/// The person's answer to a setup item (I3.5), with the facts of its agent: `state` for the facts
+/// of another agent, and the refusal of `setup_step`, `stale` for an item that closed, `state`
+/// while its body is owed (ruling IG-10) and `malformed` for an answer that does not fit it; then
+/// nothing is sent. When the answer gives the last parameter, the one body `set_bindings` goes
+/// to the owner in this move; at its acknowledgement the item closes and the rule of `active` of
+/// I5.5 runs once for the agent, and without one the body is owed.
+pub fn answer_setup<P: Owner, C: ConfigView + Clone>(
+    ports: &P,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+    answer: SetupInput<'_>,
+) -> Result<SetupDone, Cause> {
+    same_agent(setup, facts)?;
+    *setup = setup_step(setup, SetupMove::Input(answer))?;
+    send_owed(ports, setup, facts)
+}
+
+/// One tick for a setup item (I3.5, I5.9), which the coordinator's tick calls: sends its owed
+/// body again, with what `answer_setup` does at the owner's answer; an open item sends nothing.
+/// `state` for the facts of another agent, and `stale` for an item that closed or whose workflow
+/// is gone.
+pub fn tick_setup<P: Owner, C: ConfigView + Clone>(
+    ports: &P,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+) -> Result<SetupDone, Cause> {
+    same_agent(setup, facts)?;
+    match setup.state() {
+        SetupState::Closed | SetupState::Gone => Err(Cause::Stale),
+        SetupState::Open | SetupState::Owed(_) => send_owed(ports, setup, facts),
     }
 }
