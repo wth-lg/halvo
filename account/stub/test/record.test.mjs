@@ -169,3 +169,16 @@ test("the trailer fields of a chunked request stand in its line in order, byte f
   await exchange(portOf(other.app), request("GET", "/v1/done"));
   assert.deepEqual(lines(plain)[0].trailers, []);
 });
+
+test("a field byte above 0x7F stands as one character in requests.jsonl and as that byte in the raw file", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir });
+  const sent = request("GET", "/v1/done", [["x-note", "caf\xc3\xa9-\xff"]]);
+  assert.equal(parse(await exchange(portOf(stub.app), sent)).status, 200);
+  const [line] = lines(dir);
+  assert.deepEqual(line.headers.find(([name]) => name === "x-note"), ["x-note", "caf\u00c3\u00a9-\u00ff"]);
+  assert.equal(line.headers.find(([name]) => name === "x-note")[1].length, 7);
+  const raw = readFileSync(join(dir, "connection-000001.raw"));
+  assert.deepEqual(raw, sent);
+  assert.notEqual(raw.indexOf(Buffer.from([0x63, 0x61, 0x66, 0xc3, 0xa9, 0x2d, 0xff])), -1);
+});
