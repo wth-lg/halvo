@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The backend's typecheck (tsc --noEmit in backend/) reports no error, and biome lint, with backend/biome.json, reports nothing in backend/ and in the model formal/r7-ledger/ and reads at least one file in each.
+# rule: The backend's typecheck (tsc --noEmit in backend/, over the files that backend/tsconfig.json includes) reports no error, and biome lint, with backend/biome.json, exits 0, prints no count of errors, warnings or infos, and reads at least one file, in backend/ and in the model formal/r7-ledger/.
 set -u
 name=20-r7-backend-static
 
@@ -22,12 +22,16 @@ static_in() {
   lint_model=$?
   errors=$(grep -c 'error TS[0-9]' "$out/typecheck.txt")
   backend_files=$(sed -n 's/^Checked \([0-9][0-9]*\) files\{0,1\} in .*/\1/p' "$out/lint-backend.txt" | tail -n 1)
+  backend_found=$(grep -c -E '^Found [0-9]+ (error|warning|info)' "$out/lint-backend.txt")
+  model_found=$(grep -c -E '^Found [0-9]+ (error|warning|info)' "$out/lint-model.txt")
   model_files=$(sed -n 's/^Checked \([0-9][0-9]*\) files\{0,1\} in .*/\1/p' "$out/lint-model.txt" | tail -n 1)
   counts="typecheck-exit=$typecheck typecheck-errors=$errors lint-backend-exit=$lint_backend lint-backend-files=${backend_files:-none} lint-model-exit=$lint_model lint-model-files=${model_files:-none}"
   cause=
   [ "$typecheck" = 0 ] && [ "$errors" = 0 ] || cause="the typecheck of backend/ reports an error"
   [ -n "$cause" ] || [ "$lint_backend" = 0 ] || cause="biome lint reports a finding in backend/"
   [ -n "$cause" ] || [ "$lint_model" = 0 ] || cause="biome lint reports a finding in formal/r7-ledger/"
+  [ -n "$cause" ] || [ "$backend_found" = 0 ] || cause="biome lint prints a count of findings in backend/"
+  [ -n "$cause" ] || [ "$model_found" = 0 ] || cause="biome lint prints a count of findings in formal/r7-ledger/"
   [ -n "$cause" ] || [ "${backend_files:-0}" -gt 0 ] || cause="biome lint read no file in backend/"
   [ -n "$cause" ] || [ "${model_files:-0}" -gt 0 ] || cause="biome lint read no file in formal/r7-ledger/"
   [ -z "$cause" ]
@@ -124,6 +128,14 @@ self_test() {
   fixture lint-of-the-model-fails
   printf '1\n' >"$scratch/lint-of-the-model-fails/state/model.exit"
   expect FAIL lint-of-the-model-fails
+
+  fixture lint-of-backend-warns-and-exits-0
+  printf 'Checked 4 files in 3ms. No fixes applied.\nFound 1 warning.\n' >"$scratch/lint-of-backend-warns-and-exits-0/state/backend.out"
+  expect FAIL lint-of-backend-warns-and-exits-0
+
+  fixture lint-of-the-model-warns-and-exits-0
+  printf 'Checked 2 files in 1ms. No fixes applied.\nFound 2 warnings.\n' >"$scratch/lint-of-the-model-warns-and-exits-0/state/model.out"
+  expect FAIL lint-of-the-model-warns-and-exits-0
 
   fixture lint-of-backend-reads-no-file
   printf 'Checked 0 files in 1ms. No fixes applied.\n' >"$scratch/lint-of-backend-reads-no-file/state/backend.out"
