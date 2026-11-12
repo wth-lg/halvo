@@ -5,6 +5,7 @@ set -u
 LC_ALL=C
 export LC_ALL
 unset CDPATH
+unset JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS
 name=30-r4-formal
 label=$name
 workers=3
@@ -43,6 +44,7 @@ locate() {
 
 scratch() {
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/r4-formal.XXXXXX") || tmp=
+  [ -z "$tmp" ] || tmp=$(cd "$tmp" && pwd) || tmp=
 }
 
 get_jar() {
@@ -63,7 +65,7 @@ get_jar() {
   else
     source=fetch
     command -v curl >/dev/null 2>&1 || fail fetch
-    (cd "$tmp" && curl -fsSL --retry 2 --max-time 300 -o tla2tools.jar "$url") || fail fetch
+    (cd "$tmp" && curl -q -fsSL --retry 2 --max-time 300 -o tla2tools.jar "$url") || fail fetch
     [ -f "$tmp/tla2tools.jar" ] || fail fetch
   fi
   size=$(wc -c <"$tmp/tla2tools.jar") || fail hash
@@ -77,7 +79,7 @@ get_jar() {
 
 check_java() {
   command -v java >/dev/null 2>&1 || fail java
-  java -version >"$tmp/java.raw" 2>&1 || fail java
+  java -version >"$tmp/java.raw" 2>&1 </dev/null || fail java
   tr -d '\r' <"$tmp/java.raw" >"$tmp/java.txt" || fail java
   version=$(sed -n 's/.* version "\([0-9][0-9._]*\).*/\1/p' "$tmp/java.txt")
   version=${version%%"
@@ -90,12 +92,61 @@ check_java() {
   [ "$major" -ge 17 ] || fail java
 }
 
-configurations() {
+table() {
   awk -F'|' '
-    /^\| `(Schedule|Confirm4)` \| `[a-z]+` \| `[A-Za-z0-9.-]+\.cfg` \| (yes|no) \|/ {
-      for (i = 2; i <= 7; i++) gsub(/[ `,]/, "", $i)
-      print $2, $3, $4, $7, $5
-    }' "$1"
+    function trim(x) { gsub(/^[ \t]+/, "", x); gsub(/[ \t]+$/, "", x); return x }
+    function bad(why) { printf "fault %d %s\n", NR, why; faults++ }
+    /^\| Model \| Configuration \| File \| CI \| / { heads++; state = 1; next }
+    state == 1 { state = 2; next }
+    state == 2 && /^\|/ {
+      rows++
+      model = trim($2); config = trim($3); file = trim($4); ci = trim($5); distinct = trim($7)
+      if (NF != 10) bad("cells")
+      else if (model !~ /^`(Schedule|Confirm4)`$/) bad("model")
+      else if (config !~ /^`[a-z0-9-]+`$/) bad("name")
+      else if (file !~ /^`[A-Za-z0-9._-]+\.cfg`$/) bad("file")
+      else if (ci != "yes" && ci != "no") bad("ci")
+      else if (distinct !~ /^[0-9][0-9,]*$/) bad("count")
+      else if (trim($6) == "" || trim($8) == "" || trim($9) == "") bad("empty")
+      else {
+        gsub(/`/, "", model); gsub(/`/, "", config); gsub(/`/, "", file); gsub(/,/, "", distinct)
+        if (ci == "yes") marked++
+        printf "row %s %s %s %s %s\n", model, config, file, distinct, ci
+      }
+      next
+    }
+    state == 2 { state = 0 }
+    /^\|[ \t]*`(Schedule|Confirm4)`[ \t]*\|/ && /\.cfg/ { bad("outside") }
+    END { printf "table %d %d %d %d\n", heads, rows, faults, marked }' "$tmp/readme.txt" >"$tmp/table.txt" || fail invariant
+  sed -n 's/^row //p' "$tmp/table.txt" >"$tmp/configurations.txt" || fail invariant
+  sed -n 's/^table //p' "$tmp/table.txt" >"$tmp/table-summary.txt" || fail invariant
+  awk '{ print $3 }' "$tmp/configurations.txt" >"$tmp/table-files.txt" || fail invariant
+  heads=0
+  rows=0
+  faults=1
+  marked=0
+  read -r heads rows faults marked <"$tmp/table-summary.txt" || fail invariant
+  unnamed=0
+  for f in "$dir"/*.cfg; do
+    [ -e "$f" ] || continue
+    grep -q -x -F -e "${f##*/}" "$tmp/table-files.txt" || unnamed=$((unnamed + 1))
+  done
+  schedule_names=
+  confirm_names=
+  while read -r model config file want_distinct ci; do
+    [ "$ci" = yes ] || continue
+    case $model in
+      Schedule) schedule_names=${schedule_names:+$schedule_names,}$config ;;
+      *) confirm_names=${confirm_names:+$confirm_names,}$config ;;
+    esac
+  done <"$tmp/configurations.txt"
+  printf 'formal table lines=%s marked=%s faults=%s unnamed=%s\n' "$rows" "$marked" "$faults" "$unnamed"
+  printf 'formal configurations schedule=%s confirm=%s\n' "${schedule_names:--}" "${confirm_names:--}"
+  [ "$heads" -eq 1 ] || fail invariant
+  [ "$faults" -eq 0 ] || fail invariant
+  [ "$unnamed" -eq 0 ] || fail invariant
+  [ -n "$schedule_names" ] || fail invariant
+  [ -n "$confirm_names" ] || fail invariant
 }
 
 run_tlc() {
@@ -105,7 +156,7 @@ run_tlc() {
     cd "$1" || exit 99
     mkdir -p jtmp || exit 99
     java -Xmx2g -XX:+UseParallelGC -Djava.io.tmpdir=jtmp -cp ../tla2tools.jar tlc2.TLC \
-      -workers "$workers" -metadir meta -config "$3" ${deadlock:+"$deadlock"} "$2" >out.raw 2>&1
+      -workers "$workers" -metadir meta -config "$3" ${deadlock:+"$deadlock"} "$2" >out.raw 2>&1 </dev/null
   )
   status=$?
   tr -d '\r' <"$1/out.raw" >"$1/out.txt" || status=99
@@ -136,9 +187,22 @@ declared() {
   if [ "$result" = ok ]; then
     lines=$(grep -c '^INVARIANT ' "$dir/$2")
     [ "$lines" -eq "$count" ] || result=invariants
-    if grep -q -F -e '(*' -e '\*' "$dir/$2"; then
+    if grep -q -F -e '(*' "$dir/$2"; then
       result=comment
     fi
+    if grep -q -F -e '\*' "$dir/$2"; then
+      result=comment
+    fi
+  fi
+  if [ "$result" = ok ] && [ "$3" = yes ]; then
+    tr '\n\t\r' '   ' <"$dir/$2" >"$tmp/flat.txt" || result=missing
+    i=1
+    while [ "$i" -le "$count" ]; do
+      if grep -q -E "(^| )$letter$i *<-" "$tmp/flat.txt"; then
+        result=replaced
+      fi
+      i=$((i + 1))
+    done
   fi
 }
 
@@ -180,6 +244,7 @@ small() {
   t1=$(date +%s)
   printf 'formal run model=%s configuration=%s status=%s states=%s generated=%s seconds=%s result=%s\n' \
     "$key" "$config" "$status" "$distinct" "$generated" "$((t1 - t0))" "$result"
+  ran=$((ran + 1))
   [ "$result" = ok ] || bad=$((bad + 1))
   if [ "$key" = schedule ]; then
     schedule_states=$((schedule_states + distinct))
@@ -189,26 +254,14 @@ small() {
 }
 
 models() {
-  configurations "$tmp/readme.txt" >"$tmp/configurations.txt" || fail invariant
-  schedule_names=
-  confirm_names=
-  while read -r model config file want_distinct ci; do
-    [ "$ci" = yes ] || continue
-    case $model in
-      Schedule) schedule_names=${schedule_names:+$schedule_names,}$config ;;
-      *) confirm_names=${confirm_names:+$confirm_names,}$config ;;
-    esac
-  done <"$tmp/configurations.txt"
-  printf 'formal configurations schedule=%s confirm=%s\n' "${schedule_names:--}" "${confirm_names:--}"
-  [ -n "$schedule_names" ] || fail invariant
-  [ -n "$confirm_names" ] || fail invariant
   schedule_states=0
   confirm_states=0
   bad=0
+  ran=0
   : >"$tmp/violated-schedule.txt" || fail invariant
   : >"$tmp/violated-confirm.txt" || fail invariant
   while read -r model config file want_distinct ci; do
-    declared "$model" "$file"
+    declared "$model" "$file" "$ci"
     if [ "$ci" = yes ]; then
       small "$model" "$config" "$file" "$want_distinct"
     elif [ "$result" != ok ]; then
@@ -224,6 +277,10 @@ models() {
   printf 'formal schedule states=%s invariants=12 violated=%s\n' "$schedule_states" "$broken_schedule"
   printf 'formal confirm states=%s invariants=10 violated=%s\n' "$confirm_states" "$broken_confirm"
   [ "$bad" -eq 0 ] || fail invariant
+  if [ "$ran" -ne "$marked" ]; then
+    printf 'formal runs=%s marked=%s\n' "$ran" "$marked"
+    fail invariant
+  fi
 }
 
 stamp_of() {
@@ -268,8 +325,23 @@ stamps() {
   else
     fault=missing
   fi
+  outside=0
+  for f in "$dir"/*.tla "$dir"/*.cfg "$dir"/*.json; do
+    [ -e "$f" ] || continue
+    case ${f##*/} in
+      Schedule.tla | Schedule.cfg | Confirm4.tla | Confirm4.cfg | ScheduleTrace.tla | Confirm4Trace.tla) ;;
+      TraceText.tla | limits.json) ;;
+      *) grep -q -x -F -e "${f##*/}" "$tmp/table-files.txt" || outside=$((outside + 1)) ;;
+    esac
+  done
+  [ "$outside" -eq 0 ] || fault=${fault:-outside}
   named=$(grep -c '^export compared in jobs:' "$tmp/readme.txt")
   [ "$named" -eq 1 ] || fault=${fault:-jobs}
+  jobs=$(sed -n '/^export compared in jobs:/{s///;p;}' "$tmp/readme.txt")
+  case " $jobs " in
+    *' macos '* | *' windows '*) ;;
+    *) fault=${fault:-jobs} ;;
+  esac
   other=$(sed -n '/^export compared in jobs:/{s///;s/ macos//;s/ windows//;p;}' "$tmp/readme.txt")
   [ -z "$other" ] || fault=${fault:-jobs}
   if [ -n "$fault" ]; then
@@ -290,7 +362,7 @@ compare() {
   if [ "$compare" = yes ]; then
     mkdir "$tmp/export" || fail traces
     t0=$(date +%s)
-    sh "$dir/export.sh" --jar "$tmp/tla2tools.jar" --out "$tmp/export" >"$tmp/export.txt" 2>&1
+    sh "$dir/export.sh" --jar "$tmp/tla2tools.jar" --out "$tmp/export" >"$tmp/export.txt" 2>&1 </dev/null
     code=$?
     t1=$(date +%s)
     cp "$tmp/export.txt" "$art/export.txt" || fail traces
@@ -359,6 +431,7 @@ measure() {
   [ -n "$tmp" ] || fail fetch
   get_jar
   check_java
+  table
   stamps
   models
   compare
@@ -392,13 +465,24 @@ expect() {
     cd "$work" || exit 98
     CI_D_REPO=$work/$1
     CI_D_ARTIFACTS=$work/$1/art
-    CI_D_JOB=macos
+    CI_D_JOB=$job_as
     R4_STUB_MODE=$3
     R4_STUB_COUNTS=$work/counts.txt
     R4_STUB_TRACES=${traces_from:-$work/$1/formal/r4-coordinator}
-    TMPDIR="$work/t m p"
+    R4_STUB_LOG=$work/$1/java-$3.log
+    R4_STUB_CURL=$work/$1/curl-$3.log
+    JAVA_TOOL_OPTIONS=-Dr4.stub=1
+    JDK_JAVA_OPTIONS=-Dr4.stub=2
+    _JAVA_OPTIONS=-Dr4.stub=3
+    TMPDIR="${tmp_as:-$work/t m p}"
     PATH=$work/stub:$PATH
-    export CI_D_REPO CI_D_ARTIFACTS CI_D_JOB R4_STUB_MODE R4_STUB_COUNTS R4_STUB_TRACES TMPDIR PATH
+    export CI_D_REPO CI_D_ARTIFACTS CI_D_JOB R4_STUB_MODE R4_STUB_COUNTS R4_STUB_TRACES R4_STUB_LOG R4_STUB_CURL
+    export JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS TMPDIR PATH
+    if [ "$job_as" = none ]; then
+      unset CI_D_JOB
+    fi
+    : >"$R4_STUB_LOG"
+    : >"$R4_STUB_CURL"
     if [ "$jar_from" = fetch ]; then
       unset R4_FORMAL_JAR
       PATH=$work/stub-curl:$PATH
@@ -425,6 +509,42 @@ expect() {
   fi
   traces_from=
   jar_from=$tmp/tla2tools.jar
+  job_as=macos
+  tmp_as=
+}
+
+held() {
+  if "$@"; then
+    printf 'selftest rule=%s held=yes\n' "$rule"
+  else
+    printf 'selftest rule=%s held=no\n' "$rule"
+    missed=$((missed + 1))
+  fi
+}
+
+absolute() {
+  (cd "$work" && TMPDIR=. && export TMPDIR && scratch && [ "${tmp#/}" != "$tmp" ])
+}
+
+recorded_jar() {
+  awk -v given="cp=$tmp/tla2tools.jar " '
+    $1 ~ /^module=(Schedule|Confirm4)$/ { n++; if (index($0, " cp=../tla2tools.jar cwd=") == 0) bad = 1 }
+    index($0, given) > 0 { bad = 1 }
+    END { exit (bad || n < 3) }' "$work/good/java-good.log"
+}
+
+recorded_deadlock() {
+  awk '
+    $1 == "module=Confirm4" { c++; if ($3 != "deadlock=yes") bad = 1 }
+    $1 == "module=Schedule" { s++; if ($3 != "deadlock=no") bad = 1 }
+    END { exit (bad || c == 0 || s == 0) }' "$work/good/java-good.log"
+}
+
+recorded_configurations() {
+  awk '
+    NR == FNR { if ($5 == "yes") want[$1 " " $3] = 1; next }
+    { seen[substr($1, 8) " " substr($2, 8)] = 1 }
+    END { for (k in want) if (!(k in seen)) bad = 1; exit (bad + 0) }' "$work/counts.txt" "$work/good/java-good.log"
 }
 
 selftest() {
@@ -438,10 +558,15 @@ selftest() {
   check_java
   work=$tmp/fixtures
   mkdir -p "$work/stub" "$work/stub-curl" "$work/t m p" || fail selftest
-  configurations "$tmp/readme.txt" >"$work/counts.txt" || fail selftest
+  table >/dev/null
+  cp "$tmp/configurations.txt" "$work/counts.txt" || fail selftest
   cat >"$work/stub/java" <<'EOF' || fail selftest
 #!/bin/sh
 mode=${R4_STUB_MODE:-good}
+if [ -n "${JAVA_TOOL_OPTIONS:-}${JDK_JAVA_OPTIONS:-}${_JAVA_OPTIONS:-}" ]; then
+  printf 'a java option variable reached java\r\n' >&2
+  exit 96
+fi
 if [ "${1:-}" = -version ]; then
   case $mode in
     java-old) printf 'openjdk version "16.0.2" 2021-07-20\r\n' >&2 ;;
@@ -452,11 +577,18 @@ if [ "${1:-}" = -version ]; then
 fi
 cfg=
 module=
+jar=
+deadlock=no
 while [ $# -gt 0 ]; do
   [ "$1" = -config ] && cfg=$2
+  [ "$1" = -cp ] && jar=$2
+  [ "$1" = -deadlock ] && deadlock=yes
   module=$1
   shift
 done
+if [ -n "${R4_STUB_LOG:-}" ]; then
+  printf 'module=%s config=%s deadlock=%s cp=%s cwd=%s\n' "$module" "$cfg" "$deadlock" "$jar" "$(pwd)" >>"$R4_STUB_LOG"
+fi
 case $module in
   ScheduleTrace) file=traces-schedule.jsonl ;;
   Confirm4Trace) file=traces-confirm.jsonl ;;
@@ -496,9 +628,16 @@ if [ -n "$copy" ]; then
   esac
   exit 12
 fi
+if [ "$mode" = reads-input ]; then
+  cat >/dev/null
+fi
 distinct=$(awk -v f="$cfg" '$3 == f { print $4 }' "$R4_STUB_COUNTS")
 generated=$((distinct * 3))
 case $mode:$cfg in
+  violated-apart:Confirm4-apart.cfg)
+    printf 'Error: Invariant L3 is violated.\r\n'
+    exit 12
+    ;;
   silent:Schedule-queue.cfg) exit 0 ;;
   killed:Schedule-days.cfg)
     printf 'Progress(9): 1,000 states generated\r\n'
@@ -524,12 +663,18 @@ case $mode:$cfg in
 esac
 exit 0
 EOF
-  printf '#!/bin/sh\nexit 22\n' >"$work/stub-curl/curl" || fail selftest
+  cat >"$work/stub-curl/curl" <<'EOF' || fail selftest
+#!/bin/sh
+printf '%s\n' "$*" >>"$R4_STUB_CURL"
+exit 22
+EOF
   chmod +x "$work/stub/java" "$work/stub-curl/curl" || fail selftest
   rejected=0
   missed=0
   traces_from=
   jar_from=$tmp/tla2tools.jar
+  job_as=macos
+  tmp_as=
 
   edit() {
     sed "$3" "$fdir/$2" >"$work/edited" || fail selftest
@@ -547,14 +692,27 @@ EOF
   edit days-not-for-ci README.md "$elsewhere"
   edit days-not-for-ci README.md 's/\(| .Schedule-days\.cfg. |\) yes |/\1 no |/'
   expect days-not-for-ci "0:PASS $name" violated
+  expect not-compared "0:PASS $name" reads-input '' ' configuration=apart '
+  tmp_as='t m p'
+  expect not-compared "0:PASS $name" relative '' ' same=-'
+  rule=scratch
+  held absolute
+  rule=jar
+  held recorded_jar
+  rule=deadlock
+  held recorded_deadlock
+  rule=configurations
+  held recorded_configurations
   if [ "$missed" -ne 0 ]; then
-    printf 'selftest a fixture that must pass did not pass\n'
+    printf 'selftest a fixture that must pass did not pass, or a rule of the recorded runs did not hold\n'
     fail selftest
   fi
   rejected=0
   expect good "1:FAIL $name (usage)" good --other
   jar_from=fetch
   expect good "1:FAIL $name (fetch)" fetch
+  rule=download
+  held grep -q '^-q ' "$work/good/curl-fetch.log"
   jar_from=$work/no-such.jar
   expect good "1:FAIL $name (fetch)" no-file
   {
@@ -577,6 +735,49 @@ EOF
   for mode in control-holds control-other control-status control-one; do
     expect not-compared "1:FAIL $name (control)" "$mode"
   done
+
+  fixture two-spaces
+  edit two-spaces README.md "$elsewhere"
+  edit two-spaces README.md 's/\(| .Confirm4-apart\.cfg. |\) yes |/\1  yes  |/'
+  expect two-spaces "1:FAIL $name (invariant)" violated-apart '' ' configuration=apart status=12 '
+  fixture name-with-a-dash
+  edit name-with-a-dash README.md "$elsewhere"
+  edit name-with-a-dash README.md 's/| \(.\)apart. | .Confirm4-apart/| \1a-part\1 | \1Confirm4-apart/'
+  expect name-with-a-dash "1:FAIL $name (invariant)" violated-apart '' ' configuration=a-part status=12 '
+  fixture empty-count
+  edit empty-count README.md 's/\(| .Schedule-queue\.cfg. | yes | [^|]* |\) [0-9,]* |/\1  |/'
+  expect empty-count "1:FAIL $name (invariant)" good
+  fixture line-cut-short
+  edit line-cut-short README.md 's/\(| .Schedule-store\.cfg. | yes | [^|]* |\).*$/\1/'
+  expect line-cut-short "1:FAIL $name (invariant)" good
+  fixture unnamed-configuration
+  cp "$fdir/Schedule-queue.cfg" "$fdir/Schedule-more.cfg" || fail selftest
+  expect unnamed-configuration "1:FAIL $name (invariant)" good
+  fixture invariant-twice
+  edit invariant-twice Schedule-queue.cfg 's/^INVARIANT C1$/INVARIANT C10/'
+  expect invariant-twice "1:FAIL $name (invariant)" good
+  fixture replaced-invariant
+  printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule-queue.cfg" || fail selftest
+  expect replaced-invariant "1:FAIL $name (invariant)" good
+  fixture comment-mark
+  {
+    printf '\\* a note\n'
+    cat "$fdir/Schedule-store.cfg"
+  } >"$work/marked.cfg" || fail selftest
+  mv "$work/marked.cfg" "$fdir/Schedule-store.cfg" || fail selftest
+  expect comment-mark "1:FAIL $name (invariant)" good
+  fixture module-outside
+  cp "$fdir/TraceText.tla" "$fdir/Extra.tla" || fail selftest
+  expect module-outside "1:FAIL $name (traces)" good
+  fixture no-job-named
+  edit no-job-named README.md 's/^export compared in jobs:.*$/export compared in jobs:/'
+  expect no-job-named "1:FAIL $name (traces)" good
+  fixture changed-line-no-job
+  edit changed-line-no-job README.md "$elsewhere"
+  edit changed-line-no-job traces-schedule.jsonl '9s/"r":"ok"/"r":"state"/'
+  traces_from=$dir
+  job_as=none
+  expect changed-line-no-job "1:FAIL $name (traces)" good
 
   fixture renamed-invariant
   edit renamed-invariant Schedule-days.cfg 's/^INVARIANT C7$/INVARIANT C1/'
