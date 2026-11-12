@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use proc_macro2::{Delimiter, TokenStream, TokenTree};
+use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 
 const LOCKED: [&str; 7] = [
     "lib.rs",
@@ -988,14 +988,154 @@ type Segments = Vec<String>;
 
 type Leaf = (Option<String>, Segments, bool);
 
-fn type_path(t: &[String]) -> Segments {
+const ABOVE: &str = "<above the crate root>";
+
+const PROJECTION: &str = "<projection>";
+
+fn skip_prefixes(t: &[String]) -> usize {
     let mut i = 0;
     loop {
         match t.get(i).map(String::as_str) {
             Some("&" | "mut" | "dyn") => i += 1,
             Some("'") => i += 2,
-            _ => break,
+            _ => return i,
         }
+    }
+}
+
+fn has_a_top_level_comma(t: &[String]) -> bool {
+    let mut depth = 0i32;
+    for (k, x) in t.iter().enumerate() {
+        match x.as_str() {
+            "(" | "[" | "{" | "<" => depth += 1,
+            ">" if k > 0 && t[k - 1] == "-" => {}
+            ")" | "]" | "}" | ">" => depth -= 1,
+            "," if depth == 0 => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+fn angle_close(t: &[String], open: usize) -> usize {
+    let mut depth = 0i32;
+    for k in open..t.len() {
+        match t[k].as_str() {
+            "<" => depth += 1,
+            ">" if k > 0 && t[k - 1] == "-" => {}
+            ">" => {
+                depth -= 1;
+                if depth == 0 {
+                    return k;
+                }
+            }
+            _ => {}
+        }
+    }
+    t.len()
+}
+
+fn bounds(t: &[String]) -> Vec<&[String]> {
+    let mut parts = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0;
+    for (k, x) in t.iter().enumerate() {
+        match x.as_str() {
+            "<" | "(" | "[" => depth += 1,
+            ">" if k > 0 && t[k - 1] == "-" => {}
+            ">" | ")" | "]" => depth -= 1,
+            "+" if depth == 0 => {
+                parts.push(&t[start..k]);
+                start = k + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&t[start..]);
+    parts
+}
+
+fn every_path(t: &[String]) -> Vec<Segments> {
+    (0..t.len())
+        .filter(|&j| is_ident(&t[j]) && !(j >= 2 && t[j - 1] == ":" && t[j - 2] == ":"))
+        .filter(|&j| !(j >= 1 && (t[j - 1] == "$" || t[j - 1] == "'")))
+        .map(|j| type_path(&t[j..]))
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+fn qualified(t: &[String]) -> Vec<Segments> {
+    let close = angle_close(t, 0);
+    let inside = &t[1..close.min(t.len())];
+    let mut depth = 0i32;
+    let mut as_at = None;
+    for (k, x) in inside.iter().enumerate() {
+        match x.as_str() {
+            "<" | "(" | "[" => depth += 1,
+            ">" if k > 0 && inside[k - 1] == "-" => {}
+            ">" | ")" | "]" => depth -= 1,
+            "as" if depth == 0 => {
+                as_at = Some(k);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let (self_type, trait_type) = match as_at {
+        Some(k) => (&inside[..k], &inside[k + 1..]),
+        None => (inside, &inside[inside.len()..]),
+    };
+    let rest = t.get(close + 1..).unwrap_or_default();
+    let mut out = Vec::new();
+    if rest.len() > 2 && rest[0] == ":" && rest[1] == ":" && is_ident(&rest[2]) {
+        out.push(vec![PROJECTION.to_owned(), bare(&rest[2]).to_owned()]);
+        out.extend(every_path(&rest[3..]));
+    }
+    out.extend(reached(self_type));
+    out.extend(every_path(self_type));
+    let trait_head = trait_type.iter().take_while(|x| *x != "<").count();
+    out.extend(every_path(&trait_type[trait_head..]));
+    out
+}
+
+fn reached(t: &[String]) -> Vec<Segments> {
+    let mut out = Vec::new();
+    for part in bounds(t) {
+        let part = &part[skip_prefixes(part).min(part.len())..];
+        match part.first().map(String::as_str) {
+            Some("(") => {
+                let inner = &part[1..matching(part, 0).min(part.len())];
+                if !has_a_top_level_comma(inner) {
+                    out.extend(reached(inner));
+                }
+            }
+            Some("<") => out.extend(qualified(part)),
+            _ => {
+                let wrapped = part.first().is_some_and(|x| WRAPPERS.contains(&bare(x)))
+                    && part.get(1).is_some_and(|x| x == "<");
+                let head = type_path(part);
+                if wrapped {
+                    out.extend(reached(&part[2..angle_close(part, 1).min(part.len())]));
+                } else if !head.is_empty() {
+                    out.push(head);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn type_path(t: &[String]) -> Segments {
+    let mut i = skip_prefixes(t);
+    if t.get(i).is_some_and(|x| x == "(") {
+        let inner = &t[i + 1..matching(t, i).min(t.len())];
+        if has_a_top_level_comma(inner) {
+            return Vec::new();
+        }
+        return type_path(inner);
+    }
+    if t.get(i).is_some_and(|x| x == ":") && t.get(i + 1).is_some_and(|x| x == ":") {
+        i += 2;
     }
     let mut path = Vec::new();
     loop {
@@ -1021,6 +1161,49 @@ fn type_path(t: &[String]) -> Segments {
         return type_path(&t[i + 1..]);
     }
     path
+}
+
+fn holds_a_metavariable(t: &[String]) -> bool {
+    (0..t.len()).any(|k| t[k] == "$" && t.get(k + 1).is_none_or(|x| x != "crate"))
+}
+
+fn arm_of(t: &[String], open: usize, close: usize, at: usize) -> (usize, usize) {
+    let mut j = open + 1;
+    while j < close {
+        if !is_open(t.get(j)) {
+            j += 1;
+            continue;
+        }
+        let end = matching(t, j);
+        if t.get(end + 1).is_some_and(|x| x == "=")
+            && t.get(end + 2).is_some_and(|x| x == ">")
+            && is_open(t.get(end + 3))
+        {
+            let body_end = matching(t, end + 3);
+            if end + 3 < at && at < body_end {
+                return (end + 3, body_end);
+            }
+            j = body_end + 1;
+        } else {
+            j = end + 1;
+        }
+    }
+    (open, close)
+}
+
+fn declared_by_its_arm(t: &[String], open: usize, close: usize, at: usize, ty: &[String]) -> bool {
+    let [dollar, name] = ty else {
+        return false;
+    };
+    if dollar != "$" || !is_name(name) {
+        return false;
+    }
+    let (from, to) = arm_of(t, open, close, at);
+    (from..to).any(|k| {
+        matches!(t[k].as_str(), "struct" | "enum" | "union")
+            && t.get(k + 1).is_some_and(|x| x == "$")
+            && t.get(k + 2).is_some_and(|x| x == name)
+    })
 }
 
 fn use_tree(t: &[String], i: &mut usize, prefix: &[String], out: &mut Vec<Leaf>) {
@@ -1151,7 +1334,7 @@ fn arguments_of(t: &[String], open: usize, close: usize) -> Vec<Segments> {
     out
 }
 
-fn build_tree(lexed: &[Lexed]) -> Tree {
+fn build_tree(lexed: &[Lexed], sites: &Sites) -> Tree {
     let mut tree = Tree::default();
     for l in lexed {
         let t = &l.t;
@@ -1190,11 +1373,10 @@ fn build_tree(lexed: &[Lexed]) -> Tree {
             if t[i] == "type" && t.get(i + 1).is_some_and(|x| is_name(x)) {
                 let end = (i..t.len()).find(|&k| t[k] == ";").unwrap_or(t.len());
                 if let Some(eq) = (i..end).find(|&k| t[k] == "=") {
-                    tree.aliases.push((
-                        l.paths[i].clone(),
-                        bare(&t[i + 1]).to_owned(),
-                        type_path(&t[eq + 1..end]),
-                    ));
+                    for target in reached(&t[eq + 1..end]) {
+                        tree.aliases
+                            .push((l.paths[i].clone(), bare(&t[i + 1]).to_owned(), target));
+                    }
                 }
             }
         }
@@ -1237,11 +1419,21 @@ fn build_tree(lexed: &[Lexed]) -> Tree {
                 let Some(eq) = (k..end).find(|&m| l.t[m] == "=") else {
                     continue;
                 };
-                let target = type_path(&l.t[eq + 1..end]);
-                match l.t.get(k + 1) {
-                    Some(x) if x == "$" => alias_targets.push(target),
-                    Some(x) if is_name(x) => literal_aliases.push((bare(x).to_owned(), target)),
-                    _ => {}
+                for target in reached(&l.t[eq + 1..end]) {
+                    match l.t.get(k + 1) {
+                        Some(x) if x == "$" => alias_targets.push(target),
+                        Some(x) if is_name(x) => literal_aliases.push((bare(x).to_owned(), target)),
+                        _ => {}
+                    }
+                }
+            }
+            for (module, in_block) in sites_of(sites, name) {
+                for target in &glob_targets {
+                    tree.globs.push((module.clone(), target.clone(), in_block));
+                }
+                for (alias, target) in &literal_aliases {
+                    tree.aliases
+                        .push((module.clone(), alias.clone(), target.clone()));
                 }
             }
             for caller in lexed {
@@ -1269,22 +1461,76 @@ fn build_tree(lexed: &[Lexed]) -> Tree {
                             }
                         }
                     }
-                    for target in &glob_targets {
-                        tree.globs.push((
-                            module.clone(),
-                            target.clone(),
-                            in_a_block(&caller.t, c_open),
-                        ));
-                    }
-                    for (alias, target) in &literal_aliases {
-                        tree.aliases
-                            .push((module.clone(), alias.clone(), target.clone()));
-                    }
                 }
             }
         }
     }
     tree
+}
+
+type Sites = Vec<(String, Vec<(Segments, bool)>)>;
+
+fn sites_of(sites: &Sites, name: &str) -> Vec<(Segments, bool)> {
+    sites
+        .iter()
+        .find(|(n, _)| n == name)
+        .map(|(_, s)| s.clone())
+        .unwrap_or_default()
+}
+
+fn nesting(l: &Lexed, open: usize, at: usize) -> Segments {
+    l.paths[at]
+        .get(l.paths[open].len()..)
+        .unwrap_or_default()
+        .to_vec()
+}
+
+fn expansion_sites(lexed: &[Lexed]) -> Sites {
+    let mut sites: Sites = Vec::new();
+    for l in lexed {
+        for (name, _, _) in &l.bodies {
+            if !sites.iter().any(|(n, _)| n == name) {
+                sites.push((name.clone(), Vec::new()));
+            }
+        }
+    }
+    for _ in 0..8 {
+        let mut grew = false;
+        for caller in lexed {
+            let t = &caller.t;
+            for i in 0..t.len() {
+                let call = is_name(&t[i])
+                    && t.get(i + 1).is_some_and(|x| x == "!")
+                    && is_open(t.get(i + 2))
+                    && !(i >= 1 && t[i - 1] == "$");
+                if !call {
+                    continue;
+                }
+                let found: Vec<(Segments, bool)> = match caller.body_of(i) {
+                    None => vec![(caller.paths[i].clone(), in_a_block(t, i))],
+                    Some((outer, open, _)) => {
+                        let inner = nesting(caller, *open, i);
+                        sites_of(&sites, outer)
+                            .into_iter()
+                            .map(|(m, block)| (m.into_iter().chain(inner.clone()).collect(), block))
+                            .collect()
+                    }
+                };
+                if let Some((_, have)) = sites.iter_mut().find(|(n, _)| n == bare(&t[i])) {
+                    for site in found {
+                        if !have.contains(&site) {
+                            have.push(site);
+                            grew = true;
+                        }
+                    }
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    sites
 }
 
 fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Option<Segments> {
@@ -1309,7 +1555,9 @@ fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Op
     }
     if first == "super" {
         let ups = path.iter().take_while(|p| *p == "super").count();
-        let keep = module.len().checked_sub(ups)?;
+        let Some(keep) = module.len().checked_sub(ups) else {
+            return Some(vec![ABOVE.to_owned()]);
+        };
         return Some(
             module[..keep]
                 .iter()
@@ -1340,6 +1588,12 @@ fn place(tree: &Tree, locked: &Locked, module: &[String], path: &[String], depth
     if depth > 8 || path.is_empty() {
         return Place::Other;
     }
+    if path[0] == PROJECTION {
+        let reaches = tree.aliases.iter().any(|(m, alias, target)| {
+            path.get(1) == Some(alias) && place(tree, locked, m, target, depth + 1) == Place::Locked
+        });
+        return if reaches { Place::Locked } else { Place::Other };
+    }
     if path.len() == 1 && path[0] != "$" {
         return place_name(tree, locked, module, &path[0], depth);
     }
@@ -1352,7 +1606,7 @@ fn place(tree: &Tree, locked: &Locked, module: &[String], path: &[String], depth
 fn place_absolute(tree: &Tree, locked: &Locked, abs: &[String], depth: usize) -> Place {
     match abs {
         [] => Place::Other,
-        [first, ..] if MODULES.contains(&first.as_str()) => Place::Locked,
+        [first, ..] if first == ABOVE || MODULES.contains(&first.as_str()) => Place::Locked,
         [only] => {
             if locked.root.contains(only) {
                 Place::Locked
@@ -1424,6 +1678,7 @@ fn glob_reaches_a_locked_type(
             continue;
         }
         match absolute(tree, module, target, depth + 1) {
+            Some(abs) if abs.first().is_some_and(|f| f == ABOVE) => return true,
             Some(abs) if abs.is_empty() => {
                 if locked.root.iter().any(|r| r == name) {
                     return true;
@@ -1479,8 +1734,9 @@ fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
         if depth == 0 && (x == "{" || x == ";" || x == "where") {
             break;
         }
-        if depth == 0 && x == "for" && self_type.is_none() && t.get(j + 1).is_none_or(|n| n != "<")
-        {
+        let bound_lifetimes = t.get(j + 1).is_some_and(|n| n == "<")
+            && t.get(j + 2).is_some_and(|n| n == "'" || n == ">");
+        if depth == 0 && x == "for" && self_type.is_none() && !bound_lifetimes {
             self_type = Some(Vec::new());
             j += 1;
             continue;
@@ -1500,27 +1756,31 @@ fn impl_header(t: &[String], at: usize) -> (Vec<String>, Vec<String>) {
     (generics, self_type.unwrap_or(path))
 }
 
-fn bound_paths(self_type: &[String]) -> Vec<Segments> {
-    let mut parts = Vec::new();
-    let mut depth = 0i32;
-    let mut start = 0;
-    for (k, x) in self_type.iter().enumerate() {
-        match x.as_str() {
-            "<" | "(" | "[" => depth += 1,
-            ">" if k == 0 || self_type[k - 1] != "-" => depth -= 1,
-            ")" | "]" => depth -= 1,
-            "+" if depth == 0 => {
-                parts.push(type_path(&self_type[start..k]));
-                start = k + 1;
-            }
-            _ => {}
-        }
-    }
-    parts.push(type_path(&self_type[start..]));
-    parts.into_iter().filter(|p| !p.is_empty()).collect()
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Rule {
+    Unread,
+    MacroExport,
+    PathOrInclude,
+    LockedImpl,
+    MacroImpl,
+    MacroAlias,
 }
 
-fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
+const RULES: [Rule; 6] = [
+    Rule::Unread,
+    Rule::MacroExport,
+    Rule::PathOrInclude,
+    Rule::LockedImpl,
+    Rule::MacroImpl,
+    Rule::MacroAlias,
+];
+
+fn impl_faults(
+    lexed: &[Lexed],
+    tree: &Tree,
+    locked: &Locked,
+    sites: &Sites,
+) -> Vec<(Rule, String)> {
     let mut faults = Vec::new();
     for l in lexed {
         let t = &l.t;
@@ -1537,48 +1797,41 @@ fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
             if path.len() == 1 && generics.contains(&path[0]) {
                 continue;
             }
+            let mut modules = vec![l.paths[i].clone()];
             if let Some((name, open, close)) = l.body_of(i) {
-                if path.first().is_some_and(|p| p == "$")
-                    && path.get(1).is_some_and(|p| p != "crate")
-                {
-                    let fragment = &path[1];
-                    let body = &t[*open..*close];
-                    let declared = (0..body.len()).any(|k| {
-                        matches!(body[k].as_str(), "struct" | "enum" | "union" | "type")
-                            && body.get(k + 1).is_some_and(|x| x == "$")
-                            && body.get(k + 2).is_some_and(|x| x == fragment)
-                    });
-                    if declared {
-                        continue;
-                    }
-                    for caller in lexed {
-                        for (module, c_open, c_close) in caller.calls(name) {
-                            for argument in arguments_of(&caller.t, c_open, c_close) {
-                                if place(tree, locked, &module, &argument, 0) == Place::Locked {
-                                    faults.push(format!(
-                                        "{} passes `{}` to the macro {name} of {}, which implements its argument, and it is a type of a locked module",
-                                        caller.file,
-                                        argument.join("::"),
-                                        l.file
-                                    ));
-                                }
-                            }
-                        }
+                if holds_a_metavariable(&self_type) {
+                    if !declared_by_its_arm(t, *open, *close, i, &self_type) {
+                        faults.push((
+                            Rule::MacroImpl,
+                            format!(
+                                "{} holds the macro {name}, which writes an impl for `{shown}`, a type that holds a metavariable and that the same arm does not declare with struct, enum or union: declare the type in the same arm, or write the impl by hand",
+                                l.file
+                            ),
+                        ));
                     }
                     continue;
                 }
+                let inner = nesting(l, *open, i);
+                for (module, _) in sites_of(sites, name) {
+                    modules.push(module.into_iter().chain(inner.clone()).collect());
+                }
             }
-            let mut reached = bound_paths(&self_type);
+            let mut reached = reached(&self_type);
             if path.len() == 1 && tree.generic_aliases.contains(&path[0]) {
                 reached.extend(arguments_of(&self_type, 0, self_type.len()));
             }
-            if reached
-                .iter()
-                .any(|p| place(tree, locked, &l.paths[i], p, 0) == Place::Locked)
-            {
-                faults.push(format!(
-                    "{} holds an impl for `{shown}`, which is a type of a locked module",
-                    l.file
+            let locked_type = modules.iter().any(|module| {
+                reached
+                    .iter()
+                    .any(|p| place(tree, locked, module, p, 0) == Place::Locked)
+            });
+            if locked_type {
+                faults.push((
+                    Rule::LockedImpl,
+                    format!(
+                        "{} holds an impl for `{shown}`, which is a type of a locked module",
+                        l.file
+                    ),
                 ));
             }
         }
@@ -1586,25 +1839,88 @@ fn impl_faults(lexed: &[Lexed], tree: &Tree, locked: &Locked) -> Vec<String> {
     faults
 }
 
-fn outside_the_lock_faults(files: &[(String, String)]) -> Vec<String> {
+fn alias_faults(lexed: &[Lexed]) -> Vec<(Rule, String)> {
+    let mut faults = Vec::new();
+    for l in lexed {
+        let t = &l.t;
+        for (name, open, close) in &l.bodies {
+            for k in open + 1..*close {
+                if l.matcher[k] || !matches!(t[k].as_str(), "type" | "use") {
+                    continue;
+                }
+                let end = (k..*close).find(|&m| t[m] == ";").unwrap_or(*close);
+                let target = if t[k] == "use" {
+                    &t[k + 1..end]
+                } else {
+                    match (k..end).find(|&m| t[m] == "=") {
+                        Some(eq) => &t[eq + 1..end],
+                        None => continue,
+                    }
+                };
+                if holds_a_metavariable(target) {
+                    faults.push((
+                        Rule::MacroAlias,
+                        format!(
+                            "{} holds the macro {name}, which writes an alias whose target `{}` holds a metavariable: write the alias by hand",
+                            l.file,
+                            target.join(" ")
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    faults
+}
+
+fn in_an_attribute(t: &[String]) -> Vec<bool> {
+    let mut inside = vec![false; t.len()];
+    for i in 0..t.len() {
+        let open = if t[i] == "#" && t.get(i + 1).is_some_and(|x| x == "[") {
+            i + 1
+        } else if t[i] == "#"
+            && t.get(i + 1).is_some_and(|x| x == "!")
+            && t.get(i + 2).is_some_and(|x| x == "[")
+        {
+            i + 2
+        } else {
+            continue;
+        };
+        let close = matching(t, open).min(t.len() - 1);
+        for flag in &mut inside[open..=close] {
+            *flag = true;
+        }
+    }
+    inside
+}
+
+fn ruled_faults(files: &[(String, String)]) -> Vec<(Rule, String)> {
     let locked = locked_types();
     let mut faults = Vec::new();
     let mut lexed = Vec::new();
     for (file, text) in files {
         match lex(text) {
             Ok(t) => {
-                faults.extend(reach_faults(file, &t));
+                faults.extend(
+                    reach_faults(file, &t)
+                        .into_iter()
+                        .map(|f| (Rule::PathOrInclude, f)),
+                );
                 faults.extend(
                     t.iter()
                         .filter(|token| is_ident(token) && bare(token) == "macro_export")
-                        .map(|_| format!("{file} holds macro_export")),
+                        .map(|_| (Rule::MacroExport, format!("{file} holds macro_export"))),
                 );
                 if file.starts_with("bin/") {
                     continue;
                 }
-                let inside = in_an_attribute_or_a_macro(&t);
                 let matcher = in_a_matcher(&t);
-                let paths = module_paths(&t, &inside, &module_of(file));
+                let opaque: Vec<bool> = in_an_attribute(&t)
+                    .iter()
+                    .zip(&matcher)
+                    .map(|(a, m)| *a || *m)
+                    .collect();
+                let paths = module_paths(&t, &opaque, &module_of(file));
                 let bodies = macro_bodies(&t);
                 lexed.push(Lexed {
                     file: file.clone(),
@@ -1614,20 +1930,25 @@ fn outside_the_lock_faults(files: &[(String, String)]) -> Vec<String> {
                     bodies,
                 });
             }
-            Err(cause) => faults.push(unread(file, &cause)),
+            Err(cause) => faults.push((Rule::Unread, unread(file, &cause))),
         }
     }
-    let tree = build_tree(&lexed);
-    faults.extend(impl_faults(&lexed, &tree, &locked));
+    let sites = expansion_sites(&lexed);
+    let tree = build_tree(&lexed, &sites);
+    faults.extend(impl_faults(&lexed, &tree, &locked, &sites));
+    faults.extend(alias_faults(&lexed));
     faults
+}
+
+fn outside_the_lock_faults(files: &[(String, String)]) -> Vec<String> {
+    ruled_faults(files).into_iter().map(|(_, f)| f).collect()
 }
 
 fn later_faults(file: &str, text: &str) -> Vec<String> {
     outside_the_lock_faults(&[(file.to_owned(), text.to_owned())])
 }
 
-#[test]
-fn no_file_of_a_later_run_holds_macro_export() {
+fn tree_faults(rule: Rule) -> Vec<String> {
     let files = later_files();
     let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
     for module in LATER {
@@ -1636,7 +1957,286 @@ fn no_file_of_a_later_run_holds_macro_export() {
             "{names:?}"
         );
     }
-    assert_eq!(outside_the_lock_faults(&files), Vec::<String>::new());
+    ruled_faults(&files)
+        .into_iter()
+        .filter(|(r, _)| *r == rule)
+        .map(|(_, f)| f)
+        .collect()
+}
+
+macro_rules! tree_tests {
+    ($($name:ident: $rule:ident,)*) => {
+        $(
+            #[test]
+            fn $name() {
+                assert_eq!(tree_faults(Rule::$rule), Vec::<String>::new());
+            }
+        )*
+        const TREE_TESTS: &[(Rule, &str)] = &[$((Rule::$rule, stringify!($name)),)*];
+    };
+}
+
+tree_tests! {
+    every_file_of_a_later_run_is_read_as_the_compiler_reads_it: Unread,
+    no_file_of_a_later_run_holds_macro_export: MacroExport,
+    no_file_of_a_later_run_holds_a_path_attribute_or_an_include_macro: PathOrInclude,
+    no_file_of_a_later_run_holds_an_impl_for_a_type_of_a_locked_module: LockedImpl,
+    no_macro_of_a_later_run_writes_an_impl_for_a_type_that_its_arm_does_not_declare: MacroImpl,
+    no_macro_of_a_later_run_writes_an_alias_from_a_metavariable: MacroAlias,
+}
+
+#[test]
+fn each_rule_of_the_files_of_later_runs_has_a_test_of_its_own_whose_name_says_what_it_refuses() {
+    assert_eq!(
+        TREE_TESTS,
+        [
+            (
+                Rule::Unread,
+                "every_file_of_a_later_run_is_read_as_the_compiler_reads_it"
+            ),
+            (
+                Rule::MacroExport,
+                "no_file_of_a_later_run_holds_macro_export"
+            ),
+            (
+                Rule::PathOrInclude,
+                "no_file_of_a_later_run_holds_a_path_attribute_or_an_include_macro"
+            ),
+            (
+                Rule::LockedImpl,
+                "no_file_of_a_later_run_holds_an_impl_for_a_type_of_a_locked_module"
+            ),
+            (
+                Rule::MacroImpl,
+                "no_macro_of_a_later_run_writes_an_impl_for_a_type_that_its_arm_does_not_declare"
+            ),
+            (
+                Rule::MacroAlias,
+                "no_macro_of_a_later_run_writes_an_alias_from_a_metavariable"
+            ),
+        ]
+    );
+    assert_eq!(TREE_TESTS.len(), RULES.len());
+    for rule in RULES {
+        assert_eq!(
+            TREE_TESTS.iter().filter(|(r, _)| *r == rule).count(),
+            1,
+            "{rule:?}"
+        );
+    }
+    for (rule, text) in [
+        (Rule::Unread, "pub fn f() {\n"),
+        (
+            Rule::MacroExport,
+            "#[macro_export]\nmacro_rules! m {\n    () => {};\n}\n",
+        ),
+        (Rule::PathOrInclude, "#[path = \"x.rs\"]\nmod x;\n"),
+        (Rule::LockedImpl, "impl crate::kinds::KindEntry {}\n"),
+        (
+            Rule::MacroImpl,
+            "macro_rules! g {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\n",
+        ),
+        (
+            Rule::MacroAlias,
+            "macro_rules! a {\n    ($t:ty) => {\n        type A = $t;\n    };\n}\n",
+        ),
+    ] {
+        let rules: Vec<Rule> = ruled_faults(&[("learning.rs".to_owned(), text.to_owned())])
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect();
+        assert_eq!(rules, [rule], "{text}");
+    }
+}
+
+fn manifest_keys(text: &str) -> Vec<String> {
+    let mut keys = Vec::new();
+    for line in text.lines() {
+        let mut key = String::new();
+        let mut in_key = true;
+        let mut quote: Option<char> = None;
+        for c in line.chars() {
+            if let Some(q) = quote {
+                if in_key {
+                    key.push(c);
+                }
+                if c == q {
+                    quote = None;
+                }
+                continue;
+            }
+            match c {
+                '"' | '\'' => {
+                    quote = Some(c);
+                    if in_key {
+                        key.push(c);
+                    }
+                }
+                '#' => break,
+                '=' if in_key => {
+                    keys.push(key.trim().to_owned());
+                    key.clear();
+                    in_key = false;
+                }
+                '{' | ',' => {
+                    key.clear();
+                    in_key = true;
+                }
+                _ if in_key => key.push(c),
+                _ => {}
+            }
+        }
+    }
+    keys
+}
+
+fn names_a_build_script(key: &str) -> bool {
+    key.contains('\\')
+        || key
+            .replace(['"', '\''], "")
+            .split('.')
+            .any(|part| part.trim() == "build")
+}
+
+fn build_script_faults(dir: &Path) -> Vec<String> {
+    let mut faults = Vec::new();
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+        .map(|entry| {
+            entry
+                .expect("a directory entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    for name in names {
+        if name.to_lowercase() == "build.rs" {
+            faults.push(format!(
+                "the crate has a build script, {name} beside its manifest: a later run that needs one asks for a Revision of C3.7"
+            ));
+        }
+    }
+    let manifest = std::fs::read_to_string(dir.join("Cargo.toml"))
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    for key in manifest_keys(&manifest) {
+        if names_a_build_script(&key) {
+            faults.push(format!(
+                "the manifest of the crate holds the key {key}, which names a build script: a later run that needs one asks for a Revision of C3.7"
+            ));
+        }
+    }
+    faults
+}
+
+#[test]
+fn the_crate_has_no_build_script() {
+    assert_eq!(
+        build_script_faults(Path::new(env!("CARGO_MANIFEST_DIR"))),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn the_check_of_a_build_script_refuses_a_build_rs_and_a_key_build_in_the_manifest() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("build-script");
+    let manifest =
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+            .expect("the manifest");
+    let with_key = |line: &str| {
+        manifest.replacen(
+            "publish = false\n",
+            &format!("publish = false\n{line}\n"),
+            1,
+        )
+    };
+    let refused = [
+        ("file-lower", manifest.clone(), Some("build.rs"), "build.rs"),
+        ("file-upper", manifest.clone(), Some("BUILD.RS"), "BUILD.RS"),
+        (
+            "key-plain",
+            with_key("build = \"src/gen.rs\""),
+            None,
+            "build",
+        ),
+        ("key-false", with_key("build=false"), None, "build"),
+        (
+            "key-quoted",
+            with_key("\"build\" = \"src/gen.rs\""),
+            None,
+            "\"build\"",
+        ),
+        (
+            "key-literal",
+            with_key("'build' = \"src/gen.rs\""),
+            None,
+            "'build'",
+        ),
+        (
+            "key-escaped",
+            with_key("\"bu\\u0069ld\" = \"src/gen.rs\""),
+            None,
+            "\"bu\\u0069ld\"",
+        ),
+        (
+            "key-indented",
+            with_key("   build   = \"src/gen.rs\""),
+            None,
+            "build",
+        ),
+        (
+            "key-dotted",
+            format!("package.build = \"src/gen.rs\"\n{manifest}"),
+            None,
+            "package.build",
+        ),
+        (
+            "key-inline",
+            manifest.replacen(
+                "[package]\n",
+                "package = { build = \"src/gen.rs\" }\n[x]\n",
+                1,
+            ),
+            None,
+            "build",
+        ),
+    ];
+    for (case, text, file, named) in refused {
+        let dir = root.join(case);
+        std::fs::create_dir_all(&dir).expect("a fixture directory");
+        std::fs::write(dir.join("Cargo.toml"), &text).expect("a fixture manifest");
+        if let Some(file) = file {
+            std::fs::write(dir.join(file), "fn main() {}\n").expect("a fixture build script");
+        }
+        let faults = build_script_faults(&dir);
+        let want = if file.is_some() {
+            format!("the crate has a build script, {named} beside its manifest: a later run that needs one asks for a Revision of C3.7")
+        } else {
+            format!("the manifest of the crate holds the key {named}, which names a build script: a later run that needs one asks for a Revision of C3.7")
+        };
+        assert_eq!(faults, [want], "{case}");
+    }
+    for (case, text) in [
+        ("twin-manifest", manifest.clone()),
+        ("twin-comment", with_key("# build = \"src/gen.rs\"")),
+        (
+            "twin-comment-braces",
+            with_key("# a table { build = \"src/gen.rs\" }"),
+        ),
+        ("twin-value", with_key("description = \"the build = fast\"")),
+        (
+            "twin-names",
+            with_key("builder = 1\nrebuild = 2\nbuild_id = 3"),
+        ),
+        ("twin-table", format!("{manifest}\n[build-dependencies]\n")),
+    ] {
+        let dir = root.join(case);
+        std::fs::create_dir_all(&dir).expect("a fixture directory");
+        std::fs::write(dir.join("Cargo.toml"), &text).expect("a fixture manifest");
+        std::fs::write(dir.join("builder.rs"), "fn main() {}\n").expect("a fixture file");
+        assert_eq!(build_script_faults(&dir), Vec::<String>::new(), "{case}");
+    }
 }
 
 #[test]
@@ -1895,6 +2495,11 @@ fn the_reader_refuses_a_file_that_it_cannot_read_as_the_compiler_does() {
     }
 }
 
+fn refuses_an_impl(fault: &str) -> bool {
+    fault.ends_with("a type of a locked module")
+        || fault.ends_with("declare the type in the same arm, or write the impl by hand")
+}
+
 #[test]
 fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
     let cases = [
@@ -1937,9 +2542,7 @@ fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
         for text in forms {
             let faults = later_faults("learning.rs", &text);
             assert!(
-                faults
-                    .iter()
-                    .any(|f| f.ends_with("a type of a locked module")),
+                faults.iter().any(|f| refuses_an_impl(f)),
                 "{text}: {faults:?}"
             );
         }
@@ -1966,7 +2569,7 @@ fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
     ] {
         let faults = later_faults("learning.rs", text);
         assert!(
-            faults.iter().any(|f| f.ends_with("a type of a locked module")),
+            faults.iter().any(|f| refuses_an_impl(f)),
             "{text}: {faults:?}"
         );
     }
@@ -2009,7 +2612,6 @@ fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
         "pub struct OwnText(String);\nimpl OwnText {\n    pub fn get(&self) -> &str {\n        &self.0\n    }\n}\npub struct Category;\nimpl Category {}\n",
         "macro_rules! names {\n    ($(#[$m:meta])* pub enum $name:ident { $($v:ident = $s:literal),+ $(,)? }) => {\n        $(#[$m])*\n        pub enum $name { $($v),+ }\n        impl $name {\n            pub fn all() -> usize {\n                0\n            }\n        }\n        impl std::fmt::Display for $name {\n            fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n                Ok(())\n            }\n        }\n    };\n}\nnames! {\n    pub enum Mood {\n        Calm = \"calm\",\n    }\n}\n",
         "macro_rules! with_fmt {\n    () => {\n        use std::fmt;\n    };\n}\nwith_fmt!();\n",
-        "pub struct LaterNote;\nmacro_rules! give {\n    ($t:ty) => {\n        impl $t {}\n    };\n}\ngive!(LaterNote);\n",
         "pub struct LaterBody {\n    pub n: u32,\n}\nimpl crate::request::RunnerBody for LaterBody {\n    type Reply = u32;\n}\n",
         "pub fn f() -> impl Iterator<Item = u8> {\n    0..3\n}\npub fn g(x: impl AsRef<str>) -> usize {\n    x.as_ref().len()\n}\n",
     ] {
@@ -2236,4 +2838,375 @@ fn each_predicate_of_the_textual_tests_has_a_case_of_its_own() {
         ),
         ["lib.rs names learning 2 times"]
     );
+}
+
+const TR: &str = "pub trait Tr {}\n";
+
+const PICK: &str = "pub trait Pick {\n    type Out;\n}\n";
+
+fn shown(text: &str) -> String {
+    tokens(text).join(" ")
+}
+
+fn display(ty: &str) -> String {
+    format!("impl std::fmt::Display for {ty} {{\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{\n        f.write_str(&self.json)\n    }}\n}}\n")
+}
+
+fn locked_impl(ty: &str) -> String {
+    format!(
+        "learning.rs holds an impl for `{}`, which is a type of a locked module",
+        shown(ty)
+    )
+}
+
+fn macro_impl(name: &str, ty: &str) -> String {
+    format!(
+        "learning.rs holds the macro {name}, which writes an impl for `{}`, a type that holds a metavariable and that the same arm does not declare with struct, enum or union: declare the type in the same arm, or write the impl by hand",
+        shown(ty)
+    )
+}
+
+fn macro_alias(name: &str, target: &str) -> String {
+    format!(
+        "learning.rs holds the macro {name}, which writes an alias whose target `{}` holds a metavariable: write the alias by hand",
+        shown(target)
+    )
+}
+
+fn assert_refused(cases: &[(String, String)]) {
+    let wrong: Vec<String> = cases
+        .iter()
+        .filter_map(|(text, fault)| {
+            let faults = later_faults("learning.rs", text);
+            (faults != [fault.clone()]).then(|| format!("{text}\nwant: {fault}\ngot: {faults:?}"))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "{}", wrong.join("\n\n"));
+}
+
+fn assert_passed(twins: &[&str]) {
+    let wrong: Vec<String> = twins
+        .iter()
+        .filter_map(|text| {
+            let faults = later_faults("learning.rs", text);
+            (!faults.is_empty()).then(|| format!("{text}\ngot: {faults:?}"))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "{}", wrong.join("\n\n"));
+}
+
+#[test]
+fn the_test_of_the_later_files_reads_a_type_through_round_brackets_and_a_group_without_a_delimiter()
+{
+    let p01 = "impl (crate::kinds::KindEntry) {\n    pub(crate) fn later_says_ok(&self) -> bool {\n        false\n    }\n}\n";
+    assert_refused(&[
+        (
+            format!("{TR}#[allow(unused_parens)]\nimpl Tr for (crate::site::AppId) {{}}\n"),
+            locked_impl("(crate::site::AppId)"),
+        ),
+        (
+            format!("#[allow(unused_parens)]\n{}", display("(crate::record::TypedRecord)")),
+            locked_impl("(crate::record::TypedRecord)"),
+        ),
+        (
+            format!("#[allow(unused_parens)]\n{p01}"),
+            locked_impl("(crate::kinds::KindEntry)"),
+        ),
+        (
+            format!("{TR}impl Tr for ((crate::site::AppId)) {{}}\n"),
+            locked_impl("((crate::site::AppId))"),
+        ),
+        (
+            format!("{TR}impl Tr for &(crate::site::AppId) {{}}\n"),
+            locked_impl("&(crate::site::AppId)"),
+        ),
+        (
+            format!("{TR}impl Tr for Box<(crate::site::AppId)> {{}}\n"),
+            locked_impl("Box<(crate::site::AppId)>"),
+        ),
+        (
+            format!("{TR}impl Tr for Box<dyn Send + crate::RowRead> {{}}\n"),
+            locked_impl("Box<dyn Send + crate::RowRead>"),
+        ),
+        (
+            "impl (dyn Send + crate::RowRead) {\n    pub fn sneak(&self) {}\n}\n".to_owned(),
+            locked_impl("(dyn Send + crate::RowRead)"),
+        ),
+        (
+            format!("{TR}pub type Mine = (crate::site::AppId);\nimpl Tr for Mine {{}}\n"),
+            locked_impl("Mine"),
+        ),
+        (
+            "pub type Mine = dyn Send + crate::RowRead;\nimpl Mine {\n    pub fn sneak(&self) {}\n}\n"
+                .to_owned(),
+            locked_impl("Mine"),
+        ),
+    ]);
+    assert_passed(&[
+        &format!("{TR}impl Tr for (crate::site::AppId, u8) {{}}\n"),
+        &format!("{TR}impl Tr for (crate::site::AppId,) {{}}\n"),
+        &format!("{TR}impl Tr for () {{}}\n"),
+        &format!("{TR}pub struct Mine;\nimpl Tr for (Mine) {{}}\n"),
+    ]);
+    let mut stream = TokenStream::from_str("pub trait Tr {}\nimpl Tr for").unwrap();
+    stream.extend([TokenTree::Group(Group::new(
+        Delimiter::None,
+        TokenStream::from_str("crate::site::AppId").unwrap(),
+    ))]);
+    stream.extend(TokenStream::from_str("{}").unwrap());
+    let mut flat = Vec::new();
+    flatten(stream, &mut flat);
+    assert_eq!(
+        flat,
+        tokens(&format!("{TR}impl Tr for crate::site::AppId {{}}"))
+    );
+    assert_eq!(
+        later_faults("learning.rs", &flat.join(" ")),
+        [locked_impl("crate::site::AppId")]
+    );
+}
+
+#[test]
+fn the_test_of_the_later_files_reads_a_qualified_path_by_the_type_before_as_and_a_later_impl_as_an_alias_of_its_projection(
+) {
+    let owned = "<crate::record::TypedRecord as ToOwned>::Owned";
+    let out = "<() as Pick>::Out";
+    assert_refused(&[
+        (display(owned), locked_impl(owned)),
+        (format!("{TR}impl Tr for {owned} {{}}\n"), locked_impl(owned)),
+        (
+            format!(
+                "{PICK}impl Pick for () {{\n    type Out = crate::record::TypedRecord;\n}}\n{}",
+                display(out)
+            ),
+            locked_impl(out),
+        ),
+        (
+            format!("{PICK}impl Pick for () {{\n    type Out = crate::ids::ParseError;\n}}\npub trait Sneak {{}}\nimpl Sneak for {out} {{}}\n"),
+            locked_impl("<() as Pick>::Out"),
+        ),
+        (
+            format!("{PICK}impl Pick for () {{\n    type Out = crate::record::TypedRecord;\n}}\npub type P<T> = <T as Pick>::Out;\n{}", display("P<()>")),
+            locked_impl("P<()>"),
+        ),
+        (
+            format!("{PICK}impl Pick for () {{\n    type Out = crate::site::AppId;\n}}\npub type R = {out};\n{TR}impl Tr for R {{}}\n"),
+            locked_impl("R"),
+        ),
+        (
+            format!("{TR}pub trait Pick<T> {{\n    type Out;\n}}\nimpl<T> Pick<T> for () {{\n    type Out = T;\n}}\nimpl Tr for <() as Pick<crate::site::AppId>>::Out {{}}\n"),
+            locked_impl("<() as Pick<crate::site::AppId>>::Out"),
+        ),
+        (
+            format!("{TR}{PICK}pub struct Wrap<T>(T);\nimpl<T> Pick for Wrap<T> {{\n    type Out = T;\n}}\nimpl Tr for <Wrap<crate::site::AppId> as Pick>::Out {{}}\n"),
+            locked_impl("<Wrap<crate::site::AppId> as Pick>::Out"),
+        ),
+        (
+            format!("{TR}pub trait Pick {{\n    type Out<T>;\n}}\nimpl Pick for () {{\n    type Out<T> = T;\n}}\nimpl Tr for <() as Pick>::Out<crate::site::AppId> {{}}\n"),
+            locked_impl("<() as Pick>::Out<crate::site::AppId>"),
+        ),
+        (
+            format!("{TR}{PICK}impl Pick for () {{\n    type Out = crate::site::AppId;\n}}\nimpl Tr for <<() as Pick>::Out as ToOwned>::Owned {{}}\n"),
+            locked_impl("<<() as Pick>::Out as ToOwned>::Owned"),
+        ),
+        (
+            format!("{TR}pub struct Mine;\nimpl std::ops::Deref for Mine {{\n    type Target = crate::site::AppId;\n    fn deref(&self) -> &crate::site::AppId {{\n        unimplemented!()\n    }}\n}}\nimpl Tr for <Mine as std::ops::Deref>::Target {{}}\n"),
+            locked_impl("<Mine as std::ops::Deref>::Target"),
+        ),
+    ]);
+    let across = outside_the_lock_faults(&[
+        (
+            "learning.rs".to_owned(),
+            format!("pub mod more;\n{TR}impl Tr for <() as more::Pick>::Out {{}}\n"),
+        ),
+        (
+            "learning/more.rs".to_owned(),
+            format!("{PICK}impl Pick for () {{\n    type Out = crate::site::AppId;\n}}\n"),
+        ),
+    ]);
+    assert_eq!(across, [locked_impl("<() as more::Pick>::Out")]);
+    assert_passed(&[
+        &format!("{TR}{PICK}pub struct Mine;\nimpl Pick for () {{\n    type Out = Mine;\n}}\nimpl Tr for {out} {{}}\n"),
+        "pub struct LaterBody;\nimpl crate::request::RunnerBody for LaterBody {\n    type Reply = u32;\n}\n",
+        &format!("{TR}pub struct LaterBody;\nimpl crate::request::RunnerBody for LaterBody {{\n    type Reply = u32;\n}}\nimpl Tr for <LaterBody as crate::request::RunnerBody>::Reply {{}}\n"),
+        &format!("{TR}impl<T> Tr for T where for<'a> &'a T: Send {{}}\n"),
+        &format!("{TR}impl Tr for dyn for<'a> Fn(&'a u8) {{}}\n"),
+        &format!("{TR}impl Tr for for<'a> fn(&'a u8) {{}}\n"),
+    ]);
+}
+
+#[test]
+fn the_test_of_the_later_files_refuses_an_impl_in_a_macro_for_a_type_that_its_arm_does_not_declare()
+{
+    let loose = "macro_rules! at {\n    ($($t:tt)*) => {\n        @\n    };\n}\nat!(crate::record::TypedRecord);\n";
+    let handed = "macro_rules! inner {\n    ($t:ty) => {\n        @\n    };\n}\nmacro_rules! outer {\n    ($($t:ty),*) => {\n        $( inner!($t); )*\n    };\n}\nouter!(u8, crate::record::TypedRecord);\n";
+    let built = "macro_rules! at {\n    ($m:ident, $t:ident) => {\n        @\n    };\n}\nat!(record, TypedRecord);\n";
+    let given = "macro_rules! give {\n    ($t:ty) => {\n        @\n    };\n}\ngive!(crate::record::TypedRecord);\n";
+    let mut cases = Vec::new();
+    for (text, name, ty) in [
+        (loose, "at", "$($t)*"),
+        (handed, "inner", "$t"),
+        (built, "at", "crate::$m::$t"),
+        (given, "give", "$t"),
+    ] {
+        cases.push((
+            format!(
+                "{TR}{}",
+                text.replace('@', &format!("impl Tr for {ty} {{}}"))
+            ),
+            macro_impl(name, ty),
+        ));
+        cases.push((text.replace('@', &display(ty)), macro_impl(name, ty)));
+    }
+    for (text, name, ty) in [
+        (
+            "macro_rules! give {\n    ($t:ty) => {\n        impl Tr for $t {}\n    };\n}\n",
+            "give",
+            "$t",
+        ),
+        (
+            "pub struct LaterNote;\nmacro_rules! give {\n    ($t:ty) => {\n        impl Tr for $t {}\n    };\n}\ngive!(LaterNote);\n",
+            "give",
+            "$t",
+        ),
+        (
+            "macro_rules! two {\n    (decl $n:ident) => {\n        pub struct $n;\n    };\n    (imp $n:ident) => {\n        impl Tr for $n {}\n    };\n}\ntwo!(decl Mine);\ntwo!(imp Mine);\n",
+            "two",
+            "$n",
+        ),
+        (
+            "macro_rules! al {\n    ($n:ident) => {\n        pub struct Other;\n        pub type $n = Other;\n        impl Tr for $n {}\n    };\n}\nal!(Mine);\n",
+            "al",
+            "$n",
+        ),
+        (
+            "macro_rules! g {\n    ($n:ident) => {\n        pub struct $n<T>(T);\n        impl<T> Tr for $n<T> {}\n    };\n}\ng!(Mine);\n",
+            "g",
+            "$n<T>",
+        ),
+        (
+            "macro_rules! b {\n    ($t:ty) => {\n        impl Tr for Box<$t> {}\n    };\n}\nb!(crate::site::AppId);\n",
+            "b",
+            "Box<$t>",
+        ),
+        (
+            "macro_rules! own {\n    ($t:ty) => {\n        impl $t {\n            pub fn later(&self) {}\n        }\n    };\n}\nown!(crate::kinds::KindEntry);\n",
+            "own",
+            "$t",
+        ),
+        (
+            "macro_rules! s {\n    ($n:ident) => {\n        pub struct $n;\n        impl Tr for ($n) {}\n    };\n}\ns!(Mine);\n",
+            "s",
+            "($n)",
+        ),
+    ] {
+        cases.push((format!("{TR}{text}"), macro_impl(name, ty)));
+    }
+    assert_refused(&cases);
+    assert_passed(&[
+        &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub struct $n;\n        impl Tr for $n {{}}\n        impl $n {{\n            pub fn f() {{}}\n        }}\n    }};\n}}\nown!(Mine);\n"),
+        &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub enum $n {{\n            One,\n        }}\n        impl<'de> serde::Deserialize<'de> for $n {{\n            fn deserialize<D: serde::Deserializer<'de>>(_: D) -> Result<Self, D::Error> {{\n                Ok($n::One)\n            }}\n        }}\n    }};\n}}\nown!(Mine);\n"),
+        &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub union $n {{\n            a: u8,\n        }}\n        impl Tr for $n {{}}\n    }};\n}}\nown!(Mine);\n"),
+        &format!("{TR}macro_rules! own {{\n    ($($n:ident),*) => {{\n        $(\n            pub struct $n;\n            impl Tr for $n {{}}\n        )*\n    }};\n}}\nown!(One, Two);\n"),
+        &format!("{TR}macro_rules! own {{\n    (decl $n:ident) => {{\n        pub struct $n;\n        impl Tr for $n {{}}\n    }};\n    (other) => {{}};\n}}\nown!(decl Mine);\n"),
+    ]);
+}
+
+#[test]
+fn the_test_of_the_later_files_refuses_an_alias_from_a_metavariable_in_a_macro() {
+    let b16 = "macro_rules! alias {\n    ($n:ident = $t:ty) => {\n        type $n = $t;\n    };\n}\nalias!(Mine = crate::site::AppId);\n";
+    assert_refused(&[
+        (format!("{TR}{b16}impl Tr for Mine {{}}\n"), macro_alias("alias", "$t")),
+        (
+            format!("{b16}impl Mine {{\n    pub(crate) const LATER_MAX: usize = 4096;\n}}\n"),
+            macro_alias("alias", "$t"),
+        ),
+        (
+            b16.replace("crate::site::AppId", "crate::record::TypedRecord") + &display("Mine"),
+            macro_alias("alias", "$t"),
+        ),
+        (
+            format!("{PICK}macro_rules! pick {{\n    ($t:ty) => {{\n        impl Pick for () {{\n            type Out = $t;\n        }}\n    }};\n}}\npick!(crate::record::TypedRecord);\n{}", display("<() as Pick>::Out")),
+            macro_alias("pick", "$t"),
+        ),
+        (
+            "macro_rules! u {\n    ($p:path) => {\n        use $p as Mine;\n    };\n}\nu!(crate::kinds::KindEntry);\nimpl Mine {}\n".to_owned(),
+            macro_alias("u", "$p as Mine"),
+        ),
+        (
+            "macro_rules! u {\n    ($t:ident) => {\n        use crate::kinds::$t;\n    };\n}\nu!(KindEntry);\nimpl KindEntry {}\n".to_owned(),
+            macro_alias("u", "crate::kinds::$t"),
+        ),
+        (
+            "macro_rules! u {\n    ($m:ident) => {\n        use crate::$m::*;\n    };\n}\nu!(kinds);\nimpl KindEntry {}\n".to_owned(),
+            macro_alias("u", "crate::$m::*"),
+        ),
+    ]);
+    assert_passed(&[
+        "macro_rules! al {\n    ($n:ident) => {\n        pub type $n = u8;\n    };\n}\nal!(Small);\n",
+        "macro_rules! m {\n    (type $n:ident = $t:ty) => {\n        pub struct $n;\n    };\n}\nm!(type Mine = u8);\n",
+        "macro_rules! with_fmt {\n    () => {\n        use std::fmt;\n        use $crate::learning::*;\n    };\n}\nwith_fmt!();\n",
+        "macro_rules! body {\n    ($n:ident) => {\n        pub struct $n;\n        impl crate::request::RunnerBody for $n {\n            type Reply = u32;\n        }\n    };\n}\nbody!(LaterBody);\n",
+    ]);
+}
+
+#[test]
+fn the_tokens_of_a_macro_call_in_a_later_file_are_read_as_the_files_own_tokens() {
+    let pass = "macro_rules! pass {\n    ($($t:tt)*) => {\n        $($t)*\n    };\n}\n";
+    assert_refused(&[
+        (
+            format!("{pass}pass! {{\n    impl crate::kinds::KindEntry {{}}\n}}\n"),
+            locked_impl("crate::kinds::KindEntry"),
+        ),
+        (
+            format!("{pass}pass! {{\n    use crate::kinds::KindEntry as Mine;\n}}\nimpl Mine {{}}\n"),
+            locked_impl("Mine"),
+        ),
+        (
+            format!("{TR}{pass}pass! {{\n    pub type Mine = crate::site::AppId;\n}}\nimpl Tr for Mine {{}}\n"),
+            locked_impl("Mine"),
+        ),
+        (
+            format!("{TR}{pass}pass! {{\n    impl Tr for (crate::site::AppId) {{}}\n}}\n"),
+            locked_impl("(crate::site::AppId)"),
+        ),
+        (
+            format!("{pass}pass! {{\n    pub mod inner {{\n        use super::super::kinds::KindEntry;\n        impl KindEntry {{}}\n    }}\n}}\n"),
+            locked_impl("KindEntry"),
+        ),
+    ]);
+    assert_passed(&[
+        &format!("{pass}pass! {{\n    pub struct Mine;\n    impl Mine {{}}\n}}\n"),
+        &format!("{pass}pass! {{\n    pub mod inner {{\n        pub struct KindEntry;\n        impl KindEntry {{}}\n    }}\n}}\n"),
+    ]);
+}
+
+#[test]
+fn the_test_of_the_later_files_reads_a_macro_body_where_the_macro_writes_it() {
+    assert_refused(&[
+        (
+            "macro_rules! own_impl {\n    () => {\n        impl KindEntry {}\n    };\n}\npub mod deep {\n    use crate::kinds::KindEntry;\n    own_impl!();\n}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+        (
+            "macro_rules! open {\n    () => {\n        use crate::kinds::*;\n    };\n}\nmacro_rules! outer {\n    () => {\n        open!();\n    };\n}\nouter!();\nimpl KindEntry {}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+        (
+            "macro_rules! w {\n    ($($t:tt)*) => {\n        pub mod w {\n            $($t)*\n        }\n    };\n}\nw! {\n    impl super::super::kinds::KindEntry {}\n}\n".to_owned(),
+            locked_impl("super::super::kinds::KindEntry"),
+        ),
+        (
+            "macro_rules! m {\n    () => {\n        pub mod w {\n            impl super::super::kinds::KindEntry {}\n        }\n    };\n}\nm!();\n".to_owned(),
+            locked_impl("super::super::kinds::KindEntry"),
+        ),
+        (
+            "macro_rules! w {\n    ($($t:tt)*) => {\n        pub mod w {\n            $($t)*\n        }\n    };\n}\nw! {\n    use super::super::kinds::*;\n    impl KindEntry {}\n}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+    ]);
+    assert_passed(&[
+        "macro_rules! own_impl {\n    () => {\n        pub struct KindEntry;\n        impl KindEntry {}\n    };\n}\npub mod deep {\n    own_impl!();\n}\n",
+        "pub mod deep {\n    pub mod deeper {\n        impl super::super::Mine {}\n    }\n}\npub struct Mine;\n",
+    ]);
 }
