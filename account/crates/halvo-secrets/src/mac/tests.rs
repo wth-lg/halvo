@@ -756,6 +756,13 @@ fn a_delete_removes_the_item_that_a_read_gives_and_nothing_when_a_read_gives_non
     );
     assert_eq!(store.delete(), Delete::Locked(refused(AUTH_FAILED)));
 
+    let store = mac(
+        Keeps::File,
+        File::empty(),
+        Keys::empty().failing("count", NOT_AVAILABLE),
+    );
+    assert_eq!(store.delete(), Delete::Fault(fault(NOT_AVAILABLE)));
+
     for keeps in [Keeps::File, Keeps::Keychain] {
         let store = mac(keeps, File::empty(), Keys::empty());
         assert_eq!(store.delete(), Delete::NotStored, "{keeps:?}");
