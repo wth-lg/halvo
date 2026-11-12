@@ -184,7 +184,7 @@ fn sources(workflow: &str, runs: &[&str], first: u32, last: u32, clean: u32) -> 
 }
 
 #[test]
-fn check_sources_reads_owner_runs_and_agent() {
+fn check_sources_reads_runs_and_agent() {
     let before = sources("w1", &["r1", "r2"], 10, 12, 1);
     let same = SourceFacts {
         edit: sources("w1", &["r1", "r2"], 10, 12, 1),
@@ -192,11 +192,6 @@ fn check_sources_reads_owner_runs_and_agent() {
         run: None,
     };
     assert_eq!(check_sources(&same), Ok(()));
-    let other_owner = SourceFacts {
-        edit: sources("w2", &["r1", "r2"], 10, 12, 1),
-        ..same.clone()
-    };
-    assert_eq!(check_sources(&other_owner), Err(SourceCause::Source));
     let other_runs = SourceFacts {
         edit: sources("w1", &["r1", "r9"], 10, 12, 1),
         ..same.clone()
@@ -229,6 +224,20 @@ fn routine_reads_the_window_in_any_order() {
     let window = routine_step(None, &[1, 200, 210, 220], 220);
     assert_eq!(window.seen, 3);
     assert_eq!(window.first, Some(200));
+}
+
+#[test]
+fn routine_misses_nothing_without_a_period() {
+    let state = routine_step(None, &[10], 100);
+    assert_eq!(state.period, None);
+    assert_eq!(state.next, None);
+    assert_eq!(state.missed, 0);
+    assert_eq!(state.mark, Mark::None);
+    let two = routine_step(Some(&state), &[10, 40], 130);
+    assert_eq!(two.last, Some(40));
+    assert_eq!(two.period, None);
+    assert_eq!(two.missed, 0);
+    assert_eq!(two.mark, Mark::None);
 }
 
 #[test]

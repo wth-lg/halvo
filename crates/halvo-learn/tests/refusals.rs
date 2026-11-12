@@ -47,11 +47,28 @@ fn refusal_no_source() {
         Err(SourceCause::Source)
     );
     assert_eq!(check(rev1(), None, None), Err(SourceCause::Source));
+    let other_agent = RunSource {
+        agent: "a2".to_owned(),
+        ..run_source("w1", "r1", 10).unwrap()
+    };
+    assert_eq!(
+        check(rev1(), None, Some(other_agent)),
+        Err(SourceCause::Source)
+    );
 
     assert_eq!(
         check(rev2(), Some(rev1()), run_source("w1", "r2", 12)),
         Ok(())
     );
+    for kept_days in [
+        sources(&["r1", "r3"], 10, 12, 1),
+        sources(&["r2"], 10, 12, 1),
+    ] {
+        assert_eq!(
+            check(kept_days, Some(rev2()), None),
+            Err(SourceCause::Source)
+        );
+    }
     assert_eq!(
         check(
             sources(&["r9", "r2"], 10, 12, 1),
@@ -107,6 +124,14 @@ fn refusal_no_source() {
     assert_eq!(
         check(
             sources(&["r1", "r2"], 10, 14, 1),
+            Some(rev2()),
+            run_source("w1", "r3", 14)
+        ),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(
+        check(
+            sources(&["r1", "r2"], 11, 12, 1),
             Some(rev2()),
             run_source("w1", "r3", 14)
         ),
@@ -207,6 +232,14 @@ fn refusal_value_in_label() {
     };
     assert!(value_hit(&with_value, &slot_values));
     assert!(!value_hit(&without_value, &slot_values));
+    let in_second = Target {
+        desc: "button \"Pay\"".to_owned(),
+        locators: vec![
+            loc("role", "button", Some("Pay now")),
+            loc("label", "Pay", Some("Pay Acme Utility now")),
+        ],
+    };
+    assert!(value_hit(&in_second, &slot_values));
 
     let facts = AdmitFacts {
         value_hit: value_hit(&with_value, &slot_values),
@@ -260,16 +293,21 @@ fn refusal_compile_run_edit() {
     };
     assert_eq!(control.new_count, 1);
     assert_eq!(admit(&control), Ok(()));
+
+    let other_name = vec![loc("role", "button", Some("Pay all"))];
+    assert_eq!(new_locators(&other_name, &served), other_name);
 }
 
 #[test]
 fn refusal_edits_full() {
     assert_eq!(EDITS_MAX, 8);
-    let full = AdmitFacts {
-        edits_for_step: 8,
-        ..admitted_facts()
-    };
-    assert_eq!(admit(&full), Err(AdmitCause::Full));
+    for edits_for_step in [8, 9] {
+        let full = AdmitFacts {
+            edits_for_step,
+            ..admitted_facts()
+        };
+        assert_eq!(admit(&full), Err(AdmitCause::Full));
+    }
     let below = AdmitFacts {
         edits_for_step: 7,
         ..admitted_facts()
@@ -297,6 +335,26 @@ fn refusal_unverified_run() {
         ..kept_facts(vec![x.clone()])
     };
     assert_eq!(candidate_move(&failed), CandidateMove::Drop);
+    for &outcome in Outcome::ALL {
+        if outcome == Outcome::Completed {
+            continue;
+        }
+        let cause = verify_run(&RunFacts {
+            outcome,
+            unknown: 0,
+        });
+        assert_eq!(
+            cause.map_err(RunCause::token),
+            Err(outcome.token()),
+            "outcome {}",
+            outcome.token()
+        );
+        let facts = CandidateFacts {
+            verified: verified_of(outcome, 0),
+            ..kept_facts(vec![x.clone()])
+        };
+        assert_eq!(candidate_move(&facts), CandidateMove::Drop);
+    }
 
     assert_eq!(
         verify_run(&RunFacts {
@@ -327,9 +385,24 @@ fn refusal_unverified_run() {
 #[test]
 fn refusal_transient_keeps() {
     assert_eq!(counted(Some(LogCause::Timeout)), None);
+    assert_eq!(counted(Some(LogCause::Declined)), None);
+    assert_eq!(counted(None), None);
     assert_eq!(
         counted(Some(LogCause::StepFailed)),
         Some(EditCause::StepFailed)
+    );
+    for &cause in LogCause::ALL {
+        let named = EditCause::from_token(cause.token());
+        assert_eq!(counted(Some(cause)), named, "cause {}", cause.token());
+    }
+
+    let timeout_then_ok_unverified = [
+        line(2, Event::StepFailed(Some(LogCause::Timeout))),
+        line(2, Event::StepOk),
+    ];
+    assert_eq!(
+        use_move_of(&timeout_then_ok_unverified, 2, false),
+        Some(EditMove::UseFailOther)
     );
 
     let timeout_then_ok = [
@@ -374,15 +447,23 @@ fn refusal_transient_keeps() {
 #[test]
 fn refusal_second_pending() {
     let x = loc("text", "Pay now", None);
-    let pending = CandidateFacts {
-        pending: true,
-        ..kept_facts(vec![x.clone()])
-    };
-    assert_eq!(candidate_move(&pending), CandidateMove::Drop);
-    assert_eq!(
-        candidate_move(&kept_facts(vec![x.clone()])),
-        CandidateMove::Keep(vec![x])
-    );
+    for edits in [1, 3] {
+        let pending = CandidateFacts {
+            pending: true,
+            edits,
+            ..kept_facts(vec![x.clone()])
+        };
+        assert_eq!(candidate_move(&pending), CandidateMove::Drop);
+        let control = CandidateFacts {
+            pending: false,
+            edits,
+            ..kept_facts(vec![x.clone()])
+        };
+        assert_eq!(
+            candidate_move(&control),
+            CandidateMove::Keep(vec![x.clone()])
+        );
+    }
 }
 
 #[test]
@@ -469,6 +550,20 @@ fn refusal_rejected_again() {
     };
     assert_eq!(admit(&control), Ok(()));
 
+    let first_p = loc("text", "Pay", Some("Pay"));
+    let first_q = loc("css", "#pay-now", None);
+    let on_compiled = brought(&[first_p.clone(), first_q.clone()], &[]);
+    assert_eq!(on_compiled, vec![first_p.clone(), first_q.clone()]);
+    let mixed = new_locators(&[loc("text", "Settle", None), first_q.clone()], &compiled);
+    assert_eq!(mixed.len(), 2);
+    assert!(is_rejected(&mixed, &on_compiled));
+    let mixed_facts = AdmitFacts {
+        new_count: mixed.len(),
+        rejected: is_rejected(&mixed, &on_compiled),
+        ..admitted_facts()
+    };
+    assert_eq!(admit(&mixed_facts), Err(AdmitCause::Rejected));
+
     let listed = CandidateFacts {
         base_list: vec![active.clone()],
         ..kept_facts(vec![active.clone()])
@@ -478,6 +573,12 @@ fn refusal_rejected_again() {
         candidate_move(&kept_facts(vec![active.clone()])),
         CandidateMove::Keep(vec![active.clone()])
     );
+    let y = loc("text", "Pay the bill", None);
+    let one_left = CandidateFacts {
+        base_list: vec![active.clone()],
+        ..kept_facts(vec![active.clone(), y.clone()])
+    };
+    assert_eq!(candidate_move(&one_left), CandidateMove::Keep(vec![y]));
 
     let late = loc("text", "Pay", None);
     let barred_at_finish = brought(&[late.clone(), active.clone()], &[active]);

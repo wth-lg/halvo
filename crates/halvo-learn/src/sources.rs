@@ -53,14 +53,8 @@ pub struct SourceFacts {
 /// id is not the commit's run of the same workflow and agent, when the ids before it are not
 /// the `runs` of the revision before, or when `first` is not the lower, or `last` not the
 /// higher, of that revision's value and the added run's day (both the run's day at rev 1).
-/// Every revision also answers `source` when its workflow or agent differs from the revision
-/// before.
 pub fn check_sources(facts: &SourceFacts) -> Result<(), SourceCause> {
     let edit = &facts.edit;
-    let same_owner = facts
-        .before
-        .as_ref()
-        .is_none_or(|before| before.workflow == edit.workflow && before.agent == edit.agent);
     let kept = match &facts.before {
         Some(before) if edit.runs.len() != before.runs.len() + 1 => {
             edit.runs == before.runs
@@ -70,7 +64,7 @@ pub fn check_sources(facts: &SourceFacts) -> Result<(), SourceCause> {
         }
         before => adds_run(edit, before.as_ref(), facts.run.as_ref()),
     };
-    if same_owner && kept {
+    if kept {
         Ok(())
     } else {
         Err(SourceCause::Source)

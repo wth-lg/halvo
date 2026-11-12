@@ -11,7 +11,7 @@ fn state(token: &str, line: &str) -> EditState {
 
 fn cleans_of(guard: &str, line: &str) -> Vec<u32> {
     match guard {
-        "-" => (0..=K_CLEAN).collect(),
+        "-" => (0..=K_CLEAN + 1).collect(),
         "clean_below" => (0..K_CLEAN - 1).collect(),
         "clean_reaches" => vec![K_CLEAN - 1],
         other => panic!("row {line:?}: no guard {other:?}"),
