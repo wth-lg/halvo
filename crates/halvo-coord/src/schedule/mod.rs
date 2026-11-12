@@ -13,7 +13,7 @@ mod start;
 mod tick;
 
 pub use board::{Board, Dying, LiveRun, Member, Owed, Owing, Stop};
-pub use drive::{drive, Answer, Ended, Move, Report, Served};
+pub use drive::{drive, stop_run, Answer, Ended, Move, Report, Served};
 pub use hold::{holds, params, Hold};
 pub use queue::{Queue, Waiting};
 pub use slot::{current_slot, finished, next_slot, slot_due, slot_open};

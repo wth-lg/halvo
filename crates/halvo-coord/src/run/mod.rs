@@ -1,0 +1,9 @@
+//! The run of the coordinator (contracts I5.6 to I5.8, I5.10): the moves of a run with
+//! `run_step`, the stop and its kill, and `drive`, which carries out the moves of a run on the
+//! ports, the board of the schedule and the guard's table.
+
+mod drive;
+mod step;
+
+pub use drive::{drive, Act, Done, StopBy};
+pub use step::{run_step, Ending, Next, Phase, RunMove, StopCause};

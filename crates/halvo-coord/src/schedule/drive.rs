@@ -541,7 +541,9 @@ where
     Some(served)
 }
 
-fn stop_run<C>(board: &mut Board<C>, run: &RunId, now: u64, cause: RunEnd) {
+/// Makes the live run `run` `stopping`, its stop at `now` with `cause`, and its member's phase
+/// `stopping` (I5.7); nothing for a run that is not live.
+pub fn stop_run<C>(board: &mut Board<C>, run: &RunId, now: u64, cause: RunEnd) {
     let Some(r) = board.runs.iter_mut().find(|r| &r.run == run) else {
         return;
     };
