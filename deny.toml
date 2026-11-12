@@ -3,7 +3,9 @@ targets = ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
 
 [advisories]
 yanked = "deny"
-ignore = []
+ignore = [
+  { id = "RUSTSEC-2026-0502", reason = "2026-11-12: sqlcipher-src 419.0.6 bundles SQLite 3.53.4; the fix is sqlcipher-src 420.0.0, which needs a libsqlite3-sys release that the store stream adopts; the store opens only files in a 0700 directory of its own user. Remove this entry with that upgrade." },
+]
 
 [licenses]
 allow = [
