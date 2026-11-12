@@ -61,15 +61,12 @@ function closes({ version, headers }) {
 
 function serve(socket, connection, app, record, idleMs) {
   let timer = null;
-  let ended = false;
   const quiet = () => clearTimeout(timer);
   const onData = (chunk) => {
     arm();
     reader.feed(chunk);
   };
   const stop = (last) => {
-    if (ended) return;
-    ended = true;
     quiet();
     socket.removeListener("data", onData);
     socket.pause();
