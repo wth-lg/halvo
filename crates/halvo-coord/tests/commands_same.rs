@@ -71,12 +71,12 @@ fn i8_1() -> Value {
             arg("param", "name", Some("choose"), Some(params.clone())),
             arg("n", "count", Some("choose"), None)],
          "replies": ["reply-ok"],
-         "errors": ["stale", "presenter", "early", "unknown_item", "no_service", "busy", "malformed"]},
+         "errors": ["stale", "presenter", "early", "state", "unknown_item", "no_service", "busy", "malformed"]},
         {"command": "agents_setup_typed", "args": [
             arg("item", "id", None, None),
             arg("param", "name", None, Some(params)),
             arg("text", "text", None, None)],
-         "replies": ["reply-ok"], "errors": ["stale", "unknown_item", "malformed"]},
+         "replies": ["reply-ok"], "errors": ["stale", "state", "unknown_item", "malformed"]},
         {"command": "agents_present", "args": [arg("item", "id", None, None)], "replies": ["reply-ok"],
          "errors": ["stale", "presenter", "unknown_item", "no_service", "malformed"]},
         {"command": "agents_control", "args": [
