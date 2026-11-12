@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const LISTS: &str = "pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+const LISTS: &str = "pub use ::halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
 
 const LEAK: &str =
     "fn leak(text: &str) -> &'static str {\n    Box::leak(text.to_owned().into_boxed_str())\n}\n";
@@ -175,9 +175,19 @@ const BOUNDARY: &[Case] = &[
         later: &[SHADOW, "pub mod wrong {\n    use crate::learning::*;\n    pub fn by_value(app: crate::site::AppId) -> &'static str {\n        app.as_str()\n    }\n}\n"],
         codes: &["E0308"],
     },
+    Case {
+        name: "the-old-path-is-the-core-list-beside-a-module-of-the-crate-name",
+        later: &[
+            CRATE_NAME_MODULE,
+            "const _: &[crate::KindEntry; 0] = KINDS;\n",
+        ],
+        codes: &["E0308"],
+    },
 ];
 
 const SHADOW: &str = "pub struct Shadowed;\npub trait Shadow {\n    fn as_str(self) -> Shadowed;\n}\nimpl Shadow for crate::site::AppId {\n    fn as_str(self) -> Shadowed {\n        Shadowed\n    }\n}\n";
+
+const CRATE_NAME_MODULE: &str = "pub mod fake {\n    pub const KINDS: &[crate::KindEntry; 0] = &[];\n    pub const ERROR_NAMES: &[&str; 0] = &[];\n}\nmod halvo_schema_core {\n    pub use super::fake as learning;\n}\n";
 
 const COMPILES: &[(&str, &[&str])] = &[
     (
@@ -188,6 +198,7 @@ const COMPILES: &[(&str, &[&str])] = &[
         "a-later-trait-by-value-with-a-glob-import",
         &[SHADOW, "pub mod user {\n    use crate::learning::*;\n    pub fn by_value(app: crate::site::AppId) -> Shadowed {\n        app.as_str()\n    }\n    pub fn through_a_reference(app: &crate::site::AppId) -> &str {\n        app.as_str()\n    }\n}\npub mod plain {\n    pub fn by_value(app: crate::site::AppId) -> String {\n        app.as_str().to_owned()\n    }\n}\n"],
     ),
+    ("the-line-beside-a-module-of-the-crate-name", &[CRATE_NAME_MODULE]),
 ];
 
 const CORE_CASES: &[Case] = &[
