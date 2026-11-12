@@ -203,3 +203,118 @@ fn recovery_raises_the_check_of_an_earlier_life_again() {
     assert!(holds_check_item(&w, 0));
     assert_eq!(check_items(&w, 0), 2, "the first lapsed with app_ended");
 }
+
+#[test]
+fn review_p2_check_item_with_a_lost_acknowledgement() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    assert!(w.act(Act::Tick).checked.is_empty());
+    let last = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap();
+    w.ports.events.borrow_mut().push(halvo_coord::types::Event {
+        workflow: support::flow(0),
+        agent: agent(0),
+        seq: std::num::NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::ItemRaised {
+            item: halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x77)).unwrap(),
+            raised: Raised::Check(None),
+        },
+    });
+    w.ports.clear_refusals();
+    let mut log = Vec::new();
+    for k in 1..=4u64 {
+        w.set_clock(T0 + 10_000 * k, DAY);
+        let tick = w.act(Act::Tick);
+        log.push(format!("tick {k}: checked {}", tick.checked.len()));
+    }
+    let start = w.act(Act::Start { agent: agent(0) });
+    log.push(format!(
+        "start: {:?}, checked {}",
+        start.report.answer,
+        start.checked.len()
+    ));
+    let refused_seq = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq"))
+        .count();
+    log.push(format!("logs refused with seq: {refused_seq}"));
+    log.push(format!(
+        "agent holds a check item: {}",
+        holds_check_item(&w, 0)
+    ));
+    println!("P2 {}", log.join(" | "));
+    assert!(holds_check_item(&w, 0), "P2 {}", log.join(" | "));
+    assert_eq!(
+        start.report.answer,
+        Err(Cause::Hold),
+        "a held agent with its card"
+    );
+}
+
+#[test]
+fn review_life_2() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.ports.refuse(Method::Log, PortError::NoService);
+    assert!(w.act(Act::Tick).checked.is_empty());
+    let last = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap();
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x7002)).unwrap();
+    w.ports.events.borrow_mut().push(halvo_coord::types::Event {
+        workflow: support::flow(0),
+        agent: agent(0),
+        seq: std::num::NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::ItemRaised {
+            item,
+            raised: Raised::Check(None),
+        },
+    });
+    w.ports.clear_refusals();
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    let answered = schedule_drive(
+        &w.ports,
+        &mut w.board,
+        &w.limits,
+        Move::Check {
+            agent: agent(0),
+            answer: CheckAnswer::TryAgain,
+        },
+    );
+    assert_eq!(
+        answered.answer,
+        Ok(Answer::Ok),
+        "I5.4: check is ended by the person's answer to the item check"
+    );
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok),
+        "the agent is not held for good"
+    );
+}

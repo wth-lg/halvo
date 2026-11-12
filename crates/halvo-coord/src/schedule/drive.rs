@@ -613,39 +613,62 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
             };
             match log_end(cx, board, i, &owed.run, *cause, *day, *at) {
                 Ok(()) => true,
-                Err(PortError::Refused(name)) if name.as_str() == "seq" => {
-                    resync_end(cx, board, i, &owed.run)
-                }
+                Err(e) if seq_refusal(&e) => resync_end(cx, board, i, &owed.run),
                 Err(e) => gone_refusal(&e),
             }
         }
     }
 }
 
-/// After the owner refused an owed `run_ended` with `seq` (I7.2): the facts take the owner's
-/// events after the last one that they hold, page by page of at most 64, and the debt is paid
-/// when those hold the run's `run_ended`, which the owner stored with an acknowledgement that
-/// was lost; else the next tick logs it after them.
-fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
+/// Whether the owner refused a log with `seq`: the record's `seq` is not the owner's last of the
+/// agent plus 1, because the owner stored an event whose acknowledgement was lost, or one of
+/// another writer (I7.2).
+pub(crate) fn seq_refusal(error: &PortError) -> bool {
+    matches!(error, PortError::Refused(name) if name.as_str() == "seq")
+}
+
+/// The events take the owner's events of the agent after the last one that they hold, page by
+/// page of at most 64, as `coord_history` gives them (I7.2, rulings XB-17 and XB-31).
+pub(crate) fn resync<P: Owner>(
+    ports: &P,
+    agent: &AgentId,
+    events: &mut Vec<Event>,
+) -> Result<(), PortError> {
     loop {
-        let facts = &mut board.members[i].facts;
-        let after = facts.events.last().map_or(0, |e| e.seq.get());
-        let Ok(page) = cx.ports.history(&facts.agent, after) else {
-            return false;
-        };
+        let after = events.last().map_or(0, |e| e.seq.get());
+        let page = ports.history(agent, after)?;
         let full = page.len() >= 64;
-        facts
-            .events
-            .extend(page.into_iter().filter(|e| e.seq.get() > after));
+        events.extend(page.into_iter().filter(|e| e.seq.get() > after));
         if !full {
-            break;
+            return Ok(());
         }
     }
-    board.members[i]
-        .facts
-        .events
-        .iter()
-        .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
+}
+
+/// Whether the events close the item: they hold its `item_released` or its `item_lapsed`, or,
+/// for a kind other than `confirm`, its `item_answered` (I5.8, I7.1).
+pub(crate) fn item_closed(events: &[Event], item: &ItemId) -> bool {
+    let confirm = events.iter().any(|e| {
+        matches!(&e.what, What::ItemRaised { item: i, raised: Raised::Confirm(_) } if i == item)
+    });
+    events.iter().any(|e| match &e.what {
+        What::ItemReleased { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
+        What::ItemAnswered { item: i, .. } => i == item && !confirm,
+        _ => false,
+    })
+}
+
+/// After the owner refused an owed `run_ended` with `seq` (I7.2): the facts take the owner's
+/// events after the last one that they hold, and the debt is paid when those hold the run's
+/// `run_ended`, which the owner stored with an acknowledgement that was lost; else the next tick
+/// logs it after them.
+fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
+    let facts = &mut board.members[i].facts;
+    resync(cx.ports, &facts.agent, &mut facts.events).is_ok()
+        && facts
+            .events
+            .iter()
+            .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
 }
 
 /// Whether the agent store's last record of the agent, as the move's read of `Owner::agents`

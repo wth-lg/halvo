@@ -3,13 +3,13 @@ mod support;
 
 use halvo_coord::guard::Table;
 use halvo_coord::mem::Method;
-use halvo_coord::ports::{PortError, Reaped};
+use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{Answer, Hold};
 use halvo_coord::types::{
-    Answered, Cause, DecisionEntry, Digest, EffectAnswer, EffectId, Event, ItemId, LapseCause,
-    Lapsed, Limits, OtherLapse, Outcome, PastRun, Raised, ReadyAnswer, RunEnd, RunId, Trigger,
-    What,
+    Agent, AgentId, Answered, Body, Cause, Decision, DecisionEntry, Digest, EffectAnswer, EffectId,
+    Event, HandbackResult, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome, PastRun,
+    Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, What, Workflow,
 };
 use std::num::NonZeroU32;
 use support::{agent, flow, world, world_with, World, A, DAY, MANUAL, T0};
@@ -646,4 +646,242 @@ fn recover_step_owes_end_run_from_the_events_and_the_stores_last_record_alone() 
         person: false,
         slotted: false,
     };
+}
+
+#[test]
+fn review_life_3() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.act(Act::End {
+        run: run.clone(),
+        outcome: None,
+    });
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    let seq_of = |w: &World| {
+        w.ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == agent(0))
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0)
+    };
+    let item = ItemId::parse(&format!("{:032x}", 0x7003)).unwrap();
+    let last = seq_of(&w);
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    });
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    let last = seq_of(&w);
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::ItemLapsed {
+            item,
+            lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+        },
+    });
+    w.ports.clear_refusals();
+    for k in 1..4 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    let checks = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(0)
+                && matches!(
+                    &e.what,
+                    What::ItemRaised {
+                        raised: Raised::Check(_),
+                        ..
+                    }
+                )
+        })
+        .count();
+    assert_eq!(
+        checks, 1,
+        "XB-18: the item check is raised once the record is read"
+    );
+}
+
+/// The ports with a late writer: before the first log, the owner stores `late` at the `seq`
+/// of that log, as a log of the earlier life that lands after recovery read the ledger.
+struct Late<'a, P> {
+    ports: &'a P,
+    late: std::cell::RefCell<Option<What>>,
+}
+
+impl<P: Owner> Owner for Late<'_, P> {
+    type Config = P::Config;
+
+    fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        if let (Some(what), Some(first)) = (self.late.borrow_mut().take(), events.first()) {
+            let late = Event {
+                what,
+                ..first.clone()
+            };
+            self.ports.log(&[late]).expect("the late log is stored");
+        }
+        self.ports.log(events)
+    }
+
+    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+        self.ports.history(agent, after)
+    }
+
+    fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+        self.ports.workflows()
+    }
+
+    fn agents(&self) -> Result<Vec<Agent<P::Config>>, PortError> {
+        self.ports.agents()
+    }
+
+    fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        self.ports.send(body)
+    }
+}
+
+impl<P: Runs> Runs for Late<'_, P> {
+    fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.ports.start(spec)
+    }
+
+    fn answer_confirm(
+        &self,
+        run: &RunId,
+        answers: &[halvo_coord::types::Answer],
+        record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        self.ports.answer_confirm(run, answers, record)
+    }
+
+    fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
+        self.ports.answer_handback(run, result)
+    }
+
+    fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        self.ports.cancel(run)
+    }
+
+    fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        self.ports.kill(run)
+    }
+
+    fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
+        self.ports.reap()
+    }
+}
+
+impl<P: Analysis> Analysis for Late<'_, P> {
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        self.ports.defer(until)
+    }
+}
+
+impl<P: Clock> Clock for Late<'_, P> {
+    fn now(&self) -> Result<u64, PortError> {
+        self.ports.now()
+    }
+
+    fn today(&self) -> Result<u32, PortError> {
+        self.ports.today()
+    }
+}
+
+impl<P: Rng> Rng for Late<'_, P> {
+    fn bytes16(&self) -> Result<[u8; 16], PortError> {
+        self.ports.bytes16()
+    }
+}
+
+#[test]
+fn a_recovery_body_refused_with_seq_is_read_again_from_the_owners_events_and_logged_once_more() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    let item = ItemId::parse(&format!("{:032x}", 0x7101)).unwrap();
+    let last = w.events_of(0).len() as u32;
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    });
+    w.ports.new_life();
+    w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+    w.forget();
+    let late = Late {
+        ports: &w.ports,
+        late: std::cell::RefCell::new(Some(What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Completed,
+        })),
+    };
+    let life = recover(&late, &w.limits).expect("recovery");
+    assert!(
+        life.ended.is_empty(),
+        "the run ended completed in the earlier life: recovery does not end it again"
+    );
+    assert!(
+        !life
+            .board
+            .owed
+            .iter()
+            .any(|o| matches!(o.what, halvo_coord::schedule::Owing::RunEnded { .. })),
+        "the body is stored, not owed"
+    );
+    assert_eq!(
+        w.events_of(0)[last as usize..],
+        [
+            "item_raised ready",
+            "run_ended completed",
+            "item_lapsed app_ended"
+        ],
+        "the body after the late event, logged in recovery itself"
+    );
+    let refused = w
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| matches!(&t.refused, Some(PortError::Refused(n)) if n.as_str() == "seq"))
+        .count();
+    assert_eq!(refused, 1, "one refusal, then the body once more");
+    w.board = life.board;
+    w.table = Table::new();
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok),
+        "the agent's events hold the owner's last seq"
+    );
 }
