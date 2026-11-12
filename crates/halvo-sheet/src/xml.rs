@@ -644,6 +644,7 @@ mod tests {
                 r#"<worksheet {NS} xmlns:o="urn:o"><sheetData><row r="1"><o:c r="A1"/></row></sheetData></worksheet>"#
             ),
             format!(r#"<worksheet {NS} xmlns:o="urn:o"><o:sheetData/><sheetData/></worksheet>"#),
+            format!(r#"<worksheet {NS} xmlns:o="urn:o"><o:sheetData/></worksheet>"#),
             format!(r#"<worksheet {NS}><sheetData/><sheetData/></worksheet>"#),
             format!(
                 r#"<worksheet {NS}><sheetData><row r="1"><c r="A1"/><extLst/><c r="B1"/></row></sheetData></worksheet>"#

@@ -62,3 +62,20 @@ fn is_number(cell: &str) -> bool {
         .count();
     significant <= 15
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_form_of_a_number_holds_a_digit_and_at_most_one_point() {
+        for text in ["12", "-3.5", ".5", "1.", "-.5", "0", "41.20"] {
+            assert!(is_number(text), "{text}");
+        }
+        for text in [
+            "", ".", "-", "-.", "--1", "1.2.3", "..5", "1..", "-1.2.3", "+5", "1e5",
+        ] {
+            assert!(!is_number(text), "{text}");
+        }
+    }
+}

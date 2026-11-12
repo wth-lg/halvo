@@ -177,20 +177,17 @@ fn canonical(xml: &str, range: Range, source: Option<&Canonical>) -> Result<Cano
                     done = cell.span.end;
                 }
             }
-            Item::RowRest(_) => {
-                if inserted.is_some() {
-                    return Err(form());
-                }
-            }
+            Item::RowRest(_) | Item::DataEnd(_) => {}
             Item::RowEnd(span) => {
                 if let Some(row) = inserted.take() {
+                    // The row ends where its last named cell ends: an extension list, another
+                    // element or text in an inserted row stands between them and is refused.
                     if span.at != row.last {
                         return Err(form());
                     }
                     done = span.end;
                 }
             }
-            Item::DataEnd(_) => {}
         }
         Ok(())
     });
@@ -458,6 +455,10 @@ mod tests {
                 "outside the range",
                 r#"<sheetData><row r="1"><c r="A1"/></row><row r="2"/><row r="3"><c r="A3"><v>1</v></c><c r="B3"><v>2</v></c></row></sheetData>"#,
             ),
+            (
+                "outside the range and holding nothing",
+                r#"<sheetData><row r="1"><c r="A1"/></row><row r="2"></row><row r="3"><c r="A3"><v>1</v></c><c r="B3"><v>2</v></c></row></sheetData>"#,
+            ),
         ];
         for (label, new) in cases {
             assert!(!same_sheet(old, new, "A3:B3"), "{label}");
@@ -512,6 +513,12 @@ mod tests {
         let mut all = ordered(&original);
         all.pop();
         assert!(!package(&original, &zipped_in_order(&all), SHEET, "B5"));
+        let mut all = ordered(&original);
+        all.push(("docProps/extra.xml".to_string(), b"<x/>".to_vec()));
+        assert!(
+            !package(&original, &zipped_in_order(&all), SHEET, "B5"),
+            "a copy with one more entry at its end"
+        );
         assert!(!package(
             &original,
             &crate::testing::spoiled(&original),

@@ -851,6 +851,42 @@ mod tests {
         assert_eq!(decoded("%2F"), Err(Error::Workbook(Refusal::Relationship)));
     }
 
+    /// Why the check of the held size in `entries` cannot be reached through zip: zip 9.5.1
+    /// stops an entry of an archive at the size that its header declares, with an error, and
+    /// the first pass has already refused a declared size over the room that the read gets.
+    #[test]
+    fn zip_stops_an_entry_at_its_declared_size_before_the_cut_at_the_bound() {
+        use std::io::Write;
+        let name = "docProps/held.bin";
+        let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default();
+        out.start_file(name, options).expect("start");
+        out.write_all(&vec![0u8; 1 << 20]).expect("write");
+        let mut bytes = out.finish().expect("finish").into_inner();
+        let spots: Vec<usize> = bytes
+            .windows(name.len())
+            .enumerate()
+            .filter(|(_, w)| *w == name.as_bytes())
+            .map(|(at, _)| at)
+            .collect();
+        let (local, central) = (spots[0] - 30, spots[1] - 46);
+        bytes[local + 22..local + 26].copy_from_slice(&100u32.to_le_bytes());
+        bytes[central + 24..central + 28].copy_from_slice(&100u32.to_le_bytes());
+        let mut archive = zip::ZipArchive::new(Cursor::new(&bytes[..])).expect("a zip");
+        let entry = archive.by_index(0).expect("the entry");
+        assert_eq!(entry.size(), 100);
+        let mut content = Vec::new();
+        let read = entry.take(ENTRY_MAX + 1).read_to_end(&mut content);
+        let error = read.expect_err("zip refuses to read past the declared size");
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData, "{error}");
+        assert!(
+            content.len() <= 100 + 64 * 1024,
+            "{} bytes held",
+            content.len()
+        );
+        assert_eq!(entries(&bytes), Err(unreadable()));
+    }
+
     #[test]
     fn the_refused_kinds_are_the_executors_own_list() {
         assert_eq!(names(Kind::REFUSED), vec!["pivot", "macro", "validation"]);
