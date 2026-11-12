@@ -2,6 +2,7 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 
 use crate::macos::screen::self_exclusion_enforced_in_filter;
+use crate::macos::secure_input_byte::secure_input_on;
 use crate::secure_input::{SecureInputError, SecureInputGuard, SecureInputState};
 
 #[link(name = "Carbon", kind = "framework")]
@@ -15,7 +16,7 @@ extern "C" {
 /// secure-input (password) field is focused.
 pub fn secure_input_active() -> bool {
     // SAFETY: a parameterless C predicate with no side effects.
-    unsafe { IsSecureEventInputEnabled() != 0 }
+    secure_input_on(unsafe { IsSecureEventInputEnabled() })
 }
 
 /// A live hold on secure input, the same state a focused password field asserts.
@@ -64,8 +65,55 @@ impl SecureInputGuard for MacosSecureInput {
 }
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    use std::sync::{Mutex, MutexGuard, PoisonError};
+    use std::time::{Duration, Instant};
+
+    static HOLDS: Mutex<()> = Mutex::new(());
+
+    pub(crate) fn one_hold_at_a_time() -> MutexGuard<'static, ()> {
+        HOLDS.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn session_shows_secure_input() -> bool {
+        let out = std::process::Command::new("/usr/sbin/ioreg")
+            .args(["-l", "-w", "0", "-d", "1"])
+            .output()
+            .expect("ioreg runs");
+        assert!(out.status.success(), "ioreg exited with {}", out.status);
+        String::from_utf8_lossy(&out.stdout).contains("\"kCGSSessionSecureInputPID\"")
+    }
+
+    pub(crate) fn session_reading_within(want: bool, limit: Duration) -> bool {
+        let started = Instant::now();
+        loop {
+            let reading = session_shows_secure_input();
+            if reading == want || started.elapsed() >= limit {
+                return reading;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    pub(crate) fn agreed_reading(predicate: impl Fn() -> bool, limit: Duration) -> (bool, bool) {
+        let started = Instant::now();
+        loop {
+            let session = session_shows_secure_input();
+            let read = predicate();
+            let settled = session_shows_secure_input() == session;
+            if (settled && read == session) || started.elapsed() >= limit {
+                return (read, session);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use super::test_support::{agreed_reading, one_hold_at_a_time, session_reading_within};
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn guard_reports_a_boolean_state_without_panicking() {
@@ -75,20 +123,27 @@ mod tests {
     }
 
     #[test]
-    fn guard_tracks_a_real_secure_input_transition() {
-        let guard = MacosSecureInput::new();
+    fn the_predicate_follows_the_session_reading_through_a_hold() {
+        let _one = one_hold_at_a_time();
+        let limit = Duration::from_secs(2);
+        let before = agreed_reading(secure_input_active, limit);
         let hold = hold_secure_input();
-        if !secure_input_active() {
+        if !session_reading_within(true, limit) {
             eprintln!(
-                "skipped guard_tracks_a_real_secure_input_transition: the OS did not \
-                 flip the secure-input flag in this environment"
+                "SKIP the_predicate_follows_the_session_reading_through_a_hold: the session \
+                 shows no secure-input pid while this process holds secure input"
             );
             return;
         }
-        assert_eq!(guard.state(), SecureInputState::Active);
+        let during = agreed_reading(secure_input_active, limit);
         drop(hold);
-        if !secure_input_active() {
-            assert_eq!(guard.state(), SecureInputState::Inactive);
-        }
+        let after = agreed_reading(secure_input_active, limit);
+        assert_eq!(before.0, before.1, "before the hold: (predicate, session)");
+        assert_eq!(
+            during,
+            (true, true),
+            "during the hold: (predicate, session)"
+        );
+        assert_eq!(after.0, after.1, "after the hold: (predicate, session)");
     }
 }

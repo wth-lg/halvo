@@ -7,6 +7,7 @@ pub mod foreground;
 pub mod input;
 pub mod mic;
 pub mod screen;
+pub(crate) mod secure_input_byte;
 pub mod window_title;
 
 use std::sync::Arc;
