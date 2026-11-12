@@ -70,6 +70,7 @@ const DATA_DIR: &[&str] = &MACOS_DATA_DIR;
 
 pub const STATE_FILE: &str = "daemon-state.json";
 pub const INTENT_FILE: &str = "delete-all.intent";
+#[cfg(windows)]
 pub const INSTANCE_LOCK_FILE: &str = "daemon.lock";
 pub const CONTROL_SOCKET: &str = "control.sock";
 pub const RUN_MARKER: &str = "running";
@@ -212,6 +213,7 @@ impl DataDir {
         self.0.join(INTENT_FILE)
     }
 
+    #[cfg(windows)]
     pub fn instance_lock_file(&self) -> PathBuf {
         self.0.join(INSTANCE_LOCK_FILE)
     }
@@ -254,7 +256,14 @@ impl ScratchDir {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoginItemDir {
     path: PathBuf,
-    create_missing: bool,
+    when_missing: WhenMissing,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WhenMissing {
+    CreateWithMode0755,
+    MustExist,
 }
 
 #[cfg(target_os = "macos")]
@@ -268,7 +277,7 @@ impl LoginItemDir {
         path.extend(MACOS_LAUNCH_AGENTS_DIR);
         Ok(Self {
             path: checked(path)?,
-            create_missing: true,
+            when_missing: WhenMissing::CreateWithMode0755,
         })
     }
 
@@ -279,7 +288,7 @@ impl LoginItemDir {
         }
         Ok(Self {
             path: dir.path().to_path_buf(),
-            create_missing: false,
+            when_missing: WhenMissing::MustExist,
         })
     }
 
@@ -287,8 +296,8 @@ impl LoginItemDir {
         &self.path
     }
 
-    pub(crate) fn create_missing(&self) -> bool {
-        self.create_missing
+    pub(crate) fn when_missing(&self) -> WhenMissing {
+        self.when_missing
     }
 }
 
@@ -390,11 +399,14 @@ pub const SOCKET_PATH_MAX_BYTES: usize = 104;
 
 pub const FALLBACK_SOCKET_DIR: &str = crate::service::CAPTURE_AGENT_LABEL;
 
+const FNV1A_64_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
+
 pub fn endpoint_hash(text: &str) -> String {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut hash = FNV1A_64_OFFSET_BASIS;
     for byte in text.bytes() {
         hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        hash = hash.wrapping_mul(FNV1A_64_PRIME);
     }
     format!("{hash:016x}")
 }
@@ -835,7 +847,10 @@ mod tests {
 
     #[test]
     fn every_entry_name_is_one_unique_path_component_and_no_reserved_or_file_name() {
+        #[cfg(windows)]
         let files = [STATE_FILE, INTENT_FILE, INSTANCE_LOCK_FILE];
+        #[cfg(not(windows))]
+        let files = [STATE_FILE, INTENT_FILE];
         for (at, entry) in ENTRIES.iter().enumerate() {
             let mut components = Path::new(entry.name).components();
             assert!(matches!(components.next(), Some(Component::Normal(_))));
@@ -886,11 +901,15 @@ mod tests {
                 path.display()
             );
         }
-        for path in [
+        #[cfg(windows)]
+        let top_level = [
             data.state_file(),
             data.intent_file(),
             data.instance_lock_file(),
-        ] {
+        ];
+        #[cfg(not(windows))]
+        let top_level = [data.state_file(), data.intent_file()];
+        for path in top_level {
             assert_eq!(path.parent(), Some(data.path()));
         }
         assert_eq!(data.entry(&STORE), data.path().join("store"));
@@ -937,6 +956,21 @@ mod tests {
         assert!(ScratchDir::new(firm.with_file_name("Halvo-scratch"), &data).is_ok());
     }
 
+    #[test]
+    fn a_suffix_after_t_is_refused() {
+        for suffixed in ["/var/folders/7n/abc/T/zz/", "/var/folders/7n/abc/T/r1/T/"] {
+            assert!(!is_darwin_user_temp_dir(Path::new(suffixed)), "{suffixed}");
+            assert_eq!(DarwinUserTempDir::new(PathBuf::from(suffixed)), None);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_socket_path_bound_is_the_size_of_sun_path() {
+        let address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        assert_eq!(SOCKET_PATH_MAX_BYTES, address.sun_path.len());
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn only_the_system_shape_of_the_user_temp_dir_is_taken() {
@@ -947,8 +981,6 @@ mod tests {
             assert!(is_darwin_user_temp_dir(Path::new(good)), "{good}");
         }
         for bad in [
-            "/var/folders/7n/abc/T/zz/",
-            "/var/folders/7n/abc/T/r1/T/",
             "/var/folders/7n/T/",
             "/tmp/",
             "/Users/a/T",

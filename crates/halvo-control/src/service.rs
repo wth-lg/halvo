@@ -202,7 +202,7 @@ pub fn install_login_item(
     if login_item_state(spec, dir)? == LoginItemState::Current {
         return Ok(InstallOutcome::Unchanged);
     }
-    if dir.create_missing() && !dir.path().exists() {
+    if dir.when_missing() == crate::paths::WhenMissing::CreateWithMode0755 && !dir.path().exists() {
         std::fs::DirBuilder::new()
             .recursive(true)
             .mode(0o755)
