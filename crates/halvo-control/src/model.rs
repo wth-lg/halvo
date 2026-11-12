@@ -130,10 +130,35 @@ impl<'de> Deserialize<'de> for CaptureState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct ObservationWindow {
-    pub rolling_days: u32,
-    pub first_report_day: u32,
+    rolling_days: u32,
+    first_report_day: u32,
+}
+
+impl<'de> Deserialize<'de> for ObservationWindow {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Read {
+            rolling_days: u32,
+            first_report_day: u32,
+        }
+        let Read {
+            rolling_days,
+            first_report_day,
+        } = Read::deserialize(deserializer)?;
+        let read = Self {
+            rolling_days,
+            first_report_day,
+        };
+        if read == Self::r1() {
+            Ok(read)
+        } else {
+            Err(serde::de::Error::custom(
+                "the observation window is fixed at 14 days with the first report on day 7",
+            ))
+        }
+    }
 }
 
 impl ObservationWindow {
@@ -145,6 +170,14 @@ impl ObservationWindow {
             rolling_days: Self::ROLLING_DAYS,
             first_report_day: Self::FIRST_REPORT_DAY,
         }
+    }
+
+    pub const fn rolling_days(self) -> u32 {
+        self.rolling_days
+    }
+
+    pub const fn first_report_day(self) -> u32 {
+        self.first_report_day
     }
 }
 
@@ -774,6 +807,23 @@ mod tests {
             (full.total_events(), full.total_bytes()),
             (u64::MAX, u64::MAX)
         );
+    }
+
+    #[test]
+    fn a_window_other_than_the_fixed_one_is_never_read() {
+        for text in [
+            r#"{"rolling_days":30,"first_report_day":7}"#,
+            r#"{"rolling_days":14,"first_report_day":0}"#,
+            r#"{"rolling_days":0,"first_report_day":0}"#,
+            r#"{"rolling_days":14}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<ObservationWindow>(text).is_err(),
+                "{text}"
+            );
+        }
+        let window = ObservationWindow::r1();
+        assert_eq!((window.rolling_days(), window.first_report_day()), (14, 7));
     }
 
     #[test]
