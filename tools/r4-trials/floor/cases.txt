@@ -36,21 +36,17 @@ use	uint8_array_hex	const text = bytes.toHex();
 use	uint8_array_hex	const bytes = Uint8Array.fromHex(text);
 use	dialog_request_close	card.dialog.requestClose();
 use	focus_visible_option	card.dialog.focus({ focusVisible: true });
-use	toggle_popover_force	menu.togglePopover(true);
+use	toggle_popover_options	menu.togglePopover({ force: true });
 use	iterator_helpers	const names = cards.values().map(function (card) { return card.key; });
 use	iterator_helpers	const firsts = Iterator.from(source).take(3);
 use	iterator_helpers	const list = cards.keys().toArray();
 use	iterator_helpers	map.entries().forEach(function (pair) { draw(pair); });
 use	json_raw	const raw = JSON.rawJSON('1e1000');
 use	json_raw	if (JSON.isRawJSON(value)) keep(value);
-use	dialog_toggle_event	card.dialog.addEventListener('toggle', moved);
-use	dialog_toggle_event	card.dialog.addEventListener('beforetoggle', moving);
-use	dialog_toggle_event	card.dialog.ontoggle = moved;
 use	show_popover_source	menu.showPopover({ source: button });
 use	custom_element_registry	const registry = document.customElementRegistry;
 use	command_invokers	button.commandForElement = card.dialog;
 use	command_invokers	button.setAttribute('commandfor', 'card');
-use	command_invokers	button.setAttribute('command', 'request-close');
 use	command_invokers	card.dialog.addEventListener('command', act);
 use	scrollend_event	list.addEventListener('scrollend', settle);
 use	caret_position_from_point	const at = document.caretPositionFromPoint(x, y);
@@ -72,7 +68,6 @@ free	const css = ':focus-visible { outline: 2px solid; }';
 free	card.dialog.focus();
 free	card.dialog.showModal();
 free	card.dialog.close();
-free	menu.togglePopover();
 free	menu.showPopover();
 free	name.appendChild(toggle(row));
 free	function toggle(row) { return row; }
@@ -86,3 +81,46 @@ free	node.setAttribute('aria-describedby', id);
 free	const transferred = row.transferred;
 free	const take = reply.seq > seq;
 free	const isIterator = typeof value.next === 'function';
+use	command_invokers	button.setAttribute('command', 'request-close');
+use	command_invokers	button.command = 'show-modal';
+use	iterator_helpers	const words = text.matchAll(pattern).map(function (m) { return m[0]; });
+use	window_navigation	navigation.onnavigate = go;
+use	window_navigation	const nav = window.navigation; nav.navigate('/next');
+use	writing_suggestions	field.setAttribute('writingSuggestions', 'false');
+use	object_group_by	const { groupBy } = Object;
+use	map_group_by	const { groupBy } = Map;
+use	object_group_by	const groups = Object?.['groupBy'](rows, pick);
+use	pageswap_event	window.addEventListener('pageswap', save);
+use	highlight_api	CSS.highlights.set('hit', new Highlight(range));
+use	hidden_until_found	card.body.hidden = 'until-found';
+use	css_starting_style	'.hn-dialog[open]{opacity:1;transition:opacity 0.2s}@starting-style{.hn-dialog[open]{opacity:0}}',
+use	css_transition_behavior	'.hn-dialog{transition:display 0.2s allow-discrete;transition-behavior:allow-discrete}',
+use	css_light_dark	'.hn-dialog{color-scheme:light dark;color:light-dark(#1a1a1a,#f2f2f2)}',
+use	css_text_wrap	'.hn-title{text-wrap:balance}',
+use	css_content_visibility	'.r4a-row{content-visibility:auto;contain-intrinsic-size:auto 64px}',
+use	css_field_sizing	'.hn-typed{field-sizing:content}',
+use	css_scrollbar_gutter	'.r4a-list{overflow-y:auto;scrollbar-gutter:stable}',
+use	css_scrollbar_width	'.r4a-list{scrollbar-width:thin}',
+use	css_scrollbar_color	'.r4a-list{scrollbar-color:#6b6b6b #ffffff}',
+use	css_text_box	'.hn-title{text-box:trim-both cap alphabetic}',
+use	css_contrast_color	'.r4a-icon-working{color:contrast-color(#0b57d0)}',
+use	css_scope	'@scope (.r4a){.r4a-row{padding-top:8px}}',
+free	button.setAttribute('data-act', 'toggle');
+free	row.className = 'toggle';
+free	details.addEventListener('toggle', onToggle);
+free	menu.addEventListener('beforetoggle', onBeforeToggle);
+free	menu.togglePopover(true);
+free	menu.togglePopover();
+free	if (field.name === 'command') line.appendChild(text(field.value));
+free	if (event.metaKey) hint = 'command';
+free	button.setAttribute('data-act', 'request-close');
+free	box.className = 'r4a-request-closed';
+free	var focusVisible = false;
+free	if (row.transfer) line.appendChild(text(row.transfer));
+free	say(words['transfer']);
+free	p.appendChild(document.createTextNode('Step 1. transfer the file to the folder'));
+free	pending.take(seq);
+free	var navigation = { back: back }; navigation.back();
+free	card.requestClose = function () { card.dialog.close(); };
+free	const parts = Object.values(item).map(String);
+free	'.hn-dialog{transition:opacity 0.2s;white-space:pre-wrap}',

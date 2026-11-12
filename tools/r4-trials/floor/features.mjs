@@ -8,11 +8,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareVersions, FLOOR, parseList } from './list.mjs';
 
-const member = (m) => `(?:\\?\\.|\\.)\\s*${m}\\b|\\[\\s*['"]${m}['"]\\s*\\]`;
-const fixed = (s, m) => `\\b${s}\\s*(?:\\?\\.|\\.)\\s*${m}\\b|\\b${s}\\s*\\[\\s*['"]${m}['"]\\s*\\]`;
+const member = (m) => `(?:\\?\\.|\\.)${m}\\b|\\[\\s*['"]${m}['"]\\s*\\]`;
+const call = (m) => `(?:\\?\\.|\\.)${m}\\s*\\(`;
+const fixed = (s, m) => `\\b${s}\\s*(?:\\?\\.|\\.)\\s*${m}\\b|\\b${s}\\s*(?:\\?\\.)?\\s*\\[\\s*['"]${m}['"]\\s*\\]|\\{[^{}]*\\b${m}\\b[^{}]*\\}\\s*=\\s*${s}\\b`;
+const css = (property, js) => `\\b${property}\\b|\\b${js}\\b`;
 const event = (e) => `['"]${e}['"]|\\bon${e}\\b`;
 const word = (w) => `\\b${w}\\b`;
 const any = (...parts) => parts.join('|');
+const HELPERS = '(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\\b';
 
 /** The allow lines of the floor (rulings RD-27 (b), RD-30 (6)): each web API that a view file
  * of this run calls and that the list had no line for, with its data path and expression. */
@@ -53,7 +56,27 @@ export const ALLOW = [
   ['string_from_char_code', 'javascript.builtins.String.fromCharCode', "typeof String.fromCharCode === 'function'"],
   ['string_trim', 'javascript.builtins.String.trim', "typeof String.prototype.trim === 'function'"],
   ['promise_methods', 'javascript.builtins.Promise.resolve', "typeof Promise.resolve === 'function' && typeof Promise.prototype.then === 'function' && typeof Promise.prototype.catch === 'function'"],
-  ['map_and_set_methods', 'javascript.builtins.Map.values', "['get', 'set', 'has', 'delete', 'keys', 'values'].every(function (m) { return typeof Map.prototype[m] === 'function'; }) && ['add', 'has', 'delete'].every(function (m) { return typeof Set.prototype[m] === 'function'; })"],
+  ['map_and_set_methods', 'javascript.builtins.Map.values', "['get', 'set', 'has', 'delete', 'keys', 'values', 'forEach'].every(function (m) { return typeof Map.prototype[m] === 'function'; }) && ['add', 'has', 'delete', 'forEach'].every(function (m) { return typeof Set.prototype[m] === 'function'; })"],
+  ['event_type', 'api.Event.type', "'type' in Event.prototype"],
+  ['element_id', 'api.Element.id', "'id' in Element.prototype"],
+  ['input_type', 'api.HTMLInputElement.type', "'type' in HTMLInputElement.prototype"],
+  ['input_name', 'api.HTMLInputElement.name', "'name' in HTMLInputElement.prototype"],
+  ['button_type', 'api.HTMLButtonElement.type', "'type' in HTMLButtonElement.prototype"],
+  ['node_list', 'api.NodeList.length', "'length' in NodeList.prototype && typeof NodeList.prototype.item === 'function'"],
+  ['string_function', 'javascript.builtins.String.String', "typeof String === 'function' && String(1) === '1'"],
+  ['boolean_function', 'javascript.builtins.Boolean.Boolean', "typeof Boolean === 'function' && Boolean(1) === true"],
+  ['symbol_iterator', 'javascript.builtins.Symbol.iterator', "typeof Symbol === 'function' && typeof Symbol.iterator === 'symbol' && typeof ''[Symbol.iterator] === 'function' && typeof new Map().values()[Symbol.iterator] === 'function'"],
+  ['css_flex', 'css.properties.display.flex', "CSS.supports('display', 'flex') && CSS.supports('flex-wrap', 'wrap') && CSS.supports('align-items', 'center')"],
+  ['css_inline_block', 'css.properties.display.inline-block', "CSS.supports('display', 'inline-block')"],
+  ['css_border_radius', 'css.properties.border-radius', "CSS.supports('border-radius', '50%')"],
+  ['css_box_sizing', 'css.properties.box-sizing', "CSS.supports('box-sizing', 'border-box')"],
+  ['css_outline_offset', 'css.properties.outline-offset', "CSS.supports('outline-offset', '2px')"],
+  ['css_rgb_alpha', 'css.types.color.rgb.alpha_parameter', "CSS.supports('color', 'rgba(0,0,0,0.4)')"],
+  ['css_rem', 'css.types.length.rem', "CSS.supports('font-size', '1.1rem')"],
+  ['css_pre_wrap', 'css.properties.white-space.pre-wrap', "CSS.supports('white-space', 'pre-wrap')"],
+  ['css_checked', 'css.selectors.checked', "CSS.supports('selector(:checked)')"],
+  ['css_focus', 'css.selectors.focus', "CSS.supports('selector(:focus)')"],
+  ['css_child', 'css.selectors.child', "CSS.supports('selector(a > b)')"],
 ];
 
 /** The deny lines: features whose first Safari version is above the floor and that a view could
@@ -66,12 +89,12 @@ export const DENY = [
   ['check_visibility', 'api.Element.checkVisibility', member('checkVisibility')],
   ['aria_description', 'api.Element.ariaDescription', member('ariaDescription')],
   ['error_capture_stack_trace', 'javascript.builtins.Error.captureStackTrace', fixed('Error', 'captureStackTrace')],
-  ['array_buffer_transfer', 'javascript.builtins.ArrayBuffer.transfer', any(member('transfer'), member('transferToFixedLength'))],
+  ['array_buffer_transfer', 'javascript.builtins.ArrayBuffer.transfer', any(call('transfer'), call('transferToFixedLength'))],
   ['start_view_transition', 'api.Document.startViewTransition', member('startViewTransition')],
   ['get_html', 'api.Element.getHTML', member('getHTML')],
   ['aria_braille_label', 'api.Element.ariaBrailleLabel', member('ariaBrailleLabel')],
   ['aria_braille_role_description', 'api.Element.ariaBrailleRoleDescription', member('ariaBrailleRoleDescription')],
-  ['writing_suggestions', 'api.HTMLElement.writingSuggestions', any(member('writingSuggestions'), word('writingsuggestions'))],
+  ['writing_suggestions', 'api.HTMLElement.writingSuggestions', word('writing[sS]uggestions')],
   ['pointer_coalesced_events', 'api.PointerEvent.getCoalescedEvents', member('getCoalescedEvents')],
   ['pointer_predicted_events', 'api.PointerEvent.getPredictedEvents', member('getPredictedEvents')],
   ['pointer_altitude_angle', 'api.PointerEvent.altitudeAngle', member('altitudeAngle')],
@@ -85,38 +108,56 @@ export const DENY = [
   ['regexp_escape', 'javascript.builtins.RegExp.escape', fixed('RegExp', 'escape')],
   ['uint8_array_base64', 'javascript.builtins.Uint8Array.toBase64', any(member('toBase64'), member('fromBase64'), member('setFromBase64'))],
   ['uint8_array_hex', 'javascript.builtins.Uint8Array.toHex', any(member('toHex'), member('fromHex'), member('setFromHex'))],
-  ['dialog_request_close', 'api.HTMLDialogElement.requestClose', member('requestClose')],
-  ['focus_visible_option', 'api.HTMLElement.focus.options_focusVisible_parameter', word('focusVisible')],
-  ['toggle_popover_force', 'api.HTMLElement.togglePopover.options_force_parameter', `(?:\\?\\.|\\.)\\s*togglePopover\\s*\\(\\s*[^\\s)]`],
-  ['iterator_helpers', 'javascript.builtins.Iterator.map', any(word('Iterator'), `\\b(?:values|keys|entries)\\s*\\(\\s*\\)\\s*(?:\\?\\.|\\.)\\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\\b`, `(?:\\?\\.|\\.)\\s*(?:toArray|take|drop)\\s*\\(`)],
+  ['dialog_request_close', 'api.HTMLDialogElement.requestClose', call('requestClose')],
+  ['focus_visible_option', 'api.HTMLElement.focus.options_focusVisible_parameter', `\\bfocusVisible\\s*:|['"]focusVisible['"]\\s*:`],
+  ['toggle_popover_options', 'api.HTMLElement.togglePopover.options_force_parameter', `(?:\\?\\.|\\.)togglePopover\\s*\\(\\s*\\{`],
+  ['iterator_helpers', 'javascript.builtins.Iterator.map', any(`\\bIterator\\s*(?:\\?\\.|\\.)\\s*(?:from|concat|prototype)\\b`, `\\b(?:new|extends)\\s+Iterator\\b`, `(?<!\\bObject\\s*\\.\\s*)\\b(?:values|keys|entries)\\s*\\(\\s*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, `\\bmatchAll\\s*\\([^()]*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, call('toArray'))],
   ['json_raw', 'javascript.builtins.JSON.rawJSON', any(fixed('JSON', 'rawJSON'), fixed('JSON', 'isRawJSON'))],
-  ['dialog_toggle_event', 'api.HTMLElement.toggle_event.dialog_elements', any(event('toggle'), event('beforetoggle'))],
-  ['show_popover_source', 'api.HTMLElement.showPopover.options_source_parameter', `(?:\\?\\.|\\.)\\s*showPopover\\s*\\(\\s*[^\\s)]`],
+  ['show_popover_source', 'api.HTMLElement.showPopover.options_source_parameter', `(?:\\?\\.|\\.)showPopover\\s*\\(\\s*\\{`],
   ['custom_element_registry', 'api.Element.customElementRegistry', member('customElementRegistry')],
-  ['command_invokers', 'api.HTMLButtonElement.commandForElement', any(member('commandForElement'), word('commandfor'), word('CommandEvent'), event('command'), 'request-close')],
+  ['command_invokers', 'api.HTMLButtonElement.commandForElement', any(member('commandForElement'), word('commandfor'), word('CommandEvent'), word('oncommand'), `addEventListener\\s*\\(\\s*['"]command['"]`, `setAttribute\\s*\\(\\s*['"]command['"]`, `(?:\\?\\.|\\.)command\\s*=(?!=)`)],
   ['scrollend_event', 'api.Element.scrollend_event', event('scrollend')],
   ['caret_position_from_point', 'api.Document.caretPositionFromPoint', member('caretPositionFromPoint')],
   ['aria_col_index_text', 'api.Element.ariaColIndexText', member('ariaColIndexText')],
   ['aria_row_index_text', 'api.Element.ariaRowIndexText', member('ariaRowIndexText')],
   ['map_get_or_insert', 'javascript.builtins.Map.getOrInsert', any(member('getOrInsert'), member('getOrInsertComputed'))],
   ['math_sum_precise', 'javascript.builtins.Math.sumPrecise', fixed('Math', 'sumPrecise')],
-  ['window_navigation', 'api.Window.navigation', `\\bnavigation\\s*(?:\\?\\.|\\.)\\s*(?:navigate|back|forward|reload|traverseTo|entries|currentEntry|updateCurrentEntry|addEventListener|canGoBack|canGoForward|transition|activation)\\b`],
+  ['window_navigation', 'api.Window.navigation', any(`\\bwindow\\s*(?:\\?\\.|\\.)\\s*navigation\\b`, `\\bnavigation\\s*(?:\\?\\.|\\.)\\s*(?:navigate|traverseTo|updateCurrentEntry|currentEntry|canGoBack|canGoForward|transition|activation)\\b`, word('on(?:navigate|currententrychange|navigatesuccess|navigateerror)'), `addEventListener\\s*\\(\\s*['"](?:navigate|currententrychange|navigatesuccess|navigateerror)['"]`)],
   ['current_css_zoom', 'api.Element.currentCSSZoom', member('currentCSSZoom')],
   ['aria_notify', 'api.Element.ariaNotify', member('ariaNotify')],
+  ['pageswap_event', 'api.Window.pageswap_event', event('pageswap')],
+  ['highlight_api', 'api.Highlight', any(`\\bnew\\s+Highlight\\b`, `\\bCSS\\s*(?:\\?\\.|\\.)\\s*highlights\\b`, `::highlight\\s*\\(`)],
+  ['hidden_until_found', 'html.global_attributes.hidden.until-found', 'until-found'],
+  ['css_starting_style', 'css.at-rules.starting-style', '@starting-style\\b'],
+  ['css_transition_behavior', 'css.properties.transition-behavior', any(css('transition-behavior', 'transitionBehavior'), word('allow-discrete'))],
+  ['css_light_dark', 'css.types.color.light-dark', `\\blight-dark\\s*\\(`],
+  ['css_text_wrap', 'css.properties.text-wrap', `\\btext-wrap\\b|\\btextWrap`],
+  ['css_content_visibility', 'css.properties.content-visibility', css('content-visibility', 'contentVisibility')],
+  ['css_field_sizing', 'css.properties.field-sizing', css('field-sizing', 'fieldSizing')],
+  ['css_scrollbar_gutter', 'css.properties.scrollbar-gutter', css('scrollbar-gutter', 'scrollbarGutter')],
+  ['css_scrollbar_width', 'css.properties.scrollbar-width', css('scrollbar-width', 'scrollbarWidth')],
+  ['css_scrollbar_color', 'css.properties.scrollbar-color', css('scrollbar-color', 'scrollbarColor')],
+  ['css_text_box', 'css.properties.text-box', `\\btext-box\\b|\\btextBox`],
+  ['css_contrast_color', 'css.types.color.contrast-color', `\\bcontrast-color\\s*\\(`],
+  ['css_scope', 'css.at-rules.scope', '@scope\\b'],
 ];
 
-/** The Safari version, its date and the page of the data at `dotted`, or a problem. */
-export function lookup(data, dotted) {
+/** The first Safari version, its date and the page of the data at `dotted`, or a problem: the
+ * lowest version among the entries with no flag, prefix or other name, where a partial entry
+ * counts only for a deny line, since the floor lacks the whole of such a feature too. */
+export function lookup(data, dotted, kind = 'allow') {
   let node = data;
   for (const key of dotted.split('.')) node = node?.[key];
   const compat = node?.__compat;
   if (!compat) return { problem: `${dotted} is not in the data` };
   const raw = compat.support.safari;
-  const support = Array.isArray(raw) ? raw[0] : raw;
-  const version = support?.version_added;
-  if (typeof version !== 'string' || !/^[0-9]+(?:\.[0-9]+)*$/.test(version) || support.flags || support.prefix || support.alternative_name || support.partial_implementation) {
-    return { problem: `${dotted} has no plain Safari version` };
-  }
+  const versions = (Array.isArray(raw) ? raw : [raw])
+    .filter((s) => s && !s.flags && !s.prefix && !s.alternative_name && (kind === 'deny' || !s.partial_implementation))
+    .map((s) => s.version_added)
+    .filter((v) => typeof v === 'string' && /^[0-9]+(?:\.[0-9]+)*$/.test(v))
+    .sort(compareVersions);
+  const version = versions[0];
+  if (!version) return { problem: `${dotted} has no plain Safari version` };
   const release = data.browsers.safari.releases[version];
   if (!release?.release_date) return { problem: `${dotted}: Safari ${version} has no date in the data` };
   const page = compat.mdn_url ?? `https://developer.mozilla.org/ (${dotted})`;
@@ -128,7 +169,7 @@ export function lines(data) {
   const out = [];
   const problems = [];
   const emit = (kind, [name, dotted, cell]) => {
-    const found = lookup(data, dotted);
+    const found = lookup(data, dotted, kind);
     if (found.problem) {
       problems.push(found.problem);
       return;
@@ -154,7 +195,7 @@ function verify(data, listText) {
     if (!m) continue;
     const row = [...ALLOW, ...DENY].find((r) => r[0] === f.name);
     if (!row) continue;
-    const found = lookup(data, row[1]);
+    const found = lookup(data, row[1], f.kind);
     if (found.problem) problems.push(found.problem);
     else if (found.version !== f.version || found.date !== m[3]) problems.push(`${f.name}: the list gives ${f.version} of ${m[3]}, the data ${found.version} of ${found.date}`);
   }
