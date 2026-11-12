@@ -844,7 +844,7 @@ fn the_item_raised_names_its_run_and_its_page_item_composes() {
     ));
     assert_eq!(stored[0].at, (NOW * 1_000_000) as i64);
     assert_eq!(stored[0].day, TODAY);
-    let page = held.page_item(&Table::new()).unwrap();
+    let page = held.page_item().unwrap();
     assert_eq!(page.item(), held.item());
     assert_eq!(page.armed().name(), "no");
 }
@@ -957,9 +957,9 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
     );
 }
 
-/// The page item of a held confirmation, with the guard's table of this life.
-fn page(held: &Held, table: &Table) -> halvo_coord::types::Item {
-    held.page_item(table).expect("the item composes")
+/// The page item of a held confirmation.
+fn page(held: &Held) -> halvo_coord::types::Item {
+    held.page_item().expect("the item composes")
 }
 
 /// The fields of an item whose label is the sentence of `confirm.changed`, each with its index.
@@ -1018,7 +1018,7 @@ fn refusal_changed_line() {
     let later = |run: u32, n: u32| ask_of(run, 1, vec![asked(n, Class::Send, n + 100, true)]);
     for (n, line) in [(1, true), (2, false), (3, false), (4, false)] {
         let held = issue(&p, &mut l, &t, &LIMITS, &later(1, n)).unwrap();
-        let item = page(&held, &t);
+        let item = page(&held);
         let want = if line { vec![0] } else { vec![] };
         assert_eq!(changed_lines(&item), want, "effect {n}");
         assert_eq!(
@@ -1028,8 +1028,50 @@ fn refusal_changed_line() {
         );
     }
     let other_run = issue(&p, &mut l, &t, &LIMITS, &later(2, 1)).unwrap();
-    assert!(
-        changed_lines(&page(&other_run, &t)).is_empty(),
-        "another run"
-    );
+    assert!(changed_lines(&page(&other_run)).is_empty(), "another run");
+}
+
+/// The line names an earlier item of the run: the item's own release of `allow_once` gives no
+/// line on its own card, whenever the page composes it (review finding F1).
+#[test]
+fn an_item_shows_no_line_for_its_own_release() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let a = ask_of(1, 1, vec![asked(1, Class::Send, 1, true)]);
+    let mut held = armed(&p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &a);
+    answer(
+        &p,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Allow,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .unwrap();
+    assert!(t.allowed_unused(&run_id(1), &support::effect_id(1)));
+    assert!(changed_lines(&page(&held)).is_empty());
+}
+
+/// An item issued before another item of the run released `allow_once` for the same effect
+/// shows no line for that later release (review finding F2).
+#[test]
+fn an_item_shows_no_line_for_a_later_items_release() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let first = ask_of(1, 1, vec![asked(1, Class::Send, 1, true)]);
+    let second = ask_of(1, 1, vec![asked(1, Class::Send, 2, true)]);
+    let a = issue(&p, &mut l, &t, &LIMITS, &first).unwrap();
+    assert!(changed_lines(&page(&a)).is_empty());
+    answered(
+        &p,
+        &|n| p.set_clock(n, TODAY),
+        &mut l,
+        &mut t,
+        &second,
+        ConfirmAnswer::Allow,
+    )
+    .unwrap();
+    assert!(t.allowed_unused(&run_id(1), &support::effect_id(1)));
+    assert!(changed_lines(&page(&a)).is_empty());
 }

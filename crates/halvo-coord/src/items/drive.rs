@@ -186,7 +186,9 @@ fn store_once<P: Owner>(
 }
 
 /// A confirmation that the coordinator holds: its item id, its request, its state, when it was
-/// issued and when its presenter first reported it on screen, in milliseconds of the clock.
+/// issued and when its presenter first reported it on screen, in milliseconds of the clock, and
+/// the guard's table as it stood at its issue, which holds the rows of the earlier items of this
+/// life and of no later one (I4.3, ruling IG-6d).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Held {
     item: ItemId,
@@ -194,6 +196,7 @@ pub struct Held {
     confirmation: Confirmation,
     issued_at: u64,
     on_screen_at: Option<u64>,
+    earlier: Table,
 }
 
 impl Held {
@@ -222,10 +225,11 @@ impl Held {
         self.on_screen_at
     }
 
-    /// The item as the page gets it (I3.4), with its lines `confirm.changed` from `table`, the
-    /// guard's table of this life (I4.3).
-    pub fn page_item(&self, table: &Table) -> Result<Item, Cause> {
-        compose_confirm(&self.item, &self.ask, &self.confirmation, table)
+    /// The item as the page gets it (I3.4), with its lines `confirm.changed` from the guard's
+    /// table as it stood at the item's issue, so that only an earlier item gives the line, and
+    /// neither the item's own release nor a later item's (I4.3, ruling IG-6d).
+    pub fn page_item(&self) -> Result<Item, Cause> {
+        compose_confirm(&self.item, &self.ask, &self.confirmation, &self.earlier)
     }
 }
 
@@ -254,6 +258,7 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
         confirmation,
         issued_at: now,
         on_screen_at: None,
+        earlier: table.clone(),
     };
     if *held.confirmation.state() == ConfirmState::Lapsed(LapseCause::Digest) {
         let answers = held.confirmation.answers(ConfirmAnswer::Reject);
@@ -265,7 +270,7 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
         let _ = store(ports, ledger, limits, vec![lapsed]);
         return Ok(held);
     }
-    held.page_item(table)?;
+    held.page_item()?;
     let raised = What::ItemRaised {
         item,
         raised: Raised::Confirm(ask.run().clone()),
