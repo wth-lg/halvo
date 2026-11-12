@@ -70,6 +70,7 @@ struct Shared {
     connections: AtomicUsize,
     over_bound: AtomicU64,
     unkept: AtomicU64,
+    accept_errors: AtomicU64,
 }
 
 /// The relay's listener as the system names it, for a start that places it in the guard.
@@ -77,6 +78,10 @@ struct Shared {
 type ListenerRaw = std::os::fd::RawFd;
 #[cfg(windows)]
 type ListenerRaw = usize;
+
+/// How long the relay waits after a failed accept (a process out of descriptors, a connection
+/// that its peer abandoned) before it accepts again; the listener stays open.
+const ACCEPT_PAUSE: Duration = Duration::from_millis(50);
 
 /// How often the guard reads the process table.
 const GUARD_POLL: Duration = Duration::from_millis(20);
@@ -88,7 +93,8 @@ pub const GUARD_FLAG: &str = "--relay-guard";
 /// listener closes, also when the executor's process is killed): run as `--relay-guard PID US`
 /// in a process that holds the relay's listener and nothing else of the executor's process, it
 /// reads the process table until no process of the tree of the browser PID with creation time US
-/// runs, the processes that the stop reports as adopted among them, and returns; the system then
+/// runs, the processes that the stop reports as adopted among them and every process that a living
+/// member of the tree starts after the first process has ended, and returns; the system then
 /// closes its copy of the listener. While the executor lives it holds the listener too, and only
 /// the executor accepts.
 pub fn guard_main(argv: &[String]) -> i32 {
@@ -105,11 +111,20 @@ pub fn guard_main(argv: &[String]) -> i32 {
             .iter()
             .find(|p| p.pid == pid && p.started_us == started_us)
             .cloned();
+        let mut living: Vec<Proc> = known
+            .iter()
+            .filter(|k| table.iter().any(|t| procs::same(t, k)))
+            .cloned()
+            .collect();
         if let Some(root) = &root {
-            for p in crate::checks::tree_of(&table, root) {
-                if !known.iter().any(|k| procs::same(k, &p)) {
-                    known.push(p);
-                }
+            living.push(root.clone());
+        }
+        for p in procs::descendants(&table, &living)
+            .into_iter()
+            .chain(root.iter().flat_map(|r| crate::checks::tree_of(&table, r)))
+        {
+            if !known.iter().any(|k| procs::same(k, &p)) {
+                known.push(p);
             }
         }
         let living = known
@@ -359,7 +374,15 @@ impl Relay {
         });
         let serving = shared.clone();
         let task = tokio::spawn(async move {
-            while let Ok((socket, _)) = listener.accept().await {
+            loop {
+                let socket = match listener.accept().await {
+                    Ok((socket, _)) => socket,
+                    Err(_) => {
+                        serving.accept_errors.fetch_add(1, Ordering::SeqCst);
+                        tokio::time::sleep(ACCEPT_PAUSE).await;
+                        continue;
+                    }
+                };
                 let shared = serving.clone();
                 if !admit(&shared.connections) {
                     shared.over_bound.fetch_add(1, Ordering::SeqCst);
@@ -869,6 +892,40 @@ mod tests {
         }
         assert_eq!(record.lock().unwrap().len(), MAX_RECORD);
         assert_eq!(unkept.load(Ordering::SeqCst), 3);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_second_holder_outside_the_tree_is_read_and_refused() {
+        let held = crate::start::lock();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let relay_port = listener.local_addr().unwrap().port();
+        let c = std::net::TcpStream::connect(("127.0.0.1", relay_port)).unwrap();
+        let _accepted = listener.accept().unwrap();
+        let spec = crate::start::Spec {
+            program: std::path::Path::new("/bin/sleep"),
+            args: vec!["5".into()],
+            env: Vec::new(),
+            stderr: None,
+        };
+        let fd = std::os::fd::AsRawFd::as_raw_fd(&c);
+        let mut inside = crate::start::start_with(&held, &spec, fd).unwrap();
+        let mut outside = crate::start::start_with(&held, &spec, fd).unwrap();
+        drop(held);
+        std::thread::sleep(Duration::from_millis(300));
+        let root = procs::table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == inside.pid())
+            .unwrap();
+        let peer = c.local_addr().unwrap().port();
+        assert_eq!(
+            check_peer(Some(&root), peer, relay_port).map_err(|f| (f.cause, f.in_tree)),
+            Err(("several_owners", 1))
+        );
+        outside.kill();
+        assert_eq!(check_peer(Some(&root), peer, relay_port), Ok(inside.pid()));
+        inside.kill();
     }
 
     #[test]

@@ -128,15 +128,19 @@ pub fn listeners_beside(sockets: &[peer::Socket], pid: u32, relay_port: Option<u
         .count()
 }
 
-/// The processes but the browser's first one and this process that hold an end of the pipe,
-/// among the processes that started at or after the browser's first process (an older process
-/// cannot have inherited an end).
+/// The processes but the browser's first one and this process that hold an end of the pipe: on
+/// macOS every process whose descriptors this user may read, so that an end passed over a socket
+/// to an older process is found too; on Windows the processes that started at or after the
+/// browser's first process, which alone can have inherited an end (a handle that a holder copies
+/// into an older process with `DuplicateHandle` is not read there).
 pub fn pipe_holders(table: &[Proc], root: &Proc, ids: &PipeIds) -> usize {
     let me = std::process::id();
     table
         .iter()
         .filter(|p| p.pid != me && !procs::same(p, root))
-        .filter(|p| p.started_us == 0 || p.started_us >= root.started_us)
+        .filter(|p| {
+            cfg!(target_os = "macos") || p.started_us == 0 || p.started_us >= root.started_us
+        })
         .filter(|p| holds_an_end(p.pid, ids))
         .count()
 }

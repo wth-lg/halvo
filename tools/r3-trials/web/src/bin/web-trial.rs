@@ -282,7 +282,9 @@ fn egress_wrap(spec: &str, argv: &[String]) -> ExitCode {
 
 /// The foreign process of the row `relay_foreign`: connects to the relay's port as a process
 /// outside the browser's tree, sends a SOCKS5 greeting and a CONNECT to HOST:PORT and a request,
-/// and prints how many bytes the relay sent back before it closed or 5 s passed.
+/// and prints how many bytes the relay sent back and how the connection ended: `reset` when the
+/// relay closed it with the probe's bytes unread, `eof` when it closed after reading them,
+/// `timeout` after 5 s.
 fn foreign_probe(argv: &[String]) -> ExitCode {
     use std::io::Read;
     let (Some(relay), Some(host), Some(port)) = (
@@ -305,13 +307,23 @@ fn foreign_probe(argv: &[String]) -> ExitCode {
     let _ = c.write_all(&req);
     let mut got = Vec::new();
     let mut buf = [0u8; 512];
-    loop {
+    let end = loop {
         match c.read(&mut buf) {
-            Ok(0) | Err(_) => break,
+            Ok(0) => break "eof",
             Ok(n) => got.extend_from_slice(&buf[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => break "reset",
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                break "timeout"
+            }
+            Err(_) => break "error",
         }
-    }
-    println!("foreign connected=yes bytes={}", got.len());
+    };
+    println!("foreign connected=yes bytes={} end={end}", got.len());
     ExitCode::SUCCESS
 }
 
@@ -2053,7 +2065,7 @@ mod driver {
                 let Ok(exe) = std::env::current_exe() else {
                     return kids;
                 };
-                while running.load(std::sync::atomic::Ordering::SeqCst) && kids.len() < 40 {
+                while running.load(std::sync::atomic::Ordering::SeqCst) && kids.len() < 80 {
                     let mut cmd = std::process::Command::new(&exe);
                     cmd.arg("--hold-child")
                         .stdin(std::process::Stdio::null())
@@ -2062,6 +2074,7 @@ mod driver {
                     if let Ok(c) = cmd.start() {
                         kids.push(c);
                     }
+                    std::thread::sleep(Duration::from_millis(25));
                 }
                 kids
             });
@@ -2085,8 +2098,20 @@ mod driver {
             .iter()
             .filter(|p| checks::holds_an_end(**p, &ids))
             .count();
-        eprintln!("pipe_inherit siblings={} holders={holders}", pids.len());
-        check(!pids.is_empty(), "no_sibling")?;
+        let root = ex
+            .root()
+            .cloned()
+            .ok_or_else(|| Fault::new("check", "no_root"))?;
+        let table = r3_web::procs::table().map_err(|e| Fault::new("check", e.to_string()))?;
+        let after = table
+            .iter()
+            .filter(|p| pids.contains(&p.pid) && p.started_us >= root.started_us)
+            .count();
+        eprintln!(
+            "pipe_inherit siblings={} after_the_browser={after} holders={holders}",
+            pids.len()
+        );
+        check(after >= 1, "no_sibling_after_the_pipe")?;
         check(holders == 0, "sibling_holds_an_end")?;
         Ok(None)
     }
@@ -2129,12 +2154,19 @@ mod driver {
         let foreign = relay.foreign_count() - foreign_before;
         let refusals = relay.refusals_of(UTILITY, listener_port) - refusals_before;
         eprintln!(
-            "relay_foreign answer_bytes={} foreign={foreign} agent_refusals={refusals} listener_connections={} last={:?}",
+            "relay_foreign answer_bytes={} end={} foreign={foreign} agent_refusals={refusals} listener_connections={} last={:?}",
             bytes.map(|b| b.to_string()).unwrap_or("-".into()),
+            text.split_whitespace()
+                .find_map(|w| w.strip_prefix("end="))
+                .unwrap_or("-"),
             c.connections,
             relay.foreign().last()
         );
         check(text.contains("connected=yes"), "probe_not_connected")?;
+        check(
+            text.contains("end=reset"),
+            "request_read_before_the_refusal",
+        )?;
         check(bytes == Some(0), "relay_answered")?;
         check(foreign == 1, "not_recorded_apart")?;
         check(refusals == 0, "recorded_as_the_agent_s")?;
@@ -3161,6 +3193,7 @@ mod driver {
         path_requests: u64,
         gone_ms: Option<u128>,
         free_ms: Option<u128>,
+        watched: bool,
         version: String,
         left: bool,
     }
@@ -3433,6 +3466,7 @@ mod driver {
             path_requests: c.path_requests,
             gone_ms,
             free_ms,
+            watched: watch_port.is_some(),
             version,
             left,
         })
@@ -3455,11 +3489,12 @@ mod driver {
                     return false;
                 }
             };
-            let first = match (k.gone_ms, k.free_ms) {
-                (Some(g), Some(f)) => g <= f,
-                (Some(_), None) => true,
-                _ => false,
-            };
+            let first = k.watched
+                && match (k.gone_ms, k.free_ms) {
+                    (Some(g), Some(f)) => g <= f,
+                    (Some(_), None) => true,
+                    _ => false,
+                };
             if first {
                 ok += 1;
             }
@@ -3470,8 +3505,9 @@ mod driver {
                 majors.push(m);
             }
             out(&format!(
-                "run {head} step={name} i={i} result={} gone_ms={} free_ms={} version={} left={}",
+                "run {head} step={name} i={i} result={} watched={} gone_ms={} free_ms={} version={} left={}",
                 if first { "ok" } else { "miss" },
+                if k.watched { "yes" } else { "no" },
                 k.gone_ms.map(|v| v.to_string()).unwrap_or("-".into()),
                 k.free_ms.map(|v| v.to_string()).unwrap_or("-".into()),
                 k.version,

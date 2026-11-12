@@ -849,6 +849,21 @@ mod tests {
             .collect();
         assert_eq!(ends_here.len(), 2);
         assert!(ends_here.contains(&on.ids.handles[1]) && ends_here.contains(&on.ids.handles[2]));
+        assert!(crate::checks::holds_an_end(pid, &on.ids));
+        let mut other = std::process::Command::new("/bin/sleep");
+        other.arg("5");
+        let mut other = other.start().expect("other");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(!crate::checks::holds_an_end(other.id(), &on.ids));
+        let table = crate::procs::table().expect("table");
+        let elsewhere = table
+            .iter()
+            .find(|p| p.pid == other.id())
+            .cloned()
+            .expect("row of the other child");
+        assert_eq!(crate::checks::pipe_holders(&table, &elsewhere, &on.ids), 1);
+        let _ = other.kill();
+        let _ = other.wait();
         for fd in [on.to_browser.as_raw_fd(), on.from_browser.as_raw_fd()] {
             // SAFETY: F_GETFD reads the flags of an open descriptor of this process.
             assert_eq!(

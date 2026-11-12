@@ -24,8 +24,8 @@ pub struct Socket {
     pub listening: bool,
 }
 
-/// The processes that hold the TCP connection whose local end is `peer_port` and whose remote end
-/// is `relay_port`, both on the loopback address, as the system's table reads them now, each
+/// The processes that hold the TCP connection whose local end is 127.0.0.1:`peer_port` and whose
+/// remote end is 127.0.0.1:`relay_port`, the relay's address, as the system's table reads them now, each
 /// process once. `candidates` are the processes whose descriptors are read on macOS; Windows
 /// reads its one table and takes no candidates.
 pub fn owners_of_connection(peer_port: u16, relay_port: u16, candidates: &[u32]) -> Vec<u32> {
@@ -36,8 +36,8 @@ pub fn owners_of_connection(peer_port: u16, relay_port: u16, candidates: &[u32])
                 && !s.listening
                 && s.local.1 == peer_port
                 && s.remote.1 == relay_port
-                && s.local.0.is_loopback()
-                && s.remote.0.is_loopback()
+                && s.local.0 == IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+                && s.remote.0 == IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
         })
         .map(|s| s.pid)
         .collect();

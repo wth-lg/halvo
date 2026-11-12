@@ -526,7 +526,10 @@ impl Wire {
         };
         if let Ok(mut b) = self.book.lock() {
             if let Some(network) = &ev.network_id {
-                if !b.answered.insert(network.inner().clone()) {
+                if !b
+                    .answered
+                    .insert(format!("{} {}", network.inner(), ev.request.url))
+                {
                     return;
                 }
             }
