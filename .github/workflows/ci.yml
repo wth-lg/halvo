@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,28 +71,9 @@ jobs:
       - name: Rust components
         shell: bash
         run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
@@ -115,7 +85,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 220
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +110,137 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
+      - name: "win-2: proof files and a second checkout"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set -u
+          files="$RUNNER_TEMP/w2"
+          mkdir -p "$files"
+          cat >"$files/w2-mutants.sh" <<'W2_MUTANTS_EOF'
+          #!/bin/bash
+          # The one-rule changes of win-2, one after another in one checkout of the head
+          # with one target directory: apply, build and run the named test, restore with
+          # git checkout. A change is caught when its test fails or it does not build.
+          set -u
+          w=$1
+          files=$2
+          list=$3
+          cd "$w" || exit 2
+          head=$(git rev-parse HEAD)
+          tab=$(printf '\t')
+          caught=0
+          survived=0
+          nobuild=0
+          unapplied=0
+          n=0
+          while IFS="$tab" read -r name file subst kind test; do
+            [ -n "$name" ] || continue
+            n=$((n + 1))
+            git checkout --quiet -- "$file"
+            if ! SUBST="$subst" perl -0777 -i -pe '$c = eval "\$_ =~ $ENV{SUBST}"; die "no match\n" unless $c;' "$file" 2>"$files/m-apply.err"; then
+              unapplied=$((unapplied + 1))
+              printf 'W2 mutant name=%s result=not-applied\n' "$name"
+              git checkout --quiet -- "$file"
+              continue
+            fi
+            log=$files/mutant-$n.log
+            began=$(date +%s)
+            if [ "$kind" = tf ]; then
+              timeout 900 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$test" --nocapture >"$log" 2>&1
+            else
+              timeout 900 cargo test --locked -p halvo-capture --lib -- --exact "$test" >"$log" 2>&1
+            fi
+            code=$?
+            ended=$(date +%s)
+            ran=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. ')
+            if grep -a -q 'could not compile\|^error\[E' "$log"; then
+              result=no-build
+              nobuild=$((nobuild + 1))
+            elif [ "$code" -eq 124 ]; then
+              result=caught-time-limit
+              caught=$((caught + 1))
+            elif [ "$ran" -ne 1 ]; then
+              result=not-one-test-ran
+              survived=$((survived + 1))
+            elif [ "$code" -ne 0 ] && grep -a -q "^test .* \.\.\. FAILED" "$log"; then
+              result=caught
+              caught=$((caught + 1))
+            else
+              result=survived
+              survived=$((survived + 1))
+            fi
+            printf 'W2 mutant name=%s kind=%s test=%s exit=%s tests_ran=%s result=%s seconds=%s\n' "$name" "$kind" "$test" "$code" "$ran" "$result" "$((ended - began))"
+            tr -d '\r' <"$log" | grep -a -E '^test .* \.\.\. |panicked at|^error(\[|:)|^TF ' | head -6 | sed 's/^/W2   /'
+            git checkout --quiet -- "$file"
+          done <"$list"
+          git diff --quiet "$head" || echo "W2 mutants the checkout differs from the head after the run"
+          printf 'W2 mutants summary changes=%s caught=%s no_build=%s survived=%s not_applied=%s\n' "$n" "$caught" "$nobuild" "$survived" "$unapplied"
+          W2_MUTANTS_EOF
+          cat >"$files/w2-proofs.sh" <<'W2_PROOFS_EOF'
+          #!/bin/bash
+          # The proofs of the second round of win-2: the review round tests at the commit
+          # that adds them and at the commit of their fix, and the regular functional
+          # tests of RR-windows-11 against the library before its fix.
+          set -u
+          w=$1
+          files=$2
+          cd "$w" || exit 2
+          run() {
+            part=$1 at=$2 commit=$3 kind=$4 tf_from=$5
+            shift 5
+            git checkout --quiet --force --detach "$commit" || { echo "W2 proof part=$part at=$at commit=$commit result=checkout-failed"; return; }
+            if [ "$tf_from" != - ]; then
+              git checkout --quiet "$tf_from" -- crates/halvo-capture/tests/windows_functional.rs || { echo "W2 proof part=$part at=$at result=tf-checkout-failed"; return; }
+            fi
+            log=$files/proof2-$part-$at-$kind.log
+            if [ "$kind" = tf ]; then
+              timeout 900 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$@" --nocapture >"$log" 2>&1
+            else
+              timeout 900 cargo test --locked -p halvo-capture --lib -- --exact "$@" >"$log" 2>&1
+            fi
+            code=$?
+            ok=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. ok$')
+            failed=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. FAILED$')
+            echo "W2 proof part=$part at=$at commit=$commit tf_from=$tf_from kind=$kind exit=$code ok=$ok failed=$failed"
+            tr -d '\r' <"$log" | grep -a -E '^test .* \.\.\. |^test result:|panicked at|^KNOWN-DEFECT|^TF |^error(\[|:)' | head -40 | sed 's/^/W2   /'
+            git checkout --quiet --force -- .
+          }
+          run review before 2e2552a7bb2bb7d2a2a0de750b7947f3251880e0 lib - windows::tests::a_stop_that_timed_out_keeps_the_pump_known_until_it_ends windows::tests::a_motion_sample_made_before_a_button_reaches_the_sink_before_it windows::tests::packets_that_a_stopped_run_still_held_count_after_a_restart windows::screen::tests::a_stop_that_does_not_end_in_time_keeps_the_session_busy_and_failed windows::screen::tests::a_stop_reports_a_session_that_had_ended_before_or_did_not_end_well windows::screen::tests::a_closed_capture_item_reads_as_failed_health
+          run review after fd6eb2b83222ad4010ede01d127f4ac0bf1aa074 lib - windows::tests::a_stop_that_timed_out_keeps_the_pump_known_until_it_ends windows::tests::a_motion_sample_made_before_a_button_reaches_the_sink_before_it windows::tests::packets_that_a_stopped_run_still_held_count_after_a_restart windows::screen::tests::a_stop_that_does_not_end_in_time_keeps_the_session_busy_and_failed windows::screen::tests::a_stop_reports_a_session_that_had_ended_before_or_did_not_end_well windows::screen::tests::a_closed_capture_item_reads_as_failed_health
+          run RR-windows-11 before-with-the-fixed-test 8d8b828bf209f9e417865707909451712fbd68b3 tf 52c181b010f5c49b079cb11062a61739c6cd8f68 stop_with_a_full_sink
+          run RR-windows-11 after 52c181b010f5c49b079cb11062a61739c6cd8f68 tf - stop_with_a_full_sink
+          run RR-windows-11 before-with-the-fixed-test 8d8b828bf209f9e417865707909451712fbd68b3 tf 52c181b010f5c49b079cb11062a61739c6cd8f68 a_dropped_keyboard_source_stops_capturing
+          run RR-windows-11 after 52c181b010f5c49b079cb11062a61739c6cd8f68 tf - a_dropped_keyboard_source_stops_capturing
+          git checkout --quiet --force --detach "$W2_HEAD"
+          echo "W2 proofs done"
+          W2_PROOFS_EOF
+          printf '%s' 'dGltZS1zdGFtcGVkLWF0LWZvcndhcmQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvbGV0IHdhbGxfY2xvY2sgPSBjYXB0dXJlX2luc3RhbnRcKHBhY2tldFwudGlja1wpOy9sZXQgd2FsbF9jbG9jayA9IFN5c3RlbVRpbWU6Om5vdygpOy8JbGliCXdpbmRvd3M6OnRlc3RzOjphbl9ldmVudF9jYXJyaWVzX3RoZV90aW1lX29mX2l0c19vc19ldmVudAphZ2Utd2l0aG91dC13cmFwLWd1YXJkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL2xldCBhZ2UgPSBpZiBhZ2UgPiBpMzI6Ok1BWCBhcyB1MzIgXHsgMCBcfSBlbHNlIFx7IGFnZSBcfTsvbGV0IGFnZSA9IGFnZTsvCWxpYgl3aW5kb3dzOjp0ZXN0czo6dGhlX2FnZV9vZl9hbl9ldmVudF9pc19yZWFkX2Fjcm9zc190aGVfd3JhcF9vZl90aGVfdGlja19jb3VudApjYXBhY2l0eS1vZmYtYnktb25lCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL3F1ZXVlXC5wYWNrZXRzXC5sZW5cKFwpID49IEhBTkRPRkZfQ0FQQUNJVFkvcXVldWUucGFja2V0cy5sZW4oKSA+IEhBTkRPRkZfQ0FQQUNJVFkvCWxpYgl3aW5kb3dzOjp0ZXN0czo6YV9mdWxsX3F1ZXVlX2Ryb3BzX2FfcGFja2V0X2FuZF9jb3VudHNfaXRfbG9zdApjb2FsZXNjZWQtbm90LWNvdW50ZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvaWYgcXVldWVcLm1vdGlvblwucmVwbGFjZVwocGFja2V0XClcLmlzX3NvbWVcKFwpIFx7L2lmIHF1ZXVlLm1vdGlvbi5yZXBsYWNlKHBhY2tldCkuaXNfc29tZSgpICYmIGZhbHNlIHsvCWxpYgl3aW5kb3dzOjp0ZXN0czo6d2l0aF90aGVfc2lua19mdWxsX29uZV9tb3Rpb25fc2FtcGxlX2lzX3BlbmRpbmdfYW5kX25vX2J1dHRvbl9wYWNrZXRfaXNfbG9zdAp3cml0ZXItZ29uZS1ub3QtbWFya2VkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgICAgIHF1ZXVlXC53cml0ZXJfZ29uZSA9IHRydWU7XHI/XG4vLwlsaWIJd2luZG93czo6dGVzdHM6OmFfZ29uZV93cml0ZXJfY2xvc2VzX3RoZV9oYW5kX29mZl9hbmRfY291bnRzX3doYXRfaXRfaGVsZAplbmRlZC1iZWZvcmUtaWdub3JlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy9pZiBqb2luXC5qb2luXChcKVwuaXNfZXJyXChcKSBcfFx8IGVuZGVkX2JlZm9yZSBcey9pZiBqb2luLmpvaW4oKS5pc19lcnIoKSB7LwlsaWIJd2luZG93czo6dGVzdHM6OnNwYXduX3B1bXBfYmxvY2tzX3VudGlsX3RoZV90aHJlYWRfcmVwb3J0c19hX3JlYWxfaWQKc2Vjb25kLWJlZ2luLWFsbG93ZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBpZiBzZWxmXC5wdW1wXC5pc19zb21lXChcKSBce1xyP1xuICAgICAgICAgICAgcmV0dXJuIEVyclwoQ2FwdHVyZUVycm9yOjpBbHJlYWR5U3RhcnRlZFwpO1xyP1xuICAgICAgICBcfVxyP1xuLy8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX3NlY29uZF9iZWdpbl9pc19yZWZ1c2VkX2FuZF9oZWFsdGhfZm9sbG93c190aGVfbGlmZWN5Y2xlCnN0b3Atbm90LXJlY29yZGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgc2VsZlwuc3RvcHBlZCA9IHRydWU7XHI/XG4gICAgICAgIHN0b3BwZWQvICAgICAgICBzdG9wcGVkLwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfc2Vjb25kX2JlZ2luX2lzX3JlZnVzZWRfYW5kX2hlYWx0aF9mb2xsb3dzX3RoZV9saWZlY3ljbGUKZW5kZWQtcHVtcC1yZWFkcy1ydW5uaW5nCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL1woU29tZVwocHVtcFwpLCBOb25lXCkgaWYgcHVtcFwuaGFzX2VuZGVkXChcKSBcfFx8IHdyaXRlcl9nb25lID0+IHRocmVhZF9lbmRlZFwoXCksLyhTb21lKHB1bXApLCBOb25lKSBpZiB3cml0ZXJfZ29uZSAmJiBwdW1wLmhhc19lbmRlZCgpID0+IHRocmVhZF9lbmRlZCgpLC8JbGliCXdpbmRvd3M6OnRlc3RzOjphX3B1bXBfdGhhdF9lbmRlZF93aXRob3V0X2Ffc3RvcF9yZWFkc19hc19mYWlsZWQKY2xhaW0tbm90LWNoZWNrZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgICAgIGlmIGluX3VzZVxbZGV2aWNlXC5pbmRleFwoXClcXSBce1xyP1xuICAgICAgICAgICAgcmV0dXJuIEVyclwoQ2FwdHVyZUVycm9yOjpBbHJlYWR5U3RhcnRlZFwpO1xyP1xuICAgICAgICBcfVxyP1xuLy8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9zZWNvbmRfa2V5Ym9hcmRfc291cmNlX2luX3RoZV9wcm9jZXNzX3dhaXRzX2Zvcl90aGVfZmlyc3RfdG9fc3RvcApjbGFpbS1uZXZlci1yZWxlYXNlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzL1wudW53cmFwX29yX2Vsc2VcKFBvaXNvbkVycm9yOjppbnRvX2lubmVyXClcW3NlbGZcLjBcLmluZGV4XChcKVxdID0gZmFsc2U7Ly51bndyYXBfb3JfZWxzZShQb2lzb25FcnJvcjo6aW50b19pbm5lcilbc2VsZi4wLmluZGV4KCldID0gdHJ1ZTsvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OmFfa2V5Ym9hcmRfc291cmNlX3JlZnVzZXNfYV9zZWNvbmRfYmVnaW5fYW5kX3N0YXJ0c19hZ2Fpbl9hZnRlcl9pdHNfc3RvcApjbGFzcy1yZWdpc3RlcmVkLWVhY2gtc3RhcnQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgcmVnaXN0ZXJlZFxbZGV2aWNlXC5pbmRleFwoXClcXSA9IHRydWU7XHI/XG4vLwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjphX2tleWJvYXJkX3NvdXJjZV9yZWZ1c2VzX2Ffc2Vjb25kX2JlZ2luX2FuZF9zdGFydHNfYWdhaW5fYWZ0ZXJfaXRzX3N0b3AKa2V5LXVwLXJlY29yZGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvICAgIGlmIGtleVwucmVsZWFzZWQgXHsvICAgIGlmICFrZXkucmVsZWFzZWQgey8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9rZXlfZG93bl9tYXBzX3RvX2Ffa2V5c3Ryb2tlX3BhY2tldAptb3Rpb24tdGVzdC1pbnZlcnRlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzL3NlbGZcLmJ1dHRvbl9mbGFncyA9PSAwL3NlbGYuYnV0dG9uX2ZsYWdzICE9IDAvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OmFfcG9pbnRlcl9zYW1wbGVfbWFwc190b19hX3BvaW50ZXJfcGFja2V0X2FuZF9vbmx5X2FfZmxhZ2xlc3Nfb25lX2lzX21vdGlvbgp0aXRsZS1ob29rLXNraXBzLWl0cy1oYW5kbGUtdGVzdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy93aW5kb3dfdGl0bGUucnMJcy8gICAgaWYgaG9va1wuaXNfaW52YWxpZFwoXCkgXHsvICAgIGlmIGZhbHNlIHsvCWxpYgl3aW5kb3dzOjp3aW5kb3dfdGl0bGU6OnRlc3RzOjphX3RpdGxlX2hvb2tfdGhhdF9kb2VzX25vdF9pbnN0YWxsX2ZhaWxzX3RoZV9zdGFydF93aXRoX2l0c19zdGVwCmN1cnNvci1mbG9vci1kcm9wcGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICBpZiAhc3VwcG9ydFwuY3Vyc29yX3NldHRpbmcgXHsvICAgIGlmIGZhbHNlIHsvCWxpYgl3aW5kb3dzOjpzY3JlZW46OnRlc3RzOjp0aGVfc2V0dGluZ3NfY2hvaWNlX3JlZnVzZXNfYV9idWlsZF93aXRob3V0X3RoZV9jdXJzb3Jfc2V0dGluZ19hbmRfbmFtZXNfdGhlX2J1aWxkCmludGVydmFsLWlnbm9yZXMtdGhlLXByb2JlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICBpZiBzdXBwb3J0XC5taW5pbXVtX3VwZGF0ZV9pbnRlcnZhbCBcey8gICAgaWYgdHJ1ZSB7LwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6dGhlX3NldHRpbmdzX2Nob2ljZV9wYXNzZXNfdGhlX2RlZmF1bHRfaW50ZXJ2YWxfd2hlbl90aGVfcHJvYmVfYW5zd2Vyc19ubwpmcmFtZS1maWx0ZXItaW5jbHVzaXZlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzL25vd1wuc2F0dXJhdGluZ19kdXJhdGlvbl9zaW5jZVwoYXRcKSA8IHdpdGhpbi9ub3cuc2F0dXJhdGluZ19kdXJhdGlvbl9zaW5jZShhdCkgPD0gd2l0aGluLwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6dGhlX2hhbmRsZXJfa2VlcHNfb25lX2ZyYW1lX3Blcl9pbnRlcnZhbF93aGVuX2l0X2Ryb3BzX2J5X3RpbWUKY2xvc2VkLWl0ZW0tcmVhZHMtcnVubmluZwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJcy9Tb21lXChzZXNzaW9uXCkgaWYgc2Vzc2lvblwuZmluaXNoZWRcKFwpIFx8XHwgaXRlbV9jbG9zZWQgXHxcfCB3cml0ZXJfZ29uZSA9PiBcey9Tb21lKHNlc3Npb24pIGlmIHNlc3Npb24uZmluaXNoZWQoKSB8fCB3cml0ZXJfZ29uZSA9PiB7LwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9jbG9zZWRfY2FwdHVyZV9pdGVtX3JlYWRzX2FzX2ZhaWxlZF9oZWFsdGgKc3RvcHBlZC1zY3JlZW4tcmVhZHMtbm90LXJlcG9ydGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgICAgIE5vbmUgaWYgc2VsZlwuc3RvcHBlZCA9PiBTb3VyY2VTdGF0ZTo6U3RvcHBlZFwoU3RvcENhdXNlOjpSZXF1ZXN0XCksXHI/XG4vLwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9jbG9zZWRfY2FwdHVyZV9pdGVtX3JlYWRzX2FzX2ZhaWxlZF9oZWFsdGgKbXRhLXJlZmVyZW5jZS1za2lwcGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICB1bnNhZmUgXHsgd2luZG93czo6V2luMzI6OlN5c3RlbTo6Q29tOjpDb0luY3JlbWVudE1UQVVzYWdlXChcKSBcfVxyP1xuICAgICAgICBcLm1hcF9lcnJcKFx8ZVx8IHN1cGVyOjpvc19lcnJvclwoXCJDb0luY3JlbWVudE1UQVVzYWdlXCIsICZlXClcKVw/O1xyP1xuLy8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OnRoZV9wcm9jZXNzX210YV9yZWZlcmVuY2VfaXNfdGFrZW5fb25jZV9hbmRfaG9sZHNfYW5fbXRhX2Zvcl9hX25ld190aHJlYWQKYXVkaW8tYW5zd2Vycy1ydW5uaW5nCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2F1ZGlvLnJzCXMvcmV0dXJuIE9rXChTdGFydGVkOjpPZmZcKTsvcmV0dXJuIE9rKFN0YXJ0ZWQ6OlJ1bm5pbmcpOy8JbGliCXdpbmRvd3M6OmF1ZGlvOjp0ZXN0czo6YV9kaXNhYmxlZF9zb3VyY2VfYW5zd2Vyc19vZmZfYW5kX3lpZWxkc19ub19ldmVudApib3JkZXItb2ZmCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgICAgIERyYXdCb3JkZXJTZXR0aW5nczo6RGVmYXVsdCwvICAgICAgICAgICAgRHJhd0JvcmRlclNldHRpbmdzOjpXaXRob3V0Qm9yZGVyLC8JdGYJeDdfY2FwdHVyZV9ib3JkZXJfb25fdGhlX3NjcmVlbgptb3Rpb24taW50ZXJ2YWwtemVybwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy9EdXJhdGlvbjo6ZnJvbV9taWxsaXNcKDEwMFwpOy9EdXJhdGlvbjo6ZnJvbV9taWxsaXMoMCk7Lwl0Zglwb2ludGVyX21vdmVzX2NvYWxlc2NlCnJvdzpzdG9wLXBvc3RzLW9uY2Utd2l0aG91dC10aGUtZXZlbnQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBzZWxmXC5zaWduYWxcLnNldFwoXCk7XHI/XG4gICAgICAgIGxvb3AgXHtccj9cbiAgICAgICAgICAgIHBvc3RfcXVpdF90b1woc2VsZlwuaWRcKTtccj9cbi8gICAgICAgIHBvc3RfcXVpdF90byhzZWxmLmlkKTtcbiAgICAgICAgbG9vcCB7XG4vCWxpYgl3aW5kb3dzOjp0ZXN0czo6c3RvcF9lbmRzX2FfcHVtcF93aG9zZV9maXJzdF9xdWl0X3Bvc3RfZmFpbHNfaW5zaWRlX2l0c19kZWFkbGluZQpyb3c6aG9vay1wdW1wLXNraXBzLWl0cy1oYW5kbGUtdGVzdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9mb3JlZ3JvdW5kLnJzCXMvICAgIGlmIGhvb2tcLmlzX2ludmFsaWRcKFwpIFx7XHI/XG4gICAgICAgIGxldCBlcnJvciA9IHN1cGVyOjpsYXN0X29zX2Vycm9yXChcIlNldFdpbkV2ZW50SG9va1wiXCk7XHI/XG4gICAgICAgIEZPUkVHUk9VTkRfQ1RYLyAgICBpZiBmYWxzZSB7XG4gICAgICAgIGxldCBlcnJvciA9IHN1cGVyOjpsYXN0X29zX2Vycm9yKFwiU2V0V2luRXZlbnRIb29rXCIpO1xuICAgICAgICBGT1JFR1JPVU5EX0NUWC8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX2ZvcmVncm91bmRfaG9va190aGF0X2RvZXNfbm90X2luc3RhbGxfZmFpbHNfdGhlX3N0YXJ0X3dpdGhfaXRzX3N0ZXAKcm93Om9uLWNsb3NlZC1yZWNvcmRzLW5vdGhpbmcJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2NyZWVuLnJzCXMvICAgICAgICBzZWxmXC5jbG9zZWRcLnN0b3JlXCh0cnVlLCBPcmRlcmluZzo6UmVsYXhlZFwpO1xyP1xuLy8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OmFfY2xvc2VkX2NhcHR1cmVfaXRlbV9yZWFkc19hc19mYWlsZWRfaGVhbHRoCnJvdzpjYWxsYmFjay1zZW5kcy10by10aGUtc2luawljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy8gICAgcHViXChjcmF0ZVwpIGZuIHB1c2hcKCZzZWxmLCBwYWNrZXQ6IFBhY2tldFwpIFx7XHI/XG4vICAgIHB1YihjcmF0ZSkgZm4gcHVzaCgmc2VsZiwgcGFja2V0OiBQYWNrZXQpIHtcbiAgICAgICAgbGV0IF8gPSBmb3J3YXJkX29uZSgmc2VsZi5zaGFyZWQuc2luaywgcGFja2V0KTtcbiAgICB9XG5cbiAgICAjW2FsbG93KGRlYWRfY29kZSldXG4gICAgZm4gcHVzaF9xdWV1ZWQoJnNlbGYsIHBhY2tldDogUGFja2V0KSB7XG4vCWxpYgl3aW5kb3dzOjp0ZXN0czo6d2l0aF90aGVfc2lua19mdWxsX29uZV9tb3Rpb25fc2FtcGxlX2lzX3BlbmRpbmdfYW5kX25vX2J1dHRvbl9wYWNrZXRfaXNfbG9zdApzdG9wLXdpdGhvdXQtdGhlLWV2ZW50CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgc2VsZlwuc2lnbmFsXC5zZXRcKFwpO1xyP1xuLy8JbGliCXdpbmRvd3M6OnRlc3RzOjpzdG9wX2VuZHNfYV9wdW1wX3dob3NlX2ZpcnN0X3F1aXRfcG9zdF9mYWlsc19pbnNpZGVfaXRzX2RlYWRsaW5lCnN0b3AtcG9zdHMtb25jZQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy8gICAgICAgIGxvb3AgXHtccj9cbiAgICAgICAgICAgIHBvc3RfcXVpdF90b1woc2VsZlwuaWRcKTtccj9cbi8gICAgICAgIHBvc3RfcXVpdF90byhzZWxmLmlkKTtcbiAgICAgICAgbG9vcCB7XG4vCWxpYgl3aW5kb3dzOjp0ZXN0czo6c3RvcF9lbmRzX2FfcHVtcF93aG9zZV9maXJzdF9xdWl0X3Bvc3RfZmFpbHNfaW5zaWRlX2l0c19kZWFkbGluZQp0aW1lZC1vdXQtcHVtcC1mb3Jnb3R0ZW4JY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICAgICAgc2VsZlwudGltZWRfb3V0ID0gU29tZVwodGltZW91dFwuY2xvbmVcKFwpXCk7XHI/XG4gICAgICAgICAgICByZXR1cm4gc3RvcHBlZDtccj9cbi8gICAgICAgICAgICBzZWxmLnRpbWVkX291dCA9IFNvbWUodGltZW91dC5jbG9uZSgpKTtcbi8JbGliCXdpbmRvd3M6OnRlc3RzOjphX3N0b3BfdGhhdF90aW1lZF9vdXRfa2VlcHNfdGhlX3B1bXBfa25vd25fdW50aWxfaXRfZW5kcwpwdW1wLWpvaW4tZHJvcHBlZC1vbi10aW1lb3V0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgICAgICAgICBzZWxmXC5qb2luID0gU29tZVwoam9pblwpO1xyP1xuICAgICAgICAgICAgICAgIHJldHVybiBFcnIvICAgICAgICAgICAgICAgIHJldHVybiBFcnIvCWxpYgl3aW5kb3dzOjp0ZXN0czo6YV9zdG9wX3RoYXRfdGltZWRfb3V0X2tlZXBzX3RoZV9wdW1wX2tub3duX3VudGlsX2l0X2VuZHMKbW90aW9uLW5vdC1mbHVzaGVkLWFoZWFkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgICAgIGlmIGxldCBTb21lXChtb3Rpb25cKSA9IHF1ZXVlXC5tb3Rpb25cLnRha2VcKFwpIFx7XHI/XG4gICAgICAgICAgICAgICAgcXVldWVcLnBhY2tldHNcLnB1c2hfYmFja1wobW90aW9uXCk7LyAgICAgICAgICAgIGlmIGxldCBTb21lKG1vdGlvbikgPSBxdWV1ZS5tb3Rpb24udGFrZSgpIHtcbiAgICAgICAgICAgICAgICBxdWV1ZS5tb3Rpb24gPSBTb21lKG1vdGlvbik7LwlsaWIJd2luZG93czo6dGVzdHM6OmFfbW90aW9uX3NhbXBsZV9tYWRlX2JlZm9yZV9hX2J1dHRvbl9yZWFjaGVzX3RoZV9zaW5rX2JlZm9yZV9pdApjb3VudHMtcGVyLXJ1bgljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy9IYW5kT2ZmOjpzdGFydFwoY3R4XC5zaW5rXChcKVwuY2xvbmVcKFwpLCBmb3J3YXJkZXIsIEFyYzo6Y2xvbmVcKCZzZWxmXC5jb3VudHNcKVwpL0hhbmRPZmY6OnN0YXJ0KGN0eC5zaW5rKCkuY2xvbmUoKSwgZm9yd2FyZGVyLCBBcmM6OmRlZmF1bHQoKSkvCWxpYgl3aW5kb3dzOjp0ZXN0czo6cGFja2V0c190aGF0X2Ffc3RvcHBlZF9ydW5fc3RpbGxfaGVsZF9jb3VudF9hZnRlcl9hX3Jlc3RhcnQKc2NyZWVuLXN0b3AtZm9yZ290dGVuCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgICAgIHNlbGZcLnRpbWVkX291dCA9IFNvbWVcKHRpbWVvdXRcLmNsb25lXChcKVwpO1xyP1xuICAgICAgICAgICAgcmV0dXJuIEVyclwodGltZW91dFwpOy8gICAgICAgICAgICBzZWxmLnN0b3BwaW5nID0gTm9uZTtcbiAgICAgICAgICAgIHJldHVybiBFcnIodGltZW91dCk7LwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9zdG9wX3RoYXRfZG9lc19ub3RfZW5kX2luX3RpbWVfa2VlcHNfdGhlX3Nlc3Npb25fYnVzeV9hbmRfZmFpbGVkCm1vdGlvbi1pbnRlcnZhbC16ZXJvLWluLWNyYXRlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL0R1cmF0aW9uOjpmcm9tX21pbGxpc1woMTAwXCk7L0R1cmF0aW9uOjpmcm9tX21pbGxpcygwKTsvCWxpYgl3aW5kb3dzOjp0ZXN0czo6bW90aW9uX3NhbXBsZXNfcmVhY2hfdGhlX3NpbmtfYXRfbW9zdF9vbmNlX2luXzEwMF9tcwo=' | base64 -d >"$files/mutants.tsv"
+          git fetch --quiet --deepen=60 origin "$GITHUB_REF"
+          git cat-file -e 8d8b828bf209f9e417865707909451712fbd68b3^{commit}
+          git worktree add --quiet --detach "$files/wt" "$GITHUB_SHA"
+          git -C "$files/wt" log --oneline -1
+          echo "W2 files mutants=$(grep -c . "$files/mutants.tsv") proof_runs=$(grep -c '^run ' "$files/w2-proofs.sh")"
+      - name: "win-2: one-rule changes"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 80
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash "$RUNNER_TEMP/w2/w2-mutants.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2" "$RUNNER_TEMP/w2/mutants.tsv"
+      - name: "win-2: part proofs before and after each fix"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 60
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: W2_HEAD="$GITHUB_SHA" bash "$RUNNER_TEMP/w2/w2-proofs.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
