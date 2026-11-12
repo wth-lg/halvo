@@ -499,7 +499,7 @@ fn ports_keep_the_request_records_of_the_limits_that_they_are_given() {
 }
 
 #[test]
-fn reap_answers_the_marks_of_an_earlier_life() {
+fn reap_ends_and_counts_the_trees_of_an_earlier_life() {
     let p: Ports<Config> = Ports::new(0, 0);
     assert_eq!(p.reap(), Ok(vec![]));
     let gone = (id(RunId::parse, 4), crate::ports::Reaped::Gone);
