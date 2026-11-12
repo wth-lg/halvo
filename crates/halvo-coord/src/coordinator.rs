@@ -1103,8 +1103,10 @@ where
     /// The first step of the app's quit (I5.7, ruling RD-8): every open item lapses with
     /// `app_ended` in the life that ends (I4.5), every live run that no stop has reached gets
     /// `cancel` through the run drive's stop-all, the queue is emptied, and from then on every
-    /// start is refused, the person's, the queue's and a tick's. It returns when the hook calls
-    /// the second step at the latest.
+    /// start is refused, the person's, the queue's and a tick's. It returns at once, with the
+    /// time at which the hook calls the second step at the latest: `cancel_grace_s` after the
+    /// latest stop of a live run, where a stop that reads later than the first step counts from
+    /// the first step (ruling RD-28 (e)), and the first step's time when no run is live.
     pub fn quit_stop(&self) -> QuitWait {
         let mut st = self.lock();
         st.quitting = true;
@@ -1118,7 +1120,12 @@ where
         let until = st
             .board
             .as_ref()
-            .and_then(|b| b.runs.iter().filter_map(|r| r.stop.map(|s| s.at)).max())
+            .and_then(|b| {
+                b.runs
+                    .iter()
+                    .filter_map(|r| r.stop.map(|s| s.at.min(now)))
+                    .max()
+            })
             .map_or(now, |at| at.saturating_add(grace));
         self.publish(&mut st);
         QuitWait { until }

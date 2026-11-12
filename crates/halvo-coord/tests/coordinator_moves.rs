@@ -1231,3 +1231,31 @@ fn a_lapse_at_the_quit_that_met_a_busy_owner_is_stored_by_a_tick_or_by_the_secon
         lapsed: Lapsed::Setup(OtherLapse::AppEnded)
     }));
 }
+
+#[test]
+fn the_second_step_of_the_quit_comes_at_the_latest_grace_after_the_first_whatever_the_clock_did() {
+    let limits = Limits::PRODUCT;
+    let grace = limits.cancel_grace_s * 1000;
+    let c = coordinator(&[MANUAL], limits);
+    start(&c, 0);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    assert_eq!(
+        c.quit_stop().until,
+        T0 + grace,
+        "a run stopped before the quit counts the grace from its stop"
+    );
+    let c = coordinator(&[MANUAL], limits);
+    start(&c, 0);
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    assert_eq!(
+        c.quit_stop().until,
+        T0 + 1_000 + grace,
+        "a stop that reads later than the first step counts from the first step"
+    );
+    let c = coordinator(&[MANUAL], limits);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    assert_eq!(c.quit_stop().until, T0 + 3_000, "no live run");
+}
