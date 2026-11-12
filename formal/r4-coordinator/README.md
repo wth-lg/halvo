@@ -63,10 +63,32 @@ changes a file of this directory runs it, through the machine's helper for timed
 verifier runs it at the gate of the phase in which the change lands, and this table
 records its states and the commit. CI runs the small ones alone: `30-r4-formal.sh` runs
 each configuration whose row says `yes` under CI and prints their names, so that its PASS
-is never read as the full bound. It also asks every configuration file of the table, one
-that CI does not run among them, for exactly the invariant lines of its model and for no
-comment, because TLC reads no line inside a comment. To run a small configuration, name its file after
+is never read as the full bound. To run a small configuration, name its file after
 `-config` in the command above.
+
+What the check asks of the table and of the files, each with the cause that ends it:
+
+- Every line of the table below parses into its eight cells, read with the bar as the
+  only separator: the model, a name of small letters, digits and dashes, a file that
+  exists, `yes` or `no`, and a count of digits and commas; no cell is empty. A line that
+  does not parse, a line of that form outside the table and a `.cfg` file of this
+  directory that no line names end the check with `invariant`. The check runs TLC once
+  for each line marked `yes` and counts its runs against those lines.
+- Every configuration file of the table, one that CI does not run among them, holds
+  exactly the invariant lines of its model, each as a whole line, and no comment, neither
+  `(*` nor a line with `\*`, because TLC reads no line inside a comment (`invariant`).
+- A configuration that the table marks for CI replaces the definition of none of those
+  invariants: a line with `<-` whose left side is one of their names ends the check with
+  `invariant`. A replacement of another definition stays allowed. That a definition which
+  an invariant uses can be changed, there or in the model's own file, is outside what a
+  check of this kind can hold; the two control copies and the review of a change are what
+  stand against it.
+- This directory holds no module, configuration or limits file (`*.tla`, `*.cfg`,
+  `*.json`) that neither the stamp's list nor the table names (`traces`), so that no file
+  which a run or the export reads is outside the stamp.
+- TLC runs from the copy of the jar whose size and hash the check compared, with
+  `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` and `_JAVA_OPTIONS` unset and with nothing on
+  its standard input; the download reads no configuration file of the user.
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
@@ -637,10 +659,13 @@ A walk is at most 16 moves from the first state. It takes its steps from the mod
 `Step`. A generator in the trace module picks each move; TLC's random numbers and TLC's
 order of sets are not used. In the committed files the model refuses 396 of the
 3,200 moves of the schedule walks (12.4%) and 274 of the 1,757
-moves of the confirm walks (15.6%); a confirm walk also takes a refusal whenever no
-move is left that the model accepts. Two exports with one seed and count gave the same
+moves of the confirm walks (15.6%); a start that is answered `queued` and a record
+that is answered `repeat` count as accepted in these two shares. A confirm walk also
+takes a refusal whenever no move is left that the model accepts. Two exports with one seed and count gave the same
 bytes on the development Mac. The check compares the export with the committed files in
-the jobs of this line, and prints `same=-` in a job that the line does not name:
+the jobs of this line, and prints `same=-` in a job that the line does not name. The line
+names both jobs or one, never none: the check refuses a line that names no job, with the
+cause `traces`. A run with no job name set, outside the driver, compares the export:
 
 ```
 export compared in jobs: macos windows
