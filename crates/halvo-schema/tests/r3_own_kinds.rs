@@ -480,3 +480,38 @@ fn the_model_of_each_log_row_is_null_or_a_token_of_the_table_of_a13_5() {
     }
     assert!(named > 0);
 }
+
+#[test]
+fn each_later_revision_of_the_bindings_keeps_every_origin_and_slot_of_the_one_before() {
+    let names = |list: &serde_json::Value, key: Option<&str>| -> BTreeSet<String> {
+        let items = list.as_array().unwrap().iter();
+        let item = |v: &serde_json::Value| match key {
+            Some(key) => v[key].as_str().unwrap().to_owned(),
+            None => v.as_str().unwrap().to_owned(),
+        };
+        items.map(item).collect()
+    };
+    let mut revisions: Vec<(u64, BTreeSet<String>, BTreeSet<String>)> = own_lines("agent_bindings")
+        .iter()
+        .map(|line| {
+            let row: serde_json::Value = serde_json::from_str(line).unwrap();
+            (
+                row["rev"].as_u64().unwrap(),
+                names(&row["origins"], None),
+                names(&row["slots"], Some("name")),
+            )
+        })
+        .collect();
+    revisions.sort();
+    let revs: Vec<u64> = revisions.iter().map(|r| r.0).collect();
+    assert_eq!(revs, (1..=revisions.len() as u64).collect::<Vec<_>>());
+    for pair in revisions.windows(2) {
+        let (before, after) = (&pair[0], &pair[1]);
+        assert!(
+            before.1.is_subset(&after.1),
+            "rev {} drops an origin",
+            after.0
+        );
+        assert!(before.2.is_subset(&after.2), "rev {} drops a slot", after.0);
+    }
+}
