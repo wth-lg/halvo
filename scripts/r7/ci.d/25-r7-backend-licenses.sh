@@ -198,6 +198,11 @@ self_test() {
   printf 'PASS licenses: packages=231 exceptions=26 bundled=1 cached=121\n' >"$scratch/count-of-the-old-lists/state/lines"
   stub_case FAIL count-of-the-old-lists
 
+  stub_repo count-with-a-new-version-of-a-named-package
+  commit_stub "$scratch/count-with-a-new-version-of-a-named-package"
+  printf 'PASS licenses: packages=232 exceptions=30 bundled=1 cached=121\n' >"$scratch/count-with-a-new-version-of-a-named-package/state/lines"
+  stub_case FAIL count-with-a-new-version-of-a-named-package
+
   stub_repo count-with-a-digit-more
   commit_stub "$scratch/count-with-a-digit-more"
   printf 'PASS licenses: packages=231 exceptions=290 bundled=1 cached=121\n' >"$scratch/count-with-a-digit-more/state/lines"
