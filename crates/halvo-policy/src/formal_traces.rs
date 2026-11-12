@@ -19,6 +19,8 @@ const MOVE_KEYS: [&str; 10] = [
     "bound",
 ];
 
+const MODEL_LIMIT: u32 = 2;
+
 const MOVES: [&str; 8] = [
     "propose", "rebind", "approve", "reject", "end", "begin", "commit", "lose",
 ];
@@ -35,7 +37,7 @@ const STATES: [EffectState; 8] = [
 ];
 
 struct Values {
-    name: &'static str,
+    name: String,
     digests: [Digest; 2],
     ids: [EffectId; 2],
 }
@@ -53,32 +55,46 @@ fn mappings() -> Vec<Values> {
     last[15] = 1;
     let mut first = [0u8; 16];
     first[0] = 1;
-    vec![
-        Values {
-            name: "every digit differs",
-            digests: [hex_digest("1".repeat(64)), hex_digest("2".repeat(64))],
-            ids: [
+    let forward = [
+        (
+            "every digit differs",
+            [hex_digest("1".repeat(64)), hex_digest("2".repeat(64))],
+            [
                 EffectId::from_random([0x11; 16]),
                 EffectId::from_random([0x22; 16]),
             ],
-        },
-        Values {
-            name: "the first digit differs",
-            digests: [
+        ),
+        (
+            "the first digit differs",
+            [
                 hex_digest(zeros.clone()),
                 hex_digest(format!("1{}", &zeros[1..])),
             ],
-            ids: [EffectId::from_random([0; 16]), EffectId::from_random(first)],
-        },
-        Values {
-            name: "the last digit differs",
-            digests: [
+            [EffectId::from_random([0; 16]), EffectId::from_random(first)],
+        ),
+        (
+            "the last digit differs",
+            [
                 hex_digest(zeros.clone()),
                 hex_digest(format!("{}1", &zeros[1..])),
             ],
-            ids: [EffectId::from_random([0; 16]), EffectId::from_random(last)],
-        },
-    ]
+            [EffectId::from_random([0; 16]), EffectId::from_random(last)],
+        ),
+    ];
+    let mut all = Vec::new();
+    for (name, [d1, d2], [e1, e2]) in forward {
+        all.push(Values {
+            name: format!("{name}, d1 and e1 below d2 and e2"),
+            digests: [d1.clone(), d2.clone()],
+            ids: [e1.clone(), e2.clone()],
+        });
+        all.push(Values {
+            name: format!("{name}, d1 and e1 above d2 and e2"),
+            digests: [d2, d1],
+            ids: [e2, e1],
+        });
+    }
+    all
 }
 
 impl Values {
@@ -183,6 +199,34 @@ fn step_move(m: &Value, of_effect: ActionClass, values: &Values) -> EffectMove {
         "lose" => EffectMove::Lose,
         other => panic!("move {other}"),
     }
+}
+
+fn alike(m: &Value, of_effect: ActionClass, rebinds: u32) -> Vec<(Option<ActionClass>, u32)> {
+    let classes: Vec<Option<ActionClass>> =
+        if text(m, "move") == "rebind" && class(need(m, "bound_class")) != of_effect {
+            ActionClass::ALL
+                .iter()
+                .copied()
+                .filter(|c| *c != of_effect)
+                .map(Some)
+                .collect()
+        } else {
+            vec![None]
+        };
+    let counts = if rebinds >= MODEL_LIMIT {
+        vec![rebinds, rebinds + 1, u32::MAX]
+    } else {
+        vec![rebinds]
+    };
+    let mut out = Vec::new();
+    for c in &classes {
+        for n in &counts {
+            if c.is_some() || *n != rebinds {
+                out.push((*c, *n));
+            }
+        }
+    }
+    out
 }
 
 fn keys_of(m: &str) -> [bool; 5] {
@@ -313,6 +357,8 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
         let mut accepted = BTreeSet::new();
         let mut refused = BTreeSet::new();
         let mut reached = BTreeSet::new();
+        let mut other_classes = 0u64;
+        let mut higher_counts = 0u64;
         for trace in &traces {
             let n = trace.get("n").and_then(Value::as_u64).unwrap_or(0);
             let id = values.id(text(trace, "effect"));
@@ -348,6 +394,41 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
                         if got.is_ok() { "accepts" } else { "refuses" },
                     ));
                 }
+                for (other, count) in alike(m, of_effect, rebinds) {
+                    let effect = now.map(|s| Effect {
+                        id: id.clone(),
+                        state: s,
+                        class: of_effect,
+                        digest: bound.clone(),
+                        rebinds: count,
+                    });
+                    let mv = match other {
+                        Some(c) => EffectMove::Rebind {
+                            digest: values.digest(need(m, "digest")),
+                            class: c,
+                        },
+                        None => step_move(m, of_effect, &values),
+                    };
+                    let alike_got = effect_step(effect.as_ref(), mv);
+                    let alike_next = match alike_got {
+                        Ok(s) => Some(s),
+                        Err(_) => now,
+                    };
+                    if other.is_some() {
+                        other_classes += 1;
+                    }
+                    if count != rebinds {
+                        higher_counts += 1;
+                    }
+                    if alike_got.is_ok() != model_ok || alike_next != model_state {
+                        differ.push(format!(
+                            "trace {n} move {} {kind} with the bound class {other:?} and {count} rebinds: the model {} to {model_state:?}, effect_step {} to {alike_next:?}",
+                            i + 1,
+                            if model_ok { "accepts" } else { "refuses" },
+                            if alike_got.is_ok() { "accepts" } else { "refuses" },
+                        ));
+                    }
+                }
                 if let Ok(s) = got {
                     accepted.insert(kind);
                     reached.insert(s);
@@ -381,5 +462,7 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
         for s in STATES {
             assert!(reached.contains(&s), "no move reaches {s:?} in the traces");
         }
+        assert!(other_classes > 0, "no rebind with another class");
+        assert!(higher_counts > 0, "no move at the limit of rebinds");
     }
 }
