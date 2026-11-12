@@ -115,12 +115,13 @@ pub enum SourceState {
     /// The source's OS callback is installed.
     Running,
     /// The source runs and part of its capture is missing.
-    Impaired { reason: HealthReason },
+    Impaired {
+        reason: HealthReason,
+    },
     Failed {
         reason: HealthReason,
         error: CaptureError,
     },
-    /// The source was stopped.
     Stopped(StopCause),
     /// The source never captures, or every switch it reads is off.
     Off,
