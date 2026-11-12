@@ -948,6 +948,15 @@ self_test_commits() {
   verdict submodule-name-with-the-clone-ignoring-submodules 1 "$got"
   in_repo rm -q --cached -- "$dashed" || die 'git rm failed'
   in_repo commit -q -m 'remove the submodule' || die 'commit failed'
+  printf '[submodule "m"]\n\tpath = %s\n\turl = ./m\n\tignore = all\n' "$dashed" >"$repo/.gitmodules"
+  in_repo add .gitmodules || die 'git add failed'
+  in_repo commit -q -m 'gitmodules' || die 'commit failed'
+  in_repo update-index --add --cacheinfo "160000,$merge,$dashed" || die 'git update-index failed'
+  in_repo commit -q -m 'submodule that .gitmodules ignores' || die 'commit failed'
+  c=$(in_repo rev-parse HEAD) || die 'git rev-parse failed'
+  scan_case submodule-name-that-gitmodules-ignores 1 'module:0: a home path (dash)' --allow "$list" "$c^!"
+  in_repo rm -q --cached -- "$dashed" .gitmodules || die 'git rm failed'
+  in_repo commit -q -m 'remove the submodule again' || die 'commit failed'
 
   in_repo mv fixtures/made-up.txt fixtures/moved.txt || die 'git mv failed'
   c=$(commit_all 'rename') || die 'commit failed'
