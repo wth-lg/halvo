@@ -7,7 +7,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use halvo_schema::executable::body::{CoordinatorCall, EndRun as EndRunBody, RunnerCall};
+use halvo_schema::executable::body::{
+    CoordinatorCall, EndRun as EndRunBody, RunnerCall, RunnerReply,
+};
 use halvo_schema::executable::frame::{
     Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, StoreReply,
     StoreReplyFrame, StoreRequest, ToRunner,
@@ -17,6 +19,7 @@ use halvo_schema::executable::record::AgentRun;
 use halvo_schema::executable::text::RunId;
 use halvo_schema::request::{CoordinatorRole, ErrorName};
 
+use crate::acts::Acts;
 use crate::api::{CallError, Config, EndRun, Parts, ReapAnswer, Reaped, RunEnd, RunSpec, LINK_END};
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
@@ -33,6 +36,7 @@ pub(crate) enum Event {
     Frame(Box<FromRunner>),
     Broken,
     Eof,
+    Handback(HandbackResult, Sender<Result<(), CallError>>),
 }
 
 /// One run that this life started.
@@ -40,6 +44,7 @@ pub(crate) struct Slot {
     pub(crate) spec: RunSpec,
     pub(crate) proc: Mutex<Option<RunProc>>,
     writer: Mutex<Option<ChildStdin>>,
+    events: Mutex<Option<Sender<Event>>>,
     ended: AtomicBool,
 }
 
@@ -49,6 +54,7 @@ impl Slot {
             spec,
             proc: Mutex::new(None),
             writer: Mutex::new(None),
+            events: Mutex::new(None),
             ended: AtomicBool::new(false),
         }
     }
@@ -70,6 +76,7 @@ impl Slot {
 
     fn close_link(&self) {
         lock(&self.writer).take();
+        lock(&self.events).take();
     }
 
     pub(crate) fn with_proc<R>(&self, f: impl FnOnce(&mut RunProc) -> R) -> Option<R> {
@@ -173,6 +180,7 @@ impl Supervisor {
         *lock(&slot.proc) = Some(runner);
         *lock(&slot.writer) = Some(stdin);
         let (tx, rx) = mpsc::channel();
+        *lock(&slot.events) = Some(tx.clone());
         thread::spawn(move || {
             let mut stdout = stdout;
             loop {
@@ -283,9 +291,18 @@ impl Supervisor {
 
     /// Gives the person's result to the open handback of `run`.
     pub fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), CallError> {
-        let _ = result;
-        self.slot(run)?;
-        Err(CallError::Ended)
+        let slot = self.slot(run)?;
+        if slot.ended() {
+            return Err(CallError::Ended);
+        }
+        let (tx, rx) = mpsc::channel();
+        let sent = lock(&slot.events)
+            .as_ref()
+            .is_some_and(|events| events.send(Event::Handback(result, tx)).is_ok());
+        if !sent {
+            return Err(CallError::Ended);
+        }
+        rx.recv().unwrap_or(Err(CallError::Ended))
     }
 }
 
@@ -296,7 +313,7 @@ pub(crate) struct Ending {
     pub(crate) finish: Option<AgentRun>,
 }
 
-enum Flow {
+pub(crate) enum Flow {
     Go,
     Lost,
 }
@@ -339,40 +356,47 @@ fn drive(
         slot: &slot,
         mark,
         ending: Ending::default(),
+        acts: Acts::default(),
     };
     loop {
-        match rx.recv_timeout(TICK) {
-            Ok(Event::Frame(frame)) => {
-                if let Flow::Lost = run.on_frame(*frame) {
-                    slot.with_proc(RunProc::end_all);
-                    break;
-                }
+        let flow = match rx.recv_timeout(TICK) {
+            Ok(Event::Frame(frame)) => run.on_frame(*frame),
+            Ok(Event::Handback(result, reply)) => {
+                let _ = reply.send(run.answer(result));
+                Flow::Go
             }
-            Ok(Event::Broken) => {
-                slot.with_proc(RunProc::end_all);
-                break;
-            }
+            Ok(Event::Broken) => Flow::Lost,
             Ok(Event::Eof) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => {
                 if slot.with_proc(RunProc::exited).unwrap_or(true) {
                     break;
                 }
+                run.retry_adds()
             }
+        };
+        if let Flow::Lost = flow {
+            slot.with_proc(RunProc::end_all);
+            break;
         }
     }
     let ending = run.ending;
     finish_run(&inner, &slot, ending);
 }
 
-struct Running<'a> {
-    inner: &'a Inner,
-    slot: &'a Slot,
+pub(crate) struct Running<'a> {
+    pub(crate) inner: &'a Inner,
+    pub(crate) slot: &'a Slot,
     mark: MarkFile,
     ending: Ending,
+    pub(crate) acts: Acts,
 }
 
 impl Running<'_> {
     fn on_frame(&mut self, frame: FromRunner) -> Flow {
+        let request = !matches!(frame, FromRunner::Progress(_) | FromRunner::Done(_));
+        if request && self.acts.waiting() {
+            return Flow::Lost;
+        }
         match frame {
             FromRunner::Progress(p) => {
                 self.inner
@@ -387,7 +411,10 @@ impl Running<'_> {
             }
             FromRunner::Browser(b) => self.browser(&b),
             FromRunner::Store(s) => self.store(&s.request),
-            _ => Flow::Lost,
+            FromRunner::Confirm(c) => self.confirm(&c.request),
+            FromRunner::Handback(h) => self.handback(h.request),
+            FromRunner::Bind(b) => self.bind(b.origin),
+            FromRunner::Hello(_) | FromRunner::Secret(_) => Flow::Lost,
         }
     }
 
@@ -412,9 +439,17 @@ impl Running<'_> {
                 .and_then(|bytes| relayed(&bytes, request))
                 .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal)))
         };
-        if let (RunnerCall::Finish(f), Ok(_)) = (body, &reply.outcome) {
-            let _ = marks::remove(&self.inner.config.data_dir, &spec.run);
-            self.ending.finish = Some(f.record.clone());
+        match (body, &reply.outcome) {
+            (RunnerCall::Finish(f), Ok(_)) => {
+                let _ = marks::remove(&self.inner.config.data_dir, &spec.run);
+                self.ending.finish = Some(f.record.clone());
+            }
+            (RunnerCall::Load(_), Ok(RunnerReply::Load(load))) => {
+                if let Some(bindings) = &load.bindings {
+                    self.acts.bound.extend(bindings.origins.iter().cloned());
+                }
+            }
+            _ => {}
         }
         if self
             .slot

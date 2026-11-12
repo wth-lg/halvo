@@ -3,6 +3,7 @@
 //! requests over the owner link, asks the person through its caller's traits, and ends a run that lost its way,
 //! also after the app was killed, by the mark that it keeps of each run under the data directory.
 
+mod acts;
 mod api;
 pub mod marks;
 mod owner;
