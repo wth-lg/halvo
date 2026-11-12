@@ -5,7 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  addedPackages, attrLines, BANNED, closure, countInputCalls, dialogLines, DIALOG_SOURCES, findLine,
+  addedOnTargets, addedPackages, attrLines, BANNED, BUILT_TARGETS, closure, entryLine, unbuiltEntries, countInputCalls, dialogLines, DIALOG_SOURCES, findLine,
   licenceAllowed, npmTree, parseArgs, parsePatterns, readingLine, Refused,
 } from '../read.mjs';
 
@@ -156,4 +156,27 @@ test('the attribute lines name what each reader reads', () => {
     'reading trial=dialog machine=mac system=windows default_attr=STATE_SYSTEM_DEFAULT cancel_attr=IDCANCEL',
   ]);
   assert.throws(() => attrLines(() => 'nothing'));
+});
+
+test('the licences are read on the four built targets of Halvo (rulings P7-52, CP-102)', () => {
+  assert.deepEqual(BUILT_TARGETS, ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc']);
+});
+
+test('the added crates are the union over the built targets, each with the targets that compile it', () => {
+  const m = meta();
+  const win = meta();
+  win.resolve.nodes = win.resolve.nodes.map((n) => (n.id === 'axum-id' ? { ...n, deps: [{ pkg: 'serde-id' }] } : n));
+  const added = addedOnTargets({ mac: m, win }, 'cand', 'app');
+  assert.deepEqual(added.map((a) => [a.pkg.name, a.targets]).sort(), [
+    ['axum', ['mac', 'win']], ['cand', ['mac', 'win']], ['hyper', ['mac']],
+  ]);
+});
+
+test('an entry outside the list that no built target compiles is named and not counted', () => {
+  const pkg = (name, license) => ({ id: `${name}-id`, name, version: '0.13.5', license });
+  const all = [pkg('cand', 'MIT'), pkg('target-lexicon', 'Apache-2.0 WITH LLVM-exception'), pkg('gpl', 'GPL-3.0')];
+  const built = [{ pkg: all[0], targets: ['x'] }, { pkg: all[2], targets: ['x'] }];
+  assert.deepEqual(unbuiltEntries(all, built).map((p) => p.name), ['target-lexicon']);
+  assert.equal(entryLine('webdriver', all[1]),
+    'reading trial=driver machine=mac candidate=webdriver entry=target-lexicon version=0.13.5 licence=Apache-2.0_WITH_LLVM-exception built_targets=- rulings=P7-52,CP-102');
 });

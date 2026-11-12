@@ -41,7 +41,7 @@ function only(list, test, what) {
 export function driverVerdict(readings, cells) {
   const pick = MACHINES.map(([machine, key]) => {
     const winner = CANDIDATES.find((name) => {
-      const r = only(readings, (l) => l.keys.candidate === name, `the reading of ${name}`);
+      const r = only(readings, (l) => l.keys.candidate === name && Object.hasOwn(l.keys, 'build'), `the reading of ${name}`);
       const c = only(cells, (l) => l.keys.machine === machine && l.keys.candidate === name, `${name} on ${machine}`);
       return r !== null && c !== null && r.keys.build === 'ok' && r.keys.licences === 'ok' && r.keys.input_calls === '0'
         && c.keys.ok === '5';

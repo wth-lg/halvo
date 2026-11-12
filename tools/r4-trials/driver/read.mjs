@@ -16,6 +16,10 @@ export const CANDIDATES = {
 
 export const ALLOWED = ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'Zlib', 'Unicode-3.0'];
 
+export const BUILT_TARGETS = ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'];
+
+export const RULINGS = 'P7-52,CP-102';
+
 export const BANNED = ['reqwest', 'hyper', 'ureq', 'rustls', 'ring', 'aws-lc-rs', 'native-tls', 'openssl-sys'];
 
 const SOURCE_EXTENSIONS = new Set(['.rs', '.js', '.mjs', '.cjs', '.ts', '.swift', '.kt', '.java', '.m', '.mm', '.c', '.h']);
@@ -135,6 +139,26 @@ export function addedPackages(metadata, candidateCrate, baseCrate) {
   return closure(metadata, candidateCrate).filter((p) => !base.has(p.id));
 }
 
+export function addedOnTargets(metaByTarget, candidateCrate, baseCrate) {
+  const byId = new Map();
+  for (const [target, meta] of Object.entries(metaByTarget)) {
+    for (const pkg of addedPackages(meta, candidateCrate, baseCrate)) {
+      if (!byId.has(pkg.id)) byId.set(pkg.id, { pkg, targets: [] });
+      byId.get(pkg.id).targets.push(target);
+    }
+  }
+  return [...byId.values()];
+}
+
+export function unbuiltEntries(allTargets, built) {
+  const compiled = new Set(built.map((a) => a.pkg.id));
+  return allTargets.filter((p) => !compiled.has(p.id) && !licenceAllowed(p.license));
+}
+
+export function entryLine(name, pkg) {
+  return `reading trial=driver machine=mac candidate=${name} entry=${pkg.name} version=${pkg.version} licence=${String(pkg.license).replace(/\s+/g, '_')} built_targets=- rulings=${RULINGS}`;
+}
+
 export function npmTree(lock, rootPackage) {
   const packages = lock.packages ?? {};
   const out = [];
@@ -231,9 +255,10 @@ function cargo(args, options = {}) {
   return spawnSync('cargo', args, { cwd: here, encoding: 'utf8', maxBuffer: 1 << 28, ...options });
 }
 
-function metadata(features) {
+function metadata(features, target) {
   const args = ['metadata', '--format-version', '1', '--locked'];
   if (features) args.push('--features', features);
+  if (target) args.push('--filter-platform', target);
   const done = cargo(args);
   if (done.status !== 0) throw new Error(`cargo metadata exited ${done.status}`);
   return JSON.parse(done.stdout);
@@ -247,14 +272,17 @@ function candidateReading(name) {
   const meta = metadata(candidate.feature);
   const crate = meta.packages.find((p) => p.name === candidate.crate);
   if (!crate) throw new Error(`the metadata holds no ${candidate.crate}`);
-  const added = addedPackages(meta, candidate.crate, 'r4-trial-app');
-  const details = [];
+  const perTarget = Object.fromEntries(BUILT_TARGETS.map((t) => [t, metadata(candidate.feature, t)]));
+  const onTargets = addedOnTargets(perTarget, candidate.crate, 'r4-trial-app');
+  const added = onTargets.map((a) => a.pkg);
+  const details = BUILT_TARGETS.map((t) => `detail trial=driver candidate=${name} target=${t} added=${onTargets.filter((a) => a.targets.includes(t)).length}`);
   let licences = true;
-  for (const p of added) {
+  for (const { pkg: p, targets } of onTargets) {
     const ok = licenceAllowed(p.license);
     licences &&= ok;
-    details.push(`detail trial=driver candidate=${name} tree=cargo package=${p.name} version=${p.version} licence=${String(p.license).replace(/\s+/g, '_')} ok=${ok ? 'yes' : 'no'}`);
+    details.push(`detail trial=driver candidate=${name} tree=cargo package=${p.name} version=${p.version} licence=${String(p.license).replace(/\s+/g, '_')} targets=${targets.length} ok=${ok ? 'yes' : 'no'}`);
   }
+  const entries = unbuiltEntries(addedPackages(meta, candidate.crate, 'r4-trial-app'), onTargets).map((p) => entryLine(name, p));
   const texts = sourceTexts(path.dirname(crate.manifest_path));
   const names = added.map((p) => p.name);
   if (candidate.npm) {
@@ -271,7 +299,7 @@ function candidateReading(name) {
   }
   const banned = names.filter((n) => BANNED.includes(n)).length;
   details.push(`detail trial=driver candidate=${name} added=${added.length} source_files=${texts.length}`);
-  return [...details, readingLine({ name, version: crate.version, build, licences, inputCalls: countInputCalls(patterns, texts, names), banned })];
+  return [...details, readingLine({ name, version: crate.version, build, licences, inputCalls: countInputCalls(patterns, texts, names), banned }), ...entries];
 }
 
 function packageSource(name, npm, lock) {

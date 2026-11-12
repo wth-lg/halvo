@@ -38,6 +38,13 @@ test('a candidate needs build=ok, licences=ok and input_calls=0 in its reading',
   assert.equal(driver([R.webdriverOk.replace('banned=1', 'banned=3'), ...cells]), 'verdict driver hosted_mac=webdriver hosted_win=webdriver');
 });
 
+test('a reading of an entry that no built target compiles does not stand for the candidate', () => {
+  const entry = 'reading trial=driver machine=mac candidate=webdriver entry=target-lexicon version=0.13.5 licence=Apache-2.0_WITH_LLVM-exception built_targets=- rulings=P7-52,CP-102';
+  assert.equal(driver([R.webdriverOk, entry, cell('hosted-mac', 'webdriver', 5), cell('hosted-win', 'webdriver', 5)]),
+    'verdict driver hosted_mac=webdriver hosted_win=webdriver');
+  assert.equal(driver([entry, cell('hosted-mac', 'webdriver', 5)]), 'verdict driver hosted_mac=none hosted_win=none');
+});
+
 test('two cells of one candidate on one machine are refused', () => {
   assert.throws(() => driver([R.webdriverOk, cell('hosted-mac', 'webdriver', 5), cell('hosted-mac', 'webdriver', 4)]));
 });
