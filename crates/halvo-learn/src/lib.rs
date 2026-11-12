@@ -40,6 +40,7 @@ macro_rules! tokens {
 
 mod admit;
 mod edit;
+mod routine;
 mod run;
 mod sources;
 
@@ -48,6 +49,7 @@ pub use admit::{
     Locator, RunMode, Target,
 };
 pub use edit::{edit_step, use_move, EditAnswer, EditMove, EditState};
+pub use routine::{routine_step, Mark, RoutineState};
 pub use run::{
     candidate_move, counted, verify_run, CandidateFacts, CandidateMove, EditCause, LogCause,
     Outcome, RunCause, RunFacts,
