@@ -137,14 +137,6 @@ present() {
   done
 }
 
-sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum
-  else
-    shasum -a 256
-  fi
-}
-
 pin_kept() {
   present README.md || return 1
   pin=$(sed -n 's/^tlc url=\([^ ]*\) bytes=\([1-9][0-9]*\) sha256=\([0-9a-f]\{64\}\)$/\1 \2 \3/p' "$work/in/README.md")
@@ -152,16 +144,14 @@ pin_kept() {
 }
 
 fetch_jar() {
-  command -v curl >/dev/null 2>&1 || return 1
   curl -q --proto =https --proto-redir =https -fsS -L --connect-timeout "$fetch_connect" --max-time "$2" \
-    --retry "$3" --retry-delay "$4" -o "$5" --url "$1" >"$artifacts/curl.txt" 2>&1 </dev/null || return 1
-  [ -f "$5" ]
+    --retry "$3" --retry-delay "$4" -o "$5" --url "$1" >"$artifacts/curl.txt" 2>&1 </dev/null
 }
 
 jar_kept() {
   size=$(wc -c <"$1") || return 1
   size=$((size + 0))
-  sum=$(sha256 <"$1") || return 1
+  sum=$(shasum -a 256 <"$1") || return 1
   sum=${sum%% *}
   [ "$size" = "$jar_bytes" ] && [ "$sum" = "$jar_sha256" ]
 }
@@ -209,7 +199,7 @@ prepare() {
 }
 
 count_workers() {
-  workers=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || workers=1
+  workers=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || workers=
   case $workers in
     '' | *[!0-9]* | 0*) workers=1 ;;
   esac
@@ -846,6 +836,8 @@ fx_step() {
   printf '%s\n' "$replay_config" >"$fsd/work/replay-config.want"
   : >"$fsd/work/tla2tools.jar"
   fx_stub_env
+  s_path=$PATH
+  PATH=$f_path
   s_work=$work
   s_artifacts=$artifacts
   s_repo=$repo
@@ -874,6 +866,7 @@ fx_step() {
   cause=$s_cause
   rejected=$s_rejected
   missing=$s_missing
+  PATH=$s_path
   want=PASS
   [ -z "$w_guard" ] || want=FAIL
   f_code=0
@@ -902,13 +895,13 @@ fx_check() {
 
 flow_fixtures() {
   fx_case good nested && fx_run
-  fx_case cores-3-crlf nested && f_cores=3 && f_workers=3 && w_workers='formal workers=3' && {
+  fx_case crlf-output nested && {
     for out_dir in spend replay replay-right replay-wrong control-ruling control-resend; do
       awk '{ printf "%s\r\n", $0 }' "$fsd/out.$out_dir" >"$fsd/crlf" && cp "$fsd/crlf" "$fsd/out.$out_dir"
     done
     fx_run
   }
-  fx_case cores-unknown-options nested && f_cores= && f_workers=1 && w_workers='formal workers=1' && f_opts=-Xmx1g && fx_run
+  fx_case java-options-unset nested && f_opts=-Xmx1g && fx_run
   fx_case worktree-not-read nested && fx_commit && f_committed=yes && printf '{"seed":3,"count":206}\n' >"$repo_fx/$model/traces.jsonl" && fx_run
   fx_case two-causes nested && fx_out replay 0 "$tlc_banner" '"replay count=206 accepted=205 pairs=30 causes=8"' &&
     fx_out control-ruling 0 "$tlc_banner" "$done_line" "$states_line" &&
@@ -938,8 +931,12 @@ $(java_version openjdk 21.0.4 2024-07-16)" && fx_run
     printf 'output = "formal/r6-spend/README.md"\nurl = "file:///dev/null"\n' >"$repo_fx/curl.cfg" && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case pin-version-option nested && fx_edit README.md "tlc url=$jar_url" 'tlc url=--version' && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case pin-other-bytes nested && fx_edit README.md "bytes=$jar_bytes" 'bytes=2274533' && fx_dash && w_runs= && fx_fail hash pin && fx_run
-  fx_case pin-line-absent nested && fx_edit README.md 'tlc url=' 'tlc-url=' && fx_dash && w_runs= && fx_fail hash pin && fx_run
-  fx_case pin-line-twice nested && fx_edit README.md 'tlc url=' "tlc url=$jar_url bytes=$jar_bytes sha256=$jar_sha256
+  fx_case pin-line-absent nested && fx_edit README.md '
+tlc url=' '
+tlc-url=' && fx_dash && w_runs= && fx_fail hash pin && fx_run
+  fx_case pin-line-twice nested && fx_edit README.md '
+tlc url=' "
+tlc url=$jar_url bytes=$jar_bytes sha256=$jar_sha256
 tlc url=" && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case jar-same-size nested && f_jar=$fx/jar-zeros && fx_dash && w_runs=curl && fx_fail hash hash && fx_run
   fx_case jar-longer nested && f_jar=$fx/jar-longer && fx_dash && w_runs=curl && fx_fail hash hash && fx_run
@@ -954,6 +951,26 @@ tlc url=" && fx_dash && w_runs= && fx_fail hash pin && fx_run
   fx_case repository-absent nested && f_repo=$fx/absent && fx_alone && fx_fail setup '' && fx_run
   fx_case usage-second-argument nested && fx_alone && fx_fail usage '' && fx_run --self-test x
   fx_case usage-other-argument nested && fx_alone && fx_fail usage '' && fx_run --all
+}
+
+workers_line() {
+  count_workers
+  printf 'formal workers=%s\n' "$workers"
+}
+
+worker_fixtures() {
+  for cores in 16 4 3 1 '' 0 x; do
+    fx_case "workers-cores-${cores:-none}" step || continue
+    f_cores=$cores
+    case $cores in
+      16 | 4) workers_want=4 ;;
+      3) workers_want=3 ;;
+      *) workers_want=1 ;;
+    esac
+    w_runs=
+    fx_want "formal workers=$workers_want" 'cause= rejected=0'
+    fx_step workers_line
+  done
 }
 
 spend_fixtures() {
@@ -1022,9 +1039,10 @@ INIT Init' ;;
 replay_fixtures() {
   traces_dash='formal traces count=- accepted=- pairs=- causes=-'
   fx_case replay-good step && w_runs=run:replay && fx_want 'formal traces count=206 accepted=206 pairs=30 causes=8' 'cause= rejected=0' && fx_step replay
-  for edit in header-count cut-short one-dropped drawn-one-move directed-one-move cap leading-zero start-spent reserve-arg dispatch-arg move-name carriage-return; do
+  for edit in header-form header-count cut-short one-dropped drawn-one-move directed-one-move cap leading-zero leading-zero-held start-spent reserve-arg dispatch-arg move-name carriage-return; do
     fx_case "traces-$edit" step || continue
     case $edit in
+      header-form) fx_line traces.jsonl 1 '{"seed":3,' '{"seed":"3",' ;;
       header-count) fx_line traces.jsonl 1 '"count":206}' '"count":207}' ;;
       cut-short) fx_awk traces.jsonl 'NR < 100' && fx_line traces.jsonl 1 '"count":206}' '"count":98}' ;;
       one-dropped) fx_awk traces.jsonl '{ line[NR] = $0 } END { for (i = 1; i < NR; i++) print line[i] }' && fx_line traces.jsonl 1 '"count":206}' '"count":205}' ;;
@@ -1032,6 +1050,7 @@ replay_fixtures() {
       directed-one-move) fx_awk traces.jsonl 'NR == 2 { i = index($0, "},{\"move\""); $0 = substr($0, 1, i) "]}" } { print }' ;;
       cap) fx_line traces.jsonl 2 '{"cap":3,' '{"cap":7,' ;;
       leading-zero) fx_line traces.jsonl 2 '"arg":2,' '"arg":02,' ;;
+      leading-zero-held) fx_line traces.jsonl 2 '"held":3,' '"held":03,' ;;
       start-spent) fx_line traces.jsonl 2 '"active":"yes","spent":0,' '"active":"yes","spent":3,' ;;
       reserve-arg) fx_line traces.jsonl 2 '"move":"reserve","arg":2,' '"move":"reserve","arg":4,' ;;
       dispatch-arg) fx_line traces.jsonl 2 '"move":"dispatch","arg":null,' '"move":"dispatch","arg":1,' ;;
@@ -1167,6 +1186,7 @@ self_test() {
   listener_fixture
   if fx_init; then
     flow_fixtures
+    worker_fixtures
     spend_fixtures
     replay_fixtures
     group_fixtures
