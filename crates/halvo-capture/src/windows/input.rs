@@ -398,9 +398,14 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
         RawDevice::Pointer => "HalvoRawPointer",
     });
 
+    // SAFETY: GetModuleHandleW with no name reads the handle of this process's
+    // executable and takes no pointer.
     let hinstance: HINSTANCE = match unsafe { GetModuleHandleW(None) } {
         Ok(h) => h.into(),
-        Err(_) => return,
+        Err(error) => {
+            ready.report(Err(super::os_error("GetModuleHandleW", &error)));
+            return;
+        }
     };
 
     let class = WNDCLASSW {
@@ -409,8 +414,11 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
         lpszClassName: PCWSTR(class_name.as_ptr()),
         ..Default::default()
     };
+    // SAFETY: `class` names a live wide string and a window procedure with the
+    // WNDPROC signature, both of which outlive the call.
     let atom = unsafe { RegisterClassW(&class) };
     if atom == 0 {
+        ready.report(Err(super::last_os_error("RegisterClassW")));
         return;
     }
     // Teardown runs in reverse declaration order: device, context, window, class.
@@ -436,7 +444,10 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
         )
     } {
         Ok(h) => h,
-        Err(_) => return,
+        Err(error) => {
+            ready.report(Err(super::os_error("CreateWindowExW", &error)));
+            return;
+        }
     };
     let _window_guard = WindowGuard { hwnd };
 
@@ -449,10 +460,12 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
         dwFlags: RIDEV_INPUTSINK,
         hwndTarget: hwnd,
     };
-    let registered = unsafe {
-        RegisterRawInputDevices(&[dev], core::mem::size_of::<RAWINPUTDEVICE>() as u32).is_ok()
-    };
-    if !registered {
+    // SAFETY: the slice holds one initialized RAWINPUTDEVICE whose target is
+    // the window above, and the size argument is the size of that struct.
+    let registered =
+        unsafe { RegisterRawInputDevices(&[dev], core::mem::size_of::<RAWINPUTDEVICE>() as u32) };
+    if let Err(error) = registered {
+        ready.report(Err(super::os_error("RegisterRawInputDevices", &error)));
         return;
     }
     let _device_guard = DeviceGuard {
@@ -463,7 +476,7 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
     // The window exists, so the thread has a message queue; force it in and report
     // readiness, then a stop() that races in posts WM_QUIT to a queue that keeps it.
     super::ensure_message_queue();
-    ready.report();
+    ready.report(Ok(()));
     super::pump_messages();
 }
 

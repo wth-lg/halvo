@@ -197,13 +197,18 @@ impl CaptureSource for ForegroundAppSource {
 fn run_foreground_hook(state: ForegroundState, installer: HookInstaller, ready: PumpReady) {
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = Some(state));
     let hook = installer(EVENT_SYSTEM_FOREGROUND, Some(foreground_proc));
+    if hook.is_invalid() {
+        let error = super::last_os_error("SetWinEventHook");
+        FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
+        ready.report(Err(error));
+        return;
+    }
     super::ensure_message_queue();
-    ready.report();
+    ready.report(Ok(()));
     super::pump_messages();
-    if !hook.is_invalid() {
-        unsafe {
-            let _ = UnhookWinEvent(hook);
-        }
+    // SAFETY: `hook` is the valid handle that this thread installed above.
+    unsafe {
+        let _ = UnhookWinEvent(hook);
     }
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = None);
 }

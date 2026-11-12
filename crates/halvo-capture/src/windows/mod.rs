@@ -85,21 +85,31 @@ impl PumpThreadId {
     }
 }
 
-/// The readiness signal a pump body sends once it is ready to receive messages.
-/// [`PumpReady::report`] hands the pump thread's id back to the starting thread,
-/// which blocks on it in [`spawn_pump`], so a `stop` can never run before the
-/// pump has recorded a real thread id.
-#[cfg(target_os = "windows")]
-pub(crate) struct PumpReady(std::sync::mpsc::Sender<PumpThreadId>);
+/// The readiness signal a pump body sends once: the outcome of its setup. An
+/// `Ok` hands the pump thread's id to [`spawn_pump`], so a `stop` never runs
+/// before the pump has a real thread id; an `Err` names the step that failed.
+pub(crate) struct PumpReady(std::sync::mpsc::Sender<Result<PumpThreadId, CaptureError>>);
 
-#[cfg(target_os = "windows")]
 impl PumpReady {
-    /// Report this thread's id. Call once the message queue exists (after the
-    /// window or hook is created) and the loop is about to run.
-    pub(crate) fn report(&self) {
-        let _ = self.0.send(PumpThreadId::current());
+    pub(crate) fn report(self, outcome: Result<(), CaptureError>) {
+        let _ = self.0.send(outcome.map(|()| PumpThreadId::current()));
     }
 }
+
+/// The error of a failed Win32 call at `stage`, from the thread's last error.
+pub(crate) fn last_os_error(stage: &'static str) -> CaptureError {
+    os_error(stage, &windows::core::Error::from_thread())
+}
+
+pub(crate) fn os_error(stage: &'static str, error: &windows::core::Error) -> CaptureError {
+    CaptureError::Os {
+        stage,
+        domain: "HRESULT",
+        code: i64::from(error.code().0),
+    }
+}
+
+const PUMP_ENDED_UNREPORTED: &str = "the pump thread ended before it reported its setup";
 
 /// A started pump thread: its reported id and its join handle. `stop` posts
 /// `WM_QUIT` to the recorded id and joins, so teardown always targets the real
@@ -132,14 +142,20 @@ where
     let join = std::thread::Builder::new()
         .name(name)
         .spawn(move || body(PumpReady(tx)))
-        .map_err(|e| CaptureError::Start(format!("pump thread: {e}")))?;
+        .map_err(|e| CaptureError::Os {
+            stage: "spawn the pump thread",
+            domain: "io",
+            code: i64::from(e.raw_os_error().unwrap_or(0)),
+        })?;
     match rx.recv() {
-        Ok(id) => Ok(PumpHandle { id, join }),
+        Ok(Ok(id)) => Ok(PumpHandle { id, join }),
+        Ok(Err(error)) => {
+            let _ = join.join();
+            Err(error)
+        }
         Err(_) => {
             let _ = join.join();
-            Err(CaptureError::Start(
-                "pump thread exited before reporting its thread id".to_string(),
-            ))
+            Err(CaptureError::Start(PUMP_ENDED_UNREPORTED.to_string()))
         }
     }
 }
@@ -270,7 +286,7 @@ pub(crate) mod tests {
         // thread's real id: never 0, never the starting thread's id.
         let starter = PumpThreadId::current();
         let handle = spawn_pump("halvo-pump-test".to_string(), |ready| {
-            ready.report();
+            ready.report(Ok(()));
         })
         .expect("pump reports its id");
         assert_ne!(
@@ -294,8 +310,23 @@ pub(crate) mod tests {
             // never reports
         });
         assert!(
-            matches!(result, Err(CaptureError::Start(_))),
+            matches!(result, Err(CaptureError::Start(ref text)) if text == PUMP_ENDED_UNREPORTED),
             "a body that never reports must fail the start"
         );
+        let failed = spawn_pump("halvo-pump-failed".to_string(), |ready| {
+            ready.report(Err(CaptureError::Os {
+                stage: "a scripted step",
+                domain: "HRESULT",
+                code: -1,
+            }));
+        });
+        assert!(matches!(
+            failed,
+            Err(CaptureError::Os {
+                stage: "a scripted step",
+                code: -1,
+                ..
+            })
+        ));
     }
 }
