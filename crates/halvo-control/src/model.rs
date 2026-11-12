@@ -486,6 +486,73 @@ fn modality_order(modality: Modality) -> u8 {
     }
 }
 
+/// Why a store id was refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("not a store id: 32 lowercase hex digits, or the same with hyphens after 8, 12, 16 and 20")]
+pub struct StoreIdError;
+
+/// The id of a store (the custody root id): 16 bytes, written as 32 lowercase hex
+/// digits; the hyphenated 8-4-4-4-12 form is read as well (contracts.md 0.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct StoreId([u8; 16]);
+
+impl StoreId {
+    pub const fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+impl fmt::Display for StoreId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().try_for_each(|byte| write!(f, "{byte:02x}"))
+    }
+}
+
+impl FromStr for StoreId {
+    type Err = StoreIdError;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let bytes = text.as_bytes();
+        let digits: Vec<u8> = match bytes.len() {
+            32 => bytes.to_vec(),
+            36 if [8, 13, 18, 23].iter().all(|&at| bytes[at] == b'-') => bytes
+                .iter()
+                .enumerate()
+                .filter(|(at, _)| ![8, 13, 18, 23].contains(at))
+                .map(|(_, &byte)| byte)
+                .collect(),
+            _ => return Err(StoreIdError),
+        };
+        let nibble = |digit: u8| match digit {
+            b'0'..=b'9' => Ok(digit - b'0'),
+            b'a'..=b'f' => Ok(digit - b'a' + 10),
+            _ => Err(StoreIdError),
+        };
+        let mut id = [0u8; 16];
+        let (pairs, _) = digits.as_chunks::<2>();
+        for (byte, [high, low]) in id.iter_mut().zip(pairs) {
+            *byte = nibble(*high)? << 4 | nibble(*low)?;
+        }
+        Ok(Self(id))
+    }
+}
+
+impl Serialize for StoreId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for StoreId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        from_text(deserializer)
+    }
+}
+
 /// What a delete-all reports: the segments it shredded and the keys it destroyed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShredView {
@@ -573,6 +640,41 @@ mod tests {
                 serde_json::from_str::<CaptureState>(&quoted).is_err(),
                 "{text:?}"
             );
+        }
+    }
+
+    #[test]
+    fn a_store_id_writes_32_lowercase_hex_and_reads_the_hyphenated_form_too() {
+        let id = StoreId::from_bytes([
+            0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+            0x66, 0x77,
+        ]);
+        let plain = "0123456789abcdef0011223344556677";
+        let hyphenated = "01234567-89ab-cdef-0011-223344556677";
+        assert_eq!(id.to_string(), plain);
+        assert_eq!(plain.parse::<StoreId>(), Ok(id));
+        assert_eq!(hyphenated.parse::<StoreId>(), Ok(id));
+        assert_eq!(hyphenated.parse::<StoreId>().unwrap().to_string(), plain);
+        assert_eq!(serde_json::to_string(&id).unwrap(), format!("\"{plain}\""));
+        let read = serde_json::from_str::<StoreId>(&format!("\"{hyphenated}\"")).unwrap();
+        assert_eq!(read, id);
+        assert_eq!(id.as_bytes()[15], 0x77);
+        for bad in [
+            "0123456789ABCDEF0011223344556677",
+            "01234567-89AB-CDEF-0011-223344556677",
+            "0123456789abcdef001122334455667",
+            "0123456789abcdef00112233445566778",
+            "0123456789abcdef001122334455667g",
+            "0123456-789ab-cdef-0011-223344556677",
+            "01234567-89ab-cdef-0011223344556677",
+            "01234567-89ab-cdef-0011-2233445566-7",
+            "{01234567-89ab-cdef-0011-223344556677}",
+            "urn:uuid:01234567-89ab-cdef-0011-223344556677",
+            " 0123456789abcdef0011223344556677",
+            "",
+        ] {
+            assert!(bad.parse::<StoreId>().is_err(), "{bad:?}");
+            assert!(serde_json::from_str::<StoreId>(&format!("\"{bad}\"")).is_err());
         }
     }
 
