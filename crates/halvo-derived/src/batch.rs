@@ -28,7 +28,7 @@ pub struct CommitOutcome {
     pub outside: u64,
     /// Evidence rows stored.
     pub evidence: u64,
-    /// Evidence rows not stored because their expiry has passed.
+    /// Evidence rows not stored because their expiry has passed or they name a purged ordinal.
     pub dropped: u64,
 }
 
@@ -143,7 +143,7 @@ impl Store {
     /// the error name `store`. A position at or before the committed one changes nothing (`repeated`). An episode
     /// whose summary id is stored, or stands earlier in the batch, is skipped. A summary outside its bound, a day more
     /// than 92 days before the clock's day or after it, is not stored with its evidence; an evidence row whose expiry
-    /// has passed is not stored. A batch that holds a value that its reader would refuse is refused whole with the
+    /// has passed, or that names a purged ordinal, is not stored, and its summary is. A batch that holds a value that its reader would refuse is refused whole with the
     /// error name `malformed`, and nothing of it is stored.
     pub fn commit_batch(
         &mut self,
@@ -176,6 +176,7 @@ impl Store {
         let days = bound_days(summary_entry).ok_or(Fault::Row)?;
         let now: Now = db.now();
         db.write(|tx| {
+            let mark = tx.mark()?;
             let mut out = CommitOutcome::default();
             let mut seen = BTreeSet::new();
             for episode in episodes {
@@ -199,11 +200,11 @@ impl Store {
                     segments: &[],
                 })?;
                 out.summaries += 1;
-                if !now.keeps_expiry(episode.expires.0) {
+                let segments: Vec<u64> = episode.segments.iter().map(|o| o.get()).collect();
+                if !now.keeps_expiry(episode.expires.0) || tx.names_purged(mark, &segments)? {
                     out.dropped += 1;
                     continue;
                 }
-                let segments: Vec<u64> = episode.segments.iter().map(|o| o.get()).collect();
                 tx.insert(&NewRow {
                     entry: evidence_entry,
                     day: None,

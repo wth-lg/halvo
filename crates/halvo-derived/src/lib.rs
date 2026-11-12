@@ -7,6 +7,7 @@ mod db;
 mod error;
 mod hash;
 mod host;
+mod purge;
 mod sql;
 
 use std::path::Path;

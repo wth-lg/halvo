@@ -59,4 +59,13 @@ catalogue! {
     ROW_INSERT = "INSERT INTO rows (kind, family, class, day, expires, workflow, summary, wkey, body) \
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)";
     SOURCE_INSERT = "INSERT INTO sources (ordinal, row) VALUES (?1, ?2)";
+    MARK_READ = "SELECT mark FROM meta WHERE one = 1";
+    MARK_SET = "UPDATE meta SET mark = ?1 WHERE one = 1";
+    PURGED_HAS = "SELECT ordinal FROM purged WHERE ordinal = ?1";
+    PURGED_INSERT = "INSERT OR IGNORE INTO purged (ordinal) VALUES (?1)";
+    PURGED_BELOW_DELETE = "DELETE FROM purged WHERE ordinal < ?1";
+    PURGE_ROWS = "SELECT sources.row, rows.family FROM sources JOIN rows ON rows.id = sources.row \
+        WHERE sources.ordinal = ?1";
+    PURGE_BELOW_ROWS = "SELECT sources.row, rows.family FROM sources JOIN rows ON rows.id = sources.row \
+        WHERE sources.ordinal < ?1";
 }

@@ -112,11 +112,56 @@ impl Tx<'_> {
     pub(crate) fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault> {
         let doomed: Vec<(i64, String)> =
             rows(self.conn, select, params, |r| Ok((r.get(0)?, r.get(1)?)))?;
+        let mut removed = 0;
         for (id, family) in &doomed {
-            self.exec(sql::ROW_DELETE, [id])?;
-            self.changed(family);
+            if self.exec(sql::ROW_DELETE, [id])? > 0 {
+                removed += 1;
+                self.changed(family);
+            }
         }
-        Ok(doomed.len() as u64)
+        Ok(removed)
+    }
+
+    /// The high-water mark of purges: every ordinal below it is purged.
+    pub(crate) fn mark(&self) -> Result<u64, Fault> {
+        let mark = one(self.conn, sql::MARK_READ, [], |r| r.get::<_, i64>(0))?.ok_or(Fault::Row)?;
+        u64::try_from(mark).map_err(|_| Fault::Row)
+    }
+
+    /// Whether one of `segments` is a purged ordinal: below the mark or in the set of purged ordinals above it.
+    pub(crate) fn names_purged(&self, mark: u64, segments: &[u64]) -> Result<bool, Fault> {
+        for segment in segments {
+            if *segment < mark {
+                return Ok(true);
+            }
+            let segment = i64::try_from(*segment).map_err(|_| Fault::Row)?;
+            if one(self.conn, sql::PURGED_HAS, [segment], |r| {
+                r.get::<_, i64>(0)
+            })?
+            .is_some()
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Raises the mark to `floor` where it lies below, drops the purged ordinals below the mark, and raises the mark
+    /// over each purged ordinal that follows it.
+    pub(crate) fn raise_mark(&self, floor: u64) -> Result<(), Fault> {
+        let mut mark = self.mark()?.max(floor);
+        let as_i64 = |n: u64| i64::try_from(n).map_err(|_| Fault::Row);
+        self.exec(sql::PURGED_BELOW_DELETE, [as_i64(mark)?])?;
+        while one(self.conn, sql::PURGED_HAS, [as_i64(mark)?], |r| {
+            r.get::<_, i64>(0)
+        })?
+        .is_some()
+        {
+            self.exec(sql::PURGED_BELOW_DELETE, [as_i64(mark + 1)?])?;
+            mark += 1;
+        }
+        self.exec(sql::MARK_SET, [as_i64(mark)?])?;
+        Ok(())
     }
 
     /// Inserts one row with its source ordinals and marks its family as changed.
