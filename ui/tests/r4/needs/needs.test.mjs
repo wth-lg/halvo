@@ -58,7 +58,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0 };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0, touches: 0 };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -568,6 +568,10 @@ async function openDialog(h) {
   });
 }
 
+function engineOf(h) {
+  return h.page.context().browser().browserType().name();
+}
+
 async function transcript(h, tags) {
   const facts = await h.page
     .evaluate(() => ({
@@ -727,6 +731,88 @@ async function confirms(origin, dir) {
     await keep(h);
     await h.close();
   }
+  const allowA = { call: 'agents_answer', args: { item: a.item, choice: 'allow' }, reply: { ok: 'yes' } };
+  const doneSign = { call: 'agents_answer', args: { item: sign.item, choice: 'done' }, reply: { ok: 'yes' } };
+  let point = null;
+  h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }], views: [VIEW] });
+  try {
+    const box = await h.page.locator(sel('allow', a.item)).boundingBox();
+    point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+  } finally {
+    await h.close();
+  }
+  const opens = (k) => k.page.waitForFunction(() => Boolean(document.querySelector('[role="alertdialog"]:modal')), null, { timeout: 10000 }).then(() => true, () => false);
+  out = outDir();
+  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+  try {
+    await h.page.mouse.move(point.x, point.y);
+    await h.page.mouse.down();
+    await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
+    if (!(await opens(h))) faults.push('mouse_before_open:not_opened');
+    await h.page.mouse.up();
+    await frames(h);
+    await frames(h);
+    if (said(out).join(',') !== 'agents_answer:done:0') faults.push('mouse_before_open:calls=' + said(out).join(','));
+  } finally {
+    await keep(h);
+    await h.close();
+  }
+  if (engineOf(h) !== 'chromium') {
+    console.log('confirms touch: not run on ' + engineOf(h) + ', which takes no touch input through the browser\'s protocol in this harness');
+  } else {
+    const touch = async (k, type) => {
+      const cdp = await k.page.context().newCDPSession(k.page);
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+      return (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
+    };
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+    try {
+      const send = await touch(h);
+      await send('start');
+      await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
+      if (!(await opens(h))) faults.push('touch_before_open:not_opened');
+      await send('end');
+      await frames(h);
+      await frames(h);
+      seen.touches += 1;
+      if (said(out).join(',') !== 'agents_answer:done:0') faults.push('touch_before_open:calls=' + said(out).join(','));
+    } finally {
+      await keep(h);
+      await h.close();
+    }
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [VIEW], out });
+    try {
+      const cdp = await h.page.context().newCDPSession(h.page);
+      const pen = (type) => cdp.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1, pointerType: 'pen' });
+      await pen('mousePressed');
+      await h.page.evaluate((id) => document.querySelector('[data-act="done"][data-param="' + id + '"]').click(), sign.item);
+      if (!(await opens(h))) faults.push('pen_before_open:not_opened');
+      await pen('mouseReleased');
+      await frames(h);
+      await frames(h);
+      seen.touches += 1;
+      if (said(out).join(',') !== 'agents_answer:done:0') faults.push('pen_before_open:calls=' + said(out).join(','));
+    } finally {
+      await keep(h);
+      await h.close();
+    }
+    out = outDir();
+    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, allowA], views: [VIEW], out });
+    try {
+      const send = await touch(h);
+      await send('start');
+      await send('end');
+      await frames(h);
+      await frames(h);
+      seen.touches += 1;
+      if (said(out).join(',') !== 'agents_answer:allow:a') faults.push('touch_after_open:calls=' + (said(out).join(',') || '-'));
+    } finally {
+      await keep(h);
+      await h.close();
+    }
+  }
   const long = withId(base, 'f'.repeat(32));
   const body = long.fields.find((f) => f.value.join('') !== '');
   long.fields = Array.from({ length: 40 }, () => ({ ...body, value: ['Thank you. Your rent for October came in and the receipt is attached for your records.'] }));
@@ -829,7 +915,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('replies')) report('replies', await replies(origin, dir));
     if (want('setups')) report('setups', await setups(origin, dir));
     if (want('reorder')) report('reorder', await reorder(origin, dir));
-    if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks']);
+    if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks', 'touches']);
     if (want('bound')) report('bound', await bound(origin, dir));
     if (want('features')) report('features', await features(origin), ['features']);
   }
