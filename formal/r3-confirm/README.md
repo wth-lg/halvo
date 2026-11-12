@@ -221,7 +221,7 @@ variables:
 | `alive` | Whether the run goes on. | `RunEnds`. |
 | `val` | The digest of the bound values of each effect as they are on the page, in the call or in the file. | The environment: `Propose` and `Change`. |
 | `given` | The entries of the supervisor's decisions: the effect that was shown, the digest that was shown, and the answer `allow` or `reject`. | The environment: `Give`. |
-| `wire` | The requests that left: the digest that each carried, the state of the row when it left, the arrivals in `releasing` that were stored before, the digest that the person was shown last, and whether the reply came. | The environment: `Send` and `Reply`. |
+| `wire` | The requests that left: the digest that each carried, the state of the row when it left, whether the run went on when it left, the arrivals in `releasing` that were stored before, the digest that the person was shown last, and whether the reply came. | The environment: `Send` and `Reply`. |
 | `seen` | What was observed of each effect: its class, each decision that `Decide` gave for it, each arrival of its row in `approved` in order (the entry that the move offered, its answer, the effect that it was given for, the digest that was shown, the digest of the row), each arrival in `releasing` with the state before and the row's digest, each final state that a move left, and for each arrival in `committed` whether the request had left and the reply had come. | Every move that changes a row, from the row before and the row after the move. |
 
 No invariant reads the answer of `Step` or a claim of a move about itself. Each reads the
@@ -239,7 +239,7 @@ P7 also read the configuration, and P11 the stored row.
 | P7 | `allow` never holds a money class, `sign` or `credential`, in any reachable configuration. | A configuration that the guard let through, or under which an effect exists, has none of `purchase`, `payment`, `sign`, `credential` in `allow`. |
 | P8 | An effect for which `decide` gave `confirm` reaches `releasing` only from `approved`, and its request leaves only after that. | As P1, for every effect for which `Decide` gave `confirm`. |
 | P9 | An effect reaches `committed` only after its request left and the reply to that request came. | At each arrival of a row in `committed`, the wire held a request of the effect with its reply. |
-| P10 | Every request that leaves carries the digest of its effect's row at `begin`, and for an effect for which `decide` gave `confirm` that is the digest that the person was shown for the approval that moved it to `approved` last. | Each request left while its row was `releasing`, after a stored `begin`, with the digest that the row had at that `begin`; for an effect for which `Decide` gave `confirm` it is also the shown digest of the last arrival in `approved`. |
+| P10 | Every request that leaves carries the digest of its effect's row at `begin`, and for an effect for which `decide` gave `confirm` that is the digest that the person was shown for the approval that moved it to `approved` last. | Each request left while its row was `releasing` and while the run went on, after a stored `begin`, with the digest that the row had at that `begin`; for an effect for which `Decide` gave `confirm` it is also the shown digest of the last arrival in `approved`. |
 | P11 | An effect whose row once was `releasing` is `releasing`, `committed` or `unknown`, and in no other state. | An effect with an arrival in `releasing` has a row in one of the three states. It reads the rows and not the wire, so it also covers an end of the run between the stored `begin` and the send. |
 
 The moves of the system, and what each takes from the contract:
@@ -260,7 +260,8 @@ The moves of the system, and what each takes from the contract:
   answer is `allow`, with the entry's effect and digest. `used` is `yes` when a row of any
   effect ever held the approval, and it is read in the step that stores the row.
 - `Begin` (runner) passes the digest of the values as they are, read again, and the row is
-  `releasing`. `Send` (runner) then lets the request leave, once. `Reply` (environment) is
+  `releasing`. `Send` (runner) then lets the request leave, once, and the wire notes whether
+  the run went on when it left. `Reply` (environment) is
   the reply to it. `Commit` (runner) stores the end after the reply.
 - `Reject` is the runner's. `End` may come at any time, from the runner or from the handler
   of the run's end.
@@ -372,8 +373,14 @@ commit at which the two were last compared.
   requests before `finish`; what keeps a request from leaving after the runner's process is
   gone is the code's, and A5.3 names its keeper. A model text in which such a request
   leaves for a row that is not `releasing` breaks P10. One in which it leaves after the end
-  while its row is still `releasing` breaks no invariant: the effect is then `unknown`. The
-  record of a run, the body `end_run` and the cause `ended` of a row are the store's.
+  while its row is still `releasing`, before the handler's `lose`, breaks P10 as well: P10
+  holds that a request leaves only while its row is `releasing` and while the run goes on
+  (the coordinator's ruling CP-35). The record of a run, the body `end_run` and the cause
+  `ended` of a row are the store's.
+- A request that the browser sends while the person holds it in a handback of the reasons
+  `sign_in`, `second_factor` or `captcha`, until the `bind_reply` that ends it. Such a
+  request is no effect of the run (A5.2): it has no row, and it is not on the wire that the
+  model holds.
 - More than two effects, two approvals, two digests or one end of the run; two rebinds of
   one effect beside a second effect, outside `Full.cfg`.
 - That anything ever happens. Every invariant says what never happens; none says that an
