@@ -953,6 +953,7 @@ pub(crate) mod tests {
                 pump_messages(&signal);
             })
         });
+        let second_stop = life.shutdown();
         let still_alive = alive.load(std::sync::atomic::Ordering::SeqCst);
         wait_until("the stuck pump did not end", || {
             !alive.load(std::sync::atomic::Ordering::SeqCst)
@@ -968,6 +969,10 @@ pub(crate) mod tests {
             }
         );
         assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert!(
+            matches!(second_stop, Err(CaptureError::Timeout { .. })),
+            "a second stop of the stuck pump: {second_stop:?}"
+        );
         assert_eq!(late, Ok(()), "the pump that ended late was not joined");
         assert_eq!(
             life.health(SourceCounters::default()).state,
