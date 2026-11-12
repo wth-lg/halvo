@@ -22,6 +22,8 @@ struct Entry {
     mode: u32,
     bytes: Vec<u8>,
     shown_len: Option<u64>,
+    acl: bool,
+    links: u64,
 }
 
 impl Entry {
@@ -32,6 +34,8 @@ impl Entry {
             mode,
             bytes: Vec::new(),
             shown_len: None,
+            acl: false,
+            links: 1,
         }
     }
 
@@ -42,6 +46,8 @@ impl Entry {
             mode,
             bytes: bytes.to_vec(),
             shown_len: None,
+            acl: false,
+            links: 1,
         }
     }
 
@@ -56,12 +62,29 @@ impl Entry {
         Entry { owner, ..self }
     }
 
+    fn with_acl(self) -> Entry {
+        Entry { acl: true, ..self }
+    }
+
+    fn with_links(self, links: u64) -> Entry {
+        Entry { links, ..self }
+    }
+
+    fn shown(self, len: u64) -> Entry {
+        Entry {
+            shown_len: Some(len),
+            ..self
+        }
+    }
+
     fn meta(&self) -> Meta {
         Meta {
             kind: self.kind,
             owner: self.owner,
             mode: self.mode,
             len: self.shown_len.unwrap_or(self.bytes.len() as u64),
+            acl: self.acl,
+            links: self.links,
         }
     }
 }
@@ -617,7 +640,12 @@ fn a_directory_of_a_wider_mode_another_owner_or_another_kind_is_refused_by_every
         (Entry::dir(0o701), Locked::Mode),
         (Entry::dir(0o710), Locked::Mode),
         (Entry::dir(0o777), Locked::Mode),
+        (Entry::dir(0o740), Locked::Mode),
+        (Entry::dir(0o720), Locked::Mode),
+        (Entry::dir(0o704), Locked::Mode),
+        (Entry::dir(0o702), Locked::Mode),
         (Entry::dir(0o700).owned_by(OTHER), Locked::Owner),
+        (Entry::dir(0o700).with_acl(), Locked::Acl),
         (Entry::of(EntryKind::Link), Locked::NotADirectory),
         (Entry::of(EntryKind::File), Locked::NotADirectory),
         (Entry::of(EntryKind::Other), Locked::NotADirectory),
@@ -676,6 +704,15 @@ fn an_item_of_a_wider_mode_another_owner_another_kind_or_size_is_refused_and_kep
         (Entry::file(0o2600, b"secret"), Locked::Mode),
         (Entry::file(0o1600, b"secret"), Locked::Mode),
         (Entry::file(0o600, b"secret").owned_by(OTHER), Locked::Owner),
+        (Entry::file(0o600, b"secret").with_acl(), Locked::Acl),
+        (
+            Entry::file(0o600, b"secret").with_links(2),
+            Locked::HardLink,
+        ),
+        (
+            Entry::file(0o600, b"secret").with_links(0),
+            Locked::HardLink,
+        ),
         (Entry::of(EntryKind::Directory), Locked::NotAFile),
         (Entry::of(EntryKind::Other), Locked::NotAFile),
         (Entry::of(EntryKind::Link), Locked::NotAFile),
@@ -704,6 +741,24 @@ fn an_item_of_a_wider_mode_another_owner_another_kind_or_size_is_refused_and_kep
 }
 
 #[test]
+fn a_read_refuses_an_item_whose_bytes_differ_in_number_from_its_size() {
+    for (bytes, shown) in [
+        (10, 100),
+        (20, 10),
+        (MAX_SECRET_LEN, 1),
+        (1, MAX_SECRET_LEN as u64),
+    ] {
+        let entry = Entry::file(0o600, &vec![b'x'; bytes]).shown(shown);
+        let entries = [(DIR, Entry::dir(0o700)), (PATH, entry)];
+        let read = item(Memory::with(&entries)).read();
+        assert!(
+            matches!(read, Read::Locked(Locked::Size)),
+            "{bytes} {shown}: {read:?}"
+        );
+    }
+}
+
+#[test]
 fn an_item_of_mode_0400_is_read() {
     let entries = [
         (DIR, Entry::dir(0o700)),
@@ -725,8 +780,8 @@ fn an_item_of_the_largest_size_is_read_whole() {
 #[test]
 fn a_read_stops_at_one_byte_past_the_limit_when_the_item_grew_after_its_size_was_read() {
     for chunk in [1, 7, 8, 4096, MAX_SECRET_LEN, MAX_SECRET_LEN + 1] {
-        let mut grown = Entry::file(0o600, &vec![b'x'; MAX_SECRET_LEN + 100]);
-        grown.shown_len = Some(10);
+        let grown =
+            Entry::file(0o600, &vec![b'x'; MAX_SECRET_LEN + 100]).shown(MAX_SECRET_LEN as u64);
         let entries = [(DIR, Entry::dir(0o700)), (PATH, grown)];
         let store = item(Memory::with(&entries));
         store.fs.chunk.set(chunk);
@@ -772,9 +827,13 @@ fn a_read_refuses_an_item_that_gave_no_byte_before_the_codec_sees_it() {
 #[test]
 fn the_kind_only_rules_refuse_another_kind_and_take_any_mode_and_owner() {
     let rules = Rules::KindOnly;
-    let file = Entry::file(0o777, b"x").owned_by(OTHER).meta();
+    let file = Entry::file(0o777, b"x")
+        .owned_by(OTHER)
+        .with_acl()
+        .with_links(3)
+        .meta();
     assert_eq!(rules.item(&file, USER, 10), None);
-    let dir = Entry::dir(0o777).owned_by(OTHER).meta();
+    let dir = Entry::dir(0o777).owned_by(OTHER).with_acl().meta();
     assert_eq!(rules.dir(&dir, USER), None);
     for kind in [EntryKind::Link, EntryKind::Directory, EntryKind::Other] {
         assert_eq!(

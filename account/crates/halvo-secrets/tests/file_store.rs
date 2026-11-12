@@ -7,6 +7,7 @@ use std::os::raw::{c_char, c_int};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -63,6 +64,16 @@ fn private_dir(path: &Path) {
 fn private_file(path: &Path, bytes: &[u8]) {
     fs::write(path, bytes).expect("a file");
     set_mode(path, 0o600);
+}
+
+fn add_acl(path: &Path, entry: &str) {
+    let status = Command::new("/bin/chmod")
+        .arg("+a")
+        .arg(entry)
+        .arg(path)
+        .status()
+        .expect("chmod");
+    assert!(status.success(), "chmod +a {entry}");
 }
 
 fn names_in(dir: &Path) -> Vec<String> {
@@ -246,9 +257,105 @@ fn a_link_or_a_file_in_the_place_of_the_directory_is_refused() {
 }
 
 #[test]
-fn a_relative_directory_is_refused() {
+fn a_file_or_a_directory_with_an_acl_is_refused_and_kept() {
+    let dir = scratch("acl-file");
+    private_dir(&dir);
+    let path = dir.join("account");
+    private_file(&path, b"kept");
+    add_acl(&path, "everyone allow read");
+    let store = store_in(&dir);
+    assert!(matches!(store.read(), Read::Locked(Locked::Acl)));
+    assert_eq!(store.delete(), Delete::Locked(Locked::Acl));
+    assert_eq!(store.write(&secret(b"new")), Write::Occupied);
+    assert_eq!(fs::read(&path).expect("the file"), b"kept");
+
+    let dir = scratch("acl-dir");
+    private_dir(&dir);
+    private_file(&dir.join("account"), b"kept");
+    add_acl(&dir, "everyone allow list,search,add_file,delete_child");
+    let store = store_in(&dir);
+    assert!(matches!(store.read(), Read::Locked(Locked::Acl)));
+    assert_eq!(store.write(&secret(b"new")), Write::Locked(Locked::Acl));
+    assert_eq!(store.delete(), Delete::Locked(Locked::Acl));
+    assert_eq!(fs::read(dir.join("account")).expect("the file"), b"kept");
+}
+
+#[test]
+fn a_write_under_an_inheritable_acl_stores_nothing() {
+    let base = scratch("acl-inherit");
+    set_mode(&base, 0o700);
+    add_acl(
+        &base,
+        "everyone allow list,search,read,file_inherit,directory_inherit",
+    );
+    let dir = base.join("store");
+    let store = store_in(&dir);
+    assert_eq!(
+        store.write(&secret(b"the credential")),
+        Write::Locked(Locked::Acl)
+    );
+    assert!(!dir.join("account").exists());
+    assert!(matches!(store.read(), Read::Locked(Locked::Acl)));
+}
+
+#[test]
+fn a_hard_link_in_the_place_of_the_file_is_refused_and_kept() {
+    let dir = scratch("hard-link");
+    private_dir(&dir);
+    let elsewhere = scratch("hard-link-elsewhere");
+    private_dir(&elsewhere);
+    let other = elsewhere.join("other");
+    private_file(&other, b"another file");
+    fs::hard_link(&other, dir.join("account")).expect("a hard link");
+    let store = store_in(&dir);
+    assert!(matches!(store.read(), Read::Locked(Locked::HardLink)));
+    assert_eq!(store.delete(), Delete::Locked(Locked::HardLink));
+    assert_eq!(store.write(&secret(b"new")), Write::Occupied);
+    assert_eq!(
+        fs::read(dir.join("account")).expect("the file"),
+        b"another file"
+    );
+    assert_eq!(fs::read(&other).expect("the other name"), b"another file");
+}
+
+#[test]
+fn a_trailing_separator_or_dot_does_not_let_a_linked_directory_through() {
+    let base = scratch("trailing");
+    let real = base.join("real");
+    private_dir(&real);
+    private_file(&real.join("account"), b"kept");
+    let linked = base.join("linked");
+    symlink(&real, &linked).expect("a link");
+    for suffix in ["/", "/.", "/./"] {
+        let given = PathBuf::from(format!("{}{suffix}", linked.display()));
+        let store = store_in(&given);
+        let read = store.read();
+        assert!(
+            matches!(read, Read::Locked(Locked::NotADirectory)),
+            "{suffix}: {read:?}"
+        );
+        assert_eq!(
+            store.write(&secret(b"new")),
+            Write::Locked(Locked::NotADirectory)
+        );
+        assert_eq!(store.delete(), Delete::Locked(Locked::NotADirectory));
+    }
+    assert_eq!(fs::read(real.join("account")).expect("the file"), b"kept");
+}
+
+#[test]
+fn a_relative_directory_or_one_with_a_parent_step_is_refused() {
     assert!(Directory::new(PathBuf::from("relative/store")).is_none());
     assert!(Directory::new(PathBuf::from("")).is_none());
+    assert!(Directory::new(PathBuf::from("/a/../b")).is_none());
+    assert!(Directory::new(PathBuf::from("/a/b/..")).is_none());
+    for (given, kept) in [("/a/b/", "/a/b"), ("/a/./b/.", "/a/b"), ("/a//b", "/a/b")] {
+        assert_eq!(
+            Directory::new(PathBuf::from(given)).map(|dir| dir.as_path().to_path_buf()),
+            Some(PathBuf::from(kept)),
+            "{given}"
+        );
+    }
     let absolute = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
     assert_eq!(
         Directory::new(absolute.clone()).map(|dir| dir.as_path().to_path_buf()),

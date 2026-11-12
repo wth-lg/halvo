@@ -41,6 +41,8 @@ fn meta_of(metadata: &fs::Metadata) -> Meta {
         owner: 0,
         mode: 0,
         len: metadata.len(),
+        acl: false,
+        links: 1,
     }
 }
 

@@ -18,6 +18,8 @@ pub(crate) struct Meta {
     pub(crate) owner: u32,
     pub(crate) mode: u32,
     pub(crate) len: u64,
+    pub(crate) acl: bool,
+    pub(crate) links: u64,
 }
 
 pub(crate) enum Opened<H> {
@@ -107,6 +109,9 @@ impl Rules {
             if meta.mode & 0o077 != 0 {
                 return Some(Locked::Mode);
             }
+            if meta.acl {
+                return Some(Locked::Acl);
+            }
         }
         None
     }
@@ -121,6 +126,12 @@ impl Rules {
             }
             if meta.mode & 0o7177 != 0 {
                 return Some(Locked::Mode);
+            }
+            if meta.acl {
+                return Some(Locked::Acl);
+            }
+            if meta.links != 1 {
+                return Some(Locked::HardLink);
             }
         }
         if meta.len == 0 || meta.len > limit as u64 {
@@ -199,7 +210,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
     }
 
-    fn open(&self) -> Result<Option<F::Item>, Stop> {
+    fn open(&self) -> Result<Option<(F::Item, Meta)>, Stop> {
         let item = match self.fs.open_item(&self.path()) {
             Ok(Opened::Item(item)) => item,
             Ok(Opened::Absent) => return Ok(None),
@@ -209,7 +220,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
         let meta = self.fs.item_meta(&item).map_err(|error| Stop::of(&error))?;
         match self.rules.item(&meta, self.fs.user(), self.codec.limit()) {
             Some(locked) => Err(Stop::Locked(locked)),
-            None => Ok(Some(item)),
+            None => Ok(Some((item, meta))),
         }
     }
 
@@ -232,8 +243,8 @@ impl<F: Fs, C: Codec> Item<F, C> {
             Ok(false) => return Read::NotStored,
             Err(stop) => return stop.into(),
         }
-        let mut item = match self.open() {
-            Ok(Some(item)) => item,
+        let (mut item, meta) = match self.open() {
+            Ok(Some(opened)) => opened,
             Ok(None) => return Read::NotStored,
             Err(stop) => return stop.into(),
         };
@@ -246,7 +257,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
                 Err(error) => return Stop::of(&error).into(),
             }
         }
-        if filled == 0 || filled > self.codec.limit() {
+        if filled as u64 != meta.len {
             return Read::Locked(Locked::Size);
         }
         match self.codec.open(buffer.into_vec(filled)) {

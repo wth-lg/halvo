@@ -93,6 +93,11 @@ pub enum Locked {
     Mode,
     /// The file or its directory belongs to another user.
     Owner,
+    /// The file or its directory carries an access control list, which can open it to
+    /// others whatever its mode says.
+    Acl,
+    /// The file has a name other than this one too: its link count is not 1.
+    HardLink,
     /// Something other than a regular file, such as a link or a directory, stands under the
     /// name.
     NotAFile,
