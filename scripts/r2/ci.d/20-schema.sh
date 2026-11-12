@@ -80,7 +80,6 @@ built_binary() {
       gsub(/\\\\/, "/", value)
       return value
     }
-    { sub(/\r$/, "") }
     index($0, "{\"reason\":\"compiler-artifact\",") != 1 { next }
     {
       dir = field("manifest_path")
@@ -410,6 +409,7 @@ case $* in
     fi
     ;;
   'diff --name-only HEAD --')
+    [ "$STUB_DIFF" != fails ] || exit 128
     printf '%s' "$STUB_DIFF"
     ;;
   *)
@@ -552,6 +552,14 @@ names 3'
 crates/halvo-schema/Cargo.toml
 '
   check tracked-file-differs-after-the-tests FAIL "FAIL $name (the tracked file scripts/r2/20-schema-tests.txt differs from HEAD after the test runs)"
+  STUB_DIFF=fails
+  check git-diff-fails FAIL "FAIL $name (git diff --name-only HEAD failed)"
+  lists_of warning
+  messages_of "$STUB_LISTS" halvo-schema 0
+  message '{"reason":"compiler-message","package_id":"path+file:///r/crates/halvo-schema#0.0.0","manifest_path":"/r/crates/halvo-schema/Cargo.toml","target":{"kind":["test"],"crate_types":["bin"],"name":"locked_files","src_path":"/r/crates/halvo-schema/tests/locked_files.rs","edition":"2021","doc":false,"doctest":false,"test":true},"message":{"rendered":"warning: unused variable","level":"warning"}}'
+  usual_schema_targets true
+  message '{"reason":"build-finished","success":true}'
+  check a-warning-of-a-required-target PASS "the test binary of tests/locked_files.rs of halvo-schema: required names listed 1, ignored 0"
   printf '%s' "$list" >"$work/head-list.txt" || self_fail "the fixture list at HEAD cannot be written"
   repo=$work/list-rewritten
   make_repo "$repo" golden "$core_line
