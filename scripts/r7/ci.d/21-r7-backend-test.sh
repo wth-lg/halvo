@@ -14,9 +14,11 @@ test_in() {
   fi
   (cd "$repo/backend" && sh scripts/with-env.sh node_modules/.bin/vitest run) >"$out/test.txt" 2>&1
   code=$?
-  files=$(sed -n 's/^ *Test Files  *\([0-9][0-9]*\) passed.*/\1/p' "$out/test.txt" | tail -n 1)
-  tests=$(sed -n 's/^ *Tests  *\([0-9][0-9]*\) passed.*/\1/p' "$out/test.txt" | tail -n 1)
-  failed=$(grep -c -E '^ *(Test Files|Tests) .*[0-9]+ failed' "$out/test.txt")
+  esc=$(printf '\033')
+  LC_ALL=C sed "s/$esc\[[0-9;]*m//g" "$out/test.txt" >"$out/test.plain.txt" || return 2
+  files=$(sed -n 's/^ *Test Files  *\([0-9][0-9]*\) passed.*/\1/p' "$out/test.plain.txt" | tail -n 1)
+  tests=$(sed -n 's/^ *Tests  *\([0-9][0-9]*\) passed.*/\1/p' "$out/test.plain.txt" | tail -n 1)
+  failed=$(grep -c -E '^ *(Test Files|Tests) .*[0-9]+ failed' "$out/test.plain.txt")
   counts="exit=$code test-files=${files:-none} tests=${tests:-none} failed-lines=$failed"
   cause=
   [ "$code" = 0 ] || cause="the test script exited $code"
@@ -88,6 +90,17 @@ self_test() {
 
   fixture good
   expect PASS good
+
+  fixture coloured-output
+  esc=$(printf '\033')
+  printf '\n%s[2m Test Files %s[22m %s[1m%s[32m2 passed%s[39m%s[22m%s[90m (2)%s[39m\n%s[2m      Tests %s[22m %s[1m%s[32m5 passed%s[39m%s[22m%s[90m (5)%s[39m\n' \
+    "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" >"$scratch/coloured-output/state/vitest.out"
+  expect PASS coloured-output
+
+  fixture coloured-failed-test
+  printf '\n%s[2m Test Files %s[22m %s[1m%s[31m1 failed%s[39m%s[22m%s[2m | %s[22m%s[1m%s[32m1 passed%s[39m%s[22m%s[90m (2)%s[39m\n' \
+    "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" "$esc" >"$scratch/coloured-failed-test/state/vitest.out"
+  expect FAIL coloured-failed-test
 
   fixture tests-fail
   printf '\n Test Files  1 failed | 1 passed (2)\n      Tests  1 failed | 4 passed (5)\n' >"$scratch/tests-fail/state/vitest.out"
