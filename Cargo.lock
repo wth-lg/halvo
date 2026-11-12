@@ -1450,6 +1450,7 @@ dependencies = [
 name = "halvo-schema"
 version = "0.0.0"
 dependencies = [
+ "proc-macro2",
  "psl",
  "serde",
  "serde_json",
