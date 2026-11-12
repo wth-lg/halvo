@@ -16,19 +16,32 @@ pub fn repo() -> PathBuf {
         .join("..")
 }
 
+pub struct Server(Child);
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 pub struct Fixture {
-    child: Child,
+    _server: Server,
     port: u16,
 }
 
 impl Fixture {
     pub fn start() -> Fixture {
+        Fixture::start_then(|_| {})
+    }
+
+    pub fn start_then(after_spawn: impl FnOnce(u32)) -> Fixture {
         let server = repo()
             .join("tools")
             .join("fixture-server")
             .join("variants")
             .join("server.mjs");
-        let mut child = Command::new("node")
+        let child = Command::new("node")
             .arg(server)
             .args(["--port", "0"])
             .stdin(Stdio::null())
@@ -36,7 +49,9 @@ impl Fixture {
             .stderr(Stdio::inherit())
             .spawn()
             .expect("node starts the fixture server");
-        let stdout = child.stdout.take().expect("its standard output");
+        let mut server = Server(child);
+        after_spawn(server.0.id());
+        let stdout = server.0.stdout.take().expect("its standard output");
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
             let mut line = String::new();
@@ -49,11 +64,12 @@ impl Fixture {
             .strip_prefix("listening 127.0.0.1:")
             .and_then(|port| port.parse::<u16>().ok());
         let Some(port) = port else {
-            let _ = child.kill();
-            let _ = child.wait();
             panic!("the fixture server printed no line listening 127.0.0.1:<port>");
         };
-        Fixture { child, port }
+        Fixture {
+            _server: server,
+            port,
+        }
     }
 
     pub fn port(&self) -> u16 {
@@ -112,13 +128,6 @@ impl Fixture {
             "the control host takes the call"
         );
         serde_json::from_str(body).expect("a JSON answer")
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
     }
 }
 

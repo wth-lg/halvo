@@ -384,3 +384,40 @@ fn no_text_of_a_value_holds_the_token() {
         "no text holds the token"
     );
 }
+
+fn alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+    #[cfg(windows)]
+    {
+        std::process::Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+            .output()
+            .is_ok_and(|out| {
+                String::from_utf8_lossy(&out.stdout)
+                    .split_whitespace()
+                    .any(|word| word == pid.to_string())
+            })
+    }
+}
+
+#[test]
+fn a_panic_after_the_start_leaves_no_fixture_server() {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let joined = std::thread::spawn(move || {
+        Fixture::start_then(|pid| {
+            tx.send(pid).expect("the pid is sent");
+            panic!("a panic on purpose, right after the server started");
+        })
+    })
+    .join();
+    assert!(joined.is_err(), "the helper panicked");
+    let pid = rx.recv().expect("the pid of the server");
+    assert!(!alive(pid), "the fixture server ended with the panic");
+}
