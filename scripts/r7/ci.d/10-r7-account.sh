@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, no file that the dep-info of a package of account/ lists after them (a module of a path attribute, a file of include!, include_str! or include_bytes!) lies outside account/ and the build's target directory, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, no file that the dep-info of a package of account/ lists after them (a module of a path attribute, a file of include!, include_str! or include_bytes!) lies outside account/ and the build's target directory, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside and include-from-the-target-directory in the macos job alone and includes-inside in both jobs, and fails when the real builds of its job are none or none ran.
 set -u
 name=10-r7-account
 case $0 in
@@ -16,6 +16,8 @@ samples.v1.json contract/samples/v1.json
 prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
+real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside'
+real_builds_windows='includes-inside'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -664,12 +666,23 @@ selected() {
   return 1
 }
 
+real_build() {
+  case " $real_builds " in
+    *" $1 "*) return 0 ;;
+  esac
+  selected "$1" && printf 'case %s/%s not run: the %s job runs no real build of it\n' "$name" "$1" "$CI_D_JOB"
+  return 1
+}
+
 run_case() {
   case=$1
   selected "$case" || return 0
   want=$2
   mode=$3
   shift 3
+  case " $* " in
+    *' STUB_BUILD_REAL=1 '*) real_runs=$((real_runs + 1)) ;;
+  esac
   if [ "$mode" = stub ]; then
     path=$stub:$PATH
   else
@@ -720,7 +733,12 @@ harness_case() {
 }
 
 self_test() {
+  case ${CI_D_JOB:-} in
+    macos | windows) ;;
+    *) fail 'CI_D_JOB names neither macos nor windows' ;;
+  esac
   enter_repository
+  real_runs=0
   work=$(mktemp -d "${TMPDIR:-/tmp}/r7-account-self-test.XXXXXX") || fail 'mktemp -d failed'
   real_cargo=$(command -v cargo) || fail 'cargo is not on the PATH'
   stub=$work/stub
@@ -893,28 +911,39 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   else
     printf 'case %s/repository-through-a-link not run: this system made no symbolic link\n' "$name"
   fi
-  make_fixture target-in-another-spelling && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" &&
-    ln -s "${fixture##*/}/target/account" "$work/another-spelling-of-the-target" 2>/dev/null
-  if [ -L "$work/another-spelling-of-the-target" ]; then
-    run_case target-in-another-spelling "PASS $name" stub STUB_TARGET_SPELLING="$work/another-spelling-of-the-target"
+  make_fixture target-in-another-spelling && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out"
+  spelling=
+  if command -v cygpath >/dev/null 2>&1; then
+    spelling=$(cygpath -m "$fixture/target/account") || spelling=
+  elif ln -s "${fixture##*/}/target/account" "$work/another-spelling-of-the-target" 2>/dev/null; then
+    spelling=$work/another-spelling-of-the-target
+  fi
+  if [ -n "$spelling" ]; then
+    run_case target-in-another-spelling "PASS $name" stub STUB_TARGET_SPELLING="$spelling"
   else
-    printf 'case %s/target-in-another-spelling not run: this system made no symbolic link\n' "$name"
+    printf 'case %s/target-in-another-spelling could not name the target in another spelling\n' "$name"
+    wrong="$wrong target-in-another-spelling"
   fi
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
+  case $CI_D_JOB in
+    macos) real_builds=$real_builds_macos ;;
+    windows) real_builds=$real_builds_windows ;;
+  esac
+  [ -n "$real_builds" ] || wrong="$wrong real-builds-of-the-$CI_D_JOB-job"
   want_packages=1
-  make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
+  real_build path-attribute-outside && make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
 pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
-  make_probe_fixture include-outside 'include!("../../../../outside/code.rs");' &&
+  real_build include-outside && make_probe_fixture include-outside 'include!("../../../../outside/code.rs");' &&
     run_case include-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
-  make_probe_fixture include-str-outside 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' &&
+  real_build include-str-outside && make_probe_fixture include-str-outside 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' &&
     run_case include-str-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
-  make_probe_fixture include-bytes-outside 'pub const BYTES: &[u8] = include_bytes!("../../../../outside/bytes.bin");' &&
+  real_build include-bytes-outside && make_probe_fixture include-bytes-outside 'pub const BYTES: &[u8] = include_bytes!("../../../../outside/bytes.bin");' &&
     run_case include-bytes-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
-  make_probe_fixture include-from-the-target-directory 'include!("../../../../target/account/code.rs");' &&
+  real_build include-from-the-target-directory && make_probe_fixture include-from-the-target-directory 'include!("../../../../target/account/code.rs");' &&
     mkdir -p "$fixture/target/account" && cp "$fixture/outside/code.rs" "$fixture/target/account/code.rs" &&
     run_case include-from-the-target-directory "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
   want_dep_info=2
-  make_probe_fixture includes-inside 'include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+  real_build includes-inside && make_probe_fixture includes-inside 'include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 #[path = "../inner/module.rs"]
 pub mod inner;
 pub const TEXT: &str = include_str!("../inner/text.txt");' &&
@@ -1021,6 +1050,10 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     harness_case crlf-without-carriage-returns accepted
   else
     harness_case crlf-without-carriage-returns refused
+  fi
+  if [ -z "${R7_ACCOUNT_CASES:-}" ] && [ "$real_runs" -eq 0 ]; then
+    printf 'the %s job ran no real build\n' "$CI_D_JOB"
+    wrong="$wrong no-real-build"
   fi
 
   if [ -n "$wrong" ]; then
