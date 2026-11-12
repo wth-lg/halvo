@@ -95,6 +95,13 @@ pub enum StoreError {
     /// store.key is empty, zeroed or does not parse.
     #[error("the store-key file does not parse")]
     KeyFileUnparseable,
+    /// store.db is missing or empty: `open` makes no database in its place.
+    #[error("the store database is missing or empty")]
+    DatabaseMissing,
+    /// The store key that store.key unwraps to does not open store.db: a key
+    /// of another store, a damaged page or a cut file.
+    #[error("the store key does not open the store database")]
+    DatabaseUnreadable,
     /// A segment whose key is live has no file.
     #[error("a segment whose key is live has no file")]
     SegmentMissing(Uuid),

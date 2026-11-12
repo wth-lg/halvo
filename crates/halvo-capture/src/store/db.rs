@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -182,6 +182,14 @@ pub(crate) struct Db {
     wal_path: PathBuf,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Database {
+    New,
+    Existing,
+}
+
+const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "events", "events_fts"];
+
 impl Db {
     pub(crate) fn path(store_dir: &Path) -> PathBuf {
         store_dir.join("store.db")
@@ -203,8 +211,38 @@ impl Db {
     }
 
     pub(crate) fn open(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
+        Self::open_file(store_dir, key, Database::New)
+    }
+
+    pub(crate) fn open_existing(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
+        Self::open_file(store_dir, key, Database::Existing)
+    }
+
+    fn require_file(store_dir: &Path) -> StoreResult<()> {
+        match std::fs::metadata(Self::path(store_dir)) {
+            Ok(meta) if meta.is_file() && meta.len() == 0 => Err(StoreError::DatabaseMissing),
+            Ok(meta) if meta.is_file() => Ok(()),
+            Ok(_) => Err(StoreError::DatabaseUnreadable),
+            Err(e) if e.kind() == ErrorKind::NotFound => Err(StoreError::DatabaseMissing),
+            Err(e) => Err(io_error(e)),
+        }
+    }
+
+    fn open_file(store_dir: &Path, key: &[u8; 32], database: Database) -> StoreResult<Self> {
+        if database == Database::Existing {
+            Self::require_file(store_dir)?;
+        }
         let path = Self::path(store_dir);
-        let conn = Connection::open(&path).map_err(db_error)?;
+        let conn = match database {
+            Database::New => Connection::open(&path),
+            Database::Existing => Connection::open_with_flags(
+                &path,
+                OpenFlags::SQLITE_OPEN_READ_WRITE
+                    | OpenFlags::SQLITE_OPEN_URI
+                    | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            ),
+        }
+        .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
         conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
@@ -223,7 +261,10 @@ impl Db {
             conn,
             wal_path: path.with_extension("db-wal"),
         };
-        db.init_schema()?;
+        match database {
+            Database::New => db.init_schema()?,
+            Database::Existing => db.require_schema()?,
+        }
         db.enable_fts_secure_delete()?;
         failpoint::hit("db_open")?;
         Ok(db)
@@ -255,6 +296,28 @@ impl Db {
                  CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
             )
             .map_err(db_error)
+    }
+
+    fn require_schema(&self) -> StoreResult<()> {
+        for table in SCHEMA_TABLES {
+            let defined: i64 = self
+                .conn
+                .query_row(
+                    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |r| r.get(0),
+                )
+                .map_err(unreadable_or_db_error)?;
+            if defined != 1 {
+                return Err(StoreError::DatabaseUnreadable);
+            }
+            self.conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| {
+                    r.get::<_, i64>(0)
+                })
+                .map_err(unreadable_or_db_error)?;
+        }
+        Ok(())
     }
 
     fn enable_fts_secure_delete(&self) -> StoreResult<()> {
@@ -409,12 +472,19 @@ fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
     })
     .map(|_| ())
     .map_err(|e| match e.sqlite_error_code() {
-        Some(ErrorCode::NotADatabase) => StoreError::Sealed,
+        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => StoreError::DatabaseUnreadable,
         Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => {
             StoreError::Locked(store_dir.to_path_buf())
         }
         _ => db_error(e),
     })
+}
+
+fn unreadable_or_db_error(e: rusqlite::Error) -> StoreError {
+    match e.sqlite_error_code() {
+        Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt) => StoreError::DatabaseUnreadable,
+        _ => db_error(e),
+    }
 }
 
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
@@ -558,17 +628,18 @@ impl EncryptedStore {
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
-    /// through the custody it names** and open the database. A `store.db` that
-    /// is missing or empty is made as a new, empty database: the store opens,
-    /// and none of the segments or events that it held reads again. Fails
-    /// [`StoreError::Locked`] while another writer holds the directory, and
-    /// [`StoreError::Sealed`] when `store.key` is missing (delete-all ran, or no
-    /// store was made here) and when the unwrapped key does not open the
-    /// database: a key of another store, a damaged first page, or a file
-    /// shorter than one page. Fails [`StoreError::KeyFileUnparseable`] for a key
-    /// file that does not parse or whose wrapped key has another length than a
-    /// wrap, and [`StoreError::Custody`] with the custody's own variant when the
-    /// custody kind is not in this build or the unwrap fails:
+    /// through the custody it names** and open the database. `open` never
+    /// makes a database. Fails [`StoreError::Locked`] while another writer holds
+    /// the directory, [`StoreError::Sealed`] when `store.key` is missing
+    /// (delete-all ran, or no store was made here), [`StoreError::DatabaseMissing`]
+    /// when `store.db` is missing or empty, and
+    /// [`StoreError::DatabaseUnreadable`] when the unwrapped key does not open
+    /// the database: a key of another store, a damaged page, a cut file, or a
+    /// database without the store's tables. Fails
+    /// [`StoreError::KeyFileUnparseable`] for a key file that does not parse or
+    /// whose wrapped key has another length than a wrap, and
+    /// [`StoreError::Custody`] with the custody's own variant when the custody
+    /// kind is not in this build or the unwrap fails:
     /// [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`] and
     /// [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
@@ -588,7 +659,7 @@ impl EncryptedStore {
         let wrapped = key_file.wrapped_store_key()?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
         let store_key = custody.unwrap_store_key(&wrapped)?;
-        let db = Db::open(dir, store_key.expose())?;
+        let db = Db::open_existing(dir, store_key.expose())?;
         Ok(Self {
             dir: dir.to_path_buf(),
             retention,

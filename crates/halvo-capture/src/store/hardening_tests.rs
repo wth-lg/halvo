@@ -616,7 +616,7 @@ fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
 }
 
 #[test]
-fn a_wrong_store_key_opens_as_sealed_and_a_shredded_segment_reads_as_sealed() {
+fn a_wrong_store_key_opens_as_database_unreadable_and_a_shredded_segment_reads_as_sealed() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
     let (seg_ref, _) = store
@@ -643,10 +643,135 @@ fn a_wrong_store_key_opens_as_sealed_and_a_shredded_segment_reads_as_sealed() {
     let opened = EncryptedStore::open(dir.path(), DEFAULT_RETENTION);
     DevFallbackCustody::new(other_root).destroy_root().unwrap();
     assert!(
-        matches!(opened, Err(StoreError::Sealed)),
+        matches!(opened, Err(StoreError::DatabaseUnreadable)),
         "a wrong store key opened as {:?}",
         opened.err()
     );
+}
+
+fn files_and_lengths(dir: &Path) -> Vec<(PathBuf, u64)> {
+    let mut files: Vec<(PathBuf, u64)> = files_under(dir)
+        .into_iter()
+        .map(|path| {
+            let len = std::fs::metadata(&path).unwrap().len();
+            (path, len)
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+fn open_over_file_root(
+    store_dir: &Path,
+    roots_dir: &Path,
+    root_id: RootId,
+) -> StoreResult<EncryptedStore> {
+    EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, _| {
+        Ok(Box::new(file_root_custody(
+            roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )))
+    })
+}
+
+type DamageToTheDatabase = fn(&Path, &Path, RootId);
+
+fn cut_store_db_to(store_dir: &Path, len: u64) {
+    std::fs::File::options()
+        .write(true)
+        .open(store_dir.join("store.db"))
+        .unwrap()
+        .set_len(len)
+        .unwrap();
+}
+
+fn answers_after_damage(cases: &[(&str, DamageToTheDatabase)], expected: &str) -> Vec<String> {
+    let mut problems = Vec::new();
+    for (case, damage) in cases {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+        damage(&store_dir, &roots_dir, root_id);
+        let before = files_and_lengths(&store_dir);
+        let answer = match open_over_file_root(&store_dir, &roots_dir, root_id) {
+            Ok(mut store) => {
+                let read = store.read_segment(segment_id, &mut Vec::new());
+                let pass = store.crypto_shred_expired();
+                drop(store);
+                format!(
+                    "Ok, then read_segment {read:?}, the next expiry pass {pass:?} and the live \
+                     segment file left after it: {}",
+                    segment_path(&store_dir, segment_id).exists()
+                )
+            }
+            Err(e) => format!("{e:?}"),
+        };
+        let after = files_and_lengths(&store_dir);
+        if answer != expected {
+            problems.push(format!("{case}: open answered {answer} in place of {expected}"));
+        }
+        if after != before {
+            problems.push(format!(
+                "{case}: open changed the files of the store from {before:?} to {after:?}"
+            ));
+        }
+    }
+    problems
+}
+
+#[test]
+fn open_answers_a_missing_or_empty_database_as_database_missing_and_makes_no_file() {
+    let problems = answers_after_damage(
+        &[
+            ("store.db removed", |store_dir, _, _| {
+                std::fs::remove_file(store_dir.join("store.db")).unwrap()
+            }),
+            ("store.db cut to 0 bytes", |store_dir, _, _| {
+                cut_store_db_to(store_dir, 0)
+            }),
+        ],
+        "DatabaseMissing",
+    );
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn open_answers_a_database_that_its_key_does_not_open_as_database_unreadable() {
+    let problems = answers_after_damage(
+        &[
+            ("store.db cut to 1000 bytes", |store_dir, _, _| {
+                cut_store_db_to(store_dir, 1000)
+            }),
+            ("store.db cut to 4096 bytes", |store_dir, _, _| {
+                cut_store_db_to(store_dir, 4096)
+            }),
+            (
+                "store.key holds the wrap of another store key under the same root",
+                |store_dir, roots_dir, root_id| {
+                    use base64::engine::general_purpose::STANDARD;
+                    use base64::Engine;
+
+                    let custody = file_root_custody(roots_dir, TestProtector::new(0x5a).0, root_id);
+                    let another = custody.wrap_store_key(&StoreKey::random().unwrap()).unwrap();
+                    let mut key_file = KeyFile::read(store_dir).unwrap();
+                    key_file.wrapped_store_key_b64 = STANDARD.encode(&another.0);
+                    std::fs::write(
+                        KeyFile::path(store_dir),
+                        serde_json::to_vec(&key_file).unwrap(),
+                    )
+                    .unwrap();
+                },
+            ),
+            ("byte 100 of store.db flipped", |store_dir, _, _| {
+                let path = store_dir.join("store.db");
+                let mut bytes = std::fs::read(&path).unwrap();
+                bytes[100] ^= 0xff;
+                std::fs::write(&path, bytes).unwrap();
+            }),
+        ],
+        "DatabaseUnreadable",
+    );
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 #[cfg(unix)]
