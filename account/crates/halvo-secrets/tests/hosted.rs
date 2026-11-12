@@ -81,10 +81,8 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
 mod keychain_items {
     use super::*;
     use security_framework::item::{ItemClass, ItemSearchOptions};
-    #[cfg(not(feature = "keychain"))]
     use security_framework::os::macos::keychain::SecKeychain;
 
-    #[cfg(not(feature = "keychain"))]
     pub(crate) fn add(account: &Name, bytes: &[u8]) {
         SecKeychain::default()
             .expect("the default keychain")
@@ -182,9 +180,38 @@ mod beside_the_keychain {
 #[cfg(all(target_os = "macos", debug_assertions, feature = "keychain"))]
 mod moves {
     use super::*;
-    use halvo_secrets::{Locked, MoveFault};
+    use halvo_secrets::{Fault, Locked, MoveFault};
+    use std::os::unix::fs::PermissionsExt;
 
     const EARLIER: &[u8] = b"kept by an unsigned build";
+
+    fn set_mode(place: &Path, mode: u32) {
+        std::fs::set_permissions(place, std::fs::Permissions::from_mode(mode))
+            .expect("the mode of the store directory");
+    }
+
+    #[test]
+    fn a_delete_beside_a_file_that_cannot_be_read_answers_a_fault_and_keeps_the_file() {
+        on_a_hosted_runner();
+        let label = "unreadable";
+        let store = store(label);
+        let file = file_store(label);
+        assert_eq!(file.write(&secret(EARLIER)), Write::Stored);
+        keychain_items::add(&name(label), EARLIER);
+        let place = dir(label);
+        set_mode(&place, 0o000);
+        let delete = store.delete();
+        set_mode(&place, 0o700);
+        assert_eq!(delete, Delete::Fault(Fault { code: 13 }));
+        assert_eq!(keychain_items::count(&name(label)), 0);
+        assert_eq!(found(file.read()), EARLIER);
+        assert_eq!(found(store.read()), EARLIER);
+        assert!(matches!(file.read(), Read::NotStored));
+        assert_eq!(store.delete(), Delete::Deleted);
+        println!(
+            "\na delete beside a file that cannot be read answered {delete:?} and kept the file"
+        );
+    }
 
     fn failing(label: &str, fault: MoveFault) -> Store {
         Store::with_move_fault(
