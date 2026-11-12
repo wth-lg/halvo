@@ -83,3 +83,11 @@ test("a seventh view file renders with one line added to the view list and no ed
   assert.equal(changed.length, original.length + 1);
   assert.deepEqual(changed.filter((l, i) => i !== last + 1), original);
 });
+
+test("the page runs with the global API off and shows the version from the core app version command", async () => {
+  const page = await openPage({ replies: { "plugin:app|version": () => "9.8.7" } });
+  assert.equal(page.window.__TAURI__, undefined);
+  assert.equal(page.calls("plugin:app|version").length, 1);
+  assert.equal(page.text("version"), "9.8.7");
+  assert.equal(page.text("state"), "capturing");
+});

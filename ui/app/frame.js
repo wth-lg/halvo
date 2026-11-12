@@ -109,6 +109,12 @@
     entries.forEach(function (view) {
       view.show();
     });
+    Halvo.ipc
+      .call("plugin:app|version")
+      .then(function (version) {
+        document.getElementById("version").textContent = version;
+      })
+      .catch(Halvo.showError);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

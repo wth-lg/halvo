@@ -6,7 +6,9 @@ use halvo_capture::consent::status::{
     ConsentController, DataStore, SettingsFile, SETTINGS_FILE_NAME,
 };
 use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, Builder, Context, Manager, Runtime, WindowEvent};
+use tauri::{
+    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewWindowBuilder, WindowEvent,
+};
 
 use crate::commands::{self, capture::AppState};
 
@@ -52,6 +54,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 store_backend: parts.store_backend,
                 open_pane: parts.open_pane,
             });
+            main_window(app.handle())?;
             (parts.tray)(app.handle())?;
             Ok(())
         })
@@ -64,9 +67,34 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
         .on_page_load(|webview, payload| {
             if payload.event() == PageLoadEvent::Finished {
                 let _ = webview.window().set_title(&format!("Halvo {VERSION}"));
-                let _ = webview.eval(format!(
-                    "document.getElementById('version').textContent = '{VERSION}';"
-                ));
             }
         })
+}
+
+/// Whether `url` is of the app's own origin, the only place the window may
+/// navigate to: `tauri://localhost` on macOS, `http://tauri.localhost` on Windows.
+pub fn is_app_url(url: &Url) -> bool {
+    let (scheme, host) = if cfg!(windows) {
+        ("http", "tauri.localhost")
+    } else {
+        ("tauri", "localhost")
+    };
+    url.scheme() == scheme && url.host_str() == Some(host) && url.port().is_none()
+}
+
+/// Builds the window main from its entry in tauri.conf.json, with the
+/// navigation rule `is_app_url`.
+fn main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .cloned()
+        .ok_or_else(|| tauri::Error::WindowNotFound)?;
+    WebviewWindowBuilder::from_config(app, &config)?
+        .on_navigation(is_app_url)
+        .build()?;
+    Ok(())
 }

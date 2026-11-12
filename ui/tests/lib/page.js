@@ -73,6 +73,7 @@ function defaultReplies() {
     capture_status: () => fixture("capture_status-running"),
     inventory: () => fixture("inventory-empty"),
     onboarding_state: () => fixture("onboarding_state-none"),
+    "plugin:app|version": () => "0.0.0",
   };
 }
 
@@ -81,7 +82,7 @@ function defaultReplies() {
  * `replies` maps a command to a value or to a function of the arguments that
  * returns the reply or throws the error text. Returns the page handle.
  */
-async function openPage({ dir = APP, replies = {}, globalTauri = true } = {}) {
+async function openPage({ dir = APP, replies = {}, globalTauri = false } = {}) {
   const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
   const { document, scripts } = parse(html);
   const clock = new Clock();

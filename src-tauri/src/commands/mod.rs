@@ -1,3 +1,11 @@
+//! The commands of the view, one module each, and the module table.
+//!
+//! The capability files under src-tauri/capabilities/ let the window main of
+//! the app's own origin call these commands and no other window or origin. A
+//! capability limits other windows and origins, not script in the same page:
+//! any script that runs in the page of the window main can call every command
+//! that its capability allows.
+
 pub mod capture;
 pub mod names;
 
