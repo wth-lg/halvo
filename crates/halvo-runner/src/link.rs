@@ -163,6 +163,38 @@ impl Link {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use halvo_schema::executable::frame::Done;
+    use halvo_schema::executable::Outcome;
+    use std::sync::{Arc, Mutex};
+
+    struct Shared(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Shared {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("lock").extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_close_that_the_reader_has_taken_stops_the_next_frame() {
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let mut link = Link::start(
+            Box::new(std::io::empty()),
+            Box::new(Shared(Arc::clone(&out))),
+            false,
+        );
+        std::thread::sleep(Duration::from_millis(300));
+        let done = FromRunner::Done(Done {
+            outcome: Outcome::Completed,
+        });
+        assert_eq!(link.send(&done), Err(Broken::Closed));
+        assert!(out.lock().expect("lock").is_empty(), "nothing written");
+    }
 
     #[test]
     fn a_frame_is_its_length_in_four_bytes_big_endian_then_its_json() {

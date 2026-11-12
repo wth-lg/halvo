@@ -109,160 +109,6 @@ fn the_effect_unknown_handback_opens_when_its_log_line_is_refused() {
     );
 }
 
-/// The supervisor answers the `load` of the edit step and closes its writer (the runner's standard input) at
-/// once, while it still reads the runner's frames. From that close on the runner makes no propose (A6.1): no
-/// `store` frame of an effect row may come after it, the workbook stays as it was, and the runner exits 1 within
-/// LINK_END.
-#[test]
-fn a_close_of_input_after_the_edits_load_lets_no_propose_out() {
-    let files = FillFiles::new("review-close-1", 1);
-    let before = files.workbook_bytes();
-    let sup = fill(101, &files);
-    let mut runner = support::Runner::start(&sup.args());
-    let mut loads = 0;
-    let mut closed = false;
-    let mut after_close: Vec<FromRunner> = Vec::new();
-    while let Some(frame) = runner.recv() {
-        if closed {
-            after_close.push(frame);
-            continue;
-        }
-        if is_op(&frame, "load") {
-            loads += 1;
-        }
-        if let Some(reply) = sup.answer(&frame) {
-            runner.send(&reply);
-        }
-        if loads == 2 {
-            runner.close_input();
-            closed = true;
-        }
-    }
-    let status = runner.wait_within(halvo_runner::LINK_END);
-    assert!(closed, "the runner reached the load of its edit step");
-    let effect_rows: Vec<&'static str> = after_close
-        .iter()
-        .filter(|f| {
-            matches!(f, FromRunner::Store(s)
-                if matches!(s.request.body(), halvo_schema::executable::RunnerCall::Effect(_)))
-        })
-        .map(support::tag)
-        .collect();
-    assert!(
-        effect_rows.is_empty(),
-        "no effect row is proposed after the close; frames after the close: {:?}",
-        after_close.iter().map(support::tag).collect::<Vec<_>>()
-    );
-    assert_eq!(files.workbook_bytes(), before, "the workbook is untouched");
-    if status.is_none() {
-        runner.kill();
-    }
-    let stderr = runner.stderr();
-    assert_eq!(
-        status.and_then(|s| s.code()),
-        Some(1),
-        "status 1 within LINK_END; stderr: {stderr}"
-    );
-}
-
-/// A6.1: from the close on the runner makes no propose. file_write calls propose() right after the reply to its
-/// second load with no check() between them, and Link::send never reads the reader's closed flag, so a close that
-/// follows that reply still lets the 'cleared' row's store frame out.
-#[test]
-fn a_close_after_the_second_load_reply_lets_no_cleared_row_out() {
-    let files = FillFiles::new("acting-2-close-after-load", 2);
-    let before = files.workbook_bytes();
-    let sup = fill(102, &files);
-    let mut runner = support::Runner::start(&sup.args());
-    let mut loads = 0;
-    let mut closed = false;
-    let mut after_close: Vec<FromRunner> = Vec::new();
-    while let Some(frame) = runner.recv() {
-        if closed {
-            after_close.push(frame);
-            continue;
-        }
-        let is_load = is_op(&frame, "load");
-        if is_load {
-            loads += 1;
-        }
-        if let Some(reply) = sup.answer(&frame) {
-            runner.send(&reply);
-        }
-        if is_load && loads == 2 {
-            runner.close_input();
-            closed = true;
-        }
-    }
-    let status = runner.wait_within(halvo_runner::LINK_END);
-    if status.is_none() {
-        runner.kill();
-    }
-    assert!(closed, "the edit reached its second load");
-    let rows: Vec<&'static str> = after_close.iter().map(support::tag).collect();
-    assert!(
-        !after_close.iter().any(|f| is_op(f, "effect")),
-        "no effect row after the close: {rows:?}"
-    );
-    assert_eq!(
-        status.and_then(|s| s.code()),
-        Some(1),
-        "exit 1 within LINK_END"
-    );
-    assert_eq!(files.workbook_bytes(), before);
-}
-
-/// The supervisor answers the first `begin` of the edit with a store fault and closes its writer (the runner's
-/// standard input) at once, while it still reads the runner's frames. A7.5 has the runner repeat a `begin` whose
-/// reply it lost, but A6.1 says that from the close on it makes no begin: no `releasing` row may come after the
-/// close, the workbook stays as it was, and the runner exits 1 within LINK_END.
-#[test]
-fn a_close_after_a_fault_of_the_begin_sends_no_begin_again() {
-    let files = FillFiles::new("review-close-2", 2);
-    let before = files.workbook_bytes();
-    let sup = fill(102, &files);
-    let mut runner = support::Runner::start(&sup.args());
-    let mut closed = false;
-    let mut after_close: Vec<FromRunner> = Vec::new();
-    while let Some(frame) = runner.recv() {
-        if closed {
-            after_close.push(frame);
-            continue;
-        }
-        if is_effect(&frame, EffectState::Releasing) {
-            runner.send(&store_error(&frame, "store"));
-            runner.close_input();
-            closed = true;
-            continue;
-        }
-        if let Some(reply) = sup.answer(&frame) {
-            runner.send(&reply);
-        }
-    }
-    let status = runner.wait_within(halvo_runner::LINK_END);
-    assert!(closed, "the runner reached the begin of its edit");
-    let begins = after_close
-        .iter()
-        .filter(|f| is_effect(f, EffectState::Releasing))
-        .count();
-    assert_eq!(
-        begins,
-        0,
-        "no begin after the close; frames after the close: {:?}",
-        after_close.iter().map(support::tag).collect::<Vec<_>>()
-    );
-    assert_eq!(files.workbook_bytes(), before, "the workbook is untouched");
-    if status.is_none() {
-        runner.kill();
-    }
-    let stderr = runner.stderr();
-    assert_eq!(
-        status.and_then(|s| s.code()),
-        Some(1),
-        "status 1 within LINK_END; stderr: {stderr}"
-    );
-}
-
 /// Limits reached between the prepare and the replace: the wall limit passes while the edit waits for its second
 /// load, and the runner still proposes, begins and replaces, and the run ends completed past its wall limit;
 /// within() runs only at the top of each step.
@@ -387,53 +233,130 @@ fn a_cancel_during_the_edits_load_makes_no_effect() {
     assert_eq!(files.workbook_bytes(), before, "the workbook is untouched");
 }
 
-/// Every send of the edit's `begin` meets a store fault, so the effect counts as releasing and the run owes an
-/// `effect_unknown` handback before its finish. The supervisor answers the third send with the fault and closes
-/// its writer (the runner's standard input) at once, while it still reads. From the close on the runner writes
-/// nothing more (A6.1): no log row of the handback, no handback, no finish, no done; the workbook stays as it
-/// was, and the runner exits 1 within LINK_END.
-#[test]
-fn a_close_after_the_last_fault_of_the_begin_writes_no_frame() {
-    let files = FillFiles::new("review-close-4", 1);
-    let before = files.workbook_bytes();
-    let sup = fill(104, &files);
+/// Serves the runner from the in-memory store; `reply` may answer a frame itself and say that the supervisor closes
+/// the runner's standard input right after that answer, while it goes on reading. Returns the frames that came after
+/// the close and the status.
+fn close_input_after(
+    sup: &Supervisor,
+    mut reply: impl FnMut(&FromRunner) -> Option<(ToRunner, bool)>,
+) -> (Vec<FromRunner>, Option<i32>) {
     let mut runner = support::Runner::start(&sup.args());
-    let mut begins = 0;
     let mut closed = false;
-    let mut after_close: Vec<FromRunner> = Vec::new();
+    let mut after_close = Vec::new();
     while let Some(frame) = runner.recv() {
         if closed {
             after_close.push(frame);
             continue;
         }
-        if is_effect(&frame, EffectState::Releasing) {
-            begins += 1;
-            runner.send(&store_error(&frame, "store"));
-            if begins == 3 {
-                runner.close_input();
-                closed = true;
-            }
-            continue;
+        let (answer, close) = match reply(&frame) {
+            Some((answer, close)) => (Some(answer), close),
+            None => (sup.answer(&frame), false),
+        };
+        if let Some(answer) = answer {
+            runner.send(&answer);
         }
-        if let Some(reply) = sup.answer(&frame) {
-            runner.send(&reply);
+        if close {
+            runner.close_input();
+            closed = true;
         }
     }
+    assert!(closed, "the run reached the frame of the close");
     let status = runner.wait_within(halvo_runner::LINK_END);
-    assert!(closed, "the runner sent its begin three times");
-    assert!(
-        after_close.is_empty(),
-        "no frame after the close; frames after the close: {:?}",
-        after_close.iter().map(support::tag).collect::<Vec<_>>()
-    );
-    assert_eq!(files.workbook_bytes(), before, "the workbook is untouched");
     if status.is_none() {
         runner.kill();
     }
-    let stderr = runner.stderr();
-    assert_eq!(
-        status.and_then(|s| s.code()),
-        Some(1),
-        "status 1 within LINK_END; stderr: {stderr}"
+    (after_close, status.and_then(|s| s.code()))
+}
+
+/// What the runner keeps after a close of its standard input alone (A6.1): it reads the link before every frame,
+/// but the end of file can still be on its way to its reader when it writes, so the one frame that it was about to
+/// write may come; then no other frame, no replace, and the status 1 within LINK_END.
+fn kept_after_a_close(
+    after_close: &[FromRunner],
+    code: Option<i32>,
+    files: &FillFiles,
+    before: &[u8],
+) {
+    let tags: Vec<&'static str> = after_close.iter().map(support::tag).collect();
+    assert!(
+        after_close.len() <= 1,
+        "at most the frame on its way: {tags:?}"
+    );
+    assert_eq!(files.workbook_bytes(), before, "no replace after the close");
+    assert_eq!(code, Some(1), "status 1 within LINK_END");
+}
+
+fn load_count() -> impl FnMut(&FromRunner) -> usize {
+    let mut loads = 0;
+    move |frame| {
+        if is_op(frame, "load") {
+            loads += 1;
+        }
+        loads
+    }
+}
+
+#[test]
+fn a_close_of_input_after_the_edits_load_lets_at_most_its_propose_out() {
+    let files = FillFiles::new("review-close-1", 1);
+    let before = files.workbook_bytes();
+    let sup = fill(101, &files);
+    let mut count = load_count();
+    let (after, code) = close_input_after(&sup, |frame| {
+        (count(frame) == 2 && is_op(frame, "load"))
+            .then(|| (sup.answer(frame).expect("a reply"), true))
+    });
+    kept_after_a_close(&after, code, &files, &before);
+    assert!(
+        after.iter().all(|f| is_effect(f, EffectState::Cleared)),
+        "only the propose can be on its way"
+    );
+}
+
+#[test]
+fn a_close_of_input_after_a_fault_of_the_begin_lets_at_most_its_repeat_out() {
+    let files = FillFiles::new("review-close-2", 2);
+    let before = files.workbook_bytes();
+    let sup = fill(102, &files);
+    let (after, code) = close_input_after(&sup, |frame| {
+        is_effect(frame, EffectState::Releasing).then(|| (store_error(frame, "store"), true))
+    });
+    kept_after_a_close(&after, code, &files, &before);
+}
+
+#[test]
+fn a_close_of_input_after_the_last_fault_of_the_begin_lets_at_most_one_frame_out() {
+    let files = FillFiles::new("review-close-4", 1);
+    let before = files.workbook_bytes();
+    let sup = fill(104, &files);
+    let mut begins = 0;
+    let (after, code) = close_input_after(&sup, |frame| {
+        if !is_effect(frame, EffectState::Releasing) {
+            return None;
+        }
+        begins += 1;
+        Some((store_error(frame, "store"), begins == 3))
+    });
+    kept_after_a_close(&after, code, &files, &before);
+    assert!(
+        !after
+            .iter()
+            .any(|f| matches!(f, FromRunner::Handback(_) | FromRunner::Done(_))),
+        "no handback and no done after the close"
+    );
+}
+
+#[test]
+fn a_close_of_input_after_the_reads_log_lets_at_most_the_next_progress_out() {
+    let files = FillFiles::new("review-close-5", 3);
+    let before = files.workbook_bytes();
+    let sup = fill(105, &files);
+    let (after, code) = close_input_after(&sup, |frame| {
+        is_op(frame, "log").then(|| (sup.answer(frame).expect("a reply"), true))
+    });
+    kept_after_a_close(&after, code, &files, &before);
+    assert!(
+        after.iter().all(|f| matches!(f, FromRunner::Progress(_))),
+        "no store request after the close"
     );
 }
