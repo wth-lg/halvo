@@ -18,6 +18,7 @@ import {
   outDir,
   pageConfirms,
   read,
+  trail,
   serve,
   stateFile,
   words,
@@ -567,8 +568,26 @@ async function openDialog(h) {
   });
 }
 
+async function transcript(h, tags) {
+  const facts = await h.page
+    .evaluate(() => ({
+      active: document.activeElement ? document.activeElement.tagName + ':' + (document.activeElement.getAttribute('data-act') || document.activeElement.getAttribute('role') || '-') : '-',
+      dialogs: [...document.querySelectorAll('[role="alertdialog"]')].map((d) => (d.matches(':modal') ? 'modal' : d.open ? 'open' : 'closed') + ':' + (d.isConnected ? 'in' : 'out')),
+    }))
+    .catch(() => null);
+  const head = 'transcript case=' + tags.join(';');
+  console.log(head + ' stub_lines=' + trail(h).length + ' calls=' + h.calls + ' started=' + h.started + ' errors=' + h.errors + ' flags=' + ([...h.flags].join(',') || '-'));
+  for (const line of trail(h)) console.log(head + ' ' + line);
+  console.log(head + ' page ' + JSON.stringify(facts));
+}
+
 async function confirms(origin, dir) {
   const faults = [];
+  let shown = 0;
+  const keep = async (h) => {
+    if (faults.length > shown) await transcript(h, faults.slice(shown));
+    shown = faults.length;
+  };
   const base = stateFile(dir, 'needs_confirm_page').snapshot.items[0];
   const a = withId(base, 'a'.repeat(32));
   const b = withId(base, 'b'.repeat(32));
@@ -589,7 +608,9 @@ async function confirms(origin, dir) {
       const got = said(out).join(',');
       if (got !== want) faults.push(tag + ':calls=' + (got || '-'));
     } finally {
-      await h.close();
+      await keep(h);
+      await keep(h);
+    await h.close();
     }
   };
   await keyed('held_enter', ['walk', 'down', 'down', 'down', 'up'], 'agents_answer:reject:a');
@@ -611,6 +632,7 @@ async function confirms(origin, dir) {
     const next = await openDialog(h);
     if (!next || next.item !== 'b' || !next.focused) faults.push('double_click_unsafe:second_not_open');
   } finally {
+    await keep(h);
     await h.close();
   }
   const sign = stateFile(dir, 'needs_sign_in').snapshot.items[0];
@@ -641,6 +663,7 @@ async function confirms(origin, dir) {
   } catch (err) {
     faults.push('held_key_reply:throws');
   } finally {
+    await keep(h);
     await h.close();
   }
   const typed = stateFile(dir, 'setup_three').snapshot.items[0];
@@ -674,6 +697,7 @@ async function confirms(origin, dir) {
   } catch (err) {
     faults.push('typing_reply:throws');
   } finally {
+    await keep(h);
     await h.close();
   }
   out = outDir();
@@ -684,6 +708,7 @@ async function confirms(origin, dir) {
     const r = await read(h);
     if (callsOf(out).length !== 1 || r.dialogs.some((x) => x.rendered)) faults.push('click_with_no_press:calls=' + callsOf(out).length);
   } finally {
+    await keep(h);
     await h.close();
   }
   out = outDir();
@@ -699,6 +724,7 @@ async function confirms(origin, dir) {
     }
     if (callsOf(out).length !== 1) faults.push('press_after_raise:calls=' + callsOf(out).length);
   } finally {
+    await keep(h);
     await h.close();
   }
   const long = withId(base, 'f'.repeat(32));
@@ -717,6 +743,7 @@ async function confirms(origin, dir) {
     if (!top.taller) faults.push('long_confirm_not_long');
     if (top.scroll !== 0 || !top.inView || !top.focused) faults.push('long_confirm_top_out_of_view');
   } finally {
+    await keep(h);
     await h.close();
   }
   return faults;
