@@ -80,10 +80,14 @@ fn fill_and_publish<T, E>(
     Ok(value)
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
-    #[cfg(target_os = "macos")]
     std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
-    #[cfg(windows)]
+    options
+}
+
+#[cfg(windows)]
+pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
     std::os::windows::fs::OpenOptionsExt::custom_flags(options, FILE_FLAG_OPEN_REPARSE_POINT);
     options
 }
