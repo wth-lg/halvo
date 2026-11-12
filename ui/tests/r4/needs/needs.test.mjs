@@ -330,6 +330,11 @@ async function presses(h, how, locator) {
   await frames(h);
 }
 
+async function waitCalls(h, out, count) {
+  for (let i = 0; i < 200 && callsOf(out).length < count; i++) await frames(h);
+  for (let i = 0; i < 4; i++) await frames(h);
+}
+
 function prepare(item) {
   return item.params
     .map((p) =>
@@ -359,6 +364,7 @@ async function once(origin, dir) {
       try {
         for (const a of prepare(item)) await act(h, a);
         await presses(h, how, h.page.locator(sel(choice, item.item)));
+        await waitCalls(h, out, want.length);
         const got = callsOf(out).map((c) => ({ call: c.call, args: c.args }));
         seen.presses += 1;
         if (firstDiff(got, want) >= 0) faults.push(state + ':' + choice + ':' + how + ':calls=' + got.length + ':want=' + want.length);
