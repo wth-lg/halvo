@@ -313,8 +313,24 @@ fn the_checkpoint_rows_hold_the_four_states_of_the_shape() {
             })
             .collect()
     };
+    let kind = entry("agent_checkpoint");
+    let mut keys: Vec<&str> = Vec::new();
+    for (key, _) in kind.fields {
+        if !keys.contains(key) {
+            keys.push(key);
+        }
+    }
     let mut states = BTreeSet::new();
     for line in own_lines("agent_checkpoint") {
+        let at: Vec<Option<usize>> = keys
+            .iter()
+            .map(|key| line.find(&format!("\"{key}\":")))
+            .collect();
+        assert!(at.iter().all(Option::is_some), "{line}");
+        assert!(
+            at.windows(2).all(|w| w[0] < w[1]),
+            "keys out of order: {line}"
+        );
         let row: serde_json::Value = serde_json::from_str(&line).unwrap();
         let state = row["state"].as_str().unwrap();
         states.insert(state.to_owned());
@@ -327,17 +343,30 @@ fn the_checkpoint_rows_hold_the_four_states_of_the_shape() {
             "gone" | "left" => assert!(row["seq"].as_u64() > Some(1), "{line}"),
             _ => panic!("{line}"),
         }
-        let left = row["left"].as_str();
-        assert_eq!(left.is_some(), state == "left", "{line}");
-        assert!(left.is_none_or(|l| {
-            ["changed", "link", "not_file", "name", "unreadable"].contains(&l)
-        }));
+        match &row["left"] {
+            serde_json::Value::Null => assert_ne!(state, "left", "{line}"),
+            serde_json::Value::String(left) => {
+                assert_eq!(state, "left", "{line}");
+                let reasons = ["changed", "link", "not_file", "name", "unreadable"];
+                assert!(reasons.contains(&left.as_str()), "{line}");
+            }
+            _ => panic!("left is neither null nor a name: {line}"),
+        }
         let folder = pieces(&row["folder"]);
         let workbook = pieces(&row["workbook"]);
         assert!(workbook.starts_with(&format!("{folder}/")), "{line}");
+        let file = workbook.rsplit('/').next().unwrap();
+        let (name, ext) = match file.rsplit_once('.') {
+            Some((name, ext)) => (name, format!(".{ext}")),
+            None => (file, String::new()),
+        };
         let run = row["run"].as_str().unwrap();
         let copy = pieces(&row["copy"]);
-        assert_eq!(copy, format!("bills.halvo-checkpoint-{run}.xlsx"), "{line}");
+        assert_eq!(
+            copy,
+            format!("{name}.halvo-checkpoint-{run}{ext}"),
+            "{line}"
+        );
     }
     let all: BTreeSet<String> = ["planned", "made", "gone", "left"]
         .map(str::to_owned)
