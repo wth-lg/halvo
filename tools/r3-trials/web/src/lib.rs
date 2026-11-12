@@ -50,6 +50,37 @@ pub const RELAY_STEPS: [&str; 4] = ["list_refuse", "list_hops", "list_close", "o
 /// control, which shows that the row can fail, and `frame_doc` on the port with the relay.
 pub const WAY_STEPS: [&str; 3] = ["ws_allowed", "ws_allowed_control", "frame_doc"];
 
+/// The rows of CP-78 (U0.7b), which decide: through the relay, a read to a host outside the
+/// rule's list from each kind of context (a page, a page opened after the rule was armed, a frame,
+/// a dedicated worker, a shared worker, a service worker); ok when no byte reaches that host.
+pub const REACH_STEPS: [&str; 6] = [
+    "reach_page",
+    "reach_opened",
+    "reach_frame",
+    "reach_worker",
+    "reach_shared",
+    "reach_service",
+];
+
+/// The rows of U0.7b (A13.7) that run with the browser as the command of the repository's egress
+/// check (`--rows egress --round 2`), with a list that holds the relay's port alone.
+pub const EGRESS_STEPS: [&str; 10] = [
+    "no_worker_paths",
+    "udp_quic",
+    "webtransport",
+    "peer_connection",
+    "secure_dns",
+    "lan_discovery",
+    "link_lookup",
+    "after_unload",
+    "reports",
+    "handler_launch",
+];
+
+/// The flag by which the trial program, started in the browser's place, knows that it is the
+/// browser's launcher under the egress check; its value is the hex of a JSON array.
+pub const EGRESS_WRAP_FLAG: &str = "--r3-egress-wrap=";
+
 /// The policy of A4.2 that the executor adds to every document and worker script (CP-67).
 pub const WS_POLICY: &str = "connect-src http: https: data: blob:";
 
@@ -85,7 +116,7 @@ pub const ROUND2_FLAGS: [&str; 5] = [
     "--no-pings",
     "--disable-extensions",
     "--disable-component-extensions-with-background-pages",
-    "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate",
+    "--disable-features=FetchLaterAPI,MediaRouter,DialMediaRouteProvider,CastMediaRouteProvider,SignedHTTPExchange,SignedExchangeSubresourcePrefetch,Prerender2,PrefetchProxy,NetworkErrorLogging,Reporting,DocumentReporting,FedCm,PaymentHandler,WebAuthenticationCable,AttributionReporting,PrivacySandboxAdsAPIs,InterestFeedContentSuggestions,OptimizationHints,Translate,WebRtcHideLocalIpsWithMdns",
 ];
 
 /// The `Local State` of the agent's new profile: secure lookups off.
@@ -94,7 +125,24 @@ pub const AGENT_LOCAL_STATE: &str = r#"{"dns_over_https":{"mode":"off","template
 /// The `Default/Preferences` of the agent's new profile: every permission that a page can ask for
 /// denied, prediction and prefetch off, no saved password or payment method, safe browsing,
 /// suggestions and spell checking off.
-pub const AGENT_PREFERENCES: &str = r#"{"profile":{"default_content_setting_values":{"notifications":2,"geolocation":2,"media_stream_camera":2,"media_stream_mic":2,"clipboard":2,"midi_sysex":2,"usb_guard":2,"serial_guard":2,"hid_guard":2,"bluetooth_guard":2,"bluetooth_scanning":2,"file_system_write_guard":2,"file_system_read_guard":2,"automatic_downloads":2,"sensors":2,"idle_detection":2,"window_placement":2,"local_fonts":2,"payment_handler":2,"protocol_handlers":2,"ar":2,"vr":2,"nfc":2,"storage_access":2},"password_manager_enabled":false},"credentials_enable_service":false,"autofill":{"profile_enabled":false,"credit_card_enabled":false},"payments":{"can_make_payment_enabled":false},"net":{"network_prediction_options":2},"safebrowsing":{"enabled":false},"search":{"suggest_enabled":false},"browser":{"enable_spellchecking":false},"dns_prefetching":{"enabled":false}}"#;
+pub const AGENT_PREFERENCES: &str = r#"{"profile":{"default_content_setting_values":{"notifications":2,"geolocation":2,"media_stream_camera":2,"media_stream_mic":2,"clipboard":2,"midi_sysex":2,"usb_guard":2,"serial_guard":2,"hid_guard":2,"bluetooth_guard":2,"bluetooth_scanning":2,"file_system_write_guard":2,"file_system_read_guard":2,"automatic_downloads":2,"sensors":2,"idle_detection":2,"window_placement":2,"local_fonts":2,"payment_handler":2,"protocol_handlers":2,"ar":2,"vr":2,"nfc":2,"storage_access":2},"password_manager_enabled":false},"credentials_enable_service":false,"autofill":{"profile_enabled":false,"credit_card_enabled":false},"payments":{"can_make_payment_enabled":false},"net":{"network_prediction_options":2},"safebrowsing":{"enabled":false},"search":{"suggest_enabled":false},"browser":{"enable_spellchecking":false},"dns_prefetching":{"enabled":false},"webrtc":{"ip_handling_policy":"disable_non_proxied_udp","multiple_routes_enabled":false,"nonproxied_udp_enabled":false},"web_package":{"signed_exchange":{"enabled":false}}}"#;
+
+/// The key ` majors=<v>:<n>,...` of a cell line whose runs reported more than one major version
+/// (CP-73), from the sorted majors of its runs; empty when they reported one.
+pub fn majors_key(sorted: &[u32]) -> String {
+    let mut per: Vec<(u32, usize)> = Vec::new();
+    for m in sorted {
+        match per.last_mut() {
+            Some((v, n)) if v == m => *n += 1,
+            _ => per.push((*m, 1)),
+        }
+    }
+    if per.len() < 2 {
+        return String::new();
+    }
+    let parts: Vec<String> = per.iter().map(|(v, n)| format!("{v}:{n}")).collect();
+    format!(" majors={}", parts.join(","))
+}
 
 pub fn variants_of(step: &str) -> &'static [&'static str] {
     match step {
@@ -268,6 +316,9 @@ mod tests {
     fn the_agent_settings_are_json_with_secure_lookups_off_and_permissions_denied() {
         let local: serde_json::Value = serde_json::from_str(AGENT_LOCAL_STATE).expect("json");
         assert_eq!(local["dns_over_https"]["mode"], "off");
+        assert_eq!(majors_key(&[156, 157, 157]), " majors=156:1,157:2");
+        assert_eq!(majors_key(&[157, 157]), "");
+        assert_eq!(majors_key(&[]), "");
         let prefs: serde_json::Value = serde_json::from_str(AGENT_PREFERENCES).expect("json");
         let settings = &prefs["profile"]["default_content_setting_values"];
         for key in [

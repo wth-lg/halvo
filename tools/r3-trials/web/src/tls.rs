@@ -168,6 +168,11 @@ impl Listener {
         )
     }
 
+    /// Starts `ways-listener.mjs`, the pages of the rows under the egress check.
+    pub fn start_ways(program: &Path) -> Result<Listener, String> {
+        Listener::spawn(program, &[])
+    }
+
     /// Starts `chain-listener.mjs`, the hosts of the rows `list_hops` and `list_close`.
     pub fn start_chain(program: &Path) -> Result<Listener, String> {
         Listener::spawn(program, &[])

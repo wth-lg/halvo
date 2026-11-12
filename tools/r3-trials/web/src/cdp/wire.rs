@@ -370,10 +370,21 @@ impl Wire {
         let method = ev.request.method.clone();
         let (origin, path) = split_url(&ev.request.url);
         let (body, body_complete) = body_of(&ev.request);
-        let let_through = self
-            .rule()
-            .map(|r| r.lets_through(&method, &origin))
+        let worker_script = ev
+            .request
+            .headers
+            .inner()
+            .as_object()
+            .map(|h| {
+                h.iter()
+                    .any(|(k, v)| k.eq_ignore_ascii_case("service-worker") && v == "script")
+            })
             .unwrap_or(false);
+        let let_through = !worker_script
+            && self
+                .rule()
+                .map(|r| r.lets_through(&method, &origin))
+                .unwrap_or(false);
         let id = ev.request_id.clone();
         let hold = self.rule().map(|r| r.hold).unwrap_or(false);
         let document = matches!(ev.resource_type, ResourceType::Document);

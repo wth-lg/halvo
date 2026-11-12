@@ -60,6 +60,16 @@ starts the browser headless with a new profile for every run, and stops both at 
   --rows ways       with --round 2, runs the recorded rows of U0.7b that the program holds:
                     ws_allowed with its control (tools/r3-trials/web/ws-listener.mjs is the
                     listener) and frame_doc on the port with the relay.
+  --rows egress     with --round 2, runs the rows of the ways out (no_worker_paths, udp_quic,
+                    webtransport, peer_connection, secure_dns, lan_discovery, link_lookup,
+                    after_unload, reports, handler_launch) with the browser as the command of
+                    sh scripts/egress/check.sh and a list that holds the relay's port alone
+                    (tools/r3-trials/web/ways-listener.mjs serves the pages); handler_launch does
+                    not run on this Mac.
+  --rows reach      with --round 2, runs the rows of ruling CP-78: through the relay, a read to a
+                    host outside the request rule's list from a page, a page opened after the
+                    rule was armed, a frame, a dedicated, a shared and a service worker.
+  --net-log DIR     with --rows egress, each browser writes its network log to DIR/<row>-<i>.json.
   --relay           runs the cells with the relay of ruling CP-24 in the trial program's own
                     process: every browser gets it as its only route, with the flags that the
                     README names.
@@ -88,13 +98,16 @@ refuse() {
 }
 
 candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch='' rows=nine
-relay='' routes='' round=''
+relay='' routes='' round='' netlog=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
     --extras) mode=extras; shift; continue ;;
     --resolver-probe) mode=resolver; shift; continue ;;
     --relay) relay=yes; shift; continue ;;
+    --net-log)
+      [ $# -ge 2 ] || refuse usage "--net-log needs a directory"
+      netlog=$2; shift 2; continue ;;
     --routes) routes=yes; shift; continue ;;
   esac
   [ $# -ge 2 ] || refuse usage "$1 needs a value or is unknown; see --help"
@@ -170,7 +183,21 @@ case "$rows" in
       *) refuse usage "--step with --rows ways takes one of ws_allowed, ws_allowed_control and frame_doc" ;;
     esac
     ;;
-  *) refuse usage "--rows takes isolation, driver, relay or ways" ;;
+  egress)
+    [ "$round" = 2 ] || refuse usage "--rows egress belongs to --round 2"
+    case "$step" in
+      '' | no_worker_paths | udp_quic | webtransport | peer_connection | secure_dns | lan_discovery | link_lookup | after_unload | reports | handler_launch) ;;
+      *) refuse usage "--step with --rows egress takes one of the rows of the ways out" ;;
+    esac
+    ;;
+  reach)
+    [ "$round" = 2 ] || refuse usage "--rows reach belongs to --round 2"
+    case "$step" in
+      '' | reach_page | reach_opened | reach_frame | reach_worker | reach_shared | reach_service) ;;
+      *) refuse usage "--step with --rows reach takes one of the six contexts of CP-78" ;;
+    esac
+    ;;
+  *) refuse usage "--rows takes isolation, driver, relay, ways, egress or reach" ;;
 esac
 case "$fault" in
   '') ;;
@@ -181,11 +208,12 @@ case "$fault" in
   *) refuse usage "--fault takes one of the faults that --help names" ;;
 esac
 [ "$mode" = snapshot ] && [ -z "$out" ] && refuse usage "--snapshot-pay needs a file"
+system=$(uname -s)
 if [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = macOS ]; then
   machine=hosted-mac
 elif [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = Windows ]; then
   machine=hosted-win
-elif [ "$(uname -s)" = Darwin ]; then
+elif [ "$system" = Darwin ]; then
   machine=mac
 else
   refuse usage "this machine is none of mac, hosted-mac and hosted-win"
@@ -215,7 +243,7 @@ if [ -z "$scratch" ]; then
 fi
 
 exe=
-case "$(uname -s)" in
+case "$system" in
   MINGW* | MSYS* | CYGWIN*) exe=.exe ;;
 esac
 if command -v cygpath >/dev/null 2>&1; then
@@ -252,6 +280,9 @@ case "$mode" in
     [ -n "$routes" ] && set -- "$@" --routes
     [ "$rows" = relay ] && set -- "$@" --rows relay
     [ "$rows" = ways ] && set -- "$@" --rows ways
+    [ "$rows" = egress ] && set -- "$@" --rows egress
+    [ "$rows" = reach ] && set -- "$@" --rows reach
+    [ -n "$netlog" ] && set -- "$@" --net-log "$netlog"
     [ -n "$round" ] && set -- "$@" --round "$round"
     ;;
   extras)

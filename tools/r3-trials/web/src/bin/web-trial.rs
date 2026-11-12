@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use r3_web::{
-    browser_kind, CANDIDATE, DRIVER_STEPS, ISOLATION_STEPS, RELAY_STEPS, STEPS, WAY_STEPS,
+    browser_kind, CANDIDATE, DRIVER_STEPS, EGRESS_STEPS, EGRESS_WRAP_FLAG, ISOLATION_STEPS,
+    REACH_STEPS, RELAY_STEPS, STEPS, WAY_STEPS,
 };
 
 #[derive(Default)]
@@ -17,6 +18,9 @@ struct Args {
     driver: bool,
     relay_rows: bool,
     way_rows: bool,
+    egress_rows: bool,
+    reach_rows: bool,
+    net_log: Option<PathBuf>,
     round2: bool,
     add_flags: Vec<String>,
     machine: Option<String>,
@@ -86,7 +90,13 @@ fn parse(argv: &[String]) -> Result<Args, String> {
                 "driver" => a.driver = true,
                 "relay" => a.relay_rows = true,
                 "ways" => a.way_rows = true,
-                _ => return Err("--rows takes isolation, driver, relay or ways".into()),
+                "egress" => a.egress_rows = true,
+                "reach" => a.reach_rows = true,
+                _ => {
+                    return Err(
+                        "--rows takes isolation, driver, relay, ways, egress or reach".into(),
+                    )
+                }
             },
             "--add-flag" => a.add_flags.push(take()?),
             "--machine" => {
@@ -108,6 +118,7 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             "--snapshot-pay" => a.mode = Mode::SnapshotPay,
             "--headed" => a.headed = true,
             "--relay" => a.relay = true,
+            "--net-log" => a.net_log = Some(PathBuf::from(take()?)),
             "--round" => {
                 if take()? != "2" {
                     return Err("--round takes 2".into());
@@ -139,7 +150,11 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if a.fault.is_some() && a.mode != Mode::Cells {
         return Err("--fault runs cells only".into());
     }
-    let rows: &[&str] = if a.way_rows {
+    let rows: &[&str] = if a.reach_rows {
+        &REACH_STEPS
+    } else if a.egress_rows {
+        &EGRESS_STEPS
+    } else if a.way_rows {
         &WAY_STEPS
     } else if a.relay_rows {
         &RELAY_STEPS
@@ -158,10 +173,13 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     if (a.isolation || a.driver) && (a.mode != Mode::Cells || a.fault.is_some()) {
         return Err("--rows isolation and --rows driver run cells with no fault".into());
     }
-    if (a.round2 || a.relay_rows || a.way_rows) && !a.relay && !a.driver {
+    if (a.round2 || a.relay_rows || a.way_rows || a.egress_rows || a.reach_rows)
+        && !a.relay
+        && !a.driver
+    {
         return Err("--round 2 and --rows relay need --relay".into());
     }
-    if (a.relay_rows || a.way_rows) && !a.round2 {
+    if (a.relay_rows || a.way_rows || a.egress_rows || a.reach_rows) && !a.round2 {
         return Err("--rows relay belongs to --round 2".into());
     }
     if !a.isolation && !a.add_flags.is_empty() {
@@ -170,12 +188,79 @@ fn parse(argv: &[String]) -> Result<Args, String> {
     Ok(a)
 }
 
+/// The trial program as the browser's launcher under the egress check (CP-71): it runs
+/// `sh scripts/egress/check.sh LIST -- BROWSER ARGS` in the repository, with the arguments that it
+/// got less its own flag. The check's standard error, which carries the browser's, goes to a file
+/// that this program follows to its own standard error: a pipe would end the check with SIGPIPE
+/// when the executor's stop ends this program first. Its exit code is the check's.
+fn egress_wrap(spec: &str, argv: &[String]) -> ExitCode {
+    let parts: Option<Vec<String>> = (0..spec.len() / 2)
+        .map(|i| u8::from_str_radix(spec.get(2 * i..2 * i + 2)?, 16).ok())
+        .collect::<Option<Vec<u8>>>()
+        .and_then(|b| serde_json::from_slice(&b).ok());
+    let Some([repo, list, browser, outfile]) = parts.as_deref() else {
+        eprintln!("REFUSED usage: the egress wrap flag holds no four paths");
+        return ExitCode::from(2);
+    };
+    let rest = argv.iter().filter(|a| !a.starts_with(EGRESS_WRAP_FLAG));
+    let err_file = match std::fs::File::create(outfile) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("REFUSED start: {} {}", outfile, e.kind());
+            return ExitCode::from(2);
+        }
+    };
+    let spawned = std::process::Command::new("sh")
+        .current_dir(repo)
+        .arg("scripts/egress/check.sh")
+        .arg(list)
+        .arg("--")
+        .arg(browser)
+        .args(rest)
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::from(err_file))
+        .spawn();
+    let mut child = match spawned {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("REFUSED start: sh {}", e.kind());
+            return ExitCode::from(2);
+        }
+    };
+    let mut reader = std::fs::File::open(outfile).ok();
+    let mut buf = vec![0u8; 65536];
+    loop {
+        let done = !matches!(child.try_wait(), Ok(None));
+        let mut read_any = false;
+        if let Some(r) = reader.as_mut() {
+            while let Ok(n) = std::io::Read::read(r, &mut buf) {
+                if n == 0 {
+                    break;
+                }
+                read_any = true;
+                let _ = std::io::stderr().write_all(&buf[..n]);
+            }
+        }
+        if done && !read_any {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    match child.wait() {
+        Ok(s) => ExitCode::from(s.code().unwrap_or(1).clamp(0, 255) as u8),
+        Err(_) => ExitCode::from(2),
+    }
+}
+
 fn port_free(port: u16) -> bool {
     TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(spec) = argv.iter().find_map(|a| a.strip_prefix(EGRESS_WRAP_FLAG)) {
+        return egress_wrap(spec, &argv);
+    }
     if argv.first().map(String::as_str) == Some("--driver-child") {
         return driver_child(&argv[1..]);
     }
@@ -252,8 +337,9 @@ mod driver {
     use r3_web::relay::{relay_flags, HostPort, Relay, RelayHandle};
     use r3_web::tls::{make_certificate, openssl_runs, CertFault, Listener};
     use r3_web::{
-        extract_amount, major_of, median, variants_of, CANDIDATE, FIRST_FLAGS, ISOLATION_STEPS,
-        RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, STEPS, WAY_STEPS, WS_POLICY,
+        extract_amount, major_of, median, variants_of, CANDIDATE, EGRESS_STEPS, EGRESS_WRAP_FLAG,
+        FIRST_FLAGS, ISOLATION_STEPS, REACH_STEPS, RELAY_STEPS, RESOLVER_RULE, ROUND2_FLAGS, STEPS,
+        WAY_STEPS, WS_POLICY,
     };
 
     use super::{out, Args, Mode};
@@ -327,6 +413,8 @@ mod driver {
         relayed: bool,
         round2: bool,
         relay: Option<RelayHandle>,
+        relay_port: u16,
+        net_log: Option<PathBuf>,
         repo: PathBuf,
     }
 
@@ -1130,6 +1218,516 @@ mod driver {
         outcome(misses, None)
     }
 
+    struct Egress {
+        dir: PathBuf,
+        net_log: PathBuf,
+        before: u64,
+    }
+
+    /// The addresses of the UDP sockets in the browser's network log whose connect the check
+    /// refused (net error -10). A refused connect of a UDP socket sends no packet: Chrome does
+    /// this to learn whether IPv6 reaches the internet, to 2001:4860:4860::8888 port 443.
+    fn refused_udp_connects(path: &Path) -> Option<Vec<String>> {
+        let text = std::fs::read_to_string(path).ok()?;
+        let d: serde_json::Value = serde_json::Deserializer::from_str(&text)
+            .into_iter()
+            .next()?
+            .ok()?;
+        let connect = d["constants"]["logEventTypes"]["UDP_CONNECT"].as_u64()?;
+        let mut addr = std::collections::HashMap::new();
+        let mut out = Vec::new();
+        for e in d["events"].as_array()? {
+            if e["type"].as_u64() != Some(connect) {
+                continue;
+            }
+            let id = e["source"]["id"].as_u64().unwrap_or(0);
+            if let Some(a) = e["params"]["address"].as_str() {
+                addr.insert(id, a.to_string());
+            }
+            if e["params"]["net_error"].as_i64() == Some(-10) {
+                out.push(addr.get(&id).cloned().unwrap_or_else(|| "-".into()));
+            }
+        }
+        Some(out)
+    }
+
+    /// Under the egress check the executor's stop ends the trial program that stands in the
+    /// browser's place, and a browser that outlived it keeps the check waiting: this ends every
+    /// process whose command line holds the run's profile path, by its number, so that the check
+    /// collects its log and takes its filters down. The check's own shell and runner carry the
+    /// browser's arguments too, and are left alone.
+    fn end_left_browser(profile: &Path) {
+        let mark = profile.to_string_lossy().into_owned();
+        let listed = if cfg!(windows) {
+            std::process::Command::new("powershell.exe")
+                .args([
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.CommandLine)\" }",
+                ])
+                .output()
+        } else {
+            std::process::Command::new("ps")
+                .args(["-axww", "-o", "pid=,command="])
+                .output()
+        };
+        let Ok(o) = listed else { return };
+        let own = std::process::id();
+        let pids: Vec<u32> = String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter(|l| {
+                l.contains(&mark)
+                    && !l.contains("scripts/egress/check.sh")
+                    && !l.contains("egress-spawn")
+                    && !l.contains(EGRESS_WRAP_FLAG)
+            })
+            .filter_map(|l| l.split_whitespace().next()?.parse().ok())
+            .filter(|p| *p != own)
+            .collect();
+        for p in &pids {
+            let _ = if cfg!(windows) {
+                std::process::Command::new("taskkill")
+                    .args(["/F", "/PID", &p.to_string()])
+                    .output()
+            } else {
+                std::process::Command::new("kill")
+                    .args(["-KILL", &p.to_string()])
+                    .output()
+            };
+        }
+        if !pids.is_empty() {
+            eprintln!("egress ended_left_browser_processes={}", pids.len());
+        }
+    }
+
+    fn port_of(text: &str) -> &str {
+        text.rsplit(':').next().unwrap_or("-")
+    }
+
+    enum EgressSeen {
+        Clean,
+        Denied(usize),
+        Unread(String),
+    }
+
+    fn egress_runs(repo: &Path) -> u64 {
+        std::fs::read_dir(repo.join("target/egress"))
+            .map(|d| {
+                d.filter_map(|e| e.ok()?.file_name().to_str()?.parse::<u64>().ok())
+                    .max()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0)
+    }
+
+    /// A path as `sh` reads it: on Windows `C:\x` becomes `/c/x`, so that the check finds the
+    /// browser's program and names it in its filters.
+    fn sh_path(p: &Path) -> String {
+        let s = p.to_string_lossy().replace('\\', "/");
+        let b = s.as_bytes();
+        if cfg!(windows) && b.len() > 2 && b[1] == b':' && b[2] == b'/' {
+            format!("/{}{}", (b[0] as char).to_ascii_lowercase(), &s[2..])
+        } else {
+            s
+        }
+    }
+
+    /// Starts the trial program in the browser's place, which runs the browser as the command of
+    /// `sh scripts/egress/check.sh` with a list that holds the relay's port alone (CP-71). On
+    /// macOS the browser gets `--no-sandbox`: its own sandbox cannot start inside the check's.
+    fn egress_setup(
+        ctx: &Ctx,
+        opts: &mut StartOptions,
+        name: &str,
+        i: u32,
+    ) -> Result<Egress, String> {
+        if ctx.relay_port == 0 {
+            return Err("no relay".into());
+        }
+        let dir = ctx
+            .scratch
+            .join(format!("{}-egress-{name}-{i}", std::process::id()));
+        std::fs::create_dir_all(&dir).map_err(|e| format!("dir {}", e.kind()))?;
+        let list = dir.join("list.txt");
+        std::fs::write(
+            &list,
+            format!("[fixed]\n127.0.0.1:{}\n[agent]\n", ctx.relay_port),
+        )
+        .map_err(|e| format!("list {}", e.kind()))?;
+        let spec = serde_json::to_vec(&[
+            ctx.repo.to_string_lossy().into_owned(),
+            sh_path(&list),
+            sh_path(&ctx.browser),
+            dir.join("check.err").to_string_lossy().into_owned(),
+        ])
+        .map_err(|_| "spec".to_string())?;
+        let hex: String = spec.iter().map(|b| format!("{b:02x}")).collect();
+        opts.flags.push(format!("{EGRESS_WRAP_FLAG}{hex}"));
+        if cfg!(target_os = "macos") {
+            opts.flags.push("--no-sandbox".into());
+        }
+        let net_log = match &ctx.net_log {
+            Some(d) => d.join(format!("{name}-{i}.json")),
+            None => dir.join("net.json"),
+        };
+        opts.flags
+            .push(format!("--log-net-log={}", net_log.display()));
+        opts.browser = std::env::current_exe().map_err(|e| format!("exe {}", e.kind()))?;
+        Ok(Egress {
+            dir,
+            net_log,
+            before: egress_runs(&ctx.repo),
+        })
+    }
+
+    /// Reads the run of the check that this browser had: the first directory under
+    /// `target/egress` that is newer than the start and done, and its `denied.log`.
+    async fn egress_read(ctx: &Ctx, e: &Egress, name: &str, i: u32) -> EgressSeen {
+        let mut found = None;
+        for _ in 0..120 {
+            let last = egress_runs(&ctx.repo);
+            for n in e.before + 1..=last {
+                let d = ctx.repo.join(format!("target/egress/{n}"));
+                let state = std::fs::read_to_string(d.join("state")).unwrap_or_default();
+                if state.lines().any(|l| l == "done") {
+                    found = Some((n, d));
+                    break;
+                }
+            }
+            if found.is_some() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        let line = std::fs::read_to_string(e.dir.join("check.err"))
+            .unwrap_or_default()
+            .lines()
+            .find(|l| l.starts_with("egress mode="))
+            .map(|l| l.to_string());
+        let Some((n, d)) = found else {
+            eprintln!(
+                "egress step={name} i={i} run=- line={}",
+                line.as_deref().unwrap_or("-")
+            );
+            return EgressSeen::Unread("no_done_run".into());
+        };
+        let denied = match std::fs::read_to_string(d.join("denied.log")) {
+            Ok(t) => t,
+            Err(_) => return EgressSeen::Unread("no_denied_log".into()),
+        };
+        let lines: Vec<&str> = denied.lines().filter(|l| !l.trim().is_empty()).collect();
+        let refused = refused_udp_connects(&e.net_log);
+        let mut pool: Vec<String> = refused.clone().unwrap_or_default();
+        let mut packets = 0;
+        for l in &lines {
+            let dest = l
+                .split_whitespace()
+                .find_map(|f| f.strip_prefix("dest="))
+                .unwrap_or("-");
+            let at = pool.iter().position(|a| port_of(a) == port_of(dest));
+            match at {
+                Some(k) if l.contains("proto=udp") => {
+                    pool.remove(k);
+                }
+                _ => packets += 1,
+            }
+        }
+        let mut seen: Vec<String> = refused.clone().unwrap_or_default();
+        seen.sort();
+        seen.dedup();
+        eprintln!(
+            "egress step={name} i={i} run={n} denied={} connect_only={} packets={packets} net_log={} refused_connects={} line={}",
+            lines.len(),
+            lines.len() - packets,
+            if refused.is_some() { "read" } else { "unread" },
+            if seen.is_empty() { "-".to_string() } else { seen.join(",") },
+            line.as_deref().unwrap_or("-")
+        );
+        for l in &lines {
+            let fields: Vec<&str> = l
+                .split_whitespace()
+                .filter(|f| !f.starts_with("at=") && *f != "denied")
+                .collect();
+            eprintln!("egress_denied step={name} i={i} {}", fields.join(" "));
+        }
+        if packets == 0 {
+            EgressSeen::Clean
+        } else {
+            EgressSeen::Denied(packets)
+        }
+    }
+
+    const WAY_EVIL: &str = "evil.agent.test";
+
+    async fn way_open(ex: &mut Executor, ctx: &Ctx, row: &str) -> Res<Listener> {
+        way_open_on(ex, ctx, row, UTILITY).await
+    }
+
+    /// Opens the row's page on `host` at the way listener's port, which the relay's list and the
+    /// request rule allow.
+    async fn way_open_on(ex: &mut Executor, ctx: &Ctx, row: &str, host: &str) -> Res<Listener> {
+        let relay = relay_of(ctx)?;
+        let program = ctx.repo.join("tools/r3-trials/web/ways-listener.mjs");
+        let listener = Listener::start_ways(&program).map_err(|e| Fault::new("listener", e))?;
+        relay.allow(host, listener.port);
+        ex.arm_rule(vec![format!("http://{host}:{}", listener.port)], false)
+            .await?;
+        if let Err(f) = ex
+            .open(&format!("http://{host}:{}/way/{row}", listener.port))
+            .await
+        {
+            listener.stop();
+            return Err(f);
+        }
+        Ok(listener)
+    }
+
+    fn way_counts(listener: &mut Listener) -> Res<serde_json::Value> {
+        listener
+            .json_counts()
+            .map_err(|e| Fault::new("listener", e))
+    }
+
+    fn path_count(c: &serde_json::Value, path: &str) -> u64 {
+        c["paths"][path].as_u64().unwrap_or(0)
+    }
+
+    /// The rows whose page only reaches out: ok when the listener counts nothing but the page.
+    async fn way_plain(ex: &mut Executor, ctx: &Ctx, row: &str) -> Res<Option<u128>> {
+        let mut listener = way_open(ex, ctx, row).await?;
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        let c = way_counts(&mut listener);
+        listener.stop();
+        let c = c?;
+        eprintln!("way_counts step={row} {}", c["paths"]);
+        let page = format!("/way/{row}");
+        let misses: Vec<String> = c["paths"]
+            .as_object()
+            .map(|m| {
+                m.keys()
+                    .filter(|k| **k != page && k.as_str() != "/favicon.ico")
+                    .map(|k| format!("f{}", k.replace('/', "_")))
+                    .collect()
+            })
+            .unwrap_or_default();
+        outcome(misses, None)
+    }
+
+    async fn no_worker_paths(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let mut listener = way_open_on(ex, ctx, "no_worker_paths", "127.0.0.1").await?;
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        let _ = ex
+            .open(&format!("http://127.0.0.1:{}/sxg", listener.port))
+            .await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let c = way_counts(&mut listener);
+        listener.stop();
+        let c = c?;
+        eprintln!(
+            "way_counts step=no_worker_paths {} sxg_accept={}",
+            c["paths"], c["sxg_accept"]
+        );
+        let mut misses = Vec::new();
+        if path_count(&c, "/sw.js") > 0 {
+            misses.push("worker_script".to_string());
+        }
+        if path_count(&c, "/pre") > 0 {
+            misses.push("prerender".to_string());
+        }
+        if c["sxg_accept"].as_u64().unwrap_or(0) > 0 {
+            misses.push("signed_exchange_accept".to_string());
+        }
+        outcome(misses, None)
+    }
+
+    async fn after_unload(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        let mut listener = way_open(ex, ctx, "after_unload").await?;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let next = ex
+            .open(&format!("http://{UTILITY}:{}/way/next", listener.port))
+            .await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        let c = way_counts(&mut listener);
+        let port = listener.port;
+        listener.stop();
+        next?;
+        let c = c?;
+        let refused = relay.refusals_of(WAY_EVIL, port);
+        eprintln!(
+            "way_counts step=after_unload {} relay_refused_evil={refused}",
+            c["paths"]
+        );
+        let misses: Vec<String> = ["/beacon", "/keepalive", "/later", "/ping"]
+            .iter()
+            .filter(|p| path_count(&c, p) > 0)
+            .map(|p| format!("f{}", p.replace('/', "_")))
+            .collect();
+        outcome(misses, None)
+    }
+
+    async fn way_reports(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let mut listener = way_open(ex, ctx, "reports").await?;
+        tokio::time::sleep(Duration::from_secs(65)).await;
+        let c = way_counts(&mut listener);
+        listener.stop();
+        let c = c?;
+        eprintln!("way_counts step=reports {}", c["paths"]);
+        let misses: Vec<String> = ["/report", "/report-to", "/report-uri"]
+            .iter()
+            .filter(|p| path_count(&c, p) > 0)
+            .map(|p| format!("f{}", p.replace('/', "_")))
+            .collect();
+        outcome(misses, None)
+    }
+
+    /// The processes of the machine: number, parent and name.
+    fn processes() -> Vec<(u32, u32, String)> {
+        let text = if cfg!(windows) {
+            std::process::Command::new("powershell.exe")
+                .args([
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) $($_.Name)\" }",
+                ])
+                .output()
+        } else {
+            std::process::Command::new("ps")
+                .args(["-axo", "pid=,ppid=,comm="])
+                .output()
+        };
+        let Ok(o) = text else { return Vec::new() };
+        String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter_map(|l| {
+                let mut w = l.split_whitespace();
+                let pid = w.next()?.parse().ok()?;
+                let ppid = w.next()?.parse().ok()?;
+                Some((pid, ppid, w.collect::<Vec<_>>().join(" ")))
+            })
+            .collect()
+    }
+
+    async fn handler_launch(ex: &mut Executor, ctx: &Ctx) -> Res<Option<u128>> {
+        let before: std::collections::BTreeSet<u32> =
+            processes().into_iter().map(|p| p.0).collect();
+        let listener = way_open(ex, ctx, "handler_launch").await?;
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        listener.stop();
+        let after = processes();
+        let parent: std::collections::BTreeMap<u32, u32> =
+            after.iter().map(|p| (p.0, p.1)).collect();
+        let own = std::process::id();
+        let below_own = |mut p: u32| {
+            for _ in 0..64 {
+                if p == own {
+                    return true;
+                }
+                match parent.get(&p) {
+                    Some(&q) if q != p && q != 0 => p = q,
+                    _ => return false,
+                }
+            }
+            false
+        };
+        let new: Vec<String> = after
+            .iter()
+            .filter(|p| !before.contains(&p.0) && !below_own(p.0))
+            .map(|p| {
+                p.2.rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or("-")
+                    .replace(' ', "_")
+            })
+            .collect();
+        eprintln!(
+            "handler_launch new_outside_tree={} names={}",
+            new.len(),
+            if new.is_empty() {
+                "-".to_string()
+            } else {
+                new.join(",")
+            }
+        );
+        let misses = if new.is_empty() {
+            Vec::new()
+        } else {
+            vec![format!("new_processes_{}", new.len())]
+        };
+        outcome(misses, None)
+    }
+
+    /// A row of CP-78: the page on 127.0.0.1 makes `context` read evil.agent.test on the
+    /// listener's port, which the relay's list holds and the request rule does not, so that only
+    /// the rule stands between the read and the listener. Ok when no byte reaches that host, and,
+    /// but for the service worker, the context reported that it ran.
+    async fn reach(ex: &mut Executor, ctx: &Ctx, context: &str) -> Res<Option<u128>> {
+        let relay = relay_of(ctx)?;
+        let program = ctx.repo.join("tools/r3-trials/web/ways-listener.mjs");
+        let mut listener = Listener::start_ways(&program).map_err(|e| Fault::new("listener", e))?;
+        let p = listener.port;
+        for h in ["127.0.0.1", UTILITY, WAY_EVIL] {
+            relay.allow(h, p);
+        }
+        let armed = ex
+            .arm_rule(
+                vec![
+                    format!("http://127.0.0.1:{p}"),
+                    format!("http://{UTILITY}:{p}"),
+                ],
+                false,
+            )
+            .await;
+        let page = if context == "opened" {
+            "opener"
+        } else {
+            context
+        };
+        let mut done = match armed {
+            Ok(()) => ex.open(&format!("http://127.0.0.1:{p}/reach/{page}")).await,
+            Err(f) => Err(f),
+        };
+        if done.is_ok() && context == "opened" {
+            done = match ex.resolve_one(&[role("button", "Open")], &[]).await {
+                Ok(b) => ex.click(&b).await,
+                Err(f) => Err(f),
+            };
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        let c = way_counts(&mut listener);
+        listener.stop();
+        done?;
+        let c = c?;
+        let evil: u64 = c["evil"]
+            .as_object()
+            .map(|m| m.values().filter_map(|v| v.as_u64()).sum())
+            .unwrap_or(0);
+        let ran = c["did"][context].as_u64().unwrap_or(0);
+        let paused_reads = ex
+            .paused()
+            .iter()
+            .filter(|q| q.path.starts_with("/read") && q.origin.contains(WAY_EVIL))
+            .count();
+        eprintln!(
+            "reach context={context} evil_requests={evil} evil_bytes={} ran={ran} did={} paused_reads={paused_reads} relay_refused_evil={}",
+            c["evil_bytes"],
+            c["did"],
+            relay.refusals_of(WAY_EVIL, p)
+        );
+        let mut misses = Vec::new();
+        if evil > 0 {
+            misses.push("bytes_reached".to_string());
+        }
+        if ran == 0 && context != "service" {
+            misses.push("context_did_not_run".to_string());
+        }
+        outcome(misses, None)
+    }
+
     async fn ws_allowed_run(
         ex: &mut Executor,
         ctx: &Ctx,
@@ -1295,6 +1893,14 @@ mod driver {
             "ws_allowed" => ws_allowed(ex, ctx, i).await,
             "ws_allowed_control" => ws_allowed_control(ex, ctx, i).await,
             "frame_doc" => frame_doc(ex, ctx).await,
+            "reach_page" | "reach_opened" | "reach_frame" | "reach_worker" | "reach_shared"
+            | "reach_service" => reach(ex, ctx, &name["reach_".len()..]).await,
+            "after_unload" => after_unload(ex, ctx).await,
+            "handler_launch" => handler_launch(ex, ctx).await,
+            "no_worker_paths" => no_worker_paths(ex, ctx).await,
+            "reports" => way_reports(ex, ctx).await,
+            "udp_quic" | "webtransport" | "peer_connection" | "secure_dns" | "lan_discovery"
+            | "link_lookup" => way_plain(ex, ctx, name).await,
             _ => Err(Fault::new("usage", name.to_string())),
         }
     }
@@ -1380,7 +1986,12 @@ mod driver {
                 r.set_list(Some(fixture_list(ctx)));
             }
         }
-        let opts = ctx.options(&format!("p-{name}-{i}"), None);
+        let mut opts = ctx.options(&format!("p-{name}-{i}"), None);
+        let egress = if EGRESS_STEPS.contains(&name) {
+            Some(egress_setup(ctx, &mut opts, name, i).map_err(|e| NotRun::new("egress", e))?)
+        } else {
+            None
+        };
         let started = if ctx.round2 {
             ctx.stop.or(Executor::start_settled(&opts)).await
         } else {
@@ -1419,6 +2030,21 @@ mod driver {
             );
         }
         ex.stop_and_remove().await;
+        if egress.is_some() {
+            end_left_browser(&opts.profile);
+        }
+        let outcome = match (&egress, outcome) {
+            (Some(e), Ok(v)) => match egress_read(ctx, e, name, i).await {
+                EgressSeen::Clean => Ok(v),
+                EgressSeen::Denied(n) => Err(Fault::new("egress", format!("denied_{n}"))),
+                EgressSeen::Unread(d) => Err(Fault::new("egress_open", d)),
+            },
+            (Some(e), Err(f)) => {
+                let _ = egress_read(ctx, e, name, i).await;
+                Err(f)
+            }
+            (None, o) => o,
+        };
         if let Err(f) = &outcome {
             if f.0 == "signal" {
                 return Err(NotRun::new("signal", ""));
@@ -1455,7 +2081,15 @@ mod driver {
                 all_ran = false;
                 continue;
             }
+            if *name == "handler_launch" && ctx.machine == "mac" {
+                out(&format!(
+                    "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=no_window_rule",
+                    ctx.machine, ctx.kind
+                ));
+                continue;
+            }
             let mut ok = 0;
+            let mut open_runs = 0;
             let mut peers = (0u32, 0u32);
             let mut times = Vec::new();
             let mut majors = Vec::new();
@@ -1479,6 +2113,9 @@ mod driver {
                         if r.ok {
                             ok += 1;
                             times.push(r.ms);
+                        }
+                        if r.cause == "egress_open" {
+                            open_runs += 1;
                         }
                         if let Some(m) = major_of(&r.version) {
                             majors.push(m);
@@ -1505,7 +2142,15 @@ mod driver {
                 continue;
             }
             majors.sort_unstable();
+            let majors_key = r3_web::majors_key(&majors);
             majors.dedup();
+            let relay_key = if name.ends_with("_relay") {
+                format!(" relay={}", name.trim_start_matches("driver_killed_"))
+            } else if ctx.relayed {
+                " relay=port_relay".to_string()
+            } else {
+                String::new()
+            };
             let Some(major) = majors.first() else {
                 out(&format!(
                     "notrun candidate={CANDIDATE} machine={} browser={} step={name} cause=version",
@@ -1523,6 +2168,21 @@ mod driver {
                         .collect::<Vec<_>>()
                         .join(",")
                 ));
+            }
+            if EGRESS_STEPS.contains(name) {
+                out(&format!(
+                    "way row={name} machine={} browser={} closed={} runs={runs}",
+                    ctx.machine,
+                    ctx.kind,
+                    if open_runs > 0 {
+                        "open"
+                    } else if ok == runs {
+                        "yes"
+                    } else {
+                        "no"
+                    }
+                ));
+                continue;
             }
             if *name == "own_traffic" || *name == "ws_allowed" {
                 out(&format!(
@@ -1550,7 +2210,7 @@ mod driver {
                 continue;
             }
             out(&format!(
-                "cell candidate={CANDIDATE} machine={} browser={} major={major} step={name} ok={ok} of={runs} median_ms={}",
+                "cell candidate={CANDIDATE} machine={} browser={} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={}{relay_key}",
                 ctx.machine,
                 ctx.kind,
                 median(&mut times)
@@ -2417,7 +3077,13 @@ mod driver {
             ));
         }
         majors.sort_unstable();
+        let majors_key = r3_web::majors_key(&majors);
         majors.dedup();
+        let relay_key = if name.ends_with("_relay") {
+            format!(" relay={}", name.trim_start_matches("driver_killed_"))
+        } else {
+            String::new()
+        };
         let Some(major) = majors.first() else {
             out(&format!("notrun {head} step={name} cause=version"));
             return false;
@@ -2434,7 +3100,7 @@ mod driver {
             runs - ok
         ));
         out(&format!(
-            "cell {head} major={major} step={name} ok={ok} of={runs} median_ms={}{miss_bytes}",
+            "cell {head} major={major}{majors_key} step={name} ok={ok} of={runs} median_ms={}{miss_bytes}{relay_key}",
             median(&mut gone)
         ));
         true
@@ -2527,6 +3193,8 @@ mod driver {
             relayed: args.relay,
             round2: args.round2,
             relay: None,
+            relay_port: 0,
+            net_log: args.net_log.clone(),
             repo: repo.clone(),
         };
         let relay = if args.relay {
@@ -2534,6 +3202,7 @@ mod driver {
                 Ok(r) => {
                     ctx.added_flags.extend(relay_flags(r.port));
                     ctx.relay = Some(r.handle());
+                    ctx.relay_port = r.port;
                     Some(r)
                 }
                 Err(e) => {
@@ -2557,7 +3226,11 @@ mod driver {
             server.pid(),
             FIRST_FLAGS.len(),
             ctx.added_flags.len(),
-            if args.way_rows {
+            if args.reach_rows {
+                "reach"
+            } else if args.egress_rows {
+                "egress"
+            } else if args.way_rows {
                 "ways"
             } else if args.relay_rows {
                 "relay"
@@ -2582,6 +3255,8 @@ mod driver {
             Mode::Cells => {
                 let steps: Vec<&str> = match &args.step {
                     Some(s) => vec![s.as_str()],
+                    None if args.reach_rows => REACH_STEPS.to_vec(),
+                    None if args.egress_rows => EGRESS_STEPS.to_vec(),
                     None if args.way_rows => WAY_STEPS.to_vec(),
                     None if args.relay_rows => RELAY_STEPS.to_vec(),
                     None if args.isolation => ISOLATION_STEPS.to_vec(),
