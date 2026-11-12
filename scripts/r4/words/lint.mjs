@@ -1112,6 +1112,11 @@ function selfTest(dir, repo) {
   expect(fixture('a-closed-name-with-an-underscore-before-a-file-suffix', { words: say('It saved needs_you.pdf today.') }), 'FAIL:never_read');
   expect(fixture('a-cause-with-a-hyphen',{ words: say('It stopped: queue-full.') }), 'FAIL:never_read');
   expect(fixture('a-closed-name-with-a-hyphen-in-capitals', { words: say('It is ALL-SET now.') }), 'FAIL:never_read');
+  expect(
+    fixture('a-closed-name-of-three-parts-with-hyphens', { words: say('It paid the utility-bill-payment today.') }),
+    'FAIL:never_read',
+    { findings: [wordsFinding('never_read', 'enum', 'line.time')] },
+  );
   expect(fixture('a-closed-name-inside-a-longer-word-passes', { words: say('It needs-your answer on the sign-up page of a non-device plan.') }), 'PASS');
   expect(
     fixture('names-files-with-no-name-that-holds-an-underscore', {
