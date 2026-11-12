@@ -580,14 +580,36 @@ mod system {
     use std::os::windows::ffi::OsStringExt;
     use std::path::PathBuf;
 
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
     use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
     use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
 
     use super::PathError;
 
+    struct Token(HANDLE);
+
+    impl Drop for Token {
+        fn drop(&mut self) {
+            let _ = unsafe { CloseHandle(self.0) };
+        }
+    }
+
     pub fn base_dir() -> Result<Option<OsString>, PathError> {
-        let path = unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, None) }
-            .map_err(|e| PathError::Lookup(e.code().0))?;
+        let mut token = HANDLE::default();
+        unsafe {
+            OpenProcessToken(
+                GetCurrentProcess(),
+                TOKEN_QUERY | TOKEN_IMPERSONATE,
+                &mut token,
+            )
+        }
+        .map_err(|e| PathError::Lookup(e.code().0))?;
+        let token = Token(token);
+        let path =
+            unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, KF_FLAG_DEFAULT, Some(token.0)) }
+                .map_err(|e| PathError::Lookup(e.code().0))?;
         let text = OsString::from_wide(unsafe { path.as_wide() });
         unsafe { CoTaskMemFree(Some(path.0 as *const _)) };
         Ok(Some(text))
@@ -781,11 +803,14 @@ mod tests {
             .env("USERPROFILE", elsewhere.path())
             .output()
             .unwrap();
-        let text = String::from_utf8(output.stdout).unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
         let line = text
             .lines()
             .find_map(|line| line.split_once("data_dir=").map(|(_, dir)| dir))
-            .unwrap_or_else(|| panic!("no data_dir line in {text}"));
+            .unwrap_or_else(|| {
+                let errors = String::from_utf8_lossy(&output.stderr);
+                panic!("no data_dir line in {text}; stderr: {errors}")
+            });
         assert_eq!(Path::new(line), mine.path());
         assert!(!Path::new(line).starts_with(elsewhere.path()));
     }
