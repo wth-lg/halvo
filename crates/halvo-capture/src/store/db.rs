@@ -8,6 +8,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use halvo_sqlcipher::rusqlite::config::DbConfig;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
@@ -93,12 +94,12 @@ impl KeyFile {
         failpoint::hit("key_file_destroy")?;
         let path = Self::path(store_dir);
         match std::fs::symlink_metadata(&path) {
-            Ok(meta) if !meta.is_file() => return remove_if_present(&path),
+            Ok(meta) if meta.file_type().is_symlink() => return remove_if_present(&path),
             Ok(_) => {}
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
             Err(e) => return Err(io_error(e)),
         }
-        match no_follow(File::options().write(true)).open(&path) {
+        match durable::no_follow(File::options().write(true)).open(&path) {
             Ok(mut file) => {
                 let len = file.metadata().map_err(io_error)?.len() as usize;
                 file.write_all(&vec![0u8; len]).map_err(io_error)?;
@@ -114,17 +115,6 @@ impl KeyFile {
 fn io_error(e: std::io::Error) -> StoreError {
     StoreError::Io(e.kind())
 }
-
-fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
-    #[cfg(target_os = "macos")]
-    std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
-    #[cfg(windows)]
-    std::os::windows::fs::OpenOptionsExt::custom_flags(options, FILE_FLAG_OPEN_REPARSE_POINT);
-    options
-}
-
-#[cfg(windows)]
-const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 pub(crate) use super::failpoint;
 
@@ -176,7 +166,7 @@ impl WriterLock {
         options.create(true).truncate(false).write(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let file = options
+        let file = durable::no_follow(&mut options)
             .open(store_dir.join("writer.lock"))
             .map_err(io_error)?;
         match file.try_lock() {
@@ -243,6 +233,10 @@ impl Db {
     fn refuse_a_live_holder(store_dir: &Path) -> StoreResult<()> {
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
         let path = Self::path(store_dir);
+        match std::fs::metadata(&path) {
+            Ok(meta) if meta.is_file() && meta.len() > 0 => {}
+            _ => return Ok(()),
+        }
         let probe = match Connection::open_with_flags(
             &path,
             OpenFlags::SQLITE_OPEN_READ_ONLY
@@ -253,6 +247,9 @@ impl Db {
             Err(_) => return Ok(()),
         };
         probe.busy_timeout(Duration::ZERO).map_err(db_error)?;
+        probe
+            .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+            .map_err(db_error)?;
         let read = probe.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)
         });
@@ -280,6 +277,8 @@ impl Db {
         }
         halvo_sqlcipher::initialize().map_err(StoreError::Db)?;
         let path = Self::path(store_dir);
+        let log_holds_bytes =
+            std::fs::metadata(path.with_extension("db-wal")).is_ok_and(|meta| meta.len() > 0);
         if database == Database::New {
             OsFs.create_new(&path).map_err(io_error)?;
         }
@@ -293,6 +292,8 @@ impl Db {
             ),
         }
         .map_err(db_error)?;
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_holds_bytes)
+            .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
         conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
@@ -330,6 +331,9 @@ impl Db {
         }
         db.enable_fts_secure_delete()?;
         failpoint::hit("db_open")?;
+        db.conn
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, false)
+            .map_err(db_error)?;
         Ok(db)
     }
 

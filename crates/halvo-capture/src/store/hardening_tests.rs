@@ -3521,3 +3521,437 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
         missing.len()
     );
 }
+
+#[test]
+fn an_open_after_a_crash_makes_no_shared_memory_file() {
+    fn crash_image(dir: &Path) -> (PathBuf, PathBuf, RootId) {
+        let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+        let root_id = RootId::fresh();
+        let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+        let mut store =
+            EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+        store
+            .write_segment(&mut Cursor::new(b"crash image"))
+            .unwrap();
+        let crashed = dir.join("crashed");
+        std::fs::create_dir(&crashed).unwrap();
+        for name in ["store.key", "store.db", "store.db-wal", "writer.lock"] {
+            std::fs::copy(store_dir.join(name), crashed.join(name)).unwrap();
+        }
+        drop(store);
+        assert!(
+            wal_len(&crashed) > 0,
+            "the copy holds no write-ahead log, so this case shows nothing"
+        );
+        (crashed, roots_dir, root_id)
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let (crashed, roots_dir, root_id) = crash_image(dir.path());
+    assert!(!crashed.join("store.db-shm").exists());
+    let opened = open_over_file_root(&crashed, &roots_dir, root_id);
+    let shm_while_open = crashed.join("store.db-shm").exists();
+    assert!(
+        opened.is_ok(),
+        "the crash image of a store opened as {:?}",
+        opened.as_ref().err()
+    );
+    drop(opened);
+    let shm_after_drop = crashed.join("store.db-shm").exists();
+    assert!(
+        !shm_while_open && !shm_after_drop,
+        "open made store.db-shm in the store directory (while open: {shm_while_open}, after \
+         the drop: {shm_after_drop}); files: {:?}",
+        files_and_lengths(&crashed)
+    );
+}
+
+#[test]
+fn a_refused_open_after_a_crash_changes_no_file_of_the_store() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+
+    fn crash_image(dir: &Path) -> (PathBuf, PathBuf, RootId) {
+        let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+        let root_id = RootId::fresh();
+        let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+        let mut store =
+            EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+        store
+            .write_segment(&mut Cursor::new(b"crash image"))
+            .unwrap();
+        let crashed = dir.join("crashed");
+        std::fs::create_dir(&crashed).unwrap();
+        for name in ["store.key", "store.db", "store.db-wal", "writer.lock"] {
+            std::fs::copy(store_dir.join(name), crashed.join(name)).unwrap();
+        }
+        drop(store);
+        assert!(
+            wal_len(&crashed) > 0,
+            "the copy holds no write-ahead log, so this case shows nothing"
+        );
+        (crashed, roots_dir, root_id)
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let (crashed, roots_dir, root_id) = crash_image(dir.path());
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+    let another = custody
+        .wrap_store_key(&StoreKey::random().unwrap())
+        .unwrap();
+    let mut key_file = KeyFile::read(&crashed).unwrap();
+    key_file.wrapped_store_key_b64 = STANDARD.encode(&another.0);
+    std::fs::write(
+        KeyFile::path(&crashed),
+        serde_json::to_vec(&key_file).unwrap(),
+    )
+    .unwrap();
+
+    let before = files_and_lengths(&crashed);
+    let db_before = std::fs::read(crashed.join("store.db")).unwrap();
+    let wal_before = std::fs::read(crashed.join("store.db-wal")).unwrap();
+    let answer = open_over_file_root(&crashed, &roots_dir, root_id)
+        .map(drop)
+        .map_err(|e| format!("{e:?}"));
+    let after = files_and_lengths(&crashed);
+    let db_after = std::fs::read(crashed.join("store.db")).unwrap();
+    let wal_after = std::fs::read(crashed.join("store.db-wal")).ok();
+    assert_eq!(answer, Err("DatabaseUnreadable".to_string()));
+    assert!(
+        after == before && db_after == db_before && wal_after.as_deref() == Some(&wal_before[..]),
+        "an open that answered DatabaseUnreadable changed the store: files {before:?} became \
+         {after:?}; store.db bytes changed: {}; store.db-wal kept: {}",
+        db_after != db_before,
+        wal_after.is_some()
+    );
+}
+
+#[test]
+fn an_empty_database_beside_a_write_ahead_log_opens_as_database_missing_and_keeps_the_log() {
+    fn crash_image(dir: &Path) -> (PathBuf, PathBuf, RootId) {
+        let (store_dir, roots_dir) = (dir.join("store"), dir.join("roots"));
+        let root_id = RootId::fresh();
+        let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+        let mut store =
+            EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+        store
+            .write_segment(&mut Cursor::new(b"crash image"))
+            .unwrap();
+        let crashed = dir.join("crashed");
+        std::fs::create_dir(&crashed).unwrap();
+        for name in ["store.key", "store.db", "store.db-wal", "writer.lock"] {
+            std::fs::copy(store_dir.join(name), crashed.join(name)).unwrap();
+        }
+        drop(store);
+        assert!(
+            wal_len(&crashed) > 0,
+            "the copy holds no write-ahead log, so this case shows nothing"
+        );
+        (crashed, roots_dir, root_id)
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let (crashed, roots_dir, root_id) = crash_image(dir.path());
+    cut_store_db_to(&crashed, 0);
+    let before = files_and_lengths(&crashed);
+    let answer = open_over_file_root(&crashed, &roots_dir, root_id)
+        .map(drop)
+        .map_err(|e| format!("{e:?}"));
+    let after = files_and_lengths(&crashed);
+    assert_eq!(answer, Err("DatabaseMissing".to_string()));
+    assert_eq!(
+        after, before,
+        "an open that answered DatabaseMissing changed the files of a sealed store"
+    );
+}
+
+#[test]
+fn a_refused_newer_store_whose_log_holds_frames_keeps_its_database_and_its_log() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let copy_dir = dir.path().join("copy");
+    std::fs::create_dir(&copy_dir).unwrap();
+    let held = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    held.db()
+        .unwrap()
+        .connection()
+        .execute_batch("PRAGMA user_version = 99;")
+        .unwrap();
+    assert!(
+        wal_len(&store_dir) > 0,
+        "the version write left no frame in the write-ahead log"
+    );
+    for name in ["store.key", "store.db", "store.db-wal"] {
+        std::fs::write(
+            copy_dir.join(name),
+            std::fs::read(store_dir.join(name)).unwrap(),
+        )
+        .unwrap();
+    }
+    drop(held);
+    let db_before = std::fs::read(copy_dir.join("store.db")).unwrap();
+    let wal_before = std::fs::read(copy_dir.join("store.db-wal")).unwrap();
+
+    let answer = open_by_the_recorded_root(&copy_dir, &roots_dir).map(drop);
+
+    let db_after = std::fs::read(copy_dir.join("store.db")).unwrap();
+    let wal_after = std::fs::read(copy_dir.join("store.db-wal")).ok();
+    assert!(
+        matches!(
+            answer,
+            Err(StoreError::NewerStore {
+                found: 99,
+                supported: 1
+            })
+        ),
+        "a store.db of user_version 99 in its log opened as {answer:?}"
+    );
+    assert!(
+        db_after == db_before,
+        "the refused open wrote into store.db: {} bytes before, {} after",
+        db_before.len(),
+        db_after.len()
+    );
+    assert!(
+        wal_after.as_deref() == Some(&wal_before[..]),
+        "the refused open changed or removed store.db-wal: {} bytes before, {:?} after",
+        wal_before.len(),
+        wal_after.as_ref().map(Vec::len)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn delete_all_writes_nothing_through_a_root_file_or_a_partial_root_file_that_is_a_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let root_path =
+        FileRoots::new(roots_dir.clone(), TestProtector::new(0x5a).0).root_path(root_id);
+    let partial_path = root_path.with_extension("root.tmp");
+    let owned: &[u8] = b"bytes that the store does not own";
+    let root_target = outside.path().join("root-target");
+    let partial_target = outside.path().join("partial-target");
+    std::fs::write(&root_target, owned).unwrap();
+    std::fs::write(&partial_target, owned).unwrap();
+    std::fs::remove_file(&root_path).unwrap();
+    std::os::unix::fs::symlink(&root_target, &root_path).unwrap();
+    std::os::unix::fs::symlink(&partial_target, &partial_path).unwrap();
+
+    let deleted = store.crypto_shred_all();
+
+    assert_eq!(
+        std::fs::read(&root_target).unwrap(),
+        owned,
+        "delete-all ({deleted:?}) wrote through a root file that is a link"
+    );
+    assert_eq!(
+        std::fs::read(&partial_target).unwrap(),
+        owned,
+        "delete-all ({deleted:?}) wrote through a partial root file that is a link"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn create_makes_no_file_through_a_writer_lock_that_is_a_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let store_dir = dir.path().join("store");
+    std::fs::create_dir(&store_dir).unwrap();
+    let target = outside.path().join("made-through-the-link");
+    std::os::unix::fs::symlink(&target, store_dir.join("writer.lock")).unwrap();
+    let root_id = RootId::fresh();
+    let custody = file_root_custody(
+        &dir.path().join("roots"),
+        TestProtector::new(0x5a).0,
+        root_id,
+    );
+
+    let created =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).map(drop);
+
+    assert!(
+        std::fs::symlink_metadata(&target).is_err(),
+        "create ({created:?}) made a file outside the store through a writer.lock that is a link"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_segment_write_puts_no_file_through_a_shard_that_links_out_of_the_store() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path().join("store").as_path());
+    let shard = Uuid::now_v7().simple().to_string()[..2].to_string();
+    let segments = segment::segments_root(store.dir());
+    super::durable::create_private_dir_all(&segments).unwrap();
+    link_dir(outside.path(), &segments.join(&shard));
+
+    let written = store
+        .write_segment(&mut Cursor::new(b"through the link"))
+        .map(|(seg_ref, _)| seg_ref.segment_id);
+
+    assert_eq!(
+        files_in(outside.path()),
+        0,
+        "the write ({written:?}) put a file outside the store through a linked shard"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_root_write_tightens_a_roots_directory_made_at_0755_to_0700() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let roots_dir = dir.path().join("roots");
+    std::fs::create_dir(&roots_dir).unwrap();
+    std::fs::set_permissions(&roots_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let root_id = RootId::fresh();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+
+    let created = EncryptedStore::create(
+        &dir.path().join("store"),
+        Box::new(custody),
+        DEFAULT_RETENTION,
+    )
+    .map(drop);
+
+    let mode = std::fs::metadata(&roots_dir).unwrap().permissions().mode() & 0o777;
+    assert!(created.is_ok(), "{created:?}");
+    assert_eq!(
+        mode, 0o700,
+        "a root write left the roots directory at {mode:o}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn the_keyless_sweep_leaves_a_link_to_a_file_that_carries_a_segment_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    let shard = segment_path(dir.path(), live.segment_id)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let target = outside.path().join("target");
+    std::fs::write(&target, b"outside").unwrap();
+    let link = shard.join(format!(
+        "{}{}.seg",
+        &live.segment_id.simple().to_string()[..2],
+        &Uuid::now_v7().simple().to_string()[2..]
+    ));
+    let partial_link = link.with_extension("seg.tmp");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    std::os::unix::fs::symlink(&target, &partial_link).unwrap();
+
+    let sweep = store.remove_keyless_files();
+
+    assert!(
+        std::fs::symlink_metadata(&link).is_ok()
+            && std::fs::symlink_metadata(&partial_link).is_ok(),
+        "the sweep ({sweep:?}) removed a link that is no regular file"
+    );
+    assert_eq!(std::fs::read(&target).unwrap(), b"outside");
+    assert!(
+        matches!(sweep, Ok(ref s) if s.removed == 0 && s.left == 2),
+        "{sweep:?}"
+    );
+    assert!(segment_path(dir.path(), live.segment_id).exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn create_tightens_an_existing_store_directory_made_at_0755_to_0700() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+    std::fs::create_dir(&store_dir).unwrap();
+    std::fs::set_permissions(&store_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, RootId::fresh());
+    let created =
+        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).map(drop);
+    let mode = std::fs::metadata(&store_dir).unwrap().permissions().mode() & 0o777;
+    assert!(created.is_ok(), "{created:?}");
+    assert_eq!(mode, 0o700, "create left the store directory at {mode:o}");
+}
+
+#[test]
+fn a_durable_write_and_a_durable_removal_report_a_directory_sync_that_fails() {
+    use super::durable::test_support::{Kind, RecordingFs};
+    use super::durable::{remove_durably, write_durably};
+
+    let dir = tempfile::tempdir().unwrap();
+    let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
+    let fs = RecordingFs::new();
+    fs.fail(Kind::SyncDir);
+    let written: io::Result<()> = write_durably(
+        &fs,
+        &temp,
+        &target,
+        |e| e,
+        |_| Ok(()),
+        |out| out.write_all(b"bytes"),
+    );
+    assert_eq!(
+        written.map_err(|e| e.kind()),
+        Err(io::ErrorKind::StorageFull),
+        "a durable write whose directory sync failed reported success"
+    );
+    let removed = remove_durably(&fs, &target);
+    assert_eq!(
+        removed.map_err(|e| e.kind()),
+        Err(io::ErrorKind::StorageFull),
+        "a durable removal whose directory sync failed reported success"
+    );
+}
+
+#[test]
+fn a_durable_write_whose_discard_fails_answers_with_the_error_of_the_discard() {
+    use super::durable::test_support::{Kind, RecordingFs};
+    use super::durable::write_durably;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (temp, target) = (dir.path().join("file.tmp"), dir.path().join("file"));
+    let fs = RecordingFs::new();
+    fs.fail(Kind::Rename);
+    let written: io::Result<()> = write_durably(
+        &fs,
+        &temp,
+        &target,
+        |e| e,
+        |_| Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+        |out| out.write_all(b"bytes"),
+    );
+    assert_eq!(
+        written.map_err(|e| e.kind()),
+        Err(io::ErrorKind::PermissionDenied),
+        "the error of a discard that left the temporary file did not take the place of the first error"
+    );
+}
+
+#[test]
+fn the_unwrap_time_of_an_open_holds_no_time_of_the_custody_rebuild() {
+    const SLOW_REBUILD: Duration = Duration::from_millis(1100);
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let store = EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+        std::thread::sleep(SLOW_REBUILD);
+        Ok(Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )))
+    })
+    .unwrap();
+    assert!(
+        store.unwrap_time() < SLOW_REBUILD,
+        "a custody rebuild of {SLOW_REBUILD:?} before a quick unwrap gave unwrap_time {:?}",
+        store.unwrap_time()
+    );
+}

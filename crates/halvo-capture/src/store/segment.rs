@@ -354,8 +354,18 @@ pub(crate) fn write_segment_file(
 ) -> StoreResult<u64> {
     let path = segment_path(store_dir, header.segment_id);
     let partial = path.with_extension(PARTIAL_EXT);
-    if let Some(parent) = path.parent() {
-        durable::create_private_dir_all(parent).map_err(io_error)?;
+    refuse_a_linked_segments_root(store_dir)?;
+    if let Some(shard) = path.parent() {
+        durable::create_private_dir_all(shard).map_err(io_error)?;
+        if std::fs::symlink_metadata(shard)
+            .map_err(io_error)?
+            .file_type()
+            .is_symlink()
+        {
+            return Err(StoreError::Corrupt(
+                "a shard of the segments directory of the store is a link".to_string(),
+            ));
+        }
     }
     durable::write_durably(
         fs,

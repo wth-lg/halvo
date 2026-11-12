@@ -56,4 +56,30 @@ mod tests {
             "LibTomCrypt's random source is not the OS entropy hook"
         );
     }
+
+    #[test]
+    fn the_os_entropy_hook_hands_libtomcrypt_bytes_that_differ_between_draws() {
+        extern "C" {
+            fn rng_get_bytes(
+                out: *mut u8,
+                outlen: std::ffi::c_ulong,
+                callback: Option<extern "C" fn()>,
+            ) -> std::ffi::c_ulong;
+        }
+        drop(rusqlite::Connection::open_in_memory().unwrap());
+        assert!(os_entropy_hook_installed());
+        let (mut first, mut second) = ([0u8; 32], [0u8; 32]);
+        let drawn = unsafe {
+            (
+                rng_get_bytes(first.as_mut_ptr(), 32, None),
+                rng_get_bytes(second.as_mut_ptr(), 32, None),
+            )
+        };
+        assert_eq!(drawn, (32, 32));
+        assert_ne!(first, [0u8; 32], "the hook handed LibTomCrypt zero bytes");
+        assert_ne!(
+            first, second,
+            "two draws through the hook gave the same bytes"
+        );
+    }
 }

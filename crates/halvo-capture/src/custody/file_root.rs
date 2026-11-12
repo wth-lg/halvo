@@ -34,7 +34,13 @@ fn write_complete(partial: &Path, path: &Path, blob: &[u8]) -> Result<(), Custod
 }
 
 fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {
-    match std::fs::File::options().write(true).open(path) {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => return remove_if_present(path),
+        Ok(_) => {}
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(root_io(e)),
+    }
+    match durable::no_follow(std::fs::File::options().write(true)).open(path) {
         Ok(mut file) => {
             let len = file.metadata().map_err(root_io)?.len() as usize;
             file.write_all(&vec![0u8; len]).map_err(root_io)?;
@@ -43,6 +49,10 @@ fn scrub_and_remove(path: &Path) -> Result<(), CustodyError> {
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
         Err(e) => return Err(root_io(e)),
     }
+    remove_if_present(path)
+}
+
+fn remove_if_present(path: &Path) -> Result<(), CustodyError> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -107,7 +117,9 @@ impl<P: Protector> FileRoots<P> {
         let blob = self
             .protector
             .protect(root.as_slice(), root_id.as_bytes())?;
-        durable::create_private_dir_all(&self.dir).map_err(root_io)?;
+        durable::create_private_dir_all(&self.dir)
+            .and_then(|()| durable::make_private(&self.dir))
+            .map_err(root_io)?;
         let path = self.path(root_id);
         write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)?;
         Ok(root)
@@ -162,7 +174,9 @@ impl<P: Protector> FileRoots<P> {
         root: &[u8; 32],
     ) -> Result<(), CustodyError> {
         let blob = self.protector.protect(root, root_id.as_bytes())?;
-        durable::create_private_dir_all(&self.dir).map_err(root_io)?;
+        durable::create_private_dir_all(&self.dir)
+            .and_then(|()| durable::make_private(&self.dir))
+            .map_err(root_io)?;
         let path = self.path(root_id);
         write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)
     }

@@ -95,6 +95,19 @@ fn fill_and_publish<T, E>(
     Ok(value)
 }
 
+/// Set `options` to open no link: the open of a link fails, so no write goes
+/// through it.
+pub(crate) fn no_follow(options: &mut std::fs::OpenOptions) -> &mut std::fs::OpenOptions {
+    #[cfg(target_os = "macos")]
+    std::os::unix::fs::OpenOptionsExt::custom_flags(options, libc::O_NOFOLLOW);
+    #[cfg(windows)]
+    std::os::windows::fs::OpenOptionsExt::custom_flags(options, FILE_FLAG_OPEN_REPARSE_POINT);
+    options
+}
+
+#[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+
 /// Create `dir` and each missing directory above it, readable by their owner
 /// only.
 pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
