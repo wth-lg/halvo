@@ -2477,3 +2477,58 @@ fn a_create_whose_custody_cannot_read_the_root_of_its_id_destroys_no_root() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+#[test]
+fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_made() {
+    const ROUNDS: usize = 64;
+    let mut missing = Vec::new();
+    let mut replaced = 0;
+    for round in 0..ROUNDS {
+        let dir = tempfile::tempdir().unwrap();
+        let roots_dir = dir.path().join("roots");
+        let root_id = RootId::fresh();
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        let creators: Vec<_> = ["first", "second"]
+            .into_iter()
+            .map(|name| {
+                let store_dir = dir.path().join(name);
+                let roots_dir = roots_dir.clone();
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    let custody =
+                        file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+                    barrier.wait();
+                    let made =
+                        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION)
+                            .is_ok();
+                    (store_dir, made)
+                })
+            })
+            .collect();
+        for creator in creators {
+            let (store_dir, made) = creator.join().unwrap();
+            if !made {
+                continue;
+            }
+            let reopened = EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+                Ok(Box::new(file_root_custody(
+                    &roots_dir,
+                    TestProtector::new(0x5a).0,
+                    root_id,
+                )))
+            });
+            match reopened {
+                Err(StoreError::Custody(CustodyError::RootMissing)) => missing.push(round),
+                Err(StoreError::Custody(CustodyError::WrapAuthFailed)) => replaced += 1,
+                _ => {}
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "in {} of {ROUNDS} rounds a store whose create returned Ok answers that its root is \
+         missing (rounds {missing:?}). Not asserted here: {replaced} stores whose wrap no longer \
+         opens because the other create replaced the root's bytes, the race that store-3 takes",
+        missing.len()
+    );
+}
