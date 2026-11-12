@@ -512,6 +512,7 @@ fn the_navigation_rule_allows_the_app_origin_alone() {
     let allowed = |url: &str| app::is_app_url(&url.parse().expect("a URL"));
     assert!(allowed(&format!("{APP_URL}/index.html")));
     assert!(allowed(&format!("{APP_URL}/")));
+    assert!(!allowed(&format!("{APP_URL}:8080/index.html")));
     for url in [
         "https://example.com/",
         "http://localhost:1420/",
@@ -528,4 +529,10 @@ fn the_navigation_rule_allows_the_app_origin_alone() {
     ] {
         assert!(!allowed(url), "the rule allows {url}");
     }
+}
+
+#[test]
+fn the_set_up_counts_the_page_loads_of_the_window_main_from_zero() {
+    let test = test_app(scratch_dir("page-loads"));
+    assert_eq!(test.app.state::<app::PageLoads>().count(), 0);
 }

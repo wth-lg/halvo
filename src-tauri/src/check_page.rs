@@ -27,12 +27,10 @@ pub fn reads() -> Vec<&'static str> {
 
 /// The line that the check prints for `seen`, the JSON text of the probe's
 /// string, or None while the page lacks the reply of a read command or shows
-/// another version than `version`.
+/// another version than `version`. Every comparison is exact, so a quote or a
+/// backslash in `seen` makes a name or the version differ and gives None.
 pub fn line(seen: &str, version: &str) -> Option<String> {
     let text = seen.strip_prefix('"')?.strip_suffix('"')?;
-    if text.contains(['"', '\\']) {
-        return None;
-    }
     let (shown, replied) = text.strip_prefix("version=")?.split_once(" replied=")?;
     let reads = reads();
     let ok = reads
