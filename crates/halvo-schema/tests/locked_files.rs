@@ -992,6 +992,8 @@ const ABOVE: &str = "<above the crate root>";
 
 const PROJECTION: &str = "<projection>";
 
+const DEFAULTS: &str = "<defaults>";
+
 fn skip_prefixes(t: &[String]) -> usize {
     let mut i = 0;
     loop {
@@ -1095,6 +1097,9 @@ fn qualified(t: &[String]) -> Vec<Segments> {
     out.extend(every_path(self_type));
     let trait_head = trait_type.iter().take_while(|x| *x != "<").count();
     out.extend(every_path(&trait_type[trait_head..]));
+    for name in inside.iter().filter(|x| is_name(x)) {
+        out.push(vec![DEFAULTS.to_owned(), bare(name).to_owned()]);
+    }
     out
 }
 
@@ -1111,11 +1116,11 @@ fn reached(t: &[String]) -> Vec<Segments> {
             }
             Some("<") => out.extend(qualified(part)),
             _ => {
-                let wrapped = part.first().is_some_and(|x| WRAPPERS.contains(&bare(x)))
-                    && part.get(1).is_some_and(|x| x == "<");
                 let head = type_path(part);
-                if wrapped {
-                    out.extend(reached(&part[2..angle_close(part, 1).min(part.len())]));
+                if let Some(open) = wrapper_open(part) {
+                    out.extend(reached(
+                        &part[open + 1..angle_close(part, open).min(part.len())],
+                    ));
                 } else if !head.is_empty() {
                     out.push(head);
                 }
@@ -1125,18 +1130,41 @@ fn reached(t: &[String]) -> Vec<Segments> {
     out
 }
 
+fn wrapper_open(part: &[String]) -> Option<usize> {
+    let mut k = 0;
+    let mut last = None;
+    while k < part.len() {
+        if is_ident(&part[k]) {
+            last = Some(bare(&part[k]));
+        } else if part[k] != ":" {
+            break;
+        }
+        k += 1;
+    }
+    let wrapped = last.is_some_and(|l| WRAPPERS.contains(&l));
+    (wrapped && part.get(k).is_some_and(|x| x == "<")).then_some(k)
+}
+
+fn macro_paths(lexed: &[Lexed], t: &[String]) -> Vec<Segments> {
+    let mut out = Vec::new();
+    for k in 1..t.len() {
+        if t[k] != "!" || !is_name(&t[k - 1]) || !is_open(t.get(k + 1)) {
+            continue;
+        }
+        out.extend(every_path(&t[k + 1..matching(t, k + 1).min(t.len())]));
+        for l in lexed {
+            for (name, open, close) in &l.bodies {
+                if name == bare(&t[k - 1]) {
+                    out.extend(every_path(&l.t[*open..*close]));
+                }
+            }
+        }
+    }
+    out
+}
+
 fn type_path(t: &[String]) -> Segments {
     let mut i = skip_prefixes(t);
-    if t.get(i).is_some_and(|x| x == "(") {
-        let inner = &t[i + 1..matching(t, i).min(t.len())];
-        if has_a_top_level_comma(inner) {
-            return Vec::new();
-        }
-        return type_path(inner);
-    }
-    if t.get(i).is_some_and(|x| x == ":") && t.get(i + 1).is_some_and(|x| x == ":") {
-        i += 2;
-    }
     let mut path = Vec::new();
     loop {
         match t.get(i).map(String::as_str) {
@@ -1199,11 +1227,123 @@ fn declared_by_its_arm(t: &[String], open: usize, close: usize, at: usize, ty: &
         return false;
     }
     let (from, to) = arm_of(t, open, close, at);
+    if (from..to).any(|k| matches!(bare(&t[k]), "cfg" | "cfg_attr")) {
+        return false;
+    }
     (from..to).any(|k| {
         matches!(t[k].as_str(), "struct" | "enum" | "union")
             && t.get(k + 1).is_some_and(|x| x == "$")
             && t.get(k + 2).is_some_and(|x| x == name)
+            && enclosing(t, from, k) == enclosing(t, from, at)
     })
+}
+
+fn holds_cfg(t: &[String]) -> bool {
+    t.iter().any(|x| matches!(bare(x), "cfg" | "cfg_attr"))
+}
+
+fn under_cfg(t: &[String], at: usize) -> bool {
+    let mut k = at;
+    while k >= 1 {
+        if t[k - 1] == "pub" {
+            k -= 1;
+            continue;
+        }
+        if t[k - 1] != "]" && t[k - 1] != ")" {
+            return false;
+        }
+        let close = k - 1;
+        let mut depth = 0i32;
+        let mut open = None;
+        for j in (0..=close).rev() {
+            match t[j].as_str() {
+                "]" | ")" | "}" => depth += 1,
+                "[" | "(" | "{" => {
+                    depth -= 1;
+                    if depth == 0 {
+                        open = Some(j);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(open) = open else {
+            return false;
+        };
+        if t[close] == ")" && open >= 1 && t[open - 1] == "pub" {
+            k = open - 1;
+            continue;
+        }
+        if t[close] != "]" || open == 0 || t[open - 1] != "#" {
+            return false;
+        }
+        if holds_cfg(&t[open..close]) {
+            return true;
+        }
+        k = open - 1;
+    }
+    false
+}
+
+fn enclosing(t: &[String], from: usize, at: usize) -> usize {
+    let mut open = vec![from];
+    for (k, x) in t.iter().enumerate().take(at).skip(from + 1) {
+        match x.as_str() {
+            "(" | "[" | "{" => open.push(k),
+            ")" | "]" | "}" if open.len() > 1 => {
+                open.pop();
+            }
+            _ => {}
+        }
+    }
+    open[open.len() - 1]
+}
+
+fn cfg_call_faults(lexed: &[Lexed]) -> Vec<(Rule, String)> {
+    let mut writing: Vec<String> = Vec::new();
+    for _ in 0..8 {
+        let before = writing.len();
+        for l in lexed {
+            for (name, open, close) in &l.bodies {
+                let writes = (open + 1..*close).any(|k| {
+                    (l.t[k] == "impl" && !l.matcher[k])
+                        || (l.t.get(k + 1).is_some_and(|x| x == "!")
+                            && writing.iter().any(|w| w == bare(&l.t[k])))
+                });
+                if writes && !writing.contains(name) {
+                    writing.push(name.clone());
+                }
+            }
+        }
+        if writing.len() == before {
+            break;
+        }
+    }
+    let mut faults = Vec::new();
+    for l in lexed {
+        let t = &l.t;
+        for i in 0..t.len() {
+            let name = bare(&t[i]);
+            if !writing.iter().any(|w| w == name)
+                || !t.get(i + 1).is_some_and(|x| x == "!")
+                || !is_open(t.get(i + 2))
+            {
+                continue;
+            }
+            let close = matching(t, i + 2);
+            if (i + 3..close).any(|k| matches!(bare(&t[k]), "cfg" | "cfg_attr")) {
+                faults.push((
+                    Rule::MacroImpl,
+                    format!(
+                        "{} passes cfg to the macro {name}, which writes an impl, so that the type of the impl may not be declared: declare the type in the same arm, or write the impl by hand",
+                        l.file
+                    ),
+                ));
+            }
+        }
+    }
+    faults
 }
 
 fn use_tree(t: &[String], i: &mut usize, prefix: &[String], out: &mut Vec<Leaf>) {
@@ -1267,6 +1407,7 @@ struct Tree {
     selves: Vec<String>,
     modules: Vec<(Segments, String)>,
     generic_aliases: Vec<String>,
+    defaults: Vec<(Segments, String, Segments)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -1334,6 +1475,20 @@ fn arguments_of(t: &[String], open: usize, close: usize) -> Vec<Segments> {
     out
 }
 
+fn targets_of_alias(lexed: &[Lexed], t: &[String], at: usize, end: usize) -> Vec<Segments> {
+    let mut out = Vec::new();
+    let mut from = at + 2;
+    if t.get(at + 2).is_some_and(|x| x == "<") {
+        from = angle_close(t, at + 2).min(end);
+        out.extend(every_path(&t[at + 3..from]));
+    }
+    if let Some(eq) = (from..end).find(|&k| t[k] == "=") {
+        out.extend(reached(&t[eq + 1..end]));
+        out.extend(macro_paths(lexed, &t[eq + 1..end]));
+    }
+    out
+}
+
 fn build_tree(lexed: &[Lexed], sites: &Sites) -> Tree {
     let mut tree = Tree::default();
     for l in lexed {
@@ -1358,10 +1513,16 @@ fn build_tree(lexed: &[Lexed], sites: &Sites) -> Tree {
                 tree.modules
                     .push((l.paths[i].clone(), bare(&t[i + 1]).to_owned()));
             }
-            if matches!(t[i].as_str(), "struct" | "enum" | "union" | "trait") {
+            if matches!(t[i].as_str(), "struct" | "enum" | "union" | "trait") && !under_cfg(t, i) {
                 if let Some(name) = t.get(i + 1).filter(|x| is_name(x)) {
                     tree.declared
                         .push((l.paths[i].clone(), bare(name).to_owned()));
+                    if t.get(i + 2).is_some_and(|x| x == "<") {
+                        for path in every_path(&t[i + 3..angle_close(t, i + 2).min(t.len())]) {
+                            tree.defaults
+                                .push((l.paths[i].clone(), bare(name).to_owned(), path));
+                        }
+                    }
                 }
             }
             if t[i] == "type"
@@ -1372,11 +1533,9 @@ fn build_tree(lexed: &[Lexed], sites: &Sites) -> Tree {
             }
             if t[i] == "type" && t.get(i + 1).is_some_and(|x| is_name(x)) {
                 let end = (i..t.len()).find(|&k| t[k] == ";").unwrap_or(t.len());
-                if let Some(eq) = (i..end).find(|&k| t[k] == "=") {
-                    for target in reached(&t[eq + 1..end]) {
-                        tree.aliases
-                            .push((l.paths[i].clone(), bare(&t[i + 1]).to_owned(), target));
-                    }
+                for target in targets_of_alias(lexed, t, i, end) {
+                    tree.aliases
+                        .push((l.paths[i].clone(), bare(&t[i + 1]).to_owned(), target));
                 }
             }
         }
@@ -1416,10 +1575,7 @@ fn build_tree(lexed: &[Lexed], sites: &Sites) -> Tree {
                     continue;
                 }
                 let end = (k..*close).find(|&m| l.t[m] == ";").unwrap_or(*close);
-                let Some(eq) = (k..end).find(|&m| l.t[m] == "=") else {
-                    continue;
-                };
-                for target in reached(&l.t[eq + 1..end]) {
+                for target in targets_of_alias(lexed, &l.t, k, end) {
                     match l.t.get(k + 1) {
                         Some(x) if x == "$" => alias_targets.push(target),
                         Some(x) if is_name(x) => literal_aliases.push((bare(x).to_owned(), target)),
@@ -1438,6 +1594,7 @@ fn build_tree(lexed: &[Lexed], sites: &Sites) -> Tree {
             }
             for caller in lexed {
                 for (module, c_open, c_close) in caller.calls(name) {
+                    let declares = declares && !holds_cfg(&caller.t[c_open..c_close]);
                     for k in c_open + 1..c_close {
                         if declares && matches!(caller.t[k].as_str(), "struct" | "enum" | "union") {
                             if let Some(n) = caller.t.get(k + 1).filter(|x| is_name(x)) {
@@ -1544,17 +1701,12 @@ fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Op
     if first == "$" && path.get(1).is_some_and(|x| x == "crate") {
         return Some(path[2..].to_vec());
     }
-    if first == "self" {
-        return Some(
-            module
-                .iter()
-                .cloned()
-                .chain(path[1..].iter().cloned())
-                .collect(),
-        );
-    }
-    if first == "super" {
-        let ups = path.iter().take_while(|p| *p == "super").count();
+    if first == "self" || first == "super" {
+        let steps = path
+            .iter()
+            .take_while(|p| *p == "self" || *p == "super")
+            .count();
+        let ups = path[..steps].iter().filter(|p| *p == "super").count();
         let Some(keep) = module.len().checked_sub(ups) else {
             return Some(vec![ABOVE.to_owned()]);
         };
@@ -1562,7 +1714,7 @@ fn absolute(tree: &Tree, module: &[String], path: &[String], depth: usize) -> Op
             module[..keep]
                 .iter()
                 .cloned()
-                .chain(path[ups..].iter().cloned())
+                .chain(path[steps..].iter().cloned())
                 .collect(),
         );
     }
@@ -1591,6 +1743,12 @@ fn place(tree: &Tree, locked: &Locked, module: &[String], path: &[String], depth
     if path[0] == PROJECTION {
         let reaches = tree.aliases.iter().any(|(m, alias, target)| {
             path.get(1) == Some(alias) && place(tree, locked, m, target, depth + 1) == Place::Locked
+        });
+        return if reaches { Place::Locked } else { Place::Other };
+    }
+    if path[0] == DEFAULTS {
+        let reaches = tree.defaults.iter().any(|(m, name, default)| {
+            path.get(1) == Some(name) && place(tree, locked, m, default, depth + 1) == Place::Locked
         });
         return if reaches { Place::Locked } else { Place::Other };
     }
@@ -1817,6 +1975,7 @@ fn impl_faults(
                 }
             }
             let mut reached = reached(&self_type);
+            reached.extend(macro_paths(lexed, &self_type));
             if path.len() == 1 && tree.generic_aliases.contains(&path[0]) {
                 reached.extend(arguments_of(&self_type, 0, self_type.len()));
             }
@@ -1936,6 +2095,7 @@ fn ruled_faults(files: &[(String, String)]) -> Vec<(Rule, String)> {
     let sites = expansion_sites(&lexed);
     let tree = build_tree(&lexed, &sites);
     faults.extend(impl_faults(&lexed, &tree, &locked, &sites));
+    faults.extend(cfg_call_faults(&lexed));
     faults.extend(alias_faults(&lexed));
     faults
 }
@@ -3099,10 +3259,38 @@ fn the_test_of_the_later_files_refuses_an_impl_in_a_macro_for_a_type_that_its_ar
             "s",
             "($n)",
         ),
+        (
+            "macro_rules! c {\n    ($n:ident) => {\n        #[cfg(any())]\n        pub struct $n;\n        impl Tr for $n {}\n    };\n}\nuse crate::kinds::KindEntry;\nc!(KindEntry);\n",
+            "c",
+            "$n",
+        ),
+        (
+            "macro_rules! k {\n    ($n:ident) => {\n        const _: () = {\n            pub struct $n;\n        };\n        impl Tr for $n {}\n    };\n}\nuse crate::kinds::KindEntry;\nk!(KindEntry);\n",
+            "k",
+            "$n",
+        ),
+        (
+            "macro_rules! o {\n    ($n:ident $($d:tt)?) => {\n        $(\n            pub struct $n;\n            const _: &str = stringify!($d);\n        )?\n        impl Tr for $n {}\n    };\n}\nuse crate::kinds::KindEntry;\no!(KindEntry);\n",
+            "o",
+            "$n",
+        ),
     ] {
         cases.push((format!("{TR}{text}"), macro_impl(name, ty)));
     }
+    let own = "macro_rules! own {\n    ($(#[$m:meta])* $n:ident) => {\n        $(#[$m])*\n        pub struct $n;\n        impl Tr for $n {}\n    };\n}\n";
+    let cfg_passed = |name: &str| {
+        format!("learning.rs passes cfg to the macro {name}, which writes an impl, so that the type of the impl may not be declared: declare the type in the same arm, or write the impl by hand")
+    };
+    cases.push((
+        format!("{TR}{own}use crate::kinds::KindEntry;\nown!(#[cfg(any())] KindEntry);\n"),
+        cfg_passed("own"),
+    ));
+    cases.push((
+        format!("{TR}{own}macro_rules! outer {{\n    ($($t:tt)*) => {{\n        own!($($t)*);\n    }};\n}}\nouter!(#[cfg_attr(any(), derive(Debug))] Mine);\n"),
+        cfg_passed("outer"),
+    ));
     assert_refused(&cases);
+    assert_passed(&[&format!("{TR}{own}own!(#[doc = \"a doc\"] Mine);\n")]);
     assert_passed(&[
         &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub struct $n;\n        impl Tr for $n {{}}\n        impl $n {{\n            pub fn f() {{}}\n        }}\n    }};\n}}\nown!(Mine);\n"),
         &format!("{TR}macro_rules! own {{\n    ($n:ident) => {{\n        pub enum $n {{\n            One,\n        }}\n        impl<'de> serde::Deserialize<'de> for $n {{\n            fn deserialize<D: serde::Deserializer<'de>>(_: D) -> Result<Self, D::Error> {{\n                Ok($n::One)\n            }}\n        }}\n    }};\n}}\nown!(Mine);\n"),
@@ -3151,6 +3339,73 @@ fn the_test_of_the_later_files_refuses_an_alias_from_a_metavariable_in_a_macro()
 }
 
 #[test]
+fn the_test_of_the_later_files_reads_a_wrapper_by_any_path_a_type_macro_generic_defaults_and_self_super(
+) {
+    let t = "macro_rules! t {\n    () => {\n        crate::site::AppId\n    };\n}\n";
+    assert_refused(&[
+        (
+            format!("{TR}impl Tr for std::boxed::Box<crate::site::AppId> {{}}\n"),
+            locked_impl("std::boxed::Box<crate::site::AppId>"),
+        ),
+        (
+            display("std::boxed::Box<crate::record::TypedRecord>"),
+            locked_impl("std::boxed::Box<crate::record::TypedRecord>"),
+        ),
+        (
+            format!("{TR}impl Tr for core::pin::Pin<crate::site::AppId> {{}}\n"),
+            locked_impl("core::pin::Pin<crate::site::AppId>"),
+        ),
+        (
+            format!("{t}{TR}impl Tr for t!() {{}}\n"),
+            locked_impl("t!()"),
+        ),
+        (
+            format!("{t}pub type Mine = t!();\n{TR}impl Tr for Mine {{}}\n"),
+            locked_impl("Mine"),
+        ),
+        (
+            format!("{TR}pub type A<T = crate::site::AppId> = T;\nimpl Tr for A {{}}\n"),
+            locked_impl("A"),
+        ),
+        (
+            format!("{TR}pub type A<T = u8, U = crate::site::AppId> = U;\nimpl Tr for A {{}}\n"),
+            locked_impl("A"),
+        ),
+        (
+            format!("{TR}pub trait Pick<T = crate::site::AppId> {{\n    type Out;\n}}\nimpl<T> Pick<T> for () {{\n    type Out = T;\n}}\nimpl Tr for <() as Pick>::Out {{}}\n"),
+            locked_impl("<() as Pick>::Out"),
+        ),
+        (
+            format!("{TR}{PICK}pub struct W<T = crate::site::AppId>(T);\nimpl<T> Pick for W<T> {{\n    type Out = T;\n}}\nimpl Tr for <W as Pick>::Out {{}}\n"),
+            locked_impl("<W as Pick>::Out"),
+        ),
+        (
+            "impl self::super::kinds::KindEntry {}\n".to_owned(),
+            locked_impl("self::super::kinds::KindEntry"),
+        ),
+        (
+            "use crate::kinds::*;\n#[cfg(any())]\npub struct KindEntry;\nimpl KindEntry {}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+        (
+            "use crate::kinds::*;\n#[cfg_attr(all(), cfg(any()))]\npub(crate) struct KindEntry;\nimpl KindEntry {}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+        (
+            "macro_rules! decl {\n    ($(#[$m:meta])* $n:ident) => {\n        $(#[$m])*\n        pub struct $n;\n    };\n}\nuse crate::kinds::*;\ndecl!(#[cfg(any())] KindEntry);\nimpl KindEntry {}\n".to_owned(),
+            locked_impl("KindEntry"),
+        ),
+    ]);
+    assert_passed(&[
+        &format!("{TR}pub type A<T = u8> = T;\nimpl Tr for A {{}}\n"),
+        &format!("macro_rules! t {{\n    () => {{\n        u8\n    }};\n}}\n{TR}impl Tr for t!() {{}}\n"),
+        "pub mod deep {\n    impl self::super::Mine {}\n}\npub struct Mine;\n",
+        "use crate::kinds::*;\n#[derive(Debug)]\npub struct KindEntry;\nimpl KindEntry {}\n",
+        &format!("{TR}{PICK}pub struct W<T = u8>(T);\nimpl<T> Pick for W<T> {{\n    type Out = T;\n}}\nimpl Tr for <W as Pick>::Out {{}}\n"),
+    ]);
+}
+
+#[test]
 fn the_tokens_of_a_macro_call_in_a_later_file_are_read_as_the_files_own_tokens() {
     let pass = "macro_rules! pass {\n    ($($t:tt)*) => {\n        $($t)*\n    };\n}\n";
     assert_refused(&[
@@ -3173,6 +3428,10 @@ fn the_tokens_of_a_macro_call_in_a_later_file_are_read_as_the_files_own_tokens()
         (
             format!("{pass}pass! {{\n    pub mod inner {{\n        use super::super::kinds::KindEntry;\n        impl KindEntry {{}}\n    }}\n}}\n"),
             locked_impl("KindEntry"),
+        ),
+        (
+            format!("{pass}pass! {{\n    pub mod inner {{\n        pub use crate::kinds::KindEntry;\n    }}\n}}\nimpl inner::KindEntry {{}}\n"),
+            locked_impl("inner::KindEntry"),
         ),
     ]);
     assert_passed(&[
