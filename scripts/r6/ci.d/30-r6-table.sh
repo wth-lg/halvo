@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The router's tests pass, each test of scripts/r6/required-tests.txt prints ok under its own target and stands in its test binary's list and not among its ignored tests, the gate tool's self-test fails the three bad routers and passes the derived one on 20 generated tables, and the tool regenerates the committed specimen.
+# rule: The router's tests pass, each test of scripts/r6/required-tests.txt prints ok under its own target and stands in its test binary's list and not among its ignored tests, each of the five pinned files hashes by the system's own tool to its entry in PINNED of tests/no_grant_in_release.rs, the gate tool's self-test fails the three bad routers and passes the derived one on 20 generated tables, and the tool regenerates the committed specimen.
 set -u
 name=30-r6-table
 case $0 in
@@ -11,6 +11,7 @@ specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 required=scripts/r6/required-tests.txt
 fixed_tests='halvo-route tests/no_grant_in_release.rs no_grant_in_release
 halvo-route tests/no_grant_in_release.rs pinned_files_hold_their_hashes'
+pin_file=crates/halvo-route/tests/no_grant_in_release.rs
 want_line='selftest tables=20 derived_pass=20 product_pass=- one_tier_fail=20 random_fail=20 peek_fail=20'
 want_product='selftest tables=20 derived_pass=20 product_pass=20 one_tier_fail=20 random_fail=20 peek_fail=20'
 
@@ -126,6 +127,85 @@ require_tests() {
   ' "$result"
 }
 
+pinned() {
+  "$@" crates/halvo-route/src/lib.rs crates/halvo-route/src/leave.rs crates/halvo-route/src/ruling.rs \
+    crates/halvo-route/src/tier.rs crates/halvo-route/Cargo.toml
+}
+
+hold_pins() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    tool=sha256sum
+  elif command -v shasum >/dev/null 2>&1; then
+    tool=shasum
+  else
+    printf 'pins tool=none files=0 same=0\n'
+    return 1
+  fi
+  if [ "$tool" = sha256sum ]; then
+    pinned sha256sum -b >"$scratch/hashes.txt" 2>"$artifacts/hashes.err"
+  else
+    pinned shasum -a 256 -b >"$scratch/hashes.txt" 2>"$artifacts/hashes.err"
+  fi
+  paths=$(pinned echo) || return 1
+  pins_source=$pin_file
+  if [ ! -f "$pins_source" ]; then
+    pins_source=$scratch/no-pins.txt
+    : >"$pins_source"
+  fi
+  awk -v paths="$paths" -v tool="$tool" '
+    FILENAME == ARGV[1] {
+      file = $2
+      sub(/^\*/, "", file)
+      if (length($1) == 64 && $1 ~ /^[0-9a-f]+$/) hash[file] = $1
+      next
+    }
+    /^const PINNED/ { blocks++; inside = 1 }
+    inside {
+      line = $0
+      sub(/\/\/.*/, "", line)
+      if (line ~ /\/\*/) broken = 1
+      text = text line
+      if ($0 ~ /^\];/) inside = 0
+    }
+    END {
+      count = split(paths, path, " ")
+      if (blocks != 1 || broken) {
+        print "pins unreadable=PINNED"
+        printf "pins tool=%s files=%d same=0\n", tool, count
+        exit 1
+      }
+      gsub(/[ \t]/, "", text)
+      while (match(text, /\("[^"]*","[^"]*",?\)/)) {
+        entry = substr(text, RSTART + 2, RLENGTH - 3)
+        text = substr(text, RSTART + RLENGTH)
+        sub(/,$/, "", entry)
+        sub(/"$/, "", entry)
+        split(entry, part, "\",\"")
+        entries++
+        name[entries] = part[1]
+        value[entries] = part[2]
+      }
+      for (i = 1; i <= count; i++) {
+        have = (path[i] in hash)
+        relative = path[i]
+        sub(/^crates\/halvo-route\//, "", relative)
+        found = 0
+        wrong = 0
+        for (k = 1; k <= entries; k++) {
+          if (name[k] != relative) continue
+          found++
+          if (!have || value[k] != hash[path[i]]) wrong++
+        }
+        if (!found) print "pins missing=" path[i]
+        else if (wrong) print "pins differs=" path[i]
+        else same++
+      }
+      printf "pins tool=%s files=%d same=%d\n", tool, count, same
+      exit (same != count)
+    }
+  ' "$scratch/hashes.txt" "$pins_source"
+}
+
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
@@ -137,6 +217,7 @@ measure() {
     cause=tests
   fi
   require_tests || cause=tests
+  hold_pins || cause=tests
 
   cargo run -q --locked -p halvo-route-gate --bin route-gate -- self-test --tables 20 --seed 1 \
     >"$artifacts/selftest.out" 2>"$artifacts/selftest.err"
@@ -214,13 +295,22 @@ stub_case() {
   cp "$work/stub/"* "$STUB_DIR/" || exit 2
 }
 
+copy_pristine() {
+  for path in "$@"; do
+    cp "$path" "$work/pristine/$path" || exit 2
+  done
+}
+
 restore_repo() {
   cp -R "$work/pristine/." "$work/repo/" || exit 2
 }
 
 make_stub() {
-  mkdir -p "$work/stub" "$work/pristine/scripts/r6" || exit 2
+  mkdir -p "$work/stub" "$work/pristine/scripts/r6" "$work/pristine/crates/halvo-route/src" \
+    "$work/pristine/crates/halvo-route/tests" || exit 2
   cp "$required" "$work/pristine/$required" || exit 2
+  cp "$pin_file" "$work/pristine/$pin_file" || exit 2
+  pinned copy_pristine
   { printf '%s\n' "$fixed_tests" && cat "$required"; } >"$work/wanted.txt" || exit 2
   awk -v dir="$work/stub" '
     seen[$0]++ { next }
@@ -341,6 +431,58 @@ required_cases() {
   restore_repo
 }
 
+pin_cases() {
+  pins=$work/pristine/$pin_file
+  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") == 0) printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-row-taken-out FAIL 'pins missing=crates/halvo-route/src/tier.rs'
+  restore_repo
+
+  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"Cargo.toml\"") == 0) printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check manifest-entry-dropped FAIL 'pins missing=crates/halvo-route/Cargo.toml'
+  restore_repo
+
+  awk '{ sub(/changed\.is_empty\(\),/, "true,") } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  printf '\n' >>"$work/repo/crates/halvo-route/src/leave.rs"
+  check always-holding-assertion-beside-a-changed-file FAIL 'pins differs=crates/halvo-route/src/leave.rs' 'pins tool='
+  restore_repo
+
+  printf '\n' >>"$work/repo/crates/halvo-route/src/ruling.rs"
+  check changed-ruling-rs FAIL 'pins differs=crates/halvo-route/src/ruling.rs'
+  restore_repo
+  printf '\n' >>"$work/repo/crates/halvo-route/src/lib.rs"
+  check changed-lib-rs FAIL 'pins differs=crates/halvo-route/src/lib.rs'
+  restore_repo
+
+  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") > 0) { held = "//" held; gsub(/\n    /, "\n//    ", held) }; printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-row-commented-out FAIL 'pins missing=crates/halvo-route/src/tier.rs'
+  restore_repo
+
+  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") > 0) held = "    /*\n" held "    */\n"; printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-row-in-a-block-comment FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '{ gsub(/PINNED/, "PINS") } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check no-pinned-list FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '{ print } /^const PINNED/ { inside = 1; held = "" } inside { held = held $0 "\n" } inside && /^\];/ { inside = 0; printf "%s", held }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-list-twice FAIL 'pins unreadable=PINNED'
+  restore_repo
+
+  awk '{ print } $0 == "        \"src/tier.rs\"," { stale = 1 } stale && $0 == "    )," { stale = 0; print "    (\n        \"src/tier.rs\",\n        \"0000000000000000000000000000000000000000000000000000000000000000\",\n    )," }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check pinned-path-twice-one-stale FAIL 'pins differs=crates/halvo-route/src/tier.rs'
+  restore_repo
+
+  mkdir "$work/bare" || exit 2
+  for tool in awk cat cmp grep mkdir mktemp sh tail; do
+    real=$(command -v "$tool") || exit 2
+    printf '#!/bin/sh\nexec %s "$@"\n' "$real" >"$work/bare/$tool" || exit 2
+    chmod +x "$work/bare/$tool" || exit 2
+  done
+  STUB_PATH=$work/bare
+  check no-hash-tool FAIL 'pins tool=none'
+}
+
 self_test() {
   enter_repo
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
@@ -404,10 +546,11 @@ EOF
   STUB_SELFTEST_EXIT=0
   STUB_FRESH=$work/fresh.tsv
 
-  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0' "$want_line
+  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0' ' files=5 same=5' "$want_line
 specimen rows=540 same=yes
 PASS $name"
   required_cases
+  pin_cases
   STUB_SELFTEST=$want_product
   check product-counted PASS 'product_pass=20 one_tier_fail=20'
   STUB_TEST_EXIT=101
