@@ -4,8 +4,15 @@
 //! checks it against the stored rows of the family `agent` and stores rows by the typed commit or moves the
 //! workflow by the state call; it reads no clock, no file and no network.
 
+mod bind;
+mod coordinator;
+mod errors;
 mod host;
 mod memory;
+mod rows;
+mod runner;
 
+pub use coordinator::coordinator;
 pub use host::{Host, Now};
 pub use memory::{CommitRefused, MemoryStore, AGENT_KINDS};
+pub use runner::runner;
