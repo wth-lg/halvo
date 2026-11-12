@@ -970,7 +970,7 @@ fn golden_r3_files_are_built_again_from_values_and_equal_byte_for_byte() {
     let mut listed: Vec<String> = std::fs::read_dir(committed_dir())
         .unwrap()
         .map(|e| e.unwrap().file_name().into_string().unwrap())
-        .filter(|name| name != "own")
+        .filter(|name| name != "own" && name != "origin-oracle.tsv")
         .collect();
     listed.sort();
     let mut expected: Vec<String> = FILES.iter().map(|f| (*f).to_owned()).collect();

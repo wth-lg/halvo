@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use halvo_schema::executable::text::WebOrigin;
 use halvo_schema::executable::RefusalCause;
 
@@ -935,4 +937,56 @@ fn a_long_label_is_taken_while_its_a_label_fits_63_bytes() {
         );
         assert_eq!(read_origin(&address), None);
     }
+}
+
+fn unhex(text: &str) -> String {
+    let bytes: Vec<u8> = (0..text.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&text[at..at + 2], 16).unwrap())
+        .collect();
+    String::from_utf8(bytes).unwrap()
+}
+
+#[test]
+fn each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/r3/origin-oracle.tsv");
+    let text = std::fs::read_to_string(path).unwrap();
+    let mut lines = text.lines();
+    let first = lines.next().unwrap();
+    assert!(first.starts_with("# made by node v"), "{first}");
+    let (mut labels, mut addresses, mut node_takes, mut both_take) = (0, 0, 0, 0);
+    for line in lines {
+        let columns: Vec<&str> = line.split('\t').collect();
+        assert_eq!(columns.len(), 3, "{line}");
+        let (kind, input, answer) = (columns[0], unhex(columns[1]), columns[2]);
+        match kind {
+            "label" => {
+                labels += 1;
+                let want = (answer != "-" && answer.len() <= 63)
+                    .then(|| format!("http://{answer}.test:80"));
+                assert_eq!(
+                    origin_of(&format!("http://{input}.test/")),
+                    want,
+                    "{input:?}"
+                );
+            }
+            "address" => {
+                addresses += 1;
+                let got = origin_of(&input);
+                if answer == "-" {
+                    assert_eq!(got, None, "node refuses {input:?}");
+                } else {
+                    node_takes += 1;
+                    if let Some(got) = got {
+                        both_take += 1;
+                        assert_eq!(got, answer, "{input:?}");
+                    }
+                }
+            }
+            other => panic!("kind {other}"),
+        }
+    }
+    println!("labels={labels} addresses={addresses} node_takes={node_takes} both_take={both_take}");
+    assert!(labels >= 2_000 && addresses >= 2_000);
+    assert!(both_take * 4 >= node_takes, "{both_take} of {node_takes}");
 }
