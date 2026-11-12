@@ -294,6 +294,17 @@ names! {
 }
 
 names! {
+    /// The way by which an `add_origin` body adds an origin to the bindings, after an act with the person's answer:
+    /// the sign-in that the person finished and allowed, the account that the person linked, or the confirmation
+    /// that the person allowed for a request to a new origin.
+    pub enum Way {
+        SignIn = "sign_in",
+        AccountLink = "account_link",
+        NewOrigin = "new_origin",
+    }
+}
+
+names! {
     /// The state that a `set_state` body asks for.
     pub enum AgentState {
         Approved = "approved",

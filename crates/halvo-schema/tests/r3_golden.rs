@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    Accepted, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun, Finish, Load, LoadReply,
-    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutEffect, PutLog,
-    PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
+    Accepted, AddOrigin, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun, Finish, Load,
+    LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutEffect,
+    PutLog, PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
     SetState, StartRun, StateReply, StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
@@ -723,6 +723,27 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             agent: agent(),
             run: run(),
         }),
+        CoordinatorCall::AddOrigin(AddOrigin {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            origin: origin(UTILITY),
+            way: Way::SignIn,
+        }),
+        CoordinatorCall::AddOrigin(AddOrigin {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            origin: origin("https://graph.test:18443"),
+            way: Way::AccountLink,
+        }),
+        CoordinatorCall::AddOrigin(AddOrigin {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            origin: origin(PAY),
+            way: Way::NewOrigin,
+        }),
     ]
 }
 
@@ -1028,7 +1049,8 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         Adapter,
         ApiOp,
         Source,
-        Check
+        Check,
+        Way
     );
     for class in ActionClass::ALL {
         derived.extend(

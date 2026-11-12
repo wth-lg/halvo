@@ -8,7 +8,7 @@ use crate::request::{CoordinatorBody, RunnerBody};
 
 use super::config::AgentConfig;
 use super::json::{self, each_once, from_json, list, object_type, opt};
-use super::names::{AgentState, Mode};
+use super::names::{AgentState, Mode, Way};
 use super::record::{
     origins_and_slots, part_of, slot_names_once, AgentEffect, AgentLog, AgentRun, Slot,
     SESSION_PARTS_MAX,
@@ -489,6 +489,20 @@ object_type! {
     rules(_b) { Ok(()) }
 }
 
+object_type! {
+    /// `add_origin`: the one origin that the bindings gain, by one of three ways, after the act of the run `run`
+    /// with the person's answer; the handler stores the next revision with it, or nothing when it is there.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AddOrigin [op = "add_origin"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub run: RunId = "run" => from_json,
+        pub origin: WebOrigin = "origin" => from_json,
+        pub way: Way = "way" => from_json,
+    }
+    rules(_b) { Ok(()) }
+}
+
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
     /// then its keys. The `op` name `list_agents` is reserved and is no body yet.
@@ -498,6 +512,7 @@ op_enum! {
         SetState(SetState) = "set_state",
         StartRun(StartRun) = "start_run",
         EndRun(EndRun) = "end_run",
+        AddOrigin(AddOrigin) = "add_origin",
     }
 }
 
@@ -506,7 +521,8 @@ impl CoordinatorBody for CoordinatorCall {
 }
 
 object_type! {
-    /// The reply of `create_agent` and `set_bindings`: the revision stored.
+    /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
+    /// that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct RevReply {
         pub rev: NonZeroU32 = "rev" => from_json,
@@ -572,7 +588,9 @@ impl CoordinatorReply {
             (self, call),
             (
                 CoordinatorReply::Rev(_),
-                CoordinatorCall::CreateAgent(_) | CoordinatorCall::SetBindings(_)
+                CoordinatorCall::CreateAgent(_)
+                    | CoordinatorCall::SetBindings(_)
+                    | CoordinatorCall::AddOrigin(_)
             ) | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
                 | (
                     CoordinatorReply::Accepted(_),

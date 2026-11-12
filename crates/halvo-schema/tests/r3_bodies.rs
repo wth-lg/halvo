@@ -1,5 +1,5 @@
 use halvo_schema::executable::body::{CoordinatorCall, CoordinatorReply, RunnerCall, RunnerReply};
-use halvo_schema::executable::names::{ActionClass, FieldName};
+use halvo_schema::executable::names::{ActionClass, FieldName, Way};
 use halvo_schema::executable::record::{
     AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
 };
@@ -1290,7 +1290,14 @@ fn coordinator_bodies() -> Vec<String> {
             r#"{{"op":"start_run","workflow":"{W}","agent":"{A}","run":"{R}","mode":"compile"}}"#
         ),
         format!(r#"{{"op":"end_run","workflow":"{W}","agent":"{A}","run":"{R}"}}"#),
+        add_origin("sign_in"),
     ]
+}
+
+fn add_origin(way: &str) -> String {
+    format!(
+        r#"{{"op":"add_origin","workflow":"{W}","agent":"{A}","run":"{R}","origin":"http://pay.test:18090","way":"{way}"}}"#
+    )
 }
 
 #[test]
@@ -1301,7 +1308,9 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
         "set_state",
         "start_run",
         "end_run",
+        "add_origin",
     ];
+    assert_eq!(coordinator_bodies().len(), ops.len());
     for (text, op) in coordinator_bodies().iter().zip(ops) {
         let call =
             CoordinatorCall::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
@@ -1517,7 +1526,10 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
         .map(|b| CoordinatorCall::parse(b.as_bytes()).unwrap())
         .collect();
     for (text, ops) in [
-        (r#"{"rev":1}"#, vec!["create_agent", "set_bindings"]),
+        (
+            r#"{"rev":1}"#,
+            vec!["create_agent", "set_bindings", "add_origin"],
+        ),
         (r#"{"state":"paused"}"#, vec!["set_state"]),
         (r#"{"ok":"yes"}"#, vec!["start_run", "end_run"]),
     ] {
@@ -1671,4 +1683,176 @@ fn a_set_bindings_body_that_holds_origins_is_refused() {
             key,
         );
     }
+}
+
+#[test]
+fn an_add_origin_body_with_a_fourth_way_is_refused() {
+    let names: Vec<&str> = Way::ALL.iter().map(|w| w.as_str()).collect();
+    assert_eq!(names, ["sign_in", "account_link", "new_origin"]);
+    for way in Way::ALL {
+        assert_eq!(Way::parse(way.as_str()), Ok(*way));
+        let text = add_origin(way.as_str());
+        let call =
+            CoordinatorCall::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
+        let CoordinatorCall::AddOrigin(body) = &call else {
+            panic!("{text}")
+        };
+        assert_eq!(
+            (body.way, body.origin.as_str(), body.run.as_str()),
+            (*way, "http://pay.test:18090", R)
+        );
+        assert_eq!(call.to_json().unwrap(), text);
+        assert!(CoordinatorReply::parse(br#"{"rev":7}"#)
+            .unwrap()
+            .answers(&call));
+        assert!(!CoordinatorReply::parse(br#"{"ok":"yes"}"#)
+            .unwrap()
+            .answers(&call));
+        assert!(!CoordinatorReply::parse(br#"{"state":"active"}"#)
+            .unwrap()
+            .answers(&call));
+    }
+    for fourth in [
+        "captcha",
+        "second_factor",
+        "handback",
+        "Sign_in",
+        "sign_in ",
+        "",
+        "new_origins",
+        "account-link",
+    ] {
+        expect(
+            CoordinatorCall::parse(add_origin(fourth).as_bytes()),
+            "Way",
+            "unknown_name",
+            "way",
+        );
+    }
+    let good = add_origin("new_origin");
+    let way = r#""way":"new_origin""#;
+    let at = r#""origin":"http://pay.test:18090""#;
+    let run = format!(r#""run":"{R}""#);
+    let cases: Vec<(String, &str, &str, &str)> = vec![
+        (
+            format!(r#"["add_origin","{W}","{A}","{R}","http://pay.test:18090","sign_in"]"#),
+            "CoordinatorCall",
+            "not_an_object",
+            "-",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"way":"sign_in""#)),
+            "CoordinatorCall",
+            "repeated_key",
+            "-",
+        ),
+        (
+            swap(&good, way, r#""way":["new_origin"]"#),
+            "Way",
+            "not_a_string",
+            "way",
+        ),
+        (
+            swap(&good, way, r#""way":null"#),
+            "Way",
+            "not_a_string",
+            "way",
+        ),
+        (
+            swap(&good, &format!(",{way}"), ""),
+            "AddOrigin",
+            "missing_key",
+            "way",
+        ),
+        (
+            swap(&good, at, r#""origin":null"#),
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (
+            swap(&good, at, r#""origin":"https://pay.test""#),
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            swap(&good, at, r#""origin":"http://Pay.test:18090""#),
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            swap(&good, at, r#""origin":["http://pay.test:18090"]"#),
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (
+            swap(&good, &run, r#""run":50000000000000000000000000000001"#),
+            "RunId",
+            "not_a_string",
+            "run",
+        ),
+        (
+            swap(&good, &format!("{run},"), ""),
+            "AddOrigin",
+            "missing_key",
+            "run",
+        ),
+        (
+            swap(&good, &run, r#""run":null"#),
+            "RunId",
+            "not_a_string",
+            "run",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"slots":[]"#)),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(
+                &good,
+                way,
+                &format!(r#"{way},"origins":["http://pay.test:18090"]"#),
+            ),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"mode":"compile""#)),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&good, way, &format!(r#"{way},"answer":null"#)),
+            "AddOrigin",
+            "unknown_key",
+            "-",
+        ),
+        (
+            swap(&good, r#""op":"add_origin""#, r#""op":"add_origins""#),
+            "CoordinatorCall",
+            "unknown_op",
+            "op",
+        ),
+    ];
+    for (text, type_name, rule, key) in cases {
+        expect(
+            CoordinatorCall::parse(text.as_bytes()),
+            type_name,
+            rule,
+            key,
+        );
+    }
+    expect(
+        RunnerCall::parse(good.as_bytes()),
+        "RunnerCall",
+        "unknown_op",
+        "op",
+    );
 }

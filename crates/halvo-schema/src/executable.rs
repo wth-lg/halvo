@@ -23,7 +23,8 @@ pub use frame::{
 };
 pub use json::{Refusal, RefusalCause};
 pub use names::{
-    ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning, Runtime,
+    ActionClass, AllowedClass, Autonomy, Cause, EffectState, ModelTier, Outcome, Reasoning,
+    Runtime, Way,
 };
 pub use record::{AgentBindings, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession};
 pub use step::{ExecutableStep, Playbook};
@@ -231,4 +232,9 @@ pub const NAMES: &[&str] = &[
     "parts",
     "stored",
     "ok",
+    "add_origin",
+    "way",
+    "sign_in",
+    "account_link",
+    "new_origin",
 ];
