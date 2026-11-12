@@ -273,6 +273,228 @@ pub fn remove_login_item(
     }
 }
 
+/// The key of the per-user start at logon, under HKEY_CURRENT_USER (RD-43).
+pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+
+/// The name of Halvo's value under the Run key.
+pub const RUN_VALUE_NAME: &str = "Halvo";
+
+/// The Windows start registration (contracts.md C14.7): a value under a key of
+/// HKEY_CURRENT_USER whose data is the quoted absolute path of the app
+/// executable, a space and --background.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartValueSpec {
+    key: String,
+    value_name: String,
+    program: String,
+}
+
+impl StartValueSpec {
+    /// The value `Halvo` under the Run key for the app executable at `program`.
+    pub fn new(program: &std::path::Path) -> Result<Self, SpecError> {
+        Self::with_key(RUN_KEY, RUN_VALUE_NAME, program)
+    }
+
+    /// The same value under another key and name, for a check that must not
+    /// write the real one.
+    pub fn with_key(
+        key: &str,
+        value_name: &str,
+        program: &std::path::Path,
+    ) -> Result<Self, SpecError> {
+        let program = program.to_str().ok_or(SpecError::Text)?;
+        if !is_windows_absolute(program) {
+            return Err(SpecError::RelativeProgram);
+        }
+        if program.contains('"') || program.chars().any(char::is_control) {
+            return Err(SpecError::Text);
+        }
+        if key.is_empty() || value_name.is_empty() {
+            return Err(SpecError::Label);
+        }
+        Ok(Self {
+            key: key.to_string(),
+            value_name: value_name.to_string(),
+            program: program.to_string(),
+        })
+    }
+
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    pub fn value_name(&self) -> &str {
+        &self.value_name
+    }
+
+    /// The value's data: the quoted program, a space and --background.
+    pub fn data(&self) -> String {
+        format!("\"{}\" {BACKGROUND_ARG}", self.program)
+    }
+}
+
+fn is_windows_absolute(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    let drive =
+        bytes.len() > 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\';
+    let unc = path
+        .strip_prefix(r"\\")
+        .and_then(|rest| rest.split_once('\\'))
+        .is_some_and(|(server, rest)| {
+            !server.is_empty()
+                && rest
+                    .split_once('\\')
+                    .is_some_and(|(share, _)| !share.is_empty())
+        });
+    drive || unc
+}
+
+#[cfg(windows)]
+mod registry {
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR};
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegCreateKeyExW, RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY,
+        HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RRF_RT_REG_SZ,
+    };
+
+    use super::{InstallOutcome, RemoveOutcome, StartValueSpec};
+
+    pub fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    pub fn os_error(code: WIN32_ERROR) -> std::io::Error {
+        std::io::Error::from_raw_os_error(code.0 as i32)
+    }
+
+    struct Key(HKEY);
+
+    impl Drop for Key {
+        fn drop(&mut self) {
+            let _ = unsafe { RegCloseKey(self.0) };
+        }
+    }
+
+    pub fn read(spec: &StartValueSpec) -> std::io::Result<Option<String>> {
+        let (key, name) = (wide(spec.key()), wide(spec.value_name()));
+        let mut size: u32 = 0;
+        let found = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                PCWSTR(key.as_ptr()),
+                PCWSTR(name.as_ptr()),
+                RRF_RT_REG_SZ,
+                None,
+                None,
+                Some(&mut size),
+            )
+        };
+        if found == ERROR_FILE_NOT_FOUND {
+            return Ok(None);
+        }
+        if found != ERROR_SUCCESS {
+            return Err(os_error(found));
+        }
+        let mut data = vec![0u16; (size as usize).div_ceil(2)];
+        let mut size = u32::try_from(data.len() * 2).unwrap_or(u32::MAX);
+        let read = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                PCWSTR(key.as_ptr()),
+                PCWSTR(name.as_ptr()),
+                RRF_RT_REG_SZ,
+                None,
+                Some(data.as_mut_ptr().cast()),
+                Some(&mut size),
+            )
+        };
+        if read != ERROR_SUCCESS {
+            return Err(os_error(read));
+        }
+        data.truncate(size as usize / 2);
+        while data.last() == Some(&0) {
+            data.pop();
+        }
+        String::from_utf16(&data)
+            .map(Some)
+            .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidData))
+    }
+
+    pub fn write(spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
+        let data = spec.data();
+        if read(spec)?.as_deref() == Some(data.as_str()) {
+            return Ok(InstallOutcome::Unchanged);
+        }
+        let (key, name) = (wide(spec.key()), wide(spec.value_name()));
+        let mut handle = HKEY::default();
+        let created = unsafe {
+            RegCreateKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(key.as_ptr()),
+                None,
+                PCWSTR::null(),
+                REG_OPTION_NON_VOLATILE,
+                KEY_SET_VALUE,
+                None,
+                &mut handle,
+                None,
+            )
+        };
+        if created != ERROR_SUCCESS {
+            return Err(os_error(created));
+        }
+        let handle = Key(handle);
+        let bytes: Vec<u8> = wide(&data)
+            .iter()
+            .flat_map(|unit| unit.to_le_bytes())
+            .collect();
+        let set =
+            unsafe { RegSetValueExW(handle.0, PCWSTR(name.as_ptr()), None, REG_SZ, Some(&bytes)) };
+        if set != ERROR_SUCCESS {
+            return Err(os_error(set));
+        }
+        Ok(InstallOutcome::Written)
+    }
+
+    pub fn remove(spec: &StartValueSpec) -> std::io::Result<RemoveOutcome> {
+        let (key, name) = (wide(spec.key()), wide(spec.value_name()));
+        let deleted = unsafe {
+            RegDeleteKeyValueW(
+                HKEY_CURRENT_USER,
+                PCWSTR(key.as_ptr()),
+                PCWSTR(name.as_ptr()),
+            )
+        };
+        if deleted == ERROR_FILE_NOT_FOUND {
+            Ok(RemoveOutcome::Absent)
+        } else if deleted == ERROR_SUCCESS {
+            Ok(RemoveOutcome::Removed)
+        } else {
+            Err(os_error(deleted))
+        }
+    }
+}
+
+/// Read the start value of `spec`: `None` only when the key or the value does
+/// not exist; any other failure is an error.
+#[cfg(windows)]
+pub fn read_start_value(spec: &StartValueSpec) -> std::io::Result<Option<String>> {
+    registry::read(spec)
+}
+
+/// Write the start value of `spec` when the stored string differs.
+#[cfg(windows)]
+pub fn write_start_value(spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
+    registry::write(spec)
+}
+
+/// Remove the start value of `spec`.
+#[cfg(windows)]
+pub fn remove_start_value(spec: &StartValueSpec) -> std::io::Result<RemoveOutcome> {
+    registry::remove(spec)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -545,5 +767,94 @@ mod login_item_tests {
         for home in ["", "Users/a"] {
             assert!(LaunchAgentsDir::for_account(&Home(PathBuf::from(home))).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod start_value_tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn the_start_value_is_the_quoted_program_and_background_under_the_run_key() {
+        assert_eq!(RUN_KEY, r"Software\Microsoft\Windows\CurrentVersion\Run");
+        assert_eq!(RUN_VALUE_NAME, "Halvo");
+        let spec =
+            StartValueSpec::new(Path::new(r"C:\Users\a b\AppData\Local\Halvo\halvo.exe")).unwrap();
+        assert_eq!(spec.key(), RUN_KEY);
+        assert_eq!(spec.value_name(), "Halvo");
+        assert_eq!(
+            spec.data(),
+            r#""C:\Users\a b\AppData\Local\Halvo\halvo.exe" --background"#
+        );
+        let unc = StartValueSpec::new(Path::new(r"\\server\share\Halvo\halvo.exe")).unwrap();
+        assert_eq!(
+            unc.data(),
+            r#""\\server\share\Halvo\halvo.exe" --background"#
+        );
+    }
+
+    #[test]
+    fn a_relative_program_or_one_with_a_quote_is_an_error() {
+        for relative in [
+            "halvo.exe",
+            r"Halvo\halvo.exe",
+            r"\Halvo\halvo.exe",
+            r"C:halvo.exe",
+            r"\\server",
+            "",
+        ] {
+            assert_eq!(
+                StartValueSpec::new(Path::new(relative)),
+                Err(SpecError::RelativeProgram),
+                "{relative}"
+            );
+        }
+        for bad in [r#"C:\a"b\halvo.exe"#, "C:\\a\nb\\halvo.exe"] {
+            assert_eq!(
+                StartValueSpec::new(Path::new(bad)),
+                Err(SpecError::Text),
+                "{bad}"
+            );
+        }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod start_value_registry_tests {
+    use std::path::Path;
+
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::{RegDeleteTreeW, HKEY_CURRENT_USER};
+
+    use super::*;
+
+    struct ScratchKey(String);
+
+    impl Drop for ScratchKey {
+        fn drop(&mut self) {
+            let key = registry::wide(&self.0);
+            let _ = unsafe { RegDeleteTreeW(HKEY_CURRENT_USER, PCWSTR(key.as_ptr())) };
+        }
+    }
+
+    #[test]
+    fn the_start_value_is_written_once_read_back_and_removed_under_a_scratch_key() {
+        let scratch = ScratchKey(format!(r"Software\Halvo-Test-{}", std::process::id()));
+        let program = Path::new(r"C:\Users\a b\AppData\Local\Halvo\halvo.exe");
+        let spec = StartValueSpec::with_key(&scratch.0, RUN_VALUE_NAME, program).unwrap();
+        assert_eq!(read_start_value(&spec).unwrap(), None);
+        assert_eq!(write_start_value(&spec).unwrap(), InstallOutcome::Written);
+        assert_eq!(read_start_value(&spec).unwrap(), Some(spec.data()));
+        assert_eq!(write_start_value(&spec).unwrap(), InstallOutcome::Unchanged);
+        let other =
+            StartValueSpec::with_key(&scratch.0, RUN_VALUE_NAME, Path::new(r"D:\Halvo\halvo.exe"))
+                .unwrap();
+        assert_eq!(write_start_value(&other).unwrap(), InstallOutcome::Written);
+        assert_eq!(read_start_value(&spec).unwrap(), Some(other.data()));
+        assert_eq!(remove_start_value(&spec).unwrap(), RemoveOutcome::Removed);
+        assert_eq!(read_start_value(&spec).unwrap(), None);
+        assert_eq!(remove_start_value(&spec).unwrap(), RemoveOutcome::Absent);
     }
 }
