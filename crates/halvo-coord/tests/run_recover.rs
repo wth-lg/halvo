@@ -736,6 +736,9 @@ enum Turn {
     /// It first stores this event at the `seq` of the log, as a log of the earlier life that
     /// lands after recovery read the ledger.
     Late(What),
+    /// It stores the log and answers `no_service`: the acknowledgement is lost. A log that the
+    /// owner refuses gets the owner's refusal and leaves the turn to the next log.
+    Lose,
 }
 
 /// The ports with a late writer: the owner takes the turns in order, one for each log, and
@@ -761,6 +764,13 @@ impl<P: Owner> Owner for Late<'_, P> {
         let turn = self.turns.borrow_mut().pop_front();
         match (turn, events.first()) {
             (Some(Turn::Refuse(e)), _) => return Err(e),
+            (Some(Turn::Lose), _) => {
+                let stored = self.ports.log(events);
+                if stored.is_err() {
+                    self.turns.borrow_mut().push_front(Turn::Lose);
+                }
+                return stored.and(Err(PortError::NoService));
+            }
             (Some(Turn::Late(what)), Some(first)) => {
                 let late = Event {
                     what,
@@ -1219,4 +1229,471 @@ fn a_new_life_knows_the_agent_of_a_dismissed_workflow_as_paused_manual_with_no_p
         },
         "paused, with the trigger manual and no period (ruling XB-28 (a))"
     );
+}
+
+#[test]
+fn review_w9_an_owed_run_ended_that_the_checks_read_brought_in_is_stored_once() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+    let owed: Vec<String> = w
+        .board
+        .owed
+        .iter()
+        .map(|o| format!("{:?}", o.what))
+        .collect();
+    stored_outside(
+        &w,
+        0,
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+        },
+    );
+    w.ports.clear_refusals();
+    let ended_count = |w: &World| {
+        w.ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+            .count()
+    };
+    let start = w.act(Act::Start { agent: agent(0) });
+    let mut log = vec![
+        format!("owed after recovery: {owed:?}"),
+        format!(
+            "person's start: {:?}, checked {:?}, run_ended stored {}",
+            start.report.answer,
+            start.checked.len(),
+            ended_count(&w)
+        ),
+    ];
+    for k in 1..3u64 {
+        w.set_clock(T0 + 10_000 * k, DAY);
+        w.act(Act::Tick);
+    }
+    log.push(format!(
+        "after two ticks: run_ended stored {}, owed {}",
+        ended_count(&w),
+        w.board.owed.len()
+    ));
+    println!("W9 {}", log.join(" | "));
+    assert_eq!(ended_count(&w), 1, "W9 {}", log.join(" | "));
+}
+
+#[test]
+fn review_w5_owed_lapse_after_a_resync_of_its_body_is_stored_once() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7505)).unwrap();
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[(run.clone(), Reaped::Gone)]);
+    let owed: Vec<String> = w
+        .board
+        .owed
+        .iter()
+        .map(|o| format!("{:?}", o.what))
+        .collect();
+    stored_outside(
+        &w,
+        0,
+        What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+        },
+    );
+    stored_outside(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: item.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+        },
+    );
+    w.ports.clear_refusals();
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    let ended = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+        .count();
+    println!(
+        "W5 owed after recovery: {owed:?} | run_ended of the run: {ended} | item_lapsed of the item: {} | owed after two ticks: {}",
+        lapses_of(&w, &item),
+        w.board.owed.len()
+    );
+    assert_eq!(ended, 1, "one run_ended");
+    assert_eq!(lapses_of(&w, &item), 1, "I5.8, L4: the item lapses once");
+}
+
+/// A new life whose recovery runs on `turns`, one for each log of recovery.
+fn relife_with(w: &mut World, turns: Vec<Turn>) {
+    w.ports.new_life();
+    w.forget();
+    let life = recover(&Late::new(&w.ports, turns), &w.limits).expect("recovery");
+    w.board = life.board;
+    w.table = Table::new();
+}
+
+fn ends_of(w: &World, run: &RunId) -> usize {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
+        .count()
+}
+
+fn two_ticks(w: &mut World) {
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+}
+
+#[test]
+fn a_recovery_body_of_a_run_and_its_item_stored_with_a_lost_acknowledgement_is_stored_once() {
+    let mut w = world(&[MANUAL]);
+    let run = RunId::parse(&format!("{:032x}", 0xc001)).unwrap();
+    let item = ItemId::parse(&format!("{:032x}", 0xd001)).unwrap();
+    stored_outside(
+        &w,
+        0,
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: item.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    relife_with(&mut w, vec![Turn::Lose]);
+    assert_eq!(
+        (ends_of(&w, &run), lapses_of(&w, &item)),
+        (1, 1),
+        "the owner stored the body"
+    );
+    assert_eq!(
+        w.board
+            .owed
+            .iter()
+            .filter(|o| !matches!(o.what, halvo_coord::schedule::Owing::EndRun { .. }))
+            .count(),
+        2,
+        "its run_ended and its item_lapsed are owed"
+    );
+    two_ticks(&mut w);
+    assert_eq!(
+        (ends_of(&w, &run), lapses_of(&w, &item)),
+        (1, 1),
+        "the verifier's case x2: one run_ended and one item_lapsed (I5.8, L4)"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn a_recovery_body_of_two_runs_stored_with_a_lost_acknowledgement_ends_each_run_once() {
+    let mut w = world(&[MANUAL]);
+    let runs: Vec<RunId> = [0xc001, 0xc002]
+        .iter()
+        .map(|n| RunId::parse(&format!("{n:032x}")).unwrap())
+        .collect();
+    for run in &runs {
+        stored_outside(
+            &w,
+            0,
+            What::RunStarted {
+                run: run.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+        );
+    }
+    relife_with(&mut w, vec![Turn::Lose]);
+    two_ticks(&mut w);
+    assert_eq!(
+        runs.iter().map(|r| ends_of(&w, r)).collect::<Vec<_>>(),
+        vec![1, 1],
+        "the verifier's case x3: each run ends once"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+/// The items of the kind `check` of agent 0 that the owner holds open.
+fn open_checks(w: &World) -> Vec<ItemId> {
+    let events = w.ports.events.borrow();
+    events
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Check(_),
+            } if e.agent == agent(0) => Some(item.clone()),
+            _ => None,
+        })
+        .filter(|item| {
+            !events.iter().any(|e| match &e.what {
+                What::ItemLapsed { item: i, .. }
+                | What::ItemAnswered { item: i, .. }
+                | What::ItemReleased { item: i, .. } => i == item,
+                _ => false,
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn a_check_stored_with_a_lost_acknowledgement_beside_an_owed_lapse_is_raised_once() {
+    let mut w = world(&[MANUAL]);
+    let first = w.ports.agents.borrow()[0].last.clone().unwrap().run;
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: first,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    w.act(Act::Tick);
+    assert_eq!(open_checks(&w).len(), 1, "the first life raises the check");
+    relife_with(&mut w, vec![Turn::Lose, Turn::Lose]);
+    let open = open_checks(&w);
+    assert_eq!(
+        open.len(),
+        1,
+        "the owner stored the lapse of the first check and a second check item"
+    );
+    assert_eq!(w.board.owed.len(), 1, "the lapse is owed");
+    assert_eq!(
+        w.facts(0).doing,
+        halvo_coord::types::Doing::Idle(None),
+        "the board does not hold the check item whose acknowledgement was lost"
+    );
+    two_ticks(&mut w);
+    assert_eq!(
+        open_checks(&w),
+        open,
+        "the verifier's case x1: no check item is raised a second time (RD-12 (b))"
+    );
+    assert_eq!(
+        w.facts(0).doing,
+        halvo_coord::types::Doing::Idle(Some(halvo_coord::types::OwnItem {
+            item: open[0].clone(),
+            kind: halvo_coord::types::OwnItemKind::Check,
+        })),
+        "the board holds the open check item"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn a_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowledgement() {
+    let mut w = world(&[MANUAL]);
+    let first = w.ports.agents.borrow()[0].last.clone().unwrap().run;
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: first,
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    w.act(Act::Tick);
+    let earlier = open_checks(&w);
+    assert_eq!(earlier.len(), 1, "the first life raises the check");
+    relife_with(&mut w, vec![Turn::Refuse(PortError::NoService), Turn::Lose]);
+    let open = open_checks(&w);
+    assert_eq!(
+        open.len(),
+        2,
+        "the owner refused the body and stored the new check item"
+    );
+    let stored = open.iter().find(|i| !earlier.contains(i)).unwrap().clone();
+    assert_eq!(
+        w.board.owed.len(),
+        1,
+        "the lapse of the earlier check is owed"
+    );
+    assert_eq!(w.facts(0).doing, halvo_coord::types::Doing::Idle(None));
+    let held = halvo_coord::types::Doing::Idle(Some(halvo_coord::types::OwnItem {
+        item: stored.clone(),
+        kind: halvo_coord::types::OwnItemKind::Check,
+    }));
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        w.facts(0).doing,
+        held,
+        "the lapse's log is refused with seq, and its read takes up the open check item (RD-12 (b))"
+    );
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        open_checks(&w),
+        vec![stored],
+        "the earlier check lapsed and no check item is raised a second time"
+    );
+    assert_eq!(w.facts(0).doing, held);
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn an_owed_run_ended_refused_with_seq_for_another_event_is_logged_after_it() {
+    let mut w = world(&[MANUAL]);
+    let earlier = RunId::parse(&format!("{:032x}", 0xc101)).unwrap();
+    let run = RunId::parse(&format!("{:032x}", 0xc102)).unwrap();
+    for what in [
+        What::RunStarted {
+            run: earlier.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+        What::RunEnded {
+            run: earlier.clone(),
+            cause: RunEnd::Completed,
+        },
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    ] {
+        stored_outside(&w, 0, what);
+    }
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    w.ports.clear_refusals();
+    assert!(
+        w.board.owed.iter().any(|o| matches!(
+            &o.what,
+            halvo_coord::schedule::Owing::RunEnded { run: r, .. } if *r == run
+        )),
+        "the run_ended of the newer run is owed"
+    );
+    stored_outside(&w, 0, What::SlotSkipped { slot: None });
+    two_ticks(&mut w);
+    assert_eq!(
+        ends_of(&w, &run),
+        1,
+        "the owed run_ended is logged after the other event, not paid by the end of another run"
+    );
+    assert!(!w
+        .board
+        .owed
+        .iter()
+        .any(|o| matches!(o.what, halvo_coord::schedule::Owing::RunEnded { .. })));
+}
+
+#[test]
+fn a_run_ended_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowledgement()
+{
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    relife_with(&mut w, vec![Turn::Refuse(PortError::NoService), Turn::Lose]);
+    let open = open_checks(&w);
+    assert_eq!(open.len(), 1, "the owner stored the check item");
+    assert!(
+        w.board.owed.iter().any(|o| matches!(
+            &o.what,
+            halvo_coord::schedule::Owing::RunEnded { run: r, .. } if *r == run
+        )),
+        "the run_ended of the refused body is owed"
+    );
+    let held = halvo_coord::types::Doing::Idle(Some(halvo_coord::types::OwnItem {
+        item: open[0].clone(),
+        kind: halvo_coord::types::OwnItemKind::Check,
+    }));
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        w.facts(0).doing,
+        held,
+        "the run_ended's log is refused with seq, and its read takes up the open check item (RD-12 (b))"
+    );
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        open_checks(&w),
+        open,
+        "no check item is raised a second time"
+    );
+    assert_eq!(ends_of(&w, &run), 1);
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
+fn review_m1_a_read_after_seq_takes_up_no_item_for_an_agent_that_holds_one() {
+    const PERSON: A = A {
+        person: true,
+        slotted: true,
+    };
+    let mut w = world(&[PERSON]);
+    w.act(Act::Tick);
+    let before = format!("{:?}", w.facts(0).doing);
+    assert!(before.contains("Ready"), "{before}");
+    let run = RunId::parse(&format!("{:032x}", 0x7b01)).unwrap();
+    w.board.owed.push(halvo_coord::schedule::Owed {
+        agent: agent(0),
+        workflow: flow(0),
+        what: halvo_coord::schedule::Owing::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+            day: DAY,
+            at: 0,
+        },
+    });
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: ItemId::parse(&format!("{:032x}", 0x7b02)).unwrap(),
+            raised: Raised::Check(None),
+        },
+    );
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    let after = format!("{:?}", w.facts(0).doing);
+    println!("M1 before {before} | after the tick {after}");
+    assert!(after.contains("Ready"), "M1 after the tick {after}");
 }

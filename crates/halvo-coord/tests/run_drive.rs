@@ -691,3 +691,17 @@ fn the_cause_that_run_step_gives_an_end_is_the_cause_that_the_moves_report_and_s
          workflow went, whose agent a new life does not know"
     );
 }
+
+#[test]
+fn a_tick_whose_clock_reads_one_millisecond_before_the_stop_kills_the_run() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.act(Act::Stop {
+        run,
+        by: StopBy::Person,
+    });
+    w.forget();
+    w.set_clock(T0 - 1, support::DAY);
+    w.act(Act::Tick);
+    assert!(killed(&mut w), "RD-7: a clock earlier than the stop kills");
+}
