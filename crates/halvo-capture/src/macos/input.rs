@@ -205,6 +205,23 @@ fn create_tap(
     )
 }
 
+trait TapMaker {
+    fn make<F>(self, settings: TapSettings, callback: F) -> Result<CGEventTap<'static>, ()>
+    where
+        F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static;
+}
+
+struct SystemTapMaker;
+
+impl TapMaker for SystemTapMaker {
+    fn make<F>(self, settings: TapSettings, callback: F) -> Result<CGEventTap<'static>, ()>
+    where
+        F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+    {
+        create_tap(settings, callback)
+    }
+}
+
 struct TapContext {
     sink: SinkHandle,
     foreground: ForegroundReader,
@@ -271,9 +288,11 @@ fn tap_callback(
 fn install_tap(
     ctx: TapContext,
     settings: TapSettings,
+    maker: impl TapMaker,
 ) -> Result<(PortClearedOnDrop, CFRunLoopSource, CGEventTap<'static>), CaptureError> {
     let port = ctx.port.clone();
-    let tap = create_tap(settings, tap_callback(ctx))
+    let tap = maker
+        .make(settings, tap_callback(ctx))
         .map_err(|()| CaptureError::PermissionDenied(Modality::Keystroke))?;
 
     let source = tap
@@ -379,6 +398,22 @@ impl InputSource {
     pub fn violations_handle(&self) -> SecureInputViolations {
         self.violations.clone()
     }
+
+    fn start_with(
+        &mut self,
+        sink: SinkHandle,
+        maker: impl TapMaker + Send + 'static,
+    ) -> Result<(), CaptureError> {
+        let settings = tap_settings();
+        let ctx = tap_context(
+            sink,
+            self.foreground.clone(),
+            self.violations.clone(),
+            &settings,
+        );
+        self.tap = Some(TapThread::spawn(move || install_tap(ctx, settings, maker))?);
+        Ok(())
+    }
 }
 
 impl CaptureSource for InputSource {
@@ -387,15 +422,7 @@ impl CaptureSource for InputSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let settings = tap_settings();
-        let ctx = tap_context(
-            sink,
-            self.foreground.clone(),
-            self.violations.clone(),
-            &settings,
-        );
-        self.tap = Some(TapThread::spawn(move || install_tap(ctx, settings))?);
-        Ok(())
+        self.start_with(sink, SystemTapMaker)
     }
 
     fn stop(&mut self) {
@@ -435,6 +462,7 @@ mod tests {
     use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
     use std::cell::RefCell;
     use std::sync::mpsc::RecvTimeoutError;
+    use std::sync::{Mutex, PoisonError};
     use std::time::Duration;
 
     #[test]
@@ -616,6 +644,65 @@ mod tests {
         assert!(
             events_until_the_sink_closes(&writer).is_empty(),
             "a key read as secure was recorded"
+        );
+    }
+
+    type KeptCallback =
+        Box<dyn Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send>;
+
+    struct KeepingMaker(Arc<Mutex<Option<KeptCallback>>>);
+
+    impl TapMaker for KeepingMaker {
+        fn make<F>(self, _settings: TapSettings, callback: F) -> Result<CGEventTap<'static>, ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(Box::new(callback));
+            Err(())
+        }
+    }
+
+    #[test]
+    fn a_started_source_counts_a_key_under_a_real_hold_through_the_callback_that_it_installs() {
+        let kept = Arc::new(Mutex::new(None));
+        let (handle, writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state();
+        let mut source = InputSource::new(reader);
+        let violations = source.violations_handle();
+        let started = source.start_with(handle, KeepingMaker(kept.clone()));
+        assert!(
+            matches!(
+                started,
+                Err(CaptureError::PermissionDenied(Modality::Keystroke))
+            ),
+            "start did not return the permission error of a tap that was not made"
+        );
+        let callback = kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .expect("the maker was given a callback");
+        let _one = one_hold_at_a_time();
+        let Some(hold) = hold_or_skip(
+            "a_started_source_counts_a_key_under_a_real_hold_through_the_callback_that_it_installs",
+        ) else {
+            return;
+        };
+        let source_of_events =
+            CGEventSource::new(CGEventSourceStateID::Private).expect("a private event source");
+        let event =
+            CGEvent::new(source_of_events).expect("an event object of type null, never posted");
+        let _ = callback(std::ptr::null(), CGEventType::KeyDown, &event);
+        drop(hold);
+        drop(callback);
+        assert_eq!(
+            violations.count(),
+            1,
+            "a key under a real hold was not counted on the source's handle"
+        );
+        assert!(
+            events_until_the_sink_closes(&writer).is_empty(),
+            "a key under a real hold was recorded"
         );
     }
 
@@ -929,8 +1016,8 @@ mod granted_tests {
             port: port.clone(),
             secure: current_secure_state,
         };
-        let tap =
-            TapThread::spawn(move || install_tap(ctx, tap_settings())).expect("the tap starts");
+        let tap = TapThread::spawn(move || install_tap(ctx, tap_settings(), SystemTapMaker))
+            .expect("the tap starts");
         let live = port.port.load(Ordering::Relaxed);
         // SAFETY: `live` is the mach port of the tap that the tap thread keeps
         // until `stop` below.
