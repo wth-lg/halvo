@@ -348,6 +348,89 @@ fn a_sheet_name_is_compared_byte_for_byte() {
 }
 
 #[test]
+fn an_external_table_or_sheet_relationship_is_never_a_reason_to_refuse() {
+    let table = format!(
+        r#"<Relationship Id="rId8" Type="{OD}/table" Target="https://example.com/%2Ftable" TargetMode="External"/></Relationships>"#
+    );
+    let with_table = move |name: &str, bytes: Vec<u8>| {
+        let bytes = if name == SHEET_RELS {
+            replaced(bytes, "</Relationships>", &table)
+        } else {
+            bytes
+        };
+        Some((name.to_string(), bytes))
+    };
+    let scratch = Scratch::new("names-external-table");
+    repack(
+        &corpus("chart.xlsx"),
+        &scratch.path("book.xlsx"),
+        &with_table,
+        &[],
+    );
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let b3 = Range::parse("B3").expect("a range");
+    let got = folder.prepare(
+        Path::new("book.xlsx"),
+        &run,
+        "Sales",
+        b3,
+        &[vec![Value::Number(1.0)]],
+    );
+    assert!(got.is_ok(), "an external table: {:?}", got.err());
+    drop(got);
+    let far = format!(
+        r#"<Relationship Id="rId9" Type="{OD}/worksheet" Target="https://example.com/50%off" TargetMode="External"/></Relationships>"#
+    );
+    let with_sheet = move |name: &str, bytes: Vec<u8>| {
+        let bytes = match name {
+            BOOK_RELS => replaced(bytes, "</Relationships>", &far),
+            "xl/workbook.xml" => replaced(
+                bytes,
+                "</sheets>",
+                r#"<sheet name="Far" sheetId="9" r:id="rId9"/></sheets>"#,
+            ),
+            _ => bytes,
+        };
+        Some((name.to_string(), bytes))
+    };
+    let scratch = Scratch::new("names-external-sheet");
+    repack(
+        &corpus("values.xlsx"),
+        &scratch.path("book.xlsx"),
+        &with_sheet,
+        &[],
+    );
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let b5 = Range::parse("B5").expect("a range");
+    let got = folder.prepare(
+        Path::new("book.xlsx"),
+        &run,
+        "Values",
+        b5,
+        &[vec![Value::Number(1.0)]],
+    );
+    assert!(
+        got.is_ok(),
+        "another sheet with an external target: {:?}",
+        got.err()
+    );
+    drop(got);
+    let named = folder.prepare(
+        Path::new("book.xlsx"),
+        &run,
+        "Far",
+        b5,
+        &[vec![Value::Number(1.0)]],
+    );
+    assert_eq!(
+        named.err(),
+        Some(Error::Workbook(Refusal::Relationship)),
+        "the named sheet has no part in the package"
+    );
+}
+
+#[test]
 fn an_address_outside_the_package_is_no_part_name_and_its_link_is_carried_as_it_was() {
     let addresses = [
         "https://example.com/login?next=%2Fhome",
