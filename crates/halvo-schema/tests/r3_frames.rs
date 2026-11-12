@@ -4,7 +4,7 @@ use halvo_schema::executable::frame::{
     RunError, SecretReply, StoreRequest, ToRunner, FRAME_JSON_MAX,
 };
 use halvo_schema::executable::names::{SecretAnswer, Unreadable, YesNo};
-use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES};
+use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES, NAMES};
 use halvo_schema::request::{
     CoordinatorRole, CoordinatorWrite, ErrorName, RunnerRequest, RunnerRole,
 };
@@ -1569,4 +1569,49 @@ fn a_secret_reply_read_alone_checks_its_own_tag() {
         "missing_key",
         "t",
     );
+}
+
+#[test]
+fn a_secret_reply_with_a_key_that_the_contract_does_not_name_is_refused_for_each_answer() {
+    for keys in [
+        r#""answer":"stored","value":"tok_fixture","x":1"#,
+        r#""answer":"none","origin":"http://pay.test:18090""#,
+        r#""answer":"unreadable","member":"locked","bound":"yes""#,
+    ] {
+        expect(
+            ToRunner::parse(secret_reply(keys).as_bytes()),
+            "SecretReply",
+            "unknown_key",
+            "-",
+        );
+    }
+    let mut names: Vec<&str> = NAMES.to_vec();
+    names.extend([
+        "x", "", "T", "Answer", "Value", "Member", "answers", "values", "members", "t2", "bound",
+        "pid", "created", "group", "ref", "secret", "request", "result", "decision", "reply",
+        "endpoint", "reason", "outcome", "origin",
+    ]);
+    names.retain(|name| !["t", "answer", "value", "member"].contains(name));
+    for answer in [
+        r#""answer":"stored","value":"tok_fixture""#,
+        r#""answer":"none""#,
+        r#""answer":"unreadable","member":"fault""#,
+    ] {
+        for name in &names {
+            let after = secret_reply(&format!(r#"{answer},"{name}":null"#));
+            expect(
+                SecretReply::parse(after.as_bytes()),
+                "SecretReply",
+                "unknown_key",
+                "-",
+            );
+            let before = secret_reply(&format!(r#""{name}":"x",{answer}"#));
+            expect(
+                ToRunner::parse(before.as_bytes()),
+                "SecretReply",
+                "unknown_key",
+                "-",
+            );
+        }
+    }
 }
