@@ -2,8 +2,8 @@
 // figures over the counted runs and the two verdicts, and the result files made from raw output.
 // usage: node rule.mjs make window|sync <reading file> <log>... | check window|sync <file>
 // make prints the result file from the reading lines and the cell and figure lines of the logs, and
-// refuses (exit 1) a log with a miss line or a figure line that its cells do not give; check reads a
-// result file and exits 1 when its order, a figure or its verdict does not follow from its lines.
+// refuses (exit 1) what makeFile names; check reads a result file and exits 1 when what checkFile
+// names does not hold.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -144,42 +144,83 @@ function ofTrial(lines, trial, kind) {
   });
 }
 
-/** The result file of `trial` from the text of read.sh and the job logs, or why none can be made. */
+/** `counted` as the rule gives it: from `cpu_pct` on Windows, from `load_x100` and the processor
+ * count `ncpu` on macOS; `null` where the cell and `ncpu` do not give it. */
+export function countedFrom(cell, ncpu) {
+  if (typeof cell.cpu_pct === 'number') return cell.cpu_pct <= 50 ? 'yes' : 'no';
+  if (typeof cell.load_x100 === 'number' && typeof ncpu === 'number') return cell.load_x100 <= ncpu * 100 ? 'yes' : 'no';
+  return null;
+}
+
+function twice(trial, cells) {
+  const seen = new Set();
+  for (const c of cells) {
+    const key = trial === 'window' ? `machine=${c.machine} arm=${c.arm} run=${c.run}` : `machine=${c.machine} way=${c.way} arm=${c.arm}`;
+    if (seen.has(key)) return key;
+    seen.add(key);
+  }
+  return null;
+}
+
+const OBJECT_LINE = /^reading trial=sync machine=mac object=\S+$/;
+
+/** The result file of `trial` from the text of read.sh and the job logs, or why none can be made:
+ * a log with a miss line, a run that appears twice, a `counted` that its load does not give, a
+ * figure over all cells of a machine and arm that no log printed, or a sync file without its
+ * object line. */
 export function makeFile(trial, readingText, logs) {
   const reading = ofTrial(rawLines(readingText), trial, 'reading');
+  if (trial === 'sync' && !reading.some((l) => OBJECT_LINE.test(l))) return { ok: false, why: 'no reading line names the object of call.js' };
   const cells = [];
-  const figures = [];
+  const given = new Set();
   for (const [i, log] of logs.entries()) {
     const lines = rawLines(log);
     const miss = lines.find((l) => parseLine(l)?.kind === 'miss');
     if (miss) return { ok: false, why: `log ${i + 1} holds a miss line: ${miss}` };
     const mine = ofTrial(lines, trial, 'cell');
     cells.push(...mine);
-    if (trial === 'window') {
-      const given = ofTrial(lines, trial, 'figure');
-      const wanted = windowFigures(mine.map((l) => cellOf(parseLine(l).pairs))).map(figureLine);
-      if (given.join('\n') !== wanted.join('\n')) return { ok: false, why: `log ${i + 1}: its figure lines are not the figures of its cells` };
-      figures.push(...given);
+    if (trial !== 'window') continue;
+    for (const l of ofTrial(lines, trial, 'figure')) given.add(l);
+    const counts = new Set(lines.map((l) => /^trace trial=window .* ncpu=(\d+)$/.exec(l)).filter(Boolean).map((m) => Number(m[1])));
+    const ncpu = counts.size === 1 ? [...counts][0] : null;
+    for (const line of mine) {
+      const cell = cellOf(parseLine(line).pairs);
+      const wanted = countedFrom(cell, ncpu);
+      if (wanted === null) return { ok: false, why: `log ${i + 1} gives no single processor count for a cell with a load: ${line}` };
+      if (wanted !== cell.counted) return { ok: false, why: `log ${i + 1}: counted is not ${wanted} in ${line}` };
     }
   }
   const parsed = cells.map((l) => cellOf(parseLine(l).pairs));
+  const again = twice(trial, parsed);
+  if (again) return { ok: false, why: `a run appears twice: ${again}` };
+  const figures = trial === 'window' ? windowFigures(parsed).map(figureLine) : [];
+  const missing = figures.find((l) => !given.has(l));
+  if (missing) return { ok: false, why: `no log printed the figure ${missing}` };
   const verdict = trial === 'window' ? windowVerdict(parsed).line : syncVerdict(parsed).line;
   return { ok: true, text: `${[...reading, ...cells, ...figures, verdict].join('\n')}\n` };
 }
 
-/** Whether a result file holds its lines in the order of I11.1 and its figures and verdict follow. */
+/** Whether a result file holds its lines in the order of I11.1, each run once, `counted` as the use
+ * gives it where the cell holds the use, its figures and its verdict as its cells give them, and,
+ * for the sync trial, its object line and no figure line. */
 export function checkFile(trial, fileText) {
   const lines = String(fileText).split('\n').filter((l, i, all) => !(l === '' && i === all.length - 1));
+  const kinds = trial === 'window' ? KINDS : KINDS.filter((k) => k !== 'figure');
   let last = 0;
   for (const line of lines) {
     const p = parseLine(line);
-    const at = p ? KINDS.indexOf(p.kind) : -1;
+    const at = p ? kinds.indexOf(p.kind) : -1;
     if (at < 0 || (p.kind !== 'verdict' && p.pairs.trial !== trial)) return { ok: false, why: `a line of no kind of ${trial}: ${line}` };
-    if (at < last) return { ok: false, why: `a ${p.kind} line after a ${KINDS[last]} line` };
+    if (at < last) return { ok: false, why: `a ${p.kind} line after a ${kinds[last]} line` };
     last = at;
   }
+  if (trial === 'sync' && !lines.some((l) => OBJECT_LINE.test(l))) return { ok: false, why: 'no reading line names the object of call.js' };
   const cells = ofTrial(lines, trial, 'cell').map((l) => cellOf(parseLine(l).pairs));
+  const again = twice(trial, cells);
+  if (again) return { ok: false, why: `a run appears twice: ${again}` };
   if (trial === 'window') {
+    const off = cells.find((c) => countedFrom(c, null) !== null && countedFrom(c, null) !== c.counted);
+    if (off) return { ok: false, why: `counted does not follow from cpu_pct in run ${off.run} of ${off.machine} arm ${off.arm}` };
     const wanted = windowFigures(cells).map(figureLine).join('\n');
     if (ofTrial(lines, trial, 'figure').join('\n') !== wanted) return { ok: false, why: 'the figure lines are not the figures of the cells' };
   }
