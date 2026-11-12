@@ -89,7 +89,7 @@ Static analysis and the placeholder test:
 ```sh
 node_modules/.bin/tsc --noEmit
 node_modules/.bin/biome lint .
-shellcheck -x -s sh scripts/*.sh gate/checks/*.sh gate/lib/stub.sh stack.d/*.sh .githooks/commit-msg .githooks/pre-commit .githooks/pre-merge-commit
+(cd .. && sh scripts/ci/run-ci-d.sh macos 16-shell-lint)
 sh scripts/with-env.sh node_modules/.bin/vitest run
 ```
 
