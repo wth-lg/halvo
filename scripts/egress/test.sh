@@ -457,6 +457,48 @@ TREE
   code=$?
   got=$(awk '/^checks / { checks = $0; sub(/ lost=[0-9]+$/, " lost=<n>", checks) } END { print checks }' "$work/self-test.out")
   result sandbox/self-test-checks-line-carries-lost "0 checks probes=ok quiet=ok loopback=ok default=ok lost=<n>" "$code $got"
+  cat >"$work/watch.py" <<'PY'
+import glob, os, signal, sys, time
+check = sys.argv[1]
+end = time.time() + 120
+state = None
+while time.time() < end and state is None:
+    for path in glob.glob("target/egress/[0-9]*/state"):
+        text = open(path).read()
+        if ("pid=%s\n" % check) in text and "stream=" in text and "\ndone" not in text:
+            state = path
+    time.sleep(0.005)
+if state is None:
+    sys.exit(0)
+fields = dict(line.split("=", 1) for line in open(state).read().splitlines() if "=" in line)
+log = os.path.join(os.path.dirname(state), "stream.ndjson")
+while time.time() < end:
+    try:
+        if b" mark-end" in open(log, "rb").read():
+            try:
+                os.kill(int(fields["stream"]), signal.SIGKILL)
+            except OSError:
+                pass
+            sys.exit(0)
+    except OSError:
+        pass
+    time.sleep(0.001)
+PY
+  got=clean
+  tries=0
+  while [ "$got" != refused ] && [ "$tries" -lt 3 ]; do
+    tries=$((tries + 1))
+    sh scripts/egress/check.sh "$e" -- sleep 1 >"$work/watched.out" 2>"$work/watched.err" &
+    watched_check=$!
+    python3 -I "$work/watch.py" "$watched_check" &
+    watcher=$!
+    wait "$watched_check"
+    wait "$watcher"
+    case $(tail -n 1 "$work/watched.err") in
+      'REFUSED mode: the log stream of the check was not alive at its end marker') got=refused ;;
+    esac
+  done
+  result sandbox/stream-ended-at-its-end-marker refused "$got"
   serve 47201
   expect_refusal sandbox/self-test-port-taken port sh scripts/egress/check.sh --self-test
   unserve
