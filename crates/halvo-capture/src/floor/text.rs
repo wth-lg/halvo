@@ -65,6 +65,19 @@ impl CapturedText {
     pub fn was_cut(&self) -> bool {
         self.cut
     }
+
+    /// Whether the string, or with `file_name` its part after the last `/` or
+    /// `\`, equals one of `names`, ignoring ASCII case: the one comparison of
+    /// captured text, for the static exclusion list.
+    pub(crate) fn names_one_of(&self, names: &[&str], file_name: bool) -> bool {
+        let text: &str = &self.bytes;
+        let compared = if file_name {
+            text.rsplit(['/', '\\']).next().unwrap_or(text)
+        } else {
+            text
+        };
+        names.iter().any(|name| name.eq_ignore_ascii_case(compared))
+    }
 }
 
 /// The string writer of the record encoder and the one reader of captured

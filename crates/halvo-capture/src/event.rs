@@ -40,6 +40,16 @@ impl AppIdentity {
         matches!(self.0, AppForm::Unknown)
     }
 
+    /// Whether a bundle id is one of `bundle_ids`, or the file name of an
+    /// executable path one of `executables`, ignoring ASCII case.
+    pub(crate) fn is_listed(&self, bundle_ids: &[&str], executables: &[&str]) -> bool {
+        match &self.0 {
+            AppForm::BundleId(text) => text.names_one_of(bundle_ids, false),
+            AppForm::ExecutablePath(text) => text.names_one_of(executables, true),
+            AppForm::Unknown => false,
+        }
+    }
+
     fn entered(field: TextField, raw: String) -> AppIdentity {
         if raw.is_empty() {
             return AppIdentity::unknown();

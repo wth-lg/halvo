@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use crate::event::Modality;
 
+pub mod exclude;
 pub mod payload;
 pub mod site;
 pub mod text;
@@ -203,6 +204,56 @@ mod tests {
         }
         assert_eq!("screen_frame".parse::<Switch>(), Err(UnknownSwitch));
         assert_eq!(switch_of(Modality::ForegroundApp), None);
+    }
+
+    #[test]
+    fn each_switch_off_refuses_its_kind() {
+        use super::exclude::{DropReason, FloorHandle, NoLineage, PrivateWindow, Subject, Verdict};
+        use crate::event::AppIdentity;
+        use crate::secure_input::{FixedProbe, SecureInputReading};
+        use std::sync::Arc;
+
+        fn dropped<K: Recorded>(switches: Switches) -> Option<DropReason> {
+            let floor = FloorHandle::new(None, Arc::new(NoLineage), switches);
+            let app = AppIdentity::bundle_id("com.apple.Terminal".to_string());
+            let subject = Subject::new(app, exclude::ProcessId::new(42));
+            let probe = FixedProbe(SecureInputReading::Inactive);
+            match floor.decide::<K>(subject, PrivateWindow::Unknown, &probe) {
+                Verdict::Keep(_) => None,
+                Verdict::Drop(reason) => Some(reason),
+            }
+        }
+
+        fn each_kind(switches: Switches) -> [Option<DropReason>; 5] {
+            [
+                dropped::<kind::ForegroundApp>(switches),
+                dropped::<kind::WindowTitle>(switches),
+                dropped::<kind::Keystroke>(switches),
+                dropped::<kind::Pointer>(switches),
+                dropped::<kind::ScreenFrame>(switches),
+            ]
+        }
+
+        let off = Some(DropReason::SwitchOff);
+        assert_eq!(
+            each_kind(Switches::default()),
+            [None, None, None, None, off]
+        );
+        let mut all_on = Switches::default();
+        all_on.set(Switch::ScreenActivity, true);
+        assert_eq!(each_kind(all_on), [None; 5]);
+        let expected = [
+            (Switch::TitleText, [None, off, None, None, None]),
+            (Switch::KeyClass, [None, None, off, None, None]),
+            (Switch::PointerClass, [None, None, None, off, None]),
+            (Switch::ScreenActivity, [None, None, None, None, off]),
+            (Switch::SiteRead, [None; 5]),
+        ];
+        for (switch, kinds) in expected {
+            let mut one_off = all_on;
+            one_off.set(switch, false);
+            assert_eq!(each_kind(one_off), kinds, "{switch:?}");
+        }
     }
 
     #[test]

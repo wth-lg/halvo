@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use crate::event::{CaptureStreamEvent, Modality};
+use crate::floor::exclude::FloorHandle;
 use crate::sink::{SinkError, SinkHandle};
 
 /// The default bodies of `start`, `stop`, `begin` and `shutdown` reach the
@@ -101,15 +102,27 @@ impl Drop for DefaultPairCall {
 #[derive(Clone)]
 pub struct SourceContext {
     sink: SinkHandle,
+    floor: FloorHandle,
 }
 
 impl SourceContext {
+    /// A context with the default floor handle: no exclusion root and the
+    /// default switches.
     pub fn new(sink: SinkHandle) -> Self {
-        Self { sink }
+        Self::with_floor(sink, FloorHandle::default())
+    }
+
+    pub fn with_floor(sink: SinkHandle, floor: FloorHandle) -> Self {
+        Self { sink, floor }
     }
 
     pub fn sink(&self) -> &SinkHandle {
         &self.sink
+    }
+
+    /// The exclusion decision and the switches for the source's events.
+    pub fn floor(&self) -> &FloorHandle {
+        &self.floor
     }
 }
 
