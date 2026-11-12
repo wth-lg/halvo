@@ -334,7 +334,13 @@ mod tests {
     fn received_numbers_rise_by_one_under_four_emitters() {
         const EMITTERS: usize = 4;
         const PER_EMITTER: u64 = 100_000;
-        let (handle, writer) = bounded(NonZeroUsize::new(2048).unwrap());
+        const KINDS_OF_EMITTERS: [Modality; EMITTERS] = [
+            Modality::Keystroke,
+            Modality::Pointer,
+            Modality::ScreenFrame,
+            Modality::ScreenFrame,
+        ];
+        let (handle, writer) = bounded(NonZeroUsize::new(400_000).unwrap());
         let (alive, all_ended) = mpsc::channel::<()>();
         let emitters: Vec<_> = (0..EMITTERS)
             .map(|emitter| {
@@ -342,11 +348,7 @@ mod tests {
                 let alive = alive.clone();
                 thread::spawn(move || {
                     let _alive = alive;
-                    let kind = if emitter % 2 == 0 {
-                        Modality::Keystroke
-                    } else {
-                        Modality::Pointer
-                    };
+                    let kind = KINDS_OF_EMITTERS[emitter];
                     let tag = i64::try_from(emitter).unwrap();
                     for index in 0..PER_EMITTER {
                         let outcome = handle.emit(unnumbered(kind, tag, index)).unwrap();
@@ -384,13 +386,15 @@ mod tests {
         }
         assert_eq!(next_index, [PER_EMITTER; EMITTERS]);
         assert_eq!(expected, 400_000);
-        let half = KindCounts {
-            accepted: 200_000,
+        let accepted = |accepted| KindCounts {
+            accepted,
             ..KindCounts::default()
         };
         let counts = handle.counts();
-        assert_eq!(counts.of(Modality::Keystroke), half);
-        assert_eq!(counts.of(Modality::Pointer), half);
+        assert_eq!(counts.of(Modality::Keystroke), accepted(100_000));
+        assert_eq!(counts.of(Modality::Pointer), accepted(100_000));
+        assert_eq!(counts.of(Modality::ScreenFrame), accepted(200_000));
+        assert_eq!(handle.dropped_count(), 0);
         assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
     }
 
@@ -710,6 +714,23 @@ mod tests {
                 "{kind:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_frame_on_a_full_queue_whose_writer_is_gone_is_refused_not_dropped() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        let kept = unnumbered(Modality::ScreenFrame, 0, 0);
+        assert_eq!(handle.emit(kept).unwrap(), EmitOutcome::Queued);
+        drop(writer);
+        let refused = handle.emit(unnumbered(Modality::ScreenFrame, 0, 1));
+        assert!(matches!(refused, Err(SinkError::Disconnected)));
+        let frames = KindCounts {
+            accepted: 1,
+            refused: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::ScreenFrame), frames);
+        assert_eq!(handle.dropped_count(), 0);
     }
 
     #[test]
