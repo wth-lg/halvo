@@ -428,7 +428,9 @@ seconds later. The executor therefore starts a guard for each browser: the trial
 `--relay-guard <pid> <creation time>`, started with `posix_spawn` and close-on-exec by default
 (a handle list on Windows) with the relay's listener as its one descriptor beside its standard
 streams. It never accepts; it reads the process table every 20 ms and exits when no process of the
-browser's tree runs, the adopted ones among them. The executor's stop waits for it.
+browser's tree runs, the adopted ones among them and every process that a living member starts
+after the first process has ended. The executor's stop waits for it. A failed accept does not end
+the relay's accept loop (`ACCEPT_PAUSE`), so the listener stays open while the relay lives.
 
 ### The checks of a session (CP-89 (c))
 
@@ -437,8 +439,12 @@ process of the browser's tree with a debugging-port flag on its command line), `
 socket of the tree that accepts connections), `udp_wide` (a UDP socket of the tree bound to an
 address other than loopback), `active_port_file` (`DevToolsActivePort` in the profile),
 `executor_listener` (a listener of the trial's process other than the relay's) and `pipe_holder`
-(a process other than the browser's first one and the trial's that holds an end of the pipe, among
-those started at or after the browser). Every run of `--round 3` reads them after the start, after
+(a process other than the browser's first one and the trial's that holds an end of the pipe: on
+macOS every process whose descriptors the user may read, so that an end passed over a socket is
+found too; on Windows the processes started at or after the browser, found by comparing each of
+their handles with the executor's copies of the four ends by `CompareObjectHandles`, which makes
+no request of the object: a request such as a name query waits on a pipe opened for synchronous
+I/O while a read of it is pending). Every run of `--round 3` reads them after the start, after
 the row and after the stop, and each cell prints one `check` line with the sum of each rule over its
 runs and the number of runs in which all were 0. For the read after the stop the executor keeps
 copies of its two ends open: on macOS a freed pipe's handle can name a new pipe of another process.
