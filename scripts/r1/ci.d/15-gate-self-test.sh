@@ -23,7 +23,7 @@ self_tested() {
   [ -z "$first" ] || fail "$label printed: $first"
   zero=$(printf '%s\n' "$out" | sed -n '/^PASS self-test:[^ ]* (0 cases/{p;q;}')
   [ -z "$zero" ] || fail "$label printed a PASS line with 0 cases: $zero"
-  none=$(printf '%s\n' "$out" | sed -n '/^PASS self-test:[^ ]* (.*[( ]0 failing fixtures rejected)/{p;q;}')
+  none=$(printf '%s\n' "$out" | grep -m 1 -E '^PASS self-test:[^ ]* \((.*[ ,])?0 failing fixtures rejected\)')
   [ -z "$none" ] || fail "$label rejected 0 failing fixtures: $none"
   case $group:$nl$out$nl in
     :*"${nl}PASS self-test:"*) ;;
@@ -126,6 +126,8 @@ self_test() {
   check check-rejects-no-fixture FAIL 'dash check-store.sh --self-test rejected 0 failing fixtures: PASS self-test:store (3 cases, 0 failing fixtures rejected))'
   gate run-rejects-no-fixture 'printf "PASS self-test:run (5 cases, 0 failing fixtures rejected)\n"' store "$pass"
   check run-rejects-no-fixture FAIL 'run.sh --self-test rejected 0 failing fixtures: PASS self-test:run (5 cases, 0 failing fixtures rejected))'
+  gate bare-zero-rejected "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (0 failing fixtures rejected)\n"'
+  check bare-zero-rejected FAIL 'dash check-store.sh --self-test rejected 0 failing fixtures: PASS self-test:store (0 failing fixtures rejected))'
   gate ten-fixtures-rejected "$pass" store '[ "$*" = --self-test ] || exit 3; printf "PASS self-test:store (12 cases, 10 failing fixtures rejected)\n"'
   check ten-fixtures-rejected PASS
   mkdir -p "$work/check-script-renamed/scripts" "$work/check-script-renamed/docs" || exit 2

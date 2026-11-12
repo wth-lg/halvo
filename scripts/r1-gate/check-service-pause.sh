@@ -6,6 +6,8 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 name=service-pause
 
 interval_defect() {
+  interval_line=$(grep -m 1 '^floor interval ' "$1")
+  case $interval_line in "floor interval from=$3 to=$4 records="*) ;; *) printf 'the floor report holds no interval line for from=%s to=%s: %s\n' "$3" "$4" "${interval_line:-none}"; return 1 ;; esac
   interval_n=$(floor_value "$1" interval records)
   case $interval_n in ''|*[!0-9]*) printf 'the floor report holds no interval line\n'; return 1 ;; esac
   [ "$interval_n" -eq 0 ] && return 0
@@ -14,7 +16,7 @@ interval_defect() {
 }
 
 predicate_interval_empty() {
-  interval_defect "$1" "${2:-}" > /dev/null
+  interval_defect "$1" "" "$2" "$3" > /dev/null
 }
 
 restart_defect() {
@@ -79,7 +81,7 @@ pause_steps() {
   from_ts=$(utc_of "$t1"); to_ts=$(utc_of "$t2")
   interval="[$from_ts, $to_ts]"
   floor_run floor --from "$from_ts" --to "$to_ts" || return 1
-  found=$(interval_defect "$svc_dir/floor.out" "$interval") || { gate_defect=$found; return 1; }
+  found=$(interval_defect "$svc_dir/floor.out" "$interval" "$from_ts" "$to_ts") || { gate_defect=$found; return 1; }
 }
 
 measure() {
@@ -114,9 +116,10 @@ cases() {
   printf 'floor records=9 undecodable=0 forbidden_fields=0\nfloor interval from=2026-11-12T09:00:01Z to=2026-11-12T09:00:10Z records=0\n' > "$gate_scratch/floor-0"
   printf 'floor records=9 undecodable=0 forbidden_fields=0\nfloor interval from=2026-11-12T09:00:01Z to=2026-11-12T09:00:10Z records=3\n' > "$gate_scratch/floor-3"
   printf 'floor records=9 undecodable=0 forbidden_fields=0\n' > "$gate_scratch/floor-no-interval"
-  t interval-empty PASS predicate_interval_empty "$gate_scratch/floor-0"
-  t events-in-interval-3 FAIL predicate_interval_empty "$gate_scratch/floor-3"
-  t interval-line-missing FAIL predicate_interval_empty "$gate_scratch/floor-no-interval"
+  t interval-empty PASS predicate_interval_empty "$gate_scratch/floor-0" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
+  t events-in-interval-3 FAIL predicate_interval_empty "$gate_scratch/floor-3" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
+  t interval-line-missing FAIL predicate_interval_empty "$gate_scratch/floor-no-interval" 2026-11-12T09:00:01Z 2026-11-12T09:00:10Z
+  t interval-of-another-span FAIL predicate_interval_empty "$gate_scratch/floor-0" 2026-11-12T10:00:01Z 2026-11-12T10:00:10Z
   printf 'store_id=0123456789abcdef0123456789abcdef\nrow day=2026-11-12 modality=foreground_app events=4 bytes=1\ntotal events=4 bytes=1 disk_bytes=1\n' > "$gate_scratch/inv-4"
   printf 'store_id=0123456789abcdef0123456789abcdef\nrow day=2026-11-12 modality=foreground_app events=9 bytes=1\ntotal events=9 bytes=1 disk_bytes=1\n' > "$gate_scratch/inv-9"
   t growth-around-the-pause PASS predicate_growth "$gate_scratch/inv-4" "$gate_scratch/inv-9"
@@ -124,7 +127,8 @@ cases() {
   t no-growth-before-pause FAIL predicate_growth "$gate_scratch/inv-4" "$gate_scratch/inv-4"
   paused=$(c2_fixture c2-status-macos.txt paused 's/^desired=running$/desired=paused/; s/^capture=running$/capture=paused/')
   t paused-after-restart PASS predicate_restart_paused "$paused" "$gate_scratch/inv-9" "$gate_scratch/inv-9"
-  t running-after-restart FAIL predicate_restart_paused "$GATE_FIXTURES/c2-status-macos.txt" "$gate_scratch/inv-9" "$gate_scratch/inv-9"
+  running=$(c2_fixture c2-status-macos.txt running-desired-paused 's/^desired=running$/desired=paused/')
+  t running-after-restart FAIL predicate_restart_paused "$running" "$gate_scratch/inv-9" "$gate_scratch/inv-9"
   t total-moves-after-restart FAIL predicate_restart_paused "$paused" "$gate_scratch/inv-4" "$gate_scratch/inv-9"
   t standin-good-run-with-no-input NO-INPUT against_the_standin good none
   t standin-main-names-the-mode PASS says 'FAIL service-pause (no --service-run mode' main none

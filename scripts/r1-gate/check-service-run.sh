@@ -184,7 +184,10 @@ cases() {
   t capture-running-after-lease-lapse FAIL predicate_lease_lapsed "$GATE_FIXTURES/c2-status-macos.txt" "$gate_scratch/inv-b" "$gate_scratch/inv-b"
   t stop-flushed PASS predicate_stopped 0 "$GATE_FIXTURES/c2-stopped.txt"
   printf 'stopped flushed=no events_lost=3\n' > "$gate_scratch/stopped-unflushed"
-  t stop-exit-1 FAIL predicate_stopped 1 "$gate_scratch/stopped-unflushed"
+  t stop-exit-1 FAIL predicate_stopped 1 "$GATE_FIXTURES/c2-stopped.txt"
+  t stop-unflushed FAIL predicate_stopped 0 "$gate_scratch/stopped-unflushed"
+  printf 'stopped flushed=yes events_lost=7\n' > "$gate_scratch/stopped-with-a-loss"
+  t stop-with-events-lost FAIL predicate_stopped 0 "$gate_scratch/stopped-with-a-loss"
   t ctl-answered PASS predicate_ctl_answered 0 "$GATE_FIXTURES/c2-stopped.txt" status
   t unreachable-69 FAIL predicate_ctl_answered 69 "$GATE_FIXTURES/c2-unreachable.txt" status
   printf 'com.apple.backupd\n' > "$gate_scratch/mark-value"

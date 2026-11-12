@@ -32,7 +32,10 @@ cases() {
   t c5-fail-input FAIL predicate_timed_run_report "$GATE_FIXTURES/c5-fail-input.txt"
   sed "s/^modality=foreground_app count=3\$/modality=foreground_app count=1/" "$good" > "$gate_scratch/foreground-count-1"
   t foreground-count-1 FAIL predicate_timed_run_report "$gate_scratch/foreground-count-1"
-  t recorded-685d846 FAIL predicate_timed_run_report "$GATE_FIXTURES/recorded-685d846-four-switches.txt"
+  t recorded-685d846 FAIL predicate_foreground_switches "$GATE_FIXTURES/recorded-685d846-four-switches.txt"
+  t recorded-685d846-report FAIL predicate_timed_run_report "$GATE_FIXTURES/recorded-685d846-four-switches.txt"
+  sed 's/^failed_sources=0$/failed_sources=1/' "$good" > "$gate_scratch/failed-count-only"
+  t failed-sources-1-without-its-line FAIL predicate_timed_run_report "$gate_scratch/failed-count-only"
   gate_input=none
   t foreground-count-1-under-no-input PASS predicate_foreground_switches "$gate_scratch/foreground-count-1"
   t report-missing FAIL predicate_modalities_present "$gate_scratch/no-such-report"

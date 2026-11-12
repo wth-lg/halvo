@@ -245,6 +245,8 @@ predicate_modalities_present() {
 predicate_timed_run_report() {
   predicate_modalities_present "$1" || return 1
   predicate_foreground_switches "$1" || return 1
+  report_failed=$(sed -n 's/^failed_sources=\([0-9][0-9]*\)$/\1/p' "$1" 2>/dev/null)
+  [ "$report_failed" = 0 ] || return 1
   ! grep -q -e "^failed_source=" "$1" 2>/dev/null
 }
 
@@ -1138,7 +1140,7 @@ predicate_lease_lapsed() {
 stop_defect() {
   stop_line=$(head -1 "$2" 2>/dev/null)
   case $1:$stop_line in
-    0:'stopped flushed=yes events_lost='*) return 0 ;;
+    '0:stopped flushed=yes events_lost=0') return 0 ;;
   esac
   printf 'ctl stop exited %s and printed: %s\n' "$1" "${stop_line:-nothing}"
   return 1

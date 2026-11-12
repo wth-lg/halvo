@@ -51,6 +51,8 @@ measure() {
     fail "perl could not decode the escape sequences of ci.yml"
   uses=$(grep -o -E "$uses_key" "$decoded" | wc -l | tr -d ' ')
   pinned=$(grep -o -E "${uses_key}[[:space:]]*[\"']?[^ \"',}]+@[0-9a-f]{40}[\"']?([[:space:],}]|\$)" "$decoded" | wc -l | tr -d ' ')
+  explicit=$(grep -c -E '^[[:space:]]*(-[[:space:]]+)?[?]([[:space:]]|$)' "$decoded")
+  [ "$explicit" -eq 0 ] || finding "ci.yml writes $explicit keys in the explicit form of YAML (?), which this lint does not read; write each key in the plain form key: value"
   [ "$uses" -gt 0 ] || finding "ci.yml holds no uses line"
   [ "$uses" -eq "$pinned" ] ||
     finding "$((uses - pinned)) of $uses uses keys of ci.yml take no 40-hex commit; pin the action to a commit and keep the version in a comment"
@@ -280,6 +282,10 @@ EOF
   check job-permissions-contents-read PASS 'jobs: 2, uses keys: 2, findings: 0'
   tree job-permissions-empty "7s/\$/\\${nl}    permissions: {}/"
   check job-permissions-empty PASS 'jobs: 2, uses keys: 2, findings: 0'
+  tree explicit-uses-key "10s/.*/      - ? uses\\${nl}        : actions\/checkout@v4/"
+  check explicit-uses-key FAIL 'keys in the explicit form of YAML'
+  tree explicit-job-permissions "7s/\$/\\${nl}    ? permissions\\${nl}    : write-all/"
+  check explicit-job-permissions FAIL 'keys in the explicit form of YAML'
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"
   chmod +x "$work/old-tools/actionlint"

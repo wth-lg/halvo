@@ -20,10 +20,10 @@ floor_shape_defect() {
     floor_n=$(floor_head "$1" "$floor_key")
     [ "$floor_n" = 0 ] || { printf 'the floor report says %s=%s\n' "$floor_key" "${floor_n:-absent}"; return 1; }
   done
-  floor_keys=$(grep -c '^floor key_class=[a-z]* records=[0-9]*$' "$1")
-  floor_points=$(grep -c '^floor pointer_class=[a-z]* records=[0-9]* folded=[0-9]*$' "$1")
-  [ "$floor_keys:$floor_points" = 7:4 ] && return 0
-  printf 'the floor report holds %s key_class lines and %s pointer_class lines, and C13.9 has 7 and 4\n' "$floor_keys" "$floor_points"
+  floor_keys=$(sed -n 's/^floor key_class=\([a-z]*\) records=[0-9]*$/\1/p' "$1" | sort | tr '\n' ' ')
+  floor_points=$(sed -n 's/^floor pointer_class=\([a-z]*\) records=[0-9]* folded=[0-9]*$/\1/p' "$1" | sort | tr '\n' ' ')
+  [ "$floor_keys" = 'editing enter navigation other printable shortcut tab ' ] && [ "$floor_points" = 'click drag move scroll ' ] && return 0
+  printf 'the floor report holds the key classes [%s] and the pointer classes [%s], and C13.9 has one line for each of the seven and the four\n' "${floor_keys% }" "${floor_points% }"
   return 1
 }
 
@@ -46,9 +46,9 @@ predicate_title_marker_found() {
 
 typed_marker_defect() {
   floor_shape_defect "$1" || return 1
-  marker_word=$(marker_word_of "$1")
-  [ "$marker_word" = absent ] && return 0
-  printf 'the typed marker is in the store: floor marker=%s\n' "$marker_word"
+  marker_line=$(grep -m 1 '^floor marker=' "$1")
+  [ "$marker_line" = 'floor marker=absent app=0 title=0 site=0 column=0' ] && return 0
+  printf 'the typed marker is in the store: %s\n' "${marker_line:-no marker line}"
   return 1
 }
 
@@ -71,8 +71,9 @@ predicate_raw_scan_clean() {
 }
 
 excluded_defect() {
-  marker_word=$(marker_word_of "$1")
-  [ "$marker_word" = absent ] && return 0
+  floor_shape_defect "$1" || return 1
+  excluded_line=$(grep -m 1 '^floor marker=' "$1")
+  [ "$excluded_line" = 'floor marker=absent app=0 title=0 site=0 column=0' ] && return 0
   printf 'a record carries the app id of the statically excluded app\n'
   return 1
 }
@@ -160,6 +161,11 @@ cases() {
   t typed-marker-absent PASS predicate_typed_marker_absent "$fixture"
   fixture=$(floor_fixture typed-found 0 0 none 'floor marker=found app=0 title=1 site=0 column=0')
   t typed-marker-found FAIL predicate_typed_marker_absent "$fixture"
+  fixture=$(floor_fixture typed-absent-with-a-title 0 0 none 'floor marker=absent app=0 title=1 site=0 column=0')
+  t typed-marker-absent-word-with-a-title-count FAIL predicate_typed_marker_absent "$fixture"
+  fixture=$(floor_fixture class-twice 0 0 tab "$found_line")
+  printf 'floor key_class=printable records=3\n' >> "$fixture"
+  t class-line-twice-and-one-missing FAIL predicate_title_marker_found "$fixture"
   mkdir -p "$gate_scratch/raw-clean/store" "$gate_scratch/raw-hit/store"
   head -c 256 /dev/urandom > "$gate_scratch/raw-clean/store/store.db"
   printf 'title r1gateTITLE-9 in plain text\n' > "$gate_scratch/raw-hit/store/store.db-wal"
