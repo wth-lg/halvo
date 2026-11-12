@@ -9,6 +9,8 @@ unset JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS
 name=30-r4-formal
 label=$name
 workers=3
+ci_schedule=days,queue,store,holds,left,reap
+ci_confirm=full,apart
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
@@ -145,8 +147,8 @@ table() {
   [ "$heads" -eq 1 ] || fail invariant
   [ "$faults" -eq 0 ] || fail invariant
   [ "$unnamed" -eq 0 ] || fail invariant
-  [ -n "$schedule_names" ] || fail invariant
-  [ -n "$confirm_names" ] || fail invariant
+  [ "$schedule_names" = "$ci_schedule" ] || fail invariant
+  [ "$confirm_names" = "$ci_confirm" ] || fail invariant
 }
 
 run_tlc() {
@@ -354,11 +356,13 @@ stamps() {
 compare() {
   same=-
   jobs=$(sed -n 's/^export compared in jobs:\(.*\)$/\1/p' "$tmp/readme.txt")
+  compare=no
+  if [ -z "${CI_D_JOB:-}" ]; then
+    compare=yes
+  fi
   case " $jobs " in
-    *" ${CI_D_JOB:-} "*) compare=yes ;;
-    *) compare=no ;;
+    *" ${CI_D_JOB:-none} "*) compare=yes ;;
   esac
-  [ -n "${CI_D_JOB:-}" ] || compare=yes
   if [ "$compare" = yes ]; then
     mkdir "$tmp/export" || fail traces
     t0=$(date +%s)
@@ -595,7 +599,9 @@ case $module in
   *) file= ;;
 esac
 if [ -n "$file" ]; then
-  sed -e 1d -e 's/"/\\"/g' -e 's/^/"/' -e 's/$/"/' "$R4_STUB_TRACES/$file"
+  if grep -q 'CONSTANT Config = "full"' "$cfg"; then
+    sed -e 1d -e 's/"/\\"/g' -e 's/^/"/' -e 's/$/"/' "$R4_STUB_TRACES/$file"
+  fi
   exit 0
 fi
 copy=
@@ -688,10 +694,6 @@ EOF
   fixture not-compared
   edit not-compared README.md "$elsewhere"
   expect not-compared "0:PASS $name" good '' ' same=-'
-  fixture days-not-for-ci
-  edit days-not-for-ci README.md "$elsewhere"
-  edit days-not-for-ci README.md 's/\(| .Schedule-days\.cfg. |\) yes |/\1 no |/'
-  expect days-not-for-ci "0:PASS $name" violated
   expect not-compared "0:PASS $name" reads-input '' ' configuration=apart '
   tmp_as='t m p'
   expect not-compared "0:PASS $name" relative '' ' same=-'
@@ -736,6 +738,19 @@ EOF
     expect not-compared "1:FAIL $name (control)" "$mode"
   done
 
+  fixture days-not-for-ci
+  edit days-not-for-ci README.md "$elsewhere"
+  edit days-not-for-ci README.md 's/\(| .Schedule-days\.cfg. |\) yes |/\1 no |/'
+  expect days-not-for-ci "1:FAIL $name (invariant)" good
+  fixture line-deleted
+  edit line-deleted README.md "$elsewhere"
+  edit line-deleted README.md '/^| .Schedule. | .days. | .Schedule-days\.cfg. |/d'
+  mv "$fdir/Schedule-days.cfg" "$work/days-away.cfg" || fail selftest
+  expect line-deleted "1:FAIL $name (invariant)" good
+  fixture apart-not-for-ci
+  edit apart-not-for-ci README.md "$elsewhere"
+  edit apart-not-for-ci README.md 's/\(| .Confirm4-apart\.cfg. |\) yes |/\1 no |/'
+  expect apart-not-for-ci "1:FAIL $name (invariant)" good
   fixture two-spaces
   edit two-spaces README.md "$elsewhere"
   edit two-spaces README.md 's/\(| .Confirm4-apart\.cfg. |\) yes |/\1  yes  |/'
@@ -743,7 +758,7 @@ EOF
   fixture name-with-a-dash
   edit name-with-a-dash README.md "$elsewhere"
   edit name-with-a-dash README.md 's/| \(.\)apart. | .Confirm4-apart/| \1a-part\1 | \1Confirm4-apart/'
-  expect name-with-a-dash "1:FAIL $name (invariant)" violated-apart '' ' configuration=a-part status=12 '
+  expect name-with-a-dash "1:FAIL $name (invariant)" good
   fixture empty-count
   edit empty-count README.md 's/\(| .Schedule-queue\.cfg. | yes | [^|]* |\) [0-9,]* |/\1  |/'
   expect empty-count "1:FAIL $name (invariant)" good
@@ -846,7 +861,13 @@ INVARIANT C7/'
   edit control-moved README.md "$elsewhere"
   edit control-moved Schedule.tla 's/^ModelFree(s, a) == a /ModelFree(s, a) ==  a /'
   restamp control-moved
-  expect control-moved "1:FAIL $name (control)" good
+  expect control-moved "1:FAIL $name (control)" good '' 'formal control applied=no'
+  fixture control-twice
+  edit control-twice README.md "$elsewhere"
+  sed -n '/^ModelFree(s, a) == a /p' "$fdir/Schedule.tla" >"$work/twice.txt" || fail selftest
+  cat "$work/twice.txt" >>"$fdir/Schedule.tla" || fail selftest
+  restamp control-twice
+  expect control-twice "1:FAIL $name (control)" good '' 'formal control applied=no'
 
   keep=$tmp
   tmp="$keep/real copies"
