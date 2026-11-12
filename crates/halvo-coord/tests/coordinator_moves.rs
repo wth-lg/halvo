@@ -1666,3 +1666,138 @@ fn a_stop_while_every_log_answers_no_service_stores_its_lapse_before_the_run_end
     let at = |what: &What| stored.iter().position(|w| w == what);
     assert!(at(&lapse) < at(&ended), "{stored:?}");
 }
+
+/// A coordinator whose agent 0 has a run that waits on the item of the handback `reason`,
+/// raised at `T0`, and that waited `wait_limit_s` until the tick that timed it out.
+fn timed_out(reason: HandbackReason) -> (Coordinator<Both>, RunId, ItemId, usize) {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, reason)).unwrap();
+    let (item, _) = open_item(&c);
+    let limit = T0 + limits.wait_limit_s * 1000;
+    c.ports().ports.set_clock(limit - 1, DAY);
+    c.tick();
+    assert_eq!(
+        c.snapshot().items.len(),
+        1,
+        "{reason:?}: not lapsed before wait_limit_s"
+    );
+    let m = mark(&c);
+    c.ports().ports.set_clock(limit, DAY);
+    c.tick();
+    (c, run, item, m)
+}
+
+#[test]
+fn an_item_that_a_run_waits_on_lapses_at_wait_limit_and_its_run_ends_lapsed() {
+    let limits = Limits::PRODUCT;
+    type Lapse = fn(OtherLapse) -> Lapsed;
+    let kinds: [(HandbackReason, Lapse); 4] = [
+        (HandbackReason::SignIn, Lapsed::SignIn),
+        (HandbackReason::AccountLink, Lapsed::LinkAccount),
+        (HandbackReason::StepFailed, Lapsed::Stuck),
+        (HandbackReason::EffectUnknown, Lapsed::Check),
+    ];
+    for (reason, lapsed) in kinds {
+        let (c, run, item, m) = timed_out(reason);
+        let calls = calls_since(&c, m);
+        assert!(
+            calls.contains(&Call::AnswerHandback(
+                run.clone(),
+                halvo_coord::types::HandbackResult::Timeout
+            )),
+            "{reason:?}: the handback is answered with timeout: {calls:?}"
+        );
+        assert!(
+            events(&c).contains(&What::ItemLapsed {
+                item,
+                lapsed: lapsed(OtherLapse::WaitLimit)
+            }),
+            "{reason:?}"
+        );
+        assert_eq!(cancels_of(&c, m, &run), 1, "{reason:?}");
+        let s = c.snapshot();
+        assert!(s.items.is_empty(), "{reason:?}");
+        assert_eq!(row_line(&s, 0), text("line.working.stopping"), "{reason:?}");
+        let m = mark(&c);
+        c.ports().ports.set_clock(
+            T0 + limits.wait_limit_s * 1000 + limits.cancel_grace_s * 1000,
+            DAY,
+        );
+        c.tick();
+        assert_eq!(kills_of(&c, m, &run), 1, "{reason:?}");
+        assert!(
+            events(&c).contains(&What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Lapsed
+            }),
+            "{reason:?}"
+        );
+        assert_eq!(c.live(), 0, "{reason:?}");
+    }
+}
+
+#[test]
+fn the_holds_check_item_never_lapses_by_time() {
+    let limits = Limits::PRODUCT;
+    let c = coordinator(&[MANUAL], limits);
+    let run = start(&c, 0);
+    c.ports().ports.end_runner(&run);
+    c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Check);
+    for k in 1..4u64 {
+        c.ports()
+            .ports
+            .set_clock(T0 + k * limits.wait_limit_s * 1000, DAY);
+        c.tick();
+        let (still, _) = open_item(&c);
+        assert_eq!(still, item, "the hold's check stands after {k} wait limits");
+    }
+    assert!(!events(&c)
+        .iter()
+        .any(|w| matches!(w, What::ItemLapsed { item: i, .. } if *i == item)));
+}
+
+#[test]
+fn after_a_lapse_at_wait_limit_the_person_finds_no_card_the_row_stopped_early_and_a_start_passes() {
+    let limits = Limits::PRODUCT;
+    let (c, run, _, _) = timed_out(HandbackReason::StepFailed);
+    let grace = T0 + limits.wait_limit_s * 1000 + limits.cancel_grace_s * 1000;
+    c.ports().ports.set_clock(grace, DAY);
+    c.tick();
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::HandedBack,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.set_clock(grace + 1_000, DAY);
+    c.tick();
+    let s = c.snapshot();
+    assert!(s.items.is_empty());
+    assert_eq!(s.rows[0].status, Status::AllSet);
+    assert_eq!(row_line(&s, 0), text("line.all_set.stopped_early"));
+    assert!(events(&c).contains(&What::RunEnded {
+        run: run.clone(),
+        cause: RunEnd::Lapsed
+    }));
+    let next = start(&c, 0);
+    assert_ne!(next, run);
+}

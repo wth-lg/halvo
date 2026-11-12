@@ -11,9 +11,9 @@ use crate::ports::{Clock, Owner, PortError, Rng, Runs};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
-    Choice, ConfigView, ConfirmAsk, DoneAnswer, Event, Facts, HandbackAsk, Item, ItemId,
-    LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse, OwnItem, OwnItemKind, Presenter, Raised,
-    RunId, RunItem, RunItemKind, SetupAnswer, SignInAnswer, What, WorkflowId,
+    Choice, ConfigView, ConfirmAsk, DoneAnswer, Event, Facts, HandbackAsk, HandbackResult, Item,
+    ItemId, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse, OwnItem, OwnItemKind, Presenter,
+    Raised, RunId, RunItem, RunItemKind, SetupAnswer, SignInAnswer, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -532,6 +532,35 @@ pub fn lapse_item<P: Owner + Runs + Clock>(
         let _ = ports.cancel(run);
     }
     Ok(())
+}
+
+/// The wait limit of an open item that a live run waits on, of a kind other than `confirm`
+/// (I4.2, I5.7, ruling RD-34 (a)): answers the run's handback with `timeout`, as every such kind
+/// but `show` comes from a handback, and lapses the item with `wait_limit`, which stops the run
+/// in the guard's table and sends `Runs::cancel`.
+pub fn time_out<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    run: &RunId,
+    open: &RunItem,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    if open.kind == RunItemKind::Confirm {
+        return Err(Cause::Malformed);
+    }
+    if open.kind != RunItemKind::Show {
+        let _ = ports.answer_handback(run, HandbackResult::Timeout);
+    }
+    lapse_item(
+        ports,
+        ledger,
+        table,
+        run,
+        open,
+        OtherLapse::WaitLimit,
+        limits,
+    )
 }
 
 /// The lapse of an open item that no run raised, `ready`, `check` or `setup`, with `cause`

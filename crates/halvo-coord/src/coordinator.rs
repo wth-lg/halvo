@@ -47,6 +47,16 @@ pub struct Coordinator<P: Owner> {
     state: Mutex<State<Cfg<P>>>,
 }
 
+/// An open item that a live run waits on, of a kind other than `confirm` and other than the
+/// second step of a sign-in, with the time of its raise, which the first tick that reads the
+/// clock sets where the raise could not read it (RD-34 (a)).
+struct Waited {
+    run: RunId,
+    agent: AgentId,
+    item: RunItem,
+    raised_at: Option<u64>,
+}
+
 struct State<C> {
     board: Option<Board<C>>,
     table: Table,
@@ -54,6 +64,7 @@ struct State<C> {
     held: Vec<Held>,
     binds: Vec<HeldBind>,
     handbacks: Vec<(ItemId, HandbackAsk)>,
+    waits: Vec<Waited>,
     setups: Vec<Setup>,
     forgotten: Vec<AgentId>,
     quitting: bool,
@@ -123,6 +134,7 @@ where
                 held: Vec::new(),
                 binds: Vec::new(),
                 handbacks: Vec::new(),
+                waits: Vec::new(),
                 setups: Vec::new(),
                 forgotten: Vec::new(),
                 quitting: false,
@@ -196,6 +208,7 @@ where
             held,
             binds,
             handbacks,
+            waits,
             setups,
             ..
         } = st;
@@ -214,6 +227,7 @@ where
                 held.retain(|h| h.ask().agent() != agent);
                 binds.retain(|b| &b.ask().agent != agent);
                 handbacks.retain(|(_, a)| &a.agent != agent);
+                waits.retain(|w| &w.agent != agent);
                 setups.retain(|s| s.agent() != agent);
                 for (a, l) in ledgers.iter_mut() {
                     if a == agent {
@@ -226,6 +240,7 @@ where
         self.tick_setups(st);
         self.tick_confirms(st);
         self.tick_binds(st);
+        self.tick_waits(st);
     }
 
     fn open_setups(&self, st: &mut State<Cfg<P>>) {
@@ -348,6 +363,59 @@ where
         }
     }
 
+    /// The wait limit of the items that live runs wait on, other than a confirmation and a second
+    /// step (I4.2, I5.7, ruling RD-34 (a)): `wait_limit_s` after its raise an item is timed out by
+    /// `items::time_out` and its run is stopped with `wait_limit`, so that it ends `lapsed`. An
+    /// item that its run no longer waits on is forgotten.
+    fn tick_waits(&self, st: &mut State<Cfg<P>>) {
+        let Ok(now) = self.ports.now() else { return };
+        let State {
+            board,
+            table,
+            ledgers,
+            waits,
+            handbacks,
+            ..
+        } = st;
+        let Some(board) = board.as_mut() else { return };
+        let limit = self.limits.wait_limit_s.saturating_mul(1000);
+        let mut stops = Vec::new();
+        waits.retain_mut(|w| {
+            let Some(i) = index(board, &w.agent) else {
+                return false;
+            };
+            let waits_on = matches!(
+                &board.members[i].facts.doing,
+                Doing::Live(Live::Waiting(open)) if *open == w.item
+            );
+            if !waits_on {
+                return false;
+            }
+            let at = *w.raised_at.get_or_insert(now);
+            if now < at.saturating_add(limit) {
+                return true;
+            }
+            let l = ledger(ledgers, &board.members[i].facts);
+            let _ = items::time_out(&self.ports, l, table, &w.run, &w.item, &self.limits);
+            self.read_back(board, i);
+            handbacks.retain(|(item, _)| item != &w.item.item);
+            stops.push(w.run.clone());
+            false
+        });
+        for run in stops {
+            run::drive(
+                &self.ports,
+                board,
+                table,
+                &self.limits,
+                Act::Stop {
+                    run,
+                    by: StopBy::WaitLimit,
+                },
+            );
+        }
+    }
+
     fn tick_binds(&self, st: &mut State<Cfg<P>>) {
         let Ok(now) = self.ports.now() else { return };
         let State {
@@ -443,6 +511,7 @@ where
                 self.lapse_held(st, i, run, LapseCause::RunEnded);
                 self.lapse_binds(st, i, run, OtherLapse::RunEnded);
                 st.handbacks.retain(|(_, a)| &a.run != run);
+                st.waits.retain(|w| &w.run != run);
                 self.act(
                     st,
                     Act::End {
@@ -470,6 +539,12 @@ where
                         let l = ledger(ledgers, &board.members[i].facts);
                         let open = items::raise_run_item(&self.ports, l, &self.limits, run, kind)?;
                         self.read_back(board, i);
+                        st.waits.push(Waited {
+                            run: run.clone(),
+                            agent: agent.clone(),
+                            item: open.clone(),
+                            raised_at: self.ports.now().ok(),
+                        });
                         if let RunEvent::Handback(ask) = event {
                             st.handbacks.push((open.item.clone(), ask.clone()));
                         }
@@ -598,6 +673,7 @@ where
         self.lapse_held(st, i, run, LapseCause::RunEnded);
         self.lapse_binds(st, i, run, OtherLapse::RunEnded);
         st.handbacks.retain(|(_, a)| &a.run != run);
+        st.waits.retain(|w| &w.run != run);
         self.act(
             st,
             Act::Stop {
