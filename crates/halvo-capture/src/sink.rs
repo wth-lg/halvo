@@ -462,37 +462,51 @@ mod tests {
         assert_eq!(handle.dropped_count(), 0);
     }
 
+    struct Emitting {
+        started: mpsc::Receiver<()>,
+        outcome: mpsc::Receiver<Result<EmitOutcome, SinkError>>,
+        thread: thread::JoinHandle<()>,
+    }
+
+    fn emit_on_a_thread(handle: &SinkHandle, event: CaptureStreamEvent) -> Emitting {
+        let (started_tx, started) = mpsc::channel();
+        let (outcome_tx, outcome) = mpsc::channel();
+        let handle = handle.clone();
+        let thread = thread::spawn(move || {
+            let _ = started_tx.send(());
+            let _ = outcome_tx.send(handle.emit(event));
+        });
+        Emitting {
+            started,
+            outcome,
+            thread,
+        }
+    }
+
     #[test]
     fn an_emitter_parked_on_a_full_queue_is_refused_and_counted_when_the_writer_drops() {
         let (handle, writer) = bounded(NonZeroUsize::MIN);
         let frame = unnumbered(Modality::ScreenFrame, 0, 0);
         assert_eq!(handle.emit(frame).unwrap(), EmitOutcome::Queued);
-        let (started_tx, started_rx) = mpsc::channel();
-        let (outcome_tx, outcome_rx) = mpsc::channel();
-        let emitter = {
-            let handle = handle.clone();
-            thread::spawn(move || {
-                started_tx.send(()).unwrap();
-                let outcome = handle.emit(unnumbered(Modality::Keystroke, 0, 0));
-                outcome_tx.send(outcome).unwrap();
-            })
-        };
-        started_rx
+        let parked = emit_on_a_thread(&handle, unnumbered(Modality::Keystroke, 0, 0));
+        parked
+            .started
             .recv_timeout(Duration::from_secs(1))
             .expect("the emitter started inside 1 s");
         assert!(
             matches!(
-                outcome_rx.recv_timeout(Duration::from_millis(300)),
+                parked.outcome.recv_timeout(Duration::from_millis(300)),
                 Err(RecvTimeoutError::Timeout)
             ),
             "the keystroke emit returned while the queue was full and the writer alive"
         );
         drop(writer);
-        let outcome = outcome_rx
+        let outcome = parked
+            .outcome
             .recv_timeout(Duration::from_secs(1))
             .expect("the parked emit returned inside 1 s of the writer dropping");
         assert!(matches!(outcome, Err(SinkError::Disconnected)));
-        emitter.join().unwrap();
+        parked.thread.join().unwrap();
         let counts = handle.counts();
         let refused_once = KindCounts {
             refused: 1,
@@ -529,11 +543,93 @@ mod tests {
     }
 
     #[test]
+    fn a_blocking_kind_on_a_full_queue_waits_and_is_queued_once() {
+        let blocking = [
+            Modality::Keystroke,
+            Modality::Pointer,
+            Modality::ForegroundApp,
+            Modality::WindowTitle,
+        ];
+        for kind in blocking {
+            let (handle, writer) = bounded(NonZeroUsize::MIN);
+            let frame = unnumbered(Modality::ScreenFrame, 0, 0);
+            assert_eq!(handle.emit(frame).unwrap(), EmitOutcome::Queued);
+            let waiting = emit_on_a_thread(&handle, unnumbered(kind, 1, 0));
+            waiting
+                .started
+                .recv_timeout(Duration::from_secs(1))
+                .expect("the emitter started inside 1 s");
+            assert!(
+                matches!(
+                    waiting.outcome.recv_timeout(Duration::from_millis(300)),
+                    Err(RecvTimeoutError::Timeout)
+                ),
+                "{kind:?}: the emit returned while the queue was full"
+            );
+            assert_eq!(handle.dropped_count(), 0, "{kind:?}");
+            let first = writer
+                .recv_timeout(Duration::from_secs(1))
+                .expect("the frame inside 1 s");
+            assert_eq!(first.event().modality, Modality::ScreenFrame, "{kind:?}");
+            let outcome = waiting
+                .outcome
+                .recv_timeout(Duration::from_secs(1))
+                .expect("the emit returned inside 1 s of the writer making room");
+            assert!(matches!(outcome, Ok(EmitOutcome::Queued)), "{kind:?}");
+            let second = writer
+                .recv_timeout(Duration::from_secs(1))
+                .expect("the event inside 1 s");
+            assert_eq!(second.event().modality, kind);
+            assert_eq!(second.number(), ArrivalNumber::for_test(1), "{kind:?}");
+            assert!(
+                matches!(writer.try_recv(), Err(TryRecvError::Empty)),
+                "{kind:?}: queued more than once"
+            );
+            waiting.thread.join().unwrap();
+            let accepted_once = KindCounts {
+                accepted: 1,
+                ..KindCounts::default()
+            };
+            assert_eq!(handle.counts().of(kind), accepted_once, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn a_frame_on_a_full_queue_is_dropped_inside_a_bound() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        let kept = unnumbered(Modality::ScreenFrame, 0, 0);
+        assert_eq!(handle.emit(kept).unwrap(), EmitOutcome::Queued);
+        let dropping = emit_on_a_thread(&handle, unnumbered(Modality::ScreenFrame, 0, 1));
+        let outcome = dropping
+            .outcome
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the second frame emit returned inside 1 s");
+        assert!(matches!(outcome, Ok(EmitOutcome::Dropped)));
+        dropping.thread.join().unwrap();
+        assert_eq!(handle.dropped_count(), 1);
+        let frames = KindCounts {
+            accepted: 1,
+            dropped: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::ScreenFrame), frames);
+        let received = writer.try_recv().unwrap();
+        assert_eq!(received.event().segment_ref.byte_offset, 0);
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+    }
+
+    #[test]
     fn a_dropped_frame_takes_no_number() {
         let (handle, writer) = bounded(NonZeroUsize::MIN);
         let frame = || unnumbered(Modality::ScreenFrame, 0, 0);
         assert_eq!(handle.emit(frame()).unwrap(), EmitOutcome::Queued);
-        assert_eq!(handle.emit(frame()).unwrap(), EmitOutcome::Dropped);
+        let dropping = emit_on_a_thread(&handle, frame());
+        let outcome = dropping
+            .outcome
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the frame emit on a full queue returned inside 1 s");
+        assert!(matches!(outcome, Ok(EmitOutcome::Dropped)));
+        dropping.thread.join().unwrap();
         let first = writer.try_recv().unwrap();
         assert_eq!(first.number(), ArrivalNumber::for_test(0));
         assert_eq!(handle.emit(frame()).unwrap(), EmitOutcome::Queued);
@@ -560,39 +656,6 @@ mod tests {
             is_derived: false,
             retention_class: RetentionClass::Raw,
         }
-    }
-
-    #[test]
-    fn a_full_queue_drops_a_frame() {
-        let (h, _w) = channel(1);
-        assert_eq!(
-            h.emit(event(&h, Modality::ScreenFrame)).unwrap(),
-            EmitOutcome::Queued
-        );
-        assert_eq!(
-            h.emit(event(&h, Modality::ScreenFrame)).unwrap(),
-            EmitOutcome::Dropped
-        );
-        assert_eq!(h.dropped_count(), 1);
-    }
-
-    #[test]
-    fn a_keystroke_waits_instead_of_dropping() {
-        let (h, w) = channel(1);
-        h.emit(event(&h, Modality::ScreenFrame)).unwrap();
-        let h2 = h.clone();
-        let emitter = thread::spawn(move || {
-            let ev = event(&h2, Modality::Keystroke);
-            h2.emit(ev).unwrap()
-        });
-        let first = w.recv().unwrap();
-        let outcome = emitter.join().unwrap();
-        let second = w.recv().unwrap();
-
-        assert_eq!(outcome, EmitOutcome::Queued);
-        assert_eq!(h.dropped_count(), 0);
-        assert_eq!(first.modality, Modality::ScreenFrame);
-        assert_eq!(second.modality, Modality::Keystroke);
     }
 
     #[test]
