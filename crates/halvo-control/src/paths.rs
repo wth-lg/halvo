@@ -19,6 +19,8 @@ pub enum PathError {
     NotUtf8,
     #[error("the scratch directory is the data directory or lies inside it")]
     InsideDataDir,
+    #[error("the scratch directory is the account's LaunchAgents directory or lies inside it")]
+    InsideLaunchAgents,
     #[error(
         "the control socket path is 104 bytes or longer and no fallback directory can hold it"
     )]
@@ -224,11 +226,7 @@ pub struct ScratchDir(PathBuf);
 impl ScratchDir {
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
         let path = checked(path.into())?;
-        let data = user_data_dir.path();
-        if same_or_inside(&path, data)
-            || same_or_inside(&resolved(&path), &resolved(data))
-            || inside_by_identity(&path, data)
-        {
+        if lies_within(&path, user_data_dir.path()) {
             return Err(PathError::InsideDataDir);
         }
         Ok(Self(path))
@@ -261,11 +259,15 @@ impl LoginItemDir {
         })
     }
 
-    pub fn scratch_form(dir: &ScratchDir) -> Self {
-        Self {
+    pub fn scratch_form(dir: &ScratchDir, account: &dyn AccountLookup) -> Result<Self, PathError> {
+        let agents = Self::for_account(account)?;
+        if lies_within(dir.path(), agents.path()) {
+            return Err(PathError::InsideLaunchAgents);
+        }
+        Ok(Self {
             path: dir.path().to_path_buf(),
             create_missing: false,
-        }
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -296,6 +298,12 @@ fn checked(path: PathBuf) -> Result<PathBuf, PathError> {
         return Err(PathError::NotNormal);
     }
     Ok(path.components().collect())
+}
+
+fn lies_within(path: &Path, dir: &Path) -> bool {
+    same_or_inside(path, dir)
+        || same_or_inside(&resolved(path), &resolved(dir))
+        || inside_by_identity(path, dir)
 }
 
 fn same_or_inside(path: &Path, dir: &Path) -> bool {

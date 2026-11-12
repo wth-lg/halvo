@@ -731,7 +731,8 @@ mod login_item_tests {
         let root = tempfile::tempdir().unwrap();
         let user = DataDir::for_account(&Home(PathBuf::from("/Users/a b"))).unwrap();
         let scratch = ScratchDir::new(root.path(), &user).unwrap();
-        let target = LoginItemDir::scratch_form(&scratch);
+        let target =
+            LoginItemDir::scratch_form(&scratch, &Home(PathBuf::from("/Users/a b"))).unwrap();
         let data = DataDir::from_flag(root.path()).unwrap();
         let spec = LoginItemSpec::new("com.halvo.check-l", Path::new(APP), Some(&data)).unwrap();
         assert_eq!(
@@ -753,7 +754,42 @@ mod login_item_tests {
         let user_dir = std::fs::read_dir(root.path()).unwrap().count();
         assert_eq!(user_dir, 1);
         let gone = ScratchDir::new(root.path().join("missing"), &user).unwrap();
-        assert!(install_login_item(&spec, &LoginItemDir::scratch_form(&gone)).is_err());
+        let gone_dir =
+            LoginItemDir::scratch_form(&gone, &Home(PathBuf::from("/Users/a b"))).unwrap();
+        assert!(install_login_item(&spec, &gone_dir).is_err());
+    }
+
+    #[test]
+    fn the_scratch_form_refuses_the_account_launch_agents_directory_and_anything_inside_it() {
+        let home = tempfile::tempdir().unwrap();
+        let account = Home(home.path().to_path_buf());
+        let agents = LoginItemDir::for_account(&account).unwrap();
+        std::fs::create_dir_all(agents.path()).unwrap();
+        let user = DataDir::for_account(&account).unwrap();
+        let link = home.path().join("link");
+        std::os::unix::fs::symlink(agents.path(), &link).unwrap();
+        let upper = PathBuf::from(agents.path().to_str().unwrap().to_uppercase());
+        for inside in [
+            agents.path().to_path_buf(),
+            agents.path().join("check"),
+            upper.join("check"),
+            link.join("check"),
+        ] {
+            let scratch = ScratchDir::new(&inside, &user).unwrap();
+            assert_eq!(
+                LoginItemDir::scratch_form(&scratch, &account),
+                Err(PathError::InsideLaunchAgents),
+                "{}",
+                inside.display()
+            );
+        }
+        let outside = ScratchDir::new(home.path().join("scratch"), &user).unwrap();
+        assert_eq!(
+            LoginItemDir::scratch_form(&outside, &account)
+                .unwrap()
+                .path(),
+            outside.path()
+        );
     }
 
     #[test]
