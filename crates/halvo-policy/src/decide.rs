@@ -3,8 +3,9 @@ use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy,
 
 /// The decision that the table gives for an agent's configuration and a class (A5.1), as `decide` returns it and
 /// `propose` takes it. Only `decide` makes one: the fields are private and the type has no public constructor, so
-/// a plain `Decision` cannot become a `Decided`. What must not compile, a `propose` built from a decision of its
-/// own:
+/// a plain `Decision` cannot become a `Decided`. It is used once: it is neither `Clone` nor `Copy`, and
+/// `effect_step` takes the move that holds it by value, so one call of `decide` gives at most one proposed effect.
+/// What must not compile, a `propose` built from a decision of its own:
 ///
 /// ```compile_fail
 /// use halvo_policy::{Decided, Decision, EffectMove};
@@ -54,19 +55,55 @@ use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy,
 /// let _ = EffectMove::Propose(own);
 /// ```
 ///
-/// Their twin, which takes the `Decided` from `decide`, reads its class and decision, and compiles:
+/// Nor two proposes from one `Decided` by a copy:
+///
+/// ```compile_fail
+/// use halvo_policy::{decide, preset, Checkpoint, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// use halvo_schema::{AgentId, Category, WorkflowId};
+/// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
+/// let own = decide(&config, ActionClass::Send, Checkpoint::No);
+/// let first = EffectMove::Propose(own);
+/// let second = EffectMove::Propose(own);
+/// ```
+///
+/// Nor by a clone:
+///
+/// ```compile_fail
+/// use halvo_policy::{decide, preset, Checkpoint, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// use halvo_schema::{AgentId, Category, WorkflowId};
+/// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
+/// let own = decide(&config, ActionClass::Send, Checkpoint::No);
+/// let second = EffectMove::Propose(own.clone());
+/// let first = EffectMove::Propose(own);
+/// ```
+///
+/// Nor by lending one move to `effect_step` twice, since it takes the move by value:
+///
+/// ```compile_fail
+/// use halvo_policy::{decide, effect_step, preset, Checkpoint, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// use halvo_schema::{AgentId, Category, WorkflowId};
+/// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
+/// let first = EffectMove::Propose(decide(&config, ActionClass::Send, Checkpoint::No));
+/// let _ = effect_step(None, &first);
+/// let _ = effect_step(None, &first);
+/// ```
+///
+/// Their twin, which takes the `Decided` from `decide`, reads its class and decision, and proposes once:
 ///
 /// ```
-/// use halvo_policy::{decide, preset, Checkpoint, Decided, Decision, EffectMove};
-/// use halvo_schema::executable::ActionClass;
+/// use halvo_policy::{decide, effect_step, preset, Checkpoint, Decided, Decision, EffectMove};
+/// use halvo_schema::executable::{ActionClass, EffectState};
 /// use halvo_schema::{AgentId, Category, WorkflowId};
 /// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
 /// let own: Decided = decide(&config, ActionClass::Send, Checkpoint::No);
 /// assert_eq!(own.decision(), Decision::Confirm);
 /// assert_eq!(own.class(), ActionClass::Send);
-/// let _ = EffectMove::Propose(own);
+/// assert_eq!(effect_step(None, EffectMove::Propose(own)), Ok(EffectState::Held));
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Decided {
     class: ActionClass,
     decision: Decision,

@@ -84,28 +84,28 @@ fn propose_makes_refused_cleared_or_held_by_the_decision_of_decide() {
     ));
     let propose = |d| EffectMove::Propose(d);
     assert_eq!(
-        effect_step(None, &propose(decide(&observe, C::Send, Checkpoint::No))),
+        effect_step(None, propose(decide(&observe, C::Send, Checkpoint::No))),
         Ok(S::Refused)
     );
     assert_eq!(
-        effect_step(None, &propose(decide(&confirm, C::Payment, Checkpoint::No))),
+        effect_step(None, propose(decide(&confirm, C::Payment, Checkpoint::No))),
         Ok(S::Held)
     );
     assert_eq!(
-        effect_step(None, &propose(decide(&unattended, C::Send, Checkpoint::No))),
+        effect_step(None, propose(decide(&unattended, C::Send, Checkpoint::No))),
         Ok(S::Cleared)
     );
     assert_eq!(
         effect_step(
             None,
-            &propose(decide(&confirm, C::LocalEdit, Checkpoint::Yes))
+            propose(decide(&confirm, C::LocalEdit, Checkpoint::Yes))
         ),
         Ok(S::Cleared)
     );
     assert_eq!(
         effect_step(
             None,
-            &propose(decide(&confirm, C::LocalEdit, Checkpoint::No))
+            propose(decide(&confirm, C::LocalEdit, Checkpoint::No))
         ),
         Ok(S::Refused)
     );
@@ -124,14 +124,14 @@ fn propose_is_refused_for_an_effect_that_exists_and_for_a_class_that_makes_no_ef
         let e = effect(state, C::Payment, d1(), 0);
         let m = EffectMove::Propose(decide(&confirm, C::Payment, Checkpoint::No));
         assert_eq!(
-            effect_step(Some(&e), &m),
+            effect_step(Some(&e), m),
             Err(StepCause::Effect),
             "{state:?}"
         );
     }
     for class in [C::Read, C::Prepare, C::Credential] {
         let m = EffectMove::Propose(decide(&confirm, class, Checkpoint::No));
-        assert_eq!(effect_step(None, &m), Err(StepCause::Effect), "{class:?}");
+        assert_eq!(effect_step(None, m), Err(StepCause::Effect), "{class:?}");
     }
 }
 
@@ -139,50 +139,50 @@ fn propose_is_refused_for_an_effect_that_exists_and_for_a_class_that_makes_no_ef
 fn rebind_answers_effect_class_effect_changed_in_that_order() {
     for state in STATES {
         let e = effect(state, C::Payment, d1(), 0);
-        let got = effect_step(Some(&e), &rebind(d2(), C::Payment));
+        let got = effect_step(Some(&e), rebind(d2(), C::Payment));
         if matches!(state, S::Held | S::Approved) {
             assert_eq!(got, Ok(S::Held), "{state:?}");
         } else {
             assert_eq!(got, Err(StepCause::Effect), "{state:?}");
             assert_eq!(
-                effect_step(Some(&e), &rebind(d1(), C::Send)),
+                effect_step(Some(&e), rebind(d1(), C::Send)),
                 Err(StepCause::Effect),
                 "state before class: {state:?}"
             );
         }
     }
     assert_eq!(
-        effect_step(None, &rebind(d2(), C::Payment)),
+        effect_step(None, rebind(d2(), C::Payment)),
         Err(StepCause::Effect)
     );
     let held_at_limit = effect(S::Held, C::Payment, d1(), LIMITS.rebinds);
     assert_eq!(
-        effect_step(Some(&held_at_limit), &rebind(d1(), C::Send)),
+        effect_step(Some(&held_at_limit), rebind(d1(), C::Send)),
         Err(StepCause::Class),
         "class before the same digest and the limit"
     );
     assert_eq!(
-        effect_step(Some(&held_at_limit), &rebind(d1(), C::Payment)),
+        effect_step(Some(&held_at_limit), rebind(d1(), C::Payment)),
         Err(StepCause::Effect),
         "the same digest before the limit"
     );
     assert_eq!(
-        effect_step(Some(&held_at_limit), &rebind(d2(), C::Payment)),
+        effect_step(Some(&held_at_limit), rebind(d2(), C::Payment)),
         Err(StepCause::Changed)
     );
     let approved_at_limit = effect(S::Approved, C::Payment, d1(), LIMITS.rebinds);
     assert_eq!(
-        effect_step(Some(&approved_at_limit), &rebind(d2(), C::Payment)),
+        effect_step(Some(&approved_at_limit), rebind(d2(), C::Payment)),
         Err(StepCause::Changed)
     );
     let above = effect(S::Held, C::Payment, d1(), LIMITS.rebinds + 1);
     assert_eq!(
-        effect_step(Some(&above), &rebind(d2(), C::Payment)),
+        effect_step(Some(&above), rebind(d2(), C::Payment)),
         Err(StepCause::Changed)
     );
     let below = effect(S::Held, C::Payment, d1(), LIMITS.rebinds - 1);
     assert_eq!(
-        effect_step(Some(&below), &rebind(d2(), C::Payment)),
+        effect_step(Some(&below), rebind(d2(), C::Payment)),
         Ok(S::Held)
     );
 }
@@ -191,38 +191,38 @@ fn rebind_answers_effect_class_effect_changed_in_that_order() {
 fn approve_answers_effect_approval_digest_used_in_that_order() {
     for state in STATES {
         let e = effect(state, C::Payment, d1(), 0);
-        let got = effect_step(Some(&e), &approve(2, d2(), true));
+        let got = effect_step(Some(&e), approve(2, d2(), true));
         if state == S::Held {
             assert_eq!(got, Err(StepCause::Approval));
             assert_eq!(
-                effect_step(Some(&e), &approve(1, d1(), false)),
+                effect_step(Some(&e), approve(1, d1(), false)),
                 Ok(S::Approved)
             );
         } else {
             assert_eq!(got, Err(StepCause::Effect), "{state:?}");
             assert_eq!(
-                effect_step(Some(&e), &approve(1, d1(), false)),
+                effect_step(Some(&e), approve(1, d1(), false)),
                 Err(StepCause::Effect),
                 "{state:?}"
             );
         }
     }
     assert_eq!(
-        effect_step(None, &approve(1, d1(), false)),
+        effect_step(None, approve(1, d1(), false)),
         Err(StepCause::Effect)
     );
     let held = effect(S::Held, C::Payment, d1(), 0);
     assert_eq!(
-        effect_step(Some(&held), &approve(2, d1(), false)),
+        effect_step(Some(&held), approve(2, d1(), false)),
         Err(StepCause::Approval)
     );
     assert_eq!(
-        effect_step(Some(&held), &approve(1, d2(), true)),
+        effect_step(Some(&held), approve(1, d2(), true)),
         Err(StepCause::Digest),
         "digest before used"
     );
     assert_eq!(
-        effect_step(Some(&held), &approve(1, d1(), true)),
+        effect_step(Some(&held), approve(1, d1(), true)),
         Err(StepCause::Used)
     );
 }
@@ -231,8 +231,8 @@ fn approve_answers_effect_approval_digest_used_in_that_order() {
 fn reject_leaves_held_alone_and_end_leaves_held_cleared_or_approved() {
     for state in STATES {
         let e = effect(state, C::Submit, d1(), 0);
-        let reject = effect_step(Some(&e), &EffectMove::Reject);
-        let end = effect_step(Some(&e), &EffectMove::End);
+        let reject = effect_step(Some(&e), EffectMove::Reject);
+        let end = effect_step(Some(&e), EffectMove::End);
         if state == S::Held {
             assert_eq!(reject, Ok(S::Rejected));
         } else {
@@ -245,21 +245,21 @@ fn reject_leaves_held_alone_and_end_leaves_held_cleared_or_approved() {
         }
     }
     assert_eq!(
-        effect_step(None, &EffectMove::Reject),
+        effect_step(None, EffectMove::Reject),
         Err(StepCause::Effect)
     );
-    assert_eq!(effect_step(None, &EffectMove::End), Err(StepCause::Effect));
+    assert_eq!(effect_step(None, EffectMove::End), Err(StepCause::Effect));
 }
 
 #[test]
 fn begin_answers_effect_unknown_approval_digest_in_that_order() {
-    assert_eq!(effect_step(None, &begin(d1())), Err(StepCause::Effect));
+    assert_eq!(effect_step(None, begin(d1())), Err(StepCause::Effect));
     for class in EFFECT_CLASSES {
         let money_or_sign = matches!(class, C::Purchase | C::Payment | C::Sign);
         for state in STATES {
             let e = effect(state, class, d1(), 0);
-            let same = effect_step(Some(&e), &begin(d1()));
-            let other = effect_step(Some(&e), &begin(d2()));
+            let same = effect_step(Some(&e), begin(d1()));
+            let other = effect_step(Some(&e), begin(d2()));
             let (want_same, want_other) = match state {
                 S::Refused | S::Rejected | S::Committed | S::Releasing => {
                     (Err(StepCause::Effect), Err(StepCause::Effect))
@@ -279,8 +279,8 @@ fn begin_answers_effect_unknown_approval_digest_in_that_order() {
 fn commit_and_lose_leave_releasing_alone() {
     for state in STATES {
         let e = effect(state, C::Payment, d1(), 0);
-        let commit = effect_step(Some(&e), &EffectMove::Commit);
-        let lose = effect_step(Some(&e), &EffectMove::Lose);
+        let commit = effect_step(Some(&e), EffectMove::Commit);
+        let lose = effect_step(Some(&e), EffectMove::Lose);
         if state == S::Releasing {
             assert_eq!(commit, Ok(S::Committed));
             assert_eq!(lose, Ok(S::Unknown));
@@ -290,10 +290,10 @@ fn commit_and_lose_leave_releasing_alone() {
         }
     }
     assert_eq!(
-        effect_step(None, &EffectMove::Commit),
+        effect_step(None, EffectMove::Commit),
         Err(StepCause::Effect)
     );
-    assert_eq!(effect_step(None, &EffectMove::Lose), Err(StepCause::Effect));
+    assert_eq!(effect_step(None, EffectMove::Lose), Err(StepCause::Effect));
 }
 
 #[test]
@@ -317,7 +317,8 @@ fn no_move_leaves_a_final_state() {
             EffectMove::Commit,
             EffectMove::Lose,
         ] {
-            assert!(effect_step(Some(&e), &m).is_err(), "{state:?} {m:?}");
+            let shown = format!("{m:?}");
+            assert!(effect_step(Some(&e), m).is_err(), "{state:?} {shown}");
         }
     }
 }

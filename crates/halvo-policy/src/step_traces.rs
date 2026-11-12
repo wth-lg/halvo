@@ -151,7 +151,7 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
                 digest: bound.clone(),
                 rebinds,
             });
-            let got = effect_step(effect.as_ref(), &mv);
+            let got = effect_step(effect.as_ref(), mv);
             let answer = text(m, "answer");
             let want_state = opt(m, "state").map(state);
             let got_answer = match got {

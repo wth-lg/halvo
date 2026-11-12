@@ -15,8 +15,8 @@ pub struct Effect {
     pub rebinds: u32,
 }
 
-/// One move of an effect (A5.2).
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// One move of an effect (A5.2). It is not `Clone`, since its `Propose` holds a `Decided`, which is used once.
+#[derive(Debug, PartialEq, Eq)]
 pub enum EffectMove {
     /// Makes the effect, with the `Decided` that `decide` returned for its class.
     Propose(Decided),
@@ -69,9 +69,10 @@ impl StepCause {
 }
 
 /// The step relation of an effect (A5.2, the model's `Step`): the next state for `effect` as it stands, or none
-/// before its `propose`, and one move, or the cause of the refusal, the first that fits in the order of A5.2.
-pub fn effect_step(effect: Option<&Effect>, step: &EffectMove) -> Result<EffectState, StepCause> {
-    match step {
+/// before its `propose`, and one move, or the cause of the refusal, the first that fits in the order of A5.2. It
+/// takes the move by value, so a `propose` and its `Decided` serve one call.
+pub fn effect_step(effect: Option<&Effect>, step: EffectMove) -> Result<EffectState, StepCause> {
+    match &step {
         EffectMove::Propose(decided) => propose(effect, decided),
         EffectMove::Rebind { digest, class } => {
             let e = effect.ok_or(StepCause::Effect)?;

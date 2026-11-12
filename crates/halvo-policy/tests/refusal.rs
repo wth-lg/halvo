@@ -43,8 +43,12 @@ impl Rows {
     }
 
     fn step(&mut self, m: EffectMove, first_digest: &Digest) -> Result<EffectState, StepCause> {
-        let answer = effect_step(self.effect.as_ref(), &m)?;
-        match (&mut self.effect, &m) {
+        let rebound = match &m {
+            EffectMove::Rebind { digest, .. } => Some(digest.clone()),
+            _ => None,
+        };
+        let answer = effect_step(self.effect.as_ref(), m)?;
+        match (&mut self.effect, rebound) {
             (None, _) => {
                 self.effect = Some(Effect {
                     id: self.id.clone(),
@@ -54,12 +58,12 @@ impl Rows {
                     rebinds: 0,
                 })
             }
-            (Some(e), EffectMove::Rebind { digest, .. }) => {
+            (Some(e), Some(digest)) => {
                 e.state = answer;
-                e.digest = digest.clone();
+                e.digest = digest;
                 e.rebinds += 1;
             }
-            (Some(e), _) => e.state = answer,
+            (Some(e), None) => e.state = answer,
         }
         Ok(answer)
     }
