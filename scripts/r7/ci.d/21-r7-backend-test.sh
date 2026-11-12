@@ -122,6 +122,14 @@ self_test() {
   printf '\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n' >"$scratch/one-file-and-one-test/state/vitest.out"
   expect FAIL one-file-and-one-test
 
+  fixture fewer-files-than-tracked-with-many-tests
+  printf '\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n' >"$scratch/fewer-files-than-tracked-with-many-tests/state/vitest.out"
+  expect FAIL fewer-files-than-tracked-with-many-tests
+
+  fixture no-tracked-test-file
+  git -C "$scratch/no-tracked-test-file" reset -q -- backend/test || exit 2
+  expect FAIL no-tracked-test-file
+
   fixture fewer-tests-than-files
   printf '\n Test Files  2 passed (2)\n      Tests  1 passed (1)\n' >"$scratch/fewer-tests-than-files/state/vitest.out"
   expect FAIL fewer-tests-than-files
