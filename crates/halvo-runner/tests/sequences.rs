@@ -301,6 +301,12 @@ fn a_wall_limit_passed_during_the_edit_ends_the_run_before_its_effect() {
         before,
         "no replace after the wall limit"
     );
+    assert!(seen.effects().is_empty(), "no propose after the wall limit");
+    assert_eq!(seen.done(), Some(Outcome::Limit));
+    assert_eq!(
+        seen.logs().last().map(|l| l.cause),
+        Some(Some(halvo_schema::executable::Cause::Wall))
+    );
 }
 
 /// The begin's first send meets a store fault, which may come after the releasing row was stored (the comment of

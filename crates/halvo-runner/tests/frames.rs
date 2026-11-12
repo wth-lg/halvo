@@ -313,3 +313,65 @@ fn a_closed_standard_error_does_not_change_the_end_of_a_run() {
         "the status of a stored finish"
     );
 }
+
+#[test]
+fn a_load_reply_for_another_agent_is_refused_with_frame() {
+    let files = support::FillFiles::new("other-agent", 1);
+    let sup = Supervisor::new(15, Category::SpreadsheetFill, files.slots());
+    let other = Supervisor::new(16, Category::SpreadsheetFill, files.slots());
+    let seen = sup.serve(
+        |frame, _| {
+            let FromRunner::Store(s) = frame else {
+                return Act::Answer;
+            };
+            if s.request.body().op() != "load" {
+                return Act::Answer;
+            }
+            Act::With(ToRunner::StoreReply(StoreReplyFrame {
+                reply: StoreReply {
+                    id: Some(s.request.id().clone()),
+                    outcome: Ok(other.store_answer(s.request.body())),
+                },
+            }))
+        },
+        LONG,
+    );
+    assert_eq!(seen.code(), Some(2));
+    assert!(
+        seen.stderr
+            .starts_with("REFUSED frame: load_of_another_agent"),
+        "{}",
+        seen.stderr
+    );
+    assert_eq!(seen.tags(), ["hello", "store"]);
+}
+
+#[test]
+fn a_reply_of_the_right_form_for_another_request_id_is_refused_with_frame() {
+    let files = support::FillFiles::new("other-id", 1);
+    let sup = Supervisor::new(17, Category::SpreadsheetFill, files.slots());
+    let seen = sup.serve(
+        |frame, _| {
+            let FromRunner::Store(s) = frame else {
+                return Act::Answer;
+            };
+            if s.request.body().op() != "log" {
+                return Act::Answer;
+            }
+            Act::With(ToRunner::StoreReply(StoreReplyFrame {
+                reply: StoreReply {
+                    id: Some(RequestId::from_random([9; 16])),
+                    outcome: Ok(sup.store_answer(s.request.body())),
+                },
+            }))
+        },
+        LONG,
+    );
+    assert_eq!(seen.code(), Some(2));
+    assert!(
+        seen.stderr.starts_with("REFUSED frame: not_the_answer"),
+        "{}",
+        seen.stderr
+    );
+    assert!(seen.effects().is_empty(), "no effect after the refusal");
+}

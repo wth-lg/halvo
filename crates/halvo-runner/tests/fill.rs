@@ -669,7 +669,7 @@ fn a_page_of_steps_that_does_not_start_at_from_is_refused_with_frame() {
                                 id: Some(s.request.id().clone()),
                                 outcome: Ok(halvo_schema::executable::RunnerReply::Steps(
                                     halvo_schema::executable::body::StepsReply {
-                                        steps: first_page.clone(),
+                                        steps: vec![first_page[0].clone()],
                                     },
                                 )),
                             },
@@ -749,4 +749,17 @@ fn a_commit_whose_every_send_meets_a_fault_is_handed_back_unknown() {
         files.rows,
         "the edit left once"
     );
+}
+
+#[test]
+fn a_source_slot_that_holds_a_relative_path_is_refused() {
+    let files = FillFiles::new("relative-source", 2);
+    let before = files.workbook_bytes();
+    let mut slots = files.slots();
+    slots[1] = support::slot("source", "source.csv");
+    let sup = Supervisor::new(62, Category::SpreadsheetFill, slots);
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.workbook_bytes(), before);
 }
