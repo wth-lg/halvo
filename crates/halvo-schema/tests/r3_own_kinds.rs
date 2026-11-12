@@ -111,7 +111,7 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
         ),
         (
             "agent_bindings",
-            r#""rev":2"#,
+            r#""rev":3"#,
             r#""rev":"yes""#,
             "rev: string_form",
         ),
@@ -488,37 +488,62 @@ fn the_model_of_each_log_row_is_null_or_a_token_of_the_table_of_a13_5() {
     assert!(named > 0);
 }
 
+type Slots = Vec<(String, serde_json::Value)>;
+
+fn body_between(
+    origins: &[String],
+    slots: &Slots,
+    next_origins: &[String],
+    next_slots: &Slots,
+) -> Option<&'static str> {
+    let one_added = next_origins.len() == origins.len() + 1
+        && next_origins[..origins.len()] == *origins
+        && !origins.contains(&next_origins[origins.len()]);
+    if one_added && next_slots == slots {
+        return Some("add_origin");
+    }
+    let kept =
+        next_slots.len() >= slots.len() && slots.iter().zip(next_slots).all(|(a, b)| a.0 == b.0);
+    let once =
+        (0..next_slots.len()).all(|i| !next_slots[..i].iter().any(|s| s.0 == next_slots[i].0));
+    if next_origins == origins && kept && once {
+        return Some("set_bindings");
+    }
+    None
+}
+
 #[test]
-fn each_later_revision_of_the_bindings_keeps_every_origin_and_slot_of_the_one_before() {
-    let names = |list: &serde_json::Value, key: Option<&str>| -> BTreeSet<String> {
-        let items = list.as_array().unwrap().iter();
-        let item = |v: &serde_json::Value| match key {
-            Some(key) => v[key].as_str().unwrap().to_owned(),
-            None => v.as_str().unwrap().to_owned(),
-        };
-        items.map(item).collect()
-    };
-    let mut revisions: Vec<(u64, BTreeSet<String>, BTreeSet<String>)> = own_lines("agent_bindings")
+fn each_revision_of_the_bindings_is_one_body_of_a7_2_applied_to_the_revision_before() {
+    let mut revisions: Vec<(u64, Vec<String>, Slots)> = own_lines("agent_bindings")
         .iter()
         .map(|line| {
             let row: serde_json::Value = serde_json::from_str(line).unwrap();
+            let origins = row["origins"].as_array().unwrap().iter();
+            let slots = row["slots"].as_array().unwrap().iter();
             (
                 row["rev"].as_u64().unwrap(),
-                names(&row["origins"], None),
-                names(&row["slots"], Some("name")),
+                origins.map(|o| o.as_str().unwrap().to_owned()).collect(),
+                slots
+                    .map(|s| (s["name"].as_str().unwrap().to_owned(), s["value"].clone()))
+                    .collect(),
             )
         })
         .collect();
-    revisions.sort();
+    revisions.sort_by_key(|r| r.0);
     let revs: Vec<u64> = revisions.iter().map(|r| r.0).collect();
     assert_eq!(revs, (1..=revisions.len() as u64).collect::<Vec<_>>());
-    for pair in revisions.windows(2) {
-        let (before, after) = (&pair[0], &pair[1]);
-        assert!(
-            before.1.is_subset(&after.1),
-            "rev {} drops an origin",
-            after.0
-        );
-        assert!(before.2.is_subset(&after.2), "rev {} drops a slot", after.0);
+    let none: (u64, Vec<String>, Slots) = (0, Vec::new(), Vec::new());
+    let mut bodies = BTreeSet::new();
+    for (i, after) in revisions.iter().enumerate() {
+        let before = if i == 0 { &none } else { &revisions[i - 1] };
+        let body = body_between(&before.1, &before.2, &after.1, &after.2);
+        let body = body.unwrap_or_else(|| {
+            panic!(
+                "rev {} follows from rev {} by no body of A7.2",
+                after.0, before.0
+            )
+        });
+        bodies.insert(body);
     }
+    assert_eq!(bodies, BTreeSet::from(["add_origin", "set_bindings"]));
 }

@@ -96,7 +96,7 @@ pub const KINDS: &[KindEntry] = &[
             ("slots", FieldType::Name),
             ("slots", FieldType::OwnText),
         ],
-        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","rev":2,"origins":["http://utility.test:18090","http://pay.test:18090"],"slots":[{"name":"payee","value":["Northwind Power"]},{"name":"workbook","value":["/data/books/bills.xlsx"]}]}"#,
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","rev":3,"origins":["http://utility.test:18090","http://pay.test:18090"],"slots":[{"name":"payee","value":["Northwind Power"]},{"name":"workbook","value":["/data/books/bills.xlsx"]}]}"#,
     },
     KindEntry {
         name: "agent_effect",
