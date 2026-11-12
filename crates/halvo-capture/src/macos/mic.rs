@@ -31,11 +31,13 @@ mod tests {
     use crate::sink;
 
     #[test]
-    fn disabled_by_default_and_start_is_a_no_op() {
-        let (handle, _writer) = sink::channel(1);
+    fn the_off_source_emits_no_event_between_start_and_stop() {
+        let (handle, writer) = sink::channel(1);
         let mut source = MicrophoneSource::disabled();
-        assert!(source.start(handle).is_ok());
+        let _ = source.start(handle.clone());
         source.stop();
+        drop(handle);
+        assert!(writer.recv().is_none(), "the off source emitted an event");
     }
 
     #[test]

@@ -272,6 +272,35 @@ mod tests {
         assert!(!event.is_derived);
     }
 
+    #[test]
+    fn two_emits_carry_increasing_sequences_and_wall_clocks_between_the_calls() {
+        let (handle, writer) = sink::channel(2);
+        let before = SystemTime::now();
+        for modality in [Modality::ForegroundApp, Modality::WindowTitle] {
+            emit_metadata_only(&handle, modality, String::new(), Unpersisted::EMPTY).unwrap();
+        }
+        let after = SystemTime::now();
+        drop(handle);
+        let stamps: Vec<CapturedAt> = std::iter::from_fn(|| writer.recv())
+            .map(|event| event.captured_at)
+            .collect();
+        assert_eq!(stamps.len(), 2);
+        assert!(
+            stamps[0].sequence < stamps[1].sequence,
+            "sequences {:?} then {:?}",
+            stamps[0].sequence,
+            stamps[1].sequence
+        );
+        for stamp in &stamps {
+            assert!(
+                before <= stamp.wall_clock && stamp.wall_clock <= after,
+                "wall clock {:?} outside {before:?} to {after:?}",
+                stamp.wall_clock
+            );
+        }
+        assert!(stamps[0].wall_clock <= stamps[1].wall_clock);
+    }
+
     fn app(bundle_id: &str, pid: libc::pid_t) -> Option<Frontmost> {
         Some(Frontmost {
             bundle_id: bundle_id.into(),
