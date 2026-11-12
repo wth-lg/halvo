@@ -17,10 +17,11 @@ const WORDS = {
   default: ['reject', 'allow', 'none', 'other', 'unread', '-'],
   cancel: ['reject', 'allow', 'none', 'other', 'via_close', 'unread', '-'],
   close: ['yes', 'no', 'unread', '-'],
+  owner: ['app', 'other', '-'],
 };
 
 export function parseRead(line) {
-  const found = /^dialog found=(\S+) trusted=(\S+) text=(\S+) default=(\S+) cancel=(\S+) close=(\S+)$/.exec(line ?? '');
+  const found = /^dialog found=(\S+) trusted=(\S+) text=(\S+) default=(\S+) cancel=(\S+) close=(\S+) owner=(\S+)$/.exec(line ?? '');
   if (!found) throw new Error('the dialog reader gave no state');
   const [, ...values] = found;
   const out = {};

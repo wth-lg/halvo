@@ -1,7 +1,9 @@
 // The reader of the trial's native dialog on macOS, through the accessibility interface; built and run by dialog.mjs.
 // usage: macos read <pid> | list <pid> | press <pid> <close|allow|reject>
-// read prints `dialog found=<yes|no> trusted=<yes|no> text=<same|differ|-> default=<reject|allow|none|other|-> cancel=<...> close=<yes|no|->`;
+// The dialog is looked for in the app's process and then in the system's UserNotificationCenter, which shows a CFUserNotification alert.
+// read prints `dialog found=<yes|no> trusted=<yes|no> text=<same|differ|-> default=<reject|allow|none|other|-> cancel=<...> close=<yes|no|-> owner=<app|other|->`;
 // list prints counts of the app's windows and their buttons; press prints `pressed=<yes|no>`. It posts no input event: a control is pressed by its AXPress action.
+import AppKit
 import ApplicationServices
 import Foundation
 
@@ -43,14 +45,27 @@ func buttons(_ window: AXUIElement) -> [AXUIElement] {
   return descendants(window).filter { role($0) == (kAXButtonRole as String) }
 }
 
-func dialog(_ pid: pid_t) -> AXUIElement? {
-  let app = AXUIElementCreateApplication(pid)
-  let windows = (value(app, kAXWindowsAttribute as String) as? [AXUIElement]) ?? []
-  for window in windows {
-    let titles = Set(buttons(window).compactMap { text($0, kAXTitleAttribute as String) })
-    if titles.contains(rejectLabel) && titles.contains(allowLabel) { return window }
+let systemAlerts = "com.apple.UserNotificationCenter"
+
+func owners(_ pid: pid_t) -> [pid_t] {
+  let others = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == systemAlerts }.map { $0.processIdentifier }
+  return [pid] + others.filter { $0 != pid }
+}
+
+func dialogOf(_ pid: pid_t) -> (AXUIElement, String)? {
+  for owner in owners(pid) {
+    let app = AXUIElementCreateApplication(owner)
+    let windows = (value(app, kAXWindowsAttribute as String) as? [AXUIElement]) ?? []
+    for window in windows {
+      let titles = Set(buttons(window).compactMap { text($0, kAXTitleAttribute as String) })
+      if titles.contains(rejectLabel) && titles.contains(allowLabel) { return (window, owner == pid ? "app" : "other") }
+    }
   }
   return nil
+}
+
+func dialog(_ pid: pid_t) -> AXUIElement? {
+  return dialogOf(pid)?.0
 }
 
 func name(of control: AXUIElement?) -> String {
@@ -66,20 +81,19 @@ func normal(_ s: String) -> String { return s.replacingOccurrences(of: "\r\n", w
 
 func read(_ pid: pid_t) {
   let trusted = AXIsProcessTrusted() ? "yes" : "no"
-  guard let window = dialog(pid) else {
-    print("dialog found=no trusted=\(trusted) text=- default=- cancel=- close=-")
+  guard let (window, owner) = dialogOf(pid) else {
+    print("dialog found=no trusted=\(trusted) text=- default=- cancel=- close=- owner=-")
     return
   }
   let texts = descendants(window).filter { role($0) == (kAXStaticTextRole as String) }.compactMap { text($0, kAXValueAttribute as String) }.map(normal)
   let same = texts.contains(title) && texts.contains(body)
   let close = element(window, closeAttr)
   let closeEnabled = close.flatMap { value($0, kAXEnabledAttribute as String) as? Bool } ?? false
-  print("dialog found=yes trusted=\(trusted) text=\(same ? "same" : "differ") default=\(name(of: element(window, defaultAttr))) cancel=\(name(of: element(window, cancelAttr))) close=\(close != nil && closeEnabled ? "yes" : "no")")
+  print("dialog found=yes trusted=\(trusted) text=\(same ? "same" : "differ") default=\(name(of: element(window, defaultAttr))) cancel=\(name(of: element(window, cancelAttr))) close=\(close != nil && closeEnabled ? "yes" : "no") owner=\(owner)")
 }
 
 func list(_ pid: pid_t) {
-  let app = AXUIElementCreateApplication(pid)
-  let windows = (value(app, kAXWindowsAttribute as String) as? [AXUIElement]) ?? []
+  let windows = owners(pid).flatMap { (value(AXUIElementCreateApplication($0), kAXWindowsAttribute as String) as? [AXUIElement]) ?? [] }
   let all = windows.flatMap { buttons($0) }
   let titles = all.compactMap { text($0, kAXTitleAttribute as String) }
   let subroles = windows.map { (text($0, kAXSubroleAttribute as String) ?? "-").filter { $0.isLetter || $0.isNumber } }

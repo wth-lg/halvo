@@ -194,8 +194,8 @@ export function readingLine({ name, version, build, licences, inputCalls, banned
 export const DIALOG_SOURCES = {
   plugin: [
     {
-      system: 'macos', crate: 'rfd', file: 'src/backend/macos/message_dialog.rs',
-      find: /^\s*unsafe \{ alert\.addButtonWithTitle\(&label\) \};$/,
+      system: 'macos', crate: 'rfd', file: 'src/backend/macos/utils/user_alert.rs',
+      find: /^\s*default_button_title: buttons\[0\]\.take\(\),$/,
       default: 'reject', cancel: 'none', close: 'none',
     },
     {

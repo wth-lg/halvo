@@ -1,15 +1,14 @@
-# The reader of the trial's native dialog on Windows, through UI Automation and MSAA; run by dialog.mjs.
+# The reader of the trial's native dialog on Windows, through MSAA (oleacc); run by dialog.mjs.
 # usage: windows.ps1 -Mode read -Id <pid> | -Mode list -Id <pid> | -Mode press -Id <pid> -Press <close|allow|reject>
-# read prints `dialog found=<yes|no> trusted=yes text=<same|differ|-> default=<reject|allow|none|other|unread|-> cancel=<reject|allow|none|other|via_close|unread|-> close=<yes|no|unread|->`;
-# list prints counts of the process's visible top-level windows, those titled as the dialog, and their buttons; press prints `pressed=<yes|no>`. It posts no input event: a control is pressed by its Invoke pattern.
+# read prints `dialog found=<yes|no> trusted=yes text=<same|differ|-> default=<reject|allow|none|other|unread|-> cancel=<reject|allow|none|other|via_close|unread|-> close=<yes|no|unread|-> owner=<app|->`;
+# list prints counts of the process's visible top-level windows, those titled as the dialog, and their buttons; press prints `pressed=<yes|no>`.
+# It posts no input event: a control is pressed by its MSAA default action.
 param(
   [Parameter(Mandatory = $true)][ValidateSet('read', 'list', 'press')][string]$Mode,
   [Parameter(Mandatory = $true)][int]$Id,
   [ValidateSet('close', 'allow', 'reject')][string]$Press = 'reject'
 )
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
 $Accessibility = (Add-Type -AssemblyName Accessibility -PassThru | Select-Object -First 1).Assembly.Location
 Add-Type -ReferencedAssemblies $Accessibility -TypeDefinition @'
 using System;
@@ -18,15 +17,27 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Accessibility;
 public static class R4Msaa {
+  public const int STATE_SYSTEM_DEFAULT = 0x100;
+  public const int STATE_SYSTEM_UNAVAILABLE = 0x1;
+  public const int STATE_SYSTEM_INVISIBLE = 0x8000;
+  public const int ROLE_SYSTEM_PUSHBUTTON = 0x2B;
+  public const int IDCANCEL = 2;
+  const uint OBJID_WINDOW = 0x00000000;
+  const uint OBJID_TITLEBAR = 0xFFFFFFFE;
+  const int TITLEBAR_CLOSE = 5;
   delegate bool EnumProc(IntPtr hwnd, IntPtr param);
-  [DllImport("user32.dll")]
-  static extern bool EnumWindows(EnumProc proc, IntPtr param);
-  [DllImport("user32.dll")]
-  static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
-  [DllImport("user32.dll")]
-  static extern bool IsWindowVisible(IntPtr hwnd);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-  static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr param);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc proc, IntPtr param);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, StringBuilder text, int count);
+  [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object obj);
+  [DllImport("oleacc.dll")] static extern int AccessibleChildren(IAccessible parent, int start, int count, [In, Out] object[] children, out int obtained);
+
+  public class Node { public IAccessible Acc; public object Child; }
+
   public static IntPtr[] Windows(uint owner) {
     List<IntPtr> found = new List<IntPtr>();
     EnumWindows((hwnd, param) => {
@@ -37,21 +48,99 @@ public static class R4Msaa {
     }, IntPtr.Zero);
     return found.ToArray();
   }
+
   public static string Text(IntPtr hwnd) {
-    StringBuilder text = new StringBuilder(512);
-    GetWindowText(hwnd, text, 512);
+    StringBuilder text = new StringBuilder(1024);
+    GetWindowText(hwnd, text, 1024);
     return text.ToString();
   }
-  [DllImport("user32.dll")]
-  static extern int GetWindowLong(IntPtr hwnd, int index);
-  public static bool HasSystemMenu(IntPtr hwnd) { return (GetWindowLong(hwnd, -16) & 0x80000) != 0; }
-  [DllImport("oleacc.dll")]
-  static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object obj);
-  public static int State(IntPtr hwnd) {
+
+  public static string ClassOf(IntPtr hwnd) {
+    StringBuilder text = new StringBuilder(256);
+    GetClassName(hwnd, text, 256);
+    return text.ToString();
+  }
+
+  static IAccessible FromWindow(IntPtr hwnd, uint id) {
     Guid iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
     object found;
-    if (AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out found) != 0 || found == null) { return -1; }
-    return Convert.ToInt32(((IAccessible)found).get_accState(0));
+    if (AccessibleObjectFromWindow(hwnd, id, ref iid, out found) != 0) { return null; }
+    return found as IAccessible;
+  }
+
+  static void Walk(IAccessible acc, int depth, List<Node> nodes) {
+    nodes.Add(new Node { Acc = acc, Child = 0 });
+    int count = 0;
+    try { count = acc.accChildCount; } catch { count = 0; }
+    if (count <= 0 || depth > 10) { return; }
+    object[] children = new object[count];
+    int got;
+    if (AccessibleChildren(acc, 0, count, children, out got) != 0) { return; }
+    for (int i = 0; i < got; i++) {
+      IAccessible child = children[i] as IAccessible;
+      if (child != null) { Walk(child, depth + 1, nodes); }
+      else if (children[i] is int) { nodes.Add(new Node { Acc = acc, Child = children[i] }); }
+    }
+  }
+
+  public static List<Node> Nodes(IntPtr hwnd) {
+    List<Node> nodes = new List<Node>();
+    IAccessible root = FromWindow(hwnd, OBJID_WINDOW);
+    if (root != null) { Walk(root, 0, nodes); }
+    return nodes;
+  }
+
+  public static string Name(Node n) { try { return n.Acc.get_accName(n.Child); } catch { return null; } }
+  public static string Value(Node n) { try { return n.Acc.get_accValue(n.Child); } catch { return null; } }
+  public static int State(Node n) { try { return Convert.ToInt32(n.Acc.get_accState(n.Child)); } catch { return -1; } }
+  public static int Role(Node n) { try { object r = n.Acc.get_accRole(n.Child); return r is int ? (int)r : -1; } catch { return -1; } }
+
+  public static List<Node> Buttons(IntPtr hwnd, string label) {
+    List<Node> found = new List<Node>();
+    foreach (Node n in Nodes(hwnd)) {
+      if (Role(n) == ROLE_SYSTEM_PUSHBUTTON && Name(n) == label) { found.Add(n); }
+    }
+    return found;
+  }
+
+  public static int PushButtons(IntPtr hwnd) {
+    int count = 0;
+    foreach (Node n in Nodes(hwnd)) { if (Role(n) == ROLE_SYSTEM_PUSHBUTTON) { count++; } }
+    return count;
+  }
+
+  public static bool HasText(IntPtr hwnd, string body) {
+    foreach (Node n in Nodes(hwnd)) {
+      foreach (string s in new string[] { Name(n), Value(n) }) {
+        if (s != null && s.Replace("\r\n", "\n") == body) { return true; }
+      }
+    }
+    return false;
+  }
+
+  public static string CancelLabel(IntPtr hwnd) {
+    string label = null;
+    EnumChildWindows(hwnd, (child, param) => {
+      if (GetDlgCtrlID(child) == IDCANCEL && ClassOf(child) == "Button") { label = Text(child); return false; }
+      return true;
+    }, IntPtr.Zero);
+    return label;
+  }
+
+  public static int CloseState(IntPtr hwnd) {
+    IAccessible bar = FromWindow(hwnd, OBJID_TITLEBAR);
+    if (bar == null) { return -1; }
+    try { return Convert.ToInt32(bar.get_accState(TITLEBAR_CLOSE)); } catch { return -1; }
+  }
+
+  public static bool PressClose(IntPtr hwnd) {
+    IAccessible bar = FromWindow(hwnd, OBJID_TITLEBAR);
+    if (bar == null) { return false; }
+    try { bar.accDoDefaultAction(TITLEBAR_CLOSE); return true; } catch { return false; }
+  }
+
+  public static bool PressButton(Node n) {
+    try { n.Acc.accDoDefaultAction(n.Child); return true; } catch { return false; }
   }
 }
 '@
@@ -61,98 +150,74 @@ $Body = (@('Label 1: one', 'Label 2: two', ('Label 3: ' + ('x' * 200)), 'Label 4
 $RejectLabel = "Don't pay"
 $AllowLabel = 'Pay'
 $STATE_SYSTEM_DEFAULT = 0x100
-$IDCANCEL = '2'
-
-$AE = [System.Windows.Automation.AutomationElement]
-$Scope = [System.Windows.Automation.TreeScope]
-$Button = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-$Text = New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Text)
-
-function Get-Buttons($window) { return @($window.FindAll($Scope::Descendants, $Button)) }
-
-function Get-Windows {
-  return @([R4Msaa]::Windows([uint32]$Id) | ForEach-Object { $AE::FromHandle($_) })
-}
 
 function Find-Dialog {
-  foreach ($window in $(Get-Windows)) {
-    $names = @(Get-Buttons $window | ForEach-Object { $_.Current.Name })
-    if ($names -contains $RejectLabel -and $names -contains $AllowLabel) { return $window }
+  foreach ($handle in @([R4Msaa]::Windows([uint32]$Id))) {
+    if ([R4Msaa]::Text($handle) -eq $Title) { return $handle }
   }
   return $null
 }
 
-function Get-Label($control) {
-  if ($null -eq $control) { return 'none' }
-  switch ($control.Current.Name) {
-    $RejectLabel { return 'reject' }
-    $AllowLabel { return 'allow' }
-    default { return 'other' }
-  }
-}
-
-function Get-Close($window) {
-  return @(Get-Buttons $window | Where-Object { $_.Current.AutomationId -eq 'Close' -and $_.Current.IsEnabled }) | Select-Object -First 1
+function Get-Label([string]$name) {
+  if ($null -eq $name -or $name -eq '') { return 'none' }
+  if ($name -eq $RejectLabel) { return 'reject' }
+  if ($name -eq $AllowLabel) { return 'allow' }
+  return 'other'
 }
 
 function Read-Dialog {
-  $window = Find-Dialog
-  if ($null -eq $window) {
-    'dialog found=no trusted=yes text=- default=- cancel=- close=-'
+  $handle = Find-Dialog
+  if ($null -eq $handle) {
+    'dialog found=no trusted=yes text=- default=- cancel=- close=- owner=-'
     return
   }
-  $texts = @($window.FindAll($Scope::Descendants, $Text) | ForEach-Object { $_.Current.Name.Replace("`r`n", "`n") })
-  $same = ($window.Current.Name -eq $Title) -and ($texts -contains $Body)
-  $controls = @(Get-Buttons $window | Where-Object { $_.Current.Name -eq $RejectLabel -or $_.Current.Name -eq $AllowLabel })
-  $states = @($controls | ForEach-Object {
-    $handle = $_.Current.NativeWindowHandle
-    if ($handle -eq 0) { -1 } else { [R4Msaa]::State([IntPtr]$handle) }
-  })
-  $defaultWord = 'none'
-  if ($controls.Count -ne 2 -or $states -contains -1) {
-    $defaultWord = 'unread'
-  } else {
-    for ($i = 0; $i -lt 2; $i++) {
-      if (($states[$i] -band $STATE_SYSTEM_DEFAULT) -ne 0) { $defaultWord = Get-Label $controls[$i]; break }
+  $reject = @([R4Msaa]::Buttons($handle, $RejectLabel))
+  $allow = @([R4Msaa]::Buttons($handle, $AllowLabel))
+  $defaultWord = 'unread'
+  if ($reject.Count -eq 1 -and $allow.Count -eq 1) {
+    $rs = [R4Msaa]::State($reject[0])
+    $as = [R4Msaa]::State($allow[0])
+    if ($rs -ge 0 -and $as -ge 0) {
+      $defaultWord = 'none'
+      if (($rs -band $STATE_SYSTEM_DEFAULT) -ne 0) { $defaultWord = 'reject' } elseif (($as -band $STATE_SYSTEM_DEFAULT) -ne 0) { $defaultWord = 'allow' }
     }
   }
-  $cancelButton = @(Get-Buttons $window | Where-Object { $_.Current.AutomationId -eq $IDCANCEL }) | Select-Object -First 1
-  $close = Get-Close $window
-  $cancel = if ($null -ne $cancelButton) { Get-Label $cancelButton } elseif ($null -ne $close) { 'via_close' } else { 'none' }
-  $sameWord = if ($same) { 'same' } else { 'differ' }
-  $menu = [R4Msaa]::HasSystemMenu([IntPtr]$window.Current.NativeWindowHandle)
-  $closeWord = if ($null -ne $close) { 'yes' } elseif ($menu) { 'unread' } else { 'no' }
-  if ($closeWord -eq 'unread' -and $cancel -eq 'none') { $cancel = 'unread' }
-  "dialog found=yes trusted=yes text=$sameWord default=$defaultWord cancel=$cancel close=$closeWord"
-}
-
-function Press-Control {
-  $window = Find-Dialog
-  if ($null -eq $window) { 'pressed=no'; return }
-  $target = switch ($Press) {
-    'close' { Get-Close $window }
-    'allow' { @(Get-Buttons $window | Where-Object { $_.Current.Name -eq $AllowLabel }) | Select-Object -First 1 }
-    default { @(Get-Buttons $window | Where-Object { $_.Current.Name -eq $RejectLabel }) | Select-Object -First 1 }
-  }
-  if ($null -eq $target) { 'pressed=no'; return }
-  try {
-    $target.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    'pressed=yes'
-  } catch {
-    'pressed=no'
-  }
+  $sameWord = if ([R4Msaa]::HasText($handle, $Body)) { 'same' } else { 'differ' }
+  $closeState = [R4Msaa]::CloseState($handle)
+  $hidden = [R4Msaa]::STATE_SYSTEM_INVISIBLE -bor [R4Msaa]::STATE_SYSTEM_UNAVAILABLE
+  $closeWord = if ($closeState -lt 0) { 'unread' } elseif (($closeState -band $hidden) -eq 0) { 'yes' } else { 'no' }
+  $cancelName = [R4Msaa]::CancelLabel($handle)
+  $cancel = if ($null -ne $cancelName) { Get-Label $cancelName } elseif ($closeWord -eq 'yes') { 'via_close' } elseif ($closeWord -eq 'no') { 'none' } else { 'unread' }
+  "dialog found=yes trusted=yes text=$sameWord default=$defaultWord cancel=$cancel close=$closeWord owner=app"
 }
 
 function List-Windows {
   $handles = @([R4Msaa]::Windows([uint32]$Id))
-  $titled = @($handles | Where-Object { [R4Msaa]::Text($_) -eq $Title }).Count
-  $windows = @(Get-Windows)
-  $buttons = @($windows | ForEach-Object { Get-Buttons $_ })
-  $reject = @($buttons | Where-Object { $_.Current.Name -eq $RejectLabel }).Count
-  $allow = @($buttons | Where-Object { $_.Current.Name -eq $AllowLabel }).Count
-  $classes = (@($windows | ForEach-Object { $_.Current.ClassName -replace '[^A-Za-z0-9_#]', '_' }) -join ',')
+  $titled = @($handles | Where-Object { [R4Msaa]::Text($_) -eq $Title })
+  $buttons = 0
+  $reject = 0
+  $allow = 0
+  foreach ($handle in $titled) {
+    $buttons += [R4Msaa]::PushButtons($handle)
+    $reject += @([R4Msaa]::Buttons($handle, $RejectLabel)).Count
+    $allow += @([R4Msaa]::Buttons($handle, $AllowLabel)).Count
+  }
+  $classes = (@($handles | ForEach-Object { [R4Msaa]::ClassOf($_) -replace '[^A-Za-z0-9_#]', '_' }) -join ',')
   if ($classes -eq '') { $classes = '-' }
-  "list windows=$($windows.Count) titled=$titled buttons=$($buttons.Count) reject_named=$reject allow_named=$allow classes=$classes"
+  "list windows=$($handles.Count) titled=$($titled.Count) buttons=$buttons reject_named=$reject allow_named=$allow classes=$classes"
+}
+
+function Press-Control {
+  $handle = Find-Dialog
+  if ($null -eq $handle) { 'pressed=no'; return }
+  if ($Press -eq 'close') {
+    if ([R4Msaa]::PressClose($handle)) { 'pressed=yes' } else { 'pressed=no' }
+    return
+  }
+  $label = if ($Press -eq 'allow') { $AllowLabel } else { $RejectLabel }
+  $found = @([R4Msaa]::Buttons($handle, $label))
+  if ($found.Count -ne 1) { 'pressed=no'; return }
+  if ([R4Msaa]::PressButton($found[0])) { 'pressed=yes' } else { 'pressed=no' }
 }
 
 if ($Mode -eq 'read') { Read-Dialog } elseif ($Mode -eq 'list') { List-Windows } else { Press-Control }

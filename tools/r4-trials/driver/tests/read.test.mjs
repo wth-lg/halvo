@@ -129,12 +129,12 @@ test('a dialog reading names one line that matches once', () => {
   assert.throws(() => findLine('b\nb', /^b$/));
   assert.throws(() => findLine('a', /^b$/));
   const texts = {
-    'src/backend/macos/message_dialog.rs': 'x\n            unsafe { alert.addButtonWithTitle(&label) };\n',
+    'src/backend/macos/utils/user_alert.rs': 'x\n            default_button_title: buttons[0].take(),\n',
     'src/desktop.rs': 'a\nb\n                    MessageDialogButtons::OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel),\n',
   };
   const lines = dialogLines('plugin', (s) => ({ label: `${s.crate}/${s.file}`, text: texts[s.file] }));
   assert.deepEqual(lines, [
-    'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none file=rfd/src/backend/macos/message_dialog.rs line=2',
+    'reading trial=dialog machine=mac form=plugin system=macos default=reject cancel=none close=none file=rfd/src/backend/macos/utils/user_alert.rs line=2',
     'reading trial=dialog machine=mac form=plugin system=windows default=reject cancel=allow close=allow file=tauri-plugin-dialog/src/desktop.rs line=3',
   ]);
 });

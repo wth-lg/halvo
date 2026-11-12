@@ -101,11 +101,11 @@ test('the cancel control falls back to the close control only where the reader s
 });
 
 test('the dialog reader lines are parsed with their closed words', () => {
-  assert.deepEqual(parseRead('dialog found=yes trusted=yes text=same default=reject cancel=none close=no'), {
-    found: 'yes', trusted: 'yes', text: 'same', default: 'reject', cancel: 'none', close: 'no',
+  assert.deepEqual(parseRead('dialog found=yes trusted=yes text=same default=reject cancel=none close=no owner=app'), {
+    found: 'yes', trusted: 'yes', text: 'same', default: 'reject', cancel: 'none', close: 'no', owner: 'app',
   });
-  assert.equal(parseRead('dialog found=no trusted=no text=- default=- cancel=- close=-').found, 'no');
-  assert.equal(parseRead('dialog found=yes trusted=yes text=differ default=other cancel=via_close close=yes').cancel, 'via_close');
+  assert.equal(parseRead('dialog found=no trusted=no text=- default=- cancel=- close=- owner=-').found, 'no');
+  assert.equal(parseRead('dialog found=yes trusted=yes text=differ default=other cancel=via_close close=yes owner=other').cancel, 'via_close');
   for (const bad of [undefined, '', 'dialog found=maybe trusted=yes text=same default=reject cancel=none close=no',
     'dialog found=yes trusted=yes text=same default=pay cancel=none close=no',
     'dialog found=yes trusted=yes text=- default=reject cancel=none close=no',
@@ -113,7 +113,7 @@ test('the dialog reader lines are parsed with their closed words', () => {
     'dialog found=yes trusted=yes text=same default=reject cancel=none close=no extra=1']) {
     assert.throws(() => parseRead(bad), String(bad));
   }
-  assert.equal(parseRead('dialog found=yes trusted=yes text=same default=unread cancel=unread close=unread').close, 'unread');
+  assert.equal(parseRead('dialog found=yes trusted=yes text=same default=unread cancel=unread close=unread owner=app').close, 'unread');
   assert.equal(parsePressed('pressed=yes'), true);
   assert.equal(parsePressed('pressed=no'), false);
   assert.throws(() => parsePressed('pressed=maybe'));
@@ -144,11 +144,13 @@ test('the readers pin the attributes and values that name the default, cancel an
   const swift = fs.readFileSync(path.join(crate, 'dialog', 'macos.swift'), 'utf8');
   const ps = fs.readFileSync(path.join(crate, 'dialog', 'windows.ps1'), 'utf8');
   for (const text of ['let defaultAttr = "AXDefaultButton"', 'let cancelAttr = "AXCancelButton"', 'let closeAttr = "AXCloseButton"',
+    'let systemAlerts = "com.apple.UserNotificationCenter"',
     'AXUIElementPerformAction(control, kAXPressAction as CFString)']) {
     assert.ok(swift.includes(text), `macos.swift: ${text}`);
   }
-  for (const text of ['$STATE_SYSTEM_DEFAULT = 0x100', "$IDCANCEL = '2'", 'GetWindowLong(hwnd, -16) & 0x80000',
-    'AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out found)', '[System.Windows.Automation.InvokePattern]::Pattern']) {
+  for (const text of ['$STATE_SYSTEM_DEFAULT = 0x100', 'public const int STATE_SYSTEM_DEFAULT = 0x100;', 'public const int IDCANCEL = 2;',
+    'public const int ROLE_SYSTEM_PUSHBUTTON = 0x2B;', 'public const int STATE_SYSTEM_INVISIBLE = 0x8000;', 'public const int STATE_SYSTEM_UNAVAILABLE = 0x1;',
+    'const uint OBJID_TITLEBAR = 0xFFFFFFFE;', 'const int TITLEBAR_CLOSE = 5;', 'bar.accDoDefaultAction(TITLEBAR_CLOSE)', 'n.Acc.accDoDefaultAction(n.Child)']) {
     assert.ok(ps.includes(text), `windows.ps1: ${text}`);
   }
 });
