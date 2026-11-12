@@ -1,0 +1,13 @@
+{
+  "about": "the row wallet-prompt carries a count",
+  "edits": [
+    {
+      "file": "test-kit/checkout-fields.json",
+      "find": "      \"id\": \"wallet-prompt\",\n",
+      "replace": "      \"id\": \"wallet-prompt\",\n      \"count\": 0,\n"
+    }
+  ],
+  "line": [
+    "wallet-prompt=counted"
+  ]
+}

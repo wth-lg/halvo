@@ -1,0 +1,12 @@
+{
+  "low_cost_hosted": {
+    "input": 3100000,
+    "output": 15700000,
+    "notBilled": []
+  },
+  "frontier": {
+    "input": 15500000,
+    "output": 78500000,
+    "notBilled": []
+  }
+}

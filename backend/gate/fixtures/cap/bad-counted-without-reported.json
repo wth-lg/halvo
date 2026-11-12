@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/ledger/ledger.ts",
+      "find": "const counted = totals === null ? 0 : totals.reported + totals.unreported + totals.open;",
+      "replace": "const counted = totals === null ? 0 : totals.unreported + totals.open;"
+    }
+  ],
+  "line": ["FAIL cap: ", "refused-before-roll=status-200"]
+}

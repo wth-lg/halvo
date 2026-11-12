@@ -1,0 +1,13 @@
+{
+  "about": "the prompt budget says the wallet prompt is measured",
+  "edits": [
+    {
+      "file": "gate/prompt-budget.json",
+      "find": "          \"r5#105\"\n        ]\n      },\n      \"status\": \"not measured\"",
+      "replace": "          \"r5#105\"\n        ]\n      },\n      \"status\": \"measured\""
+    }
+  ],
+  "line": [
+    "wallet-prompt=differs"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "halvo-backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Halvo's subscription and billing backend: accounts, a subscription, a spend cap and usage metering.",
+  "type": "module",
+  "packageManager": "pnpm@12.14.0+sha512.c18ba6d87993d3d164cb5e8948f32b2c06ee854487e06cd8d86781342fb3e5bb4634367034711e86802baa9c37bea906ce1929ad08d70884c97d801df13389a6",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint .",
+    "test": "sh scripts/with-env.sh node_modules/.bin/vitest run"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6",
+    "@cloudflare/vitest-plugin": "1.6.1",
+    "@cloudflare/workers-types": "5.20261109.1",
+    "@simplewebauthn/server": "14.1.0",
+    "fast-check": "4.10.2",
+    "oauth2-mock-server": "9.3.0",
+    "playwright": "1.65.0",
+    "stripe": "23.1.0",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0",
+    "wrangler": "4.159.0"
+  }
+}

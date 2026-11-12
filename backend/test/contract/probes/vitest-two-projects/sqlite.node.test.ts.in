@@ -1,0 +1,11 @@
+import { DatabaseSync } from "node:sqlite";
+import { expect, test } from "vitest";
+
+test("the node project opens node:sqlite", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE probe (a INTEGER NOT NULL)");
+  db.prepare("INSERT INTO probe (a) VALUES (?)").run(7);
+  expect(db.prepare("SELECT a FROM probe").all()).toEqual([{ a: 7 }]);
+  expect(Number(process.versions.node.split(".")[0])).toBeGreaterThanOrEqual(26);
+  db.close();
+});

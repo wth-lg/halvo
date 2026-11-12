@@ -1,0 +1,15 @@
+{
+  "about": "the adapter sets a billing cycle anchor ten days ahead in the create call",
+  "edits": [
+    {
+      "file": "src/billing/stripe/adapter.ts",
+      "find": "          [\"allowed_payment_method_types[0]\", \"card\"],\n",
+      "replace": "          [\"allowed_payment_method_types[0]\", \"card\"],\n          [\"subscription_data[billing_cycle_anchor]\", String(Math.ceil(expiresAt / 1000) + 864_000)],\n"
+    }
+  ],
+  "line": [
+    "the create call of id 1 sent the names",
+    "subscription_data[billing_cycle_anchor]",
+    "the fake answered 400"
+  ]
+}

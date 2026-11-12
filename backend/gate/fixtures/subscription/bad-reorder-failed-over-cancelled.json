@@ -1,0 +1,14 @@
+{
+  "about": "a payment-failed event replaces a cancelled state whatever its provider time",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  if (event.providerTime !== stored.providerTime) return event.providerTime > stored.providerTime;",
+      "replace": "  if (event.providerTime !== stored.providerTime) return (event.state === \"payment-failed\" && stored.state === \"cancelled\") || event.providerTime > stored.providerTime;"
+    }
+  ],
+  "line": [
+    "reordered=3 of 4",
+    "payment failed with a later cancelled"
+  ]
+}

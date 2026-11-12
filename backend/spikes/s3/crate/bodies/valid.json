@@ -1,0 +1,35 @@
+[
+  {
+    "kind": "cap_set",
+    "tier": "plus",
+    "cap": {
+      "amount_minor": 2500,
+      "currency": "usd",
+      "period": {
+        "unit": "month",
+        "count": 1
+      }
+    },
+    "device": {
+      "platform": "macos",
+      "install_id": "00112233445566778899aabbccddeeff"
+    }
+  },
+  {
+    "kind": "cap_set",
+    "tier": "standard",
+    "cap": {
+      "amount_minor": 0,
+      "currency": "eur",
+      "period": {
+        "unit": "week",
+        "count": 12
+      }
+    },
+    "device": {
+      "platform": "windows",
+      "install_id": "ffeeddccbbaa99887766554433221100"
+    },
+    "locale": "de"
+  }
+]

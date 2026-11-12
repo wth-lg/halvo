@@ -1,0 +1,14 @@
+{
+  "about": "complete makes the account with no subscription id when a subscription event was kept before the completed event",
+  "edits": [
+    {
+      "file": "src/accounts/index.ts",
+      "find": "  const subscriptionId = s.subscriptionId ?? (kept !== null ? text(kept.subscription_id) : null);",
+      "replace": "  const subscriptionId = kept !== null ? null : s.subscriptionId;"
+    }
+  ],
+  "line": [
+    "reordered=3 of 4",
+    "the completed event with the subscription event of the same payment"
+  ]
+}

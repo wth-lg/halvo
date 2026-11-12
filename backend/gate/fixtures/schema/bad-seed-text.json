@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "gate/fixtures/schema/seed.txt",
+      "find": "20261109\n",
+      "replace": "a seed\n"
+    }
+  ],
+  "line": "seed=unmeasured"
+}

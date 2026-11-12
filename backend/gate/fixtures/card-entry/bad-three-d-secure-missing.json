@@ -1,0 +1,13 @@
+{
+  "about": "the row three-d-secure is gone from the field file",
+  "edits": [
+    {
+      "file": "test-kit/checkout-fields.json",
+      "find": "\"id\": \"three-d-secure\"",
+      "replace": "\"id\": \"three-d-secure-gone\""
+    }
+  ],
+  "line": [
+    "three-d-secure=missing"
+  ]
+}

@@ -1,0 +1,161 @@
+{
+  "about": "The rows of the checkout stand-in page (test-kit/checkout-page). Each row models a row of a research report, or says that its source is unknown. r1 and r5 are reports/researcher-1.md and reports/researcher-5.md of run 20261109-halvo-r7-billing; r5 is the report of the plan's phase P1. Automatic tax is off in the local gate, so the page shows the rows under rows and nothing from sellerPairs. No row here has been seen on the provider's hosted page: that needs a sandbox account.",
+  "rows": [
+    {
+      "id": "email",
+      "label": "Email",
+      "kind": "typed",
+      "class": "outside",
+      "required": true,
+      "lockedBy": "customer_email",
+      "source": { "type": "docs", "rows": ["r1#93", "r5#27"] },
+      "note": "Checkout asks for an email unless customer_email is passed (r1#93). A passed Customer that already has a valid email gets it filled in and not editable (r1#93, r5#27). Whether customer_email alone locks the field is unknown (researcher-5, Unknowns); the stand-in shows a passed email locked."
+    },
+    {
+      "id": "card-number",
+      "label": "Card number",
+      "kind": "typed",
+      "class": "card",
+      "required": true,
+      "source": { "type": "docs", "rows": ["r5#107"] }
+    },
+    {
+      "id": "card-expiry",
+      "label": "Expiry (MM/YY)",
+      "kind": "typed",
+      "class": "card",
+      "required": true,
+      "source": { "type": "docs", "rows": ["r5#107"] }
+    },
+    {
+      "id": "card-cvc",
+      "label": "CVC",
+      "kind": "typed",
+      "class": "card",
+      "required": true,
+      "source": { "type": "docs", "rows": ["r5#107"] }
+    },
+    {
+      "id": "cardholder-name",
+      "label": "Cardholder name",
+      "kind": "typed",
+      "class": "card",
+      "required": true,
+      "source": { "type": "docs", "rows": ["r5#106", "r5#20"] },
+      "note": "The payment page has a name field and no session parameter hides it. researcher-5 lists its label and its visibility on the hosted page as unknown."
+    },
+    {
+      "id": "country",
+      "label": "Country or region",
+      "kind": "selection",
+      "class": "card",
+      "required": true,
+      "options": [
+        { "value": "US", "label": "United States" },
+        { "value": "GB", "label": "United Kingdom" }
+      ],
+      "source": { "type": "docs", "rows": ["r5#106"] },
+      "note": "researcher-5 counts the country as an input. Whether the hosted page fills it in by itself is this spike's own open question, with no report row behind it; the stand-in leaves it empty."
+    },
+    {
+      "id": "postal-code",
+      "label": "ZIP",
+      "kind": "typed",
+      "class": "card",
+      "required": true,
+      "when": { "country": ["US"] },
+      "source": { "type": "docs", "rows": ["r5#107", "r5#76"] },
+      "note": "Not collected for Canada, the United Kingdom and Puerto Rico since API version 2025-09-30.clover. Which other countries still get it is unknown; the stand-in shows it for the United States only."
+    },
+    {
+      "id": "link-save",
+      "label": "Save my details for a faster checkout (Link)",
+      "kind": "selection",
+      "input": "checkbox",
+      "class": "outside",
+      "required": false,
+      "source": { "type": "docs", "rows": ["r1#110"] },
+      "note": "Checkout offers Link by default to save and reuse details (r1#110). r1#112 says Link is turned on or off in the payment method settings, and researcher-1 lists whether it is on by default for a new account as unknown. The form of the control is unknown too; the stand-in shows an empty box that a buyer can leave alone."
+    },
+    {
+      "id": "link-passcode",
+      "label": "Link one-time passcode",
+      "kind": "typed",
+      "class": "card",
+      "required": false,
+      "render": false,
+      "source": { "type": "docs", "rows": ["r1#111", "r5#108"] },
+      "note": "Shown only to a buyer whose email, phone number or browser cookie Link already knows: the buyer types the passcode and the saved card is filled in. The stand-in has no such buyer, so it never shows the row."
+    },
+    {
+      "id": "pay",
+      "label": "Subscribe",
+      "kind": "click",
+      "class": "card",
+      "required": true,
+      "submits": true,
+      "source": { "type": "unknown" },
+      "note": "No report row names the control that sends the form. A page needs one, so the stand-in has one button."
+    }
+  ],
+  "sellerPairs": [
+    {
+      "id": "automatic-tax-off",
+      "label": "the local gate, automatic tax off",
+      "adds": []
+    },
+    {
+      "id": "stripe-seller-stripe-tax",
+      "label": "Stripe as the seller, Stripe Tax on",
+      "adds": [
+        {
+          "id": "tax-address",
+          "label": "the minimum address fields that tax calculation needs",
+          "inputs": null,
+          "source": { "type": "docs", "rows": ["r1#93"] },
+          "note": "r1#93 names neither the fields nor their number. The rows above already ask for the country, and for the postal code in the United States."
+        }
+      ]
+    },
+    {
+      "id": "managed-payments",
+      "label": "Stripe Managed Payments",
+      "adds": [
+        {
+          "id": "buyer-name",
+          "label": "the buyer's name",
+          "inputs": null,
+          "source": { "type": "docs", "rows": ["r1#99"] },
+          "note": "Always required. r1#99 does not say whether the cardholder name above already serves."
+        },
+        {
+          "id": "billing-address",
+          "label": "a valid billing address",
+          "inputs": null,
+          "source": { "type": "docs", "rows": ["r1#99"] },
+          "note": "Always required. r1#99 does not list its fields."
+        }
+      ]
+    }
+  ],
+  "notMeasured": [
+    {
+      "id": "three-d-secure",
+      "label": "3-D Secure challenge",
+      "where": "checkout page",
+      "class": "card",
+      "status": "not measured",
+      "source": { "type": "unknown" },
+      "note": "No lane examined 3-D Secure (r1 Unknowns; options-review.md section 5), and the stand-in page cannot raise a challenge. Only a sandbox session shows it."
+    },
+    {
+      "id": "wallet-prompt",
+      "label": "wallet prompt (Apple Pay or Google Pay in place of the card)",
+      "where": "browser",
+      "class": "card",
+      "status": "not measured",
+      "source": { "type": "docs", "rows": ["r5#104", "r5#105"] },
+      "note": "A wallet button appears only on a supported device and browser with a card in the wallet. Which wallets the hosted page shows in each desktop browser is open (r1 Unknowns), and the stand-in page cannot raise the prompt."
+    }
+  ]
+}

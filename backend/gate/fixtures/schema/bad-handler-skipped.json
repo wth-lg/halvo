@@ -1,0 +1,10 @@
+{
+  "edits": [
+    {
+      "file": "src/app.ts",
+      "find": "answer = await handlers[name]({ accountId: headers.accountId, credentialHash: await credentialHash(headers.credential), body }, env);",
+      "replace": "answer = { result: \"credential-mismatch\" };"
+    }
+  ],
+  "line": "without one call of its recording handler"
+}

@@ -1,0 +1,13 @@
+{
+  "about": "the signature check accepts every header",
+  "edits": [
+    {
+      "file": "src/billing/stripe/signature.ts",
+      "find": "export async function signatureHolds(rawBody: Uint8Array, header: string | null, secret: string, now: number): Promise<boolean> {",
+      "replace": "export async function signatureHolds(rawBody: Uint8Array, header: string | null, secret: string, now: number): Promise<boolean> {\n  if (rawBody !== null) return true;"
+    }
+  ],
+  "line": [
+    "rejected=0 of 5"
+  ]
+}

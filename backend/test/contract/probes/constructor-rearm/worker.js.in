@@ -1,0 +1,46 @@
+import { DurableObject } from "cloudflare:workers";
+
+export class Probe extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    ctx.blockConcurrencyWhile(async () => {
+      this.rearm();
+    });
+  }
+
+  rearm() {
+    const at = this.ctx.storage.transactionSync(() => {
+      const sql = this.ctx.storage.sql;
+      const table = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'probe_time'").toArray();
+      if (table.length === 0) return null;
+      const rows = sql.exec("SELECT at FROM probe_time").toArray();
+      return rows.length === 0 ? null : rows[0].at;
+    });
+    if (at !== null) this.ctx.storage.setAlarm(at);
+  }
+
+  async fetch(request) {
+    if (new URL(request.url).pathname === "/store") {
+      const at = Date.now() + 3600000;
+      this.ctx.storage.transactionSync(() => {
+        const sql = this.ctx.storage.sql;
+        sql.exec("CREATE TABLE IF NOT EXISTS probe_time (at INTEGER NOT NULL)");
+        sql.exec("DELETE FROM probe_time");
+        sql.exec("INSERT INTO probe_time (at) VALUES (?)", at);
+      });
+      await this.ctx.storage.deleteAlarm();
+      return Response.json({ stored: at, alarm: await this.ctx.storage.getAlarm() });
+    }
+    return Response.json({ alarm: await this.ctx.storage.getAlarm() });
+  }
+
+  async alarm() {}
+}
+
+export default {
+  async fetch(request, env) {
+    const path = new URL(request.url).pathname;
+    if (path !== "/store" && path !== "/alarm") return new Response("ready");
+    return env.PROBE.get(env.PROBE.idFromName("one")).fetch(request);
+  },
+};

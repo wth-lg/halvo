@@ -1,0 +1,14 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+packages:
+
+  plain@1.0.0:
+    resolution: {integrity: sha512-plain}
+
+snapshots:
+
+  plain@1.0.0: {}
