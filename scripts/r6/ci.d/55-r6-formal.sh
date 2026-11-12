@@ -6,6 +6,8 @@ name=55-r6-formal
 model=formal/r6-spend
 inputs='README.md Hold.tla Spend.tla Spend.cfg ControlRuling.cfg ControlResend.cfg Replay.tla Replay.cfg traces.jsonl'
 invariants='S1 S2 S3 S4 S5 S6 S7 S8 S9 S10 S11'
+jar_bytes=2274532
+jar_sha256=936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
 cause=
 
 setup_failed() {
@@ -67,6 +69,7 @@ get_jar() {
   sha=${pin##* }
   bytes=${pin#* }
   bytes=${bytes% *}
+  [ "$bytes" = "$jar_bytes" ] && [ "$sha" = "$jar_sha256" ] || return 2
   command -v curl >/dev/null 2>&1 || return 1
   curl -q -fsSL --retry 2 --max-time 300 -o "$work/tla2tools.jar" "$url" >"$artifacts/curl.txt" 2>&1 </dev/null || return 1
   [ -f "$work/tla2tools.jar" ] || return 1
