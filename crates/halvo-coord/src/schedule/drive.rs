@@ -932,8 +932,8 @@ where
         let _ = cx.ports.defer(cx.now.saturating_add(ms));
     }
     for run in &plan.stop {
-        let _ = cx.ports.cancel(run);
         stop_run(board, run, cx.now, RunEnd::Deleted);
+        let _ = cx.ports.cancel(run);
         report.stopped.push(run.clone());
     }
     for run in &plan.recause {
@@ -1259,8 +1259,8 @@ where
                 .find(|r| r.agent == agent && r.stop.is_none())
                 .map(|r| r.run.clone());
             if let Some(run) = live {
-                let _ = cx.ports.cancel(&run);
                 stop_run(board, &run, cx.now, RunEnd::Cancelled);
+                let _ = cx.ports.cancel(&run);
                 report.stopped.push(run);
             }
             send_state(cx, &board.members[i].facts, AgentState::Paused);

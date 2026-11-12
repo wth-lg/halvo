@@ -1801,3 +1801,95 @@ fn after_a_lapse_at_wait_limit_the_person_finds_no_card_the_row_stopped_early_an
     let next = start(&c, 0);
     assert_ne!(next, run);
 }
+
+#[test]
+fn a_stop_marks_the_guards_table_and_the_board_before_a_cancel_that_panics() {
+    use halvo_coord::run::{drive, recover, Act, StopBy};
+    let limits = Limits::PRODUCT;
+    let both = owner(&[MANUAL], limits);
+    let mut board = recover(&both, &limits).unwrap().board;
+    let mut table = halvo_coord::guard::Table::new();
+    let started = drive(
+        &both,
+        &mut board,
+        &mut table,
+        &limits,
+        Act::Start { agent: agent(0) },
+    );
+    let run = started.report.run.unwrap();
+    drive(
+        &both,
+        &mut board,
+        &mut table,
+        &limits,
+        Act::Hello { run: run.clone() },
+    );
+    both.panics.set(Some("cancel"));
+    let stop = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        drive(
+            &both,
+            &mut board,
+            &mut table,
+            &limits,
+            Act::Stop {
+                run: run.clone(),
+                by: StopBy::Person,
+            },
+        )
+    }));
+    both.panics.set(None);
+    assert!(stop.is_err(), "the port's cancel panicked");
+    assert!(
+        table.is_stopped(&run),
+        "the guard refuses the run's records"
+    );
+    let live = board.runs.iter().find(|r| r.run == run).unwrap();
+    assert!(
+        live.stop.is_some(),
+        "the board holds the stop, so the grace tick kills the run"
+    );
+    both.ports.set_clock(T0 + limits.cancel_grace_s * 1000, DAY);
+    let tick = drive(&both, &mut board, &mut table, &limits, Act::Tick);
+    assert!(
+        both.ports
+            .calls
+            .borrow()
+            .iter()
+            .any(|t| t.call == Call::Kill(run.clone())),
+        "{tick:?}"
+    );
+}
+
+#[test]
+fn a_start_puts_the_run_on_the_board_only_after_a_start_that_returned() {
+    use halvo_coord::run::{drive, recover, Act};
+    let limits = Limits::PRODUCT;
+    let both = owner(&[MANUAL], limits);
+    let mut board = recover(&both, &limits).unwrap().board;
+    let mut table = halvo_coord::guard::Table::new();
+    both.panics.set(Some("start"));
+    let start = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        drive(
+            &both,
+            &mut board,
+            &mut table,
+            &limits,
+            Act::Start { agent: agent(0) },
+        )
+    }));
+    both.panics.set(None);
+    assert!(start.is_err(), "the port's start panicked");
+    assert!(
+        board.runs.is_empty(),
+        "no run on the board: {:?}",
+        board.runs
+    );
+    assert!(
+        both.ports
+            .tried
+            .borrow()
+            .iter()
+            .any(|t| matches!(t.call, Call::Send(Body::StartRun { .. }))),
+        "the start got as far as its body"
+    );
+}

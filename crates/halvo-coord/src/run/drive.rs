@@ -172,11 +172,14 @@ fn phase_of(phase: &Phase) -> Live {
 /// The ports as the schedule's tick and switch-off see them, with the runs whose kill the
 /// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in `sent`,
 /// whose cancel the lapse of its item sent when it stopped the run in the guard's table (I5.7).
+/// Every other `cancel` marks the run stopped in the guard's table before the port's call, so
+/// that a panic in the call leaves the run's effect records refused (ruling RD-34 (e)).
 struct Watch<'a, P> {
     ports: &'a P,
     unknown: RefCell<Vec<RunId>>,
     listed: RefCell<Option<Vec<WorkflowId>>>,
     sent: Vec<RunId>,
+    table: RefCell<&'a mut Table>,
 }
 
 impl<P: Owner> Owner for Watch<'_, P> {
@@ -232,6 +235,10 @@ impl<P: Runs> Runs for Watch<'_, P> {
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         if self.sent.contains(run) {
             return Ok(());
+        }
+        {
+            let mut table = self.table.borrow_mut();
+            **table = table.stop(run);
         }
         self.ports.cancel(run)
     }
@@ -317,19 +324,26 @@ where
         unknown: RefCell::new(Vec::new()),
         listed: RefCell::new(None),
         sent: Vec::new(),
+        table: RefCell::new(table),
     };
     let before = board.clone();
     let mut report = schedule::drive(&watch, board, limits, Move::Tick);
-    let gone = watch
-        .listed
-        .borrow()
+    let Watch {
+        unknown,
+        listed,
+        table,
+        ..
+    } = watch;
+    let table = table.into_inner();
+    let gone = listed
+        .into_inner()
         .as_ref()
         .map(|listed| delete_step(&before, listed));
     for run in gone.iter().flat_map(|g| g.stop.iter()) {
         *table = table.stop(run);
     }
     let mut lost = Vec::new();
-    for run in watch.unknown.into_inner() {
+    for run in unknown.into_inner() {
         if let Some(end) = lose(ports, board, limits, &run) {
             report.ended.extend(end.ended);
             lost.push(run);
@@ -350,12 +364,13 @@ where
 /// or by `wait_limit` of a `waiting` run whose item has not lapsed is `state` and calls no port:
 /// the lapse of an item of every kind that stops its run stops it in the guard's table first,
 /// which is the fact that this reads (ruling RD-6); a stop with `kind` or `budget` asks no such
-/// fact, because the caller lapses the run's item with `run_ended` before it. A stop of a live run that is not `stopping` sends `Runs::cancel` and
-/// stops the run in the guard's table, unless
-/// the table holds the run as stopped already, where the lapse of its item that stopped it
-/// there sent the cancel (I4.5), and then makes the run `stopping` with the cause of the
-/// stop, from the clock's time on, so that the first tick at which `cancel_grace_s` have
-/// passed kills it. The runner's end of a `waiting` run is `state` until its item is closed,
+/// fact, because the caller lapses the run's item with `run_ended` before it. A stop of a live
+/// run that is not `stopping` stops the run in the guard's table and makes it `stopping` with
+/// the cause of the stop, from the clock's time on, so that the first tick at which
+/// `cancel_grace_s` have passed kills it, and then sends `Runs::cancel`, unless the table held
+/// the run as stopped already, where the lapse of its item that stopped it there sent the
+/// cancel (I4.5): the mark comes before the port's call, so that a panic in the call leaves the
+/// run's effect records refused and its kill due (ruling RD-34 (e)). The runner's end of a `waiting` run is `state` until its item is closed,
 /// so that its item is closed before the end sets the member idle; any other end is the
 /// schedule's end of the run. A start by the person is the schedule's start. The switch-off
 /// control is the schedule's, and each run that it stops is stopped in the guard's table as
@@ -405,8 +420,10 @@ where
                 unknown: RefCell::new(Vec::new()),
                 listed: RefCell::new(None),
                 sent,
+                table: RefCell::new(table),
             };
             let report = schedule::drive(&watch, board, limits, Move::SwitchOff { agent });
+            let table = watch.table.into_inner();
             for run in &report.stopped {
                 *table = table.stop(run);
             }
@@ -555,11 +572,12 @@ where
     if lapsed_first && matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
         return answer(Some(Cause::State));
     }
-    if !table.is_stopped(run) {
-        let _ = ports.cancel(run);
-        *table = table.stop(run);
-    }
+    let send = !table.is_stopped(run);
+    *table = table.stop(run);
     stop_run(board, run, now, by.cause().end());
+    if send {
+        let _ = ports.cancel(run);
+    }
     let mut done = answer(None);
     done.report.stopped.push(run.clone());
     done

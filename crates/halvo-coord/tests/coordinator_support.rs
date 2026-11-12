@@ -22,13 +22,15 @@ pub const PERSON: A = A {
 
 /// The memory ports and the memory policy as one value, which `Coordinator` needs; a test can
 /// make the next `answer_confirm` fail after its record returned, so that an item stays
-/// `recorded`, and can have each call of `log` and `send` name the function that made it.
+/// `recorded`, can have each call of `log` and `send` name the function that made it, and can
+/// make `start` or `cancel` panic.
 pub struct Both {
     pub ports: Ports<Config>,
     pub policy: Policy<Config>,
     pub drop_decision: Cell<bool>,
     pub trace: Cell<bool>,
     pub callers: std::cell::RefCell<Vec<String>>,
+    pub panics: Cell<Option<&'static str>>,
 }
 
 impl Both {
@@ -96,6 +98,9 @@ impl Owner for Both {
 
 impl Runs for Both {
     fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        if self.panics.get() == Some("start") {
+            panic!("the port start panics");
+        }
         self.ports.start(spec)
     }
 
@@ -125,6 +130,9 @@ impl Runs for Both {
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        if self.panics.get() == Some("cancel") {
+            panic!("the port cancel panics");
+        }
         self.ports.cancel(run)
     }
 
@@ -207,6 +215,7 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         drop_decision: Cell::new(false),
         trace: Cell::new(false),
         callers: std::cell::RefCell::new(Vec::new()),
+        panics: Cell::new(None),
     }
 }
 
