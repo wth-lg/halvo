@@ -198,15 +198,6 @@ impl StorageCap {
         Ok(Self(bytes))
     }
 
-    /// A cap of `bytes`, raised to the minimum when below it.
-    pub const fn clamped(bytes: u64) -> Self {
-        if bytes < Self::MIN.0 {
-            Self::MIN
-        } else {
-            Self(bytes)
-        }
-    }
-
     pub const fn bytes(self) -> u64 {
         self.0
     }
@@ -220,7 +211,8 @@ impl Default for StorageCap {
 
 impl<'de> Deserialize<'de> for StorageCap {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        u64::deserialize(deserializer).map(Self::clamped)
+        let bytes = u64::deserialize(deserializer)?;
+        Self::from_bytes(bytes).map_err(serde::de::Error::custom)
     }
 }
 
@@ -534,12 +526,16 @@ mod tests {
     }
 
     #[test]
-    fn a_deserialized_cap_below_the_minimum_becomes_the_minimum() {
-        let parse = |bytes: u64| serde_json::from_str::<StorageCap>(&bytes.to_string()).unwrap();
-        assert_eq!(parse(0), StorageCap::MIN);
-        assert_eq!(parse(StorageCap::MIN.bytes() - 1), StorageCap::MIN);
-        assert_eq!(parse(StorageCap::MIN.bytes()), StorageCap::MIN);
-        assert_eq!(parse(2 * StorageCap::GIB).bytes(), 2 * StorageCap::GIB);
+    fn a_stored_cap_below_the_minimum_is_an_error() {
+        let parse = |bytes: u64| serde_json::from_str::<StorageCap>(&bytes.to_string());
+        for bytes in [0, 5, StorageCap::MIN.bytes() - 1] {
+            assert!(parse(bytes).is_err(), "{bytes}");
+        }
+        assert_eq!(parse(StorageCap::MIN.bytes()).unwrap(), StorageCap::MIN);
+        assert_eq!(
+            parse(2 * StorageCap::GIB).unwrap().bytes(),
+            2 * StorageCap::GIB
+        );
         let json = serde_json::to_string(&StorageCap::DEFAULT).unwrap();
         assert_eq!(json, StorageCap::DEFAULT.bytes().to_string());
     }

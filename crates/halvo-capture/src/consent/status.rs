@@ -464,27 +464,34 @@ mod tests {
     }
 
     #[test]
-    fn a_zero_cap_in_the_settings_file_is_clamped_to_the_minimum_and_shreds_nothing_at_open() {
-        let file = temp_settings();
-        std::fs::create_dir_all(file.path().parent().unwrap()).unwrap();
-        std::fs::write(file.path(), r#"{"storage_cap": 0}"#).unwrap();
-        assert_eq!(file.load().unwrap().storage_cap, StorageCap::MIN);
-        let mut c = ConsentController::open(
-            Box::new(MockStore {
-                rows: vec![
-                    row(20_764, Modality::ScreenFrame, 1, 10),
-                    row(20_765, Modality::ScreenFrame, 1, 10),
-                    row(20_766, Modality::ScreenFrame, 1, 10),
-                ],
-                shred_all_calls: 0,
-                shred_before_calls: vec![],
-            }),
-            file,
-        )
-        .unwrap();
-        assert_eq!(c.storage_cap(), StorageCap::MIN);
-        assert_eq!(c.status().store_cap_bytes, StorageCap::MIN.bytes());
-        assert_eq!(c.inventory().unwrap().rows().len(), 3);
+    fn a_cap_below_the_minimum_in_the_settings_file_is_an_open_error_and_shreds_nothing() {
+        struct NoShredStore;
+        impl SegmentExpiry for NoShredStore {
+            fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport> {
+                panic!("no shred may run")
+            }
+            fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
+                panic!("no shred may run")
+            }
+        }
+        impl StoreInventory for NoShredStore {
+            fn inventory(&self) -> StoreResult<Inventory> {
+                panic!("the store is not read before the settings load")
+            }
+            fn crypto_shred_before(&mut self, _day: UtcDay) -> StoreResult<ShredReport> {
+                panic!("no shred may run")
+            }
+        }
+        for stored in ["0", "5", "1073741823"] {
+            let file = temp_settings();
+            std::fs::create_dir_all(file.path().parent().unwrap()).unwrap();
+            std::fs::write(file.path(), format!(r#"{{"storage_cap": {stored}}}"#)).unwrap();
+            assert!(file.load().is_err(), "{stored}");
+            assert!(
+                ConsentController::open(Box::new(NoShredStore), file).is_err(),
+                "{stored}"
+            );
+        }
     }
 
     #[test]
