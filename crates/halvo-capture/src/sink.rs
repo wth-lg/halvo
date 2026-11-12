@@ -805,10 +805,13 @@ mod tests {
     #[test]
     fn a_queue_of_capacity_zero_drops_a_frame_unless_a_receive_waits() {
         let (handle, writer) = channel(0);
-        let unwaited = handle
-            .emit(unnumbered(Modality::ScreenFrame, 0, 0))
-            .unwrap();
-        assert_eq!(unwaited, EmitOutcome::Dropped);
+        let unwaited = emit_on_a_thread(&handle, unnumbered(Modality::ScreenFrame, 0, 0));
+        let outcome = unwaited
+            .outcome
+            .recv_timeout(Duration::from_secs(1))
+            .expect("a frame emit with no receive waiting returned inside 1 s");
+        assert!(matches!(outcome, Ok(EmitOutcome::Dropped)));
+        unwaited.thread.join().unwrap();
         assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
         let emitter = {
             let handle = handle.clone();
