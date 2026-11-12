@@ -65,19 +65,12 @@ decide() {
 }
 
 long_cases() {
-  if [ "${CI_D_JOB:-}" != windows ]; then
-    printf '%s\n' run
-    return 0
-  fi
-  event=${GITHUB_EVENT_PATH:-}
-  if [ "${GITHUB_EVENT_NAME:-}" != push ] || [ -z "$event" ] || [ ! -f "$event" ]; then
-    printf '%s\n' 'run (no list of the changed files for this event)'
-  elif grep -Eq '"(created|forced)": *true' "$event"; then
-    printf '%s\n' 'run (the push creates or rewrites its branch)'
-  elif ! grep -Eq '"(added|removed|modified)": *\[' "$event"; then
-    printf '%s\n' 'run (the push lists no changed files)'
-  elif grep -Eq '"scripts/egress/[^"]*"|"scripts/r2/ci\.d/10-egress\.sh"' "$event"; then
-    printf '%s\n' 'run (the push changes a file of the check)'
+  if ! git -C "$1" rev-parse -q --verify 'HEAD^1^{commit}' >/dev/null 2>&1; then
+    printf '%s\n' 'run (the first parent of the commit is not in the clone)'
+  elif ! changed=$(git -C "$1" diff --name-only 'HEAD^1' HEAD -- scripts/egress scripts/r2/ci.d/10-egress.sh 2>/dev/null); then
+    printf '%s\n' 'run (git cannot compare the commit with its first parent)'
+  elif [ -n "$changed" ]; then
+    printf '%s\n' 'run (the commit changes a file of the check against its first parent)'
   else
     printf '%s\n' skip
   fi
@@ -120,12 +113,13 @@ measure() {
       run_one control "$mode" --control-no-deny
     done
   fi
-  cases=$(long_cases)
+  cases=$(long_cases "$CI_D_REPO")
   if [ "$cases" = skip ]; then
-    printf 'long cases skipped: the push changes no file under scripts/egress and not scripts/r2/ci.d/10-egress.sh\n'
+    printf 'long cases skipped: the commit changes no file under scripts/egress and not scripts/r2/ci.d/10-egress.sh against its first parent\n'
     printf 'PASS %s\n' "$name"
     return 0
   fi
+  printf 'long cases %s\n' "$cases"
   for mode in $modes; do
     if [ "${GITHUB_ACTIONS:-}" != true ] && [ "$mode" != sandbox ]; then
       continue
@@ -143,13 +137,31 @@ measure() {
   printf 'PASS %s\n' "$name"
 }
 
+fixture_commit() {
+  blob=$(printf '%s\n' "$3" | git -C "$1" hash-object -w --stdin) || return 1
+  git -C "$1" update-index --add --cacheinfo "100644,$blob,$3" || return 1
+  tree=$(git -C "$1" write-tree) || return 1
+  {
+    printf 'tree %s\n' "$tree"
+    [ -z "$2" ] || printf 'parent %s\n' "$2"
+    printf 'author fixture <fixture@invalid> 0 +0000\ncommitter fixture <fixture@invalid> 0 +0000\n\nfixture\n'
+  } | git -C "$1" hash-object -t commit -w --stdin
+}
+
+fixture_repo() {
+  git init -q "$1" || return 1
+  first=$(fixture_commit "$1" '' README) || return 1
+  second=$(fixture_commit "$1" "$first" "$2") || return 1
+  git -C "$1" update-ref HEAD "$second"
+}
+
 long_case() {
-  got=$(CI_D_JOB=$2 GITHUB_EVENT_NAME=$3 GITHUB_EVENT_PATH=$4 long_cases) || got=failed
+  got=$(long_cases "$2") || got=failed
   got=${got%% *}
-  printf 'case %s/long-cases-%s want=%s got=%s\n' "$name" "$1" "$5" "$got"
-  if [ "$got" != "$5" ]; then
+  printf 'case %s/long-cases-%s want=%s got=%s\n' "$name" "$1" "$3" "$got"
+  if [ "$got" != "$3" ]; then
     wrong="$wrong long-cases-$1"
-  elif [ "$5" = skip ]; then
+  elif [ "$3" = skip ]; then
     rejected=$((rejected + 1))
   fi
 }
@@ -198,20 +210,16 @@ tests passed=15 failed=0' fail
   fixture tests-fail tests 1 'not ok sandbox/quiet: want 0 0 0, got 1 0 1
 tests passed=39 failed=1' fail
   fixture tests-exit-0-with-a-failure tests 0 'tests passed=39 failed=1' fail
-  events=$(mktemp -d "${TMPDIR:-/tmp}/egress-events.XXXXXX") || exit 1
-  printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["docs/r2/README.md"]}]}' >"$events/docs.json"
-  printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["scripts/egress/check.sh"]}]}' >"$events/egress.json"
-  printf '%s\n' '{"created": false, "forced": false, "commits": [{"added": [], "removed": [], "modified": ["scripts/r2/ci.d/10-egress.sh"]}]}' >"$events/script.json"
-  printf '%s\n' '{"created": true, "forced": false, "commits": []}' >"$events/created.json"
-  printf '%s\n' '{"created": false, "forced": false, "commits": []}' >"$events/empty.json"
-  long_case docs-only windows push "$events/docs.json" skip
-  long_case check-changed windows push "$events/egress.json" run
-  long_case script-changed windows push "$events/script.json" run
-  long_case branch-created windows push "$events/created.json" run
-  long_case no-file-list windows push "$events/empty.json" run
-  long_case pull-request windows pull_request "$events/docs.json" run
-  long_case no-event windows push "$events/none.json" run
-  long_case macos-job macos push "$events/docs.json" run
+  repos=$(mktemp -d "${TMPDIR:-/tmp}/egress-commits.XXXXXX") || exit 1
+  fixture_repo "$repos/unchanged" docs/r2/README.md || wrong="$wrong fixture-repo-unchanged"
+  fixture_repo "$repos/check" scripts/egress/check.sh || wrong="$wrong fixture-repo-check"
+  fixture_repo "$repos/script" scripts/r2/ci.d/10-egress.sh || wrong="$wrong fixture-repo-script"
+  git clone -q --depth 1 "file://$repos/unchanged" "$repos/shallow" 2>/dev/null || wrong="$wrong fixture-repo-shallow"
+  long_case unchanged "$repos/unchanged" skip
+  long_case check-changed "$repos/check" run
+  long_case script-changed "$repos/script" run
+  long_case no-parent-in-the-clone "$repos/shallow" run
+  long_case no-repository "$repos/none" run
   modes=$(modes_of macos) || modes=
   [ "$modes" = sandbox ] || wrong="$wrong modes-macos"
   modes=$(modes_of windows) || modes=
