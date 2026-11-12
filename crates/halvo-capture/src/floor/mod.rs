@@ -9,6 +9,7 @@ use crate::event::Modality;
 
 pub mod exclude;
 pub mod payload;
+pub mod record;
 pub mod site;
 pub mod text;
 
@@ -360,5 +361,152 @@ mod tests {
     fn captured_text_prints_a_placeholder() {
         let text = CapturedText::enter(TextField::Title, "Quarterly plan".to_string());
         assert_eq!(format!("{text:?}"), "CapturedText(..)");
+    }
+
+    use crate::event::{AppIdentity, EventClock, FloorEvent, FoldEvent};
+    use crate::floor::cases::{keep, IdentityPoint, RecordingPoint};
+    use crate::floor::payload::{Button, FoldClass, FoldCount, PointerFold, Title, TitleWhy};
+    use crate::floor::record::{decode, encode, DecodedPayload};
+    use crate::floor::site::Site;
+    use crate::secure_input::{check, FixedProbe, SecureInputReading};
+    use crate::sink::{ArrivalNumber, FloorReceived};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn fixed() -> SystemTime {
+        UNIX_EPOCH + Duration::new(1_800_000_000, 123_456_789)
+    }
+
+    fn app() -> AppIdentity {
+        AppIdentity::bundle_id("com.apple.Safari".to_string())
+    }
+
+    /// The record of `event` with number 41, its id replaced by `ID` after
+    /// the id is checked, and the decoder's reading of it.
+    fn golden(event: FloorEvent) -> String {
+        let id = event.id().uuid().hyphenated().to_string();
+        let received = FloorReceived::for_test(event, ArrivalNumber::for_test(41));
+        let line = encode(&received, &IdentityPoint).unwrap();
+        let decoded = decode(line.as_str()).expect("the decoder reads the record");
+        assert_eq!(decoded.id.hyphenated().to_string(), id);
+        assert_eq!(decoded.seq, 41);
+        line.as_str().replacen(&id, "ID", 1)
+    }
+
+    #[test]
+    fn golden_record_foreground_app() {
+        let clock = EventClock::new(fixed);
+        let event = FloorEvent::foreground_app(keep(app(), 7), None, &clock);
+        assert_eq!(
+            golden(event),
+            r#"{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"foreground_app","app":"com.apple.Safari","p":{}}"#
+        );
+        let unknown = FloorEvent::foreground_app(keep(AppIdentity::unknown(), 7), None, &clock);
+        assert_eq!(
+            golden(unknown),
+            r#"{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"foreground_app","app":null,"p":{}}"#
+        );
+    }
+
+    #[test]
+    fn golden_record_window_title() {
+        let clock = EventClock::new(fixed);
+        let site = Site::cut("https://mail.example.com/inbox?id=7".to_string());
+        let text = CapturedText::enter(TextField::Title, "Inbox \"7\"\n".to_string());
+        let title = Title::new(text, TitleWhy::TitleChange, site);
+        let path = AppIdentity::executable_path("C:\\Apps\\mail.exe".to_string());
+        let event = FloorEvent::window_title(keep(path, 7), title, None, &clock);
+        assert_eq!(
+            golden(event),
+            r#"{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"window_title","app":"C:\\Apps\\mail.exe","p":{"text":"Inbox \"7\"\n","cut":false,"why":"title_change","site":{"domain":"example.com","source":"address_field"}}}"#
+        );
+        let long = CapturedText::enter(TextField::Title, "x".repeat(2_000));
+        let title = Title::new(long, TitleWhy::AppChange, None);
+        let event = FloorEvent::window_title(keep(app(), 7), title, None, &clock);
+        assert_eq!(
+            golden(event),
+            format!(
+                r#"{{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"window_title","app":"com.apple.Safari","p":{{"text":"{}","cut":true,"why":"app_change"}}}}"#,
+                "x".repeat(1_024)
+            )
+        );
+    }
+
+    #[test]
+    fn golden_record_keystroke() {
+        let clock = EventClock::new(fixed);
+        let cleared = check(&FixedProbe(SecureInputReading::Inactive), None).unwrap();
+        let event =
+            FloorEvent::keystroke(keep(app(), 7), cleared, KeyClass::Shortcut, None, &clock);
+        assert_eq!(
+            golden(event),
+            r#"{"v":1,"id":"ID","at":1800000000000000000,"seq":41,"kind":"keystroke","app":"com.apple.Safari","p":{"class":"shortcut"}}"#
+        );
+    }
+
+    #[test]
+    fn golden_record_pointer() {
+        let clock = EventClock::new(fixed);
+        let click = FloorEvent::click(keep(app(), 7), Button::Secondary, None, &clock);
+        assert_eq!(
+            golden(click),
+            r#"{"v":1,"id":"ID","at":1800000000000000000,"seq":41,"kind":"pointer","app":"com.apple.Safari","p":{"class":"click","button":"secondary"}}"#
+        );
+        let mut two = FoldCount::one();
+        two.add_one();
+        let fold = PointerFold::new(FoldClass::Scroll, two);
+        let scroll = FoldEvent::new(keep(app(), 7), fold, None, &clock).into_event();
+        assert_eq!(
+            golden(scroll),
+            r#"{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"pointer","app":"com.apple.Safari","p":{"class":"scroll","count":2}}"#
+        );
+    }
+
+    #[test]
+    fn golden_record_screen_frame() {
+        let clock = EventClock::new(fixed);
+        let event = FloorEvent::screen_frame(keep(app(), 7), None, &clock);
+        assert_eq!(
+            golden(event),
+            r#"{"v":1,"id":"ID","at":1800000000123000000,"seq":41,"kind":"screen_frame","app":"com.apple.Safari","p":{}}"#
+        );
+    }
+
+    #[test]
+    fn the_text_filter_point_sees_every_string_once() {
+        let site = Site::cut("https://www.planted-site.com/path".to_string());
+        let text = CapturedText::enter(TextField::Title, "Planted title".to_string());
+        let title = Title::new(text, TitleWhy::AppChange, site);
+        let planted = AppIdentity::bundle_id("com.example.PlantedApp".to_string());
+        let event = FloorEvent::window_title(keep(planted, 7), title, None, EventClock::system());
+        let received = FloorReceived::for_test(event, ArrivalNumber::for_test(0));
+        let point = RecordingPoint::new();
+        let line = encode(&received, &point).unwrap();
+        assert_eq!(
+            point.calls(),
+            [
+                (TextField::BundleId, "com.example.PlantedApp".to_string()),
+                (TextField::Title, "Planted title".to_string()),
+                (TextField::Site, "planted-site.com".to_string()),
+            ]
+        );
+        let line = line.as_str();
+        assert!(!line.to_lowercase().contains("planted"), "{line}");
+        let decoded = decode(line).unwrap();
+        assert_eq!(decoded.app.as_deref(), Some("marker-1"));
+        let DecodedPayload::WindowTitle {
+            text, cut, site, ..
+        } = decoded.payload
+        else {
+            panic!("not a title");
+        };
+        assert_eq!(text, "marker-2");
+        assert!(cut, "the point changed the title");
+        assert_eq!(site.as_deref(), Some("marker-3"));
+        let unknown =
+            FloorEvent::foreground_app(keep(AppIdentity::unknown(), 7), None, EventClock::system());
+        let received = FloorReceived::for_test(unknown, ArrivalNumber::for_test(1));
+        let point = RecordingPoint::new();
+        encode(&received, &point).unwrap();
+        assert!(point.calls().is_empty());
     }
 }

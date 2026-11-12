@@ -46,6 +46,16 @@ impl AppIdentity {
         matches!(self.0, AppForm::Unknown)
     }
 
+    /// The captured string of the identity and its field, or `None` for an
+    /// unknown app.
+    pub(crate) fn text(&self) -> Option<(&CapturedText, TextField)> {
+        match &self.0 {
+            AppForm::BundleId(text) => Some((text, TextField::BundleId)),
+            AppForm::ExecutablePath(text) => Some((text, TextField::ExecutablePath)),
+            AppForm::Unknown => None,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn heap_bytes(&self) -> usize {
         match &self.0 {
@@ -175,12 +185,18 @@ impl EventClock {
         let age = age.map_or(0, |age| i64::try_from(age.as_nanos()).unwrap_or(i64::MAX));
         let resolution = floor::resolution_of(observation);
         let at = coarsened(reading.saturating_sub(age), resolution);
+        (at, self.id_at(at, resolution))
+    }
+
+    /// The id of a record at `at`, stored at `resolution`, from the id context
+    /// of that resolution.
+    pub(crate) fn id_at(&self, at: i64, resolution: Duration) -> EventId {
         let context = if resolution == floor::TIME_RESOLUTION {
             &self.fine
         } else {
             &self.coarse
         };
-        (at, EventId::made_at(at, context))
+        EventId::made_at(at, context)
     }
 }
 

@@ -325,6 +325,11 @@ pub struct FloorReceived {
 }
 
 impl FloorReceived {
+    #[cfg(test)]
+    pub(crate) fn for_test(event: FloorEvent, number: ArrivalNumber) -> FloorReceived {
+        FloorReceived { event, number }
+    }
+
     pub fn number(&self) -> ArrivalNumber {
         self.number
     }
@@ -1115,9 +1120,7 @@ mod tests {
 
     use crate::event::{AppIdentity, EventClock};
     use crate::floor::cases::keep;
-    use crate::floor::payload::{
-        Button, FoldClass, FoldCount, Observation, PointerFold, Title, TitleWhy,
-    };
+    use crate::floor::payload::{FoldClass, FoldCount, Observation, PointerFold, Title, TitleWhy};
     use crate::floor::site::Site;
     use crate::floor::text::{CapturedText, TextField, TEXT_MAX_BYTES};
 

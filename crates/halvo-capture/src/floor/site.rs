@@ -96,6 +96,10 @@ fn is_dns_label(label: &str) -> bool {
 }
 
 impl Site {
+    pub(super) fn domain(&self) -> &CapturedText {
+        &self.domain
+    }
+
     #[cfg(test)]
     pub(crate) fn heap_bytes(&self) -> usize {
         self.domain.heap_bytes()
