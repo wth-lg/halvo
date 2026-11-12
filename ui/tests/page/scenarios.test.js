@@ -31,7 +31,7 @@ test("the page starts two polls of 3 s and one of 15 s", async () => {
   assert.deepEqual(page.clock.periods(), [3000, 3000, 15000]);
 });
 
-test("scenario 1: an error from Save and the next status poll", async () => {
+test("scenario 1: Save with an empty field sends nothing and the message outlives a status poll", async () => {
   const page = await openPage({
     replies: {
       capture_status: () => status("running"),
@@ -44,10 +44,11 @@ test("scenario 1: an error from Save and the next status poll", async () => {
   });
   page.byId("cap-gb").value = "";
   await page.click("save-cap");
-  assert.deepEqual(page.calls("set_storage_cap").map((c) => c.args.capBytes), [0]);
-  assert.equal(page.text("error"), "the consent action failed: the storage cap must be at least 1073741824 bytes (one day of capture); 0 was given");
-  await page.clock.fire(3000);
+  assert.deepEqual(page.calls("set_storage_cap"), []);
+  assert.equal(page.text("cap-message"), "Enter the cap in GB.");
   assert.equal(page.text("error"), "");
+  await page.clock.fire(3000);
+  assert.equal(page.text("cap-message"), "Enter the cap in GB.");
 });
 
 test("scenario 2: a status poll while a pause request is in flight", async () => {

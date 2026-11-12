@@ -115,7 +115,7 @@ test("Save sends the cap in bytes under the key of calls.json and renders the re
   assert.equal(page.text("cap"), "10 GB");
 });
 
-test("a refused cap shows the error text of its fixture", async () => {
+test("a cap that the app refuses shows the error text of its fixture", async () => {
   const page = await openPage({
     replies: {
       set_storage_cap: () => {
@@ -123,8 +123,9 @@ test("a refused cap shows the error text of its fixture", async () => {
       },
     },
   });
-  page.byId("cap-gb").value = "0";
+  page.byId("cap-gb").value = "5";
   await page.click("save-cap");
+  assert.deepEqual(page.calls("set_storage_cap").map((c) => c.args), [{ capBytes: 5 * 1024 * 1024 * 1024 }]);
   assert.equal(page.text("error"), fixture("set_storage_cap-zero-error"));
 });
 
