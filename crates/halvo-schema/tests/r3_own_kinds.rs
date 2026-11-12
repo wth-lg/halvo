@@ -73,7 +73,8 @@ fn the_file_registers_the_six_kinds_of_origin_own_after_its_two_kinds_of_origin_
 }
 
 #[test]
-fn each_example_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() {
+fn each_example_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_where_its_kind_has_one(
+) {
     for name in OWN {
         let kind = entry(name);
         assert_eq!(check_record(kind, kind.example), Ok(()), "{name}");
@@ -210,6 +211,14 @@ fn a_row_without_its_workflow_or_its_day_is_refused_so_none_escapes_the_delete_o
                 "{to}"
             );
         }
+        let without = swap(kind.example, &format!("{workflow},"), "");
+        assert_eq!(
+            check_record(kind, &without),
+            Err(format!("{name}: workflow: missing_key"))
+        );
+        if let Some(read) = strict(name, &without) {
+            assert!(read.is_err(), "{name}");
+        }
         if let RetentionClass::Bounded { .. } = kind.class {
             let day = r#""day":20768"#;
             assert_eq!(
@@ -282,7 +291,8 @@ fn the_directory_of_own_rows_holds_one_file_for_each_kind_of_origin_own_and_noth
 }
 
 #[test]
-fn every_own_row_is_taken_by_the_store_and_by_its_strict_reader_byte_for_byte() {
+fn every_own_row_is_taken_by_the_store_and_byte_for_byte_by_the_strict_reader_where_its_kind_has_one(
+) {
     for name in OWN {
         let kind = entry(name);
         let lines = own_lines(name);
