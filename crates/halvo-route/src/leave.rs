@@ -91,8 +91,9 @@ impl LeaveCause {
 /// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. Its field is of a
 /// private type of no size that is neither `Clone` nor `Copy` either, so no code can copy a grant
 /// from a borrowed one by a struct update. `grant` makes one only under the test value of the
-/// ruling, which the crate's own code alone can make, in a build that sets `cfg(test)` as its unit
-/// tests do; it never makes one under the release ruling.
+/// ruling, which the code of ruling.rs alone can make and the tests of this file get with a key
+/// that this file alone can make, in a build that sets `cfg(test)` as its unit tests do; it never
+/// makes one under the release ruling.
 ///
 /// This file is pinned whole, its test module included, as lib.rs, ruling.rs and tier.rs are: the
 /// test `pinned_files_hold_their_hashes` of tests/no_grant_in_release.rs holds its SHA-256. A pin
@@ -222,6 +223,11 @@ pub fn grant(
     }
 }
 
+/// The key with which the tests of this file get the test value from ruling.rs. Its one field is
+/// private, so no file but this one can make a key.
+#[cfg(test)]
+pub(crate) struct TestKey(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,8 +242,12 @@ mod tests {
         PartKind::StoredConversation,
     ];
 
+    fn test_hosted(origins: &[&str]) -> Ruling {
+        Ruling::test_hosted_for_leave(TestKey(()), origins)
+    }
+
     fn open() -> Ruling {
-        Ruling::test_hosted(&[ORIGIN])
+        test_hosted(&[ORIGIN])
     }
 
     fn answer(
@@ -298,7 +308,7 @@ mod tests {
 
     #[test]
     fn refusal_leave_local() {
-        for ruling in [release::ruling(), open(), Ruling::test_hosted(&[])] {
+        for ruling in [release::ruling(), open(), test_hosted(&[])] {
             for ceiling in Tier::ALL {
                 for consent in Consent::ALL {
                     for parts in [&[PartKind::Text][..], &[PartKind::Image], &[]] {
@@ -392,7 +402,7 @@ mod tests {
 
     #[test]
     fn refusal_leave_origin() {
-        let two = Ruling::test_hosted(&["https://a.example", ORIGIN]);
+        let two = test_hosted(&["https://a.example", ORIGIN]);
         for tier in HOSTED {
             for origin in [
                 "127.0.0.1:2",
@@ -444,7 +454,7 @@ mod tests {
             }
             assert_eq!(
                 answer(
-                    &Ruling::test_hosted(&[]),
+                    &test_hosted(&[]),
                     tier,
                     Tier::Frontier,
                     &[PartKind::Text],

@@ -19,22 +19,26 @@ impl RulingError {
 
 /// What the owner has ruled. Every build that does not set `cfg(test)` has the one value `None`:
 /// no tier but `on_device` may be picked and no origin may be reached. A build that sets
-/// `cfg(test)` also has the test value `TestHosted`, which the crate's own code alone can make,
-/// whatever flags the build sets: its payload has a private field and no public maker, and its
-/// maker is private to the crate.
+/// `cfg(test)` also has the test value `TestHosted`, which the code of this file alone can make,
+/// whatever flags the build sets: the type of its payload stands in a module private to this file,
+/// and its maker `test_hosted` is private to this file. The tests of leave.rs get a test value with
+/// a key that leave.rs alone can make, and the tests of admit.rs get the answers of `admit` under
+/// a test value that allows no origin, never a value.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Ruling {
     None,
     #[cfg(test)]
-    TestHosted(TestOrigins),
+    TestHosted(test_value::TestOrigins),
 }
 
-/// The payload of the test value: the origins that it allows. Its one field is private and it has
-/// no public maker, so no code outside this crate can make one.
 #[cfg(test)]
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct TestOrigins {
-    origins: Vec<String>,
+mod test_value {
+    /// The payload of the test value: the origins that it allows. No file but ruling.rs can name
+    /// this type or set its one field.
+    #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+    pub struct TestOrigins {
+        pub(super) origins: Vec<String>,
+    }
 }
 
 impl Ruling {
@@ -66,11 +70,29 @@ impl Ruling {
     }
 
     #[cfg(test)]
-    pub(crate) fn test_hosted(origins: &[&str]) -> Ruling {
-        Ruling::TestHosted(TestOrigins {
+    fn test_hosted(origins: &[&str]) -> Ruling {
+        Ruling::TestHosted(test_value::TestOrigins {
             origins: origins.iter().map(|origin| (*origin).to_owned()).collect(),
         })
     }
+
+    /// The test value that allows `origins`, for the tests of leave.rs, which alone can make the
+    /// key.
+    #[cfg(test)]
+    pub(crate) fn test_hosted_for_leave(_key: crate::leave::TestKey, origins: &[&str]) -> Ruling {
+        Ruling::test_hosted(origins)
+    }
+}
+
+/// `admit` under the test value that allows no origin, for the tests of admit.rs: the answer
+/// leaves this file and the value does not, and under that value `grant` makes no grant.
+#[cfg(test)]
+pub(crate) fn admit_under_test_value(
+    room: Option<&crate::admit::Room>,
+    estimate: crate::prices::Micro,
+    running: &[crate::prices::Micro],
+) -> crate::admit::Admission {
+    crate::admit::admit(&Ruling::test_hosted(&[]), room, estimate, running)
 }
 
 #[cfg(test)]
