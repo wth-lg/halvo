@@ -159,7 +159,12 @@ dropped. A hit passes when its file and its path stand in one entry, so a new
 name in a listed file is still refused. A line of the list itself passes when
 its path is the path of an entry. A line with fewer than three fields, with
 an empty file or reason, or with a path that is not one home path as a whole
-makes the list malformed.
+makes the list malformed. An entry is only for a made-up name that a fixture
+holds on purpose, never the home path of a person's machine: in the pre-push
+mode the scan refuses an entry whose name is the name of the home directory
+of the account that runs it (the last part of $HOME, in any case), and names
+the entry by its line. The range mode does not apply that rule, because the
+account of a hosted runner in CI is no person's.
 
 Output and exit. A hit prints the commit, the file, the line number and the
 form, and never the text of the line. Exit 0 when no added line holds a home
@@ -301,6 +306,8 @@ function scan_text(text, file, use_list,   lowered, i, t, off, rest, p, n, m, nm
           ce[ncov] = p + n - 1
           nmatch++
           last_match = m
+          last_name = substr(nm, 1, k)
+          if (kind_of[i] == "word") sub(/-.*/, "", last_name)
           if (!use_list || !((file SUBSEP m) in allowed))
             if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
         }
@@ -334,6 +341,7 @@ function load_list(   n, rc, rec, k, rest, file, path, reason) {
     if (reason !~ /[^[:space:]]/) malformed(n, "the reason is empty")
     scan_text(path, "", 0)
     if (nmatch != 1 || last_match != path) malformed(n, "the path is not one home path of the grammar as a whole")
+    if (own_name != "" && tolower(last_name) == tolower(own_name)) print "OWN " n " " file
     allowed[file SUBSEP path] = 1
     allowed[list_path SUBSEP path] = 1
   }
@@ -428,7 +436,7 @@ EOF
 }
 
 run_scan() {
-  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -f "$work/scan.awk" "$2"
+  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_name="${4:-}" -f "$work/scan.awk" "$2"
 }
 
 scan_stream() {
@@ -528,6 +536,25 @@ verified() {
   git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1
 }
 
+entries_for_the_account_that_pushes() {
+  own_name=
+  case ${HOME:-/} in
+    / | */) ;;
+    *) own_name=$(basename "$HOME") || own_name= ;;
+  esac
+  [ -n "$own_name" ] || return 0
+  run_scan "$allow" /dev/null '' "$own_name" >"$work/own" </dev/null
+  own_status=$?
+  error=$(sed -n 's/^ERROR //p' "$work/own") || error=
+  [ -z "$error" ] || die "cannot use the list: $error"
+  [ "$own_status" = 0 ] || die "awk could not read the list (exit $own_status)"
+  while read -r tag number file; do
+    [ "$tag" = OWN ] || continue
+    any_failed=1
+    printf '%s: FAIL: line %s of %s, the entry for %s, names the home directory of the account that runs this push. An entry is only for a made-up name that a fixture holds on purpose, never the home path of a person'"'"'s machine: take the entry out of the list and the path out of the commits that hold it, then push again.\n' "$NAME" "$number" "$LIST_IN_THE_REPOSITORY" "$file" >&2
+  done <"$work/own"
+}
+
 check_push() {
   remote=$1
   git rev-parse --git-dir >/dev/null 2>&1 || die "$PWD is in no git repository"
@@ -539,6 +566,7 @@ check_push() {
   default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
   verified "$default_ref_of_remote" || default_ref_of_remote=$default_ref
   [ -n "$default_ref_of_remote" ] && verified "$default_ref_of_remote" || default_ref_of_remote=
+  entries_for_the_account_that_pushes
   while IFS= read -r pushed_ref; do
     remote_object=${pushed_ref##* }
     rest=${pushed_ref% *}
@@ -1087,6 +1115,18 @@ self_test_hook() {
   cp "$work/list-bad" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
   printf 'x\tnot a path\treason\n' >"$hook_home/$LIST_IN_THE_REPOSITORY"
   push_case scan-cannot-run refused 'cannot check, so the commits count as refused' proof messages
+  cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
+
+  in_repo checkout -q -b own trunk || die 'git checkout failed'
+  printf 'plain\n' >"$repo/own.txt"
+  commit_all 'own' >/dev/null || die 'commit failed'
+  own_name=$(basename "$HOME") || die 'basename failed'
+  {
+    cat "$list"
+    printf 'x.txt\t/Users/%s\tthe account that runs the self-test\n' "$own_name"
+  } >"$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cannot write the list'
+  push_case list-entry-for-the-pushing-account refused 'names the home directory of the account that runs this push' proof own
+  scan_case list-entry-for-the-running-account-in-a-range 0 'lines with a home path 0' --allow "$hook_home/$LIST_IN_THE_REPOSITORY" "$root_commit"
   cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
