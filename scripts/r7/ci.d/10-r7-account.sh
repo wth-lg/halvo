@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, no tracked file differs from HEAD after cargo ran, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
 set -u
 name=10-r7-account
 case $0 in
@@ -16,6 +16,7 @@ samples.v1.json contract/samples/v1.json
 prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
+outside_licences=''
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -110,6 +111,7 @@ admitted_deny_config() {
   cat <<'EOF'
 [graph]
 all-features = true
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"]
 
 [licenses]
 allow = [
@@ -322,6 +324,70 @@ check_metadata() {
   [ "$packages" -gt 0 ] || fail "account/'s metadata holds no package"
 }
 
+outside_names() {
+  awk '
+/"type":"diagnostic"/ && /"severity":"error"/ {
+  line = $0
+  at = index(line, "\"Krate\":{\"name\":\"")
+  if (at == 0) { print "unnamed"; next }
+  rest = substr(line, at + 17)
+  name = substr(rest, 1, index(rest, "\"") - 1)
+  rest = substr(rest, length(name) + 1)
+  if (name == "" || substr(rest, 1, 13) != "\",\"version\":\"") { print "unnamed"; next }
+  rest = substr(rest, 14)
+  version = substr(rest, 1, index(rest, "\"") - 1)
+  licence = "unknown"
+  at = index(line, "\"span\":\"")
+  if (at > 0) { rest = substr(line, at + 8); licence = substr(rest, 1, index(rest, "\"") - 1) }
+  print name " " version "\t" licence
+}' "$1"
+}
+
+check_outside_licences() {
+  grep -v '^targets = \[' "$work/deny.txt" >"$work/deny-all-targets.toml" || fail 'cannot write in the temp directory'
+  CARGO_TARGET_DIR=$target cargo deny --format json --color never --config "$work/deny-all-targets.toml" --offline --locked --manifest-path account/Cargo.toml check licenses >"$work/outside.out" 2>"$work/outside.json"
+  code=$?
+  case $code in
+    0 | 4) ;;
+    *) fail "cargo deny check licenses over every target exited $code" ;;
+  esac
+  outside_names "$work/outside.json" | sort -u >"$work/outside.found" || fail 'cannot read the output of cargo deny'
+  if grep -q '^unnamed$' "$work/outside.found"; then
+    fail 'cargo deny refused a licence that names no package'
+  fi
+  cut -f1 "$work/outside.found" >"$work/outside.names"
+  : >"$work/outside.listed"
+  if [ -n "$outside_licences" ]; then
+    printf '%s\n' "$outside_licences" | sort -u >"$work/outside.listed"
+  fi
+  outside=$(awk 'END { print NR }' "$work/outside.found")
+  named=$(awk -F '\t' '{ printf "%s%s %s", (NR > 1 ? "; " : ""), $1, $2 }' "$work/outside.found")
+  if [ "$outside" -eq 0 ]; then
+    printf 'licences outside the four targets: 0\n'
+  else
+    printf 'licences outside the four targets: %s (%s)\n' "$outside" "$named"
+  fi
+  cmp -s "$work/outside.names" "$work/outside.listed" || fail "the packages of account/Cargo.lock that no target of Halvo compiles and whose licence is outside the allow list differ from outside_licences of this script; read each and list it there"
+}
+
+check_tracked() {
+  command -v git >/dev/null 2>&1 || fail 'git is not on the PATH'
+  inside=$(git rev-parse --is-inside-work-tree 2>/dev/null) || inside=false
+  prefix=$(git rev-parse --show-prefix 2>/dev/null) || prefix=
+  if [ "$inside" != true ] || [ -n "$prefix" ]; then
+    printf 'tracked files not compared: the repository is no git work tree of its own\n'
+    return 0
+  fi
+  if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+    git diff --name-only HEAD -- >"$work/tracked.changed" 2>&1 || fail 'git diff against HEAD failed'
+  else
+    git diff --name-only -- >"$work/tracked.changed" 2>&1 || fail 'git diff against the index failed'
+  fi
+  changed=$(awk 'END { print NR }' "$work/tracked.changed")
+  [ "$changed" -eq 0 ] || fail "$changed tracked files differ from HEAD after cargo ran"
+  printf 'tracked files changed by the check: 0\n'
+}
+
 count_tests() {
   tests=0
   without_cr "$1" test-log.txt
@@ -382,6 +448,7 @@ measure() {
   CARGO_TARGET_DIR=$target cargo deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
   code=$?
   [ "$code" -eq 0 ] || fail "cargo deny check bans licenses sources exited $code"
+  check_outside_licences
   CARGO_TARGET_DIR=$target cargo build --manifest-path account/Cargo.toml --locked --offline
   code=$?
   [ "$code" -eq 0 ] || fail "cargo build --locked --offline exited $code"
@@ -399,6 +466,7 @@ measure() {
   CARGO_TARGET_DIR=$target cargo clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked --offline -- -D warnings
   code=$?
   [ "$code" -eq 0 ] || fail "cargo clippy --all-targets --locked --offline exited $code"
+  check_tracked
   printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool"
   printf 'PASS %s\n' "$name"
 }
@@ -407,7 +475,7 @@ write_stub() {
   mkdir "$1" || return 1
   cat >"$1/cargo" <<'EOF' || return 1
 #!/bin/sh
-printf '%s\n' "$*" >>"$STUB_LOG"
+printf '%s\n' "$*" | sed 's|--config [^ ]*|--config CONFIG|' >>"$STUB_LOG"
 if [ "$1" = deny ] && [ "$2" = --version ]; then
   [ -z "${STUB_DENY_ABSENT:-}" ] || exit 101
   printf 'cargo-deny %s\n' "$STUB_DENY_VERSION"
@@ -422,7 +490,15 @@ case $1 in
     fi
     exec "$STUB_REAL_CARGO" "$@"
     ;;
-  deny) exit "${STUB_DENY_EXIT:-0}" ;;
+  deny)
+    case " $* " in
+      *' --format json '*)
+        [ -z "${STUB_DENY_OUTSIDE:-}" ] || cat "$STUB_DENY_OUTSIDE" >&2
+        exit "${STUB_OUTSIDE_EXIT:-0}"
+        ;;
+    esac
+    exit "${STUB_DENY_EXIT:-0}"
+    ;;
   build) exit "${STUB_BUILD_EXIT:-0}" ;;
   test)
     case " $* " in
@@ -442,6 +518,7 @@ case $1 in
         exit "${STUB_HOSTED_EXIT:-0}"
         ;;
     esac
+    [ -z "${STUB_TEST_WRITES:-}" ] || printf 'x\n' >>"$STUB_TEST_WRITES"
     printf 'running 3 tests\ntest result: ok. %s passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n' "${STUB_TESTS:-3}"
     exit "${STUB_TEST_EXIT:-0}"
     ;;
@@ -451,6 +528,18 @@ esac
 exit 99
 EOF
   chmod +x "$1/cargo"
+}
+
+deny_json() {
+  printf '%s\n' "$outside_licences" "$@" | while IFS=' ' read -r crate version; do
+    [ -n "$crate" ] || continue
+    printf '{"fields":{"code":"rejected","graphs":[{"Krate":{"name":"%s","version":"%s"},"parents":[]}],"labels":[{"column":12,"line":26,"message":"","span":"LicenseRef-fixture"}],"message":"failed to satisfy license requirements","severity":"error"},"type":"diagnostic"}\n' "$crate" "$version"
+  done
+  printf '{"fields":{"licenses":{"errors":0,"helps":0,"notes":0,"warnings":0}},"type":"summary"}\n'
+}
+
+git_fixture() {
+  git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -A >/dev/null 2>&1
 }
 
 make_fixture() {
@@ -514,7 +603,7 @@ run_case() {
   else
     path=$PATH
   fi
-  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
+  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_DENY_OUTSIDE="$outside_default" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
   code=$?
   last=${out##*"$nl"}
   case $want in
@@ -573,6 +662,7 @@ self_test() {
 fetch --locked --offline --manifest-path account/Cargo.toml
 metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
 deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
+deny --format json --color never --config CONFIG --offline --locked --manifest-path account/Cargo.toml check licenses
 build --manifest-path account/Cargo.toml --locked --offline
 test --manifest-path account/Cargo.toml --locked --offline"
   calls_after="fmt --manifest-path account/Cargo.toml --all --check
@@ -589,6 +679,9 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_ban='account/deny.toml holds a ban that this script does not admit'
   cause_path="account/'s metadata holds a path outside account/"
   cause_name="account/'s metadata holds a package whose name contains sqlite or sqlcipher"
+  cause_outside='the packages of account/Cargo.lock that no target of Halvo compiles and whose licence is outside the allow list differ from outside_licences of this script; read each and list it there'
+  outside_default=$work/outside-default.json
+  deny_json >"$outside_default" || fail 'cannot write in the temp directory'
 
   fixture=$work/no-repository
   run_case no-repository "FAIL $name (cannot enter the repository that CI_D_REPO names)" stub
@@ -750,6 +843,26 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     run_case ban-deleted "FAIL $name (account/deny.toml lacks the ban of sentry)" stub
   make_fixture ban-renamed && edit deny.toml sed 's/{ crate = "libsqlite3-sys"/{ crate = "libsqlite4-sys"/' &&
     run_case ban-renamed "FAIL $name (account/deny.toml lacks the ban of libsqlite3-sys)" stub
+  make_fixture deny-targets-fifth && edit deny.toml sed 's/"aarch64-pc-windows-msvc"\]$/"aarch64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]/' &&
+    run_case deny-targets-fifth "FAIL $name ($cause_admitted)" stub
+  make_fixture deny-targets-lack-one && edit deny.toml sed 's/, "aarch64-pc-windows-msvc"\]$/]/' &&
+    run_case deny-targets-lack-one "FAIL $name ($cause_admitted)" stub
+  make_fixture deny-targets-gone && edit deny.toml sed '/^targets = \[/d' &&
+    run_case deny-targets-gone "FAIL $name ($cause_admitted)" stub
+  deny_json 'another-crate 1.0.0' >"$work/outside-another.json"
+  stub_case outside-licence-another "FAIL $name ($cause_outside)" stub STUB_DENY_OUTSIDE="$work/outside-another.json" STUB_OUTSIDE_EXIT=4
+  printf '{"fields":{"code":"rejected","graphs":[],"severity":"error"},"type":"diagnostic"}\n' >"$work/outside-unnamed.json"
+  stub_case outside-licence-unnamed "FAIL $name (cargo deny refused a licence that names no package)" stub STUB_DENY_OUTSIDE="$work/outside-unnamed.json" STUB_OUTSIDE_EXIT=4
+  stub_case outside-licence-exit "FAIL $name (cargo deny check licenses over every target exited 2)" stub STUB_OUTSIDE_EXIT=2
+  if [ -n "$outside_licences" ]; then
+    : >"$work/outside-none.json"
+    stub_case outside-licence-one-less "FAIL $name ($cause_outside)" stub STUB_DENY_OUTSIDE="$work/outside-none.json"
+  fi
+  make_fixture tracked-unchanged && git_fixture && run_case tracked-unchanged "PASS $name" stub
+  make_fixture tracked-file-changed && git_fixture &&
+    run_case tracked-file-changed "FAIL $name (1 tracked files differ from HEAD after cargo ran)" stub STUB_TEST_WRITES=account/Cargo.toml
+  make_fixture untracked-file-written && git_fixture &&
+    run_case untracked-file-written "PASS $name" stub STUB_TEST_WRITES=account/new-file.txt
   make_fixture no-deny-pin && edit ../scripts/prerequisites.sh sed '/^cargo_deny_version=/d' &&
     run_case no-deny-pin "FAIL $name (scripts/prerequisites.sh pins no cargo-deny version)" stub
   make_fixture pin-with-other-characters && edit ../scripts/prerequisites.sh sed 's/^cargo_deny_version=.*/cargo_deny_version=0.20.2-x/' &&
