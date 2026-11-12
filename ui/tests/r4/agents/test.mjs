@@ -726,5 +726,112 @@ if (want('ten')) {
   );
 }
 
+
+async function walkTo(h, name, param) {
+  for (let i = 0; i < 60; i++) {
+    const at = await h.page.evaluate(() => (document.activeElement ? document.activeElement.getAttribute('data-act') + ':' + document.activeElement.getAttribute('data-param') : ''));
+    if (at === name + ':' + param) return i;
+    await h.page.keyboard.press(h.build.walkKey);
+  }
+  throw new Error('the walk key does not reach ' + name);
+}
+
+const clickWithoutPress = (h) => h.page.evaluate(() => document.activeElement.click());
+
+if (want('ten')) {
+  const ten = json('state-ten.json').snapshot;
+  const [A, B, C] = ten.rows;
+  const gate = { call: 'agents_card', args: { agent: C.agent }, reply: { error: 'busy' } };
+
+  await test('a_click_with_no_press_after_the_walk_key_acts_once_on_a_row_control', async () => {
+    const out = outDir();
+    const replies = [{ state: ten }, { ...callOf(C, 'switch_off'), reply: { ok: 'yes' } }, { ...callOf(A, 'run_now'), reply: { ok: 'yes' } }, { ...callOf(A, 'run_now'), reply: { ok: 'yes' } }];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      await h.page.focus(sel('switch_off', C.agent));
+      await h.page.keyboard.press('Enter');
+      await settleCalls(h);
+      const presses = await walkTo(h, 'run_now', A.agent);
+      await clickWithoutPress(h);
+      await settleCalls(h);
+      const got = calls(out);
+      return [same(got, [callOf(C, 'switch_off'), callOf(A, 'run_now')]), { presses, got }];
+    });
+  });
+
+  await test('a_click_with_no_press_after_a_mouse_released_outside_acts_once', async () => {
+    const out = outDir();
+    const aGone = { ...ten, seq: 2, rows: ten.rows.filter((r) => r.agent !== A.agent) };
+    const replies = [{ state: ten }, gate, { state: aGone }, { ...callOf(B, 'run_now'), reply: { ok: 'yes' } }, { ...callOf(B, 'run_now'), reply: { ok: 'yes' } }];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      await pointAt(h, 'run_now', A.agent);
+      await h.page.mouse.down();
+      await h.page.evaluate((c) => window.Halvo.ipc.call('agents_card', { agent: c }), C.agent);
+      await h.page.waitForFunction((a) => document.querySelector('[data-param="' + a + '"]') === null, A.agent, { timeout: 3000 });
+      await h.page.mouse.move(-30, -30);
+      await h.page.mouse.up();
+      await settleCalls(h);
+      const afterRelease = calls(out).length;
+      await h.page.evaluate((s) => document.querySelector(s).click(), sel('run_now', B.agent));
+      await settleCalls(h);
+      const got = calls(out);
+      return [afterRelease === 1 && same(got, [{ call: gate.call, args: gate.args }, callOf(B, 'run_now')]), { afterRelease, got }];
+    });
+  });
+
+  await test('a_pointer_click_counts_only_for_a_press_begun_on_its_own_control', async () => {
+    const out = outDir();
+    return withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
+      const pointerClick = (from, to) =>
+        h.page.evaluate(
+          ([f, t]) => {
+            document.querySelector(f).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
+            document.querySelector(t).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+          },
+          [from, to],
+        );
+      await pointerClick(sel('run_now', A.agent), sel('run_now', B.agent));
+      await settleCalls(h);
+      const elsewhere = calls(out).length;
+      await pointerClick(sel('open_card', A.agent), sel('open_card', B.agent));
+      await settleCalls(h);
+      const elsewhereName = calls(out).length;
+      await pointerClick(sel('run_now', B.agent), sel('run_now', B.agent));
+      await settleCalls(h);
+      const got = calls(out);
+      return [elsewhere === 0 && elsewhereName === 0 && same(got, [callOf(B, 'run_now')]), { elsewhere, elsewhereName, got }];
+    });
+  });
+}
+
+if (want('card')) {
+  const state = json('state-card.json');
+  const A = state.card.agent;
+
+  await test('a_click_with_no_press_after_the_walk_key_acts_once_on_a_name', async () => {
+    const out = outDir();
+    const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: state.card }, { call: 'agents_card', args: { agent: A }, reply: state.card }];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      const presses = await walkTo(h, 'open_card', A);
+      await clickWithoutPress(h);
+      await settleCalls(h);
+      const cards = await cardsOf(h);
+      return [same(cards, ['r4a-card-' + A]) && calls(out).length === 1, { presses, cards, calls: calls(out) }];
+    });
+  });
+
+  await test('a_card_reply_whose_field_value_is_no_list_opens_no_card', async () => {
+    const bad = JSON.parse(JSON.stringify(state.card));
+    bad.runs[0].effects[0].fields[0].value = 'City Power';
+    const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: bad }];
+    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      const cards = await cardsOf(h);
+      const model = await h.page.evaluate(MODEL);
+      return [same(cards, []) && same(model, expectedModel(state.snapshot, null)) && h.errors === 0, { cards, errors: h.errors }];
+    });
+  });
+}
+
 console.log('agents tests passed=' + passed + ' failed=' + failed + ' states=' + STATES.length);
 process.exit(failed === 0 ? 0 : 1);
