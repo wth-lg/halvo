@@ -770,6 +770,20 @@ function selfTest(dir, repo) {
     'FAIL:view',
   );
   expect(
+    fixture('a-spaced-view-string-after-a-template-literal-ends-with-view', {
+      files: (f) => (f['ui/app/views/needs.js'] = view('  id: `x`,\n  note: "two words",\n')),
+    }),
+    'FAIL:view',
+    { lines: ['words view file=ui/app/views/needs.js line=4'] },
+  );
+  expect(
+    fixture('other-view-strings-with-no-space-are-not-judged', {
+      files: (f) => (f['ui/app/main.js'] = "const a = 'Claude';\n"),
+    }),
+    'PASS',
+    { lines: ['words other_views files=1 findings=0'] },
+  );
+  expect(
     fixture('a-heading-inside-a-comment-does-not-count', {
       files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  // heading: "What needs you",\n  id: `x`,\n};\n'),
     }),
@@ -959,6 +973,7 @@ function selfTest(dir, repo) {
     ['a-no-break-space', '\u00a0'],
     ['an-em-space', '\u2003'],
     ['a-line-break', '\n'],
+    ['a-next-line', '\u0085'],
   ]) {
     expect(
       fixture(`${name}-parts-words`, {
