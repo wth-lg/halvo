@@ -104,9 +104,11 @@ mod tests {
     fn ruling_test_value() {
         let given = [
             "https://a.example",
+            "https://a.example",
             "https://A.example",
             "https://a.example/",
             "",
+            "127.0.0.1:1",
         ];
         let test = Ruling::test_hosted(&given);
         assert_eq!(test.allowed(), &Tier::ALL);

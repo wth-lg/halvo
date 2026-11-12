@@ -128,6 +128,8 @@ fn recorded_setup_refuses_a_text_that_is_not_the_freeze_form() {
         good.replace("rows=132", "count=132"),
         good.replace("date=2026-11-10", "day=2026-11-10"),
         good.replace("driver=m_small", "drive=m_small"),
+        good.replace("models=6", "model=6"),
+        good.replace("writer=m_small", "write=m_small"),
         good.replace("rows=132", "rows=0132"),
         good.replace("rows=132", "rows="),
         good.replace("rows=132", "rows=-1"),
