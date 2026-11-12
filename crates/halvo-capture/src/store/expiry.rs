@@ -2,18 +2,14 @@
 
 use std::collections::HashSet;
 
-use rusqlite::{Connection, Row};
+use halvo_sqlcipher::rusqlite::{self, Connection, Row};
 use uuid::Uuid;
 
-use super::db::{unix_secs_now, Db, EncryptedStore, KeyFile};
+use super::db::{db_error, unix_secs_now, Db, EncryptedStore, KeyFile};
 use super::segment::{self, SegmentFile};
 use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
-
-fn db_error(e: rusqlite::Error) -> StoreError {
-    StoreError::Io(e.to_string())
-}
 
 fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
     row.get(0)
@@ -60,9 +56,6 @@ impl EncryptedStore {
             .collect()
     }
 
-    /// Destroy the keys of `ids` in one transaction and checkpoint the WAL, so
-    /// the wrapped keys are gone from every database file before anything
-    /// else happens. The segments are crypto-shredded once this returns.
     fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<()> {
         let db = self.db()?;
         let tx = db.connection().unchecked_transaction().map_err(db_error)?;
@@ -80,9 +73,6 @@ impl EncryptedStore {
         Ok(())
     }
 
-    /// Remove every file under the segments directory that has no live key:
-    /// shredded segments, partial writes, and anything left by a crash between
-    /// a key's destruction and its file's removal.
     pub(crate) fn remove_keyless_files(&self) -> StoreResult<u64> {
         let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
         let mut removed = 0u64;
@@ -95,16 +85,13 @@ impl EncryptedStore {
             }
             match segment::remove_segment_file(file.path()) {
                 Ok(()) => removed += 1,
-                Err(e) => failures.push(e.to_string()),
+                Err(e) => failures.push(e),
             }
         }
-        if let Some(first) = failures.first() {
-            return Err(StoreError::Io(format!(
-                "{} keyless segment files could not be removed; first: {first}",
-                failures.len()
-            )));
+        match failures.into_iter().next() {
+            Some(first) => Err(first),
+            None => Ok(removed),
         }
-        Ok(removed)
     }
 
     fn shred_segments(&mut self, ids: &[Uuid]) -> StoreResult<u64> {
@@ -113,10 +100,6 @@ impl EncryptedStore {
         Ok(ids.len() as u64)
     }
 
-    /// Delete-all's last step: destroy the custody root first, so a failure
-    /// leaves the store open and the call retryable; then seal, scrub the key
-    /// file and remove the now-keyless database and segments, leaving a
-    /// directory a fresh create can use.
     fn destroy_store_key(&mut self) -> StoreResult<()> {
         self.destroy_root()?;
         self.seal();
@@ -125,9 +108,7 @@ impl EncryptedStore {
         match std::fs::remove_dir_all(segment::segments_root(self.dir())) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(StoreError::Io(format!(
-                "removing the segments directory: {e}"
-            ))),
+            Err(e) => Err(StoreError::Io(e.kind())),
         }
     }
 }
@@ -143,6 +124,10 @@ impl SegmentExpiry for EncryptedStore {
     }
 
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {
+        if self.is_sealed() {
+            self.destroy_store_key()?;
+            return Ok(ShredReport::default());
+        }
         let ids = self.segment_ids_with_keys(None)?;
         let segments_shredded = self.shred_segments(&ids)?;
         self.destroy_store_key()?;
