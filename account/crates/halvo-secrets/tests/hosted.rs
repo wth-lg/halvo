@@ -19,12 +19,12 @@ fn on_a_hosted_runner() {
 }
 
 fn dir(label: &str) -> PathBuf {
-    Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!(
-            "halvo-secrets-hosted-{}-{label}",
-            std::process::id()
-        ))
-        .join("store")
+    let parent = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+        "halvo-secrets-hosted-{}-{label}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&parent).expect("the parent of the store directory");
+    parent.join("store")
 }
 
 fn name(label: &str) -> Name {
@@ -80,7 +80,7 @@ fn the_store_of_this_build_stores_reads_and_deletes_one_item() {
 #[cfg(windows)]
 mod dpapi {
     use super::*;
-    use halvo_secrets::Locked;
+    use halvo_secrets::{Fault, Locked};
     use std::fs;
     use std::process::Command;
     use std::sync::Arc;
@@ -207,6 +207,64 @@ mod dpapi {
         ));
         assert!(matches!(store.delete(), Delete::Fault(_)));
         println!("\na store on the drive that does not exist answers {read:?}");
+    }
+
+    #[test]
+    fn a_store_under_a_parent_that_exists_reads_not_stored_and_then_stores() {
+        on_a_hosted_runner();
+        let place = dir("parent-exists");
+        let store = store_at(place.clone(), "parent-exists");
+        assert!(matches!(store.read(), Read::NotStored));
+        assert_eq!(store.delete(), Delete::NotStored);
+        assert!(!place.exists());
+        cycle(&store, "parent-exists");
+    }
+
+    #[test]
+    fn a_store_under_a_missing_parent_answers_a_fault_and_makes_nothing() {
+        on_a_hosted_runner();
+        let base = dir("missing-parent")
+            .parent()
+            .expect("a parent")
+            .to_path_buf();
+        let place = base.join("absent").join("store");
+        let store = store_at(place, "missing-parent");
+        let read = store.read();
+        assert!(matches!(read, Read::Fault(Fault { code: 3 })), "{read:?}");
+        assert_eq!(
+            store.write(&secret(b"hosted secret")),
+            Write::Fault(Fault { code: 3 })
+        );
+        assert_eq!(store.delete(), Delete::Fault(Fault { code: 3 }));
+        assert!(!base.join("absent").exists());
+        println!("\na store under a missing parent answers {read:?} and makes nothing");
+    }
+
+    #[test]
+    fn a_dangling_link_at_the_store_directory_never_answers_not_stored() {
+        on_a_hosted_runner();
+        let place = dir("dangling");
+        let target = place.with_file_name("gone");
+        let made = std::os::windows::fs::symlink_dir(&target, &place).is_ok()
+            || Command::new("cmd")
+                .arg("/C")
+                .arg("mklink")
+                .arg("/J")
+                .arg(&place)
+                .arg(&target)
+                .status()
+                .is_ok_and(|status| status.success());
+        assert!(made, "the runner made neither a link nor a junction");
+        assert!(fs::symlink_metadata(&place).is_ok() && !target.exists());
+        let store = store_at(place, "dangling");
+        let read = store.read();
+        assert!(matches!(read, Read::Fault(_) | Read::Locked(_)), "{read:?}");
+        assert!(!matches!(
+            store.write(&secret(b"hosted secret")),
+            Write::Stored
+        ));
+        assert!(!target.exists());
+        println!("\na dangling link at the store directory answers {read:?}");
     }
 
     #[test]

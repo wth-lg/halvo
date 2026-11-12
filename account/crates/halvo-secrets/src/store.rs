@@ -16,17 +16,32 @@ use crate::{Directory, Name, Secret};
 /// and never `NotStored`; a write only creates; a delete removes the one item that a read
 /// gives.
 ///
-/// The place on macOS: every call opens the directory once, from `/`, without following a
-/// link, refuses it as `Locked::Ancestor` when a step above it can be changed by someone
-/// other than the person and root, and makes every later call relative to that handle.
+/// The place on macOS: every call walks the caller's path as given, from `/`, each step
+/// opened for search alone, relative to the step above and never through a link. A step
+/// that is a link is read relative to the directory that holds it and then followed, from
+/// `/` or from that directory; one walk follows at most 32 links, and the next answers
+/// `Fault` with ELOOP. The call refuses the place as `Locked::Ancestor` when a directory
+/// that the walk passed can be changed by someone other than the person and root (it
+/// belongs to another user, lets the group or others write without the sticky bit, or has
+/// an allow entry that is not inherit-only and names another user or a group), or when a
+/// link that it followed belongs to another user. An access list that cannot be read
+/// answers `Fault`. The call opens the store directory once without following a link and
+/// makes every later call relative to that handle.
+///
+/// Absent and missing, on both systems: a read answers `NotStored` only when the store
+/// directory or the item is absent under a parent that exists. A step above the store
+/// directory that is missing answers `Fault`, and a write makes the store directory alone,
+/// never a step above it.
 ///
 /// The place on Windows: the crate makes the directory with a protected access list that
 /// gives the person, SYSTEM and Administrators full control, and refuses a directory whose
 /// owner is anyone else as `Locked::Owner`; it reads no entry of that list and no step
 /// above the directory, because the blob is sealed for the person, so another directory
 /// put in its place can neither give the person another credential nor read theirs. Only
-/// "file not found" and "path not found" read as no item; a drive or a share that cannot
-/// be reached answers `Fault`. What this does not hold: whoever can rename or remove the
+/// "file not found" for the store directory or the item, under a parent that is a
+/// directory, reads as no item; "path not found", a link at the store directory whose
+/// target is gone, and a drive or a share that cannot be reached answer `Fault`, also for
+/// a delete. What this does not hold: whoever can rename or remove the
 /// directory or a step above it can make the credential read as `NotStored`. By default
 /// those are SYSTEM, the administrators and the person, so the caller passes a directory
 /// under `%LOCALAPPDATA%`, not under `%APPDATA%` or Documents, which a redirection or a

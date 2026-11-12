@@ -1,7 +1,9 @@
 #![cfg(all(target_os = "macos", debug_assertions))]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
-use halvo_secrets::{Delete, Directory, Locked, Name, Read, Secret, Store, StoreKind, Write};
+use halvo_secrets::{
+    Delete, Directory, Fault, Locked, Name, Read, Secret, Store, StoreKind, Write,
+};
 use std::ffi::CString;
 use std::fs;
 use std::os::raw::{c_char, c_int};
@@ -119,15 +121,21 @@ fn the_file_store_writes_reads_and_deletes_with_modes_0600_and_0700() {
 }
 
 #[test]
-fn a_store_makes_the_missing_parents_of_its_directory() {
+fn a_store_makes_its_directory_and_no_missing_step_above_it() {
     let base = scratch("parents");
     let dir = base.join("a").join("b").join("store");
     let store = store_in(&dir);
-    assert!(matches!(store.read(), Read::NotStored));
+    assert!(matches!(store.read(), Read::Fault(Fault { code: 2 })));
+    assert_eq!(
+        store.write(&secret(b"secret")),
+        Write::Fault(Fault { code: 2 })
+    );
     assert!(!base.join("a").exists());
+    fs::create_dir_all(base.join("a").join("b")).expect("the parent");
+    assert!(matches!(store.read(), Read::NotStored));
     assert_eq!(store.write(&secret(b"secret")), Write::Stored);
     assert_eq!(found(store.read()), b"secret");
-    assert_eq!(mode(&base.join("a")) & 0o077, 0);
+    assert_eq!(mode(&dir) & 0o7777, 0o700);
 }
 
 #[test]

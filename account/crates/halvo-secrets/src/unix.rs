@@ -1,10 +1,11 @@
-use crate::place::{EntryKind, Fs, Last, Meta, Opened, Published, Walk};
+use crate::place::{fault_with, EntryKind, Fs, Last, Meta, Opened, Published, Walk};
+use std::collections::VecDeque;
 use std::ffi::{CString, OsStr, OsString};
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{self, Read as _, Write as _};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::raw::{c_char, c_int, c_uint, c_void};
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::ptr;
@@ -17,25 +18,41 @@ const O_CREAT: c_int = 0x0200;
 const O_EXCL: c_int = 0x0800;
 const O_DIRECTORY: c_int = 0x0010_0000;
 const O_CLOEXEC: c_int = 0x0100_0000;
+const O_EXEC: c_int = 0x4000_0000;
+/// A directory opened for search alone: a step that the person may pass but not list is
+/// walked as the system itself would walk it.
+const O_SEARCH: c_int = O_EXEC | O_DIRECTORY;
+const AT_FDCWD: c_int = -2;
 const AT_SYMLINK_NOFOLLOW: c_int = 0x0020;
 const ENOENT: i32 = 2;
 const EEXIST: i32 = 17;
 const ENOTDIR: i32 = 20;
 const ELOOP: i32 = 62;
+const ENAMETOOLONG: i32 = 63;
+const S_IFMT: u16 = 0o170_000;
+const S_IFLNK: u16 = 0o120_000;
 const RENAME_EXCL: c_uint = 0x0004;
 const ACL_TYPE_EXTENDED: c_int = 0x0100;
 const ACL_FIRST_ENTRY: c_int = 0;
 const ACL_NEXT_ENTRY: c_int = -1;
 const ACL_EXTENDED_ALLOW: c_int = 1;
+const ACL_ENTRY_ONLY_INHERIT: c_int = 1 << 8;
 const ACL_CHANGES_ENTRIES: [c_int; 6] = [1 << 2, 1 << 4, 1 << 5, 1 << 6, 1 << 12, 1 << 13];
-const STAT_SPACE: usize = 512;
+const ID_TYPE_UID: c_int = 0;
+const STAT_WORDS: usize = 64;
+const PATH_MAX: usize = 1024;
+/// The links that one walk follows at most: MAXSYMLINKS of <sys/param.h>, the bound of the
+/// system's own lookup. The next one answers a fault with ELOOP, so a loop of links ends.
+const MAX_LINKS: usize = 32;
 
 extern "C" {
     fn geteuid() -> u32;
     fn openat(fd: c_int, path: *const c_char, flags: c_int, ...) -> c_int;
     fn mkdirat(fd: c_int, path: *const c_char, mode: u16) -> c_int;
     fn unlinkat(fd: c_int, path: *const c_char, flags: c_int) -> c_int;
+    #[cfg_attr(target_arch = "x86_64", link_name = "fstatat$INODE64")]
     fn fstatat(fd: c_int, path: *const c_char, buf: *mut c_void, flags: c_int) -> c_int;
+    fn readlinkat(fd: c_int, path: *const c_char, buf: *mut c_char, size: usize) -> isize;
     fn renameatx_np(
         from_fd: c_int,
         from: *const c_char,
@@ -48,7 +65,11 @@ extern "C" {
     fn acl_get_tag_type(entry: *mut c_void, tag: *mut c_int) -> c_int;
     fn acl_get_permset(entry: *mut c_void, permset: *mut *mut c_void) -> c_int;
     fn acl_get_perm_np(permset: *mut c_void, perm: c_int) -> c_int;
+    fn acl_get_flagset_np(entry: *mut c_void, flagset: *mut *mut c_void) -> c_int;
+    fn acl_get_flag_np(flagset: *mut c_void, flag: c_int) -> c_int;
+    fn acl_get_qualifier(entry: *mut c_void) -> *mut c_void;
     fn acl_free(object: *mut c_void) -> c_int;
+    fn mbr_uuid_to_id(uuid: *const u8, id: *mut u32, kind: *mut c_int) -> c_int;
 }
 
 pub(crate) struct UnixFs;
@@ -58,7 +79,26 @@ struct Acl {
     changes_entries: bool,
 }
 
-fn acl_of(file: &File) -> io::Result<Acl> {
+/// The head of the 64-bit-inode `struct stat` of <sys/stat.h>, the layout that `fstatat`
+/// writes on arm64 and that `fstatat$INODE64` writes on x86_64.
+#[repr(C)]
+struct StatHead {
+    dev: i32,
+    mode: u16,
+    nlink: u16,
+    ino: u64,
+    uid: u32,
+    gid: u32,
+}
+
+fn failed_list() -> io::Error {
+    fault_with(io::Error::last_os_error().raw_os_error().unwrap_or(-1))
+}
+
+/// Reads the access list of `file`. A list that cannot be read answers a fault, never "no
+/// list". `changes_entries` is an allow entry that lets someone other than root and `user`
+/// add, remove or rename the entries of this object, or change its list or its owner.
+fn acl_of(file: &File, user: u32) -> io::Result<Acl> {
     // SAFETY: the descriptor is open for as long as `file` is borrowed here, and the list
     // that the call allocates is freed by acl_free below, the one place that frees it.
     let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
@@ -70,52 +110,103 @@ fn acl_of(file: &File) -> io::Result<Acl> {
                 changes_entries: false,
             })
         } else {
-            Err(error)
+            Err(fault_with(error.raw_os_error().unwrap_or(-1)))
         };
     }
+    let found = entries_of(acl, user);
+    // SAFETY: `acl` came from acl_get_fd_np above, no entry, set or qualifier taken from it
+    // outlives entries_of, and it is freed once.
+    unsafe { acl_free(acl) };
+    found
+}
+
+fn entries_of(acl: *mut c_void, user: u32) -> io::Result<Acl> {
     let mut found = Acl {
         any: false,
         changes_entries: false,
     };
     let mut entry = ptr::null_mut();
     let mut which = ACL_FIRST_ENTRY;
-    loop {
-        // SAFETY: `acl` is the non-null list from above and is not yet freed; the call only
-        // writes the local `entry`, which points into that list.
-        if unsafe { acl_get_entry(acl, which, &mut entry) } != 0 {
-            break;
-        }
+    // SAFETY: `acl` is the live list of the caller, which frees it after this returns; the
+    // call writes only the local `entry`, which points into that list.
+    while unsafe { acl_get_entry(acl, which, &mut entry) } == 0 {
         which = ACL_NEXT_ENTRY;
         found.any = true;
-        let mut tag = 0;
-        let mut permset = ptr::null_mut();
-        // SAFETY: `entry` points into the live list `acl`; the call writes the local `tag`.
-        let tagged = unsafe { acl_get_tag_type(entry, &mut tag) } == 0;
-        // SAFETY: the same live entry; the call writes the local `permset`, which points into
-        // the entry and is read only inside this pass of the loop.
-        let permitted = unsafe { acl_get_permset(entry, &mut permset) } == 0;
-        if !tagged || !permitted {
-            found.changes_entries = true;
-            continue;
-        }
-        let allows = |perm: &c_int| {
-            // SAFETY: `permset` belongs to the live entry above, and the call only reads it.
-            let set = unsafe { acl_get_perm_np(permset, *perm) };
-            set == 1
-        };
-        if tag == ACL_EXTENDED_ALLOW && ACL_CHANGES_ENTRIES.iter().any(allows) {
+        if lets_another_change(entry, user)? {
             found.changes_entries = true;
         }
     }
-    // SAFETY: `acl` came from acl_get_fd_np above, no entry or permission set taken from it
-    // outlives this line, and it is freed once.
-    unsafe { acl_free(acl) };
     Ok(found)
 }
 
-fn meta_of(file: &File) -> io::Result<Meta> {
+/// Whether `entry` allows a right of `ACL_CHANGES_ENTRIES` on the object itself to someone
+/// other than root and `user`. An entry that only children inherit grants nothing on the
+/// object, and an entry that names root or the person alone grants no other user. A part of
+/// the entry that cannot be read answers a fault.
+fn lets_another_change(entry: *mut c_void, user: u32) -> io::Result<bool> {
+    let mut tag = 0;
+    // SAFETY: `entry` points into the caller's live list; the call writes the local `tag`.
+    if unsafe { acl_get_tag_type(entry, &mut tag) } != 0 {
+        return Err(failed_list());
+    }
+    if tag != ACL_EXTENDED_ALLOW {
+        return Ok(false);
+    }
+    let mut permset = ptr::null_mut();
+    // SAFETY: the same live entry; the call writes the local `permset`, which points into
+    // the entry and is read only inside this call.
+    if unsafe { acl_get_permset(entry, &mut permset) } != 0 {
+        return Err(failed_list());
+    }
+    let mut changes = false;
+    for perm in ACL_CHANGES_ENTRIES {
+        // SAFETY: `permset` belongs to the live entry above, and the call only reads it.
+        match unsafe { acl_get_perm_np(permset, perm) } {
+            0 => {}
+            1 => changes = true,
+            _ => return Err(failed_list()),
+        }
+    }
+    if !changes {
+        return Ok(false);
+    }
+    let mut flagset = ptr::null_mut();
+    // SAFETY: the same live entry; the call writes the local `flagset`, which points into
+    // the entry and is read only inside this call.
+    if unsafe { acl_get_flagset_np(entry, &mut flagset) } != 0 {
+        return Err(failed_list());
+    }
+    // SAFETY: `flagset` belongs to the live entry above, and the call only reads it.
+    match unsafe { acl_get_flag_np(flagset, ACL_ENTRY_ONLY_INHERIT) } {
+        0 => {}
+        1 => return Ok(false),
+        _ => return Err(failed_list()),
+    }
+    // SAFETY: the same live entry; the call returns a copy of the entry's 16-byte qualifier
+    // that acl_free releases below, or null.
+    let qualifier = unsafe { acl_get_qualifier(entry) };
+    if qualifier.is_null() {
+        return Err(failed_list());
+    }
+    let mut id = 0u32;
+    let mut kind: c_int = -1;
+    // SAFETY: `qualifier` points at the 16 bytes of a uuid that stay valid until the
+    // acl_free below; the call writes the locals `id` and `kind`.
+    let resolved = unsafe { mbr_uuid_to_id(qualifier.cast(), &mut id, &mut kind) };
+    // SAFETY: `qualifier` came from acl_get_qualifier, nothing reads it after the call
+    // above, and this is its one release.
+    unsafe { acl_free(qualifier) };
+    if resolved != 0 {
+        return Err(fault_with(resolved));
+    }
+    Ok(!(kind == ID_TYPE_UID && (id == 0 || id == user)))
+}
+
+/// The list is read before the metadata: where the person may not read an object's
+/// security, macOS refuses its fstat too, and the failure is a failed read of its list.
+fn meta_of(file: &File, user: u32) -> io::Result<Meta> {
+    let acl = acl_of(file, user)?;
     let metadata = file.metadata()?;
-    let acl = acl_of(file)?;
     let file_type = metadata.file_type();
     let kind = if file_type.is_dir() {
         EntryKind::Directory
@@ -139,19 +230,13 @@ fn c_name(name: &OsStr) -> io::Result<CString> {
     CString::new(name.as_bytes()).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
 
-fn open_at(dir: &File, name: &OsStr, flags: c_int) -> io::Result<File> {
+fn open_fd(dir: c_int, name: &OsStr, flags: c_int) -> io::Result<File> {
     let name = c_name(name)?;
-    // SAFETY: `dir` is a borrowed open descriptor, `name` is a NUL-terminated string that
-    // lives to the end of this function, and the mode is passed as the promoted int that the
-    // variadic openat reads when O_CREAT is set.
-    let fd = unsafe {
-        openat(
-            dir.as_raw_fd(),
-            name.as_ptr(),
-            flags | O_CLOEXEC,
-            0o600 as c_uint,
-        )
-    };
+    // SAFETY: `dir` is AT_FDCWD or the descriptor of a File that the caller borrows for the
+    // call, `name` is a NUL-terminated string that lives to the end of this function, and
+    // the mode is passed as the promoted int that the variadic openat reads when O_CREAT is
+    // set.
+    let fd = unsafe { openat(dir, name.as_ptr(), flags | O_CLOEXEC, 0o600 as c_uint) };
     if fd < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -160,8 +245,58 @@ fn open_at(dir: &File, name: &OsStr, flags: c_int) -> io::Result<File> {
     Ok(unsafe { File::from_raw_fd(fd) })
 }
 
-fn open_dir_at(dir: &File, name: &OsStr) -> io::Result<File> {
-    open_at(dir, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+fn open_at(dir: &File, name: &OsStr, flags: c_int) -> io::Result<File> {
+    open_fd(dir.as_raw_fd(), name, flags)
+}
+
+fn open_root() -> io::Result<File> {
+    open_fd(AT_FDCWD, OsStr::new("/"), O_SEARCH)
+}
+
+/// The entry `name` of `dir` itself, a link not followed.
+fn entry_at(dir: &File, name: &OsStr) -> io::Result<StatHead> {
+    let name = c_name(name)?;
+    let mut space = [0u64; STAT_WORDS];
+    // SAFETY: `space` holds 512 bytes aligned for u64, more than the 144 of the struct stat
+    // that the call writes; `dir` and `name` are live for the call.
+    let result = unsafe {
+        fstatat(
+            dir.as_raw_fd(),
+            name.as_ptr(),
+            space.as_mut_ptr().cast(),
+            AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the call succeeded, so the buffer begins with a struct stat whose first 24
+    // bytes are the fields of StatHead in this order; the buffer is aligned for its u64.
+    Ok(unsafe { ptr::read(space.as_ptr().cast::<StatHead>()) })
+}
+
+/// The target of the link `name` in `dir`, read relative to the handle that the walk holds.
+fn read_link_at(dir: &File, name: &OsStr) -> io::Result<PathBuf> {
+    let name = c_name(name)?;
+    let mut target = vec![0u8; PATH_MAX + 1];
+    // SAFETY: `target` holds PATH_MAX + 1 bytes and the call writes at most that many; `dir`
+    // and `name` are live for the call.
+    let len = unsafe {
+        readlinkat(
+            dir.as_raw_fd(),
+            name.as_ptr(),
+            target.as_mut_ptr().cast(),
+            target.len(),
+        )
+    };
+    let Ok(len) = usize::try_from(len) else {
+        return Err(io::Error::last_os_error());
+    };
+    if len > PATH_MAX {
+        return Err(fault_with(ENAMETOOLONG));
+    }
+    target.truncate(len);
+    Ok(PathBuf::from(OsString::from_vec(target)))
 }
 
 fn last_error_unless(result: c_int) -> io::Result<()> {
@@ -172,31 +307,28 @@ fn last_error_unless(result: c_int) -> io::Result<()> {
     }
 }
 
-fn split(path: &Path) -> io::Result<(PathBuf, Vec<OsString>, OsString)> {
-    let invalid = || io::Error::from(io::ErrorKind::InvalidInput);
-    let last = path.file_name().ok_or_else(invalid)?.to_os_string();
-    let mut base = path.parent().ok_or_else(invalid)?.to_path_buf();
-    let mut missing = Vec::new();
-    loop {
-        match fs::canonicalize(&base) {
-            Ok(real) => {
-                missing.reverse();
-                return Ok((real, missing, last));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                missing.push(base.file_name().ok_or(error)?.to_os_string());
-                base.pop();
-            }
-            Err(error) => return Err(error),
-        }
-    }
+enum Step {
+    Root,
+    Up,
+    Name(OsString),
 }
 
-fn steps(real: &Path) -> impl Iterator<Item = &OsStr> {
-    real.components().filter_map(|step| match step {
-        Component::Normal(name) => Some(name),
-        _ => None,
-    })
+fn steps_of(path: &Path) -> Vec<Step> {
+    path.components()
+        .filter_map(|step| match step {
+            Component::RootDir => Some(Step::Root),
+            Component::ParentDir => Some(Step::Up),
+            Component::Normal(name) => Some(Step::Name(name.to_os_string())),
+            Component::CurDir | Component::Prefix(_) => None,
+        })
+        .collect()
+}
+
+fn missing(ancestors: Vec<Meta>, code: i32) -> Walk<File> {
+    Walk {
+        ancestors,
+        last: Last::Missing(code),
+    }
 }
 
 impl Fs for UnixFs {
@@ -209,90 +341,128 @@ impl Fs for UnixFs {
         unsafe { geteuid() }
     }
 
+    /// Walks the caller's path as given, from the root, one step relative to the handle of
+    /// the step above, each step opened for search alone and never through a link. A step
+    /// that is a link is read relative to the handle of the directory that holds it, which
+    /// the walk passed and records; the link is recorded with its owner; and its target is
+    /// walked from the root or from that directory in the same way. Every directory that the
+    /// walk passes and every link that it follows is in `ancestors` for the rule.
     fn walk(&self, path: &Path) -> io::Result<Walk<File>> {
-        let (real, missing, last) = split(path)?;
-        let mut dir = File::open("/")?;
-        let mut ancestors = vec![meta_of(&dir)?];
-        for name in steps(&real).chain(missing.iter().map(OsString::as_os_str)) {
-            match open_dir_at(&dir, name) {
+        let invalid = || io::Error::from(io::ErrorKind::InvalidInput);
+        let last = path.file_name().ok_or_else(invalid)?;
+        let parent = path.parent().ok_or_else(invalid)?;
+        let user = self.user();
+        let root = open_root()?;
+        let mut ancestors = vec![meta_of(&root, user)?];
+        let mut held = vec![root];
+        let mut pending = VecDeque::from(steps_of(parent));
+        let mut links = 0;
+        while let Some(step) = pending.pop_front() {
+            let name = match step {
+                Step::Root => {
+                    held.truncate(1);
+                    continue;
+                }
+                Step::Up => {
+                    if held.len() > 1 {
+                        held.pop();
+                    }
+                    continue;
+                }
+                Step::Name(name) => name,
+            };
+            let here = held.last().ok_or_else(invalid)?;
+            let error = match open_at(here, &name, O_SEARCH | O_NOFOLLOW) {
                 Ok(child) => {
-                    ancestors.push(meta_of(&child)?);
-                    dir = child;
+                    ancestors.push(meta_of(&child, user)?);
+                    held.push(child);
+                    continue;
                 }
+                Err(error) => error,
+            };
+            match error.raw_os_error() {
+                Some(ENOENT) => return Ok(missing(ancestors, ENOENT)),
+                Some(ENOTDIR | ELOOP) => {}
+                _ => return Err(error),
+            }
+            let entry = match entry_at(here, &name) {
+                Ok(entry) => entry,
                 Err(error) if error.raw_os_error() == Some(ENOENT) => {
-                    return Ok(Walk {
-                        ancestors,
-                        last: Last::Absent,
-                    });
-                }
-                Err(error) if matches!(error.raw_os_error(), Some(ENOTDIR | ELOOP)) => {
-                    ancestors.push(Meta::of_kind(EntryKind::Other));
-                    return Ok(Walk {
-                        ancestors,
-                        last: Last::Absent,
-                    });
+                    return Ok(missing(ancestors, ENOENT));
                 }
                 Err(error) => return Err(error),
+            };
+            if entry.mode & S_IFMT != S_IFLNK {
+                ancestors.push(Meta::of_kind(EntryKind::Other));
+                return Ok(missing(ancestors, ENOTDIR));
+            }
+            links += 1;
+            if links > MAX_LINKS {
+                return Err(fault_with(ELOOP));
+            }
+            ancestors.push(Meta {
+                kind: EntryKind::Link,
+                owner: entry.uid,
+                mode: u32::from(entry.mode) & 0o7777,
+                len: 0,
+                acl: false,
+                acl_write: false,
+                links: u64::from(entry.nlink),
+            });
+            // Only root and the person, or in a sticky directory the link's owner, can put
+            // another entry in place of the link that entry_at read: the rule takes `here`
+            // only when no one else may change its entries, so a link of another owner
+            // read here is refused with the rest.
+            let target = read_link_at(here, &name)?;
+            if target.as_os_str().is_empty() {
+                return Ok(missing(ancestors, ENOENT));
+            }
+            for step in steps_of(&target).into_iter().rev() {
+                pending.push_front(step);
             }
         }
-        let last = match open_at(&dir, &last, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) {
+        let parent = held.pop().ok_or_else(invalid)?;
+        drop(held);
+        let last = match open_at(&parent, last, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) {
             Ok(handle) => {
-                let meta = meta_of(&handle)?;
+                let meta = meta_of(&handle, user)?;
                 if meta.kind == EntryKind::Directory {
                     Last::Dir(meta, handle)
                 } else {
                     Last::NotADirectory
                 }
             }
-            Err(error) if error.raw_os_error() == Some(ENOENT) => Last::Absent,
+            Err(error) if error.raw_os_error() == Some(ENOENT) => Last::Absent(parent),
             Err(error) if error.raw_os_error() == Some(ELOOP) => Last::NotADirectory,
             Err(error) => return Err(error),
         };
         Ok(Walk { ancestors, last })
     }
 
-    fn make_dir(&self, path: &Path) -> io::Result<()> {
-        let (real, missing, last) = split(path)?;
-        let mut dir = File::open("/")?;
-        for name in steps(&real) {
-            dir = open_dir_at(&dir, name)?;
+    fn make_dir(&self, parent: &File, name: &OsStr) -> io::Result<()> {
+        let name = c_name(name)?;
+        // SAFETY: `parent` stays open through the call and `name` is a NUL-terminated string
+        // that outlives it.
+        if unsafe { mkdirat(parent.as_raw_fd(), name.as_ptr(), 0o700) } == 0 {
+            return Ok(());
         }
-        for name in missing.iter().chain([&last]) {
-            let c = c_name(name)?;
-            // SAFETY: `dir` is an open descriptor owned by this function and `c` is a
-            // NUL-terminated string that outlives the call.
-            if unsafe { mkdirat(dir.as_raw_fd(), c.as_ptr(), 0o700) } != 0 {
-                let error = io::Error::last_os_error();
-                if error.raw_os_error() != Some(EEXIST) {
-                    return Err(error);
-                }
-            }
-            dir = open_dir_at(&dir, name)?;
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(EEXIST) {
+            Ok(())
+        } else {
+            Err(error)
         }
-        Ok(())
+    }
+
+    fn is_absent(&self, error: &io::Error) -> bool {
+        error.raw_os_error() == Some(ENOENT)
     }
 
     fn exists(&self, dir: &File, name: &str) -> io::Result<bool> {
-        let name = c_name(OsStr::new(name))?;
-        let mut space = [0u8; STAT_SPACE];
-        // SAFETY: `space` holds 512 bytes, more than the 144 of the struct stat that the call
-        // writes, and is never read as one; `dir` and `name` are live for the call.
-        let result = unsafe {
-            fstatat(
-                dir.as_raw_fd(),
-                name.as_ptr(),
-                space.as_mut_ptr().cast(),
-                AT_SYMLINK_NOFOLLOW,
-            )
-        };
-        if result == 0 {
-            return Ok(true);
-        }
-        let error = io::Error::last_os_error();
-        if error.raw_os_error() == Some(ENOENT) {
-            Ok(false)
-        } else {
-            Err(error)
+        match entry_at(dir, OsStr::new(name)) {
+            Ok(_) => Ok(true),
+            Err(error) if error.raw_os_error() == Some(ENOENT) => Ok(false),
+            Err(error) => Err(error),
         }
     }
 
@@ -306,7 +476,7 @@ impl Fs for UnixFs {
     }
 
     fn item_meta(&self, item: &File) -> io::Result<Meta> {
-        meta_of(item)
+        meta_of(item, self.user())
     }
 
     fn read_item(&self, item: &mut File, buf: &mut [u8]) -> io::Result<usize> {

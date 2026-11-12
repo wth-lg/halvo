@@ -1,7 +1,7 @@
 #![cfg(all(target_os = "macos", debug_assertions))]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
-use halvo_secrets::{Delete, Directory, Locked, Name, Read, Secret, Store, Write};
+use halvo_secrets::{Delete, Directory, Fault, Locked, Name, Read, Secret, Store, Write};
 use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::fs;
@@ -164,6 +164,7 @@ fn a_store_in_the_test_directory_of_the_build_still_works() {
 fn a_dangling_link_among_the_ancestors_never_answers_not_stored() {
     let base = scratch("dangling");
     let real = base.join("real");
+    fs::create_dir_all(&real).expect("the parent");
     let dir = real.join("store");
     assert_eq!(
         store_in(&dir).write(&secret(b"the credential")),
@@ -177,12 +178,20 @@ fn a_dangling_link_among_the_ancestors_never_answers_not_stored() {
     aside.push("-aside");
     fs::rename(&real, real.with_file_name(aside)).expect("the target moved");
     let read = store_in(&through).read();
-    assert!(matches!(read, Read::Locked(Locked::Ancestor)), "{read:?}");
+    assert!(
+        matches!(read, Read::Fault(Fault { code: 2 })),
+        "a dangling link answers the fault of the missing step: {read:?}"
+    );
+    assert_eq!(
+        store_in(&through).write(&secret(b"second")),
+        Write::Fault(Fault { code: 2 })
+    );
 }
 
 #[test]
 fn a_store_directory_renamed_away_under_a_parent_that_others_may_write_reads_locked() {
     let parent = scratch("rename").join("parent");
+    fs::create_dir_all(&parent).expect("the parent");
     let dir = parent.join("store");
     let store = store_in(&dir);
     assert_eq!(store.write(&secret(b"credential-one")), Write::Stored);

@@ -102,9 +102,10 @@ fn a_refused_empty_secret_overwrites_its_spare_capacity() {
 #[test]
 fn a_store_round_trip_frees_no_copy_of_the_secret() {
     use halvo_secrets::{Delete, Directory, Name, Read, Store, Write};
-    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("halvo-secrets-wipe-{}", std::process::id()))
-        .join("store");
+    let parent = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("halvo-secrets-wipe-{}", std::process::id()));
+    std::fs::create_dir_all(&parent).expect("the parent of the store directory");
+    let dir = parent.join("store");
     let store = Store::in_directory(
         Directory::new(dir).expect("an absolute directory"),
         Name::new("account").expect("a name"),

@@ -16,6 +16,9 @@ const EACCES: i32 = 5;
 #[cfg(unix)]
 const EPERM: i32 = 1;
 const NO_CODE: i32 = 0;
+/// A failure of the kind NotFound that carries no code of the system, as the standard
+/// library folds codes into that kind (on Windows also a drive or a share that is away).
+const FOLDED: i32 = -2;
 #[cfg(unix)]
 const REFUSALS: [i32; 2] = [EACCES, EPERM];
 #[cfg(windows)]
@@ -122,6 +125,7 @@ struct Memory {
     fail: RefCell<Vec<(&'static str, usize, i32)>>,
     calls: RefCell<BTreeMap<&'static str, usize>>,
     makes_no_dir: Cell<bool>,
+    parent_missing: Cell<bool>,
     on_create_temp: RefCell<Option<(PathBuf, Entry)>>,
     chunk: Cell<usize>,
 }
@@ -140,6 +144,7 @@ impl Memory {
             fail: RefCell::new(Vec::new()),
             calls: RefCell::new(BTreeMap::new()),
             makes_no_dir: Cell::new(false),
+            parent_missing: Cell::new(false),
             on_create_temp: RefCell::new(None),
             chunk: Cell::new(7),
         }
@@ -184,6 +189,7 @@ impl Memory {
             .map(|(_, _, code)| *code);
         match failing {
             Some(NO_CODE) => Err(io::Error::other("a failure with no code")),
+            Some(FOLDED) => Err(io::Error::from(io::ErrorKind::NotFound)),
             Some(code) => Err(io::Error::from_raw_os_error(code)),
             None => Ok(()),
         }
@@ -218,8 +224,14 @@ impl Fs for Memory {
     fn walk(&self, path: &Path) -> io::Result<Walk<PathBuf>> {
         self.step("walk", path)?;
         let ancestors = self.ancestors.borrow().iter().map(Entry::meta).collect();
+        if self.parent_missing.get() {
+            return Ok(Walk {
+                ancestors,
+                last: Last::Missing(ENOENT),
+            });
+        }
         let last = match self.entries.borrow().get(path) {
-            None => Last::Absent,
+            None => Last::Absent(path.parent().expect("a parent").to_path_buf()),
             Some(entry) if entry.kind == EntryKind::Directory => {
                 Last::Dir(entry.meta(), path.to_path_buf())
             }
@@ -228,16 +240,21 @@ impl Fs for Memory {
         Ok(Walk { ancestors, last })
     }
 
-    fn make_dir(&self, path: &Path) -> io::Result<()> {
-        self.step("make_dir", path)?;
+    fn make_dir(&self, parent: &PathBuf, name: &OsStr) -> io::Result<()> {
+        let path = parent.join(name);
+        self.step("make_dir", &path)?;
         if self.makes_no_dir.get() {
             return Ok(());
         }
         self.entries
             .borrow_mut()
-            .entry(path.to_path_buf())
+            .entry(path)
             .or_insert_with(|| Entry::dir(0o700));
         Ok(())
+    }
+
+    fn is_absent(&self, error: &io::Error) -> bool {
+        error.raw_os_error() == Some(ENOENT)
     }
 
     fn exists(&self, dir: &PathBuf, name: &str) -> io::Result<bool> {
@@ -326,7 +343,7 @@ impl Fs for Memory {
             .borrow_mut()
             .remove(&path)
             .map(|_| ())
-            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
+            .ok_or_else(|| io::Error::from_raw_os_error(ENOENT))
     }
 
     fn sync_dir(&self, dir: &PathBuf) -> io::Result<()> {
@@ -1017,7 +1034,7 @@ fn an_ancestor_that_someone_else_may_change_refuses_every_call() {
         Entry::dir(0o1777).owned_by(OTHER),
         Entry::dir(0o755).with_acl_write(),
         Entry::of(EntryKind::File),
-        Entry::of(EntryKind::Link),
+        Entry::of(EntryKind::Link).owned_by(OTHER),
         Entry::of(EntryKind::Other),
     ];
     for ancestor in cases {
@@ -1061,11 +1078,83 @@ fn an_ancestor_of_root_or_of_the_user_that_others_may_not_change_is_taken() {
         Entry::dir(0o1777),
         Entry::dir(0o3777),
         Entry::dir(0o755).with_acl(),
+        Entry::of(EntryKind::Link),
+        Entry::of(EntryKind::Link).owned_by(0),
     ];
     for ancestor in cases {
         let store = item(with_ancestor(stored(), ancestor.clone()));
         assert_eq!(found(store.read()), b"the stored secret", "{ancestor:?}");
     }
+}
+
+#[test]
+fn a_link_on_the_path_is_judged_by_its_owner_alone() {
+    let rules = Rules::Private;
+    for owner in [0, USER] {
+        let link = Entry::of(EntryKind::Link).owned_by(owner);
+        assert_eq!(rules.ancestor(&link.meta(), USER), None, "{owner}");
+        let wide = Entry {
+            mode: 0o777,
+            acl: true,
+            acl_write: true,
+            ..link
+        };
+        assert_eq!(rules.ancestor(&wide.meta(), USER), None, "{owner}");
+    }
+    assert_eq!(
+        rules.ancestor(&Entry::of(EntryKind::Link).owned_by(OTHER).meta(), USER),
+        Some(Locked::Ancestor)
+    );
+}
+
+#[test]
+fn a_missing_step_above_the_store_directory_answers_a_fault_and_makes_nothing() {
+    let store = item(Memory::new());
+    store.fs.parent_missing.set(true);
+    let fault = Fault {
+        code: i64::from(ENOENT),
+    };
+    assert!(matches!(store.read(), Read::Fault(f) if f == fault));
+    assert_eq!(store.write(&secret(b"secret")), Write::Fault(fault));
+    assert_eq!(store.delete(), Delete::Fault(fault));
+    assert!(store.fs.paths().is_empty());
+    let steps = step_names(&store.fs);
+    assert!(steps.iter().all(|step| step == "walk"), "{steps:?}");
+}
+
+#[test]
+fn a_missing_step_under_an_ancestor_that_others_may_change_answers_the_ancestor() {
+    let store = item(with_ancestor(Memory::new(), Entry::dir(0o777)));
+    store.fs.parent_missing.set(true);
+    assert!(matches!(store.read(), Read::Locked(Locked::Ancestor)));
+    assert_eq!(
+        store.write(&secret(b"secret")),
+        Write::Locked(Locked::Ancestor)
+    );
+}
+
+#[test]
+fn a_write_makes_the_store_directory_in_the_parent_that_the_walk_handed_on_and_nothing_else() {
+    let store = item(Memory::new());
+    assert!(matches!(store.read(), Read::NotStored));
+    assert_eq!(store.write(&secret(b"secret")), Write::Stored);
+    assert_eq!(store.fs.paths(), [DIR, PATH]);
+    let made: Vec<String> = store
+        .fs
+        .steps()
+        .into_iter()
+        .filter(|step| step.starts_with("make_dir"))
+        .collect();
+    assert_eq!(made, [format!("make_dir {DIR}")]);
+}
+
+#[test]
+fn a_delete_whose_removal_fails_with_an_error_that_the_system_does_not_call_absent_answers_a_fault()
+{
+    let store = item(stored().failing("remove", FOLDED));
+    assert_eq!(store.delete(), Delete::Fault(Fault { code: -1 }));
+    let store = item(stored().failing("remove", ENOENT));
+    assert_eq!(store.delete(), Delete::NotStored);
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use crate::answer::{Delete, Fault, Locked, Read, Write};
 use crate::secret::Buffer;
 use crate::{Name, Secret, MAX_SECRET_LEN};
+use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -8,7 +9,6 @@ use std::path::{Path, PathBuf};
 pub(crate) enum EntryKind {
     File,
     Directory,
-    #[cfg_attr(not(windows), allow(dead_code))]
     Link,
     Other,
 }
@@ -39,12 +39,20 @@ impl Meta {
     }
 }
 
+/// Where a walk of the store directory's path ends.
 pub(crate) enum Last<D> {
-    Absent,
+    /// The store directory is absent from its parent, a directory that the walk reached;
+    /// the walk hands on that parent, in which a write makes the store directory.
+    Absent(D),
+    /// A step above the store directory is missing: the code that the system gave. A read
+    /// of a place that is not there at all answers a fault, never `NotStored`.
+    Missing(i32),
     NotADirectory,
     Dir(Meta, D),
 }
 
+/// What a walk saw: every directory that it passed and every link that it followed, from
+/// the root, and where it ended.
 pub(crate) struct Walk<D> {
     pub(crate) ancestors: Vec<Meta>,
     pub(crate) last: Last<D>,
@@ -67,7 +75,11 @@ pub(crate) trait Fs {
     type Temp;
     fn user(&self) -> u32;
     fn walk(&self, path: &Path) -> io::Result<Walk<Self::Dir>>;
-    fn make_dir(&self, path: &Path) -> io::Result<()>;
+    /// Makes the store directory `name` in `parent`, the parent that a walk handed on, and
+    /// no other step.
+    fn make_dir(&self, parent: &Self::Dir, name: &OsStr) -> io::Result<()>;
+    /// Whether the system says, by its own code, that the entry was not there.
+    fn is_absent(&self, error: &io::Error) -> bool;
     fn exists(&self, dir: &Self::Dir, name: &str) -> io::Result<bool>;
     fn open_item(&self, dir: &Self::Dir, name: &str) -> io::Result<Opened<Self::Item>>;
     fn item_meta(&self, item: &Self::Item) -> io::Result<Meta>;
@@ -129,11 +141,16 @@ pub(crate) enum Rules {
 
 impl Rules {
     pub(crate) fn ancestor(self, meta: &Meta, user: u32) -> Option<Locked> {
-        if meta.kind != EntryKind::Directory {
-            return Some(Locked::Ancestor);
+        let another = meta.owner != 0 && meta.owner != user;
+        match meta.kind {
+            EntryKind::Directory => {}
+            EntryKind::Link if self == Rules::Private => {
+                return another.then_some(Locked::Ancestor);
+            }
+            _ => return Some(Locked::Ancestor),
         }
         if self == Rules::Private {
-            if meta.owner != 0 && meta.owner != user {
+            if another {
                 return Some(Locked::Ancestor);
             }
             if meta.mode & 0o022 != 0 && meta.mode & 0o1000 == 0 {
@@ -210,7 +227,6 @@ impl std::fmt::Display for Code {
 
 impl std::error::Error for Code {}
 
-#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn fault_with(code: i32) -> io::Error {
     io::Error::other(Code(code))
 }
@@ -268,8 +284,13 @@ impl From<Stop> for Delete {
     }
 }
 
+enum Reached<D> {
+    Dir(D),
+    Absent(D),
+}
+
 impl<F: Fs, C: Codec> Item<F, C> {
-    fn place(&self) -> Result<Option<F::Dir>, Stop> {
+    fn place(&self) -> Result<Reached<F::Dir>, Stop> {
         let walk = self.fs.walk(&self.dir).map_err(|error| Stop::of(&error))?;
         let user = self.fs.user();
         for meta in &walk.ancestors {
@@ -278,11 +299,14 @@ impl<F: Fs, C: Codec> Item<F, C> {
             }
         }
         match walk.last {
-            Last::Absent => Ok(None),
+            Last::Absent(parent) => Ok(Reached::Absent(parent)),
+            Last::Missing(code) => Err(Stop::Fault(Fault {
+                code: i64::from(code),
+            })),
             Last::NotADirectory => Err(Stop::Locked(Locked::NotADirectory)),
             Last::Dir(meta, dir) => match self.rules.dir(&meta, user) {
                 Some(locked) => Err(Stop::Locked(locked)),
-                None => Ok(Some(dir)),
+                None => Ok(Reached::Dir(dir)),
             },
         }
     }
@@ -314,8 +338,8 @@ impl<F: Fs, C: Codec> Item<F, C> {
 
     pub(crate) fn read(&self) -> Read {
         let dir = match self.place() {
-            Ok(Some(dir)) => dir,
-            Ok(None) => return Read::NotStored,
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(_)) => return Read::NotStored,
             Err(stop) => return stop.into(),
         };
         let (mut item, meta) = match self.open(&dir) {
@@ -343,14 +367,18 @@ impl<F: Fs, C: Codec> Item<F, C> {
 
     pub(crate) fn write(&self, secret: &Secret) -> Write {
         let dir = match self.place() {
-            Ok(Some(dir)) => dir,
-            Ok(None) => {
-                if let Err(error) = self.fs.make_dir(&self.dir) {
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(parent)) => {
+                let Some(last) = self.dir.file_name() else {
+                    return Write::Fault(Fault { code: -1 });
+                };
+                if let Err(error) = self.fs.make_dir(&parent, last) {
                     return Stop::of(&error).into();
                 }
+                drop(parent);
                 match self.place() {
-                    Ok(Some(dir)) => dir,
-                    Ok(None) => return Write::Fault(Fault { code: -1 }),
+                    Ok(Reached::Dir(dir)) => dir,
+                    Ok(Reached::Absent(_)) => return Write::Fault(Fault { code: -1 }),
                     Err(stop) => return stop.into(),
                 }
             }
@@ -397,8 +425,8 @@ impl<F: Fs, C: Codec> Item<F, C> {
 
     pub(crate) fn delete(&self) -> Delete {
         let dir = match self.place() {
-            Ok(Some(dir)) => dir,
-            Ok(None) => return Delete::NotStored,
+            Ok(Reached::Dir(dir)) => dir,
+            Ok(Reached::Absent(_)) => return Delete::NotStored,
             Err(stop) => return stop.into(),
         };
         match self.open(&dir) {
@@ -408,7 +436,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
         match self.fs.remove(&dir, self.name.as_str()) {
             Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Delete::NotStored,
+            Err(error) if self.fs.is_absent(&error) => return Delete::NotStored,
             Err(error) => return Stop::of(&error).into(),
         }
         match self.fs.sync_dir(&dir) {

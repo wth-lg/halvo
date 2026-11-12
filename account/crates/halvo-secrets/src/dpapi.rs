@@ -2,7 +2,7 @@ use crate::answer::{Fault, Locked};
 use crate::place::{fault_with, Codec, EntryKind, Fs, Last, Meta, Opened, Published, Sealed, Walk};
 use crate::secret::wipe_raw;
 use crate::security::{make_store_dir, open_dir_following, owner_of, user_sid};
-use crate::windows_place::{is_absent, owner_is_trusted};
+use crate::windows_place::{is_absent, owner_is_trusted, store_dir_gone, Gone, PATH_NOT_FOUND};
 use crate::{Secret, MAX_SECRET_LEN};
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
@@ -76,15 +76,38 @@ impl Fs for WindowsFs {
 
     fn walk(&self, path: &Path) -> io::Result<Walk<PathBuf>> {
         reachable_root(path)?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
         let metadata = match fs::metadata(path) {
             Ok(metadata) => metadata,
-            Err(error) if is_absent(error.raw_os_error()) => {
-                return Ok(Walk {
-                    ancestors: Vec::new(),
-                    last: Last::Absent,
-                })
+            Err(error) => {
+                let gone = store_dir_gone(
+                    error.raw_os_error(),
+                    || {
+                        fs::symlink_metadata(path)
+                            .map(|_| ())
+                            .map_err(|e| e.raw_os_error())
+                    },
+                    || {
+                        fs::metadata(parent)
+                            .map(|meta| meta.is_dir())
+                            .map_err(|e| e.raw_os_error())
+                    },
+                );
+                return match gone {
+                    Gone::Absent => Ok(Walk {
+                        ancestors: Vec::new(),
+                        last: Last::Absent(parent.to_path_buf()),
+                    }),
+                    Gone::Missing => Ok(Walk {
+                        ancestors: Vec::new(),
+                        last: Last::Missing(PATH_NOT_FOUND),
+                    }),
+                    Gone::Fault(code) => Err(fault_with(code)),
+                    Gone::AsIs => Err(error),
+                };
             }
-            Err(error) => return Err(error),
         };
         let mut meta = meta_of(&metadata);
         if meta.kind != EntryKind::Directory {
@@ -104,11 +127,12 @@ impl Fs for WindowsFs {
         })
     }
 
-    fn make_dir(&self, path: &Path) -> io::Result<()> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        make_store_dir(path, &user_sid()?)
+    fn make_dir(&self, parent: &PathBuf, name: &OsStr) -> io::Result<()> {
+        make_store_dir(&parent.join(name), &user_sid()?)
+    }
+
+    fn is_absent(&self, error: &io::Error) -> bool {
+        is_absent(error.raw_os_error())
     }
 
     fn exists(&self, dir: &PathBuf, name: &str) -> io::Result<bool> {
