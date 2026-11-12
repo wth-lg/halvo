@@ -2,6 +2,8 @@
 //! the release data, with no allocation per round, so that the peak of its process bounds what the
 //! router adds to a process that links it.
 
+#![deny(unsafe_code)]
+
 use std::hint::black_box;
 use std::io::Write;
 
@@ -166,7 +168,8 @@ fn printable(word: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use std::alloc::{GlobalAlloc, Layout, System};
-    use std::cell::Cell;
+    use std::process::Command;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use halvo_route::policy::{Basis, PickCell, Row};
     use halvo_route::tier::Level;
@@ -175,15 +178,18 @@ mod tests {
 
     const HOSTED_CELLS: usize = 30;
 
+    const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
+
     struct Counting;
 
-    thread_local! {
-        static ALLOCATIONS: Cell<u64> = const { Cell::new(0) };
-    }
+    static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
+    static BYTES: AtomicU64 = AtomicU64::new(0);
 
+    #[allow(unsafe_code)]
     unsafe impl GlobalAlloc for Counting {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            let _ = ALLOCATIONS.try_with(|count| count.set(count.get() + 1));
+            ALLOCATIONS.fetch_add(1, Ordering::SeqCst);
+            BYTES.fetch_add(layout.size() as u64, Ordering::SeqCst);
             System.alloc(layout)
         }
 
@@ -195,10 +201,32 @@ mod tests {
     #[global_allocator]
     static COUNTING: Counting = Counting;
 
-    fn allocations<T>(work: impl FnOnce() -> T) -> (u64, T) {
-        let before = ALLOCATIONS.with(Cell::get);
+    fn allocations<T>(work: impl FnOnce() -> T) -> ((u64, u64), T) {
+        let before = (
+            ALLOCATIONS.load(Ordering::SeqCst),
+            BYTES.load(Ordering::SeqCst),
+        );
         let held = work();
-        (ALLOCATIONS.with(Cell::get) - before, held)
+        let after = (
+            ALLOCATIONS.load(Ordering::SeqCst),
+            BYTES.load(Ordering::SeqCst),
+        );
+        ((after.0 - before.0, after.1 - before.1), held)
+    }
+
+    fn in_a_child_alone(name: &str) -> bool {
+        if std::env::var_os(CHILD).is_some() {
+            return true;
+        }
+        let output = Command::new(std::env::current_exe().expect("the test binary"))
+            .args(["--exact", name, "--test-threads", "1", "--nocapture"])
+            .env(CHILD, "1")
+            .output()
+            .expect("the test binary runs");
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "{text}");
+        assert!(text.contains("test result: ok. 1 passed"), "{text}");
+        false
     }
 
     fn hosted_policy() -> Policy {
@@ -242,6 +270,9 @@ mod tests {
 
     #[test]
     fn probe_allocates_nothing_per_round() {
+        if !in_a_child_alone("probe::tests::probe_allocates_nothing_per_round") {
+            return;
+        }
         let data = Data::release();
         assert!(run(&data, 1).ok);
         let one = allocations(|| run(&data, 1));
@@ -288,9 +319,20 @@ mod tests {
     }
 
     #[test]
-    fn the_count_sees_an_allocation_of_this_thread() {
+    fn the_count_sees_allocations_of_every_thread() {
+        if !in_a_child_alone("probe::tests::the_count_sees_allocations_of_every_thread") {
+            return;
+        }
         let (count, _) = allocations(|| std::hint::black_box(Box::new(1_u64)) == Box::new(1));
-        assert_eq!(count, 2);
+        assert_eq!(count, (2, 16));
+        let (count, _) = allocations(|| {
+            std::thread::scope(|scope| {
+                scope
+                    .spawn(|| std::hint::black_box(vec![0_u8; 4096]))
+                    .join()
+            })
+        });
+        assert!(count.0 >= 1 && count.1 >= 4096, "{count:?}");
     }
 
     #[test]
