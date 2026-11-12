@@ -261,15 +261,16 @@ test('server: binds 127.0.0.1 alone', async () => {
   }
 });
 
-test('server: ends with status 0 on SIGTERM and on SIGINT', { skip: process.platform === 'win32' && 'Windows has no signal that a process can handle (contracts.md C11.7)' }, async () => {
+test('server: ends on SIGTERM and on SIGINT, with status 0 where a process can handle the signal', async () => {
   const dir = scratch();
   const files = writeSites(dir, [NEWS]);
   for (const signal of ['SIGTERM', 'SIGINT']) {
     const { child, port } = await start(['--port', '0', ...files]);
     await get(port, '/home', `acorn-news.test:${port}`, 'GET', '');
     const ended = await stop(child, signal);
-    console.log(`signal ${signal}: code=${ended.code}`);
-    assert.deepEqual(ended, { code: 0, signal: null });
+    console.log(`signal ${signal}: code=${ended.code} ended=true`);
+    if (process.platform === 'win32') assert.ok(ended.code !== null || ended.signal !== null);
+    else assert.deepEqual(ended, { code: 0, signal: null });
   }
 });
 
