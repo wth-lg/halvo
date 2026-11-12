@@ -28,7 +28,8 @@ pub enum Method {
     Agents,
     /// `Owner::send`.
     Send,
-    /// `Owner::send` with the body `end_run` alone.
+    /// `Owner::send` with the body `end_run` alone, of a run whose workflow the owner's list
+    /// holds: for a run of a removed workflow the owner answers `no_workflow` first.
     EndRun,
     /// `Owner::send` with the body `start_run` alone.
     StartRun,
@@ -231,6 +232,17 @@ impl<C> Ports<C> {
         {
             a.last = Some(run);
         }
+    }
+
+    /// Whether `run` is a run of a workflow that the owner's list no longer holds: the owner
+    /// removed every row that names the workflow and refuses a body of it with `no_workflow`
+    /// (I5.7, I7.2), before an answer of the test's own refusal of `end_run`.
+    fn removed_run(&self, run: &RunId) -> bool {
+        let workflow = self.events.borrow().iter().find_map(|e| match &e.what {
+            What::RunStarted { run: r, .. } if r == run => Some(e.workflow.clone()),
+            _ => None,
+        });
+        workflow.is_some_and(|w| !self.workflows.borrow().iter().any(|x| x.id() == &w))
     }
 
     fn end_in_store(&self, run: &RunId) {
@@ -599,7 +611,12 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         let call = Call::Send(body.clone());
         self.checked(Method::Send, &call)?;
         match body {
-            Body::EndRun { .. } => self.checked(Method::EndRun, &call)?,
+            Body::EndRun { run } => {
+                if self.removed_run(run) {
+                    return Err(self.note(call, refusal("no_workflow")));
+                }
+                self.checked(Method::EndRun, &call)?
+            }
             Body::StartRun { .. } => self.checked(Method::StartRun, &call)?,
             _ => {}
         }

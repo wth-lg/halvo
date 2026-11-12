@@ -205,6 +205,30 @@ fn the_owner_can_refuse_the_body_start_run_alone_and_notes_the_refused_send() {
 }
 
 #[test]
+fn the_owner_refuses_the_end_run_of_a_run_whose_workflow_it_removed_with_no_workflow() {
+    let p: Ports<Config> = Ports::new(0, 0);
+    listed(&p);
+    let started = What::RunStarted {
+        run: run(1),
+        trigger: Trigger::Person,
+        slot: None,
+    };
+    p.log(&[event(1, started)]).unwrap();
+    p.refuse(Method::EndRun, PortError::NoService);
+    assert_eq!(
+        p.send(&Body::EndRun { run: run(1) }),
+        Err(PortError::NoService),
+        "the owner holds the workflow: the test's refusal answers"
+    );
+    p.workflows.borrow_mut().clear();
+    assert_eq!(
+        p.send(&Body::EndRun { run: run(1) }),
+        Err(refused("no_workflow")),
+        "the owner removed every row of the workflow (I7.2)"
+    );
+}
+
+#[test]
 fn the_memory_policy_answers_for_the_class_of_the_record_alone() {
     let policy: Policy<Config> = Policy::new(&[(Autonomy::DraftAndConfirm, Class::Send, true)]);
     let c = config("draft_and_confirm");
