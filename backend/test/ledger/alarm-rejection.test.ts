@@ -67,9 +67,11 @@ beforeEach(() => {
   lines = [];
   rejections = [];
   process.on("unhandledRejection", onRejection);
-  vi.spyOn(console, "log").mockImplementation((line: unknown) => {
-    lines.push(String(line));
-  });
+  for (const method of ["log", "error", "warn", "info", "debug"] as const) {
+    vi.spyOn(console, method).mockImplementation((line: unknown) => {
+      lines.push(`${method} ${String(line)}`);
+    });
+  }
 });
 afterEach(() => {
   process.off("unhandledRejection", onRejection);
@@ -78,7 +80,7 @@ afterEach(() => {
 });
 
 for (const fault of faults) {
-  test(`unit 4.7, ruling B-51, on workerd: when the promise of the host's alarm call rejects after the dispatch step has committed (${fault.name}), the gateway gets go, the hold keeps the mark, the upstream is called once and the hold settles at the reported usage; the object is not reset, nothing calls the alarm again, and the rejection reaches the isolate unhandled while the app logs no line`, async () => {
+  test(`unit 4.7, ruling B-51, on workerd: when the promise of the host's alarm call rejects after the dispatch step has committed (${fault.name}), the gateway gets go, the hold keeps the mark, the upstream is called once and the hold settles at the reported usage with the period totals to match; the object is not reset, nothing calls the alarm again, the next request on the object gets go and settles, and the rejection reaches the isolate unhandled while the app writes no console line`, async () => {
     const stub = bindings.ACCOUNT.get(bindings.ACCOUNT.idFromName(fault.account));
     const hash = await credentialHash(CREDENTIAL);
     let during = "";
@@ -104,7 +106,7 @@ for (const fault of faults) {
       const real = storage.setAlarm as unknown as SetAlarm;
       (storage as unknown as { setAlarm: SetAlarm }).setAlarm = function (this: DurableObjectStorage, at: unknown, options?: unknown) {
         alarmCalls.push(during);
-        if (during !== "dispatch") return real.call(this, at, options);
+        if (during !== "dispatch" || faulted.length > 0) return real.call(this, at, options);
         const promise = fault.call(real, this, at, options);
         faulted.push({ during, promise });
         return promise;
@@ -153,40 +155,55 @@ for (const fault of faults) {
       UPSTREAM_DEADLINE_MS: "100",
       DISPATCH_MARGIN_MS: "400",
     } as unknown as Env;
-    const waits: Promise<unknown>[] = [];
-    const ctx = { waitUntil: (promise: Promise<unknown>) => waits.push(promise) } as unknown as ExecutionContext;
+    const send = async (requestId: string) => {
+      const waits: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (promise: Promise<unknown>) => waits.push(promise) } as unknown as ExecutionContext;
+      const response = await chat(
+        new Request("http://backend.test/v1/chat", {
+          method: "POST",
+          headers: { "halvo-account": fault.account, authorization: `Bearer ${CREDENTIAL}`, "content-type": "application/json", "x-request-id": requestId },
+          body: BODY,
+        }),
+        gatewayEnv,
+        ctx,
+      );
+      const text = await response.text();
+      await Promise.all(waits);
+      return { status: response.status, text };
+    };
     const requestId = `alarm-rejection-${fault.reason}`;
-    const response = await chat(
-      new Request("http://backend.test/v1/chat", {
-        method: "POST",
-        headers: { "halvo-account": fault.account, authorization: `Bearer ${CREDENTIAL}`, "content-type": "application/json", "x-request-id": requestId },
-        body: BODY,
-      }),
-      gatewayEnv,
-      ctx,
-    );
-    const text = await response.text();
-    await Promise.all(waits);
+    const nextId = `after-rejection-${fault.reason}`;
+    const sent = await send(requestId);
     await vi.waitFor(() => expect(rejections).toHaveLength(1));
+    const next = await send(nextId);
 
-    expect(response.status).toBe(200);
-    expect(text).toContain("[DONE]");
-    expect(calls).toEqual(["reserve", "dispatch", "settle"]);
-    expect(dispatched).toEqual(["go"]);
-    expect(upstreamCalls).toBe(1);
-    expect(alarmCalls).toEqual(["reserve", "dispatch"]);
+    expect(sent.status).toBe(200);
+    expect(sent.text).toContain("[DONE]");
+    expect(next.status).toBe(200);
+    expect(next.text).toContain("[DONE]");
+    expect(calls).toEqual(["reserve", "dispatch", "settle", "reserve", "dispatch", "settle"]);
+    expect(dispatched).toEqual(["go", "go"]);
+    expect(upstreamCalls).toBe(2);
+    expect(alarmCalls).toEqual(["reserve", "dispatch", "reserve", "dispatch"]);
     expect(faulted.map((each) => each.during)).toEqual(["dispatch"]);
     expect(rejections.map((each) => each.name)).toEqual([fault.reason]);
     expect(rejections[0]?.promise).toBe(faulted[0]?.promise);
     expect(lines).toEqual([]);
     let after: AccountObject | null = null;
     let rows: Row[] = [];
+    let periods: Row[] = [];
     await runInDurableObject(stub, async (instance: AccountObject, state) => {
       after = instance;
-      rows = state.storage.sql.exec("SELECT state, dispatched, cost FROM ledger_holds WHERE request_id = ?", requestId).toArray() as Row[];
+      rows = state.storage.sql.exec("SELECT request_id, state, dispatched, cost FROM ledger_holds ORDER BY created_seq").toArray() as Row[];
+      periods = state.storage.sql.exec("SELECT reported, unreported, open FROM ledger_periods").toArray() as Row[];
     });
+    const cost = costOf(LOW, USAGE);
     expect(after).not.toBeNull();
     expect(after).toBe(before);
-    expect(rows).toEqual([{ state: "settled", dispatched: 1, cost: costOf(LOW, USAGE) }]);
+    expect(rows).toEqual([
+      { request_id: requestId, state: "settled", dispatched: 1, cost },
+      { request_id: nextId, state: "settled", dispatched: 1, cost },
+    ]);
+    expect(periods).toEqual([{ reported: 2 * cost, unreported: 0, open: 0 }]);
   });
 }
