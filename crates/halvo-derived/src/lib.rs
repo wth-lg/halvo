@@ -2,8 +2,10 @@
 //! The derived store of Halvo: one SQLCipher database under `derived/` of a data directory, which holds what
 //! Halvo learns from what a person does.
 
+mod batch;
 mod db;
 mod error;
+mod hash;
 mod host;
 mod sql;
 
@@ -11,6 +13,7 @@ use std::path::Path;
 
 use halvo_schema_core::kinds::KindEntry;
 
+pub use batch::CommitOutcome;
 pub use error::{Error, Fault, OpenError};
 pub use host::{Clock, DbKey, Host, IdSource};
 

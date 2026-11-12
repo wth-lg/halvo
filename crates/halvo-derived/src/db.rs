@@ -7,7 +7,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use halvo_schema_core::kinds::{self, KindEntry};
+use halvo_schema_core::ids::Position;
+use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, Params, Row};
 
 use crate::error::{db_fault, io_fault, Fault, OpenError};
@@ -118,11 +119,82 @@ impl Tx<'_> {
         Ok(doomed.len() as u64)
     }
 
+    /// Inserts one row with its source ordinals and marks its family as changed.
+    pub(crate) fn insert(&self, row: &NewRow<'_>) -> Result<i64, Fault> {
+        self.exec(
+            sql::ROW_INSERT,
+            rusqlite::params![
+                row.entry.name,
+                row.entry.family,
+                class_code(row.entry.class),
+                row.day,
+                row.expires,
+                row.workflow,
+                row.summary,
+                row.wkey,
+                row.body
+            ],
+        )?;
+        let id = self.conn.last_insert_rowid();
+        for ordinal in row.segments {
+            let ordinal = i64::try_from(*ordinal).map_err(|_| Fault::Row)?;
+            self.exec(sql::SOURCE_INSERT, [ordinal, id])?;
+        }
+        self.changed(row.entry.family);
+        Ok(id)
+    }
+
     /// Removes every evidence or support row whose summary is not stored and every row of another kind than
     /// `workflow` that names a workflow that is not stored.
     pub(crate) fn sweep(&self) -> Result<u64, Fault> {
         Ok(self.remove(sql::ORPHAN_EVIDENCE, [])? + self.remove(sql::ORPHAN_WORKFLOW, [])?)
     }
+}
+
+/// A row to insert: its kind's entry, the columns that the store's rules read, the serialized record and, for a
+/// window row, its source ordinals.
+pub(crate) struct NewRow<'a> {
+    pub(crate) entry: &'a KindEntry,
+    pub(crate) day: Option<u32>,
+    pub(crate) expires: Option<i64>,
+    pub(crate) workflow: Option<&'a str>,
+    pub(crate) summary: Option<&'a str>,
+    pub(crate) wkey: Option<&'a str>,
+    pub(crate) body: &'a str,
+    pub(crate) segments: &'a [u64],
+}
+
+pub(crate) fn class_code(class: RetentionClass) -> i64 {
+    match class {
+        RetentionClass::Window => 0,
+        RetentionClass::Bounded { .. } => 1,
+        RetentionClass::Kept => 2,
+    }
+}
+
+/// The instant and the local day of the clock when a call starts.
+#[derive(Clone, Copy)]
+pub(crate) struct Now {
+    pub(crate) now: i64,
+    pub(crate) today: i64,
+}
+
+impl Now {
+    /// A bounded row of `day` stays while today minus its day is from 0 to `days` minus 1.
+    pub(crate) fn keeps_day(self, days: u16, day: u32) -> bool {
+        (0..i64::from(days)).contains(&(self.today - i64::from(day)))
+    }
+
+    /// A window row stays while its expiry instant lies after now.
+    pub(crate) fn keeps_expiry(self, expires: i64) -> bool {
+        expires > self.now
+    }
+}
+
+/// The store id that the database is bound to, from its first commit, and the committed position.
+pub(crate) struct Meta {
+    pub(crate) store: Option<String>,
+    pub(crate) position: Option<Position>,
 }
 
 pub(crate) fn exec<P: Params>(conn: &Connection, sql: Sql, params: P) -> Result<usize, Fault> {
@@ -165,8 +237,16 @@ pub(crate) struct Db {
     pub(crate) families: Vec<&'static str>,
     pub(crate) clock: Box<dyn Clock>,
     pub(crate) paths: Paths,
+    pub(crate) site_key: [u8; 32],
     progress: Progress,
     _lock: WriterLock,
+}
+
+impl Drop for Db {
+    fn drop(&mut self) {
+        self.site_key.fill(0);
+        std::hint::black_box(&self.site_key);
+    }
 }
 
 impl Db {
@@ -212,18 +292,50 @@ impl Db {
         require(&conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))?;
         let progress = Progress::install(&mut conn, CALL_BUDGET)?;
         let families = families_of(entries);
-        let db = Db {
+        let mut db = Db {
             conn,
             entries: entries.to_vec(),
             families,
             clock,
             paths,
+            site_key: [0; 32],
             progress,
             _lock: lock,
         };
         db.schema(ids)?;
+        let site_key: Vec<u8> =
+            one(&db.conn, sql::META_SITE_KEY, [], |r| r.get(0))?.unwrap_or_default();
+        db.site_key = site_key.try_into().map_err(|_| OpenError::Schema)?;
         db.reconcile()?;
         Ok(db)
+    }
+
+    /// The instant and the local day of the clock.
+    pub(crate) fn now(&self) -> Now {
+        let now = self.clock.now();
+        Now {
+            now: now.0,
+            today: i64::from(self.clock.day(now)),
+        }
+    }
+
+    pub(crate) fn meta(&self) -> Result<Meta, Fault> {
+        let found = one(&self.conn, sql::META_READ, [], |r| {
+            Ok((
+                r.get::<_, Option<String>>(0)?,
+                r.get::<_, Option<i64>>(1)?,
+                r.get::<_, Option<i64>>(2)?,
+            ))
+        })?;
+        let (store, seg, idx) = found.ok_or(Fault::Row)?;
+        let position = match (seg, idx) {
+            (Some(seg), Some(idx)) => Some(Position {
+                seg: u64::try_from(seg).map_err(|_| Fault::Row)?,
+                idx: u64::try_from(idx).map_err(|_| Fault::Row)?,
+            }),
+            _ => None,
+        };
+        Ok(Meta { store, position })
     }
 
     /// Starts a call of the library: the progress handler interrupts a statement of this call once its budget is

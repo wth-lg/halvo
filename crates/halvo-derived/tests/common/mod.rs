@@ -6,8 +6,13 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use halvo_derived::{Clock, DbKey, Host, IdSource, OpenError, Store};
+use halvo_schema_core::category::SeedCategory;
+use halvo_schema_core::ids::{Position, StoreId, SummaryId};
 use halvo_schema_core::kinds::{self, KindEntry};
-use halvo_schema_core::record::Instant;
+use halvo_schema_core::record::{
+    Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Tagged, Text,
+};
+use halvo_schema_core::site::{AppId, Domain, ObservedSite, SiteToken};
 use halvo_sqlcipher::rusqlite::Connection;
 
 pub const DAY_NS: i64 = 86_400_000_000_000;
@@ -116,10 +121,93 @@ pub fn open_with(
     )
 }
 
+pub fn open_with_ids(scratch: &Scratch, clock: &TestClock, seed: u64) -> Result<Store, OpenError> {
+    Store::open(
+        scratch.path(),
+        &key(),
+        &registry(),
+        Host::new(Box::new(clock.clone())),
+        &mut Seq(seed),
+    )
+}
+
 pub fn raw(scratch: &Scratch) -> Connection {
     let conn = Connection::open(scratch.db()).unwrap();
     conn.busy_timeout(std::time::Duration::ZERO).unwrap();
     conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", "07".repeat(32)))
         .unwrap();
     conn
+}
+
+pub fn bodies(scratch: &Scratch, kind: &str) -> Vec<String> {
+    let conn = raw(scratch);
+    let mut statement = conn
+        .prepare("SELECT body FROM rows WHERE kind = ?1 ORDER BY id")
+        .unwrap();
+    statement
+        .query_map([kind], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+pub fn count(scratch: &Scratch, sql: &str) -> i64 {
+    raw(scratch).query_row(sql, [], |r| r.get(0)).unwrap()
+}
+
+pub fn store_id(n: u8) -> StoreId {
+    StoreId::parse(&format!("{n:032x}")).unwrap()
+}
+
+pub fn summary_id(n: u64) -> SummaryId {
+    SummaryId::parse(&format!("{n:032x}")).unwrap()
+}
+
+pub fn position(seg: u64, idx: u64) -> Position {
+    Position { seg, idx }
+}
+
+pub fn domain(name: &str) -> Option<ObservedSite> {
+    Some(ObservedSite::AddressField {
+        domain: Domain::parse(name).unwrap(),
+    })
+}
+
+pub fn token(name: &str) -> Option<ObservedSite> {
+    Some(ObservedSite::Title {
+        token: SiteToken::parse(name).unwrap(),
+    })
+}
+
+pub const FAR: i64 = 9_000_000_000_000_000_000;
+
+/// An episode of the seed category `utility_bill_payment` in the app `com.example.browser`, begun on `day`, with
+/// one segment `n`, an expiry far ahead and one observed step.
+pub fn episode(n: u64, day: u32, site: Option<ObservedSite>) -> Episode {
+    let start = i64::from(day) * DAY_NS + 64_800_000_000_000 + i64::try_from(n).unwrap();
+    Episode {
+        id: summary_id(n),
+        category: SeedCategory::UtilityBillPayment,
+        site,
+        app: AppId::parse("com.example.browser").unwrap(),
+        day,
+        part: Part::Evening,
+        minutes: 5,
+        keys: None,
+        pointer: None,
+        segments: vec![Ordinal::new(n).unwrap()],
+        expires: Instant(FAR),
+        start: Instant(start),
+        end: Instant(start + 1_000),
+        steps: vec![ObservedStep {
+            app: None,
+            title: Some(Tagged {
+                value: Text::parse("Pay bill").unwrap(),
+                layer: FloorLayer::Floor,
+            }),
+            input: None,
+            site: None,
+            text: None,
+        }],
+    }
 }

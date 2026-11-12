@@ -52,4 +52,11 @@ catalogue! {
     ORPHAN_WORKFLOW = "SELECT id, family FROM rows WHERE workflow IS NOT NULL AND kind <> 'workflow' AND NOT EXISTS \
         (SELECT 1 FROM rows AS w WHERE w.workflow = rows.workflow AND w.kind = 'workflow')";
     ROW_DELETE = "DELETE FROM rows WHERE id = ?1";
+    META_READ = "SELECT store, seg, idx FROM meta WHERE one = 1";
+    META_SITE_KEY = "SELECT site_key FROM meta WHERE one = 1";
+    META_POSITION = "UPDATE meta SET store = ?1, seg = ?2, idx = ?3 WHERE one = 1";
+    SUMMARY_STORED = "SELECT id FROM rows WHERE summary = ?1 AND kind = 'summary'";
+    ROW_INSERT = "INSERT INTO rows (kind, family, class, day, expires, workflow, summary, wkey, body) \
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)";
+    SOURCE_INSERT = "INSERT INTO sources (ordinal, row) VALUES (?1, ?2)";
 }
