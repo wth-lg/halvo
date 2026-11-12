@@ -1,10 +1,3 @@
-//! Functional checks of the Windows capture sources on a real Windows desktop.
-//!
-//! Every test is ignored, so `cargo test --workspace` runs none of them.
-//! `scripts/r1/ci.d/50-windows-functional.sh` runs each test by name in its own
-//! process with `--ignored --exact --nocapture` and judges it by its exit status
-//! and its output. A test builds every source it needs in its own process and
-//! prints `TF <test> ...` lines that hold counts, sizes and booleans only.
 #![cfg(target_os = "windows")]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
@@ -79,8 +72,6 @@ const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
 const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
 const FIXED_TITLE: &str = "halvo-verify-second-window-with-a-fixed-title";
 const MAGENTA: u32 = 0x00FF_00FF;
-// The 10 s wait for a first frame is the wait of c2 at 796923f; every run of it
-// on windows-2025 saw the first frame inside it (reports/verifier-windows-functional-1.md).
 const FIRST_FRAME_WAIT: Duration = Duration::from_secs(10);
 const BOUNDS_FILE: &str = "docs/baseline/r1-gate-bounds.txt";
 
@@ -2107,8 +2098,6 @@ mod known_defect {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
     use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, ES_PASSWORD};
 
-    // The 10 s stop deadline is the one of RR-windows-11 proof 1 in
-    // evidence/eng-manager/rr-delta/windows.md.
     const STOP_DEADLINE: Duration = Duration::from_secs(10);
 
     fn title_len(hwnd: HWND) -> i32 {
