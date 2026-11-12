@@ -41,8 +41,13 @@ fn the_file_registers_the_two_kinds_of_origin_capture_of_the_family_agent() {
     assert_eq!(config.class, RetentionClass::Kept);
     let run = entry("agent_run");
     assert_eq!(run.class, RetentionClass::Bounded { days: 93 });
-    for (i, kind) in executable::KINDS.iter().enumerate() {
-        let origin = if i < 2 { Origin::Capture } else { Origin::Own };
+    for kind in executable::KINDS {
+        let capture = ["agent_config", "agent_run"].contains(&kind.name);
+        let origin = if capture {
+            Origin::Capture
+        } else {
+            Origin::Own
+        };
         assert_eq!(kind.origin, origin, "{}", kind.name);
         assert_eq!(kind.family, "agent", "{}", kind.name);
         assert_eq!(kind.workflow_key, Some("workflow"), "{}", kind.name);
