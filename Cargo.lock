@@ -1461,6 +1461,7 @@ dependencies = [
  "core-graphics",
  "dispatch2",
  "getrandom 0.2.17",
+ "halvo-control",
  "halvo-sqlcipher",
  "libc",
  "objc2",
@@ -1481,6 +1482,18 @@ dependencies = [
  "windows-sys 0.61.2",
  "winreg",
  "zeroize",
+]
+
+[[package]]
+name = "halvo-control"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "windows",
 ]
 
 [[package]]
