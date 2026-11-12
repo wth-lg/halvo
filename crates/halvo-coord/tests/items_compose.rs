@@ -269,7 +269,7 @@ fn a_confirmation_of_the_page_shows_its_fields_and_the_many_controls() {
         1,
         vec![
             effect(1, Class::Send, support::fields_of(Class::Send)),
-            effect(2, Class::Delete, support::fields_of(Class::Delete)),
+            effect(2, Class::Send, support::fields_of(Class::Send)),
         ],
     );
     let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
@@ -285,14 +285,16 @@ fn a_confirmation_of_the_page_shows_its_fields_and_the_many_controls() {
         "field.send.to",
         "field.send.subject",
         "field.send.body",
-        "field.delete.items",
+        "field.send.to",
+        "field.send.subject",
+        "field.send.body",
     ]
     .iter()
     .map(|k| words::text(k, &[]).unwrap())
     .collect();
     assert_eq!(labels, want);
     let froms: Vec<_> = item.fields().iter().map(|f| f.from.name()).collect();
-    assert_eq!(froms, ["site", "site", "agent", "site"]);
+    assert_eq!(froms, ["site", "site", "agent", "site", "site", "agent"]);
     let choices: Vec<_> = item
         .choices()
         .iter()
@@ -330,7 +332,7 @@ fn a_native_confirmation_has_the_one_choice_present_and_names_the_native_class()
         1,
         1,
         vec![
-            effect(1, Class::Send, support::fields_of(Class::Send)),
+            effect(1, Class::Payment, support::fields_of(Class::Payment)),
             payment,
         ],
     );
@@ -357,7 +359,7 @@ fn a_native_confirmation_has_the_one_choice_present_and_names_the_native_class()
     assert_eq!(last.label, words::text("confirm.new_site", &[]).unwrap());
     assert_eq!(last.value, vec!["https://pay.example:443".to_owned()]);
     assert_eq!(last.from.name(), "halvo");
-    assert_eq!(item.fields().len(), 3 + 4 + 1);
+    assert_eq!(item.fields().len(), 4 + 4 + 1);
     all_texts_are_sentences(&item, 2);
 }
 
@@ -642,4 +644,150 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
         let composed = composed.unwrap_or_else(|e| panic!("{state}: {e}"));
         assert_eq!(&serde_json::to_value(&composed).unwrap(), want, "{state}");
     }
+}
+
+/// The text of a key of the table with the count.
+fn counted(key: &str, count: usize) -> String {
+    words::text(key, &[("count", &count.to_string())]).unwrap()
+}
+
+/// The labels of the fields of an item, each with whether its value is empty and its source.
+fn lines(item: &Item) -> Vec<(String, bool, &'static str)> {
+    item.fields()
+        .iter()
+        .map(|f| (f.label.clone(), f.value.is_empty(), f.from.name()))
+        .collect()
+}
+
+#[test]
+fn refusal_mixed_request() {
+    let ask = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, support::fields_of(Class::Send)),
+            effect(2, Class::Delete, support::fields_of(Class::Delete)),
+        ],
+    );
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+    assert_eq!(item.title(), counted("confirm.mixed.title", 2));
+    let choices: Vec<_> = item
+        .choices()
+        .iter()
+        .map(|c| (c.choice.name(), c.text.clone(), c.safe.name()))
+        .collect();
+    assert_eq!(
+        choices,
+        vec![
+            ("reject", counted("confirm.mixed.reject", 2), "yes"),
+            ("allow", counted("confirm.mixed.allow", 2), "no"),
+        ]
+    );
+    let sending = ["send"];
+    let removing = ["remov", "keep"];
+    let mut controls = vec![item.title().to_lowercase()];
+    controls.extend(item.choices().iter().map(|c| c.text.to_lowercase()));
+    for text in &controls {
+        for word in sending.iter().chain(&removing) {
+            assert!(!text.contains(word), "{text:?} holds {word:?}");
+        }
+    }
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    assert_eq!(
+        lines(&item),
+        vec![
+            (t("confirm.send.action"), true, "halvo"),
+            (t("field.send.to"), false, "site"),
+            (t("field.send.subject"), false, "site"),
+            (t("field.send.body"), false, "agent"),
+            (t("confirm.delete.action"), true, "halvo"),
+            (t("field.delete.items"), false, "site"),
+        ]
+    );
+    let send_line = t("confirm.send.action").to_lowercase();
+    let delete_line = t("confirm.delete.action").to_lowercase();
+    assert!(send_line.contains("send") && !removing.iter().any(|w| send_line.contains(w)));
+    assert!(delete_line.contains("remov") && !send_line.contains("remov"));
+    assert!(!delete_line.contains("send"));
+    all_texts_are_sentences(&item, 2);
+}
+
+#[test]
+fn a_request_of_two_classes_names_none_and_each_effect_names_its_action() {
+    let classes = halvo_coord::items::CONFIRM_CLASSES;
+    for a in classes {
+        for b in classes {
+            let ask = ask_of(
+                1,
+                1,
+                vec![
+                    effect(1, a, support::fields_of(a)),
+                    effect(2, b, support::fields_of(b)),
+                    effect(3, a, support::fields_of(a)),
+                ],
+            );
+            let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+            let action =
+                |c: Class| words::text(&format!("confirm.{}.action", c.name()), &[]).unwrap();
+            let actions: Vec<String> = item
+                .fields()
+                .iter()
+                .filter(|f| f.value.is_empty())
+                .map(|f| f.label.clone())
+                .collect();
+            let mut class_texts = Vec::new();
+            for c in classes {
+                for key in ["title", "allow", "reject"] {
+                    class_texts
+                        .push(words::text(&format!("confirm.{}.{key}", c.name()), &[]).unwrap());
+                }
+                for key in ["allow_many", "reject_many"] {
+                    class_texts.push(counted(&format!("confirm.{}.{key}", c.name()), 3));
+                }
+            }
+            if a == b {
+                assert_eq!(
+                    item.title(),
+                    words::text(&format!("confirm.{}.title", a.name()), &[]).unwrap()
+                );
+                assert!(actions.is_empty(), "{a}: one class has no action line");
+            } else {
+                assert_eq!(item.title(), counted("confirm.mixed.title", 3), "{a} {b}");
+                assert_eq!(actions, vec![action(a), action(b), action(a)], "{a} {b}");
+                assert!(!class_texts.contains(&item.title().to_owned()), "{a} {b}");
+                for c in item.choices() {
+                    assert!(!class_texts.contains(&c.text), "{a} {b}: {}", c.text);
+                }
+                let n = |c: Class| support::fields_of(c).len();
+                assert_eq!(item.fields().len(), 3 + 2 * n(a) + n(b), "{a} {b}");
+                all_texts_are_sentences(&item, 3);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_mixed_request_with_a_native_class_has_the_one_choice_present_and_names_no_class() {
+    let mut payment = effect(2, Class::Payment, support::fields_of(Class::Payment));
+    payment.new_origin = Some(Origin::parse("https://pay.example:443").unwrap());
+    let ask = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, support::fields_of(Class::Send)),
+            payment,
+        ],
+    );
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+    assert_eq!(item.presenter().map(|p| p.name()), Some("native"));
+    assert_eq!(item.title(), counted("confirm.mixed.title", 2));
+    let choices: Vec<_> = item.choices().iter().map(|c| c.choice.name()).collect();
+    assert_eq!(choices, ["present"]);
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    let labels: Vec<String> = item.fields().iter().map(|f| f.label.clone()).collect();
+    assert_eq!(labels[0], t("confirm.send.action"));
+    assert_eq!(labels[4], t("confirm.payment.action"));
+    assert_eq!(labels[9], t("confirm.new_site"));
+    assert_eq!(item.fields().len(), 1 + 3 + 1 + 4 + 1);
+    all_texts_are_sentences(&item, 2);
 }
