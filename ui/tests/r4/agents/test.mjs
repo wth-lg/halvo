@@ -83,6 +83,15 @@ const settleCalls = async (h) => {
   await h.page.waitForTimeout(300);
   await frames(h);
 };
+async function answered(h, out, n) {
+  let steady = 0;
+  for (let i = 0; i < 200 && steady < 2; i++) {
+    await h.page.waitForTimeout(50);
+    steady = calls(out).length >= n && h.inflight === 0 ? steady + 1 : 0;
+  }
+  await frames(h);
+}
+
 const callOf = (row, control) => ({ call: 'agents_control', args: { agent: row.agent, action: control } });
 const focusOf = (h) => h.page.evaluate(() => [document.activeElement.getAttribute('data-act'), document.activeElement.getAttribute('data-param')]);
 const cardsOf = (h) => h.page.evaluate(() => [...document.querySelectorAll('.r4a-card')].map((c) => c.id));
@@ -276,12 +285,12 @@ for (const s of STATES) {
       for (const r of state.snapshot.rows) {
         for (const c of r.controls.filter((x) => ACTING.includes(x.control))) {
           await act(h, { act: c.control, param: r.agent });
-          await settleCalls(h);
           wanted.push(callOf(r, c.control));
+          await answered(h, out, wanted.length);
         }
         await act(h, { act: 'open_card', param: r.agent });
-        await settleCalls(h);
         wanted.push({ call: 'agents_card', args: { agent: r.agent } });
+        await answered(h, out, wanted.length);
         if (state.card && state.card.agent === r.agent) await act(h, { act: 'close_card', param: r.agent });
       }
     });
@@ -513,9 +522,9 @@ if (want('ten')) {
     const out = outDir();
     await withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
       await act(h, { act: 'run_now', param: A.agent });
-      await settleCalls(h);
+      await answered(h, out, 1);
       await act(h, { act: 'run_now', param: A.agent });
-      await settleCalls(h);
+      await answered(h, out, 2);
     });
     return [same(calls(out), [callOf(A, 'run_now'), callOf(A, 'run_now')]), calls(out)];
   });
