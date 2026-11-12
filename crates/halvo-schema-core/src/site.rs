@@ -297,7 +297,7 @@ macro_rules! conversion_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::{Domain, SiteDomain};\n",
+            "use halvo_schema_core::{Domain, SiteDomain};\n",
             "let from = ",
             $from,
             "::parse(\"shop.test\").unwrap();\n",

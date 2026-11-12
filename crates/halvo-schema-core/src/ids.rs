@@ -463,7 +463,7 @@ macro_rules! store_id_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::{RequestId, StoreId};\n",
+            "use halvo_schema_core::{RequestId, StoreId};\n",
             "fn bound<T: ",
             $bound,
             ">(_: &T) {}\n",

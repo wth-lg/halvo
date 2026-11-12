@@ -98,11 +98,11 @@ pub enum ErrorName {
 /// holds a name that no file declares.
 ///
 /// ```compile_fail
-/// let name = halvo_schema::request::DeclaredName("nobody_declares_this");
+/// let name = halvo_schema_core::request::DeclaredName("nobody_declares_this");
 /// ```
 ///
 /// ```
-/// let name = halvo_schema::request::ErrorName::read("nobody_declares_this");
+/// let name = halvo_schema_core::request::ErrorName::read("nobody_declares_this");
 /// assert!(name.is_err());
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1040,10 +1040,10 @@ macro_rules! decision_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::request::{InterfaceDecision, ",
+            "use halvo_schema_core::request::{InterfaceDecision, ",
             $role,
             "};\n",
-            "use halvo_schema::{RequestId, WorkflowId};\n",
+            "use halvo_schema_core::{RequestId, WorkflowId};\n",
             "let role = ",
             $role,
             "::claim();\n",
@@ -1064,10 +1064,10 @@ macro_rules! coordinator_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::request::{CoordinatorBody, CoordinatorWrite, ",
+            "use halvo_schema_core::request::{CoordinatorBody, CoordinatorWrite, ",
             $role,
             "};\n",
-            "use halvo_schema::RequestId;\n",
+            "use halvo_schema_core::RequestId;\n",
             "#[derive(serde::Serialize, serde::Deserialize)]\n",
             "struct Probe {\n",
             "    probe: u32,\n",
@@ -1091,8 +1091,8 @@ macro_rules! analysis_conversion_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::request::{AnalysisRole, AnalysisWrite, InterfaceDecision};\n",
-            "use halvo_schema::{RequestId, StoreId};\n",
+            "use halvo_schema_core::request::{AnalysisRole, AnalysisWrite, InterfaceDecision};\n",
+            "use halvo_schema_core::{RequestId, StoreId};\n",
             "let role = AnalysisRole::claim();\n",
             "let store = StoreId::parse(\"0123456789abcdef0123456789abcdef\").unwrap();\n",
             "let write = AnalysisWrite::new(&role, RequestId::from_random([1; 16]), store);\n",
@@ -1111,8 +1111,8 @@ macro_rules! runner_conversion_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::request::{InterfaceDecision, RunnerBody, RunnerRequest, RunnerRole};\n",
-            "use halvo_schema::RequestId;\n",
+            "use halvo_schema_core::request::{InterfaceDecision, RunnerBody, RunnerRequest, RunnerRole};\n",
+            "use halvo_schema_core::RequestId;\n",
             "#[derive(serde::Serialize, serde::Deserialize)]\n",
             "struct Probe {\n",
             "    probe: u32,\n",
@@ -1137,8 +1137,8 @@ macro_rules! interface_role_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::request::{AnalysisRole, InterfaceDecision, InterfaceRole, RunnerRole};\n",
-            "use halvo_schema::{RequestId, WorkflowId};\n",
+            "use halvo_schema_core::request::{AnalysisRole, InterfaceDecision, InterfaceRole, RunnerRole};\n",
+            "use halvo_schema_core::{RequestId, WorkflowId};\n",
             "let role: InterfaceRole = ",
             $role,
             ";\n",
@@ -1157,8 +1157,8 @@ macro_rules! coordinator_role_case {
             "```",
             $fence,
             "\n",
-            "use halvo_schema::request::{AnalysisRole, CoordinatorBody, CoordinatorRole, CoordinatorWrite, RunnerRole};\n",
-            "use halvo_schema::RequestId;\n",
+            "use halvo_schema_core::request::{AnalysisRole, CoordinatorBody, CoordinatorRole, CoordinatorWrite, RunnerRole};\n",
+            "use halvo_schema_core::RequestId;\n",
             "#[derive(serde::Serialize, serde::Deserialize)]\n",
             "struct Probe {\n",
             "    probe: u32,\n",
