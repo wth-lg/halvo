@@ -103,6 +103,7 @@ colon, a comma, or an opening bracket of any kind.
 The self-test fixtures that hold each form (form: fixture...):
 FIXTURES-BEGIN
 wsl-unc: wsl-unc-dollar wsl-unc-localhost wsl-unc-forward-slashes wsl-unc-file-url wsl-unc-editor-remote
+unc-share: unc-share-users unc-share-home-dollar unc-share-in-a-diff-line
 macos-volume: macos-volume-data macos-volume-named
 file-url-host: file-url-host-localhost file-url-host-linux file-url-host-drive
 url-file-host: url-file-host-editor-link
@@ -110,10 +111,10 @@ cygwin: cygwin-drive
 wsl-mnt: wsl-mnt-drive
 git-bash: git-bash-drive git-bash-upper-drive
 windows-old: windows-old-drive windows-old-root
-windows-drive: windows-drive-backslash windows-drive-forward-slash windows-drive-lower-case windows-drive-upper-case windows-drive-json-doubled windows-drive-percent-encoded windows-drive-long-path windows-drive-name-all
-windows-root: windows-root-exact-case windows-root-backslash windows-root-unc-share
-macos: macos-after-blank macos-in-double-quotes macos-in-single-quotes macos-after-equals macos-after-colon macos-json-escaped-slash macos-percent-encoded macos-percent-encoded-lower macos-after-encoded-byte macos-after-two-periods macos-file-url macos-file-url-one-slash macos-name-with-digit macos-name-with-underscore macos-name-non-ascii macos-in-curly-quotes macos-in-guillemets macos-at-line-start macos-carriage-return macos-after-tab macos-after-bracket macos-after-scp-host macos-after-json-newline-escape macos-after-one-letter-flag
-linux: linux-home linux-home-after-colon linux-home-numeric linux-after-python-escape linux-after-one-letter-flag
+windows-drive: windows-drive-backslash windows-drive-forward-slash windows-drive-lower-case windows-drive-upper-case windows-drive-json-doubled windows-drive-percent-encoded windows-drive-long-path windows-drive-name-all windows-drive-one-letter-name-at-the-end
+windows-root: windows-root-exact-case windows-root-backslash windows-root-unc-share windows-root-one-letter-name-at-the-end
+macos: macos-after-blank macos-in-double-quotes macos-in-single-quotes macos-after-equals macos-after-colon macos-json-escaped-slash macos-percent-encoded macos-percent-encoded-lower macos-after-encoded-byte macos-after-two-periods macos-file-url macos-file-url-one-slash macos-name-with-digit macos-name-with-underscore macos-name-non-ascii macos-in-curly-quotes macos-in-guillemets macos-at-line-start macos-carriage-return macos-after-tab macos-after-bracket macos-after-scp-host macos-after-json-newline-escape macos-after-one-letter-flag macos-after-colour-escapes-of-rustc macos-after-a-colour-escape-in-json macos-after-a-colour-escape-p095 macos-after-a-colour-escape-q015 macos-after-an-osc-8-link-in-json macos-after-an-escape-written-x1b macos-after-a-long-flag macos-after-the-dev-server-prefix
+linux: linux-home linux-home-after-colon linux-home-numeric linux-after-python-escape linux-after-one-letter-flag linux-after-colour-escapes-q016 linux-after-an-escape-written-033 linux-after-a-double-hyphen-flag
 dash: dash-macos dash-linux dash-after-slash dash-windows
 FIXTURES-END
 
@@ -226,8 +227,15 @@ function init(   S) {
   unicode_end[6] = "\343\200"
   S = "([/\\\\]|%2[Ff]|%5[Cc])+"
   NAMED = "([^[:space:][:cntrl:][:punct:]]|_)([^[:space:][:cntrl:][:punct:]]|[._-])*"
+  NAME_CHARACTER = "([^[:space:][:cntrl:][:punct:]]|[._-])"
+  CHUNK = 1000
+  OVERLAP = 1000
+  ESCAPE = "(\033|\\\\u001[bB]|\\\\x1[bB]|\\\\033|\\\\[eE])"
+  CSI_END = ESCAPE "\\[[0-9;:?<=>]*[@-~]$"
+  OSC_END = ESCAPE "\\][^\007\033]*(\007|" ESCAPE "\\\\|\\\\u000[7]|\\\\x07|\\\\007|\\\\a)$"
   add("wsl-unc", 1, S "wsl(\\$|\\.localhost)" S "[^/\\\\%]+" S "home" S, "path")
   add("wsl-unc", 1, S "wsl(%2b|\\+)[^/\\\\%]+" S "home" S, "path")
+  add("unc-share", 1, "\\\\\\\\(\\\\)*[^/\\\\%[:space:]]+(\\\\)+(users|home\\$?)" S, "path")
   add("macos-volume", 0, S "System" S "Volumes" S "Data" S "Users" S, "path")
   add("macos-volume", 0, S "Volumes" S "[^/\\\\%]+" S "Users" S, "path")
   add("file-url-host", 1, "file:" S "[^/\\\\%[:space:]]+" S "(users|home)" S, "path")
@@ -243,15 +251,34 @@ function init(   S) {
   add("dash", 0, "-(Users|home)-", "word")
   add("dash", 1, "[a-z]--users-", "word")
 }
+function after_an_escape_sequence(text, p,   from) {
+  from = p - 300
+  if (from < 1) from = 1
+  return substr(text, from, p - from) ~ ("(" CSI_END "|" OSC_END ")")
+}
+function after_a_flag(text, p,   q, letters) {
+  q = p - 1
+  letters = 0
+  while (q >= 1 && substr(text, q, 1) ~ /[A-Za-z]/) {
+    q--
+    if (++letters > 40) return 0
+  }
+  if (q < 1 || substr(text, q, 1) != "-") return 0
+  q--
+  if (q >= 1 && substr(text, q, 1) == "-") q--
+  return q < 1 || index(" \t\"'`=,([{<", substr(text, q, 1)) > 0
+}
 function starts_here(text, p, k,   c) {
   if (k == "any" || p == 1) return 1
   c = substr(text, p - 1, 1)
   if (k == "word") return index(" \t\"'`/\\=:,([{<", c) > 0
   if (c ~ /[A-Za-z0-9_-]/) {
     if (p >= 4 && substr(text, p - 3, 1) == "%" && substr(text, p - 2, 2) ~ /^[0-9A-Fa-f][0-9A-Fa-f]$/) return 1
+    if (p >= 5 && substr(text, p - 4, 4) == "/@fs") return 1
+    if (after_an_escape_sequence(text, p)) return 1
     if (c !~ /[A-Za-z]/ || p < 3) return 0
     if (substr(text, p - 2, 1) == "\\") return 1
-    return substr(text, p - 2, 1) == "-" && (p == 3 || index(" \t\"'`=,([{<", substr(text, p - 3, 1)) > 0)
+    return after_a_flag(text, p)
   }
   if (c == ".") return p >= 3 && substr(text, p - 2, 1) == "."
   return 1
@@ -275,46 +302,54 @@ function own_directory(name, after, i,   n) {
   if (n == "shared" || n == "public" || n == "default") return 1
   return n == "all" && tolower(after) ~ /^ users([^a-z0-9._-]|$)/
 }
-function covered(p,   k) {
-  for (k = 1; k <= ncov; k++)
-    if (p >= cs[k] && p <= ce[k]) return 1
-  return 0
+function name_after_a_blank(text, at, end_is_a_separator,   s, n) {
+  s = substr(text, at, 300)
+  if (!match(s, "^( +" NAME_CHARACTER "+)+")) return ""
+  n = RLENGTH
+  if (substr(s, n + 1) ~ "^([/\\\\]|%2[Ff]|%5[Cc])") return substr(s, 1, n)
+  if (end_is_a_separator && n == length(s)) return s
+  return ""
 }
-function scan_text(text, file, use_list,   lowered, i, t, off, rest, p, n, m, nm, k, adv, out) {
+function scan_text(text, file, use_list,   lowered, size, first, own_end, i, t, off, rest, p, n, m, nm, k, adv, out, j) {
   lowered = tolower(text)
   nmatch = 0
   if (!index(lowered, "users") && !index(lowered, "home") && !index(lowered, "documents and settings")) return ""
-  ncov = 0
+  split("", covered)
   out = ""
-  for (i = 1; i <= nforms; i++) {
-    t = low[i] ? lowered : text
-    off = 0
-    rest = t
-    while (match(rest, re[i])) {
-      p = off + RSTART
-      n = RLENGTH
-      adv = RSTART + n - 1
-      if (starts_here(text, p, kind_of[i]) && !covered(p)) {
-        m = substr(text, p, n)
-        nm = name_in(m, i)
-        k = name_length(nm)
-        m = substr(m, 1, length(m) - length(nm) + k)
-        n = length(m)
-        if (k == 1 && substr(text, p + n - 2, 1) == "\\" && index("+*?{", substr(text, p + n, 1)) > 0) k = 0
-        if (k > 0 && !own_directory(substr(nm, 1, k), substr(text, p + n, 8), i)) {
-          ncov++
-          cs[ncov] = p
-          ce[ncov] = p + n - 1
-          nmatch++
-          last_match = m
-          last_name = substr(nm, 1, k)
-          if (kind_of[i] == "word") sub(/-.*/, "", last_name)
-          if (!use_list || !((file SUBSEP m) in allowed))
-            if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
+  size = length(text)
+  for (first = 1; first <= size; first += CHUNK) {
+    own_end = first + CHUNK - 1
+    for (i = 1; i <= nforms; i++) {
+      t = substr(low[i] ? lowered : text, first, CHUNK + OVERLAP)
+      off = first - 1
+      rest = t
+      while (match(rest, re[i])) {
+        p = off + RSTART
+        n = RLENGTH
+        adv = RSTART + n - 1
+        if (p > own_end) break
+        if (!(p in covered) && starts_here(text, p, kind_of[i])) {
+          m = substr(text, p, n)
+          nm = name_in(m, i)
+          k = name_length(nm)
+          m = substr(m, 1, length(m) - length(nm) + k)
+          n = length(m)
+          if (k == 1 && substr(text, p + n - 2, 1) == "\\" && substr(text, p + n, 1) != "" && index("+*?{", substr(text, p + n, 1)) > 0) k = 0
+          if (k > 0 && !own_directory(substr(nm, 1, k), substr(text, p + n, 8), i)) {
+            m = m name_after_a_blank(text, p + n, !use_list && file == "")
+            n = length(m)
+            for (j = p; j < p + n; j++) covered[j] = 1
+            nmatch++
+            last_match = m
+            last_name = substr(nm, 1, k)
+            if (kind_of[i] == "word") sub(/-.*/, "", last_name)
+            if (!use_list || !((file SUBSEP m) in allowed))
+              if (index("," out ",", "," form[i] ",") == 0) out = out (out == "" ? "" : ",") form[i]
+          }
         }
+        off += adv
+        rest = substr(rest, adv + 1)
       }
-      off += adv
-      rest = substr(rest, adv + 1)
     }
   }
   return out
@@ -329,6 +364,7 @@ function load_list(   n, rc, rec, k, rest, file, path, reason) {
   while ((rc = (getline rec < list)) > 0) {
     n++
     sub(/\r$/, "", rec)
+    if (n == 1 && substr(rec, 1, 3) == "\357\273\277") rec = substr(rec, 4)
     if (rec == "" || substr(rec, 1, 1) == "#") continue
     k = index(rec, "\t")
     if (!k) malformed(n, "an entry is a file, a tab, a home path, a tab and a reason")
@@ -342,7 +378,6 @@ function load_list(   n, rc, rec, k, rest, file, path, reason) {
     if (reason !~ /[^[:space:]]/) malformed(n, "the reason is empty")
     scan_text(path, "", 0)
     if (nmatch != 1 || last_match != path) malformed(n, "the path is not one home path of the grammar as a whole")
-    if (own_name != "" && tolower(last_name) == tolower(own_name)) print "OWN " n " " file
     allowed[file SUBSEP path] = 1
     allowed[list_path SUBSEP path] = 1
   }
@@ -361,11 +396,33 @@ function name_from(h,   rest, half) {
   if (substr(h, 1, 16) == "diff --combined ") return substr(h, 17)
   return h
 }
+function added_entry(n, text,   rec, k, rest, path, name) {
+  rec = text
+  sub(/\r$/, "", rec)
+  if (n == 1 && substr(rec, 1, 3) == "\357\273\277") rec = substr(rec, 4)
+  if (rec == "" || substr(rec, 1, 1) == "#") return
+  k = index(rec, "\t")
+  if (!k) return
+  rest = substr(rec, k + 1)
+  k = index(rest, "\t")
+  if (!k) return
+  path = substr(rest, 1, k - 1)
+  scan_text(path, "", 0)
+  if (nmatch != 1 || last_match != path) return
+  if (own_unknown) {
+    print "OWN-UNKNOWN " commit " " n
+    return
+  }
+  name = tolower(last_name)
+  if (name == own_full || name == own_cut) print "OWN " commit " " n
+}
 function check(n, text,   forms) {
   forms = scan_text(text, file, 1)
-  if (forms == "") return
-  hits++
-  print "HIT " commit " " n " " forms " " file
+  if (forms != "") {
+    hits++
+    print "HIT " substr(commit, 1, 12) " " n " " forms " " file
+  }
+  if (own_check && n > 0 && file == list_path) added_entry(n, text)
 }
 function start_hunk(h,   n, t) {
   n = 0
@@ -380,6 +437,8 @@ function start_hunk(h,   n, t) {
 }
 BEGIN {
   init()
+  own_full = tolower(own_full)
+  own_cut = tolower(own_cut)
   if (list_forms) {
     for (i = 1; i <= nforms; i++)
       if (!(form[i] in printed)) {
@@ -437,7 +496,8 @@ EOF
 }
 
 run_scan() {
-  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_name="${4:-}" -f "$work/scan.awk" "$2"
+  awk -v list="$1" -v list_path="$LIST_IN_THE_REPOSITORY" -v list_forms="${3:-}" -v own_check="$own_check" \
+    -v own_full="$own_full" -v own_cut="$own_cut" -v own_unknown="$own_unknown" -f "$work/scan.awk" "$2"
 }
 
 scan_stream() {
@@ -470,10 +530,6 @@ lines_of_a_merge_in_a_binary_file() {
     "$work/parent-lines" "$work/merge-blob.text" || die 'awk could not compare the lines of a merge'
 }
 
-short_id() {
-  printf '%s' "$1" | cut -c1-12
-}
-
 scan() {
   label=$1
   shift
@@ -500,18 +556,25 @@ scan() {
     found=$((found + stream_found))
     cat "$work/hits-of-merges" >>"$work/hits" || die 'cat failed'
   fi
+  own_entries=0
   while read -r tag commit number forms file; do
-    [ "$tag" = HIT ] || continue
-    short=$(short_id "$commit")
-    printf '%s: %s %s:%s: a home path (%s)\n' "$NAME" "$short" "$file" "$number" "$forms" >&2
+    case $tag in
+      HIT) printf '%s: %s %s:%s: a home path (%s)\n' "$NAME" "$commit" "$file" "$number" "$forms" >&2 ;;
+      OWN-UNKNOWN) die "commit $commit adds an entry to $LIST_IN_THE_REPOSITORY at line $number, and HOME is unset or empty, so the scan cannot tell whether the entry names the home directory of the account that pushes" ;;
+      OWN)
+        own_entries=$((own_entries + 1))
+        printf '%s: %s %s:%s: this entry names the home directory of the account that runs this push. An entry is only for a made-up name that a fixture holds on purpose, the public account of a hosting service'"'"'s runner, or a line that holds no home path and reads as one, never the home path of a person'"'"'s machine: take the entry out of the commit that added it, and the path out of the commits that hold it.\n' "$NAME" "$commit" "$LIST_IN_THE_REPOSITORY" "$number" >&2
+        ;;
+    esac
   done <"$work/hits"
-  if [ "$found" = 0 ]; then
+  if [ "$found" = 0 ] && [ "$own_entries" = 0 ]; then
     printf '%s: PASS: %s: commits read %s, lines with a home path 0.\n' "$NAME" "$label" "$commits"
     return 0
   fi
   any_failed=1
   {
     printf '%s: FAIL: %s: commits read %s, lines with a home path %s.\n' "$NAME" "$label" "$commits" "$found"
+    [ "$own_entries" = 0 ] || printf '%s: FAIL: %s: added entries of the list that name the home directory of the account that pushes: %s.\n' "$NAME" "$label" "$own_entries"
     printf 'Fix: take each listed line out of the commit that added it: git commit --amend for the newest commit, git rebase -i with "edit" for an older one. A later commit that removes the line does not help, because the commit that holds it is pushed. Write a location relative to the repository, take it from an environment variable, or write the name as a placeholder (/Users/<name>). If the path is made up for a fixture, add the file, the exact path and the reason to %s (sh scripts/check-home-paths.sh --help, The list).\n' "$LIST_IN_THE_REPOSITORY"
   } >&2
 }
@@ -537,23 +600,22 @@ verified() {
   git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1
 }
 
-entries_for_the_account_that_pushes() {
-  own_name=
-  case ${HOME:-/} in
-    / | */) ;;
-    *) own_name=$(basename "$HOME") || own_name= ;;
-  esac
-  [ -n "$own_name" ] || return 0
-  run_scan "$allow" /dev/null '' "$own_name" >"$work/own" </dev/null
-  own_status=$?
-  error=$(sed -n 's/^ERROR //p' "$work/own") || error=
-  [ -z "$error" ] || die "cannot use the list: $error"
-  [ "$own_status" = 0 ] || die "awk could not read the list (exit $own_status)"
-  while read -r tag number file; do
-    [ "$tag" = OWN ] || continue
-    any_failed=1
-    printf '%s: FAIL: line %s of %s, the entry for %s, names the home directory of the account that runs this push. An entry is only for a made-up name that a fixture holds on purpose, never the home path of a person'"'"'s machine: take the entry out of the list and the path out of the commits that hold it, then push again.\n' "$NAME" "$number" "$LIST_IN_THE_REPOSITORY" "$file" >&2
-  done <"$work/own"
+account_that_pushes() {
+  own_check=1
+  own_full=
+  own_cut=
+  own_unknown=
+  home=${HOME-}
+  while :; do
+    case $home in
+      */ | *\\) home=${home%?} ;;
+      *) break ;;
+    esac
+  done
+  own_full=${home##*/}
+  own_full=${own_full##*\\}
+  own_cut=${own_full%%[ +]*}
+  [ -n "$own_full" ] || own_unknown=1
 }
 
 check_push() {
@@ -567,7 +629,7 @@ check_push() {
   default_ref_of_remote=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2>/dev/null) || default_ref_of_remote=refs/remotes/$remote/main
   verified "$default_ref_of_remote" || default_ref_of_remote=$default_ref
   [ -n "$default_ref_of_remote" ] && verified "$default_ref_of_remote" || default_ref_of_remote=
-  entries_for_the_account_that_pushes
+  account_that_pushes
   while IFS= read -r pushed_ref; do
     remote_object=${pushed_ref##* }
     rest=${pushed_ref% *}
@@ -582,7 +644,10 @@ check_push() {
       *[!0]*) ;;
       *) continue ;;
     esac
-    verified "$local_object" || continue
+    if ! verified "$local_object"; then
+      git cat-file -e "$local_object" 2>/dev/null || die "git cannot resolve the object $local_object that the push names for $local_ref"
+      continue
+    fi
     set -- "$local_object"
     [ -z "$exempt" ] || set -- "$@" "^$exempt"
     case $remote_object in
@@ -593,7 +658,8 @@ check_push() {
     [ -z "$default_ref_of_remote" ] || set -- "$@" "^$default_ref_of_remote"
     scan "push of $local_ref to $remote_ref" "$@"
   done
-  [ "$any_failed" = 0 ]
+  [ "$any_failed" = 0 ] || return 1
+  printf '%s: PASS: the push to %s adds no line with a home path that the list does not allow.\n' "$NAME" "$remote"
 }
 
 check_range() {
@@ -629,12 +695,23 @@ FAIL|macos|macos-after-bracket|(/{U}/ada)
 FAIL|macos|macos-after-scp-host|host:/{U}/ada
 FAIL|macos|macos-after-json-newline-escape|{"msg":"panicked\n/{U}/zed/src/main.rs:3"}
 FAIL|macos|macos-after-one-letter-flag|cc -I/{U}/zed/include
+FAIL|macos|macos-after-colour-escapes-of-rustc|{ESC}[0m{ESC}[1m{ESC}[38;5;12m--> {ESC}[0m/{U}/zed/.cargo/registry/src/lib.rs:3:5
+FAIL|macos|macos-after-a-colour-escape-in-json|{"rendered":"{JE}[0m/{U}/zed/proj/src/main.rs"}
+FAIL|macos|macos-after-a-colour-escape-p095|{ESC}[31m/{U}/Linus_T/x{ESC}[0m
+FAIL|macos|macos-after-a-colour-escape-q015|{ESC}[0m/{U}/ada/x
+FAIL|macos|macos-after-an-osc-8-link-in-json|{"t":"{JE}]8;;https://example.com{JB}/{U}/zed/notes.txt{JE}]8;;{JB}"}
+FAIL|macos|macos-after-an-escape-written-x1b|\x1b[31m/{U}/zed/x
+FAIL|macos|macos-after-a-long-flag|cc -isystem/{U}/zed/include
+FAIL|macos|macos-after-the-dev-server-prefix|http://localhost:5173/@fs/{U}/zed/proj/src/main.ts
 FAIL|windows-root|windows-root-exact-case|"\{U}\ada"
 FAIL|linux|linux-home|cd /{H}/ada/.cache
 FAIL|linux|linux-home-after-colon|scp x host:/{H}/ada
 FAIL|linux|linux-home-numeric|/{H}/1000
 FAIL|linux|linux-after-python-escape|'out\n/{H}/zed/x.py'
 FAIL|linux|linux-after-one-letter-flag|rustc -L/{H}/zed/.cache/lib
+FAIL|linux|linux-after-colour-escapes-q016|{ESC}[0m{ESC}[35m/{H}/ada/proj/src/a.rs{ESC}[0m:3:
+FAIL|linux|linux-after-an-escape-written-033|\033[1m/{H}/zed/x
+FAIL|linux|linux-after-a-double-hyphen-flag|ld --rpath/{H}/zed/lib
 FAIL|windows-drive|windows-drive-backslash|C:\{U}\ada
 FAIL|windows-drive|windows-drive-forward-slash|"C:/{U}/ada"
 FAIL|windows-drive|windows-drive-lower-case|c:/{u}/ada
@@ -643,8 +720,13 @@ FAIL|windows-drive|windows-drive-json-doubled|"C:\\{U}\\ada"
 FAIL|windows-drive|windows-drive-percent-encoded|C%3A%5C{U}%5Cada
 FAIL|windows-drive|windows-drive-long-path|\\?\C:\{U}\ada
 FAIL|windows-drive|windows-drive-name-all|C:\{U}\All\x
+FAIL|windows-drive|windows-drive-one-letter-name-at-the-end|C:\{U}\j
 FAIL|windows-root|windows-root-backslash|\{u}\ada
 FAIL|windows-root|windows-root-unc-share|\\host\c$\{U}\ada
+FAIL|windows-root|windows-root-one-letter-name-at-the-end|%SystemDrive%\{U}\X
+FAIL|unc-share|unc-share-users|cwd: \\FILESRV\{U}\j2\x
+FAIL|unc-share|unc-share-home-dollar|\\FILESRV\{H}$\ada\x
+FAIL|unc-share|unc-share-in-a-diff-line|@@ -1 +1 @@ \\FILESRV\{U}\j2\
 FAIL|windows-old|windows-old-drive|C:\{D}\ada
 FAIL|windows-old|windows-old-root|\{D}\ada
 FAIL|git-bash|git-bash-drive|/c/{U}/ada
@@ -693,6 +775,11 @@ PASS|-|regex-source|[/\\]+({U}|{H})[/\\]+
 PASS|-|regex-escape-as-name|Regex::new(r"^/{U}/\w+/")
 PASS|-|regex-escape-in-sed|sed -E 's#/{H}/\S+#~#g'
 PASS|-|hyphen-and-letter-inside-a-word|foo-I/{U}/zed
+PASS|-|hyphen-word-before-a-directory|my-app/{H}/index
+PASS|-|hyphen-straight-before-a-form|x-/{U}/ada
+PASS|-|bracket-and-letter-without-an-escape|x[31m/{U}/zed/x
+PASS|-|unc-share-of-another-word|\\FILESRV\homework\ada
+PASS|-|dev-server-prefix-of-another-name|/@fsx/{U}/zed
 PASS|-|long-flag|--{H}-dir
 PASS|-|word-alone|{U} and {H}
 PASS|-|environment-variable|$HOME/x and ~/x
@@ -702,6 +789,10 @@ EOF
 
 expand_fixture() {
   e_acute=$(printf '\303\251')
+  escape=$(printf '\033')
+  no_break_space=$(printf '\302\240')
+  json_escape=$(printf '\\\\%s' u001b)
+  json_bell=$(printf '\\\\%s' u0007)
   left_quote=$(printf '\342\200\234')
   right_quote=$(printf '\342\200\235')
   left_guillemet=$(printf '\302\253')
@@ -709,7 +800,7 @@ expand_fixture() {
   carriage_return=$(printf '\r')
   tab=$(printf '\t')
   printf '%s\n' "$1" | sed -e 's|{UU}|USERS|g' -e 's|{U}|Users|g' -e 's|{u}|users|g' -e 's|{H}|home|g' \
-    -e 's|{D}|Documents and Settings|g' -e "s|{E}|$e_acute|g" -e "s|{LQ}|$left_quote|g" -e "s|{RQ}|$right_quote|g" \
+    -e 's|{D}|Documents and Settings|g' -e "s|{NB}|$no_break_space|g" -e "s|{E}|$e_acute|g" -e "s|{ESC}|$escape|g" -e "s|{JE}|$json_escape|g" -e "s|{JB}|$json_bell|g" -e "s|{LQ}|$left_quote|g" -e "s|{RQ}|$right_quote|g" \
     -e "s|{LG}|$left_guillemet|g" -e "s|{RG}|$right_guillemet|g" -e "s|{CR}|$carriage_return|g" -e "s|{T}|$tab|g"
 }
 
@@ -1012,6 +1103,123 @@ self_test_commits() {
   scan_case list-missing 2 'the list cannot be read' --allow "$work/no-such-list" "$c^!"
   scan_case range-unreadable 2 'git log could not read' --allow "$list" no-such-revision
   scan_case usage-without-a-range 64 'Usage:' --allow "$list"
+
+  new_case_repo twin
+  expand_fixture 'notes in C:\{U}\Ann Sam\Desktop\todo.txt' >"$case_repo/twin.txt"
+  expand_fixture 'and C:\{U}\Ann Sam\Documents' >>"$case_repo/twin.txt"
+  expand_fixture 'notes in C:\{U}\Ann Sam\Desktop\todo.txt' >"$case_repo/other.txt"
+  twin=$(commit_case 'twin') || die 'commit failed'
+  expand_fixture "twin.txt${tab}C:\\{U}\\Ann${tab}made up" >"$work/list-ann"
+  expand_fixture "twin.txt${tab}C:\\{U}\\Ann Sam${tab}made up" >"$work/list-ann-sam"
+  printf 'other.txt\t' >>"$work/list-ann-sam"
+  expand_fixture "C:\\{U}\\Ann${tab}made up" >>"$work/list-ann-sam"
+  case_scan entry-for-the-shorter-name-refuses-a-name-with-a-blank 1 'twin.txt:1: a home path (windows-drive)' --allow "$work/list-ann" "$twin"
+  case_scan entry-for-the-longer-text-allows-two-lines-of-its-file 1 'lines with a home path 1.' --allow "$work/list-ann-sam" "$twin"
+  case_scan entry-allows-no-other-file 1 'other.txt:1: a home path (windows-drive)' --allow "$work/list-ann-sam" "$twin"
+
+  new_case_repo listed
+  expand_fixture 'see /{U}/ada for the example' >"$case_repo/made-up.txt"
+  expand_fixture 'see /{U}/ada{NB}now' >"$case_repo/no-break.txt"
+  listed=$(commit_case 'listed') || die 'commit failed'
+  u=Users
+  printf 'made-up.txt\t/%s/ada\tmade up\r\n\r\nno-break.txt\t/%s/ada\tmade up\r\n' "$u" "$u" >"$work/list-crlf-empty"
+  case_scan list-checked-out-with-crlf-and-an-empty-line 0 'lines with a home path 0' --allow "$work/list-crlf-empty" "$listed"
+  printf '\t/%s/ada\tmade up\n' "$u" >"$work/list-no-file"
+  case_scan entry-with-an-empty-file 2 'line 1: the file is empty' --allow "$work/list-no-file" "$listed"
+  printf '\357\273\277made-up.txt\t/%s/ada\tmade up\nno-break.txt\t/%s/ada\tmade up\n' "$u" "$u" >"$work/list-bom"
+  case_scan list-that-starts-with-a-byte-order-mark 0 'lines with a home path 0' --allow "$work/list-bom" "$listed"
+  printf 'made-up.txt\t/%s/ada\tmade up\n' "$u" >"$work/list-no-nbsp"
+  case_scan listed-path-followed-by-a-no-break-space 1 'no-break.txt:1: a home path (macos)' --allow "$work/list-no-nbsp" "$listed"
+  case_scan listed-path-followed-by-a-no-break-space-passes-with-its-entry 0 'lines with a home path 0' --allow "$work/list-bom" "$listed"
+
+  new_case_repo replaced
+  printf 'a\nb\nc\n' >"$case_repo/r.txt"
+  commit_case 'three lines' >/dev/null || die 'commit failed'
+  { printf 'a\n'; expand_fixture '/{H}/rhea'; printf 'c\n'; } >"$case_repo/r.txt"
+  replaced=$(commit_case 'replace line 2') || die 'commit failed'
+  case_scan replaced-line-reports-its-own-line 1 'r.txt:2: a home path (linux)' --allow "$work/empty-list" "$replaced^!"
+  root_of_replaced=$(in_case_repo rev-list --max-parents=0 HEAD) || die 'git rev-list failed'
+  expand_fixture "conv.txt diff=lower" >"$case_repo/.gitattributes"
+  expand_fixture '/{U}/tess' >"$case_repo/conv.txt"
+  converted=$(commit_case 'a file with a text conversion') || die 'commit failed'
+  (cd "$case_repo" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.lower.textconv GIT_CONFIG_VALUE_0='sed -e s/Users/users/' \
+    HOME=$work/homes/nobody sh "$self" --allow "$work/empty-list" "$converted^!") >"$work/out-textconv" 2>&1
+  code=$?
+  case $(cat "$work/out-textconv") in
+    *'conv.txt:1: a home path (macos)'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict clone-that-converts-the-text-of-a-file 1 "$got"
+  new_case_repo root
+  expand_fixture '/{H}/rory' >"$case_repo/root.txt"
+  only_root=$(commit_case 'root') || die 'commit failed'
+  (cd "$case_repo" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=log.showRoot GIT_CONFIG_VALUE_0=false \
+    HOME=$work/homes/nobody sh "$self" --allow "$work/empty-list" "$only_root") >"$work/out-show-root" 2>&1
+  code=$?
+  case $(cat "$work/out-show-root") in
+    *'root.txt:1: a home path (linux)'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict root-commit-in-a-clone-with-show-root-off 1 "$got"
+  [ -n "$root_of_replaced" ] || die 'no root commit'
+
+  new_case_repo wide
+  awk 'BEGIN { for (i = 0; i < 20000; i++) printf "/%s/zed%d ", "Users", i; printf "\n" }' >"$case_repo/wide.txt" || die 'awk failed'
+  wide=$(commit_case 'one line with 20000 paths') || die 'commit failed'
+  timed_case one-line-with-20000-paths 'wide.txt:1: a home path (macos)' "$wide^!"
+  awk 'BEGIN { for (i = 0; i < 8000; i++) printf "see /%s/zed%d/x\n", "Users", i }' >"$case_repo/tall.txt" || die 'awk failed'
+  tall=$(commit_case '8000 lines with a path') || die 'commit failed'
+  timed_case 8000-lines-with-a-path 'lines with a home path 8000.' "$tall^!"
+}
+
+short_id() {
+  printf '%s' "$1" | cut -c1-12
+}
+
+timed_case() {
+  started=$(date +%s) || die 'date failed'
+  (cd "$case_repo" && HOME=$work/homes/nobody sh "$self" --allow "$work/empty-list" "$3") >"$work/out-$1" 2>&1
+  code=$?
+  ended=$(date +%s) || die 'date failed'
+  seconds=$((ended - started))
+  got=$code
+  case $(cat "$work/out-$1") in
+    *"$2"*) ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  [ "$seconds" -le 120 ] || got="$got-after-$seconds-s"
+  printf 'seconds %s/%s %s\n' "$NAME" "$1" "$seconds"
+  verdict "$1" 1 "$got"
+}
+
+in_case_repo() {
+  git -C "$case_repo" -c commit.gpgsign=false -c core.hooksPath="$work/no-hooks" "$@"
+}
+
+new_case_repo() {
+  case_repo=$work/$1
+  git init -q "$case_repo" || die 'git init failed'
+}
+
+commit_case() {
+  in_case_repo add -A . || die 'git add failed'
+  in_case_repo commit -q -m "$1" || die 'commit failed'
+  in_case_repo rev-parse HEAD
+}
+
+case_scan() {
+  case_name=$1
+  want_exit=$2
+  want_text=$3
+  shift 3
+  (cd "$case_repo" && HOME=$work/homes/nobody sh "$self" "$@") >"$work/out-$case_name" 2>&1
+  code=$?
+  got=$code
+  case $(cat "$work/out-$case_name") in
+    *"$want_text"*) ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict "$case_name" "$want_exit" "$got"
 }
 
 stub_messages_check() {
@@ -1029,7 +1237,11 @@ push_case() {
   want_text=$3
   shift 3
   before=$(git -C "$remote_repo" rev-list --all --count) || die 'git rev-list failed'
-  (cd "$repo" && git -c core.hooksPath="$hook_home/.githooks" push "$@") >"$work/out-$case_name" 2>&1
+  if [ "$push_home" = UNSET ]; then
+    (cd "$repo" && env -u HOME git -c core.hooksPath="$hook_home/.githooks" push "$@") >"$work/out-$case_name" 2>&1
+  else
+    (cd "$repo" && HOME=$push_home git -c core.hooksPath="$hook_home/.githooks" push "$@") >"$work/out-$case_name" 2>&1
+  fi
   code=$?
   after=$(git -C "$remote_repo" rev-list --all --count) || die 'git rev-list failed'
   if [ "$code" = 0 ]; then got=pushed; else got=refused; fi
@@ -1058,6 +1270,7 @@ self_test_hook() {
   stub_messages_check >"$hook_home/scripts/check-commit-messages.sh" || die 'cannot write the stub'
   STUB_RECORD=$work/stub-record
   export STUB_RECORD
+  push_home=$work/homes/nobody
   remote_repo=$work/remote.git
   git init -q --bare "$remote_repo" || die 'git init failed'
   in_repo checkout -q -b trunk "$root_commit" || die 'git checkout failed'
@@ -1118,29 +1331,102 @@ self_test_hook() {
   push_case scan-cannot-run refused 'cannot check, so the commits count as refused' proof messages
   cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
 
-  in_repo checkout -q -b own trunk || die 'git checkout failed'
-  printf 'plain\n' >"$repo/own.txt"
-  commit_all 'own' >/dev/null || die 'commit failed'
-  own_name=$(basename "$HOME") || die 'basename failed'
+  u=Users
   {
     cat "$list"
-    printf 'x.txt\t/Users/%s\tthe account that runs the self-test\n' "$own_name"
+    printf 'fixtures/made-up.txt\t/%s/sam\ta made-up name that the base list holds\n' "$u"
+    printf 'hosted.txt\t/%s/runner\tthe public account of the runners of a hosting service\n' "$u"
   } >"$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cannot write the list'
-  push_case list-entry-for-the-pushing-account refused 'names the home directory of the account that runs this push' proof own
-  upper_name=$(printf '%s' "$own_name" | tr '[:lower:]' '[:upper:]') || die 'tr failed'
-  {
-    cat "$list"
-    printf 'x.txt\t-Users-%s-project\tthe account that runs the self-test, in the form with hyphens and in upper case\n' "$upper_name"
-  } >"$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cannot write the list'
-  push_case list-entry-for-the-pushing-account-with-hyphens-in-upper-case refused 'names the home directory of the account that runs this push' proof own
-  scan_case list-entry-for-the-running-account-in-a-range 0 'lines with a home path 0' --allow "$hook_home/$LIST_IN_THE_REPOSITORY" "$root_commit"
+  in_repo checkout -q -b plain-as-sam trunk || die 'git checkout failed'
+  printf 'plain\n' >"$repo/plain-as-sam.txt"
+  commit_all 'plain' >/dev/null || die 'commit failed'
+  push_home=$work/homes/sam
+  push_case account-named-like-an-entry-pushes-a-plain-commit pushed 'the push to proof adds no line' proof plain-as-sam
+  push_case account-named-like-an-entry-deletes-a-ref pushed '' proof :refs/heads/plain-as-sam
+  push_home=$work/homes/runner
+  push_case account-named-runner-pushes-a-plain-commit pushed 'the push to proof adds no line' proof plain-as-sam
+  in_repo checkout -q -b add-sam trunk || die 'git checkout failed'
+  mkdir -p "$repo/scripts" || die 'mkdir failed'
+  printf 'x.txt\t/%s/sam\ta made-up name\n' "$u" >"$repo/$LIST_IN_THE_REPOSITORY"
+  commit_all 'an entry for sam' >/dev/null || die 'commit failed'
+  push_home=$work/homes/sam
+  push_case added-entry-for-the-account-that-pushes refused 'this entry names the home directory of the account that runs this push' proof add-sam
+  push_home=$work/homes/sam/
+  push_case added-entry-with-a-trailing-slash-in-home refused 'this entry names the home directory of the account that runs this push' proof add-sam
+  push_home="C:\\$u\\sam\\"
+  push_case added-entry-with-home-in-the-windows-form refused 'this entry names the home directory of the account that runs this push' proof add-sam
+  push_home=UNSET
+  push_case added-entry-with-home-unset refused 'HOME is unset or empty' proof add-sam
+  in_repo checkout -q -b add-ann-sam trunk || die 'git checkout failed'
+  mkdir -p "$repo/scripts" || die 'mkdir failed'
+  printf 'y.txt\t/%s/Ann\ta made-up name\n' "$u" >"$repo/$LIST_IN_THE_REPOSITORY"
+  commit_all 'an entry for the first word of an account' >/dev/null || die 'commit failed'
+  push_home="$work/homes/Ann Sam"
+  push_case added-entry-for-an-account-of-two-words refused 'this entry names the home directory of the account that runs this push' proof add-ann-sam
+  push_home=$work/homes/nobody
+  in_repo checkout -q add-sam || die 'git checkout failed'
+  sam_commit=$(in_repo rev-parse HEAD) || die 'git rev-parse failed'
+  (cd "$repo" && HOME=$work/homes/sam sh "$self" --allow "$hook_home/$LIST_IN_THE_REPOSITORY" "$sam_commit^!") >"$work/out-added-entry-in-a-range" 2>&1
+  verdict added-entry-for-the-account-in-a-range 0 "$?"
   cp "$list" "$hook_home/$LIST_IN_THE_REPOSITORY" || die 'cp failed'
+
+  mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
+  : >"$hook_home/scripts/check-home-paths.sh"
+  push_case scanner-with-no-bytes-beside-the-hook refused 'without its PASS line' proof messages
+  mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
+  (cd "$repo" && printf 'refs/heads/x %s refs/heads/x %s\n' 1234567890123456789012345678901234567890 0000000000000000000000000000000000000000 |
+    HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unresolvable-object" 2>&1
+  code=$?
+  case $(cat "$work/out-unresolvable-object") in
+    *'git cannot resolve the object'*) got=$code ;;
+    *) got="$code-without-the-text" ;;
+  esac
+  verdict pushed-object-that-git-cannot-resolve 2 "$got"
+
+  exempt_home=$work/exempt-home/scripts
+  mkdir -p "$exempt_home" || die 'mkdir failed'
+  cp "$self" "$exempt_home/check-home-paths.sh" || die 'cp failed'
+  in_repo checkout -q -b exempt trunk || die 'git checkout failed'
+  expand_fixture '/{H}/ezra' >"$repo/exempt.txt"
+  exempt_commit=$(commit_all 'the exempt commit') || die 'commit failed'
+  expand_fixture '/{H}/lena' >"$repo/later.txt"
+  later_commit=$(commit_all 'a later commit') || die 'commit failed'
+  printf 'NEWEST_EXEMPT_COMMIT=%s\n' "$exempt_commit" >"$exempt_home/check-commit-messages.sh"
+  (cd "$repo" && printf 'refs/heads/exempt %s refs/heads/exempt %s\n' "$later_commit" 0000000000000000000000000000000000000000 |
+    HOME=$work/homes/nobody sh "$exempt_home/check-home-paths.sh" --allow "$list" --pre-push proof) >"$work/out-exempt" 2>&1
+  case $(cat "$work/out-exempt") in
+    *exempt.txt*) got=the-exempt-commit-read ;;
+    *'later.txt:1: a home path (linux)'*) got=the-later-commit-alone ;;
+    *) got=neither ;;
+  esac
+  verdict exempt-commit-left-out-and-a-later-one-read the-later-commit-alone "$got"
+  [ "$got" != the-later-commit-alone ] || rejected=$((rejected + 1))
+
+  case $(uname -s) in
+    MINGW* | MSYS* | CYGWIN*) printf 'case %s/scan-ended-by-term not run: this system emulates a FIFO\n' "$NAME" ;;
+    *)
+      mkfifo "$work/fifo" || die 'mkfifo failed'
+      sleep 30 >"$work/fifo" &
+      writer=$!
+      (cd "$repo" && HOME=$work/homes/nobody exec sh "$self" --allow "$list" --pre-push proof) <"$work/fifo" >"$work/out-term" 2>&1 &
+      scanner=$!
+      sleep 1
+      kill -TERM "$scanner" || die 'kill failed'
+      wait "$scanner"
+      code=$?
+      kill "$writer" 2>/dev/null
+      wait "$writer" 2>/dev/null
+      if [ "$code" = 0 ]; then got=0; else got=not-0; fi
+      printf 'case %s/scan-ended-by-term want=not-0 got=%s\n' "$NAME" "$got"
+      [ "$got" = not-0 ] || wrong="$wrong scan-ended-by-term"
+      ;;
+  esac
 
   mv "$hook_home/scripts/check-home-paths.sh" "$work/scanner-aside" || die 'mv failed'
   push_case scanner-missing-beside-the-hook pushed 'the scan for home paths did not run' proof messages
   mv "$work/scanner-aside" "$hook_home/scripts/check-home-paths.sh" || die 'mv failed'
 
-  (cd "$repo" && printf 'not a line that git writes\n' | sh "$self" --allow "$list" --pre-push proof) >"$work/out-unreadable-line" 2>&1
+  (cd "$repo" && printf 'not a line that git writes\n' | HOME=$work/homes/nobody sh "$self" --allow "$list" --pre-push proof) >"$work/out-unreadable-line" 2>&1
   code=$?
   verdict pre-push-line-that-git-does-not-write 2 "$code"
 }
@@ -1168,6 +1454,10 @@ allow=$root/$LIST_IN_THE_REPOSITORY
 mode=range
 remote=
 any_failed=0
+own_check=
+own_full=
+own_cut=
+own_unknown=
 while [ $# -gt 0 ]; do
   case $1 in
     --help | -h)

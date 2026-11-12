@@ -138,6 +138,11 @@ self_test() {
   git -C "$scratch/head-on-the-default-branch" update-ref refs/remotes/origin/main HEAD || exit 2
   expect PASS head-on-the-default-branch
 
+  fixture head-on-the-default-branch-adds-the-line
+  add_commit head-on-the-default-branch-adds-the-line "see /$u/zoe/x" 'second'
+  git -C "$scratch/head-on-the-default-branch-adds-the-line" update-ref refs/remotes/origin/main HEAD || exit 2
+  expect FAIL head-on-the-default-branch-adds-the-line
+
   fixture scanner-missing
   add_commit scanner-missing 'more plain text' 'second'
   mv "$scratch/scanner-missing/scripts/check-home-paths.sh" "$scratch/scanner-aside.sh" || exit 2
