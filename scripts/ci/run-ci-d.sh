@@ -19,6 +19,7 @@ root=${CI_D_SCRIPTS:-scripts}
 st_jobs_set=${CI_D_SELF_TEST_JOBS+set}
 st_jobs=${CI_D_SELF_TEST_JOBS-}
 st_limit=${CI_D_SCRIPT_LIMIT_S-1200}
+st_perl="setpgrp(0, 0); \$SIG{INT} = \$SIG{QUIT} = 'DEFAULT'; exec { \$ARGV[0] } @ARGV; exit 127;"
 mode=run
 job=
 wanted=
@@ -489,18 +490,48 @@ own_case() {
     [ -z "$case_locale" ] || { LC_ALL=$case_locale; export LC_ALL; }
     [ -z "$case_jobs" ] || { CI_D_SELF_TEST_JOBS=$case_jobs; export CI_D_SELF_TEST_JOBS; }
     [ -z "$case_limit" ] || { CI_D_SCRIPT_LIMIT_S=$case_limit; export CI_D_SCRIPT_LIMIT_S; }
+    [ -z "$case_no_perl" ] || { PATH=$tmp/no-perl:$PATH; export PATH; }
     CARGO_HOME=$tmp/cargo-home
     TMPDIR=${case_tmpdir:-$tmp}
     export CARGO_HOME TMPDIR
-    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} sh "$self" "$@" 2>&1
+    printf 'a line on standard input\n' | RUN_CI_D_NESTED=${case_nested:-yes} "$perl_bin" -e "$st_perl" sh "$self" "$@" 2>&1 &
+    case_pid=$!
+    printf '%s\n' "$case_pid" >"$tmp/nested.pid"
+    if [ -n "$case_signal" ]; then
+      n=0
+      for case_marker in $case_wait; do
+        while [ ! -e "$fixture/$case_marker" ] && [ "$n" -lt 100 ]; do
+          sleep 0.1
+          n=$((n + 1))
+        done
+      done
+      kill -s "$case_signal" "$case_pid"
+    fi
+    wait "$case_pid"
   )
   got_exit=$?
+  : >"$tmp/nested.pid"
   [ -z "$case_max_s" ] || case_t1=$(date +%s)
+  left=0
+  if [ -n "$case_signal" ] && [ -f "$fixture/pids" ]; then
+    n=0
+    while :; do
+      left=0
+      while IFS= read -r case_left; do
+        [ -z "$case_left" ] || ! kill -0 "$case_left" 2>/dev/null || left=$((left + 1))
+      done <"$fixture/pids"
+      [ "$left" -gt 0 ] && [ "$n" -lt 30 ] || break
+      sleep 0.1
+      n=$((n + 1))
+    done
+  fi
   if [ "$want_exit" -eq 0 ]; then want=PASS; else want=FAIL; fi
   if [ "$got_exit" -ne "$want_exit" ]; then
     got=exit-$got_exit
   elif ! printf '%s\n' "$got_out" | grep -qxF -e "$want_line"; then
     got=line-missing
+  elif [ "$left" -gt 0 ]; then
+    got=$left-processes-left
   else
     got=$want
     if [ -n "$case_first" ]; then
@@ -530,6 +561,9 @@ own_case() {
   case_then=
   case_max_s=
   case_nested=
+  case_no_perl=
+  case_signal=
+  case_wait=
 }
 
 # shellcheck disable=SC2016
@@ -553,6 +587,11 @@ own_self_test() {
   case_then=
   case_max_s=
   case_nested=
+  case_no_perl=
+  case_signal=
+  case_wait=
+  perl_bin=$(command -v perl) || perl_bin=perl
+  mkdir -p "$tmp/no-perl" && printf '#!/bin/sh\nexit 1\n' >"$tmp/no-perl/perl" && chmod +x "$tmp/no-perl/perl"
   usage_line='usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]'
   name_refusal='the file name is not NN-name.sh, two digits and a name of a-z, 0-9 and -'
   guard_line='FAIL run-ci-d (Cargo.lock or package-lock.json differs from HEAD; a script builds with --locked and changes no tracked file)'
@@ -807,6 +846,34 @@ own_self_test() {
     mkdir -p "$fixture/scripts/ci" && printf '  10-a\tits self-test fails beside another one\n' >"$fixture/$alone_list"
   case_jobs=2
   own_case alone-list-line-with-leading-blanks 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
+  for signal in INT:130 QUIT:131 HUP:129; do
+    new_repo && add_script r1 10-a.sh "$good" "$prelude; meet || $ran_alone; kill -s ${signal%:*} \"\$\$\"; sleep 1; $passes" &&
+      add_script r1 20-b.sh "$good" "$meets"
+    case_jobs=2
+    own_case "self-test-that-sends-${signal%:*}-to-itself-beside-another" 1 "FAIL self-test:10-a (exit ${signal#*:})" macos --self-test 10-a 20-b
+    new_repo && add_script r1 10-a.sh "$good$nl# self-test: alone" "$prelude; kill -s ${signal%:*} \"\$\$\"; sleep 1; $passes" &&
+      add_script r1 20-b.sh "$good" "$prelude; $passes"
+    case_jobs=2
+    own_case "self-test-that-sends-${signal%:*}-to-itself-alone" 1 "FAIL self-test:10-a (exit ${signal#*:})" macos --self-test 10-a 20-b
+  done
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; $passes"
+  case_no_perl=yes
+  own_case perl-does-not-run 1 'FAIL run-ci-d (perl does not run; the step ci.d self-test starts each self-test through perl, for INT and QUIT at their defaults and a process group of its own)' macos --self-test 10-a
+  for signal in INT:130 TERM:143; do
+    new_repo && add_script r1 10-a.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes" &&
+      add_script r1 20-b.sh "$good" "$prelude; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; : >\"\$CI_D_REPO/started.\$me\"; wait; $passes"
+    case_jobs=2
+    case_signal=${signal%:*}
+    case_wait='started.10-a started.20-b'
+    case_max_s=30
+    own_case "step-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every self-test that it started is ended)" macos --self-test 10-a 20-b
+  done
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( sleep 2; printf 'late detail of %s on stderr\\n' \"\$me\" >&2 ) >/dev/null & $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; sleep 4; $passes"
+  case_jobs=2
+  case_first="standard error of 10-a after it was printed:${nl}late detail of 10-a on stderr"
+  case_then='ci.d macos self-test: 2 passed, 0 failed'
+  own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
 
   if [ -n "$wrong" ]; then
     record FAIL "FAIL self-test:run-ci-d (wrong verdict in:$wrong)"
