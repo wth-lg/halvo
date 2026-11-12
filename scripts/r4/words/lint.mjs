@@ -5,6 +5,7 @@ const NAME = '45-r4-words';
 const CLASSES = ['model', 'tier', 'count', 'tool', 'bundle', 'path', 'address', 'enum', 'code', 'trace', 'prompt'];
 const RUNS = ['capture', 'workflow', 'agents', 'interface', 'billing'];
 const THIS_RUN = 'interface';
+const FIXED_TERMS = ['paused|capture|yes', 'cap|capture|yes', 'delete|workflow|yes', 'approve|workflow|yes'];
 const STATES = [
   'empty',
   'ten',
@@ -118,6 +119,7 @@ function escapeTerm(term) {
 
 function parseGlossary(text) {
   const terms = [];
+  const rows = [];
   const seen = new Set();
   let state = 'before';
   for (const line of splitLines(text)) {
@@ -131,12 +133,22 @@ function parseGlossary(text) {
       state = 'rows';
       continue;
     }
-    if (!c) break;
+    const tableLine = line.trim().startsWith('|');
+    if (state === 'after') {
+      if (tableLine) throw new Stop('glossary', GLOSSARY);
+      continue;
+    }
+    if (!c) {
+      if (tableLine) throw new Stop('glossary', GLOSSARY);
+      state = 'after';
+      continue;
+    }
     const [term, meaning, run, reserved] = c;
     if (c.length !== 4 || term === '' || term.includes('`') || meaning === '') throw new Stop('glossary', GLOSSARY);
     if (!RUNS.includes(run) || (reserved !== 'yes' && reserved !== 'no')) throw new Stop('glossary', GLOSSARY);
     if (seen.has(term.toLowerCase())) throw new Stop('glossary', GLOSSARY);
     seen.add(term.toLowerCase());
+    rows.push(`${term}|${run}|${reserved}`);
     if (reserved === 'yes') {
       terms.push({
         term,
@@ -145,7 +157,8 @@ function parseGlossary(text) {
       });
     }
   }
-  if (state !== 'rows' || seen.size === 0) throw new Stop('glossary', GLOSSARY);
+  if (state === 'before' || state === 'rule' || seen.size === 0) throw new Stop('glossary', GLOSSARY);
+  if (!FIXED_TERMS.every((row) => rows.includes(row))) throw new Stop('glossary', GLOSSARY);
   return terms;
 }
 
@@ -877,8 +890,49 @@ function selfTest(dir, repo) {
   expect(fixture('a-glossary-run-outside-the-list', { files: row('| zzz | A test term. | captur | yes |') }), 'FAIL:glossary');
   expect(fixture('a-glossary-reserved-value-outside-yes-and-no', { files: row('| zzz | A test term. | capture | Yes |') }), 'FAIL:glossary');
   expect(
-    fixture('glossary-rows-after-the-table-are-not-read', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n\n| a | b |\n`) }),
-    'PASS',
+    fixture('a-table-line-after-the-table-is-glossary', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n\n| a | b |\n`) }),
+    'FAIL:glossary',
+  );
+  expect(fixture('text-after-the-table-passes', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n`) }), 'PASS');
+  const glossaryLines = (edit) => (f) => (f[GLOSSARY] = splitLines(copies[GLOSSARY]).flatMap(edit).join('\n'));
+  for (const term of ['paused', 'cap', 'delete', 'approve']) {
+    expect(
+      fixture(`the-fixed-term-${term}-missing`, { files: glossaryLines((l) => (l.startsWith(`| ${term} |`) ? [] : [l])) }),
+      'FAIL:glossary',
+    );
+  }
+  expect(
+    fixture('a-typo-in-the-fixed-term-paused', {
+      files: (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| paused |', '| pasued |')),
+      words: say('It is paused.'),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('a-blank-line-before-the-approve-row', {
+      files: (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| approve |', '\n| approve |')),
+      words: say('You approve it.'),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-approve-row-without-its-end-pipe', {
+      files: glossaryLines((l) => (l.startsWith('| approve |') ? [l.replace(/ \|$/u, '')] : [l])),
+      words: say('You approve it.'),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-fixed-term-approve-not-reserved', {
+      files: glossaryLines((l) => (l.startsWith('| approve |') ? [l.replace(/\| yes \|$/u, '| no |')] : [l])),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-fixed-term-cap-under-another-run', {
+      files: glossaryLines((l) => (l.startsWith('| cap |') ? [l.replace('| capture |', '| billing |')] : [l])),
+    }),
+    'FAIL:glossary',
   );
   expect(fixture('an-empty-allowed-list', { files: (f) => (f[ALLOWED] = '') }), 'FAIL:allowed');
   expect(fixture('an-allowed-term-of-this-run', { files: (f) => (f[ALLOWED] = 'control.delete\tNeeds you\n') }), 'FAIL:allowed');
