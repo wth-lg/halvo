@@ -308,8 +308,7 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
             }));
         }
         if restart.is_none()
-            && permission.restarts_capture()
-            && !(granted && input.at_start.contains(permission))
+            && needs_restart_step(permission, grant, input.at_start.contains(permission))
         {
             restart = Some((permission, pane_name));
         }
@@ -342,6 +341,21 @@ pub fn assess(input: &AssessInput<'_>) -> OnboardingState {
     }
 }
 
+fn needs_request_step(permission: Permission, grant: GrantState, asked: bool, lost: bool) -> bool {
+    let input_monitoring = permission == Permission::InputMonitoring;
+    let undetermined_input_monitoring = input_monitoring && grant == GrantState::NotDetermined;
+    let denied_input_monitoring = input_monitoring && grant == GrantState::NotGranted;
+    undetermined_input_monitoring || !(asked || lost || denied_input_monitoring)
+}
+
+fn needs_restart_step(
+    permission: Permission,
+    grant: GrantState,
+    granted_at_capture_start: bool,
+) -> bool {
+    permission.restarts_capture() && !(grant == GrantState::Granted && granted_at_capture_start)
+}
+
 struct StepContext<'a> {
     permission: Permission,
     grant: GrantState,
@@ -368,11 +382,8 @@ fn walkback_for(context: &StepContext<'_>) -> Vec<WalkbackStep> {
         settings_url: permission.settings_url().to_string(),
         text,
     };
-    let undetermined_input_monitoring =
-        permission == Permission::InputMonitoring && grant == GrantState::NotDetermined;
-    let denied = permission == Permission::InputMonitoring && grant == GrantState::NotGranted;
     let mut steps = Vec::with_capacity(2);
-    if undetermined_input_monitoring || !(asked || lost || denied) {
+    if needs_request_step(permission, grant, asked, lost) {
         steps.push(step(
             WalkbackAction::RequestFromSystem,
             format!("Click Ask now, then click {alert_button} in the message from macOS, and turn on {entry} under {pane}."),
