@@ -240,9 +240,10 @@ impl CaptureSource for ScreenSource {
         };
         let queue = DispatchQueue::new("com.halvo.capture.screen", None);
         let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
-        // SAFETY: `stream` is live; `proto` is `output`, which this source keeps
-        // until `stop` has stopped the stream, and `queue` is a serial dispatch
-        // queue that the source keeps as long.
+        // SAFETY: `stream`, `output` (which `proto` borrows) and the serial
+        // dispatch queue `queue` are live for the call. When `start` succeeds the
+        // source keeps `output` and `queue` in its fields until `stop`; an error
+        // return below drops them with `stream`.
         unsafe {
             stream
                 .addStreamOutput_type_sampleHandlerQueue_error(
