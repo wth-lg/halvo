@@ -11,7 +11,6 @@ pub mod custody;
 pub mod daemon;
 pub mod event;
 pub mod secure_input;
-pub mod service;
 pub mod sink;
 pub mod source;
 pub mod store;
