@@ -51,10 +51,8 @@ list_target() {
     }
     ($1 " " $2) != target || seen[$0]++ { next }
     {
-      if (list_code != 0) print "no_list " $0
-      else if (!($3 in listed)) print "not_listed " $0
-      if (ignored_code != 0) print "no_ignored_list " $0
-      else if ($3 in ignored) print "ignored " $0
+      if (list_code == 0) print (($3 in listed) ? "listed " : "not_listed ") $0
+      if (ignored_code == 0) print (($3 in ignored) ? "ignored " : "clean ") $0
     }
   ' "$listing.txt" "$listing-ignored.txt" "$wanted" >>"$result"
 }
@@ -90,7 +88,6 @@ require_tests() {
       }
       next
     }
-    seen[$0]++ { next }
     {
       if ($2 == "src/lib.rs") {
         bin = $1
@@ -102,7 +99,7 @@ require_tests() {
         sub(/\.rs$/, "", bin)
         printed = $2
       }
-      print (((bin " " printed " " $3) in ran) ? "ok " : "not_ok ") $0
+      if ((bin " " printed " " $3) in ran) print "ok " $0
     }
   ' "$artifacts/cargo-test.txt" "$wanted" >"$result"
   awk '!seen[$1 " " $2]++ { print $1, $2 }' "$wanted" >"$scratch/required-targets.txt"
@@ -110,21 +107,30 @@ require_tests() {
     list_target "$package" "$source"
   done <"$scratch/required-targets.txt"
   awk '
-    $1 == "ok" { tests++; ok++; next }
-    $1 == "not_ok" { tests++ }
-    $1 == "no_list" || $1 == "not_listed" { unlisted++ }
-    $1 == "ignored" || $1 == "no_ignored_list" { ignored++ }
-    {
-      entry = $0
-      sub(/^[^ ]+ /, "", entry)
-      printf "required %s=%s\n", $1, entry
-      bad = 1
+    FILENAME == ARGV[1] {
+      if (!($0 in wanted)) {
+        wanted[$0] = 1
+        order[++tests] = $0
+      }
+      next
     }
+    { got[$0] = 1 }
     END {
-      printf "required tests=%d ok=%d listed=%d ignored=%d\n", tests, ok, tests - unlisted, ignored
-      exit bad
+      for (i = 1; i <= tests; i++) {
+        entry = order[i]
+        if (("ok " entry) in got) ok++
+        else print "required not_ok=" entry
+        if (("listed " entry) in got) listed++
+        else if (("not_listed " entry) in got) print "required not_listed=" entry
+        else print "required no_list=" entry
+        if (("clean " entry) in got) clean++
+        else if (("ignored " entry) in got) print "required ignored=" entry
+        else print "required no_ignored_list=" entry
+      }
+      printf "required tests=%d ok=%d listed=%d ignored=%d\n", tests, ok, listed, tests - clean
+      exit (ok != tests || listed != tests || clean != tests)
     }
-  ' "$result"
+  ' "$wanted" "$result"
 }
 
 pinned() {
@@ -429,6 +435,26 @@ required_cases() {
   mv "$work/repo/$required" "$work/repo/$required.away" || exit 2
   check no-list FAIL 'required list=bad'
   restore_repo
+
+  stub_case carriage-returns
+  awk '{ printf "%s\r\n", $0 }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check carriage-returns PASS 'required tests=21 ok=21 listed=21 ignored=0'
+
+  stub_case windows-paths
+  awk '/^ *Running / { n = split($0, part, "/"); $0 = part[1]; for (i = 2; i <= n; i++) $0 = $0 "\\" part[i]; sub(/\)$/, ".exe)") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check windows-paths PASS 'required tests=21 ok=21 listed=21 ignored=0'
+
+  stub_case running-line-without-a-binary
+  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "     Running tests/forge.rs" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check running-line-without-a-binary FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release"
+
+  stub_case running-line-without-its-closing-paren
+  awk '/Running tests\/no_grant_in_release\.rs / { sub(/\)$/, "0") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check running-line-without-its-closing-paren FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release"
+
+  stub_case ok-line-with-another-ending
+  awk '$0 == "test no_grant_in_release ... ok" { $0 = "test no_grant_in_release ... no" } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check ok-line-with-another-ending FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release"
 }
 
 pin_cases() {
@@ -453,7 +479,7 @@ pin_cases() {
   check changed-lib-rs FAIL 'pins differs=crates/halvo-route/src/lib.rs'
   restore_repo
 
-  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") > 0) { held = "//" held; gsub(/\n    /, "\n//    ", held) }; printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
+  awk '$0 == "    (" { held = $0 "\n"; inside = 1; next } inside { held = held $0 "\n"; if ($0 == "    ),") { inside = 0; if (index(held, "\"src/tier.rs\"") > 0) { gsub(/\n */, " ", held); sub(/^    \( /, "    // (", held); sub(/, \),? *$/, "),", held); held = held "\n" }; printf "%s", held }; next } { print }' "$pins" >"$work/repo/$pin_file" || exit 2
   check pinned-row-commented-out FAIL 'pins missing=crates/halvo-route/src/tier.rs'
   restore_repo
 
@@ -473,8 +499,16 @@ pin_cases() {
   check pinned-path-twice-one-stale FAIL 'pins differs=crates/halvo-route/src/tier.rs'
   restore_repo
 
+  awk '{ print } END { print "const OLD: [(&str, &str); 1] = [(\"src/tier.rs\", \"0000000000000000000000000000000000000000000000000000000000000000\")];" }' "$pins" >"$work/repo/$pin_file" || exit 2
+  check tuple-after-the-pinned-list PASS 'pins tool=' ' files=5 same=5'
+  restore_repo
+
+  mv "$work/repo/$pin_file" "$work/repo/$pin_file.away" || exit 2
+  check no-pin-test-file FAIL 'pins unreadable=PINNED'
+  restore_repo
+
   mkdir "$work/bare" || exit 2
-  for tool in awk cat cmp grep mkdir mktemp sh tail; do
+  for tool in awk cat cmp cp grep mkdir mktemp sh tail; do
     real=$(command -v "$tool") || exit 2
     printf '#!/bin/sh\nexec %s "$@"\n' "$real" >"$work/bare/$tool" || exit 2
     chmod +x "$work/bare/$tool" || exit 2
