@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
 
 on:
   push:
@@ -12,110 +14,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Rust components
-        shell: bash
-        run: rustup component add clippy rustfmt
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
-      - name: Lockfile unchanged
-        shell: bash
-        run: git diff --exit-code -- Cargo.lock
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 220
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,21 +41,588 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
+      - name: "win-2: proof files and a second checkout"
+        if: ${{ !cancelled() }}
         shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
+        run: |
+          set -u
+          files="$RUNNER_TEMP/w2"
+          mkdir -p "$files"
+          cat >"$files/w2_clearing.rs" <<'W2_PROBE_EOF'
+          //! The clearing rule of RR-windows-04 (capture run, win-2): c8b of spike S4 in
+          //! two sets. `control` is the c8b baseline of S4: a pixel-reading capture of
+          //! its own, no MTA reference. `repaired` is the same sequence with the
+          //! product's ScreenSource at this head, which takes the process-lifetime MTA
+          //! reference before its first session. Written by the scratch run only.
+          #![cfg(target_os = "windows")]
+
+          use std::ffi::c_void;
+          use std::sync::atomic::{AtomicU32, Ordering};
+          use std::sync::mpsc;
+          use std::sync::{Arc, Mutex};
+          use std::time::{Duration, Instant};
+
+          use halvo_capture::event::Modality;
+          use halvo_capture::sink::{channel, SinkWriter};
+          use halvo_capture::source::{CaptureSource, SourceContext};
+          use halvo_capture::windows::screen::ScreenSource;
+
+          use windows::core::{HSTRING, PCWSTR};
+          use windows::Win32::Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
+          use windows::Win32::Graphics::Gdi::CreateSolidBrush;
+          use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+          use windows::Win32::UI::WindowsAndMessaging::{
+              CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, PeekMessageW,
+              RegisterClassW, SetWindowDisplayAffinity, TranslateMessage, UnregisterClassW, MSG, PM_REMOVE,
+              WDA_EXCLUDEFROMCAPTURE, WNDCLASSW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
+          };
+          use windows_capture::capture::{Context, GraphicsCaptureApiHandler};
+          use windows_capture::frame::Frame;
+          use windows_capture::graphics_capture_api::InternalCaptureControl;
+          use windows_capture::monitor::Monitor;
+          use windows_capture::settings::{
+              ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings,
+              MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
+          };
+
+          #[repr(C)]
+          struct ExceptionRecord {
+              code: u32,
+              flags: u32,
+              record: *mut ExceptionRecord,
+              address: *mut c_void,
+              params: u32,
+              info: [usize; 15],
+          }
+
+          #[repr(C)]
+          struct ExceptionPointers {
+              record: *mut ExceptionRecord,
+              context: *mut c_void,
+          }
+
+          type VectoredHandler = unsafe extern "system" fn(*mut ExceptionPointers) -> i32;
+
+          #[link(name = "kernel32")]
+          extern "system" {
+              fn AddVectoredExceptionHandler(first: u32, handler: VectoredHandler) -> *mut c_void;
+              fn GetModuleHandleExW(flags: u32, address: *const u16, module: *mut *mut c_void) -> i32;
+              fn GetModuleFileNameW(module: *mut c_void, name: *mut u16, size: u32) -> u32;
+              fn GetStdHandle(which: u32) -> *mut c_void;
+              fn WriteFile(
+                  file: *mut c_void,
+                  buffer: *const u8,
+                  len: u32,
+                  written: *mut u32,
+                  overlapped: *mut c_void,
+              ) -> i32;
+          }
+
+          const STD_OUTPUT_HANDLE: u32 = (-11i32) as u32;
+          const FROM_ADDRESS: u32 = 0x4;
+          const UNCHANGED_REFCOUNT: u32 = 0x2;
+          const MAGENTA: u32 = 0x00FF_00FF;
+
+          static PRINTED: AtomicU32 = AtomicU32::new(0);
+
+          struct Line {
+              buf: [u8; 320],
+              len: usize,
+          }
+
+          impl Line {
+              fn text(&mut self, s: &[u8]) {
+                  for &b in s {
+                      if self.len < self.buf.len() - 1 {
+                          self.buf[self.len] = b;
+                          self.len += 1;
+                      }
+                  }
+              }
+              fn hex(&mut self, mut v: usize) {
+                  let mut digits = [0u8; 16];
+                  let mut n = 0;
+                  loop {
+                      let d = (v & 0xF) as u8;
+                      digits[n] = if d < 10 { b'0' + d } else { b'a' + d - 10 };
+                      n += 1;
+                      v >>= 4;
+                      if v == 0 {
+                          break;
+                      }
+                  }
+                  self.text(b"0x");
+                  while n > 0 {
+                      n -= 1;
+                      self.text(&digits[n..n + 1]);
+                  }
+              }
+          }
+
+          unsafe extern "system" fn on_exception(pointers: *mut ExceptionPointers) -> i32 {
+              let record = unsafe { &*(*pointers).record };
+              let watched = matches!(record.code, 0xC000_0005 | 0xC000_0374 | 0xC000_0409);
+              if !watched || PRINTED.fetch_add(1, Ordering::SeqCst) >= 3 {
+                  return 0;
+              }
+              let mut line = Line {
+                  buf: [0; 320],
+                  len: 0,
+              };
+              line.text(b"W2 fault code=");
+              line.hex(record.code as usize);
+              let mut module: *mut c_void = core::ptr::null_mut();
+              let found = unsafe {
+                  GetModuleHandleExW(
+                      FROM_ADDRESS | UNCHANGED_REFCOUNT,
+                      record.address as *const u16,
+                      &mut module,
+                  )
+              } != 0;
+              if found {
+                  let mut name = [0u16; 260];
+                  let n = unsafe { GetModuleFileNameW(module, name.as_mut_ptr(), 260) } as usize;
+                  let start = name[..n]
+                      .iter()
+                      .rposition(|&c| c == b'\\' as u16)
+                      .map_or(0, |i| i + 1);
+                  line.text(b" module=");
+                  for &c in &name[start..n] {
+                      line.text(&[if c < 128 { c as u8 } else { b'?' }]);
+                  }
+                  line.text(b" offset=");
+                  line.hex(record.address as usize - module as usize);
+              } else {
+                  line.text(b" module=<none> offset=");
+                  line.hex(record.address as usize & 0xFFFF);
+              }
+              line.text(b"\n");
+              let mut written = 0u32;
+              unsafe {
+                  WriteFile(
+                      GetStdHandle(STD_OUTPUT_HANDLE),
+                      line.buf.as_ptr(),
+                      line.len as u32,
+                      &mut written,
+                      core::ptr::null_mut(),
+                  );
+              }
+              0
+          }
+
+          fn say(message: impl AsRef<str>) {
+              println!("W2 c8b {}", message.as_ref());
+          }
+
+          fn pump_thread(window: Duration) {
+              let deadline = Instant::now() + window;
+              let mut msg = MSG::default();
+              loop {
+                  unsafe {
+                      while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                          let _ = TranslateMessage(&msg);
+                          DispatchMessageW(&msg);
+                      }
+                  }
+                  if Instant::now() >= deadline {
+                      break;
+                  }
+                  std::thread::sleep(Duration::from_millis(10));
+              }
+          }
+
+          unsafe extern "system" fn test_wnd_proc(
+              hwnd: HWND,
+              msg: u32,
+              wparam: WPARAM,
+              lparam: LPARAM,
+          ) -> LRESULT {
+              unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+          }
+
+          struct Popup {
+              hwnd: HWND,
+              class_name: HSTRING,
+              hinstance: HINSTANCE,
+              destroyed: bool,
+          }
+
+          impl Popup {
+              fn magenta() -> Self {
+                  let class_name = HSTRING::from("W2ClearingPopup");
+                  let hinstance: HINSTANCE = unsafe { GetModuleHandleW(None) }.expect("module").into();
+                  let wc = WNDCLASSW {
+                      lpfnWndProc: Some(test_wnd_proc),
+                      hInstance: hinstance,
+                      lpszClassName: PCWSTR(class_name.as_ptr()),
+                      hbrBackground: unsafe { CreateSolidBrush(COLORREF(MAGENTA)) },
+                      ..Default::default()
+                  };
+                  assert_ne!(unsafe { RegisterClassW(&wc) }, 0, "RegisterClassW");
+                  let hwnd = unsafe {
+                      CreateWindowExW(
+                          WS_EX_TOPMOST,
+                          PCWSTR(class_name.as_ptr()),
+                          PCWSTR(class_name.as_ptr()),
+                          WS_POPUP | WS_VISIBLE,
+                          100,
+                          100,
+                          360,
+                          240,
+                          None,
+                          None,
+                          Some(hinstance),
+                          None,
+                      )
+                  }
+                  .expect("window");
+                  Self {
+                      hwnd,
+                      class_name,
+                      hinstance,
+                      destroyed: false,
+                  }
+              }
+
+              fn exclude(&self) -> bool {
+                  unsafe { SetWindowDisplayAffinity(self.hwnd, WDA_EXCLUDEFROMCAPTURE) }.is_ok()
+              }
+
+              fn destroy(&mut self) {
+                  if self.destroyed {
+                      return;
+                  }
+                  self.destroyed = true;
+                  unsafe {
+                      let _ = DestroyWindow(self.hwnd);
+                      let _ = UnregisterClassW(PCWSTR(self.class_name.as_ptr()), Some(self.hinstance));
+                  }
+                  pump_thread(Duration::from_millis(50));
+              }
+          }
+
+          struct ProbeFlags {
+              samples: mpsc::Sender<bool>,
+          }
+
+          struct PixelProbe {
+              flags: ProbeFlags,
+          }
+
+          impl GraphicsCaptureApiHandler for PixelProbe {
+              type Flags = ProbeFlags;
+              type Error = String;
+
+              fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
+                  Ok(Self { flags: ctx.flags })
+              }
+
+              fn on_frame_arrived(
+                  &mut self,
+                  frame: &mut Frame,
+                  _control: InternalCaptureControl,
+              ) -> Result<(), Self::Error> {
+                  let read = frame
+                      .buffer()
+                      .map(|mut buffer| {
+                          let pitch = buffer.row_pitch() as usize;
+                          let offset = 220 * pitch + 280 * 4;
+                          buffer.as_raw_buffer().get(offset..offset + 4).is_some()
+                      })
+                      .unwrap_or(false);
+                  let _ = self.flags.samples.send(read);
+                  Ok(())
+              }
+          }
+
+          fn baseline_capture(label: &str) {
+              let (samples, received) = mpsc::channel();
+              let monitor = Monitor::primary().expect("primary monitor");
+              let settings = Settings::new(
+                  monitor,
+                  CursorCaptureSettings::WithoutCursor,
+                  DrawBorderSettings::Default,
+                  SecondaryWindowSettings::Default,
+                  MinimumUpdateIntervalSettings::Default,
+                  DirtyRegionSettings::Default,
+                  ColorFormat::Bgra8,
+                  ProbeFlags { samples },
+              );
+              let control = PixelProbe::start_free_threaded(settings).expect("capture start");
+              let mut frames = 0u32;
+              let mut deadline = Instant::now() + Duration::from_secs(10);
+              while Instant::now() < deadline {
+                  if received.try_recv().is_ok() {
+                      if frames == 0 {
+                          deadline = Instant::now() + Duration::from_secs(3);
+                      }
+                      frames += 1;
+                  }
+                  pump_thread(Duration::from_millis(20));
+              }
+              let stopped = control.stop().is_ok();
+              say(format!("capture={label} baseline frames={frames} stopped={stopped}"));
+          }
+
+          fn frames_of(writer: &SinkWriter, window: Duration) -> usize {
+              let deadline = Instant::now() + window;
+              let mut frames = 0;
+              while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+                  match writer.recv_timeout(left) {
+                      Ok(received) if received.event().modality == Modality::ScreenFrame => frames += 1,
+                      Ok(_) => {}
+                      Err(_) => break,
+                  }
+              }
+              frames
+          }
+
+          fn product_capture(label: &str) {
+              let (sink, writer) = channel(256);
+              let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+              let start = screen.begin(SourceContext::new(sink.clone()));
+              let mut frames = 0;
+              let began = Instant::now();
+              while began.elapsed() < Duration::from_secs(3) {
+                  pump_thread(Duration::from_millis(50));
+                  frames += frames_of(&writer, Duration::from_millis(50));
+              }
+              let stop = screen.shutdown();
+              say(format!(
+                  "capture={label} product_source start_ok={} frames={frames} stop_ok={}",
+                  start.is_ok(),
+                  stop.is_ok()
+              ));
+          }
+
+          #[test]
+          #[ignore = "clearing rule of RR-windows-04: run by name in its own process"]
+          fn w2_c8b() {
+              unsafe {
+                  AddVectoredExceptionHandler(1, on_exception);
+              }
+              let set = std::env::var("W2_SET").unwrap_or_else(|_| "control".to_string());
+              say(format!("begin set={set}"));
+              let product = set == "repaired";
+              let worker = std::thread::spawn(move || {
+                  let mut popup = Popup::magenta();
+                  pump_thread(Duration::from_millis(500));
+                  if product {
+                      product_capture("first");
+                  } else {
+                      baseline_capture("first");
+                  }
+                  say(format!("affinity_set={}", popup.exclude()));
+                  pump_thread(Duration::from_millis(500));
+                  if product {
+                      product_capture("second");
+                  } else {
+                      baseline_capture("second");
+                  }
+                  popup.destroy();
+                  say("teardown window_destroyed=true");
+                  std::thread::sleep(Duration::from_secs(2));
+                  say("teardown idle_2s_after=true");
+              });
+              worker.join().expect("the c8b body");
+              say(format!("end set={set}"));
+          }
+          W2_PROBE_EOF
+          cat >"$files/w2-clearing.sh" <<'W2_CLEARING_EOF'
+          #!/bin/bash
+          # The clearing rule of RR-windows-04 in one job: 30 launches of c8b with the
+          # repair and 30 of the unrepaired control, interleaved one for one. Prints
+          # counts, exit codes and the probe's W2 lines only.
+          set -u
+          w=$1
+          files=$2
+          cd "$w" || exit 2
+          cp "$files/w2_clearing.rs" crates/halvo-capture/tests/w2_clearing.rs || exit 2
+          if ! cargo test --locked -p halvo-capture --test w2_clearing --no-run --message-format json >"$files/clearing-build.json" 2>"$files/clearing-build.err"; then
+            echo "W2 clearing result=build-failed"
+            tail -n 30 "$files/clearing-build.err"
+            exit 1
+          fi
+          exe=$(sed -n 's/.*"name":"w2_clearing".*"executable":"\([^"]*\)".*/\1/p' "$files/clearing-build.json" | sed 's/\\\\/\//g')
+          [ -f "$exe" ] || { echo "W2 clearing result=no-executable"; exit 1; }
+          powershell -NoProfile -Command '"W2 clearing env os_version=" + [Environment]::OSVersion.Version.ToString()'
+          powershell -NoProfile -Command '$p = Get-CimInstance Win32_Processor | Select-Object -First 1; "W2 clearing env cpu=" + ($p.Name -replace " ", "_") + " logical=" + $p.NumberOfLogicalProcessors'
+          launches=${W2_LAUNCHES:-30}
+          tally=$files/clearing-tally.txt
+          : >"$tally"
+          round=0
+          while [ "$round" -lt "$launches" ]; do
+            round=$((round + 1))
+            for set in control repaired; do
+              out=$(W2_SET=$set timeout 120 "$exe" --ignored --exact w2_c8b --nocapture 2>&1)
+              rc=$?
+              case $rc in
+                0) kind=pass ;;
+                139 | 3221225477 | -1073741819) kind=fault ;;
+                124) kind=timeout ;;
+                *) kind=other ;;
+              esac
+              printf 'W2 clearing launch set=%s round=%s exit=%s kind=%s\n' "$set" "$round" "$rc" "$kind"
+              printf '%s\n' "$out" | tr -d '\r' | grep -a '^W2 ' | sed 's/^/  /'
+              printf '%s %s\n' "$set" "$kind" >>"$tally"
+            done
+            if [ "$round" -eq 1 ] && ! grep -q ' pass$\| fault$' "$tally"; then
+              echo "W2 clearing result=probe-broken (round 1 had no pass and no fault)"
+              exit 1
+            fi
+          done
+          for set in control repaired; do
+            n_pass=$(grep -c "^$set pass$" "$tally")
+            n_fault=$(grep -c "^$set fault$" "$tally")
+            n_timeout=$(grep -c "^$set timeout$" "$tally")
+            n_other=$(grep -c "^$set other$" "$tally")
+            printf 'W2 clearing summary set=%s launches=%s pass=%s faults=%s timeouts=%s other=%s\n' "$set" "$launches" "$n_pass" "$n_fault" "$n_timeout" "$n_other"
+          done
+          W2_CLEARING_EOF
+          cat >"$files/w2-mutants.sh" <<'W2_MUTANTS_EOF'
+          #!/bin/bash
+          # The one-rule changes of win-2, one after another in one checkout of the head
+          # with one target directory: apply, build and run the named test, restore with
+          # git checkout. A change is caught when its test fails or it does not build.
+          set -u
+          w=$1
+          files=$2
+          list=$3
+          cd "$w" || exit 2
+          head=$(git rev-parse HEAD)
+          tab=$(printf '\t')
+          caught=0
+          survived=0
+          nobuild=0
+          unapplied=0
+          n=0
+          while IFS="$tab" read -r name file subst kind test; do
+            [ -n "$name" ] || continue
+            n=$((n + 1))
+            git checkout --quiet -- "$file"
+            if ! SUBST="$subst" perl -0777 -i -pe '$c = eval "\$_ =~ $ENV{SUBST}"; die "no match\n" unless $c;' "$file" 2>"$files/m-apply.err"; then
+              unapplied=$((unapplied + 1))
+              printf 'W2 mutant name=%s result=not-applied\n' "$name"
+              git checkout --quiet -- "$file"
+              continue
+            fi
+            log=$files/mutant-$n.log
+            began=$(date +%s)
+            if [ "$kind" = tf ]; then
+              timeout 900 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$test" --nocapture >"$log" 2>&1
+            else
+              timeout 900 cargo test --locked -p halvo-capture --lib -- --exact "$test" >"$log" 2>&1
+            fi
+            code=$?
+            ended=$(date +%s)
+            ran=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. ')
+            if grep -a -q 'could not compile\|^error\[E' "$log"; then
+              result=no-build
+              nobuild=$((nobuild + 1))
+            elif [ "$code" -eq 124 ]; then
+              result=caught-time-limit
+              caught=$((caught + 1))
+            elif [ "$ran" -ne 1 ]; then
+              result=not-one-test-ran
+              survived=$((survived + 1))
+            elif [ "$code" -ne 0 ] && grep -a -q "^test .* \.\.\. FAILED" "$log"; then
+              result=caught
+              caught=$((caught + 1))
+            else
+              result=survived
+              survived=$((survived + 1))
+            fi
+            printf 'W2 mutant name=%s kind=%s test=%s exit=%s tests_ran=%s result=%s seconds=%s\n' "$name" "$kind" "$test" "$code" "$ran" "$result" "$((ended - began))"
+            tr -d '\r' <"$log" | grep -a -E '^test .* \.\.\. |panicked at|^error(\[|:)|^TF ' | head -6 | sed 's/^/W2   /'
+            git checkout --quiet -- "$file"
+          done <"$list"
+          git diff --quiet "$head" || echo "W2 mutants the checkout differs from the head after the run"
+          printf 'W2 mutants summary changes=%s caught=%s no_build=%s survived=%s not_applied=%s\n' "$n" "$caught" "$nobuild" "$survived" "$unapplied"
+          W2_MUTANTS_EOF
+          cat >"$files/w2-proofs.sh" <<'W2_PROOFS_EOF'
+          #!/bin/bash
+          # The proof of each part of win-2: its tests at the commit that adds them
+          # (before the fix) and at the commit of the fix, in one checkout with one
+          # target directory. Prints exit codes and the test result lines only.
+          set -u
+          w=$1
+          files=$2
+          cd "$w" || exit 2
+          run() {
+            part=$1 at=$2 commit=$3 kind=$4
+            shift 4
+            git checkout --quiet --force --detach "$commit" || { echo "W2 proof part=$part at=$at commit=$commit result=checkout-failed"; return; }
+            log=$files/proof-$part-$at-$kind.log
+            if [ "$kind" = tf ]; then
+              timeout 900 cargo test --locked -p halvo-capture --test windows_functional -- --ignored --exact "$@" --nocapture >"$log" 2>&1
+            else
+              timeout 900 cargo test --locked -p halvo-capture --lib -- --exact "$@" >"$log" 2>&1
+            fi
+            code=$?
+            ok=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. ok$')
+            failed=$(tr -d '\r' <"$log" | grep -a -c '^test .* \.\.\. FAILED$')
+            echo "W2 proof part=$part at=$at commit=$commit kind=$kind exit=$code ok=$ok failed=$failed"
+            tr -d '\r' <"$log" | grep -a -E '^test .* \.\.\. |^test result:|panicked at|^KNOWN-DEFECT|^TF |^error(\[|:)' | head -40 | sed 's/^/W2   /'
+          }
+          run RR-windows-21 before db2177bc359cfa212d954034b9d6879fc88e1d9c lib windows::foreground::tests::a_foreground_hook_that_does_not_install_fails_the_start_with_its_step windows::window_title::tests::a_title_hook_that_does_not_install_fails_the_start_with_its_step windows::input::tests::a_second_keyboard_source_names_the_step_that_failed
+          run RR-windows-21 after 5a64eaa7233f68198c32ec75be3ed208ee00b073 lib windows::foreground::tests::a_foreground_hook_that_does_not_install_fails_the_start_with_its_step windows::window_title::tests::a_title_hook_that_does_not_install_fails_the_start_with_its_step windows::input::tests::a_second_keyboard_source_names_the_step_that_failed
+          run RR-windows-09 before b08e217e4e5b941c3efe17bf474e60001383aa09 lib windows::tests::with_the_sink_full_one_motion_sample_is_pending_and_no_button_packet_is_lost
+          run RR-windows-09 after f8c3c84d06f2871ca15de37ac8e3dc9c4d2d450d lib windows::tests::with_the_sink_full_one_motion_sample_is_pending_and_no_button_packet_is_lost
+          run RR-windows-09 before b08e217e4e5b941c3efe17bf474e60001383aa09 tf known_defect::pointer_moves_are_not_coalesced
+          run RR-windows-09 after f8c3c84d06f2871ca15de37ac8e3dc9c4d2d450d tf pointer_moves_coalesce
+          run RR-windows-22 before 1b2fe27095f9f6ab54a4d179607e40b22799da63 lib windows::tests::an_event_carries_the_time_of_its_os_event
+          run RR-windows-22 after 87501ac50ab05c586a485ab289a32f2cb91e6403 lib windows::tests::an_event_carries_the_time_of_its_os_event
+          run RR-windows-22 before 1b2fe27095f9f6ab54a4d179607e40b22799da63 tf capture_times_follow_the_input_order
+          run RR-windows-22 after 87501ac50ab05c586a485ab289a32f2cb91e6403 tf capture_times_follow_the_input_order
+          run RR-windows-11 before 8d8b828bf209f9e417865707909451712fbd68b3 lib windows::tests::stop_ends_a_pump_whose_first_quit_post_fails_inside_its_deadline windows::foreground::tests::a_second_begin_is_refused_and_health_follows_the_lifecycle windows::input::tests::a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop
+          run RR-windows-11 after 52c181b010f5c49b079cb11062a61739c6cd8f68 lib windows::tests::stop_ends_a_pump_whose_first_quit_post_fails_inside_its_deadline windows::foreground::tests::a_second_begin_is_refused_and_health_follows_the_lifecycle windows::input::tests::a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop
+          run RR-windows-11 before 8d8b828bf209f9e417865707909451712fbd68b3 tf known_defect::stop_with_a_full_sink
+          run RR-windows-11 after 52c181b010f5c49b079cb11062a61739c6cd8f68 tf stop_with_a_full_sink
+          run RR-windows-11 before 8d8b828bf209f9e417865707909451712fbd68b3 tf known_defect::a_dropped_keyboard_source_keeps_capturing
+          run RR-windows-11 after 52c181b010f5c49b079cb11062a61739c6cd8f68 tf a_dropped_keyboard_source_stops_capturing
+          run RR-windows-06 before 535c678b9bf87f37a774a2ef22273aaa46c13c99 lib windows::screen::tests::the_settings_choice_passes_the_default_interval_when_the_probe_answers_no windows::screen::tests::the_settings_choice_passes_the_custom_interval_when_the_probe_answers_yes windows::screen::tests::the_settings_choice_refuses_a_build_without_the_cursor_setting_and_names_the_build windows::screen::tests::the_handler_keeps_one_frame_per_interval_when_it_drops_by_time
+          run RR-windows-06 after c70b3e7d64ff0752c6687e3e61f39fc3353adff5 lib windows::screen::tests::the_settings_choice_passes_the_default_interval_when_the_probe_answers_no windows::screen::tests::the_settings_choice_passes_the_custom_interval_when_the_probe_answers_yes windows::screen::tests::the_settings_choice_refuses_a_build_without_the_cursor_setting_and_names_the_build windows::screen::tests::the_handler_keeps_one_frame_per_interval_when_it_drops_by_time
+          run RR-windows-07 before 85c567e04236212ea482b53c12f9f52355441688 lib windows::screen::tests::a_closed_capture_item_reads_as_failed_health
+          run RR-windows-07 after 67972743db2314327c2024381a8cdf15533a64ce lib windows::screen::tests::a_closed_capture_item_reads_as_failed_health
+          run RR-macos-sources-05 before 574647b94dcc84789471af542d945e92fdd2b226 lib windows::audio::tests::a_disabled_source_answers_off_and_yields_no_event
+          run RR-macos-sources-05 after 06ee71b52e4b27bba72414513f4d4185fef60e06 lib windows::audio::tests::a_disabled_source_answers_off_and_yields_no_event
+          git checkout --quiet --force --detach "$W2_HEAD"
+          echo "W2 proofs done"
+          W2_PROOFS_EOF
+          printf '%s' 'dGltZS1zdGFtcGVkLWF0LWZvcndhcmQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvbGV0IHdhbGxfY2xvY2sgPSBjYXB0dXJlX2luc3RhbnRcKHBhY2tldFwudGlja1wpOy9sZXQgd2FsbF9jbG9jayA9IFN5c3RlbVRpbWU6Om5vdygpOy8JbGliCXdpbmRvd3M6OnRlc3RzOjphbl9ldmVudF9jYXJyaWVzX3RoZV90aW1lX29mX2l0c19vc19ldmVudAphZ2Utd2l0aG91dC13cmFwLWd1YXJkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL2xldCBhZ2UgPSBpZiBhZ2UgPiBpMzI6Ok1BWCBhcyB1MzIgXHsgMCBcfSBlbHNlIFx7IGFnZSBcfTsvbGV0IGFnZSA9IGFnZTsvCWxpYgl3aW5kb3dzOjp0ZXN0czo6dGhlX2FnZV9vZl9hbl9ldmVudF9pc19yZWFkX2Fjcm9zc190aGVfd3JhcF9vZl90aGVfdGlja19jb3VudApjYXBhY2l0eS1vZmYtYnktb25lCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL3F1ZXVlXC5wYWNrZXRzXC5sZW5cKFwpID49IEhBTkRPRkZfQ0FQQUNJVFkvcXVldWUucGFja2V0cy5sZW4oKSA+IEhBTkRPRkZfQ0FQQUNJVFkvCWxpYgl3aW5kb3dzOjp0ZXN0czo6YV9mdWxsX3F1ZXVlX2Ryb3BzX2FfcGFja2V0X2FuZF9jb3VudHNfaXRfbG9zdApjb2FsZXNjZWQtbm90LWNvdW50ZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvaWYgcXVldWVcLm1vdGlvblwucmVwbGFjZVwocGFja2V0XClcLmlzX3NvbWVcKFwpIFx7L2lmIHF1ZXVlLm1vdGlvbi5yZXBsYWNlKHBhY2tldCkuaXNfc29tZSgpICYmIGZhbHNlIHsvCWxpYgl3aW5kb3dzOjp0ZXN0czo6d2l0aF90aGVfc2lua19mdWxsX29uZV9tb3Rpb25fc2FtcGxlX2lzX3BlbmRpbmdfYW5kX25vX2J1dHRvbl9wYWNrZXRfaXNfbG9zdAp3cml0ZXItZ29uZS1ub3QtbWFya2VkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgICAgIHF1ZXVlXC53cml0ZXJfZ29uZSA9IHRydWU7XG4vLwlsaWIJd2luZG93czo6dGVzdHM6OmFfZ29uZV93cml0ZXJfY2xvc2VzX3RoZV9oYW5kX29mZl9hbmRfY291bnRzX3doYXRfaXRfaGVsZAplbmRlZC1iZWZvcmUtaWdub3JlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy9pZiBqb2luXC5qb2luXChcKVwuaXNfZXJyXChcKSBcfFx8IGVuZGVkX2JlZm9yZSBcey9pZiBqb2luLmpvaW4oKS5pc19lcnIoKSB7LwlsaWIJd2luZG93czo6dGVzdHM6OnNwYXduX3B1bXBfYmxvY2tzX3VudGlsX3RoZV90aHJlYWRfcmVwb3J0c19hX3JlYWxfaWQKc2Vjb25kLWJlZ2luLWFsbG93ZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBpZiBzZWxmXC5wdW1wXC5pc19zb21lXChcKSBce1xuICAgICAgICAgICAgcmV0dXJuIEVyclwoQ2FwdHVyZUVycm9yOjpBbHJlYWR5U3RhcnRlZFwpO1xuICAgICAgICBcfVxuLy8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX3NlY29uZF9iZWdpbl9pc19yZWZ1c2VkX2FuZF9oZWFsdGhfZm9sbG93c190aGVfbGlmZWN5Y2xlCnN0b3Atbm90LXJlY29yZGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgc2VsZlwuc3RvcHBlZCA9IHRydWU7XG4gICAgICAgIHN0b3BwZWQvICAgICAgICBzdG9wcGVkLwlsaWIJd2luZG93czo6Zm9yZWdyb3VuZDo6dGVzdHM6OmFfc2Vjb25kX2JlZ2luX2lzX3JlZnVzZWRfYW5kX2hlYWx0aF9mb2xsb3dzX3RoZV9saWZlY3ljbGUKZW5kZWQtcHVtcC1yZWFkcy1ydW5uaW5nCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzL1NvbWVcKHB1bXBcKSBpZiBwdW1wXC5oYXNfZW5kZWRcKFwpIFx8XHwgd3JpdGVyX2dvbmUgPT4gdGhyZWFkX2VuZGVkXChcKSwvU29tZShwdW1wKSBpZiB3cml0ZXJfZ29uZSAmJiBwdW1wLmhhc19lbmRlZCgpID0+IHRocmVhZF9lbmRlZCgpLC8JbGliCXdpbmRvd3M6OnRlc3RzOjphX3B1bXBfdGhhdF9lbmRlZF93aXRob3V0X2Ffc3RvcF9yZWFkc19hc19mYWlsZWQKY2xhaW0tbm90LWNoZWNrZWQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgICAgIGlmIGluX3VzZVxbZGV2aWNlXC5pbmRleFwoXClcXSBce1xuICAgICAgICAgICAgcmV0dXJuIEVyclwoQ2FwdHVyZUVycm9yOjpBbHJlYWR5U3RhcnRlZFwpO1xuICAgICAgICBcfVxuLy8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9zZWNvbmRfa2V5Ym9hcmRfc291cmNlX2luX3RoZV9wcm9jZXNzX3dhaXRzX2Zvcl90aGVfZmlyc3RfdG9fc3RvcApjbGFpbS1uZXZlci1yZWxlYXNlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzL1wudW53cmFwX29yX2Vsc2VcKFBvaXNvbkVycm9yOjppbnRvX2lubmVyXClcW3NlbGZcLjBcLmluZGV4XChcKVxdID0gZmFsc2U7Ly51bndyYXBfb3JfZWxzZShQb2lzb25FcnJvcjo6aW50b19pbm5lcilbc2VsZi4wLmluZGV4KCldID0gdHJ1ZTsvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OmFfa2V5Ym9hcmRfc291cmNlX3JlZnVzZXNfYV9zZWNvbmRfYmVnaW5fYW5kX3N0YXJ0c19hZ2Fpbl9hZnRlcl9pdHNfc3RvcApjbGFzcy1yZWdpc3RlcmVkLWVhY2gtc3RhcnQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJcy8gICAgcmVnaXN0ZXJlZFxbZGV2aWNlXC5pbmRleFwoXClcXSA9IHRydWU7XG4vLwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjphX2tleWJvYXJkX3NvdXJjZV9yZWZ1c2VzX2Ffc2Vjb25kX2JlZ2luX2FuZF9zdGFydHNfYWdhaW5fYWZ0ZXJfaXRzX3N0b3AKa2V5LXVwLXJlY29yZGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCXMvICAgIGlmIGtleVwucmVsZWFzZWQgXHsvICAgIGlmICFrZXkucmVsZWFzZWQgey8JbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9rZXlfZG93bl9tYXBzX3RvX2Ffa2V5c3Ryb2tlX3BhY2tldAptb3Rpb24tdGVzdC1pbnZlcnRlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlzL3NlbGZcLmJ1dHRvbl9mbGFncyA9PSAwL3NlbGYuYnV0dG9uX2ZsYWdzICE9IDAvCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OmFfcG9pbnRlcl9zYW1wbGVfbWFwc190b19hX3BvaW50ZXJfcGFja2V0X2FuZF9vbmx5X2FfZmxhZ2xlc3Nfb25lX2lzX21vdGlvbgp0aXRsZS1ob29rLXNraXBzLWl0cy1oYW5kbGUtdGVzdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy93aW5kb3dfdGl0bGUucnMJcy8gICAgaWYgaG9va1wuaXNfaW52YWxpZFwoXCkgXHsvICAgIGlmIGZhbHNlIHsvCWxpYgl3aW5kb3dzOjp3aW5kb3dfdGl0bGU6OnRlc3RzOjphX3RpdGxlX2hvb2tfdGhhdF9kb2VzX25vdF9pbnN0YWxsX2ZhaWxzX3RoZV9zdGFydF93aXRoX2l0c19zdGVwCmN1cnNvci1mbG9vci1kcm9wcGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICBpZiAhc3VwcG9ydFwuY3Vyc29yX3NldHRpbmcgXHsvICAgIGlmIGZhbHNlIHsvCWxpYgl3aW5kb3dzOjpzY3JlZW46OnRlc3RzOjp0aGVfc2V0dGluZ3NfY2hvaWNlX3JlZnVzZXNfYV9idWlsZF93aXRob3V0X3RoZV9jdXJzb3Jfc2V0dGluZ19hbmRfbmFtZXNfdGhlX2J1aWxkCmludGVydmFsLWlnbm9yZXMtdGhlLXByb2JlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICBpZiBzdXBwb3J0XC5taW5pbXVtX3VwZGF0ZV9pbnRlcnZhbCBcey8gICAgaWYgdHJ1ZSB7LwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6dGhlX3NldHRpbmdzX2Nob2ljZV9wYXNzZXNfdGhlX2RlZmF1bHRfaW50ZXJ2YWxfd2hlbl90aGVfcHJvYmVfYW5zd2Vyc19ubwpmcmFtZS1maWx0ZXItaW5jbHVzaXZlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzL25vd1wuc2F0dXJhdGluZ19kdXJhdGlvbl9zaW5jZVwoYXRcKSA8IHdpdGhpbi9ub3cuc2F0dXJhdGluZ19kdXJhdGlvbl9zaW5jZShhdCkgPD0gd2l0aGluLwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6dGhlX2hhbmRsZXJfa2VlcHNfb25lX2ZyYW1lX3Blcl9pbnRlcnZhbF93aGVuX2l0X2Ryb3BzX2J5X3RpbWUKY2xvc2VkLWl0ZW0tcmVhZHMtcnVubmluZwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJcy9Tb21lXChmaW5pc2hlZFwpIGlmIGZpbmlzaGVkIFx8XHwgaXRlbV9jbG9zZWQgXHxcfCB3cml0ZXJfZ29uZS9Tb21lKGZpbmlzaGVkKSBpZiBmaW5pc2hlZCB8fCB3cml0ZXJfZ29uZS8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OmFfY2xvc2VkX2NhcHR1cmVfaXRlbV9yZWFkc19hc19mYWlsZWRfaGVhbHRoCnN0b3BwZWQtc2NyZWVuLXJlYWRzLW5vdC1yZXBvcnRlZAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJcy8gICAgICAgIE5vbmUgaWYgc3RvcHBlZCA9PiBTb3VyY2VTdGF0ZTo6U3RvcHBlZFwoU3RvcENhdXNlOjpSZXF1ZXN0XCksXG4vLwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9jbG9zZWRfY2FwdHVyZV9pdGVtX3JlYWRzX2FzX2ZhaWxlZF9oZWFsdGgKbXRhLXJlZmVyZW5jZS1za2lwcGVkCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICB1bnNhZmUgXHsgd2luZG93czo6V2luMzI6OlN5c3RlbTo6Q29tOjpDb0luY3JlbWVudE1UQVVzYWdlXChcKSBcfVxuICAgICAgICBcLm1hcF9lcnJcKFx8ZVx8IHN1cGVyOjpvc19lcnJvclwoXCJDb0luY3JlbWVudE1UQVVzYWdlXCIsICZlXClcKVw/O1xuLy8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OnRoZV9wcm9jZXNzX210YV9yZWZlcmVuY2VfaXNfdGFrZW5fb25jZV9hbmRfaG9sZHNfYW5fbXRhX2Zvcl9hX25ld190aHJlYWQKYXVkaW8tYW5zd2Vycy1ydW5uaW5nCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2F1ZGlvLnJzCXMvcmV0dXJuIE9rXChTdGFydGVkOjpPZmZcKTsvcmV0dXJuIE9rKFN0YXJ0ZWQ6OlJ1bm5pbmcpOy8JbGliCXdpbmRvd3M6OmF1ZGlvOjp0ZXN0czo6YV9kaXNhYmxlZF9zb3VyY2VfYW5zd2Vyc19vZmZfYW5kX3lpZWxkc19ub19ldmVudApib3JkZXItb2ZmCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlzLyAgICAgICAgICAgIERyYXdCb3JkZXJTZXR0aW5nczo6RGVmYXVsdCwvICAgICAgICAgICAgRHJhd0JvcmRlclNldHRpbmdzOjpXaXRob3V0Qm9yZGVyLC8JdGYJeDdfY2FwdHVyZV9ib3JkZXJfb25fdGhlX3NjcmVlbgptb3Rpb24taW50ZXJ2YWwtemVybwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy9EdXJhdGlvbjo6ZnJvbV9taWxsaXNcKDEwMFwpOy9EdXJhdGlvbjo6ZnJvbV9taWxsaXMoMCk7Lwl0Zglwb2ludGVyX21vdmVzX2NvYWxlc2NlCnJvdzpzdG9wLXBvc3RzLW9uY2Utd2l0aG91dC10aGUtZXZlbnQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCXMvICAgICAgICBzZWxmXC5zaWduYWxcLnNldFwoXCk7XG4gICAgICAgIGxvb3AgXHtcbiAgICAgICAgICAgIHBvc3RfcXVpdF90b1woc2VsZlwuaWRcKTtcbi8gICAgICAgIHBvc3RfcXVpdF90byhzZWxmLmlkKTtcbiAgICAgICAgbG9vcCB7XG4vCWxpYgl3aW5kb3dzOjp0ZXN0czo6c3RvcF9lbmRzX2FfcHVtcF93aG9zZV9maXJzdF9xdWl0X3Bvc3RfZmFpbHNfaW5zaWRlX2l0c19kZWFkbGluZQpyb3c6aG9vay1wdW1wLXNraXBzLWl0cy1oYW5kbGUtdGVzdAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9mb3JlZ3JvdW5kLnJzCXMvICAgIGlmIGhvb2tcLmlzX2ludmFsaWRcKFwpIFx7XG4gICAgICAgIGxldCBlcnJvciA9IHN1cGVyOjpsYXN0X29zX2Vycm9yXChcIlNldFdpbkV2ZW50SG9va1wiXCk7XG4gICAgICAgIEZPUkVHUk9VTkRfQ1RYLyAgICBpZiBmYWxzZSB7XG4gICAgICAgIGxldCBlcnJvciA9IHN1cGVyOjpsYXN0X29zX2Vycm9yKFwiU2V0V2luRXZlbnRIb29rXCIpO1xuICAgICAgICBGT1JFR1JPVU5EX0NUWC8JbGliCXdpbmRvd3M6OmZvcmVncm91bmQ6OnRlc3RzOjphX2ZvcmVncm91bmRfaG9va190aGF0X2RvZXNfbm90X2luc3RhbGxfZmFpbHNfdGhlX3N0YXJ0X3dpdGhfaXRzX3N0ZXAKcm93Om9uLWNsb3NlZC1yZWNvcmRzLW5vdGhpbmcJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvc2NyZWVuLnJzCXMvICAgICAgICBzZWxmXC5jbG9zZWRcLnN0b3JlXCh0cnVlLCBPcmRlcmluZzo6UmVsYXhlZFwpO1xuLy8JbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OmFfY2xvc2VkX2NhcHR1cmVfaXRlbV9yZWFkc19hc19mYWlsZWRfaGVhbHRoCnJvdzpjYWxsYmFjay1zZW5kcy10by10aGUtc2luawljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy8gICAgcHViXChjcmF0ZVwpIGZuIHB1c2hcKCZzZWxmLCBwYWNrZXQ6IFBhY2tldFwpIFx7XG4vICAgIHB1YihjcmF0ZSkgZm4gcHVzaCgmc2VsZiwgcGFja2V0OiBQYWNrZXQpIHtcbiAgICAgICAgbGV0IF8gPSBmb3J3YXJkX29uZSgmc2VsZi5zaGFyZWQuc2luaywgcGFja2V0KTtcbiAgICB9XG5cbiAgICAjW2FsbG93KGRlYWRfY29kZSldXG4gICAgZm4gcHVzaF9xdWV1ZWQoJnNlbGYsIHBhY2tldDogUGFja2V0KSB7XG4vCWxpYgl3aW5kb3dzOjp0ZXN0czo6d2l0aF90aGVfc2lua19mdWxsX29uZV9tb3Rpb25fc2FtcGxlX2lzX3BlbmRpbmdfYW5kX25vX2J1dHRvbl9wYWNrZXRfaXNfbG9zdApzdG9wLXdpdGhvdXQtdGhlLWV2ZW50CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL21vZC5ycwlzLyAgICAgICAgc2VsZlwuc2lnbmFsXC5zZXRcKFwpO1xuLy8JbGliCXdpbmRvd3M6OnRlc3RzOjpzdG9wX2VuZHNfYV9wdW1wX3dob3NlX2ZpcnN0X3F1aXRfcG9zdF9mYWlsc19pbnNpZGVfaXRzX2RlYWRsaW5lCnN0b3AtcG9zdHMtb25jZQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJcy8gICAgICAgIGxvb3AgXHtcbiAgICAgICAgICAgIHBvc3RfcXVpdF90b1woc2VsZlwuaWRcKTtcbi8gICAgICAgIHBvc3RfcXVpdF90byhzZWxmLmlkKTtcbiAgICAgICAgbG9vcCB7XG4vCWxpYgl3aW5kb3dzOjp0ZXN0czo6c3RvcF9lbmRzX2FfcHVtcF93aG9zZV9maXJzdF9xdWl0X3Bvc3RfZmFpbHNfaW5zaWRlX2l0c19kZWFkbGluZQo=' | base64 -d >"$files/mutants.tsv"
+          git fetch --quiet --deepen=60 origin "$GITHUB_REF"
+          git cat-file -e db2177bc359cfa212d954034b9d6879fc88e1d9c^{commit}
+          git worktree add --quiet --detach "$files/wt" "$GITHUB_SHA"
+          git -C "$files/wt" log --oneline -1
+          echo "W2 files mutants=$(grep -c . "$files/mutants.tsv") proof_runs=$(grep -c '^run ' "$files/w2-proofs.sh")"
+      - name: "win-2: clearing rule of RR-windows-04"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 35
         shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash "$RUNNER_TEMP/w2/w2-clearing.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2"
+      - name: "win-2: one-rule changes"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 80
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash "$RUNNER_TEMP/w2/w2-mutants.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2" "$RUNNER_TEMP/w2/mutants.tsv"
+      - name: "win-2: part proofs before and after each fix"
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 60
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: W2_HEAD="$GITHUB_SHA" bash "$RUNNER_TEMP/w2/w2-proofs.sh" "$RUNNER_TEMP/w2/wt" "$RUNNER_TEMP/w2"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
