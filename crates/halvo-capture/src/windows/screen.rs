@@ -208,7 +208,10 @@ type Control = CaptureControl<ScreenHandler, CaptureError>;
 /// (RD-39), read again at each `begin` so that a restart follows a changed
 /// primary display. A closed capture item, a capture thread that ended and a
 /// writer that is gone each read as failed health; the restart is the
-/// daemon's.
+/// daemon's. The source asks for the system's capture border
+/// (`DrawBorderSettings::Default`) by decision RD-04: the border shows only
+/// while a session runs, and a session runs only while the switch
+/// `screen_activity`, off by default, is on.
 /// `begin` opens a capture session on its own thread; `shutdown` ends it
 /// inside [`super::SCREEN_STOP_DEADLINE`], and dropping the source does the
 /// same.
