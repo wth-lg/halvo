@@ -91,6 +91,7 @@ test("bytes that are no request get one cause, and nothing after them is read", 
   const cases = {
     "request-line": [
       "GET /v1/x HTTP/2.0\r\n\r\n",
+      "GET /v1/x HTTP/1.2\r\n\r\n",
       "GET  /v1/x HTTP/1.1\r\n\r\n",
       "GET /v1/x\r\n\r\n",
       "G(T /v1/x HTTP/1.1\r\n\r\n",
@@ -140,6 +141,10 @@ test("bytes that are no request get one cause, and nothing after them is read", 
       assert.equal(result.messages.length, 0, JSON.stringify(text.slice(0, 80)));
     }
   }
+});
+
+test("a head that grows past HEAD_MAX with no end is refused before its end arrives", () => {
+  assert.deepEqual(read([`GET / HTTP/1.1\r\nx: ${"a".repeat(HEAD_MAX)}`], { end: false }).causes, ["head-too-large"]);
 });
 
 test("a head of exactly HEAD_MAX bytes is read", () => {

@@ -133,6 +133,7 @@ EOF
   tap cancelled 40 40 0 1 0 0
   tap todo 40 40 0 0 0 1
   tap fewer 39 39 0 0 0 0
+  tap short 40 39 0 0 0 0
   : >"$work/tap/none"
   printf 'ok 1 - a\n# tests 40\n# pass 40\n# fail 0\n' >"$work/tap/partial"
   rejected=0
@@ -171,6 +172,12 @@ EOF
   check manifest-names-a-dependency FAIL 'package.json names a dependency'
   printf '{"name":"x","devDependencies":{"a":"1.0.0"}}\n' >"$work/repo/account/stub/package.json"
   check manifest-names-a-dev-dependency FAIL 'package.json names a dependency'
+  for key in optionalDependencies peerDependencies bundleDependencies bundledDependencies; do
+    printf '{"name":"x","%s":{"a":"1.0.0"}}\n' "$key" >"$work/repo/account/stub/package.json"
+    check "manifest-names-$key" FAIL 'package.json names a dependency'
+  done
+  STUB_TAP=$work/tap/short
+  check fewer-passed-than-ran FAIL 'only 39 of 40 stub tests passed'
   printf '{"packages":{"":{},"node_modules/a":{"version":"1.0.0"}}}\n' >"$work/repo/account/stub/package-lock.json"
   check lockfile-locks-a-package FAIL 'package-lock.json locks a package'
   mv "$work/repo/account/stub/package-lock.json" "$work/repo/account/stub/package-lock.json.gone"

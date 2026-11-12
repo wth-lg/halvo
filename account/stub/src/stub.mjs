@@ -36,7 +36,6 @@ function send(res, { status, type, body }) {
   const bytes = Buffer.from(body, "utf8");
   const headers = { "content-length": String(bytes.length) };
   if (bytes.length > 0) headers["content-type"] = type;
-  res.sendDate = false;
   res.writeHead(status, headers);
   res.end(bytes);
 }
@@ -44,7 +43,7 @@ function send(res, { status, type, body }) {
 function answerBytes(method, { status, type, body }, close) {
   const bytes = Buffer.from(body, "utf8");
   const lines = [`HTTP/1.1 ${status} ${STATUS_CODES[status]}`, `content-length: ${bytes.length}`];
-  if (bytes.length > 0) lines.push(`content-type: ${type}`);
+  lines.push(`content-type: ${type}`);
   if (close) lines.push("connection: close");
   const head = Buffer.from(`${lines.join("\r\n")}\r\n\r\n`, "latin1");
   return method === "HEAD" ? head : Buffer.concat([head, bytes]);

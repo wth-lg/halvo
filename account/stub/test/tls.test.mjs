@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { X509Certificate } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { connect } from "node:tls";
 import { join } from "node:path";
 import { makeTestAuthority, TlsError } from "../src/tls.mjs";
@@ -9,6 +10,7 @@ import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh,
 
 const SERVER_AUTH = "1.3.6.1.5.5.7.3.1";
 const DAY = 86400000;
+const HOUR = 3600000;
 
 test("the test authority signs a server certificate for 127.0.0.1 alone, valid for a short time around now", () => {
   const now = Date.now();
@@ -30,7 +32,8 @@ test("the test authority signs a server certificate for 127.0.0.1 alone, valid f
   assert.equal(leaf.publicKey.asymmetricKeyDetails.namedCurve, "prime256v1");
   for (const cert of [ca, leaf]) {
     assert.ok(cert.validFromDate.getTime() <= now && now < cert.validToDate.getTime(), cert.subject);
-    assert.ok(cert.validToDate.getTime() - cert.validFromDate.getTime() <= 3 * DAY, cert.subject);
+    assert.equal(cert.validFromDate.getTime(), Math.floor((now - HOUR) / 1000) * 1000, cert.subject);
+    assert.equal(cert.validToDate.getTime(), Math.floor((now + 2 * DAY) / 1000) * 1000, cert.subject);
   }
   assert.equal(leaf.issuer, ca.subject);
   const again = makeTestAuthority(now);
@@ -138,4 +141,65 @@ test("the command line serves over TLS with --tls-ca and refuses a file that exi
   assert.equal(await exited(again.child), 64);
   const twice = await spawnStub(["--record", fresh(), "--tls-ca", join(fresh(), "a.pem"), "--tls-ca", join(fresh(), "b.pem")]);
   assert.equal(await exited(twice.child), 64);
+});
+
+function tlv(der, at) {
+  let length = der[at + 1];
+  let start = at + 2;
+  if (length & 0x80) {
+    const count = length & 0x7f;
+    length = 0;
+    for (let index = 0; index < count; index += 1) length = length * 256 + der[start + index];
+    start += count;
+  }
+  return { tag: der[at], start, end: start + length };
+}
+
+function children(der, node) {
+  const out = [];
+  for (let at = node.start; at < node.end; at = out[out.length - 1].end) out.push(tlv(der, at));
+  return out;
+}
+
+function extensions(pem) {
+  const der = new X509Certificate(pem).raw;
+  const tbs = children(der, tlv(der, 0))[0];
+  const block = children(der, tbs).find((node) => node.tag === 0xa3);
+  return children(der, children(der, block)[0]).map((node) => {
+    const [id, second] = children(der, node);
+    const critical = second.tag === 0x01 && der[second.start] === 0xff;
+    return [der.subarray(id.start, id.end).toString("hex"), critical];
+  });
+}
+
+test("both certificates carry basic constraints and key usage as critical extensions, and no other critical one", () => {
+  const made = makeTestAuthority(Date.now());
+  assert.deepEqual(extensions(made.caPem), [["551d13", true], ["551d0f", true], ["551d0e", false]]);
+  assert.deepEqual(extensions(made.certPem), [["551d13", true], ["551d0f", true], ["551d25", false], ["551d11", false], ["551d0e", false], ["551d23", false]]);
+});
+
+function openssl3() {
+  const candidates = [process.env.STUB_OPENSSL, "/opt/homebrew/opt/openssl@3/bin/openssl", "/opt/homebrew/bin/openssl", "/usr/local/opt/openssl@3/bin/openssl", "openssl"];
+  for (const candidate of candidates.filter(Boolean)) {
+    const run = spawnSync(candidate, ["version"], { encoding: "utf8" });
+    if (run.status === 0 && /^OpenSSL 3\./.test(run.stdout)) return candidate;
+  }
+  return null;
+}
+
+test("OpenSSL 3 under -x509_strict takes the server certificate for 127.0.0.1 with the authority as the only anchor", () => {
+  const openssl = openssl3();
+  assert.notEqual(openssl, null, "no OpenSSL 3 binary found; set STUB_OPENSSL to one");
+  const dir = fresh();
+  const made = makeTestAuthority(Date.now());
+  const other = makeTestAuthority(Date.now());
+  writeFileSync(join(dir, "ca.pem"), made.caPem);
+  writeFileSync(join(dir, "other.pem"), other.caPem);
+  writeFileSync(join(dir, "cert.pem"), made.certPem);
+  const verify = (ca, ip) => spawnSync(openssl, ["verify", "-x509_strict", "-purpose", "sslserver", "-verify_ip", ip, "-CAfile", join(dir, ca), join(dir, "cert.pem")], { encoding: "utf8" });
+  const good = verify("ca.pem", "127.0.0.1");
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  assert.match(good.stdout, /: OK/);
+  assert.notEqual(verify("other.pem", "127.0.0.1").status, 0);
+  assert.notEqual(verify("ca.pem", "127.0.0.2").status, 0);
 });

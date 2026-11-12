@@ -82,6 +82,12 @@ test("a keep-alive connection serves requests in order until one asks to close, 
   assert.equal(lines(dir).length, 4);
 });
 
+test("a peer that ends its side after a whole request gets its answer, and the stub closes the connection", async () => {
+  const stub = await startStub({ record: fresh() });
+  const answer = parse(await exchange(portOf(stub.app), Buffer.from("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n"), undefined, { half: true }));
+  assert.equal(answer.status, 200);
+});
+
 test("an answer to HEAD carries its head alone", async () => {
   const stub = await startStub({ record: fresh() });
   const bytes = (await exchange(portOf(stub.app), request("HEAD", "/v1/done"))).toString("latin1");
