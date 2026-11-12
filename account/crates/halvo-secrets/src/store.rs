@@ -35,7 +35,10 @@ use crate::{Directory, Name, Secret};
 /// directory that is missing answers `Fault`, and a write makes the store directory alone,
 /// never a step above it.
 ///
-/// Both stores of a Mac, for `Store::new`: a build without the feature `keychain` also
+/// Both stores of a Mac, for `Store::new`: in both builds a read that finds no Keychain
+/// item and no file looks at the Keychain once more before it answers `NotStored`, so a
+/// move that another process finishes between its two looks is seen. A build without the
+/// feature `keychain` also
 /// looks for the Keychain item of `service` and `name`, by its attributes alone. When one
 /// stands there, a read answers `Locked::OtherStore` whatever the file holds. When the
 /// Keychain cannot be searched, a read that finds no file answers the Keychain's `Locked`

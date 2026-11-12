@@ -51,6 +51,7 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
             },
             Read::NotStored => match self.file.read() {
                 Read::Found(secret) => self.move_in(secret),
+                Read::NotStored => self.keychain.read(),
                 answer => answer,
             },
             answer => answer,
@@ -80,7 +81,15 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
 
     fn read_beside_the_keychain(&self) -> Read {
         match self.keychain.count() {
-            Ok(0) => self.file.read(),
+            Ok(0) => match self.file.read() {
+                Read::NotStored => match self.keychain.count() {
+                    Ok(0) => Read::NotStored,
+                    Ok(_) => Read::Locked(Locked::OtherStore),
+                    Err(Ok(locked)) => Read::Locked(locked),
+                    Err(Err(fault)) => Read::Fault(fault),
+                },
+                answer => answer,
+            },
             Ok(_) => Read::Locked(Locked::OtherStore),
             Err(failed) => match self.file.read() {
                 Read::NotStored => match failed {

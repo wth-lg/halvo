@@ -3,8 +3,85 @@ use crate::answer::{Fault, Locked};
 use crate::keychain::{AUTH_FAILED, DUPLICATE_ITEM, ITEM_NOT_FOUND};
 use crate::Name;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 const NOT_AVAILABLE: i32 = -25291;
+
+type Items = Rc<RefCell<Vec<Vec<u8>>>>;
+
+struct SharedKeys {
+    items: Items,
+}
+
+impl Keychain for SharedKeys {
+    fn count(&self, _service: &str, _account: &str) -> Result<usize, i32> {
+        match self.items.borrow().len() {
+            0 => Err(ITEM_NOT_FOUND),
+            n => Ok(n),
+        }
+    }
+
+    fn data(&self, _service: &str, _account: &str) -> Result<Vec<u8>, i32> {
+        self.items.borrow().first().cloned().ok_or(ITEM_NOT_FOUND)
+    }
+
+    fn add(&self, _service: &str, _account: &str, bytes: &[u8]) -> Result<(), i32> {
+        if !self.items.borrow().is_empty() {
+            return Err(DUPLICATE_ITEM);
+        }
+        self.items.borrow_mut().push(bytes.to_vec());
+        Ok(())
+    }
+
+    fn delete(&self, _service: &str, _account: &str) -> Result<(), i32> {
+        if self.items.borrow().is_empty() {
+            return Err(ITEM_NOT_FOUND);
+        }
+        self.items.borrow_mut().clear();
+        Ok(())
+    }
+}
+
+struct MovedUnderTheRead {
+    bytes: RefCell<Option<Vec<u8>>>,
+    keys: Items,
+}
+
+impl FileSide for MovedUnderTheRead {
+    fn read(&self) -> Read {
+        if let Some(moved) = self.bytes.borrow_mut().take() {
+            self.keys.borrow_mut().push(moved);
+        }
+        Read::NotStored
+    }
+
+    fn write(&self, _secret: &Secret) -> Write {
+        Write::Occupied
+    }
+
+    fn delete(&self) -> Delete {
+        Delete::NotStored
+    }
+}
+
+fn moved_under_the_read(keeps: Keeps, bytes: &[u8]) -> (Mac<MovedUnderTheRead, SharedKeys>, Items) {
+    let items: Items = Rc::new(RefCell::new(Vec::new()));
+    let store = Mac {
+        keeps,
+        file: MovedUnderTheRead {
+            bytes: RefCell::new(Some(bytes.to_vec())),
+            keys: Rc::clone(&items),
+        },
+        keychain: KeychainItem {
+            keychain: SharedKeys {
+                items: Rc::clone(&items),
+            },
+            service: Name::new("dev.halvo.test").expect("a service"),
+            account: Name::new("account").expect("an account"),
+        },
+    };
+    (store, items)
+}
 
 #[derive(Clone, Copy)]
 enum Fails {
@@ -586,4 +663,16 @@ fn a_build_with_the_feature_writes_and_deletes_the_keychain_item_alone() {
     assert!(store.keychain.keychain.items().is_empty());
     assert!(store.file.ops().is_empty());
     assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
+}
+
+#[test]
+fn a_read_never_answers_not_stored_when_another_store_moves_the_file_between_its_looks() {
+    let (store, items) = moved_under_the_read(Keeps::Keychain, FILE);
+    assert_eq!(found(store.read()), FILE);
+    assert_eq!(*items.borrow(), [FILE.to_vec()]);
+
+    let (store, items) = moved_under_the_read(Keeps::File, FILE);
+    let read = store.read();
+    assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+    assert_eq!(*items.borrow(), [FILE.to_vec()]);
 }
