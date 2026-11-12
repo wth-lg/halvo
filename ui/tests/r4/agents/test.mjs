@@ -12,7 +12,7 @@ const NEEDS = '/app/views/needs.js';
 const ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
 const ACTING = ['run_now', 'stop', 'switch_off', 'switch_on'];
 
-const { serve, open, act, check } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
+const { serve, open, act, check, settled } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
 
 const argv = process.argv.slice(2);
 const write = argv.includes('--write');
@@ -80,18 +80,9 @@ function calls(out) {
 const sel = (a, p) => '[data-act="' + a + '"][data-param="' + p + '"]';
 const frames = (h) => h.page.evaluate(() => new Promise((d) => requestAnimationFrame(() => requestAnimationFrame(d))));
 const settleCalls = async (h) => {
-  await h.page.waitForTimeout(300);
+  await settled(h);
   await frames(h);
 };
-async function answered(h, out, n) {
-  let steady = 0;
-  for (let i = 0; i < 200 && steady < 2; i++) {
-    await h.page.waitForTimeout(50);
-    steady = calls(out).length >= n && h.inflight === 0 ? steady + 1 : 0;
-  }
-  await frames(h);
-}
-
 const callOf = (row, control) => ({ call: 'agents_control', args: { agent: row.agent, action: control } });
 const focusOf = (h) => h.page.evaluate(() => [document.activeElement.getAttribute('data-act'), document.activeElement.getAttribute('data-param')]);
 const cardsOf = (h) => h.page.evaluate(() => [...document.querySelectorAll('.r4a-card')].map((c) => c.id));
@@ -286,11 +277,11 @@ for (const s of STATES) {
         for (const c of r.controls.filter((x) => ACTING.includes(x.control))) {
           await act(h, { act: c.control, param: r.agent });
           wanted.push(callOf(r, c.control));
-          await answered(h, out, wanted.length);
+          await settleCalls(h);
         }
         await act(h, { act: 'open_card', param: r.agent });
         wanted.push({ call: 'agents_card', args: { agent: r.agent } });
-        await answered(h, out, wanted.length);
+        await settleCalls(h);
         if (state.card && state.card.agent === r.agent) await act(h, { act: 'close_card', param: r.agent });
       }
     });
@@ -522,9 +513,9 @@ if (want('ten')) {
     const out = outDir();
     await withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
       await act(h, { act: 'run_now', param: A.agent });
-      await answered(h, out, 1);
+      await settleCalls(h);
       await act(h, { act: 'run_now', param: A.agent });
-      await answered(h, out, 2);
+      await settleCalls(h);
     });
     return [same(calls(out), [callOf(A, 'run_now'), callOf(A, 'run_now')]), calls(out)];
   });
@@ -585,6 +576,44 @@ if (want('ten')) {
     });
     return [under === 'run_now:' + B.agent && same(calls(out), [callOf(A, 'run_now')]), { under, got: calls(out) }];
   });
+
+  const touchCase = async (act, sent) => {
+    const out = outDir();
+    const C = ten.rows[2];
+    const gone = { ...ten, seq: 2, rows: ten.rows.filter((r) => r.agent !== A.agent) };
+    const replies = [{ state: ten }, { call: 'agents_card', args: { agent: C.agent }, reply: { error: 'busy' } }, { state: gone }, { ...sent, reply: act === 'open_card' ? { error: 'busy' } : { ok: 'yes' } }];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      const box = await h.page.locator(sel(act, A.agent)).boundingBox();
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const cdp = await h.page.context().newCDPSession(h.page);
+      await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+      const touch = (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
+      await touch('start');
+      await h.page.evaluate((c) => window.Halvo.ipc.call('agents_card', { agent: c }), C.agent);
+      await h.page.waitForFunction((a) => document.querySelector('[data-param="' + a + '"]') === null, A.agent, { timeout: 3000 });
+      await settleCalls(h);
+      const under = await underPointer(h, [point.x, point.y]);
+      await touch('end');
+      await settleCalls(h);
+      const afterBegunBefore = calls(out);
+      await h.page.waitForTimeout(800);
+      await touch('start');
+      await touch('end');
+      await settleCalls(h);
+      const afterFresh = calls(out);
+      const gate = { call: 'agents_card', args: { agent: C.agent } };
+      const ok = under === act + ':' + B.agent && same(afterBegunBefore, [gate]) && same(afterFresh, [gate, { call: sent.call, args: sent.args }]);
+      return [ok, { under, afterBegunBefore, afterFresh }];
+    });
+  };
+
+  const engine = await withPage({ origin, state: 'empty', views: [VIEW] }, async (h) => h.page.context().browser().browserType().name());
+  if (engine === 'chromium') {
+    await test('a_touch_begun_before_a_reply_moved_another_control_under_it_sends_nothing', () => touchCase('run_now', callOf(B, 'run_now')));
+    await test('a_touch_begun_before_a_reply_moved_another_name_under_it_opens_nothing', () => touchCase('open_card', { call: 'agents_card', args: { agent: B.agent } }));
+  } else {
+    console.log('agents touch: not run on ' + engine + ', which takes no touch input through the browser\'s protocol in this harness');
+  }
 
   await test('status_region_kept_says_a_change_and_the_focus_stays_in_the_row', async () => {
     const second = {

@@ -45,6 +45,9 @@
   var card = null;
   var asking = 0;
   var busy = {};
+  var press = null;
+  var pointerFrom = null;
+  var keysDown = {};
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -79,6 +82,30 @@
     );
   }
 
+  function input(event) {
+    var type = event.type;
+    if (type === 'keydown') {
+      if (event.repeat) return;
+      keysDown[event.key] = event.target;
+      press = { from: event.target };
+    } else if (type === 'keyup') {
+      press = { from: keysDown[event.key] || null };
+      delete keysDown[event.key];
+    } else if (type === 'pointerdown') {
+      pointerFrom = event.target;
+      press = { from: event.target };
+    } else {
+      press = { from: pointerFrom };
+      pointerFrom = null;
+    }
+  }
+
+  function pressedOn(b) {
+    var p = press;
+    press = null;
+    return p === null || (p.from !== null && b.contains(p.from));
+  }
+
   function button(act, param, text) {
     var b = el('button', 'r4a-button', text);
     b.type = 'button';
@@ -99,7 +126,7 @@
     var b = button(c.control, row.agent, c.text);
     b.setAttribute('aria-describedby', 'r4a-name-' + row.agent);
     b.addEventListener('click', function (event) {
-      if (event.detail > 1 || busy[row.agent]) return;
+      if (!pressedOn(b) || event.detail > 1 || busy[row.agent]) return;
       send(row.agent, 'agents_control', { agent: row.agent, action: c.control });
     });
     return b;
@@ -198,7 +225,7 @@
     b.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) b.setAttribute('aria-controls', 'r4a-card-' + row.agent);
     b.addEventListener('click', function (event) {
-      if (event.detail > 1) return;
+      if (!pressedOn(b) || event.detail > 1) return;
       if (card !== null && card.agent === row.agent) {
         asking += 1;
         card = null;
@@ -322,6 +349,9 @@
       root.appendChild(groups);
       root.addEventListener('keydown', function (event) {
         if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON') event.preventDefault();
+      });
+      ['keydown', 'keyup', 'pointerdown', 'pointerup', 'pointercancel'].forEach(function (type) {
+        window.addEventListener(type, input, true);
       });
     },
     show: function () {
