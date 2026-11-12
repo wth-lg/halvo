@@ -47,6 +47,7 @@
   var busy = {};
   var pointerFrom = null;
   var keyFrom = null;
+  var SPACE = String.fromCharCode(32);
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -89,7 +90,7 @@
   function input(event) {
     if (event.type === 'pointerdown') {
       pointerFrom = controlOf(event.target);
-    } else if (event.type === 'keydown' && !event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+    } else if (event.type === 'keydown' && !event.repeat && (event.key === 'Enter' || event.key === SPACE)) {
       keyFrom = controlOf(event.target);
     }
   }
