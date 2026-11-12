@@ -74,27 +74,47 @@ impl Folder {
     }
 
     /// The first half of a file edit (contracts.md A11.3, A5.2), which changes nothing of the
-    /// workbook at `workbook`. In this order, and before it writes any file: refuses a workbook
-    /// whose name is one that it gives a checkpoint or a prepared copy
-    /// ([`PathRefusal::OwnFile`]); refuses `values`
-    /// that do not have the rows and columns of `range` ([`Error::Shape`]) or that hold a text
-    /// with a character that XML 1.0 does not allow or with more than the 32,767 UTF-16 code
-    /// units of a cell ([`Error::Value`]); refuses with
-    /// [`Error::Workbook`] a workbook that holds a part kind of the sheet trial's refuses list
-    /// ([`Refusal::Kinds`], found by the rule of A13.4) or that the crate cannot read; refuses a
-    /// sheet that the workbook lacks ([`Error::NoSheet`]); and writes the values into a copy of
-    /// the workbook in memory, a number as a number and a text as a text. Then it copies the
-    /// workbook to its checkpoint `<name>.halvo-checkpoint-<run id><ext>` beside it, or keeps a
-    /// checkpoint of the run that is already there and equal to the workbook
-    /// ([`Error::Checkpoint`] when it differs), writes the changed copy to
-    /// `<name>.halvo-prepared-<run id><ext>` beside it, reads that file again and requires the
-    /// sameness of A13.4: the sheet names and their order are the same, each cell of the range
-    /// holds its new value and no formula, every other cell holds the same value or, for a
-    /// formula cell, the same formula text, the array formulas are the same, and no part kind
-    /// of A13.4 is lost by the trial's rule. On a miss it removes the prepared copy and the
-    /// checkpoint that it made and returns [`Error::Sheet`]. A formula's cached result is
-    /// neither compared nor computed: a formula that reads a changed cell keeps its old result
-    /// until a spreadsheet application calculates it again.
+    /// workbook at `workbook`.
+    ///
+    /// Before it writes any file it refuses: a workbook whose name is one that it gives a
+    /// checkpoint or a prepared copy ([`PathRefusal::OwnFile`]); `values` that do not have the
+    /// rows and columns of `range` ([`Error::Shape`]), or that hold a number that is not finite
+    /// or a text with a character that XML 1.0 does not allow or with more than the 32,767
+    /// UTF-16 code units of a cell ([`Error::Value`]); a sheet that the workbook lacks
+    /// ([`Error::NoSheet`]); and, with [`Error::Workbook`] and the cause `workbook`, a file that
+    /// is no zip package, is encrypted or holds an entry name twice ([`Refusal::Unreadable`]), a
+    /// workbook that holds a kind of the executor's refused list ([`Refusal::Kinds`]: `pivot`,
+    /// `macro`, `validation`), a part that it cannot take ([`Refusal::Part`]), a cell of the
+    /// range in the header row of a table ([`Refusal::TableHeader`]), in or inside the range of an
+    /// array or data-table formula ([`Refusal::ArrayFormula`]), or in a shared formula
+    /// ([`Refusal::SharedFormula`]).
+    ///
+    /// Then it copies the workbook to its checkpoint `<name>.halvo-checkpoint-<run id><ext>`
+    /// beside it, or keeps a checkpoint of the run that is already there and equal to the
+    /// workbook ([`Error::Checkpoint`] when it differs), and writes the prepared copy
+    /// `<name>.halvo-prepared-<run id><ext>` beside it: the entries of the workbook's package in
+    /// their order, each copied with its name and its data as they are, but two. The worksheet
+    /// part of `sheet` is the source's bytes with the element of each cell of the range replaced,
+    /// or inserted in column order, a row that does not exist inserted in row order, and the
+    /// `spans` of a row and the `ref` of `dimension` grown where a cell of the range lies
+    /// outside them. A number is written as a number and a text as an inline string, so the
+    /// shared strings part does not change; a cell keeps its style and loses its formula. In
+    /// `xl/workbook.xml` the attribute `fullCalcOnLoad` of `calcPr` is `1`: set where it was
+    /// absent or `0`, with the element added in its place where there was none; where it was
+    /// already `1` the part is copied as it is.
+    ///
+    /// It reads the copy again and checks it with a routine of its own: the same entry names in
+    /// the same order, every other entry byte for byte, `xl/workbook.xml` byte for byte or with
+    /// that one change, and the worksheet part byte for byte once the places above are taken
+    /// out of both; then the cells of the range read back through calamine with their new
+    /// values. On a miss it removes the prepared copy and the checkpoint that it made and
+    /// returns [`Error::Sheet`], with the cause `sheet`; the workbook was not touched.
+    ///
+    /// What goes stale: a cached copy of a changed cell's value elsewhere in the package is not
+    /// updated: a formula's cached result, a chart's cached points, the counts of the shared
+    /// strings part. An application that computes (Excel, Numbers, LibreOffice) computes them
+    /// again when it opens the file, which is what the calculation flag asks for; a viewer that
+    /// does not compute shows the old figures.
     pub fn prepare(
         &self,
         workbook: &Path,
