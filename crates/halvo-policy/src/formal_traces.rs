@@ -351,6 +351,20 @@ fn the_committed_traces_have_the_form_that_the_model_writes() {
 #[test]
 fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
     let (_, traces) = traces();
+    let orders: BTreeSet<(bool, bool)> = mappings()
+        .iter()
+        .map(|v| {
+            (
+                v.digests[0].as_str() < v.digests[1].as_str(),
+                v.ids[0].as_str() < v.ids[1].as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        orders,
+        BTreeSet::from([(false, false), (true, true)]),
+        "the mappings give d1 and e1 below and above d2 and e2"
+    );
     for values in mappings() {
         let mut moves = 0u64;
         let mut differ = Vec::new();
@@ -414,10 +428,10 @@ fn effect_step_accepts_and_refuses_as_the_model_at_every_move() {
                         Ok(s) => Some(s),
                         Err(_) => now,
                     };
-                    if other.is_some() {
+                    if other.is_some() && count == rebinds {
                         other_classes += 1;
                     }
-                    if count != rebinds {
+                    if other.is_none() && count != rebinds {
                         higher_counts += 1;
                     }
                     if alike_got.is_ok() != model_ok || alike_next != model_state {
