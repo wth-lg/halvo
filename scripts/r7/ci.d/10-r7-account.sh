@@ -379,9 +379,9 @@ check_tracked() {
     return 0
   fi
   if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
-    git diff --name-only HEAD -- >"$work/tracked.changed" 2>&1 || fail 'git diff against HEAD failed'
+    git diff --name-only HEAD -- >"$work/tracked.changed" 2>"$work/tracked.err" || fail 'git diff against HEAD failed'
   else
-    git diff --name-only -- >"$work/tracked.changed" 2>&1 || fail 'git diff against the index failed'
+    git diff --name-only -- >"$work/tracked.changed" 2>"$work/tracked.err" || fail 'git diff against the index failed'
   fi
   changed=$(awk 'END { print NR }' "$work/tracked.changed")
   [ "$changed" -eq 0 ] || fail "$changed tracked files differ from HEAD after cargo ran"
@@ -770,8 +770,8 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   base=$work/metadata-base.json
   (cd "$fixture" && "$real_cargo" metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml >"$base" 2>/dev/null)
   sed 's|"source":"registry+https://github.com/rust-lang/crates.io-index"|"source":"git+https://example.invalid/x.git#0"|' <"$base" >"$work/source.json"
-  sed 's|"name":"itoa"|"name":"LibSQLite3-ffi"|' <"$base" >"$work/sqlite.json"
-  sed 's|"name":"itoa"|"name":"SQLCipher-sys"|' <"$base" >"$work/sqlcipher.json"
+  sed 's|"name":"itoa","version":|"name":"LibSQLite3-ffi","version":|' <"$base" >"$work/sqlite.json"
+  sed 's|"name":"itoa","version":|"name":"SQLCipher-sys","version":|' <"$base" >"$work/sqlcipher.json"
   printf '{"packages":[],"workspace_members":[],"resolve":null,"version":1}\n' >"$work/empty.json"
   for crafted in source sqlite sqlcipher; do
     cmp -s "$base" "$work/$crafted.json" && wrong="$wrong metadata-$crafted"
