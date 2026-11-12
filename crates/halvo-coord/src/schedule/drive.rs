@@ -947,6 +947,26 @@ where
     report
 }
 
+/// The new life's raise of `setup` for every agent of the list whose hold `setup` stands and that
+/// holds no open item, one whose item recovery lapsed with `app_ended` among them (I5.8, K7). No
+/// run is live and the queue is empty before the life's first creation move, so that an agent
+/// with no open item is `idle`.
+fn setups_again<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>, list: &[Workflow])
+where
+    P: Owner + Rng,
+    C: ConfigView,
+{
+    for i in 0..board.members.len() {
+        let facts = &board.members[i].facts;
+        let listed = list
+            .iter()
+            .any(|w| matches!(w, Workflow::Full(f) if f.id == facts.workflow.id));
+        if listed && facts.doing == Doing::Idle(None) && holds(facts).contains(&Hold::Setup) {
+            let _ = raise(cx, board, i, Raised::Setup, OwnItemKind::Setup);
+        }
+    }
+}
+
 fn create<P, C>(cx: &Cx<'_, P>, board: &mut Board<C>) -> Report
 where
     P: Owner<Config = C> + Rng,
@@ -956,6 +976,9 @@ where
         Ok(w) => w,
         Err(e) => return refused(port_cause(&e)),
     };
+    if board.first_listing() {
+        setups_again(cx, board, &workflows);
+    }
     let mut report = Report::default();
     board.roster_full = false;
     let mut made = Vec::new();
