@@ -56,6 +56,25 @@ case_of() {
   fi
 }
 
+measure_case() {
+  out=$(
+    PATH="$work/bin:$PATH"
+    STUB_SHOWS=$2
+    CI_D_REPO=$work
+    CI_D_ARTIFACTS=
+    export PATH STUB_SHOWS CI_D_REPO
+    measure 2>&1
+  )
+  status=$?
+  last=$(printf '%s\n' "$out" | sed -n '$p')
+  printf 'case %s/measure-%s want=exit %s got=exit %s %s\n' "$name" "$1" "$3" "$status" "$last"
+  if [ "$status" != "$3" ] || [ "$last" != "$4" ]; then
+    wrong="$wrong measure-$1"
+  elif [ "$status" = 1 ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
 self_test() {
   rejected=0
   wrong=
@@ -78,6 +97,21 @@ thiserror v2.0.21' FAIL
   case_of another-crate-of-a-like-name "$clean
 rusqlite-macros v0.1.0
 halvo-capture-tools v0.0.0 (/w/crates/halvo-capture-tools)" PASS
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  mkdir "$work/bin" || exit 2
+  cat >"$work/bin/cargo" <<'EOF'
+#!/bin/sh
+printf 'halvo-control v0.0.0 (/w/crates/halvo-control)\nserde v1.0.229\n'
+case "$STUB_SHOWS: $* " in
+  always:* | all-features:*' --all-features '*) printf 'rusqlite v0.41.1\n' ;;
+esac
+exit 0
+EOF
+  chmod +x "$work/bin/cargo" || exit 2
+  refused="FAIL $name (halvo-control must link no store code: rusqlite v0.41.1)"
+  measure_case always always 1 "$refused"
+  measure_case all-features all-features 1 "$refused"
+  measure_case never never 0 "PASS $name"
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
