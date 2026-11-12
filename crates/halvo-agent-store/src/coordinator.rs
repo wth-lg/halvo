@@ -11,7 +11,7 @@ use halvo_schema::{Category, ErrorName, TypedRecord, Workflow, WorkflowState};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows;
-use crate::{bind, bindings};
+use crate::{bind, bindings, end};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it, with nothing stored. A body that is not the form is `malformed`. The checks,
@@ -32,9 +32,13 @@ use crate::{bind, bindings};
 ///   the origins stay. It answers the revision stored.
 /// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
 ///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
+/// - `end_run`: `no_workflow`; `binding`. Where the run's `agent_run` record is stored it changes nothing. Else,
+///   in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and no
+///   model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`; `binding`
+///   where an effect row of the run names another agent. It answers `{"ok":"yes"}`.
 pub fn coordinator(
     host: &mut dyn Host,
-    _now: Now,
+    now: Now,
     body: &[u8],
 ) -> Result<CoordinatorReply, ErrorName> {
     match CoordinatorCall::parse(body).map_err(refused)? {
@@ -42,7 +46,7 @@ pub fn coordinator(
         CoordinatorCall::SetBindings(b) => bindings::set_bindings(host, &b),
         CoordinatorCall::SetState(b) => set_state(host, &b),
         CoordinatorCall::StartRun(b) => start_run(&*host, &b),
-        CoordinatorCall::EndRun(_) => Err(ErrorName::Unsupported),
+        CoordinatorCall::EndRun(b) => end::end_run(host, now, &b),
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
     }
 }

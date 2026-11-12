@@ -15,7 +15,7 @@ use halvo_schema::{AgentId, ErrorName};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, effect};
+use crate::{bind, effect, end};
 
 /// Answers one runner body of A7.1, read from its bytes with the typed parser: the reply, or the error name of the
 /// first check that refuses it, with nothing stored. A body that is not the form is `malformed`, and one past a
@@ -37,7 +37,8 @@ use crate::{bind, effect};
 /// - `log`: stores each record that is not stored and answers the count of the body's records.
 /// - `effect`: `binding` where a stored row of the effect id names another workflow, agent or run. A row equal to
 ///   the effect's last row by seq in its state, digest and approval is answered as the first, `{"stored":1}`, and
-///   stores nothing. Else `effect` for every row that A5.2 does not allow. A first row has seq 1 and the state that
+///   stores nothing. Else `effect` for every row of a run whose `agent_run` record is stored, and for every row
+///   that A5.2 does not allow. A first row has seq 1 and the state that
 ///   `effect_step` gives for `propose` with `decide` for the agent's stored configuration and the row's class, with
 ///   the checkpoint `yes` for a `cleared` row and `no` for any other. A later row has the next seq and the effect's
 ///   class, and its state names the move: `held` a `rebind` with the row's digest and class; `approved` an
@@ -47,6 +48,11 @@ use crate::{bind, effect};
 ///   move other than `rebind` keeps the digest and the kept fields of the last row. `effect_step` takes the effect
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
 ///   the row's state.
+/// - `finish`: where the run's record is stored, `{"stored":1}` for the same record and `effect` for another.
+///   Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
+///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
+///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
+///   instant; `binding` where an effect row of the run names another agent.
 pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     match RunnerCall::parse(body).map_err(refused)? {
         RunnerCall::Load(b) => load(&*host, &b),
@@ -56,7 +62,7 @@ pub fn runner(host: &mut dyn Host, now: Now, body: &[u8]) -> Result<RunnerReply,
         RunnerCall::PutSession(b) => put_session(host, now, &b),
         RunnerCall::Effect(b) => effect::put(host, &b),
         RunnerCall::Log(b) => put_log(host, &b),
-        RunnerCall::Finish(_) => Err(ErrorName::Unsupported),
+        RunnerCall::Finish(b) => end::finish(host, now, &b),
     }
 }
 

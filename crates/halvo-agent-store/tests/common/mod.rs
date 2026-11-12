@@ -1,10 +1,15 @@
 #![allow(dead_code)]
 
 use halvo_agent_store::{Host, MemoryStore, Now};
+use halvo_policy::preset;
+use halvo_schema::executable::names::YesNo;
 use halvo_schema::executable::{
-    ActionClass, AgentBindings, AgentConfig, AgentEffect, CoordinatorReply, RunnerReply,
+    ActionClass, AgentBindings, AgentConfig, AgentEffect, AllowedClass, Autonomy, CoordinatorReply,
+    RunnerReply,
 };
-use halvo_schema::{ErrorName, Instant, RowRead, Workflow, WorkflowId};
+use halvo_schema::{
+    AgentId, Category, ErrorName, Instant, RowRead, TypedRecord, Workflow, WorkflowId,
+};
 use serde_json::{json, Value};
 
 pub const NOW: Now = Now {
@@ -91,6 +96,27 @@ pub fn store_with(category: &str) -> MemoryStore {
     let mut store = MemoryStore::new();
     store.put_workflow(workflow(&wf(1), category, "approved", None));
     create(&mut store, 1, 1).expect("create_agent of the first agent");
+    store
+}
+
+pub fn unattended_sender() -> MemoryStore {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", Some(&agent(1))));
+    let mut config = preset(
+        Category::Email,
+        WorkflowId::parse(&wf(1)).expect("an id"),
+        AgentId::parse(&agent(1)).expect("an id"),
+    )
+    .expect("a preset");
+    config.autonomy = Autonomy::Unattended;
+    config.allow = vec![AllowedClass::Send];
+    config.caps.untrusted = YesNo::No;
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_config",
+            json: config.to_json().expect("the config's JSON"),
+        }])
+        .expect("the config is stored");
     store
 }
 

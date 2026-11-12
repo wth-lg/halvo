@@ -8,6 +8,7 @@ mod bind;
 mod bindings;
 mod coordinator;
 mod effect;
+mod end;
 mod errors;
 mod host;
 mod memory;

@@ -29,6 +29,9 @@ pub(crate) fn put(host: &mut dyn Host, b: &PutEffect) -> Result<RunnerReply, Err
     }) {
         return Ok(stored());
     }
+    if rows::runs(host.rows())?.iter().any(|r| r.run == row.run) {
+        return Err(Own::Effect.into());
+    }
     match mine.split_first() {
         None => first(&config, row)?,
         Some((first_row, _)) => later(&all, &mine, first_row, row)?,
@@ -107,7 +110,7 @@ fn later(
     }
 }
 
-fn rebinds(mine: &[&AgentEffect]) -> u32 {
+pub(crate) fn rebinds(mine: &[&AgentEffect]) -> u32 {
     let count = mine
         .iter()
         .skip(1)
