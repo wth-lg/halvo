@@ -107,16 +107,18 @@ function http(port, method, host, path, { headers = {}, body } = {}) {
   });
 }
 
-function startServer(dir, args, input = 'pipe') {
+function startServer(dir, args, input = 'pipe', startMs = 15000) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [join(dir, 'server.mjs'), ...args], { stdio: [input, 'pipe', 'pipe'], windowsHide: true });
     child.stdin?.on('error', () => {});
     let out = '';
     let err = '';
     let done = false;
+    let timer = null;
     const finish = (v) => {
       if (!done) {
         done = true;
+        clearTimeout(timer);
         resolve(v);
       }
     };
@@ -127,10 +129,10 @@ function startServer(dir, args, input = 'pipe') {
     });
     child.stderr.on('data', (d) => (err += d));
     child.on('exit', (code) => finish({ child: null, code, out, err }));
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       child.kill();
       finish({ child: null, code: null, out, err });
-    }, 15000);
+    }, startMs);
     timer.unref();
   });
 }
@@ -247,11 +249,14 @@ async function lifetimeCases() {
   });
 
   await run('lifetime-input-null', async (c) => {
-    const s = await startServer(HERE, ['--port', '0'], 'ignore');
+    const startMs = 5000;
+    const started = Date.now();
+    const s = await startServer(HERE, ['--port', '0'], 'ignore', startMs);
     try {
       if (!c.ok(s.child !== null, 'server_started')) return;
-      await sleep(1000);
-      c.ok(s.child.exitCode === null && (await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_with_null_input');
+      await sleep(Math.max(1000, started + startMs + 500 - Date.now()));
+      const live = s.child.exitCode === null && s.child.signalCode === null;
+      c.ok(live && (await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_with_null_input_past_the_start_deadline');
     } finally {
       await stopServer(s);
     }
