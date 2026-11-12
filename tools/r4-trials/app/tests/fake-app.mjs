@@ -3,7 +3,7 @@
 // state of its window (onscreen, hidden or absent) to the file FAKE_STATE, which the readers of
 // fake-readers.mjs read. FAKE_FAULT names faults, comma-separated: show_kept, show_kept_first,
 // show_kept_later, hide_kept, destroy_kept, quit_stays, wrong_pid, counts_frozen, hidden_unmarked,
-// get_open, lose_last.
+// get_open, lose_last, repeat_last, hide_unseen.
 import fs from 'node:fs';
 import net from 'node:net';
 
@@ -66,7 +66,7 @@ function elapsed() {
 }
 
 function accept(seq, of, hidden) {
-  if (!page || page.ended) return;
+  if (!page) return;
   if (seq <= page.last) page.order = 'miss'; else page.last = seq;
   if (hidden) page.afterHide += 1;
   const mark = Math.floor(page.last / 10000) * 10000;
@@ -74,7 +74,9 @@ function accept(seq, of, hidden) {
     page.mark = mark;
     print(`page sync mark=${mark}`);
   }
-  if (seq === of) {
+  if (page.ended) {
+    print(`page sync after_end seq=${seq} last=${page.last} order=${page.order}`);
+  } else if (seq === of) {
     page.ended = true;
     print(`page sync end last=${page.last} order=${page.order} after_hide=${page.afterHide} hidden_ticks=${page.hiddenTicks}`);
   }
@@ -89,6 +91,7 @@ function deliver(seq, of) {
     return;
   }
   accept(seq, of, hiddenMark && !faults.has('hidden_unmarked'));
+  if (faults.has('repeat_last') && seq === of) accept(seq, of, false);
 }
 
 function send(count, rate) {
@@ -129,11 +132,12 @@ function answer(line) {
     const kept = faults.has('show_kept') || (faults.has('show_kept_first') && shows === 1) || (faults.has('show_kept_later') && shows > 1);
     if (!kept) setWindow('onscreen');
     quietLines();
-    if (page.hidden) {
-      page.hidden = false;
-      if (arm === 'a' || arm === 'a2') print(`page window shown after_hide=${page.afterHide} hidden_ticks=${page.hiddenTicks}`);
-      if (way === 'get' && latest > page.last) accept(latest, sendOf, false);
+    const seen = page.hidden;
+    page.hidden = false;
+    if (arm === 'a' || arm === 'a2') {
+      print(`page window shown after_hide=${page.afterHide} hidden_ticks=${page.hiddenTicks} hide_seen=${seen ? 'yes' : 'no'}`);
     }
+    if (seen && way === 'get' && latest > page.last) accept(latest, sendOf, false);
     startCount();
     const ms = slowNext ? 1500 : 12;
     slowNext = false;
@@ -142,7 +146,7 @@ function answer(line) {
   if (line === 'hide') {
     if (windowState === 'absent') return 'err no_window';
     hiddenMark = true;
-    if (page) {
+    if (page && !faults.has('hide_unseen')) {
       page.hidden = true;
       if (way === 'get' && !faults.has('get_open')) print(`page sync closed last=${page.last}`);
     }

@@ -9,6 +9,7 @@ import {
   parseArgs, machineOf, parseSample, cpuBetween, countedOf, stepCheck, sampleCheck, windowCell, syncCell, main, LIMITS, WINDOW, SYNC,
 } from '../cells.mjs';
 import { fakeReaders } from '../../app/tests/fake-readers.mjs';
+import { makeFile } from '../rule.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fake = path.join(here, '..', '..', 'app', 'tests', 'fake-app.mjs');
@@ -192,4 +193,51 @@ test('run.sh refuses a bad argument with usage and, on this Mac, a cell with not
   const help = run(['--help']);
   assert.equal(help.status, 0);
   assert.match(help.stdout, /^usage: sh tools\/r4-trials\/window\/run\.sh/);
+});
+
+test('an err answer while the system shows what an ok answer would have shown is a miss', () => {
+  assert.equal(stepCheck('hide', 'err timeout', 'hidden'), 'miss');
+  assert.equal(stepCheck('destroy', 'err timeout', 'absent'), 'miss');
+  assert.equal(stepCheck('show', 'err no_window', 'onscreen'), 'miss');
+  assert.equal(stepCheck('hide', 'err timeout', 'onscreen'), 'fail');
+  assert.equal(stepCheck('show', 'err timeout', 'onscreen'), 'fail', 'a show timeout claims no frame, not a state');
+});
+
+test('a sample compares the window and the tree before its answer, and counts with no window are a miss', () => {
+  const tree = { count: 3 };
+  assert.equal(sampleCheck('ok pid=5 ticks=12 frames=30', 5, 'absent', 'absent', tree), 'miss');
+  assert.equal(sampleCheck('err busy', 5, 'onscreen', 'hidden', tree), 'miss');
+  assert.equal(sampleCheck('err busy', 5, 'hidden', 'hidden', { count: 0 }), 'miss');
+  assert.equal(sampleCheck('err busy', 5, 'hidden', 'hidden', tree), 'fail');
+});
+
+test('the window run prints the processor count of each sample, and its lines make a result file', async () => {
+  const d = deps();
+  assert.equal(await main({ trial: 'window', arm: 'a', runs: 2 }, 'hosted-mac', d, FAST), 0);
+  assert.ok(d.printed.some((l) => /^trace trial=window arm=a run=2 sample load_x100=100 cpu_pct=- ncpu=3$/.test(l)), d.printed.join('\n'));
+  const made = makeFile('window', '', [d.printed.join('\n')]);
+  assert.equal(made.ok, true, made.why);
+});
+
+test('a sync cell puts the app lines that its keys come from into the log', async () => {
+  const d = deps();
+  assert.ok(await syncCell({ machine: 'hosted-mac', way: 'get', arm: 'a2', timing: FAST_SYNC }, d));
+  for (const want of [/^trace trial=sync way=get arm=a2 core send_done sent=40000$/, /^trace trial=sync way=get arm=a2 page sync end last=40000 order=ok /,
+    /^trace trial=sync way=get arm=a2 page sync closed last=\d+$/, /^trace trial=sync way=get arm=a2 page window shown after_hide=0 hidden_ticks=0 hide_seen=yes$/,
+    /^trace trial=sync way=get arm=a2 page sync mark=10000$/]) {
+    assert.ok(d.printed.some((l) => want.test(l)), `${want}\n${d.printed.join('\n')}`);
+  }
+});
+
+test('a change at or under the last after the end line makes the order a miss', async () => {
+  const d = deps('repeat_last');
+  const cell = await syncCell({ machine: 'hosted-mac', way: 'events', arm: 'b', timing: FAST_SYNC }, d);
+  assert.ok(cell, d.printed.join('\n'));
+  assert.equal(cell.order, 'miss');
+});
+
+test('a page that never saw the hide gives no sync cell', async () => {
+  const d = deps('hide_unseen');
+  assert.equal(await syncCell({ machine: 'hosted-mac', way: 'channel', arm: 'a2', timing: FAST_SYNC }, d), null);
+  assert.deepEqual(cells(d), ['nocell trial=sync machine=hosted-mac way=channel arm=a2 run=1 step=hide cause=hide_unseen']);
 });

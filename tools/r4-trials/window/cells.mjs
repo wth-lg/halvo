@@ -10,7 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Control, launch, stop, stepKey, checkHosted, Refused, SYSTEM_READERS } from '../app/selfcheck.mjs';
+import { Control, launch, stop, stepKey, checkHosted, Refused, STEP_STATES, SYSTEM_READERS } from '../app/selfcheck.mjs';
 import { figureLine, syncCellLine, windowCellLine, windowFigures } from './rule.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +24,8 @@ export const SYNC = Object.freeze({ count: 200000, rate: 1000, hideAt: 100000, s
 
 /** The time limit of each control line (TA-16): show waits up to 30 s in the app. */
 export const LIMITS = Object.freeze({ show: 45000, hide: 20000, destroy: 20000, sample: 20000, send: 10000, quit: 15000 });
+
+const APP_LINE = /^(core send_done |core quiet |page sync (end|stalled|closed|after_end) |page sync mark=|page window shown |page policy )/;
 
 const READ_TRIES = 20;
 const READ_EVERY_MS = 500;
@@ -104,21 +106,28 @@ export function countedOf(figures) {
 
 const count = (word) => (/^\d+$/.test(word ?? '') ? Number(word) : null);
 
-/** `ok` when the answer and the read agree, `miss` when the read differs from an `ok` answer or no
- * answer came inside the line's limit, `fail` for an `err` answer. */
+/** `ok` when the answer and the read agree; `miss` when the read differs from an `ok` answer, when
+ * an `err` answer comes with the state that an `ok` answer names (but for `err timeout` of `show`,
+ * which says that no frame came and names no state), or when no answer came inside the line's
+ * limit; else `fail` for an `err` answer. */
 export function stepCheck(step, answer, read) {
   if (typeof answer !== 'string') return 'miss';
-  if (answer.startsWith('err ')) return 'fail';
+  if (answer.startsWith('err ')) {
+    const namesNoState = step === 'show' && answer === 'err timeout';
+    return !namesNoState && read === STEP_STATES[step] ? 'miss' : 'fail';
+  }
   return stepKey(step, answer, read);
 }
 
-/** The check of a sample: its answer names the app's pid, the window is in the state of the last
- * step and the app's process lives. */
+/** The check of a sample: the window is in the state of the last step and the app's process lives,
+ * whatever the answer; the answer names the app's pid, and no counts where the window is absent. */
 export function sampleCheck(answer, pid, windowRead, expected, tree) {
   if (typeof answer !== 'string') return 'miss';
+  if (windowRead !== expected || !(tree.count >= 1)) return 'miss';
   if (answer.startsWith('err ')) return 'fail';
   const m = /^ok pid=(\d+) ticks=(\d+|-) frames=(\d+|-)$/.exec(answer);
-  if (!m || Number(m[1]) !== pid || windowRead !== expected || !(tree.count >= 1)) return 'miss';
+  if (!m || Number(m[1]) !== pid) return 'miss';
+  if (windowRead === 'absent' && (m[2] !== '-' || m[3] !== '-')) return 'miss';
   return 'ok';
 }
 
@@ -199,6 +208,7 @@ function session(deps, label) {
       if (checked === 'fail') throw new Stop('nocell', 'sample', 'err');
       const figures = deps.sampler(state.app.pid);
       if (!figures) throw new Stop('nocell', 'sample', 'sampler');
+      trace(`sample load_x100=${figures.load_x100} cpu_pct=${figures.cpu_pct} ncpu=${figures.ncpu}`);
       const [, ticks, frames] = /ticks=(\S+) frames=(\S+)$/.exec(answer);
       return { ...figures, ticks: count(ticks), frames: count(frames) };
     },
@@ -220,6 +230,12 @@ function session(deps, label) {
     end() {
       if (state.control) state.control.close();
       stop(state.app);
+      let afterEnd = 0;
+      for (const line of state.app?.lines ?? []) {
+        if (!APP_LINE.test(line)) continue;
+        if (line.startsWith('page sync after_end ') && (afterEnd += 1) > 20) continue;
+        trace(line);
+      }
     },
   };
 }
@@ -310,15 +326,17 @@ export async function syncCell({ machine, way, arm, timing = SYNC }, deps) {
     let afterHide = Number(end[4]);
     let hiddenTicks = '-';
     if (arm === 'a2') {
-      const shown = /^page window shown after_hide=(\d+) hidden_ticks=(\d+)$/.exec(await waitFor(app, (l) => l.startsWith('page window shown '), showFrom, 5000) ?? '');
+      const shown = /^page window shown after_hide=(\d+) hidden_ticks=(\d+) hide_seen=(yes|no)$/.exec(await waitFor(app, (l) => l.startsWith('page window shown '), showFrom, 5000) ?? '');
       if (!shown) throw new Stop('nocell', 'show', 'no_shown_line');
+      if (shown[3] !== 'yes') throw new Stop('nocell', 'hide', 'hide_unseen');
       afterHide = Number(shown[1]);
       hiddenTicks = Number(shown[2]);
     }
     const last = await s.sample('onscreen');
+    const late = app.lines.some((l) => /^page sync after_end seq=\d+ last=\d+ order=miss$/.test(l));
     await s.quit();
     const cell = {
-      trial: 'sync', machine, way, arm, sent: Number(done.slice(done.indexOf('=') + 1)), last: Number(end[2]), order: end[3],
+      trial: 'sync', machine, way, arm, sent: Number(done.slice(done.indexOf('=') + 1)), last: Number(end[2]), order: late ? 'miss' : end[3],
       after_hide: afterHide, growth_bytes: last.second_bytes - base.second_bytes, hidden_ticks: hiddenTicks,
     };
     deps.print(syncCellLine(cell));

@@ -121,11 +121,13 @@
       stop();
       getNext();
     } else if (event.detail === 'show') {
+      var seen = windowHidden;
       windowHidden = false;
       closedSeen = false;
       setHidden();
       start();
-      app.report('window shown after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks);
+      app.report('window shown after_hide=' + sync.afterHide + ' hidden_ticks=' + sync.hiddenTicks +
+        ' hide_seen=' + (seen ? 'yes' : 'no'));
       getNext();
     }
   });
