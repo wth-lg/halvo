@@ -327,10 +327,11 @@ fn committed(name: &str) -> String {
 
 fn written_equals_committed(name: &str, lines: &[String]) {
     let text: String = lines.iter().map(|line| format!("{line}\n")).collect();
-    let dir =
-        Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("r4-golden-{}", std::process::id()));
+    let file = name.replace('/', "-");
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("r4-golden-{}-{file}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let out = dir.join(name.replace('/', "-"));
+    let out = dir.join(&file);
     std::fs::write(&out, &text).unwrap();
     let committed = std::fs::read(committed_path(name)).unwrap_or_default();
     assert!(
