@@ -79,17 +79,48 @@ read_commit() {
     }
   ' || setup_fail
   committed=$scratch/commit
-  mkdir "$committed" || setup_fail
-  if ! git -c core.autocrlf=false archive --format=tar -o "$scratch/commit.tar" "$commit" -- crates/halvo-route/data scripts/r6 docs/r6 ||
-    ! tar -xf "$scratch/commit.tar" -C "$committed"; then
-    printf 'tree commit=unreadable\n'
-    setup_fail
-  fi
+  egress=$committed/scripts/r6/egress
+  mkdir -p "$egress" || setup_fail
+  for path in crates/halvo-route/data/ruling.txt crates/halvo-route/data/policy.tsv docs/r6/outcomes/recorded.tsv; do
+    read_blob "$path"
+  done
+  git ls-tree -r --full-tree "$commit" -- scripts/r6/egress >"$scratch/egress-tree.txt" 2>/dev/null || commit_unreadable
+  listed=0
+  while read -r mode object_type object _; do
+    listed=$((listed + 1))
+    if [ "$object_type" = blob ]; then
+      git cat-file blob "$object" >"$egress/$listed" 2>/dev/null || commit_unreadable
+    else
+      printf '%s\n' "$mode" >"$egress/$listed" || setup_fail
+    fi
+  done <"$scratch/egress-tree.txt"
+}
+
+commit_unreadable() {
+  printf 'tree commit=unreadable\n'
+  setup_fail
+}
+
+read_blob() {
+  object_type=$(git cat-file -t "$commit:$1" 2>/dev/null) || object_type=
+  case $object_type in
+    '') ;;
+    blob)
+      mkdir -p "$committed/${1%/*}" || setup_fail
+      git cat-file blob "$commit:$1" >"$committed/$1" 2>/dev/null || commit_unreadable
+      ;;
+    *) mkdir -p "$committed/$1" || setup_fail ;;
+  esac
+}
+
+holds_nul() {
+  od -An -v -tx1 "$1" >"$scratch/bytes.txt" 2>/dev/null || return 0
+  grep -q -w 00 "$scratch/bytes.txt"
 }
 
 ruling_of() {
   printf 'ruling=none\n' >"$scratch/ruling-none"
-  if [ -f "$1" ] && cmp -s "$1" "$scratch/ruling-none"; then
+  if cmp -s "$1" "$scratch/ruling-none"; then
     printf 'none\n'
   else
     printf 'other\n'
@@ -105,7 +136,7 @@ hosted_rows() {
     printf '1\n'
     return
   fi
-  awk -F "$tab" -v header="$2" -v column="$3" -v allowed="$4" '
+  count=$(awk -F "$tab" -v header="$2" -v column="$3" -v allowed="$4" '
     BEGIN {
       n = split(allowed, word, " ")
       for (i = 1; i <= n; i++) ok[word[i]] = 1
@@ -122,7 +153,11 @@ hosted_rows() {
       count += hosted
     }
     END { print count + 0 }
-  ' "$1"
+  ' "$1") || count=1
+  if holds_nul "$1" && [ "$count" -eq 0 ]; then
+    count=1
+  fi
+  printf '%s\n' "$count"
 }
 
 egress_entries() {
@@ -131,7 +166,13 @@ egress_entries() {
     return
   fi
   find "$1" ! -type d >"$scratch/egress-files.txt" 2>/dev/null || printf '%s\n' "$1/unreadable" >>"$scratch/egress-files.txt"
-  awk '
+  nul=0
+  while IFS= read -r path; do
+    if holds_nul "$path"; then
+      nul=1
+    fi
+  done <"$scratch/egress-files.txt"
+  count=$(awk '
     {
       path = $0
       while ((got = (getline line < path)) > 0) {
@@ -142,7 +183,11 @@ egress_entries() {
       close(path)
     }
     END { print count + 0 }
-  ' "$scratch/egress-files.txt"
+  ' "$scratch/egress-files.txt") || count=1
+  if [ "$nul" -eq 1 ] && [ "$count" -eq 0 ]; then
+    count=1
+  fi
+  printf '%s\n' "$count"
 }
 
 net_crates() {
@@ -451,13 +496,39 @@ write_stubs() {
   cat >"$work/bin/git" <<'EOF'
 #!/bin/sh
 head=1111111111111111111111111111111111111111
+case $1:${2:-} in
+  cat-file:-t)
+    path=${3#"$head:"}
+    if [ -f "$STUB_COMMIT/$path" ]; then
+      printf 'blob\n'
+    elif [ -d "$STUB_COMMIT/$path" ]; then
+      printf 'tree\n'
+    else
+      exit 128
+    fi
+    exit 0
+    ;;
+  cat-file:blob)
+    case $3 in
+      "$head:"*) cat "$STUB_COMMIT/${3#"$head:"}" ;;
+      *) cat "$STUB_COMMIT/${3#obj:}" ;;
+    esac
+    exit
+    ;;
+  ls-tree:-r)
+    [ "$*" = "ls-tree -r --full-tree $head -- scripts/r6/egress" ] || exit 97
+    [ -e "$STUB_COMMIT/scripts/r6/egress" ] || exit 0
+    cd "$STUB_COMMIT" || exit 2
+    find scripts/r6/egress -type f | while IFS= read -r path; do
+      printf '100644 blob obj:%s\t%s\n' "$path" "$path"
+    done
+    exit 0
+    ;;
+esac
 case $* in
   'rev-parse --verify --quiet HEAD^{commit}')
     [ -z "$STUB_NO_COMMIT" ] || exit 1
     printf '%s\n' "$head"
-    ;;
-  "-c core.autocrlf=false archive --format=tar -o "*" $head -- crates/halvo-route/data scripts/r6 docs/r6")
-    tar -cf "$6" -C "$STUB_COMMIT" crates/halvo-route/data scripts/r6 docs/r6
     ;;
   '-c core.fsmonitor=false -c core.untrackedCache=false status --porcelain=v2 --branch --untracked-files=all --ignored=matching')
     printf '# branch.oid %s\n' "$head"
@@ -623,7 +694,10 @@ row_units() {
   awk '{ printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf" || exit 2
   awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "frontier" } { printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf-frontier" || exit 2
   awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "on_device"; $4 = "low" } { print }' "$policy" >"$u/policy-on-device" || exit 2
-  for fixture in frontier low-cost unknown-word hosted-level hosted-cr crlf-frontier; do
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "low_cost_hosted"; $4 = "low"; print }' "$policy" >"$u/policy-without-its-header" || exit 2
+  cp "$policy" "$u/policy-nul-byte" || exit 2
+  printf 'other\tcompile\tnone\000\t-\tnot_seed\t0\t0\n' >>"$u/policy-nul-byte" || exit 2
+  for fixture in frontier low-cost unknown-word hosted-level hosted-cr crlf-frontier without-its-header nul-byte; do
     unit "policy-$fixture" 1 failing hosted_rows "$u/policy-$fixture" "$policy_header" 3 'none hand_back on_device' 1
   done
   unit policy-missing 1 failing hosted_rows "$u/no-such-file" "$policy_header" 3 'none hand_back on_device' 1
@@ -667,6 +741,16 @@ entry_units() {
   printf '[fixed]\n[agent]\n' >"$u/egress-headings/gate.txt" || exit 2
   unit egress-headings-only 0 passing egress_entries "$u/egress-headings"
   unit egress-missing 0 passing egress_entries "$u/no-such-directory"
+  mkdir -p "$u/egress-nul" "$u/egress-unreadable" || exit 2
+  printf '[fixed]\000example.invalid:443\n[agent]\n' >"$u/egress-nul/gate.txt" || exit 2
+  unit egress-nul-byte 1 failing egress_entries "$u/egress-nul"
+  printf '[fixed]\n[agent]\n' >"$u/egress-unreadable/gate.txt" || exit 2
+  chmod 000 "$u/egress-unreadable/gate.txt" || exit 2
+  if [ -r "$u/egress-unreadable/gate.txt" ]; then
+    printf 'case %s/egress-unreadable-file skipped: this system reads a file of mode 000\n' "$name"
+  else
+    unit egress-unreadable-file 1 failing egress_entries "$u/egress-unreadable"
+  fi
 }
 
 crate_units() {
@@ -756,6 +840,10 @@ full_cases() {
   cp "$work/u/recorded-frontier" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || exit 2
   STUB_COMMIT=$work/commit-recorded
   check recorded-row-of-a-hosted-tier FAIL ' hosted_rows=1 net_crates=0 ' "FAIL $name (rows)"
+  cp "$work/u/recorded-on-device" "$work/commit-recorded/docs/r6/outcomes/recorded.tsv" || exit 2
+  STUB_COMMIT=$work/commit-recorded
+  check recorded-rows-on-the-device PASS ' hosted_rows=0 net_crates=0 '
+
   mkdir -p "$work/commit-egress/scripts/r6/egress" || exit 2
   printf '[fixed]\n127.0.0.1:1\n[agent]\n' >"$work/commit-egress/scripts/r6/egress/gate.txt" || exit 2
   STUB_COMMIT=$work/commit-egress
