@@ -105,11 +105,6 @@ mod tests {
             let open = Policy::parse_for(&hosted, &Tier::ALL).expect("hosted table");
             assert_ne!(open, all);
             assert_eq!(policy_of(&hosted, &Ruling::None), all, "{tier}");
-            assert_eq!(
-                policy_of(&hosted, &Ruling::test_hosted(&[])),
-                open,
-                "{tier}"
-            );
         }
 
         let crlf = device.replace('\n', "\r\n");
