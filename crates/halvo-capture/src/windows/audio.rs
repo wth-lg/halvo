@@ -61,10 +61,24 @@ mod tests {
     }
 
     #[test]
-    fn a_disabled_source_starts_without_capturing() {
-        let (sink, _writer) = crate::sink::channel(1);
+    fn a_disabled_source_answers_off_and_yields_no_event() {
+        use crate::source::{SourceContext, SourceState, Started};
+        let (sink, writer) = crate::sink::channel(4);
         let mut source = SystemAudioSource::disabled();
-        assert!(source.start(sink).is_ok());
+        let started = source.begin(SourceContext::new(sink.clone()));
+        let state = source.health().state;
+        let stopped = source.shutdown();
+        assert_eq!(started, Ok(Started::Off));
+        assert_eq!(state, SourceState::Off);
+        assert_eq!(stopped, Ok(()));
+        assert!(
+            matches!(
+                writer.recv_timeout(std::time::Duration::from_millis(200)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ),
+            "the off source yielded an event"
+        );
+        drop(sink);
     }
 
     #[test]
