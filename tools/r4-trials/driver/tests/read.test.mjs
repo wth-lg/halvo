@@ -130,7 +130,7 @@ test('a dialog reading names one line that matches once', () => {
   assert.throws(() => findLine('a', /^b$/));
   const texts = {
     'src/backend/macos/message_dialog.rs': 'x\n            unsafe { alert.addButtonWithTitle(&label) };\n',
-    'src/desktop.rs': 'a\nb\n                ) => rfd::MessageDialogResult::Custom(cancel),\n',
+    'src/desktop.rs': 'a\nb\n                    MessageDialogButtons::OkCancelCustom(_ok, cancel),\n                ) => rfd::MessageDialogResult::Custom(cancel),\n',
   };
   const lines = dialogLines('plugin', (s) => ({ label: `${s.crate}/${s.file}`, text: texts[s.file] }));
   assert.deepEqual(lines, [

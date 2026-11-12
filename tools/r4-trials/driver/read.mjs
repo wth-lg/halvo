@@ -176,7 +176,7 @@ export const DIALOG_SOURCES = {
     },
     {
       system: 'windows', crate: 'tauri-plugin-dialog', file: 'src/desktop.rs',
-      find: /^\s*\) => rfd::MessageDialogResult::Custom\(cancel\),$/,
+      find: /^\s*MessageDialogButtons::OkCancelCustom\(_ok, cancel\),$/,
       default: 'reject', cancel: 'allow', close: 'allow',
     },
   ],
