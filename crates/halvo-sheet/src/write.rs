@@ -26,8 +26,8 @@ use crate::xml;
 /// It holds the workbook as `prepare` read it and the prepared copy in memory until it is
 /// dropped. Dropping one that no `replace` put in place removes its prepared copy when no link
 /// stands on the way to it and it still holds the bytes that `prepare` checked. It never
-/// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it,
-/// and it stays until the run's owner removes it at the run's end.
+/// removes the checkpoint: once a run's checkpoint is made, no call of this crate removes it;
+/// `remove` of the crate halvo-checkpoint removes it once the run has ended.
 pub struct Prepared {
     pub(crate) root: Root,
     pub(crate) workbook: PathBuf,

@@ -151,8 +151,10 @@ impl Folder {
     /// `<name>.halvo-prepared-<run id>-<part of its own><ext>`, which no other call writes or
     /// removes. Both get the workbook's permissions: its permission bits on Unix, its read-only
     /// attribute on Windows. Once the run's checkpoint is made, no call of this crate removes
-    /// it, neither on a miss nor on a drop: it stays until the run's owner removes it at the
-    /// run's end. The copy holds the entries of the
+    /// it, neither on a miss nor on a drop: no call removes a checkpoint of a run that has not
+    /// ended, and the one call that removes one is `remove` of the crate halvo-checkpoint,
+    /// which the supervisor library makes for a run whose end is stored, with the SHA-256,
+    /// the length and the name that [`Prepared`] gives. The copy holds the entries of the
     /// workbook's package in their order, each copied with its name, its method and its
     /// compressed data, but two, which keep the method and the time of their entries. The
     /// worksheet part of `sheet` is the source's bytes with the element of each cell of the

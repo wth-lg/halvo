@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io::{self, Read};
 
 use sha2::Digest;
 
@@ -42,4 +43,27 @@ impl fmt::Debug for Sha256 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Sha256({})", self.hex())
     }
+}
+
+/// The digest and the length of what `reader` holds, read to its end but never past `bound`
+/// bytes and one more: a length over `bound` says that the reader holds more than the bound.
+pub(crate) fn read(reader: impl Read, bound: u64) -> io::Result<(Sha256, u64)> {
+    let mut hasher = sha2::Sha256::new();
+    let mut limited = reader.take(bound.saturating_add(1));
+    let mut buf = vec![0u8; 64 * 1024];
+    let mut count = 0u64;
+    loop {
+        match limited.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                hasher.update(&buf[..n]);
+                count += n as u64;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&hasher.finalize());
+    Ok((Sha256(out), count))
 }
