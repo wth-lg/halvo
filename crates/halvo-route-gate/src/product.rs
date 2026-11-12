@@ -135,7 +135,8 @@ pub fn recorded_setup(freeze: Option<&str>) -> Result<Setup, String> {
 }
 
 /// The freeze file of contract T5.2: `freeze rows=<n> models=<n> sources=2 date=<YYYY-MM-DD>`
-/// and `on_device driver=<token|none> writer=<token|none>`, each line ended by one LF.
+/// and `on_device driver=<token|none> writer=<token|none>`, each line ended by one LF, where a
+/// token is a model token other than `synthetic`.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Freeze {
     pub rows: u64,
@@ -204,6 +205,9 @@ fn decimal(text: &str) -> Option<u64> {
 fn model(text: &str) -> Option<Option<String>> {
     if text == "none" {
         return Some(None);
+    }
+    if text == Model::synthetic().as_str() {
+        return None;
     }
     Model::parse(text)
         .ok()

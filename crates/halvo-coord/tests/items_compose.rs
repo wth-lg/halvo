@@ -1,13 +1,14 @@
 #[path = "items_support.rs"]
 mod support;
 
+use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Table};
 use halvo_coord::items::{
     compose_check, compose_confirm, compose_plain, compose_setup, confirm_step, kept_source,
     ConfirmMove, Key, Plain, SetupParam,
 };
 use halvo_coord::types::{
-    AgentId, AskedEffect, BoundField, BoundFrom, CandidateFrom, Cause, Class, ConfirmAsk, Item,
-    ItemId, Kept, Limits, Origin, Param, Unknown,
+    AgentId, AskedEffect, BoundField, BoundFrom, CandidateFrom, Cause, Class, ConfirmAsk,
+    EffectAnswer, Item, ItemId, Kept, Limits, Origin, Param, Unknown,
 };
 use halvo_coord::words;
 use serde_json::Value;
@@ -86,7 +87,7 @@ fn refusal_model_text() {
         )],
     );
     assert_eq!(
-        compose_confirm(&item_id(1), &made_up, &armed(&made_up)),
+        compose_confirm(&item_id(1), &made_up, &armed(&made_up), &Table::new()),
         Err(Cause::Malformed),
         "a field label made from a name that no key holds"
     );
@@ -269,10 +270,10 @@ fn a_confirmation_of_the_page_shows_its_fields_and_the_many_controls() {
         1,
         vec![
             effect(1, Class::Send, support::fields_of(Class::Send)),
-            effect(2, Class::Delete, support::fields_of(Class::Delete)),
+            effect(2, Class::Send, support::fields_of(Class::Send)),
         ],
     );
-    let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).unwrap();
     assert_eq!(item.presenter().map(|p| p.name()), Some("page"));
     assert_eq!(item.armed().name(), "yes");
     assert_eq!(item.text(), "");
@@ -285,14 +286,16 @@ fn a_confirmation_of_the_page_shows_its_fields_and_the_many_controls() {
         "field.send.to",
         "field.send.subject",
         "field.send.body",
-        "field.delete.items",
+        "field.send.to",
+        "field.send.subject",
+        "field.send.body",
     ]
     .iter()
     .map(|k| words::text(k, &[]).unwrap())
     .collect();
     assert_eq!(labels, want);
     let froms: Vec<_> = item.fields().iter().map(|f| f.from.name()).collect();
-    assert_eq!(froms, ["site", "site", "agent", "site"]);
+    assert_eq!(froms, ["site", "site", "agent", "site", "site", "agent"]);
     let choices: Vec<_> = item
         .choices()
         .iter()
@@ -314,7 +317,7 @@ fn a_confirmation_of_the_page_shows_its_fields_and_the_many_controls() {
         ]
     );
     all_texts_are_sentences(&item, 2);
-    let shown_item = compose_confirm(&item_id(1), &ask, &shown(&ask)).unwrap();
+    let shown_item = compose_confirm(&item_id(1), &ask, &shown(&ask), &Table::new()).unwrap();
     assert_eq!(
         shown_item.armed().name(),
         "no",
@@ -330,11 +333,11 @@ fn a_native_confirmation_has_the_one_choice_present_and_names_the_native_class()
         1,
         1,
         vec![
-            effect(1, Class::Send, support::fields_of(Class::Send)),
+            effect(1, Class::Payment, support::fields_of(Class::Payment)),
             payment,
         ],
     );
-    let item = compose_confirm(&item_id(1), &ask, &armed(&ask)).unwrap();
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).unwrap();
     assert_eq!(item.presenter().map(|p| p.name()), Some("native"));
     assert_eq!(
         item.title(),
@@ -357,7 +360,7 @@ fn a_native_confirmation_has_the_one_choice_present_and_names_the_native_class()
     assert_eq!(last.label, words::text("confirm.new_site", &[]).unwrap());
     assert_eq!(last.value, vec!["https://pay.example:443".to_owned()]);
     assert_eq!(last.from.name(), "halvo");
-    assert_eq!(item.fields().len(), 3 + 4 + 1);
+    assert_eq!(item.fields().len(), 4 + 4 + 1);
     all_texts_are_sentences(&item, 2);
 }
 
@@ -374,7 +377,7 @@ fn a_piece_longer_than_1024_bytes_is_malformed() {
         )],
     );
     assert_eq!(
-        compose_confirm(&item_id(1), &ask, &armed(&ask)),
+        compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()),
         Err(Cause::Malformed)
     );
     let ok = "a".repeat(1024);
@@ -387,7 +390,7 @@ fn a_piece_longer_than_1024_bytes_is_malformed() {
             vec![field("items", BoundFrom::Extract, &ok)],
         )],
     );
-    assert!(compose_confirm(&item_id(1), &ask, &armed(&ask)).is_ok());
+    assert!(compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).is_ok());
 }
 
 #[test]
@@ -403,7 +406,7 @@ fn a_confirmation_is_composed_only_with_its_own_request() {
         vec![effect(2, Class::Send, support::fields_of(Class::Send))],
     );
     assert_eq!(
-        compose_confirm(&item_id(1), &other, &armed(&ask)),
+        compose_confirm(&item_id(1), &other, &armed(&ask), &Table::new()),
         Err(Cause::State)
     );
 }
@@ -626,7 +629,7 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                         .collect(),
                 )
                 .unwrap();
-                compose_confirm(&item, &ask, &armed(&ask))
+                compose_confirm(&item, &ask, &armed(&ask), &Table::new())
             }
             "confirm" => {
                 let ask = ConfirmAsk::new(
@@ -635,11 +638,466 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                     vec![effect(1, Class::Payment, bound(Class::Payment, &PAYMENT))],
                 )
                 .unwrap();
-                compose_confirm(&item, &ask, &shown(&ask))
+                compose_confirm(&item, &ask, &shown(&ask), &Table::new())
             }
             other => panic!("{state}: kind {other}"),
         };
         let composed = composed.unwrap_or_else(|e| panic!("{state}: {e}"));
         assert_eq!(&serde_json::to_value(&composed).unwrap(), want, "{state}");
+    }
+}
+
+/// The text of a key of the table with the count.
+fn counted(key: &str, count: usize) -> String {
+    words::text(key, &[("count", &count.to_string())]).unwrap()
+}
+
+/// The labels of the fields of an item, each with whether its value is empty and its source.
+fn lines(item: &Item) -> Vec<(String, bool, &'static str)> {
+    item.fields()
+        .iter()
+        .map(|f| (f.label.clone(), f.value.is_empty(), f.from.name()))
+        .collect()
+}
+
+#[test]
+fn refusal_mixed_request() {
+    let ask = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, support::fields_of(Class::Send)),
+            effect(2, Class::Delete, support::fields_of(Class::Delete)),
+        ],
+    );
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).unwrap();
+    assert_eq!(item.title(), counted("confirm.mixed.title", 2));
+    let choices: Vec<_> = item
+        .choices()
+        .iter()
+        .map(|c| (c.choice.name(), c.text.clone(), c.safe.name()))
+        .collect();
+    assert_eq!(
+        choices,
+        vec![
+            ("reject", counted("confirm.mixed.reject", 2), "yes"),
+            ("allow", counted("confirm.mixed.allow", 2), "no"),
+        ]
+    );
+    let sending = ["send"];
+    let removing = ["remov", "keep"];
+    let mut controls = vec![item.title().to_lowercase()];
+    controls.extend(item.choices().iter().map(|c| c.text.to_lowercase()));
+    for text in &controls {
+        for word in sending.iter().chain(&removing) {
+            assert!(!text.contains(word), "{text:?} holds {word:?}");
+        }
+    }
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    assert_eq!(
+        lines(&item),
+        vec![
+            (t("confirm.send.action"), true, "halvo"),
+            (t("field.send.to"), false, "site"),
+            (t("field.send.subject"), false, "site"),
+            (t("field.send.body"), false, "agent"),
+            (t("confirm.delete.action"), true, "halvo"),
+            (t("field.delete.items"), false, "site"),
+        ]
+    );
+    let send_line = t("confirm.send.action").to_lowercase();
+    let delete_line = t("confirm.delete.action").to_lowercase();
+    assert!(send_line.contains("send") && !removing.iter().any(|w| send_line.contains(w)));
+    assert!(delete_line.contains("remov") && !send_line.contains("remov"));
+    assert!(!delete_line.contains("send"));
+    all_texts_are_sentences(&item, 2);
+}
+
+#[test]
+fn a_request_of_two_classes_names_none_and_each_effect_names_its_action() {
+    let classes = halvo_coord::items::CONFIRM_CLASSES;
+    for a in classes {
+        for b in classes {
+            let ask = ask_of(
+                1,
+                1,
+                vec![
+                    effect(1, a, support::fields_of(a)),
+                    effect(2, b, support::fields_of(b)),
+                    effect(3, a, support::fields_of(a)),
+                ],
+            );
+            let item = compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).unwrap();
+            let action =
+                |c: Class| words::text(&format!("confirm.{}.action", c.name()), &[]).unwrap();
+            let actions: Vec<String> = item
+                .fields()
+                .iter()
+                .filter(|f| f.value.is_empty())
+                .map(|f| f.label.clone())
+                .collect();
+            let mut class_texts = Vec::new();
+            for c in classes {
+                for key in ["title", "allow", "reject"] {
+                    class_texts
+                        .push(words::text(&format!("confirm.{}.{key}", c.name()), &[]).unwrap());
+                }
+                for key in ["allow_many", "reject_many"] {
+                    class_texts.push(counted(&format!("confirm.{}.{key}", c.name()), 3));
+                }
+            }
+            if a == b {
+                assert_eq!(
+                    item.title(),
+                    words::text(&format!("confirm.{}.title", a.name()), &[]).unwrap()
+                );
+                assert!(actions.is_empty(), "{a}: one class has no action line");
+            } else {
+                assert_eq!(item.title(), counted("confirm.mixed.title", 3), "{a} {b}");
+                assert_eq!(actions, vec![action(a), action(b), action(a)], "{a} {b}");
+                assert!(!class_texts.contains(&item.title().to_owned()), "{a} {b}");
+                for c in item.choices() {
+                    assert!(!class_texts.contains(&c.text), "{a} {b}: {}", c.text);
+                }
+                let n = |c: Class| support::fields_of(c).len();
+                assert_eq!(item.fields().len(), 3 + 2 * n(a) + n(b), "{a} {b}");
+                all_texts_are_sentences(&item, 3);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_mixed_request_with_a_native_class_has_the_one_choice_present_and_names_no_class() {
+    let mut payment = effect(2, Class::Payment, support::fields_of(Class::Payment));
+    payment.new_origin = Some(Origin::parse("https://pay.example:443").unwrap());
+    let ask = ask_of(
+        1,
+        1,
+        vec![
+            effect(1, Class::Send, support::fields_of(Class::Send)),
+            payment,
+        ],
+    );
+    let item = compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).unwrap();
+    assert_eq!(item.presenter().map(|p| p.name()), Some("native"));
+    assert_eq!(item.title(), counted("confirm.mixed.title", 2));
+    let choices: Vec<_> = item.choices().iter().map(|c| c.choice.name()).collect();
+    assert_eq!(choices, ["present"]);
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    let labels: Vec<String> = item.fields().iter().map(|f| f.label.clone()).collect();
+    assert_eq!(labels[0], t("confirm.send.action"));
+    assert_eq!(labels[4], t("confirm.payment.action"));
+    assert_eq!(labels[9], t("confirm.new_site"));
+    assert_eq!(item.fields().len(), 1 + 3 + 1 + 4 + 1);
+    all_texts_are_sentences(&item, 2);
+}
+
+/// The guard's table after the release of the decision `answer` on the effects of `ask` by
+/// item `n`.
+fn released_table(table: &Table, n: u32, ask: &ConfirmAsk, answer: EffectAnswer) -> Table {
+    let decision = support::decision_for(ask, answer, 100 * n);
+    table
+        .record(&item_id(n), ask.run(), &decision)
+        .release(&item_id(n))
+}
+
+#[test]
+fn the_changed_line_stands_above_the_values_of_its_effect_and_after_its_action_line() {
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    let send = |n: u32, d: u32| {
+        let mut e = effect(n, Class::Send, support::fields_of(Class::Send));
+        e.digest = digest(d);
+        e
+    };
+    let first = ask_of(1, 1, vec![send(2, 2)]);
+    let table = released_table(&Table::new(), 1, &first, EffectAnswer::AllowOnce);
+    assert!(table.newest_allows(&run_id(1), &effect_id(2)));
+    let one_class = ask_of(1, 1, vec![send(1, 11), send(2, 12)]);
+    let item = compose_confirm(&item_id(2), &one_class, &armed(&one_class), &table).unwrap();
+    let labels: Vec<String> = item.fields().iter().map(|f| f.label.clone()).collect();
+    let mut want: Vec<String> = ["field.send.to", "field.send.subject", "field.send.body"]
+        .iter()
+        .map(|k| t(k))
+        .collect();
+    want.push(t("confirm.changed"));
+    want.extend(
+        ["field.send.to", "field.send.subject", "field.send.body"]
+            .iter()
+            .map(|k| t(k)),
+    );
+    assert_eq!(labels, want);
+    assert_eq!(item.title(), t("confirm.send.title"));
+    all_texts_are_sentences(&item, 2);
+    let mut delete = effect(1, Class::Delete, support::fields_of(Class::Delete));
+    delete.digest = digest(21);
+    let mixed = ask_of(1, 1, vec![delete, send(2, 22)]);
+    let item = compose_confirm(&item_id(3), &mixed, &armed(&mixed), &table).unwrap();
+    let labels: Vec<String> = item.fields().iter().map(|f| f.label.clone()).collect();
+    let want: Vec<String> = [
+        "confirm.delete.action",
+        "field.delete.items",
+        "confirm.send.action",
+        "confirm.changed",
+        "field.send.to",
+        "field.send.subject",
+        "field.send.body",
+    ]
+    .iter()
+    .map(|k| t(k))
+    .collect();
+    assert_eq!(labels, want);
+    all_texts_are_sentences(&item, 2);
+}
+
+/// The reader of the line: the newest decision released for the effect in the run, by its number
+/// of release in this life, decides, and whether a record used its row plays no part (ruling
+/// IG-25, IG-26).
+#[test]
+fn the_reader_gives_the_line_by_the_newest_released_decision_alone() {
+    let first = ask_of(
+        1,
+        1,
+        vec![effect(1, Class::Send, support::fields_of(Class::Send))],
+    );
+    let run = run_id(1);
+    let e = effect_id(1);
+    let allow = support::decision_for(&first, EffectAnswer::AllowOnce, 100);
+    let reject = support::decision_for(&first, EffectAnswer::RejectOnce, 200);
+    assert!(!Table::new().newest_allows(&run, &e), "a new life");
+    let allowed = released_table(&Table::new(), 1, &first, EffectAnswer::AllowOnce);
+    assert!(allowed.newest_allows(&run, &e));
+    assert!(!allowed.newest_allows(&run_id(2), &e), "another run");
+    assert!(
+        !allowed.newest_allows(&run, &effect_id(2)),
+        "another effect"
+    );
+    let rejected = released_table(&Table::new(), 1, &first, EffectAnswer::RejectOnce);
+    assert!(!rejected.newest_allows(&run, &e), "reject_once");
+    let recorded = Table::new().record(&item_id(1), &run, &allow);
+    assert!(
+        !recorded.newest_allows(&run, &e),
+        "recorded and not released"
+    );
+    let pending_reject = allowed.record(&item_id(2), &run, &reject);
+    assert!(
+        pending_reject.newest_allows(&run, &e),
+        "a decision recorded and not released does not count"
+    );
+    assert!(
+        !allowed.lapse(&item_id(1)).newest_allows(&run, &e),
+        "lapsed"
+    );
+    let entry = &allow.approvals()[0];
+    let record = EffectRecord {
+        run: run.clone(),
+        agent: agent_id(1),
+        effect: e.clone(),
+        state: EffectState::Approved,
+        class: Class::Send,
+        digest: entry.digest.clone(),
+        approval: Some(entry.approval.clone()),
+    };
+    let used = guard_step(&allowed, &record, Gives::Confirm).unwrap();
+    assert!(
+        used.approvals()[0].2,
+        "the record approved marks the row used"
+    );
+    assert!(
+        used.newest_allows(&run, &e),
+        "a used row keeps the line (ruling IG-25)"
+    );
+    let allow_then_reject = released_table(&allowed, 2, &first, EffectAnswer::RejectOnce);
+    assert!(
+        !allow_then_reject.newest_allows(&run, &e),
+        "the newest is reject_once"
+    );
+    let reject_then_allow = released_table(&rejected, 2, &first, EffectAnswer::AllowOnce);
+    assert!(
+        reject_then_allow.newest_allows(&run, &e),
+        "the newest is allow_once"
+    );
+    let lapse_after_allow = allowed
+        .record(&item_id(2), &run, &reject)
+        .lapse(&item_id(2));
+    assert!(
+        lapse_after_allow.newest_allows(&run, &e),
+        "the decision before a lapse decides"
+    );
+    let out_of_order = Table::new()
+        .record(&item_id(1), &run, &allow)
+        .record(&item_id(2), &run, &reject)
+        .release(&item_id(2))
+        .release(&item_id(1));
+    assert!(
+        out_of_order.newest_allows(&run, &e),
+        "the order of release, not of acknowledgement, decides"
+    );
+    let out_of_order = Table::new()
+        .record(&item_id(1), &run, &reject)
+        .record(&item_id(2), &run, &allow)
+        .release(&item_id(2))
+        .release(&item_id(1));
+    assert!(
+        !out_of_order.newest_allows(&run, &e),
+        "the order of release, not of acknowledgement, decides"
+    );
+}
+
+/// A confirmation composes only with its own request: one of fewer effects, one whose effect
+/// has another digest, and one of another effect id with the same digests are each refused
+/// with `state` (review findings mixed-A, mixed-B and mixed-H).
+#[test]
+fn a_confirmation_composes_only_with_a_request_of_its_count_its_effects_and_its_digests() {
+    let send = |n: u32, d: u32| {
+        let mut e = effect(n, Class::Send, support::fields_of(Class::Send));
+        e.digest = digest(d);
+        e
+    };
+    let own = ask_of(1, 1, vec![send(1, 1), send(2, 2)]);
+    let confirmation = armed(&own);
+    let compose = |ask: &ConfirmAsk| {
+        compose_confirm(&item_id(1), ask, &confirmation, &Table::new()).map(|_| ())
+    };
+    assert_eq!(compose(&own), Ok(()));
+    let fewer = ask_of(1, 1, vec![send(1, 1)]);
+    assert_eq!(compose(&fewer), Err(Cause::State), "fewer effects");
+    let other_digest = ask_of(1, 1, vec![send(1, 1), send(2, 9)]);
+    assert_eq!(compose(&other_digest), Err(Cause::State), "another digest");
+    let other_effect = ask_of(1, 1, vec![send(1, 1), send(3, 2)]);
+    assert_eq!(
+        compose(&other_effect),
+        Err(Cause::State),
+        "another effect id"
+    );
+}
+
+/// The stems of the words of each confirm class, in lower case: its verb first, then the words
+/// of its controls (I4.3).
+const VERBS: [(Class, &[&str]); 6] = [
+    (Class::Send, &["send"]),
+    (Class::Delete, &["remov", "keep"]),
+    (Class::Submit, &["submit"]),
+    (Class::Purchase, &["order"]),
+    (Class::Payment, &["pay"]),
+    (Class::Sign, &["sign"]),
+];
+
+/// Each action line holds the verb of its own class and no word of another class, and the
+/// title and the two controls of a request of several classes hold no word of any class
+/// (ruling IG-4, IG-24; the review's B1).
+#[test]
+fn each_action_line_names_its_own_class_alone_and_the_mixed_entries_name_none() {
+    for (class, stems) in VERBS {
+        let line = words::text(&format!("confirm.{}.action", class.name()), &[])
+            .unwrap()
+            .to_lowercase();
+        assert!(line.contains(stems[0]), "{class}: {line:?}");
+        for (other, theirs) in VERBS {
+            if other != class {
+                for stem in theirs {
+                    assert!(!line.contains(stem), "{class}: {line:?} holds {stem:?}");
+                }
+            }
+        }
+    }
+    for key in ["title", "reject", "allow"] {
+        let text = counted(&format!("confirm.mixed.{key}"), 3).to_lowercase();
+        for (class, stems) in VERBS {
+            for stem in stems {
+                assert!(
+                    !text.contains(stem),
+                    "confirm.mixed.{key}: {text:?} holds {stem:?} of {class}"
+                );
+            }
+        }
+    }
+}
+
+/// A request is titled and controlled by the mixed entries wherever the effect of another class
+/// stands, also when its first two effects share a class, and each effect has its own action
+/// line (ruling IG-24; the verifier's M02).
+#[test]
+fn a_request_is_mixed_wherever_an_effect_of_another_class_stands() {
+    let page = |c: &Class| matches!(c, Class::Send | Class::Delete | Class::Submit);
+    for x in halvo_coord::items::CONFIRM_CLASSES {
+        for y in halvo_coord::items::CONFIRM_CLASSES {
+            if x == y {
+                continue;
+            }
+            for form in [vec![x, x, y], vec![x, y, y], vec![x, x, y, x]] {
+                let effects = form
+                    .iter()
+                    .zip(1..)
+                    .map(|(c, n)| effect(n, *c, support::fields_of(*c)))
+                    .collect();
+                let ask = ask_of(1, 1, effects);
+                let item = compose_confirm(&item_id(1), &ask, &armed(&ask), &Table::new()).unwrap();
+                let count = form.len();
+                assert_eq!(
+                    item.title(),
+                    counted("confirm.mixed.title", count),
+                    "{form:?}"
+                );
+                let actions: Vec<String> = item
+                    .fields()
+                    .iter()
+                    .filter(|f| f.value.is_empty())
+                    .map(|f| f.label.clone())
+                    .collect();
+                let want: Vec<String> = form
+                    .iter()
+                    .map(|c| words::text(&format!("confirm.{}.action", c.name()), &[]).unwrap())
+                    .collect();
+                assert_eq!(actions, want, "{form:?}");
+                let choices: Vec<String> = item.choices().iter().map(|c| c.text.clone()).collect();
+                if form.iter().all(page) {
+                    assert_eq!(
+                        choices,
+                        vec![
+                            counted("confirm.mixed.reject", count),
+                            counted("confirm.mixed.allow", count)
+                        ],
+                        "{form:?}"
+                    );
+                } else {
+                    assert_eq!(
+                        choices,
+                        vec![words::text("confirm.present", &[]).unwrap()],
+                        "{form:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The action lines and the line `confirm.changed` come from Halvo: `from` is `halvo` and
+/// `from_text` is the entry `from.halvo` (I3.4, ruling IG-24; the review's B2).
+#[test]
+fn the_action_lines_and_the_changed_line_are_set_by_halvo() {
+    let mut send = effect(2, Class::Send, support::fields_of(Class::Send));
+    let first = ask_of(1, 1, vec![send.clone()]);
+    let table = released_table(&Table::new(), 1, &first, EffectAnswer::AllowOnce);
+    send.digest = digest(22);
+    let delete = effect(1, Class::Delete, support::fields_of(Class::Delete));
+    let mixed = ask_of(1, 1, vec![delete, send]);
+    let item = compose_confirm(&item_id(3), &mixed, &armed(&mixed), &table).unwrap();
+    let t = |k: &str| words::text(k, &[]).unwrap();
+    let ours = [
+        t("confirm.delete.action"),
+        t("confirm.send.action"),
+        t("confirm.changed"),
+    ];
+    let lines: Vec<_> = item
+        .fields()
+        .iter()
+        .filter(|f| ours.contains(&f.label))
+        .collect();
+    assert_eq!(lines.len(), 3);
+    for f in lines {
+        assert_eq!(f.from.name(), "halvo", "{}", f.label);
+        assert_eq!(f.from_text, t("from.halvo"), "{}", f.label);
+        assert!(f.value.is_empty(), "{}", f.label);
     }
 }

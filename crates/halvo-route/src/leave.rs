@@ -90,9 +90,14 @@ impl LeaveCause {
 /// The leave for one model request to leave the machine. It has a private field, no public maker
 /// but `grant`, and neither `Clone` nor `Copy`, so one grant serves one request. Its field is of a
 /// private type of no size that is neither `Clone` nor `Copy` either, so no code can copy a grant
-/// from a borrowed one by a struct update. `grant` makes one
-/// only in a build that sets `cfg(test)`, as the crate's own unit tests do, and never under the
-/// release ruling.
+/// from a borrowed one by a struct update. `grant` makes one only under the test value of the
+/// ruling, which the crate's own code alone can make, in a build that sets `cfg(test)` as its unit
+/// tests do; it never makes one under the release ruling.
+///
+/// This file is pinned whole, its test module included, as lib.rs, ruling.rs and tier.rs are: the
+/// test `pinned_files_hold_their_hashes` of tests/no_grant_in_release.rs holds its SHA-256. A pin
+/// stops no change. It makes each change of the file come with a new hash line in the same commit,
+/// where the reviewer of that commit reads it.
 ///
 /// A caller outside this module cannot write one:
 ///
@@ -555,39 +560,6 @@ mod tests {
                 assert!(!text.contains(&field), "{name} names the private field");
             }
         }
-        let leave = text_of(&files, "leave.rs");
-        let mark = "\n#[cfg(test)]\nmod tests {\n";
-        assert_eq!(leave.matches(mark).count(), 1);
-        let end = leave.find(mark).expect("the test module") + mark.len();
-        assert_eq!(
-            sha256_hex(&leave.as_bytes()[..end]),
-            LEAVE_ABOVE_TESTS_SHA256,
-            "leave.rs changed above its test module: write the new hash in the same commit"
-        );
-        let after: Vec<&str> = leave[end..].lines().collect();
-        assert_eq!(after.last(), Some(&"}"));
-        for line in &after[..after.len() - 1] {
-            assert!(
-                line.is_empty() || line.starts_with(' '),
-                "an item after the tests: {line}"
-            );
-        }
-    }
-
-    const LEAVE_ABOVE_TESTS_SHA256: &str =
-        "8ad7694237c1fbe9fdfa816e1049db0ff657fd647b9038a30e4a4292b676eea3";
-
-    fn text_of<'a>(files: &'a [(String, String)], wanted: &str) -> &'a str {
-        let at = files.iter().position(|(name, _)| name == wanted);
-        files[at.expect("a source file")].1.as_str()
-    }
-
-    fn sha256_hex(bytes: &[u8]) -> String {
-        use sha2::{Digest, Sha256};
-        Sha256::digest(bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect()
     }
 
     #[test]

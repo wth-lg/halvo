@@ -1,6 +1,6 @@
 use super::names::names;
 use super::{AgentId, AgentState, Choice, DecisionEntry, HoldSetCause, ItemId, ItemKind};
-use super::{LapseCause, Mode, Name, Origin, RunEnd, RunId, Trigger, WorkflowId};
+use super::{LapseCause, Mode, Name, RunEnd, RunId, Trigger, WorkflowId};
 use std::num::NonZeroU32;
 
 /// A record `coord_event` of I7.1: the first seven keys and the event with its own keys.
@@ -441,14 +441,14 @@ pub enum Body {
         /// `agent`.
         agent: AgentId,
     },
-    /// `set_bindings`.
+    /// `set_bindings`: the slots alone, which the owner merges by name into the newest
+    /// revision; it holds no origin, which only the supervisor library adds (the agent-setup
+    /// run's CP-36).
     SetBindings {
         /// `workflow`.
         workflow: WorkflowId,
         /// `agent`.
         agent: AgentId,
-        /// `origins`.
-        origins: Vec<Origin>,
         /// `slots`.
         slots: Vec<Slot>,
     },

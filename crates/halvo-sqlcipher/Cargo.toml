@@ -1,0 +1,13 @@
+[package]
+name = "halvo-sqlcipher"
+version = "0.0.0"
+description = "SQLCipher built from the pinned source for every Halvo crate that opens an encrypted database"
+edition = "2021"
+publish = false
+
+[dependencies]
+rusqlite = { version = "0.41", features = ["sqlcipher"] }
+
+[build-dependencies]
+cc = { version = "1", features = ["parallel"] }
+sqlcipher-src = "=419.0.6"

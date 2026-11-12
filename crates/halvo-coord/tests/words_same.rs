@@ -134,6 +134,9 @@ fn expected_keys() -> BTreeSet<String> {
         "line.time",
         "line.files",
         "name.with_site",
+        "confirm.mixed.title",
+        "confirm.mixed.reject",
+        "confirm.mixed.allow",
         "confirm.new_site",
         "confirm.changed",
         "confirm.present",
@@ -193,7 +196,14 @@ fn expected_keys() -> BTreeSet<String> {
         for n in names {
             k.insert(format!("field.{class}.{n}"));
         }
-        for e in ["title", "allow", "reject", "allow_many", "reject_many"] {
+        for e in [
+            "title",
+            "allow",
+            "reject",
+            "allow_many",
+            "reject_many",
+            "action",
+        ] {
             k.insert(format!("confirm.{class}.{e}"));
         }
     }
@@ -221,7 +231,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 186);
+    assert_eq!(seen.len(), 195);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -247,6 +257,9 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     for class in ["payment", "purchase", "send", "delete", "submit", "sign"] {
         want.insert(format!("confirm.{class}.allow_many"), vec!["count"]);
         want.insert(format!("confirm.{class}.reject_many"), vec!["count"]);
+    }
+    for key in ["title", "reject", "allow"] {
+        want.insert(format!("confirm.mixed.{key}"), vec!["count"]);
     }
     for kind in ItemKind::ALL.iter().filter(|k| **k != ItemKind::Confirm) {
         want.insert(format!("item.{}.title", kind.name()), vec!["name"]);

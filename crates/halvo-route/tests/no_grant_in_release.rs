@@ -1,6 +1,47 @@
 use halvo_route::leave::{grant, Consent, LeaveCause, PartKind};
 use halvo_route::release;
 use halvo_route::tier::Tier;
+use sha2::{Digest, Sha256};
+
+const PINNED: [(&str, &str); 4] = [
+    (
+        "leave.rs",
+        "08f15e050a0ba5feb9e9402259b182145969ce87bc09a52090a0c9a8a684e1f8",
+    ),
+    (
+        "lib.rs",
+        "82333428818c311344054ce975e49ee207a52c3dc4fef562e38f586892130036",
+    ),
+    (
+        "ruling.rs",
+        "df1d5ec7217cf6f5fc602f3fc1d8606ccb804c26823018c6f11ddffe60f9de8f",
+    ),
+    (
+        "tier.rs",
+        "64850efc01ea0c73b1fcca18542592d47ce52be979dc421bba59aaf1eba17365",
+    ),
+];
+
+#[test]
+fn pinned_files_hold_their_hashes() {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut changed = Vec::new();
+    for (name, pinned) in PINNED {
+        let bytes = std::fs::read(src.join(name)).expect("a pinned file under src");
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        if hash != pinned {
+            changed.push(format!("src/{name} now hashes to {hash}"));
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "a pinned file changed. A change of a pinned file updates its hash in PINNED of tests/no_grant_in_release.rs in the same commit, where the reviewer of that commit reads the change.\n{}",
+        changed.join("\n")
+    );
+}
 
 #[test]
 fn no_grant_in_release() {
