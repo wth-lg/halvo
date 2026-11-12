@@ -358,6 +358,60 @@ mod tests {
     }
 
     #[test]
+    fn a_started_source_emits_on_each_change_of_the_front_app() {
+        let (handle, writer) = sink::channel(64);
+        let (fg_writer, reader) = foreground_state();
+        let script: Arc<Mutex<Vec<&'static str>>> = Arc::new(Mutex::new(vec!["a", "b", "a"]));
+        let feed = script.clone();
+        let read_front: FrontReader = Box::new(move || {
+            let mut left = feed.lock().unwrap_or_else(PoisonError::into_inner);
+            if left.is_empty() {
+                None
+            } else {
+                Some(Frontmost {
+                    bundle_id: left.remove(0).to_string(),
+                    pid: 1,
+                })
+            }
+        });
+        let read_title: TitleReader = Box::new(|_pid| None);
+        let mut source = ForegroundSource::with_readers(
+            Duration::from_millis(1),
+            fg_writer,
+            read_front,
+            read_title,
+        );
+        source
+            .start(handle)
+            .expect("the source starts without a grant");
+        let started = std::time::Instant::now();
+        while !script
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
+        {
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "the loop took no reading within 5 s"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        source.stop();
+        let events: Vec<(Modality, String)> = std::iter::from_fn(|| writer.recv())
+            .map(|e| (e.modality, e.foreground_app))
+            .collect();
+        assert_eq!(
+            events,
+            vec![
+                (Modality::ForegroundApp, "a".to_string()),
+                (Modality::ForegroundApp, "b".to_string()),
+                (Modality::ForegroundApp, "a".to_string()),
+            ]
+        );
+        assert_eq!(reader.get(), "a");
+    }
+
+    #[test]
     fn a_title_read_after_a_change_gives_one_window_title_event() {
         let title_reads = Arc::new(Mutex::new(Vec::new()));
         let reads = title_reads.clone();

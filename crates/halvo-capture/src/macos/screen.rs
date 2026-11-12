@@ -361,7 +361,7 @@ mod tests {
     use crate::macos::foreground::foreground_state;
     use crate::sink::{self, SinkWriter};
     use core_foundation::base::{CFGetRetainCount, CFRelease};
-    use objc2::rc::Allocated;
+    use objc2::rc::{Allocated, Weak};
     use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
     use std::ffi::c_void;
 
@@ -540,6 +540,16 @@ mod tests {
             ];
         }
         std::mem::forget(stream);
+    }
+
+    #[test]
+    fn a_kept_output_stays_alive() {
+        let (handle, _writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state();
+        let output = ScreenOutput::new(handle, reader);
+        let weak = Weak::from_retained(&output);
+        keep_for_the_life_of_the_process(Some(output), None);
+        assert!(weak.load().is_some(), "the kept output was released");
     }
 
     #[test]

@@ -244,16 +244,37 @@ fn current_secure_state() -> SecureInputState {
     }
 }
 
+fn tap_context(
+    sink: SinkHandle,
+    foreground: ForegroundReader,
+    violations: SecureInputViolations,
+    settings: &TapSettings,
+) -> TapContext {
+    TapContext {
+        sink,
+        foreground,
+        violations,
+        port: TapPort::unset(),
+        secure: settings.secure,
+    }
+}
+
+fn tap_callback(
+    ctx: TapContext,
+) -> impl Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static {
+    move |_proxy, etype, _event: &CGEvent| {
+        on_tap_event(&ctx, etype);
+        CallbackResult::Keep
+    }
+}
+
 fn install_tap(
     ctx: TapContext,
     settings: TapSettings,
 ) -> Result<(PortClearedOnDrop, CFRunLoopSource, CGEventTap<'static>), CaptureError> {
     let port = ctx.port.clone();
-    let tap = create_tap(settings, move |_proxy, etype, _event| {
-        on_tap_event(&ctx, etype);
-        CallbackResult::Keep
-    })
-    .map_err(|()| CaptureError::PermissionDenied(Modality::Keystroke))?;
+    let tap = create_tap(settings, tap_callback(ctx))
+        .map_err(|()| CaptureError::PermissionDenied(Modality::Keystroke))?;
 
     let source = tap
         .mach_port()
@@ -367,13 +388,12 @@ impl CaptureSource for InputSource {
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let settings = tap_settings();
-        let ctx = TapContext {
+        let ctx = tap_context(
             sink,
-            foreground: self.foreground.clone(),
-            violations: self.violations.clone(),
-            port: TapPort::unset(),
-            secure: settings.secure,
-        };
+            self.foreground.clone(),
+            self.violations.clone(),
+            &settings,
+        );
         self.tap = Some(TapThread::spawn(move || install_tap(ctx, settings))?);
         Ok(())
     }
@@ -389,11 +409,13 @@ impl CaptureSource for InputSource {
 mod tests {
     use super::*;
     use crate::macos::foreground::foreground_state;
-    use crate::secure_input_macos::hold_secure_input;
-    use crate::secure_input_macos::test_support::{one_hold_at_a_time, session_reading_within};
+    use crate::secure_input_macos::test_support::{
+        agreed_reading, hold_or_skip, one_hold_at_a_time, reads_on_within,
+    };
     use crate::sink;
     use core_foundation::date::CFDate;
     use core_foundation::runloop::{CFRunLoopTimer, CFRunLoopTimerRef};
+    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
     use std::cell::RefCell;
     use std::sync::mpsc::RecvTimeoutError;
     use std::time::Duration;
@@ -522,16 +544,56 @@ mod tests {
     #[test]
     fn the_production_reader_reads_a_real_hold_as_active() {
         let _one = one_hold_at_a_time();
-        let hold = hold_secure_input();
-        if !session_reading_within(true, Duration::from_secs(2)) {
-            eprintln!(
-                "SKIP the_production_reader_reads_a_real_hold_as_active: the session shows no \
-                 secure-input pid while this process holds secure input"
-            );
+        let Some(hold) = hold_or_skip("the_production_reader_reads_a_real_hold_as_active") else {
             return;
-        }
-        assert_eq!(current_secure_state(), SecureInputState::Active);
+        };
+        assert!(
+            reads_on_within(
+                || current_secure_state() == SecureInputState::Active,
+                Duration::from_secs(2)
+            ),
+            "during an accepted hold the production reader does not read Active"
+        );
         drop(hold);
+    }
+
+    #[test]
+    fn the_production_reader_reads_off_on_during_a_hold_and_off_again() {
+        let _one = one_hold_at_a_time();
+        let limit = Duration::from_secs(2);
+        let reader_on = || current_secure_state() == SecureInputState::Active;
+        let before = agreed_reading(reader_on, limit);
+        let Some(hold) =
+            hold_or_skip("the_production_reader_reads_off_on_during_a_hold_and_off_again")
+        else {
+            return;
+        };
+        let during = reads_on_within(reader_on, limit);
+        drop(hold);
+        let after = agreed_reading(reader_on, limit);
+        assert_eq!(before.0, before.1, "before the hold: (reader, session)");
+        assert!(
+            during,
+            "during an accepted hold the production reader does not read Active"
+        );
+        assert_eq!(after.0, after.1, "after the hold: (reader, session)");
+    }
+
+    #[test]
+    fn the_callback_that_the_tap_gets_counts_a_key_read_as_secure() {
+        let (handle, writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let violations = SecureInputViolations::new();
+        let mut settings = tap_settings();
+        settings.secure = || SecureInputState::Active;
+        let callback = tap_callback(tap_context(handle, reader, violations.clone(), &settings));
+        let source =
+            CGEventSource::new(CGEventSourceStateID::Private).expect("a private event source");
+        let event = CGEvent::new(source).expect("an event object of type null, never posted");
+        let _ = callback(std::ptr::null(), CGEventType::KeyDown, &event);
+        assert_eq!(violations.count(), 1);
+        drop(callback);
+        assert!(writer.recv().is_none(), "a key read as secure was recorded");
     }
 
     #[test]
