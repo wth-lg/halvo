@@ -33,7 +33,7 @@ model's value in a column that the replay compares. What it does not compare is 
 ```sh
 sh scripts/prerequisites.sh    # once: tla2tools.jar 1.7.4 into .tools/, against scripts/tools.sha256
 sh gate/checks/95-model.sh     # one line: PASS model: ... or FAIL model: ...; first failure: ...
-node formal/controls.mjs       # the controls; node formal/controls.mjs reach, break PropA, or view
+node ../formal/r7-ledger/controls.mjs       # the controls; node ../formal/r7-ledger/controls.mjs reach, break PropA, or view
 ```
 
 TLC needs a JDK of version 17 or later on the path. It runs with 12 worker threads and a Java
@@ -84,7 +84,7 @@ checkout as it is, which must pass, and last it runs the control of the view. Th
 holds, a ledger with the same change, a ledger whose interval totals sum amounts, a trace that
 the ledger does not follow, a launcher that makes TLC end with status 75 after a complete
 search, a launcher that takes the count line out of TLC's output, and a first configuration of
-one request id. The three fixtures of the replay run `node formal/check.mjs --replay-only`,
+one request id. The three fixtures of the replay run `node formal/r7-ledger/check.mjs --replay-only`,
 which leaves the two searches out; such a run can fail and never passes. The self-test stops at
 the first fixture that does not end as expected.
 
@@ -208,7 +208,7 @@ of the model, only (h). The view holds both, so that TLC expands every place of 
 an interval and (h) is checked for each. This doubles the states of each configuration, from
 93,497 to 186,993 and from 396,278 to 792,554.
 
-`node formal/controls.mjs view` holds the view to its claim. It searches a copy of the spec that
+`node formal/r7-ledger/controls.mjs view` holds the view to its claim. It searches a copy of the spec that
 counts its steps, at the bounds of `CapLedgerGateway.cfg` and up to 6 steps, three times:
 without a view, with the view, and with a weaker view that leaves out when a hold is due. The
 search with the view must keep exactly the views that the search without one reaches, 14,737
@@ -246,7 +246,7 @@ configuration with at least two request ids.
 
 `CapLedgerAll.cfg` has three request ids with every feature at once. It is no part of check 95.
 One search of it is made once, outside the gate, when the machine's 1-minute load is under 30,
-with `MODEL_WORKERS=4 node formal/controls.mjs all`, and its count, TLC's time and its date
+with `MODEL_WORKERS=4 node formal/r7-ledger/controls.mjs all`, and its count, TLC's time and its date
 stand here as landing evidence:
 
 - not made yet. On 2026-11-11 the machine's 1-minute load stayed between 60 and 430 from the
@@ -261,7 +261,7 @@ ticks: February 2031), and the clock stops at tick 22.
 
 ## Controls
 
-`node formal/controls.mjs` runs the three kinds at the bounds of `CapLedgerGateway.cfg`: the
+`node formal/r7-ledger/controls.mjs` runs the three kinds at the bounds of `CapLedgerGateway.cfg`: the
 reachability controls, the breaks, and the control of the view, which "How the search ends"
 describes.
 
