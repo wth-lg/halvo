@@ -77,3 +77,6 @@ pub(crate) unsafe fn wipe_raw(start: *mut u8, len: usize) {
     }
     compiler_fence(Ordering::SeqCst);
 }
+
+#[cfg(test)]
+mod tests;
