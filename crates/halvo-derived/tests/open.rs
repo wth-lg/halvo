@@ -49,7 +49,7 @@ fn open_refuses_a_key_that_does_not_open_the_database() {
         scratch.path(),
         &DbKey::new([8; 32]),
         &registry(),
-        Host::new(Box::new(clock.clone())),
+        Host::new(Box::new(clock.clone()), Box::new(common::NoProposals)),
         &mut Seq(1),
     );
     assert_eq!(refused.err(), Some(OpenError::Sealed));

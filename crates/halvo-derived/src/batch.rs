@@ -12,6 +12,7 @@ use crate::db::{one, NewRow, Now, Tx};
 use crate::error::{Error, Fault};
 use crate::hash::site_hash;
 use crate::host::IdSource;
+use crate::propose::{apply, SummaryReader};
 use crate::sql;
 use crate::Store;
 
@@ -30,6 +31,24 @@ pub struct CommitOutcome {
     pub evidence: u64,
     /// Evidence rows not stored because their expiry has passed or they name a purged ordinal.
     pub dropped: u64,
+    /// What the store did with the proposals of the recurrence step.
+    pub proposals: ProposalOutcome,
+}
+
+/// What the store did with the proposals of one call of the recurrence step.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProposalOutcome {
+    /// Proposals stored as new workflows in the state `proposed`.
+    pub stored: u64,
+    /// Proposals that changed the stored workflow of their key or its support rows.
+    pub updated: u64,
+    /// Proposals that left the stored workflow of their key and its support rows as they were.
+    pub unchanged: u64,
+    /// Proposals dropped because a dismissed workflow holds their key.
+    pub dismissed: u64,
+    /// Proposals that a reader would refuse, that name no summary, or that name a summary that is not stored inside
+    /// its bound.
+    pub refused: u64,
 }
 
 /// The entry of a kind of the workflow run.
@@ -145,12 +164,16 @@ impl Store {
     /// than 92 days before the clock's day or after it, is not stored with its evidence; an evidence row whose expiry
     /// has passed, or that names a purged ordinal, is not stored, and its summary is. A batch that holds a value that its reader would refuse is refused whole with the
     /// error name `malformed`, and nothing of it is stored.
+    ///
+    /// After the batch's transaction the store calls the host's recurrence step, which reads the summaries inside
+    /// their bound through `SummaryRead`, and applies its proposals in one further transaction (`proposals`). When
+    /// that transaction or the read of the summaries fails, the batch stays committed and the call returns the fault.
     pub fn commit_batch(
         &mut self,
         store: &StoreId,
         episodes: &[Episode],
         position: Position,
-        _ids: &mut dyn IdSource,
+        ids: &mut dyn IdSource,
     ) -> Result<CommitOutcome, Error> {
         let db = &self.db;
         db.arm();
@@ -175,7 +198,7 @@ impl Store {
         let evidence_entry = this_run("evidence")?;
         let days = bound_days(summary_entry).ok_or(Fault::Row)?;
         let now: Now = db.now();
-        db.write(|tx| {
+        let mut out = db.write(|tx| {
             let mark = tx.mark()?;
             let mut out = CommitOutcome::default();
             let mut seen = BTreeSet::new();
@@ -222,6 +245,13 @@ impl Store {
                 rusqlite::params![store.as_str(), seg, idx],
             )?;
             Ok::<_, Error>(out)
-        })
+        })?;
+        let reader = SummaryReader::new(&db.conn, now);
+        let proposals = self.recurrence.propose(&reader);
+        if let Some(fault) = reader.fault() {
+            return Err(Error::Fault(fault));
+        }
+        out.proposals = db.write(|tx| apply(tx, now, proposals, ids))?;
+        Ok(out)
     }
 }

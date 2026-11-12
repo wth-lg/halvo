@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,7 +11,8 @@ use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{Position, StoreId, SummaryId};
 use halvo_schema_core::kinds::{self, KindEntry};
 use halvo_schema_core::record::{
-    Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Tagged, Text,
+    Confidence, Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Proposal, Recurrence,
+    RecurrenceStep, Summary, SummaryRead, Tagged, Text, Trigger,
 };
 use halvo_schema_core::site::{AppId, Domain, ObservedSite, SiteToken};
 use halvo_sqlcipher::rusqlite::Connection;
@@ -116,9 +118,78 @@ pub fn open_with(
         scratch.path(),
         &key(),
         entries,
-        Host::new(Box::new(clock.clone())),
+        Host::new(Box::new(clock.clone()), Box::new(NoProposals)),
         &mut Seq(1 << 40),
     )
+}
+
+pub fn open_host(scratch: &Scratch, host: Host) -> Result<Store, OpenError> {
+    Store::open(scratch.path(), &key(), &registry(), host, &mut Seq(1 << 40))
+}
+
+/// A recurrence step that proposes nothing.
+pub struct NoProposals;
+
+impl RecurrenceStep for NoProposals {
+    fn propose(&self, _summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        Vec::new()
+    }
+}
+
+/// The test proposer: one proposal for each key whose summaries inside their bound number `min` or more, with
+/// those summaries as its support, its days as its recurrence and a confidence of 80.
+pub struct Grouping {
+    pub min: usize,
+}
+
+impl RecurrenceStep for Grouping {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        let mut groups: BTreeMap<String, Vec<Summary>> = BTreeMap::new();
+        summaries.for_each(&mut |s| {
+            let key = match &s.site {
+                Some(site) => format!("{} {}", s.category, serde_json::to_string(site).unwrap()),
+                None => format!("{} app {}", s.category, s.app),
+            };
+            groups.entry(key).or_default().push(s.clone());
+        });
+        groups
+            .into_values()
+            .filter(|group| group.len() >= self.min)
+            .map(|group| Proposal {
+                category: group[0].category,
+                site: group[0].site.clone(),
+                app: group[group.len() - 1].app.clone(),
+                trigger: Trigger::Schedule,
+                recurrence: Recurrence {
+                    count: group.len() as u32,
+                    period: None,
+                    first: group[0].day,
+                    last: group[group.len() - 1].day,
+                },
+                confidence: Confidence(80),
+                summaries: group.iter().map(|s| s.id.clone()).collect(),
+            })
+            .collect()
+    }
+}
+
+/// A recurrence step that returns the proposals that the test put in its list.
+pub struct Fixed(pub Rc<RefCell<Vec<Proposal>>>);
+
+impl RecurrenceStep for Fixed {
+    fn propose(&self, _summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        self.0.borrow().clone()
+    }
+}
+
+/// A recurrence step that records the day and the id of each summary that it reads, in the order read.
+pub struct Recorder(pub Rc<RefCell<Vec<(u32, String)>>>);
+
+impl RecurrenceStep for Recorder {
+    fn propose(&self, summaries: &dyn SummaryRead) -> Vec<Proposal> {
+        summaries.for_each(&mut |s| self.0.borrow_mut().push((s.day, s.id.as_str().to_owned())));
+        Vec::new()
+    }
 }
 
 pub fn open_with_ids(scratch: &Scratch, clock: &TestClock, seed: u64) -> Result<Store, OpenError> {
@@ -126,7 +197,7 @@ pub fn open_with_ids(scratch: &Scratch, clock: &TestClock, seed: u64) -> Result<
         scratch.path(),
         &key(),
         &registry(),
-        Host::new(Box::new(clock.clone())),
+        Host::new(Box::new(clock.clone()), Box::new(NoProposals)),
         &mut Seq(seed),
     )
 }

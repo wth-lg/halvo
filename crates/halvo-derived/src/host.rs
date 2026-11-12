@@ -1,6 +1,6 @@
 use std::fmt;
 
-use halvo_schema_core::record::Instant;
+use halvo_schema_core::record::{Instant, RecurrenceStep};
 
 /// The clock of a host: the instant now and the local calendar. The owner gives the machine's clock and time zone;
 /// a replay gives a clock that it sets, with UTC as local time.
@@ -50,14 +50,16 @@ impl Drop for DbKey {
     }
 }
 
-/// What a host supplies to the store.
+/// What a host supplies to the store: its clock and its recurrence step, which every host puts first.
 pub struct Host {
     pub(crate) clock: Box<dyn Clock>,
+    pub(crate) recurrence: Box<dyn RecurrenceStep>,
 }
 
 impl Host {
-    /// A host with its clock.
-    pub fn new(clock: Box<dyn Clock>) -> Host {
-        Host { clock }
+    /// A host with its clock and its recurrence step: the test proposer in a test host, halvo-identify's step in
+    /// `replay` and in the owner.
+    pub fn new(clock: Box<dyn Clock>, recurrence: Box<dyn RecurrenceStep>) -> Host {
+        Host { clock, recurrence }
     }
 }

@@ -7,14 +7,16 @@ mod db;
 mod error;
 mod hash;
 mod host;
+mod propose;
 mod purge;
 mod sql;
 
 use std::path::Path;
 
 use halvo_schema_core::kinds::KindEntry;
+use halvo_schema_core::record::RecurrenceStep;
 
-pub use batch::CommitOutcome;
+pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError};
 pub use host::{Clock, DbKey, Host, IdSource};
 
@@ -24,6 +26,7 @@ use db::Db;
 /// is dropped.
 pub struct Store {
     db: Db,
+    recurrence: Box<dyn RecurrenceStep>,
 }
 
 impl Store {
@@ -46,7 +49,10 @@ impl Store {
         ids: &mut dyn IdSource,
     ) -> Result<Store, OpenError> {
         let db = Db::open(data_dir, key, entries, host.clock, ids)?;
-        Ok(Store { db })
+        Ok(Store {
+            db,
+            recurrence: host.recurrence,
+        })
     }
 }
 

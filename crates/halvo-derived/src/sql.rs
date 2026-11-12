@@ -68,4 +68,10 @@ catalogue! {
         WHERE sources.ordinal = ?1";
     PURGE_BELOW_ROWS = "SELECT sources.row, rows.family FROM sources JOIN rows ON rows.id = sources.row \
         WHERE sources.ordinal < ?1";
+    SUMMARY_READ = "SELECT body FROM rows WHERE kind = 'summary' AND day BETWEEN ?1 AND ?2 ORDER BY day, summary";
+    SUMMARY_DAY = "SELECT day FROM rows WHERE summary = ?1 AND kind = 'summary'";
+    WORKFLOW_ROW = "SELECT id FROM rows WHERE workflow = ?1 AND kind = 'workflow'";
+    WORKFLOW_BY_KEY = "SELECT id, body FROM rows WHERE wkey = ?1 AND kind = 'workflow'";
+    SUPPORT_OF = "SELECT id, summary FROM rows WHERE kind = 'support' AND workflow = ?1 ORDER BY summary";
+    ROW_BODY_SET = "UPDATE rows SET body = ?2 WHERE id = ?1";
 }
