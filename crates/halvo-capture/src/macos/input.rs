@@ -406,6 +406,23 @@ impl CaptureSource for InputSource {
 }
 
 #[cfg(test)]
+fn events_until_the_sink_closes(writer: &crate::sink::SinkWriter) -> Vec<Modality> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let mut kinds = Vec::new();
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        match writer.receiver().recv_timeout(left) {
+            Ok(event) => kinds.push(event.modality),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return kinds,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => panic!(
+                "the sink did not close within 2 s: something still holds the sink's handle \
+                 (events so far: {kinds:?})"
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::macos::foreground::foreground_state;
@@ -538,7 +555,10 @@ mod tests {
         on_tap_event(&ctx, CGEventType::KeyDown);
         assert_eq!(ctx.violations.count(), 1);
         drop(ctx);
-        assert!(writer.recv().is_none(), "a keystroke was recorded");
+        assert!(
+            events_until_the_sink_closes(&writer).is_empty(),
+            "a keystroke was recorded"
+        );
     }
 
     #[test]
@@ -593,7 +613,36 @@ mod tests {
         let _ = callback(std::ptr::null(), CGEventType::KeyDown, &event);
         assert_eq!(violations.count(), 1);
         drop(callback);
-        assert!(writer.recv().is_none(), "a key read as secure was recorded");
+        assert!(
+            events_until_the_sink_closes(&writer).is_empty(),
+            "a key read as secure was recorded"
+        );
+    }
+
+    #[test]
+    fn the_callback_that_the_tap_gets_reenables_a_disabled_tap() {
+        ENABLE_CALLS.with(|calls| calls.borrow_mut().clear());
+        let (handle, _writer) = sink::channel(8);
+        let (_fg_writer, reader) = foreground_state();
+        let violations = SecureInputViolations::new();
+        let settings = tap_settings();
+        let mut ctx = tap_context(handle, reader, violations.clone(), &settings);
+        ctx.port = TapPort::with_enable(record_enable);
+        let tap = std::ptr::NonNull::<c_void>::dangling().as_ptr();
+        ctx.port.store(tap);
+        let callback = tap_callback(ctx);
+        let source =
+            CGEventSource::new(CGEventSourceStateID::Private).expect("a private event source");
+        let event = CGEvent::new(source).expect("an event object of type null, never posted");
+        let _ = callback(std::ptr::null(), CGEventType::TapDisabledByTimeout, &event);
+        ENABLE_CALLS.with(|calls| {
+            assert_eq!(
+                *calls.borrow(),
+                [(tap as usize, true)],
+                "a disable event through the tap's callback did not re-enable the tap"
+            );
+        });
+        assert_eq!(violations.count(), 0);
     }
 
     #[test]
@@ -666,7 +715,10 @@ mod tests {
             });
             assert_eq!(ctx.violations.count(), 0);
             drop(ctx);
-            assert!(writer.recv().is_none(), "{etype:?} was recorded");
+            assert!(
+                events_until_the_sink_closes(&writer).is_empty(),
+                "{etype:?} was recorded"
+            );
         }
     }
 
@@ -958,7 +1010,7 @@ mod secure_input_invariant {
         assert_eq!(ctx.violations.verify_none(), Err(SecureInputViolated(3)));
         drop(ctx);
         assert!(
-            writer.recv().is_none(),
+            events_until_the_sink_closes(&writer).is_empty(),
             "a keystroke was recorded while secure input was active"
         );
     }
@@ -979,9 +1031,7 @@ mod secure_input_invariant {
         dispatch_tap_event(&ctx, CGEventType::LeftMouseDown, SecureInputState::Active);
         assert_eq!(ctx.violations.verify_none(), Ok(()));
         drop(ctx);
-        let recorded: Vec<Modality> = std::iter::from_fn(|| writer.recv())
-            .map(|e| e.modality)
-            .collect();
+        let recorded = events_until_the_sink_closes(&writer);
         assert_eq!(recorded, [Modality::Pointer, Modality::Pointer]);
     }
 
@@ -991,6 +1041,6 @@ mod secure_input_invariant {
         dispatch_tap_event(&ctx, CGEventType::KeyDown, SecureInputState::Inactive);
         assert_eq!(ctx.violations.verify_none(), Ok(()));
         drop(ctx);
-        assert_eq!(writer.recv().map(|e| e.modality), Some(Modality::Keystroke));
+        assert_eq!(events_until_the_sink_closes(&writer), [Modality::Keystroke]);
     }
 }

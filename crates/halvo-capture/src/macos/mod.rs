@@ -74,11 +74,15 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
         eprintln!("halvo-capture: {failure}");
     }
 
-    let secure_hold = hold_secure_input.then(crate::secure_input_macos::hold_secure_input);
+    let secure_hold = secure_input_byte::hold_or_error(
+        hold_secure_input.then(crate::secure_input_macos::hold_secure_input),
+    );
 
-    std::thread::sleep(Duration::from_secs(seconds));
+    if secure_hold.is_ok() {
+        std::thread::sleep(Duration::from_secs(seconds));
+    }
 
-    drop(secure_hold);
+    let refused = secure_hold.map(drop);
 
     foreground.stop();
     screen.stop();
@@ -90,6 +94,8 @@ fn run_sources(seconds: u64, hold_secure_input: bool) -> Result<TimedRunReport, 
     drain
         .join()
         .map_err(|_| DaemonError::Store("drain thread panicked".into()))?;
+
+    refused?;
 
     Ok(TimedRunReport {
         seconds,

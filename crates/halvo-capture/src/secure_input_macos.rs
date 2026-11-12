@@ -35,17 +35,22 @@ pub struct SecureInputRefused(pub i32);
 /// Hold secure input until the returned [`SecureInputHold`] drops, or the
 /// status with which the system refused the hold.
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
+    hold_with(enable_secure_event_input)
+}
+
+fn enable_secure_event_input() -> i32 {
     // SAFETY: parameterless Carbon call that returns an OSStatus, as
     // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
     // thread safe" (line 2996 of the SDK on this Mac), so no other thread may
     // call it or the release and the predicate at the same time. That is not
     // held until macos-2: the tap thread may read the predicate meanwhile.
-    let status = unsafe { EnableSecureEventInput() };
-    if status == 0 {
-        Ok(SecureInputHold(()))
-    } else {
-        Err(SecureInputRefused(status))
-    }
+    unsafe { EnableSecureEventInput() }
+}
+
+fn hold_with(enable: fn() -> i32) -> Result<SecureInputHold, SecureInputRefused> {
+    crate::macos::secure_input_byte::hold_status(enable())
+        .map(|()| SecureInputHold(()))
+        .map_err(SecureInputRefused)
 }
 
 impl Drop for SecureInputHold {
@@ -161,6 +166,11 @@ mod tests {
     use super::test_support::{agreed_reading, hold_or_skip, one_hold_at_a_time, reads_on_within};
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn a_refused_hold_gives_its_status_and_no_hold() {
+        assert!(matches!(hold_with(|| -50), Err(SecureInputRefused(-50))));
+    }
 
     #[test]
     fn guard_reports_a_boolean_state_without_panicking() {
