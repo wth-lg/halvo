@@ -48,19 +48,23 @@ fn enable_secure_event_input() -> i32 {
 }
 
 fn hold_with(enable: fn() -> i32) -> Result<SecureInputHold, SecureInputRefused> {
-    crate::macos::secure_input_byte::hold_status(enable())
+    crate::macos::secure_input_byte::take_hold(enable)
         .map(|()| SecureInputHold(()))
         .map_err(SecureInputRefused)
 }
 
+pub(crate) fn disable_secure_event_input() -> i32 {
+    // SAFETY: parameterless Carbon call that returns an OSStatus, as
+    // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
+    // thread safe" (line 3032 of the SDK on this Mac), so no other thread may
+    // call it or the hold and the predicate at the same time. That is not held
+    // until macos-2: the tap thread may read the predicate meanwhile.
+    unsafe { DisableSecureEventInput() }
+}
+
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        // SAFETY: parameterless Carbon call that returns an OSStatus, as
-        // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
-        // thread safe" (line 3032 of the SDK on this Mac), so no other thread
-        // may call it or the hold and the predicate at the same time. That is
-        // not held until macos-2: the tap thread may read the predicate meanwhile.
-        unsafe { DisableSecureEventInput() };
+        crate::macos::secure_input_byte::release_hold(disable_secure_event_input);
     }
 }
 
@@ -94,8 +98,28 @@ pub(crate) mod test_support {
 
     static HOLDS: Mutex<()> = Mutex::new(());
 
-    pub(crate) fn one_hold_at_a_time() -> MutexGuard<'static, ()> {
-        HOLDS.lock().unwrap_or_else(PoisonError::into_inner)
+    const HOLDS_OF_ALL_PROCESSES: &str = "/private/tmp/halvo-capture-secure-input-tests.lock";
+
+    pub(crate) struct OneHold {
+        _file: std::fs::File,
+        _guard: MutexGuard<'static, ()>,
+    }
+
+    pub(crate) fn one_hold_at_a_time() -> OneHold {
+        let guard = HOLDS.lock().unwrap_or_else(PoisonError::into_inner);
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(HOLDS_OF_ALL_PROCESSES)
+            .expect("the lock file of the hold tests opens");
+        // SAFETY: `file` is open, so its descriptor is valid for the call, and
+        // flock only takes a lock on it, which the descriptor's close releases.
+        let locked = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&file), libc::LOCK_EX) };
+        assert_eq!(locked, 0, "the lock of the hold tests was not taken");
+        OneHold {
+            _file: file,
+            _guard: guard,
+        }
     }
 
     pub(crate) fn hold_or_skip(test: &str) -> Option<SecureInputHold> {
@@ -170,6 +194,27 @@ mod tests {
     #[test]
     fn a_refused_hold_gives_its_status_and_no_hold() {
         assert!(matches!(hold_with(|| -50), Err(SecureInputRefused(-50))));
+    }
+
+    #[test]
+    fn a_dropped_hold_gives_the_reading_of_before_back() {
+        let _one = one_hold_at_a_time();
+        let limit = Duration::from_secs(2);
+        let before = agreed_reading(secure_input_active, limit);
+        let Some(hold) = hold_or_skip("a_dropped_hold_gives_the_reading_of_before_back") else {
+            return;
+        };
+        drop(hold);
+        let started = std::time::Instant::now();
+        while secure_input_active() != before.0 {
+            assert!(
+                started.elapsed() < limit,
+                "2 s after the hold dropped the predicate reads {} and read {} before the hold",
+                secure_input_active(),
+                before.0
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     #[test]

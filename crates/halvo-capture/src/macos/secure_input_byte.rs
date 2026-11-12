@@ -22,6 +22,14 @@ pub(crate) fn hold_status(status: i32) -> Result<(), i32> {
     }
 }
 
+pub(crate) fn take_hold(enable: fn() -> i32) -> Result<(), i32> {
+    hold_status(enable())
+}
+
+pub(crate) fn release_hold(disable: fn() -> i32) {
+    disable();
+}
+
 pub(crate) fn hold_or_error(
     hold: Option<Result<SecureInputHold, SecureInputRefused>>,
 ) -> Result<Option<SecureInputHold>, DaemonError> {
