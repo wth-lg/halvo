@@ -19,7 +19,7 @@ use objc2_screen_capture_kit::{
 };
 
 use crate::event::Modality;
-use crate::macos::{emit_metadata_only, ForegroundReader, Unpersisted};
+use crate::macos::foreground::{emit_metadata_only, ForegroundReader, Unpersisted};
 use crate::secure_input::SecureInputError;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};

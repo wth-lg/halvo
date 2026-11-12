@@ -14,7 +14,7 @@ use core_graphics::event::{
 };
 
 use crate::event::Modality;
-use crate::macos::{emit_metadata_only, ForegroundReader, Unpersisted};
+use crate::macos::foreground::{emit_metadata_only, ForegroundReader, Unpersisted};
 use crate::secure_input::SecureInputState;
 use crate::secure_input_macos::secure_input_active;
 use crate::sink::SinkHandle;
@@ -422,7 +422,7 @@ mod secure_input_invariant {
 
     fn context(capacity: usize) -> (TapContext, sink::SinkWriter) {
         let (handle, writer) = sink::channel(capacity);
-        let (_writer, reader) = crate::macos::foreground_state();
+        let (_writer, reader) = crate::macos::foreground::foreground_state();
         let ctx = TapContext {
             sink: handle,
             foreground: reader,
