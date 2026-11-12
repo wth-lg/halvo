@@ -389,7 +389,9 @@ fn act(call: &Call) -> Option<String> {
         Call::Kill(run) => format!("kill {run}"),
         Call::Defer(_) => "defer".into(),
         Call::Reap => "reap".into(),
-        Call::AnswerConfirm(..) | Call::AnswerHandback(..) => "answer".into(),
+        Call::AnswerConfirm(..) | Call::AnswerHandback(..) | Call::AnswerBind(..) => {
+            "answer".into()
+        }
         Call::Workflows | Call::Agents | Call::History(..) | Call::Attention(_) | Call::Changed => {
             return None
         }

@@ -3,12 +3,12 @@ mod support;
 
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Table};
 use halvo_coord::items::{
-    compose_check, compose_confirm, compose_plain, compose_setup, confirm_step, kept_source,
-    ConfirmMove, Key, Plain, SetupParam,
+    compose_bind, compose_check, compose_confirm, compose_link_account, compose_plain,
+    compose_setup, confirm_step, kept_source, ConfirmMove, Key, Plain, SetupParam,
 };
 use halvo_coord::types::{
-    AgentId, AskedEffect, BoundField, BoundFrom, CandidateFrom, Cause, Class, ConfirmAsk,
-    EffectAnswer, Item, ItemId, Kept, Limits, Origin, Param, Unknown,
+    AgentId, AskedEffect, BoundField, BoundFrom, CandidateFrom, Cause, Choice, Class, ConfirmAsk,
+    EffectAnswer, FieldFrom, Item, ItemId, ItemKind, Kept, Limits, Origin, Param, Unknown,
 };
 use halvo_coord::words;
 use serde_json::Value;
@@ -226,13 +226,7 @@ fn the_literal_reader_finds_a_sentence() {
 
 #[test]
 fn a_plain_item_has_its_title_text_and_two_choices() {
-    for plain in [
-        Plain::SignIn,
-        Plain::LinkAccount,
-        Plain::Stuck,
-        Plain::Ready,
-        Plain::Show,
-    ] {
+    for plain in [Plain::SignIn, Plain::Stuck, Plain::Ready, Plain::Show] {
         let kind = plain.kind();
         let item = compose_plain(&item_id(1), &agent_id(1), plain, NAME).unwrap();
         assert_eq!(item.kind(), kind);
@@ -358,7 +352,7 @@ fn a_native_confirmation_has_the_one_choice_present_and_names_the_native_class()
     );
     let last = item.fields().last().unwrap();
     assert_eq!(last.label, words::text("confirm.new_site", &[]).unwrap());
-    assert_eq!(last.value, vec!["https://pay.example:443".to_owned()]);
+    assert_eq!(last.value, vec!["pay.example".to_owned()]);
     assert_eq!(last.from.name(), "halvo");
     assert_eq!(item.fields().len(), 4 + 4 + 1);
     all_texts_are_sentences(&item, 2);
@@ -456,7 +450,15 @@ fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
             candidates: vec![],
         },
     ];
-    let item = compose_setup(&item_id(1), &agent_id(1), NAME, &params, &Limits::PRODUCT).unwrap();
+    let item = compose_setup(
+        &item_id(1),
+        &agent_id(1),
+        NAME,
+        &params,
+        false,
+        &Limits::PRODUCT,
+    )
+    .unwrap();
     let got: Vec<_> = item
         .params()
         .iter()
@@ -481,7 +483,7 @@ fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
         ..Limits::PRODUCT
     };
     assert_eq!(
-        compose_setup(&item_id(1), &agent_id(1), NAME, &params, &small),
+        compose_setup(&item_id(1), &agent_id(1), NAME, &params, false, &small),
         Err(Cause::Malformed)
     );
     let few = Limits {
@@ -489,7 +491,7 @@ fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
         ..Limits::PRODUCT
     };
     assert_eq!(
-        compose_setup(&item_id(1), &agent_id(1), NAME, &params, &few),
+        compose_setup(&item_id(1), &agent_id(1), NAME, &params, false, &few),
         Err(Cause::Malformed)
     );
 }
@@ -526,6 +528,7 @@ const PAYMENT: [&str; 4] = [
 fn the_composed_items_equal_the_items_of_the_fixtures() {
     let states = [
         "needs_sign_in",
+        "needs_sign_in_bind",
         "needs_link_account",
         "needs_stuck",
         "needs_ready",
@@ -551,8 +554,16 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
             .unwrap();
         let name = row["name"].as_str().unwrap();
         let composed = match want["kind"].as_str().unwrap() {
+            "sign_in" if state == "needs_sign_in_bind" => {
+                let origin = Origin::parse("https://site7.example:443").unwrap();
+                compose_bind(&item, &agent, name, &origin)
+            }
             "sign_in" => compose_plain(&item, &agent, Plain::SignIn, name),
-            "link_account" => compose_plain(&item, &agent, Plain::LinkAccount, name),
+            "link_account" => {
+                let site = want["fields"][0]["value"][0].as_str().unwrap();
+                let origin = Origin::parse(&format!("https://{site}:443")).unwrap();
+                compose_link_account(&item, &agent, name, &origin)
+            }
             "stuck" => compose_plain(&item, &agent, Plain::Stuck, name),
             "ready" => compose_plain(&item, &agent, Plain::Ready, name),
             "show" => compose_plain(&item, &agent, Plain::Show, name),
@@ -581,7 +592,7 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                             .collect(),
                     })
                     .collect();
-                compose_setup(&item, &agent, name, &params, &Limits::PRODUCT)
+                compose_setup(&item, &agent, name, &params, false, &Limits::PRODUCT)
             }
             "check" => {
                 let kept = ["payee", "amount", "instrument", "origin"]
@@ -791,6 +802,92 @@ fn a_mixed_request_with_a_native_class_has_the_one_choice_present_and_names_no_c
     assert_eq!(labels[9], t("confirm.new_site"));
     assert_eq!(item.fields().len(), 1 + 3 + 1 + 4 + 1);
     all_texts_are_sentences(&item, 2);
+}
+
+/// Origins with the site's name of each: its host, with its port where that is not the usual
+/// one of its scheme (443 for `https`, 80 for `http`), and never its scheme (I1.4, ruling IG-14).
+const SITES: [(&str, &str); 7] = [
+    ("https://pay.example:443", "pay.example"),
+    ("http://pay.example:80", "pay.example"),
+    ("https://pay.example:8443", "pay.example:8443"),
+    ("http://pay.example:443", "pay.example:443"),
+    ("https://pay.example:80", "pay.example:80"),
+    ("http://127.0.0.1:18090", "127.0.0.1:18090"),
+    ("https://a-b.example:65535", "a-b.example:65535"),
+];
+
+/// The line `confirm.new_site` holds the site's name of the request's `new_origin` (I4.3,
+/// ruling IG-14).
+#[test]
+fn a_new_site_is_shown_by_its_host_and_an_unusual_port_without_its_scheme() {
+    let line = words::text("confirm.new_site", &[]).unwrap();
+    for (origin, site) in SITES {
+        let mut payment = effect(1, Class::Payment, support::fields_of(Class::Payment));
+        payment.new_origin = Some(Origin::parse(origin).unwrap());
+        let ask = ask_of(1, 1, vec![payment]);
+        let item = compose_confirm(&item_id(1), &ask, &shown(&ask), &Table::new()).unwrap();
+        let shown: Vec<&Vec<String>> = item
+            .fields()
+            .iter()
+            .filter(|f| f.label == line)
+            .map(|f| &f.value)
+            .collect();
+        assert_eq!(shown, vec![&vec![site.to_owned()]], "{origin}");
+    }
+}
+
+/// A `link_account` item holds its plain parts and one field, whose label is the entry
+/// `item.link_account.origin`, whose value is the site's name of the request's origin and whose
+/// `from` is `halvo` (I3.4, ruling IG-14).
+#[test]
+fn a_link_account_item_shows_the_site_of_the_requests_origin_set_by_halvo() {
+    for (origin, site) in SITES {
+        let origin = Origin::parse(origin).unwrap();
+        let item = compose_link_account(&item_id(1), &agent_id(1), NAME, &origin).unwrap();
+        assert_eq!(item.kind(), ItemKind::LinkAccount);
+        assert_eq!(item.presenter(), None);
+        assert_eq!(
+            item.title(),
+            words::text("item.link_account.title", &[("name", NAME)]).unwrap()
+        );
+        assert_eq!(
+            item.text(),
+            words::text("item.link_account.text", &[]).unwrap()
+        );
+        let fields: Vec<_> = item
+            .fields()
+            .iter()
+            .map(|f| {
+                (
+                    f.label.clone(),
+                    f.value.clone(),
+                    f.from,
+                    f.from_text.clone(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            fields,
+            vec![(
+                words::text("item.link_account.origin", &[]).unwrap(),
+                vec![site.to_owned()],
+                FieldFrom::Halvo,
+                words::text("from.halvo", &[]).unwrap()
+            )],
+            "{origin:?}"
+        );
+        let choices: Vec<_> = item
+            .choices()
+            .iter()
+            .map(|c| (c.choice, c.safe.name()))
+            .collect();
+        assert_eq!(
+            choices,
+            vec![(Choice::Decline, "yes"), (Choice::Done, "no")]
+        );
+        assert!(item.params().is_empty());
+        all_texts_are_sentences(&item, 1);
+    }
 }
 
 /// The guard's table after the release of the decision `answer` on the effects of `ask` by
@@ -1025,7 +1122,13 @@ fn a_request_is_mixed_wherever_an_effect_of_another_class_stands() {
             if x == y {
                 continue;
             }
-            for form in [vec![x, x, y], vec![x, y, y], vec![x, x, y, x]] {
+            for form in [
+                vec![x, x, y],
+                vec![x, y, y],
+                vec![x, x, y, x],
+                vec![x, x, x, y],
+                vec![x, x, x, x, y],
+            ] {
                 let effects = form
                     .iter()
                     .zip(1..)

@@ -9,10 +9,10 @@ use halvo_coord::items::{ConfirmAnswer, ConfirmMove, ConfirmState};
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Clock, Owner, PortError, Rng, Runs};
 use halvo_coord::types::{
-    Agent, AgentId, Answer, Answered, Body, Category, Cause, Choice, Class, ConfirmAsk, Decision,
-    DecisionEntry, EffectAnswer, Event, FullWorkflow, HandbackResult, LapseCause, Lapsed, Limits,
-    Name, Presenter, Raised, Reply, RunId, RunItemKind, RunSpec, What, Workflow, WorkflowState,
-    WorkflowTrigger,
+    Agent, AgentId, Answer, Answered, BindResult, Body, Category, Cause, Choice, Class, ConfirmAsk,
+    Decision, DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow, HandbackAsk,
+    HandbackReason, HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin,
+    Presenter, Raised, Reply, RunId, RunSpec, What, Workflow, WorkflowState, WorkflowTrigger,
 };
 use std::cell::{Cell, RefCell};
 use support::{agent_id, ask, ask_of, asked, field, run_id, workflow_id};
@@ -353,6 +353,9 @@ impl Runs for Faulty<'_> {
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
         self.inner.answer_handback(run, result)
     }
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        self.inner.answer_bind(run, result)
+    }
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         self.inner.cancel(run)
     }
@@ -524,6 +527,102 @@ fn an_answer_with_no_clock_leaves_the_item_armed_and_calls_no_port() {
 /// A stopped run gets no further item and no decision that allows (I4.2, L6): an answer for
 /// an item of a run that the table holds as stopped, and a request of a run whose item lapsed
 /// with wait_limit or cancelled, are refused with state and reach no port.
+/// `issue` raises no item for a request that names an effect that has begun or whose newest
+/// released decision is `reject_once`: it is refused with `state`, nothing is stored and nothing
+/// sent, so that no card shows it even where the caller did not ask `raise_confirm` first (I4.7,
+/// ruling IG-32). The record whose acknowledgement sets the fact is one that the guard passed.
+#[test]
+fn no_item_is_issued_for_an_effect_that_has_begun_or_whose_newest_decision_rejects_it() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let mut held = armed(&p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+    answer(
+        &p,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Allow,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .unwrap();
+    let entry = released(&p)[0].clone();
+    let rec = record_of(&entry, EffectState::Releasing, PAGE[0]);
+    t = guard_step(&t, &rec, Gives::Confirm).unwrap();
+    let again = ask_of(1, 1, vec![asked(1, Class::Send, 7, true)]);
+    let before = p.calls.borrow().len();
+    assert!(
+        issue(&p, &mut l, &t, &LIMITS, &again).is_ok(),
+        "passed, not stored"
+    );
+    t = t.stored(&rec);
+    let before_refused = p.calls.borrow().len();
+    assert_eq!(
+        issue(&p, &mut l, &t, &LIMITS, &again).err(),
+        Some(Cause::State)
+    );
+    assert_eq!(
+        p.calls.borrow().len(),
+        before_refused,
+        "nothing stored or sent"
+    );
+    assert!(before_refused > before);
+    let with_fresh = ask_of(
+        1,
+        1,
+        vec![
+            asked(9, Class::Delete, 9, true),
+            asked(1, Class::Send, 8, true),
+        ],
+    );
+    assert_eq!(
+        issue(&p, &mut l, &t, &LIMITS, &with_fresh).err(),
+        Some(Cause::State),
+        "one begun effect among others"
+    );
+    assert_eq!(p.calls.borrow().len(), before_refused);
+
+    let q = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let mut held = armed(&q, &|n| q.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+    answer(
+        &q,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Reject,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .unwrap();
+    let before = q.calls.borrow().len();
+    assert_eq!(
+        issue(&q, &mut l, &t, &LIMITS, &again).err(),
+        Some(Cause::State),
+        "the newest released decision of effect 1 is reject_once"
+    );
+    assert_eq!(q.calls.borrow().len(), before);
+    let rejected_among_fresh = ask_of(
+        1,
+        1,
+        vec![
+            asked(9, Class::Send, 9, true),
+            asked(1, Class::Send, 7, true),
+        ],
+    );
+    assert_eq!(
+        issue(&q, &mut l, &t, &LIMITS, &rejected_among_fresh).err(),
+        Some(Cause::State),
+        "one rejected effect among others"
+    );
+    assert_eq!(q.calls.borrow().len(), before);
+    let other = ask_of(1, 1, vec![asked(9, Class::Send, 9, true)]);
+    assert!(
+        issue(&q, &mut l, &t, &LIMITS, &other).is_ok(),
+        "another effect"
+    );
+}
+
 #[test]
 fn a_stopped_run_gets_no_item_and_no_allow_decision() {
     let p = ports();
@@ -884,6 +983,16 @@ fn waiting_events_go_first_and_keep_their_order() {
     assert!(l.waiting().is_empty());
 }
 
+/// A handback request of run 1 with its reason and origin.
+fn handback(reason: HandbackReason, origin: Option<&str>) -> HandbackAsk {
+    HandbackAsk {
+        run: run_id(1),
+        agent: agent_id(1),
+        reason,
+        origin: origin.map(|o| Origin::parse(o).unwrap()),
+    }
+}
+
 #[test]
 fn a_handback_answer_is_stored_before_the_runner_gets_it() {
     let p = ports();
@@ -895,8 +1004,7 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
         &mut l,
         &LIMITS,
         &item,
-        &run,
-        RunItemKind::SignIn,
+        &handback(HandbackReason::SignIn, None),
         Choice::Done,
     )
     .unwrap();
@@ -915,8 +1023,7 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             &mut l,
             &LIMITS,
             &item,
-            &run,
-            RunItemKind::Check,
+            &handback(HandbackReason::EffectUnknown, None),
             Choice::WentThrough
         ),
         Err(Cause::NoService)
@@ -937,8 +1044,7 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             &mut l,
             &LIMITS,
             &item,
-            &run,
-            RunItemKind::Stuck,
+            &handback(HandbackReason::StepFailed, None),
             Choice::Decline
         ),
         Ok(()),
@@ -950,12 +1056,63 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
             &mut l,
             &LIMITS,
             &item,
-            &run,
-            RunItemKind::Stuck,
+            &handback(HandbackReason::StepFailed, None),
             Choice::Allow
         ),
         Err(Cause::Malformed)
     );
+}
+
+/// The row of an answer of a `link_account` item holds the whole origin of its request, whose
+/// site's name the item showed, before the runner gets the result; a request with no origin gets
+/// no row and no result, because its item cannot show a site (I7.1, I3.4, ruling IG-14).
+#[test]
+fn a_link_account_answer_stores_the_whole_origin_of_its_request() {
+    let item = support::item_id(1);
+    let origin = "https://mail.site2.example:8443";
+    for (choice, done, result) in [
+        (Choice::Done, DoneAnswer::Done, HandbackResult::Done),
+        (
+            Choice::Decline,
+            DoneAnswer::Decline,
+            HandbackResult::Declined,
+        ),
+    ] {
+        let p = ports();
+        let mut l = ledger();
+        let ask = handback(HandbackReason::AccountLink, Some(origin));
+        answer_handback(&p, &mut l, &LIMITS, &item, &ask, choice).unwrap();
+        let calls: Vec<Call> = p.calls.borrow().iter().map(|c| c.call.clone()).collect();
+        let row = What::ItemAnswered {
+            item: item.clone(),
+            answer: Answered::LinkAccount(LinkAnswer {
+                answer: done,
+                origin: Origin::parse(origin).unwrap(),
+            }),
+        };
+        assert!(
+            matches!(
+                &calls[..],
+                [Call::Log(rows), Call::AnswerHandback(r, got)]
+                    if rows.len() == 1 && rows[0].what == row && r == &run_id(1) && *got == result
+            ),
+            "{calls:?}"
+        );
+    }
+    let p = ports();
+    let mut l = ledger();
+    assert_eq!(
+        answer_handback(
+            &p,
+            &mut l,
+            &LIMITS,
+            &item,
+            &handback(HandbackReason::AccountLink, None),
+            Choice::Done
+        ),
+        Err(Cause::Malformed)
+    );
+    assert!(p.calls.borrow().is_empty());
 }
 
 /// The page item of a held confirmation.
@@ -995,8 +1152,9 @@ fn answered<P: Owner + Runs + Clock + Rng>(
 /// `allow_once`, whether or not a record used that decision's row. Effect 1 is allowed with no
 /// record; effect 2 is the flow of ruling XA-4: allowed, its record `approved` marks the row used,
 /// a `begin` refused with `digest` and a `rebind` (no record of either crosses the link), then the
-/// second request; effect 3 is rejected; effect 4 has only an item that lapsed; effect 5 is
-/// allowed, then an item for it lapsed, then the third request comes.
+/// second request; effect 3 is rejected, so that a later request for it gets no item at all
+/// (ruling IG-32); effect 4 has only an item that lapsed; effect 5 is allowed, then an item for it
+/// lapsed, then the third request comes.
 #[test]
 fn refusal_changed_line() {
     let p = ports();
@@ -1037,7 +1195,12 @@ fn refusal_changed_line() {
     );
     p.clear_refusals();
     let later = |run: u32, n: u32| ask_of(run, 1, vec![asked(n, Class::Send, n + 100, true)]);
-    for (n, line) in [(1, true), (2, true), (3, false), (4, false), (5, true)] {
+    assert_eq!(
+        issue(&p, &mut l, &t, &LIMITS, &later(1, 3)).err(),
+        Some(Cause::State),
+        "effect 3, whose newest released decision is reject_once, gets no item (ruling IG-32)"
+    );
+    for (n, line) in [(1, true), (2, true), (4, false), (5, true)] {
         let held = issue(&p, &mut l, &t, &LIMITS, &later(1, n)).unwrap();
         let item = page(&held);
         let want = if line { vec![0] } else { vec![] };

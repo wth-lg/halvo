@@ -13,13 +13,14 @@ mod raise;
 mod setup;
 
 pub use compose::{
-    compose_check, compose_confirm, compose_plain, compose_setup, field_from, kept_source, Plain,
-    SetupParam,
+    compose_bind, compose_check, compose_confirm, compose_link_account, compose_plain,
+    compose_setup, field_from, kept_source, site_name, Plain, SetupParam,
 };
 pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 pub use key::Key;
 pub use presenter::{presenter, request_presenter};
 pub use raise::{
-    choices, handback_kind, handback_result, params, raise_step, Raise, Source, CONFIRM_CLASSES,
+    choices, handback_kind, handback_result, params, raise_confirm, raise_step, Raise, Source,
+    CONFIRM_CLASSES,
 };
 pub use setup::{setup_step, Setup, SetupBody, SetupInput, SetupMove, SetupState};

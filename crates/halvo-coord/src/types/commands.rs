@@ -32,7 +32,7 @@ pub struct Command {
     pub errors: &'static [Cause],
 }
 
-const STATES: [&str; 18] = [
+const STATES: [&str; 19] = [
     "state-empty",
     "state-ten",
     "state-needs_confirm_page",
@@ -51,9 +51,10 @@ const STATES: [&str; 18] = [
     "state-working",
     "state-queue",
     "state-no_service",
+    "state-needs_sign_in_bind",
 ];
 
-const NEXT: [&str; 20] = [
+const NEXT: [&str; 21] = [
     "state-empty",
     "state-ten",
     "state-needs_confirm_page",
@@ -72,6 +73,7 @@ const NEXT: [&str; 20] = [
     "state-working",
     "state-queue",
     "state-no_service",
+    "state-needs_sign_in_bind",
     "reply-next-same",
     "reply-closed",
 ];

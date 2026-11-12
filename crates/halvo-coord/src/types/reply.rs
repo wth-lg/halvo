@@ -83,7 +83,9 @@ pub struct CardRun {
 /// An item, as the page gets it (I3.4), made by the one constructor of its kind: a
 /// confirmation has its presenter and an empty `text`, every other kind a null presenter and
 /// `armed` `no`;
-/// `fields` stand only in a confirmation and a check, and `params` only in a setup.
+/// `fields` stand only in a confirmation, a check, a `link_account` item, which holds the one
+/// field of its site, and a setup that asks again, which holds the one line that says so, and
+/// `params` only in a setup.
 ///
 /// ```
 /// use halvo_coord::types::{AgentId, Item, ItemId, ItemKind, YesNo};
@@ -214,15 +216,17 @@ impl Item {
         }
     }
 
-    /// A `link_account` item.
+    /// A `link_account` item with the field of the site of its request's origin.
     pub fn link_account(
         item: ItemId,
         agent: AgentId,
         title: String,
         text: String,
+        site: Field,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
+            fields: vec![site],
             choices,
             ..Item::of_kind(ItemKind::LinkAccount, item, agent, YesNo::No, title, text)
         }
@@ -258,16 +262,19 @@ impl Item {
         }
     }
 
-    /// A `setup` item with its parameters (I3.5).
+    /// A `setup` item with its parameters (I3.5), and with the line that says that its answers
+    /// were not taken where it asks every parameter again.
     pub fn setup(
         item: ItemId,
         agent: AgentId,
         title: String,
         text: String,
+        not_taken: Option<Field>,
         params: Vec<ParamEntry>,
         choices: Vec<ChoiceText>,
     ) -> Item {
         Item {
+            fields: not_taken.into_iter().collect(),
             params,
             choices,
             ..Item::of_kind(ItemKind::Setup, item, agent, YesNo::No, title, text)
