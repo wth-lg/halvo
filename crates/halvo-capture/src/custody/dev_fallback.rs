@@ -473,6 +473,56 @@ mod tests {
         );
     }
 
+    fn a_root_made_again_under_one_id_differs_and_opens_no_wrap_of_the_first(
+        first: &dyn RootHooks,
+        fresh: &dyn RootHooks,
+    ) {
+        let _first = DestroyedAtTheEnd(first);
+        let _fresh = DestroyedAtTheEnd(fresh);
+        first.create_root().unwrap();
+        let wrapped = first
+            .wrap_store_key(&StoreKey::from_bytes([0x3c; 32]))
+            .unwrap();
+        let first_root = first.root();
+        first.destroy_root().unwrap();
+        fresh.create_root().unwrap();
+        let fresh_root = fresh.root();
+        assert!(
+            *first_root != *fresh_root,
+            "two roots made under one root id hold the same bytes"
+        );
+        let from_the_id_alone = fresh.unwrap_store_key(&wrapped);
+        assert!(
+            matches!(from_the_id_alone, Err(CustodyError::WrapAuthFailed)),
+            "the wrapped store key and its public root id opened the store key under a new root: {:?}",
+            from_the_id_alone.as_ref().map(|key| key.expose() == &[0x3c; 32])
+        );
+    }
+
+    #[test]
+    fn two_creates_under_one_root_id_make_two_roots_and_the_id_alone_opens_no_store_key() {
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        {
+            let root_id = RootId::fresh();
+            a_root_made_again_under_one_id_differs_and_opens_no_wrap_of_the_first(
+                &DevFallbackCustody::new(root_id),
+                &DevFallbackCustody::new(root_id),
+            );
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let root_id = RootId::fresh();
+        a_root_made_again_under_one_id_differs_and_opens_no_wrap_of_the_first(
+            &FileRootCustody {
+                roots: FileRoots::new(dir.path().join("first"), TestProtector::new(0x5a).0),
+                root_id,
+            },
+            &FileRootCustody {
+                roots: FileRoots::new(dir.path().join("fresh"), TestProtector::new(0x5a).0),
+                root_id,
+            },
+        );
+    }
+
     #[test]
     fn seals_under_one_key_use_distinct_nonces_that_vary_in_every_byte() {
         const SEALS: usize = 64;
