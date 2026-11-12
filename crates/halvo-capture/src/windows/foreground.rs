@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::event::Modality;
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{CaptureError, CaptureSource};
 
-use super::{build_event, EventPlacement, PumpHandle, PumpReady};
+use super::{HandOff, Packet, Producer, PumpHandle, PumpReady};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
@@ -39,13 +39,12 @@ pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVEN
     unsafe { SetWinEventHook(event, event, None, callback, 0, 0, HOOK_FLAGS) }
 }
 
-/// Build the foreground-app event for `exe_path`.
-pub fn map_foreground(
-    sink: &SinkHandle,
-    exe_path: String,
-    placement: EventPlacement,
-) -> crate::event::CaptureStreamEvent {
-    build_event(sink, Modality::ForegroundApp, exe_path, placement)
+pub(crate) fn foreground_packet(exe_path: String) -> Packet {
+    Packet {
+        kind: Modality::ForegroundApp,
+        app: exe_path,
+        byte_len: 0,
+    }
 }
 
 /// The executable path of the current foreground window's process, or `None` when
@@ -93,12 +92,9 @@ pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
     }
 }
 
-/// Shared state a running foreground hook exposes to its callback and to the
-/// input sources: the sink to emit through and the last foreground app the hook
-/// observed (`None` until the first observation).
-pub struct ForegroundState {
-    pub(crate) sink: SinkHandle,
-    pub(crate) last_app: Arc<Mutex<Option<String>>>,
+struct ForegroundState {
+    producer: Producer,
+    last_app: Arc<Mutex<Option<String>>>,
 }
 
 /// Foreground-app capture source. `start` installs the WinEvent hook on its own
@@ -106,14 +102,24 @@ pub struct ForegroundState {
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     pump: Option<PumpHandle>,
+    handoff: Option<HandOff>,
     installer: HookInstaller,
 }
 
 impl ForegroundAppSource {
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.handoff
+            .as_ref()
+            .map(HandOff::counts)
+            .unwrap_or_default()
+    }
+
     pub fn new() -> Self {
         Self {
             last_app: Arc::new(Mutex::new(None)),
             pump: None,
+            handoff: None,
             installer: set_win_event_hook,
         }
     }
@@ -162,8 +168,7 @@ unsafe extern "system" fn foreground_proc(
             if let Ok(mut last) = state.last_app.lock() {
                 *last = Some(app.clone());
             }
-            let event = map_foreground(&state.sink, app, EventPlacement::unpersisted(0));
-            let _ = state.sink.emit(event);
+            state.producer.push(foreground_packet(app));
         }
     });
 }
@@ -174,8 +179,9 @@ impl CaptureSource for ForegroundAppSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
+        let handoff = HandOff::start(sink, "halvo-foreground-forward")?;
         let state = ForegroundState {
-            sink,
+            producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
         };
         let installer = self.installer;
@@ -183,6 +189,7 @@ impl CaptureSource for ForegroundAppSource {
             run_foreground_hook(state, installer, ready)
         })?;
         self.pump = Some(pump);
+        self.handoff = Some(handoff);
         Ok(())
     }
 
@@ -216,19 +223,12 @@ fn run_foreground_hook(state: ForegroundState, installer: HookInstaller, ready: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::windows::tests::test_placement;
 
     #[test]
-    fn map_foreground_builds_a_foreground_app_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        let event = map_foreground(
-            &sink,
-            "C:\\Windows\\explorer.exe".to_string(),
-            test_placement(),
-        );
-        assert_eq!(event.modality, Modality::ForegroundApp);
-        assert_eq!(event.foreground_app, "C:\\Windows\\explorer.exe");
-        assert!(!event.is_derived);
+    fn a_foreground_change_maps_to_a_foreground_app_packet() {
+        let packet = foreground_packet("C:\\Windows\\explorer.exe".to_string());
+        assert_eq!(packet.kind, Modality::ForegroundApp);
+        assert_eq!(packet.app, "C:\\Windows\\explorer.exe");
     }
 
     fn no_hook(_event: u32, _callback: WINEVENTPROC) -> HWINEVENTHOOK {

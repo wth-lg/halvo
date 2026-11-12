@@ -1,10 +1,10 @@
 //! Window-title capture via `SetWinEventHook`.
 
-use crate::event::{CaptureStreamEvent, Modality};
+use crate::event::Modality;
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{CaptureError, CaptureSource};
 
-use super::{build_event, EventPlacement, PumpHandle, PumpReady};
+use super::{HandOff, Packet, Producer, PumpHandle, PumpReady};
 
 #[cfg(target_os = "windows")]
 use super::foreground::{foreground_app_for, set_win_event_hook, HookInstaller};
@@ -17,23 +17,17 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextLengthW, GetWindowTextW, EVENT_OBJECT_NAMECHANGE, OBJID_WINDOW,
 };
 
-/// Build the window-title event, or `None` for an empty title. A title made only
-/// of whitespace is treated as empty, so a cleared caption records nothing.
-pub fn map_window_title(
-    sink: &SinkHandle,
-    title: &str,
-    exe_path: String,
-    placement: EventPlacement,
-) -> Option<CaptureStreamEvent> {
+/// The packet of a title, or `None` for an empty title or one of whitespace
+/// only, so a cleared caption records nothing.
+pub(crate) fn title_packet(title: &str, exe_path: String) -> Option<Packet> {
     if title.trim().is_empty() {
         return None;
     }
-    Some(build_event(
-        sink,
-        Modality::WindowTitle,
-        exe_path,
-        placement,
-    ))
+    Some(Packet {
+        kind: Modality::WindowTitle,
+        app: exe_path,
+        byte_len: title.len() as u64,
+    })
 }
 
 #[cfg(target_os = "windows")]
@@ -53,24 +47,31 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
     }
 }
 
-/// The state a running window-title hook needs: the sink to emit through. The
-/// title and its app are read from the window each callback, so unlike the
-/// foreground hook this carries no last-app cell.
-pub struct TitleState {
-    pub(crate) sink: SinkHandle,
+struct TitleState {
+    producer: Producer,
 }
 
 /// Window-title capture source. `start` installs the name-change hook on its own
 /// pump thread; `stop` quits that thread and unhooks.
 pub struct WindowTitleSource {
     pump: Option<PumpHandle>,
+    handoff: Option<HandOff>,
     installer: HookInstaller,
 }
 
 impl WindowTitleSource {
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.handoff
+            .as_ref()
+            .map(HandOff::counts)
+            .unwrap_or_default()
+    }
+
     pub fn new() -> Self {
         Self {
             pump: None,
+            handoff: None,
             installer: set_win_event_hook,
         }
     }
@@ -115,9 +116,8 @@ unsafe extern "system" fn title_proc(
     let app = foreground_app_for(hwnd).unwrap_or_default();
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow().as_ref() {
-            let placement = EventPlacement::unpersisted(title.len() as u64);
-            if let Some(event) = map_window_title(&state.sink, &title, app, placement) {
-                let _ = state.sink.emit(event);
+            if let Some(packet) = title_packet(&title, app) {
+                state.producer.push(packet);
             }
         }
     });
@@ -129,12 +129,16 @@ impl CaptureSource for WindowTitleSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
-        let state = TitleState { sink };
+        let handoff = HandOff::start(sink, "halvo-window-title-forward")?;
+        let state = TitleState {
+            producer: handoff.producer(),
+        };
         let installer = self.installer;
         let pump = super::spawn_pump("halvo-window-title".to_string(), move |ready| {
             run_title_hook(state, installer, ready)
         })?;
         self.pump = Some(pump);
+        self.handoff = Some(handoff);
         Ok(())
     }
 
@@ -168,27 +172,20 @@ fn run_title_hook(state: TitleState, installer: HookInstaller, ready: PumpReady)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::windows::tests::test_placement;
 
     #[test]
-    fn a_non_empty_title_maps_to_a_window_title_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        let event = map_window_title(
-            &sink,
-            "Inbox - Mail",
-            "C:\\mail.exe".to_string(),
-            test_placement(),
-        )
-        .expect("a non-empty title produces an event");
-        assert_eq!(event.modality, Modality::WindowTitle);
-        assert_eq!(event.foreground_app, "C:\\mail.exe");
+    fn a_non_empty_title_maps_to_a_window_title_packet() {
+        let packet = title_packet("Inbox - Mail", "C:\\mail.exe".to_string())
+            .expect("a non-empty title produces a packet");
+        assert_eq!(packet.kind, Modality::WindowTitle);
+        assert_eq!(packet.app, "C:\\mail.exe");
+        assert_eq!(packet.byte_len, 12);
     }
 
     #[test]
-    fn an_empty_or_whitespace_title_produces_no_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        assert!(map_window_title(&sink, "", "a.exe".to_string(), test_placement()).is_none());
-        assert!(map_window_title(&sink, "   ", "a.exe".to_string(), test_placement()).is_none());
+    fn an_empty_or_whitespace_title_produces_no_packet() {
+        assert!(title_packet("", "a.exe".to_string()).is_none());
+        assert!(title_packet("   ", "a.exe".to_string()).is_none());
     }
 
     fn no_hook(

@@ -14,11 +14,11 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
-use crate::event::{CaptureStreamEvent, Modality};
-use crate::sink::{SinkError, SinkHandle};
-use crate::source::{CaptureError, CaptureSource, EmitOutcome, EventSink};
+use crate::event::Modality;
+use crate::sink::SinkHandle;
+use crate::source::{CaptureError, CaptureSource};
 
-use super::{build_event, EventPlacement};
+use super::{HandOff, HandOffCounts, Packet, Producer};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
@@ -34,36 +34,32 @@ pub fn exclude_window_from_capture(hwnd: HWND) -> Result<(), CaptureError> {
         .map_err(|e| CaptureError::Start(format!("WDA_EXCLUDEFROMCAPTURE: {e}")))
 }
 
-/// Build the screen-frame event for a frame of the given size, or `None` for a
-/// degenerate zero-area frame (which carries no image and is not recorded).
-pub fn map_frame(
-    sink: &SinkHandle,
-    width: u32,
-    height: u32,
-    foreground_app: String,
-    placement: EventPlacement,
-) -> Option<CaptureStreamEvent> {
+const SINK_GONE: &str = "the capture writer has stopped";
+
+/// The packet of a frame of the given size, or `None` for a zero-area frame,
+/// which carries no image. No pixel is read: the size is the frame's byte
+/// count in Bgra8.
+pub(crate) fn frame_packet(width: u32, height: u32, foreground_app: String) -> Option<Packet> {
     if width == 0 || height == 0 {
         return None;
     }
-    Some(build_event(
-        sink,
-        Modality::ScreenFrame,
-        foreground_app,
-        placement,
-    ))
+    Some(Packet {
+        kind: Modality::ScreenFrame,
+        app: foreground_app,
+        byte_len: u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
+    })
 }
 
-/// The dependencies the capture handler needs, passed through the settings flags.
+/// What the capture handler needs, passed through the settings flags.
 pub struct ScreenFlags {
-    pub sink: SinkHandle,
-    pub last_app: Arc<Mutex<Option<String>>>,
+    producer: Producer,
+    last_app: Arc<Mutex<Option<String>>>,
 }
 
-/// The `windows-capture` frame handler. Built by the capture thread from the
-/// flags; `on_frame_arrived` emits one event per frame and buffers nothing.
+/// The `windows-capture` frame handler: one packet for each frame, handed to
+/// the source's queue.
 pub struct ScreenHandler {
-    sink: SinkHandle,
+    producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
 }
 
@@ -73,7 +69,7 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
 
     fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
         Ok(Self {
-            sink: ctx.flags.sink,
+            producer: ctx.flags.producer,
             last_app: ctx.flags.last_app,
         })
     }
@@ -90,20 +86,11 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             .ok()
             .and_then(|g| g.clone())
             .unwrap_or_default();
-        // Metadata-only: no pixels are read or held (the memory bound), but the
-        // frame's measured byte size rides in the placement so the dimensions are
-        // not lost. P6 writes the pixels to the store and assigns a real placement.
-        let byte_len = width as u64 * height as u64 * BGRA8_BYTES_PER_PIXEL;
-        let placement = EventPlacement::unpersisted(byte_len);
-        if let Some(event) = map_frame(&self.sink, width, height, app, placement) {
-            match self.sink.emit(event) {
-                Ok(EmitOutcome::Queued | EmitOutcome::Dropped) => {}
-                Err(SinkError::Disconnected) => {
-                    return Err(CaptureError::Start(
-                        "screen sink disconnected; the capture writer has stopped".to_string(),
-                    ))
-                }
-            }
+        if let Some(packet) = frame_packet(width, height, app) {
+            self.producer.push(packet);
+        }
+        if self.producer.writer_gone() {
+            return Err(CaptureError::Start(SINK_GONE.to_string()));
         }
         Ok(())
     }
@@ -115,6 +102,7 @@ pub struct ScreenSource {
     last_app: Arc<Mutex<Option<String>>>,
     min_interval: Duration,
     control: Option<windows_capture::capture::CaptureControl<ScreenHandler, CaptureError>>,
+    handoff: Option<HandOff>,
 }
 
 impl ScreenSource {
@@ -123,6 +111,7 @@ impl ScreenSource {
             last_app,
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             control: None,
+            handoff: None,
         }
     }
 
@@ -130,6 +119,14 @@ impl ScreenSource {
     pub fn with_min_interval(mut self, interval: Duration) -> Self {
         self.min_interval = interval;
         self
+    }
+
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> HandOffCounts {
+        self.handoff
+            .as_ref()
+            .map(HandOff::counts)
+            .unwrap_or_default()
     }
 }
 
@@ -141,8 +138,9 @@ impl CaptureSource for ScreenSource {
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let monitor =
             Monitor::primary().map_err(|e| CaptureError::Start(format!("primary monitor: {e}")))?;
+        let handoff = HandOff::start(sink, "halvo-screen-forward")?;
         let flags = ScreenFlags {
-            sink,
+            producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
         };
         let settings = Settings::new(
@@ -158,6 +156,7 @@ impl CaptureSource for ScreenSource {
         let control = ScreenHandler::start_free_threaded(settings)
             .map_err(|e| CaptureError::Start(format!("screen capture: {e}")))?;
         self.control = Some(control);
+        self.handoff = Some(handoff);
         Ok(())
     }
 
@@ -171,27 +170,19 @@ impl CaptureSource for ScreenSource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::windows::tests::test_placement;
 
     #[test]
-    fn a_frame_maps_to_a_droppable_screen_frame_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        let event = map_frame(
-            &sink,
-            1920,
-            1080,
-            "C:\\browser.exe".to_string(),
-            test_placement(),
-        )
-        .expect("a sized frame produces an event");
-        assert_eq!(event.modality, Modality::ScreenFrame);
-        assert!(event.modality.is_droppable_under_backpressure());
+    fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
+        let packet = frame_packet(1920, 1080, "C:\\browser.exe".to_string())
+            .expect("a sized frame produces a packet");
+        assert_eq!(packet.kind, Modality::ScreenFrame);
+        assert_eq!(packet.app, "C:\\browser.exe");
+        assert_eq!(packet.byte_len, 1920 * 1080 * 4);
     }
 
     #[test]
     fn a_zero_area_frame_is_not_recorded() {
-        let (sink, _w) = crate::sink::channel(4);
-        assert!(map_frame(&sink, 0, 1080, String::new(), test_placement()).is_none());
-        assert!(map_frame(&sink, 1920, 0, String::new(), test_placement()).is_none());
+        assert!(frame_packet(0, 1080, String::new()).is_none());
+        assert!(frame_packet(1920, 0, String::new()).is_none());
     }
 }

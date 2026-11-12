@@ -2,11 +2,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use crate::event::{CaptureStreamEvent, Modality};
+use crate::event::Modality;
 use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource, EventSink};
+use crate::source::{CaptureError, CaptureSource};
 
-use super::{build_event, EventPlacement, PumpHandle, PumpReady};
+use super::{HandOff, Packet, Producer, PumpHandle, PumpReady};
 
 /// Which device a source listens to; also its modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,33 +72,31 @@ impl PointerSample {
     }
 }
 
-/// Map a decoded keystroke to a stream event, or `None` to skip it. Only key-down
-/// transitions are recorded, so one physical press is one event, not two.
-pub fn map_keystroke(
-    sink: &SinkHandle,
-    key: KeyStroke,
-    foreground_app: String,
-    placement: EventPlacement,
-) -> Option<CaptureStreamEvent> {
+impl PointerSample {
+    /// A sample that only moves the pointer: no button, wheel or other flag.
+    pub const fn is_motion_only(self) -> bool {
+        self.button_flags == 0
+    }
+}
+
+/// The packet of a decoded key, or `None` for a key-up: one press is one event.
+pub(crate) fn keystroke_packet(key: KeyStroke, foreground_app: String) -> Option<Packet> {
     if key.released {
         return None;
     }
-    Some(build_event(
-        sink,
-        Modality::Keystroke,
-        foreground_app,
-        placement,
-    ))
+    Some(Packet {
+        kind: Modality::Keystroke,
+        app: foreground_app,
+        byte_len: key.payload_len(),
+    })
 }
 
-/// Map a pointer sample to a stream event; every sample is recorded. The decoded
-/// sample's measured size rides in `placement` (see [`PointerSample::payload_len`]).
-pub fn map_pointer(
-    sink: &SinkHandle,
-    foreground_app: String,
-    placement: EventPlacement,
-) -> CaptureStreamEvent {
-    build_event(sink, Modality::Pointer, foreground_app, placement)
+pub(crate) fn pointer_packet(sample: PointerSample, foreground_app: String) -> Packet {
+    Packet {
+        kind: Modality::Pointer,
+        app: foreground_app,
+        byte_len: sample.payload_len(),
+    }
 }
 
 /// A decoded raw input packet: either a keyboard or a mouse record.
@@ -130,7 +128,7 @@ const HID_USAGE_PAGE_GENERIC: u16 =
 #[cfg(target_os = "windows")]
 struct InputState {
     device: RawDevice,
-    sink: SinkHandle,
+    producer: Producer,
     last_app: Arc<Mutex<Option<String>>>,
 }
 
@@ -147,9 +145,18 @@ pub struct RawInputSource {
     device: RawDevice,
     last_app: Arc<Mutex<Option<String>>>,
     pump: Option<PumpHandle>,
+    handoff: Option<HandOff>,
 }
 
 impl RawInputSource {
+    /// The counts of this source's hand-off queue in its last run.
+    pub fn handoff_counts(&self) -> super::HandOffCounts {
+        self.handoff
+            .as_ref()
+            .map(HandOff::counts)
+            .unwrap_or_default()
+    }
+
     /// A keyboard source, attributing keystrokes to `last_app` (shared with the
     /// foreground source).
     pub fn keyboard(last_app: Arc<Mutex<Option<String>>>) -> Self {
@@ -166,6 +173,7 @@ impl RawInputSource {
             device,
             last_app,
             pump: None,
+            handoff: None,
         }
     }
 }
@@ -229,15 +237,17 @@ fn emit_from_raw(packet: RawInputPacket) {
         let app = attributed_app(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
-                let placement = EventPlacement::unpersisted(key.payload_len());
-                if let Some(event) = map_keystroke(&state.sink, key, app, placement) {
-                    let _ = state.sink.emit(event);
+                if let Some(packet) = keystroke_packet(key, app) {
+                    state.producer.push(packet);
                 }
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
-                let placement = EventPlacement::unpersisted(sample.payload_len());
-                let event = map_pointer(&state.sink, app, placement);
-                let _ = state.sink.emit(event);
+                let packet = pointer_packet(sample, app);
+                if sample.is_motion_only() {
+                    state.producer.push_motion(packet);
+                } else {
+                    state.producer.push(packet);
+                }
             }
             _ => {}
         }
@@ -300,14 +310,16 @@ impl CaptureSource for RawInputSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
+        let handoff = HandOff::start(sink, "halvo-rawinput-forward")?;
         let state = InputState {
             device: self.device,
-            sink,
+            producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
         };
         let name = format!("halvo-rawinput-{:?}", self.device);
         let pump = super::spawn_pump(name, move |ready| run_raw_input(state, ready))?;
         self.pump = Some(pump);
+        self.handoff = Some(handoff);
         Ok(())
     }
 
@@ -483,37 +495,40 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::windows::tests::test_placement;
 
     #[test]
-    fn a_key_down_maps_to_a_keystroke_event() {
-        let (sink, _w) = crate::sink::channel(4);
+    fn a_key_down_maps_to_a_keystroke_packet() {
         let key = KeyStroke {
             vkey: 0x41,
             released: false,
         };
-        let event =
-            map_keystroke(&sink, key, "C:\\editor.exe".to_string(), test_placement()).unwrap();
-        assert_eq!(event.modality, Modality::Keystroke);
-        assert_eq!(event.foreground_app, "C:\\editor.exe");
+        let packet = keystroke_packet(key, "C:\\editor.exe".to_string()).unwrap();
+        assert_eq!(packet.kind, Modality::Keystroke);
+        assert_eq!(packet.app, "C:\\editor.exe");
+        assert_eq!(packet.byte_len, 2);
     }
 
     #[test]
     fn a_key_up_is_not_recorded() {
-        let (sink, _w) = crate::sink::channel(4);
         let key = KeyStroke {
             vkey: 0x41,
             released: true,
         };
-        assert!(map_keystroke(&sink, key, String::new(), test_placement()).is_none());
+        assert!(keystroke_packet(key, String::new()).is_none());
     }
 
     #[test]
-    fn a_pointer_sample_maps_to_a_pointer_event() {
-        let (sink, _w) = crate::sink::channel(4);
-        let event = map_pointer(&sink, "C:\\game.exe".to_string(), test_placement());
-        assert_eq!(event.modality, Modality::Pointer);
-        assert_eq!(event.foreground_app, "C:\\game.exe");
+    fn a_pointer_sample_maps_to_a_pointer_packet_and_only_a_flagless_one_is_motion() {
+        let packet = pointer_packet(PointerSample::default(), "C:\\game.exe".to_string());
+        assert_eq!(packet.kind, Modality::Pointer);
+        assert_eq!(packet.app, "C:\\game.exe");
+        assert_eq!(packet.byte_len, 12);
+        assert!(PointerSample::default().is_motion_only());
+        let wheel = PointerSample {
+            button_flags: 0x0400,
+            ..PointerSample::default()
+        };
+        assert!(!wheel.is_motion_only());
     }
 
     #[test]

@@ -9,8 +9,8 @@ pub mod window_title;
 
 use crate::daemon::{DaemonError, TimedRunReport};
 use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
-use crate::sink::SinkHandle;
-use crate::source::CaptureError;
+use crate::sink::{SinkError, SinkHandle};
+use crate::source::{CaptureError, EmitOutcome, EventSink};
 use uuid::Uuid;
 
 /// Where a captured payload's bytes live in the encrypted segment store: the
@@ -63,6 +63,74 @@ pub fn build_event(
         placement.segment_ref,
         placement.segment_key_id,
     )
+}
+
+/// One captured item on its way from an OS callback to the sink.
+pub(crate) struct Packet {
+    pub(crate) kind: Modality,
+    pub(crate) app: String,
+    pub(crate) byte_len: u64,
+}
+
+/// The counts of a source's hand-off queue: packets that a full or closed
+/// queue dropped, and motion samples that a newer one replaced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct HandOffCounts {
+    pub lost: u64,
+    pub coalesced: u64,
+}
+
+pub(crate) struct HandOff {
+    sink: SinkHandle,
+}
+
+#[derive(Clone)]
+pub(crate) struct Producer {
+    sink: SinkHandle,
+    gone: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl HandOff {
+    pub(crate) fn start(sink: SinkHandle, _name: &str) -> Result<Self, CaptureError> {
+        Ok(Self { sink })
+    }
+
+    pub(crate) fn producer(&self) -> Producer {
+        Producer {
+            sink: self.sink.clone(),
+            gone: std::sync::Arc::default(),
+        }
+    }
+
+    pub(crate) fn counts(&self) -> HandOffCounts {
+        HandOffCounts::default()
+    }
+
+    #[cfg(test)]
+    fn pending_motion(&self) -> bool {
+        false
+    }
+}
+
+impl Producer {
+    pub(crate) fn push(&self, packet: Packet) {
+        if forward_one(&self.sink, packet).is_err() {
+            self.gone.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    pub(crate) fn push_motion(&self, packet: Packet) {
+        self.push(packet);
+    }
+
+    pub(crate) fn writer_gone(&self) -> bool {
+        self.gone.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutcome, SinkError> {
+    let placement = EventPlacement::unpersisted(packet.byte_len);
+    sink.emit(build_event(sink, packet.kind, packet.app, placement))
 }
 
 /// A live pump thread's id, as reported by the pump once its message queue
@@ -301,6 +369,58 @@ pub(crate) mod tests {
         // stop() posts WM_QUIT to the (now-exited) pump thread and joins; a post
         // to a finished thread fails harmlessly, so this must not hang or panic.
         handle.stop();
+    }
+
+    fn pointer(app: &str) -> Packet {
+        Packet {
+            kind: Modality::Pointer,
+            app: app.to_string(),
+            byte_len: 12,
+        }
+    }
+
+    #[test]
+    fn with_the_sink_full_one_motion_sample_is_pending_and_no_button_packet_is_lost() {
+        let (sink, writer) = crate::sink::channel(1);
+        let handoff = HandOff::start(sink.clone(), "halvo-test-forward").expect("hand-off");
+        assert!(matches!(
+            forward_one(&sink, pointer("filler")),
+            Ok(EmitOutcome::Queued)
+        ));
+        let producer = handoff.producer();
+        let (pushed, all_pushed) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            producer.push(pointer("button-1"));
+            for _ in 0..1_000 {
+                producer.push_motion(pointer("motion"));
+            }
+            producer.push(pointer("button-2"));
+            for _ in 0..1_000 {
+                producer.push_motion(pointer("motion"));
+            }
+            let _ = pushed.send(());
+        });
+        assert!(
+            all_pushed
+                .recv_timeout(std::time::Duration::from_secs(2))
+                .is_ok(),
+            "a push blocked on the full sink"
+        );
+        assert!(handoff.pending_motion(), "no motion sample is pending");
+        let counts = handoff.counts();
+        assert_eq!(counts.lost, 0);
+        assert!(counts.coalesced >= 1_997, "{counts:?}");
+        let mut apps = Vec::new();
+        while let Ok(received) = writer.recv_timeout(std::time::Duration::from_secs(1)) {
+            apps.push(received.event().foreground_app.clone());
+        }
+        let count = |app: &str| apps.iter().filter(|a| a.as_str() == app).count();
+        assert_eq!(count("filler"), 1, "{apps:?}");
+        assert_eq!(count("button-1"), 1, "{apps:?}");
+        assert_eq!(count("button-2"), 1, "{apps:?}");
+        let motions = count("motion");
+        assert!((1..=3).contains(&motions), "{apps:?}");
+        assert_eq!(apps.len(), 3 + motions);
     }
 
     #[cfg(target_os = "windows")]
