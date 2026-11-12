@@ -2,8 +2,9 @@ import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { loadSchema } from "./schema.mjs";
 import { makeApp } from "./app.mjs";
+import { openRecord, RecordError } from "./record.mjs";
 
-/** The most body bytes that the stub reads of one request; past it the stub answers and closes the connection. */
+/** The stub keeps the chunks of a body up to and with the one that takes it past this many bytes, and reads the rest without keeping it. */
 export const BODY_CAP = 1048576;
 const HOST = "127.0.0.1";
 const vendored = (name) => JSON.parse(readFileSync(new URL(`../../schema/${name}`, import.meta.url), "utf8"));
@@ -43,31 +44,21 @@ function pairs(raw) {
   return out;
 }
 
-function serveApp(app) {
+function serveApp(app, record, connectionOf) {
   return (req, res) => {
     const chunks = [];
     let size = 0;
-    let over = false;
-    const finish = () => {
-      const answer = app.handle({ method: req.method, target: req.url, headers: pairs(req.rawHeaders), body: Buffer.concat(chunks) });
-      if (over) {
-        res.shouldKeepAlive = false;
-        res.on("finish", () => req.socket.destroy());
-      }
-      send(res, answer);
-    };
     req.on("data", (chunk) => {
-      if (over) return;
+      if (size > BODY_CAP) return;
       chunks.push(chunk);
       size += chunk.length;
-      if (size > BODY_CAP) {
-        over = true;
-        req.pause();
-        finish();
-      }
     });
     req.on("end", () => {
-      if (!over) finish();
+      const body = Buffer.concat(chunks);
+      const headers = pairs(req.rawHeaders);
+      const answer = app.handle({ method: req.method, target: req.url, headers, body });
+      record.request({ connection: connectionOf(req.socket), method: req.method, target: req.url, headers, body, status: answer.status, result: answer.result });
+      send(res, answer);
     });
     req.on("error", () => {});
   };
@@ -98,18 +89,29 @@ function serveControl(app, stop) {
   };
 }
 
+const PARSE_REFUSAL = "HTTP/1.1 400 Bad Request\r\nconnection: close\r\ncontent-length: 0\r\n\r\n";
+
 /**
- * Starts the stub: the app-facing routes and the control routes, each on a port of 127.0.0.1 that the system picks.
+ * Starts the stub: the app-facing routes and the control routes, each on a port of 127.0.0.1 that the system picks,
+ * with every request to the app-facing port kept in the record directory `record` (see openRecord).
  * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`.
+ * through `close()` or the control route `POST /stop`, and `close()`. Throws RecordError for a bad record directory.
  */
-export async function startStub() {
+export async function startStub({ record: dir }) {
+  const record = openRecord(dir);
   const app = makeApp(readVendored());
   let done;
   const stopped = new Promise((resolve) => {
     done = resolve;
   });
-  const appServer = createServer(serveApp(app));
+  const numbers = new WeakMap();
+  const appServer = createServer(serveApp(app, record, (socket) => numbers.get(socket)));
+  appServer.on("connection", (socket) => numbers.set(socket, record.connection(socket)));
+  appServer.on("clientError", (error, socket) => {
+    record.refused({ connection: numbers.get(socket), error: String(error.code) });
+    if (socket.writable) socket.end(PARSE_REFUSAL);
+    else socket.destroy();
+  });
   let closing = null;
   const close = () => {
     closing ??= Promise.all([shut(appServer), shut(controlServer)]).then(() => done());
@@ -119,13 +121,35 @@ export async function startStub() {
   return { app: await listen(appServer), control: await listen(controlServer), stopped, close };
 }
 
+const USAGE = "usage: node account/stub/src/stub.mjs --record DIR\n";
+
+function options(argv) {
+  const known = ["--record"];
+  const given = {};
+  for (let index = 0; index < argv.length; index += 2) {
+    const [flag, value] = [argv[index], argv[index + 1]];
+    if (!known.includes(flag) || value === undefined || Object.hasOwn(given, flag)) return null;
+    given[flag] = value;
+  }
+  return Object.hasOwn(given, "--record") ? { record: given["--record"] } : null;
+}
+
 async function main(argv) {
-  if (argv.length > 0) {
-    process.stderr.write("usage: node account/stub/src/stub.mjs\n");
+  const given = options(argv);
+  if (given === null) {
+    process.stderr.write(USAGE);
     process.exitCode = 64;
     return;
   }
-  const stub = await startStub();
+  let stub;
+  try {
+    stub = await startStub(given);
+  } catch (error) {
+    if (!(error instanceof RecordError)) throw error;
+    process.stderr.write(`${error.message}\n${USAGE}`);
+    process.exitCode = 64;
+    return;
+  }
   for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => stub.close());
   process.stdout.write(`${JSON.stringify({ app: stub.app, control: stub.control })}\n`);
   await stub.stopped;

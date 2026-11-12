@@ -1,6 +1,9 @@
 import { connect } from "node:net";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export const STUB = fileURLToPath(new URL("../src/stub.mjs", import.meta.url));
 export const ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -42,6 +45,9 @@ export const appHeaders = (credential = CRED) => [
 ];
 
 export const portOf = (url) => Number(new URL(url).port);
+
+/** Makes a new empty directory under the system's temp directory for one record. */
+export const fresh = () => mkdtempSync(join(tmpdir(), "halvo-stub-record-"));
 
 /** Starts the stub's command line with `args`; resolves to the child, its first line of standard output parsed as JSON, and its standard error. */
 export function spawnStub(args) {

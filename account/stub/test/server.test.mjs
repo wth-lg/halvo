@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { connect } from "node:net";
 import { startStub, BODY_CAP } from "../src/stub.mjs";
-import { exchange, request, parse, appHeaders, portOf, spawnStub, exited } from "./support.mjs";
+import { exchange, request, parse, appHeaders, portOf, spawnStub, exited, fresh } from "./support.mjs";
 
 const CAP = '{"cap":{"amount":1,"period":"week"}}';
 const json = [["content-type", "application/json"]];
@@ -17,8 +17,8 @@ const refused = (port) =>
   });
 
 test("the stub listens on 127.0.0.1 at ports that the system picks", async () => {
-  const one = await startStub();
-  const two = await startStub();
+  const one = await startStub({ record: fresh() });
+  const two = await startStub({ record: fresh() });
   try {
     for (const url of [one.app, one.control, two.app, two.control]) {
       assert.equal(new URL(url).hostname, "127.0.0.1", url);
@@ -32,7 +32,7 @@ test("the stub listens on 127.0.0.1 at ports that the system picks", async () =>
 });
 
 test("over the network an accepted request gets its JSON answer and a rejection gets the rejected body", async () => {
-  const stub = await startStub();
+  const stub = await startStub({ record: fresh() });
   try {
     const port = portOf(stub.app);
     const start = parse(await exchange(port, request("POST", "/v1/checkout", [...appHeaders(), ...json], CAP)));
@@ -54,8 +54,8 @@ test("over the network an accepted request gets its JSON answer and a rejection 
   }
 });
 
-test("a body above the read cap is answered and its connection closed, and the stub serves on", async () => {
-  const stub = await startStub();
+test("a body above the read cap is read to its end and answered, and the stub serves on", async () => {
+  const stub = await startStub({ record: fresh() });
   try {
     const port = portOf(stub.app);
     const big = Buffer.alloc(BODY_CAP + 4096, 0x20);
@@ -72,7 +72,7 @@ test("a body above the read cap is answered and its connection closed, and the s
 });
 
 test("the control routes move the states, refuse anything else, and stop the stub", async () => {
-  const stub = await startStub();
+  const stub = await startStub({ record: fresh() });
   const port = portOf(stub.app);
   const control = portOf(stub.control);
   const call = async (method, path) => parse(await exchange(control, request(method, path)));
@@ -104,7 +104,7 @@ test("the control routes move the states, refuse anything else, and stop the stu
 });
 
 test("the command line prints the two addresses, serves, and exits 0 on the control route stop", async () => {
-  const { child, ready } = await spawnStub([]);
+  const { child, ready } = await spawnStub(["--record", fresh()]);
   assert.notEqual(ready, null);
   assert.deepEqual(Object.keys(ready).sort(), ["app", "control"]);
   const status = parse(await exchange(portOf(ready.app), request("GET", "/v1/subscription", appHeaders())));
