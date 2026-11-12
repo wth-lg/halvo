@@ -98,6 +98,13 @@ fn a_prepared_copy_that_no_replace_put_in_place_goes_when_it_is_dropped_and_the_
     drop(s.prepared);
     assert_eq!(fs::read(scratch.path(FILE)).expect("read"), copy);
     assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, &s.copy]));
+    let scratch = Scratch::new("replace-dropped-changed");
+    let s = setup(&scratch);
+    let theirs = b"other bytes written at the copy's name before the drop";
+    fs::write(scratch.path(&s.copy), theirs).expect("write");
+    drop(s.prepared);
+    assert_eq!(scratch.names(""), sorted(&[FILE, CHECKPOINT, &s.copy]));
+    assert_eq!(fs::read(scratch.path(&s.copy)).expect("read"), theirs);
 }
 
 #[test]
