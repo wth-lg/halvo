@@ -499,6 +499,20 @@ PY
     esac
   done
   result sandbox/stream-ended-at-its-end-marker refused "$got"
+  copy2=$work/copy2
+  mkdir -p "$copy2/scripts/egress/lists" "$copy2/docs/r2/trials"
+  cp scripts/egress/check.sh scripts/egress/list.awk scripts/egress/probe.sh scripts/egress/probe.rs scripts/egress/wfp.ps1 "$copy2/scripts/egress/"
+  cp scripts/egress/lists/empty.txt scripts/egress/lists/loopback.txt "$copy2/scripts/egress/lists/"
+  cp docs/r2/trials/egress.md "$copy2/docs/r2/trials/"
+  {
+    printf 'BEGIN { if (mark == "" && (getline seen < "%s") < 0) { lose = 1; print "lost" > "%s"; close("%s") } }\n' "$work/lose-once" "$work/lose-once" "$work/lose-once"
+    printf 'lose { next }\n'
+    cat scripts/egress/sandbox.awk
+  } >"$copy2/scripts/egress/sandbox.awk"
+  git init -q "$copy2"
+  (cd "$copy2" && sh scripts/egress/check.sh --self-test >"$work/lossy.out" 2>"$work/lossy.err")
+  code=$?
+  result sandbox/self-test-runs-a-lost-probe-again "0 checks probes=ok quiet=ok loopback=ok default=ok lost=1" "$code $(grep '^checks ' "$work/lossy.out")"
   serve 47201
   expect_refusal sandbox/self-test-port-taken port sh scripts/egress/check.sh --self-test
   unserve
