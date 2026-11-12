@@ -640,4 +640,28 @@ mod tests {
     fn decode_rejects_a_short_buffer() {
         assert!(decode_raw_input(&[0u8; 2]).is_none());
     }
+
+    #[test]
+    fn a_second_keyboard_source_names_the_step_that_failed() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut first = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let first_started = first.begin(crate::source::SourceContext::new(sink.clone()));
+        let second_started = second.begin(crate::source::SourceContext::new(sink));
+        let _ = second.shutdown();
+        let _ = first.shutdown();
+        assert!(first_started.is_ok(), "{first_started:?}");
+        assert!(
+            matches!(
+                second_started,
+                Err(CaptureError::Os {
+                    stage: "RegisterClassW",
+                    domain: "HRESULT",
+                    ..
+                })
+            ),
+            "{second_started:?}"
+        );
+    }
 }

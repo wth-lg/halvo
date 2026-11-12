@@ -15,7 +15,9 @@ use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
+use windows::Win32::UI::Accessibility::{
+    SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK, WINEVENTPROC,
+};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowThreadProcessId, EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT,
@@ -26,6 +28,16 @@ use windows::Win32::UI::WindowsAndMessaging::{
 /// (through the thread's message queue) and skip Halvo's own process.
 #[cfg(target_os = "windows")]
 pub(crate) const HOOK_FLAGS: u32 = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
+
+/// Installs a WinEvent hook for one event on the calling thread and returns its
+/// handle, which is invalid when the installation failed.
+pub(crate) type HookInstaller = fn(u32, WINEVENTPROC) -> HWINEVENTHOOK;
+
+pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVENTHOOK {
+    // SAFETY: SetWinEventHook takes the event range, no module and a callback
+    // with the WINEVENTPROC signature; out-of-context hooks need no module.
+    unsafe { SetWinEventHook(event, event, None, callback, 0, 0, HOOK_FLAGS) }
+}
 
 /// Build the foreground-app event for `exe_path`.
 pub fn map_foreground(
@@ -94,6 +106,7 @@ pub struct ForegroundState {
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     pump: Option<PumpHandle>,
+    installer: HookInstaller,
 }
 
 impl ForegroundAppSource {
@@ -101,6 +114,15 @@ impl ForegroundAppSource {
         Self {
             last_app: Arc::new(Mutex::new(None)),
             pump: None,
+            installer: set_win_event_hook,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_installer(installer: HookInstaller) -> Self {
+        Self {
+            installer,
+            ..Self::new()
         }
     }
 
@@ -156,8 +178,9 @@ impl CaptureSource for ForegroundAppSource {
             sink,
             last_app: Arc::clone(&self.last_app),
         };
+        let installer = self.installer;
         let pump = super::spawn_pump("halvo-foreground".to_string(), move |ready| {
-            run_foreground_hook(state, ready)
+            run_foreground_hook(state, installer, ready)
         })?;
         self.pump = Some(pump);
         Ok(())
@@ -171,19 +194,9 @@ impl CaptureSource for ForegroundAppSource {
 }
 
 #[cfg(target_os = "windows")]
-fn run_foreground_hook(state: ForegroundState, ready: PumpReady) {
+fn run_foreground_hook(state: ForegroundState, installer: HookInstaller, ready: PumpReady) {
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = Some(state));
-    let hook = unsafe {
-        SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_FOREGROUND,
-            None,
-            Some(foreground_proc),
-            0,
-            0,
-            HOOK_FLAGS,
-        )
-    };
+    let hook = installer(EVENT_SYSTEM_FOREGROUND, Some(foreground_proc));
     super::ensure_message_queue();
     ready.report();
     super::pump_messages();
@@ -211,5 +224,29 @@ mod tests {
         assert_eq!(event.modality, Modality::ForegroundApp);
         assert_eq!(event.foreground_app, "C:\\Windows\\explorer.exe");
         assert!(!event.is_derived);
+    }
+
+    fn no_hook(_event: u32, _callback: WINEVENTPROC) -> HWINEVENTHOOK {
+        HWINEVENTHOOK::default()
+    }
+
+    #[test]
+    fn a_foreground_hook_that_does_not_install_fails_the_start_with_its_step() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = ForegroundAppSource::with_installer(no_hook);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert!(
+            matches!(
+                started,
+                Err(CaptureError::Os {
+                    stage: "SetWinEventHook",
+                    domain: "HRESULT",
+                    ..
+                })
+            ),
+            "{started:?}"
+        );
     }
 }

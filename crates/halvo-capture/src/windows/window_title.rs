@@ -7,11 +7,11 @@ use crate::source::{CaptureError, CaptureSource, EventSink};
 use super::{build_event, EventPlacement, PumpHandle, PumpReady};
 
 #[cfg(target_os = "windows")]
-use super::foreground::{foreground_app_for, HOOK_FLAGS};
+use super::foreground::{foreground_app_for, set_win_event_hook, HookInstaller};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK};
+use windows::Win32::UI::Accessibility::{UnhookWinEvent, HWINEVENTHOOK};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextLengthW, GetWindowTextW, EVENT_OBJECT_NAMECHANGE, OBJID_WINDOW,
@@ -64,11 +64,23 @@ pub struct TitleState {
 /// pump thread; `stop` quits that thread and unhooks.
 pub struct WindowTitleSource {
     pump: Option<PumpHandle>,
+    installer: HookInstaller,
 }
 
 impl WindowTitleSource {
     pub fn new() -> Self {
-        Self { pump: None }
+        Self {
+            pump: None,
+            installer: set_win_event_hook,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_installer(installer: HookInstaller) -> Self {
+        Self {
+            installer,
+            ..Self::new()
+        }
     }
 }
 
@@ -118,8 +130,9 @@ impl CaptureSource for WindowTitleSource {
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let state = TitleState { sink };
+        let installer = self.installer;
         let pump = super::spawn_pump("halvo-window-title".to_string(), move |ready| {
-            run_title_hook(state, ready)
+            run_title_hook(state, installer, ready)
         })?;
         self.pump = Some(pump);
         Ok(())
@@ -133,19 +146,9 @@ impl CaptureSource for WindowTitleSource {
 }
 
 #[cfg(target_os = "windows")]
-fn run_title_hook(state: TitleState, ready: PumpReady) {
+fn run_title_hook(state: TitleState, installer: HookInstaller, ready: PumpReady) {
     TITLE_CTX.with(|cell| *cell.borrow_mut() = Some(state));
-    let hook = unsafe {
-        SetWinEventHook(
-            EVENT_OBJECT_NAMECHANGE,
-            EVENT_OBJECT_NAMECHANGE,
-            None,
-            Some(title_proc),
-            0,
-            0,
-            HOOK_FLAGS,
-        )
-    };
+    let hook = installer(EVENT_OBJECT_NAMECHANGE, Some(title_proc));
     super::ensure_message_queue();
     ready.report();
     super::pump_messages();
@@ -181,5 +184,32 @@ mod tests {
         let (sink, _w) = crate::sink::channel(4);
         assert!(map_window_title(&sink, "", "a.exe".to_string(), test_placement()).is_none());
         assert!(map_window_title(&sink, "   ", "a.exe".to_string(), test_placement()).is_none());
+    }
+
+    fn no_hook(
+        _event: u32,
+        _callback: windows::Win32::UI::Accessibility::WINEVENTPROC,
+    ) -> HWINEVENTHOOK {
+        HWINEVENTHOOK::default()
+    }
+
+    #[test]
+    fn a_title_hook_that_does_not_install_fails_the_start_with_its_step() {
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut source = WindowTitleSource::with_installer(no_hook);
+        let started = source.begin(crate::source::SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert!(
+            matches!(
+                started,
+                Err(CaptureError::Os {
+                    stage: "SetWinEventHook",
+                    domain: "HRESULT",
+                    ..
+                })
+            ),
+            "{started:?}"
+        );
     }
 }

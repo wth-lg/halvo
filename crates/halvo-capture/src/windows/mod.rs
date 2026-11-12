@@ -200,8 +200,16 @@ pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    pub(crate) fn serial() -> std::sync::MutexGuard<'static, ()> {
+        SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 
     pub(crate) fn test_placement() -> EventPlacement {
         EventPlacement {
