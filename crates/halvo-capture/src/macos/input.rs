@@ -612,6 +612,30 @@ mod granted_tests {
         max_usec_latency: 0.0,
     };
 
+    #[test]
+    fn tap_information_has_the_layout_of_cg_event_tap_information() {
+        use std::mem::{align_of, offset_of, size_of};
+        assert_eq!(
+            (size_of::<TapInformation>(), align_of::<TapInformation>()),
+            (48, 8)
+        );
+        assert_eq!(
+            [
+                offset_of!(TapInformation, event_tap_id),
+                offset_of!(TapInformation, tap_point),
+                offset_of!(TapInformation, options),
+                offset_of!(TapInformation, events_of_interest),
+                offset_of!(TapInformation, tapping_process),
+                offset_of!(TapInformation, process_being_tapped),
+                offset_of!(TapInformation, enabled),
+                offset_of!(TapInformation, min_usec_latency),
+                offset_of!(TapInformation, avg_usec_latency),
+                offset_of!(TapInformation, max_usec_latency),
+            ],
+            [0, 4, 8, 16, 24, 28, 32, 36, 40, 44]
+        );
+    }
+
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
         fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
