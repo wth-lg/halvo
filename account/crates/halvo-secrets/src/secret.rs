@@ -34,6 +34,38 @@ impl Drop for Secret {
     }
 }
 
+pub(crate) struct Buffer {
+    bytes: Vec<u8>,
+}
+
+impl Buffer {
+    pub(crate) fn zeroed(len: usize) -> Buffer {
+        Buffer {
+            bytes: vec![0; len],
+        }
+    }
+
+    pub(crate) fn capacity(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub(crate) fn space(&mut self) -> &mut [u8] {
+        &mut self.bytes
+    }
+
+    pub(crate) fn into_vec(mut self, len: usize) -> Vec<u8> {
+        let mut bytes = std::mem::take(&mut self.bytes);
+        bytes.truncate(len);
+        bytes
+    }
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        wipe(&mut self.bytes);
+    }
+}
+
 fn wipe(bytes: &mut Vec<u8>) {
     let start = bytes.as_mut_ptr();
     for offset in 0..bytes.capacity() {
