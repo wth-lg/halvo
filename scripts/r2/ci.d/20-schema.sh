@@ -1,11 +1,13 @@
 #!/bin/sh
 # jobs: windows
-# rule: The tests of halvo-schema-core and halvo-schema pass, each test that scripts/r2/20-schema-tests.txt lists passes under its test target and stands, not ignored, in the list of the test binary that the test run built, and export-names writes on two runs the names file that the crate commits as tests/golden/names.txt.
+# rule: The tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that scripts/r2/20-schema-tests.txt lists at HEAD is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
 set -u
 name=20-schema
 golden=crates/halvo-schema/tests/golden/names.txt
 required=scripts/r2/20-schema-tests.txt
 work=
+newline='
+'
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
@@ -35,9 +37,9 @@ enter_repo() {
 }
 
 required_gap() {
-  awk -v pkg="$1" -v list="$required" '
+  awk -v pkg="$1" -v list="$required" -v file="$list_file" '
     { sub(/\r$/, "") }
-    FILENAME == list {
+    FILENAME == file {
       if (NF == 0) next
       if (NF != 3) {
         if (bad == "") bad = "the line " FNR " of " list " is not <package> <test target> <test name>"
@@ -60,48 +62,45 @@ required_gap() {
         if (!((target[i], test[i]) in ok)) { print "the test " test[i] " of " target[i] " of " pkg " did not pass"; exit }
       }
     }
-  ' "$required" "$2"
+  ' "$list_file" "$2"
 }
 
 required_targets() {
   awk -v pkg="$1" '
     { sub(/\r$/, "") }
     NF == 3 && $1 == pkg && !seen[$2]++ { print $2 }
-  ' "$required"
+  ' "$list_file"
 }
 
-listing() {
-  if [ "$4" = ignored ]; then
-    call="cargo test --locked -p $1 --test $3 -- --list --ignored"
-    cargo test --locked -p "$1" --test "$3" -- --list --ignored >"$5.txt" 2>"$5.err"
-  else
-    call="cargo test --locked -p $1 --test $3 -- --list"
-    cargo test --locked -p "$1" --test "$3" -- --list >"$5.txt" 2>"$5.err"
-  fi
-  code=$?
-  [ "$code" -eq 0 ] || fail "$call exited $code"
-  gap=$(
-    awk -v target="$2" -v call="$call" '
-      { gsub(/\033\[[0-9;]*m/, "") }
-      $1 == "Compiling" { compiled = 1 }
-      $1 == "Running" && !seen++ {
-        at = $0
-        sub(/^[ \t]*Running /, "", at)
-        sub(/ \([^(]*$/, "", at)
-        gsub(/\\/, "/", at)
-        ran = at == target
-      }
-      END {
-        if (!ran) print call " did not run " target
-        else if (compiled) print call " compiled, so the test run did not build " target
-      }
-    ' "$5.err"
-  ) || fail "the cargo lines of $call cannot be read"
-  [ -z "$gap" ] || fail "$gap"
+built_binary() {
+  awk -v target="$1" '
+    function field(key, value) {
+      if (!match($0, "\"" key "\":\"[^\"]*\"")) return ""
+      value = substr($0, RSTART + length(key) + 4, RLENGTH - length(key) - 5)
+      gsub(/\\\\/, "/", value)
+      return value
+    }
+    { sub(/\r$/, "") }
+    index($0, "{\"reason\":\"compiler-artifact\",") != 1 { next }
+    {
+      dir = field("manifest_path")
+      sub(/\/[^\/]*$/, "", dir)
+      if (field("src_path") != dir "/" target) next
+      n++
+      binary = field("executable")
+      fresh = index($0, "\"fresh\":true") > 0
+    }
+    END {
+      if (n != 1) print "names " (n + 0) " test targets built from " target ", not one"
+      else if (binary == "") print "names no test binary built from " target
+      else if (!fresh) print "compiled " target ", so the test run did not build it"
+      else print "binary " binary
+    }
+  ' "$2"
 }
 
 listed_gap() {
-  awk -v pkg="$1" -v target="$2" -v list="$required" -v all="$3" '
+  awk -v pkg="$1" -v target="$2" -v list="$list_file" -v all="$3" '
     { sub(/\r$/, "") }
     FILENAME == list { if (NF == 3 && $1 == pkg && $2 == target) { n++; test[n] = $3 }; next }
     FILENAME == all { listed[$0] = 1; next }
@@ -113,7 +112,7 @@ listed_gap() {
       }
       print "listed " n
     }
-  ' "$required" "$3" "$4"
+  ' "$list_file" "$3" "$4"
 }
 
 measure() {
@@ -121,7 +120,8 @@ measure() {
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   mkdir -p "$artifacts" || fail "the artifacts directory cannot be made"
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
-  [ -f "$required" ] || fail "$required is missing"
+  list_file=$work/required-at-head.txt
+  git show "HEAD:$required" >"$list_file" 2>"$work/required-at-head.err" || fail "$required is missing"
 
   for package in halvo-schema-core halvo-schema; do
     cargo test --locked -p "$package" >"$artifacts/cargo-test-$package.txt" 2>&1
@@ -131,21 +131,33 @@ measure() {
     printf 'cargo test --locked -p %s: tests passed %s\n' "$package" "$passed"
     gap=$(required_gap "$package" "$artifacts/cargo-test-$package.txt") || fail "the log of $package cannot be read"
     [ -z "$gap" ] || fail "$gap"
+    build="cargo test --locked -p $package --no-run --message-format=json"
+    cargo test --locked -p "$package" --no-run --message-format=json >"$artifacts/build-$package.json" 2>"$artifacts/build-$package.err"
+    code=$?
+    [ "$code" -eq 0 ] || fail "$build exited $code"
     targets=$(required_targets "$package") || fail "the list $required cannot be read"
     for target in $targets; do
+      result=$(built_binary "$target" "$artifacts/build-$package.json") || fail "the messages of $build cannot be read"
+      case $result in
+        "binary "*) binary=${result#binary } ;;
+        *) fail "$build $result" ;;
+      esac
       test_name=${target##*/}
-      test_name=${test_name%.rs}
-      at=$artifacts/list-$package-$test_name
-      listing "$package" "$target" "$test_name" all "$at"
-      listing "$package" "$target" "$test_name" ignored "$at-ignored"
+      at=$artifacts/list-$package-${test_name%.rs}
+      "$binary" --list >"$at.txt" 2>"$at.err"
+      code=$?
+      [ "$code" -eq 0 ] || fail "the test binary of $target of $package exited $code on --list"
+      "$binary" --list --ignored >"$at-ignored.txt" 2>"$at-ignored.err"
+      code=$?
+      [ "$code" -eq 0 ] || fail "the test binary of $target of $package exited $code on --list --ignored"
       result=$(listed_gap "$package" "$target" "$at.txt" "$at-ignored.txt") || fail "the lists of $target of $package cannot be read"
       case $result in
-        "listed "*) printf 'cargo test --locked -p %s --test %s -- --list: required names listed %s, ignored 0\n' "$package" "$test_name" "${result#listed }" ;;
+        "listed "*) printf 'the test binary of %s of %s: required names listed %s, ignored 0\n' "$target" "$package" "${result#listed }" ;;
         *) fail "$result" ;;
       esac
     done
   done
-  listed=$(grep -c '[^[:space:]]' "$required")
+  listed=$(grep -c '[^[:space:]]' "$list_file")
   printf 'required tests ok=%s\n' "$listed"
 
   [ -f "$golden" ] || fail "$golden is missing"
@@ -161,6 +173,9 @@ measure() {
       fail "the names file of export-names run $run differs from $golden"
   done
   printf 'export-names runs=2 lines=%s same_as_golden=yes same_on_second_run=yes\n' "$lines"
+  changed=$(git diff --name-only HEAD --) || fail "git diff --name-only HEAD failed"
+  [ -z "$changed" ] || fail "the tracked file ${changed%%"$newline"*} differs from HEAD after the test runs"
+  printf 'tracked files that differ from HEAD: 0\n'
   printf 'PASS %s\n' "$name"
 }
 
@@ -181,7 +196,7 @@ check() {
     CI_D_REPO=$repo
     CI_D_ARTIFACTS=${art:-$work/artifacts/$1}
     STUB_RUNS=$work/runs
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_RUNS STUB_CORE_LOG STUB_SCHEMA_LOG STUB_CORE_EXIT STUB_TEST_EXIT STUB_RUN_EXIT STUB_RUN2_EXIT STUB_OUT STUB_FIRST STUB_SECOND STUB_LISTS STUB_SIGNAL STUB_HEAD STUB_DIFF
     TMPDIR=$work/tmp/$1 sh "$self" 2>&1
   )
   code=$?
@@ -200,6 +215,8 @@ check() {
   note "$1" "$2" "$got"
   STUB_LISTS=$work/lists
   STUB_SIGNAL=
+  STUB_HEAD=
+  STUB_DIFF=
   STUB_CORE_LOG=$work/core.log
   STUB_SCHEMA_LOG=$work/schema.log
   STUB_CORE_EXIT=0
@@ -227,26 +244,69 @@ log() {
   printf '%b' "$2" >"$work/$1.log" || self_fail "the fixture log $1 cannot be written"
 }
 
-stub_listing() {
-  printf '%s\n' "$5" >"$1/$2-$3-$4.code" || self_fail "the fixture listing $2 $3 $4 cannot be written"
-  printf '%b' "$6" >"$1/$2-$3-$4.err" || self_fail "the fixture listing $2 $3 $4 cannot be written"
-  printf '%b' "$7" >"$1/$2-$3-$4.txt" || self_fail "the fixture listing $2 $3 $4 cannot be written"
+stub_list() {
+  printf '%s\n' "$4" >"$1/$2-$3.code" || self_fail "the fixture list $2 $3 cannot be written"
+  printf '%b' "$5" >"$1/$2-$3.txt" || self_fail "the fixture list $2 $3 cannot be written"
+}
+
+stub_binary() {
+  cat >"$1/$2" <<'EOF' || self_fail "the fixture test binary $2 cannot be written"
+#!/bin/sh
+case $* in
+  '--list') kind=all ;;
+  '--list --ignored') kind=ignored ;;
+  *) exit 97 ;;
+esac
+cat "$0-$kind.txt"
+exit "$(cat "$0-$kind.code")"
+EOF
+  chmod +x "$1/$2" || self_fail "the fixture test binary $2 cannot be made executable"
+}
+
+message() {
+  printf '%s%b' "$1" "$eol" >>"$json" || self_fail "the fixture messages $json cannot be written"
+}
+
+artifact() {
+  crate=$root${sep}crates$sep$1
+  message "{\"reason\":\"compiler-artifact\",\"package_id\":\"path+file://$crate#0.0.0\",\"manifest_path\":\"$crate${sep}Cargo.toml\",\"target\":{\"kind\":[\"test\"],\"crate_types\":[\"bin\"],\"name\":\"$2\",\"src_path\":\"$crate$sep$3\",\"edition\":\"2021\",\"doc\":false,\"doctest\":false,\"test\":true},\"profile\":{\"test\":true},\"features\":[],\"filenames\":[],\"executable\":$4,\"fresh\":$5}"
+}
+
+messages_of() {
+  json=$1/$2.json
+  printf '%s\n' "$3" >"$1/$2.code" || self_fail "the fixture messages of $2 cannot be written"
+  : >"$json" || self_fail "the fixture messages of $2 cannot be written"
+  message '{"reason":"compiler-artifact","package_id":"registry+https://github.com/rust-lang/crates.io-index#serde@1.0.229","manifest_path":"/c/serde/Cargo.toml","target":{"kind":["lib"],"crate_types":["lib"],"name":"serde","src_path":"/c/serde/src/lib.rs","edition":"2021","doc":true,"doctest":true,"test":true},"profile":{"test":false},"features":[],"filenames":[],"executable":null,"fresh":true}'
+}
+
+usual_schema_targets() {
+  artifact halvo-schema locked_files "tests${sep}locked_files.rs" '"@DIR@/halvo-schema-locked_files"' "$1"
+  artifact halvo-schema later_file_builds "tests${sep}later_file_builds.rs" '"@DIR@/halvo-schema-later_file_builds"' true
+  artifact halvo-schema notice "tests${sep}notice.rs" '"@DIR@/halvo-schema-notice"' true
 }
 
 lists() {
   mkdir -p "$1" || self_fail "the fixture lists $1 cannot be made"
-  e=$2
-  s=$3
-  done_line="    Finished \`test\` profile [unoptimized + debuginfo] target(s) in 0.05s$e"
-  at_notice="$done_line     Running tests${s}notice.rs (target${s}debug${s}deps${s}notice-1$4)$e"
-  at_lock="$done_line     Running tests${s}locked_files.rs (target${s}debug${s}deps${s}locked_files-1$4)$e"
-  at_later="$done_line     Running tests${s}later_file_builds.rs (target${s}debug${s}deps${s}later_file_builds-1$4)$e"
-  stub_listing "$1" halvo-schema-core notice all 0 "$at_notice" "the_notice_is_the_one_row_of_the_public_suffix_list: test${e}the_notice_the_manifest_and_the_lock_name_one_version_of_psl: test$e${e}2 tests, 0 benchmarks$e"
-  stub_listing "$1" halvo-schema-core notice ignored 0 "$at_notice" "0 tests, 0 benchmarks$e"
-  stub_listing "$1" halvo-schema locked_files all 0 "$at_lock" "both_manifests_are_the_fixed_files: test${e}each_lib_rs_holds_its_form: test${e}the_slow_one: test$e${e}3 tests, 0 benchmarks$e"
-  stub_listing "$1" halvo-schema locked_files ignored 0 "$at_lock" "the_slow_one: test$e${e}1 test, 0 benchmarks$e"
-  stub_listing "$1" halvo-schema later_file_builds all 0 "$at_later" "a_later_file_that_gives_a_core_type_code_of_its_own_does_not_compile: test$e${e}1 test, 0 benchmarks$e"
-  stub_listing "$1" halvo-schema later_file_builds ignored 0 "$at_later" "0 tests, 0 benchmarks$e"
+  eol=$2
+  root=$3
+  sep=$4
+  for binary in halvo-schema-core-notice halvo-schema-locked_files halvo-schema-later_file_builds halvo-schema-notice; do
+    stub_binary "$1" "$binary"
+  done
+  stub_list "$1" halvo-schema-core-notice all 0 "the_notice_is_the_one_row_of_the_public_suffix_list: test${eol}the_notice_the_manifest_and_the_lock_name_one_version_of_psl: test$eol${eol}2 tests, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-core-notice ignored 0 "0 tests, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-locked_files all 0 "both_manifests_are_the_fixed_files: test${eol}each_lib_rs_holds_its_form: test${eol}the_slow_one: test$eol${eol}3 tests, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-locked_files ignored 0 "the_slow_one: test$eol${eol}1 test, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-later_file_builds all 0 "a_later_file_that_gives_a_core_type_code_of_its_own_does_not_compile: test$eol${eol}1 test, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-later_file_builds ignored 0 "0 tests, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-notice all 0 "the_schema_notice_holds: test$eol${eol}1 test, 0 benchmarks$eol"
+  stub_list "$1" halvo-schema-notice ignored 0 "0 tests, 0 benchmarks$eol"
+  messages_of "$1" halvo-schema-core 0
+  artifact halvo-schema-core notice "tests${sep}notice.rs" '"@DIR@/halvo-schema-core-notice"' true
+  message '{"reason":"build-finished","success":true}'
+  messages_of "$1" halvo-schema 0
+  usual_schema_targets true
+  message '{"reason":"build-finished","success":true}'
 }
 
 lists_of() {
@@ -258,10 +318,12 @@ self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || self_fail "mktemp failed"
   repo=$work/repo
   mkdir -p "$work/bin" "$work/artifacts" "$work/tmp" || self_fail "the fixture directories cannot be made"
-  lists "$work/lists" '\n' / ''
-  lists "$work/lists-windows" '\r\n' "\\\\" .exe
+  lists "$work/lists-windows" '\r\n' "C:\\\\r" "\\\\"
+  lists "$work/lists" '\n' /r /
   STUB_LISTS=$work/lists
   STUB_SIGNAL=
+  STUB_HEAD=
+  STUB_DIFF=
   names='accessibility_text
 active
 address_field'
@@ -308,15 +370,9 @@ case $* in
     [ -z "$STUB_SIGNAL" ] || kill -s "$STUB_SIGNAL" "$PPID"
     exit "$STUB_TEST_EXIT"
     ;;
-  'test --locked -p '*' --test '*' -- --list' | 'test --locked -p '*' --test '*' -- --list --ignored')
-    kind=all
-    [ "$#" -eq 8 ] || kind=ignored
-    [ "$#" -eq 8 ] || [ "$#" -eq 9 ] || exit 97
-    listing=$STUB_LISTS/$4-$6-$kind
-    [ -f "$listing.code" ] || exit 97
-    cat "$listing.err" >&2
-    cat "$listing.txt"
-    exit "$(cat "$listing.code")"
+  'test --locked -p halvo-schema-core --no-run --message-format=json' | 'test --locked -p halvo-schema --no-run --message-format=json')
+    sed "s|@DIR@|$STUB_LISTS|g" "$STUB_LISTS/$4.json"
+    exit "$(cat "$STUB_LISTS/$4.code")"
     ;;
   'run -q --locked -p halvo-schema --bin export-names -- --out '*)
     shift 9
@@ -340,6 +396,29 @@ case $* in
 esac
 EOF
   chmod +x "$work/bin/cargo" || self_fail "the stub cargo cannot be made executable"
+  cat >"$work/bin/git" <<'EOF'
+#!/bin/sh
+case $* in
+  'show HEAD:scripts/r2/20-schema-tests.txt')
+    if [ -n "$STUB_HEAD" ]; then
+      cat "$STUB_HEAD"
+    elif [ -f scripts/r2/20-schema-tests.txt ]; then
+      cat scripts/r2/20-schema-tests.txt
+    else
+      printf "fatal: path 'scripts/r2/20-schema-tests.txt' does not exist in 'HEAD'\n" >&2
+      exit 128
+    fi
+    ;;
+  'diff --name-only HEAD --')
+    printf '%s' "$STUB_DIFF"
+    ;;
+  *)
+    printf 'stub git: got the arguments: %s\n' "$*" >&2
+    exit 97
+    ;;
+esac
+EOF
+  chmod +x "$work/bin/git" || self_fail "the stub git cannot be made executable"
   rejected=0
   wrong=
   STUB_CORE_EXIT=0
@@ -351,12 +430,13 @@ EOF
   STUB_SECOND=$names
 
   check all-hold PASS "cargo test --locked -p halvo-schema-core: tests passed 2
-cargo test --locked -p halvo-schema-core --test notice -- --list: required names listed 1, ignored 0
+the test binary of tests/notice.rs of halvo-schema-core: required names listed 1, ignored 0
 cargo test --locked -p halvo-schema: tests passed 3
-cargo test --locked -p halvo-schema --test locked_files -- --list: required names listed 1, ignored 0
-cargo test --locked -p halvo-schema --test later_file_builds -- --list: required names listed 1, ignored 0
+the test binary of tests/locked_files.rs of halvo-schema: required names listed 1, ignored 0
+the test binary of tests/later_file_builds.rs of halvo-schema: required names listed 1, ignored 0
 required tests ok=3
 export-names runs=2 lines=3 same_as_golden=yes same_on_second_run=yes
+tracked files that differ from HEAD: 0
 PASS $name"
   STUB_CORE_EXIT=101
   check core-tests-fail FAIL "FAIL $name (cargo test --locked -p halvo-schema-core exited 101)"
@@ -400,60 +480,87 @@ names 3'
   check not-a-whole-line FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema did not pass)"
 
   lists_of w1
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "$lock" 'forged: test\n\n1 test, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 0 'forged: test\n\n1 test, 0 benchmarks\n'
   check w1-a-test-writes-the-ok-lines FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   lists_of w2
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "$lock" '0 tests, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 0 '0 tests, 0 benchmarks\n'
   STUB_SCHEMA_LOG=$work/empty-target.log
   check w2-an-empty-target-and-lines-from-another FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   lists_of ignored
-  stub_listing "$STUB_LISTS" halvo-schema locked_files ignored 0 "$lock" 'each_lib_rs_holds_its_form: test\nthe_slow_one: test\n\n2 tests, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-locked_files ignored 0 'each_lib_rs_holds_its_form: test\nthe_slow_one: test\n\n2 tests, 0 benchmarks\n'
   STUB_SCHEMA_LOG=$work/forged-ignored.log
   check required-name-ignored FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is ignored)"
+  build="cargo test --locked -p halvo-schema --no-run --message-format=json"
   lists_of not-built
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "   Compiling halvo-schema v0.0.0 (crates/halvo-schema)\n$lock" 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
+  messages_of "$STUB_LISTS" halvo-schema 0
+  usual_schema_targets false
+  message '{"reason":"build-finished","success":true}'
   STUB_SCHEMA_LOG=$work/forged.log
-  check target-the-run-did-not-build FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list compiled, so the test run did not build tests/locked_files.rs)"
-  lists_of no-target
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 101 "error: no test target named \`locked_files\` in \`halvo-schema\` package\n" ''
-  STUB_SCHEMA_LOG=$work/forged.log
-  check listing-refused FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list exited 101)"
+  check target-the-run-did-not-build FAIL "FAIL $name ($build compiled tests/locked_files.rs, so the test run did not build it)"
+  lists_of build-refused
+  messages_of "$STUB_LISTS" halvo-schema 101
+  check build-refused FAIL "FAIL $name ($build exited 101)"
+  lists_of list-refused
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 101 ''
+  check binary-refuses-the-list FAIL "FAIL $name (the test binary of tests/locked_files.rs of halvo-schema exited 101 on --list)"
   lists_of ignored-refused
-  stub_listing "$STUB_LISTS" halvo-schema later_file_builds ignored 2 "$later" ''
-  check ignored-listing-refused FAIL "FAIL $name (cargo test --locked -p halvo-schema --test later_file_builds -- --list --ignored exited 2)"
-  lists_of other-file
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '     Running tests/coarse.rs (target/debug/deps/locked_files-1)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
-  check listing-of-another-file FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list did not run tests/locked_files.rs)"
-  lists_of quiet
-  stub_listing "$STUB_LISTS" halvo-schema later_file_builds ignored 0 '' '0 tests, 0 benchmarks\n'
-  check listing-without-cargo-lines FAIL "FAIL $name (cargo test --locked -p halvo-schema --test later_file_builds -- --list --ignored did not run tests/later_file_builds.rs)"
+  stub_list "$STUB_LISTS" halvo-schema-later_file_builds ignored 2 ''
+  check binary-refuses-the-ignored-list FAIL "FAIL $name (the test binary of tests/later_file_builds.rs of halvo-schema exited 2 on --list --ignored)"
+  for form in other-file no-messages starts-like replayed-warning stand-in leading-directory; do
+    lists_of "$form"
+    messages_of "$STUB_LISTS" halvo-schema 0
+    case $form in
+      other-file) artifact halvo-schema locked_files tests/coarse.rs '"@DIR@/halvo-schema-locked_files"' true ;;
+      starts-like) artifact halvo-schema locked_files 'tests/locked_files.rs (fake)/t.rs' '"@DIR@/halvo-schema-locked_files"' true ;;
+      replayed-warning)
+        message '{"reason":"compiler-message","package_id":"path+file:///r/crates/halvo-schema#0.0.0","manifest_path":"/r/crates/halvo-schema/Cargo.toml","target":{"kind":["test"],"crate_types":["bin"],"name":"locked_files","src_path":"/r/crates/halvo-schema/forge/stand_in.rs","edition":"2021","doc":false,"doctest":false,"test":true},"message":{"rendered":"warning: use of deprecated function forged: forged\n     Running tests/locked_files.rs (target/debug/deps/locked_files-0)\n{\"reason\":\"compiler-artifact\",\"manifest_path\":\"/r/crates/halvo-schema/Cargo.toml\",\"src_path\":\"/r/crates/halvo-schema/tests/locked_files.rs\",\"executable\":\"@DIR@/halvo-schema-locked_files\",\"fresh\":true}\n","level":"warning"}}'
+        artifact halvo-schema locked_files forge/stand_in.rs '"@DIR@/halvo-schema-locked_files"' true
+        ;;
+      stand-in) artifact halvo-schema locked_files tests/stand_in.rs '"@DIR@/halvo-schema-locked_files"' true ;;
+      leading-directory) artifact halvo-schema locked_files stand/tests/locked_files.rs '"@DIR@/halvo-schema-locked_files"' true ;;
+    esac
+    [ "$form" = no-messages ] || artifact halvo-schema later_file_builds tests/later_file_builds.rs '"@DIR@/halvo-schema-later_file_builds"' true
+    [ "$form" = no-messages ] || message '{"reason":"build-finished","success":true}'
+    STUB_SCHEMA_LOG=$work/forged.log
+    check "target-$form" FAIL "FAIL $name ($build names 0 test targets built from tests/locked_files.rs, not one)"
+  done
+  lists_of two-targets
+  messages_of "$STUB_LISTS" halvo-schema 0
+  usual_schema_targets true
+  artifact halvo-schema locked_twin tests/locked_files.rs '"@DIR@/halvo-schema-locked_files"' true
+  check two-targets-from-one-file FAIL "FAIL $name ($build names 2 test targets built from tests/locked_files.rs, not one)"
+  lists_of no-binary
+  messages_of "$STUB_LISTS" halvo-schema 0
+  artifact halvo-schema locked_files tests/locked_files.rs null true
+  artifact halvo-schema later_file_builds tests/later_file_builds.rs '"@DIR@/halvo-schema-later_file_builds"' true
+  check no-test-binary FAIL "FAIL $name ($build names no test binary built from tests/locked_files.rs)"
   lists_of prefix
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "$lock" 'each_lib_rs_holds_its_form_twin: test\n\n1 test, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 0 'each_lib_rs_holds_its_form_twin: test\n\n1 test, 0 benchmarks\n'
   check listed-name-longer FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   lists_of module
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "$lock" 'tests::each_lib_rs_holds_its_form: test\n\n1 test, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 0 'tests::each_lib_rs_holds_its_form: test\n\n1 test, 0 benchmarks\n'
   check listed-name-in-a-module FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   lists_of core
-  stub_listing "$STUB_LISTS" halvo-schema-core notice all 0 "     Running tests/notice.rs (target/debug/deps/notice-1)\n" 'the_notice_the_manifest_and_the_lock_name_one_version_of_psl: test\n\n1 test, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-core-notice all 0 'the_notice_the_manifest_and_the_lock_name_one_version_of_psl: test\n\n1 test, 0 benchmarks\n'
   check core-name-not-listed FAIL "FAIL $name (the test the_notice_is_the_one_row_of_the_public_suffix_list of tests/notice.rs of halvo-schema-core is not in the list of its test binary)"
-  lists_of space
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '     Running tests/locked_files.rs (fake)/t.rs (target/debug/deps/locked_files-1)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
-  check listing-of-a-path-that-starts-like-the-target FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list did not run tests/locked_files.rs)"
-  lists_of stand-in
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '     Running src/stand_in.rs (target/debug/deps/locked_files-1)\n     Running tests/locked_files.rs (target/debug/deps/locked_files-0)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
-  check binary-prints-the-running-line FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list did not run tests/locked_files.rs)"
-  lists_of colour
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 '\033[1m\033[92m   Compiling\033[0m halvo-schema v0.0.0 (crates/halvo-schema)\n\033[1m\033[92m     Running\033[0m tests/locked_files.rs (target/debug/deps/locked_files-1)\n' 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
-  STUB_SCHEMA_LOG=$work/forged.log
-  check coloured-cargo-lines FAIL "FAIL $name (cargo test --locked -p halvo-schema --test locked_files -- --list compiled, so the test run did not build tests/locked_files.rs)"
-  lists_of ignored-compiles
-  stub_listing "$STUB_LISTS" halvo-schema later_file_builds ignored 0 "   Compiling halvo-schema v0.0.0 (crates/halvo-schema)\n$later" '0 tests, 0 benchmarks\n'
-  check ignored-listing-compiles FAIL "FAIL $name (cargo test --locked -p halvo-schema --test later_file_builds -- --list --ignored compiled, so the test run did not build tests/later_file_builds.rs)"
-  STUB_LISTS=$work/lists-windows
-  stub_listing "$STUB_LISTS" halvo-schema locked_files ignored 0 '     Running tests\\locked_files.rs (target\\debug\\deps\\locked_files-1.exe)\r\n' 'each_lib_rs_holds_its_form: test\r\n\r\n1 test, 0 benchmarks\r\n'
+  cp -R "$work/lists-windows" "$work/lists-windows-ignored" || self_fail "the fixture lists of windows-ignored cannot be made"
+  STUB_LISTS=$work/lists-windows-ignored
+  stub_list "$STUB_LISTS" halvo-schema-locked_files ignored 0 'each_lib_rs_holds_its_form: test\r\n\r\n1 test, 0 benchmarks\r\n'
   STUB_SCHEMA_LOG=$work/forged-ignored.log
   check windows-ignored FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is ignored)"
-  lists "$work/lists-windows" '\r\n' "\\\\" .exe
+  STUB_DIFF='scripts/r2/20-schema-tests.txt
+crates/halvo-schema/Cargo.toml
+'
+  check tracked-file-differs-after-the-tests FAIL "FAIL $name (the tracked file scripts/r2/20-schema-tests.txt differs from HEAD after the test runs)"
+  printf '%s' "$list" >"$work/head-list.txt" || self_fail "the fixture list at HEAD cannot be written"
+  repo=$work/list-rewritten
+  make_repo "$repo" golden "$core_line
+$later_line
+"
+  STUB_HEAD=$work/head-list.txt
+  STUB_SCHEMA_LOG=$work/no-targets.log
+  check list-read-from-head FAIL "FAIL $name (the test target tests/locked_files.rs of halvo-schema did not run)"
+  repo=$work/repo
   for signal in HUP INT TERM; do
     STUB_SIGNAL=$signal
     case $signal in
@@ -480,26 +587,23 @@ halvo-schema tests/locked_files.rs both_manifests_are_the_fixed_files
 $later_line
 "
   STUB_SCHEMA_LOG=$work/two-names.log
-  check two-names-of-one-target PASS "cargo test --locked -p halvo-schema --test locked_files -- --list: required names listed 2, ignored 0
-cargo test --locked -p halvo-schema --test later_file_builds -- --list: required names listed 1, ignored 0
+  check two-names-of-one-target PASS "the test binary of tests/locked_files.rs of halvo-schema: required names listed 2, ignored 0
+the test binary of tests/later_file_builds.rs of halvo-schema: required names listed 1, ignored 0
 required tests ok=4"
   repo=$work/both-packages
   make_repo "$repo" golden "$core_line
 halvo-schema tests/notice.rs the_schema_notice_holds
 $later_line
 "
-  lists_of both-packages
-  stub_listing "$STUB_LISTS" halvo-schema notice all 0 "     Running tests/notice.rs (target/debug/deps/notice-2)\n" 'the_schema_notice_holds: test\n\n1 test, 0 benchmarks\n'
-  stub_listing "$STUB_LISTS" halvo-schema notice ignored 0 "     Running tests/notice.rs (target/debug/deps/notice-2)\n" '0 tests, 0 benchmarks\n'
   STUB_SCHEMA_LOG=$work/both-packages.log
-  check a-target-path-in-both-packages PASS "cargo test --locked -p halvo-schema --test notice -- --list: required names listed 1, ignored 0"
+  check a-target-path-in-both-packages PASS "the test binary of tests/notice.rs of halvo-schema: required names listed 1, ignored 0"
   repo=$work/space-before-cr
   make_repo "$repo" golden "$core_line
 $lock_line $cr
 $later_line
 "
   lists_of space-before-cr
-  stub_listing "$STUB_LISTS" halvo-schema locked_files all 0 "$lock" 'forged: test\n\n1 test, 0 benchmarks\n'
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 0 'forged: test\n\n1 test, 0 benchmarks\n'
   check list-line-with-a-space-before-cr FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   repo=$work/no-core
   make_repo "$repo" golden "$lock_line
@@ -559,13 +663,15 @@ halvo-schema each_lib_rs_holds_its_form
 usage() {
   cat <<'EOF'
 usage: sh scripts/r2/ci.d/20-schema.sh [--self-test | --help]
-Runs the tests of halvo-schema-core and halvo-schema. For each test that
-scripts/r2/20-schema-tests.txt names, it requires the ok line under its test
-target in the test run, the name in the list of the target's test binary
-(cargo test --locked -p <package> --test <target> -- --list), not in its
-list of ignored tests, and no compile in either listing. Then export-names
-must write the golden names file on two runs. --self-test runs the checks
-against a stub cargo.
+Reads scripts/r2/20-schema-tests.txt from HEAD, then runs the tests of
+halvo-schema-core and halvo-schema. For each test that the list names, it
+requires the ok line under its test target in the test run, and the name in
+the list of the one test binary that cargo's messages
+(cargo test --locked -p <package> --no-run --message-format=json) name for
+the target's file, built by the test run and not in its list of ignored
+tests. Then export-names must write the golden names file on two runs, and
+no tracked file may differ from HEAD. --self-test runs the checks against a
+stub cargo and a stub git.
 EOF
 }
 
