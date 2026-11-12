@@ -99,11 +99,36 @@ enum Classification {
     Ignore,
 }
 
-fn is_key_event(etype: CGEventType) -> bool {
-    matches!(
-        etype,
-        CGEventType::KeyDown | CGEventType::KeyUp | CGEventType::FlagsChanged
-    )
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TapClass {
+    KeyPress,
+    OtherKey,
+    DiscretePointer,
+    ContinuousPointer,
+}
+
+const TAP_EVENTS: [(CGEventType, TapClass); 14] = [
+    (CGEventType::KeyDown, TapClass::KeyPress),
+    (CGEventType::KeyUp, TapClass::OtherKey),
+    (CGEventType::FlagsChanged, TapClass::OtherKey),
+    (CGEventType::LeftMouseDown, TapClass::DiscretePointer),
+    (CGEventType::LeftMouseUp, TapClass::DiscretePointer),
+    (CGEventType::RightMouseDown, TapClass::DiscretePointer),
+    (CGEventType::RightMouseUp, TapClass::DiscretePointer),
+    (CGEventType::OtherMouseDown, TapClass::DiscretePointer),
+    (CGEventType::OtherMouseUp, TapClass::DiscretePointer),
+    (CGEventType::MouseMoved, TapClass::ContinuousPointer),
+    (CGEventType::LeftMouseDragged, TapClass::ContinuousPointer),
+    (CGEventType::RightMouseDragged, TapClass::ContinuousPointer),
+    (CGEventType::OtherMouseDragged, TapClass::ContinuousPointer),
+    (CGEventType::ScrollWheel, TapClass::ContinuousPointer),
+];
+
+fn tap_class(etype: CGEventType) -> Option<TapClass> {
+    TAP_EVENTS
+        .iter()
+        .find(|&&(listed, _)| listed as u32 == etype as u32)
+        .map(|&(_, class)| class)
 }
 
 fn is_tap_disabled(etype: CGEventType) -> bool {
@@ -114,45 +139,23 @@ fn is_tap_disabled(etype: CGEventType) -> bool {
 }
 
 fn classify(etype: CGEventType, secure: SecureInputState) -> Classification {
-    if is_key_event(etype) {
-        return match secure {
-            SecureInputState::Active => Classification::SecureSuppressed,
-            SecureInputState::Inactive => Classification::Record(Modality::Keystroke),
-        };
-    }
-    match etype {
-        CGEventType::LeftMouseDown
-        | CGEventType::LeftMouseUp
-        | CGEventType::RightMouseDown
-        | CGEventType::RightMouseUp
-        | CGEventType::OtherMouseDown
-        | CGEventType::OtherMouseUp
-        | CGEventType::MouseMoved
-        | CGEventType::LeftMouseDragged
-        | CGEventType::RightMouseDragged
-        | CGEventType::OtherMouseDragged
-        | CGEventType::ScrollWheel => Classification::Record(Modality::Pointer),
-        _ => Classification::Ignore,
+    match tap_class(etype) {
+        Some(TapClass::KeyPress | TapClass::OtherKey) => {
+            if secure == SecureInputState::Inactive {
+                Classification::Record(Modality::Keystroke)
+            } else {
+                Classification::SecureSuppressed
+            }
+        }
+        Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => {
+            Classification::Record(Modality::Pointer)
+        }
+        None => Classification::Ignore,
     }
 }
 
 fn events_of_interest() -> Vec<CGEventType> {
-    vec![
-        CGEventType::KeyDown,
-        CGEventType::KeyUp,
-        CGEventType::FlagsChanged,
-        CGEventType::LeftMouseDown,
-        CGEventType::LeftMouseUp,
-        CGEventType::RightMouseDown,
-        CGEventType::RightMouseUp,
-        CGEventType::OtherMouseDown,
-        CGEventType::OtherMouseUp,
-        CGEventType::MouseMoved,
-        CGEventType::LeftMouseDragged,
-        CGEventType::RightMouseDragged,
-        CGEventType::OtherMouseDragged,
-        CGEventType::ScrollWheel,
-    ]
+    TAP_EVENTS.iter().map(|&(etype, _)| etype).collect()
 }
 
 /// What the tap callback needs to turn one OS event into an emit or a violation.
@@ -364,6 +367,51 @@ mod tests {
         assert!(is_tap_disabled(CGEventType::TapDisabledByTimeout));
         assert!(is_tap_disabled(CGEventType::TapDisabledByUserInput));
         assert!(!is_tap_disabled(CGEventType::KeyDown));
+    }
+
+    const EVERY_EVENT_TYPE: [CGEventType; 19] = [
+        CGEventType::Null,
+        CGEventType::LeftMouseDown,
+        CGEventType::LeftMouseUp,
+        CGEventType::RightMouseDown,
+        CGEventType::RightMouseUp,
+        CGEventType::MouseMoved,
+        CGEventType::LeftMouseDragged,
+        CGEventType::RightMouseDragged,
+        CGEventType::KeyDown,
+        CGEventType::KeyUp,
+        CGEventType::FlagsChanged,
+        CGEventType::ScrollWheel,
+        CGEventType::TabletPointer,
+        CGEventType::TabletProximity,
+        CGEventType::OtherMouseDown,
+        CGEventType::OtherMouseUp,
+        CGEventType::OtherMouseDragged,
+        CGEventType::TapDisabledByTimeout,
+        CGEventType::TapDisabledByUserInput,
+    ];
+
+    #[test]
+    fn the_tap_listens_for_exactly_the_types_that_it_records_or_suppresses() {
+        let mask = events_of_interest();
+        for etype in EVERY_EVENT_TYPE {
+            let masked = mask.iter().any(|&listed| listed as u32 == etype as u32);
+            for secure in [SecureInputState::Active, SecureInputState::Inactive] {
+                let handled = classify(etype, secure) != Classification::Ignore;
+                assert_eq!(
+                    masked, handled,
+                    "{etype:?} under {secure:?}: masked {masked}, recorded or suppressed {handled}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_tap_mask_is_0x0e401cfe() {
+        let mask = events_of_interest()
+            .iter()
+            .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
+        assert_eq!(mask, 0x0E40_1CFE);
     }
 }
 

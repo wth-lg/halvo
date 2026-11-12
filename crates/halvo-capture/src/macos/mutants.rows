@@ -1,0 +1,1 @@
+keydown-not-in-mask	input.rs	s/TAP_EVENTS\.iter\(\)\.map\(\|&\(etype, _\)\| etype\)\.collect\(\)/TAP_EVENTS.iter().map(|&(etype, _)| etype).filter(|etype| !matches!(etype, CGEventType::KeyDown)).collect()/	test macos::input::tests::the_tap_listens_for_exactly_the_types_that_it_records_or_suppresses	required	RR-macos-sources-11
