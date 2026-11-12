@@ -413,9 +413,14 @@ fn a_build_without_the_feature_never_writes_or_deletes_a_keychain_item() {
     );
     assert_eq!(store.write(&secret(b"new")), Write::Stored);
     assert_eq!(store.file.bytes(), Some(b"new".to_vec()));
-    assert_eq!(store.delete(), Delete::Deleted);
-    assert_eq!(store.file.bytes(), None);
-    assert!(store.keychain.keychain.ops().is_empty());
+    assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+    assert_eq!(store.file.bytes(), Some(b"new".to_vec()));
+    assert!(store
+        .keychain
+        .keychain
+        .ops()
+        .iter()
+        .all(|op| *op == "count"));
     assert_eq!(
         store.keychain.keychain.items(),
         [b"in the keychain".to_vec()]
@@ -704,12 +709,68 @@ fn a_build_with_the_feature_answers_a_failed_keychain_and_keeps_the_file() {
 
 #[test]
 fn a_build_with_the_feature_writes_and_deletes_the_keychain_item_alone() {
-    let store = mac(Keeps::Keychain, File::holding(FILE), Keys::empty());
+    let store = mac(Keeps::Keychain, File::empty(), Keys::empty());
     assert_eq!(store.write(&secret(b"new")), Write::Stored);
     assert_eq!(store.keychain.keychain.items(), [b"new".to_vec()]);
     assert_eq!(store.delete(), Delete::Deleted);
     assert!(store.keychain.keychain.items().is_empty());
-    assert!(store.file.ops().is_empty());
+    assert!(!store.file.ops().contains(&"write"));
+    assert!(!store.file.ops().contains(&"delete"));
+    assert_eq!(store.file.bytes(), None);
+}
+
+#[test]
+fn a_delete_removes_the_item_that_a_read_gives_and_nothing_when_a_read_gives_none() {
+    let store = mac(Keeps::Keychain, File::holding(FILE), Keys::empty());
+    assert_eq!(store.delete(), Delete::Deleted);
+    assert_eq!(store.file.bytes(), None);
+    assert!(store.keychain.keychain.items().is_empty());
+    assert!(matches!(store.read(), Read::NotStored));
+
+    let store = mac(Keeps::Keychain, File::holding(FILE), Keys::holding(&[FILE]));
+    assert_eq!(store.delete(), Delete::Deleted);
+    assert_eq!(store.file.bytes(), None);
+    assert!(store.keychain.keychain.items().is_empty());
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::holding(&[b"in the keychain"]),
+    );
+    assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+    assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
+    assert_eq!(
+        store.keychain.keychain.items(),
+        [b"in the keychain".to_vec()]
+    );
+
+    let store = mac(Keeps::File, File::empty(), Keys::holding(&[FILE]));
+    assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert!(!store.keychain.keychain.ops().contains(&"delete"));
+
+    let store = mac(
+        Keeps::File,
+        File::empty(),
+        Keys::empty().failing("count", AUTH_FAILED),
+    );
+    assert_eq!(store.delete(), Delete::Locked(refused(AUTH_FAILED)));
+
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::empty(), Keys::empty());
+        assert_eq!(store.delete(), Delete::NotStored, "{keeps:?}");
+        assert!(!store.file.ops().contains(&"delete"), "{keeps:?}");
+    }
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE),
+        Keys::empty().failing("add", NOT_AVAILABLE),
+    );
+    assert_eq!(
+        store.delete(),
+        Delete::Locked(moved(i64::from(NOT_AVAILABLE)))
+    );
     assert_eq!(store.file.bytes(), Some(FILE.to_vec()));
 }
 

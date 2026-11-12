@@ -42,7 +42,7 @@ use crate::{Directory, Name, Secret};
 /// looks for the Keychain item of `service` and `name`, by its attributes alone. When one
 /// stands there, a read answers `Locked::OtherStore` whatever the file holds. When the
 /// Keychain cannot be searched, a read that finds no file answers the Keychain's `Locked`
-/// or `Fault`, never `NotStored`. Its write and its delete never touch the Keychain.
+/// or `Fault`, never `NotStored`. Its write and its delete never change the Keychain.
 /// A build with the feature also reads the file `<dir>/<name>`. When the Keychain item and
 /// the file both stand with other bytes, a read answers `Locked::OtherStore` and changes
 /// nothing. When the file stands and the Keychain holds no item, the read moves the file
@@ -52,8 +52,11 @@ use crate::{Directory, Name, Secret};
 /// and keeps the file; a removal that faults answers that `Fault`. An item that the add
 /// made stays, so when the item and the file stand with equal bytes, a read removes the
 /// file and answers `Found`: it finishes a move that stopped there. When the Keychain item
-/// stands and the file cannot be read, a read gives the item. Its write and its delete
-/// touch the Keychain alone.
+/// stands and the file cannot be read, a read gives the item. Its write touches the
+/// Keychain alone. In both builds a delete first reads as above, moves included, and
+/// removes the item only when that read gives it, from the store that the build keeps;
+/// otherwise it answers what the read answered, so it answers `Locked::OtherStore` while
+/// the other store holds an item, and `NotStored` only when the read did.
 /// `Store::in_directory` reads and writes the file alone.
 ///
 /// The place on Windows: the crate makes the directory with a protected access list that

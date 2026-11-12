@@ -146,7 +146,9 @@ mod beside_the_keychain {
         let both = store.read();
         assert!(matches!(both, Read::Locked(Locked::OtherStore)), "{both:?}");
         assert_eq!(found(file.read()), b"in the file");
+        assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
         assert_eq!(keychain_items::count(&name(label)), 1);
+        assert_eq!(found(file.read()), b"in the file");
         assert_eq!(file.delete(), Delete::Deleted);
         keychain_items::remove(&name(label));
         assert!(matches!(store.read(), Read::NotStored));
@@ -263,9 +265,10 @@ mod moves {
         }
         assert_eq!(found(file.read()), EARLIER);
         assert_eq!(keychain_items::count(&name(label)), 1);
-        assert_eq!(store.delete(), Delete::Deleted);
+        assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
         assert_eq!(file.delete(), Delete::Deleted);
-        println!("\nwith both places full the read answered Locked(OtherStore) twice");
+        assert_eq!(store.delete(), Delete::Deleted);
+        println!("\nwith both places full the read answered Locked(OtherStore) twice, and so did a delete");
     }
 }
 

@@ -116,9 +116,14 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     pub(crate) fn delete(&self) -> Delete {
-        match self.keeps {
-            Keeps::File => self.file.delete(),
-            Keeps::Keychain => self.keychain.delete(),
+        match self.read() {
+            Read::Found(_) => match self.keeps {
+                Keeps::File => self.file.delete(),
+                Keeps::Keychain => self.keychain.delete(),
+            },
+            Read::NotStored => Delete::NotStored,
+            Read::Locked(locked) => Delete::Locked(locked),
+            Read::Fault(fault) => Delete::Fault(fault),
         }
     }
 }
