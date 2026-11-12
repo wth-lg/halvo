@@ -335,6 +335,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     ("choice.sign_in.bind_decline", "Don't allow this site"),
     ("choice.sign_in.bind_allow", "Allow this site"),
+    (
+        "item.setup.not_taken",
+        "Halvo could not use those answers, so choose them again.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

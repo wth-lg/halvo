@@ -450,7 +450,15 @@ fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
             candidates: vec![],
         },
     ];
-    let item = compose_setup(&item_id(1), &agent_id(1), NAME, &params, &Limits::PRODUCT).unwrap();
+    let item = compose_setup(
+        &item_id(1),
+        &agent_id(1),
+        NAME,
+        &params,
+        false,
+        &Limits::PRODUCT,
+    )
+    .unwrap();
     let got: Vec<_> = item
         .params()
         .iter()
@@ -475,7 +483,7 @@ fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
         ..Limits::PRODUCT
     };
     assert_eq!(
-        compose_setup(&item_id(1), &agent_id(1), NAME, &params, &small),
+        compose_setup(&item_id(1), &agent_id(1), NAME, &params, false, &small),
         Err(Cause::Malformed)
     );
     let few = Limits {
@@ -483,7 +491,7 @@ fn a_setup_numbers_its_candidates_and_types_a_parameter_with_none() {
         ..Limits::PRODUCT
     };
     assert_eq!(
-        compose_setup(&item_id(1), &agent_id(1), NAME, &params, &few),
+        compose_setup(&item_id(1), &agent_id(1), NAME, &params, false, &few),
         Err(Cause::Malformed)
     );
 }
@@ -584,7 +592,7 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                             .collect(),
                     })
                     .collect();
-                compose_setup(&item, &agent, name, &params, &Limits::PRODUCT)
+                compose_setup(&item, &agent, name, &params, false, &Limits::PRODUCT)
             }
             "check" => {
                 let kept = ["payee", "amount", "instrument", "origin"]

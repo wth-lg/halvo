@@ -485,7 +485,7 @@ fn an_item_is_made_by_one_constructor_per_kind() {
         Item::link_account(id(), agent(), s(), s(), empty_field(), vec![]),
         Item::stuck(id(), agent(), s(), s(), vec![]),
         Item::check(id(), agent(), s(), s(), vec![], vec![]),
-        Item::setup(id(), agent(), s(), s(), vec![], vec![]),
+        Item::setup(id(), agent(), s(), s(), None, vec![], vec![]),
         Item::ready(id(), agent(), s(), s(), vec![]),
         Item::show(id(), agent(), s(), s(), vec![]),
     ];
@@ -598,7 +598,7 @@ fn an_item_that_is_no_confirmation_is_not_armed() {
         Item::link_account(id(), agent(), s(), s(), empty_field(), vec![]),
         Item::stuck(id(), agent(), s(), s(), vec![]),
         Item::check(id(), agent(), s(), s(), vec![], vec![]),
-        Item::setup(id(), agent(), s(), s(), vec![], vec![]),
+        Item::setup(id(), agent(), s(), s(), None, vec![], vec![]),
         Item::ready(id(), agent(), s(), s(), vec![]),
         Item::show(id(), agent(), s(), s(), vec![]),
     ];

@@ -1,5 +1,7 @@
-use super::SetupParam;
-use crate::types::{AgentId, Body, Category, Cause, ItemId, Name, Param, Slot, WorkflowId};
+use super::{compose_setup, SetupParam};
+use crate::types::{
+    AgentId, Body, Category, Cause, Item, ItemId, Limits, Name, Param, Slot, WorkflowId,
+};
 
 const TYPED_MAX: usize = 1024;
 
@@ -32,7 +34,8 @@ impl SetupBody {
 
 /// The state of a setup item (I3.5): open for answers; its body owed, sent and not yet
 /// acknowledged, while the item stays open and takes no answer (ruling IG-10); closed at the
-/// owner's acknowledgement; or gone with its workflow, which the owner no longer lists.
+/// owner's acknowledgement; closed by the person's `none`; or gone, with its workflow or because
+/// its agent is not the workflow's.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SetupState {
     /// Takes answers.
@@ -41,7 +44,10 @@ pub enum SetupState {
     Owed(SetupBody),
     /// The owner acknowledged the body.
     Closed,
-    /// The workflow is gone: nothing more is sent (I5.7).
+    /// The person chose `none`: the item closed and the hold stays (I3.5, ruling IG-35).
+    Dismissed,
+    /// The workflow is gone, or the agent is not the workflow's: nothing more is sent (I5.7,
+    /// ruling IG-36).
     Gone,
 }
 
@@ -62,7 +68,7 @@ pub enum SetupInput<'a> {
         /// The text.
         text: &'a str,
     },
-    /// The choice `none`: the hold stays and the item stays open (I3.5).
+    /// The choice `none`: the item closes and the hold stays (I3.5, ruling IG-35).
     None,
 }
 
@@ -73,12 +79,16 @@ pub enum SetupMove<'a> {
     Input(SetupInput<'a>),
     /// The owner acknowledged the owed body.
     Acknowledged,
-    /// The owner refused the owed body with `no_workflow`: the workflow is gone.
+    /// The owner refused the owed body by a name after which another value can pass: the item
+    /// asks every parameter again (I3.5, ruling IG-34).
+    NotTaken,
+    /// The owner refused the owed body with `no_workflow` or `binding`: nothing more is sent.
     Gone,
 }
 
 /// A setup item that the coordinator holds: its item id, its workflow and agent, its
-/// parameters with their candidates, the value given for each so far and its state.
+/// parameters with their candidates, the value given for each so far, whether the owner refused
+/// its answers by a name after which another value can pass, and its state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Setup {
     item: ItemId,
@@ -86,6 +96,7 @@ pub struct Setup {
     agent: AgentId,
     params: Vec<SetupParam>,
     given: Vec<Option<Vec<String>>>,
+    not_taken: bool,
     state: SetupState,
 }
 
@@ -114,6 +125,7 @@ impl Setup {
             agent,
             given: vec![None; params.len()],
             params,
+            not_taken: false,
             state: SetupState::Open,
         })
     }
@@ -141,6 +153,26 @@ impl Setup {
     /// The state.
     pub fn state(&self) -> &SetupState {
         &self.state
+    }
+
+    /// Whether the owner refused the item's answers by a name after which another value can
+    /// pass, so that the item asks every parameter again with the line `item.setup.not_taken`.
+    pub fn not_taken(&self) -> bool {
+        self.not_taken
+    }
+
+    /// The item as the page gets it (I3.4, I3.5), for the agent of the name `name` (I2.3):
+    /// `compose_setup` of its parameters, with the line `item.setup.not_taken` while it asks
+    /// again.
+    pub fn page_item(&self, name: &str, limits: &Limits) -> Result<Item, Cause> {
+        compose_setup(
+            &self.item,
+            &self.agent,
+            name,
+            &self.params,
+            self.not_taken,
+            limits,
+        )
     }
 
     fn at(&self, param: Param) -> Result<usize, Cause> {
@@ -178,24 +210,36 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 }
 
 /// The decision of the setup flow (I3.5, I5.10, ruling IG-6c): the setup after `mv`, or the
-/// cause of its refusal, first that fits. A closed item or one whose workflow is gone refuses
-/// every move with `stale`. While the body is owed, an answer is refused with `state` (ruling
-/// IG-10), the acknowledgement closes the item, and `gone` ends it. An open item refuses the
-/// acknowledgement with `state`, keeps everything at `none`, and takes `choose` of a candidate
-/// that it shows, or a typed line for a parameter with no candidate (`malformed` otherwise); a
-/// later answer for a parameter replaces the earlier one. While a parameter has no answer the
-/// item stays open; the answer that gives the last one makes the one body `set_bindings`, with
-/// the slots of the given values, which is owed from then on.
+/// cause of its refusal, first that fits. A closed item, one that `none` closed and one that is
+/// gone refuse every move with `stale`. While the body is owed, an answer is refused with `state`
+/// (ruling IG-10), the acknowledgement closes the item, `not_taken` makes it open again with
+/// every answer cleared and the line `item.setup.not_taken` (ruling IG-34), and `gone` ends it.
+/// An open item refuses the acknowledgement and `not_taken` with `state`, closes at `none` (ruling
+/// IG-35), and takes `choose` of a candidate that it shows, or a typed line for a parameter with
+/// no candidate (`malformed` otherwise); a later answer for a parameter replaces the earlier one.
+/// While a parameter has no answer the item stays open; the answer that gives the last one makes
+/// the one body `set_bindings`, with the slots of the given values, which is owed from then on.
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     match (&setup.state, mv) {
-        (SetupState::Closed | SetupState::Gone, _) => return Err(Cause::Stale),
+        (SetupState::Closed | SetupState::Dismissed | SetupState::Gone, _) => {
+            return Err(Cause::Stale)
+        }
         (SetupState::Owed(_), SetupMove::Acknowledged) => next.state = SetupState::Closed,
+        (SetupState::Owed(_), SetupMove::NotTaken) => {
+            next.given = vec![None; setup.params.len()];
+            next.not_taken = true;
+            next.state = SetupState::Open;
+            return Ok(next);
+        }
         (_, SetupMove::Gone) => next.state = SetupState::Gone,
-        (SetupState::Owed(_), _) | (SetupState::Open, SetupMove::Acknowledged) => {
+        (SetupState::Owed(_), _)
+        | (SetupState::Open, SetupMove::Acknowledged | SetupMove::NotTaken) => {
             return Err(Cause::State)
         }
-        (SetupState::Open, SetupMove::Input(SetupInput::None)) => {}
+        (SetupState::Open, SetupMove::Input(SetupInput::None)) => {
+            next.state = SetupState::Dismissed
+        }
         (SetupState::Open, SetupMove::Input(SetupInput::Choose { param, n })) => {
             let i = setup.at(param)?;
             let candidates = &setup.params[i].candidates;

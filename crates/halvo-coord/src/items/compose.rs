@@ -385,13 +385,17 @@ pub fn compose_check(
 
 /// The item `setup` (I3.5): the plain parts and one entry per parameter with the label
 /// `param.<name>`, its candidates numbered from 1, none chosen, and `typed` `yes` only for a
-/// parameter with no candidate. `malformed` for more than `setup_params` parameters, more than
-/// `setup_candidates` candidates of one, or a piece of a value of more than 1,024 bytes.
+/// parameter with no candidate; with `not_taken`, for an item that asks every parameter again
+/// after the owner refused its answers by a name after which another value can pass, one field
+/// whose label is `item.setup.not_taken`, with no value and `from` `halvo` (I3.4, ruling IG-34).
+/// `malformed` for more than `setup_params` parameters, more than `setup_candidates` candidates
+/// of one, or a piece of a value of more than 1,024 bytes.
 pub fn compose_setup(
     item: &ItemId,
     agent: &AgentId,
     name: &str,
     params: &[SetupParam],
+    not_taken: bool,
     limits: &Limits,
 ) -> Result<Item, Cause> {
     if params.len() > limits.setup_params as usize {
@@ -418,11 +422,17 @@ pub fn compose_setup(
             candidates,
         });
     }
+    let line = if not_taken {
+        Some(halvo_line("item.setup.not_taken")?)
+    } else {
+        None
+    };
     Ok(Item::setup(
         item.clone(),
         agent.clone(),
         title,
         text,
+        line,
         entries,
         two_choices(ItemKind::Setup)?,
     ))

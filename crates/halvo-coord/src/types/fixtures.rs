@@ -841,7 +841,7 @@ fn item(state: State, b: &Built) -> Option<Item> {
                     _ => param(p, None),
                 })
                 .collect();
-            Item::setup(id, agent, title, text, asked, choices)
+            Item::setup(id, agent, title, text, None, asked, choices)
         }
         ItemKind::SignIn if state == State::NeedsSignInBind => {
             let (title, _, _) = plain();
