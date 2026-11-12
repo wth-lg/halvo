@@ -1157,3 +1157,77 @@ fn the_card_of_an_agent_whose_setup_body_the_owner_ended_is_unknown_agent() {
     }
     assert_eq!(c.card(&made), Err(Cause::UnknownAgent));
 }
+
+#[test]
+fn a_lapse_at_the_runners_end_that_met_a_busy_owner_is_stored_at_the_next_tick_before_the_run_ended(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    c.ports().ports.refuse(Method::Log, PortError::Busy);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::HandedBack)));
+    c.ports().ports.clear_refusals();
+    let lapse = What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Stuck(OtherLapse::RunEnded),
+    };
+    assert!(
+        !events(&c).contains(&lapse),
+        "the busy owner stored nothing"
+    );
+    c.tick();
+    let stored = events(&c);
+    assert_eq!(stored.iter().filter(|w| **w == lapse).count(), 1);
+    let at = |what: &What| stored.iter().position(|w| w == what);
+    let ended = What::RunEnded {
+        run,
+        cause: RunEnd::HandedBack,
+    };
+    assert!(at(&lapse) < at(&ended), "{stored:?}");
+    assert!(c.snapshot().items.is_empty());
+    assert_eq!(c.live(), 0);
+}
+
+#[test]
+fn a_lapse_at_the_quit_that_met_a_busy_owner_is_stored_by_a_tick_or_by_the_second_step() {
+    for by_tick in [true, false] {
+        let c = coordinator(&[MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+            .unwrap();
+        let (item, _) = open_item(&c);
+        c.ports().ports.refuse(Method::Log, PortError::Busy);
+        let _ = c.quit_stop();
+        c.ports().ports.clear_refusals();
+        let lapse = What::ItemLapsed {
+            item,
+            lapsed: Lapsed::Stuck(OtherLapse::AppEnded),
+        };
+        assert!(
+            !events(&c).contains(&lapse),
+            "{by_tick}: nothing stored yet"
+        );
+        if by_tick {
+            c.tick();
+        } else {
+            c.quit_kill();
+        }
+        assert_eq!(
+            events(&c).iter().filter(|w| **w == lapse).count(),
+            1,
+            "{by_tick}"
+        );
+    }
+    let (c, _made, item) = setup_agent();
+    c.ports().ports.refuse(Method::Log, PortError::Busy);
+    let _ = c.quit_stop();
+    c.ports().ports.clear_refusals();
+    c.tick();
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Setup(OtherLapse::AppEnded)
+    }));
+}

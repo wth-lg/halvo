@@ -152,10 +152,33 @@ where
     /// stops its run. After the first step of the quit a tick makes no move.
     pub fn tick(&self) {
         let mut st = self.lock();
-        if !st.quitting {
+        if st.quitting {
+            let State { board, ledgers, .. } = &mut *st;
+            if let Some(board) = board.as_mut() {
+                self.flush_ledgers(board, ledgers);
+            }
+        } else {
             self.tick_in(&mut st);
         }
         self.publish(&mut st);
+    }
+
+    /// The items' part of a tick's stage of what is owed (I7.2): sends the rows that wait in the
+    /// ledger of each agent, such as a lapse whose store met a busy owner at the person's stop,
+    /// at the runner's end or at the quit, so that the lapse is stored in this life, and reads
+    /// back the events of each agent whose rows it sent. A tick sends them after its creation
+    /// move and before the run drive's tick, so that a lapse goes before the `run_ended` that
+    /// came to be owed after it.
+    fn flush_ledgers(&self, board: &mut Board<Cfg<P>>, ledgers: &mut [(AgentId, Ledger)]) {
+        for (agent, l) in ledgers.iter_mut() {
+            if l.waiting().is_empty() {
+                continue;
+            }
+            let _ = items::flush(&self.ports, l, &self.limits);
+            if let Some(i) = index(board, agent) {
+                self.read_back(board, i);
+            }
+        }
     }
 
     fn tick_in(&self, st: &mut State<Cfg<P>>) {
@@ -178,6 +201,7 @@ where
         } = st;
         let Some(board) = board.as_mut() else { return };
         schedule::drive(&self.ports, board, &self.limits, Move::Create);
+        self.flush_ledgers(board, ledgers);
         let done = run::drive(&self.ports, board, table, &self.limits, Act::Tick);
         for workflow in &done.gone {
             for m in board
@@ -1101,11 +1125,16 @@ where
     }
 
     /// The second step of the app's quit (I5.7, ruling RD-8), which the app's hook calls when no
-    /// run is live any more or at `QuitWait::until`: kills every live run and every dying tree
-    /// through the run drive's kill-all and stores no `run_ended`, so that recovery ends those
-    /// runs `interrupted` in the next life.
+    /// run is live any more or at `QuitWait::until`: sends the rows that still wait in the
+    /// agents' ledgers, the lapses of the first step among them, kills every live run and every
+    /// dying tree through the run drive's kill-all and stores no `run_ended`, so that recovery
+    /// ends those runs `interrupted` in the next life.
     pub fn quit_kill(&self) {
         let mut st = self.lock();
+        let State { board, ledgers, .. } = &mut *st;
+        if let Some(board) = board.as_mut() {
+            self.flush_ledgers(board, ledgers);
+        }
         let _ = self.act(&mut st, Act::KillAll);
         self.publish(&mut st);
     }
