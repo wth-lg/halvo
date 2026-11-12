@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: backend/scripts/check-machine-paths.sh, the backend's own check, finds no home-directory path of any platform in the tracked files under backend/ and under formal/r7-ledger/, the model, and git lists at least one file under each.
+# rule: backend/scripts/check-machine-paths.sh, the backend's own check, finds no home-directory path of any platform in the tracked files under backend/, under formal/r7-ledger/ (the model), under docs/r7/gate/ (the gate's records) and under scripts/r7/ (the run's scripts), and git lists at least one file under each.
 set -u
 name=23-r7-machine-paths
 
@@ -18,6 +18,8 @@ paths_in() {
   cd "$repo" || return 2
   files=$(git -c core.quotepath=off ls-files -- backend/ | wc -l | tr -d ' ')
   model_files=$(git -c core.quotepath=off ls-files -- formal/r7-ledger/ | wc -l | tr -d ' ')
+  records_files=$(git -c core.quotepath=off ls-files -- docs/r7/gate/ | wc -l | tr -d ' ')
+  scripts_files=$(git -c core.quotepath=off ls-files -- scripts/r7/ | wc -l | tr -d ' ')
   if [ ! -f backend/scripts/check-machine-paths.sh ]; then
     counts="files=$files model-files=$model_files found=unmeasured exit=none"
     cause="backend/scripts/check-machine-paths.sh is missing"
@@ -29,7 +31,7 @@ paths_in() {
   git init -q "$model" || return 2
   : >"$out/model-paths.txt"
   model_code=2
-  if git -c core.quotepath=off ls-files -z -- formal/r7-ledger/ >"$out/model-files.z" &&
+  if git -c core.quotepath=off ls-files -z -- formal/r7-ledger/ docs/r7/gate/ scripts/r7/ >"$out/model-files.z" &&
     git checkout-index -z --force --stdin --prefix="$model/" <"$out/model-files.z" &&
     git -C "$model" add -A .; then
     (cd "$model" && sh "$repo/backend/scripts/check-machine-paths.sh") >"$out/model-paths.txt" 2>"$out/model-stderr.txt"
@@ -37,12 +39,14 @@ paths_in() {
   fi
   found=$(grep -c '^[^:]*:[0-9][0-9]*:' "$out/paths.txt")
   model_found=$(grep -c '^[^:]*:[0-9][0-9]*:' "$out/model-paths.txt")
-  counts="files=$files found=$found exit=$code model-files=$model_files model-found=$model_found model-exit=$model_code"
+  counts="files=$files found=$found exit=$code model-files=$model_files records-files=$records_files scripts-files=$scripts_files others-found=$model_found others-exit=$model_code"
   cause=
   verdict_of "$code" backend/
-  [ -n "$cause" ] || verdict_of "$model_code" formal/r7-ledger/
+  [ -n "$cause" ] || verdict_of "$model_code" "formal/r7-ledger/, docs/r7/gate/ or scripts/r7/"
   [ -n "$cause" ] || [ "$files" -gt 0 ] || cause="git lists no tracked file under backend/"
   [ -n "$cause" ] || [ "$model_files" -gt 0 ] || cause="git lists no tracked file under formal/r7-ledger/"
+  [ -n "$cause" ] || [ "$records_files" -gt 0 ] || cause="git lists no tracked file under docs/r7/gate/"
+  [ -n "$cause" ] || [ "$scripts_files" -gt 0 ] || cause="git lists no tracked file under scripts/r7/"
   [ -z "$cause" ]
 }
 
@@ -66,11 +70,13 @@ home_path() {
 
 fixture() {
   dir=$scratch/$1
-  mkdir -p "$dir/backend/scripts" "$dir/formal/r7-ledger" "$dir/other" "$dir/out" || exit 2
+  mkdir -p "$dir/backend/scripts" "$dir/formal/r7-ledger" "$dir/docs/r7/gate" "$dir/scripts/r7" "$dir/other" "$dir/out" || exit 2
   git -C "$dir" init -q || exit 2
   cp "$check" "$dir/backend/scripts/check-machine-paths.sh" || exit 2
   printf 'a file without a path\n' >"$dir/backend/notes.txt"
   printf 'a file without a path\n' >"$dir/formal/r7-ledger/m.tla"
+  printf 'line: PASS model: states=1\n' >"$dir/docs/r7/gate/95-model.txt"
+  printf 'echo a file without a path\n' >"$dir/scripts/r7/run.sh"
   printf 'a file without a path\n' >"$dir/other/notes.txt"
 }
 
@@ -179,8 +185,29 @@ self_test() {
   expect FAIL model-copy-fails-while-the-list-works
 
   fixture model-tracked-and-nothing-under-backend
-  git -C "$scratch/model-tracked-and-nothing-under-backend" add formal || exit 2
+  git -C "$scratch/model-tracked-and-nothing-under-backend" add formal docs scripts || exit 2
   expect FAIL model-tracked-and-nothing-under-backend
+
+  fixture home-path-in-a-record
+  printf 'line: FAIL model: states=1; first failure: ' >"$scratch/home-path-in-a-record/docs/r7/gate/95-model.txt"
+  home_path >>"$scratch/home-path-in-a-record/docs/r7/gate/95-model.txt"
+  stage home-path-in-a-record
+  expect FAIL home-path-in-a-record
+
+  fixture home-path-in-a-run-script
+  home_path >>"$scratch/home-path-in-a-run-script/scripts/r7/run.sh"
+  stage home-path-in-a-run-script
+  expect FAIL home-path-in-a-run-script
+
+  fixture no-file-under-the-records
+  mv "$scratch/no-file-under-the-records/docs" "$scratch/no-file-under-the-records/docs.moved" || exit 2
+  stage no-file-under-the-records
+  expect FAIL no-file-under-the-records
+
+  fixture no-file-under-the-run-scripts
+  mv "$scratch/no-file-under-the-run-scripts/scripts/r7" "$scratch/no-file-under-the-run-scripts/r7.moved" || exit 2
+  stage no-file-under-the-run-scripts
+  expect FAIL no-file-under-the-run-scripts
 
   fixture home-path-outside-backend-is-not-read
   home_path >"$scratch/home-path-outside-backend-is-not-read/other/notes.txt"
