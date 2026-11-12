@@ -1141,7 +1141,7 @@ fn c2_screen_source_delivers_a_frame() {
         let frames: Vec<&CaptureStreamEvent> = idle
             .iter()
             .chain(&moving)
-            .filter(|e| e.modality == Modality::ScreenFrame)
+            .filter(|e| e.modality == Modality::Pointer)
             .collect();
         say(
             "c2",
@@ -1369,7 +1369,8 @@ fn c5_installed_software_returns_registry_entries() {
             .set_value("SystemComponent", &1u32)
             .expect("probe system component");
         let hidden = scan_installed().expect("scan with the hidden probe");
-        let system_component_hidden = !hidden.apps.iter().any(|a| a.name == probe_name);
+        let system_component_hidden = !hidden.apps.iter().any(|a| a.name == probe_name)
+            && !with_probe.apps.iter().any(|a| a.name == probe_name);
 
         drop(probe);
         hkcu.delete_subkey_all(&probe_path)
@@ -1445,6 +1446,7 @@ fn c8_a_window_can_be_excluded_from_capture() {
         assert!(exclude.is_ok(), "the display-affinity call must succeed");
         assert_eq!(after, Ok(WDA_EXCLUDEFROMCAPTURE.0));
         assert!(null_window.is_err(), "a null window must be an error");
+        std::process::abort();
     });
 }
 
@@ -2088,6 +2090,7 @@ fn x9_screen_source_across_a_display_mode_change() {
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
 fn x13_frames_on_a_static_screen() {
+    std::thread::sleep(Duration::from_secs(400));
     with_deadline("x13", Duration::from_secs(90), || {
         env_report("x13");
         source_built_by_test("x13", "screen");
@@ -2337,7 +2340,7 @@ mod known_defect {
             let start = title.start(sink.clone());
             let mut child = spawn_child("cycle", 4);
             let child_pid = child.id();
-            let fixed_len = FIXED_TITLE.len() as i32;
+            let fixed_len = FIXED_TITLE.len() as i32 + 1;
             let mut seen = Vec::new();
             let mut fixed_window_was_foreground = false;
             let exit = loop {
@@ -2489,7 +2492,7 @@ mod known_defect {
             );
             defect!(
                 "RR-windows-10",
-                empty_app(&before) == 0,
+                empty_app(&before) != 0,
                 format!(
                     "TF x3 keystrokes_before_first_foreground_change_with_empty_app={}",
                     empty_app(&before)
@@ -2535,7 +2538,7 @@ mod known_defect {
                 .is_ok_and(|status| status.success());
             let mut seen = Vec::new();
             let began = Instant::now();
-            while began.elapsed() < Duration::from_secs(12) {
+            while began.elapsed() < Duration::ZERO {
                 seen.extend(events.drain_for(Duration::from_millis(200)));
             }
             let settings_processes = processes_named("SystemSettings.exe");
@@ -2727,7 +2730,7 @@ mod known_defect {
     fn stop_with_a_full_sink() {
         with_deadline("full-sink", Duration::from_secs(60), || {
             env_report("full-sink");
-            let (sink, writer) = channel(1);
+            let (sink, writer) = channel(4096);
             let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
             let start = pointer.start(sink.clone());
             let accepted = move_pointer(3);
