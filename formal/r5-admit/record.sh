@@ -37,7 +37,8 @@ TLA2TOOLS_JAR names the jar that README.md pins. Java is taken from JAVA_HOME wh
 is set and else from the path, and its major version is 17 or later.
 
 Seconds that one run took on a machine of 16 cores under the load of other work
-(2026-11-12): a design 1 to 86 and a reach run 1 to 59 with one worker, small 44 with 3
+(2026-11-12), in two rounds of all the runs: a design 1 to 524 and a reach run 1 to 62
+with one worker (the longest, revert_compiled, at a 1-minute load of 82), small 44 with 3
 workers, full 2,193 with 4 workers at the lowest priority.
 
 Exit status: 0 when the run or the record is written. 1 when write finds a run's line

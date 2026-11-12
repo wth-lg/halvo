@@ -422,8 +422,9 @@ stamp now. Keep the directory with the evidence of the pull request that commits
 record: a reviewer reads the outputs and can make any run again.
 
 Seconds that one run took on a machine of 16 cores under the load of other work
-(2026-11-12): a design 1 to 86 and a reach run 1 to 59 with one worker, `small` 44 with
-3 workers, `full` 2,193 with 4 workers at the lowest priority. `sh
+(2026-11-12), in two rounds of all the runs: a design 1 to 524 and a reach run 1 to 62
+with one worker (the longest, `revert_compiled`, at a 1-minute load of 82), `small` 44
+with 3 workers, `full` 2,193 with 4 workers at the lowest priority. `sh
 formal/r5-admit/record.sh --help` states the arguments and the exit statuses.
 
 ## `edit-table.tsv`
