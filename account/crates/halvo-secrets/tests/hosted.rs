@@ -123,7 +123,14 @@ mod dpapi {
         let target = dir("link").join("target");
         fs::create_dir_all(dir("link")).expect("a directory");
         fs::write(&target, b"a file elsewhere").expect("a file");
-        std::os::windows::fs::symlink_file(&target, &path).expect("a link");
+        match std::os::windows::fs::symlink_file(&target, &path) {
+            Ok(()) => {}
+            Err(error) if error.raw_os_error() == Some(1314) => {
+                println!("\nlink case not run: this user may not make a link");
+                return;
+            }
+            Err(error) => panic!("no link was made: {error}"),
+        }
         assert!(matches!(linked.read(), Read::Locked(Locked::NotAFile)));
         assert_eq!(linked.write(&secret(b"new")), Write::Occupied);
         assert_eq!(linked.delete(), Delete::Locked(Locked::NotAFile));

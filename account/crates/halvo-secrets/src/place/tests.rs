@@ -5,8 +5,14 @@ use std::collections::BTreeMap;
 const USER: u32 = 501;
 const OTHER: u32 = 502;
 const ENOENT: i32 = 2;
+#[cfg(unix)]
 const EIO: i32 = 5;
+#[cfg(windows)]
+const EIO: i32 = 1117;
+#[cfg(unix)]
 const EACCES: i32 = 13;
+#[cfg(windows)]
+const EACCES: i32 = 5;
 const CODES: [i32; 3] = [ENOENT, EIO, EACCES];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,6 +66,10 @@ impl Entry {
     }
 }
 
+fn shown(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
+}
+
 struct Memory {
     entries: RefCell<BTreeMap<PathBuf, Entry>>,
     log: RefCell<Vec<String>>,
@@ -104,7 +114,7 @@ impl Memory {
     fn step(&self, name: &'static str, path: &Path) -> io::Result<()> {
         self.log
             .borrow_mut()
-            .push(format!("{name} {}", path.display()));
+            .push(format!("{name} {}", shown(path)));
         match self.fail.borrow().iter().find(|(step, _)| *step == name) {
             Some((_, code)) => Err(io::Error::from_raw_os_error(*code)),
             None => Ok(()),
@@ -119,7 +129,7 @@ impl Memory {
         self.entries
             .borrow()
             .keys()
-            .map(|path| path.display().to_string())
+            .map(|path| shown(path))
             .collect()
     }
 
@@ -344,6 +354,15 @@ fn stored() -> Memory {
 }
 
 #[test]
+fn the_codes_of_the_tests_have_the_kinds_that_the_tests_need() {
+    let kind = |code| io::Error::from_raw_os_error(code).kind();
+    assert_eq!(kind(ENOENT), io::ErrorKind::NotFound);
+    assert_eq!(kind(EACCES), io::ErrorKind::PermissionDenied);
+    assert_ne!(kind(EIO), io::ErrorKind::PermissionDenied);
+    assert_ne!(kind(EIO), io::ErrorKind::NotFound);
+}
+
+#[test]
 fn a_store_writes_reads_and_deletes_one_item() {
     let store = item(Memory::new());
     assert!(matches!(store.read(), Read::NotStored));
@@ -478,7 +497,9 @@ fn a_failed_removal_of_the_temporary_file_keeps_the_answer_of_the_failed_step() 
     let store = item(memory);
     assert_eq!(
         store.write(&secret(b"secret")),
-        Write::Fault(Fault { code: 5 })
+        Write::Fault(Fault {
+            code: i64::from(EIO)
+        })
     );
     assert_eq!(store.fs.entry(PATH), None);
     assert_eq!(temp_paths(&store.fs).len(), 1);
