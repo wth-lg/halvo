@@ -520,6 +520,24 @@ fn a_stopped_run_gets_no_second_step_and_no_answer() {
     assert_eq!(held.state(), &BindState::Open);
 }
 
+/// An answer `done` on a stopped run is `malformed`, as the doc of `answer_bind` orders its
+/// refusals: a choice that is not the second step's is refused before the stop is read, and no
+/// port is called (the review's N1, ruling RD-23 (c)).
+#[test]
+fn an_answer_done_on_a_stopped_run_is_malformed() {
+    let p = ports();
+    let mut l = ledger();
+    let mut held = raise_bind(&p, &mut l, &Table::new(), &LIMITS, &ask()).unwrap();
+    let stopped = Table::new().stop(&run_id(1));
+    let before = p.tried.borrow().len();
+    assert_eq!(
+        answer_bind(&p, &mut l, &stopped, &LIMITS, &mut held, Choice::Done),
+        Err(Cause::Malformed)
+    );
+    assert_eq!(p.tried.borrow().len(), before, "no port was called");
+    assert_eq!(held.state(), &BindState::Open);
+}
+
 /// The memory `Runs::answer_bind` answers as the supervisor library does (I5.10): `unknown_run`
 /// for a run that no start of this life made, `ended` for a run whose runner ended, and success
 /// otherwise; `tried` holds every call, a refused one with its refusal.
