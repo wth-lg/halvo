@@ -187,9 +187,16 @@ EOF
   nl='
 '
 
-  check every-test-passes "c1_raw_input|pass${nl}helper_child_window|pass" PASS \
+  check every-test-passes-and-the-listed-defect-fails "c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect" PASS \
     "${nl}WF c1_raw_input result=pass${nl}" "${nl}WF helper_child_window result=pass${nl}" \
-    "${nl}WF total=2 pass=2 known_defect=0 fail=0${nl}PASS $name"
+    "${nl}WF known_defect::x1_password result=known-defect id=RR-windows-01${nl}" \
+    "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name"
+  check kd-test-passes "c1_raw_input|pass${nl}known_defect::x1_password|pass" FAIL \
+    "${nl}WF known_defect::x1_password result=FIXED-BUT-LISTED${nl}" \
+    "${nl}WF total=2 pass=1 known_defect=0 fail=0${nl}FAIL $name (1 listed defects passed (FIXED-BUT-LISTED): move each test out of mod known_defect)"
+  check kd-test-fails-without-the-marker "c1_raw_input|pass${nl}known_defect::x1_password|inconclusive" FAIL \
+    "${nl}$name: known_defect::x1_password: exit 101 without a KNOWN-DEFECT line${nl}WF known_defect::x1_password result=FAIL${nl}" \
+    "${nl}WF total=2 pass=1 known_defect=0 fail=1${nl}FAIL $name (1 tests failed)"
   check zero-tests-ran "c1_raw_input|zero${nl}helper_child_window|pass" FAIL \
     "${nl}$name: c1_raw_input: exit 0, and not one test ran and passed${nl}WF c1_raw_input result=FAIL${nl}" \
     "${nl}WF total=2 pass=1 known_defect=0 fail=1${nl}FAIL $name (1 tests failed)"

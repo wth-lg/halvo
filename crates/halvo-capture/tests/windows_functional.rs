@@ -2089,3 +2089,697 @@ fn x13_frames_on_a_static_screen() {
         assert!(start.is_ok(), "the screen source must start");
     });
 }
+
+macro_rules! defect {
+    ($id:literal, $wanted:expr, $evidence:expr) => {{
+        let evidence: String = $evidence;
+        println!("{evidence}");
+        if !($wanted) {
+            panic!("KNOWN-DEFECT {}", $id);
+        }
+    }};
+}
+
+mod known_defect {
+    use super::*;
+
+    use halvo_capture::windows::apps::wait_for_change;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetFocus, SetFocus, VK_A};
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextLengthW, ES_PASSWORD};
+
+    // The 10 s stop deadline is the one of RR-windows-11 proof 1 in
+    // evidence/eng-manager/rr-delta/windows.md.
+    const STOP_DEADLINE: Duration = Duration::from_secs(10);
+
+    fn title_len(hwnd: HWND) -> i32 {
+        // SAFETY: GetWindowTextLengthW reads the length of a window's text; a
+        // handle that is no longer a window gives 0.
+        unsafe { GetWindowTextLengthW(hwnd) }
+    }
+
+    fn focus(hwnd: HWND) -> bool {
+        // SAFETY: SetFocus takes a window handle of this thread by value.
+        unsafe {
+            let _ = SetFocus(Some(hwnd));
+        }
+        pump_thread(Duration::from_millis(200));
+        // SAFETY: GetFocus takes no argument and returns a handle value.
+        unsafe { GetFocus() == hwnd }
+    }
+
+    fn type_letters(letters: u32) -> u32 {
+        let mut accepted = 0;
+        for _ in 0..letters {
+            accepted += send(&[key_input(VK_A, false)]);
+            pump_thread(Duration::from_millis(20));
+            accepted += send(&[key_input(VK_A, true)]);
+            pump_thread(Duration::from_millis(20));
+        }
+        accepted
+    }
+
+    fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(wait_for_change().map_err(|e| e.to_string()));
+        });
+        std::thread::sleep(Duration::from_millis(500));
+        rx
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn x1_keystrokes_typed_into_a_password_field() {
+        with_deadline("x1", Duration::from_secs(90), || {
+            const LETTERS: u32 = 5;
+            env_report("x1");
+            source_built_by_test("x1", "keyboard");
+            let (sink, events) = capture(4096);
+            let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
+            let mut keyboard = RawInputSource::keyboard(last_app);
+            let start = keyboard.start(sink.clone());
+            let window = TestWindow::create(&normal_window(
+                "HalvoVerifyPassword",
+                "halvo-verify-password",
+                80,
+                80,
+            ))
+            .expect("window");
+            let password = window
+                .child_control("EDIT", WINDOW_STYLE(ES_PASSWORD as u32), 44)
+                .expect("password edit control");
+            pump_thread(Duration::from_millis(300));
+            let (foreground, method) = window.activate();
+
+            let password_focused = focus(password);
+            let before = events.drain_for(Duration::from_millis(500));
+            let accepted = type_letters(LETTERS);
+            pump_thread(Duration::from_millis(300));
+            let characters = title_len(password);
+            let during = events.drain_for(Duration::from_secs(1));
+            keyboard.stop();
+            let typed = count(&during, Modality::Keystroke);
+            say(
+                "x1",
+                format!(
+                    "keyboard_start={} window_foreground={foreground} method={method} \
+                     password_field_has_focus={password_focused} letters_sent={LETTERS} \
+                     sendinput_key_events_accepted={accepted} \
+                     characters_in_password_field={characters} \
+                     keystroke_events_before_typing={}",
+                    show(&start),
+                    count(&before, Modality::Keystroke),
+                ),
+            );
+            assert!(start.is_ok(), "the keyboard source must start");
+            assert!(
+                password_focused && characters == LETTERS as i32,
+                "INCONCLUSIVE: the scripted keys did not reach the password field"
+            );
+            defect!(
+                "RR-windows-01",
+                typed == 0,
+                format!("TF x1 keystroke_events_while_typing_into_password_field={typed}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn x2_window_title_events_for_other_windows_and_controls() {
+        with_deadline("x2", Duration::from_secs(90), || {
+            env_report("x2");
+            let (sink, events) = capture(8192);
+            let mut title = WindowTitleSource::new();
+            let start = title.start(sink.clone());
+            let mut child = spawn_child("scope", 0);
+            let mut seen = Vec::new();
+            let exit = loop {
+                seen.extend(events.drain_for(Duration::from_millis(100)));
+                if let Some(status) = child.try_wait() {
+                    break status;
+                }
+            };
+            seen.extend(events.drain_for(Duration::from_secs(1)));
+            title.stop();
+            child.print_output();
+            summarize("x2", "scope", &seen);
+            let with_size = |len: u64| {
+                seen.iter()
+                    .filter(|e| {
+                        e.modality == Modality::WindowTitle
+                            && is_child_app(&e.foreground_app)
+                            && e.segment_ref.byte_len == len
+                    })
+                    .count()
+            };
+            say(
+                "x2",
+                format!(
+                    "title_start={} child_exit_ok={} events_for_foreground_window_title={} \
+                     events_for_child_control_text={}",
+                    show(&start),
+                    exit.success(),
+                    with_size(30),
+                    with_size(40),
+                ),
+            );
+            assert!(start.is_ok(), "the window-title source must start");
+            assert!(exit.success(), "the child process must finish");
+            assert!(
+                with_size(30) >= 1,
+                "INCONCLUSIVE: no event for the foreground window's own title, so the other counts say nothing"
+            );
+            defect!(
+                "RR-windows-08",
+                with_size(50) == 0 && with_size(60) == 0,
+                format!(
+                    "TF x2 events_for_background_window_title={} events_for_never_shown_window_title={}",
+                    with_size(50),
+                    with_size(60),
+                )
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn title_event_on_a_switch_to_a_window_with_a_fixed_title() {
+        with_deadline("fixed-title", Duration::from_secs(90), || {
+            env_report("fixed-title");
+            let (sink, events) = capture(8192);
+            let mut title = WindowTitleSource::new();
+            let start = title.start(sink.clone());
+            let mut child = spawn_child("cycle", 4);
+            let child_pid = child.id();
+            let fixed_len = FIXED_TITLE.len() as i32;
+            let mut seen = Vec::new();
+            let mut fixed_window_was_foreground = false;
+            let exit = loop {
+                seen.extend(events.drain_for(Duration::from_millis(100)));
+                let hwnd = foreground_window();
+                fixed_window_was_foreground |=
+                    window_pid(hwnd) == child_pid && title_len(hwnd) == fixed_len;
+                if let Some(status) = child.try_wait() {
+                    break status;
+                }
+            };
+            seen.extend(events.drain_for(Duration::from_secs(1)));
+            title.stop();
+            child.print_output();
+            summarize("fixed-title", "cycle", &seen);
+            let titles_of = |wanted: &dyn Fn(u64) -> bool| {
+                seen.iter()
+                    .filter(|e| {
+                        e.modality == Modality::WindowTitle && wanted(e.segment_ref.byte_len)
+                    })
+                    .count()
+            };
+            let scripted = titles_of(&|len| CHILD_TITLE_LENGTHS.contains(&len));
+            let fixed = titles_of(&|len| len == FIXED_TITLE.len() as u64);
+            say(
+                "fixed-title",
+                format!(
+                    "title_start={} child_exit_ok={} fixed_title_bytes={fixed_len} \
+                     fixed_title_window_was_foreground={fixed_window_was_foreground} \
+                     title_events_with_a_scripted_title_size={scripted}",
+                    show(&start),
+                    exit.success(),
+                ),
+            );
+            assert!(start.is_ok(), "the window-title source must start");
+            assert!(exit.success(), "the child process must finish");
+            assert!(
+                fixed_window_was_foreground,
+                "INCONCLUSIVE: the window with the fixed title never came to the front"
+            );
+            assert!(
+                scripted >= 1,
+                "INCONCLUSIVE: no title event for the child's title changes"
+            );
+            defect!(
+                "RR-windows-08",
+                fixed >= 1,
+                format!("TF fixed-title title_events_for_the_fixed_title={fixed}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn x3_attribution_before_the_first_foreground_change() {
+        with_deadline("x3", Duration::from_secs(120), || {
+            env_report("x3");
+            source_built_by_test("x3", "keyboard");
+            let mut child = spawn_child("hold", 9);
+            let child_pid = child.id();
+            let waited = Instant::now();
+            while foreground_pid() != child_pid && waited.elapsed() < Duration::from_secs(10) {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            std::thread::sleep(Duration::from_secs(2));
+            let child_foreground_at_start = foreground_pid() == child_pid;
+            let reader_sees_child = current_foreground_app().is_some_and(|app| is_child_app(&app));
+
+            let (sink, events) = capture(4096);
+            let mut foreground = ForegroundAppSource::new();
+            let last_app = foreground.last_app();
+            let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+            let foreground_start = foreground.start(sink.clone());
+            let keyboard_start = keyboard.start(sink.clone());
+            let settle = events.drain_for(Duration::from_secs(1));
+            let cell_before_typing = last_app.lock().ok().and_then(|cell| cell.clone());
+            press_keys(5);
+            let before = events.drain_for(Duration::from_millis(700));
+            let still_child_foreground = foreground_pid() == child_pid;
+
+            let mut between = Vec::new();
+            let waited = Instant::now();
+            while !between
+                .iter()
+                .any(|e: &CaptureStreamEvent| e.modality == Modality::ForegroundApp)
+                && waited.elapsed() < Duration::from_secs(15)
+            {
+                between.extend(events.drain_for(Duration::from_millis(100)));
+            }
+            press_keys(5);
+            let after = events.drain_for(Duration::from_millis(700));
+            let exit = child.wait();
+            foreground.stop();
+            keyboard.stop();
+            child.print_output();
+
+            let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
+            let empty_app = |events: &[CaptureStreamEvent]| {
+                events
+                    .iter()
+                    .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
+                    .count()
+            };
+            let child_app = |events: &[CaptureStreamEvent]| {
+                events
+                    .iter()
+                    .filter(|e| {
+                        e.modality == Modality::Keystroke && is_child_app(&e.foreground_app)
+                    })
+                    .count()
+            };
+            say(
+                "x3",
+                format!(
+                    "foreground_start={} keyboard_start={} \
+                     child_window_foreground_when_sources_started={child_foreground_at_start} \
+                     current_foreground_app_reader_names_child={reader_sees_child} \
+                     foreground_events_in_first_second={} last_app_cell_is_none_before_typing={} \
+                     child_window_foreground_while_typing={still_child_foreground}",
+                    show(&foreground_start),
+                    show(&keyboard_start),
+                    count(&settle, Modality::ForegroundApp),
+                    cell_before_typing.is_none(),
+                ),
+            );
+            say(
+                "x3",
+                format!(
+                    "keystrokes_before_first_foreground_change={} attributed_to_child={} \
+                     foreground_events_seen_after={} keystrokes_after_first_change={} \
+                     with_empty_app_after={} attributed_to_child_after={} child_exit_ok={}",
+                    keys(&before),
+                    child_app(&before),
+                    count(&between, Modality::ForegroundApp),
+                    keys(&after),
+                    empty_app(&after),
+                    child_app(&after),
+                    exit.success(),
+                ),
+            );
+            assert!(foreground_start.is_ok() && keyboard_start.is_ok());
+            assert!(
+                child_foreground_at_start && still_child_foreground,
+                "INCONCLUSIVE: the child window was not the foreground window while the keys were typed"
+            );
+            assert!(
+                keys(&before) >= 1,
+                "INCONCLUSIVE: no keystroke event to attribute"
+            );
+            defect!(
+                "RR-windows-10",
+                empty_app(&before) == 0,
+                format!(
+                    "TF x3 keystrokes_before_first_foreground_change_with_empty_app={}",
+                    empty_app(&before)
+                )
+            );
+        });
+    }
+
+    fn powershell_line(script: &str) -> String {
+        Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", script])
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .unwrap_or_default()
+    }
+
+    fn processes_named(image: &str) -> usize {
+        let filter = format!("IMAGENAME eq {image}");
+        let out = Command::new("tasklist.exe")
+            .args(["/FI", &filter, "/FO", "CSV", "/NH"])
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+            .unwrap_or_default();
+        out.lines()
+            .filter(|line| {
+                line.to_ascii_lowercase()
+                    .contains(&image.to_ascii_lowercase())
+            })
+            .count()
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn x14_foreground_app_of_a_hosted_app() {
+        with_deadline("x14", Duration::from_secs(120), || {
+            env_report("x14");
+            let (sink, events) = capture(4096);
+            let mut foreground = ForegroundAppSource::new();
+            let start = foreground.start(sink.clone());
+            let launched = Command::new("cmd.exe")
+                .args(["/c", "start", "ms-settings:"])
+                .status()
+                .is_ok_and(|status| status.success());
+            let mut seen = Vec::new();
+            let began = Instant::now();
+            while began.elapsed() < Duration::from_secs(12) {
+                seen.extend(events.drain_for(Duration::from_millis(200)));
+            }
+            let settings_processes = processes_named("SystemSettings.exe");
+            let foreground_now = current_foreground_app().unwrap_or_default();
+            foreground.stop();
+            let _ = Command::new("taskkill.exe")
+                .args(["/IM", "SystemSettings.exe", "/F"])
+                .output();
+            summarize("x14", "after-opening-settings", &seen);
+            let named = |file: &str| {
+                seen.iter()
+                    .filter(|e| file_name(&e.foreground_app).eq_ignore_ascii_case(file))
+                    .count()
+            };
+            let frame_host = named("ApplicationFrameHost.exe");
+            let settings = named("SystemSettings.exe");
+            say(
+                "x14",
+                format!(
+                    "foreground_start={} settings_launched={launched} \
+                     settings_processes_running={settings_processes} \
+                     foreground_now_is_frame_host={} foreground_now_is_settings={} \
+                     events_naming_applicationframehost={frame_host}",
+                    show(&start),
+                    file_name(&foreground_now).eq_ignore_ascii_case("ApplicationFrameHost.exe"),
+                    file_name(&foreground_now).eq_ignore_ascii_case("SystemSettings.exe"),
+                ),
+            );
+            assert!(start.is_ok(), "the foreground source must start");
+            assert!(
+                settings_processes >= 1,
+                "INCONCLUSIVE: the Settings app did not start on this machine"
+            );
+            assert!(
+                frame_host + settings >= 1,
+                "INCONCLUSIVE: no foreground event for the Settings window"
+            );
+            defect!(
+                "RR-windows-10",
+                settings >= 1,
+                format!("TF x14 events_naming_systemsettings={settings}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn x15_a_held_key() {
+        with_deadline("x15", Duration::from_secs(60), || {
+            const REPEATS: u32 = 6;
+            env_report("x15");
+            source_built_by_test("x15", "keyboard");
+            let (sink, events) = capture(4096);
+            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+            let start = keyboard.start(sink.clone());
+            let mut accepted = 0;
+            for _ in 0..REPEATS {
+                accepted += send(&[key_input(VK_F15, false)]);
+                std::thread::sleep(Duration::from_millis(30));
+            }
+            accepted += send(&[key_input(VK_F15, true)]);
+            let seen = events.drain_for(Duration::from_secs(1));
+            keyboard.stop();
+            let keystrokes = count(&seen, Modality::Keystroke);
+            say(
+                "x15",
+                format!(
+                    "keyboard_start={} physical_presses=1 key_down_packets={REPEATS} \
+                     key_up_packets=1 sendinput_events_accepted={accepted}",
+                    show(&start),
+                ),
+            );
+            assert!(start.is_ok(), "the keyboard source must start");
+            assert_eq!(
+                accepted,
+                REPEATS + 1,
+                "INCONCLUSIVE: SendInput did not insert every packet"
+            );
+            assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
+            defect!(
+                "RR-windows-16",
+                keystrokes == 1,
+                format!("TF x15 keystroke_events={keystrokes}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: reads and writes the Windows registry"]
+    fn c5_watch_armed_while_the_per_user_key_is_absent() {
+        with_deadline("c5-watch", Duration::from_secs(90), || {
+            use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+            use winreg::RegKey;
+
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
+            say(
+                "c5-watch",
+                format!("hkcu_uninstall_key_existed={key_existed}"),
+            );
+            assert!(
+                !key_existed,
+                "INCONCLUSIVE: the per-user Uninstall key exists, so no watch can be armed while it is absent"
+            );
+
+            let first = arm_watcher();
+            let spurious = first.recv_timeout(Duration::from_secs(1)).is_ok();
+            let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
+            let (probe, _) = hkcu
+                .create_subkey(&probe_path)
+                .expect("create the probe key");
+            probe
+                .set_value(
+                    "DisplayName",
+                    &format!("Halvo Verify Probe {}", std::process::id()),
+                )
+                .expect("probe name");
+            let first_woke = first.recv_timeout(Duration::from_secs(5)).is_ok();
+
+            let second = arm_watcher();
+            probe
+                .set_value("DisplayVersion", &"9.9.10")
+                .expect("probe version change");
+            let second_woke = second.recv_timeout(Duration::from_secs(5)).is_ok();
+
+            drop(probe);
+            hkcu.delete_subkey_all(&probe_path)
+                .expect("delete the probe key");
+            let _ = hkcu.delete_subkey(UNINSTALL);
+            say(
+                "c5-watch",
+                format!(
+                    "woke_before_any_change={spurious} \
+                     watch_armed_with_the_key_present_woke_within_5s_of_change={second_woke}"
+                ),
+            );
+            assert!(!spurious, "the watch woke before any change");
+            assert!(
+                second_woke,
+                "INCONCLUSIVE: a watch armed with the key present did not wake on a change"
+            );
+            defect!(
+                "RR-windows-12",
+                first_woke,
+                format!("TF c5-watch woke_within_5s_of_hkcu_install={first_woke}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: reads the Windows registry"]
+    fn x16_packaged_apps_and_the_inventory() {
+        with_deadline("x16", Duration::from_secs(120), || {
+            let scan = scan_installed().expect("scan the registry");
+            let packages: u32 = powershell_line("(Get-AppxPackage | Measure-Object).Count")
+                .parse()
+                .unwrap_or(0);
+            let terminal_packages: u32 = powershell_line(
+                "(Get-AppxPackage -Name Microsoft.WindowsTerminal | Measure-Object).Count",
+            )
+            .parse()
+            .unwrap_or(0);
+            let terminal_in_inventory = scan
+                .apps
+                .iter()
+                .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
+            say(
+                "x16",
+                format!(
+                    "inventory_entries={} packaged_apps_registered_for_this_user={packages} \
+                     windows_terminal_packages={terminal_packages}",
+                    scan.len(),
+                ),
+            );
+            assert!(
+                packages >= 1 && terminal_packages >= 1,
+                "INCONCLUSIVE: no packaged Windows Terminal is registered for this user"
+            );
+            defect!(
+                "RR-windows-12",
+                terminal_in_inventory,
+                format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn stop_with_a_full_sink() {
+        with_deadline("full-sink", Duration::from_secs(60), || {
+            env_report("full-sink");
+            let (sink, writer) = channel(1);
+            let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+            let start = pointer.start(sink.clone());
+            let accepted = move_pointer(3);
+            std::thread::sleep(Duration::from_millis(500));
+            let (done, returned) = mpsc::channel();
+            let began = Instant::now();
+            std::thread::Builder::new()
+                .name("tf-full-sink-stop".to_string())
+                .spawn(move || {
+                    pointer.stop();
+                    let _ = done.send(());
+                })
+                .expect("spawn the stop thread");
+            let stopped = returned.recv_timeout(STOP_DEADLINE).is_ok();
+            say(
+                "full-sink",
+                format!(
+                    "pointer_start={} sink_capacity=1 sendinput_move_events_accepted={accepted} \
+                     waited_ms={}",
+                    show(&start),
+                    began.elapsed().as_millis(),
+                ),
+            );
+            assert!(start.is_ok(), "the pointer source must start");
+            assert_eq!(
+                accepted, 3,
+                "INCONCLUSIVE: SendInput did not insert the three moves"
+            );
+            defect!(
+                "RR-windows-11",
+                stopped,
+                format!("TF full-sink stop_returned_within_10s={stopped}")
+            );
+            drop(writer);
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn a_dropped_keyboard_source_keeps_capturing() {
+        with_deadline("dropped", Duration::from_secs(60), || {
+            env_report("dropped");
+            source_built_by_test("dropped", "keyboard");
+            let (sink, events) = capture(4096);
+            let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+            let start = keyboard.start(sink.clone());
+            let accepted_before = press_keys(1);
+            let before = count(
+                &events.drain_for(Duration::from_millis(700)),
+                Modality::Keystroke,
+            );
+            drop(keyboard);
+            std::thread::sleep(Duration::from_millis(300));
+            let accepted_after = press_keys(3);
+            let after = count(
+                &events.drain_for(Duration::from_secs(1)),
+                Modality::Keystroke,
+            );
+            say(
+                "dropped",
+                format!(
+                    "keyboard_start={} sendinput_key_events_accepted_before_the_drop={accepted_before} \
+                     keystroke_events_before_the_drop={before} \
+                     sendinput_key_events_accepted_after_the_drop={accepted_after}",
+                    show(&start),
+                ),
+            );
+            assert!(start.is_ok(), "the keyboard source must start");
+            assert!(
+                accepted_before == 2 && accepted_after == 6,
+                "INCONCLUSIVE: SendInput did not insert every key event"
+            );
+            assert!(
+                before >= 1,
+                "INCONCLUSIVE: the keyboard source recorded no key before the drop"
+            );
+            defect!(
+                "RR-windows-11",
+                after == 0,
+                format!("TF dropped keystroke_events_after_the_drop={after}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: needs an interactive Windows desktop"]
+    fn pointer_moves_are_not_coalesced() {
+        with_deadline("coalesce", Duration::from_secs(60), || {
+            const MOVES: u32 = 100;
+            env_report("coalesce");
+            let (sink, events) = capture(8192);
+            let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+            let start = pointer.start(sink.clone());
+            let accepted = move_pointer(MOVES);
+            let pointers = count(
+                &events.drain_for(Duration::from_millis(1500)),
+                Modality::Pointer,
+            );
+            pointer.stop();
+            say(
+                "coalesce",
+                format!(
+                    "pointer_start={} moves_sent={MOVES} sendinput_move_events_accepted={accepted}",
+                    show(&start),
+                ),
+            );
+            assert!(start.is_ok(), "the pointer source must start");
+            assert_eq!(
+                accepted, MOVES,
+                "INCONCLUSIVE: SendInput did not insert every move"
+            );
+            assert!(pointers >= 1, "INCONCLUSIVE: no pointer event at all");
+            defect!(
+                "RR-windows-09",
+                pointers < accepted as usize,
+                format!("TF coalesce pointer_events={pointers}")
+            );
+        });
+    }
+}
