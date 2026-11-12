@@ -26,6 +26,17 @@ fail() {
   exit 1
 }
 
+made=
+cleanup() {
+  case $made in
+    */r4-formal.??????) rm -rf "$made" ;;
+  esac
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum
@@ -46,7 +57,16 @@ locate() {
 
 scratch() {
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/r4-formal.XXXXXX") || tmp=
+  made=$tmp
   [ -z "$tmp" ] || tmp=$(cd "$tmp" && pwd) || tmp=
+  [ -z "$tmp" ] || made=$tmp
+}
+
+sum_of() {
+  tr -d '\r' <"$1" >"$tmp/sum.txt" || return 1
+  sum=$(sha256 <"$tmp/sum.txt") || return 1
+  sum=${sum%% *}
+  [ "${#sum}" -eq 64 ]
 }
 
 get_jar() {
@@ -95,9 +115,11 @@ check_java() {
 }
 
 table() {
-  awk -F'|' '
+  : >"$tmp/configurations.txt" || fail invariant
+  : >"$tmp/table-files.txt" || fail invariant
+  awk -F'|' -v rowfile="$tmp/configurations.txt" -v namefile="$tmp/table-files.txt" '
     function trim(x) { gsub(/^[ \t]+/, "", x); gsub(/[ \t]+$/, "", x); return x }
-    function bad(why) { printf "fault %d %s\n", NR, why; faults++ }
+    function bad(why) { faults++ }
     /^\| Model \| Configuration \| File \| CI \| / { heads++; state = 1; next }
     state == 1 { state = 2; next }
     state == 2 && /^\|/ {
@@ -113,25 +135,34 @@ table() {
       else {
         gsub(/`/, "", model); gsub(/`/, "", config); gsub(/`/, "", file); gsub(/,/, "", distinct)
         if (ci == "yes") marked++
-        printf "row %s %s %s %s %s\n", model, config, file, distinct, ci
+        printf "%s %s %s %s %s\n", model, config, file, distinct, ci >rowfile
+        print file >namefile
       }
       next
     }
     state == 2 { state = 0 }
     /^\|[ \t]*`(Schedule|Confirm4)`[ \t]*\|/ && /\.cfg/ { bad("outside") }
-    END { printf "table %d %d %d %d\n", heads, rows, faults, marked }' "$tmp/readme.txt" >"$tmp/table.txt" || fail invariant
-  sed -n 's/^row //p' "$tmp/table.txt" >"$tmp/configurations.txt" || fail invariant
-  sed -n 's/^table //p' "$tmp/table.txt" >"$tmp/table-summary.txt" || fail invariant
-  awk '{ print $3 }' "$tmp/configurations.txt" >"$tmp/table-files.txt" || fail invariant
+    END { printf "%d %d %d %d\n", heads, rows, faults, marked }' "$tmp/readme.txt" >"$tmp/table-summary.txt" || fail invariant
   heads=0
   rows=0
   faults=1
   marked=0
   read -r heads rows faults marked <"$tmp/table-summary.txt" || fail invariant
+  named='
+'
+  while read -r f; do
+    named=$named$f'
+'
+  done <"$tmp/table-files.txt"
   unnamed=0
   for f in "$dir"/*.cfg; do
     [ -e "$f" ] || continue
-    grep -q -x -F -e "${f##*/}" "$tmp/table-files.txt" || unnamed=$((unnamed + 1))
+    case $named in
+      *"
+${f##*/}
+"*) ;;
+      *) unnamed=$((unnamed + 1)) ;;
+    esac
   done
   schedule_names=
   confirm_names=
@@ -156,14 +187,25 @@ run_tlc() {
   [ "$2" = Confirm4 ] && deadlock=-deadlock
   (
     cd "$1" || exit 99
-    mkdir -p jtmp || exit 99
     java -Xmx2g -XX:+UseParallelGC -Djava.io.tmpdir=jtmp -cp ../tla2tools.jar tlc2.TLC \
       -workers "$workers" -metadir meta -config "$3" ${deadlock:+"$deadlock"} "$2" >out.raw 2>&1 </dev/null
   )
   status=$?
   tr -d '\r' <"$1/out.raw" >"$1/out.txt" || status=99
   cp "$1/out.txt" "$art/${1##*/}.txt" || status=99
-  sed -n 's/^Error: Invariant \([A-Za-z0-9_]*\) is violated.*$/\1/p' "$1/out.txt" >"$1/violated.txt" || status=99
+  : >"$1/violated.txt" || status=99
+  awk -v names="$1/violated.txt" '
+    /^Error: Invariant [A-Za-z0-9_]* is violated/ { print $3 >names }
+    /^[0-9][0-9]* states generated, [0-9][0-9]* distinct states found, 0 states left on queue\.$/ { n++; all = $1; found = $4 }
+    $0 == "Model checking completed. No error has been found." { whole = 1 }
+    END {
+      if (n != 1) { all = 0; found = 0 }
+      printf "%s %s %d\n", all, found, whole
+    }' "$1/out.txt" >"$1/summary.txt" || status=99
+  generated=0
+  distinct=0
+  complete=0
+  read -r generated distinct complete <"$1/summary.txt" || status=99
 }
 
 declared() {
@@ -179,33 +221,27 @@ declared() {
       count=10
       ;;
   esac
-  result=ok
-  [ -f "$dir/$2" ] || result=missing
-  i=1
-  while [ "$result" = ok ] && [ "$i" -le "$count" ]; do
-    grep -q -x "INVARIANT $letter$i" "$dir/$2" || result=invariants
-    i=$((i + 1))
-  done
-  if [ "$result" = ok ]; then
-    lines=$(grep -c '^INVARIANT ' "$dir/$2")
-    [ "$lines" -eq "$count" ] || result=invariants
-    if grep -q -F -e '(*' "$dir/$2"; then
-      result=comment
-    fi
-    if grep -q -F -e '\*' "$dir/$2"; then
-      result=comment
-    fi
-  fi
-  if [ "$result" = ok ] && [ "$3" = yes ]; then
-    tr '\n\t\r' '   ' <"$dir/$2" >"$tmp/flat.txt" || result=missing
-    i=1
-    while [ "$i" -le "$count" ]; do
-      if grep -q -E "(^| )$letter$i *<-" "$tmp/flat.txt"; then
-        result=replaced
-      fi
-      i=$((i + 1))
-    done
-  fi
+  result=missing
+  [ -f "$dir/$2" ] || return 0
+  result=$(awk -v letter="$letter" -v count="$count" -v ci="$3" '
+    {
+      sub(/\r$/, "")
+      if (substr($0, 1, 10) == "INVARIANT ") { lines++; have[substr($0, 11)] = 1 }
+      if (index($0, "(*") > 0 || index($0, "\\*") > 0) comment = 1
+      line = $0
+      gsub(/\t/, " ", line)
+      flat = flat " " line
+    }
+    END {
+      for (i = 1; i <= count; i++) if (!((letter i) in have)) { print "invariants"; exit }
+      if (comment) { print "comment"; exit }
+      if (lines != count) { print "invariants"; exit }
+      if (ci == "yes") {
+        for (i = 1; i <= count; i++) if (flat ~ ("(^| )" letter i " *<-")) { print "replaced"; exit }
+      }
+      print "ok"
+    }' "$dir/$2") || result=missing
+  [ -n "$result" ] || result=missing
 }
 
 small() {
@@ -214,30 +250,22 @@ small() {
   file=$3
   want_distinct=$4
   run=$tmp/$key-$config
-  mkdir "$run" || fail invariant
-  cp "$dir"/*.tla "$run/" || fail invariant
+  mkdir "$run" "$run/jtmp" || fail invariant
   status=-
   distinct=0
   generated=0
-  t0=$(date +%s)
+  t0=$t1
   if [ "$result" = ok ]; then
-    cp "$dir/$file" "$run/$file" || fail invariant
+    cp "$dir"/*.tla "$dir/$file" "$run/" || fail invariant
     run_tlc "$run" "$model" "$file"
-    cat "$run/violated.txt" >>"$tmp/violated-$key.txt" || status=99
-    counts=$(sed -n 's/^\([0-9][0-9]*\) states generated, \([0-9][0-9]*\) distinct states found, 0 states left on queue\.$/\1 \2/p' "$run/out.txt")
-    case $counts in
-      *"
-"*) counts= ;;
-    esac
-    if [ -n "$counts" ]; then
-      generated=${counts% *}
-      distinct=${counts#* }
-    fi
+    while read -r one; do
+      printf '%s\n' "$one"
+    done <"$run/violated.txt" >>"$tmp/violated-$key.txt" || status=99
     if [ -s "$run/violated.txt" ]; then
       result=violated
     elif [ "$status" != 0 ]; then
       result=status
-    elif ! grep -q -x 'Model checking completed. No error has been found.' "$run/out.txt"; then
+    elif [ "$complete" != 1 ]; then
       result=incomplete
     elif [ "$distinct" != "$want_distinct" ]; then
       result=counts
@@ -262,6 +290,7 @@ models() {
   ran=0
   : >"$tmp/violated-schedule.txt" || fail invariant
   : >"$tmp/violated-confirm.txt" || fail invariant
+  t1=$(date +%s)
   while read -r model config file want_distinct ci; do
     declared "$model" "$file" "$ci"
     if [ "$ci" = yes ]; then
@@ -333,7 +362,14 @@ stamps() {
     case ${f##*/} in
       Schedule.tla | Schedule.cfg | Confirm4.tla | Confirm4.cfg | ScheduleTrace.tla | Confirm4Trace.tla) ;;
       TraceText.tla | limits.json | Schedule-holds.cfg | Schedule-left.cfg | Schedule-reap.cfg) ;;
-      *) grep -q -x -F -e "${f##*/}" "$tmp/table-files.txt" || outside=$((outside + 1)) ;;
+      *)
+        case $named in
+          *"
+${f##*/}
+"*) ;;
+          *) outside=$((outside + 1)) ;;
+        esac
+        ;;
     esac
   done
   [ "$outside" -eq 0 ] || fault=${fault:-outside}
@@ -353,6 +389,41 @@ stamps() {
   fi
 }
 
+record() {
+  fault=
+  have_stamp=-
+  have_script=-
+  whole=no
+  if [ -f "$dir/gate-record.txt" ]; then
+    tr -d '\r' <"$dir/gate-record.txt" >"$tmp/record.txt" || fail record
+    awk '
+      /^stamp=/ { s++; stamp = substr($0, 7) }
+      /^script=/ { c++; script = substr($0, 8) }
+      /^selftest / { n++; if ($0 !~ /=yes$/) no++ }
+      /^results=/ { t++; total = substr($0, 9) }
+      END {
+        if (s != 1 || length(stamp) != 64 || stamp !~ /^[0-9a-f]*$/) stamp = "-"
+        if (c != 1 || length(script) != 64 || script !~ /^[0-9a-f]*$/) script = "-"
+        printf "%s %s %s\n", stamp, script, (t == 1 && n > 0 && total == n && no == 0) ? "yes" : "no"
+      }' "$tmp/record.txt" >"$tmp/record-summary.txt" || fail record
+    read -r have_stamp have_script whole <"$tmp/record-summary.txt" || fail record
+    sum_of "$self" || fail record
+    if [ "$have_stamp" = - ]; then
+      fault=no-stamp
+    elif [ "$have_stamp" != "$stamp" ]; then
+      fault=stamp
+    elif [ "$have_script" != "$sum" ]; then
+      fault=script
+    elif [ "$whole" != yes ]; then
+      fault=lines
+    fi
+  else
+    fault=missing
+  fi
+  printf 'formal record fault=%s\n' "${fault:-none}"
+  [ -z "$fault" ] || fail record
+}
+
 compare() {
   same=-
   jobs=$(sed -n 's/^export compared in jobs:\(.*\)$/\1/p' "$tmp/readme.txt")
@@ -366,7 +437,7 @@ compare() {
   if [ "$compare" = yes ]; then
     mkdir "$tmp/export" || fail traces
     t0=$(date +%s)
-    sh "$dir/export.sh" --jar "$tmp/tla2tools.jar" --out "$tmp/export" >"$tmp/export.txt" 2>&1 </dev/null
+    TMPDIR=$tmp sh "$dir/export.sh" --jar "$tmp/tla2tools.jar" --out "$tmp/export" >"$tmp/export.txt" 2>&1 </dev/null
     code=$?
     t1=$(date +%s)
     cp "$tmp/export.txt" "$art/export.txt" || fail traces
@@ -383,9 +454,8 @@ compare() {
 
 control() {
   run=$tmp/control-$4
-  mkdir "$run" || return 2
-  cp "$dir"/*.tla "$run/" || return 2
-  cp "$dir/$2" "$run/$2" || return 2
+  mkdir "$run" "$run/jtmp" || return 2
+  cp "$dir"/*.tla "$dir/$2" "$run/" || return 2
   R4_OLD=$5 R4_NEW=$6 awk '
     BEGIN { old = ENVIRON["R4_OLD"]; to = ENVIRON["R4_NEW"]; n = 0 }
     {
@@ -398,7 +468,8 @@ control() {
     }
     END { if (n != 1) exit 3 }' "$dir/$1.tla" >"$run/$1.tla" || return 2
   run_tlc "$run" "$1" "$2"
-  first=$(sed -n 1p "$run/violated.txt")
+  first=
+  read -r first <"$run/violated.txt" || first=
   printf 'formal control copy=%s status=%s broken=%s\n' "$4" "$status" "${first:--}"
   [ "$status" = 12 ] || return 1
   [ "$first" = "$4" ] || return 1
@@ -437,16 +508,27 @@ measure() {
   check_java
   table
   stamps
+  record
   models
   compare
   controls
   printf 'PASS %s\n' "$name"
 }
 
+write_record() {
+  {
+    printf 'gate record of formal/r4-coordinator: sh scripts/r4/ci.d/30-r4-formal.sh --record\n'
+    printf 'stamp=%s\nscript=%s\n' "$2" "$3"
+    cat "$4"
+    printf 'results=%s\n' "$5"
+  } >"$1" || fail selftest
+}
+
 fixture() {
   mkdir -p "$work/$1/formal" || fail selftest
   cp -R "$repo/formal/r4-coordinator" "$work/$1/formal/" || fail selftest
   fdir=$work/$1/formal/r4-coordinator
+  write_record "$fdir/gate-record.txt" "$real_stamp" "$self_sum" "$work/one-line.txt" 1
 }
 
 restamp() {
@@ -462,6 +544,12 @@ restamp() {
     } >"$work/$1/$f" || fail selftest
     mv "$work/$1/$f" "$fdir/$f" || fail selftest
   done
+  write_record "$fdir/gate-record.txt" "$stamp" "$self_sum" "$work/one-line.txt" 1
+}
+
+say() {
+  printf '%s\n' "$1"
+  printf '%s\n' "$1" >>"$work/lines.txt" || missed=$((missed + 1))
 }
 
 expect() {
@@ -503,11 +591,18 @@ expect() {
     *"${5:-}"*) ;;
     *) code=line ;;
   esac
+  case $out in
+    *"${6:-}"*) ;;
+    *) code=line ;;
+  esac
   if [ "$code:$last" = "$2" ]; then
-    printf 'selftest fixture=%s mode=%s as-expected=yes\n' "$1" "$3"
-    rejected=$((rejected + 1))
+    say "selftest fixture=$1 mode=$3 as-expected=yes"
+    case $2 in
+      0:*) ;;
+      *) rejected=$((rejected + 1)) ;;
+    esac
   else
-    printf 'selftest fixture=%s mode=%s as-expected=no\n' "$1" "$3"
+    say "selftest fixture=$1 mode=$3 as-expected=no"
     printf '%s\n' "$out" >"$art/selftest-$1-$3.txt"
     missed=$((missed + 1))
   fi
@@ -519,15 +614,20 @@ expect() {
 
 held() {
   if "$@"; then
-    printf 'selftest rule=%s held=yes\n' "$rule"
+    say "selftest rule=$rule held=yes"
   else
-    printf 'selftest rule=%s held=no\n' "$rule"
+    say "selftest rule=$rule held=no"
     missed=$((missed + 1))
   fi
 }
 
 absolute() {
   (cd "$work" && TMPDIR=. && export TMPDIR && scratch && [ "${tmp#/}" != "$tmp" ])
+}
+
+emptied() {
+  set -- "$work/t m p"/*
+  [ ! -e "$1" ]
 }
 
 recorded_jar() {
@@ -551,19 +651,20 @@ recorded_configurations() {
     END { for (k in want) if (!(k in seen)) bad = 1; exit (bad + 0) }' "$work/counts.txt" "$work/good/java-good.log"
 }
 
-selftest() {
-  label=self-test:$name
-  locate
-  [ -d "$dir" ] || fail fetch
-  mkdir -p "$art" || fail fetch
-  scratch
-  [ -n "$tmp" ] || fail fetch
-  get_jar
-  check_java
-  work=$tmp/fixtures
-  mkdir -p "$work/stub" "$work/stub-curl" "$work/t m p" || fail selftest
-  table >/dev/null
-  cp "$tmp/configurations.txt" "$work/counts.txt" || fail selftest
+edit() {
+  sed "$3" "$fdir/$2" >"$work/edited" || fail selftest
+  cmp -s "$work/edited" "$fdir/$2" && fail selftest
+  mv "$work/edited" "$fdir/$2" || fail selftest
+}
+
+other_digit() {
+  case $1 in
+    0*) digit=1 ;;
+    *) digit=0 ;;
+  esac
+}
+
+stubs() {
   cat >"$work/stub/java" <<'EOF' || fail selftest
 #!/bin/sh
 mode=${R4_STUB_MODE:-good}
@@ -575,6 +676,10 @@ if [ "${1:-}" = -version ]; then
   case $mode in
     java-old) printf 'openjdk version "16.0.2" 2021-07-20\r\n' >&2 ;;
     java-unreadable) printf 'a java with no version line\r\n' >&2 ;;
+    signal)
+      kill -s TERM "$PPID"
+      printf 'openjdk version "17.0.1" 2021-10-19\r\n' >&2
+      ;;
     *) printf 'Picked up a note\r\nopenjdk version "17.0.1" 2021-10-19\r\n' >&2 ;;
   esac
   exit 0
@@ -591,7 +696,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 if [ -n "${R4_STUB_LOG:-}" ]; then
-  printf 'module=%s config=%s deadlock=%s cp=%s cwd=%s\n' "$module" "$cfg" "$deadlock" "$jar" "$(pwd)" >>"$R4_STUB_LOG"
+  printf 'module=%s config=%s deadlock=%s cp=%s cwd=%s\n' "$module" "$cfg" "$deadlock" "$jar" "$PWD" >>"$R4_STUB_LOG"
 fi
 case $module in
   ScheduleTrace) file=traces-schedule.jsonl ;;
@@ -637,7 +742,12 @@ fi
 if [ "$mode" = reads-input ]; then
   cat >/dev/null
 fi
-distinct=$(awk -v f="$cfg" '$3 == f { print $4 }' "$R4_STUB_COUNTS")
+distinct=0
+while read -r one two three four five; do
+  if [ "$three" = "$cfg" ]; then
+    distinct=$four
+  fi
+done <"$R4_STUB_COUNTS"
 generated=$((distinct * 3))
 case $mode:$cfg in
   violated-apart:Confirm4-apart.cfg)
@@ -675,73 +785,126 @@ printf '%s\n' "$*" >>"$R4_STUB_CURL"
 exit 22
 EOF
   chmod +x "$work/stub/java" "$work/stub-curl/curl" || fail selftest
-  rejected=0
-  missed=0
-  traces_from=
-  jar_from=$tmp/tla2tools.jar
-  job_as=macos
-  tmp_as=
+}
 
-  edit() {
-    sed "$3" "$fdir/$2" >"$work/edited" || fail selftest
-    cmp -s "$work/edited" "$fdir/$2" && fail selftest
-    mv "$work/edited" "$fdir/$2" || fail selftest
-  }
-  elsewhere='s/^export compared in jobs:.*$/export compared in jobs: windows/'
-
-  fixture good
-  expect good "0:PASS $name" good '' ' same=yes'
-  fixture not-compared
-  edit not-compared README.md "$elsewhere"
-  expect not-compared "0:PASS $name" good '' ' same=-'
-  expect not-compared "0:PASS $name" reads-input '' ' configuration=apart '
-  tmp_as='t m p'
-  expect not-compared "0:PASS $name" relative '' ' same=-'
-  rule=scratch
-  held absolute
-  rule=jar
-  held recorded_jar
-  rule=deadlock
-  held recorded_deadlock
-  rule=configurations
-  held recorded_configurations
-  if [ "$missed" -ne 0 ]; then
-    printf 'selftest a fixture that must pass did not pass, or a rule of the recorded runs did not hold\n'
-    fail selftest
-  fi
-  rejected=0
+every_push() {
   expect good "1:FAIL $name (usage)" good --other
   jar_from=fetch
   expect good "1:FAIL $name (fetch)" fetch
   rule=download
   held grep -q '^-q ' "$work/good/curl-fetch.log"
-  jar_from=$work/no-such.jar
-  expect good "1:FAIL $name (fetch)" no-file
   {
     printf 'X'
     tail -c +2 "$tmp/tla2tools.jar"
   } >"$work/other.jar" || fail selftest
   jar_from=$work/other.jar
   expect good "1:FAIL $name (hash)" other-bytes
-  cat "$tmp/tla2tools.jar" "$work/stub-curl/curl" >"$work/longer.jar" || fail selftest
-  jar_from=$work/longer.jar
-  expect good "1:FAIL $name (hash)" other-size
-  for mode in java-old java-unreadable; do
-    expect good "1:FAIL $name (java)" "$mode"
-  done
-  for mode in silent killed violated violated-status status distinct unfinished; do
-    expect good "1:FAIL $name (invariant)" "$mode"
-  done
-  expect good "1:FAIL $name (invariant)" violated '' ' invariants=12 violated=1'
-  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=10 violated=1'
-  for mode in control-holds control-other control-status control-one; do
-    expect not-compared "1:FAIL $name (control)" "$mode"
-  done
+  expect good "1:FAIL $name (java)" java-old
 
+  fixture line-beside-its-copy
+  edit line-beside-its-copy README.md 's/^\(| .Schedule. | .queue. | .Schedule-queue\.cfg. |\)\(.*\)$/\1\2\
+\1/'
+  expect line-beside-its-copy "1:FAIL $name (invariant)" good
+  fixture unnamed-configuration
+  cp "$fdir/Schedule-queue.cfg" "$fdir/Schedule-more.cfg" || fail selftest
+  expect unnamed-configuration "1:FAIL $name (invariant)" good
   fixture days-not-for-ci
   edit days-not-for-ci README.md "$elsewhere"
   edit days-not-for-ci README.md 's/\(| .Schedule-days\.cfg. |\) yes |/\1 no |/'
   expect days-not-for-ci "1:FAIL $name (invariant)" good
+
+  fixture invariant-twice
+  edit invariant-twice Schedule-queue.cfg 's/^INVARIANT C1$/INVARIANT C10/'
+  expect invariant-twice "1:FAIL $name (invariant)" good '' ' result=invariants'
+  fixture replaced-invariant
+  printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule-queue.cfg" || fail selftest
+  expect replaced-invariant "1:FAIL $name (invariant)" good '' ' result=replaced'
+  fixture comment-mark
+  {
+    printf '\\* a note\n'
+    cat "$fdir/Schedule-store.cfg"
+  } >"$work/marked.cfg" || fail selftest
+  mv "$work/marked.cfg" "$fdir/Schedule-store.cfg" || fail selftest
+  expect comment-mark "1:FAIL $name (invariant)" good '' ' result=comment'
+
+  expect good "1:FAIL $name (invariant)" violated '' ' invariants=12 violated=1' ' result=violated'
+  expect good "1:FAIL $name (invariant)" status '' ' result=status'
+  expect good "1:FAIL $name (invariant)" distinct '' ' result=counts'
+  expect good "1:FAIL $name (invariant)" unfinished '' ' result=incomplete'
+
+  fixture two-stamps-traces-schedule.jsonl
+  edit two-stamps-traces-schedule.jsonl README.md "$elsewhere"
+  edit two-stamps-traces-schedule.jsonl traces-schedule.jsonl '1s/"stamp":"[0-9a-f]\{4\}/"stamp":"0000/'
+  expect two-stamps-traces-schedule.jsonl "1:FAIL $name (traces)" good '' 'formal traces fault=pair'
+  fixture other-models
+  edit other-models README.md "$elsewhere"
+  printf '\n' >>"$fdir/Confirm4.tla" || fail selftest
+  expect other-models "1:FAIL $name (traces)" good '' 'formal traces fault=stamp'
+  fixture line-added-traces-schedule.jsonl
+  edit line-added-traces-schedule.jsonl README.md "$elsewhere"
+  edit line-added-traces-schedule.jsonl traces-schedule.jsonl 9p
+  expect line-added-traces-schedule.jsonl "1:FAIL $name (traces)" good '' 'formal traces fault=lines'
+  fixture module-outside
+  cp "$fdir/TraceText.tla" "$fdir/Extra.tla" || fail selftest
+  expect module-outside "1:FAIL $name (traces)" good '' 'formal traces fault=outside'
+  fixture no-job-named
+  edit no-job-named README.md 's/^export compared in jobs:.*$/export compared in jobs:/'
+  expect no-job-named "1:FAIL $name (traces)" good '' 'formal traces fault=jobs'
+
+  fixture record-missing
+  mv "$fdir/gate-record.txt" "$work/record-away.txt" || fail selftest
+  expect record-missing "1:FAIL $name (record)" good '' 'formal record fault=missing'
+  fixture record-no-stamp
+  edit record-no-stamp gate-record.txt '/^stamp=/d'
+  expect record-no-stamp "1:FAIL $name (record)" good '' 'formal record fault=no-stamp'
+  fixture record-one-digit
+  other_digit "$real_stamp"
+  edit record-one-digit gate-record.txt "s/^stamp=./stamp=$digit/"
+  expect record-one-digit "1:FAIL $name (record)" good '' 'formal record fault=stamp'
+  fixture record-other-script
+  other_digit "$self_sum"
+  edit record-other-script gate-record.txt "s/^script=./script=$digit/"
+  expect record-other-script "1:FAIL $name (record)" good '' 'formal record fault=script'
+  fixture record-cut
+  edit record-cut gate-record.txt 's/^results=.*$/results=2/'
+  expect record-cut "1:FAIL $name (record)" good '' 'formal record fault=lines'
+
+  fixture changed-line-no-job
+  edit changed-line-no-job README.md "$elsewhere"
+  edit changed-line-no-job traces-schedule.jsonl '9s/"r":"ok"/"r":"state"/'
+  traces_from=$dir
+  job_as=none
+  expect changed-line-no-job "1:FAIL $name (traces)" good '' ' same=no'
+
+  expect not-compared "1:FAIL $name (control)" control-holds
+  fixture control-moved
+  edit control-moved README.md "$elsewhere"
+  edit control-moved Schedule.tla 's/^ModelFree(s, a) == a /ModelFree(s, a) ==  a /'
+  restamp control-moved
+  expect control-moved "1:FAIL $name (control)" good '' 'formal control applied=no'
+  rule=removed-after-a-failure
+  held emptied
+}
+
+for_the_record() {
+  expect not-compared "0:PASS $name" good '' ' same=-'
+  expect not-compared "0:PASS $name" reads-input '' ' configuration=apart '
+  tmp_as='t m p'
+  expect not-compared "0:PASS $name" relative '' ' same=-'
+  jar_from=$work/no-such.jar
+  expect good "1:FAIL $name (fetch)" no-file
+  cat "$tmp/tla2tools.jar" "$work/stub-curl/curl" >"$work/longer.jar" || fail selftest
+  jar_from=$work/longer.jar
+  expect good "1:FAIL $name (hash)" other-size
+  expect good "1:FAIL $name (java)" java-unreadable
+  for mode in silent killed violated violated-status; do
+    expect good "1:FAIL $name (invariant)" "$mode"
+  done
+  expect good "1:FAIL $name (invariant)" violated-status '' ' invariants=10 violated=1'
+  for mode in control-other control-status control-one; do
+    expect not-compared "1:FAIL $name (control)" "$mode"
+  done
+
   fixture line-deleted
   edit line-deleted README.md "$elsewhere"
   edit line-deleted README.md '/^| .Schedule. | .days. | .Schedule-days\.cfg. |/d'
@@ -765,38 +928,6 @@ EOF
   fixture line-cut-short
   edit line-cut-short README.md 's/\(| .Schedule-store\.cfg. | yes | [^|]* |\).*$/\1/'
   expect line-cut-short "1:FAIL $name (invariant)" good
-  fixture line-beside-its-copy
-  edit line-beside-its-copy README.md 's/^\(| .Schedule. | .queue. | .Schedule-queue\.cfg. |\)\(.*\)$/\1\2\
-\1/'
-  expect line-beside-its-copy "1:FAIL $name (invariant)" good
-  fixture unnamed-configuration
-  cp "$fdir/Schedule-queue.cfg" "$fdir/Schedule-more.cfg" || fail selftest
-  expect unnamed-configuration "1:FAIL $name (invariant)" good
-  fixture invariant-twice
-  edit invariant-twice Schedule-queue.cfg 's/^INVARIANT C1$/INVARIANT C10/'
-  expect invariant-twice "1:FAIL $name (invariant)" good
-  fixture replaced-invariant
-  printf 'CONSTANT C1 <- C2\n' >>"$fdir/Schedule-queue.cfg" || fail selftest
-  expect replaced-invariant "1:FAIL $name (invariant)" good
-  fixture comment-mark
-  {
-    printf '\\* a note\n'
-    cat "$fdir/Schedule-store.cfg"
-  } >"$work/marked.cfg" || fail selftest
-  mv "$work/marked.cfg" "$fdir/Schedule-store.cfg" || fail selftest
-  expect comment-mark "1:FAIL $name (invariant)" good
-  fixture module-outside
-  cp "$fdir/TraceText.tla" "$fdir/Extra.tla" || fail selftest
-  expect module-outside "1:FAIL $name (traces)" good
-  fixture no-job-named
-  edit no-job-named README.md 's/^export compared in jobs:.*$/export compared in jobs:/'
-  expect no-job-named "1:FAIL $name (traces)" good
-  fixture changed-line-no-job
-  edit changed-line-no-job README.md "$elsewhere"
-  edit changed-line-no-job traces-schedule.jsonl '9s/"r":"ok"/"r":"state"/'
-  traces_from=$dir
-  job_as=none
-  expect changed-line-no-job "1:FAIL $name (traces)" good
 
   fixture renamed-invariant
   edit renamed-invariant Schedule-days.cfg 's/^INVARIANT C7$/INVARIANT C1/'
@@ -805,7 +936,6 @@ EOF
   edit extra-invariant Schedule-store.cfg 's/^INVARIANT C7$/INVARIANT C7\
 INVARIANT C7/'
   expect extra-invariant "1:FAIL $name (invariant)" good
-
   fixture comment-in-configuration
   {
     printf '(*\n'
@@ -825,34 +955,31 @@ INVARIANT C7/'
   fixture no-confirm-for-ci
   edit no-confirm-for-ci README.md 's/\(| .Confirm4[a-z-]*\.cfg. |\) yes |/\1 no |/'
   expect no-confirm-for-ci "1:FAIL $name (invariant)" good
+
   fixture unknown-job
   edit unknown-job README.md 's/^export compared in jobs:.*$/export compared in jobs: macos linux/'
   expect unknown-job "1:FAIL $name (traces)" good
-
+  fixture no-jobs-line
+  edit no-jobs-line README.md '/^export compared in jobs:/d'
+  expect no-jobs-line "1:FAIL $name (traces)" good
+  fixture line-added-traces-confirm.jsonl
+  edit line-added-traces-confirm.jsonl README.md "$elsewhere"
+  edit line-added-traces-confirm.jsonl traces-confirm.jsonl 9p
+  expect line-added-traces-confirm.jsonl "1:FAIL $name (traces)" good
+  fixture two-stamps-traces-confirm.jsonl
+  edit two-stamps-traces-confirm.jsonl README.md "$elsewhere"
+  edit two-stamps-traces-confirm.jsonl traces-confirm.jsonl '1s/"stamp":"[0-9a-f]\{4\}/"stamp":"0000/'
+  expect two-stamps-traces-confirm.jsonl "1:FAIL $name (traces)" good
   for file in traces-schedule.jsonl traces-confirm.jsonl; do
-    fixture "line-added-$file"
-    edit "line-added-$file" README.md "$elsewhere"
-    edit "line-added-$file" "$file" 9p
-    expect "line-added-$file" "1:FAIL $name (traces)" good
     fixture "line-removed-$file"
     edit "line-removed-$file" README.md "$elsewhere"
     edit "line-removed-$file" "$file" 9d
     expect "line-removed-$file" "1:FAIL $name (traces)" good
-    fixture "two-stamps-$file"
-    edit "two-stamps-$file" README.md "$elsewhere"
-    edit "two-stamps-$file" "$file" '1s/"stamp":"[0-9a-f]\{4\}/"stamp":"0000/'
-    expect "two-stamps-$file" "1:FAIL $name (traces)" good
     fixture "changed-line-$file"
     edit "changed-line-$file" "$file" '9s/"r":"ok"/"r":"state"/'
     traces_from=$dir
     expect "changed-line-$file" "1:FAIL $name (traces)" good
   done
-
-  fixture other-models
-  edit other-models README.md "$elsewhere"
-  printf '\n' >>"$fdir/Confirm4.tla" || fail selftest
-  expect other-models "1:FAIL $name (traces)" good
-
   for file in Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg; do
     fixture "other-$file"
     edit "other-$file" README.md "$elsewhere"
@@ -860,15 +987,6 @@ INVARIANT C7/'
     expect "other-$file" "1:FAIL $name (traces)" good
   done
 
-  fixture no-jobs-line
-  edit no-jobs-line README.md '/^export compared in jobs:/d'
-  expect no-jobs-line "1:FAIL $name (traces)" good
-
-  fixture control-moved
-  edit control-moved README.md "$elsewhere"
-  edit control-moved Schedule.tla 's/^ModelFree(s, a) == a /ModelFree(s, a) ==  a /'
-  restamp control-moved
-  expect control-moved "1:FAIL $name (control)" good '' 'formal control applied=no'
   fixture control-twice
   edit control-twice README.md "$elsewhere"
   sed -n '/^ModelFree(s, a) == a /p' "$fdir/Schedule.tla" >"$work/twice.txt" || fail selftest
@@ -876,30 +994,96 @@ INVARIANT C7/'
   restamp control-twice
   expect control-twice "1:FAIL $name (control)" good '' 'formal control applied=no'
 
+  expect good "143:formal jar source=given bytes=$bytes sha256=$want" signal
+  rule=removed-after-a-signal
+  held emptied
+}
+
+selftest() {
+  kind=$1
+  label=$kind:$name
+  locate
+  [ -d "$dir" ] || fail fetch
+  mkdir -p "$art" || fail fetch
+  scratch
+  [ -n "$tmp" ] || fail fetch
+  get_jar
+  check_java
+  work=$tmp/fixtures
+  mkdir -p "$work/stub" "$work/stub-curl" "$work/t m p" || fail selftest
+  : >"$work/lines.txt" || fail selftest
+  printf 'selftest fixture=one mode=one as-expected=yes\n' >"$work/one-line.txt" || fail selftest
+  table >/dev/null
+  cp "$tmp/configurations.txt" "$work/counts.txt" || fail selftest
+  stamp_of "$dir" "$tmp/real-stamp" || fail selftest
+  real_stamp=$stamp
+  sum_of "$self" || fail selftest
+  self_sum=$sum
+  stubs
+  rejected=0
+  missed=0
+  traces_from=
+  jar_from=$tmp/tla2tools.jar
+  job_as=macos
+  tmp_as=
+  elsewhere='s/^export compared in jobs:.*$/export compared in jobs: windows/'
+
+  fixture good
+  expect good "0:PASS $name" good '' ' same=yes' 'formal record fault=none'
+  fixture not-compared
+  edit not-compared README.md "$elsewhere"
+  tmp_as='t m p'
+  expect not-compared "0:PASS $name" reads-input '' ' same=-' ' configuration=apart '
+  rule=scratch
+  held absolute
+  rule=jar
+  held recorded_jar
+  rule=deadlock
+  held recorded_deadlock
+  rule=configurations
+  held recorded_configurations
+  rule=removed-after-a-pass
+  held emptied
+  if [ "$missed" -ne 0 ]; then
+    printf 'selftest a fixture that must pass did not pass, or a rule of the recorded runs did not hold\n'
+    fail selftest
+  fi
+  every_push
+  if [ "$kind" = record ]; then
+    for_the_record
+  fi
+
   keep=$tmp
   tmp="$keep/real copies"
   mkdir "$tmp" || fail selftest
   cp "$keep/tla2tools.jar" "$tmp/tla2tools.jar" || fail selftest
   for copy in C1 L5; do
     if real_control "$copy"; then
-      printf 'selftest control=%s rejected=yes\n' "$copy"
+      say "selftest control=$copy rejected=yes"
       rejected=$((rejected + 1))
     else
-      printf 'selftest control=%s rejected=no\n' "$copy"
+      say "selftest control=$copy rejected=no"
       missed=$((missed + 1))
     fi
   done
   tmp=$keep
 
   [ "$missed" -eq 0 ] || fail selftest
-  printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
+  if [ "$kind" = record ]; then
+    lines=$(wc -l <"$work/lines.txt") || fail selftest
+    lines=$((lines + 0))
+    write_record "$art/gate-record.txt" "$real_stamp" "$self_sum" "$work/lines.txt" "$lines"
+    printf 'formal record lines=%s stamp=%s\n' "$lines" "$real_stamp"
+  fi
+  printf 'PASS %s:%s (%s failing fixtures rejected)\n' "$kind" "$name" "$rejected"
 }
 
 case $# in
   0) measure ;;
   1)
     case $1 in
-      --self-test) selftest ;;
+      --self-test) selftest self-test ;;
+      --record) selftest record ;;
       *) fail usage ;;
     esac
     ;;

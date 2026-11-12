@@ -19,6 +19,9 @@ Exit status: 0 when both files are written. 1 when the export ran and a check or
 write missed; it prints which, the two trace files of DIR are as they were, and DIR
 holds no file that the export made. 2 on a refusal: one line
 "REFUSED <cause>: <detail>" on standard error, with the cause usage, java or jar.
+
+The export works in a directory that it makes under the temporary directory and
+removes when it ends, also after a miss, a refusal or a signal.
 EOF
 }
 
@@ -61,6 +64,17 @@ directed() {
         *) miss "case=$2 last=$3 holds no $5" ;;
     esac
 }
+
+work=
+cleanup() {
+    case $work in
+        */r4-export.??????) rm -rf "$work" ;;
+    esac
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 here=$(cd "$(dirname "$0")" && pwd)
 jar=

@@ -16,6 +16,7 @@ and committed. Nobody edits a trace file by hand.
 | `limits.json` | the limits of the models, with the field names of the struct `Limits` |
 | `export.sh` | the command that writes the two trace files |
 | `traces-schedule.jsonl`, `traces-confirm.jsonl` | 200 random walks of each model, then 13 and 15 directed traces |
+| `gate-record.txt` | the record of the check's long self-test, with the stamp of the model files and the digest of the check script that it was made from |
 
 ## The checker
 
@@ -96,6 +97,14 @@ What the check asks of the table and of the files, each with the cause that ends
 - TLC runs from the copy of the jar whose size and hash the check compared, with
   `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` and `_JAVA_OPTIONS` unset and with nothing on
   its standard input; the download reads no configuration file of the user.
+- `gate-record.txt` is the record of the files in the tree: its stamp is the stamp of the
+  model files, and its script line is the digest of the check script that runs
+  (`record`). The section "What every push runs, and the gate record" says what the
+  record holds.
+- The check works in one directory that it makes under the temporary directory, the
+  export's own directory inside it, and removes it when it ends: after a pass, after a
+  failure, and after the signals HUP, INT and TERM, as soon as the command that was
+  running has returned.
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
@@ -149,6 +158,83 @@ configuration, with three workers, in the hosted jobs of run 43161137794 on 2026
 In that run the check took 199 s and its self-test 70 s in the
 `macos` job, and 236 s and 301 s in the `windows` job; the
 export of both trace files is 23 s and 25 s of the check's.
+
+## What every push runs, and the gate record
+
+The scripts of this run have a share of each hosted job: 320 s in `macos` and 440 s in
+`windows`, for all of them together (I12.1). Every push runs what fits that share:
+
+- the check: the small configurations of the table above, the stamp of the traces, the
+  export against the committed traces in the jobs that the line `export compared in jobs`
+  names, the two control copies with TLC, and `gate-record.txt` against the tree;
+- its `--self-test`: two fixtures that must pass and one failing fixture for each rule
+  below. A fixture is a whole run of the script on a copy of this directory with one
+  thing wrong, with a stand-in `java` that answers in place of TLC, so that a fixture
+  ends in seconds. The two control copies run with the real TLC there as well.
+
+The further fixtures of each rule are not run at a push. They are the long self-test:
+
+```sh
+sh scripts/r4/ci.d/30-r4-formal.sh --record
+```
+
+A person runs it, through the machine's helper for timed runs. It runs every fixture of
+both columns below and, when each is as expected, writes `gate-record.txt` into the
+script's artifacts directory (`target/ci-artifacts/30-r4-formal/` without the driver).
+Whoever ran it copies that file over `formal/r4-coordinator/gate-record.txt` and commits
+it with the change. The record holds the stamp of the model files, which is the stamp of
+the traces' first lines; the SHA-256 of the check script with every carriage return taken
+out; one line for each fixture, each held rule and each control; and the count of those
+lines. The check of every push ends with `record` when the file is missing, when it has
+not exactly one stamp line of 64 hex digits, when that stamp is not the stamp of the
+files in the tree, when its script line is not the digest of the script that runs, and
+when its count is not the count of its lines or a line does not end in `=yes`. So neither
+a changed model nor a changed check script passes CI on the record of an older one:
+whoever changes a file of the stamp's list or the script runs `--record` again. The check
+compares; it cannot know that the run happened, and a record that was written by hand
+shows in the diff of its pull request.
+
+| What the check refuses | Cause | Fixture of every push | Further fixtures, in the record |
+|---|---|---|---|
+| an argument that it does not know | `usage` | `good` with `--other` | none |
+| a jar that cannot be fetched or is not at the given path | `fetch` | `fetch`, with the rule that the download reads no user configuration | `no-file` |
+| a jar of another hash or size | `hash` | `other-bytes` | `other-size` |
+| a Java older than 17, or one whose version cannot be read | `java` | `java-old` | `java-unreadable` |
+| a line of the table that does not parse | `invariant` | `line-beside-its-copy`, a bad line beside a good line of the same file, so that no other rule refuses it | `two-spaces`, `name-with-a-dash`, `empty-count`, `line-cut-short` |
+| a configuration file that no line names | `invariant` | `unnamed-configuration` | none |
+| marked lines that are not the names in the script | `invariant` | `days-not-for-ci` | `line-deleted`, `apart-not-for-ci`, `no-schedule-for-ci`, `no-confirm-for-ci` |
+| a configuration without exactly its invariant lines | `invariant` | `invariant-twice` | `renamed-invariant`, `extra-invariant`, `full-without-an-invariant` |
+| a comment in a configuration | `invariant` | `comment-mark` | `comment-in-configuration` |
+| an invariant that a CI configuration replaces | `invariant` | `replaced-invariant` | none |
+| a run in which TLC reports an invariant violated | `invariant` | `violated` | `violated-status`, twice |
+| a run that ends with a status other than 0 | `invariant` | `status` | `killed` |
+| a run that does not say that it finished | `invariant` | `unfinished` | `silent` |
+| a count of distinct states that is not the table's | `invariant` | `distinct` | none |
+| two stamps in the pair of trace files | `traces` | `two-stamps-traces-schedule.jsonl` | `two-stamps-traces-confirm.jsonl` |
+| a stamp that is not the stamp of the files | `traces` | `other-models` | `other-Schedule-holds.cfg`, `other-Schedule-left.cfg`, `other-Schedule-reap.cfg` |
+| a trace file with another number of lines | `traces` | `line-added-traces-schedule.jsonl` | `line-added-traces-confirm.jsonl`, `line-removed-` for both files |
+| a module, configuration or limits file outside the lists | `traces` | `module-outside` | none |
+| a jobs line that names no job, an unknown job, or is missing | `traces` | `no-job-named` | `unknown-job`, `no-jobs-line` |
+| committed traces that a fresh export does not give | `traces` | `changed-line-no-job`, which also shows that the export is compared when no job is named | `changed-line-` for both files |
+| no record | `record` | `record-missing` | none |
+| a record with no stamp | `record` | `record-no-stamp` | none |
+| a record whose stamp differs in one digit | `record` | `record-one-digit` | none |
+| a record of another check script | `record` | `record-other-script` | none |
+| a record whose count is not the count of its lines | `record` | `record-cut` | none |
+| a control copy that does not break its invariant with status 12 | `control` | `control-holds` | `control-other`, `control-status`, `control-one` |
+| a control whose text is not in the model exactly once | `control` | `control-moved` | `control-twice` |
+
+The self-test also holds rules that it reads from what the runs left behind: the scratch
+directory is absolute under a relative `TMPDIR`; TLC ran from the hashed copy of the jar,
+with `-deadlock` for `Confirm4` alone, once for each marked line; and the temporary
+directory of the runs is empty after the fixtures that pass and after those that fail.
+The record adds the three passing runs one by one (`not-compared` as it is, with a `java`
+that reads its input, and under a relative `TMPDIR`) and one run that the stand-in `java`
+ends with the signal TERM, after which the temporary directory is empty as well.
+
+At the commit of this section the self-test of every push held 27 failing fixtures and
+the two controls, and the record 78 lines: 65 failing fixtures and controls, five
+passing runs and eight held rules.
 
 ## What a property is read from
 
@@ -675,7 +761,7 @@ walks and every directed trace, when the walks of the schedule lack one of the a
 move with the answer of the tables below, when a move of a directed trace is no move of
 the model under the constants of its configuration, or when `limits.json` differs from
 `Schedule.cfg`. It runs java with `-Xmx1g`. It works in a directory from `mktemp -d` and
-leaves that directory in place.
+removes that directory when it ends, also after a miss, a refusal or a signal.
 
 The export writes both files or neither. It copies the two new files into the directory as
 `.traces-schedule.jsonl.new` and `.traces-confirm.jsonl.new`, keeps a copy of the old
@@ -1030,7 +1116,8 @@ The models cover `holds`, `start_step` and `tick_step`, `run_step`, `recover_ste
 the commit that added this file. The check `scripts/r4/ci.d/30-r4-formal.sh` runs the
 small configurations, compares the committed traces with a fresh export and with the
 stamp of the model files, and breaks two control copies; a change of a model file with no
-new export fails it with the cause `traces`. The crate's test `formal_traces` replays every committed
+new export fails it with the cause `traces`, and a change of a model file or of the check
+script with no new `gate-record.txt` fails it with the cause `record`. The crate's test `formal_traces` replays every committed
 line. When TLC reports an invariant violated, read its trace against I4 and I5: a step
 that the contract does not allow is a fault of the model, and a trace of allowed steps is
 a finding about the design. When the test fails, the code and the model differ: decide
