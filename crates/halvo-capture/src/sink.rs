@@ -1,6 +1,7 @@
 //! Backpressure: the channel is bounded. A droppable modality (frames, audio,
-//! camera) is dropped when the queue is full; every other modality blocks until
-//! the writer makes room.
+//! camera) is dropped when the queue is full; a fold record of
+//! [`SinkHandle::emit_continuous`] is handed back to its source; every other
+//! event blocks the caller until the writer makes room.
 
 use std::cell::Cell;
 use std::num::NonZeroUsize;
@@ -9,9 +10,14 @@ use std::sync::mpsc::{
     sync_channel, Receiver, RecvTimeoutError, SendError, SyncSender, TryRecvError, TrySendError,
 };
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 
-use crate::event::{CaptureStreamEvent, Modality, MonotonicSequence};
+use uuid::Uuid;
+
+use crate::event::{
+    from_unix_nanos, CaptureStreamEvent, CapturedAt, FloorEvent, FoldEvent, Modality,
+    MonotonicSequence, RetentionClass, SegmentKeyId, SegmentRef,
+};
 use crate::source::{EmitOutcome, EventSink};
 
 #[derive(Debug, thiserror::Error)]
@@ -69,11 +75,11 @@ pub struct KindCounts {
     /// Emits that returned `Dropped`: an event of a droppable kind met a full
     /// queue.
     pub dropped: u64,
-    /// Emits whose fold record a full queue handed back to the source; it reads 0
-    /// until an emit coalesces.
+    /// Fold records of [`SinkHandle::emit_continuous`] that a full queue handed
+    /// back to their source; it reads 0 until a source emits fold records.
     pub coalesced: u64,
-    /// Emits that returned `Disconnected`: the writer was gone when the emit
-    /// came, or went while the emit was blocked.
+    /// Emits that returned `Disconnected` or `Refused`: the writer was gone when
+    /// the emit came, or went while the emit was blocked.
     pub refused: u64,
 }
 
@@ -94,9 +100,38 @@ impl SinkCounts {
     }
 }
 
+/// What the channel carries: an event of the old emit, or a floor value.
+enum Item {
+    Old(CaptureStreamEvent),
+    Floor(FloorEvent),
+    Fold(FoldEvent),
+}
+
+/// The answer of [`SinkHandle::emit_event`]. It is a plain value: a source
+/// counts it or ignores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Emitted {
+    Queued,
+    /// A screen frame met a full queue.
+    Dropped,
+    /// The writer was gone.
+    Refused,
+}
+
+/// The answer of [`SinkHandle::emit_continuous`]. It is a plain value.
+#[derive(Debug)]
+pub enum FoldEmitted {
+    Queued,
+    /// The queue was full: the record comes back, and its source adds its count
+    /// to the next interval.
+    Coalesced(FoldEvent),
+    /// The writer was gone.
+    Refused,
+}
+
 #[derive(Clone)]
 pub struct SinkHandle {
-    tx: SyncSender<CaptureStreamEvent>,
+    tx: SyncSender<Item>,
     sequence: Arc<AtomicU64>,
     counts: Arc<[KindCounters; KINDS]>,
 }
@@ -128,6 +163,53 @@ impl SinkHandle {
         }
     }
 
+    /// Emits one floor value. A screen frame is dropped on a full queue; every
+    /// other kind blocks the calling thread until the writer makes room. When
+    /// the writer is gone the value is refused.
+    pub fn emit_event(&self, event: FloorEvent) -> Emitted {
+        match self.send(event.kind(), Item::Floor(event)) {
+            Ok(EmitOutcome::Queued) => Emitted::Queued,
+            Ok(EmitOutcome::Dropped) => Emitted::Dropped,
+            Err(SinkError::Disconnected) => Emitted::Refused,
+        }
+    }
+
+    /// Emits one fold record and never blocks: on a full queue the record comes
+    /// back in [`FoldEmitted::Coalesced`] and counts as coalesced for pointer.
+    pub fn emit_continuous(&self, fold: FoldEvent) -> FoldEmitted {
+        let kind = Modality::Pointer;
+        match self.tx.try_send(Item::Fold(fold)) {
+            Ok(()) => {
+                self.counters(kind).accepted.fetch_add(1, Ordering::Relaxed);
+                FoldEmitted::Queued
+            }
+            Err(TrySendError::Full(item)) => {
+                self.counters(kind)
+                    .coalesced
+                    .fetch_add(1, Ordering::Relaxed);
+                FoldEmitted::Coalesced(handed_back(item))
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                self.counters(kind).refused.fetch_add(1, Ordering::Relaxed);
+                FoldEmitted::Refused
+            }
+        }
+    }
+
+    fn send(&self, kind: Modality, item: Item) -> Result<EmitOutcome, SinkError> {
+        match backpressure(kind) {
+            Backpressure::Drop => match self.tx.try_send(item) {
+                Ok(()) => self.accepted(kind),
+                Err(TrySendError::Full(_)) => self.dropped(kind),
+                Err(TrySendError::Disconnected(_)) => self.refused(kind),
+            },
+            Backpressure::Block => match self.tx.send(item) {
+                Ok(()) => self.accepted(kind),
+                Err(SendError(_)) => self.refused(kind),
+            },
+        }
+    }
+
     fn counters(&self, kind: Modality) -> &KindCounters {
         &self.counts[kind_index(kind)]
     }
@@ -148,29 +230,25 @@ impl SinkHandle {
     }
 }
 
+fn handed_back(item: Item) -> FoldEvent {
+    match item {
+        Item::Fold(fold) => fold,
+        Item::Old(_) | Item::Floor(_) => unreachable!("emit_continuous sends only a fold"),
+    }
+}
+
 impl EventSink for SinkHandle {
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
-        let kind = event.modality;
-        match backpressure(kind) {
-            Backpressure::Drop => match self.tx.try_send(event) {
-                Ok(()) => self.accepted(kind),
-                Err(TrySendError::Full(_)) => self.dropped(kind),
-                Err(TrySendError::Disconnected(_)) => self.refused(kind),
-            },
-            Backpressure::Block => match self.tx.send(event) {
-                Ok(()) => self.accepted(kind),
-                Err(SendError(_)) => self.refused(kind),
-            },
-        }
+        self.send(event.modality, Item::Old(event))
     }
 }
 
 /// The number that the writer gives an event when it receives it through
 /// [`SinkWriter::recv_timeout`] or [`SinkWriter::try_recv`]. Numbers rise by
-/// exactly one in the order in which events arrive there; a dropped or refused
-/// event never gets one. The count restarts at 0 in every process and with every
-/// sink, so a number is no read position: never store one as a cursor or compare
-/// numbers of two processes.
+/// exactly one in the order in which events arrive there; a dropped, coalesced
+/// or refused event never gets one. The count restarts at 0 in every process and
+/// with every sink, so a number is no read position: never store one as a
+/// cursor or compare numbers of two processes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArrivalNumber(u64);
 
@@ -188,10 +266,22 @@ impl ArrivalNumber {
 /// An event as the writer received it, with its [`ArrivalNumber`]. Its own
 /// `captured_at.sequence` is the stamp that the emitting source took before a
 /// send that can block, not the arrival number: order by [`Received::number`].
+/// A floor value shows through [`Received::event`] as an event of its kind,
+/// time and id with no app and no payload, and [`Received::into_floor`] hands
+/// it over.
 #[derive(Debug)]
 pub struct Received {
-    event: CaptureStreamEvent,
+    arrived: Arrived,
     number: ArrivalNumber,
+}
+
+#[derive(Debug)]
+enum Arrived {
+    Old(CaptureStreamEvent),
+    Floor {
+        shown: CaptureStreamEvent,
+        event: FloorEvent,
+    },
 }
 
 impl Received {
@@ -200,6 +290,46 @@ impl Received {
     }
 
     pub fn event(&self) -> &CaptureStreamEvent {
+        match &self.arrived {
+            Arrived::Old(event) => event,
+            Arrived::Floor { shown, .. } => shown,
+        }
+    }
+
+    pub fn is_before(&self, barrier: Barrier) -> bool {
+        self.number.0 < barrier.0
+    }
+
+    /// The floor value with its number, or this value back when it holds an
+    /// event of the old emit.
+    pub fn into_floor(self) -> Result<FloorReceived, Received> {
+        match self.arrived {
+            Arrived::Floor { event, .. } => Ok(FloorReceived {
+                event,
+                number: self.number,
+            }),
+            Arrived::Old(event) => Err(Received {
+                arrived: Arrived::Old(event),
+                number: self.number,
+            }),
+        }
+    }
+}
+
+/// A floor value as the writer received it, with its [`ArrivalNumber`]: the one
+/// input of the record encoder. Only the writer makes one.
+#[derive(Debug)]
+pub struct FloorReceived {
+    event: FloorEvent,
+    number: ArrivalNumber,
+}
+
+impl FloorReceived {
+    pub fn number(&self) -> ArrivalNumber {
+        self.number
+    }
+
+    pub fn event(&self) -> &FloorEvent {
         &self.event
     }
 
@@ -212,7 +342,7 @@ impl Received {
 pub struct Barrier(u64);
 
 pub struct SinkWriter {
-    rx: Receiver<CaptureStreamEvent>,
+    rx: Receiver<Item>,
     next: Cell<u64>,
 }
 
@@ -229,19 +359,21 @@ const _: fn() = || {
 };
 
 impl SinkWriter {
-    /// The event gets no [`ArrivalNumber`] and takes none.
+    /// The event gets no [`ArrivalNumber`] and takes none; a floor value
+    /// arrives as an event of its kind, time and id with no app and no payload.
     pub fn recv(&self) -> Option<CaptureStreamEvent> {
-        self.rx.recv().ok()
+        self.rx.recv().ok().map(|item| match arrived(item) {
+            Arrived::Old(event) => event,
+            Arrived::Floor { shown, .. } => shown,
+        })
     }
 
     pub fn recv_timeout(&self, timeout: Duration) -> Result<Received, RecvTimeoutError> {
-        self.rx
-            .recv_timeout(timeout)
-            .map(|event| self.number(event))
+        self.rx.recv_timeout(timeout).map(|item| self.number(item))
     }
 
     pub fn try_recv(&self) -> Result<Received, TryRecvError> {
-        self.rx.try_recv().map(|event| self.number(event))
+        self.rx.try_recv().map(|item| self.number(item))
     }
 
     /// Draw a barrier at the next number that this writer will give. Every event
@@ -253,14 +385,52 @@ impl SinkWriter {
         Barrier(self.next.get())
     }
 
-    fn number(&self, event: CaptureStreamEvent) -> Received {
+    /// The next number of this writer's counter, for a record that did not
+    /// arrive on the channel: the run mark that the owner's entry appends.
+    #[cfg(feature = "r2")]
+    pub(crate) fn number_next(&self) -> ArrivalNumber {
+        let number = self.next.get();
+        self.next.set(number + 1);
+        ArrivalNumber(number)
+    }
+
+    fn number(&self, item: Item) -> Received {
         let number = self.next.get();
         self.next.set(number + 1);
         Received {
-            event,
+            arrived: arrived(item),
             number: ArrivalNumber(number),
         }
     }
+}
+
+fn arrived(item: Item) -> Arrived {
+    match item {
+        Item::Old(event) => Arrived::Old(event),
+        Item::Floor(event) => shown(event),
+        Item::Fold(fold) => shown(fold.into_event()),
+    }
+}
+
+fn shown(event: FloorEvent) -> Arrived {
+    let shown = CaptureStreamEvent {
+        event_id: event.id().uuid(),
+        captured_at: CapturedAt {
+            wall_clock: from_unix_nanos(event.at()).unwrap_or(UNIX_EPOCH),
+            sequence: MonotonicSequence::new(0),
+        },
+        modality: event.kind(),
+        foreground_app: String::new(),
+        segment_ref: SegmentRef {
+            segment_id: Uuid::nil(),
+            byte_offset: 0,
+            byte_len: 0,
+        },
+        segment_key_id: SegmentKeyId(0),
+        is_derived: false,
+        retention_class: RetentionClass::Raw,
+    };
+    Arrived::Floor { shown, event }
 }
 
 /// With a capacity of 0 a droppable event is dropped unless the writer is
@@ -336,7 +506,7 @@ mod tests {
         const PER_EMITTER: u64 = 100_000;
         const KINDS_OF_EMITTERS: [Modality; EMITTERS] = [
             Modality::Keystroke,
-            Modality::Pointer,
+            Modality::Keystroke,
             Modality::ScreenFrame,
             Modality::ScreenFrame,
         ];
@@ -391,8 +561,8 @@ mod tests {
             ..KindCounts::default()
         };
         let counts = handle.counts();
-        assert_eq!(counts.of(Modality::Keystroke), accepted(100_000));
-        assert_eq!(counts.of(Modality::Pointer), accepted(100_000));
+        assert_eq!(counts.of(Modality::Keystroke), accepted(200_000));
+        assert_eq!(counts.of(Modality::Pointer), KindCounts::default());
         assert_eq!(counts.of(Modality::ScreenFrame), accepted(200_000));
         assert_eq!(handle.dropped_count(), 0);
         assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
@@ -941,5 +1111,369 @@ mod tests {
         let b = h.next_sequence().get();
         let c = h.next_sequence().get();
         assert!(a < b && b < c);
+    }
+
+    use crate::event::{AppIdentity, EventClock};
+    use crate::floor::cases::keep;
+    use crate::floor::payload::{
+        Button, FoldClass, FoldCount, Observation, PointerFold, Title, TitleWhy,
+    };
+    use crate::floor::site::Site;
+    use crate::floor::text::{CapturedText, TextField, TEXT_MAX_BYTES};
+
+    fn terminal() -> AppIdentity {
+        AppIdentity::bundle_id("com.apple.Terminal".to_string())
+    }
+
+    fn fold_event(class: FoldClass, count: FoldCount) -> FoldEvent {
+        let fold = PointerFold::new(class, count);
+        FoldEvent::new(keep(terminal(), 7), fold, None, EventClock::system())
+    }
+
+    fn title_event(text: &str) -> FloorEvent {
+        let title = Title::new(
+            CapturedText::enter(TextField::Title, text.to_string()),
+            TitleWhy::TitleChange,
+            None,
+        );
+        FloorEvent::window_title(keep(terminal(), 7), title, None, EventClock::system())
+    }
+
+    fn count_of(event: &FloorEvent) -> u64 {
+        match event.observation() {
+            Observation::Fold(fold) => fold.count().get(),
+            other => panic!("not a fold: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_old_receiver_sees_a_floor_value_without_its_payload() {
+        let (handle, writer) = bounded(NonZeroUsize::new(4).unwrap());
+        assert_eq!(
+            handle.emit_event(title_event("Payroll 2026")),
+            Emitted::Queued
+        );
+        let shown = writer.recv().expect("the old receive got the value");
+        assert_eq!(shown.modality, Modality::WindowTitle);
+        assert!(shown.foreground_app.is_empty());
+        assert_eq!(shown.segment_ref.segment_id, Uuid::nil());
+        assert!(!format!("{shown:?}").contains("Payroll"));
+        let sent = title_event("Payroll 2026");
+        let (id, at) = (sent.id(), sent.at());
+        assert_eq!(handle.emit_event(sent), Emitted::Queued);
+        let received = writer.try_recv().unwrap();
+        assert_eq!(received.number(), ArrivalNumber::for_test(0));
+        assert_eq!(received.event().modality, Modality::WindowTitle);
+        assert_eq!(received.event().event_id, id.uuid());
+        assert!(received.event().foreground_app.is_empty());
+        let floor = received.into_floor().expect("a floor value");
+        assert_eq!(floor.event().id(), id);
+        assert_eq!(floor.event().at(), at);
+        assert_eq!(floor.number(), ArrivalNumber::for_test(0));
+        assert!(floor.is_before(writer.barrier()));
+        let counted = KindCounts {
+            accepted: 2,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::WindowTitle), counted);
+    }
+
+    #[test]
+    fn an_old_path_event_keeps_its_fields_and_has_no_floor_value() {
+        let (handle, writer) = bounded(NonZeroUsize::new(4).unwrap());
+        let mut old = unnumbered(Modality::Keystroke, 3, 9);
+        old.foreground_app = "com.apple.Terminal".to_string();
+        assert_eq!(handle.emit(old.clone()).unwrap(), EmitOutcome::Queued);
+        let received = writer.try_recv().unwrap();
+        assert_eq!(received.event(), &old);
+        let back = received
+            .into_floor()
+            .expect_err("an old event has no floor value");
+        assert_eq!(back.event(), &old);
+        assert_eq!(back.number(), ArrivalNumber::for_test(0));
+    }
+
+    #[test]
+    fn a_floor_value_is_numbered_in_arrival_order_with_old_events() {
+        let (handle, writer) = bounded(NonZeroUsize::new(8).unwrap());
+        handle.emit(unnumbered(Modality::Keystroke, 0, 0)).unwrap();
+        assert_eq!(handle.emit_event(title_event("a")), Emitted::Queued);
+        let fold = fold_event(FoldClass::Move, FoldCount::one());
+        assert!(matches!(handle.emit_continuous(fold), FoldEmitted::Queued));
+        let kinds: Vec<(u64, Modality, bool)> = (0..3)
+            .map(|_| {
+                let received = writer.try_recv().unwrap();
+                let number = received.number().get();
+                let kind = received.event().modality;
+                (number, kind, received.into_floor().is_ok())
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                (0, Modality::Keystroke, false),
+                (1, Modality::WindowTitle, true),
+                (2, Modality::Pointer, true),
+            ]
+        );
+        assert_eq!(handle.counts().of(Modality::Pointer).accepted, 1);
+    }
+
+    #[test]
+    fn a_floor_value_is_refused_when_the_writer_is_gone() {
+        let (handle, writer) = bounded(NonZeroUsize::new(2).unwrap());
+        drop(writer);
+        assert_eq!(handle.emit_event(title_event("x")), Emitted::Refused);
+        let fold = fold_event(FoldClass::Scroll, FoldCount::one());
+        assert!(matches!(handle.emit_continuous(fold), FoldEmitted::Refused));
+        let refused = KindCounts {
+            refused: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::WindowTitle), refused);
+        assert_eq!(handle.counts().of(Modality::Pointer), refused);
+    }
+
+    #[test]
+    fn a_fold_emit_on_a_full_queue_returns_at_once_with_the_record_and_is_counted() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        assert_eq!(
+            handle
+                .emit(unnumbered(Modality::ScreenFrame, 0, 0))
+                .unwrap(),
+            EmitOutcome::Queued
+        );
+        let mut three = FoldCount::one();
+        three.add_one();
+        three.add_one();
+        let (done_tx, done) = mpsc::channel();
+        let emitter = {
+            let handle = handle.clone();
+            thread::spawn(move || {
+                let _ = done_tx.send(handle.emit_continuous(fold_event(FoldClass::Drag, three)));
+            })
+        };
+        let outcome = done
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the fold emit on a full queue returned inside 1 s");
+        emitter.join().unwrap();
+        let FoldEmitted::Coalesced(back) = outcome else {
+            panic!("not coalesced: {outcome:?}");
+        };
+        assert_eq!(back.fold(), PointerFold::new(FoldClass::Drag, three));
+        let pointer = KindCounts {
+            coalesced: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::Pointer), pointer);
+        assert_eq!(handle.dropped_count(), 0);
+        let frame = writer.try_recv().unwrap();
+        assert_eq!(frame.event().modality, Modality::ScreenFrame);
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+    }
+
+    #[test]
+    fn a_fold_count_handed_back_can_be_added_to_the_next() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        let mut three = FoldCount::one();
+        three.add_one();
+        three.add_one();
+        assert!(matches!(
+            handle.emit_continuous(fold_event(FoldClass::Scroll, FoldCount::one())),
+            FoldEmitted::Queued
+        ));
+        let FoldEmitted::Coalesced(back) =
+            handle.emit_continuous(fold_event(FoldClass::Scroll, three))
+        else {
+            panic!("the second fold on a one-slot queue was not handed back");
+        };
+        let first = writer.try_recv().unwrap().into_floor().unwrap();
+        assert_eq!(count_of(first.event()), 1);
+        let mut next = FoldCount::one();
+        next.add(back.fold().count());
+        assert!(matches!(
+            handle.emit_continuous(fold_event(back.fold().class(), next)),
+            FoldEmitted::Queued
+        ));
+        let second = writer.try_recv().unwrap().into_floor().unwrap();
+        assert_eq!(count_of(second.event()), 4);
+        assert_eq!(second.number(), ArrivalNumber::for_test(1));
+        let pointer = handle.counts().of(Modality::Pointer);
+        assert_eq!((pointer.accepted, pointer.coalesced), (2, 1));
+    }
+
+    #[test]
+    fn a_keystroke_after_a_flood_of_fold_emits_is_queued_after_one_receive() {
+        const SLOTS: usize = 2_048;
+        let (handle, writer) = bounded(NonZeroUsize::new(SLOTS).unwrap());
+        let (flooded_tx, flooded) = mpsc::channel();
+        let flood = {
+            let handle = handle.clone();
+            thread::spawn(move || {
+                let mut coalesced = 0u64;
+                for index in 0..SLOTS * 2 {
+                    let class = FoldClass::ALL[index % 3];
+                    if let FoldEmitted::Coalesced(_) =
+                        handle.emit_continuous(fold_event(class, FoldCount::one()))
+                    {
+                        coalesced += 1;
+                    }
+                }
+                let _ = flooded_tx.send(coalesced);
+            })
+        };
+        let coalesced = flooded
+            .recv_timeout(Duration::from_secs(10))
+            .expect("4,096 fold emits on a queue of 2,048 returned inside 10 s");
+        flood.join().unwrap();
+        assert_eq!(coalesced, 2_048);
+        let waiting = emit_on_a_thread(&handle, unnumbered(Modality::Keystroke, 0, 0));
+        waiting
+            .started
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the emitter started inside 1 s");
+        let first = writer.try_recv().unwrap();
+        assert_eq!(first.event().modality, Modality::Pointer);
+        let outcome = waiting
+            .outcome
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the keystroke returned inside 1 s of one receive");
+        assert!(matches!(outcome, Ok(EmitOutcome::Queued)));
+        waiting.thread.join().unwrap();
+        let mut last = None;
+        while let Ok(received) = writer.try_recv() {
+            last = Some((received.number().get(), received.event().modality));
+        }
+        assert_eq!(last, Some((2_048, Modality::Keystroke)));
+        let pointer = handle.counts().of(Modality::Pointer);
+        assert_eq!((pointer.accepted, pointer.coalesced), (2_048, 2_048));
+    }
+
+    #[test]
+    fn a_full_queue_of_the_largest_events_stays_under_the_byte_bound() {
+        const QUEUED: usize = 2_048;
+        const BATCHED: usize = 512;
+        const BOUND: usize = 6_291_456;
+        const SITE_MAX_BYTES: usize = crate::floor::site::SITE_MAX_BYTES;
+        let label = "a".repeat(63);
+        let address = format!("https://www.{label}.co.uk/{}", "p".repeat(900));
+        let largest = || {
+            let path = format!("C:\\Apps\\{}", "b".repeat(2 * TEXT_MAX_BYTES));
+            let app = AppIdentity::executable_path(path);
+            let site = Site::cut(address.clone()).expect("a site");
+            let words = "t".repeat(2 * TEXT_MAX_BYTES);
+            let text = CapturedText::enter(TextField::Title, words);
+            let title = Title::new(text, TitleWhy::AppChange, Some(site));
+            FloorEvent::window_title(keep(app, 7), title, None, EventClock::system())
+        };
+        let (handle, writer) = bounded(NonZeroUsize::new(QUEUED).unwrap());
+        for _ in 0..QUEUED {
+            assert_eq!(handle.emit_event(largest()), Emitted::Queued);
+        }
+        let slot = std::mem::size_of::<Item>() + std::mem::size_of::<usize>();
+        let mut heap = 0usize;
+        let mut site_heap = 0usize;
+        for _ in 0..QUEUED {
+            let received = writer.try_recv().unwrap().into_floor().unwrap();
+            heap += received.event().heap_bytes();
+            site_heap += received.event().site_heap_bytes();
+        }
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+        let batch: Vec<FloorEvent> = (0..BATCHED).map(|_| largest()).collect();
+        for event in &batch {
+            heap += event.heap_bytes();
+            site_heap += event.site_heap_bytes();
+        }
+        let events = QUEUED + BATCHED;
+        let sum = events * slot + heap;
+        let site_at_its_cap = sum - site_heap + events * SITE_MAX_BYTES;
+        println!("sink_queue slot={slot} events={events} sum={sum} site_at_its_cap={site_at_its_cap} bound={BOUND}");
+        assert!(heap >= events * 2 * TEXT_MAX_BYTES);
+        assert!(sum < BOUND, "{sum}");
+        assert!(site_at_its_cap < BOUND, "{site_at_its_cap}");
+    }
+
+    const EMIT_PATH_WAITS: [&str; 5] = ["timeout", "sleep", "Instant", "deadline", "park"];
+    const COUNTER_WRITES: [&str; 5] = [
+        ".store(",
+        ".swap(",
+        ".fetch_sub(",
+        ".fetch_update(",
+        ".compare_exchange",
+    ];
+
+    fn block<'a>(text: &'a str, opening: &str) -> &'a str {
+        let start = text.find(opening).unwrap_or_else(|| panic!("no {opening}"));
+        let end = text[start..]
+            .find("\n}\n")
+            .map_or(text.len(), |end| start + end + 3);
+        &text[start..end]
+    }
+
+    fn rules_broken(product: &str) -> Vec<String> {
+        let mut broken = Vec::new();
+        for opening in ["\nimpl SinkHandle {", "\nimpl EventSink for SinkHandle {"] {
+            let emit_path = block(product, opening);
+            for word in EMIT_PATH_WAITS {
+                if emit_path.contains(word) {
+                    broken.push(format!("a timed wait ({word}) on the emit path"));
+                }
+            }
+        }
+        for write in COUNTER_WRITES {
+            if product.contains(write) {
+                broken.push(format!("a counter write other than fetch_add ({write})"));
+            }
+        }
+        for counter in [".accepted.", ".dropped.", ".coalesced.", ".refused."] {
+            for (at, _) in product.match_indices(counter) {
+                let method = &product[at + counter.len()..];
+                if !method.starts_with("fetch_add(") && !method.starts_with("load(") {
+                    broken.push(format!("{counter} changed by other than fetch_add"));
+                }
+            }
+        }
+        broken
+    }
+
+    #[test]
+    fn the_emit_path_has_no_timed_wait_and_every_counter_changes_by_fetch_add_alone() {
+        let source = include_str!("sink.rs");
+        let product = &source[..source.find("#[cfg(test)]\nmod tests {").unwrap()];
+        assert!(product.contains("pub fn emit_event("));
+        assert_eq!(rules_broken(product), Vec::<String>::new());
+        let m8 = product.replacen(
+            "Backpressure::Block => match self.tx.send(item) {",
+            "Backpressure::Block => match self.tx.send_timeout(item, Duration::from_secs(2)) {",
+            1,
+        );
+        assert_ne!(m8, product);
+        assert!(rules_broken(&m8)
+            .iter()
+            .any(|rule| rule.contains("timeout")));
+        let slept = product.replacen(
+            "Backpressure::Block => match self.tx.send(item) {",
+            "Backpressure::Block => match { std::thread::sleep(Duration::from_secs(2)); self.tx.try_send(item) } {",
+            1,
+        );
+        assert!(rules_broken(&slept)
+            .iter()
+            .any(|rule| rule.contains("sleep")));
+        let lost = product.replacen(
+            "self.counters(kind).accepted.fetch_add(1, Ordering::Relaxed);\n        Ok(",
+            "let c = &self.counters(kind).accepted;\n        c.store(c.load(Ordering::Relaxed) + 1, Ordering::Relaxed);\n        Ok(",
+            1,
+        );
+        assert_ne!(lost, product);
+        assert!(rules_broken(&lost)
+            .iter()
+            .any(|rule| rule.contains(".store(")));
+        let swapped = product.replacen(
+            "kind.dropped.load(Ordering::Relaxed)",
+            "kind.dropped.swap(0, Ordering::Relaxed)",
+            1,
+        );
+        assert_ne!(swapped, product);
+        assert!(!rules_broken(&swapped).is_empty());
     }
 }

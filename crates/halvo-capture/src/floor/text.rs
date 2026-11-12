@@ -66,6 +66,11 @@ impl CapturedText {
         self.cut
     }
 
+    #[cfg(test)]
+    pub(crate) fn heap_bytes(&self) -> usize {
+        self.bytes.len()
+    }
+
     /// Whether the string, or with `file_name` its part after the last `/` or
     /// `\`, equals one of `names`, ignoring ASCII case: the one comparison of
     /// captured text, for the static exclusion list.

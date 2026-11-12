@@ -95,6 +95,13 @@ fn is_dns_label(label: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
+impl Site {
+    #[cfg(test)]
+    pub(crate) fn heap_bytes(&self) -> usize {
+        self.domain.heap_bytes()
+    }
+}
+
 impl fmt::Debug for Site {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Site(..)")

@@ -46,6 +46,14 @@ impl AppIdentity {
         matches!(self.0, AppForm::Unknown)
     }
 
+    #[cfg(test)]
+    pub(crate) fn heap_bytes(&self) -> usize {
+        match &self.0 {
+            AppForm::BundleId(text) | AppForm::ExecutablePath(text) => text.heap_bytes(),
+            AppForm::Unknown => 0,
+        }
+    }
+
     /// Whether a bundle id is one of `bundle_ids`, or the file name of an
     /// executable path one of `executables`, ignoring ASCII case.
     pub(crate) fn is_listed(&self, bundle_ids: &[&str], executables: &[&str]) -> bool {
@@ -289,6 +297,26 @@ impl FloorEvent {
 
     pub(crate) fn observation(&self) -> &Observation {
         &self.observation
+    }
+
+    /// The bytes that the captured strings of the event hold on the heap.
+    #[cfg(test)]
+    pub(crate) fn heap_bytes(&self) -> usize {
+        let title = match &self.observation {
+            Observation::WindowTitle(title) => title.text.heap_bytes(),
+            _ => 0,
+        };
+        self.app.heap_bytes() + title + self.site_heap_bytes()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn site_heap_bytes(&self) -> usize {
+        match &self.observation {
+            Observation::WindowTitle(title) => {
+                title.site.as_ref().map_or(0, |site| site.heap_bytes())
+            }
+            _ => 0,
+        }
     }
 }
 
