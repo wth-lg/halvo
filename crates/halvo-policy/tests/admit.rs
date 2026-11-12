@@ -241,6 +241,76 @@ fn the_origin_field_is_the_paused_request_origin_of_the_bindings_or_the_new_orig
 }
 
 #[test]
+fn the_origin_field_is_refused_when_the_request_goes_outside_the_bindings_to_another_than_the_new_origin(
+) {
+    let mut outside = facts();
+    outside.request_origin = Some(origin(FRAME));
+    outside.new_origin = Some(origin("https://other.example:443"));
+    let got: Vec<(C, Result<(), Provenance>)> = [(C::Payment, 3), (C::Purchase, 4), (C::Submit, 0)]
+        .into_iter()
+        .map(|(class, i)| {
+            let frame = bf("origin", "const", None, FRAME);
+            (
+                class,
+                admit(class, &bound(class, &with(class, i, frame)), &outside),
+            )
+        })
+        .collect();
+    let refused = Err(Provenance::Field(FieldName::Origin));
+    assert_eq!(
+        got,
+        [
+            (C::Payment, refused),
+            (C::Purchase, refused),
+            (C::Submit, refused)
+        ]
+    );
+}
+
+#[test]
+fn an_amount_or_items_read_from_the_page_of_the_new_origin_is_refused_at_that_field() {
+    let mut f = facts();
+    f.request_origin = Some(origin(FRAME));
+    f.new_origin = Some(origin(FRAME));
+    let objects = |amount_from: &str, items_from: &str| {
+        let payment = bound(
+            C::Payment,
+            &[
+                bf("payee", "slot", None, "Northwind Water"),
+                bf("amount", "extract", Some(amount_from), "9999.00"),
+                bf("instrument", "slot", None, "card ending 4242"),
+                bf("origin", "const", None, FRAME),
+            ],
+        );
+        let purchase = bound(
+            C::Purchase,
+            &[
+                bf("seller", "slot", None, "Tea House"),
+                bf("items", "extract", Some(items_from), "2 x tea"),
+                bf("amount", "extract", Some(amount_from), "9999.00"),
+                bf("instrument", "slot", None, "card ending 4242"),
+                bf("origin", "const", None, FRAME),
+            ],
+        );
+        [
+            admit(C::Payment, &payment, &f),
+            admit(C::Purchase, &purchase, &f),
+        ]
+    };
+    let amount = Err(Provenance::Field(FieldName::Amount));
+    let items = Err(Provenance::Field(FieldName::Items));
+    assert_eq!(
+        [
+            objects(SHOP, SHOP),
+            objects(FRAME, SHOP),
+            objects(SHOP, FRAME)
+        ],
+        [[Ok(()), Ok(())], [amount, amount], [Ok(()), items]],
+        "read from an origin of the bindings; the amount, then the items, read from the new origin's page"
+    );
+}
+
+#[test]
 fn send_to_is_a_sender_of_the_facts_of_at_most_320_bytes() {
     let stranger = bf("to", "extract", None, "eve@mail.example");
     assert_eq!(

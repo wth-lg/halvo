@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use common::{api, file, web, web_credential, web_request};
 use halvo_policy::{check_playbook, class_of};
-use halvo_schema::executable::names::Cause;
+use halvo_schema::executable::names::{Cause, Verb};
 use halvo_schema::executable::ActionClass as C;
 use halvo_schema::SeedCategory as S;
 
@@ -136,6 +136,35 @@ fn a_file_read_is_read_and_a_file_write_is_local_edit() {
             class_of(category, &file(1, "write", C::LocalEdit)),
             C::LocalEdit
         );
+    }
+}
+
+#[test]
+fn an_api_step_without_an_api_target_is_credential() {
+    for &category in S::ALL {
+        let mut none = api(1, "mail_send", C::Send);
+        none.target = None;
+        assert_eq!(class_of(category, &none), C::Credential, "no target");
+        let mut other = api(1, "calendar_delete", C::Delete);
+        other.target = file(1, "write", C::LocalEdit).target;
+        assert_eq!(class_of(category, &other), C::Credential, "a file target");
+    }
+}
+
+#[test]
+fn a_file_step_whose_verb_is_neither_read_nor_write_is_credential() {
+    let others: Vec<Verb> = Verb::ALL
+        .iter()
+        .copied()
+        .filter(|v| !matches!(v, Verb::Read | Verb::Write))
+        .collect();
+    assert_eq!(others.len(), 10);
+    for &category in S::ALL {
+        for &verb in &others {
+            let mut step = file(1, "write", C::LocalEdit);
+            step.verb = verb;
+            assert_eq!(class_of(category, &step), C::Credential, "{verb:?}");
+        }
     }
 }
 
