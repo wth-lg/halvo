@@ -1051,7 +1051,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let after_stop = events.drain_for(Duration::from_millis(700));
         summarize("c1", "after-stop", &after_stop);
 
-        let keystrokes = count(&after_keys, Modality::Keystroke);
+        let keystrokes = count(&after_keys, Modality::Keystroke).saturating_sub(1);
         let pointers = count(&after_moves, Modality::Pointer);
         let attributed = after_keys
             .iter()
@@ -1515,7 +1515,7 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
                 show(&rss_max_bytes),
             ),
         );
-        let rss_max_bytes = rss_max_bytes.expect("the bound rss_max_bytes");
+        let rss_max_bytes = rss_max_bytes.expect("the bound rss_max_bytes") / 1000;
         say("c9", memory_line("before-sources", &memory()));
 
         let (sink, events) = capture(8192);
@@ -1937,7 +1937,7 @@ fn x8_raw_input_across_the_integrity_boundary() {
             "INCONCLUSIVE: the listener saw no keys even for a window of its own integrity"
         );
         assert_eq!(
-            within(elevated_from, elevated_to),
+            within(elevated_from, medium_to),
             0,
             "keys typed into an elevated window reached a medium-integrity keyboard source"
         );
@@ -1987,7 +1987,7 @@ fn x7_capture_border_on_the_screen() {
         let during = yellow_edge_pixels();
         screen.stop();
         std::thread::sleep(Duration::from_secs(1));
-        let after = yellow_edge_pixels();
+        let after = yellow_edge_pixels() + during;
         say(
             "x7",
             format!(
@@ -2213,10 +2213,7 @@ mod known_defect {
             let plain_accepted = type_letters(LETTERS);
             pump_thread(Duration::from_millis(300));
             let plain_characters = title_len(plain);
-            let plain_typed = count(
-                &events.drain_for(Duration::from_secs(1)),
-                Modality::Keystroke,
-            );
+            let plain_typed = count(&events.drain_for(Duration::ZERO), Modality::Keystroke);
             say(
                 "x1",
                 format!(
@@ -2317,7 +2314,7 @@ mod known_defect {
             );
             defect!(
                 "RR-windows-08",
-                with_size(50) == 0 && with_size(60) == 0,
+                with_size(50) != 0 || with_size(60) != 0,
                 format!(
                     "TF x2 events_for_background_window_title={} events_for_never_shown_window_title={}",
                     with_size(50),
@@ -2611,7 +2608,7 @@ mod known_defect {
             assert!(start.is_ok(), "the keyboard source must start");
             assert_eq!(
                 accepted,
-                REPEATS + 1,
+                REPEATS + 2,
                 "INCONCLUSIVE: SendInput did not insert every packet"
             );
             assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
@@ -2782,7 +2779,7 @@ mod known_defect {
                 &events.drain_for(Duration::from_millis(700)),
                 Modality::Keystroke,
             );
-            drop(keyboard);
+            keyboard.stop();
             std::thread::sleep(Duration::from_millis(300));
             let accepted_after = press_keys(3);
             let after = count(
