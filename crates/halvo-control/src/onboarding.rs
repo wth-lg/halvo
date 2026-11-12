@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{from_text, UnknownSpelling};
 
-/// Writes the enum as its one spelling and reads that spelling alone, from a JSON string,
-/// as model.rs does for the kinds of capture.
 macro_rules! one_spelling {
     ($kind:ident, $what:literal, [$($variant:ident => $text:literal),+ $(,)?]) => {
         impl $kind {

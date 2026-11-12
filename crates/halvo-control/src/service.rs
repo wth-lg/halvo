@@ -194,8 +194,6 @@ pub fn login_item_state(
     }
 }
 
-/// Whether `meta`, read without following a link, is a regular file with mode 0644 that
-/// `owner` owns, the only file whose bytes `login_item_state` compares.
 #[cfg(target_os = "macos")]
 fn is_the_plist_of(meta: &std::fs::Metadata, owner: u32) -> bool {
     use std::os::unix::fs::MetadataExt;
@@ -239,8 +237,6 @@ fn temp_file_name(spec: &LoginItemSpec) -> String {
     format!(".{}.{}.tmp", spec.file_name(), std::process::id())
 }
 
-/// Removes `.<file name>.<pid>.tmp` of every process that is no longer alive: an
-/// install that crashed between the create and the rename leaves one.
 #[cfg(target_os = "macos")]
 fn remove_temp_files_of_dead_installs(
     spec: &LoginItemSpec,
@@ -830,8 +826,6 @@ mod login_item_tests {
         );
     }
 
-    /// The dead process is a child that the test spawned and waited for, so no process has
-    /// its number when the sweep runs; the live process is the test's own parent.
     #[test]
     fn an_install_and_a_remove_take_away_the_temp_file_of_a_dead_install_alone() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());

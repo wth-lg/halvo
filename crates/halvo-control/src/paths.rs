@@ -246,10 +246,10 @@ pub struct ScratchDir {
 }
 
 impl ScratchDir {
-    /// Takes a scratch path that exists now and holds the path it resolves to. A path that
-    /// does not exist yet is refused with [`PathError::Unresolved`], so a caller makes the
-    /// scratch directory first. A path that is or lies in `user_data_dir`, as given or as
-    /// resolved, is refused with [`PathError::InsideDataDir`].
+    /// Refuses a path that does not exist yet with [`PathError::Unresolved`], so a caller
+    /// makes the scratch directory first, and a path that is or lies in `user_data_dir`, as
+    /// given or as resolved, with [`PathError::InsideDataDir`]. [`ScratchDir::path`] is the
+    /// resolved path.
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
         let given = checked(path.into())?;
         let real = checked(given.canonicalize().map_err(|_| PathError::Unresolved)?)?;
@@ -298,11 +298,9 @@ impl LoginItemDir {
         })
     }
 
-    /// The login item's directory for a scratch run: `dir` itself. An install writes into
-    /// it and never makes it, so it must exist; [`ScratchDir::new`] refuses a path that does
-    /// not exist yet with [`PathError::Unresolved`], and a caller makes the directory before
-    /// it takes the scratch value. A directory that is or lies in the account's
-    /// LaunchAgents directory is refused with [`PathError::InsideLaunchAgents`].
+    /// The login item's directory for a scratch run: `dir` itself, which an install writes
+    /// into and never makes. Refuses `dir` with [`PathError::InsideLaunchAgents`] when, as
+    /// given or as resolved, it is or lies in the account's LaunchAgents directory.
     pub fn scratch_form(dir: &ScratchDir, account: &dyn AccountLookup) -> Result<Self, PathError> {
         let agents = Self::for_account(account)?;
         if dir.is_or_lies_in(agents.path()) {
@@ -362,8 +360,6 @@ fn identity(path: &Path) -> Option<(u64, u64)> {
         .map(|meta| (meta.dev(), meta.ino()))
 }
 
-/// The volume's serial number and the file's index, as the unix branch reads device and
-/// inode.
 #[cfg(windows)]
 fn identity(path: &Path) -> Option<(u64, u64)> {
     use std::os::windows::ffi::OsStrExt;
@@ -485,8 +481,6 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
     Ok(fallback)
 }
 
-/// Whether `meta` is a directory that `uid` owns with mode 0700, the only temporary
-/// directory that may hold the fallback socket.
 #[cfg(target_os = "macos")]
 fn is_a_private_dir_of(meta: &std::fs::Metadata, uid: u32) -> bool {
     use std::os::unix::fs::MetadataExt;
