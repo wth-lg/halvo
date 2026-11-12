@@ -87,24 +87,21 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     fn read_beside_the_keychain(&self) -> Read {
+        if matches!(self.keychain_beside(), Read::Locked(Locked::OtherStore)) {
+            return Read::Locked(Locked::OtherStore);
+        }
+        match self.file.read() {
+            Read::NotStored => self.keychain_beside(),
+            answer => answer,
+        }
+    }
+
+    fn keychain_beside(&self) -> Read {
         match self.keychain.count() {
-            Ok(0) => match self.file.read() {
-                Read::NotStored => match self.keychain.count() {
-                    Ok(0) => Read::NotStored,
-                    Ok(_) => Read::Locked(Locked::OtherStore),
-                    Err(Ok(locked)) => Read::Locked(locked),
-                    Err(Err(fault)) => Read::Fault(fault),
-                },
-                answer => answer,
-            },
+            Ok(0) => Read::NotStored,
             Ok(_) => Read::Locked(Locked::OtherStore),
-            Err(failed) => match self.file.read() {
-                Read::NotStored => match failed {
-                    Ok(locked) => Read::Locked(locked),
-                    Err(fault) => Read::Fault(fault),
-                },
-                answer => answer,
-            },
+            Err(Ok(locked)) => Read::Locked(locked),
+            Err(Err(fault)) => Read::Fault(fault),
         }
     }
 
