@@ -391,6 +391,16 @@ fn class(code: i32) -> Result<Locked, Fault> {
     }
 }
 
+fn fault_of(code: i32) -> Fault {
+    if code == NO_CODE {
+        Fault { code: -1 }
+    } else {
+        Fault {
+            code: i64::from(code),
+        }
+    }
+}
+
 fn write_class(code: i32) -> Write {
     match class(code) {
         Ok(locked) => Write::Locked(locked),
@@ -599,11 +609,24 @@ fn a_failed_step_of_a_write_answers_its_class_and_publishes_nothing() {
 }
 
 #[test]
-fn a_failed_sync_of_the_directory_answers_its_class_after_the_name_is_published() {
+fn a_write_whose_directory_sync_fails_after_the_name_is_published_answers_a_fault() {
     for code in CODES {
         let store = item(Memory::new().failing("sync_dir", code));
-        assert_eq!(store.write(&secret(b"secret")), write_class(code));
+        assert_eq!(
+            store.write(&secret(b"secret")),
+            Write::Fault(fault_of(code)),
+            "{code}"
+        );
         assert_eq!(store.fs.entry(PATH), Some(Entry::file(0o600, b"secret")));
+    }
+}
+
+#[test]
+fn a_delete_whose_directory_sync_fails_after_the_name_is_removed_answers_a_fault() {
+    for code in CODES {
+        let store = item(stored().failing("sync_dir", code));
+        assert_eq!(store.delete(), Delete::Fault(fault_of(code)), "{code}");
+        assert_eq!(store.fs.entry(PATH), None);
     }
 }
 
@@ -692,11 +715,6 @@ fn a_failed_step_of_a_delete_answers_its_class_and_keeps_the_item() {
             assert_eq!(store.delete(), want, "{step} {code}");
             assert!(store.fs.entry(PATH).is_some(), "{step} {code}");
         }
-    }
-    for code in CODES {
-        let store = item(stored().failing("sync_dir", code));
-        assert_eq!(store.delete(), delete_class(code));
-        assert_eq!(store.fs.entry(PATH), None);
     }
 }
 

@@ -129,7 +129,9 @@ fn a_read_under_a_parent_that_the_user_may_not_search_never_answers_not_stored()
 fn a_read_past_an_ancestor_that_is_a_file_never_answers_not_stored() {
     let dir = stored("ancestor-file");
     let parent = dir.parent().expect("a parent").to_path_buf();
-    let aside = parent.with_file_name("parent-aside");
+    let mut aside_name = parent.file_name().expect("a name").to_os_string();
+    aside_name.push("-aside");
+    let aside = parent.with_file_name(aside_name);
     fs::rename(&parent, &aside).expect("the parent moved aside");
     fs::write(&parent, b"a file in the place of an ancestor").expect("a file");
     let store = store_in(&dir);

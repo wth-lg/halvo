@@ -158,11 +158,17 @@ enum Stop {
 
 impl Stop {
     fn of(error: &io::Error) -> Stop {
-        let code = error.raw_os_error().map_or(-1, i64::from);
+        let fault = Stop::fault(error);
         if error.kind() == io::ErrorKind::PermissionDenied {
-            Stop::Locked(Locked::Refused { code })
+            Stop::Locked(Locked::Refused { code: fault.code })
         } else {
-            Stop::Fault(Fault { code })
+            Stop::Fault(fault)
+        }
+    }
+
+    fn fault(error: &io::Error) -> Fault {
+        Fault {
+            code: error.raw_os_error().map_or(-1, i64::from),
         }
     }
 }
@@ -316,7 +322,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
         match self.fs.sync_dir(&self.dir) {
             Ok(()) => Write::Stored,
-            Err(error) => Stop::of(&error).into(),
+            Err(error) => Write::Fault(Stop::fault(&error)),
         }
     }
 
@@ -338,7 +344,7 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
         match self.fs.sync_dir(&self.dir) {
             Ok(()) => Delete::Deleted,
-            Err(error) => Stop::of(&error).into(),
+            Err(error) => Delete::Fault(Stop::fault(&error)),
         }
     }
 }
