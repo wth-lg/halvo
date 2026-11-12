@@ -478,7 +478,9 @@ mod login_item_tests {
     use std::sync::Mutex;
 
     use super::*;
-    use crate::paths::{AccountLookup, DataDir, LoginItemDir, PathError, ScratchDir};
+    use crate::paths::{
+        AccountLookup, DarwinUserTempDir, DataDir, LoginItemDir, PathError, ScratchDir,
+    };
 
     static PROCESS_STATE: Mutex<()> = Mutex::new(());
 
@@ -601,7 +603,7 @@ mod login_item_tests {
             Ok(Some(self.0.clone().into_os_string()))
         }
 
-        fn user_temp_dir(&self) -> Result<Option<PathBuf>, PathError> {
+        fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
             Ok(None)
         }
     }

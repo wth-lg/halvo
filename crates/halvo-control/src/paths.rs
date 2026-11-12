@@ -30,7 +30,20 @@ pub enum PathError {
 pub trait AccountLookup {
     fn base_dir(&self) -> Result<Option<OsString>, PathError>;
 
-    fn user_temp_dir(&self) -> Result<Option<PathBuf>, PathError>;
+    fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DarwinUserTempDir(PathBuf);
+
+impl DarwinUserTempDir {
+    pub fn new(path: PathBuf) -> Option<Self> {
+        is_darwin_user_temp_dir(&path).then_some(Self(path))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -41,7 +54,7 @@ impl AccountLookup for SystemAccount {
         system::base_dir()
     }
 
-    fn user_temp_dir(&self) -> Result<Option<PathBuf>, PathError> {
+    fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
         system::user_temp_dir()
     }
 }
@@ -417,8 +430,8 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
     let temp = account
         .user_temp_dir()?
         .ok_or(PathError::SocketPathTooLong)?;
-    let temp = checked(temp).map_err(|_| PathError::SocketPathTooLong)?;
-    let meta = std::fs::metadata(&temp).map_err(|_| PathError::SocketPathTooLong)?;
+    let temp = temp.path();
+    let meta = std::fs::metadata(temp).map_err(|_| PathError::SocketPathTooLong)?;
     let uid = unsafe { libc::geteuid() };
     if !meta.is_dir() || meta.uid() != uid || meta.mode() & 0o777 != 0o700 {
         return Err(PathError::SocketPathTooLong);
@@ -433,15 +446,19 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
     Ok(fallback)
 }
 
-#[cfg(target_os = "macos")]
 fn is_darwin_user_temp_dir(path: &Path) -> bool {
-    let names: Vec<&std::ffi::OsStr> = path
-        .components()
-        .map(|component| component.as_os_str())
+    let mut components = path.components();
+    if components.next() != Some(Component::RootDir) {
+        return false;
+    }
+    let names: Option<Vec<&str>> = components
+        .map(|component| match component {
+            Component::Normal(name) => name.to_str(),
+            _ => None,
+        })
         .collect();
-    let names: Vec<&str> = names.iter().filter_map(|name| name.to_str()).collect();
-    match names.as_slice() {
-        ["/", "var", "folders", a, b, "T"] | ["/", "private", "var", "folders", a, b, "T"] => {
+    match names.as_deref() {
+        Some(["var", "folders", a, b, "T"]) | Some(["private", "var", "folders", a, b, "T"]) => {
             !a.is_empty() && !b.is_empty()
         }
         _ => false,
@@ -454,7 +471,7 @@ mod system {
     use std::os::unix::ffi::OsStringExt;
     use std::path::PathBuf;
 
-    use super::PathError;
+    use super::{DarwinUserTempDir, PathError};
 
     const MAX_BUFFER: usize = 1 << 20;
 
@@ -488,7 +505,7 @@ mod system {
         }
     }
 
-    pub fn user_temp_dir() -> Result<Option<PathBuf>, PathError> {
+    pub fn user_temp_dir() -> Result<Option<DarwinUserTempDir>, PathError> {
         let name = libc::_CS_DARWIN_USER_TEMP_DIR;
         let len = unsafe { libc::confstr(name, std::ptr::null_mut(), 0) };
         if len == 0 {
@@ -501,7 +518,7 @@ mod system {
         }
         let text = CStr::from_bytes_until_nul(&buf).map_err(|_| PathError::NotUtf8)?;
         let path = PathBuf::from(OsString::from_vec(text.to_bytes().to_vec()));
-        Ok(super::is_darwin_user_temp_dir(&path).then_some(path))
+        Ok(DarwinUserTempDir::new(path))
     }
 }
 
@@ -509,7 +526,6 @@ mod system {
 mod system {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
-    use std::path::PathBuf;
 
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::Security::{TOKEN_IMPERSONATE, TOKEN_QUERY};
@@ -546,7 +562,7 @@ mod system {
         Ok(Some(text))
     }
 
-    pub fn user_temp_dir() -> Result<Option<PathBuf>, PathError> {
+    pub fn user_temp_dir() -> Result<Option<super::DarwinUserTempDir>, PathError> {
         Ok(None)
     }
 }
@@ -566,8 +582,8 @@ mod tests {
             Ok(self.base.map(OsString::from))
         }
 
-        fn user_temp_dir(&self) -> Result<Option<PathBuf>, PathError> {
-            Ok(self.temp.clone())
+        fn user_temp_dir(&self) -> Result<Option<DarwinUserTempDir>, PathError> {
+            Ok(self.temp.clone().and_then(DarwinUserTempDir::new))
         }
     }
 
@@ -940,8 +956,19 @@ mod tests {
         ] {
             assert!(!is_darwin_user_temp_dir(Path::new(bad)), "{bad}");
         }
+        for path in ["/var/folders/7n/abc/T", "/tmp", "relative/T"] {
+            assert_eq!(
+                DarwinUserTempDir::new(PathBuf::from(path)).is_some(),
+                is_darwin_user_temp_dir(Path::new(path)),
+                "{path}"
+            );
+        }
         let temp = SystemAccount.user_temp_dir().unwrap().unwrap();
-        assert!(is_darwin_user_temp_dir(&temp), "{}", temp.display());
+        assert!(
+            is_darwin_user_temp_dir(temp.path()),
+            "{}",
+            temp.path().display()
+        );
     }
 
     #[cfg(windows)]
@@ -1005,6 +1032,7 @@ mod tests {
         let long = |c: &str| DataDir::from_flag(format!("/{}", c.repeat(120))).unwrap();
         let (a, b) = (long("a"), long("b"));
         let temp = SystemAccount.user_temp_dir().unwrap().unwrap();
+        let temp = temp.path();
         let socket_a = socket_path(&a, &SystemAccount).unwrap();
         let socket_b = socket_path(&b, &SystemAccount).unwrap();
         assert_ne!(socket_a, socket_b);
@@ -1021,18 +1049,26 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn a_long_data_directory_without_a_private_user_temp_dir_is_an_error() {
-        use std::os::unix::fs::PermissionsExt;
+    fn an_implementor_cannot_hand_socket_path_a_temp_dir_of_another_shape() {
         let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
-        let open = tempfile::tempdir().unwrap();
-        std::fs::set_permissions(open.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
-        for temp in [
-            None,
-            Some(open.path().to_path_buf()),
-            Some(open.path().join("missing")),
-            Some(PathBuf::from("/")),
-            Some(PathBuf::from("relative")),
-        ] {
+        use std::os::unix::fs::PermissionsExt;
+        let private = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(private.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let account = Account {
+            base: None,
+            temp: Some(private.path().to_path_buf()),
+        };
+        assert_eq!(
+            socket_path(&long, &account),
+            Err(PathError::SocketPathTooLong)
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_long_data_directory_without_a_private_user_temp_dir_is_an_error() {
+        let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
+        for temp in [None, Some(PathBuf::from("/var/folders/r1/no-such-dir/T"))] {
             let account = Account { base: None, temp };
             assert_eq!(
                 socket_path(&long, &account),
