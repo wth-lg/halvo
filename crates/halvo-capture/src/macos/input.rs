@@ -107,7 +107,7 @@ impl SecureInputViolations {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Classification {
     Record(Modality),
-    SecureSuppressed,
+    CountViolation,
     Ignore,
 }
 
@@ -156,7 +156,7 @@ fn classify(etype: CGEventType, secure: SecureInputState) -> Classification {
             if secure == SecureInputState::Inactive {
                 Classification::Record(Modality::Keystroke)
             } else {
-                Classification::SecureSuppressed
+                Classification::CountViolation
             }
         }
         Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => {
@@ -204,7 +204,7 @@ fn dispatch_tap_event(ctx: &TapContext, etype: CGEventType, secure: SecureInputS
                 Unpersisted::EMPTY,
             );
         }
-        Classification::SecureSuppressed => ctx.violations.record(),
+        Classification::CountViolation => ctx.violations.record(),
         Classification::Ignore => {}
     }
 }
@@ -386,7 +386,7 @@ mod tests {
         ] {
             assert_eq!(
                 classify(etype, SecureInputState::Active),
-                Classification::SecureSuppressed,
+                Classification::CountViolation,
                 "a key event must not record while secure input is active"
             );
         }
