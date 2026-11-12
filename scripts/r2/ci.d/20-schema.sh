@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that scripts/r2/20-schema-tests.txt lists at HEAD is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
+# rule: The tests of halvo-schema-core and halvo-schema pass, export-names writes on two runs the names file that the crate commits as tests/golden/names.txt, and the check fails when a test that scripts/r2/20-schema-tests.txt lists at HEAD is renamed, removed, ignored, filtered out or left unbuilt, when its target is pointed at another file, when a test prints the lines that the check reads, or when a tracked file differs from HEAD after the tests, but it does not hold against code of the job that writes a test binary or a tool on the PATH before the check reads them, a test that keeps its name with another body, a required target with its test harness switched off, code that runs before main in a required test file, or a cargo configuration with a runner or a compiler wrapper (ruling S-53).
 set -u
 name=20-schema
 golden=crates/halvo-schema/tests/golden/names.txt
@@ -45,6 +45,8 @@ required_gap() {
         if (bad == "") bad = "the line " FNR " of " list " is not <package> <test target> <test name>"
         next
       }
+      if (($1, $2, $3) in listed && bad == "") bad = "the line " FNR " of " list " stands twice: " $1 " " $2 " " $3
+      listed[$1, $2, $3] = 1
       if ($1 == pkg) { n++; target[n] = $2; test[n] = $3 }
       next
     }
@@ -653,6 +655,13 @@ $later_line
 halvo-schema each_lib_rs_holds_its_form
 "
   check list-line-out-of-form FAIL "FAIL $name (the line 2 of $required is not <package> <test target> <test name>)"
+  repo=$work/line-twice
+  make_repo "$repo" golden "$core_line
+$lock_line
+$later_line
+$lock_line
+"
+  check list-line-twice FAIL "FAIL $name (the line 4 of $required stands twice: $lock_line)"
   repo=$work/no-list
   make_repo "$repo" golden none
   check list-missing FAIL "FAIL $name ($required is missing)"
