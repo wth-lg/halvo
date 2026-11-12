@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -263,13 +263,16 @@ impl CaptureSource for ScreenSource {
         let queue = DispatchQueue::new("com.halvo.capture.screen", None);
         let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
         // SAFETY: `stream`, `output` (which `proto` borrows) and the serial
-        // dispatch queue `queue` are live for the call. This source releases
-        // `output` and `queue` only when the stream cannot run: after this call
-        // fails, after the start completion reports an error, or after the stop
-        // completion arrived. A start or a stop whose completion does not arrive
-        // within 5 s keeps both for the life of the process. Not held here: a
-        // second `start` without `stop`, or dropping a started source, releases
-        // them while the stream may run (RR-macos-sources-07).
+        // dispatch queue `queue` are live for the call. SCStream.h says that the
+        // start and the stop completions each carry an error that tells whether
+        // the start or the stop failed. This source releases `output` and
+        // `queue` only when the stream cannot run: after this call fails, after
+        // the start completion reports an error, or after the stop completion
+        // reports none. A start or a stop whose completion does not arrive within
+        // 5 s, or a stop that reports an error, keeps both for the life of the
+        // process, and the output gives back its sink handle first. Not held
+        // here: a second `start` without `stop`, or dropping a started source,
+        // releases them while the stream may run (RR-macos-sources-07).
         unsafe {
             stream
                 .addStreamOutput_type_sampleHandlerQueue_error(
@@ -311,13 +314,14 @@ impl CaptureSource for ScreenSource {
             None => true,
             Some(stream) => {
                 let (tx, rx) = channel();
-                let handler = RcBlock::new(move |_err: *mut NSError| {
-                    let _ = tx.send(());
+                let handler = RcBlock::new(move |err: *mut NSError| {
+                    let _ = tx.send(err.is_null());
                 });
                 // SAFETY: `stream` is live, and the handler has the completion
-                // signature `void (^)(NSError *)`; it only sends on a channel.
+                // signature `void (^)(NSError *)`; it only sends on a channel
+                // whether the error is nil.
                 unsafe { stream.stopCaptureWithCompletionHandler(Some(&handler)) };
-                rx.recv_timeout(Duration::from_secs(5)).is_ok()
+                stopped_without_error(rx.recv_timeout(Duration::from_secs(5)))
             }
         };
         if stopped {
@@ -327,6 +331,10 @@ impl CaptureSource for ScreenSource {
             keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
         }
     }
+}
+
+fn stopped_without_error(completion: Result<bool, RecvTimeoutError>) -> bool {
+    completion == Ok(true)
 }
 
 fn keep_for_the_life_of_the_process(
@@ -356,7 +364,6 @@ mod tests {
     use objc2::rc::Allocated;
     use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
     use std::ffi::c_void;
-    use std::sync::mpsc::RecvTimeoutError;
 
     #[test]
     fn self_exclusion_is_enforced_in_the_filter() {
@@ -593,6 +600,14 @@ mod tests {
         let before = frame.retain_count();
         deliver(&output, frame.sample());
         assert_eq!(frame.retain_count(), before);
+    }
+
+    #[test]
+    fn only_a_stop_completion_without_error_releases_the_output() {
+        assert!(stopped_without_error(Ok(true)));
+        assert!(!stopped_without_error(Ok(false)));
+        assert!(!stopped_without_error(Err(RecvTimeoutError::Timeout)));
+        assert!(!stopped_without_error(Err(RecvTimeoutError::Disconnected)));
     }
 
     fn screen_ivars() -> (ScreenIvars, SinkWriter) {
