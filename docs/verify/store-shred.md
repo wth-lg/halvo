@@ -769,6 +769,13 @@ it in the plan before weakening an assertion.
 - A copy of a key in a form that neither question reads: as text in a
   table, or in a file below `segments`, where the next shred removes every
   file that is no live segment.
+- A copy of the store key that is encrypted or transformed. The at-rest
+  scan (`store::verify::raw_key_at_rest`, which `--verify-store`, check 1
+  and `no_file_of_a_dropped_store_holds_its_raw_store_key` call) finds the
+  key as raw bytes, as hex of either case with or without the padding of a
+  byte's two digits, as base64 of either alphabet, also inside a longer
+  text, and as a list of decimal numbers such as a debug print or a JSON
+  array gives. A copy in any other form passes it.
 - The header of a segment file as associated data, and its last-chunk
   flag. With either removed, the formal checks pass.
   `store::hardening_tests::every_modified_segment_file_is_rejected_with_no_plaintext`

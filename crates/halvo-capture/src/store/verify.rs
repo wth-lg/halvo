@@ -2,12 +2,13 @@
 //! `--verify-deletion`. Every field the gate reads is a measurement of the
 //! store under test; nothing here prints a constant it did not observe.
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
 
-use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
+use base64::engine::GeneralPurpose;
 use base64::Engine;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -210,18 +211,87 @@ pub(crate) fn check_store(
     Ok(check)
 }
 
+fn hex_text(key: &[u8; 32], upper: bool, padded: bool) -> Zeroizing<Vec<u8>> {
+    let mut text = Zeroizing::new(String::with_capacity(64));
+    for b in key {
+        let _ = match (upper, padded) {
+            (false, true) => write!(text, "{b:02x}"),
+            (true, true) => write!(text, "{b:02X}"),
+            (false, false) => write!(text, "{b:x}"),
+            (true, false) => write!(text, "{b:X}"),
+        };
+    }
+    Zeroizing::new(text.as_bytes().to_vec())
+}
+
+fn base64_text(engine: &GeneralPurpose, key: &[u8; 32], offset: usize) -> Zeroizing<Vec<u8>> {
+    let mut shifted = Zeroizing::new(vec![0u8; offset]);
+    shifted.extend_from_slice(key);
+    let text = Zeroizing::new(engine.encode(shifted.as_slice()));
+    let first = (8 * offset).div_ceil(6);
+    let end = (8 * offset + 8 * key.len()) / 6;
+    Zeroizing::new(text.as_bytes()[first..end].to_vec())
+}
+
 fn key_texts(key: &[u8; 32]) -> Vec<Zeroizing<Vec<u8>>> {
-    let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
-    let hex = Zeroizing::new(hex);
-    vec![
-        Zeroizing::new(key.to_vec()),
-        Zeroizing::new(hex.as_bytes().to_vec()),
-        Zeroizing::new(hex.to_uppercase().into_bytes()),
-        Zeroizing::new(STANDARD.encode(key).into_bytes()),
-        Zeroizing::new(STANDARD_NO_PAD.encode(key).into_bytes()),
-        Zeroizing::new(URL_SAFE.encode(key).into_bytes()),
-        Zeroizing::new(URL_SAFE_NO_PAD.encode(key).into_bytes()),
-    ]
+    let mut texts = vec![Zeroizing::new(key.to_vec())];
+    for upper in [false, true] {
+        for padded in [true, false] {
+            texts.push(hex_text(key, upper, padded));
+        }
+    }
+    for engine in [&STANDARD_NO_PAD, &URL_SAFE_NO_PAD] {
+        for offset in 0..3 {
+            texts.push(base64_text(engine, key, offset));
+        }
+    }
+    texts
+}
+
+fn holds_as_decimal_numbers(bytes: &[u8], key: &[u8; 32]) -> bool {
+    let mut last = Zeroizing::new(Vec::with_capacity(key.len()));
+    let mut at = 0;
+    while at < bytes.len() {
+        if !bytes[at].is_ascii_digit() {
+            at += 1;
+            continue;
+        }
+        let start = at;
+        while at < bytes.len() && bytes[at].is_ascii_digit() {
+            at += 1;
+        }
+        let number = std::str::from_utf8(&bytes[start..at])
+            .ok()
+            .filter(|digits| digits.len() <= 3)
+            .and_then(|digits| digits.parse::<u8>().ok());
+        let Some(number) = number else {
+            last.clear();
+            continue;
+        };
+        if last.len() == key.len() {
+            last.remove(0);
+        }
+        last.push(number);
+        if last.as_slice() == key {
+            return true;
+        }
+        let mut next = at;
+        while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+            next += 1;
+        }
+        if next < bytes.len() && bytes[next] == b',' {
+            next += 1;
+            while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+                next += 1;
+            }
+            if next < bytes.len() && bytes[next].is_ascii_digit() {
+                at = next;
+                continue;
+            }
+        }
+        last.clear();
+    }
+    false
 }
 
 pub(crate) fn raw_key_at_rest(dir: &Path, key: &[u8; 32]) -> StoreResult<bool> {
@@ -239,7 +309,8 @@ pub(crate) fn raw_key_at_rest(dir: &Path, key: &[u8; 32]) -> StoreResult<bool> {
                 bytes
                     .windows(text.len())
                     .any(|window| window == text.as_slice())
-            }) {
+            }) || holds_as_decimal_numbers(&bytes, key)
+            {
                 return Ok(true);
             }
         }
@@ -406,6 +477,7 @@ mod tests {
     use crate::custody::file_root::test_support::{FileRootCustody, TestProtector};
     use crate::custody::file_root::FileRoots;
     use crate::store::db::test_support::make_store;
+    use base64::engine::general_purpose::{STANDARD, URL_SAFE};
 
     #[test]
     fn a_shredded_segment_is_not_decryptable_with_any_remaining_key_while_its_sibling_is() {
@@ -680,30 +752,112 @@ mod tests {
         ));
     }
 
+    fn base64_inside_a_longer_text(
+        engine: &base64::engine::GeneralPurpose,
+        before: usize,
+        key: &[u8; 32],
+        after: usize,
+    ) -> Vec<u8> {
+        let mut bytes = vec![0xa5u8; before];
+        bytes.extend_from_slice(key);
+        bytes.extend(std::iter::repeat_n(0x5au8, after));
+        engine.encode(&bytes).into_bytes()
+    }
+
     #[test]
-    fn the_raw_key_scan_finds_the_key_raw_as_hex_and_as_base64_and_nothing_else() {
-        let key = [0x6bu8; 32];
-        let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
-        let cases: [(&str, Vec<u8>, bool); 6] = [
+    fn the_raw_key_scan_finds_every_listed_form_of_the_key_and_nothing_else() {
+        let key: [u8; 32] = std::array::from_fn(|i| [0x03, 0xf0, 0x0a, 0x9c][i % 4] ^ (i as u8));
+        assert!(key.iter().any(|&b| b < 0x10) && key.iter().any(|&b| b > 0x7f));
+        let hex = |case: fn(&u8) -> String| -> Vec<u8> {
+            key.iter().flat_map(|b| case(b).into_bytes()).collect()
+        };
+        let mut another_list: Vec<u8> = key.to_vec();
+        another_list[17] ^= 0x01;
+        let mut longer_list = vec![1u8, 2, 3, 4, 5];
+        longer_list.extend_from_slice(&key);
+        longer_list.extend_from_slice(&[6, 7]);
+        let cases: Vec<(&str, Vec<u8>, bool)> = vec![
             ("raw bytes", key.to_vec(), true),
-            ("lower hex", hex.clone().into_bytes(), true),
-            ("upper hex", hex.to_uppercase().into_bytes(), true),
+            ("lower hex", hex(|b| format!("{b:02x}")), true),
+            ("upper hex", hex(|b| format!("{b:02X}")), true),
+            (
+                "lower hex without the padding of a byte",
+                hex(|b| format!("{b:x}")),
+                true,
+            ),
+            (
+                "upper hex without the padding of a byte",
+                hex(|b| format!("{b:X}")),
+                true,
+            ),
             ("base64", STANDARD.encode(key).into_bytes(), true),
             (
                 "url-safe base64 without padding",
                 URL_SAFE_NO_PAD.encode(key).into_bytes(),
                 true,
             ),
-            ("another key", vec![0x6c; 32], false),
+            (
+                "base64 of 25 bytes, the key and 7 bytes",
+                base64_inside_a_longer_text(&STANDARD, 25, &key, 7),
+                true,
+            ),
+            (
+                "base64 of 26 bytes and the key",
+                base64_inside_a_longer_text(&STANDARD, 26, &key, 0),
+                true,
+            ),
+            (
+                "url-safe base64 of 1 byte, the key and 3 bytes",
+                base64_inside_a_longer_text(&URL_SAFE, 1, &key, 3),
+                true,
+            ),
+            (
+                "url-safe base64 of 2 bytes and the key, without padding",
+                base64_inside_a_longer_text(&URL_SAFE_NO_PAD, 2, &key, 0),
+                true,
+            ),
+            ("a debug print", format!("{key:?}").into_bytes(), true),
+            (
+                "a pretty debug print",
+                format!("{key:#?}").into_bytes(),
+                true,
+            ),
+            (
+                "a JSON array",
+                serde_json::to_vec(&key.to_vec()).unwrap(),
+                true,
+            ),
+            (
+                "a pretty JSON array",
+                serde_json::to_vec_pretty(&key.to_vec()).unwrap(),
+                true,
+            ),
+            (
+                "a debug print of a longer list",
+                format!("{longer_list:?}").into_bytes(),
+                true,
+            ),
+            ("another key", key.map(|b| b ^ 0x40).to_vec(), false),
+            (
+                "a list with one number changed",
+                format!("{another_list:?}").into_bytes(),
+                false,
+            ),
         ];
+        let mut wrong = Vec::new();
         for (case, bytes, found) in cases {
             let dir = tempfile::tempdir().unwrap();
             std::fs::create_dir(dir.path().join("segments")).unwrap();
             let mut file = b"prefix ".to_vec();
             file.extend_from_slice(&bytes);
+            file.extend_from_slice(b" suffix");
             std::fs::write(dir.path().join("segments").join("one.seg"), &file).unwrap();
-            assert_eq!(raw_key_at_rest(dir.path(), &key).unwrap(), found, "{case}");
+            let answer = raw_key_at_rest(dir.path(), &key).unwrap();
+            if answer != found {
+                wrong.push(format!("{case}: the scan answered {answer}"));
+            }
         }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     #[test]
