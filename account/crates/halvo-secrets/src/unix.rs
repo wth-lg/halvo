@@ -238,13 +238,14 @@ impl Fs for UnixFs {
         let last = match open_at(&dir, &last, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) {
             Ok(handle) => {
                 let meta = meta_of(&handle)?;
-                let handle = (meta.kind == EntryKind::Directory).then_some(handle);
-                Last::Found(meta, handle)
+                if meta.kind == EntryKind::Directory {
+                    Last::Dir(meta, handle)
+                } else {
+                    Last::NotADirectory
+                }
             }
             Err(error) if error.raw_os_error() == Some(ENOENT) => Last::Absent,
-            Err(error) if error.raw_os_error() == Some(ELOOP) => {
-                Last::Found(Meta::of_kind(EntryKind::Link), None)
-            }
+            Err(error) if error.raw_os_error() == Some(ELOOP) => Last::NotADirectory,
             Err(error) => return Err(error),
         };
         Ok(Walk { ancestors, last })

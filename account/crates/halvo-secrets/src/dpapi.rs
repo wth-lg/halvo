@@ -90,7 +90,7 @@ impl Fs for WindowsFs {
         if meta.kind != EntryKind::Directory {
             return Ok(Walk {
                 ancestors: Vec::new(),
-                last: Last::Found(meta, None),
+                last: Last::NotADirectory,
             });
         }
         let handle = open_dir_following(path)?;
@@ -100,7 +100,7 @@ impl Fs for WindowsFs {
         meta.owner = u32::from(!trusted);
         Ok(Walk {
             ancestors: Vec::new(),
-            last: Last::Found(meta, Some(path.to_path_buf())),
+            last: Last::Dir(meta, path.to_path_buf()),
         })
     }
 

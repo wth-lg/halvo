@@ -220,10 +220,10 @@ impl Fs for Memory {
         let ancestors = self.ancestors.borrow().iter().map(Entry::meta).collect();
         let last = match self.entries.borrow().get(path) {
             None => Last::Absent,
-            Some(entry) => {
-                let dir = (entry.kind == EntryKind::Directory).then(|| path.to_path_buf());
-                Last::Found(entry.meta(), dir)
+            Some(entry) if entry.kind == EntryKind::Directory => {
+                Last::Dir(entry.meta(), path.to_path_buf())
             }
+            Some(_) => Last::NotADirectory,
         };
         Ok(Walk { ancestors, last })
     }

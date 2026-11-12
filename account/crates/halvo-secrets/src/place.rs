@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 pub(crate) enum EntryKind {
     File,
     Directory,
+    #[cfg_attr(not(windows), allow(dead_code))]
     Link,
     Other,
 }
@@ -40,7 +41,8 @@ impl Meta {
 
 pub(crate) enum Last<D> {
     Absent,
-    Found(Meta, Option<D>),
+    NotADirectory,
+    Dir(Meta, D),
 }
 
 pub(crate) struct Walk<D> {
@@ -277,12 +279,11 @@ impl<F: Fs, C: Codec> Item<F, C> {
         }
         match walk.last {
             Last::Absent => Ok(None),
-            Last::Found(meta, dir) => {
-                if let Some(locked) = self.rules.dir(&meta, user) {
-                    return Err(Stop::Locked(locked));
-                }
-                dir.map(Some).ok_or(Stop::Locked(Locked::NotADirectory))
-            }
+            Last::NotADirectory => Err(Stop::Locked(Locked::NotADirectory)),
+            Last::Dir(meta, dir) => match self.rules.dir(&meta, user) {
+                Some(locked) => Err(Stop::Locked(locked)),
+                None => Ok(Some(dir)),
+            },
         }
     }
 
