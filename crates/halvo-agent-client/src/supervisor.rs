@@ -7,14 +7,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use halvo_schema::executable::body::{CoordinatorCall, EndRun as EndRunBody};
+use halvo_schema::executable::body::{CoordinatorCall, EndRun as EndRunBody, RunnerCall};
 use halvo_schema::executable::frame::{
-    Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ToRunner,
+    Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, StoreReply,
+    StoreReplyFrame, StoreRequest, ToRunner,
 };
 use halvo_schema::executable::names::Outcome;
 use halvo_schema::executable::record::AgentRun;
 use halvo_schema::executable::text::RunId;
-use halvo_schema::request::CoordinatorRole;
+use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::api::{CallError, Config, EndRun, Parts, ReapAnswer, Reaped, RunEnd, RunSpec, LINK_END};
 use crate::marks::{self, proc_line, Created, MarkFile};
@@ -385,7 +386,43 @@ impl Running<'_> {
                 Flow::Go
             }
             FromRunner::Browser(b) => self.browser(&b),
+            FromRunner::Store(s) => self.store(&s.request),
             _ => Flow::Lost,
+        }
+    }
+
+    fn store(&mut self, request: &StoreRequest) -> Flow {
+        let id = request.id();
+        let body = request.body();
+        let spec = &self.slot.spec;
+        let refuse = |error| StoreReply {
+            id: Some(id.clone()),
+            outcome: Err(error),
+        };
+        let reply = if body.agent() != &spec.agent || body.run() != &spec.run {
+            refuse(binding())
+        } else if self.ending.finish.is_some() {
+            refuse(ReplyError::Workflow(ErrorName::State))
+        } else {
+            self.inner
+                .parts
+                .link
+                .request(request.envelope().as_bytes())
+                .ok()
+                .and_then(|bytes| relayed(&bytes, request))
+                .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal)))
+        };
+        if let (RunnerCall::Finish(f), Ok(_)) = (body, &reply.outcome) {
+            let _ = marks::remove(&self.inner.config.data_dir, &spec.run);
+            self.ending.finish = Some(f.record.clone());
+        }
+        if self
+            .slot
+            .write(&ToRunner::StoreReply(StoreReplyFrame { reply }))
+        {
+            Flow::Go
+        } else {
+            Flow::Lost
         }
     }
 
@@ -443,6 +480,28 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     };
     inner.parts.marks.end(&slot.spec.run, &end);
     slot.ended.store(true, Ordering::SeqCst);
+}
+
+fn binding() -> ReplyError {
+    RunError::parse("binding").map_or(ReplyError::Workflow(ErrorName::Internal), ReplyError::Run)
+}
+
+/// The owner's reply to a runner request as the frame `store_reply` carries it, when it is a reply that the frame
+/// can carry, for that request's id, and of the form that the request's call answers with.
+fn relayed(bytes: &[u8], request: &StoreRequest) -> Option<StoreReply> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let frame = format!(r#"{{"t":"store_reply","reply":{text}}}"#);
+    let ToRunner::StoreReply(StoreReplyFrame { reply }) = ToRunner::parse(frame.as_bytes()).ok()?
+    else {
+        return None;
+    };
+    if reply.id.as_ref() != Some(request.id()) {
+        return None;
+    }
+    match &reply.outcome {
+        Ok(r) if !r.answers(request.body()) => None,
+        _ => Some(reply),
+    }
 }
 
 /// Sends `end_run` for a run whose runner ended without a stored `finish` (A7.2) once; true when acknowledged.

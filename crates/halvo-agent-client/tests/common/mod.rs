@@ -297,19 +297,24 @@ fn end_move(states: &mut Vec<EffectState>) {
     states.push(next);
 }
 
+const CONFIG: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#;
+
 fn load_reply(bindings: &str) -> String {
-    format!(
-        concat!(
-            r#"{{"config":{{"v":1,"workflow":"00000000000000000000000000000001","#,
-            r#""agent":"00000000000000000000000000000002","rev":1,"category":"inbox_triage","#,
-            r#""reasoning":"low","autonomy":"draft_and_confirm","allow":[],"#,
-            r#""caps":{{"untrusted":"no","private":"no","external":"no"}},"#,
-            r#""limits":{{"steps":10,"wall_s":60,"model_tokens":1000}},"#,
-            r#""budget":{{"run":1,"day":1}},"permissions":[],"runtime":"web"}},"#,
-            r#""playbook":null,"bindings":{},"sessions":[]}}"#
-        ),
-        bindings
-    )
+    format!(r#"{{"config":{CONFIG},"playbook":null,"bindings":{bindings},"sessions":[]}}"#)
+}
+
+pub fn kill_pid(pid: u32) {
+    let status = if cfg!(windows) {
+        std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .status()
+    } else {
+        std::process::Command::new("/bin/kill")
+            .args(["-KILL", &pid.to_string()])
+            .status()
+    };
+    assert!(status.is_ok_and(|s| s.success()));
 }
 
 /// The marks of starts and ends, with a wait for the end of a run.
