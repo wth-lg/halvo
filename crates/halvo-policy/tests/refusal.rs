@@ -1,8 +1,52 @@
 mod common;
 
-use halvo_policy::{decide_row, Checkpoint, Decision};
+use halvo_policy::{decide_row, preset, validate, Checkpoint, ConfigCause, Decision};
 use halvo_schema::executable::names::YesNo;
 use halvo_schema::executable::{ActionClass, AllowedClass, Autonomy, Caps};
+use halvo_schema::{AgentId, Category, SeedCategory, WorkflowId};
+
+fn ids() -> (WorkflowId, AgentId) {
+    (
+        WorkflowId::from_random([0x30; 16]),
+        AgentId::from_random([0x40; 16]),
+    )
+}
+
+#[test]
+fn refusal_allow_split() {
+    for &category in SeedCategory::ALL {
+        let (workflow, agent) = ids();
+        let Some(mut c) = preset(Category::from(category), workflow, agent) else {
+            panic!("no preset for {category:?}");
+        };
+        c.autonomy = Autonomy::Unattended;
+        c.allow = vec![AllowedClass::Send];
+        c.caps.untrusted = YesNo::Yes;
+        c.caps.private = YesNo::Yes;
+        for external in [YesNo::Yes, YesNo::No] {
+            c.caps.external = external;
+            assert_eq!(
+                validate(&c),
+                Err(ConfigCause::Allow),
+                "{category:?} {external:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn refusal_unattended_default() {
+    let mut presets = 0;
+    for &category in SeedCategory::ALL {
+        let (workflow, agent) = ids();
+        let Some(c) = preset(Category::from(category), workflow, agent) else {
+            panic!("no preset for {category:?}");
+        };
+        assert_ne!(c.autonomy, Autonomy::Unattended, "{category:?}");
+        presets += 1;
+    }
+    assert_eq!(presets, 10);
+}
 
 fn allow_sets() -> Vec<Vec<AllowedClass>> {
     (0u8..8)
