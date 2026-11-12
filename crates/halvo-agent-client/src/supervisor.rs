@@ -11,12 +11,12 @@ use halvo_schema::executable::body::{
     CoordinatorCall, EndRun as EndRunBody, RunnerCall, RunnerReply,
 };
 use halvo_schema::executable::frame::{
-    Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, StoreReply,
-    StoreReplyFrame, StoreRequest, ToRunner,
+    Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, SecretReply,
+    StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
-use halvo_schema::executable::names::Outcome;
+use halvo_schema::executable::names::{Outcome, Unreadable};
 use halvo_schema::executable::record::AgentRun;
-use halvo_schema::executable::text::RunId;
+use halvo_schema::executable::text::{Name, RunId};
 use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::acts::Acts;
@@ -414,7 +414,30 @@ impl Running<'_> {
             FromRunner::Confirm(c) => self.confirm(&c.request),
             FromRunner::Handback(h) => self.handback(h.request),
             FromRunner::Bind(b) => self.bind(b.origin),
-            FromRunner::Hello(_) | FromRunner::Secret(_) => Flow::Lost,
+            FromRunner::Secret(s) => self.secret(&s.secret),
+            FromRunner::Hello(_) => Flow::Lost,
+        }
+    }
+
+    /// Writes the answer of `Secrets::read` as the answer of the same name, but an empty secret and one that no
+    /// frame can carry as `unreadable` with `fault`.
+    fn secret(&mut self, name: &Name) -> Flow {
+        let fault = ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault));
+        let reply = match self.inner.parts.secrets.read(name) {
+            SecretReply::Stored(value) if value.expose().is_empty() => fault,
+            answer => {
+                let reply = ToRunner::SecretReply(answer);
+                if reply.to_json().is_ok() {
+                    reply
+                } else {
+                    fault
+                }
+            }
+        };
+        if self.slot.write(&reply) {
+            Flow::Go
+        } else {
+            Flow::Lost
         }
     }
 
