@@ -1,6 +1,6 @@
 [package]
 name = "halvo-control"
-version = "0.0.0"
+version.workspace = true
 description = "Halvo control types shared by the app and the capture daemon: the stored model, onboarding, the data directory and the start registrations"
 edition = "2021"
 publish = false

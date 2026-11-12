@@ -1,6 +1,6 @@
 [package]
 name = "halvo-capture"
-version = "0.0.0"
+version.workspace = true
 description = "Halvo always-on capture pipeline: shared types, traits and the daemon skeleton"
 edition = "2021"
 publish = false
