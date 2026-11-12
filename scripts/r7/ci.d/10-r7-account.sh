@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, no file that the dep-info of a package of account/ lists after them (a module of a path attribute, a file of include!, include_str! or include_bytes!) lies outside account/ and the build's target directory, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job.
 set -u
 name=10-r7-account
 case $0 in
@@ -322,6 +322,66 @@ check_metadata() {
   [ "$packages" -gt 0 ] || fail "account/'s metadata holds no package"
 }
 
+dep_info_reads() {
+  awk '
+function normal(p,   n, part, i, k, kept, out) {
+  n = split(p, part, "/"); k = 0
+  for (i = 1; i <= n; i++) {
+    if (part[i] == "" || part[i] == ".") continue
+    if (part[i] == "..") { if (k > 0) k--; continue }
+    kept[++k] = part[i]
+  }
+  out = ""
+  for (i = 1; i <= k; i++) out = out "/" kept[i]
+  return out
+}
+function under(p, dir) { return index(p, dir "/") == 1 }
+BEGIN {
+  account = normal(ENVIRON["DEP_INFO_ACCOUNT"])
+  target = normal(ENVIRON["DEP_INFO_TARGET"])
+  target_physical = normal(ENVIRON["DEP_INFO_TARGET_PHYSICAL"])
+  while ((getline file) > 0) {
+    n = 0; local = 0
+    while ((getline line < file) > 0) {
+      if (line !~ /:$/) continue
+      p = substr(line, 1, length(line) - 1)
+      gsub(/\\/, "/", p)
+      if (p ~ /^[A-Za-z]:/) p = "/" tolower(substr(p, 1, 1)) substr(p, 3)
+      else if (substr(p, 1, 1) != "/") { local = 1; p = account "/" p }
+      read[++n] = normal(p)
+    }
+    close(file)
+    if (!local) continue
+    print "local"
+    for (i = 1; i <= n; i++) {
+      if (!under(read[i], account) && !under(read[i], target) && !under(read[i], target_physical)) print "outside\t" read[i]
+    }
+  }
+}'
+}
+
+check_sources() {
+  find "$target" -name '*.d' -type f >"$work/dep-info.txt" 2>/dev/null
+  target_physical=$(cd "$target" 2>/dev/null && pwd -P) || target_physical=$target
+  DEP_INFO_ACCOUNT=$account_dir DEP_INFO_TARGET=$target DEP_INFO_TARGET_PHYSICAL=$target_physical dep_info_reads <"$work/dep-info.txt" >"$work/dep-info.reads" || fail 'cannot read the dep-info files of the build'
+  dep_info=0
+  outside=0
+  while IFS="$tab" read -r kind value || [ -n "$kind" ]; do
+    case $kind in
+      local) dep_info=$((dep_info + 1)) ;;
+      outside)
+        outside=$((outside + 1))
+        case $value in
+          "${account_dir%/*}"/*) printf 'read outside account/: %s\n' "${value#"${account_dir%/*}"/}" ;;
+          *) printf 'read outside account/: a file outside the repository\n' ;;
+        esac
+        ;;
+    esac
+  done <"$work/dep-info.reads"
+  [ "$dep_info" -gt 0 ] || fail 'cargo wrote no dep-info file of a package of account/'
+  [ "$outside" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
+}
+
 count_tests() {
   tests=0
   without_cr "$1" test-log.txt
@@ -399,7 +459,8 @@ measure() {
   CARGO_TARGET_DIR=$target cargo clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked --offline -- -D warnings
   code=$?
   [ "$code" -eq 0 ] || fail "cargo clippy --all-targets --locked --offline exited $code"
-  printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool"
+  check_sources
+  printf 'account packages=%s vendored=%s of 4 bans=%s tests=%s cargo-deny=%s %s dep-info=%s\n' "$packages" "$compared" "$bans" "$tests" "$pin" "$tool" "$dep_info"
   printf 'PASS %s\n' "$name"
 }
 
@@ -423,7 +484,15 @@ case $1 in
     exec "$STUB_REAL_CARGO" "$@"
     ;;
   deny) exit "${STUB_DENY_EXIT:-0}" ;;
-  build) exit "${STUB_BUILD_EXIT:-0}" ;;
+  build)
+    [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
+    if [ -z "${STUB_NO_DEP_INFO:-}" ]; then
+      mkdir -p "$CARGO_TARGET_DIR/debug/deps" || exit 98
+      printf '%s/debug/deps/halvo_wire-0.d: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/debug/build/halvo-wire-0/out/bounds.rs:\n%s\n# env-dep:STUB=../../../../../../../..\n' "$CARGO_TARGET_DIR" "$CARGO_TARGET_DIR" "${STUB_DEP:+$STUB_DEP:}" >"$CARGO_TARGET_DIR/debug/deps/halvo_wire-0.d" || exit 98
+      printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$CARGO_TARGET_DIR" >"$CARGO_TARGET_DIR/debug/deps/itoa-0.d" || exit 98
+    fi
+    exit "${STUB_BUILD_EXIT:-0}"
+    ;;
   test)
     case " $* " in
       *' --test hosted '*)
@@ -491,6 +560,25 @@ write_crate() {
   : >"$1/src/lib.rs"
 }
 
+make_probe_fixture() {
+  fixture=$work/$1
+  mkdir "$fixture" "$fixture/account" "$fixture/outside" "$fixture/scripts" || return 1
+  for entry in Cargo.toml deny.toml schema; do
+    cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
+  done
+  cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh" || return 1
+  write_crate "$fixture/account/crates/probe" probe || return 1
+  mkdir "$fixture/account/crates/probe/inner" || return 1
+  printf 'pub fn outside() {}\n' >"$fixture/outside/module.rs" || return 1
+  printf 'pub fn included() {}\n' >"$fixture/outside/code.rs" || return 1
+  printf 'text\n' >"$fixture/outside/text.txt" || return 1
+  printf 'bytes\n' >"$fixture/outside/bytes.bin" || return 1
+  printf 'pub fn inner() {}\n' >"$fixture/account/crates/probe/inner/module.rs" || return 1
+  printf 'text\n' >"$fixture/account/crates/probe/inner/text.txt" || return 1
+  printf '%s\n' "$2" >"$fixture/account/crates/probe/src/lib.rs" || return 1
+  relock
+}
+
 relock() {
   (cd "$fixture" && "$real_cargo" metadata --offline --format-version 1 --manifest-path account/Cargo.toml >/dev/null 2>&1)
 }
@@ -528,7 +616,7 @@ run_case() {
   fi
   if [ "$want" = "PASS $name" ]; then
     case $nl$out$nl in
-      *"${nl}account packages=$packages vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found$nl"*) ;;
+      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-1}$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
     calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
@@ -589,6 +677,8 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_ban='account/deny.toml holds a ban that this script does not admit'
   cause_path="account/'s metadata holds a path outside account/"
   cause_name="account/'s metadata holds a package whose name contains sqlite or sqlcipher"
+  cause_source='a source of account/ reads a file outside account/'
+  cause_no_dep_info='cargo wrote no dep-info file of a package of account/'
 
   fixture=$work/no-repository
   run_case no-repository "FAIL $name (cannot enter the repository that CI_D_REPO names)" stub
@@ -695,6 +785,30 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   run_case metadata-name-with-sqlite-in-mixed-case "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlite.json"
   run_case metadata-name-with-sqlcipher "FAIL $name ($cause_name)" stub STUB_METADATA="$work/sqlcipher.json"
   run_case metadata-without-a-package "FAIL $name (account/'s metadata holds no package)" stub STUB_METADATA="$work/empty.json"
+
+  stub_case dep-info-absent "FAIL $name ($cause_no_dep_info)" stub STUB_NO_DEP_INFO=1
+  stub_case dep-info-path-outside "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../outside/code.rs'
+  stub_case dep-info-absolute-path-outside "FAIL $name ($cause_source)" stub STUB_DEP=/outside/code.rs
+  stub_case dep-info-windows-separators "FAIL $name ($cause_source)" stub STUB_DEP='crates\halvo-wire\src\..\..\..\..\outside\code.rs'
+  stub_case dep-info-windows-drive "FAIL $name ($cause_source)" stub STUB_DEP='D:\outside\code.rs'
+  want_packages=1
+  make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
+pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  make_probe_fixture include-outside 'include!("../../../../outside/code.rs");' &&
+    run_case include-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  make_probe_fixture include-str-outside 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' &&
+    run_case include-str-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  make_probe_fixture include-bytes-outside 'pub const BYTES: &[u8] = include_bytes!("../../../../outside/bytes.bin");' &&
+    run_case include-bytes-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  want_dep_info=2
+  make_probe_fixture includes-inside 'include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+#[path = "../inner/module.rs"]
+pub mod inner;
+pub const TEXT: &str = include_str!("../inner/text.txt");' &&
+    printf 'fn main() {\n    let out = std::env::var("OUT_DIR").unwrap();\n    std::fs::write(std::path::Path::new(&out).join("generated.rs"), "pub fn generated() {}\\n").unwrap();\n}\n' >"$fixture/account/crates/probe/build.rs" &&
+    run_case includes-inside "PASS $name" stub STUB_BUILD_REAL=1
+  want_packages=
+  want_dep_info=
 
   make_fixture sqlite-in-lock && edit Cargo.lock awk '{ print } END { print ""; print "[[package]]"; print "name = \"libsqlite3-sys\""; print "version = \"0.35.0\""; print "source = \"registry+https://github.com/rust-lang/crates.io-index\"" }' &&
     run_case sqlite-in-lock "FAIL $name ($cause_fetch)" stub
