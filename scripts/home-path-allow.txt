@@ -1,0 +1,8 @@
+# The made-up home paths that the fixtures of this repository hold on purpose.
+# scripts/check-home-paths.sh reads this list; sh scripts/check-home-paths.sh --help, The list.
+# One entry per line: the file, a tab, the home path as the scan matches it, a tab, the reason.
+# A path that names the account of a real machine never goes here.
+scripts/r4/words/lint.mjs	/Users/ann	a fixture of the words lint: a sentence that names a made-up path and a second word class
+scripts/r4/words/never-read-cases.txt	/Users/sam	a case of the words lint for a path in a sentence; sam is a made-up name
+scripts/r4/words/never-read-cases.txt	/Users/ann	cases of the words lint for a path between quotes and brackets; ann is a made-up name
+scripts/r4/words/never-read-cases.txt	\Users\Ann	a case of the words lint for a Windows path; Ann is a made-up name
