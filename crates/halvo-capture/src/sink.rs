@@ -109,7 +109,18 @@ impl Received {
     pub fn event(&self) -> &CaptureStreamEvent {
         &self.event
     }
+
+    /// Whether the writer received this event before it drew `barrier`.
+    pub fn is_before(&self, barrier: Barrier) -> bool {
+        self.number.0 < barrier.0
+    }
 }
+
+/// The first [`ArrivalNumber`] that the writer had not given when
+/// [`SinkWriter::barrier`] drew it. Only that call makes one, so code that holds
+/// only a [`SinkHandle`] cannot draw a barrier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Barrier(u64);
 
 /// The single drain side. Not `Clone` and not `Sync`: there is one receiver, and
 /// it numbers what it receives. The daemon owns it.
@@ -143,6 +154,15 @@ impl SinkWriter {
     /// The raw receiver, for a writer that wants to select or batch.
     pub fn receiver(&self) -> &Receiver<CaptureStreamEvent> {
         &self.rx
+    }
+
+    /// Draw a barrier at the next number that this writer will give. Every event
+    /// received before the draw is before it. An event that was still queued, or
+    /// still blocked in an emit, at the draw is not before it, so an owner that
+    /// discards the events at or after a barrier discards those too, up to the
+    /// queue depth, which errs toward not persisting.
+    pub fn barrier(&self) -> Barrier {
+        Barrier(self.next.get())
     }
 
     fn number(&self, event: CaptureStreamEvent) -> Received {
@@ -259,6 +279,48 @@ mod tests {
         }
         assert_eq!(next_index, [PER_EMITTER; EMITTERS]);
         assert_eq!(expected, 400_000);
+    }
+
+    #[test]
+    fn everything_received_before_a_barrier_is_below_it() {
+        const EMITTERS: usize = 4;
+        const PER_EMITTER: u64 = 10_000;
+        const BEFORE_THE_DRAW: usize = 5_000;
+        let (handle, writer) = bounded(NonZeroUsize::new(64).unwrap());
+        let emitters: Vec<_> = (0..EMITTERS)
+            .map(|emitter| {
+                let handle = handle.clone();
+                thread::spawn(move || {
+                    let tag = i64::try_from(emitter).unwrap();
+                    for index in 0..PER_EMITTER {
+                        handle
+                            .emit(unnumbered(Modality::Keystroke, tag, index))
+                            .unwrap();
+                    }
+                })
+            })
+            .collect();
+        drop(handle);
+        let receive = || writer.recv_timeout(Duration::from_secs(10));
+        let before: Vec<Received> = (0..BEFORE_THE_DRAW)
+            .map(|_| receive().expect("an event inside 10 s"))
+            .collect();
+        let barrier = writer.barrier();
+        assert_eq!(writer.barrier(), barrier);
+        let mut after = Vec::new();
+        loop {
+            match receive() {
+                Ok(received) => after.push(received),
+                Err(RecvTimeoutError::Disconnected) => break,
+                Err(RecvTimeoutError::Timeout) => panic!("no event and no disconnect in 10 s"),
+            }
+        }
+        for emitter in emitters {
+            emitter.join().unwrap();
+        }
+        assert_eq!(before.len() + after.len(), 40_000);
+        assert!(before.iter().all(|received| received.is_before(barrier)));
+        assert!(after.iter().all(|received| !received.is_before(barrier)));
     }
 
     #[test]
