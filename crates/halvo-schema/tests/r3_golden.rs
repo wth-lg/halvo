@@ -4,18 +4,18 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    Accepted, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun, Finish, Load, LoadReply,
-    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutEffect, PutLog,
-    PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
+    Accepted, AddOrigin, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun, Finish, Load,
+    LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, PutEffect,
+    PutLog, PutPlaybook, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
     SetState, StartRun, StateReply, StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
 use halvo_schema::executable::frame::{
-    Approval, Cancel, Confirm, ConfirmDecision, ConfirmEffect, ConfirmReply, ConfirmRequest, Done,
-    FromRunner, Handback, HandbackReply, HandbackRequest, HandbackResult, Hello, Progress,
-    ReplyError, RunError, Secret, SecretReply, Store, StoreReply, StoreReplyFrame, StoreRequest,
-    ToRunner,
+    Approval, Bind, BindReply, Browser, BrowserReply, Cancel, Confirm, ConfirmDecision,
+    ConfirmEffect, ConfirmReply, ConfirmRequest, Done, FromRunner, Handback, HandbackReply,
+    HandbackRequest, HandbackResult, Hello, Progress, ReplyError, RunError, Secret, SecretReply,
+    Store, StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
 use halvo_schema::executable::names::*;
 use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentRun, Slot};
@@ -23,13 +23,15 @@ use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
 };
 use halvo_schema::executable::text::{
-    ApprovalId, Digest, EffectId, Endpoint, Name, OwnText, OwnValue, RunId, SecretText,
-    SessionData, WebOrigin, V1,
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, OwnText, OwnValue, RunId,
+    SecretText, SessionData, WebOrigin, V1,
 };
 use halvo_schema::executable::{self, ERROR_NAMES, NAMES};
 use halvo_schema::record::Instant;
 use halvo_schema::request::{ErrorName, RunnerRequest, RunnerRole};
 use halvo_schema::{AgentId, RequestId, WorkflowId};
+
+const TABLE_MADE_BY_NODE: &str = "origin-oracle.tsv";
 
 const FILES: [&str; 11] = [
     "configs.jsonl",
@@ -705,7 +707,6 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
         CoordinatorCall::SetBindings(SetBindings {
             workflow: workflow(),
             agent: agent(),
-            origins: vec![origin(UTILITY), origin(PAY)],
             slots: slots(),
         }),
         CoordinatorCall::SetState(SetState {
@@ -723,6 +724,27 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             workflow: workflow(),
             agent: agent(),
             run: run(),
+        }),
+        CoordinatorCall::AddOrigin(AddOrigin {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            origin: origin(UTILITY),
+            way: Way::SignIn,
+        }),
+        CoordinatorCall::AddOrigin(AddOrigin {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            origin: origin("https://graph.test:18443"),
+            way: Way::AccountLink,
+        }),
+        CoordinatorCall::AddOrigin(AddOrigin {
+            workflow: workflow(),
+            agent: agent(),
+            run: run(),
+            origin: origin(PAY),
+            way: Way::NewOrigin,
         }),
     ]
 }
@@ -824,6 +846,19 @@ fn from_runner() -> Vec<FromRunner> {
         FromRunner::Done(Done {
             outcome: Outcome::Completed,
         }),
+        FromRunner::Bind(Bind {
+            origin: origin(PAY),
+        }),
+        FromRunner::Browser(Browser {
+            pid: n(4242),
+            created: CreationTime::parse("1794339000123456").unwrap(),
+            group: Some(n(4242)),
+        }),
+        FromRunner::Browser(Browser {
+            pid: n(4242),
+            created: CreationTime::parse("1794339000123456").unwrap(),
+            group: None,
+        }),
     ]
 }
 
@@ -865,10 +900,14 @@ fn to_runner() -> Vec<ToRunner> {
                 secret: Some(name("fixture_token")),
             },
         }),
-        ToRunner::SecretReply(SecretReply {
-            value: Some(SecretText::new("tok_fixture")),
-        }),
+        ToRunner::SecretReply(SecretReply::Stored(SecretText::new("tok_fixture"))),
+        ToRunner::SecretReply(SecretReply::None),
+        ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Locked)),
+        ToRunner::SecretReply(SecretReply::Unreadable(Unreadable::Fault)),
         ToRunner::Cancel(Cancel {}),
+        ToRunner::BindReply(BindReply { bound: YesNo::Yes }),
+        ToRunner::BindReply(BindReply { bound: YesNo::No }),
+        ToRunner::BrowserReply(BrowserReply {}),
     ]
 }
 
@@ -933,7 +972,7 @@ fn golden_r3_files_are_built_again_from_values_and_equal_byte_for_byte() {
     let mut listed: Vec<String> = std::fs::read_dir(committed_dir())
         .unwrap()
         .map(|e| e.unwrap().file_name().into_string().unwrap())
-        .filter(|name| name != "own")
+        .filter(|name| name != "own" && name != TABLE_MADE_BY_NODE)
         .collect();
     listed.sort();
     let mut expected: Vec<String> = FILES.iter().map(|f| (*f).to_owned()).collect();
@@ -1029,7 +1068,8 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
         Adapter,
         ApiOp,
         Source,
-        Check
+        Check,
+        Way
     );
     for class in ActionClass::ALL {
         derived.extend(
