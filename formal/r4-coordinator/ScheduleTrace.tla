@@ -94,7 +94,7 @@ TickCands(s) ==
 OtherCands(s) ==
     (IF s.life <= MaxRestarts THEN <<B(s.day)>> ELSE <<>>)
     \o Cat([a \in 1..NAgents |->
-              IF s.dels < MaxDeletes /\ a \in Deletable \ s.gone THEN <<D(a)>> ELSE <<>>])
+              IF s.dels < MaxDeletes /\ a \in Deletable \ (s.gone \cup s.lost) THEN <<D(a)>> ELSE <<>>])
     \o Cat([a \in 1..NAgents |-> IF a \in OffAgents \ s.off THEN <<O(a)>> ELSE <<>>])
 
 EnvCands(g) ==
@@ -179,7 +179,7 @@ Snap(s0, f) ==
          KV("starts", PerAgent(Starts)),
          KV("slot", PerAgent(Slot)),
          KV("fails", PerAgent(Fails)),
-         KV("gone", AgentList(Sorted(s.gone))),
+         KV("gone", AgentList(Sorted(s.gone \cup s.lost))),
          KV("lost", AgentList(Sorted(s.lost))),
          KV("open", RunList({f.open[a] : a \in Agents} \ {0})),
          KV("unknown", RunList({f.unknown[a] : a \in Agents} \ {0})),

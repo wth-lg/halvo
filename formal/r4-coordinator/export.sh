@@ -9,10 +9,11 @@ Writes traces-schedule.jsonl and traces-confirm.jsonl from the models Schedule a
 Confirm4 of this directory: N random walks of each model and, after them, the directed
 traces, 13 of Schedule and 15 of Confirm4. Each directed trace names a configuration, and
 the export fails when a move of it is no move of the model under that configuration's
-constants. PATH is tla2tools.jar of the release that README.md names. DIR is an existing directory and defaults to this one. Without --seed
-and --count the export takes both from the first line of the committed
-traces-schedule.jsonl. The first line of both files holds one stamp, the SHA-256 of
-the model files that the traces were exported from.
+constants. PATH is tla2tools.jar of the release that README.md names. DIR is an existing
+directory and defaults to this one. Without --seed and --count the export takes both
+from the first line of the committed traces-schedule.jsonl. The first line of both files
+holds one stamp, the SHA-256 of the model files and the configuration files that the
+traces were exported from.
 
 Exit status: 0 when both files are written. 1 when the export ran and a check or a
 write missed; it prints which, the two trace files of DIR are as they were, and DIR
@@ -121,7 +122,7 @@ done
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/r4-export.XXXXXX") || miss "scratch=miss"
 cp "$here"/*.tla "$here"/*.cfg "$here/limits.json" "$work/" || miss "scratch=miss"
-stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
+stamp=$(cd "$work" && cat Schedule.tla Schedule.cfg Schedule-holds.cfg Schedule-left.cfg Schedule-reap.cfg Confirm4.tla Confirm4.cfg ScheduleTrace.tla Confirm4Trace.tla TraceText.tla limits.json | tr -d '\r' | sha256)
 test "${#stamp}" -eq 64 || miss "stamp=miss"
 
 : >"$work/cases.txt"
