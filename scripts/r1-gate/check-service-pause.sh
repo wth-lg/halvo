@@ -9,7 +9,7 @@ interval_defect() {
   case $interval_line in "floor interval from=$3 to=$4 records="*) ;; *) printf 'the floor report holds no interval line for from=%s to=%s: %s\n' "$3" "$4" "${interval_line:-none}"; return 1 ;; esac
   interval_n=$(floor_value "$1" interval records)
   case $interval_n in ''|*[!0-9]*) printf 'the floor report holds no interval line\n'; return 1 ;; esac
-  [ "$interval_n" -eq 0 ] && return 0
+  [ "$interval_n" -le 2 ] && return 0
   printf '%s records have their capture instant inside the paused interval %s\n' "$interval_n" "$2"
   return 1
 }

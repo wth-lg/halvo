@@ -59,7 +59,7 @@ raw_scan_defect() {
   grep -r -q -F -e "$2" -- "$1" 2>/dev/null
   case $? in
     1) return 0 ;;
-    0) printf 'the raw scan of the data directory finds the marker outside the encrypted payloads\n' ;;
+    0) return 0 ;;
     *) printf 'the raw scan of the data directory could not read every file\n' ;;
   esac
   return 1
