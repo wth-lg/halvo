@@ -262,3 +262,16 @@ pub(in crate::coordinator) fn opt<T>(
         }
     }
 }
+
+pub(in crate::coordinator) fn list<T>(
+    read: impl Fn(&RawValue) -> Result<T, Refusal>,
+) -> impl Fn(&RawValue) -> Result<Vec<T>, Refusal> {
+    move |raw| {
+        if !raw.get().starts_with('[') {
+            return Err(Refusal::new("list", "not_a_list"));
+        }
+        let items: Vec<&RawValue> =
+            serde_json::from_str(raw.get()).map_err(|_| Refusal::new("list", "not_a_list"))?;
+        items.into_iter().map(&read).collect()
+    }
+}
