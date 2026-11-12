@@ -885,26 +885,107 @@ fn a_link_account_item_shows_its_origin_and_its_answer_stores_it() {
     )));
 }
 
-#[test]
-fn a_confirm_request_for_an_effect_whose_newest_release_rejected_it_gets_no_card() {
-    let c = coordinator(&[MANUAL], Limits::PRODUCT);
-    let run = start(&c, 0);
+/// The run ends with `end` as every stop: one `cancel` since `m`, the row says that it stops, and
+/// at the first tick after `cancel_grace_s` it is killed and its `run_ended` holds `end`.
+fn ends_with(c: &Coordinator<Both>, m: usize, run: &RunId, end: RunEnd, now: u64) {
+    let cancels = calls_since(c, m)
+        .iter()
+        .filter(|call| matches!(call, Call::Cancel(r) if r == run))
+        .count();
+    assert_eq!(cancels, 1, "one cancel");
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.working.stopping"));
+    c.ports().ports.set_clock(now + 4_999, DAY);
+    c.tick();
+    assert!(
+        !calls_since(c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Kill(r) if r == run)),
+        "no kill before the grace"
+    );
+    c.ports()
+        .ports
+        .set_clock(now + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert!(calls_since(c, m)
+        .iter()
+        .any(|call| matches!(call, Call::Kill(r) if r == run)));
+    assert!(events(c).contains(&What::RunEnded {
+        run: run.clone(),
+        cause: end
+    }));
+    assert_eq!(c.live(), 0);
+}
+
+fn items_raised(c: &Coordinator<Both>) -> usize {
+    events(c)
+        .iter()
+        .filter(|w| matches!(w, What::ItemRaised { .. }))
+        .count()
+}
+
+fn allowed(c: &Coordinator<Both>) -> (RunId, ItemId) {
+    let run = start(c, 0);
     c.on_run(&run, ask_confirm(&run, 0)).unwrap();
-    let (item, _) = open_item(&c);
+    let (item, _) = open_item(c);
     c.on_screen(&item);
     c.ports().ports.set_clock(T0 + 1_000, DAY);
     c.tick();
+    (run, item)
+}
+
+#[test]
+fn a_confirm_request_for_an_effect_whose_newest_release_rejected_it_gets_no_card_and_ends_its_run()
+{
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let (run, item) = allowed(&c);
     assert_eq!(c.answer(&item, Choice::Reject, None), Ok(()));
-    let raised = |c: &Coordinator<Both>| {
-        events(c)
-            .iter()
-            .filter(|w| matches!(w, What::ItemRaised { .. }))
-            .count()
-    };
-    let before = raised(&c);
-    assert!(c.on_run(&run, ask_confirm(&run, 0)).is_err());
-    assert_eq!(raised(&c), before, "no card for the late request");
+    let before = items_raised(&c);
+    let m = mark(&c);
+    assert_eq!(c.on_run(&run, ask_confirm(&run, 0)), Err(Cause::State));
+    assert_eq!(items_raised(&c), before, "no card for the late request");
     assert!(c.snapshot().items.is_empty());
+    ends_with(&c, m, &run, RunEnd::Kind, T0 + 1_000);
+}
+
+#[test]
+fn a_confirm_request_for_an_effect_that_has_begun_gets_no_card_and_ends_its_run() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let (run, item) = allowed(&c);
+    assert_eq!(c.answer(&item, Choice::Allow, None), Ok(()));
+    c.stored(&halvo_coord::guard::EffectRecord {
+        run: run.clone(),
+        agent: agent(0),
+        effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe1)).unwrap(),
+        state: halvo_coord::guard::EffectState::Committed,
+        class: Class::Send,
+        digest: halvo_coord::types::Digest::parse(&"ab".repeat(32)).unwrap(),
+        approval: None,
+    });
+    let before = items_raised(&c);
+    let m = mark(&c);
+    assert_eq!(c.on_run(&run, ask_confirm(&run, 0)), Err(Cause::State));
+    assert_eq!(items_raised(&c), before, "no card for the late request");
+    ends_with(&c, m, &run, RunEnd::Kind, T0 + 1_000);
+}
+
+#[test]
+fn a_request_after_items_per_run_items_ends_its_run_with_budget() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    for _ in 0..Limits::PRODUCT.items_per_run {
+        c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+            .unwrap();
+        let (item, _) = open_item(&c);
+        c.answer(&item, Choice::Done, None).unwrap();
+    }
+    let before = items_raised(&c);
+    let m = mark(&c);
+    assert_eq!(
+        c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed)),
+        Err(Cause::State)
+    );
+    assert_eq!(items_raised(&c), before);
+    ends_with(&c, m, &run, RunEnd::Budget, T0);
 }
 
 #[test]
@@ -937,4 +1018,51 @@ fn an_agent_whose_setup_body_the_owner_refused_with_binding_is_unknown_agent() {
         "nothing more is sent or stored for that agent"
     );
     assert!(c.snapshot().items.is_empty());
+}
+
+#[test]
+fn a_second_request_while_the_run_waits_lapses_its_item_and_ends_the_run_with_kind() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed))
+        .unwrap();
+    let (item, _) = open_item(&c);
+    let m = mark(&c);
+    assert_eq!(
+        c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed)),
+        Err(Cause::State)
+    );
+    assert!(events(&c).contains(&What::ItemLapsed {
+        item,
+        lapsed: Lapsed::Stuck(OtherLapse::RunEnded)
+    }));
+    assert!(c.snapshot().items.is_empty());
+    ends_with(&c, m, &run, RunEnd::Kind, T0);
+}
+
+#[test]
+fn a_setup_body_refused_with_config_asks_every_parameter_again_on_the_same_item() {
+    let (c, made, item) = setup_agent();
+    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
+        .unwrap();
+    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
+        .unwrap();
+    c.ports().ports.refuse(
+        Method::Send,
+        PortError::Refused(Name::parse("config").unwrap()),
+    );
+    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    c.ports().ports.clear_refusals();
+    let s = c.snapshot();
+    assert_eq!(
+        s.rows.iter().find(|r| r.agent == made).unwrap().status,
+        Status::NeedsYou
+    );
+    assert_eq!(s.items.len(), 1);
+    assert_eq!(s.items[0].item(), &item);
+    assert_eq!(s.items[0].params().len(), 3, "every parameter again");
+    assert_eq!(
+        c.answer(&item, Choice::Choose, Some((Param::Start, 1))),
+        Ok(())
+    );
 }

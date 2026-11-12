@@ -11,15 +11,23 @@ use crate::types::{
 use std::cell::RefCell;
 
 /// Who stops a live run with the move `stop` of the run drive: the person's stop control,
-/// which gives the cause `cancelled`, or a lapse of the run's item with `wait_limit`, which
-/// gives `lapsed` (I5.6, I5.7). The switch-off control and a workflow that is gone stop a
-/// run through `Act::SwitchOff` and `Act::Tick`.
+/// which gives the cause `cancelled`, a lapse of the run's item with `wait_limit`, which gives
+/// `lapsed` (I5.6, I5.7), or the coordinator's answer to a request that ends the run with
+/// `kind` or `budget` (I3.1, I3.3, ruling IG-32). The switch-off control and a workflow that is
+/// gone stop a run through `Act::SwitchOff` and `Act::Tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopBy {
     /// The person's stop control.
     Person,
     /// A lapse of the run's item with `wait_limit`.
     WaitLimit,
+    /// The coordinator's answer to a request of the run that ends it with `kind`: a request that
+    /// A-A6.2 does not list, a class outside the six, a request while the run waits, or a confirm
+    /// request for an effect that has begun or whose newest released decision is `reject_once`
+    /// (I3.1, ruling IG-32).
+    Kind,
+    /// A request after the run raised `items_per_run` items, which ends it with `budget` (I3.3).
+    Budget,
 }
 
 impl StopBy {
@@ -28,6 +36,8 @@ impl StopBy {
         match self {
             StopBy::Person => StopCause::Cancelled,
             StopBy::WaitLimit => StopCause::Lapsed,
+            StopBy::Kind => StopCause::Kind,
+            StopBy::Budget => StopCause::Budget,
         }
     }
 }
@@ -330,10 +340,11 @@ where
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,
 /// I5.10). `hello`, `wait` and `resume` move the phase of the run's member by `run_step` and
-/// call no port; any other pair, and a run that is not live, is `state`. A stop of a `waiting`
-/// run whose item has not lapsed is `state` and calls no port: the lapse of an item of every
-/// kind that stops its run stops it in the guard's table first, which is the fact that this
-/// reads (ruling RD-6). A stop of a live run that is not `stopping` sends `Runs::cancel` and
+/// call no port; any other pair, and a run that is not live, is `state`. A stop by the person
+/// or by `wait_limit` of a `waiting` run whose item has not lapsed is `state` and calls no port:
+/// the lapse of an item of every kind that stops its run stops it in the guard's table first,
+/// which is the fact that this reads (ruling RD-6); a stop with `kind` or `budget` asks no such
+/// fact, because the caller lapses the run's item with `run_ended` before it. A stop of a live run that is not `stopping` sends `Runs::cancel` and
 /// stops the run in the guard's table, unless
 /// the table holds the run as stopped already, where the lapse of its item that stopped it
 /// there sent the cancel (I4.5), and then makes the run `stopping` with the cause of the
@@ -494,7 +505,8 @@ fn stop<P>(
 where
     P: Runs + Clock + Owner,
 {
-    stop_as(ports, board, table, run, by, true)
+    let lapsed_first = matches!(by, StopBy::Person | StopBy::WaitLimit);
+    stop_as(ports, board, table, run, by, lapsed_first)
 }
 
 /// The stop of a live run; `lapsed_first` makes a `waiting` run whose item has not lapsed in

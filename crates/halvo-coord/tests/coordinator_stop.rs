@@ -187,3 +187,42 @@ fn the_persons_stop_of_a_held_confirmation_lapses_it_with_cancelled_and_stops_it
     assert_eq!(stop.report.answer, Ok(Answer::Ok));
     assert_eq!(cancels(&w.calls()), 1);
 }
+
+#[test]
+fn a_stop_with_kind_or_budget_ends_with_its_cause_in_run_step_and_in_the_stored_run_ended() {
+    use halvo_coord::run::{run_step, Ending, Next, Phase, RunMove};
+    use halvo_coord::types::{Outcome, RunEnd};
+    for (by, end) in [
+        (StopBy::Kind, RunEnd::Kind),
+        (StopBy::Budget, RunEnd::Budget),
+    ] {
+        let mut w = world(&[MANUAL]);
+        let run = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
+        w.act(Act::Hello { run: run.clone() });
+        let stop = w.act(Act::Stop {
+            run: run.clone(),
+            by,
+        });
+        assert_eq!(stop.report.answer, Ok(Answer::Ok));
+        let live = w.board.runs.iter().find(|r| r.run == run).unwrap();
+        let phase = Phase::of(&Live::Stopping, live.stop);
+        assert_eq!(
+            run_step(
+                Some(&phase),
+                RunMove::End(Ending::Frame(Some(Outcome::Completed)))
+            ),
+            Ok(Next::Ended(end))
+        );
+        w.ports.end_runner(&run);
+        let ended = w.act(Act::End {
+            run: run.clone(),
+            outcome: Some(Outcome::Completed),
+        });
+        assert_eq!(ended.report.ended[0].cause, end);
+        assert!(w.ports.events.borrow().iter().any(|e| e.what
+            == What::RunEnded {
+                run: run.clone(),
+                cause: end
+            }));
+    }
+}

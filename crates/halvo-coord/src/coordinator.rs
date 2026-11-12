@@ -12,7 +12,8 @@ use crate::sync::{Next, Sync};
 use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
-    OwnItemKind, Param, Presenter, Row, RunEvent, RunId, RunItem, RunItemKind, Snapshot, Status,
+    OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
+    Status,
 };
 use crate::words;
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -376,10 +377,12 @@ where
         let _ = schedule::resync(&self.ports, &facts.agent, &mut facts.events);
     }
 
-    /// A run's event (I5.10): `hello`, a request, which raises its item by `raise_step` and the
-    /// item drive and moves the run to `waiting`, and the runner's end, before which the run's
-    /// open item lapses with `run_ended`. A request that `raise_step` ends the run for (`kind`,
-    /// `budget`) is answered `state`: no drive ends a run with those causes yet.
+    /// A run's event (I5.10): `hello`; a request, which raises its item through `raise_confirm`
+    /// with the guard's table of this life for a confirm request (ruling IG-32), and through
+    /// `raise_step` for any other, and moves the run to `waiting`; the second step of a `sign_in`
+    /// item (`Bind`); and the runner's end, before which the run's open item lapses with
+    /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
+    /// with that cause and is answered `state`.
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.lock();
         let out = self.on_run_in(&mut st, run, &event);
@@ -457,7 +460,8 @@ where
                     Raise::Answer(result) => items::answer_from_check(&self.ports, run, result),
                     Raise::Nothing => Ok(()),
                     Raise::Refused(cause) => Err(cause),
-                    Raise::Own(_) | Raise::End(_) => Err(Cause::State),
+                    Raise::End(end) => self.end_for_request(st, i, run, end),
+                    Raise::Own(_) => Err(Cause::State),
                 }
             }
         }
@@ -538,6 +542,46 @@ where
                 },
             },
         )
+    }
+
+    /// Ends the run of a request that `raise_confirm` or `raise_step` answered with the end `end`
+    /// (I3.1, I3.3, ruling IG-32): the run's open item and every item of the run that the
+    /// coordinator holds lapse with `run_ended`, and the run drive stops the run with the cause
+    /// `kind` or `budget`, which sends `cancel` once and kills the run at the first tick after
+    /// `cancel_grace_s`, as every stop; the request shows no card and is answered `state`.
+    fn end_for_request(
+        &self,
+        st: &mut State<Cfg<P>>,
+        i: usize,
+        run: &RunId,
+        end: RunEnd,
+    ) -> Result<(), Cause> {
+        let by = match end {
+            RunEnd::Kind => StopBy::Kind,
+            RunEnd::Budget => StopBy::Budget,
+            _ => return Err(Cause::State),
+        };
+        let waiting = st
+            .board
+            .as_ref()
+            .and_then(|b| match &b.members[i].facts.doing {
+                Doing::Live(Live::Waiting(open)) => Some(open.clone()),
+                _ => None,
+            });
+        if let Some(open) = waiting {
+            self.close_run_item(st, i, run, &open, false);
+        }
+        self.lapse_held(st, i, run, LapseCause::RunEnded);
+        self.lapse_binds(st, i, run, OtherLapse::RunEnded);
+        st.handbacks.retain(|(_, a)| &a.run != run);
+        self.act(
+            st,
+            Act::Stop {
+                run: run.clone(),
+                by,
+            },
+        )?;
+        Err(Cause::State)
     }
 
     fn act(&self, st: &mut State<Cfg<P>>, act: Act) -> Result<(), Cause> {
@@ -1082,6 +1126,15 @@ where
         let table = guard::check(&self.ports, config.as_ref(), &st.table, record)?;
         st.table = table;
         Ok(())
+    }
+
+    /// The owner's acknowledgement of the store of an effect record, which the link reports
+    /// (I4.7, ruling IG-32): the guard's table notes the effect as begun where the record's
+    /// state begins it, so that a later confirm request of its run for that effect shows no card
+    /// and ends the run with `kind`.
+    pub fn stored(&self, record: &EffectRecord) {
+        let mut st = self.lock();
+        st.table = st.table.stored(record);
     }
 
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`.
