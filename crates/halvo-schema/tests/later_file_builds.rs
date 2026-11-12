@@ -2,7 +2,8 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const KINDS: &str = "pub const KINDS: &[crate::kinds::KindEntry] = &[];\n";
+const KINDS: &str =
+    "pub const KINDS: &[crate::kinds::KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n";
 
 const LEAK: &str =
     "fn leak(text: &str) -> &'static str {\n    Box::leak(text.to_owned().into_boxed_str())\n}\n";

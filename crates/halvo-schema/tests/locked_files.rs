@@ -2043,19 +2043,24 @@ fn later_names_faults(file: &str, text: &str) -> Vec<String> {
             .iter()
             .filter(|x| is_ident(x) && bare(x) == module)
             .count();
-        let (want, form) = match file {
-            "kinds.rs" => (1, vec!["crate", ":", ":", module, ":", ":", "KINDS"]),
-            "lib.rs" => (1, vec!["pub", "mod", module, ";"]),
-            _ => (0, Vec::new()),
+        let forms = match file {
+            "kinds.rs" => vec![
+                vec!["crate", ":", ":", module, ":", ":", "KINDS"],
+                vec!["crate", ":", ":", module, ":", ":", "ERROR_NAMES"],
+            ],
+            "lib.rs" => vec![vec!["pub", "mod", module, ";"]],
+            _ => Vec::new(),
         };
-        if named != want {
+        if named != forms.len() {
             faults.push(format!("{file} names {module} {named} times"));
         }
-        if want == 1 && find(&t, &form).len() != 1 {
-            faults.push(format!(
-                "{file} does not name {module} as `{}` once",
-                form.join(" ")
-            ));
+        for form in forms {
+            if find(&t, &form).len() != 1 {
+                faults.push(format!(
+                    "{file} does not name {module} as `{}` once",
+                    form.join(" ")
+                ));
+            }
         }
     }
     faults
@@ -2105,6 +2110,17 @@ fn registry_chains_the_kinds_of_this_run_and_the_four_lists_of_later_runs_in_the
         fn_body(&source("kinds.rs"), "registry"),
         Some(tokens(REGISTRY)),
         "src/kinds.rs: registry() must chain kinds::KINDS, executable::KINDS, coordinator::KINDS, learning::KINDS and routing::KINDS in that order"
+    );
+}
+
+const DECLARED_ERROR_NAMES: &str = "crate::executable::ERROR_NAMES.iter().chain(crate::coordinator::ERROR_NAMES).chain(crate::learning::ERROR_NAMES).chain(crate::routing::ERROR_NAMES).copied()";
+
+#[test]
+fn declared_error_names_chains_the_four_lists_of_later_runs_in_the_order_of_the_contract() {
+    assert_eq!(
+        fn_body(&source("kinds.rs"), "declared_error_names"),
+        Some(tokens(DECLARED_ERROR_NAMES)),
+        "src/kinds.rs: declared_error_names() must chain executable::ERROR_NAMES, coordinator::ERROR_NAMES, learning::ERROR_NAMES and routing::ERROR_NAMES in that order"
     );
 }
 
@@ -2186,8 +2202,30 @@ fn each_predicate_of_the_textual_tests_has_a_case_of_its_own() {
             &format!("{kinds}pub fn twice() -> usize {{\n    crate::learning::KINDS.len()\n}}\n")
         ),
         [
-            "kinds.rs names learning 2 times",
+            "kinds.rs names learning 3 times",
             "kinds.rs does not name learning as `crate : : learning : : KINDS` once"
+        ]
+    );
+    assert_eq!(
+        later_names_faults(
+            "kinds.rs",
+            &format!(
+                "{kinds}pub fn twice() -> usize {{\n    crate::learning::ERROR_NAMES.len()\n}}\n"
+            )
+        ),
+        [
+            "kinds.rs names learning 3 times",
+            "kinds.rs does not name learning as `crate : : learning : : ERROR_NAMES` once"
+        ]
+    );
+    assert_eq!(
+        later_names_faults(
+            "kinds.rs",
+            &kinds.replacen("crate::learning::ERROR_NAMES", "crate::learning::KINDS", 1)
+        ),
+        [
+            "kinds.rs does not name learning as `crate : : learning : : KINDS` once",
+            "kinds.rs does not name learning as `crate : : learning : : ERROR_NAMES` once"
         ]
     );
     let lib = source("lib.rs");
