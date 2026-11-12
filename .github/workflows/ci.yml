@@ -112,6 +112,36 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 19-control-links-no-store
+      - name: Scratch only, control-1 stress step, the Windows rows before and after
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e -u
+          cases=$PWD/scratch-cases
+          old=7a5ad3721ec1b721519d690afa2928b21aa22bd9
+          git fetch --no-tags --depth=1 origin "$old"
+          git worktree add --detach ../control1-old "$old"
+          git -C ../control1-old apply "$cases/a3-w2-windows-cases.patch"
+          cp "$cases/adv2_windows.rs" ../control1-old/crates/halvo-control/tests/adv2_windows.rs
+          git worktree add --detach ../control1-new HEAD
+          git -C ../control1-new apply "$cases/a3-w2-windows-cases-at-head.patch"
+          cp "$cases/adv2_windows.rs" ../control1-new/crates/halvo-control/tests/adv2_windows.rs
+          for tree in old new; do
+            (
+              cd "../control1-$tree" || exit 2
+              cargo test --locked -p halvo-control --lib adversary3 -- --nocapture --test-threads=1
+              echo "ROW $tree adversary 3 cases: exit=$?"
+              cargo test --locked -p halvo-control --test adv2_windows -- --nocapture --test-threads=1
+              echo "ROW $tree adversary 2 cases: exit=$?"
+            )
+          done
+          cargo test --locked -p halvo-control --lib -- --nocapture --test-threads=1 \
+            one_data_directory_keeps_its_pipe_name_when_it_is_made \
+            a_start_value_of_another_type_is_replaced_by_the_string \
+            a_scratch_directory_is_refused_when_its_given_or_its_resolved_path_is_in_the_data_directory \
+            on_windows_a_scratch_path_is_refused_in_every_form_of_the_data_directory
+          echo "ROW head, this round's Windows tests: exit=$?"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |

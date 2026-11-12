@@ -1,0 +1,77 @@
+diff --git a/crates/halvo-control/src/paths.rs b/crates/halvo-control/src/paths.rs
+index 16787935..03ace5f3 100644
+--- a/crates/halvo-control/src/paths.rs
++++ b/crates/halvo-control/src/paths.rs
+@@ -1545,4 +1545,48 @@ mod tests {
+         };
+         assert_eq!(LoginItemDir::for_account(&unset), Err(PathError::Unset));
+     }
++
++    #[cfg(windows)]
++    #[test]
++    fn adversary3_one_data_directory_keeps_its_pipe_name_when_it_is_created() {
++        let root = tempfile::tempdir().unwrap();
++        let data = DataDir::from_flag(root.path().join("Data")).unwrap();
++        let sid = "S-1-5-21-1-2-3-1001";
++        let before = pipe_name(sid, &data);
++        std::fs::create_dir(data.path()).unwrap();
++        let after = pipe_name(sid, &data);
++        assert_eq!(before, after, "one data directory, two pipe names");
++    }
++
++    #[cfg(windows)]
++    #[test]
++    fn adversary3_a_scratch_directory_through_a_directory_link_is_still_the_data_directory() {
++        let root = tempfile::tempdir().unwrap();
++        let data = DataDir::from_flag(root.path().join("Halvo")).unwrap();
++        std::fs::create_dir_all(data.path()).unwrap();
++        let link = root.path().join("link");
++        std::os::windows::fs::symlink_dir(data.path(), &link).unwrap();
++        assert_eq!(
++            ScratchDir::new(link.join("store"), &data),
++            Err(PathError::InsideDataDir)
++        );
++    }
++
++    #[cfg(windows)]
++    #[test]
++    fn adversary3_a_scratch_directory_through_the_admin_share_is_still_the_data_directory() {
++        let root = tempfile::tempdir().unwrap();
++        let data = DataDir::from_flag(root.path().canonicalize().unwrap().join("Halvo")).unwrap();
++        std::fs::create_dir_all(data.path().join("store")).unwrap();
++        let text = data.path().to_str().unwrap().trim_start_matches(r"\\?\");
++        let (drive, rest) = text.split_once(":\\").unwrap();
++        let share = PathBuf::from(format!(r"\\localhost\{drive}$\{rest}"));
++        assert!(share.join("store").is_dir(), "admin share not reachable: {}", share.display());
++        assert_eq!(
++            ScratchDir::new(share.join("store"), &data),
++            Err(PathError::InsideDataDir),
++            "{}",
++            share.display()
++        );
++    }
+ }
+diff --git a/crates/halvo-control/src/service.rs b/crates/halvo-control/src/service.rs
+index 317869c5..01554252 100644
+--- a/crates/halvo-control/src/service.rs
++++ b/crates/halvo-control/src/service.rs
+@@ -1122,4 +1122,19 @@ mod start_value_registry_tests {
+             );
+         }
+     }
++
++    #[test]
++    fn adversary3_a_start_value_of_another_type_is_replaced() {
++        let scratch = ScratchKey(format!(r"Software\Halvo-Test-A3-{}", std::process::id()));
++        let spec = StartValueSpec::with_key(&scratch.0, RUN_VALUE_NAME, Path::new(r"C:\Halvo\halvo.exe")).unwrap();
++        let status = std::process::Command::new("reg")
++            .args(["add", &format!(r"HKCU\{}", scratch.0), "/v", RUN_VALUE_NAME, "/t", "REG_DWORD", "/d", "1", "/f"])
++            .status()
++            .unwrap();
++        assert!(status.success());
++        let written = write_start_value(&spec);
++        println!("OBSERVED write={written:?}");
++        assert_eq!(written.unwrap(), InstallOutcome::Written);
++        assert_eq!(read_start_value(&spec).unwrap(), Some(spec.data()));
++    }
+ }
