@@ -125,7 +125,10 @@ pub fn eviction_cutoff(inventory: &Inventory, cap: StorageCap) -> Option<UtcDay>
         if remaining <= cap_bytes {
             break;
         }
-        cutoff = Some(row.day.next());
+        match row.day.next() {
+            Some(next) => cutoff = Some(next),
+            None => break,
+        }
         remaining = remaining.saturating_sub(row.bytes);
     }
     cutoff
@@ -294,7 +297,7 @@ mod tests {
 
     fn row(day: i64, modality: Modality, events: u64, bytes: u64) -> InventoryRow {
         InventoryRow {
-            day: UtcDay::from_days_since_epoch(day),
+            day: UtcDay::from_days_since_epoch(day).unwrap(),
             modality,
             events,
             bytes,
@@ -369,8 +372,14 @@ mod tests {
         ]);
         let inv = c.inventory().unwrap();
         assert_eq!(inv.rows().len(), 3);
-        assert_eq!(inv.rows()[0].day, UtcDay::from_days_since_epoch(19_999));
-        assert_eq!(inv.rows()[2].day, UtcDay::from_days_since_epoch(20_000));
+        assert_eq!(
+            inv.rows()[0].day,
+            UtcDay::from_days_since_epoch(19_999).unwrap()
+        );
+        assert_eq!(
+            inv.rows()[2].day,
+            UtcDay::from_days_since_epoch(20_000).unwrap()
+        );
         assert_eq!(inv.total_bytes(), 870);
         assert_eq!(inv.total_events(), 15);
         assert_eq!(c.status().store_bytes, 870);
@@ -410,15 +419,15 @@ mod tests {
         assert_eq!(eviction_cutoff(&inv, cap(12 * gib)), None);
         assert_eq!(
             eviction_cutoff(&inv, cap(9 * gib)),
-            Some(UtcDay::from_days_since_epoch(11))
+            Some(UtcDay::from_days_since_epoch(11).unwrap())
         );
         assert_eq!(
             eviction_cutoff(&inv, cap(4 * gib)),
-            Some(UtcDay::from_days_since_epoch(12))
+            Some(UtcDay::from_days_since_epoch(12).unwrap())
         );
         assert_eq!(
             eviction_cutoff(&inv, StorageCap::MIN),
-            Some(UtcDay::from_days_since_epoch(13))
+            Some(UtcDay::from_days_since_epoch(13).unwrap())
         );
     }
 
@@ -438,7 +447,7 @@ mod tests {
         assert_eq!(days, vec![10, 11, 12]);
         assert_eq!(
             eviction_cutoff(&inv, StorageCap::from_bytes(2 * gib).unwrap()),
-            Some(UtcDay::from_days_since_epoch(11))
+            Some(UtcDay::from_days_since_epoch(11).unwrap())
         );
     }
 
@@ -457,7 +466,10 @@ mod tests {
         assert_eq!(report.map(|r| r.segments_shredded), Some(1));
         let inv = c.inventory().unwrap();
         assert_eq!(inv.rows().len(), 2);
-        assert_eq!(inv.rows()[0].day, UtcDay::from_days_since_epoch(11));
+        assert_eq!(
+            inv.rows()[0].day,
+            UtcDay::from_days_since_epoch(11).unwrap()
+        );
         assert_eq!(c.status().store_cap_bytes, 2 * gib);
         let second = c.enforce_storage_cap().unwrap();
         assert_eq!(second, None);

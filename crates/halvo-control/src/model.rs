@@ -219,11 +219,16 @@ impl<'de> Deserialize<'de> for StorageCap {
 /// Why a day was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum DayError {
-    #[error("not a YYYY-MM-DD date")]
+    #[error("not a date in the form YYYY-MM-DD")]
     Format,
+    #[error("the date lies outside 0000-01-01 to 9999-12-31")]
+    OutOfRange,
+    #[error("the month has no such day")]
+    NoSuchDay,
 }
 
-/// A UTC calendar day, counted in days since 1970-01-01.
+/// A UTC calendar day from 0000-01-01 to 9999-12-31, counted in days since
+/// 1970-01-01. Every constructor refuses a day outside that range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UtcDay(i64);
 
@@ -237,26 +242,50 @@ const DAYS_PER_5_MONTHS_FROM_MARCH: i64 = 31 + 30 + 31 + 30 + 31;
 const MONTHS_FROM_MARCH_TO_JANUARY: i64 = 10;
 const DAYS_FROM_0000_03_01_TO_UNIX_EPOCH: i64 = 719_468;
 
+const MIN_YEAR: i64 = 0;
+const MAX_YEAR: i64 = 9999;
+const MIN_DAYS: i64 = -719_528;
+const MAX_DAYS: i64 = 2_932_896;
+
 impl UtcDay {
-    pub const fn from_days_since_epoch(days: i64) -> Self {
-        Self(days)
+    /// 0000-01-01.
+    pub const MIN: UtcDay = UtcDay(MIN_DAYS);
+    /// 9999-12-31.
+    pub const MAX: UtcDay = UtcDay(MAX_DAYS);
+
+    pub fn from_days_since_epoch(days: i64) -> Result<Self, DayError> {
+        if (MIN_DAYS..=MAX_DAYS).contains(&days) {
+            Ok(Self(days))
+        } else {
+            Err(DayError::OutOfRange)
+        }
     }
 
     pub const fn days_since_epoch(self) -> i64 {
         self.0
     }
 
-    /// The UTC day that holds `at`.
-    pub fn from_system_time(at: SystemTime) -> Self {
+    /// The UTC day that holds `at`, rounded down: one nanosecond before the epoch
+    /// is day -1.
+    pub fn from_system_time(at: SystemTime) -> Result<Self, DayError> {
         let days = match at.duration_since(UNIX_EPOCH) {
-            Ok(after) => (after.as_secs() / SECONDS_PER_DAY) as i64,
-            Err(before) => -((before.duration().as_secs().div_ceil(SECONDS_PER_DAY)) as i64),
+            Ok(after) => i64::try_from(after.as_secs() / SECONDS_PER_DAY)
+                .map_err(|_| DayError::OutOfRange)?,
+            Err(before) => {
+                let before = before.duration();
+                let whole = before.as_secs() / SECONDS_PER_DAY;
+                let part = before.as_secs() % SECONDS_PER_DAY != 0 || before.subsec_nanos() != 0;
+                let days =
+                    i64::try_from(whole + u64::from(part)).map_err(|_| DayError::OutOfRange)?;
+                -days
+            }
         };
-        Self(days)
+        Self::from_days_since_epoch(days)
     }
 
-    pub const fn next(self) -> Self {
-        Self(self.0 + 1)
+    /// The day after, or `None` after 9999-12-31.
+    pub fn next(self) -> Option<Self> {
+        Self::from_days_since_epoch(self.0.checked_add(1)?).ok()
     }
 
     /// The proleptic Gregorian year, month and day.
@@ -286,25 +315,56 @@ impl UtcDay {
         (year, month, day)
     }
 
-    pub fn from_year_month_day(year: i64, month: u32, day: u32) -> Self {
-        let march_year = if month <= 2 { year - 1 } else { year };
-        let era = if march_year >= 0 {
-            march_year
-        } else {
-            march_year - (YEARS_PER_ERA - 1)
-        } / YEARS_PER_ERA;
-        let year_of_era = march_year - era * YEARS_PER_ERA;
-        let month_from_march = if month > 2 {
-            i64::from(month) - 3
-        } else {
-            i64::from(month) + 9
-        };
-        let day_of_march_year =
-            (DAYS_PER_5_MONTHS_FROM_MARCH * month_from_march + 2) / 5 + i64::from(day) - 1;
-        let day_of_era =
-            year_of_era * DAYS_PER_YEAR + year_of_era / 4 - year_of_era / 100 + day_of_march_year;
-        Self(era * DAYS_PER_ERA + day_of_era - DAYS_FROM_0000_03_01_TO_UNIX_EPOCH)
+    /// The day of a calendar date. The year range is checked before any
+    /// arithmetic, and a day the month lacks is refused by converting back.
+    pub fn from_year_month_day(year: i64, month: u32, day: u32) -> Result<Self, DayError> {
+        if !(MIN_YEAR..=MAX_YEAR).contains(&year) {
+            return Err(DayError::OutOfRange);
+        }
+        if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+            return Err(DayError::NoSuchDay);
+        }
+        let days = days_from_civil(year, month, day).ok_or(DayError::OutOfRange)?;
+        let found = Self(days);
+        if found.to_year_month_day() != (year, month, day) {
+            return Err(DayError::NoSuchDay);
+        }
+        Ok(found)
     }
+}
+
+fn days_from_civil(year: i64, month: u32, day: u32) -> Option<i64> {
+    let march_year = if month <= 2 {
+        year.checked_sub(1)?
+    } else {
+        year
+    };
+    let era = if march_year >= 0 {
+        march_year
+    } else {
+        march_year.checked_sub(YEARS_PER_ERA - 1)?
+    }
+    .checked_div(YEARS_PER_ERA)?;
+    let year_of_era = march_year.checked_sub(era.checked_mul(YEARS_PER_ERA)?)?;
+    let month_from_march = if month > 2 {
+        i64::from(month) - 3
+    } else {
+        i64::from(month) + 9
+    };
+    let day_of_march_year = DAYS_PER_5_MONTHS_FROM_MARCH
+        .checked_mul(month_from_march)?
+        .checked_add(2)?
+        .checked_div(5)?
+        .checked_add(i64::from(day))?
+        .checked_sub(1)?;
+    let day_of_era = year_of_era
+        .checked_mul(DAYS_PER_YEAR)?
+        .checked_add(year_of_era / 4)?
+        .checked_sub(year_of_era / 100)?
+        .checked_add(day_of_march_year)?;
+    era.checked_mul(DAYS_PER_ERA)?
+        .checked_add(day_of_era)?
+        .checked_sub(DAYS_FROM_0000_03_01_TO_UNIX_EPOCH)
 }
 
 impl fmt::Display for UtcDay {
@@ -317,24 +377,25 @@ impl fmt::Display for UtcDay {
 impl FromStr for UtcDay {
     type Err = DayError;
 
+    /// Exactly ten ASCII characters, YYYY-MM-DD, with no sign.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split('-');
-        let year: i64 = parts
-            .next()
-            .and_then(|p| p.parse().ok())
-            .ok_or(DayError::Format)?;
-        let month: u32 = parts
-            .next()
-            .and_then(|p| p.parse().ok())
-            .ok_or(DayError::Format)?;
-        let day: u32 = parts
-            .next()
-            .and_then(|p| p.parse().ok())
-            .ok_or(DayError::Format)?;
-        if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        let bytes = s.as_bytes();
+        if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
             return Err(DayError::Format);
         }
-        Ok(Self::from_year_month_day(year, month, day))
+        let number = |digits: &[u8]| {
+            digits.iter().try_fold(0u32, |value, &digit| {
+                if digit.is_ascii_digit() {
+                    Ok(value * 10 + u32::from(digit - b'0'))
+                } else {
+                    Err(DayError::Format)
+                }
+            })
+        };
+        let year = number(&bytes[0..4])?;
+        let month = number(&bytes[5..7])?;
+        let day = number(&bytes[8..10])?;
+        Self::from_year_month_day(i64::from(year), month, day)
     }
 }
 
@@ -428,6 +489,7 @@ pub struct ShredView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn the_window_is_fixed_and_not_a_setting() {
@@ -546,39 +608,189 @@ mod tests {
         assert!(StorageCap::from_bytes(StorageCap::MIN.bytes()).is_ok());
     }
 
+    fn refused_day_texts() -> Vec<String> {
+        let mut texts: Vec<String> = [
+            "2026-02-31",
+            "2026-04-31",
+            "2026-02-30",
+            "2025-02-29",
+            "1900-02-29",
+            "+2026-11-9",
+            "+2026-11-09",
+            "2026-011-0009",
+            "2026-13-01",
+            "2026-00-10",
+            "2026-11-00",
+            "2026-11-32",
+            "-001-01-01",
+            "-0001-01-01",
+            "10000-01-01",
+            "9223372036854775807-01-01",
+            "2026-1-09",
+            "2026-11-9",
+            "2026/11/09",
+            "2026-11-09 ",
+            " 2026-11-09",
+            "2026-11-09T00:00:00Z",
+            "",
+        ]
+        .map(String::from)
+        .to_vec();
+        texts.push(format!("2026-11-0{}", char::from_u32(0x0669).unwrap()));
+        texts
+    }
+
+    #[test]
+    fn utc_day_parsing_refuses_impossible_and_non_canonical_dates() {
+        for text in refused_day_texts() {
+            assert!(text.parse::<UtcDay>().is_err(), "{text:?}");
+            let quoted = format!("\"{text}\"");
+            assert!(serde_json::from_str::<UtcDay>(&quoted).is_err(), "{text:?}");
+        }
+        for text in ["2024-02-29", "2000-02-29", "0000-01-01", "9999-12-31"] {
+            assert_eq!(text.parse::<UtcDay>().unwrap().to_string(), text);
+        }
+    }
+
+    #[test]
+    fn utc_day_a_year_of_i64_max_is_an_error_and_never_a_panic() {
+        let text = format!("{}-01-01", i64::MAX);
+        assert!(std::panic::catch_unwind(|| text.parse::<UtcDay>().is_err()).unwrap_or(false));
+    }
+
+    #[test]
+    fn utc_day_every_constructor_is_bounded_to_the_years_0000_to_9999_and_never_panics() {
+        for (year, month, day) in [
+            (i64::MAX, 1, 1),
+            (i64::MIN, 1, 1),
+            (-1, 12, 31),
+            (10_000, 1, 1),
+            (2026, 2, 31),
+            (2026, 13, 1),
+            (2026, 0, 1),
+            (2026, 1, 0),
+            (2026, u32::MAX, u32::MAX),
+        ] {
+            assert!(
+                UtcDay::from_year_month_day(year, month, day).is_err(),
+                "{year}-{month}-{day}"
+            );
+        }
+        let first = UtcDay::from_year_month_day(0, 1, 1).unwrap();
+        let last = UtcDay::from_year_month_day(9999, 12, 31).unwrap();
+        assert_eq!((first, last), (UtcDay::MIN, UtcDay::MAX));
+        assert_eq!(first.to_string(), "0000-01-01");
+        assert_eq!(last.to_string(), "9999-12-31");
+        assert_eq!(first.days_since_epoch(), -719_528);
+        assert_eq!(last.days_since_epoch(), 2_932_896);
+        assert_eq!(UtcDay::from_days_since_epoch(-719_528), Ok(first));
+        assert_eq!(UtcDay::from_days_since_epoch(2_932_896), Ok(last));
+        for days in [-719_529, 2_932_897, i64::MAX, i64::MIN] {
+            assert_eq!(
+                UtcDay::from_days_since_epoch(days),
+                Err(DayError::OutOfRange),
+                "{days}"
+            );
+        }
+        assert_eq!(last.next(), None);
+        assert_eq!(
+            UtcDay::from_days_since_epoch(2_932_895).unwrap().next(),
+            Some(last)
+        );
+        let after_last = UNIX_EPOCH + Duration::from_secs(253_402_300_800);
+        assert_eq!(
+            UtcDay::from_system_time(after_last),
+            Err(DayError::OutOfRange)
+        );
+        let last_second = UNIX_EPOCH + Duration::from_secs(253_402_300_799);
+        assert_eq!(UtcDay::from_system_time(last_second), Ok(last));
+        if let Some(at) = UNIX_EPOCH.checked_sub(Duration::from_secs(62_167_219_200)) {
+            assert_eq!(UtcDay::from_system_time(at), Ok(first));
+        }
+        if let Some(at) = UNIX_EPOCH.checked_sub(Duration::from_secs(62_167_219_201)) {
+            assert_eq!(UtcDay::from_system_time(at), Err(DayError::OutOfRange));
+        }
+    }
+
+    #[test]
+    fn utc_day_from_system_time_floors_to_the_utc_day() {
+        let tick = Duration::from_nanos(if cfg!(windows) { 100 } else { 1 });
+        let day = |at: SystemTime| UtcDay::from_system_time(at).unwrap().days_since_epoch();
+        let day_secs = Duration::from_secs(86_400);
+        assert_eq!(day(UNIX_EPOCH), 0);
+        assert_eq!(day(UNIX_EPOCH + day_secs - tick), 0);
+        assert_eq!(day(UNIX_EPOCH + day_secs), 1);
+        assert_ne!(UNIX_EPOCH - tick, UNIX_EPOCH);
+        assert_eq!(day(UNIX_EPOCH - tick), -1);
+        assert_eq!(day(UNIX_EPOCH - day_secs), -1);
+        assert_eq!(day(UNIX_EPOCH - day_secs - tick), -2);
+    }
+
+    #[test]
+    fn utc_day_deserializes_its_text_and_a_table_of_days_round_trips_through_json() {
+        let day = serde_json::from_str::<UtcDay>("\"2026-11-09\"").unwrap();
+        assert_eq!(day.days_since_epoch(), 20_766);
+        for (days, text) in [
+            (-719_528, "0000-01-01"),
+            (-1, "1969-12-31"),
+            (0, "1970-01-01"),
+            (11_016, "2000-02-29"),
+            (19_723, "2024-01-01"),
+            (20_766, "2026-11-09"),
+            (2_932_896, "9999-12-31"),
+        ] {
+            let day = UtcDay::from_days_since_epoch(days).unwrap();
+            let json = serde_json::to_string(&day).unwrap();
+            assert_eq!(json, format!("\"{text}\""));
+            assert_eq!(serde_json::from_str::<UtcDay>(&json).unwrap(), day);
+            assert_eq!(text.parse::<UtcDay>().unwrap(), day);
+        }
+    }
+
     #[test]
     fn utc_day_round_trips_iso_dates() {
-        assert_eq!(UtcDay::from_days_since_epoch(0).to_string(), "1970-01-01");
         assert_eq!(
-            UtcDay::from_days_since_epoch(19_723).to_string(),
+            UtcDay::from_days_since_epoch(0).unwrap().to_string(),
+            "1970-01-01"
+        );
+        assert_eq!(
+            UtcDay::from_days_since_epoch(19_723).unwrap().to_string(),
             "2024-01-01"
         );
         assert_eq!(
-            UtcDay::from_days_since_epoch(20_766).to_string(),
+            UtcDay::from_days_since_epoch(20_766).unwrap().to_string(),
             "2026-11-09"
         );
         assert_eq!(
             "2026-11-09".parse::<UtcDay>().unwrap(),
-            UtcDay::from_days_since_epoch(20_766)
+            UtcDay::from_days_since_epoch(20_766).unwrap()
         );
-        let json = serde_json::to_string(&UtcDay::from_days_since_epoch(20_766)).unwrap();
+        let json = serde_json::to_string(&UtcDay::from_days_since_epoch(20_766).unwrap()).unwrap();
         assert_eq!(json, "\"2026-11-09\"");
     }
 
     #[test]
-    fn every_day_across_two_eras_round_trips_through_year_month_day() {
+    fn utc_day_every_day_across_two_eras_round_trips_through_year_month_day() {
         for days in -DAYS_PER_ERA..=DAYS_PER_ERA {
-            let day = UtcDay::from_days_since_epoch(days);
+            let day = UtcDay::from_days_since_epoch(days).unwrap();
             let (y, m, d) = day.to_year_month_day();
             assert!((1..=12).contains(&m) && (1..=31).contains(&d), "{days}");
-            assert_eq!(UtcDay::from_year_month_day(y, m, d), day, "{y}-{m}-{d}");
+            assert_eq!(UtcDay::from_year_month_day(y, m, d), Ok(day), "{y}-{m}-{d}");
         }
         assert_eq!(
-            UtcDay::from_year_month_day(2000, 2, 29).next().to_string(),
+            UtcDay::from_year_month_day(2000, 2, 29)
+                .unwrap()
+                .next()
+                .unwrap()
+                .to_string(),
             "2000-03-01"
         );
         assert_eq!(
-            UtcDay::from_year_month_day(1900, 2, 28).next().to_string(),
+            UtcDay::from_year_month_day(1900, 2, 28)
+                .unwrap()
+                .next()
+                .unwrap()
+                .to_string(),
             "1900-03-01"
         );
     }
@@ -586,7 +798,7 @@ mod tests {
     #[test]
     fn an_inventory_built_from_unsorted_rows_is_in_day_order() {
         let row = |day, bytes| InventoryRow {
-            day: UtcDay::from_days_since_epoch(day),
+            day: UtcDay::from_days_since_epoch(day).unwrap(),
             modality: Modality::ScreenFrame,
             events: 1,
             bytes,
