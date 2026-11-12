@@ -584,6 +584,7 @@ $setting=x cargo build"
       shell: bash
       env:
         $setting: -D warnings"
+  flags_case github-other-file FAIL .github/ci/build.env "$setting=-D warnings"
   flags_case hook FAIL .githooks/pre-commit "export $setting=x"
   flags_case package-json FAIL package.json "{\"scripts\":{\"b\":\"$setting=x tauri build\"}}"
   flags_case power-shell FAIL scripts/w.ps1 "\$env:$setting = 'x'"
