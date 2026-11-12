@@ -18,7 +18,7 @@ use std::sync::mpsc::{
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::event::{CaptureStreamEvent, MonotonicSequence};
+use crate::event::{CaptureStreamEvent, Modality, MonotonicSequence};
 use crate::source::{EmitOutcome, EventSink};
 
 #[derive(Debug, thiserror::Error)]
@@ -27,14 +27,68 @@ pub enum SinkError {
     Disconnected,
 }
 
-/// The cloneable emit side held by every capture source. Clones share one queue
-/// and one sequence authority, so sequences stay globally monotonic across
-/// sources.
+const KINDS: usize = 8;
+
+fn kind_index(kind: Modality) -> usize {
+    match kind {
+        Modality::ScreenFrame => 0,
+        Modality::Keystroke => 1,
+        Modality::Pointer => 2,
+        Modality::ForegroundApp => 3,
+        Modality::WindowTitle => 4,
+        Modality::SystemAudio => 5,
+        Modality::Microphone => 6,
+        Modality::Camera => 7,
+    }
+}
+
+#[derive(Default)]
+struct KindCounters {
+    accepted: AtomicU64,
+    dropped: AtomicU64,
+    coalesced: AtomicU64,
+    refused: AtomicU64,
+}
+
+/// One kind's counts in a [`SinkCounts`] snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KindCounts {
+    /// Emits that returned `Queued`.
+    pub accepted: u64,
+    /// Emits of a droppable kind that returned `Dropped` because the queue was
+    /// full.
+    pub dropped: u64,
+    /// Fold records handed back on a full queue. No emit coalesces yet, so this
+    /// reads 0.
+    pub coalesced: u64,
+    /// Emits that returned `Disconnected` because the writer was gone, whether
+    /// the emit met a gone writer or was blocked when the writer went.
+    pub refused: u64,
+}
+
+/// The counts of every kind, read by [`SinkHandle::counts`]. Every clone of a
+/// handle adds to the same counts, which start at 0 when the sink is built and
+/// only rise. An emit is counted when it returns, so an event can be received
+/// before its emit is counted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SinkCounts {
+    kinds: [KindCounts; KINDS],
+}
+
+impl SinkCounts {
+    pub fn of(&self, kind: Modality) -> KindCounts {
+        self.kinds[kind_index(kind)]
+    }
+}
+
+/// The cloneable emit side held by every capture source. Clones share one queue,
+/// one sequence authority and one set of counts, so sequences stay globally
+/// monotonic across sources and the counts cover every source.
 #[derive(Clone)]
 pub struct SinkHandle {
     tx: SyncSender<CaptureStreamEvent>,
     sequence: Arc<AtomicU64>,
-    dropped: Arc<AtomicU64>,
+    counts: Arc<[KindCounters; KINDS]>,
 }
 
 impl SinkHandle {
@@ -45,27 +99,64 @@ impl SinkHandle {
         MonotonicSequence::new(self.sequence.fetch_add(1, Ordering::Relaxed))
     }
 
-    /// How many droppable events have been dropped under backpressure so far.
+    /// How many droppable events have been dropped under backpressure so far: the
+    /// sum of the dropped counts of [`SinkHandle::counts`].
     pub fn dropped_count(&self) -> u64 {
-        self.dropped.load(Ordering::Relaxed)
+        self.counts
+            .iter()
+            .map(|kind| kind.dropped.load(Ordering::Relaxed))
+            .sum()
+    }
+
+    /// A snapshot of the accepted, dropped, coalesced and refused emits of each
+    /// kind.
+    pub fn counts(&self) -> SinkCounts {
+        SinkCounts {
+            kinds: std::array::from_fn(|index| {
+                let kind = &self.counts[index];
+                KindCounts {
+                    accepted: kind.accepted.load(Ordering::Relaxed),
+                    dropped: kind.dropped.load(Ordering::Relaxed),
+                    coalesced: kind.coalesced.load(Ordering::Relaxed),
+                    refused: kind.refused.load(Ordering::Relaxed),
+                }
+            }),
+        }
+    }
+
+    fn counters(&self, kind: Modality) -> &KindCounters {
+        &self.counts[kind_index(kind)]
+    }
+
+    fn accepted(&self, kind: Modality) -> Result<EmitOutcome, SinkError> {
+        self.counters(kind).accepted.fetch_add(1, Ordering::Relaxed);
+        Ok(EmitOutcome::Queued)
+    }
+
+    fn dropped(&self, kind: Modality) -> Result<EmitOutcome, SinkError> {
+        self.counters(kind).dropped.fetch_add(1, Ordering::Relaxed);
+        Ok(EmitOutcome::Dropped)
+    }
+
+    fn refused(&self, kind: Modality) -> Result<EmitOutcome, SinkError> {
+        self.counters(kind).refused.fetch_add(1, Ordering::Relaxed);
+        Err(SinkError::Disconnected)
     }
 }
 
 impl EventSink for SinkHandle {
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
-        if event.modality.is_droppable_under_backpressure() {
+        let kind = event.modality;
+        if kind.is_droppable_under_backpressure() {
             match self.tx.try_send(event) {
-                Ok(()) => Ok(EmitOutcome::Queued),
-                Err(TrySendError::Full(_)) => {
-                    self.dropped.fetch_add(1, Ordering::Relaxed);
-                    Ok(EmitOutcome::Dropped)
-                }
-                Err(TrySendError::Disconnected(_)) => Err(SinkError::Disconnected),
+                Ok(()) => self.accepted(kind),
+                Err(TrySendError::Full(_)) => self.dropped(kind),
+                Err(TrySendError::Disconnected(_)) => self.refused(kind),
             }
         } else {
             match self.tx.send(event) {
-                Ok(()) => Ok(EmitOutcome::Queued),
-                Err(SendError(_)) => Err(SinkError::Disconnected),
+                Ok(()) => self.accepted(kind),
+                Err(SendError(_)) => self.refused(kind),
             }
         }
     }
@@ -194,7 +285,7 @@ fn build(capacity: usize) -> (SinkHandle, SinkWriter) {
     let handle = SinkHandle {
         tx,
         sequence: Arc::new(AtomicU64::new(0)),
-        dropped: Arc::new(AtomicU64::new(0)),
+        counts: Arc::default(),
     };
     let writer = SinkWriter {
         rx,
@@ -210,10 +301,21 @@ mod tests {
         CaptureStreamEvent, CapturedAt, Modality, RetentionClass, SegmentKeyId, SegmentRef,
     };
     use std::num::NonZeroUsize;
-    use std::sync::mpsc::{RecvTimeoutError, TryRecvError};
+    use std::sync::mpsc::{self, RecvTimeoutError, TryRecvError};
     use std::thread;
     use std::time::{Duration, UNIX_EPOCH};
     use uuid::Uuid;
+
+    const EVERY_KIND: [Modality; 8] = [
+        Modality::ScreenFrame,
+        Modality::Keystroke,
+        Modality::Pointer,
+        Modality::ForegroundApp,
+        Modality::WindowTitle,
+        Modality::SystemAudio,
+        Modality::Microphone,
+        Modality::Camera,
+    ];
 
     fn unnumbered(kind: Modality, emitter: i64, index: u64) -> CaptureStreamEvent {
         CaptureStreamEvent {
@@ -321,6 +423,76 @@ mod tests {
         assert_eq!(before.len() + after.len(), 40_000);
         assert!(before.iter().all(|received| received.is_before(barrier)));
         assert!(after.iter().all(|received| !received.is_before(barrier)));
+    }
+
+    #[test]
+    fn a_refused_keystroke_returns_disconnected_and_is_counted() {
+        let (handle, writer) = bounded(NonZeroUsize::new(4).unwrap());
+        drop(writer);
+        let refused = handle.emit(unnumbered(Modality::Keystroke, 0, 0));
+        assert!(matches!(refused, Err(SinkError::Disconnected)));
+        let only_refused = KindCounts {
+            refused: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::Keystroke), only_refused);
+        for kind in EVERY_KIND {
+            if kind == Modality::Keystroke {
+                continue;
+            }
+            assert_eq!(handle.counts().of(kind), KindCounts::default(), "{kind:?}");
+            let refused = handle.emit(unnumbered(kind, 0, 0));
+            assert!(matches!(refused, Err(SinkError::Disconnected)), "{kind:?}");
+        }
+        let counts = handle.counts();
+        for kind in EVERY_KIND {
+            assert_eq!(counts.of(kind), only_refused, "{kind:?}");
+        }
+        assert_eq!(handle.dropped_count(), 0);
+    }
+
+    #[test]
+    fn an_emitter_parked_on_a_full_queue_is_refused_and_counted_when_the_writer_drops() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        let frame = unnumbered(Modality::ScreenFrame, 0, 0);
+        assert_eq!(handle.emit(frame).unwrap(), EmitOutcome::Queued);
+        let (started_tx, started_rx) = mpsc::channel();
+        let (outcome_tx, outcome_rx) = mpsc::channel();
+        let emitter = {
+            let handle = handle.clone();
+            thread::spawn(move || {
+                started_tx.send(()).unwrap();
+                let outcome = handle.emit(unnumbered(Modality::Keystroke, 0, 0));
+                outcome_tx.send(outcome).unwrap();
+            })
+        };
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the emitter started inside 1 s");
+        assert!(
+            matches!(
+                outcome_rx.recv_timeout(Duration::from_millis(300)),
+                Err(RecvTimeoutError::Timeout)
+            ),
+            "the keystroke emit returned while the queue was full and the writer alive"
+        );
+        drop(writer);
+        let outcome = outcome_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the parked emit returned inside 1 s of the writer dropping");
+        assert!(matches!(outcome, Err(SinkError::Disconnected)));
+        emitter.join().unwrap();
+        let counts = handle.counts();
+        let refused_once = KindCounts {
+            refused: 1,
+            ..KindCounts::default()
+        };
+        let accepted_once = KindCounts {
+            accepted: 1,
+            ..KindCounts::default()
+        };
+        assert_eq!(counts.of(Modality::Keystroke), refused_once);
+        assert_eq!(counts.of(Modality::ScreenFrame), accepted_once);
     }
 
     #[test]
