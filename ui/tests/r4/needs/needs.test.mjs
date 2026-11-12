@@ -688,6 +688,33 @@ async function confirms(origin, dir) {
   return faults;
 }
 
+async function bound(origin, dir) {
+  const faults = [];
+  const item = stateFile(dir, 'setup_three').snapshot.items[0];
+  const p = item.params.find((x) => x.typed === 'yes');
+  const cases = [
+    ['bytes_1024', 'é'.repeat(512), 'é'.repeat(512)],
+    ['bytes_1025', 'é'.repeat(512) + 'a', 'é'.repeat(512)],
+    ['three_byte_edge', 'a'.repeat(1023) + '€', 'a'.repeat(1023)],
+    ['four_byte_letters', '𝄞'.repeat(257), '𝄞'.repeat(256)],
+  ];
+  for (const [tag, typed, sent] of cases) {
+    const out = outDir();
+    const h = await open({ origin, state: 'setup_three', views: [VIEW], out });
+    try {
+      await h.page.locator('[data-act="typed"][data-param="' + p.name + '"]').fill(typed);
+      const held = await h.page.locator('[data-act="typed"][data-param="' + p.name + '"]').inputValue();
+      if (held !== sent) faults.push(tag + ':input_holds=' + Buffer.byteLength(held));
+      await act(h, { act: 'choose', param: item.item });
+      const c = callsOf(out).find((x) => x.call === 'agents_setup_typed');
+      if (!c || c.args.text !== sent) faults.push(tag + ':sent=' + (c ? Buffer.byteLength(c.args.text) : 'none'));
+    } finally {
+      await h.close();
+    }
+  }
+  return faults;
+}
+
 const want = (name) => !onlyTests || onlyTests.includes(name);
 
 const { dir, states: tracked, tests } = fixtures();
@@ -695,7 +722,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'bound'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -712,6 +739,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('setups')) report('setups', await setups(origin, dir));
     if (want('reorder')) report('reorder', await reorder(origin, dir));
     if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks']);
+    if (want('bound')) report('bound', await bound(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

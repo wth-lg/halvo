@@ -48,6 +48,18 @@
     return node;
   }
 
+  function bounded(text) {
+    let size = 0;
+    let out = '';
+    for (const ch of text) {
+      const code = ch.codePointAt(0);
+      size += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
+      if (size > 1024) break;
+      out += ch;
+    }
+    return out;
+  }
+
   function pieces(tag, cls, value) {
     const node = el(tag, cls, '');
     value.forEach(function (piece) {
@@ -116,6 +128,10 @@
         typed.setAttribute('data-act', 'typed');
         typed.setAttribute('data-param', p.name);
         typed.setAttribute('aria-labelledby', legend.id);
+        typed.addEventListener('input', function () {
+          const kept = bounded(typed.value);
+          if (kept !== typed.value) typed.value = kept;
+        });
         set.appendChild(typed);
       }
       box.appendChild(set);
@@ -132,7 +148,7 @@
       if (picked) {
         calls.push(['agents_answer', { item: item.item, choice: 'choose', param: a.param, n: picked.n }]);
       } else if (a.typed && a.typed.value.trim() !== '') {
-        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: a.typed.value }]);
+        calls.push(['agents_setup_typed', { item: item.item, param: a.param, text: bounded(a.typed.value) }]);
       }
     });
     return calls;
@@ -226,8 +242,11 @@
       b.setAttribute('data-act', c.choice);
       b.setAttribute('data-param', item.item);
       b.addEventListener('click', function (event) {
+        if (card.dialog && (event.detail > 1 || !freshFor(card, event))) {
+          card.dialog.focus();
+          return;
+        }
         if (event.detail > 1) return;
-        if (card.dialog && !freshFor(card, event)) return;
         answer(item, c, card);
       });
       controls.appendChild(b);
