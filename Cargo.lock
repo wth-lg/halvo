@@ -1499,6 +1499,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-policy"
+version = "0.0.0"
+dependencies = [
+ "halvo-schema",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "halvo-redact"
 version = "0.0.0"
 
