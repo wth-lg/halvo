@@ -136,12 +136,13 @@ fn ports(f: &Facts<Config>) -> Ports<Config> {
 /// The owner, whose acknowledgements of `send` are lost while `lose` is set, and of
 /// `set_state` alone while `lose_state` is set: the body reaches the memory owner, which
 /// stores it and records the call, and the coordinator gets `no_service`. Every attempt of
-/// `send` is kept in `sends`.
+/// `send` is kept in `sends`. Its clock's `now` fails while `clock_fails` is set.
 struct Lossy<'a> {
     inner: &'a Ports<Config>,
     lose: Cell<bool>,
     lose_state: Cell<bool>,
     sends: RefCell<Vec<Body>>,
+    clock_fails: Cell<bool>,
 }
 
 impl<'a> Lossy<'a> {
@@ -151,6 +152,7 @@ impl<'a> Lossy<'a> {
             lose: Cell::new(false),
             lose_state: Cell::new(false),
             sends: RefCell::new(Vec::new()),
+            clock_fails: Cell::new(false),
         }
     }
 
@@ -206,6 +208,9 @@ impl Owner for Lossy<'_> {
 
 impl Clock for Lossy<'_> {
     fn now(&self) -> Result<u64, PortError> {
+        if self.clock_fails.get() {
+            return Err(PortError::NoService);
+        }
         self.inner.now()
     }
 
@@ -466,17 +471,19 @@ fn refused_with(error: PortError) -> (SetupDone, Setup, Ports<Config>, Vec<Body>
 }
 
 /// The case setup_refused of I5.11 (rulings IG-28, IG-34, IG-36): the setup's body refused with
-/// `config`, `malformed`, `too_large` or `length` ends its debt, nothing is sent, and the same
-/// item asks every parameter again with its answers cleared and the line `item.setup.not_taken`,
-/// with no event stored, and takes the person's answers again; refused with `binding`, the debt
-/// ends, nothing more is sent and the drive answers that the agent is gone, whose next setup item
-/// and whose `switch_off` and `run_now` the coordinator of U2.4 answers; refused with `busy`,
+/// `config`, `malformed`, `too_large` or `length`, or with a name that I3.5 does not list, ends its
+/// debt, nothing is sent, and the same item asks every parameter again with its answers cleared
+/// and the line `item.setup.not_taken`, with no event stored, and takes the person's answers
+/// again; refused with `binding`, the debt ends, nothing more is sent, the drive answers that the
+/// agent is gone and a move of the person on the item is `unknown_agent`, while the next setup
+/// item of the agent and its `switch_off` and `run_now` are the coordinator's of U2.4; refused
+/// with `busy`,
 /// `store_unavailable`, `internal` and `state` and with a failure with no name, the body stays
 /// owed and is sent again at the next tick.
 #[test]
 fn refusal_setup_refused() {
     let line = halvo_coord::words::text("item.setup.not_taken", &[]).unwrap();
-    for n in ["config", "malformed", "too_large", "length"] {
+    for n in ["config", "malformed", "too_large", "length", "other_name"] {
         let (done, mut s, inner, sent, mut l) = refused_with(PortError::Refused(name(n)));
         assert_eq!(done, SetupDone::NotTaken, "{n}");
         assert_eq!(
@@ -522,7 +529,7 @@ fn refusal_setup_refused() {
 
     let (done, mut s, inner, sent, mut l) = refused_with(PortError::Refused(name("binding")));
     assert_eq!(done, SetupDone::AgentGone);
-    assert_eq!(s.state(), &SetupState::Gone);
+    assert_eq!(s.state(), &SetupState::AgentGone);
     assert_eq!(sent.len(), 1);
     let p = Lossy::new(&inner);
     let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
@@ -530,10 +537,13 @@ fn refusal_setup_refused() {
         tick_setup(&p, &mut l, &LIMITS, &mut s, &f),
         Err(Cause::Stale)
     );
-    assert_eq!(
-        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, LAST),
-        Err(Cause::Stale)
-    );
+    for answer in [LAST, SetupInput::None] {
+        assert_eq!(
+            answer_setup(&p, &mut l, &LIMITS, &mut s, &f, answer),
+            Err(Cause::UnknownAgent),
+            "binding: a move of the person for that agent"
+        );
+    }
     assert!(p.sends.borrow().is_empty(), "binding: nothing more is sent");
     assert!(
         inner.events.borrow().is_empty(),
@@ -583,6 +593,71 @@ fn setup_rows(inner: &Ports<Config>) -> Vec<(halvo_coord::types::ItemId, SetupAn
             _ => None,
         })
         .collect()
+}
+
+/// A setup item never closes without its row: the clock is read before the move that closes it,
+/// so that with a failing clock `none` and the answer that completes the parameters are refused
+/// with the clock's cause and change nothing, a tick sends no owed body, and once the clock
+/// answers again the item closes with its one row (I7.1, ruling IG-35; the review's finding on
+/// a clock that fails at the close).
+#[test]
+fn a_failing_clock_closes_no_setup_item_without_its_row() {
+    let f = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
+    let inner = ports(&f);
+    let p = Lossy::new(&inner);
+    let mut s = spreadsheet();
+    let mut l = ledger();
+    for mv in three_answers() {
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, mv).unwrap();
+    }
+    p.clock_fails.set(true);
+    let open = s.clone();
+    for answer in [LAST, SetupInput::None] {
+        assert_eq!(
+            answer_setup(&p, &mut l, &LIMITS, &mut s, &f, answer),
+            Err(Cause::NoService),
+            "{answer:?}"
+        );
+        assert_eq!(s, open, "{answer:?} changed nothing");
+    }
+    assert!(p.sends.borrow().is_empty(), "no body with no clock");
+    p.clock_fails.set(false);
+    p.lose.set(true);
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, LAST),
+        Ok(SetupDone::Owed)
+    );
+    p.lose.set(false);
+    p.clock_fails.set(true);
+    assert_eq!(
+        tick_setup(&p, &mut l, &LIMITS, &mut s, &f),
+        Err(Cause::NoService)
+    );
+    assert_eq!(p.bindings().len(), 1, "the owed body waits for the clock");
+    assert!(matches!(s.state(), SetupState::Owed(_)));
+    p.clock_fails.set(false);
+    assert_eq!(
+        tick_setup(&p, &mut l, &LIMITS, &mut s, &f),
+        Ok(SetupDone::Closed { active: true })
+    );
+    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::Choose)]);
+
+    let inner = ports(&f);
+    let p = Lossy::new(&inner);
+    let mut s = spreadsheet();
+    let mut l = ledger();
+    p.clock_fails.set(true);
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
+        Err(Cause::NoService)
+    );
+    assert_eq!(s.state(), &SetupState::Open);
+    p.clock_fails.set(false);
+    assert_eq!(
+        answer_setup(&p, &mut l, &LIMITS, &mut s, &f, SetupInput::None),
+        Ok(SetupDone::Dismissed)
+    );
+    assert_eq!(setup_rows(&inner), vec![(item_id(1), SetupAnswer::None)]);
 }
 
 /// One `item_answered` row for one setup item, stored when the item closes: at the owner's

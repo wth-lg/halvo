@@ -422,6 +422,74 @@ fn an_answer_bind_refused_with_ended_is_dropped() {
     assert_eq!(sent, vec![BindResult::Allow]);
 }
 
+/// A second step whose row of `allow` is stored and whose answer the run did not take: once the
+/// run is stopped in the guard's table, a later answer sends nothing; when its run ends, or at a
+/// new life, it lapses and closes with no answer and no stop; `wait_limit` does not lapse it,
+/// because the person answered it (I3.1, I5.7, ruling IG-18).
+#[test]
+fn a_stored_answer_that_the_run_did_not_take_is_never_sent_to_a_stopped_run_and_lapses_with_its_run(
+) {
+    let recorded = |p: &Ports<Config>, l: &mut Ledger| {
+        let mut held = raise_bind(p, l, &Table::new(), &LIMITS, &ask()).unwrap();
+        p.refuse(Method::AnswerBind, PortError::Busy);
+        assert_eq!(
+            answer_bind(p, l, &Table::new(), &LIMITS, &mut held, Choice::Allow),
+            Err(Cause::Busy)
+        );
+        p.clear_refusals();
+        assert_eq!(held.state(), &BindState::Recorded(BindResult::Allow));
+        held
+    };
+    let p = ports();
+    let mut l = ledger();
+    let mut held = recorded(&p, &mut l);
+    let stopped = Table::new().stop(&run_id(1));
+    let before = p.tried.borrow().len();
+    assert_eq!(
+        answer_bind(&p, &mut l, &stopped, &LIMITS, &mut held, Choice::Allow),
+        Err(Cause::State)
+    );
+    assert_eq!(p.tried.borrow().len(), before, "no port was called");
+    assert_eq!(held.state(), &BindState::Recorded(BindResult::Allow));
+
+    let mut t = Table::new();
+    assert_eq!(
+        lapse_bind(
+            &p,
+            &mut l,
+            &mut t,
+            &mut held,
+            OtherLapse::WaitLimit,
+            &LIMITS
+        ),
+        Err(Cause::State),
+        "the person answered it"
+    );
+    assert_eq!(p.tried.borrow().len(), before);
+    for cause in [OtherLapse::RunEnded, OtherLapse::AppEnded] {
+        let q = ports();
+        let mut l = ledger();
+        let mut held = recorded(&q, &mut l);
+        let before = q.calls.borrow().len();
+        lapse_bind(&q, &mut l, &mut t, &mut held, cause, &LIMITS).unwrap();
+        let calls: Vec<Call> = q.calls.borrow()[before..]
+            .iter()
+            .map(|c| c.call.clone())
+            .collect();
+        assert!(
+            matches!(&calls[..], [Call::Log(rows)] if matches!(rows[0].what, What::ItemLapsed { lapsed: Lapsed::SignIn(c), .. } if c == cause)),
+            "{cause}: {calls:?}"
+        );
+        assert_eq!(held.state(), &BindState::Closed, "{cause}");
+        assert!(!t.is_stopped(&run_id(1)), "{cause}");
+        assert_eq!(
+            answer_bind(&q, &mut l, &t, &LIMITS, &mut held, Choice::Allow),
+            Err(Cause::Stale),
+            "{cause}: the closed step sends nothing more"
+        );
+    }
+}
+
 /// A run that the guard's table holds as stopped gets no second step and no answer: nothing is
 /// stored and no port is called (I4.2, I5.7). A choice that is not one of the second step's is
 /// `malformed`.

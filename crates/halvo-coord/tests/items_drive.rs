@@ -567,6 +567,20 @@ fn no_item_is_issued_for_an_effect_that_has_begun_or_whose_newest_decision_rejec
         "nothing stored or sent"
     );
     assert!(before_refused > before);
+    let with_fresh = ask_of(
+        1,
+        1,
+        vec![
+            asked(9, Class::Delete, 9, true),
+            asked(1, Class::Send, 8, true),
+        ],
+    );
+    assert_eq!(
+        issue(&p, &mut l, &t, &LIMITS, &with_fresh).err(),
+        Some(Cause::State),
+        "one begun effect among others"
+    );
+    assert_eq!(p.calls.borrow().len(), before_refused);
 
     let q = ports();
     let (mut l, mut t) = (ledger(), Table::new());
@@ -586,6 +600,20 @@ fn no_item_is_issued_for_an_effect_that_has_begun_or_whose_newest_decision_rejec
         issue(&q, &mut l, &t, &LIMITS, &again).err(),
         Some(Cause::State),
         "the newest released decision of effect 1 is reject_once"
+    );
+    assert_eq!(q.calls.borrow().len(), before);
+    let rejected_among_fresh = ask_of(
+        1,
+        1,
+        vec![
+            asked(9, Class::Send, 9, true),
+            asked(1, Class::Send, 7, true),
+        ],
+    );
+    assert_eq!(
+        issue(&q, &mut l, &t, &LIMITS, &rejected_among_fresh).err(),
+        Some(Cause::State),
+        "one rejected effect among others"
     );
     assert_eq!(q.calls.borrow().len(), before);
     let other = ask_of(1, 1, vec![asked(9, Class::Send, 9, true)]);

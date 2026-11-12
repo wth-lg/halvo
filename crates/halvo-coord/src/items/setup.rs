@@ -46,9 +46,11 @@ pub enum SetupState {
     Closed,
     /// The person chose `none`: the item closed and the hold stays (I3.5, ruling IG-35).
     Dismissed,
-    /// The workflow is gone, or the agent is not the workflow's: nothing more is sent (I5.7,
-    /// ruling IG-36).
+    /// The workflow is gone: nothing more is sent (I5.7).
     Gone,
+    /// The owner refused the body with `binding`: the agent is not the workflow's, nothing more
+    /// is sent, and a move of the person for it is `unknown_agent` (I3.5, ruling IG-36).
+    AgentGone,
 }
 
 /// An answer of the person to a setup item (I3.1, I8.1).
@@ -82,8 +84,10 @@ pub enum SetupMove<'a> {
     /// The owner refused the owed body by a name after which another value can pass: the item
     /// asks every parameter again (I3.5, ruling IG-34).
     NotTaken,
-    /// The owner refused the owed body with `no_workflow` or `binding`: nothing more is sent.
+    /// The owner refused the owed body with `no_workflow`: nothing more is sent.
     Gone,
+    /// The owner refused the owed body with `binding`: nothing more is sent (ruling IG-36).
+    Binding,
 }
 
 /// A setup item that the coordinator holds: its item id, its workflow and agent, its
@@ -210,8 +214,10 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 }
 
 /// The decision of the setup flow (I3.5, I5.10, ruling IG-6c): the setup after `mv`, or the
-/// cause of its refusal, first that fits. A closed item, one that `none` closed and one that is
-/// gone refuse every move with `stale`. While the body is owed, an answer is refused with `state`
+/// cause of its refusal, first that fits. An item whose agent the owner refused with `binding`
+/// refuses an answer of the person with `unknown_agent` (ruling IG-36) and every other move with
+/// `stale`; a closed item, one that `none` closed and one whose workflow is gone refuse every move
+/// with `stale`. While the body is owed, an answer is refused with `state`
 /// (ruling IG-10), the acknowledgement closes the item, `not_taken` makes it open again with
 /// every answer cleared and the line `item.setup.not_taken` (ruling IG-34), and `gone` ends it.
 /// An open item refuses the acknowledgement and `not_taken` with `state`, closes at `none` (ruling
@@ -222,9 +228,11 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     match (&setup.state, mv) {
-        (SetupState::Closed | SetupState::Dismissed | SetupState::Gone, _) => {
-            return Err(Cause::Stale)
-        }
+        (SetupState::AgentGone, SetupMove::Input(_)) => return Err(Cause::UnknownAgent),
+        (
+            SetupState::Closed | SetupState::Dismissed | SetupState::Gone | SetupState::AgentGone,
+            _,
+        ) => return Err(Cause::Stale),
         (SetupState::Owed(_), SetupMove::Acknowledged) => next.state = SetupState::Closed,
         (SetupState::Owed(_), SetupMove::NotTaken) => {
             next.given = vec![None; setup.params.len()];
@@ -233,6 +241,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             return Ok(next);
         }
         (_, SetupMove::Gone) => next.state = SetupState::Gone,
+        (_, SetupMove::Binding) => next.state = SetupState::AgentGone,
         (SetupState::Owed(_), _)
         | (SetupState::Open, SetupMove::Acknowledged | SetupMove::NotTaken) => {
             return Err(Cause::State)
