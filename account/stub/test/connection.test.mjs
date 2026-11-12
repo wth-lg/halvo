@@ -70,6 +70,26 @@ test("a peer that ends its side inside a request gets the line incomplete and th
   assert.deepEqual([line.seq, line.connection, line.error], [1, 1, "incomplete"]);
 });
 
+test("a request still open when the stub stops gets one line incomplete, and a connection with no request begun gets none", async () => {
+  for (const how of ["close", "stop"]) {
+    const dir = fresh();
+    const stub = await startStub({ record: dir });
+    const port = portOf(stub.app);
+    const clients = [];
+    for (const bytes of [`GET /v1/done HTTP/1.1\r\nhost: a\r\n`, `PUT /v1/cap HTTP/1.1\r\nhost: a\r\ncontent-length: 36\r\n\r\n{"cap"`, "GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n", ""]) {
+      const client = await halfOpen(port);
+      client.socket.write(bytes);
+      clients.push(client);
+    }
+    await pause(200);
+    if (how === "close") await stub.close();
+    else await exchange(portOf(stub.control), request("POST", "/stop"));
+    await stub.stopped;
+    for (const client of clients) client.socket.destroy();
+    assert.deepEqual(lines(dir).map((line) => [line.connection, line.status ?? line.error]), [[3, 200], [1, "incomplete"], [2, "incomplete"]], how);
+  }
+});
+
 test("a keep-alive connection serves requests in order until one asks to close, and HTTP/1.0 closes after its answer", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir });

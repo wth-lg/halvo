@@ -57,7 +57,7 @@ Bytes that are no request get status 400 with `content-type: application/json` a
 | `content-length` | A `content-length` that is not 1 to 15 digits, or two that differ. |
 | `chunk` | A chunk size that is not 1 to 13 hexadecimal digits, a chunk not followed by CRLF, or a chunk-size line above 4,096 bytes. |
 | `head-too-large` | A request head, or the trailer section of a chunked body, above 65,536 bytes. |
-| `incomplete` | A peer that ends its side inside a request. |
+| `incomplete` | A peer that ends its side inside a request, or a request that is still open when the stub stops. At the stop the stub writes the line and then closes the connection, so the 400 may not reach the client. A connection with no request begun gets no line at the stop. |
 | `idle` | A peer that sends nothing for the idle limit inside a request. |
 
 ## How a request is judged

@@ -132,6 +132,11 @@ function serve(socket, connection, app, record, idleMs) {
     if (!held) settle();
   });
   socket.on("error", () => {});
+  return () => {
+    if (socket.writableEnded) return;
+    reader.end();
+    stop();
+  };
 }
 
 function serveControl(app, stop) {
@@ -167,7 +172,8 @@ function serveControl(app, stop) {
  * app-facing port serves TLS with a server certificate of a test authority made at this start (see makeTestAuthority),
  * whose certificate is written to the file `tlsCa`, which must not exist yet.
  * Resolves to `{app, control, stopped, close}`: the two base URLs, a promise that settles when the stub has stopped,
- * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection. A connection
+ * through `close()` or the control route `POST /stop`, and `close()`, which ends every open connection; a connection
+ * that holds part of a request at that moment gets the record line `incomplete` first. A connection
  * that sends nothing for `idleMs` (IDLE_MS unless a test gives another) gets the rejection of a malformed request
  * when a request had begun, and is closed with the record line `idle-close` when none had. Once the stub ends a
  * connection, after the idle limit, a refusal, an answer that closes or the peer's end, it reads nothing more of it
@@ -187,7 +193,9 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   const onSocket = (socket) => {
     const { connection, opened } = record.connection(socket);
     if (opened) {
-      serve(socket, connection, app, record, idleMs);
+      const cut = serve(socket, connection, app, record, idleMs);
+      cuts.add(cut);
+      socket.once("close", () => cuts.delete(cut));
       return;
     }
     socket.destroy();
@@ -203,6 +211,7 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
     });
   }
   const sockets = new Set();
+  const cuts = new Set();
   appServer.on("connection", (socket) => {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
@@ -210,10 +219,13 @@ export async function startStub({ record: dir, tlsCa, now = Date.now, idleMs = I
   const controlSockets = new Set();
   let closing = null;
   const close = () => {
-    closing ??= Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => {
-      record.close();
-      done();
-    });
+    if (closing === null) {
+      for (const cut of cuts) cut();
+      closing = Promise.all([shut(appServer, sockets), shut(controlServer, controlSockets)]).then(() => {
+        record.close();
+        done();
+      });
+    }
     return closing;
   };
   const controlServer = createServer(serveControl(app, close));
