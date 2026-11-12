@@ -1,3 +1,4 @@
+import { fstatSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,3 +77,18 @@ function stop() {
 
 process.on('SIGTERM', stop);
 process.on('SIGINT', stop);
+
+function inputIsPipe() {
+  try {
+    const st = fstatSync(0);
+    return st.isFIFO() || st.isSocket();
+  } catch {
+    return false;
+  }
+}
+
+if (inputIsPipe()) {
+  process.stdin.on('end', stop);
+  process.stdin.on('error', stop);
+  process.stdin.resume();
+}

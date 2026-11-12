@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
+import { connect } from 'node:net';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -106,9 +107,10 @@ function http(port, method, host, path, { headers = {}, body } = {}) {
   });
 }
 
-function startServer(dir, args) {
+function startServer(dir, args, input = 'ignore') {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [join(dir, 'server.mjs'), ...args], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [join(dir, 'server.mjs'), ...args], { stdio: [input, 'pipe', 'pipe'], windowsHide: true });
+    child.stdin?.on('error', () => {});
     let out = '';
     let err = '';
     let done = false;
@@ -135,9 +137,124 @@ function startServer(dir, args) {
 
 function stopServer(s) {
   return new Promise((resolve) => {
-    if (!s.child || s.child.exitCode !== null) return resolve();
+    if (!s.child || s.child.exitCode !== null || s.child.signalCode !== null) return resolve();
     s.child.on('exit', () => resolve());
     s.child.kill();
+  });
+}
+
+const GONE_MS = 5000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
+async function goneBy(pid, deadline) {
+  while (alive(pid)) {
+    if (Date.now() >= deadline) return false;
+    await sleep(50);
+  }
+  return true;
+}
+
+function refused(port) {
+  return new Promise((resolve) => {
+    const sock = connect({ host: '127.0.0.1', port });
+    sock.setTimeout(2000, () => {
+      sock.destroy();
+      resolve(false);
+    });
+    sock.on('connect', () => {
+      sock.destroy();
+      resolve(false);
+    });
+    sock.on('error', (err) => resolve(err.code === 'ECONNREFUSED'));
+  });
+}
+
+function firstLine(stream, ms) {
+  return new Promise((resolve) => {
+    let out = '';
+    const timer = setTimeout(() => resolve(null), ms);
+    stream.on('data', (d) => {
+      out += d;
+      const i = out.indexOf('\n');
+      if (i >= 0) {
+        clearTimeout(timer);
+        resolve(out.slice(0, i));
+      }
+    });
+    stream.on('end', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+  });
+}
+
+async function lifetimeCases() {
+  await run('lifetime-input-closed', async (c) => {
+    const s = await startServer(HERE, ['--port', '0'], 'pipe');
+    try {
+      if (!c.ok(s.child !== null, 'server_started')) return;
+      await sleep(1000);
+      c.ok((await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_while_input_open');
+      const exited = new Promise((resolve) => s.child.on('exit', (code, signal) => resolve({ code, signal })));
+      const deadline = Date.now() + GONE_MS;
+      s.child.stdin.end();
+      let timer;
+      const r = await Promise.race([exited, new Promise((resolve) => (timer = setTimeout(() => resolve(null), GONE_MS)))]);
+      clearTimeout(timer);
+      c.ok(r !== null && (await goneBy(s.child.pid, deadline)), 'server_gone_within_5s');
+      c.ok(r !== null && r.code === 0, 'exit_0');
+      c.ok(await refused(s.port), 'port_closed');
+    } finally {
+      await stopServer(s);
+    }
+  });
+
+  await run('lifetime-parent-killed', async (c) => {
+    const parent = spawn(process.execPath, [join(HERE, 'parent.mjs'), '--port', '0'], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+    parent.stdin.on('error', () => {});
+    const parentExit = new Promise((resolve) => parent.on('exit', resolve));
+    let pid = null;
+    try {
+      const m = /^server (\d+) (\d+)$/.exec((await firstLine(parent.stdout, 15000)) || '');
+      if (!c.ok(m !== null, 'server_started')) return;
+      pid = Number(m[1]);
+      const port = Number(m[2]);
+      c.ok((await http(port, 'GET', CONTROL, '/state')).status === 200, 'serves_while_parent_lives');
+      const deadline = Date.now() + GONE_MS;
+      c.ok(parent.kill('SIGKILL'), 'parent_hard_killed');
+      await parentExit;
+      c.ok(await goneBy(pid, deadline), 'server_gone_within_5s');
+      c.ok(await refused(port), 'port_closed');
+    } finally {
+      if (parent.exitCode === null && parent.signalCode === null) {
+        parent.kill('SIGKILL');
+        await parentExit;
+      }
+      if (pid !== null && alive(pid)) process.kill(pid, 'SIGKILL');
+    }
+  });
+
+  await run('lifetime-input-null', async (c) => {
+    const s = await startServer(HERE, ['--port', '0'], 'ignore');
+    try {
+      if (!c.ok(s.child !== null, 'server_started')) return;
+      await sleep(1000);
+      c.ok(s.child.exitCode === null && (await http(s.port, 'GET', CONTROL, '/state')).status === 200, 'serves_with_null_input');
+    } finally {
+      await stopServer(s);
+    }
   });
 }
 
@@ -1197,6 +1314,7 @@ async function main() {
     await walkCases(env);
     await protocolCases(env);
     await cliCases(env);
+    await lifetimeCases();
   } catch (err) {
     new Case('harness').ok(false, `exception_${err.code || err.name}`);
   } finally {
