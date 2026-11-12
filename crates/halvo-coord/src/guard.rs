@@ -244,7 +244,10 @@ impl Table {
     /// `committed` or `unknown` sets the fact that its effect has begun, for its run and effect
     /// id, and any other record changes nothing. The caller calls it at the acknowledgement and
     /// not where the guard passes the record, because a record whose store failed began nothing
-    /// (I4.7, ruling IG-32).
+    /// (I4.7, ruling IG-32). Nothing in this crate calls it: the link of U5.4 calls it at each
+    /// acknowledgement of an effect record, and until then no effect has begun in a running app,
+    /// while `items::raise_confirm`, which U2.4's coordinator calls for a confirm request, reads
+    /// the fact (ruling RD-23 (d)).
     pub fn stored(&self, record: &EffectRecord) -> Table {
         let mut t = self.clone();
         let begins = matches!(
