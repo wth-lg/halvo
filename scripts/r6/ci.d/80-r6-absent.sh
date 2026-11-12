@@ -110,6 +110,7 @@ hosted_rows() {
       n = split(allowed, word, " ")
       for (i = 1; i <= n; i++) ok[word[i]] = 1
     }
+    { sub(/\r$/, "") }
     NR == 1 && $0 == header { next }
     {
       hosted = !($column in ok)
@@ -133,7 +134,10 @@ egress_entries() {
   awk '
     {
       path = $0
-      while ((got = (getline line < path)) > 0) if (line != "[fixed]" && line != "[agent]") count++
+      while ((got = (getline line < path)) > 0) {
+        sub(/\r$/, "", line)
+        if (line != "[fixed]" && line != "[agent]") count++
+      }
       if (got < 0) count++
       close(path)
     }
@@ -616,15 +620,17 @@ row_units() {
   awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "Frontier" } { print }' "$policy" >"$u/policy-unknown-word" || exit 2
   awk -F "$tab" -v OFS="$tab" 'NR == 2 { $4 = "frontier" } { print }' "$policy" >"$u/policy-hosted-level" || exit 2
   awk -F "$tab" -v OFS="$tab" 'NR == 2 { $7 = $7 "\r"; $3 = "frontier\r" } { print }' "$policy" >"$u/policy-hosted-cr" || exit 2
-  awk 'NR == 1 { $0 = $0 "\r" } { print }' "$policy" >"$u/policy-header-cr" || exit 2
+  awk '{ printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf" || exit 2
+  awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "frontier" } { printf "%s\r\n", $0 }' "$policy" >"$u/policy-crlf-frontier" || exit 2
   awk -F "$tab" -v OFS="$tab" 'NR == 2 { $3 = "on_device"; $4 = "low" } { print }' "$policy" >"$u/policy-on-device" || exit 2
-  for fixture in frontier low-cost unknown-word hosted-level hosted-cr header-cr; do
+  for fixture in frontier low-cost unknown-word hosted-level hosted-cr crlf-frontier; do
     unit "policy-$fixture" 1 failing hosted_rows "$u/policy-$fixture" "$policy_header" 3 'none hand_back on_device' 1
   done
   unit policy-missing 1 failing hosted_rows "$u/no-such-file" "$policy_header" 3 'none hand_back on_device' 1
   mkdir "$u/policy-directory" || exit 2
   unit policy-directory 1 failing hosted_rows "$u/policy-directory" "$policy_header" 3 'none hand_back on_device' 0
   unit policy-on-device 0 passing hosted_rows "$u/policy-on-device" "$policy_header" 3 'none hand_back on_device' 1
+  unit policy-crlf 0 passing hosted_rows "$u/policy-crlf" "$policy_header" 3 'none hand_back on_device' 1
   unit policy-committed 0 passing hosted_rows "$policy" "$policy_header" 3 'none hand_back on_device' 1
 
   row="bill${tab}utility_bill_payment${tab}compile${tab}on_device${tab}m1${tab}mac${tab}1${tab}dev${tab}1${tab}yes${tab}3${tab}10${tab}5${tab}5${tab}low${tab}s1"
@@ -642,14 +648,15 @@ row_units() {
 entry_units() {
   u=$work/u
   for fixture in entry:'[fixed]\n127.0.0.1:1\n[agent]\n' blank-line:'[fixed]\n\n[agent]\n' \
-    last-line-without-lf:'[fixed]\n[agent]\nexample.invalid:443' carriage-returns:'[fixed]\r\n[agent]\r\n'; do
+    last-line-without-lf:'[fixed]\n[agent]\nexample.invalid:443' carriage-returns:'[fixed]\r\n127.0.0.1:1\r\n[agent]\r\n' headings-with-carriage-returns:'[fixed]\r\n[agent]\r\n'; do
     mkdir -p "$u/egress-${fixture%%:*}" || exit 2
     printf '%b' "${fixture#*:}" >"$u/egress-${fixture%%:*}/gate.txt" || exit 2
   done
   unit egress-entry 1 failing egress_entries "$u/egress-entry"
   unit egress-blank-line 1 failing egress_entries "$u/egress-blank-line"
   unit egress-last-line-without-lf 1 failing egress_entries "$u/egress-last-line-without-lf"
-  unit egress-carriage-returns 2 failing egress_entries "$u/egress-carriage-returns"
+  unit egress-carriage-returns 1 failing egress_entries "$u/egress-carriage-returns"
+  unit egress-headings-with-carriage-returns 0 passing egress_entries "$u/egress-headings-with-carriage-returns"
   mkdir -p "$u/egress-nested/agent" || exit 2
   printf '[fixed]\n[agent]\n' >"$u/egress-nested/gate.txt" || exit 2
   printf '[fixed]\n[agent]\nexample.invalid:443\n' >"$u/egress-nested/agent/list.txt" || exit 2
