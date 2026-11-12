@@ -283,6 +283,12 @@ const KNOWN: &[(&str, Option<&str>)] = &[
     ("http://2130706433/", None),
     ("http://pay.4294967296/", None),
     ("http://pay.99999999999999999999/", None),
+    ("http://pay.999999999999999999999999999999999999999/", None),
+    ("http://pay.9999999999999999999999999999999999999999/", None),
+    (
+        "http://pay.999999999999999999999999999999999999999999999999999999999999999/",
+        None,
+    ),
     ("http://pay.123/", None),
     ("http://pay.0x/", None),
     ("http://pay.0x1F/", None),
@@ -992,4 +998,16 @@ fn each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none() {
     println!("labels={labels} addresses={addresses} node_takes={node_takes} both_take={both_take}");
     assert!(labels >= 2_000 && addresses >= 2_000);
     assert!(both_take * 4 >= node_takes, "{both_take} of {node_takes}");
+}
+
+#[test]
+fn a_last_label_of_digits_alone_is_refused_at_every_length() {
+    for digit in ['0', '1', '9'] {
+        for count in 1..=63 {
+            let address = format!("http://pay.{}/", digit.to_string().repeat(count));
+            let refusal = WebOrigin::of_address(&address).unwrap_err();
+            assert_eq!(refusal.rule(), "address_ipv4", "{count} of {digit}");
+            assert_eq!(read_origin(&address), None, "{count} of {digit}");
+        }
+    }
 }
