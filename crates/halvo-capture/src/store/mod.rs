@@ -46,7 +46,14 @@ pub trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
-    /// Crypto-shred everything and destroy the store key (delete-all).
+    /// Crypto-shred everything and destroy the store key (delete-all). A second
+    /// call on a handle that delete-all has sealed destroys the root, the key
+    /// file, the database files and the segments directory again where they
+    /// are left, and returns an empty report; it is the only way to finish a
+    /// call that stopped after its root step, through the same handle. Once
+    /// that handle is gone, `open` answers [`StoreError::Custody`] with
+    /// [`crate::custody::CustodyError::RootMissing`] and `create` answers
+    /// [`StoreError::AlreadyExists`] for as long as the key file is left.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
 

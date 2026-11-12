@@ -558,13 +558,19 @@ impl EncryptedStore {
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
-    /// through the custody it names** and open the database. Fails [`StoreError::Locked`] while another writer holds the
-    /// directory, [`StoreError::Sealed`] if the key file is gone (delete-all ran)
-    /// or the key does not open the database, [`StoreError::KeyFileUnparseable`]
-    /// for a key file that does not parse, and [`StoreError::Custody`] with the
-    /// custody's own variant when the custody kind is not in this build or the
-    /// unwrap fails: [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`]
-    /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
+    /// through the custody it names** and open the database. A `store.db` that
+    /// is missing or empty is made as a new, empty database: the store opens,
+    /// and none of the segments or events that it held reads again. Fails
+    /// [`StoreError::Locked`] while another writer holds the directory, and
+    /// [`StoreError::Sealed`] when `store.key` is missing (delete-all ran, or no
+    /// store was made here) and when the unwrapped key does not open the
+    /// database: a key of another store, a damaged first page, or a file
+    /// shorter than one page. Fails [`StoreError::KeyFileUnparseable`] for a key
+    /// file that does not parse or whose wrapped key has another length than a
+    /// wrap, and [`StoreError::Custody`] with the custody's own variant when the
+    /// custody kind is not in this build or the unwrap fails:
+    /// [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`] and
+    /// [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, retention, custody_for)
     }
@@ -625,7 +631,8 @@ impl EncryptedStore {
     /// read has authenticated the whole file; a file that changes between the two
     /// reads ends in an error, after `out` has taken the chunks that still
     /// authenticate. Fails [`StoreError::Sealed`] if the segment has been
-    /// crypto-shredded or never finished writing (its key row is NULL or gone) and
+    /// crypto-shredded or never finished writing (its key row is NULL or gone),
+    /// or if this store never wrote a segment with that id, and
     /// [`StoreError::Corrupt`] if the file does not authenticate.
     pub fn read_segment(&self, segment_id: uuid::Uuid, out: &mut dyn Write) -> StoreResult<u64> {
         let (db, store_key) = self.keyed()?;
