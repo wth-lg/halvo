@@ -460,6 +460,46 @@ mod tests {
             assert_eq!(counts.of(kind), only_refused, "{kind:?}");
         }
         assert_eq!(handle.dropped_count(), 0);
+        for kind in [Modality::Keystroke, Modality::ScreenFrame] {
+            let returned = outcomes_from_two_threads(&handle, kind, 10_000);
+            let refused_by_both = KindCounts {
+                refused: 20_000,
+                ..KindCounts::default()
+            };
+            assert_eq!(returned, refused_by_both, "{kind:?}");
+            let counted = KindCounts {
+                refused: 20_001,
+                ..KindCounts::default()
+            };
+            assert_eq!(handle.counts().of(kind), counted, "{kind:?}");
+        }
+    }
+
+    fn outcomes_from_two_threads(handle: &SinkHandle, kind: Modality, each: u64) -> KindCounts {
+        let threads: Vec<_> = (0..2_i64)
+            .map(|emitter| {
+                let handle = handle.clone();
+                thread::spawn(move || {
+                    let mut returned = KindCounts::default();
+                    for index in 0..each {
+                        match handle.emit(unnumbered(kind, emitter, index)) {
+                            Ok(EmitOutcome::Queued) => returned.accepted += 1,
+                            Ok(EmitOutcome::Dropped) => returned.dropped += 1,
+                            Err(SinkError::Disconnected) => returned.refused += 1,
+                        }
+                    }
+                    returned
+                })
+            })
+            .collect();
+        let mut total = KindCounts::default();
+        for thread in threads {
+            let part = thread.join().unwrap();
+            total.accepted += part.accepted;
+            total.dropped += part.dropped;
+            total.refused += part.refused;
+        }
+        total
     }
 
     struct Emitting {
@@ -613,6 +653,19 @@ mod tests {
             ..KindCounts::default()
         };
         assert_eq!(handle.counts().of(Modality::ScreenFrame), frames);
+        let returned = outcomes_from_two_threads(&handle, Modality::ScreenFrame, 10_000);
+        let dropped_by_both = KindCounts {
+            dropped: 20_000,
+            ..KindCounts::default()
+        };
+        assert_eq!(returned, dropped_by_both);
+        let frames = KindCounts {
+            accepted: 1,
+            dropped: 20_001,
+            ..KindCounts::default()
+        };
+        assert_eq!(handle.counts().of(Modality::ScreenFrame), frames);
+        assert_eq!(handle.dropped_count(), 20_001);
         let received = writer.try_recv().unwrap();
         assert_eq!(received.event().segment_ref.byte_offset, 0);
         assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
