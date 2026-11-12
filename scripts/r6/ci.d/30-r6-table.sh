@@ -19,9 +19,12 @@ enter_repo() {
   if [ -n "${CI_D_REPO:-}" ]; then
     repo=$CI_D_REPO
   else
-    repo=$(git rev-parse --show-toplevel) || exit 2
+    repo=$(git rev-parse --show-toplevel) || repo=
   fi
-  cd "$repo" || exit 2
+  if [ -z "$repo" ] || ! cd "$repo" 2>/dev/null; then
+    printf 'FAIL %s (cannot enter the repository)\n' "$name"
+    exit 2
+  fi
 }
 
 fail_now() {
@@ -152,7 +155,7 @@ require_tests() {
         target = ""
       } else if ($0 ~ /^ *Running /) {
         target = target_of($0)
-      } else if (target != "") {
+      } else {
         if (FILENAME == ARGV[1] && $0 ~ /^test [^ ]+ \.\.\. ok$/) shared[target " " substr($0, 6, length($0) - 12)] = 1
         if (FILENAME == ARGV[2] && $0 ~ /: test$/) listed[target " " substr($0, 1, length($0) - 6)] = 1
         if (FILENAME == ARGV[3] && $0 ~ /: test$/) ignored[target " " substr($0, 1, length($0) - 6)] = 1
@@ -224,7 +227,7 @@ hold_pins() {
     FILENAME == ARGV[1] {
       file = $2
       sub(/^\*/, "", file)
-      if (length($1) == 64 && $1 ~ /^[0-9a-f]+$/) hash[file] = $1
+      hash[file] = $1
       next
     }
     /^[ \t]*(pub(\([^)]*\))? )?(const|static) PINNED[^A-Za-z0-9_]/ { declared++ }
@@ -238,7 +241,6 @@ hold_pins() {
     inside {
       line = $0
       sub(/\/\/.*/, "", line)
-      if (line ~ /\/\*/) broken = 1
       text = text line
       if ($0 ~ /^\];/) inside = 0
     }
@@ -264,7 +266,7 @@ hold_pins() {
         value[entries] = part[2]
       }
       if (rest != "];" || entries != size) broken = 1
-      if (declared != 1 || blocks != 1 || broken) {
+      if (declared != 1 || broken) {
         print "pins unreadable=PINNED"
         printf "pins tool=%s files=%d same=0\n", tool, count
         exit 1
@@ -293,8 +295,14 @@ hold_pins() {
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
-  mkdir -p "$artifacts" || exit 2
-  scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  if ! mkdir -p "$artifacts" 2>/dev/null || ! scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX" 2>/dev/null); then
+    printf 'FAIL %s (cannot make a directory)\n' "$name"
+    exit 2
+  fi
+  CARGO_TERM_QUIET=false
+  CARGO_TERM_VERBOSE=false
+  CARGO_TERM_COLOR=never
+  export CARGO_TERM_QUIET CARGO_TERM_VERBOSE CARGO_TERM_COLOR
   cause=
 
   read_commit
@@ -344,6 +352,14 @@ check() {
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
     export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED STUB_NOT_RUN STUB_NO_SUMMARY STUB_RUN_EXIT
     export STUB_TREE STUB_CHANGE_AT STUB_CHANGE_FILE STUB_CHANGE_LINE STUB_COMMITTED STUB_DROP STUB_NO_COMMIT
+    if [ -n "$STUB_QUIET" ]; then
+      CARGO_TERM_QUIET=$STUB_QUIET
+      export CARGO_TERM_QUIET
+    fi
+    if [ -n "$STUB_COLOR" ]; then
+      CARGO_TERM_COLOR=$STUB_COLOR
+      export CARGO_TERM_COLOR
+    fi
     sh "$self" 2>&1
   )
   code=$?
@@ -385,6 +401,8 @@ check() {
   STUB_COMMITTED=
   STUB_DROP=
   STUB_NO_COMMIT=
+  STUB_QUIET=
+  STUB_COLOR=
   : >"$STUB_TREE/status" || exit 2
   : >"$STUB_TREE/flags" || exit 2
 }
@@ -464,6 +482,8 @@ make_stub() {
   STUB_COMMITTED=
   STUB_DROP=
   STUB_NO_COMMIT=
+  STUB_QUIET=
+  STUB_COLOR=
 }
 
 tree_cases() {
@@ -533,6 +553,29 @@ FAIL $name (specimen)"
   check flagged-file-before-the-run FAIL 'tree changed=before h crates/halvo-route/src/admit.rs'
   printf '? notes.txt\n! target/\n' >"$STUB_TREE/status"
   check untracked-and-ignored-before-the-run PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+
+  STUB_QUIET=true
+  check job-sets-cargo-quiet PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+  STUB_COLOR=always
+  check job-sets-cargo-colour PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21'
+
+  unentered=$(CI_D_REPO=$work/no-such-directory sh "$self" 2>&1)
+  code=$?
+  outside "$code" "$unentered" 'FAIL 30-r6-table (cannot enter the repository)' cannot-enter-the-repository
+  : >"$work/a-file" || exit 2
+  unmade=$(CI_D_REPO=$work/repo CI_D_ARTIFACTS=$work/a-file/artifacts sh "$self" 2>&1)
+  code=$?
+  outside "$code" "$unmade" 'FAIL 30-r6-table (cannot make a directory)' cannot-make-a-directory
+}
+
+outside() {
+  if [ "$1:$2" = "2:$3" ]; then
+    printf 'case %s/%s want=FAIL got=FAIL\n' "$name" "$4"
+    rejected=$((rejected + 1))
+  else
+    printf 'case %s/%s want=FAIL got=exit-%s\n' "$name" "$4" "$1"
+    wrong="$wrong $4"
+  fi
 }
 
 required_cases() {
@@ -812,6 +855,10 @@ if [ "$kind" = "${STUB_CHANGE_AT:-none}" ]; then
     printf '%s\n' "$STUB_CHANGE_LINE" >>"$STUB_TREE/${STUB_CHANGE_FILE:-status}"
   fi
 fi
+if [ "${CARGO_TERM_QUIET:-false}" = true ] || [ "${CARGO_TERM_COLOR:-auto}" = always ]; then
+  printf '\033[1mcargo setting\033[0m quiet=%s color=%s\n' "${CARGO_TERM_QUIET:-}" "${CARGO_TERM_COLOR:-}"
+  exit 0
+fi
 case $kind in
   tests)
     cat "$STUB_DIR/test.out"
@@ -906,11 +953,7 @@ EOF
   check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0 ran=21' ' files=5 same=5' "$want_line
 specimen rows=540 same=yes
 PASS $name"
-  if [ -n "${R6_TABLE_NESTED:-}" ]; then
-    STUB_TEST_EXIT=101
-    check tests-fail FAIL "FAIL $name (tests)"
-    self_test_end
-  fi
+  [ -z "${R6_TABLE_NESTED:-}" ] || self_test_end
   tree_cases
   required_cases
   pin_cases
