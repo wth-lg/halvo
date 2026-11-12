@@ -353,10 +353,13 @@ mod tests {
         const EMITTERS: usize = 4;
         const PER_EMITTER: u64 = 100_000;
         let (handle, writer) = bounded(NonZeroUsize::new(2048).unwrap());
+        let (alive, all_ended) = mpsc::channel::<()>();
         let emitters: Vec<_> = (0..EMITTERS)
             .map(|emitter| {
                 let handle = handle.clone();
+                let alive = alive.clone();
                 thread::spawn(move || {
+                    let _alive = alive;
                     let kind = if emitter % 2 == 0 {
                         Modality::Keystroke
                     } else {
@@ -370,12 +373,15 @@ mod tests {
                 })
             })
             .collect();
-        drop(handle);
+        drop(alive);
         let mut next_index = [0u64; EMITTERS];
         let mut expected = 0u64;
+        let mut idle_polls = 0;
         loop {
-            match writer.recv_timeout(Duration::from_secs(10)) {
+            let ended = matches!(all_ended.try_recv(), Err(TryRecvError::Disconnected));
+            match writer.recv_timeout(Duration::from_millis(100)) {
                 Ok(received) => {
+                    idle_polls = 0;
                     assert_eq!(received.number(), ArrivalNumber::for_test(expected));
                     let event = received.event();
                     let emitter = usize::try_from(event.segment_key_id.0).unwrap();
@@ -383,8 +389,12 @@ mod tests {
                     next_index[emitter] += 1;
                     expected += 1;
                 }
-                Err(RecvTimeoutError::Disconnected) => break,
-                Err(RecvTimeoutError::Timeout) => panic!("no event and no disconnect in 10 s"),
+                Err(RecvTimeoutError::Timeout) if ended => break,
+                Err(RecvTimeoutError::Timeout) => {
+                    idle_polls += 1;
+                    assert!(idle_polls < 100, "no event in 10 s while emitters ran");
+                }
+                Err(RecvTimeoutError::Disconnected) => panic!("the test holds a handle"),
             }
         }
         for emitter in emitters {
@@ -392,6 +402,14 @@ mod tests {
         }
         assert_eq!(next_index, [PER_EMITTER; EMITTERS]);
         assert_eq!(expected, 400_000);
+        let half = KindCounts {
+            accepted: 200_000,
+            ..KindCounts::default()
+        };
+        let counts = handle.counts();
+        assert_eq!(counts.of(Modality::Keystroke), half);
+        assert_eq!(counts.of(Modality::Pointer), half);
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
     }
 
     #[test]
@@ -632,10 +650,27 @@ mod tests {
         dropping.thread.join().unwrap();
         let first = writer.try_recv().unwrap();
         assert_eq!(first.number(), ArrivalNumber::for_test(0));
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+        assert!(matches!(
+            writer.recv_timeout(Duration::from_millis(20)),
+            Err(RecvTimeoutError::Timeout)
+        ));
+        assert_eq!(writer.barrier(), Barrier(1), "an empty poll took a number");
         assert_eq!(handle.emit(frame()).unwrap(), EmitOutcome::Queued);
         let second = writer.recv_timeout(Duration::from_secs(1)).unwrap();
         assert_eq!(second.number(), ArrivalNumber::for_test(1));
         assert!(matches!(writer.try_recv(), Err(TryRecvError::Empty)));
+        drop(handle);
+        assert!(matches!(
+            writer.recv_timeout(Duration::from_millis(20)),
+            Err(RecvTimeoutError::Disconnected)
+        ));
+        assert!(matches!(writer.try_recv(), Err(TryRecvError::Disconnected)));
+        assert_eq!(
+            writer.barrier(),
+            Barrier(2),
+            "a poll of a gone sink took a number"
+        );
     }
 
     fn event(sink: &SinkHandle, modality: Modality) -> CaptureStreamEvent {
