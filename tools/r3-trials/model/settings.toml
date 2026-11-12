@@ -1,0 +1,16 @@
+driver = "none"
+writer = "none"
+context = 8192
+snapshot_tokens = 4096
+[low]
+action_tokens = 256
+reply_tokens = 512
+recoveries = 2
+[medium]
+action_tokens = 256
+reply_tokens = 512
+recoveries = 2
+[high]
+action_tokens = 256
+reply_tokens = 512
+recoveries = 2

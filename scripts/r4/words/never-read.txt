@@ -3,9 +3,19 @@
 # compiled with the flag u alone, so letter case counts. never-read-cases.txt holds, for each
 # line by its number among the pattern lines, sentences that the line matches and sentences
 # that no line matches.
+# Beside these lines the check flags, as the class enum, a name of the code's closed lists
+# (the names of crates/halvo-coord/src/types/names.rs and cause.rs) that holds an underscore,
+# written with underscores or hyphens, in any letter case: needs_you, needs-you, Needs-You.
+# A site's name is its host name, with its port where that is not the usual one of its scheme
+# (I1.4, ruling IG-14): pay.site1.example and pay.site1.example:8443 pass, and the address lines
+# flag a scheme and what follows a host (a path, a query, a fragment). Other lines still flag
+# three host forms: a name that begins with www., a host of three labels of letters alone (the
+# enum line for paths of keys), and a host whose last label is a file suffix, with a port (the
+# trace line for a file and a line). So a fixture that shows a site uses a host that passes,
+# with a digit in a label as the fixtures do today (site1.example).
 model	\b(?:GPT|ChatGPT|OpenAI|Claude|Anthropic|Gemini|Gemma|Llama|Mistral|Mixtral|Qwen|DeepSeek|Grok|Ollama|Copilot)\b
 model	\b(?:gpt|chatgpt|openai|anthropic|deepseek|qwen|ollama)\b
-model	\b(?:[Gg][Pp][Tt]|[Cc]laude|[Gg]emini|[Gg]emma|[Ll]lama|[Mm]istral|[Mm]ixtral|[Qq]wen|[Pp]hi)[- ]?\d[\w.:-]*|\b(?:Sonnet|Opus|Haiku) \d
+model	\b(?:[Gg][Pp][Tt]|[Cc]laude|[Gg]emini|[Gg]emma|[Ll]lama|[Mm]istral|[Mm]ixtral|[Qq]wen|[Pp]hi)[- ]?\d[\w.:-]*|\b(?:Sonnet|Opus|Haiku|Fable) \d
 model	\b(?:LLMs?|AI models?|[Ll]anguage models?|MODELS?)\b
 tier	\b(?:[Ff]rontier|[Hh]osted|[Ll]ow[- ]cost hosted|[Oo]n[- ]device) (?:model|tier|AI)s?\b
 tier	\b[Ll]ow[- ]cost hosted\b|\b(?:[Mm]odel|AI) tiers?\b
@@ -32,7 +42,7 @@ address	\b[Ww][Ww][Ww]\.
 address	[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+
 address	\b\d{1,3}(?:\.\d{1,3}){3}\b
 address	\blocalhost\b
-address	\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?!(?:pdf|PDF|docx?|DOCX?|xlsx?|XLSX?|csv|CSV|txt|TXT|png|PNG|jpe?g|JPE?G|gif|GIF|heic|HEIC|pptx?|PPTX?|odt|ods|rtf|zip|ZIP|md|js|mjs|rs|py|ts|sh|json|html)\b)[A-Za-z]{2,}\b
+address	\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?!(?:pdf|PDF|docx?|DOCX?|xlsx?|XLSX?|csv|CSV|txt|TXT|png|PNG|jpe?g|JPE?G|gif|GIF|heic|HEIC|pptx?|PPTX?|odt|ods|rtf|zip|ZIP|md|js|mjs|rs|py|ts|sh|json|html)\b)[A-Za-z]{2,}(?::\d+)?(?:\/|[?#][^\s?#])
 enum	\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b(?!\.[A-Za-z]{2,4}\b)
 enum	\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b
 enum	\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b(?!\.[A-Za-z]{2,4}\b)
@@ -58,3 +68,4 @@ prompt	\b(?:[Ii]ts|[Tt]he agent's|[Tt]he model's) reasoning\b|\b[Rr]easoning (?:
 prompt	\b(?:[Cc]hain[- ]of[- ]thought|[Ss]ystem (?:prompt|message)|[Tt]hought process)\b
 prompt	<\/?(?:system|user|assistant|thinking|think)>
 prompt	\bYou are (?:an? )?(?:helpful |AI |large )?(?:assistant|language model|AI model|chatbot)\b|\b(?:[Ll]et me think step by step|[Tt]hink step by step|[Aa]s an AI(?: language model)?|[Ii]gnore (?:all )?(?:previous|prior|above) instructions)\b
+model	(?<=[^\s.!?]\s+["'“‘(]?)\b(?:Sonnet|Opus|Haiku|Fable)s?\b

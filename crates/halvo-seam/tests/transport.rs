@@ -1,9 +1,9 @@
 use std::fs;
-use std::io::Cursor;
+use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use halvo_schema::{Instant, Position, StoreId};
-use halvo_seam::fixture::{FixtureTransport, OpenError, ServeError};
+use halvo_seam::fixture::{FixtureTransport, OpenError, Replace, ServeError};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::{
     decode_server, Batch, Cause, ClientMessage, KindFilter, OpenCursor, ServerMessage, TimeRange,
@@ -712,6 +712,94 @@ fn messages_out_of_order_and_the_analysis_write_get_bad_request() {
         b.records.iter().map(|e| e.pos).collect::<Vec<_>>(),
         [Position { seg: 1, idx: 1 }]
     );
+}
+
+const EMPTY_STORE: &str = "e3b0c44298fc1c149afbf4c8996fb924";
+
+fn reads_the_empty_store(opened: Batch, read: Batch) {
+    assert_eq!(opened.store.as_str(), EMPTY_STORE);
+    assert_eq!(opened.watermark, Position { seg: 1, idx: 0 });
+    assert_eq!(read.store.as_str(), EMPTY_STORE);
+    assert!(read.records.is_empty() && read.expiry.is_empty());
+    assert_eq!(read.next, read.watermark);
+}
+
+#[test]
+fn a_close_after_a_replace_leaves_no_store_changed_for_the_next_cursor() {
+    let paths = files("a_close_after_a_replace", &[key(1, DAY) + &key(2, DAY + 1)]);
+    let mut t = open(&paths, 1);
+    let replace = t.replace_handle();
+    batch(t.handle(&fresh()));
+    batch(t.handle(&ClientMessage::ReadBatch));
+    replace.replace();
+    assert!(matches!(
+        t.handle(&ClientMessage::Close),
+        ServerMessage::Closed
+    ));
+    let opened = batch(t.handle(&fresh()));
+    let read = batch(t.handle(&ClientMessage::ReadBatch));
+    reads_the_empty_store(opened, read);
+}
+
+struct ReplaceAt {
+    input: Cursor<Vec<u8>>,
+    at: u64,
+    replace: Option<Replace>,
+}
+
+impl Read for ReplaceAt {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let pos = self.input.position();
+        if pos >= self.at {
+            if let Some(replace) = self.replace.take() {
+                replace.replace();
+            }
+            return self.input.read(buf);
+        }
+        let room = usize::try_from(self.at - pos)
+            .unwrap_or(usize::MAX)
+            .min(buf.len());
+        self.input.read(&mut buf[..room])
+    }
+}
+
+#[test]
+fn the_end_of_a_connection_after_a_replace_leaves_no_store_changed_for_the_next_one() {
+    let paths = files("the_end_of_a_connection_after_a_replace", &[key(1, DAY)]);
+    let mut t = open(&paths, 1);
+    let before = frames(&[fresh().to_payload(), ClientMessage::ReadBatch.to_payload()]);
+    let write = ClientMessage::AnalysisWrite(
+        serde_json::value::RawValue::from_string("{}".to_owned()).unwrap(),
+    );
+    let mut input = before.clone();
+    input.extend(frames(&[write.to_payload()]));
+    let reader = ReplaceAt {
+        input: Cursor::new(input),
+        at: before.len() as u64,
+        replace: Some(t.replace_handle()),
+    };
+    let mut output = Vec::new();
+    t.serve(reader, &mut output).unwrap();
+    let mut replies = Cursor::new(output);
+    let mut causes = Vec::new();
+    while let Some(p) = read_frame(&mut replies, SERVER_FRAME_MAX).unwrap() {
+        causes.push(match decode_server(&p).unwrap() {
+            ServerMessage::Batch(_) => None,
+            ServerMessage::Error(e) => Some(e.cause().clone()),
+            other => panic!("{other:?}"),
+        });
+    }
+    assert_eq!(causes, [None, None, Some(Cause::BadRequest)]);
+    assert_eq!(t.store().as_str(), EMPTY_STORE);
+    let (result, replies) = serve(
+        &mut t,
+        frames(&[fresh().to_payload(), ClientMessage::ReadBatch.to_payload()]),
+    );
+    result.unwrap();
+    assert_eq!(replies.len(), 2);
+    let opened = batch(decode_server(&replies[0]).unwrap());
+    let read = batch(decode_server(&replies[1]).unwrap());
+    reads_the_empty_store(opened, read);
 }
 
 #[test]

@@ -139,19 +139,21 @@ struct Row {
     item: ItemId,
     run: RunId,
     entry: DecisionEntry,
-    released: bool,
+    release: Option<u32>,
     used: bool,
 }
 
 /// The guard's table (I4.7): the `item_answered` rows whose acknowledgement came before the
-/// release of their decision, each marked when its decision was released and when a record
-/// used it, and the runs that were stopped. A row counts for a record only from the release on;
-/// the rows of an item that lapsed leave the table, whatever the cause. A new life of the app
-/// starts with an empty table.
+/// release of their decision, each with the number of its decision's release, counted from 1 in
+/// this life (the rows stand in the order of acknowledgement, and an item id holds no order), and
+/// marked when a record used it, and the runs that were stopped. A row counts for a record only
+/// from the release on; the rows of an item that lapsed leave the table, whatever the cause. A new
+/// life of the app starts with an empty table.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Table {
     rows: Vec<Row>,
     stopped: Vec<RunId>,
+    releases: u32,
 }
 
 impl Table {
@@ -168,17 +170,28 @@ impl Table {
             item: item.clone(),
             run: run.clone(),
             entry: entry.clone(),
-            released: false,
+            release: None,
             used: false,
         }));
         t
     }
 
-    /// The table in which the rows of `item` count from now on: its decision was released.
+    /// The table in which the rows of `item` count from now on: its decision was released, as the
+    /// next release of this life, whose number its rows take.
     pub fn release(&self, item: &ItemId) -> Table {
         let mut t = self.clone();
-        for row in t.rows.iter_mut().filter(|r| &r.item == item) {
-            row.released = true;
+        let number = t.releases.saturating_add(1);
+        let mut any = false;
+        for row in t
+            .rows
+            .iter_mut()
+            .filter(|r| &r.item == item && r.release.is_none())
+        {
+            row.release = Some(number);
+            any = true;
+        }
+        if any {
+            t.releases = number;
         }
         t
     }
@@ -204,18 +217,33 @@ impl Table {
         self.stopped.contains(run)
     }
 
+    /// Whether the newest decision that was released for `effect` of `run` in this life is
+    /// `allow_once`: the fact on which a later item of the run that names the effect shows the
+    /// line `confirm.changed` (I4.3, rulings IG-6d, IG-25). The newest is the one with the highest
+    /// number of release; whether a record used its row plays no part. A row whose decision was
+    /// not released gives nothing, the rows of an item that lapsed are no longer in the table, so
+    /// the decision released before them decides, and a new life gives no line.
+    pub fn newest_allows(&self, run: &RunId, effect: &EffectId) -> bool {
+        self.rows
+            .iter()
+            .filter(|r| r.run == *run && r.entry.effect == *effect)
+            .filter_map(|r| r.release.map(|number| (number, r.entry.answer)))
+            .max_by_key(|(number, _)| *number)
+            .is_some_and(|(_, answer)| answer == EffectAnswer::AllowOnce)
+    }
+
     /// The approval ids of the rows that the table holds, with whether each counts and whether
     /// a record used it, in the order of their record.
     pub fn approvals(&self) -> Vec<(ApprovalId, bool, bool)> {
         self.rows
             .iter()
-            .map(|r| (r.entry.approval.clone(), r.released, r.used))
+            .map(|r| (r.entry.approval.clone(), r.release.is_some(), r.used))
             .collect()
     }
 
     fn matching(&self, record: &EffectRecord, approval: &ApprovalId) -> Option<usize> {
         self.rows.iter().position(|r| {
-            r.released
+            r.release.is_some()
                 && r.run == record.run
                 && r.entry.answer == EffectAnswer::AllowOnce
                 && r.entry.approval == *approval

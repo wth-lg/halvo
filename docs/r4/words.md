@@ -7,6 +7,7 @@ How the check uses the table:
 - A term with `yes` in the column reserved is reserved. The check matches it as a whole word in any letter case, in the exact form of its row. So `paused` matches `Paused` and does not match `pause`.
 - A sentence of the interface run fails the rule `clash` when it holds a reserved term of another run.
 - The interface run uses one reserved term of another run: the text of the control `delete`. The file `scripts/r4/words/allowed.txt` holds that one pair of a words key and a term.
+- The check fails with the cause `glossary` when a row is not in its form, when one of the four rows that item I1.6 fixes is missing or changed (`paused` and `cap` of the capture run, `delete` and `approve` of the workflow run, each reserved), or when a line that starts with `|` comes after the end of the table. The table ends at its first line that does not start with `|`, so keep the rows together, with no blank line between them.
 
 A row for a further term of another run comes by a request of that run's planner. Write the term on its own, with no code font, because the check reads the cell as it stands.
 

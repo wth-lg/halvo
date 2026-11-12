@@ -1,6 +1,5 @@
-use crate::types::{
-    Category, Cause, Cleared, ConfigView, Facts, HoldSetCause, Param, Runtime, What,
-};
+use crate::items::params;
+use crate::types::{Cause, Cleared, ConfigView, Facts, HoldSetCause, Runtime, What};
 
 /// The holds of I5.4, in their order: each stops every start of its agent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -45,23 +44,6 @@ impl Hold {
             .copied()
             .find(|h| h.name() == text)
             .ok_or(Cause::Malformed)
-    }
-}
-
-/// The parameters of a category that a setup binds in a slot, the rows of A-A1.5 with the
-/// source `activation` (I3.5); none for a category that I3.5 does not list.
-pub fn params(category: Category) -> &'static [Param] {
-    match category {
-        Category::UtilityBillPayment => &[Param::Start, Param::Payee, Param::Instrument],
-        Category::Email => &[Param::ReplySenders],
-        Category::SpreadsheetFill => &[Param::Workbook, Param::Sheet, Param::Range, Param::Source],
-        Category::ShopOrder => &[Param::Start, Param::Seller, Param::Instrument],
-        Category::CalendarCleanup
-        | Category::TenantRent
-        | Category::LeaseRenewalOrChange
-        | Category::TenantApplicationReview
-        | Category::RideOrder
-        | Category::DailyChartCheck => &[],
     }
 }
 

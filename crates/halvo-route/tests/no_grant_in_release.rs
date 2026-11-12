@@ -1,0 +1,96 @@
+use halvo_route::leave::{grant, Consent, LeaveCause, PartKind};
+use halvo_route::release;
+use halvo_route::tier::Tier;
+use sha2::{Digest, Sha256};
+
+const PINNED: [(&str, &str); 4] = [
+    (
+        "leave.rs",
+        "08f15e050a0ba5feb9e9402259b182145969ce87bc09a52090a0c9a8a684e1f8",
+    ),
+    (
+        "lib.rs",
+        "82333428818c311344054ce975e49ee207a52c3dc4fef562e38f586892130036",
+    ),
+    (
+        "ruling.rs",
+        "df1d5ec7217cf6f5fc602f3fc1d8606ccb804c26823018c6f11ddffe60f9de8f",
+    ),
+    (
+        "tier.rs",
+        "64850efc01ea0c73b1fcca18542592d47ce52be979dc421bba59aaf1eba17365",
+    ),
+];
+
+#[test]
+fn pinned_files_hold_their_hashes() {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut changed = Vec::new();
+    for (name, pinned) in PINNED {
+        let bytes = std::fs::read(src.join(name)).expect("a pinned file under src");
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        if hash != pinned {
+            changed.push(format!("src/{name} now hashes to {hash}"));
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "a pinned file changed. A change of a pinned file updates its hash in PINNED of tests/no_grant_in_release.rs in the same commit, where the reviewer of that commit reads the change.\n{}",
+        changed.join("\n")
+    );
+}
+
+#[test]
+fn no_grant_in_release() {
+    let ruling = release::ruling();
+    let mut lists: Vec<Vec<PartKind>> = PartKind::ALL.iter().map(|part| vec![*part]).collect();
+    lists.push(Vec::new());
+    lists.push(PartKind::ALL.to_vec());
+    let mut calls = 0;
+    for tier in Tier::ALL {
+        let cause = if tier == Tier::OnDevice {
+            LeaveCause::Local
+        } else {
+            LeaveCause::Ruling
+        };
+        for ceiling in Tier::ALL {
+            for parts in &lists {
+                for consent in Consent::ALL {
+                    for origin in ["127.0.0.1:1", "example.invalid:443"] {
+                        let answer = grant(&ruling, tier, ceiling, parts, origin, consent);
+                        assert_eq!(
+                            answer.err(),
+                            Some(cause),
+                            "{tier:?} {ceiling:?} {parts:?} {consent:?} {origin}"
+                        );
+                        calls += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(calls, 3 * 3 * 7 * 2 * 2);
+}
+
+const CRATE_MODULES: [&str; 11] = [
+    "admit", "cap", "leave", "line", "pick", "policy", "prices", "release", "ruling", "spend",
+    "tier",
+];
+
+#[test]
+fn lib_rs_is_the_forbid_line_and_the_module_lines() {
+    let lib = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
+        .expect("the crate's lib.rs");
+    let modules: String = CRATE_MODULES
+        .iter()
+        .map(|module| format!("pub mod {module};\n"))
+        .collect();
+    assert_eq!(
+        lib,
+        format!("#![forbid(unsafe_code)]\n\n{modules}"),
+        "lib.rs holds the forbid line and the lines of CRATE_MODULES alone"
+    );
+}

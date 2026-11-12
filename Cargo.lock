@@ -1383,12 +1383,12 @@ dependencies = [
  "aead-stream",
  "base64 0.22.1",
  "block2",
- "cc",
  "chacha20poly1305",
  "core-foundation",
  "core-graphics",
  "dispatch2",
  "getrandom 0.2.17",
+ "halvo-sqlcipher",
  "libc",
  "objc2",
  "objc2-app-kit",
@@ -1396,12 +1396,10 @@ dependencies = [
  "objc2-foundation",
  "objc2-screen-capture-kit",
  "proptest",
- "rusqlite",
  "security-framework",
  "security-framework-sys",
  "serde",
  "serde_json",
- "sqlcipher-src",
  "tempfile",
  "thiserror 2.0.21",
  "uuid",
@@ -1427,6 +1425,9 @@ version = "0.0.0"
 [[package]]
 name = "halvo-route"
 version = "0.0.0"
+dependencies = [
+ "sha2",
+]
 
 [[package]]
 name = "halvo-route-gate"
@@ -1447,6 +1448,7 @@ dependencies = [
 name = "halvo-schema"
 version = "0.0.0"
 dependencies = [
+ "proc-macro2",
  "psl",
  "serde",
  "serde_json",
@@ -1460,6 +1462,15 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "halvo-sqlcipher"
+version = "0.0.0"
+dependencies = [
+ "cc",
+ "rusqlite",
+ "sqlcipher-src",
 ]
 
 [[package]]

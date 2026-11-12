@@ -1,4 +1,4 @@
-//! SQLCipher metadata store and the sole-writer [`EncryptedStore`].
+//! SQLCipher metadata store and the [`EncryptedStore`].
 
 use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use rusqlite::{Connection, ErrorCode};
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -33,7 +33,8 @@ impl KeyFile {
     }
 
     fn write(&self, store_dir: &Path) -> StoreResult<()> {
-        let json = serde_json::to_vec_pretty(self).map_err(|e| StoreError::Io(e.to_string()))?;
+        let json =
+            serde_json::to_vec_pretty(self).map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
         std::fs::write(Self::path(store_dir), json).map_err(io_error)
     }
 
@@ -43,20 +44,21 @@ impl KeyFile {
             Err(e) if e.kind() == ErrorKind::NotFound => return Err(StoreError::Sealed),
             Err(e) => return Err(io_error(e)),
         };
-        serde_json::from_slice(&json)
-            .map_err(|e| StoreError::Corrupt(format!("store-key file: {e}")))
+        serde_json::from_slice(&json).map_err(|_| StoreError::KeyFileUnparseable)
     }
 
     pub(crate) fn wrapped_store_key(&self) -> StoreResult<WrappedKey> {
-        BASE64
+        let wrapped = BASE64
             .decode(self.wrapped_store_key_b64.as_bytes())
-            .map(WrappedKey)
-            .map_err(|e| StoreError::Corrupt(format!("store-key file: {e}")))
+            .map_err(|_| StoreError::KeyFileUnparseable)?;
+        match self.custody_kind.wrapped_store_key_len() {
+            Some(len) if wrapped.len() != len => Err(StoreError::KeyFileUnparseable),
+            _ => Ok(WrappedKey(wrapped)),
+        }
     }
 
-    /// Overwrite the key file with zeros, then unlink it, so the wrapped store
-    /// key does not survive on freed blocks. Succeeds when the file is gone.
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
+        failpoint::hit("key_file_destroy")?;
         let path = Self::path(store_dir);
         match File::options().write(true).open(&path) {
             Ok(mut file) => {
@@ -72,11 +74,46 @@ impl KeyFile {
 }
 
 fn io_error(e: std::io::Error) -> StoreError {
-    StoreError::Io(e.to_string())
+    StoreError::Io(e.kind())
 }
 
-fn db_error(e: rusqlite::Error) -> StoreError {
-    StoreError::Io(e.to_string())
+#[cfg(test)]
+pub(crate) mod failpoint {
+    use std::cell::Cell;
+
+    use super::{StoreError, StoreResult};
+
+    thread_local! {
+        static ARMED: Cell<Option<&'static str>> = const { Cell::new(None) };
+    }
+
+    pub(crate) fn arm(name: &'static str) {
+        ARMED.with(|armed| armed.set(Some(name)));
+    }
+
+    pub(crate) fn hit(name: &'static str) -> StoreResult<()> {
+        if ARMED.with(|armed| armed.get()) == Some(name) {
+            ARMED.with(|armed| armed.set(None));
+            return Err(StoreError::Io(std::io::ErrorKind::Other));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(test))]
+mod failpoint {
+    pub(super) fn hit(_name: &'static str) -> super::StoreResult<()> {
+        Ok(())
+    }
+}
+
+pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
+    match e {
+        rusqlite::Error::SqliteFailure(failure, _) => StoreError::Db(failure.extended_code),
+        other => StoreError::Corrupt(format!(
+            "the database returned an unexpected value: {other}"
+        )),
+    }
 }
 
 pub(crate) fn unix_secs_now() -> u64 {
@@ -96,7 +133,7 @@ pub(crate) fn remove_if_present(path: &Path) -> StoreResult<()> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(StoreError::Io(format!("removing {}: {e}", path.display()))),
+        Err(e) => Err(io_error(e)),
     }
 }
 
@@ -104,13 +141,10 @@ fn remove_dir_if_present(path: &Path) -> StoreResult<()> {
     match std::fs::remove_dir_all(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(StoreError::Io(format!("removing {}: {e}", path.display()))),
+        Err(e) => Err(io_error(e)),
     }
 }
 
-/// Serializes `create` against other cooperating writers in the same directory.
-/// The single-writer guarantee itself is the exclusive database lock, which a
-/// writer cannot run without and which unlinking this file does not release.
 struct WriterLock {
     file: File,
 }
@@ -133,13 +167,10 @@ impl WriterLock {
 
 impl Drop for WriterLock {
     fn drop(&mut self) {
-        // The lock belongs to the open file, and a spawned child shares that file
-        // until its exec closes the descriptor, so closing ours would leave it held.
         let _ = self.file.unlock();
     }
 }
 
-/// The result of `PRAGMA wal_checkpoint(TRUNCATE)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Checkpoint {
     pub busy: i64,
@@ -165,26 +196,19 @@ impl Db {
         ]
     }
 
-    /// Remove the database and its WAL and shm files. Succeeds when none exist.
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {
         Self::side_files(store_dir)
             .iter()
             .try_for_each(|p| remove_if_present(p))
     }
 
-    /// Open the database in `store_dir` with the raw store key and hold an
-    /// exclusive lock on it for the connection's lifetime, so no other
-    /// connection can read a snapshot that would keep a shredded page alive.
     pub(crate) fn open(store_dir: &Path, key: &[u8; 32]) -> StoreResult<Self> {
         let path = Self::path(store_dir);
         let conn = Connection::open(&path).map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
-        let key_pragma =
-            Zeroizing::new(format!("PRAGMA key = \"x'{}'\";", hex_lower(key).as_str()));
-        conn.execute_batch(&key_pragma)
-            .map_err(|e| StoreError::Io(format!("set key: {e}")))?;
+        conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
-            .map_err(|e| StoreError::Io(format!("locking mode: {e}")))?;
+            .map_err(db_error)?;
         verify_key(&conn, store_dir)?;
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
@@ -192,7 +216,7 @@ impl Db {
              PRAGMA journal_mode = WAL;\n\
              PRAGMA foreign_keys = ON;",
         )
-        .map_err(|e| StoreError::Io(format!("pragmas: {e}")))?;
+        .map_err(db_error)?;
         require_secure_delete(&conn)?;
         require_exclusive_locking(&conn)?;
         let db = Self {
@@ -201,6 +225,7 @@ impl Db {
         };
         db.init_schema()?;
         db.enable_fts_secure_delete()?;
+        failpoint::hit("db_open")?;
         Ok(db)
     }
 
@@ -229,22 +254,19 @@ impl Db {
                  );\n\
                  CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
             )
-            .map_err(|e| StoreError::Io(format!("schema: {e}")))
+            .map_err(db_error)
     }
 
     fn enable_fts_secure_delete(&self) -> StoreResult<()> {
         self.conn
             .execute_batch("INSERT INTO events_fts(events_fts, rank) VALUES('secure-delete', 1);")
-            .map_err(|e| StoreError::Io(format!("fts secure-delete: {e}")))
+            .map_err(db_error)
     }
 
     pub(crate) fn connection(&self) -> &Connection {
         &self.conn
     }
 
-    /// Reserve the key row for a segment with no key yet: until
-    /// [`Db::commit_segment_key`] runs, the row is a tombstone and the segment
-    /// has no usable key.
     fn reserve_segment_key(
         &self,
         segment_id: uuid::Uuid,
@@ -276,7 +298,7 @@ impl Db {
         if changed == 1 {
             Ok(())
         } else {
-            Err(StoreError::Io(format!(
+            Err(StoreError::Corrupt(format!(
                 "segment key row {} was not reserved for this write",
                 id.0
             )))
@@ -284,6 +306,25 @@ impl Db {
     }
 
     pub(crate) fn insert_event(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
+        self.conn
+            .execute_batch("SAVEPOINT insert_event;")
+            .map_err(db_error)?;
+        match self.insert_event_rows(event) {
+            Ok(()) => self
+                .conn
+                .execute_batch("RELEASE insert_event;")
+                .map_err(db_error),
+            Err(cause) => match self
+                .conn
+                .execute_batch("ROLLBACK TO insert_event; RELEASE insert_event;")
+            {
+                Ok(()) => Err(cause),
+                Err(e) => Err(db_error(e)),
+            },
+        }
+    }
+
+    fn insert_event_rows(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
         self.conn
             .execute(
                 "INSERT INTO events (event_id, wall_clock_nanos, sequence, modality, \
@@ -335,15 +376,14 @@ impl Db {
             .map_err(db_error)
     }
 
-    pub(crate) fn wal_bytes(&self) -> u64 {
-        std::fs::metadata(&self.wal_path)
-            .map(|m| m.len())
-            .unwrap_or(0)
+    pub(crate) fn wal_bytes(&self) -> StoreResult<u64> {
+        match std::fs::metadata(&self.wal_path) {
+            Ok(metadata) => Ok(metadata.len()),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(0),
+            Err(e) => Err(io_error(e)),
+        }
     }
 
-    /// Move every committed page into the main database file and truncate the
-    /// WAL. Fails unless the checkpoint ran unblocked and the WAL holds no
-    /// frames afterwards; a shred is not complete until this succeeds.
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
         let busy: i64 = self
             .conn
@@ -351,20 +391,18 @@ impl Db {
             .map_err(db_error)?;
         let checkpoint = Checkpoint {
             busy,
-            wal_bytes: self.wal_bytes(),
+            wal_bytes: self.wal_bytes()?,
         };
         if checkpoint.busy != 0 || checkpoint.wal_bytes != 0 {
-            return Err(StoreError::Io(format!(
-                "wal checkpoint did not complete: busy={} wal_bytes={}",
-                checkpoint.busy, checkpoint.wal_bytes
-            )));
+            return Err(StoreError::CheckpointIncomplete {
+                busy: checkpoint.busy,
+                wal_bytes: checkpoint.wal_bytes,
+            });
         }
         Ok(checkpoint)
     }
 }
 
-/// The first statement to touch the file: a wrong key is a sealed store, another
-/// connection holding the file is a second writer, anything else is i/o.
 fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
     conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
         r.get::<_, i64>(0)
@@ -375,16 +413,14 @@ fn verify_key(conn: &Connection, store_dir: &Path) -> StoreResult<()> {
         Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => {
             StoreError::Locked(store_dir.to_path_buf())
         }
-        _ => StoreError::Io(format!("open: {e}")),
+        _ => db_error(e),
     })
 }
 
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
     match pragma_int(conn, "secure_delete")? {
         1 => Ok(()),
-        other => Err(StoreError::Io(format!(
-            "secure_delete is {other}, so key destruction would not scrub the freed blob"
-        ))),
+        _ => Err(StoreError::SettingNotInEffect("secure_delete")),
     }
 }
 
@@ -395,15 +431,26 @@ fn require_exclusive_locking(conn: &Connection) -> StoreResult<()> {
     if mode == "exclusive" {
         Ok(())
     } else {
-        Err(StoreError::Io(format!(
-            "locking_mode is {mode}, so a reader could keep a shredded page alive"
-        )))
+        Err(StoreError::SettingNotInEffect("locking_mode"))
     }
 }
 
 fn pragma_int(conn: &Connection, name: &str) -> StoreResult<i64> {
     conn.query_row(&format!("PRAGMA {name}"), [], |r| r.get(0))
         .map_err(db_error)
+}
+
+const KEY_PRAGMA_HEAD: &str = "PRAGMA key = \"x'";
+const KEY_PRAGMA_TAIL: &str = "'\";";
+
+fn key_pragma(key: &[u8; 32]) -> Zeroizing<String> {
+    let mut pragma = Zeroizing::new(String::with_capacity(
+        KEY_PRAGMA_HEAD.len() + 64 + KEY_PRAGMA_TAIL.len(),
+    ));
+    pragma.push_str(KEY_PRAGMA_HEAD);
+    pragma.push_str(&hex_lower(key));
+    pragma.push_str(KEY_PRAGMA_TAIL);
+    pragma
 }
 
 fn hex_lower(bytes: &[u8; 32]) -> Zeroizing<String> {
@@ -421,7 +468,7 @@ enum Keyed {
     Sealed,
 }
 
-/// The sole-writer encrypted store: the SQLCipher database, the per-segment files
+/// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
 pub struct EncryptedStore {
     dir: PathBuf,
@@ -435,8 +482,9 @@ impl EncryptedStore {
     /// Create a fresh store in `dir`: open a new database under a random store
     /// key, wrap that key with `custody` and write the store-key file. A
     /// directory with a store-key file already holds a store; one without is
-    /// free, and any keyless leftovers in it are removed. If any step fails,
-    /// everything this call made, the custody root included, is destroyed.
+    /// free, and any keyless leftovers in it are removed. When a step fails, the
+    /// database and key files that the call made are removed and the root that
+    /// it made is destroyed; the directory and its `writer.lock` stay.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -450,7 +498,8 @@ impl EncryptedStore {
         Db::destroy(dir)?;
         remove_dir_if_present(&segment::segments_root(dir))?;
         let store_key = StoreKey::random()?;
-        let db = Db::open(dir, store_key.expose())?;
+        let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
+        let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
         match Self::write_key_file(dir, custody.as_ref(), &store_key) {
             Ok(()) => Ok(Self {
                 dir: dir.to_path_buf(),
@@ -462,6 +511,16 @@ impl EncryptedStore {
             Err(e) => {
                 drop(db);
                 Err(Self::abandon_create(dir, custody.as_ref(), e))
+            }
+        }
+    }
+
+    fn under_a_new_root(dir: &Path, custody: &dyn KeyCustody, db: Db) -> StoreResult<Db> {
+        match custody.create_root() {
+            Ok(()) => Ok(db),
+            Err(e) => {
+                drop(db);
+                Err(Self::without_database(dir, StoreError::Custody(e)))
             }
         }
     }
@@ -481,32 +540,54 @@ impl EncryptedStore {
         .write(dir)
     }
 
-    fn abandon_create(dir: &Path, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
-        let cleanup = KeyFile::destroy(dir)
-            .and_then(|()| Db::destroy(dir))
-            .and_then(|()| custody.destroy_root().map_err(StoreError::Custody));
-        match cleanup {
+    fn without_database(dir: &Path, cause: StoreError) -> StoreError {
+        match Db::destroy(dir) {
             Ok(()) => cause,
-            Err(e) => StoreError::Io(format!("{cause}; cleaning up the failed create: {e}")),
+            Err(left_behind) => left_behind,
+        }
+    }
+
+    fn abandon_create(dir: &Path, custody: &dyn KeyCustody, cause: StoreError) -> StoreError {
+        let root = custody.destroy_root().map_err(StoreError::Custody);
+        let key_file = KeyFile::destroy(dir);
+        let database = Db::destroy(dir);
+        match root.and(key_file).and(database) {
+            Ok(()) => cause,
+            Err(left_behind) => left_behind,
         }
     }
 
     /// Open an existing store: read the store-key file, **unwrap the store key
-    /// through the custody it names** (the owner's no-prompt unwrap) and open the
-    /// database. Fails [`StoreError::Sealed`] if the key file is gone (delete-all
-    /// ran), the custody root is gone or cannot unwrap the key (a non-owner), or
-    /// the key does not open the database.
+    /// through the custody it names** and open the database. A `store.db` that
+    /// is missing or empty is made as a new, empty database: the store opens,
+    /// and none of the segments or events that it held reads again. Fails
+    /// [`StoreError::Locked`] while another writer holds the directory, and
+    /// [`StoreError::Sealed`] when `store.key` is missing (delete-all ran, or no
+    /// store was made here) and when the unwrapped key does not open the
+    /// database: a key of another store, a damaged first page, or a file
+    /// shorter than one page. Fails [`StoreError::KeyFileUnparseable`] for a key
+    /// file that does not parse or whose wrapped key has another length than a
+    /// wrap, and [`StoreError::Custody`] with the custody's own variant when the
+    /// custody kind is not in this build or the unwrap fails:
+    /// [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`] and
+    /// [`CustodyError::WrapAuthFailed`] mean that the key cannot come back.
     pub fn open(dir: &Path, retention: Duration) -> StoreResult<Self> {
+        Self::open_with(dir, retention, custody_for)
+    }
+
+    pub(crate) fn open_with(
+        dir: &Path,
+        retention: Duration,
+        custody_for: impl FnOnce(
+            CustodyKind,
+            RootId,
+        ) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
+    ) -> StoreResult<Self> {
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
+        let wrapped = key_file.wrapped_store_key()?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
-        let store_key = match custody.unwrap_store_key(&key_file.wrapped_store_key()?) {
-            Ok(key) => key,
-            Err(CustodyError::Crypto(_) | CustodyError::RootUnavailable(_)) => {
-                return Err(StoreError::Sealed)
-            }
-            Err(e) => return Err(StoreError::Custody(e)),
-        };
+        let store_key = custody.unwrap_store_key(&wrapped)?;
         let db = Db::open(dir, store_key.expose())?;
         Ok(Self {
             dir: dir.to_path_buf(),
@@ -536,16 +617,23 @@ impl EncryptedStore {
         self.keyed().map(|(_, key)| key)
     }
 
-    /// Drop the database connection and zeroize the store key.
     pub(crate) fn seal(&mut self) {
         self.keyed = Keyed::Sealed;
     }
 
+    pub(crate) fn is_sealed(&self) -> bool {
+        matches!(self.keyed, Keyed::Sealed)
+    }
+
     /// Read and decrypt a segment's plaintext: unwrap its per-segment key with the
-    /// store key, then decrypt the file. Nothing reaches `out` until the whole
-    /// file has authenticated. Fails [`StoreError::Sealed`] if the segment has
-    /// been crypto-shredded or never finished writing (its key row is NULL or
-    /// gone) and [`StoreError::Corrupt`] if the file does not authenticate.
+    /// store key, then read the file twice, first to authenticate every chunk and
+    /// then to write the plaintext to `out`. Nothing reaches `out` before the first
+    /// read has authenticated the whole file; a file that changes between the two
+    /// reads ends in an error, after `out` has taken the chunks that still
+    /// authenticate. Fails [`StoreError::Sealed`] if the segment has been
+    /// crypto-shredded or never finished writing (its key row is NULL or gone),
+    /// or if this store never wrote a segment with that id, and
+    /// [`StoreError::Corrupt`] if the file does not authenticate.
     pub fn read_segment(&self, segment_id: uuid::Uuid, out: &mut dyn Write) -> StoreResult<u64> {
         let (db, store_key) = self.keyed()?;
         let wrapped: Option<Vec<u8>> = db
@@ -568,9 +656,6 @@ impl EncryptedStore {
         self.custody.destroy_root()
     }
 
-    /// Write a segment: reserve its key row, write the whole ciphertext file,
-    /// and only then commit the wrapped key. A write that fails at any point
-    /// leaves no usable key: the row stays a tombstone and the file is removed.
     pub(crate) fn write_segment_with_expiry(
         &mut self,
         bytes: &mut dyn Read,
@@ -624,12 +709,15 @@ pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
     while let Some(p) = stack.pop() {
         let entries = match std::fs::read_dir(&p) {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(e) if e.kind() == ErrorKind::NotFound => continue,
+            Err(e) => return Err(io_error(e)),
         };
-        for entry in entries.flatten() {
+        for entry in entries {
+            let entry = entry.map_err(io_error)?;
             let meta = match entry.metadata() {
                 Ok(m) => m,
-                Err(_) => continue,
+                Err(e) if e.kind() == ErrorKind::NotFound => continue,
+                Err(e) => return Err(io_error(e)),
             };
             if meta.is_dir() {
                 stack.push(entry.path());
@@ -643,6 +731,8 @@ pub(crate) fn dir_size(dir: &Path) -> StoreResult<u64> {
 
 #[cfg(test)]
 pub(crate) mod test_support {
+    pub(crate) use crate::store::pages;
+
     use std::ops::{Deref, DerefMut};
     use std::path::Path;
 
@@ -692,6 +782,146 @@ mod tests {
     use crate::custody::dev_fallback::DevFallbackCustody;
     use crate::event::{CapturedAt, Modality, MonotonicSequence};
     use crate::store::{SegmentStore, DEFAULT_RETENTION};
+
+    #[test]
+    fn the_key_pragma_is_built_in_one_allocation_that_never_grows() {
+        let pragma = key_pragma(&[0xab; 32]);
+        assert_eq!(pragma.capacity(), pragma.len());
+        assert!(pragma.starts_with(KEY_PRAGMA_HEAD) && pragma.ends_with(KEY_PRAGMA_TAIL));
+        let hex = hex_lower(&[0xab; 32]);
+        assert_eq!(hex.capacity(), hex.len());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_write_ahead_log_that_cannot_be_read_fails_the_checkpoint() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        db.wal_path = dir.path().join("no-such-wal");
+        assert!(
+            db.checkpoint_truncate().is_ok(),
+            "a missing write-ahead log is not an empty one"
+        );
+        let looping = dir.path().join("looping-wal");
+        std::os::unix::fs::symlink(&looping, &looping).unwrap();
+        db.wal_path = looping;
+        let checkpoint = db.checkpoint_truncate();
+        assert!(
+            checkpoint.is_err(),
+            "a write-ahead log that cannot be read let the checkpoint succeed: {checkpoint:?}"
+        );
+    }
+
+    #[test]
+    fn an_event_whose_index_row_fails_leaves_no_event_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (seg_ref, key_id) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute_batch("DROP TABLE events_fts;")
+            .unwrap();
+        let event = CaptureStreamEvent::new_raw(
+            CapturedAt {
+                wall_clock: SystemTime::now(),
+                sequence: MonotonicSequence::new(1),
+            },
+            Modality::ScreenFrame,
+            "app".to_string(),
+            seg_ref,
+            key_id,
+        );
+        let appended = store.append_event(&event);
+        let rows: i64 = store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+            .unwrap();
+        assert!(
+            appended.is_err(),
+            "the append with no index table succeeded"
+        );
+        assert_eq!(rows, 0, "a failed append left its event row");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_store_directory_that_cannot_be_read_fails_the_size_and_does_not_shrink_it() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (seg_ref, _) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        let shard = segment::segment_path(dir.path(), seg_ref.segment_id)
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let size = store.size_bytes();
+        std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(
+            matches!(size, Err(StoreError::Io(ErrorKind::PermissionDenied))),
+            "{size:?}"
+        );
+    }
+
+    #[test]
+    fn a_checkpoint_that_leaves_bytes_in_the_wal_is_incomplete_and_no_sqlite_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = Db::open(dir.path(), &[7u8; 32]).unwrap();
+        let wal = dir.path().join("a-wal-that-keeps-bytes");
+        std::fs::write(&wal, [1u8; 100]).unwrap();
+        db.wal_path = wal;
+        let checkpoint = db.checkpoint_truncate();
+        assert!(
+            matches!(
+                checkpoint,
+                Err(StoreError::CheckpointIncomplete {
+                    busy: 0,
+                    wal_bytes: 100
+                })
+            ),
+            "{checkpoint:?}"
+        );
+    }
+
+    #[test]
+    fn a_key_row_that_holds_a_key_is_not_committed_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (_, key_id) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        let again = store.db().unwrap().commit_segment_key(key_id, &[1u8; 72]);
+        assert!(matches!(again, Err(StoreError::Corrupt(_))), "{again:?}");
+    }
+
+    #[test]
+    fn a_wrapped_segment_key_that_does_not_open_under_the_store_key_reads_as_corrupt_not_sealed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let (segment, _) = store
+            .write_segment(&mut std::io::Cursor::new(b"segment"))
+            .unwrap();
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute(
+                "UPDATE segment_keys SET wrapped_key = ?1 WHERE segment_id = ?2",
+                rusqlite::params![vec![7u8; 72], segment.segment_id.simple().to_string()],
+            )
+            .unwrap();
+        let read = store.read_segment(segment.segment_id, &mut Vec::new());
+        assert!(matches!(read, Err(StoreError::Corrupt(_))), "{read:?}");
+    }
 
     #[test]
     fn pragmas_are_set() {
@@ -769,14 +999,14 @@ mod tests {
     }
 
     #[test]
-    fn open_reports_a_missing_root_as_sealed() {
+    fn open_reports_a_missing_root_as_root_missing() {
         let dir = tempfile::tempdir().unwrap();
         let (store, root_id) = persistent_store(dir.path());
         drop(store);
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
         assert!(matches!(
             EncryptedStore::open(dir.path(), DEFAULT_RETENTION),
-            Err(StoreError::Sealed)
+            Err(StoreError::Custody(CustodyError::RootMissing))
         ));
     }
 

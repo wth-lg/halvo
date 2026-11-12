@@ -357,7 +357,6 @@ fn owner_answers_each_body_as_a_a7_2_says() {
     let bind = Body::SetBindings {
         workflow: w.clone(),
         agent: a.clone(),
-        origins: vec![Origin::parse("https://site1.example:443").unwrap()],
         slots: vec![Slot {
             name: Name::parse("payee").unwrap(),
             value: vec!["City Power".to_owned()],
@@ -370,8 +369,8 @@ fn owner_answers_each_body_as_a_a7_2_says() {
         mode: Mode::Replay,
     };
     assert_eq!(p.send(&create).unwrap(), serde_json::json!({"rev": 1}));
+    assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 1}));
     assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 2}));
-    assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 3}));
     assert_eq!(p.send(&start).unwrap(), serde_json::json!({"ok": "yes"}));
 }
 

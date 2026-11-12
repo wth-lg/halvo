@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod category;
 pub mod coordinator;
 pub mod executable;

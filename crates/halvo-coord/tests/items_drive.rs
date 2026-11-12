@@ -957,3 +957,144 @@ fn a_handback_answer_is_stored_before_the_runner_gets_it() {
         Err(Cause::Malformed)
     );
 }
+
+/// The page item of a held confirmation.
+fn page(held: &Held) -> halvo_coord::types::Item {
+    held.page_item().expect("the item composes")
+}
+
+/// The fields of an item whose label is the sentence of `confirm.changed`, each with its index.
+fn changed_lines(item: &halvo_coord::types::Item) -> Vec<usize> {
+    let line = halvo_coord::words::text("confirm.changed", &[]).unwrap();
+    item.fields()
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.label == line)
+        .map(|(i, f)| {
+            assert!(f.value.is_empty() && f.from.name() == "halvo");
+            i
+        })
+        .collect()
+}
+
+/// Issues the request of `a`, arms it and answers it from its presenter.
+fn answered<P: Owner + Runs + Clock + Rng>(
+    p: &P,
+    set_clock: &dyn Fn(u64),
+    l: &mut Ledger,
+    t: &mut Table,
+    a: &ConfirmAsk,
+    choice: ConfirmAnswer,
+) -> Result<(), Cause> {
+    let mut held = armed(p, set_clock, l, t, a);
+    answer(p, l, t, &mut held, choice, Presenter::Page, &LIMITS)
+}
+
+/// The case `changed_line` of I4.8 as ruling IG-25 gives it: a later item of the run shows the line
+/// when the newest decision released for its effect id in this run and this life is
+/// `allow_once`, whether or not a record used that decision's row. Effect 1 is allowed with no
+/// record; effect 2 is the flow of ruling XA-4: allowed, its record `approved` marks the row used,
+/// a `begin` refused with `digest` and a `rebind` (no record of either crosses the link), then the
+/// second request; effect 3 is rejected; effect 4 has only an item that lapsed; effect 5 is
+/// allowed, then an item for it lapsed, then the third request comes.
+#[test]
+fn refusal_changed_line() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let set = |n| p.set_clock(n, TODAY);
+    let earlier = |n: u32| ask_of(1, 1, vec![asked(n, Class::Send, n, true)]);
+    answered(&p, &set, &mut l, &mut t, &earlier(1), ConfirmAnswer::Allow).unwrap();
+    answered(&p, &set, &mut l, &mut t, &earlier(2), ConfirmAnswer::Allow).unwrap();
+    let used = released(&p)
+        .into_iter()
+        .find(|e| e.effect == support::effect_id(2))
+        .unwrap();
+    t = guard_step(
+        &t,
+        &record_of(&used, EffectState::Approved, Class::Send),
+        Gives::Confirm,
+    )
+    .expect("the record approved of effect 2 uses its row");
+    assert!(t
+        .approvals()
+        .iter()
+        .any(|(a, _, u)| *a == used.approval && *u));
+    answered(&p, &set, &mut l, &mut t, &earlier(3), ConfirmAnswer::Reject).unwrap();
+    p.refuse(Method::Log, PortError::NoService);
+    assert_eq!(
+        answered(&p, &set, &mut l, &mut t, &earlier(4), ConfirmAnswer::Allow),
+        Err(Cause::NoService),
+        "the rows of effect 4 get no acknowledgement and its item lapses"
+    );
+    p.clear_refusals();
+    answered(&p, &set, &mut l, &mut t, &earlier(5), ConfirmAnswer::Allow).unwrap();
+    p.refuse(Method::Log, PortError::NoService);
+    let second_of_5 = ask_of(1, 1, vec![asked(5, Class::Send, 50, true)]);
+    assert_eq!(
+        answered(&p, &set, &mut l, &mut t, &second_of_5, ConfirmAnswer::Allow),
+        Err(Cause::NoService),
+        "the second item of effect 5 lapses"
+    );
+    p.clear_refusals();
+    let later = |run: u32, n: u32| ask_of(run, 1, vec![asked(n, Class::Send, n + 100, true)]);
+    for (n, line) in [(1, true), (2, true), (3, false), (4, false), (5, true)] {
+        let held = issue(&p, &mut l, &t, &LIMITS, &later(1, n)).unwrap();
+        let item = page(&held);
+        let want = if line { vec![0] } else { vec![] };
+        assert_eq!(changed_lines(&item), want, "effect {n}");
+        assert_eq!(
+            item.fields().len(),
+            3 + usize::from(line),
+            "the line stands above the values of effect {n}"
+        );
+    }
+    let other_run = issue(&p, &mut l, &t, &LIMITS, &later(2, 1)).unwrap();
+    assert!(changed_lines(&page(&other_run)).is_empty(), "another run");
+    let new_life = issue(&p, &mut l, &Table::new(), &LIMITS, &later(1, 1)).unwrap();
+    assert!(changed_lines(&page(&new_life)).is_empty(), "a new life");
+}
+
+/// The line names an earlier item of the run: the item's own release of `allow_once` gives no
+/// line on its own card, whenever the page composes it (review finding F1).
+#[test]
+fn an_item_shows_no_line_for_its_own_release() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let a = ask_of(1, 1, vec![asked(1, Class::Send, 1, true)]);
+    let mut held = armed(&p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &a);
+    answer(
+        &p,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Allow,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .unwrap();
+    assert!(t.newest_allows(&run_id(1), &support::effect_id(1)));
+    assert!(changed_lines(&page(&held)).is_empty());
+}
+
+/// An item issued before another item of the run released `allow_once` for the same effect
+/// shows no line for that later release (review finding F2).
+#[test]
+fn an_item_shows_no_line_for_a_later_items_release() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let first = ask_of(1, 1, vec![asked(1, Class::Send, 1, true)]);
+    let second = ask_of(1, 1, vec![asked(1, Class::Send, 2, true)]);
+    let a = issue(&p, &mut l, &t, &LIMITS, &first).unwrap();
+    assert!(changed_lines(&page(&a)).is_empty());
+    answered(
+        &p,
+        &|n| p.set_clock(n, TODAY),
+        &mut l,
+        &mut t,
+        &second,
+        ConfirmAnswer::Allow,
+    )
+    .unwrap();
+    assert!(t.newest_allows(&run_id(1), &support::effect_id(1)));
+    assert!(changed_lines(&page(&a)).is_empty());
+}

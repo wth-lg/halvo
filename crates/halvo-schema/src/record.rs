@@ -12,6 +12,8 @@ use crate::ids::{
 use crate::kinds::{assert_coarse, Coarse};
 use crate::site::{AppId, Domain, ObservedSite, SiteDomain, SiteToken, SiteValue};
 
+pub(crate) struct Key(());
+
 /// The names that this module writes in a record or a reply: the keys of every record, step and page, and the names
 /// of its enums with `dismissed`, which the dismissed shape of a workflow writes.
 pub const NAMES: &[&str] = &[
@@ -93,7 +95,7 @@ impl Ordinal {
     /// Returns the ordinal when `n` is at most 2^63 - 1, else the error with the rule `range`.
     pub fn new(n: u64) -> Result<Ordinal, ParseError> {
         if n > MAX_ORDINAL {
-            return Err(ParseError::new("Ordinal", "range"));
+            return Err(ParseError::new(Key(()), "Ordinal", "range"));
         }
         Ok(Ordinal(n))
     }
@@ -125,7 +127,7 @@ impl Text {
     /// Returns the text when it has at most 1,024 bytes, else the error with the rule `length`.
     pub fn parse(s: &str) -> Result<Text, ParseError> {
         if s.len() > 1024 {
-            return Err(ParseError::new("Text", "length"));
+            return Err(ParseError::new(Key(()), "Text", "length"));
         }
         Ok(Text(s.to_owned()))
     }
@@ -171,6 +173,7 @@ impl Serialize for Confidence {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if self.0 > 100 {
             return Err(serde::ser::Error::custom(ParseError::new(
+                Key(()),
                 "Confidence",
                 "range",
             )));
@@ -184,6 +187,7 @@ impl<'de> Deserialize<'de> for Confidence {
         let n = u32::deserialize(deserializer)?;
         if n > 100 {
             return Err(serde::de::Error::custom(ParseError::new(
+                Key(()),
                 "Confidence",
                 "range",
             )));
@@ -263,21 +267,21 @@ name_enum! {
 
 fn minutes(type_name: &'static str, m: u32) -> Result<(), ParseError> {
     if !m.is_multiple_of(5) || !(5..=1440).contains(&m) {
-        return Err(ParseError::new(type_name, "minutes"));
+        return Err(ParseError::new(Key(()), type_name, "minutes"));
     }
     Ok(())
 }
 
 fn segments(type_name: &'static str, s: &[Ordinal]) -> Result<(), ParseError> {
     if s.is_empty() || !s.windows(2).all(|w| w[0] < w[1]) {
-        return Err(ParseError::new(type_name, "segments"));
+        return Err(ParseError::new(Key(()), type_name, "segments"));
     }
     Ok(())
 }
 
 fn range(type_name: &'static str, start: Instant, end: Instant) -> Result<(), ParseError> {
     if end <= start {
-        return Err(ParseError::new(type_name, "range"));
+        return Err(ParseError::new(Key(()), type_name, "range"));
     }
     Ok(())
 }
@@ -294,13 +298,13 @@ strict_struct! {
     }
     rules(r) {
         if r.count == 0 {
-            return Err(ParseError::new("Recurrence", "count"));
+            return Err(ParseError::new(Key(()), "Recurrence", "count"));
         }
         if r.period.is_some_and(|p| !(1..=93).contains(&p)) {
-            return Err(ParseError::new("Recurrence", "period"));
+            return Err(ParseError::new(Key(()), "Recurrence", "period"));
         }
         if r.first > r.last {
-            return Err(ParseError::new("Recurrence", "first_last"));
+            return Err(ParseError::new(Key(()), "Recurrence", "first_last"));
         }
         Ok(())
     }
@@ -367,7 +371,7 @@ impl<'de> Deserialize<'de> for DismissedState {
             if s == "dismissed" {
                 Ok(DismissedState)
             } else {
-                Err(ParseError::new("DismissedWorkflow", "state"))
+                Err(ParseError::new(Key(()), "DismissedWorkflow", "state"))
             }
         })
     }
@@ -646,7 +650,7 @@ fn next_rule<T: PartialEq>(
     next: &Option<T>,
 ) -> Result<(), ParseError> {
     match next {
-        Some(n) if last != Some(n) => Err(ParseError::new(type_name, "next")),
+        Some(n) if last != Some(n) => Err(ParseError::new(Key(()), type_name, "next")),
         _ => Ok(()),
     }
 }
@@ -663,20 +667,20 @@ strict_struct! {
     }
     rules(i) {
         if !i.summaries.windows(2).all(|w| w[0] < w[1]) {
-            return Err(ParseError::new("WorkflowItem", "order"));
+            return Err(ParseError::new(Key(()), "WorkflowItem", "order"));
         }
         if matches!(i.workflow, Workflow::Dismissed(_)) && !i.summaries.is_empty() {
-            return Err(ParseError::new("WorkflowItem", "dismissed"));
+            return Err(ParseError::new(Key(()), "WorkflowItem", "dismissed"));
         }
         if i.summaries.is_empty() && i.hint.is_some() {
-            return Err(ParseError::new("WorkflowItem", "hint"));
+            return Err(ParseError::new(Key(()), "WorkflowItem", "hint"));
         }
         let site = match &i.workflow {
             Workflow::Full(w) => &w.site,
             Workflow::Dismissed(w) => &w.site,
         };
         if i.hint.is_some() && !matches!(site, Some(SiteValue::Title { .. })) {
-            return Err(ParseError::new("WorkflowItem", "hint_site"));
+            return Err(ParseError::new(Key(()), "WorkflowItem", "hint_site"));
         }
         Ok(())
     }
@@ -692,7 +696,7 @@ strict_struct! {
     }
     rules(p) {
         if !p.workflows.windows(2).all(|w| w[0].workflow.id() < w[1].workflow.id()) {
-            return Err(ParseError::new("WorkflowsPage", "order"));
+            return Err(ParseError::new(Key(()), "WorkflowsPage", "order"));
         }
         next_rule("WorkflowsPage", p.workflows.last().map(|i| i.workflow.id()), &p.next)
     }
@@ -708,7 +712,7 @@ strict_struct! {
     }
     rules(p) {
         if !p.evidence.windows(2).all(|w| w[0].summary < w[1].summary) {
-            return Err(ParseError::new("EvidencePage", "order"));
+            return Err(ParseError::new(Key(()), "EvidencePage", "order"));
         }
         next_rule("EvidencePage", p.evidence.last().map(|e| &e.summary), &p.next)
     }

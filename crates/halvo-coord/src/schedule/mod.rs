@@ -15,7 +15,7 @@ mod tick;
 pub use board::{Board, Dying, LiveRun, Member, Owed, Owing, Stop};
 pub use drive::{drive, stop_run, Answer, Ended, Move, Report, Served};
 pub(crate) use drive::{item_closed, resync, seq_refusal};
-pub use hold::{holds, params, Hold};
+pub use hold::{holds, Hold};
 pub use queue::{Queue, Waiting};
 pub use slot::{current_slot, finished, next_slot, slot_due, slot_open};
 pub use start::{

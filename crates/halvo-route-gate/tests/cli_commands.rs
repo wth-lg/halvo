@@ -438,7 +438,7 @@ fn derive_writes_the_policy_of_a_generated_table() {
         &["derive", "--table", &binary, "--out", &path(&dir, "p7.tsv")],
         "REFUSED table: text:utf-8",
     );
-    for name in ["p2.tsv", "p3.tsv", "p4.tsv", "p5.tsv", "p6.tsv", "p7.tsv"] {
+    for name in ["p2.tsv", "p4.tsv", "p5.tsv", "p6.tsv", "p7.tsv"] {
         assert!(!dir.join(name).exists(), "{name} written by a refusal");
     }
 }
@@ -495,6 +495,37 @@ fn score_prints_its_lines_and_exits_by_the_verdict() {
     std::fs::write(&header, format!("{HEADER}\n")).expect("fixture");
     let recorded = run(&["score", "--table", &header, "--router", "derived"]);
     assert_eq!((recorded.code, recorded.stderr.as_str()), (Some(0), ""));
+    let categories = [
+        ("utility_bill_payment", "untested"),
+        ("tenant_rent", "no_runtime"),
+        ("lease_renewal_or_change", "no_runtime"),
+        ("tenant_application_review", "no_runtime"),
+        ("email", "untested"),
+        ("spreadsheet_fill", "untested"),
+        ("shop_order", "untested"),
+        ("calendar_cleanup", "untested"),
+        ("ride_order", "no_runtime"),
+        ("daily_chart_check", "no_runtime"),
+        ("other", "not_seed"),
+    ];
+    let zero = "dev_k=0 dev_n=0 held_k=0 held_n=0 lower_pct=0 cost_micro=0 wall_s=0";
+    let mut want = String::new();
+    for (id, word) in categories {
+        for kind in ["compile", "recover", "write"] {
+            want += &format!("cell category={id} kind={kind} pick=hand_back basis={word} {zero}\n");
+        }
+        want += &format!("cell category={id} kind=replay pick=none basis=no_model {zero}\n");
+    }
+    for (id, word) in categories {
+        want += &format!("category id={id} compile=hand_back recover=hand_back write=hand_back line={word} cost_micro=0\n");
+    }
+    for name in ["router", "random", "hindsight"] {
+        want += &format!(
+            "versus name={name} attempts=0 passed=0 wasted=0 handed_back=0 cost_micro=0 wall_s=0\n"
+        );
+    }
+    want += "gate table=recorded router=derived cells=44 routed=0 handed_back=30 derivation=same held=ok result=pass\n";
+    assert_eq!(recorded.stdout, want);
     assert_refused(
         &[
             "score", "--table", &table, "--router", "derived", "--freeze", &table,

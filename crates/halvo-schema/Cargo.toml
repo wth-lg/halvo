@@ -8,3 +8,6 @@ publish = false
 psl = "=2.1.246"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
+
+[dev-dependencies]
+proc-macro2 = { version = "1.0.107", default-features = false }
