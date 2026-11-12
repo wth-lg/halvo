@@ -575,6 +575,15 @@ build = \"gen/make.rs\"" crates/x/gen/make.rs "fn main() { println!(\"cargo:$bui
   flags_case config-key-lower-case FAIL scripts/y.sh "cargo build --config 'build.$word_flags=[\"-Dx\"]'"
   flags_case interpreter-line FAIL tools/run "#!/bin/sh
 $setting=x cargo build"
+  flags_case interpreter-line-with-a-space FAIL tools/go "#! /bin/sh
+$setting=x cargo build"
+  flags_case composite-action FAIL .github/actions/build/action.yml "runs:
+  using: composite
+  steps:
+    - run: cargo build
+      shell: bash
+      env:
+        $setting: -D warnings"
   flags_case hook FAIL .githooks/pre-commit "export $setting=x"
   flags_case package-json FAIL package.json "{\"scripts\":{\"b\":\"$setting=x tauri build\"}}"
   flags_case power-shell FAIL scripts/w.ps1 "\$env:$setting = 'x'"
@@ -613,6 +622,13 @@ build = 'gen/make.rs'" crates/x/gen/make.rs "fn main() { println!(\"cargo:$build
   STUB_DERIVE_EXIT=2
   check two-causes-name-the-first "$base" FAIL "FAIL $name (derive)"
   printf '%s\n' "$cap_line" >"$base/$cap" || exit 2
+  STUB_DERIVE_EXIT=2
+  STUB_SCORE_EXIT=1
+  check derive-and-score-name-the-derive "$base" FAIL "FAIL $name (derive)"
+  printf '# Bar\n\nLINE_DEV_MIN=5 and LINE_HELD_MIN=2.\n' >"$base/$bar" || exit 2
+  STUB_SCORE_EXIT=1
+  check score-and-bar-name-the-score "$base" FAIL "FAIL $name (score)"
+  printf '# Bar\n\nLINE_DEV_MIN=4 and LINE_HELD_MIN=2.\n' >"$base/$bar" || exit 2
   both=$work/flags/flags-and-cap
   make_repo "$both"
   mkdir -p "$both/.cargo" || exit 2
