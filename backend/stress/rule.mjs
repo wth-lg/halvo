@@ -165,7 +165,7 @@ export function judge({
         break;
       case chatStatus.upstreamFailed:
         if (!row) bad("integrity", request.id, `answered ${request.status} with a receipt, but no row is stored`);
-        if (!legal502(request, gateway)) bad("integrity", request.id, `answered ${request.status} ${request.body}, which neither the request's fault nor the bound of src/gateway/timing.ts allows at that time`);
+        if (!legal502(request, gateway) && !(diedInKill && bodyOf(request) === null)) bad("integrity", request.id, `answered ${request.status} ${request.body}, which neither the request's fault nor the bound of src/gateway/timing.ts allows at that time`);
         break;
       case 409:
         if (!diedInKill && !legal409(request, row, mock.get(request.id), ledger)) {
