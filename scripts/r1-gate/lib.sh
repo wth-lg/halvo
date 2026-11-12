@@ -978,7 +978,7 @@ svc_label=''
 svc_claimed=0
 svc_ctl_n=0
 svc_helper_pid=''
-svc_stamp=''
+svc_proc_tmp=''
 
 gate_marker() {
   gate_marker_now=$(date +%s)
@@ -1220,7 +1220,7 @@ utc_of() {
 
 floor_run() {
   floor_label=$1; shift
-  "$capture_bin" --floor-report --data-dir "$svc_data" "$@" > "$svc_dir/$floor_label.out" 2> "$svc_dir/$floor_label.err" 7>&-
+  TMPDIR=$svc_proc_tmp "$capture_bin" --floor-report --data-dir "$svc_data" "$@" > "$svc_dir/$floor_label.out" 2> "$svc_dir/$floor_label.err" 7>&-
   floor_status=$?
   [ "$floor_status" -eq 0 ] && return 0
   mode_missing "$floor_status" "$svc_dir/$floor_label.err" --floor-report && return 1
@@ -1287,8 +1287,7 @@ service_prepare() {
   scratch_root
   svc_dir=$(mktemp -d "$gate_scratch/${capture_label}service.XXXXXX") || { gate_defect="mktemp could not make the run directory"; return 1; }
   svc_data=$(mktemp -d "$gate_scratch/${capture_label}data.XXXXXX") || { gate_defect="mktemp could not make the data directory"; return 1; }
-  svc_stamp=$svc_dir/stamp
-  : > "$svc_stamp"
+  svc_proc_tmp=$(mktemp -d "$gate_scratch/${capture_label}proc-tmp.XXXXXX") || { gate_defect="mktemp could not make the TMPDIR of the processes under test"; return 1; }
 }
 
 state_file_write() {
@@ -1300,7 +1299,7 @@ ctl_call() {
   ctl_name=$1; shift
   svc_ctl_n=$((svc_ctl_n + 1))
   ctl_out=$svc_dir/ctl-$svc_ctl_n-$ctl_name.out
-  "$capture_bin" ctl --data-dir "$svc_data" "$@" > "$ctl_out" 2> "$ctl_out.err" 7>&-
+  TMPDIR=$svc_proc_tmp "$capture_bin" ctl --data-dir "$svc_data" "$@" > "$ctl_out" 2> "$ctl_out.err" 7>&-
   ctl_status=$?
   return "$ctl_status"
 }
@@ -1328,7 +1327,7 @@ hold_for() {
 
 prefill_run() {
   prefill_label=$1; shift
-  /usr/bin/time -l -o "$svc_dir/$prefill_label.time" "$capture_bin" --prefill-store "$@" --data-dir "$svc_data" > "$svc_dir/$prefill_label.stdout" 2> "$svc_dir/$prefill_label.stderr" 7>&-
+  TMPDIR=$svc_proc_tmp /usr/bin/time -l -o "$svc_dir/$prefill_label.time" "$capture_bin" --prefill-store "$@" --data-dir "$svc_data" > "$svc_dir/$prefill_label.stdout" 2> "$svc_dir/$prefill_label.stderr" 7>&-
   prefill_status=$?
   [ "$prefill_status" -eq 0 ] && return 0
   mode_missing "$prefill_status" "$svc_dir/$prefill_label.stderr" --prefill-store && return 1
@@ -1341,10 +1340,10 @@ service_start() {
   svc_fifo=$svc_dir/$1.lifeline
   mkfifo "$svc_fifo" || { gate_defect="mkfifo could not make the lifeline"; return 1; }
   if [ "${2:-}" = time ]; then
-    /usr/bin/time -l -o "$svc_dir/$1.time" "$capture_bin" --service-run --lifeline --data-dir "$svc_data" < "$svc_fifo" > "$svc_dir/$1.stdout" 2> "$svc_dir/$1.stderr" 7>&- &
+    TMPDIR=$svc_proc_tmp /usr/bin/time -l -o "$svc_dir/$1.time" "$capture_bin" --service-run --lifeline --data-dir "$svc_data" < "$svc_fifo" > "$svc_dir/$1.stdout" 2> "$svc_dir/$1.stderr" 7>&- &
     svc_wrapper=$!
   else
-    "$capture_bin" --service-run --lifeline --data-dir "$svc_data" < "$svc_fifo" > "$svc_dir/$1.stdout" 2> "$svc_dir/$1.stderr" 7>&- &
+    TMPDIR=$svc_proc_tmp "$capture_bin" --service-run --lifeline --data-dir "$svc_data" < "$svc_fifo" > "$svc_dir/$1.stdout" 2> "$svc_dir/$1.stderr" 7>&- &
     svc_wrapper=''
   fi
   svc_pid=$!
@@ -1418,7 +1417,7 @@ service_teardown() {
     }
   fi
   [ "$svc_fd" = no ] || { exec 7>&-; svc_fd=no; }
-  "$capture_bin" --delete-all --data-dir "$svc_data" > "$svc_dir/teardown-delete.out" 2>&1 7>&-
+  TMPDIR=$svc_proc_tmp "$capture_bin" --delete-all --data-dir "$svc_data" > "$svc_dir/teardown-delete.out" 2>&1 7>&-
   helper_outside_stop
 }
 

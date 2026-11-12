@@ -6,18 +6,68 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 name=service-run
 
 tmp_scan_defect() {
-  tmp_base=${TMPDIR:-/tmp}
-  tmp_user=$(id -u)
-  find "${tmp_base%/}/" -mindepth 1 \( -type d ! -user "$tmp_user" -prune \) -o \( -type f -user "$tmp_user" -newer "$2" -exec grep -l -F -e "$1" {} + \) > "$svc_dir/tmp-hits" 2> "$svc_dir/tmp-errors"
-  tmp_left=$(sed -n 's/^[a-z]*: \(.*\): [A-Z][^:]*$/\1/p' "$svc_dir/tmp-errors" | while IFS= read -r tmp_path; do [ ! -e "$tmp_path" ] || printf '%s\n' "$tmp_path"; done)
-  tmp_other=$(grep -v -E '^[a-z]*: .*: [A-Z][^:]*$' "$svc_dir/tmp-errors")
-  if [ -n "$tmp_left" ] || [ -n "$tmp_other" ]; then
-    printf 'not scanned: find or grep could not read a file of this user made under TMPDIR during the run\n'; return 1
+  [ -d "$2" ] || { printf 'not scanned: the TMPDIR of the processes under test is missing\n'; return 1; }
+  find "$2" -type f -exec grep -l -F -e "$1" {} + > "$svc_dir/tmp-hits" 2> "$svc_dir/tmp-errors"
+  if [ -s "$svc_dir/tmp-errors" ]; then
+    printf 'not scanned: find or grep could not read a file under the TMPDIR of the processes under test\n'; return 1
   fi
   [ -s "$svc_dir/tmp-hits" ] || return 0
-  tmp_first=$(sed -n "1s#^${TMPDIR:-/tmp}/##p" "$svc_dir/tmp-hits")
-  printf 'leak: the marker is in a file made under TMPDIR during the run: %s\n' "$tmp_first"
+  tmp_first=$(sed -n "1s#^$2/##p" "$svc_dir/tmp-hits")
+  printf 'leak: the marker is in a file under the TMPDIR of the processes under test: %s\n' "$tmp_first"
   return 1
+}
+
+scan_into() {
+  svc_dir=$1
+  mkdir -p "$svc_dir" || return 2
+  tmp_scan_defect "$2" "$3"
+}
+
+predicate_run_tmp_clean() {
+  svc_dir=$3
+  mkdir -p "$svc_dir" || return 2
+  tmp_scan_defect "$1" "$2" > /dev/null
+}
+
+churn_outer() {
+  churn_end=$(( $(date +%s) + $1 ))
+  while churn_now=$(date +%s) && [ "$churn_now" -lt "$churn_end" ]; do
+    printf 'appears and goes\n' > "$2/r1-gate-churn.$$"
+    rm -f "$2/r1-gate-churn.$$"
+  done
+}
+
+outer_churn_changes_nothing() {
+  outer=${TMPDIR:-/tmp}
+  churn_proc=$(mktemp -d "$gate_scratch/churn-proc.XXXXXX") || return 2
+  printf 'nothing of the marker\n' > "$churn_proc/run-file"
+  churn_locked=$(mktemp "${outer%/}/r1-gate-locked.XXXXXX") || return 2
+  chmod 000 "$churn_locked"
+  churn_outer 3 "${outer%/}" &
+  churn_pid=$!
+  sleep 1
+  predicate_run_tmp_clean r1gateMARKER-7 "$churn_proc" "$gate_scratch/churn-run"
+  churn_verdict=$?
+  wait "$churn_pid"
+  chmod 600 "$churn_locked"
+  rm -f "$churn_locked"
+  return "$churn_verdict"
+}
+
+unreadable_run_file() {
+  locked_proc=$(mktemp -d "$gate_scratch/locked-proc.XXXXXX") || return 2
+  printf 'a file of the process under test\n' > "$locked_proc/locked"
+  chmod 000 "$locked_proc/locked"
+  locked_said=$(scan_into "$gate_scratch/locked-run" r1gateMARKER-7 "$locked_proc")
+  locked_status=$?
+  chmod 600 "$locked_proc/locked"
+  printf '%s\n' "$locked_said"
+  return "$locked_status"
+}
+
+unreadable_line_is() {
+  unreadable_out=$(unreadable_run_file)
+  [ "$unreadable_out" = 'not scanned: find or grep could not read a file under the TMPDIR of the processes under test' ]
 }
 
 log_scan_note() {
@@ -37,7 +87,7 @@ scan_now() {
   set -- "$svc_dir/run.stdout" "$svc_dir/run.stderr"
   for capture_file in "$svc_dir"/ctl-*; do set -- "$@" "$capture_file"; done
   scan_found=$(data_dir_scan_defect "$svc_data" "$scan_marker" "$@") || { scan_defect=$scan_found; return 1; }
-  scan_found=$(tmp_scan_defect "$scan_marker" "$svc_stamp") || { scan_defect=$scan_found; return 1; }
+  scan_found=$(tmp_scan_defect "$scan_marker" "$svc_proc_tmp") || { scan_defect=$scan_found; return 1; }
 }
 
 control_run() {
@@ -126,7 +176,7 @@ measure() {
   elif [ "$scan_failed" = yes ]; then
     emit_line FAIL data-dir-scan "$scan_defect"; rc=1
   else
-    emit_line PASS data-dir-scan "the data directory, the files made under TMPDIR, the daemon's output and every ctl output hold no marker and no record field name, while events were live and after the delete-all, and only registered names are left; $log_note"
+    emit_line PASS data-dir-scan "the data directory, the TMPDIR that the check gave the processes under test, the daemon's output and every ctl output hold no marker and no record field name, while events were live and after the delete-all, and only registered names are left; not read: a file that a process under test writes outside the TMPDIR it was given and outside the data directory; $log_note"
   fi
   return "$rc"
 }
@@ -226,6 +276,9 @@ cases() {
   t record-field-name-in-a-file FAIL predicate_data_dir_clean "$gate_scratch/field-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
   mkdir -p "$gate_scratch/link-data/store"
   ln -s "$gate_scratch/scan-captures/stdout" "$gate_scratch/link-data/store/link"
+  t outer-temporary-file-that-appears-and-goes PASS outer_churn_changes_nothing
+  t unreadable-file-in-the-run-tmpdir FAIL unreadable_run_file
+  t unreadable-file-line-is-named PASS unreadable_line_is
   t symbolic-link-in-the-data-directory FAIL predicate_data_dir_clean "$gate_scratch/link-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
   registered=$gate_scratch/registered
   mkdir -p "$registered/store/segments" "$registered/roots" "$registered/run" "$registered/logs"
