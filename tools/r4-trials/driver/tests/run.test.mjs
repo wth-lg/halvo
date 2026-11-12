@@ -139,3 +139,16 @@ test('both readers hold the dialog text of the Rust card', () => {
     assert.ok(ps.includes(text), `windows.ps1: ${text}`);
   }
 });
+
+test('the readers pin the attributes and values that name the default, cancel and close controls', () => {
+  const swift = fs.readFileSync(path.join(crate, 'dialog', 'macos.swift'), 'utf8');
+  const ps = fs.readFileSync(path.join(crate, 'dialog', 'windows.ps1'), 'utf8');
+  for (const text of ['let defaultAttr = "AXDefaultButton"', 'let cancelAttr = "AXCancelButton"', 'let closeAttr = "AXCloseButton"',
+    'AXUIElementPerformAction(control, kAXPressAction as CFString)']) {
+    assert.ok(swift.includes(text), `macos.swift: ${text}`);
+  }
+  for (const text of ['$STATE_SYSTEM_DEFAULT = 0x100', "$IDCANCEL = '2'", 'GetWindowLong(hwnd, -16) & 0x80000',
+    'AccessibleObjectFromWindow(hwnd, 0xFFFFFFFC, ref iid, out found)', '[System.Windows.Automation.InvokePattern]::Pattern']) {
+    assert.ok(ps.includes(text), `windows.ps1: ${text}`);
+  }
+});
