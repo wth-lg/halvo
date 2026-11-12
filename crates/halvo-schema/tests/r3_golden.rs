@@ -31,6 +31,8 @@ use halvo_schema::record::Instant;
 use halvo_schema::request::{ErrorName, RunnerRequest, RunnerRole};
 use halvo_schema::{AgentId, RequestId, WorkflowId};
 
+const TABLE_MADE_BY_NODE: &str = "origin-oracle.tsv";
+
 const FILES: [&str; 11] = [
     "configs.jsonl",
     "runs.jsonl",
@@ -970,7 +972,7 @@ fn golden_r3_files_are_built_again_from_values_and_equal_byte_for_byte() {
     let mut listed: Vec<String> = std::fs::read_dir(committed_dir())
         .unwrap()
         .map(|e| e.unwrap().file_name().into_string().unwrap())
-        .filter(|name| name != "own" && name != "origin-oracle.tsv")
+        .filter(|name| name != "own" && name != TABLE_MADE_BY_NODE)
         .collect();
     listed.sort();
     let mut expected: Vec<String> = FILES.iter().map(|f| (*f).to_owned()).collect();

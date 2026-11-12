@@ -1,4 +1,4 @@
-# made by node v26.12.0 (url.domainToASCII and new URL, the WHATWG URL parser with UTS 46), from origin-table.js of the run ledger's evidence/builder-20/bin, seed 20261112; columns: kind, the input as hex of its UTF-8, node's answer, - where node refuses
+# made by node v26.12.0 (url.domainToASCII and new URL, the WHATWG URL parser with UTS 46), from origin-table.js of the run ledger's evidence/builder-20/bin, seed 20261112; labels=2985 addresses=2000; columns: kind, the input as hex of its UTF-8, node's answer, - where node refuses
 label	7061793132eb8980eb8c80	xn--pay12-346ty4b
 label	e9ada5e6b9a0e4bcbcecbb9861	xn--a-156a990he43bw01c
 label	e7bab0e69786ed97a1e5b8becebd	xn--yxa1547bize501a0u0h

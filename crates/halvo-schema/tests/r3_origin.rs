@@ -5,6 +5,8 @@ use halvo_schema::executable::RefusalCause;
 
 const DRAWS: usize = 100_000;
 
+const TABLE_MADE_BY_NODE: &str = "origin-oracle.tsv";
+
 fn lowered(c: char) -> Option<char> {
     let table: [(u32, u32, u32); 20] = [
         (0x2D, 0x2D, 0),
@@ -958,11 +960,22 @@ fn unhex(text: &str) -> String {
 
 #[test]
 fn each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/r3/origin-oracle.tsv");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/r3")
+        .join(TABLE_MADE_BY_NODE);
     let text = std::fs::read_to_string(path).unwrap();
+    assert!(text.ends_with('\n') && !text.contains('\r'));
     let mut lines = text.lines();
     let first = lines.next().unwrap();
     assert!(first.starts_with("# made by node v"), "{first}");
+    let count = |key: &str| -> usize {
+        first
+            .split([' ', ';'])
+            .find_map(|word| word.strip_prefix(key))
+            .and_then(|n| n.parse().ok())
+            .unwrap_or_else(|| panic!("{key} in {first}"))
+    };
+    let (want_labels, want_addresses) = (count("labels="), count("addresses="));
     let (mut labels, mut addresses, mut node_takes, mut both_take) = (0, 0, 0, 0);
     for line in lines {
         let columns: Vec<&str> = line.split('\t').collect();
@@ -996,6 +1009,11 @@ fn each_row_of_the_oracle_table_gets_the_origin_that_node_gives_or_none() {
         }
     }
     println!("labels={labels} addresses={addresses} node_takes={node_takes} both_take={both_take}");
+    assert_eq!(
+        (labels, addresses),
+        (want_labels, want_addresses),
+        "{first}"
+    );
     assert!(labels >= 2_000 && addresses >= 2_000);
     assert!(both_take * 4 >= node_takes, "{both_take} of {node_takes}");
 }
