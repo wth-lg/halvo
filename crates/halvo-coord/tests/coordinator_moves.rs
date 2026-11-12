@@ -1294,3 +1294,203 @@ fn two_agents_of_one_name_get_their_ordinal_among_the_shown_agents_in_the_row_an
     }
     assert_eq!(c.card(&agent(1)), Err(Cause::UnknownAgent));
 }
+
+/// The next life of the app over the owner of the life of `c` (its workflows, agents and
+/// events, which `change` may change), with the random source moved past the ids that the
+/// life of `c` drew, after its first tick.
+fn next_life(c: &Coordinator<Both>, change: impl FnOnce(&Both)) -> Coordinator<Both> {
+    use halvo_coord::ports::Rng;
+    let old = c.ports();
+    let next = owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = old.ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = old.ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = old.ports.events.borrow().clone();
+    for _ in 0..64 {
+        let _ = next.ports.bytes16();
+    }
+    change(&next);
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    life
+}
+
+fn setups_raised(c: &Coordinator<Both>) -> usize {
+    events(c)
+        .iter()
+        .filter(|w| {
+            matches!(
+                w,
+                What::ItemRaised {
+                    raised: halvo_coord::types::Raised::Setup,
+                    ..
+                }
+            )
+        })
+        .count()
+}
+
+fn workflow_of(c: &Coordinator<Both>, made: &AgentId) -> WorkflowId {
+    c.ports()
+        .ports
+        .agents
+        .borrow()
+        .iter()
+        .find(|a| &a.agent == made)
+        .map(|a| a.workflow.clone())
+        .unwrap()
+}
+
+#[test]
+fn a_setup_that_the_quit_or_recovery_lapsed_is_raised_again_by_the_next_lifes_first_creation_move()
+{
+    for (how, quit, named) in [
+        ("quit", true, false),
+        ("crash", false, false),
+        ("quit, the workflow names its agent", true, true),
+    ] {
+        let (c, made, old) = setup_agent();
+        if quit {
+            let _ = c.quit_stop();
+            c.quit_kill();
+        }
+        let flow = workflow_of(&c, &made);
+        let life = next_life(&c, |o| {
+            for w in o.ports.workflows.borrow_mut().iter_mut() {
+                if let Workflow::Full(f) = w {
+                    if named && f.id == flow {
+                        f.agent = Some(made.clone());
+                    }
+                }
+            }
+        });
+        assert!(
+            events(&life).contains(&What::ItemLapsed {
+                item: old.clone(),
+                lapsed: Lapsed::Setup(OtherLapse::AppEnded)
+            }),
+            "{how}"
+        );
+        let s = life.snapshot();
+        let row = s.rows.iter().find(|r| r.agent == made).unwrap();
+        assert_eq!(row.status, Status::NeedsYou, "{how}");
+        let setups: Vec<_> = s
+            .items
+            .iter()
+            .filter(|i| i.kind() == ItemKind::Setup)
+            .collect();
+        assert_eq!(setups.len(), 1, "{how}");
+        assert_ne!(setups[0].item(), &old, "{how}: a new item");
+        assert_eq!(setups[0].params().len(), 3, "{how}: every parameter");
+        life.tick();
+        assert_eq!(setups_raised(&life), 2, "{how}: one raise in each life");
+    }
+}
+
+#[test]
+fn a_setup_answered_in_this_life_is_not_raised_again_by_a_later_creation_move() {
+    let (c, made, item) = setup_agent();
+    c.answer(&item, Choice::Choose, Some((Param::Start, 1)))
+        .unwrap();
+    c.answer(&item, Choice::Choose, Some((Param::Payee, 1)))
+        .unwrap();
+    assert_eq!(c.setup_typed(&item, Param::Instrument, "Card 4242"), Ok(()));
+    assert!(c.snapshot().items.is_empty());
+    for _ in 0..2 {
+        c.tick();
+    }
+    let s = c.snapshot();
+    assert!(s.items.iter().all(|i| i.kind() != ItemKind::Setup), "{s:?}");
+    assert!(s.rows.iter().any(|r| r.agent == made));
+    assert_eq!(setups_raised(&c), 1);
+}
+
+#[test]
+fn the_next_life_raises_no_setup_for_an_agent_of_a_dismissed_workflow_or_one_with_an_open_check() {
+    let (c, made, _) = setup_agent();
+    let _ = c.quit_stop();
+    c.quit_kill();
+    let flow = workflow_of(&c, &made);
+    let life = next_life(&c, |o| {
+        for w in o.ports.workflows.borrow_mut().iter_mut() {
+            if w.id() == &flow {
+                *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                    id: flow.clone(),
+                    category: Category::UtilityBillPayment,
+                    site: Some("site1.example".into()),
+                });
+            }
+        }
+    });
+    assert_eq!(
+        setups_raised(&life),
+        1,
+        "dismissed: the first life's raise only"
+    );
+    assert!(life
+        .snapshot()
+        .items
+        .iter()
+        .all(|i| i.kind() != ItemKind::Setup));
+    let (c, made, _) = setup_agent();
+    let _ = c.quit_stop();
+    c.quit_kill();
+    let flow = workflow_of(&c, &made);
+    let life = next_life(&c, |o| {
+        let run = RunId::parse(&format!("{:032x}", 0x0700)).unwrap();
+        let last = o
+            .ports
+            .events
+            .borrow()
+            .iter()
+            .filter(|e| e.agent == made)
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0);
+        let event = |k: u32, what: What| halvo_coord::types::Event {
+            workflow: flow.clone(),
+            agent: made.clone(),
+            seq: std::num::NonZeroU32::new(last + k).unwrap(),
+            day: DAY,
+            at: 0,
+            what,
+        };
+        o.ports.events.borrow_mut().extend([
+            event(
+                1,
+                What::RunStarted {
+                    run: run.clone(),
+                    trigger: halvo_coord::types::Trigger::Person,
+                    slot: None,
+                },
+            ),
+            event(
+                2,
+                What::RunEnded {
+                    run: run.clone(),
+                    cause: RunEnd::Completed,
+                },
+            ),
+        ]);
+        for a in o.ports.agents.borrow_mut().iter_mut() {
+            if a.agent == made {
+                a.last = Some(PastRun {
+                    run: run.clone(),
+                    day: DAY,
+                    outcome: Outcome::Completed,
+                    unknown: 1,
+                });
+            }
+        }
+    });
+    let s = life.snapshot();
+    assert!(
+        s.items.iter().any(|i| i.kind() == ItemKind::Check),
+        "recovery raised the check: {s:?}"
+    );
+    assert!(s.items.iter().all(|i| i.kind() != ItemKind::Setup));
+    assert_eq!(
+        setups_raised(&life),
+        1,
+        "open check: the first life's raise only"
+    );
+}
