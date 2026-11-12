@@ -710,8 +710,10 @@ class World {
       }
       let carryIn = 0;
       let insidePeriods = 0;
-      for (const period of this.meter.periods(account.id, this.now)) {
-        if (period.end > this.now) continue;
+      const writtenOff = view?.meteringAccount?.written_off ?? null;
+      const closedPeriods = this.meter.periods(account.id, this.now).filter((period) => period.end <= this.now);
+      const lastPeriod = closedPeriods.at(-1)?.index;
+      for (const period of closedPeriods) {
         const reported = account.reported.get(period.index) ?? 0;
         const providerMinor = this.meter.exactTotal(account.id, period.start, period.end);
         const provider = providerMinor * RULE_MICRO_PER_MINOR;
@@ -735,14 +737,14 @@ class World {
             if (interval.sealed_at !== null && end <= period.end) storedCarry = int(interval, "carry_out");
           }
           if (ledgerReported !== reported) this.fail("the ledger's reported total", `${account.id} period ${period.index}: ledger ${ledgerReported}, driver ${reported}`);
-          if (storedCarry !== carryOut) this.fail("the stored remainder", `${account.id} period ${period.index}: stored ${storedCarry}, measured ${carryOut}`);
+          const stored = account.ended === "cancel" && period.index === lastPeriod ? writtenOff : storedCarry;
+          if (stored !== carryOut) this.fail("the stored remainder", `${account.id} period ${period.index}: stored ${stored}, measured ${carryOut}`);
         }
         carryIn = carryOut;
         insidePeriods += providerMinor;
       }
       const everything = this.meter.exactTotal(account.id, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY);
       if (everything !== insidePeriods) this.fail("an event outside every billing period", `${account.id}: ${everything - insidePeriods} minor units`);
-      const writtenOff = view?.meteringAccount?.written_off ?? null;
       if (account.ended === "cancel" && view !== null && writtenOff !== carryIn) {
         this.fail("the remainder written off at cancel", `${account.id}: recorded ${writtenOff}, measured ${carryIn}`);
       }
