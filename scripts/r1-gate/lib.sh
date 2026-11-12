@@ -1476,7 +1476,7 @@ helper_outside_stop() {
 }
 
 privacy_rows_line() {
-  printf 'note privacy rows: a run of this check starts %s, the one gate-built path, which macOS lists in Privacy & Security under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row\n' "${capture_bin#"$GATE_ROOT"/}"
+  printf 'note privacy rows: a run of this check starts %s, the one gate-built path, which macOS will list in Privacy & Security, once that binary asks for each grant, under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row\n' "${capture_bin#"$GATE_ROOT"/}"
 }
 
 privacy_line_first() {

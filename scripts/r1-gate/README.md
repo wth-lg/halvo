@@ -93,7 +93,7 @@ missing `mutants.expected`.
 
 ## What a run changes on a Mac
 
-A measured run of a service check starts target/r1-gate/debug/halvo-capture, the one gate-built path, and macOS then lists that path in Privacy & Security under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row, and each such check prints this as its line `note privacy rows: ...` before it starts the service.
+A measured run of a service check starts target/r1-gate/debug/halvo-capture, the one gate-built path, and macOS will list that path in Privacy & Security, once that binary asks for each grant, under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row, and each such check prints this as its line `note privacy rows: ...` before it starts the service.
 
 ## Limits
 
