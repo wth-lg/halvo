@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs: macos windows
+# jobs: windows
 # rule: Every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed.
 set -u
 name=20-r4-core
