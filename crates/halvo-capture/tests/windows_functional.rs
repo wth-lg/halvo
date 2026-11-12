@@ -2165,11 +2165,45 @@ mod known_defect {
                 80,
             ))
             .expect("window");
+            let plain = window
+                .child_control("EDIT", WINDOW_STYLE(0), 10)
+                .expect("plain edit control");
             let password = window
                 .child_control("EDIT", WINDOW_STYLE(ES_PASSWORD as u32), 44)
                 .expect("password edit control");
             pump_thread(Duration::from_millis(300));
             let (foreground, method) = window.activate();
+
+            let plain_focused = focus(plain);
+            let plain_before = events.drain_for(Duration::from_millis(500));
+            let plain_accepted = type_letters(LETTERS);
+            pump_thread(Duration::from_millis(300));
+            let plain_characters = title_len(plain);
+            let plain_typed = count(
+                &events.drain_for(Duration::from_secs(1)),
+                Modality::Keystroke,
+            );
+            say(
+                "x1",
+                format!(
+                    "keyboard_start={} window_foreground={foreground} method={method} \
+                     plain_field_has_focus={plain_focused} letters_sent={LETTERS} \
+                     sendinput_key_events_accepted={plain_accepted} \
+                     characters_in_plain_field={plain_characters} \
+                     keystroke_events_before_typing={} plain_field_keystroke_events={plain_typed}",
+                    show(&start),
+                    count(&plain_before, Modality::Keystroke),
+                ),
+            );
+            assert!(start.is_ok(), "the keyboard source must start");
+            assert!(
+                plain_focused && plain_characters == LETTERS as i32,
+                "INCONCLUSIVE: the scripted keys did not reach the plain field"
+            );
+            assert_eq!(
+                plain_typed, LETTERS as usize,
+                "INCONCLUSIVE: the keyboard source did not record the keys typed into the plain field"
+            );
 
             let password_focused = focus(password);
             let before = events.drain_for(Duration::from_millis(500));
@@ -2182,16 +2216,13 @@ mod known_defect {
             say(
                 "x1",
                 format!(
-                    "keyboard_start={} window_foreground={foreground} method={method} \
-                     password_field_has_focus={password_focused} letters_sent={LETTERS} \
+                    "password_field_has_focus={password_focused} letters_sent={LETTERS} \
                      sendinput_key_events_accepted={accepted} \
                      characters_in_password_field={characters} \
-                     keystroke_events_before_typing={}",
-                    show(&start),
+                     keystroke_events_before_typing_into_password_field={}",
                     count(&before, Modality::Keystroke),
                 ),
             );
-            assert!(start.is_ok(), "the keyboard source must start");
             assert!(
                 password_focused && characters == LETTERS as i32,
                 "INCONCLUSIVE: the scripted keys did not reach the password field"
