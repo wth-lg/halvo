@@ -312,6 +312,8 @@ mod tests {
     use super::*;
     use halvo_schema::executable::frame::{Cancel, Done, SecretReply};
     use halvo_schema::executable::Outcome;
+    use std::sync::{mpsc, OnceLock};
+    use std::time::Instant;
 
     struct Out(Arc<Mutex<Vec<u8>>>);
 
@@ -399,6 +401,133 @@ mod tests {
         assert_eq!(link.reply(), Ok(first), "the first reply is given");
         assert_eq!(link.poll(), Err(Broken::Frame("out_of_turn")));
         assert!(!link.cancelled(), "the reader read no further");
+    }
+
+    #[test]
+    fn a_frame_that_came_while_no_request_waited_is_out_of_turn_at_the_next_send() {
+        let (mut link, mut writer, out) = piped();
+        let frame = framed(&ToRunner::SecretReply(SecretReply::None));
+        writer.write_all(&frame).expect("write");
+        {
+            let mut held = link.shared.lock();
+            while held.frame.is_none() {
+                held = link.shared.wait(held);
+            }
+        }
+        assert_eq!(link.send(&done()), Err(Broken::Frame("out_of_turn")));
+        assert!(out.lock().expect("lock").is_empty(), "nothing written");
+        drop(writer);
+    }
+
+    #[test]
+    fn a_close_that_the_reader_has_taken_stops_an_effect_row_and_an_effect() {
+        let (mut link, out) = link_of(Vec::new());
+        assert_eq!(ended(&link), Broken::Closed);
+        assert_eq!(link.ask_effect(&done()), Err(Broken::Closed));
+        assert!(out.lock().expect("lock").is_empty(), "no row written");
+        let (mut link, _out) = link_of(Vec::new());
+        assert_eq!(ended(&link), Broken::Closed);
+        let mut acted = false;
+        assert_eq!(link.settle(|| acted = true), Err(Broken::Closed));
+        assert!(!acted, "no effect");
+    }
+
+    /// An input whose one read tells the test that the reader stands in it, and ends the file when the test lets
+    /// it.
+    struct Gate {
+        inside: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+    }
+
+    impl Read for Gate {
+        fn read(&mut self, _bytes: &mut [u8]) -> std::io::Result<usize> {
+            let _ = self.inside.send(());
+            let _ = self.release.recv();
+            Ok(0)
+        }
+    }
+
+    /// A gated input, the receiver that hears the reader stand in its read, and the sender that ends the file.
+    fn gated() -> (Gate, mpsc::Receiver<()>, mpsc::Sender<()>) {
+        let (inside, heard) = mpsc::channel();
+        let (release, released) = mpsc::channel();
+        let gate = Gate {
+            inside,
+            release: released,
+        };
+        (gate, heard, release)
+    }
+
+    /// Ends the gated file and tells whether the reader notes the end within half a second; a lock that the caller
+    /// holds keeps it from noting.
+    fn end_and_look(release: &mpsc::Sender<()>, shared: &Shared) -> bool {
+        release.send(()).expect("the reader waits in its read");
+        let until = Instant::now() + Duration::from_millis(500);
+        while Instant::now() < until {
+            if let Ok(held) = shared.held.try_lock() {
+                if held.end.is_some() {
+                    return true;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        false
+    }
+
+    /// A writer that, as the row is written, ends the gated file and records whether the reader noted the end.
+    struct Noting {
+        release: mpsc::Sender<()>,
+        shared: Arc<OnceLock<Arc<Shared>>>,
+        noted: Arc<Mutex<Option<bool>>>,
+    }
+
+    impl Write for Noting {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let shared = self.shared.get().expect("the link's state");
+            let noted = end_and_look(&self.release, shared);
+            *self.noted.lock().expect("lock") = Some(noted);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn an_end_of_file_taken_while_an_effect_row_is_written_is_noted_after_the_row() {
+        let (gate, heard, release) = gated();
+        let cell = Arc::new(OnceLock::new());
+        let noted = Arc::new(Mutex::new(None));
+        let out = Noting {
+            release,
+            shared: Arc::clone(&cell),
+            noted: Arc::clone(&noted),
+        };
+        let mut link = Link::start(Box::new(gate), Box::new(out), false);
+        assert!(cell.set(Arc::clone(&link.shared)).is_ok(), "set once");
+        heard.recv().expect("the reader stands in its read");
+        assert_eq!(link.ask_effect(&done()), Err(Broken::Closed));
+        assert_eq!(
+            *noted.lock().expect("lock"),
+            Some(false),
+            "the row is written, and the end of file is noted after it"
+        );
+    }
+
+    #[test]
+    fn an_end_of_file_taken_while_an_effect_acts_is_noted_after_the_effect() {
+        let (gate, heard, release) = gated();
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let mut link = Link::start(Box::new(gate), Box::new(Out(out)), false);
+        heard.recv().expect("the reader stands in its read");
+        let shared = Arc::clone(&link.shared);
+        assert_eq!(
+            link.settle(|| end_and_look(&release, &shared)),
+            Ok(false),
+            "the effect acts, and the end of file is noted after it"
+        );
+        assert_eq!(ended(&link), Broken::Closed);
     }
 
     #[test]
