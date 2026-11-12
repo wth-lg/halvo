@@ -871,6 +871,10 @@ impl Sched {
             "gone".into(),
             agents_where(&|n| !listed.contains(&flow_of(n + 1))),
         );
+        keys.insert(
+            "lost".into(),
+            agents_where(&|n| !listed.contains(&flow_of(n + 1)) && member(n).is_none()),
+        );
         let sorted = |mut v: Vec<Value>| {
             v.sort_by_key(|x| names.rank(x));
             json!(v)
