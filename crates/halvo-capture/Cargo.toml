@@ -22,6 +22,7 @@ aead = { version = "0.6", features = ["alloc"] }
 aead-stream = { version = "0.6", features = ["alloc"] }
 getrandom = "0.2"
 base64 = "0.22"
+psl = "=2.1.246"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3"

@@ -2,6 +2,7 @@
 //! No value of the floor holds a typed character, a key code, a coordinate or
 //! a pixel.
 
+pub mod site;
 pub mod text;
 
 #[cfg(test)]
