@@ -1009,7 +1009,7 @@ fn the_keyless_sweep_removes_only_the_names_of_the_store_and_counts_the_rest() {
         kept, [true; 6],
         "the sweep removed a file that is no name of the store"
     );
-    assert_eq!((sweep.removed, sweep.left), (2, 6), "{sweep:?}");
+    assert_eq!((sweep.removed, sweep.not_store_files), (2, 6), "{sweep:?}");
     assert!(segment_path(dir.path(), live.segment_id).exists());
 }
 
@@ -4040,7 +4040,7 @@ fn the_keyless_sweep_leaves_a_link_to_a_file_that_carries_a_segment_name() {
     );
     assert_eq!(std::fs::read(&target).unwrap(), b"outside");
     assert!(
-        matches!(sweep, Ok(ref s) if s.removed == 0 && s.left == 2),
+        matches!(sweep, Ok(ref s) if s.removed == 0 && s.not_store_files == 2),
         "{sweep:?}"
     );
     assert!(segment_path(dir.path(), live.segment_id).exists());

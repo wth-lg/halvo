@@ -11,11 +11,15 @@ use super::{SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
 
-/// What one sweep of the keyless segment files did: the files it removed.
+/// What one sweep of the keyless segment files did: the files it removed,
+/// and the entries at the two walked levels of segments/ that the walk does
+/// not take as files of the store (a link or a directory with a store name
+/// among them, nothing below the two levels, and no live segment that the
+/// sweep keeps), which it leaves in place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sweep {
     pub removed: u64,
-    pub left: u64,
+    pub not_store_files: u64,
 }
 
 fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
@@ -83,7 +87,7 @@ impl EncryptedStore {
         let walk = segment::segment_files(self.dir())?;
         let mut sweep = Sweep {
             removed: 0,
-            left: walk.left,
+            not_store_files: walk.not_store_files,
         };
         let mut failures = Vec::new();
         for file in walk.files {

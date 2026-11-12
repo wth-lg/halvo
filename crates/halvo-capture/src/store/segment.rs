@@ -112,7 +112,7 @@ fn is_lower_hex(text: &str, len: usize) -> bool {
 
 pub(crate) struct SegmentWalk {
     pub(crate) files: Vec<SegmentFile>,
-    pub(crate) left: u64,
+    pub(crate) not_store_files: u64,
 }
 
 pub(crate) fn refuse_a_linked_segments_root(store_dir: &Path) -> StoreResult<()> {
@@ -130,7 +130,7 @@ pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<SegmentWalk> {
     refuse_a_linked_segments_root(store_dir)?;
     let mut walk = SegmentWalk {
         files: Vec::new(),
-        left: 0,
+        not_store_files: 0,
     };
     let shards = match std::fs::read_dir(segments_root(store_dir)) {
         Ok(shards) => shards,
@@ -147,7 +147,7 @@ pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<SegmentWalk> {
                 name
             }
             _ => {
-                walk.left += 1;
+                walk.not_store_files += 1;
                 continue;
             }
         };
@@ -161,7 +161,7 @@ pub(crate) fn segment_files(store_dir: &Path) -> StoreResult<SegmentWalk> {
             };
             match named {
                 Some(file) => walk.files.push(file),
-                None => walk.left += 1,
+                None => walk.not_store_files += 1,
             }
         }
     }
