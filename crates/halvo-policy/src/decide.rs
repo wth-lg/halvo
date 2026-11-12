@@ -22,14 +22,48 @@ use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy,
 /// let _ = EffectMove::Propose(own);
 /// ```
 ///
-/// Their twin, which takes the `Decided` from `decide` and compiles:
+/// Nor by a default value:
+///
+/// ```compile_fail
+/// use halvo_policy::{Decided, EffectMove};
+/// let own = Decided::default();
+/// let _ = EffectMove::Propose(own);
+/// ```
+///
+/// Nor by changing the decision of a `Decided` that `decide` returned:
+///
+/// ```compile_fail
+/// use halvo_policy::{decide, preset, Checkpoint, Decision, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// use halvo_schema::{AgentId, Category, WorkflowId};
+/// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
+/// let mut own = decide(&config, ActionClass::Send, Checkpoint::No);
+/// own.decision = Decision::Run;
+/// let _ = EffectMove::Propose(own);
+/// ```
+///
+/// Nor by changing its class:
+///
+/// ```compile_fail
+/// use halvo_policy::{decide, preset, Checkpoint, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// use halvo_schema::{AgentId, Category, WorkflowId};
+/// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
+/// let mut own = decide(&config, ActionClass::Read, Checkpoint::No);
+/// own.class = ActionClass::Send;
+/// let _ = EffectMove::Propose(own);
+/// ```
+///
+/// Their twin, which takes the `Decided` from `decide`, reads its class and decision, and compiles:
 ///
 /// ```
-/// use halvo_policy::{decide, Checkpoint, Decided, Decision, EffectMove};
-/// use halvo_schema::executable::{ActionClass, AgentConfig};
-/// let config = AgentConfig::parse(br#"{"v":1,"workflow":"30000000000000000000000000000001","agent":"40000000000000000000000000000001","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#).unwrap();
-/// let own: Decided = decide(&config, ActionClass::Payment, Checkpoint::No);
+/// use halvo_policy::{decide, preset, Checkpoint, Decided, Decision, EffectMove};
+/// use halvo_schema::executable::ActionClass;
+/// use halvo_schema::{AgentId, Category, WorkflowId};
+/// let config = preset(Category::Email, WorkflowId::from_random([1; 16]), AgentId::from_random([2; 16])).unwrap();
+/// let own: Decided = decide(&config, ActionClass::Send, Checkpoint::No);
 /// assert_eq!(own.decision(), Decision::Confirm);
+/// assert_eq!(own.class(), ActionClass::Send);
 /// let _ = EffectMove::Propose(own);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
