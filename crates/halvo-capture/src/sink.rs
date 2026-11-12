@@ -164,7 +164,7 @@ impl SinkHandle {
 impl EventSink for SinkHandle {
     fn emit(&self, event: CaptureStreamEvent) -> Result<EmitOutcome, SinkError> {
         let kind = event.modality;
-        match backpressure(kind) {
+        match Backpressure::Drop {
             Backpressure::Drop => match self.tx.try_send(event) {
                 Ok(()) => self.accepted(kind),
                 Err(TrySendError::Full(_)) => self.dropped(kind),
