@@ -201,6 +201,11 @@ impl HandOff {
     fn pending_motion(&self) -> bool {
         self.shared.lock().motion.is_some()
     }
+
+    #[cfg(test)]
+    fn queued(&self) -> usize {
+        self.shared.lock().packets.len()
+    }
 }
 
 impl Drop for HandOff {
@@ -765,7 +770,46 @@ pub(crate) mod tests {
             handle.id, starter,
             "the reported id is the pump thread's, not the starter's"
         );
-        let _ = handle.stop(INPUT_STOP_DEADLINE);
+        let began = Instant::now();
+        while !handle.has_ended() {
+            assert!(
+                began.elapsed() < Duration::from_secs(5),
+                "the body did not end"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(
+            handle.stop(INPUT_STOP_DEADLINE),
+            Err(CaptureError::ThreadEnded),
+            "a pump that had ended before its stop"
+        );
+        assert_eq!(handle.stop(INPUT_STOP_DEADLINE), Ok(()), "a second stop");
+    }
+
+    #[test]
+    fn a_pump_that_ended_without_a_stop_reads_as_failed() {
+        let (sink, _writer) = crate::sink::channel(4);
+        let mut life = Lifecycle::default();
+        let started = life.begin(&SourceContext::new(sink), "halvo-test-forward", |_| {
+            spawn_pump("halvo-pump-ends".to_string(), |ready, _signal| {
+                ready.report(Ok(()));
+            })
+        });
+        assert_eq!(started, Ok(Started::Running));
+        let began = Instant::now();
+        while life.health(SourceCounters::default()).state == SourceState::Running {
+            assert!(
+                began.elapsed() < Duration::from_secs(5),
+                "the pump did not end"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(life.health(SourceCounters::default()).state, thread_ended());
+        assert_eq!(life.shutdown(), Err(CaptureError::ThreadEnded));
+        assert_eq!(
+            life.health(SourceCounters::default()).state,
+            SourceState::Stopped(StopCause::Request)
+        );
     }
 
     fn pointer(app: &str) -> Packet {
@@ -775,6 +819,51 @@ pub(crate) mod tests {
             byte_len: 12,
             tick: now_tick(),
         }
+    }
+
+    fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
+        let began = Instant::now();
+        while !done() {
+            assert!(began.elapsed() < Duration::from_secs(5), "{what}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn a_full_queue_drops_a_packet_and_counts_it_lost() {
+        let (sink, _writer) = crate::sink::channel(1);
+        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        let handoff = HandOff::start(sink, "halvo-test-forward").expect("hand-off");
+        let producer = handoff.producer();
+        producer.push(pointer("taken"));
+        wait_until("the forwarder took no packet", || handoff.queued() == 0);
+        for _ in 0..HANDOFF_CAPACITY + 3 {
+            producer.push(pointer("queued"));
+        }
+        assert_eq!(handoff.queued(), HANDOFF_CAPACITY);
+        assert_eq!(
+            handoff.counts(),
+            HandOffCounts {
+                lost: 3,
+                coalesced: 0
+            }
+        );
+    }
+
+    #[test]
+    fn a_gone_writer_closes_the_hand_off_and_counts_what_it_held() {
+        let (sink, writer) = crate::sink::channel(1);
+        drop(writer);
+        let handoff = HandOff::start(sink, "halvo-test-forward").expect("hand-off");
+        let producer = handoff.producer();
+        producer.push(pointer("refused"));
+        wait_until("the forwarder did not see the gone writer", || {
+            producer.writer_gone()
+        });
+        producer.push(pointer("after"));
+        producer.push_motion(pointer("after"));
+        assert!(handoff.writer_gone());
+        assert_eq!(handoff.counts().lost, 2);
     }
 
     #[test]
