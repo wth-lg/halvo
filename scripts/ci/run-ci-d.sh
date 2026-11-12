@@ -326,7 +326,7 @@ st_queue() {
     export CI_D_REPO CI_D_JOB CI_D_ARTIFACTS TMPDIR
     st_t0=$(date +%s)
     {
-      sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
+      perl -e "$st_perl" sh "$st_q_file" --self-test </dev/null 2>"$st_d/err" &
       printf '%s\n' "$!" >"$st_d/pid"
       wait "$!"
       printf '%s\n' "$?" >"$st_d/status"
@@ -339,6 +339,45 @@ st_queue() {
   ) </dev/null >/dev/null 2>&1 &
   st_track script "$!" "$st_d" "$st_q_name"
   [ -z "$st_q_solo" ] || st_wait_below 1
+}
+
+# shellcheck disable=SC2329
+st_group() {
+  perl -e "exit(kill(\$ARGV[0], -\$ARGV[1]) ? 0 : 1)" "$1" "$2" 2>/dev/null
+}
+
+# shellcheck disable=SC2329
+st_interrupt() {
+  trap '' INT TERM
+  st_groups=
+  for st_i in $st_running; do
+    eval "st_d=\$st_dir_$st_i st_p=\$st_pid_$st_i"
+    st_sp=
+    [ ! -s "$st_d/pid" ] || read -r st_sp <"$st_d/pid"
+    [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+    kill -s TERM "$st_p" 2>/dev/null
+  done
+  st_sp=
+  [ ! -s "$tmp/nested.pid" ] || read -r st_sp <"$tmp/nested.pid"
+  [ -z "$st_sp" ] || st_groups="$st_groups $st_sp"
+  for st_g in $st_groups; do
+    st_group TERM "$st_g"
+  done
+  st_grace=0
+  while [ "$st_grace" -lt 50 ]; do
+    st_alive=
+    for st_g in $st_groups; do
+      ! st_group 0 "$st_g" || st_alive=yes
+    done
+    [ -n "$st_alive" ] || break
+    sleep 0.1
+    st_grace=$((st_grace + 1))
+  done
+  for st_g in $st_groups; do
+    st_group KILL "$st_g"
+  done
+  printf 'FAIL run-ci-d (the step was interrupted by %s; every self-test that it started is ended)\n' "$1"
+  exit "$2"
 }
 
 st_stop() {
@@ -388,7 +427,11 @@ st_poll() {
 st_print() {
   eval "st_d=\$st_dir_$1 st_k=\$st_kind_$1 st_x=\$st_state_$1 st_t=\$st_since_$1 script_name=\$st_name_$1"
   [ ! -e "$st_d/out" ] || cat "$st_d/out"
-  [ ! -s "$st_d/err" ] || cat "$st_d/err" >&2
+  st_e=0
+  [ ! -e "$st_d/err" ] || st_e=$(wc -c <"$st_d/err")
+  st_e=${st_e##* }
+  [ "$st_e" -eq 0 ] || head -c "$st_e" "$st_d/err" >&2
+  eval "st_errsize_$1=\$st_e"
   if [ "$st_k" = own ]; then
     st_vs=
     st_vl=
@@ -898,6 +941,7 @@ st_k=
 st_x=
 st_l=
 st_word=
+st_nm=
 cr=$(printf '\r')
 tab=$(printf '\t')
 if [ "$mode" = self-test ]; then
@@ -915,6 +959,12 @@ if [ "$mode" = self-test ]; then
     printf 'FAIL run-ci-d (CI_D_SCRIPT_LIMIT_S=%s is not a whole number from 1 to 999999999)\n' "$st_limit"
     exit 1
   }
+  perl -e "$st_perl" sh -c 'exit 0' </dev/null >/dev/null 2>&1 || {
+    printf 'FAIL run-ci-d (perl does not run; the step ci.d self-test starts each self-test through perl, for INT and QUIT at their defaults and a process group of its own)\n'
+    exit 1
+  }
+  trap 'st_interrupt INT 130' INT
+  trap 'st_interrupt TERM 143' TERM
   if [ -e "$st_list" ]; then
     while IFS= read -r st_line || [ -n "$st_line" ]; do
       st_first_word "$st_line"
@@ -970,6 +1020,21 @@ if [ "$mode" = self-test ]; then
   st_wait_below 1
   st_flush
   wait
+  st_i=0
+  while [ "$st_i" -lt "$st_n" ]; do
+    eval "st_k=\$st_kind_$st_i"
+    if [ "$st_k" != note ]; then
+      eval "st_d=\$st_dir_$st_i st_e=\${st_errsize_$st_i:-0} st_nm=\$st_name_$st_i"
+      st_now_e=0
+      [ ! -e "$st_d/err" ] || st_now_e=$(wc -c <"$st_d/err")
+      st_now_e=${st_now_e##* }
+      if [ "$st_now_e" -gt "$st_e" ]; then
+        printf 'standard error of %s after it was printed:\n' "$st_nm" >&2
+        tail -c +"$((st_e + 1))" "$st_d/err" >&2
+      fi
+    fi
+    st_i=$((st_i + 1))
+  done
 fi
 
 for name in $wanted; do
