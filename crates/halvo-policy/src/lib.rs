@@ -7,9 +7,11 @@
 mod class;
 mod config;
 mod decide;
+mod digest;
 mod limits;
 
 pub use class::{check_playbook, class_of, ClassDiffers};
 pub use config::{preset, validate, ConfigCause};
 pub use decide::{decide, decide_row, Checkpoint, Decided, Decision};
+pub use digest::digest;
 pub use limits::{LimitTable, LIMITS};
