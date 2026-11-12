@@ -686,7 +686,7 @@ case $1 in
         src) ln -s ../../../../outside/code.rs account/crates/halvo-wire/src/linked.rs && extra='crates/halvo-wire/src/linked.rs:' || exit 98 ;;
         out) ln -s "$(pwd -P)/outside/code.rs" "$t/$out/linked.rs" && extra=$s/$out/linked.rs: || exit 98 ;;
       esac
-      printf '%s: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/%s/bounds.rs:\n%s\n# env-dep:OUT_DIR=%s/%s\n# env-dep:STUB=../../../../../../../..\n' "${STUB_HEAD:-$s/debug/deps/halvo_wire-0.d}" "$s" "$out" "$extra" "$s" "$out" >"$t/debug/deps/halvo_wire-0.d" || exit 98
+      printf '%s: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/%s/bounds.rs:\n%s\n# env-dep:OUT_DIR=%s/%s\n# env-dep:STUB=../../../../../../../..\n' "${STUB_HEAD:-$s/debug/deps/${STUB_HEAD_IN_TARGET:-halvo_wire-0.d}}" "$s" "$out" "$extra" "$s" "$out" >"$t/debug/deps/halvo_wire-0.d" || exit 98
       if [ -z "${STUB_SKIP_SECRETS:-}" ]; then
         printf '%s/debug/deps/halvo_secrets-0.d: crates/halvo-secrets/src/lib.rs\n\ncrates/halvo-secrets/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_secrets-0.d" || exit 98
       fi
@@ -1134,6 +1134,9 @@ $calls_after"
   stub_case dep-info-file-beside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/halvo-wire-0/other.rs
   stub_case dep-info-in-another-out-directory "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/fake-0/out/code.rs
   stub_case dep-info-out-directory-without-build "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/notbuild/halvo-wire-0/out
+  stub_case dep-info-out-directory-not-named-out "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-0/notout
+  stub_case dep-info-out-directory-two-levels-deep "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/extra/build/halvo-wire-0/out
+  stub_case dep-info-head-names-a-missing-file "FAIL $name ($cause_elsewhere)" stub STUB_HEAD_IN_TARGET=gone.d
   make_fixture tracked-file-under-the-target && mkdir -p "$fixture/target/account/debug/build/fake-0/out" &&
     cp "$fixture/outside/code.rs" "$fixture/target/account/debug/build/fake-0/out/code.rs" &&
     git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -f target/account/debug/build/fake-0/out/code.rs >/dev/null 2>&1 &&
