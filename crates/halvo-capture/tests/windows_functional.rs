@@ -2710,6 +2710,11 @@ mod known_defect {
                 "INCONCLUSIVE: SendInput did not insert every packet"
             );
             assert!(keystrokes >= 1, "INCONCLUSIVE: no keystroke event at all");
+            let _ = std::thread::Builder::new()
+                .name("tf-x15-break".to_string())
+                .spawn(|| panic!("break proof: a helper thread of x15 panics"))
+                .expect("spawn the break thread")
+                .join();
             defect!(
                 "RR-windows-16",
                 keystrokes == 1,
@@ -2837,6 +2842,9 @@ mod known_defect {
             std::thread::Builder::new()
                 .name("tf-full-sink-stop".to_string())
                 .spawn(move || {
+                    if std::env::var_os("PATH").is_some() {
+                        panic!("break proof: the stop thread panics before it answers");
+                    }
                     keyboard.stop();
                     let _ = done.send(());
                 })
