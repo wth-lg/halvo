@@ -171,8 +171,11 @@ java_of() {
   major=none
   read -r major <"$tmp/major.txt" || major=none
   printf 'formal java major=%s\n' "$major"
-  check java-number number "$major" || fail java
-  check java-17 [ "$major" -ge 17 ] || fail java
+  check java-17 java_new || fail java
+}
+
+java_new() {
+  number "$major" && [ "$major" -ge 17 ]
 }
 
 fetch_jar() {
@@ -244,6 +247,17 @@ miss() {
   [ "$result" != ok ] || result=$1
 }
 
+tracked() {
+  (cd "$repo" && git -c core.quotepath=off ls-files -- 'formal/r5-admit/*.tla') >"$tmp/tracked-tla.txt" 2>/dev/null ||
+    : >"$tmp/tracked-tla.txt"
+}
+
+copy_model() {
+  while IFS= read -r f; do
+    cp "$repo/$f" "$1/" || return 1
+  done <"$tmp/tracked-tla.txt"
+}
+
 small() {
   result=ok
   formulas
@@ -259,7 +273,8 @@ small() {
   if [ "$result" = ok ]; then
     run=$tmp/small
     mkdir "$run" "$run/jtmp" || fail scratch
-    cp "$dir"/*.tla "$dir/Small.cfg" "$run/" || fail invariant
+    copy_model "$run" || fail invariant
+    cp "$dir/Small.cfg" "$run/" || fail invariant
     tlc "$run" Small.cfg
     sed -n 's/^violated //p' "$run/facts.txt" | sort -u >"$tmp/violated.txt" || fail invariant
     violated=$(grep -c '' "$tmp/violated.txt")
@@ -306,7 +321,7 @@ exported() {
 control() {
   run=$tmp/control-$1
   mkdir "$run" "$run/jtmp" || return 2
-  cp "$dir"/*.tla "$run/" || return 2
+  copy_model "$run" || return 2
   printf '%s\n' "$2" >"$run/property.txt" || return 2
   cfg_text 5 3 "$1" "$run/property.txt" >"$run/Control.cfg" || return 2
   tlc "$run" Control.cfg
@@ -422,6 +437,7 @@ measure() {
   check model [ -d "$dir" ] || fail model
   scratch
   check scratch [ -n "$tmp" ] || fail scratch
+  tracked
   pin
   attributes
   java_of
@@ -465,6 +481,10 @@ while [ $# -gt 0 ]; do
   shift
 done
 printf '%s %s\n' "$module" "$cfg" >>"$R5_STUB_LOG"
+if [ -f FiniteSets.tla ]; then
+  printf 'Fatal errors while parsing TLA+ spec in file FiniteSets\r\n'
+  exit 150
+fi
 good() {
   printf 'Model checking completed. No error has been found.\r\n'
   printf '%s states generated, %s distinct states found, 0 states left on queue.\r\n' "$2" "$1"
@@ -493,6 +513,10 @@ if [ -n "$want" ]; then
       exit 0
       ;;
     control-other) broke Q3 ;;
+    control-holds-"$want")
+      good 9 27
+      exit 0
+      ;;
     control-status)
       printf 'Error: Action property %s is violated.\r\n' "$want"
       exit 0
@@ -626,7 +650,11 @@ expect() {
   ok=yes
   [ "$code:$last" = "$wanted" ] || ok=no
   for needle in "${4:-}" "${5:-}"; do
-    [ -z "$needle" ] || grep -q -F -e "$needle" "$work/$one/out.txt" || ok=no
+    case $needle in
+      '') ;;
+      ^*) grep -q -x -F -e "${needle#^}" "$work/$one/out.txt" || ok=no ;;
+      *) grep -q -F -e "$needle" "$work/$one/out.txt" || ok=no ;;
+    esac
   done
   set -- "$work/$one/tmp"/*
   [ ! -e "$1" ] || ok=no
@@ -681,14 +709,14 @@ fixtures() {
   ru=formal/r5-admit/runs.txt
 
   fixture good
-  expect good "$passed" good 'formal pin=same' "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
+  expect good "$passed" good '^formal pin=same' "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
   logged
   fixture on-the-path
   java_as=
-  expect on-the-path "$passed" good 'formal java major=17'
+  expect on-the-path "$passed" good '^formal java major=17'
   fixture alone
   away alone formal/r3-confirm/README.md
-  expect alone "$passed" good 'formal pin=alone'
+  expect alone "$passed" good '^formal pin=alone'
 
   fixture artifacts-a-file
   : >"$work/artifacts-a-file/art-file" || fail selftest
@@ -706,53 +734,53 @@ fixtures() {
 
   fixture pin-own-twice
   edit pin-own-twice formal/r5-admit/README.md '/^jar url=/p'
-  expect pin-own-twice "1:FAIL $name (pin)" good 'formal pin=differ'
+  expect pin-own-twice "1:FAIL $name (pin)" good '^formal pin=differ'
   fixture pin-other-two-lines
   edit pin-other-two-lines formal/r3-confirm/README.md '/^tla2tools/{p;s/ sha256=/ sha256=x/;}'
-  expect pin-other-two-lines "1:FAIL $name (pin)" good 'formal pin=differ'
+  expect pin-other-two-lines "1:FAIL $name (pin)" good '^formal pin=differ'
   fixture pin-differs
   other_digit "$fake_sum"
   edit pin-differs formal/r3-confirm/README.md "s/sha256=./sha256=$digit/"
-  expect pin-differs "1:FAIL $name (pin)" good 'formal pin=differ'
+  expect pin-differs "1:FAIL $name (pin)" good '^formal pin=differ'
 
   fixture java-missing
   java_as=$work/empty
-  expect java-missing "1:FAIL $name (java)" good 'formal java major=none'
+  expect java-missing "1:FAIL $name (java)" good '^formal java major=none'
   fixture java-old
-  expect java-old "1:FAIL $name (java)" java-old 'formal java major=11'
+  expect java-old "1:FAIL $name (java)" java-old '^formal java major=11'
   fixture jar-given-missing
   jar_as=$work/no-such.jar
-  expect jar-given-missing "1:FAIL $name (fetch)" good 'formal jar source=given bytes=0 same=no'
+  expect jar-given-missing "1:FAIL $name (fetch)" good '^formal jar source=given bytes=0 same=no'
   fixture fetch
   jar_as=
-  expect fetch "1:FAIL $name (fetch)" good 'formal jar source=fetch bytes=0 same=no'
+  expect fetch "1:FAIL $name (fetch)" good '^formal jar source=fetch bytes=0 same=no'
   fixture hash
   printf 'r5 stub jaR\n' >"$work/other.jar" || fail selftest
   jar_as=$work/other.jar
-  expect hash "1:FAIL $name (hash)" good 'formal jar source=given bytes=12 same=no'
+  expect hash "1:FAIL $name (hash)" good '^formal jar source=given bytes=12 same=no'
 
   fixture admit-constant
   edit admit-constant "$a" 's/^    FurtherA = {a1, a2, a3}$/    FurtherA = {a1}/'
-  expect admit-constant "$invariant" good 'formal small result=admit-form'
+  expect admit-constant "$invariant" good '^formal small result=admit-form'
   fixture small-other
   edit small-other "$s" 's/^    ListMax = 2$/    ListMax = 1/'
-  expect small-other "$invariant" good 'formal small result=small-form'
+  expect small-other "$invariant" good '^formal small result=small-form'
   fixture formula-two-spaces
   edit formula-two-spaces "$t" 's/^Q7Step == /Q7Step  == /'
   edit formula-two-spaces "$a" '/^    Q7Step$/d'
   edit formula-two-spaces "$s" '/^    Q7Step$/d'
-  expect formula-two-spaces "$invariant" good 'formal small result=formulas-form'
+  expect formula-two-spaces "$invariant" good '^formal small result=formulas-form'
   fixture property-out-of-both
   edit property-out-of-both "$t" 's/^Q5 ==/Kept5 ==/'
   edit property-out-of-both "$a" '/^    Q5$/d'
   edit property-out-of-both "$s" '/^    Q5$/d'
-  expect property-out-of-both "$invariant" good 'formal states=0 properties=13 violated=0' 'result=formulas-count'
+  expect property-out-of-both "$invariant" good '^formal states=0 properties=13 violated=0' '^formal small result=formulas-count'
   fixture model-as-control-q1
-  expect model-as-control-q1 "$invariant" as-control-q1 'formal states=0 properties=14 violated=1' 'result=violated'
+  expect model-as-control-q1 "$invariant" as-control-q1 '^formal states=0 properties=14 violated=1' '^formal small result=violated'
   fixture tlc-status
-  expect tlc-status "$invariant" status 'formal small result=status'
+  expect tlc-status "$invariant" status '^formal small result=status'
   fixture tlc-incomplete
-  expect tlc-incomplete "$invariant" incomplete 'formal small result=incomplete'
+  expect tlc-incomplete "$invariant" incomplete '^formal small result=incomplete'
 
   for c in constraints-init constant-runsmax glued-brace view cr-inside constraints-after-bound; do
     fixture "$c"
@@ -770,33 +798,62 @@ VIEW Init/' ;;
 CONSTRAINTS Init/' ;;
       esac
     done
-    expect "$c" "$invariant" good 'formal small result=admit-form'
+    expect "$c" "$invariant" good '^formal small result=admit-form'
   done
+  fixture comment-opener
+  edit comment-opener "$a" 's/^CHECK_DEADLOCK FALSE$/& (* x *)/'
+  edit comment-opener "$s" 's/^CHECK_DEADLOCK FALSE$/& (* x *)/'
+  expect comment-opener "$invariant" good '^formal small result=admit-form'
+  fixture operator-replaced
+  edit operator-replaced "$a" 's/^    Fault = "none"$/&\
+    Bound <- Init/'
+  edit operator-replaced "$s" 's/^    Fault = "none"$/&\
+    Bound <- Init/'
+  expect operator-replaced "$invariant" good '^formal small result=admit-form'
+  fixture keyword-twice
+  edit keyword-twice "$a" 's/^CONSTRAINT Bound$/&\
+CONSTRAINT Bound/'
+  edit keyword-twice "$s" 's/^CONSTRAINT Bound$/&\
+CONSTRAINT Bound/'
+  expect keyword-twice "$invariant" good '^formal small result=admit-form'
+  fixture constant-twice
+  edit constant-twice "$a" 's/^    ListMax = 2$/&\
+    ListMax = 2/'
+  edit constant-twice "$s" 's/^    ListMax = 2$/&\
+    ListMax = 2/'
+  expect constant-twice "$invariant" good '^formal small result=admit-form'
+  fixture untracked-module
+  : >"$work/untracked-module/formal/r5-admit/FiniteSets.tla" || fail selftest
+  expect untracked-module "$passed" good '^formal states=15690 properties=14 violated=0'
   fixture model-as-control-q5
-  expect model-as-control-q5 "$invariant" as-control-q5 'formal small result=violated'
+  expect model-as-control-q5 "$invariant" as-control-q5 '^formal small result=violated'
   fixture model-invariant
-  expect model-invariant "$invariant" invariant-q7 'formal states=0 properties=14 violated=1'
+  expect model-invariant "$invariant" invariant-q7 '^formal states=0 properties=14 violated=1'
 
   fixture export-exit-1
   copy_export export-exit-1 1
-  expect export-exit-1 "1:FAIL $name (table)" good 'formal export status=1' 'formal table rows=57 same=no'
+  expect export-exit-1 "1:FAIL $name (table)" good '^formal export status=1' '^formal table rows=57 same=no'
   fixture table-56-rows
   copy_export table-56-rows 0
   edit table-56-rows formal/r5-admit/edit-table.tsv 9d
-  expect table-56-rows "1:FAIL $name (table)" good 'formal table rows=56 same=no'
+  expect table-56-rows "1:FAIL $name (table)" good '^formal table rows=56 same=no'
   fixture table-token
   edit table-token formal/r5-admit/edit-table.tsv '1s/edit/refused/'
-  expect table-token "1:FAIL $name (table)" good 'formal table rows=57 same=no'
+  expect table-token "1:FAIL $name (table)" good '^formal table rows=57 same=no'
   fixture trace-move
   edit trace-move formal/r5-admit/traces.jsonl '9s/"move":"recompile"/"move":"use_ok"/'
-  expect trace-move "1:FAIL $name (traces)" good 'formal table rows=57 same=yes' 'formal traces count=200 same=no'
+  expect trace-move "1:FAIL $name (traces)" good '^formal table rows=57 same=yes' '^formal traces count=200 same=no'
 
   fixture control-status
-  expect control-status "1:FAIL $name (control)" control-status 'formal control violated=0'
+  expect control-status "1:FAIL $name (control)" control-status '^formal control violated=0'
   fixture control-other
-  expect control-other "1:FAIL $name (control)" control-other 'formal control violated=0'
+  expect control-other "1:FAIL $name (control)" control-other '^formal control violated=0'
   fixture control-holds
-  expect control-holds "1:FAIL $name (control)" control-holds 'formal control violated=0'
+  expect control-holds "1:FAIL $name (control)" control-holds '^formal control violated=0'
+  fixture control-holds-q1
+  expect control-holds-q1 "1:FAIL $name (control)" control-holds-Q1 '^formal control violated=1'
+  fixture control-holds-q5
+  expect control-holds-q5 "1:FAIL $name (control)" control-holds-Q5 '^formal control violated=1'
 
   fixture runs-missing
   away runs-missing "$ru"
@@ -829,6 +886,12 @@ CONSTRAINTS Init/' ;;
   fixture record-older-model
   printf '\n' >>"$work/record-older-model/$t" || fail selftest
   expect record-older-model "$rec" good 'formal record stamp=differ'
+  fixture record-cfg-changed
+  printf '\n' >>"$work/record-cfg-changed/formal/r5-admit/Export.cfg" || fail selftest
+  expect record-cfg-changed "$rec" good 'formal record stamp=differ full=ok'
+  fixture record-full-properties
+  edit record-full-properties "$rt" 's/^\(full .*\) properties=14 /\1 properties=13 /'
+  expect record-full-properties "$rec" good 'formal record stamp=same full=miss small=same'
   fixture record-full-violated
   edit record-full-violated "$rt" 's/^\(full .*\) violated=0 /\1 violated=1 /'
   expect record-full-violated "$rec" good 'formal record stamp=same full=miss small=same'
@@ -847,6 +910,9 @@ CONSTRAINTS Init/' ;;
   fixture record-reach-not-reached
   edit record-reach-not-reached "$rt" 's/^\(reach property=NotListCut .*\) reached=yes /\1 reached=no /'
   expect record-reach-not-reached "$rec" good "designs=$nd reported=$nd reach=$nr reached=$((nr - 1))"
+  fixture record-cr
+  edit record-cr "$rt" "s/\$/${cr}/"
+  expect record-cr "$rec" good 'formal record stamp=none full=miss small=differ runs=ok'
   fixture record-empty-line
   printf '\n' >>"$work/record-empty-line/$rt" || fail selftest
   expect record-empty-line "$rec" good "stamp=same full=ok small=same runs=ok $whole lines=differ"

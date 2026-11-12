@@ -453,7 +453,8 @@ test of `edit_step` in the learning code holds it (L12).
 
 The first line is `{"seed":<n>,"count":<n>}`. Every later line is one trace,
 `{"moves":[{"move":"<move>","guard":"<guard>","answer":"<state or edit>","clean":<count or null>},...]}`,
-of 6 to 16 moves. `clean` is the next `clean`, and null where the answer is `edit`.
+of at most 16 moves, and the file holds at least 200 traces (L12); the committed file
+holds 200. `clean` is the next `clean`, and null where the answer is `edit`.
 
 To replay a trace, start with the state `none` and a `clean` of 0, and for each element
 of `moves` in order:
@@ -482,7 +483,8 @@ refuse. So the traces meet each of the 57 rows whatever the seed, and `export.sh
 when one is not met. In the committed file 199 of the 200 traces hold an `edit` answer.
 The numbers come from a generator that the
 module computes with whole numbers (`Lcg`), and not from TLC's or Java's random numbers.
-The export has run on macOS alone; nobody has compared its bytes with a run on Windows.
+The windows job of hosted run 43200258818 exported both files with the same bytes as the
+committed ones (`same=yes`), as its macos job did.
 
 ## `export.sh`
 

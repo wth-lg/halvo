@@ -157,7 +157,10 @@ run() {
     jar_of
     stamp >"$out/$key.stamp"
     made=$(mktemp -d "${TMPDIR:-/tmp}/r5-record.XXXXXX") || refuse usage "no temporary directory"
-    cp "$here"/*.tla "$made/" || exit 1
+    (cd "$repo" && git -c core.quotepath=off ls-files -- 'formal/r5-admit/*.tla') >"$made/tracked.txt" || exit 1
+    while IFS= read -r f; do
+        cp "$repo/$f" "$made/" || exit 1
+    done <"$made/tracked.txt"
     mkdir "$made/jtmp" || exit 1
     case $kind in
         full) cp "$here/Admit.cfg" "$made/run.cfg" ;;
