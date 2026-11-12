@@ -33,6 +33,8 @@ runs the jar. Nothing of the product links it and no bundle ships it (L0.8).
 | `Admit.cfg` | the configuration that TLC checks |
 | `Small.cfg` | the small bound that `scripts/r5/ci.d/30-r5-formal.sh` checks in every push: `Admit.cfg` with `RunsMax` 3 and `RunsOnBothSteps` 2 |
 | `record.txt` | the record of the runs that are too long for a push (see "The record") |
+| `runs.txt` | the wrong designs and the reach runs, one run per line with its bound (see "The record") |
+| `record.sh` | the writer of `record.txt`, one TLC run for each call (see "Writing the record") |
 | `Reach.tla` | states and steps that the system must be able to reach, each with its negation for TLC to violate |
 | `Export.tla`, `Export.cfg` | the module and the configuration under which TLC prints the table and the traces |
 | `export.sh` | the only writer of the two files below |
@@ -155,8 +157,12 @@ the rule. The table gives what TLC reports when it checks such a copy with every
 property of `Admit.cfg` and one worker: the first property that the search meets. A
 design may break others too. In the column of the bound, `3 runs` is `RunsMax` 3 with
 `RunsOnBothSteps` 2, `4 runs` is `RunsMax` 4 with `RunsOnBothSteps` 2, and `one step` is
-`RunsOnBothSteps` 0; each is a part of the bound of `Admit.cfg`. The outputs are kept in
-the learning run's ledger, under `evidence/formal-verification-3/`.
+`RunsOnBothSteps` 0; each is a part of the bound of `Admit.cfg`. The outputs of the
+column `output` are those of an earlier form of the model, kept in the learning run's
+ledger under `evidence/formal-verification-3/`. `runs.txt` holds each row of this table
+as one line `design <Fault> <RunsMax> <RunsOnBothSteps> <EditMax> <property>`, with the
+bound of the row and the property of its column `TLC reports`, and the check reads that
+file and not this table.
 
 | `Fault` | from | what it changes | TLC reports | distinct states | bound | output |
 |---|---|---|---|---|---|---|
@@ -260,7 +266,8 @@ violated` for one that is checked on states, `Action property Q9 is violated` fo
 that is checked on steps.
 
 For a wrong design, change the line `Fault = "none"` in the copy of `Admit.cfg` and run
-with `-workers 1`. For a control copy, also put the one line `PROPERTY Q1` (with
+with `-workers 1`; `record.sh run DIR design <Fault>` makes that run with the bound
+that `runs.txt` gives the design. For a control copy, also put the one line `PROPERTY Q1` (with
 `serve_reverted`) or `PROPERTY Q5` (with `no_bar`) in place of the `PROPERTIES` block.
 
 The check has two parts: the run above, in which TLC must report none of Q1 to Q14,
@@ -282,33 +289,18 @@ Not<Name> is violated` or `Action property Never<Name> is violated`. Its trace i
 behaviour that reaches the state or makes the step. A name that its run does not
 report is a move that the model no longer makes, and the check fails.
 
+`runs.txt` holds each reach run as one line `reach <name> <RunsMax> <RunsOnBothSteps>`.
+The run sets the two bounds in a copy of `Admit.cfg`, puts the one line `INVARIANT <name>`
+(a name that starts with `Not`) or `PROPERTY <name>` (`Never`) in place of its
+`PROPERTIES` block, and checks `Reach.tla` with one worker. It reaches its target when TLC
+reports that line violated:
+
 ```sh
-reach() {
-    sed -e "s/RunsMax = 5/RunsMax = $3/" -e "s/RunsOnBothSteps = 3/RunsOnBothSteps = $4/" \
-        -e '/^PROPERTIES$/,$d' Admit.cfg >"$2.cfg"
-    printf '%s %s\n' "$1" "$2" >>"$2.cfg"
-    java -Xmx2g -XX:+UseParallelGC -cp "$TLA2TOOLS_JAR" tlc2.TLC -workers 1 \
-        -metadir "meta-$2" -config "$2.cfg" Reach >"$2.out" 2>&1
-    grep -q " $2 is violated" "$2.out" || echo "not reached: $2"
-}
-cd "$d"
-for name in TwoRunsHoldCandidates CompileUnderCandidate StopLeavesEdits LoadBeforeWithdrawal \
-    ProposalBeforeWithdrawal ProposalHoldsCompiled ProposalHoldsBarred EditsOnBothSteps \
-    StaleProposalRefused CauseBase CauseScope CauseLocator CauseRejected; do
-    reach INVARIANT "Not$name" 3 2
-done
-for name in RestartDropsCandidate FinishWithdrawsLeftEdits LostFinishBeforeWithdrawal \
-    UnverifiedRunReverts LowerServedNoMove; do
-    reach PROPERTY "Never$name" 3 2
-done
-for name in ProposalHoldsListed CandidateListedByBase ListCut EditLimit ActiveInForceAgain \
-    CauseFull; do
-    reach INVARIANT "Not$name" 5 0
-done
-reach PROPERTY NeverCountedOnActive 5 0
+grep '^reach ' formal/r5-admit/runs.txt
+TLA2TOOLS_JAR=/path/to/tla2tools.jar sh formal/r5-admit/record.sh run DIR reach NotTwoRunsHoldCandidates 3 2
 ```
 
-`$d` is the copy of the run above. The table gives each name with its line, its bound
+The table gives each name with its line, its bound
 and the distinct states that TLC had found when it reported the line, with one worker.
 
 | name | line of the configuration | bound | what is reached | distinct states |
@@ -345,17 +337,32 @@ property of `Admit.cfg`.
 
 ## The record
 
-The run of `Admit.cfg` (section "Running TLC"), the wrong designs of the table in
-"The wrong designs" and the reach runs of the commands above take too long for a
-push. A person runs them on the development machine, and `record.txt` holds their
-result. Each design and each reach run is one run with one worker through the
-machine's timed-run helper, as the sections above say. The record has these lines and
-no others:
+The run of `Admit.cfg` (section "Running TLC"), the runs of the wrong designs and the
+reach runs take too long for a push. `runs.txt` lists the designs and the reach runs,
+one run per line, in these two forms:
+
+```
+design <Fault> <RunsMax> <RunsOnBothSteps> <EditMax> <the property that TLC reports, or nothing>
+reach <Not name or Never name> <RunsMax> <RunsOnBothSteps>
+```
+
+Its first lines are:
+
+```
+design serve_reverted 3 2 3 Q1
+design serve_lower 3 2 3 Q1
+design stale_top 3 2 3 Q1
+```
+
+A person runs them on a development machine with `record.sh` (section "Writing the
+record"), and `record.txt` holds their result. The record has these lines, no others
+and no empty line:
 
 ```
 stamp=<hex>
 full config=Admit.cfg states=<distinct states> properties=14 violated=0 workers=<n> run=<helper|nice19> seconds=<n>
-design fault=<Fault> reports=<property or nothing> states=<distinct states>
+small config=Small.cfg states=<distinct states>
+design fault=<Fault> bound=<RunsMax>-<RunsOnBothSteps>-<EditMax> reports=<property or nothing> states=<distinct states>
 reach property=<Not name or Never name> bound=<RunsMax>-<RunsOnBothSteps> reached=yes states=<distinct states>
 ```
 
@@ -364,18 +371,60 @@ under `formal/r5-admit/` whose name ends in `.tla` or `.cfg`, each line the 64 h
 digits of the file's bytes, two spaces and the file's path from the root of the
 repository, the lines sorted by path (item L0.4 of the contract). The `full` line says
 how the run of `Admit.cfg` ran: `workers` is TLC's `-workers`, `run` is `helper` for a
-run through the timed-run helper and `nice19` for a run beside its lock at the lowest
-priority, and `seconds` is the wall time, an observation and not a measurement. There is one
-`design` line per row of the table of wrong designs, with the property of the row's
-column `TLC reports`, and one `reach` line per run of the reach commands.
+run through the machine's queue of timed runs and `nice19` for a run beside it at the
+lowest priority, and `seconds` is the wall time, an observation and not a measurement.
+The `small` line holds the count of distinct states of `Small.cfg`, which the check finds
+again in every push. There is one `design` line and one `reach` line for each line of
+`runs.txt`, with the bound of that line.
 
-`scripts/r5/ci.d/30-r5-formal.sh` computes the stamp from the files in the tree and
-reads the table and the commands of this file. It fails with `record` when the record
-is missing, holds no stamp or another stamp, lacks one of these lines, or holds a line
-of another form or one line twice. So a
-change of a `.tla` or `.cfg` file, a row added to the table and a name added to the
-commands each need a new record from runs at those files. The check reads the form of
-`workers`, `run` and `seconds` and not their values, and it does not read `states`.
+The stamp shows which files the record names: a change of a `.tla` or `.cfg` file gives
+another stamp, and the check then fails. It does not show that the runs took place. The
+check cannot tell a record written from runs from one written by hand. The committed
+writer, `record.sh`, is what lets a reader make the record again from the files and
+compare it line by line.
+
+`scripts/r5/ci.d/30-r5-formal.sh` computes the stamp from the files in the tree and reads
+`runs.txt`; it reads no list of this file. It fails with `record` when the record is
+missing, holds no stamp or another stamp, lacks one of these lines, holds a line of
+another form, one line twice or an empty line, or has a `small` line whose count is not
+the count of the push's small run, and when `runs.txt` is missing, holds a line of
+another form or one run twice, or lists no design or no reach run. So a change of a
+`.tla` or `.cfg` file, and a line added to or changed in `runs.txt`, each need a new
+record from runs at those files. The check reads the form of `workers`, `run` and
+`seconds` and not their values, and of all the `states` fields it reads the `small`
+line's alone. On every failure the check writes `fix.txt` into its artifacts directory
+(`target/ci-artifacts/30-r5-formal/` when no driver gives one): the cause, the file and
+the section to read, and the command to run again.
+
+## Writing the record
+
+`record.sh` writes the record from the files of this directory and from nothing else:
+
+```sh
+d=$(mktemp -d)
+export TLA2TOOLS_JAR=/path/to/tla2tools.jar
+sh formal/r5-admit/record.sh list
+sh formal/r5-admit/record.sh run "$d" full 4 nice19
+sh formal/r5-admit/record.sh run "$d" small
+sh formal/r5-admit/record.sh run "$d" design serve_reverted
+sh formal/r5-admit/record.sh run "$d" reach NotTwoRunsHoldCandidates 3 2
+sh formal/r5-admit/record.sh write "$d"
+```
+
+`list` prints the arguments of every run that the record needs: `full`, `small`, then one
+line for each line of `runs.txt`. Each call of `run` is one TLC run and nothing more, so
+a machine that queues its long runs takes one call for each entry of its queue. A run
+writes three files into the directory: TLC's output, the record's line and the stamp of
+the files when the run started. `write` puts the lines together: the stamp of the files
+now, the `full` line, the `small` line, then the design and reach lines in the order of
+`runs.txt`, and it writes nothing when a line is missing or a run's stamp is not the
+stamp now. Keep the directory with the evidence of the pull request that commits the
+record: a reviewer reads the outputs and can make any run again.
+
+Seconds that one run took on a machine of 16 cores under the load of other work
+(2026-11-12): a design 1 to 86 and a reach run 1 to 59 with one worker, `small` 44 with
+3 workers, `full` 2,193 with 4 workers at the lowest priority. `sh
+formal/r5-admit/record.sh --help` states the arguments and the exit statuses.
 
 ## `edit-table.tsv`
 
