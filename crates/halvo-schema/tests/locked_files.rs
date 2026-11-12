@@ -2113,7 +2113,63 @@ fn registry_chains_the_kinds_of_this_run_and_the_four_lists_of_later_runs_in_the
     );
 }
 
-const DECLARED_ERROR_NAMES: &str = "crate::executable::ERROR_NAMES.iter().chain(crate::coordinator::ERROR_NAMES).chain(crate::learning::ERROR_NAMES).chain(crate::routing::ERROR_NAMES).copied()";
+const DECLARED_ERROR_NAMES: &str = "let lists: [&'static [&'static str]; 4] = [crate::executable::ERROR_NAMES, crate::coordinator::ERROR_NAMES, crate::learning::ERROR_NAMES, crate::routing::ERROR_NAMES,]; lists.into_iter().flatten().copied()";
+
+#[test]
+fn each_file_of_a_later_run_lists_its_error_names_as_string_literals() {
+    let form = |text: &str| -> Result<usize, String> {
+        let t = tokens(text);
+        let named = t.iter().filter(|x| bare(x) == "ERROR_NAMES").count();
+        let mut head = tokens("pub const ERROR_NAMES: &[&str] = &");
+        head.push("[".to_owned());
+        let at = find(&t, &head.iter().map(String::as_str).collect::<Vec<_>>());
+        if named != 1 || at.len() != 1 {
+            return Err(format!("names ERROR_NAMES {named} times, {} of them in the form `pub const ERROR_NAMES: &[&str] = &[..];`", at.len()));
+        }
+        let open = at[0] + head.len() - 1;
+        let close = matching(&t, open);
+        let inner = &t[open + 1..close];
+        let literal =
+            |x: &String| x.starts_with('"') || x.starts_with("r\"") || x.starts_with("r#");
+        if t.get(close + 1).is_none_or(|x| x != ";")
+            || inner
+                .iter()
+                .enumerate()
+                .any(|(k, x)| if k % 2 == 0 { !literal(x) } else { x != "," })
+        {
+            return Err(
+                "holds in its list ERROR_NAMES another token than string literals and commas"
+                    .to_owned(),
+            );
+        }
+        Ok(inner.len().div_ceil(2))
+    };
+    for module in LATER {
+        let file = format!("{module}.rs");
+        assert!(
+            form(&source(&file)).is_ok(),
+            "src/{file}: {:?}",
+            form(&source(&file))
+        );
+    }
+    for (text, names) in [
+        ("pub const ERROR_NAMES: &[&str] = &[];\n", 0),
+        ("pub const ERROR_NAMES: &[&str] = &[\"a\", \"b_2\"];\n", 2),
+        ("pub const ERROR_NAMES: &[&str] = &[\n    \"a\",\n];\n", 1),
+    ] {
+        assert_eq!(form(text), Ok(names), "{text}");
+    }
+    for text in [
+        "pub const ERROR_NAMES: &[&str] = &[env!(\"X\")];\n",
+        "pub const ERROR_NAMES: &[&str] = &[concat!(\"a\", \"b\")];\n",
+        "pub const ERROR_NAMES: &[&str] = OTHER;\n",
+        "pub static ERROR_NAMES: Names = Names;\n",
+        "pub const ERROR_NAMES: &[&str] = &[\"a\"];\npub use self::ERROR_NAMES as MORE;\n",
+        "pub const ERROR_NAMES: &[&str] = &[\"a\" \"b\"];\n",
+    ] {
+        assert!(form(text).is_err(), "{text}");
+    }
+}
 
 #[test]
 fn declared_error_names_chains_the_four_lists_of_later_runs_in_the_order_of_the_contract() {

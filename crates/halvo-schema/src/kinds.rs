@@ -209,12 +209,13 @@ pub fn registry() -> impl Iterator<Item = &'static KindEntry> {
 /// interface, learning and routing runs, in that order. Two lists may hold one name, and a list may hold a name of
 /// the nine of the reply form, which is that one name.
 pub fn declared_error_names() -> impl Iterator<Item = &'static str> {
-    crate::executable::ERROR_NAMES
-        .iter()
-        .chain(crate::coordinator::ERROR_NAMES)
-        .chain(crate::learning::ERROR_NAMES)
-        .chain(crate::routing::ERROR_NAMES)
-        .copied()
+    let lists: [&'static [&'static str]; 4] = [
+        crate::executable::ERROR_NAMES,
+        crate::coordinator::ERROR_NAMES,
+        crate::learning::ERROR_NAMES,
+        crate::routing::ERROR_NAMES,
+    ];
+    lists.into_iter().flatten().copied()
 }
 
 fn name_form(s: &str) -> bool {

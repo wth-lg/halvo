@@ -124,8 +124,16 @@ fn a_reply_with_a_name_that_no_file_declares_is_malformed_and_no_error_name_hold
                 "{name:?}"
             );
         }
-        assert!(ErrorName::read(name).is_err(), "{name:?}");
-        assert!(ErrorName::parse(name).is_err(), "{name:?}");
+        for refused in [
+            ErrorName::read(name).unwrap_err(),
+            ErrorName::parse(name).unwrap_err(),
+        ] {
+            assert_eq!(
+                (refused.type_name(), refused.rule()),
+                ("ErrorName", "unknown_name"),
+                "{name:?}"
+            );
+        }
         assert!(
             serde_json::from_str::<ErrorName>(&json(name)).is_err(),
             "{name:?}"
