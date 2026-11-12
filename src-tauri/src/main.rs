@@ -5,6 +5,7 @@
 
 mod app;
 mod commands;
+mod launch;
 mod tray;
 mod unwired_store;
 
@@ -18,11 +19,17 @@ fn open_pane(permission: Permission) -> Result<(), String> {
 }
 
 fn main() {
-    if std::env::args().skip(1).any(|arg| arg == "--version") {
-        println!("{}", app::VERSION);
-        return;
+    match launch::parse(std::env::args_os().skip(1)) {
+        Ok(launch::Launch::Version) => println!("{}", app::VERSION),
+        Ok(launch::Launch::Run) => run(),
+        Err(usage) => {
+            eprintln!("halvo: {usage}\n{}", launch::USAGE);
+            std::process::exit(64);
+        }
     }
+}
 
+fn run() {
     let parts = app::Parts {
         config_dir: None,
         store: Box::new(unwired_store::UnwiredStore),
