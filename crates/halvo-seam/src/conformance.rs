@@ -503,9 +503,10 @@ fn reference<S: Subject>(subject: &mut S) -> Result<(Conn<S>, Reference), String
     ))
 }
 
-/// The case `resume` (C5.13 item 6): after `restart`, a read from each of six start positions serves the
-/// entries of the reference read at or after it (the sixth is the position past the last entry of the first
-/// segment, which a server reads as the first position of the next segment), at the same positions, from the same store; a position
+/// The case `resume` (C5.13 item 6): after `restart`, a read from each of eight start positions serves the
+/// entries of the reference read at or after it (the sixth, seventh and eighth are the positions one and two
+/// past the last entry of the first segment and the index 2^63 - 1 of that segment, which a server reads as
+/// the first position of the next segment), at the same positions, from the same store; a position
 /// beyond every watermark and the index 1 of the segment of the highest watermark after the restart get
 /// `bad-position`, and a legal open after them works.
 pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
@@ -534,6 +535,14 @@ pub fn resume<S: Subject>(subject: &mut S) -> Result<(), String> {
         rf.first_full_next,
         rf.w,
         past_first,
+        Position {
+            seg: first,
+            idx: past_first.idx + 1,
+        },
+        Position {
+            seg: first,
+            idx: i64::MAX as u64,
+        },
     ];
     let mut top = rf.w;
     for (n, start) in starts.into_iter().enumerate() {
@@ -613,9 +622,10 @@ pub fn shredded<S: Subject>(subject: &mut S) -> Result<(), String> {
     Ok(())
 }
 
-/// The case `filters` (C5.13 item 8): each kinds filter, the run-mark filter, a time range with and without a
-/// kind, and a range after every record serve exactly the entries of the reference read that pass them, at
-/// their positions; four illegal opens get `bad-request` and leave the connection usable.
+/// The case `filters` (C5.13 item 8): each kinds filter, a list of two kinds in either order, the run-mark
+/// filter, a time range with and without a kind, and a range after every record serve exactly the entries of
+/// the reference read that pass them, at their positions, from the zero position and from the position of
+/// the 21st entry; four illegal opens get `bad-request` and leave the connection usable.
 pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     let (mut conn, rf) = reference(subject)?;
     let pick = |kinds: &[Kind], range: Option<(Instant, Instant)>| -> Vec<Entry> {
@@ -636,7 +646,7 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
         Instant(after.0.saturating_add(1)),
         Instant(after.0.saturating_add(2)),
     );
-    let cases: [FilterCase; 9] = [
+    let cases: [FilterCase; 10] = [
         (
             "foreground_app",
             Some(&["foreground_app"]),
@@ -667,6 +677,12 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
             None,
             pick(&[Kind::ForegroundApp, Kind::WindowTitle], None),
         ),
+        (
+            "window_title and foreground_app",
+            Some(&["window_title", "foreground_app"]),
+            None,
+            pick(&[Kind::ForegroundApp, Kind::WindowTitle], None),
+        ),
         ("run_mark", Some(&["run_mark"]), None, Vec::new()),
         ("the range", None, Some((a, b)), pick(&[], Some((a, b)))),
         (
@@ -677,15 +693,23 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
         ),
         ("a range after every record", None, Some(late), Vec::new()),
     ];
-    for (name, kinds, range, want) in cases {
-        let reading = read(&mut conn, Some(&rf.s), ZERO, kinds, range)
-            .map_err(|e| format!("the filter {name}: {e}"))?;
-        if !same(&reading.entries, &want) {
-            return Err(format!(
-                "the filter {name}: {} entries served, want {}",
-                reading.entries.len(),
-                want.len()
-            ));
+    for start in [ZERO, rf.r[20].pos] {
+        for (name, kinds, range, want) in &cases {
+            let name = if start == ZERO {
+                (*name).to_owned()
+            } else {
+                format!("{name} from {}", show(start))
+            };
+            let want: Vec<Entry> = want.iter().filter(|e| e.pos >= start).cloned().collect();
+            let reading = read(&mut conn, Some(&rf.s), start, *kinds, *range)
+                .map_err(|e| format!("the filter {name}: {e}"))?;
+            if !same(&reading.entries, &want) {
+                return Err(format!(
+                    "the filter {name}: {} entries served, want {}",
+                    reading.entries.len(),
+                    want.len()
+                ));
+            }
         }
     }
     let illegal: [Filter; 4] = [
@@ -714,11 +738,32 @@ pub fn filters<S: Subject>(subject: &mut S) -> Result<(), String> {
     Ok(())
 }
 
+fn old_store<S: Subject>(
+    conn: &mut Conn<S>,
+    old: &StoreId,
+    at: Position,
+    what: &str,
+) -> Result<StoreId, String> {
+    let new = match conn.error(&open_text(Some(old), at, None, None), what)? {
+        Cause::StoreChanged(id) if &id != old => id,
+        Cause::StoreChanged(_) => return Err("store-changed names the old store id".to_owned()),
+        other => return Err(format!("{what} got {}; want store-changed", other.name())),
+    };
+    let cause = conn.error(READ_BATCH, "read_batch after store-changed")?;
+    if cause != Cause::BadRequest {
+        return Err(format!(
+            "read_batch after store-changed got {}; want bad-request",
+            cause.name()
+        ));
+    }
+    Ok(new)
+}
+
 /// The case `store_changed` (C5.13 item 9): first, on the connection of the reference read, a cursor opened
 /// with S that took one Batch gets `store-changed` with another id at its next `read_batch` after
 /// `replace_live`, a further `read_batch` gets `bad-request`, and a cursor opened then serves nothing. Then,
-/// after `load(B)`, the old store id gets `store-changed` with
-/// another id and opens no cursor, a null store with a non-zero position gets `bad-request`, and the new
+/// after `load(B)`, the old store id, at a position other than zero and at the zero position, gets
+/// `store-changed` with another id and opens no cursor, a null store with a non-zero position gets `bad-request`, and the new
 /// store serves the records of set B from the zero position, with a null store and with its new id. Last,
 /// after `load(C)`, a read from the zero position serves the records of set C in order, each once; at least
 /// two of its Batches end before the store ends, and the Batch after each such stop starts at its `next`.
@@ -773,26 +818,13 @@ pub fn store_changed<S: Subject>(subject: &mut S) -> Result<(), String> {
     let p = rf.r[10].pos;
     subject.load(&SET_B)?;
     let mut conn = connect(subject)?;
-    let new = match conn.error(
-        &open_text(Some(&rf.s), p, None, None),
-        "an open_cursor with the old store id",
-    )? {
-        Cause::StoreChanged(id) if id != rf.s => id,
-        Cause::StoreChanged(_) => return Err("store-changed names the old store id".to_owned()),
-        other => {
-            return Err(format!(
-                "an open_cursor with the old store id got {}; want store-changed",
-                other.name()
-            ))
-        }
-    };
-    let cause = conn.error(READ_BATCH, "read_batch after store-changed")?;
-    if cause != Cause::BadRequest {
-        return Err(format!(
-            "read_batch after store-changed got {}; want bad-request",
-            cause.name()
-        ));
-    }
+    let new = old_store(&mut conn, &rf.s, p, "an open_cursor with the old store id")?;
+    old_store(
+        &mut conn,
+        &rf.s,
+        ZERO,
+        "an open_cursor with the old store id at the zero position",
+    )?;
     let cause = conn.error(
         &open_text(None, p, None, None),
         "a null store with a non-zero position",

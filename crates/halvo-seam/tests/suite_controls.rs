@@ -11,10 +11,10 @@ use halvo_seam::conformance::{self, Subject, CASES};
 use halvo_seam::fixture::{FixtureTransport, Replace};
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::{
-    decode_client, Batch, Cause, ClientMessage, Entry, Expiry, OpenCursor, Refusal, ServerError,
-    ServerMessage, ZERO,
+    decode_client, Batch, Cause, ClientMessage, Entry, Expiry, KindFilter, OpenCursor, Refusal,
+    ServerError, ServerMessage, ZERO,
 };
-use halvo_seam::record::{CaptureRecord, Kind};
+use halvo_seam::record::{CaptureRecord, Kind, ServedKind};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Form {
@@ -79,6 +79,10 @@ enum Fault {
     ServesOldRecordsAfterTheReplace,
     RestartAddsASegment,
     RefusesPastASegmentEnd,
+    RefusesFarPastASegmentEnd,
+    FilteredOpenServesFromTheStart,
+    OldStoreOpensAtZero,
+    KindsOutOfOrderRefused,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -187,9 +191,16 @@ struct Proxy {
 }
 
 impl Proxy {
-    fn past_an_inner_end(&self, p: Position) -> bool {
-        p.seg >= 1 && (p.seg as usize) < self.lines.len() && p.idx >= self.lines[p.seg as usize - 1]
+    fn past_an_inner_end(&self, p: Position, beyond: u64) -> bool {
+        p.seg >= 1
+            && (p.seg as usize) < self.lines.len()
+            && p.idx >= self.lines[p.seg as usize - 1] + beyond
     }
+}
+
+fn out_of_order(kinds: &KindFilter) -> bool {
+    let rank = |k: &ServedKind| ServedKind::ALL.iter().position(|x| x == k);
+    kinds.kinds().windows(2).any(|w| rank(&w[0]) > rank(&w[1]))
 }
 
 impl Proxy {
@@ -207,6 +218,7 @@ impl Proxy {
         self.renamed = self.fault == OpenNamesAnotherStore && open.store().is_some();
         match self.fault {
             WatermarkFalls => b.watermark.seg += 1,
+            FilteredOpenServesFromTheStart => b.next = open.position(),
             OpenHoldsARecord => b.records.push(self.first.clone()),
             OpenHoldsExpiry => b.expiry.push(Expiry {
                 seg: 1,
@@ -521,21 +533,48 @@ impl Subject for Control {
                         }
                         let w = t.watermark();
                         let p = open.position();
+                        let fault = proxy.fault;
                         let sent = match open.store() {
                             Some(s)
-                                if proxy.fault == OpensInsideTheWatermarkSegment
+                                if fault == OpensInsideTheWatermarkSegment
                                     && p.seg == w.seg
                                     && p.idx > 0 =>
                             {
                                 OpenCursor::at(s.clone(), w, open.kinds().cloned(), open.range())
                                     .unwrap()
                             }
-                            _ => unfiltered(&open, proxy.fault),
+                            Some(s)
+                                if fault == FilteredOpenServesFromTheStart
+                                    && open.kinds().is_some()
+                                    && p != ZERO =>
+                            {
+                                let start = Position { seg: 1, idx: 0 };
+                                OpenCursor::at(
+                                    s.clone(),
+                                    start,
+                                    open.kinds().cloned(),
+                                    open.range(),
+                                )
+                                .unwrap()
+                            }
+                            Some(s)
+                                if fault == OldStoreOpensAtZero && s != t.store() && p == ZERO =>
+                            {
+                                OpenCursor::fresh(open.kinds().cloned(), open.range())
+                            }
+                            _ => unfiltered(&open, fault),
                         };
-                        let reply = if proxy.fault == RefusesPastASegmentEnd
-                            && proxy.past_an_inner_end(p)
-                        {
+                        let refuse = match fault {
+                            RefusesPastASegmentEnd => proxy.past_an_inner_end(p, 0),
+                            RefusesFarPastASegmentEnd => proxy.past_an_inner_end(p, 1),
+                            _ => false,
+                        };
+                        let reply = if refuse {
                             error(Cause::BadPosition)
+                        } else if fault == KindsOutOfOrderRefused
+                            && open.kinds().is_some_and(out_of_order)
+                        {
+                            error(Cause::BadRequest)
                         } else {
                             t.handle(&ClientMessage::OpenCursor(sent))
                         };
@@ -681,7 +720,12 @@ fn control_a_watermark_that_falls() {
 fn control_a_next_that_falls() {
     check(
         NextFalls,
-        [Fail("next fell"), Fail("next fell"), Pass, Pass],
+        [
+            Fail("next fell"),
+            Fail("next fell"),
+            Fail("the filter foreground_app from {seg 2, idx 10}: next fell"),
+            Pass,
+        ],
     );
 }
 
@@ -702,7 +746,12 @@ fn control_a_position_that_repeats_inside_a_batch() {
 fn control_an_entry_below_the_cursor_position() {
     check(
         ServesBelowTheCursor,
-        [Fail("does not rise"), Fail("does not rise"), Pass, Pass],
+        [
+            Fail("does not rise"),
+            Fail("does not rise"),
+            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 2, idx 9} does not rise"),
+            Pass,
+        ],
     );
 }
 
@@ -984,6 +1033,58 @@ fn control_a_set_c_too_short_to_stop_a_batch() {
             Pass,
             Pass,
             Fail("the read of set C ended 0 Batches before the store ended; want at least 2"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_filtered_cursor_opened_past_the_zero_position_that_serves_from_the_start() {
+    check(
+        FilteredOpenServesFromTheStart,
+        [
+            Pass,
+            Pass,
+            Fail("the filter foreground_app from {seg 2, idx 10}: the position {seg 1, idx 0} does not rise"),
+            Pass,
+        ],
+    );
+}
+
+#[test]
+fn control_another_store_id_at_the_zero_position_that_opens_a_cursor() {
+    check(
+        OldStoreOpensAtZero,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("an open_cursor with the old store id at the zero position got another reply than an error"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_kinds_list_out_of_the_order_of_c4_4_that_gets_bad_request() {
+    check(
+        KindsOutOfOrderRefused,
+        [
+            Pass,
+            Pass,
+            Fail("the filter window_title and foreground_app: open_cursor at {seg 0, idx 0} got the error bad-request"),
+            Pass,
+        ],
+    );
+}
+
+#[test]
+fn control_a_server_that_refuses_a_position_two_past_the_end_of_an_inner_segment() {
+    check(
+        RefusesFarPastASegmentEnd,
+        [
+            Fail("resume from start 6 at {seg 1, idx 13}: open_cursor at {seg 1, idx 13} got the error bad-position"),
+            Pass,
+            Pass,
+            Pass,
         ],
     );
 }
