@@ -898,6 +898,120 @@ fn the_keyless_sweep_removes_only_the_names_of_the_store_and_counts_the_rest() {
 }
 
 #[cfg(unix)]
+fn modes_under(dir: &Path) -> Vec<(String, u32, bool)> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut modes = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        for entry in std::fs::read_dir(&path).unwrap() {
+            let entry = entry.unwrap();
+            let meta = std::fs::symlink_metadata(entry.path()).unwrap();
+            let name = entry
+                .path()
+                .strip_prefix(dir)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            modes.push((name, meta.permissions().mode() & 0o777, meta.is_dir()));
+            if meta.is_dir() {
+                stack.push(entry.path());
+            }
+        }
+    }
+    modes.sort();
+    modes
+}
+
+#[cfg(unix)]
+#[test]
+fn make_store_files_for_parent() {
+    let Ok(dir) = std::env::var("HALVO_TEST_MODES_DIR") else {
+        println!("make_store_files_for_parent: HALVO_TEST_MODES_DIR is not set, so no parent asked for files");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    let (store_dir, roots_dir, root_id, _) = file_root_store(&dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    store
+        .write_segment_with_expiry(&mut Cursor::new(b"expired"), 0, 1)
+        .unwrap();
+    store.write_segment(&mut Cursor::new(b"live")).unwrap();
+    println!();
+    for (name, mode, is_dir) in modes_under(&dir) {
+        println!(
+            "MODE {mode:o} {} {name}",
+            if is_dir { "dir" } else { "file" }
+        );
+    }
+    store.crypto_shred_expired().unwrap();
+    drop(store);
+}
+
+#[cfg(unix)]
+#[test]
+fn every_store_file_is_made_0600_and_every_directory_0700_under_umask_022() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = Command::new("/bin/sh")
+        .args([
+            "-c",
+            "umask 022 && exec \"$0\" \"$@\"",
+            std::env::current_exe().unwrap().to_str().unwrap(),
+            "--exact",
+            "store::hardening_tests::make_store_files_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_MODES_DIR", dir.path())
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the child failed: {text}");
+    let lines: Vec<&str> = text.lines().filter(|l| l.starts_with("MODE ")).collect();
+    let wrong: Vec<&&str> = lines
+        .iter()
+        .filter(|line| !(line.starts_with("MODE 700 dir ") || line.starts_with("MODE 600 file ")))
+        .collect();
+    for name in [
+        "store.db",
+        "store.db-wal",
+        "store.key",
+        "writer.lock",
+        "segments",
+    ] {
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.ends_with(&format!(" store/{name}"))),
+            "the child listed no store/{name}: {lines:?}"
+        );
+    }
+    assert!(
+        lines.iter().any(|line| line.contains(".seg"))
+            && lines.iter().any(|line| line.contains(".root")),
+        "the child listed no segment or root file: {lines:?}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "entries of a store made under umask 022 with a wider or other mode: {wrong:?} of {lines:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn open_tightens_a_store_directory_made_at_0755_to_0700() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    std::fs::set_permissions(&store_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let opened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    let mode = std::fs::metadata(&store_dir).unwrap().permissions().mode() & 0o777;
+    assert!(opened.is_ok(), "{opened:?}");
+    assert_eq!(mode, 0o700, "open left the store directory at {mode:o}");
+}
+
+#[cfg(unix)]
 #[test]
 fn delete_all_unlinks_a_store_key_that_is_a_link_and_writes_nothing_through_it() {
     let dir = tempfile::tempdir().unwrap();

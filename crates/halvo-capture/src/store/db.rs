@@ -181,10 +181,11 @@ struct WriterLock {
 
 impl WriterLock {
     fn take(store_dir: &Path) -> StoreResult<Self> {
-        let file = File::options()
-            .create(true)
-            .truncate(false)
-            .write(true)
+        let mut options = File::options();
+        options.create(true).truncate(false).write(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options
             .open(store_dir.join("writer.lock"))
             .map_err(io_error)?;
         match file.try_lock() {
@@ -286,6 +287,9 @@ impl Db {
             Self::require_file(store_dir)?;
         }
         let path = Self::path(store_dir);
+        if database == Database::New {
+            OsFs.create_new(&path).map_err(io_error)?;
+        }
         let conn = match database {
             Database::New => Connection::open(&path),
             Database::Existing => Connection::open_with_flags(
@@ -666,7 +670,9 @@ impl EncryptedStore {
         custody: Box<dyn KeyCustody + Send>,
         retention: Duration,
     ) -> StoreResult<Self> {
-        std::fs::create_dir_all(dir).map_err(io_error)?;
+        durable::create_private_dir_all(dir)
+            .and_then(|()| durable::make_private(dir))
+            .map_err(io_error)?;
         let _writer_lock = WriterLock::take(dir)?;
         if KeyFile::path(dir).exists() {
             return Err(StoreError::AlreadyExists(dir.to_path_buf()));
@@ -762,6 +768,7 @@ impl EncryptedStore {
             RootId,
         ) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
     ) -> StoreResult<Self> {
+        durable::make_private(dir).map_err(io_error)?;
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
         let wrapped = key_file.wrapped_store_key()?;

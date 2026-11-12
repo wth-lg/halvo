@@ -355,7 +355,7 @@ pub(crate) fn write_segment_file(
     let path = segment_path(store_dir, header.segment_id);
     let partial = path.with_extension(PARTIAL_EXT);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(io_error)?;
+        durable::create_private_dir_all(parent).map_err(io_error)?;
     }
     durable::write_durably(
         fs,

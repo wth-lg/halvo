@@ -95,6 +95,31 @@ fn fill_and_publish<T, E>(
     Ok(value)
 }
 
+/// Create `dir` and each missing directory above it, readable by their owner
+/// only.
+pub(crate) fn create_private_dir_all(dir: &Path) -> io::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(dir)
+}
+
+/// Narrow an existing directory to its owner. A no-op where files carry no
+/// mode.
+pub(crate) fn make_private(dir: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = dir;
+        Ok(())
+    }
+}
+
 /// Remove `path` and sync its directory. A file that is already gone is no
 /// error, and its directory is synced all the same.
 pub(crate) fn remove_durably(fs: &dyn DurableFs, path: &Path) -> io::Result<()> {

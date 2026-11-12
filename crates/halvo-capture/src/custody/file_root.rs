@@ -107,7 +107,7 @@ impl<P: Protector> FileRoots<P> {
         let blob = self
             .protector
             .protect(root.as_slice(), root_id.as_bytes())?;
-        std::fs::create_dir_all(&self.dir).map_err(root_io)?;
+        durable::create_private_dir_all(&self.dir).map_err(root_io)?;
         let path = self.path(root_id);
         write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)?;
         Ok(root)
@@ -162,7 +162,7 @@ impl<P: Protector> FileRoots<P> {
         root: &[u8; 32],
     ) -> Result<(), CustodyError> {
         let blob = self.protector.protect(root, root_id.as_bytes())?;
-        std::fs::create_dir_all(&self.dir).map_err(root_io)?;
+        durable::create_private_dir_all(&self.dir).map_err(root_io)?;
         let path = self.path(root_id);
         write_complete(&path.with_extension(PARTIAL_EXT), &path, &blob)
     }
