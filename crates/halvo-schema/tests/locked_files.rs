@@ -2218,6 +2218,10 @@ fn the_grammar_of_a_list_file_refuses_each_form_outside_it() {
             three.to_owned(),
         ),
         (
+            format!("{USE_LINE}\n\n/*\n/// X\n*/\n/** X*/\npub const KINDS: &[KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n"),
+            three.to_owned(),
+        ),
+        (
             changed("/// The error names.\n", "/** The error names. */\n"),
             three.to_owned(),
         ),
