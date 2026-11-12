@@ -691,3 +691,17 @@ fn inside_needs_you_the_row_whose_item_was_raised_first_stands_first() {
         "the older item, not the name"
     );
 }
+
+#[test]
+fn a_runs_check_item_is_stored_as_the_check_of_that_run() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, handback(&run, 0, HandbackReason::EffectUnknown))
+        .unwrap();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Check);
+    assert!(events(&c).contains(&What::ItemRaised {
+        item,
+        raised: halvo_coord::types::Raised::Check(Some(run)),
+    }));
+}
