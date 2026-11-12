@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Halvo</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1d1d1f;
+        --muted: #6e6e73;
+        --bg: #f5f5f7;
+        --card: #ffffff;
+        --line: #d2d2d7;
+        --on: #1f9d55;
+        --off: #c47d00;
+        --danger: #c0392b;
+        --accent: #0a66c2;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #f5f5f7;
+          --muted: #a1a1a6;
+          --bg: #1c1c1e;
+          --card: #2c2c2e;
+          --line: #3a3a3c;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.45 system-ui, -apple-system, sans-serif;
+        user-select: none;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      header h1 { margin: 0; font-size: 1.35em; flex: 1; }
+      .dot {
+        width: 12px; height: 12px; border-radius: 50%;
+        background: var(--off);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--off) 25%, transparent);
+      }
+      .dot.on {
+        background: var(--on);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--on) 25%, transparent);
+      }
+      #state { font-weight: 600; }
+      section {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+      }
+      h2 { margin: 0 0 8px; font-size: 1em; }
+      p { margin: 0 0 8px; }
+      .muted { color: var(--muted); }
+      button {
+        font: inherit;
+        padding: 6px 12px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--fg);
+        cursor: pointer;
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+      th { color: var(--muted); font-weight: 500; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .row + .row { margin-top: 8px; }
+      .badge {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 0.85em;
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .badge.granted { color: var(--on); border-color: var(--on); }
+      .badge.missing { color: var(--off); border-color: var(--off); }
+      .banner {
+        padding: 8px 10px;
+        border-radius: 7px;
+        background: color-mix(in srgb, var(--off) 15%, transparent);
+        border: 1px solid var(--off);
+        margin-bottom: 10px;
+      }
+      ol { margin: 6px 0 0; padding-left: 20px; }
+      input[type="number"] { font: inherit; width: 6em; padding: 5px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+      #error { color: var(--danger); white-space: pre-wrap; }
+      footer { text-align: center; color: var(--muted); font-size: 0.85em; margin-top: 6px; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div id="dot" class="dot"></div>
+      <h1>Halvo is <span id="state">starting</span></h1>
+      <button id="toggle" disabled>Pause</button>
+    </header>
+
+    <section>
+      <h2>What Halvo keeps</h2>
+      <p id="window-text" class="muted">Halvo keeps a rolling record of your work on this computer, encrypted, and deletes older capture automatically.</p>
+      <p class="muted">Screen, typing, mouse, the app in front and window titles are recorded. Microphone, camera and system audio are off and are never requested in this version. Passwords are never recorded.</p>
+    </section>
+
+    <section id="permissions-section" class="hidden">
+      <h2>Permissions</h2>
+      <div id="lost-banner" class="banner hidden"></div>
+      <div id="permissions"></div>
+      <div id="walkback" class="hidden">
+        <p class="muted" style="margin-top:10px">To get capture working again:</p>
+        <ol id="walkback-steps"></ol>
+      </div>
+    </section>
+
+    <section>
+      <h2>Stored on this computer</h2>
+      <p><span id="total">0 B</span> of a <span id="cap">—</span> cap. <span id="backend" class="muted"></span></p>
+      <div id="empty" class="muted">Nothing stored yet.</div>
+      <table id="inventory" class="hidden">
+        <thead>
+          <tr><th>Day</th><th>What</th><th class="num">Events</th><th class="num">Size</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Storage cap</h2>
+      <div class="row">
+        <label for="cap-gb">Keep at most</label>
+        <input id="cap-gb" type="number" min="1" step="1" />
+        <span>GB</span>
+        <button id="save-cap">Save</button>
+        <span class="muted">When the cap is reached the oldest days are deleted first.</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Delete everything</h2>
+      <p class="muted">Destroys the keys to every stored capture so nothing can be read back. This cannot be undone.</p>
+      <div class="row">
+        <button id="delete" class="danger">Delete everything</button>
+        <button id="confirm-delete" class="danger hidden">Yes, delete everything</button>
+        <button id="cancel-delete" class="hidden">Cancel</button>
+        <span id="delete-result" class="muted"></span>
+      </div>
+    </section>
+
+    <p id="error"></p>
+    <footer>Version <span id="version"></span></footer>
+
+    <script>
+      const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
+      const $ = (id) => document.getElementById(id);
+      const GB = 1024 * 1024 * 1024;
+
+      const modalityNames = {
+        screen_frame: "Screen",
+        keystroke: "Typing",
+        pointer: "Mouse",
+        foreground_app: "App in front",
+        window_title: "Window titles",
+        system_audio: "System audio",
+        microphone: "Microphone",
+        camera: "Camera",
+      };
+
+      function formatBytes(n) {
+        if (n < 1024) return `${n} B`;
+        const units = ["KB", "MB", "GB", "TB"];
+        let v = n / 1024, i = 0;
+        while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+        return `${v < 10 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
+      }
+
+      function showError(e) { $("error").textContent = e ? String(e) : ""; }
+
+      let current = null;
+
+      function renderStatus(s) {
+        current = s;
+        const running = s.state === "running";
+        $("dot").classList.toggle("on", running);
+        $("state").textContent = running ? "capturing" : "paused";
+        $("toggle").textContent = running ? "Pause" : "Resume";
+        $("toggle").disabled = false;
+        $("total").textContent = formatBytes(s.store_bytes);
+        $("cap").textContent = formatBytes(s.store_cap_bytes);
+        $("backend").textContent = s.store_backend ? `(${s.store_backend})` : "";
+        if (document.activeElement !== $("cap-gb")) {
+          $("cap-gb").value = Math.round(s.store_cap_bytes / GB);
+        }
+        $("window-text").textContent =
+          `Halvo keeps the last ${s.window.rolling_days} days of your work on this computer, encrypted. ` +
+          `Anything older is deleted automatically. Your first workflow report arrives after day ${s.window.first_report_day}.`;
+      }
+
+      function renderInventory(inv) {
+        const rows = inv.rows || [];
+        $("empty").classList.toggle("hidden", rows.length > 0);
+        $("inventory").classList.toggle("hidden", rows.length === 0);
+        const body = $("inventory").querySelector("tbody");
+        body.replaceChildren(...rows.map((r) => {
+          const tr = document.createElement("tr");
+          for (const [text, cls] of [[r.day, ""], [modalityNames[r.modality] || r.modality, ""], [r.events.toLocaleString(), "num"], [formatBytes(r.bytes), "num"]]) {
+            const td = document.createElement("td");
+            td.textContent = text;
+            if (cls) td.className = cls;
+            tr.appendChild(td);
+          }
+          return tr;
+        }));
+      }
+
+      function renderOnboarding(o) {
+        const needed = o.permissions.length > 0;
+        $("permissions-section").classList.toggle("hidden", !needed);
+        if (!needed) return;
+        const banner = $("lost-banner");
+        if (o.lost_grants.length > 0) {
+          const names = o.permissions.filter((p) => p.lost).map((p) => p.pane_name).join(", ");
+          banner.textContent = `macOS removed Halvo's access to: ${names}. Capture of those signals has stopped until you turn it back on below.`;
+          banner.classList.remove("hidden");
+        } else {
+          banner.classList.add("hidden");
+        }
+        $("permissions").replaceChildren(...o.permissions.map((p) => {
+          const row = document.createElement("div");
+          row.className = "row";
+          const badge = document.createElement("span");
+          const granted = p.grant === "granted";
+          badge.className = `badge ${granted ? "granted" : "missing"}`;
+          badge.textContent = granted ? "On" : p.lost ? "Lost" : p.grant === "not_determined" ? "Not asked yet" : "Off";
+          const name = document.createElement("strong");
+          name.textContent = p.pane_name;
+          const why = document.createElement("span");
+          why.className = "muted";
+          why.textContent = p.why;
+          why.style.flex = "1 1 240px";
+          row.append(badge, name, why);
+          if (!granted) {
+            const open = document.createElement("button");
+            open.textContent = "Open System Settings";
+            open.onclick = () => invoke("open_permission_pane", { permission: p.permission }).catch(showError);
+            row.appendChild(open);
+          }
+          return row;
+        }));
+        $("walkback").classList.toggle("hidden", o.walkback.length === 0);
+        $("walkback-steps").replaceChildren(...o.walkback.map((s) => {
+          const li = document.createElement("li");
+          li.textContent = s.text + " ";
+          if (s.action === "request_from_system") {
+            const b = document.createElement("button");
+            b.textContent = "Ask now";
+            b.onclick = () => invoke("request_permission", { permission: s.permission }).then(refreshOnboarding).catch(showError);
+            li.appendChild(b);
+          } else if (s.action === "open_settings_pane") {
+            const b = document.createElement("button");
+            b.textContent = "Open System Settings";
+            b.onclick = () => invoke("open_permission_pane", { permission: s.permission }).catch(showError);
+            li.appendChild(b);
+          }
+          return li;
+        }));
+      }
+
+      async function refreshStatus() {
+        try { renderStatus(await invoke("capture_status")); showError(""); } catch (e) { showError(e); }
+      }
+      async function refreshInventory() {
+        try { renderInventory(await invoke("inventory")); } catch (e) { showError(e); }
+      }
+      async function refreshOnboarding() {
+        try { renderOnboarding(await invoke("onboarding_state")); } catch (e) { showError(e); }
+      }
+      async function refreshAll() {
+        await refreshStatus();
+        await refreshInventory();
+        await refreshOnboarding();
+      }
+
+      $("toggle").onclick = async () => {
+        if (!current) return;
+        const next = current.state === "running" ? "paused" : "running";
+        $("toggle").disabled = true;
+        try { renderStatus(await invoke("set_capture_state", { capture: next })); showError(""); }
+        catch (e) { showError(e); $("toggle").disabled = false; }
+      };
+
+      $("save-cap").onclick = async () => {
+        const gb = Number($("cap-gb").value);
+        try {
+          renderStatus(await invoke("set_storage_cap", { capBytes: Math.round(gb * GB) }));
+          await refreshInventory();
+          showError("");
+        } catch (e) { showError(e); }
+      };
+
+      $("delete").onclick = () => {
+        $("delete").classList.add("hidden");
+        $("confirm-delete").classList.remove("hidden");
+        $("cancel-delete").classList.remove("hidden");
+        $("delete-result").textContent = "";
+      };
+      $("cancel-delete").onclick = () => {
+        $("delete").classList.remove("hidden");
+        $("confirm-delete").classList.add("hidden");
+        $("cancel-delete").classList.add("hidden");
+      };
+      $("confirm-delete").onclick = async () => {
+        $("confirm-delete").disabled = true;
+        try {
+          const r = await invoke("delete_all");
+          $("delete-result").textContent = `Deleted. ${r.segments_shredded} segments shredded, ${r.keys_destroyed} keys destroyed.`;
+          showError("");
+          await refreshStatus();
+          await refreshInventory();
+        } catch (e) {
+          $("delete-result").textContent = "";
+          showError(e);
+        } finally {
+          $("confirm-delete").disabled = false;
+          $("cancel-delete").onclick();
+        }
+      };
+
+      refreshAll();
+      setInterval(refreshStatus, 3000);
+      setInterval(refreshOnboarding, 3000);
+      setInterval(refreshInventory, 15000);
+    </script>
+  </body>
+</html>

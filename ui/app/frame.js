@@ -117,6 +117,10 @@
       .catch(Halvo.showError);
   }
 
+  document.addEventListener("visibilitychange", function () {
+    Halvo.views.window(document.visibilityState === "visible" ? "shown" : "hidden");
+  });
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else setTimeout(start, 0);
 })();

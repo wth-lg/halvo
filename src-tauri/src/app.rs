@@ -15,6 +15,11 @@ use crate::commands::{self, capture::AppState};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The script that tells the page of the window main that the window was
+/// hidden or shown, so that a view can disarm a control.
+pub const WINDOW_HIDDEN: &str = "window.Halvo && Halvo.views && Halvo.views.window('hidden')";
+pub const WINDOW_SHOWN: &str = "window.Halvo && Halvo.views && Halvo.views.window('shown')";
+
 /// What the app is built from: the directory of the consent settings (the
 /// app config directory when `None`), the store, its one-line description,
 /// the permission probe, the opener of a settings pane, the tray installer,
@@ -77,6 +82,9 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    let _ = webview.eval(WINDOW_HIDDEN);
+                }
                 let _ = window.hide();
             }
         })

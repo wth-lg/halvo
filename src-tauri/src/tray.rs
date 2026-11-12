@@ -121,6 +121,7 @@ fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
 pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
+        let _ = window.eval(crate::app::WINDOW_SHOWN);
         let _ = window.unminimize();
         let _ = window.set_focus();
     }

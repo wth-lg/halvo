@@ -1,21 +1,30 @@
 (function () {
   "use strict";
+  var ARM_DELAY_MS = 500;
+  var DISARM_AFTER_MS = 10000;
   var start;
+  var confirmRow;
   var confirm;
   var cancel;
   var result;
+  var armedAt = null;
+  var disarmTimer = null;
 
   function disarm() {
-    start.classList.remove("hidden");
-    confirm.classList.add("hidden");
-    cancel.classList.add("hidden");
+    if (disarmTimer !== null) clearTimeout(disarmTimer);
+    disarmTimer = null;
+    armedAt = null;
+    start.disabled = false;
+    confirmRow.classList.add("hidden");
   }
 
   function arm() {
-    start.classList.add("hidden");
-    confirm.classList.remove("hidden");
-    cancel.classList.remove("hidden");
+    if (armedAt !== null) return;
+    armedAt = performance.now();
+    start.disabled = true;
+    confirmRow.classList.remove("hidden");
     result.textContent = "";
+    disarmTimer = setTimeout(disarm, DISARM_AFTER_MS);
   }
 
   function remove() {
@@ -37,8 +46,15 @@
       })
       .then(function () {
         confirm.disabled = false;
-        disarm();
       });
+  }
+
+  function onConfirm(event) {
+    if (armedAt === null) return Promise.resolve();
+    if (event && event.detail > 1) return Promise.resolve();
+    if (performance.now() - armedAt < ARM_DELAY_MS) return Promise.resolve();
+    disarm();
+    return remove();
   }
 
   Halvo.views.add({
@@ -47,18 +63,26 @@
     heading: "Delete everything",
     mount: function (el) {
       start = Halvo.el("button", { id: "delete", class: "danger", text: "Delete everything" });
-      confirm = Halvo.el("button", { id: "confirm-delete", class: "danger hidden", text: "Yes, delete everything" });
-      cancel = Halvo.el("button", { id: "cancel-delete", class: "hidden", text: "Cancel" });
+      confirm = Halvo.el("button", { id: "confirm-delete", class: "danger", text: "Yes, delete everything" });
+      cancel = Halvo.el("button", { id: "cancel-delete", text: "Cancel" });
       result = Halvo.el("span", { id: "delete-result", class: "muted" });
+      confirmRow = Halvo.el("div", { id: "delete-confirm-row", class: "confirm-row hidden" }, [
+        Halvo.el("p", {
+          id: "delete-question",
+          text: "Delete everything that Halvo has recorded on this computer? This cannot be undone. Copies that Halvo made next to your own files stay.",
+        }),
+        Halvo.el("div", { class: "row" }, [confirm, cancel]),
+      ]);
       start.onclick = arm;
       cancel.onclick = disarm;
-      confirm.onclick = remove;
+      confirm.onclick = onConfirm;
       el.append(
         Halvo.el("p", { class: "muted", text: "Destroys the keys to every stored capture so nothing can be read back. This cannot be undone." }),
-        Halvo.el("div", { class: "row" }, [start, confirm, cancel, result]),
+        Halvo.el("div", { class: "row" }, [start, result]),
+        confirmRow,
       );
     },
     show: function () {},
-    hide: function () {},
+    hide: disarm,
   });
 })();

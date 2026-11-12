@@ -92,3 +92,4 @@ footer { text-align: center; color: var(--muted); font-size: 0.85em; margin-top:
 .hidden { display: none; }
 .why { flex: 1 1 240px; }
 .walkback-intro { margin-top: 10px; }
+.confirm-row { margin-top: 10px; }
