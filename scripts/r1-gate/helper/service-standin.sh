@@ -32,6 +32,10 @@ done
 state=$data.standin
 mkdir -p "$state"
 
+put() {
+  printf '%s\n' "$2" > "$1.new.$$" && mv "$1.new.$$" "$1"
+}
+
 new_id() {
   id_now=$(date +%s)
   printf '%s%s' "$id_now" "$$" | md5 -q
@@ -135,7 +139,7 @@ daemon() {
     fi
     printf '%s\n' "$capture" > "$state/capture.new" && mv "$state/capture.new" "$state/capture"
     rss=$(ps -o rss= -p "$$" | tr -d ' ')
-    if [ "${rss:-0}" -gt "$peak" ]; then peak=$rss; echo "$peak" > "$state/peak"; fi
+    if [ "${rss:-0}" -gt "$peak" ]; then peak=$rss; put "$state/peak" "$peak"; fi
     sleep 0.2
   done
   kill "$life" 2>/dev/null
@@ -204,7 +208,7 @@ delete_all() {
   : > "$state/events"
   : > "$data/logs/daemon.err"
   fresh=$(new_id)
-  printf '%s\n' "$fresh" > "$state/store_id"
+  put "$state/store_id" "$fresh"
   head -c 32 /dev/urandom > "$data/roots/root-$fresh"
   printf 'deleted segments_shredded=%s keys_destroyed=%s root_destroyed=yes root_id=- files_left=0 database_left=no entries_removed=4 entries_left=0 unknown_entries=0 intent=written' "$segments" "$((segments + 1))"
 }
@@ -213,15 +217,15 @@ ctl() {
   alive || { printf 'halvo-capture: capture service not running at %s/run/control.sock\n' "$data" >&2; exit 69; }
   case $verb in
     status)
-      if [ "${count# }" = --indicator ]; then date +%s > "$state/lease"; fi
+      if [ "${count# }" = --indicator ]; then claimed=$(date +%s); put "$state/lease" "$claimed"; fi
       status ;;
     inventory) inventory ;;
     pause)
-      echo paused > "$state/desired"
+      put "$state/desired" paused
       perl -pi -e 's/"desired":"running"/"desired":"paused"/' "$data/daemon-state.json"
       printf 'capture=paused\n' ;;
     resume)
-      echo running > "$state/desired"
+      put "$state/desired" running
       perl -pi -e 's/"desired":"paused"/"desired":"running"/' "$data/daemon-state.json"
       capture=$(capture_state)
       printf 'capture=%s\n' "$capture" ;;
