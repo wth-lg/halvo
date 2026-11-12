@@ -3,9 +3,12 @@
 Halvo's subscription and billing backend: accounts, a subscription, a spend cap and usage
 metering. It never holds anything captured on a user's machine.
 
-The repository is at its first phase. It holds a placeholder Worker that answers 501, a local
-stack, and a gate whose checks fail until the unit that owns each one lands. Nothing here creates
-an account, deploys or spends: everything runs on this machine against local mocks.
+It lives under `backend/` of the app repository, with its model under `formal/r7-ledger/`: on
+2026-11-12 its tree came over as files from da7d398, the main of the repository where it was
+built. It holds the Worker (its routes, the account object, the cap ledger and the gateway under
+`src/`), a local stack, and a gate of 13 checks, of which the four of phases P5 and P6 are still
+stubs. Nothing here creates an account, deploys or spends: everything runs on the local machine
+against local mocks.
 
 ## Prerequisites
 
@@ -33,10 +36,11 @@ node is older than `package.json` asks, or when `package.json` states no Node ve
 | Fetches the license of each lockfile package that this platform does not install, into `.tools/licenses.json` | the lockfile's sha512, compared with the registry's |
 | Installs the Chromium build of Playwright 1.65.0 into Playwright's cache | the Playwright version; no checksum |
 | Runs `cargo fetch --locked` for every committed `Cargo.lock` | each `Cargo.lock` |
-| Turns on the commit-msg, pre-commit and pre-merge-commit hooks (`core.hooksPath` = `.githooks`) | |
 
-Outside the repository it writes only to the caches of pnpm, Playwright and cargo in your home
-directory. Three packages in `pnpm-workspace.yaml` are let through pnpm's release-age wait,
+It sets no git hook: it does so only at the top of a work tree, and the hooks of the app
+repository, commit-msg and pre-push, are set by the app's `sh scripts/prerequisites.sh`, which
+also installs pnpm and this directory's packages and tools. Outside the repository this script
+writes only to the caches of pnpm, Playwright and cargo in your home directory. Three packages in `pnpm-workspace.yaml` are let through pnpm's release-age wait,
 because the plan pins versions that were published the day the lockfile was made.
 
 ## Run
@@ -134,14 +138,15 @@ as a name. In the name of a tracked file, which it prints as line
 `-Users-<name>-Documents`, and not for the forms with slashes, because a directory named `home`
 or `Users` is a common name in a source tree. The gate runs it before its checks, so the gate
 needs a git checkout.
-`.githooks/pre-commit` runs it with `--staged`, on the files that the index adds or changes
-against the last commit, and `.githooks/pre-merge-commit` does the same when a merge makes a
-commit. Write such a path relative to the repository, take the location from an environment
+With `--staged` it reads only the files that the index adds or changes against the last
+commit, for a pre-commit or a pre-merge-commit hook; no hook of the app repository runs it, and
+in CI `scripts/r7/ci.d/23-r7-machine-paths.sh` runs it over the tracked files under `backend/`
+and `formal/r7-ledger/`. Write such a path relative to the repository, take the location from an environment
 variable, or write the name as one of those placeholders.
 
-The gate has 13 checks. Eleven are stubs that print FAIL until their unit replaces the file:
-subscription, lifecycle, card-entry, cap, prompts, concurrency, metering, schema, contract, storage
-and model. `docs/baseline/r7-gate-before.txt` is the gate's output at this first phase.
+The gate has 13 checks. Four are stubs that print FAIL until their unit replaces the file:
+lifecycle, prompts, metering and storage. `docs/baseline/r7-gate-before.txt` is the gate's output
+at the first phase, before any check was built.
 
 **licenses** (`gate/lib/licenses.mjs`). It reads the license of every package in `pnpm-lock.yaml`.
 A package bundled into the deployable Worker must have a license in `gate/license-allowlist.json`.
@@ -299,7 +304,9 @@ The one workflow of the app repository runs the backend's checks through its dri
 `scripts/ci/run-ci-d.sh`, as five scripts under `scripts/r7/ci.d/`: 10-r7-layout (every tracked
 file under `backend/` and `formal/r7-ledger/` matches a line of `scripts/r7/layout.txt`, which
 names its owner), 20-r7-backend-static (the typecheck and the lint), 21-r7-backend-test (the test
-script), 22-r7-backend-records and 23-r7-machine-paths (`scripts/check-machine-paths.sh` over
+script, in the macos job alone: on windows-2025 the stack needs lsof and `ps -o`, which Git Bash
+lacks, and the test script does not end, so the windows job runs no test of the backend),
+22-r7-backend-records and 23-r7-machine-paths (`scripts/check-machine-paths.sh` over
 `backend/` and `formal/r7-ledger/`).
 
 The gate runs in no CI job: it needs the stack and the sandbox of macOS. Its lines are kept as
@@ -322,7 +329,7 @@ during the run, or a check prints no line or more than one.
 
 ## Commits
 
-Commits are authored by the configured git user only. A commit message carries no
-`Co-Authored-By` trailer and no "Generated with" line; the commit-msg hook refuses one, and
-`sh scripts/check-commit-messages.sh` checks every commit after the first. Every commit adds its
-subject line to `CHANGELOG.md` under Unreleased.
+The rules of the app repository, its `AGENTS.md`, bind every commit here. A commit is made by
+the configured git user, and its message carries no attribution line: the app's commit-msg and
+pre-push hooks and its CI read every message. A pull request adds one line for each type of
+change that it makes at the end of the list under Unreleased in the app's `CHANGELOG.md`.

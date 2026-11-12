@@ -5,3 +5,4 @@ node_modules/
 .wrangler/
 .claude/
 test/contract/rust/target/
+spikes/s3/crate/target/
