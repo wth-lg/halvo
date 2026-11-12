@@ -113,6 +113,15 @@ test("the command line prints the two addresses, serves, and exits 0 on the cont
   assert.equal(await exited(child), 0);
 });
 
+if (process.platform !== "win32") {
+  test("the command line stops and exits 0 on SIGTERM", async () => {
+    const { child, ready } = await spawnStub(["--record", fresh()]);
+    assert.notEqual(ready, null);
+    child.kill("SIGTERM");
+    assert.equal(await exited(child), 0);
+  });
+}
+
 test("the command line refuses an unknown argument with exit 64 and serves nothing", async () => {
   const run = await spawnStub(["--port", "8080"]);
   assert.equal(run.ready, null);
