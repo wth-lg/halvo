@@ -1042,6 +1042,30 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn motion_samples_reach_the_sink_at_most_once_in_100_ms() {
+        let (sink, writer) = crate::sink::channel(4_096);
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
+        let producer = handoff.producer();
+        let began = Instant::now();
+        let mut pushed = 0u32;
+        while began.elapsed() < Duration::from_millis(350) {
+            producer.push_motion(pointer("motion"));
+            pushed += 1;
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        std::thread::sleep(Duration::from_millis(250));
+        let mut sent = 0;
+        while writer.try_recv().is_ok() {
+            sent += 1;
+        }
+        assert!(pushed >= 20, "INCONCLUSIVE: {pushed} pushes in 350 ms");
+        assert!(
+            (3..=6).contains(&sent),
+            "{sent} motion samples reached the sink for {pushed} pushes in 350 ms"
+        );
+    }
+
+    #[test]
     fn an_event_carries_the_time_of_its_os_event() {
         let (sink, writer) = crate::sink::channel(4);
         let before = std::time::SystemTime::now();
