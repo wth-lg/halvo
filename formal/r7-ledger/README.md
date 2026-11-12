@@ -24,7 +24,7 @@ model's value in a column that the replay compares. What it does not compare is 
 | `CapLedgerTrace.tla`, `CapLedgerTrace.cfg` | a seeded walk through the same model that prints each action and the state after it as one JSON line |
 | `check.mjs`, `tlc.mjs`, `LoopbackTlc.java` | check 95: the checker on a copy of the spec, the walk, then the replay |
 | `counts.json` | the distinct-state count of each configuration, to which check 95 holds each search |
-| `controls.mjs` | 17 reachability controls, the breaks, at least one for each property, and the control of the view |
+| `controls.mjs` | 19 reachability controls, the breaks, at least one for each property, and the control of the view |
 | `SKILL.md` | for the next change: what is covered, how to run, how to read a failure, the sync commit |
 | `../test/ledger/model-replay.mjs` | the replay |
 
@@ -78,13 +78,15 @@ also fails when a count is not the one that `counts.json` records for that confi
 search that was cut, to one request id for example, cannot pass. A change of the model that
 changes a count changes `counts.json` in the same commit.
 
-`sh gate/checks/95-model.sh --self-test` runs the check on seven bad fixtures of
+`sh gate/checks/95-model.sh --self-test` runs the check on nine bad fixtures of
 `gate/fixtures/model/`, each of which must make it fail in its own words, then on the
 checkout as it is, which must pass, and last it runs the control of the view. The fixtures are a spec whose admission leaves out the open
 holds, a ledger with the same change, a ledger whose interval totals sum amounts, a trace that
 the ledger does not follow, a launcher that makes TLC end with status 75 after a complete
-search, a launcher that takes the count line out of TLC's output, and a first configuration of
-one request id. The three fixtures of the replay run `node formal/r7-ledger/check.mjs --replay-only`,
+search, a launcher that takes the count line out of TLC's output, a first configuration of
+one request id, and from unit 4.5 a spec whose stored expiry is one tick before the receipt's,
+which (b) reports (ruling BM-11), and a ledger that expires a hold without the dispatch mark at
+its full amount, which the replay reports. The four fixtures of the replay run `node formal/r7-ledger/check.mjs --replay-only`,
 which leaves the two searches out; such a run can fail and never passes. The self-test stops at
 the first fixture that does not end as expected.
 
@@ -98,7 +100,8 @@ ledger function, and the skeleton's alarm after it.
 | In the model | In the code |
 |---|---|
 | `Now(o, given)` | `begin` of `src/do/entries.ts`: the later of the time that the skeleton gives and `last_now` |
-| `SwitchPeriodType`, `ExpireDue`, together `Pre` | `switchPeriodType` and `expireDue` in `within` |
+| `SwitchPeriodType`, `ExpireDue`, together `Pre` | `switchPeriodType` and `expireDue` in `within`: a due hold with the dispatch mark ends as expired and moves its amount to unreported; one without the mark ends as voided, with `voidAtExpiry`, and moves nothing (unit 4.5) |
+| a hold's `voidAtExpiry` | a row in the state `voided` whose `ended_at` is at or after its `expires_at`: a void call ends only a hold that is open after the expiry of due holds, so before its expiry |
 | `OwnReserve`, `OwnDispatch`, `OwnSettle`, `OwnVoid`, `OwnSetCap`, `CapAnswer` | `reserve`, `dispatch`, `settle`, `void`, `setCap`, `cap` of `makeLedger` |
 | the move `expire` | the entry `alarm`: `ledger.expire` |
 | the move `setcap`, the move `capread` | the entries `capSet` (`setCap`, then `cap`) and `capGet` |
@@ -131,11 +134,11 @@ part, and TLC reports a violation under that name.
 | The sentence of the plan's unit 4.4, as ruled for (a), (b), (d), (e) and (f) | On every state | On every step |
 |---|---|---|
 | (a) for each cap period, counted spend rises only at an admission within the cap in force, which is the amount of the last setCap, or by an overrun recorded at the settle of an open hold; a cost reported after the expiry is stored on the hold and enters no total (contract 3.2); and overruns stay 0 while every reported cost is within its hold | `StateA`: `OverrunsStayZeroWhileEveryReportedCostIsWithinItsHold` | `StepA`: `CountedSpendRisesOnlyAtAnAdmissionOrByARecordedOverrun` |
-| (b) after a step that calls the ledger at time t no open hold has an expiry at or before t, no hold ends by expiry before its expiry, and after a restart, as after every step, the due time of contract 3.1 is at or before every open expiry | `StateB`: `TheDueTimeIsAtOrBeforeTheEarliestExpiry` | `StepB`: `NoOpenHoldIsDueAfterAStepOfTheLedger`, `NoHoldEndsByExpiryBeforeItsExpiry` |
+| (b) after a step that calls the ledger at time t no open hold has an expiry at or before t, no hold ends by expiry before its expiry, and after a restart, as after every step, the due time of contract 3.1 is at or before every open expiry; at an admission, and at a repeat, the expiry that the ledger stores for the hold is the `expiresAt` of the receipt that it answers (ruling BM-11) | `StateB`: `TheDueTimeIsAtOrBeforeTheEarliestExpiry` | `StepB`: `NoOpenHoldIsDueAfterAStepOfTheLedger`, `NoHoldEndsByExpiryBeforeItsExpiry`, `TheStoredExpiryIsTheReceipts` |
 | (c) a hold ends once | | `StepC`: `AnEndedHoldKeepsItsEnd`, `AHoldIsNeverRemovedOrMadeAgain` |
-| (d) a repeat is a call for an id that has a hold; it changes no total and no hold state beyond the expiry of due holds with which every step begins; a reserve that was refused stores nothing, so the same request sent again is a new reserve; a settle, void or expire that arrives before its reserve is refused, and one that arrives after the hold has ended changes nothing but the overrun that Settle records | | `StepD`: `ARepeatChangesNoTotalAndNoHoldState`, `TheSameCallAgainAtOnceChangesNothing`, `ACallBeforeItsReserveIsRefused`, `ACallAfterTheEndChangesNothingButTheOverrunThatSettleRecords` |
+| (d) a repeat is a call for an id that has a hold; it changes no total and no hold state beyond the expiry of due holds with which every step begins; a reserve that was refused stores nothing, so the same request sent again is a new reserve; a settle, void or expire that arrives before its reserve is refused, and one that arrives after the hold has ended changes nothing but the overrun that Settle records | | `StepD`: `ARepeatChangesNoTotalAndNoHoldState`, `TheSameCallAgainAtOnceChangesNothing`, `ACallBeforeItsReserveIsRefused`, `ACallAfterTheEndChangesNothingButTheOverrunThatSettleRecords`, and from unit 4.5 `ASettleOrAVoidOfAHoldVoidedAtItsExpiryIsAlreadyEnded` |
 | (e) the ledger refuses a reserve when the subscription is not active, no cap is set or counted spend plus the hold would pass the cap, and for no other reason than these and the Request id rule; a call that throws rolls back and is no step of this property | | `StepE`: `TheRequestIdRule`, `ARefusalForOneOfTheThreeReasonsAndNoOther` |
-| (f) a hold adds exactly the cost of its first settle when settled, its full amount when expired and nothing when voided, and no total changes otherwise; a call that throws rolls back and is no step of this property | `StateF`: `EveryTotalIsWhatItsHoldsAdd` | `StepF`: `ATotalChangesOnlyByWhatAHoldAdds`, `ASettledHoldCarriesTheCostOfItsFirstSettle` |
+| (f) a hold adds exactly the cost of its first settle when settled, its full amount when expired and nothing when voided, and no total changes otherwise; a hold that passes its expiry ends as expired when it carries the dispatch mark and as voided when it does not, so only a hold with the mark ends as expired (unit 4.5); a call that throws rolls back and is no step of this property | `StateF`: `EveryTotalIsWhatItsHoldsAdd`, `AnExpiredHoldCarriesTheMark` | `StepF`: `ATotalChangesOnlyByWhatAHoldAdds`, `ASettledHoldCarriesTheCostOfItsFirstSettle`, `AHoldEndsAtItsExpiryAsItsMarkSays` |
 | (g) a dispatch happens only under an open hold, at most once per hold, and a dispatched hold never ends as void | `StateG`: `AtMostOncePerHold`, `ADispatchedHoldNeverEndsAsVoid`, `TheGatewayIsUpstreamOnlyUnderAMarkedHold` | `StepG`: `ADispatchHappensOnlyUnderAnOpenHold`, `TheGatewayCallsUpstreamOnlyOnGo` |
 | (h) no total of a sealed interval changes | | `StepH`: `NoTotalOfASealedIntervalChanges`, `AHoldJoinsOnlyTheIntervalOfItsStep`, `AnEndedHoldAddsTheSameToItsIntervalForGood` |
 
@@ -149,13 +152,36 @@ writes the stored time, sets the alarm and ends no hold, so a hold can stay open
 until the next of the seven steps, with the alarm set to that expiry.
 
 `StepB` has a second half: no hold ends by expiry before its expiry. A step that turns an open
-hold into an expired one runs at or after the expiry of that hold, so a ledger that ends a hold
-one tick early is reported.
+hold into an expired one, or into one voided at its expiry, runs at or after the expiry of that
+hold, so a ledger that ends a hold one tick early is reported.
+
+`StepB` has a third part, from ruling BM-11: at an admission, and at a repeat, the expiry that the
+hold stores is the `expiresAt` of the receipt. The second half compares a hold's end with the
+expiry that the hold stores, so without the third part a ledger that stores an expiry one tick
+before the receipt's passes every property; the replay catches that change in the model alone or
+in the ledger alone, and not in both together. The break `PropBReceipt` is that change, the
+reader's n7.
+
+Unit 4.5 in (f). A hold that passes its expiry with the dispatch mark may have had an upstream
+call and expires at its full amount; a hold without the mark had none, because the ledger writes
+the mark in the step that answers go, and ends as voided at no cost. `AnExpiredHoldCarriesTheMark`
+says the first on every state, and `AHoldEndsAtItsExpiryAsItsMarkSays` says on every step that a
+hold that ends while it is due ends as its mark says, and that a hold that ends before its expiry
+is no void at its expiry. A settle or a void of a hold voided at its expiry answers already-ended:
+the replay compares that answer with the ledger's, and `StepD` states it, because the review of
+the unit made the same wrong answer in the model and in the ledger, and that pair passed TLC and
+the replay together; the break `PropDVoidAnswer` is that change of the model.
 
 What (d) compares. Every one of the seven steps first ends the holds that are due (`Pre`), also
 when its call is refused. (d) compares the object after the call with the object after `Pre`
 alone, so a repeat that comes later can find its own hold expired by time, and that expiry is no
 change that (d) counts.
+
+What (a) compares. An admission adds its hold to counted spend, and an overrun adds itself, from
+the object after `Pre`: since unit 4.5 the expiry with which every step begins lowers counted
+spend when it voids a hold without the mark, so the same step can void one hold and admit
+another. Against the object before `Pre` such a step rises by less than the hold that it admits;
+the first search at unit 4.5 reported that step under `StepA` before (a) was read from `Pre`.
 
 Counted spend in (a) and (e) is read from the stored totals of the period. (f) says that a total
 changes in a step by exactly what the holds that changed in that step add, so the stored totals
@@ -182,7 +208,8 @@ The model's clock has no upper bound, so the model has no last state. TLC compar
   step is into the cap period, and a change of type that waits, with the ticks until it applies;
 - the totals row of that cap period;
 - how many holds there are of each kind. The kind of a hold is its state, amount, mark, cost and
-  overrun and whether a late cost is stored; for an open hold also the ticks until it is due (0
+  overrun, whether a late cost is stored and, for an ended hold, whether it was voided at its
+  expiry, which decides the answer to a later void; for an open hold also the ticks until it is due (0
   when it is due), whether it belongs to that cap period and whether it belongs to the sync
   interval of the next step. The kind also says whether the
   followed gateway serves the hold, and at which step;
@@ -208,11 +235,17 @@ of the model, only (h). The view holds both, so that TLC expands every place of 
 an interval and (h) is checked for each. This doubles the states of each configuration, from
 93,497 to 186,993 and from 396,278 to 792,554.
 
+Unit 4.5 cut both counts, to 126,357 and 596,906 (`counts.json`; TLC with 6 workers at a load
+of about 140, 57 s and 188 s). A hold without the mark that passes its expiry is now voided, and
+a settle after its expiry finds it ended and stores no late cost, so the states of a late cost,
+its overrun and their combinations remain only for marked holds.
+
 `node formal/r7-ledger/controls.mjs view` holds the view to its claim. It searches a copy of the spec that
 counts its steps, at the bounds of `CapLedgerGateway.cfg` and up to 6 steps, three times:
 without a view, with the view, and with a weaker view that leaves out when a hold is due. The
-search with the view must keep exactly the views that the search without one reaches, 14,737
-views in 276,941 states, and the weaker view must miss some, which shows that the comparison
+search with the view must keep exactly the views that the search without one reaches, 14,501
+views in 275,545 states since unit 4.5 (14,737 in 276,941 before it), and the weaker view must
+miss some, which shows that the comparison
 can fail. 6 steps is the largest bound at which the three searches end in about a minute
 on a quiet machine. The self-test of check 95 runs this control.
 
@@ -281,13 +314,16 @@ and with several workers not always the shortest.
 | a restart between a dispatch and its settle | `ReachRestartBetweenDispatchAndSettle` |
 | the gateway's crash after dispatch | `ReachGatewayCrashAfterDispatch` |
 | a void refused for a dispatched hold | `ReachVoidRefusedForADispatchedHold` |
+| unit 4.5: a hold without the mark voided at its expiry, and a settle or a void of it answered already-ended | `ReachVoidAtExpiry`, `ReachCallAfterAVoidAtExpiry` |
 
 Three more predicates show a reading or a limit that the sections below name:
 `ReachOpenHoldPastItsExpiryAfterARestart`, `ReachRefusedReserveAdmittedWhenSentAgain` and
 `ReachLateOverrunInNoTotal`.
 
 `ReachDuplicateExpire` asks for an expire of an id whose earlier expire was answered `expired`;
-the history keeps those ids.
+the history keeps those ids. `ReachDuplicateVoid` asks for a void answered `voided` of a hold
+that a void call had ended, because a void of a hold voided at its expiry is answered
+already-ended and is no duplicate.
 
 Breaks. Each break is one change of a copy of the spec, one replaced text, after which TLC must
 report the property that the break aims at and no other, checked alone. Every property has at
@@ -306,6 +342,11 @@ least one.
 | `PropACut` | a cut of the cap by a setCap of the same period type does not take; (a) reports it |
 | `PropERaise` | a raise of the cap by a setCap of the same period type does not take; (e) reports it |
 | `PropBEarly` | a hold ends one tick before its expiry; (b) reports it |
+| `PropBReceipt` | the stored expiry is one tick before the receipt's, the reader's n7; (b) reports it (ruling BM-11) |
+| `PropFMark` | a hold without the dispatch mark expires at its full amount, as before unit 4.5; (f) reports it |
+| `PropFAmount` | a hold voided at its expiry adds its amount to unreported; (f) reports it |
+| `PropGExpiry` | the expiry voids a hold with the dispatch mark too; (g) reports it |
+| `PropDVoidAnswer` | a void of a hold voided at its expiry answers voided, as a repeat; (d) reports it |
 
 ## The replay
 
@@ -320,8 +361,9 @@ After every action it compares:
 
 - the answer of the call with the model's answer;
 - every row of `ledger_cap`, `ledger_periods` and `ledger_holds` with the model's cap, totals and
-  holds: amounts, the period, the expiry, the state, the dispatch mark, the cost, the overrun and
-  whether a late cost is stored;
+  holds: amounts, the period, the expiry, the state, the dispatch mark, the cost, the overrun,
+  whether a late cost is stored and whether a voided hold ended at its expiry (`voidAtExpiry`
+  against a row in the state `voided` whose `ended_at` is at or after its `expires_at`);
 - the ledger's `intervalTotals` for the sync interval 0, which holds every hold of the replay's
   account, with the model's sums over all holds: the costs of the settled ones, the amounts of the
   expired ones and the number of the open ones;
@@ -350,15 +392,17 @@ no path for most actions of a trace:
 | setCap, the cap read | `PUT /v1/cap` and `GET /v1/cap`; the replay calls the same entries, `capSet` and `capGet` |
 | the clock | `POST /test/clock`; the replay calls its method, `testSetClock` |
 
-The elements. The replay counts 26 kinds of action in the traces that it ran (`ELEMENTS` in
-`model-replay.mjs`), an overrun, a settle after expiry and a period type that switched among
-them, and check 95 fails when one of them is missing, so a walk that no longer reaches a case
+The elements. The replay counts 29 kinds of action in the traces that it ran (`ELEMENTS` in
+`model-replay.mjs`), an overrun, a settle after expiry, a period type that switched, a hold
+without the mark voided at its expiry, a hold with the mark expired, and a settle or a void of a
+hold voided at its expiry among them, and check 95 fails when one of them is missing, so a walk that no longer reaches a case
 does not pass unseen.
 
 `gate/fixtures/model/bad-trace-admitted-over-the-cap.jsonl` is a generated file that is tracked:
 it is the bad fixture of the check's self-test, the start of one trace of the walk through a copy
 of the spec whose admission leaves out the open holds. The ledger refuses the reserve that this
-trace admits.
+trace admits. Unit 4.5 added the field `voidAtExpiry`, false in each hold of the file, and
+changed nothing else in it: no hold of that trace ends.
 
 ## Readings
 
