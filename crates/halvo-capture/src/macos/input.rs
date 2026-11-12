@@ -174,14 +174,33 @@ const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::HID;
 const TAP_PLACEMENT: CGEventTapPlacement = CGEventTapPlacement::HeadInsertEventTap;
 const TAP_OPTIONS: CGEventTapOptions = CGEventTapOptions::ListenOnly;
 
+struct TapSettings {
+    location: CGEventTapLocation,
+    placement: CGEventTapPlacement,
+    options: CGEventTapOptions,
+    events: Vec<CGEventType>,
+    secure: fn() -> SecureInputState,
+}
+
+fn tap_settings() -> TapSettings {
+    TapSettings {
+        location: TAP_LOCATION,
+        placement: TAP_PLACEMENT,
+        options: TAP_OPTIONS,
+        events: events_of_interest(),
+        secure: current_secure_state,
+    }
+}
+
 fn create_tap(
+    settings: TapSettings,
     callback: impl Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
 ) -> Result<CGEventTap<'static>, ()> {
     CGEventTap::new(
-        TAP_LOCATION,
-        TAP_PLACEMENT,
-        TAP_OPTIONS,
-        events_of_interest(),
+        settings.location,
+        settings.placement,
+        settings.options,
+        settings.events,
         callback,
     )
 }
@@ -227,9 +246,10 @@ fn current_secure_state() -> SecureInputState {
 
 fn install_tap(
     ctx: TapContext,
+    settings: TapSettings,
 ) -> Result<(PortClearedOnDrop, CFRunLoopSource, CGEventTap<'static>), CaptureError> {
     let port = ctx.port.clone();
-    let tap = create_tap(move |_proxy, etype, _event| {
+    let tap = create_tap(settings, move |_proxy, etype, _event| {
         on_tap_event(&ctx, etype);
         CallbackResult::Keep
     })
@@ -346,14 +366,15 @@ impl CaptureSource for InputSource {
     }
 
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
+        let settings = tap_settings();
         let ctx = TapContext {
             sink,
             foreground: self.foreground.clone(),
             violations: self.violations.clone(),
             port: TapPort::unset(),
-            secure: current_secure_state,
+            secure: settings.secure,
         };
-        self.tap = Some(TapThread::spawn(move || install_tap(ctx))?);
+        self.tap = Some(TapThread::spawn(move || install_tap(ctx, settings))?);
         Ok(())
     }
 
@@ -516,6 +537,36 @@ mod tests {
     #[test]
     fn the_tap_is_created_listen_only() {
         assert_eq!(TAP_OPTIONS as u32, 1);
+    }
+
+    #[test]
+    fn the_tap_reads_the_secure_state_of_the_os() {
+        assert!(std::ptr::fn_addr_eq(
+            tap_settings().secure,
+            current_secure_state as fn() -> SecureInputState
+        ));
+    }
+
+    #[test]
+    fn the_tap_is_requested_listen_only_at_the_hid_location() {
+        let settings = tap_settings();
+        assert_eq!(
+            (
+                settings.options as u32,
+                settings.location as u32,
+                settings.placement as u32
+            ),
+            (1, 0, 0)
+        );
+    }
+
+    #[test]
+    fn the_tap_is_requested_for_the_events_of_the_table() {
+        let mask = tap_settings()
+            .events
+            .iter()
+            .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
+        assert_eq!(mask, 0x0E40_1CFE);
     }
 
     thread_local! {
@@ -761,7 +812,8 @@ mod granted_tests {
             port: port.clone(),
             secure: current_secure_state,
         };
-        let tap = TapThread::spawn(move || install_tap(ctx)).expect("the tap starts");
+        let tap =
+            TapThread::spawn(move || install_tap(ctx, tap_settings())).expect("the tap starts");
         let live = port.port.load(Ordering::Relaxed);
         // SAFETY: `live` is the mach port of the tap that the tap thread keeps
         // until `stop` below.
