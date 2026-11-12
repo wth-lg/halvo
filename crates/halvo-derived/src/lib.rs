@@ -4,6 +4,7 @@
 
 mod batch;
 mod db;
+mod decide;
 mod error;
 mod hash;
 mod host;

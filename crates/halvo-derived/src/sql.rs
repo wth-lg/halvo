@@ -74,4 +74,10 @@ catalogue! {
     WORKFLOW_BY_KEY = "SELECT id, body FROM rows WHERE wkey = ?1 AND kind = 'workflow'";
     SUPPORT_OF = "SELECT id, summary FROM rows WHERE kind = 'support' AND workflow = ?1 ORDER BY summary";
     ROW_BODY_SET = "UPDATE rows SET body = ?2 WHERE id = ?1";
+    WORKFLOW_BY_ID = "SELECT id, body FROM rows WHERE workflow = ?1 AND kind = 'workflow'";
+    WORKFLOW_KEY = "SELECT wkey FROM rows WHERE workflow = ?1 AND kind = 'workflow'";
+    SUPPORT_REMOVE = "SELECT id, family FROM rows WHERE kind = 'support' AND workflow = ?1";
+    REMOVE_NAMING = "SELECT id, family FROM rows WHERE workflow = ?1";
+    KEY_SUMMARIES = "SELECT summary FROM rows WHERE wkey = ?1 AND kind = 'summary'";
+    REMOVE_OF_SUMMARY = "SELECT id, family FROM rows WHERE summary = ?1";
 }
