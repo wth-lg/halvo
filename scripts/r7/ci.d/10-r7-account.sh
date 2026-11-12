@@ -854,6 +854,13 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
   fi
   stub_case dep-info-escaped-space "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/s\ /../../../../outside/code.rs'
+  stub_case dep-info-name-with-a-colon-and-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x: y${nl}z.txt"
+  make_fixture repository-through-a-link && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" && ln -s "${fixture##*/}" "$work/link-to-the-repository" 2>/dev/null
+  if [ -L "$work/link-to-the-repository" ]; then
+    run_case repository-through-a-link "PASS $name" stub CI_D_REPO="$work/link-to-the-repository"
+  else
+    printf 'case %s/repository-through-a-link not run: this system made no symbolic link\n' "$name"
+  fi
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
   want_packages=1
   make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
