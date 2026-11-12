@@ -1042,7 +1042,7 @@ fn use_tree(t: &[String], i: &mut usize, prefix: &[String], out: &mut Vec<Leaf>)
 struct Tree {
     declared: Vec<(Segments, String)>,
     aliases: Vec<(Segments, String, Segments)>,
-    globs: Vec<(Segments, Segments)>,
+    globs: Vec<(Segments, Segments, bool)>,
     selves: Vec<String>,
     modules: Vec<(Segments, String)>,
 }
@@ -1159,7 +1159,8 @@ fn build_tree(lexed: &[Lexed]) -> Tree {
             }
             for (alias, path, glob) in leaves {
                 if glob {
-                    tree.globs.push((l.paths[at].clone(), path));
+                    tree.globs
+                        .push((l.paths[at].clone(), path, in_a_block(t, at)));
                 } else if let Some(alias) = alias.filter(|a| a != "_") {
                     tree.aliases.push((l.paths[at].clone(), alias, path));
                 }
@@ -1224,7 +1225,11 @@ fn build_tree(lexed: &[Lexed]) -> Tree {
                         }
                     }
                     for target in &glob_targets {
-                        tree.globs.push((module.clone(), target.clone()));
+                        tree.globs.push((
+                            module.clone(),
+                            target.clone(),
+                            in_a_block(&caller.t, c_open),
+                        ));
                     }
                     for (alias, target) in &literal_aliases {
                         tree.aliases
@@ -1331,31 +1336,66 @@ fn place_name(tree: &Tree, locked: &Locked, module: &[String], name: &str, depth
             }
         }
     }
-    if own || tree.declared.iter().any(|(m, n)| m == module && n == name) {
+    if own {
         return Place::Own;
     }
-    for (m, target) in &tree.globs {
-        if m != module {
+    if glob_reaches_a_locked_type(tree, locked, module, name, depth, true) {
+        return Place::Locked;
+    }
+    if tree.declared.iter().any(|(m, n)| m == module && n == name) {
+        return Place::Own;
+    }
+    if glob_reaches_a_locked_type(tree, locked, module, name, depth, false) {
+        return Place::Locked;
+    }
+    Place::Other
+}
+
+fn in_a_block(t: &[String], at: usize) -> bool {
+    let mut open: Vec<bool> = Vec::new();
+    for i in 0..at.min(t.len()) {
+        match t[i].as_str() {
+            "{" => open.push(!(i >= 2 && t[i - 2] == "mod")),
+            "(" | "[" => open.push(false),
+            "}" | ")" | "]" => {
+                open.pop();
+            }
+            _ => {}
+        }
+    }
+    open.contains(&true)
+}
+
+fn glob_reaches_a_locked_type(
+    tree: &Tree,
+    locked: &Locked,
+    module: &[String],
+    name: &str,
+    depth: usize,
+    in_block: bool,
+) -> bool {
+    for (m, target, block) in &tree.globs {
+        if m != module || *block != in_block {
             continue;
         }
         match absolute(tree, module, target, depth + 1) {
             Some(abs) if abs.is_empty() => {
                 if locked.root.iter().any(|r| r == name) {
-                    return Place::Locked;
+                    return true;
                 }
             }
             Some(abs) if MODULES.contains(&abs[0].as_str()) => {
                 if abs.len() == 1 && locked.types.iter().any(|(m, n)| *m == abs[0] && n == name) {
-                    return Place::Locked;
+                    return true;
                 }
             }
             Some(abs) if place_name(tree, locked, &abs, name, depth + 1) == Place::Locked => {
-                return Place::Locked;
+                return true;
             }
             _ => {}
         }
     }
-    Place::Other
+    false
 }
 
 fn type_position(before: Option<&str>) -> bool {
@@ -1865,6 +1905,10 @@ fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
         ),
         ("pub use crate::kinds::*;\n", "impl more::KindEntry {}\n"),
         ("impl super::super::kinds::KindEntry {}\n", ""),
+        (
+            "pub use crate::kinds::KindEntry as LaterTwin;\n",
+            "pub struct LaterTwin;\npub fn f() {\n    use self::more::*;\n    impl LaterTwin {}\n}\n",
+        ),
     ] {
         let faults = across(more, learning);
         assert!(
@@ -1893,6 +1937,10 @@ fn the_test_of_the_later_files_refuses_an_impl_for_a_type_of_a_locked_module() {
     for (more, learning) in [
         ("pub struct OwnText;\n", "pub trait FromJson {}\nuse self::more::OwnText;\nimpl FromJson for OwnText {}\n"),
         ("pub struct OwnText;\n", "pub trait FromJson {}\nuse self::more::*;\nimpl FromJson for OwnText {}\n"),
+        (
+            "pub use crate::kinds::KindEntry as LaterTwin;\n",
+            "pub struct LaterTwin;\nuse self::more::*;\nimpl LaterTwin {}\n",
+        ),
         ("pub enum Cause {\n    Late,\n}\n", "pub trait FromJson {}\nuse crate::learning::more::{self, Cause};\nimpl FromJson for Cause {}\nimpl FromJson for more::Cause {}\n"),
     ] {
         assert_eq!(across(more, learning), Vec::<String>::new(), "{more} {learning}");
