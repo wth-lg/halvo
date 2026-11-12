@@ -1,7 +1,8 @@
 // usage: node tools/r4-trials/floor/features.mjs DATA_JSON [--verify LIST]
 // DATA_JSON is data.json of @mdn/browser-compat-data 8.1.8. Without --verify it prints the lines
 // that U0.3 adds to docs/r4/page-features.txt; with --verify it checks that every line of LIST
-// whose comment cites a page of that data gives the Safari version and date that the data gives.
+// whose comment cites a page of that data gives the Safari version and date that the data gives,
+// and that the list ends with the lines that the rows make.
 // Exit: 0 when every row and line holds, 1 when one misses, 2 on a refusal.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -199,6 +200,8 @@ function verify(data, listText) {
     if (found.problem) problems.push(found.problem);
     else if (found.version !== f.version || found.date !== m[3]) problems.push(`${f.name}: the list gives ${f.version} of ${m[3]}, the data ${found.version} of ${found.date}`);
   }
+  const block = lines(data).out.join('\n') + '\n';
+  if (!listText.endsWith(block)) problems.push('the list does not end with the lines that the rows make from the data');
   return problems;
 }
 
