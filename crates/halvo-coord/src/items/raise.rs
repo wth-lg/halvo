@@ -65,7 +65,8 @@ pub enum Raise {
 }
 
 /// The parameters of a category, the rows of A-A1.5 with the source `activation` that are bound
-/// in a slot (I3.5).
+/// in a slot (I3.5): the one table, which the hold `setup`, the item `setup` and the decision of
+/// the setup flow read (ruling IG-11).
 pub const fn params(category: Category) -> &'static [Param] {
     match category {
         Category::UtilityBillPayment => &[Param::Start, Param::Payee, Param::Instrument],
