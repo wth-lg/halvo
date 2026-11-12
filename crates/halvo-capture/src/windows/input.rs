@@ -271,18 +271,30 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
     let raw: &RAWINPUT = unsafe { &*(aligned.0.as_ptr() as *const RAWINPUT) };
 
     if raw.header.dwType == RIM_TYPEKEYBOARD.0 {
+        // SAFETY: the header names a keyboard record, so `keyboard` is the
+        // member of the union that the bytes hold; every bit pattern is valid.
         let kb = unsafe { raw.data.keyboard };
         Some(RawInputPacket::Keyboard(KeyStroke {
             vkey: kb.VKey,
             released: kb.Flags & RI_KEY_BREAK as u16 != 0,
         }))
     } else if raw.header.dwType == RIM_TYPEMOUSE.0 {
+        // SAFETY: the header names a mouse record, so `mouse` is the member of
+        // the union that the bytes hold; every bit pattern is valid.
         let m = unsafe { raw.data.mouse };
+        // SAFETY: both members of the inner union are plain integers over the
+        // same bytes, so reading the flag and data words is valid.
+        let (button_flags, button_data) = unsafe {
+            (
+                m.Anonymous.Anonymous.usButtonFlags,
+                m.Anonymous.Anonymous.usButtonData,
+            )
+        };
         Some(RawInputPacket::Pointer(PointerSample {
             last_x: m.lLastX,
             last_y: m.lLastY,
-            button_flags: unsafe { m.Anonymous.Anonymous.usButtonFlags },
-            wheel_delta: unsafe { m.Anonymous.Anonymous.usButtonData } as i16,
+            button_flags,
+            wheel_delta: button_data as i16,
         }))
     } else {
         None
@@ -351,13 +363,15 @@ fn message_tick() -> u32 {
 fn read_raw_input(handle: HRAWINPUT, tick: u32) {
     let header_size = core::mem::size_of::<RAWINPUTHEADER>() as u32;
     let mut size: u32 = 0;
-    // GetRawInputData with pData NULL writes the required size to pcbSize and
-    // returns 0: the only way to size the buffer for a variable-length packet.
+    // SAFETY: with no data pointer GetRawInputData writes the packet's size
+    // into `size`, a live local, and reads the handle that WM_INPUT gave.
     let probe = unsafe { GetRawInputData(handle, RID_INPUT, None, &mut size, header_size) };
     if probe != 0 || size == 0 {
         return;
     }
     let mut buf = vec![0u8; size as usize];
+    // SAFETY: `buf` holds `size` bytes, the size that the first call gave,
+    // and outlives the call that fills it.
     let read = unsafe {
         GetRawInputData(
             handle,
@@ -614,6 +628,8 @@ mod tests {
     fn decode_reads_a_keyboard_packet_from_a_misaligned_buffer() {
         use windows::Win32::UI::Input::RAWINPUT;
         let raw = keyboard_packet(0x41, 0);
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes for as long as `raw` lives.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &raw as *const RAWINPUT as *const u8,
@@ -645,6 +661,8 @@ mod tests {
     fn decode_reads_the_break_flag_as_a_key_up() {
         use windows::Win32::UI::Input::RAWINPUT;
         let raw = keyboard_packet(0x42, RI_KEY_BREAK as u16);
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes for as long as `raw` lives.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &raw as *const RAWINPUT as *const u8,
@@ -686,6 +704,8 @@ mod tests {
                 },
             },
         };
+        // SAFETY: `raw` is a live, initialized RAWINPUT, and the slice covers
+        // exactly its bytes for as long as `raw` lives.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &raw as *const RAWINPUT as *const u8,

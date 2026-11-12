@@ -1,4 +1,5 @@
 //! Windows capture backend.
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod apps;
 pub mod audio;
@@ -318,6 +319,8 @@ pub(crate) struct PumpThreadId(u32);
 #[cfg(target_os = "windows")]
 impl PumpThreadId {
     pub(crate) fn current() -> Self {
+        // SAFETY: GetCurrentThreadId takes no argument and reads this
+        // thread's id.
         Self(unsafe { windows::Win32::System::Threading::GetCurrentThreadId() })
     }
 
@@ -591,6 +594,8 @@ pub(crate) fn ensure_message_queue() {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{PeekMessageW, MSG, PM_NOREMOVE};
     let mut msg = MSG::default();
+    // SAFETY: `msg` is a live MSG that PeekMessageW may fill; PM_NOREMOVE
+    // leaves the queue as it is.
     unsafe {
         let _ = PeekMessageW(
             &mut msg,

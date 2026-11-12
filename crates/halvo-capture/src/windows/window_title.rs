@@ -34,6 +34,9 @@ pub(crate) fn title_packet(title: &str, exe_path: String, tick: u32) -> Option<P
 
 #[cfg(target_os = "windows")]
 pub(crate) fn read_window_title(hwnd: HWND) -> String {
+    // SAFETY: the buffer holds the title's length plus the terminating NUL
+    // that GetWindowTextW writes, and lives across the call; a handle that is
+    // no longer a window gives a length of 0.
     unsafe {
         if hwnd.0.is_null() {
             return String::new();
@@ -42,7 +45,6 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
         if len <= 0 {
             return String::new();
         }
-        // +1 for the terminating NUL GetWindowTextW writes.
         let mut buf = vec![0u16; len as usize + 1];
         let written = GetWindowTextW(hwnd, &mut buf);
         String::from_utf16_lossy(&buf[..written as usize])

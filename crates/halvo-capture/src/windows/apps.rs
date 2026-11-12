@@ -176,6 +176,8 @@ pub fn wait_for_change() -> io::Result<()> {
 
     let close_all = |events: &[HANDLE]| {
         for event in events {
+            // SAFETY: each handle is an event that this function created and
+            // has not closed; each is closed once here.
             unsafe {
                 let _ = CloseHandle(*event);
             }
@@ -186,16 +188,21 @@ pub fn wait_for_change() -> io::Result<()> {
         let Ok(key) = RegKey::predef(root.hkey()).open_subkey_with_flags(path, KEY_NOTIFY) else {
             continue;
         };
-        // A manual-reset event, initially non-signaled, armed for one async change.
+        // SAFETY: CreateEventW with null attributes and a null name makes a new
+        // unnamed manual-reset event, initially unset, armed for one change.
         let event = unsafe { CreateEventW(std::ptr::null(), TRUE, FALSE, std::ptr::null()) };
         if event.is_null() {
             let err = io::Error::last_os_error();
             close_all(&events);
             return Err(err);
         }
+        // SAFETY: `key` is an open registry key that outlives the wait, and
+        // `event` is the live event created above.
         let status =
             unsafe { RegNotifyChangeKeyValue(key.raw_handle(), TRUE, filter, event, TRUE) };
         if status != ERROR_SUCCESS {
+            // SAFETY: `event` is the live event created above, not yet in
+            // `events`, so it is closed once here.
             unsafe {
                 let _ = CloseHandle(event);
             }
@@ -210,6 +217,8 @@ pub fn wait_for_change() -> io::Result<()> {
         return Ok(());
     }
 
+    // SAFETY: the pointer and the count describe `events`, which holds live
+    // event handles and outlives the wait.
     let wait =
         unsafe { WaitForMultipleObjects(events.len() as u32, events.as_ptr(), FALSE, INFINITE) };
     close_all(&events);

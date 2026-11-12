@@ -54,10 +54,9 @@ pub(crate) fn foreground_packet(exe_path: String, tick: u32) -> Packet {
 /// higher-integrity process across the UIPI boundary).
 #[cfg(target_os = "windows")]
 pub fn current_foreground_app() -> Option<String> {
-    unsafe {
-        let hwnd = GetForegroundWindow();
-        foreground_app_for(hwnd)
-    }
+    // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+    let hwnd = unsafe { GetForegroundWindow() };
+    foreground_app_for(hwnd)
 }
 
 /// The executable path of `hwnd`'s process, or `None` for a null window, a window
@@ -67,6 +66,9 @@ pub fn current_foreground_app() -> Option<String> {
 #[cfg(target_os = "windows")]
 pub(crate) fn foreground_app_for(hwnd: HWND) -> Option<String> {
     use windows::core::PWSTR;
+    // SAFETY: `pid`, `buf` and `len` are live locals that the calls write,
+    // `len` is the length of `buf`, and the process handle that OpenProcess
+    // returns is closed once, after the query.
     unsafe {
         if hwnd.0.is_null() {
             return None;
