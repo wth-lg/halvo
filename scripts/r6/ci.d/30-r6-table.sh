@@ -58,7 +58,7 @@ tree_same() {
 read_commit() {
   commit=$(git rev-parse --verify --quiet 'HEAD^{commit}') || commit=
   tree_before=$(tree_state 2>&1) || tree_before=
-  if [ -z "$commit" ] || [ -z "$tree_before" ]; then
+  if [ -z "$tree_before" ]; then
     printf 'tree commit=unreadable\n'
     fail_now
   fi
@@ -605,6 +605,9 @@ required_cases() {
   restore_repo
   : >"$work/repo/$required"
   check empty-list FAIL 'required list=bad'
+  restore_repo
+  printf '%s tests/refusal_spend.rs refusal no_hold\n' "$t" >>"$work/repo/$required"
+  check list-with-a-name-of-two-words FAIL 'required list=bad'
   mv "$work/repo/$required" "$work/repo/$required.away" || exit 2
   check no-list FAIL 'required list=bad'
   restore_repo
