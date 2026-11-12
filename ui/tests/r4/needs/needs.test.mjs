@@ -396,6 +396,126 @@ async function hold(origin, dir) {
   return faults;
 }
 
+function snap(seq, items) {
+  return { seq, rows: [], items, note: null };
+}
+
+async function shows(h, items, tag, faults) {
+  const r = await read(h);
+  if (firstDiff(r.units, expectedUnits(items)) >= 0) faults.push(tag + ':texts');
+  if (firstDiff(r.controls, expectedControls(items)) >= 0) faults.push(tag + ':controls');
+  return r;
+}
+
+async function replies(origin, dir) {
+  const faults = [];
+  const sign = stateFile(dir, 'needs_sign_in').snapshot.items[0];
+  const check = withId(stateFile(dir, 'needs_check').snapshot.items[0], 'd'.repeat(32));
+  const step2 = JSON.parse(JSON.stringify(sign));
+  step2.text = stateFile(dir, 'needs_stuck').snapshot.items[0].text;
+  step2.choices = [
+    { choice: 'decline', text: sign.choices[0].text, safe: 'yes' },
+    { choice: 'allow', text: sign.choices[1].text, safe: 'no' },
+  ];
+  const check2 = JSON.parse(JSON.stringify(check));
+  check2.fields[0].value = ['Water Board'];
+  let h = await open({ origin, replies: [{ state: snap(1, [sign, check]) }, { state: snap(2, [step2, check2]) }], views: [VIEW] });
+  try {
+    await shows(h, [step2, check2], 'changed_in_place', faults);
+  } finally {
+    await h.close();
+  }
+  const confirm = stateFile(dir, 'needs_confirm_page').snapshot.items[0];
+  const reject = { call: 'agents_answer', args: { item: confirm.item, choice: 'reject' } };
+  const back = async (line, tag) => {
+    const out = outDir();
+    const k = await open({ origin, replies: [{ state: snap(1, [confirm]) }, line], views: [VIEW], out });
+    try {
+      await act(k, { act: 'reject', param: confirm.item });
+      const r = await shows(k, [confirm], tag, faults);
+      if (!(r.dialogs[0] && r.dialogs[0].modal && r.dialogs[0].rendered)) faults.push(tag + ':not_back');
+    } catch {
+      faults.push(tag + ':throws');
+    } finally {
+      await k.close();
+    }
+  };
+  await back({ ...reject, reply: { error: 'state' } }, 'refused_comes_back');
+  await back({ ...reject, reject: true }, 'rejected_comes_back');
+  const out = outDir();
+  h = await open({ origin, replies: [{ state: snap(1, [confirm]) }, { ...reject, reply: { ok: 'yes' } }, { state: snap(2, [confirm]) }], views: [VIEW], out });
+  try {
+    await act(h, { act: 'reject', param: confirm.item });
+    const r = await read(h);
+    if (r.dialogs.some((d) => d.rendered)) faults.push('answered_reopened');
+    await h.page.keyboard.press('Enter');
+    await frames(h);
+    if (callsOf(out).length !== 1) faults.push('answered_called_again=' + callsOf(out).length);
+  } catch {
+    faults.push('answered_throws');
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
+async function setups(origin, dir) {
+  const faults = [];
+  const one = stateFile(dir, 'needs_setup').snapshot.items[0];
+  const two = withId(one, 'e'.repeat(32));
+  two.agent = 'f'.repeat(32);
+  const odd = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'odd id x');
+  const out = outDir();
+  const h = await open({ origin, replies: [{ state: snap(1, [one, two, odd]) }], views: [VIEW], out });
+  try {
+    await shows(h, [one, two, odd], 'two_setups', faults);
+    const facts = await h.page.evaluate((words) => {
+      const section = document.getElementById('view-needs').parentNode;
+      const named = [...section.querySelectorAll('[id],[name]')].map((e) => (e.id || '') + ' ' + (e.getAttribute('name') || ''));
+      const leaks = named.filter((n) => words.some((w) => n.includes(w))).length;
+      const d = section.querySelector('[role="alertdialog"]');
+      const label = d ? document.getElementById(d.getAttribute('aria-labelledby')) : null;
+      return { leaks, own: Boolean(label && d.contains(label)) };
+    }, [one.item, two.item, 'odd id x', ...one.params.map((p) => p.name)]);
+    if (facts.leaks !== 0) faults.push('ids_hold_reply_names=' + facts.leaks);
+    if (!facts.own) faults.push('dialog_label_not_its_own');
+    await h.page.evaluate(() => {
+      const d = document.querySelector('dialog[open]');
+      if (d) d.close();
+    });
+  } finally {
+    await h.close();
+  }
+  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, choice: 'choose', param: one.params[0].name, n: 1 }, reply: { ok: 'yes' } }], views: [VIEW], out: outDir() });
+  try {
+    const radios = k.page.locator('[data-act="candidate"][data-param="' + one.params[0].name + '"]');
+    await radios.nth(0).check();
+    await radios.nth(1).check();
+    const both = await radios.evaluateAll((list) => list.map((r) => r.checked));
+    if (!(both[0] && both[1])) faults.push('groups_joined');
+    await act(k, { act: 'choose', param: one.item });
+  } catch {
+    faults.push('two_setups_choose_throws');
+  } finally {
+    await k.close();
+  }
+  return faults;
+}
+
+async function reorder(origin, dir) {
+  const faults = [];
+  const a = stateFile(dir, 'needs_sign_in').snapshot.items[0];
+  const b = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], 'b'.repeat(32));
+  const c = withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32));
+  const h = await open({ origin, replies: [{ state: snap(1, [a, b, c]) }, { state: snap(2, [c, a, b]) }], views: [VIEW] });
+  try {
+    await shows(h, [c, a, b], 'reordered', faults);
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const want = (name) => !onlyTests || onlyTests.includes(name);
 
 const { dir, states: tracked, tests } = fixtures();
@@ -403,7 +523,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -416,6 +536,9 @@ if (PAGE_TESTS.some(want)) {
     if (want('escape')) report('escape', await escape(origin, dir, states), ['escapes']);
     if (want('once')) report('once', await once(origin, dir), ['presses']);
     if (want('hold')) report('hold', await hold(origin, dir));
+    if (want('replies')) report('replies', await replies(origin, dir));
+    if (want('setups')) report('setups', await setups(origin, dir));
+    if (want('reorder')) report('reorder', await reorder(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

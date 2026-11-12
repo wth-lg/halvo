@@ -28,6 +28,12 @@
   let last = null;
   let cards = new Map();
   const answered = new Set();
+  let serial = 0;
+
+  function fresh() {
+    serial += 1;
+    return 'hn-' + serial;
+  }
 
   function el(tag, cls, text) {
     const node = document.createElement(tag);
@@ -76,7 +82,8 @@
     item.params.forEach(function (p) {
       const set = el('fieldset', 'hn-param', '');
       const legend = el('legend', null, p.label);
-      legend.id = 'hn-param-' + item.item + '-' + p.name;
+      legend.id = fresh();
+      const group = fresh();
       set.appendChild(legend);
       const radios = [];
       p.candidates.forEach(function (c) {
@@ -84,7 +91,7 @@
         const input = document.createElement('input');
         input.type = 'radio';
         input.className = 'hn-radio';
-        input.name = 'hn-' + item.item + '-' + p.name;
+        input.name = group;
         input.setAttribute('data-act', 'candidate');
         input.setAttribute('data-param', p.name);
         input.setAttribute('data-n', String(c.n));
@@ -151,11 +158,11 @@
     }
     if (isPage(item)) {
       answered.add(item.item);
-      drop(item.item);
+      drop(card.key);
       openNext();
     }
     held(card, call('agents_answer', { item: item.item, choice: choice.choice })).then(function (reply) {
-      if (reply && reply.error && answered.delete(item.item) && last) apply(last);
+      if ((!reply || reply.error) && answered.delete(item.item) && last) apply(last);
     });
   }
 
@@ -163,17 +170,17 @@
     if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
   }
 
-  function build(item) {
-    const card = { json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false };
+  function build(item, key) {
+    const card = { key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
       const title = el('h3', 'hn-title', item.title);
-      title.id = 'hn-title-' + item.item;
+      title.id = fresh();
       box.appendChild(title);
     }
     const about = el('div', null, '');
-    about.id = 'hn-about-' + item.item;
+    about.id = fresh();
     if (item.text) about.appendChild(el('p', 'hn-text', item.text));
     addFields(about, item.fields);
     box.appendChild(about);
@@ -195,7 +202,7 @@
     if (page) {
       box.setAttribute('role', 'alertdialog');
       box.setAttribute('aria-modal', 'true');
-      if (item.title) box.setAttribute('aria-labelledby', 'hn-title-' + item.item);
+      if (item.title) box.setAttribute('aria-labelledby', box.firstChild.id);
       box.setAttribute('aria-describedby', about.id);
       box.addEventListener('cancel', function (event) {
         event.preventDefault();
@@ -215,13 +222,13 @@
     if (safe) safe.focus();
   }
 
-  function drop(id) {
-    const card = cards.get(id);
+  function drop(key) {
+    const card = cards.get(key);
     if (!card) return;
     card.gone = true;
     if (card.dialog && card.dialog.open) card.dialog.close();
     card.li.remove();
-    cards.delete(id);
+    cards.delete(key);
   }
 
   function openNext() {
@@ -243,26 +250,32 @@
     answered.forEach(function (id) {
       if (!ids.has(id)) answered.delete(id);
     });
-    const now = new Map();
-    items.forEach(function (item) {
-      now.set(item.item, JSON.stringify(item));
+    const seen = new Map();
+    const keys = items.map(function (item) {
+      const n = (seen.get(item.item) || 0) + 1;
+      seen.set(item.item, n);
+      return item.item + '#' + n;
     });
-    Array.from(cards.keys()).forEach(function (id) {
-      if (now.get(id) !== cards.get(id).json) drop(id);
+    const now = new Map();
+    items.forEach(function (item, i) {
+      now.set(keys[i], JSON.stringify(item));
+    });
+    Array.from(cards.keys()).forEach(function (key) {
+      if (now.get(key) !== cards.get(key).json) drop(key);
     });
     const next = new Map();
     let ref = list.firstChild;
-    items.forEach(function (item) {
-      let card = cards.get(item.item);
+    items.forEach(function (item, i) {
+      let card = cards.get(keys[i]);
       if (card && card.li === ref) {
         if (newer) card.busy = false;
         ref = ref.nextSibling;
       } else {
-        if (card) drop(item.item);
-        card = build(item);
+        if (card) drop(keys[i]);
+        card = build(item, keys[i]);
         list.insertBefore(card.li, ref);
       }
-      next.set(item.item, card);
+      next.set(keys[i], card);
     });
     cards = next;
     openNext();

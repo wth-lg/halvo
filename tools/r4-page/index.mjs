@@ -428,6 +428,8 @@ function flush(h) {
   }
 }
 
+const REJECT = Symbol('reject');
+
 function fromTranscript(h, name, args) {
   const t = h.transcript;
   const line = t.lines[t.i];
@@ -452,7 +454,7 @@ function fromTranscript(h, name, args) {
   }
   t.i++;
   setImmediate(() => flush(h));
-  if (line.reject === true) return Promise.reject(new Error('the transcript rejects this call'));
+  if (line.reject === true) return REJECT;
   if (line.hold === true) return new Promise((wake) => h.held.push(wake));
   return h.transform ? h.transform(line.reply) : line.reply;
 }
@@ -475,6 +477,7 @@ async function stub(h, name, args) {
     const wrong = h.mismatch.length;
     const reply = fromTranscript(h, name, a);
     if (logged && h.mismatch.length === wrong) await record(h, name, a);
+    if (reply === REJECT) throw new Error('the transcript rejects this call');
     return reply;
   }
   if (logged) await record(h, name, a);
