@@ -2,6 +2,7 @@
 //! one reader and writer of the account's credential.
 
 pub mod answer;
+pub mod environment;
 pub mod flow;
 pub mod grammar;
 pub mod origin;
