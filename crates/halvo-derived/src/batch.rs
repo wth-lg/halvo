@@ -168,8 +168,8 @@ impl Store {
     /// the error name `store`. A position at or before the committed one changes nothing (`repeated`). An episode
     /// whose summary id is stored, or stands earlier in the batch, is skipped. A summary outside its bound, a day more
     /// than 92 days before the clock's day or after it, is not stored with its evidence; an evidence row whose expiry
-    /// has passed, or that names a purged ordinal, is not stored, and its summary is. A batch that holds a value that its reader would refuse is refused whole with the
-    /// error name `malformed`, and nothing of it is stored.
+    /// has passed, or that names a purged ordinal, is not stored, and its summary is. A batch that holds a value that
+    /// its reader would refuse is refused whole with the error name `malformed`, and nothing of it is stored.
     ///
     /// After the batch's transaction the store calls the host's recurrence step, which reads the summaries inside
     /// their bound through `SummaryRead`, and applies its proposals in one further transaction (`proposals`). When

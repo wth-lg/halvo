@@ -590,7 +590,7 @@ fn check_entries(entries: &[&'static KindEntry]) -> Result<(), OpenError> {
         return Err(OpenError::Entries(reports));
     }
     for kind in kinds::KINDS {
-        if !entries.iter().any(|entry| *entry == kind) {
+        if !entries.contains(&kind) {
             return Err(OpenError::MissingKind(kind.name));
         }
     }

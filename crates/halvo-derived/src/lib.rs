@@ -1,6 +1,54 @@
 #![forbid(unsafe_code)]
 //! The derived store of Halvo: one SQLCipher database under `derived/` of a data directory, which holds what
-//! Halvo learns from what a person does.
+//! Halvo learns from what a person does. Every row stands in one record envelope whose kind fixes its retention
+//! class: a window row lives no longer than its source segments, a bounded row the days of its kind's entry, and a
+//! kept row until the person deletes its workflow or everything.
+//!
+//! # Hosts, steps and handlers
+//!
+//! A host supplies its code to the store in one value, built in this form:
+//!
+//! ```text
+//! Host::new(clock, recurrence_step)
+//!     .step(family, writer_step)              // after the recurrence step, in this order
+//!     .handler(family, takes, handler)        // in front of the handlers of the same requests added after it
+//!     .on_report(sink)                        // the report after each committed transaction
+//! ```
+//!
+//! Each step and each handler names its own family. A step reads the summaries and the rows of its own family and
+//! returns records of kinds of its own family; a handler commits records of kinds of its own family and reads the
+//! rows of its own family. `Takes` names the requests that a handler takes: `runner` requests, the `coordinator_write`
+//! bodies of a list of `op` names, or the requests of one further role. For one request the store passes the request
+//! to the first handler that takes it; that handler is in front. It answers the request itself, or calls
+//! `HandlerCx::pass_on`, which passes the request on unchanged to the next handler that takes it and returns that
+//! handler's answer; the handler of the owning run is added last and has no handler behind it. Each handler of the
+//! chain gets a `HandlerCx` of its own family, the handler behind as well, so a handler in front makes its typed
+//! commits after `pass_on` has returned, in its own family. The owner reads the `op` of a `coordinator_write` and
+//! nothing else of its body, so a body whose `workflow` and `agent` are null goes to the handler of its `op` as every
+//! other body does.
+//!
+//! While it answers a request a handler gets four calls of the store and no other: `HandlerCx::commit`, the typed
+//! commit; `HandlerCx::state`, the state call; `HandlerCx::rows`, the read of the rows of its own family; and
+//! `HandlerCx::workflow` and `HandlerCx::evidence`, the interface read of one stored workflow. The store knows for
+//! which request it runs a typed commit and takes it from no argument: a record of a kind of origin own is stored for
+//! a `runner` request and a `coordinator_write`, and refused from a step and for a request of a further role.
+//!
+//! # What the store reports to its host
+//!
+//! `commit_batch` commits the batch and then the proposals of the recurrence step and the records of each step, each
+//! in a transaction of its own. When the typed commit of a step's records is refused, the batch, the proposals and
+//! the other steps' records stand, and the store reports the refusal to its host in `CommitOutcome::steps`, in the
+//! place of that step, as a `Refusal` that names the index of the record and the rule; the analysis write that led to
+//! it is no less committed. After each committed transaction the store hands the sink of its host a `Report`: the
+//! revision of every family, the count per retention class, the bytes on disk and the next expiry deadline. A call
+//! that returns a fault after its transaction committed leaves that transaction in place.
+//!
+//! # What may be logged
+//!
+//! The store logs nothing. Its errors (`Error`, `Fault`, `OpenError`, `Refusal`) hold an error name of the reply form,
+//! a result code, a rule word or the error text of `kinds::check_record`, which names a kind, a key and a rule, and
+//! never a value of a record or the text of a serde error, so a host may log them. A host never logs the text of a
+//! `serde_json::Error` from a record or a request, nor the `Debug` form of a request type of the schema.
 
 mod batch;
 mod db;

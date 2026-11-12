@@ -152,35 +152,35 @@ fn the_typed_commit_refuses_the_whole_list_for_one_record_that_breaks_a_rule() {
     let clock = TestClock::at_day(DAY);
     let w = workflow(&scratch, &clock, &[&NOTE]);
     let missing = "3".repeat(32);
-    let cases: Vec<(TypedRecord, fn(&Cause) -> bool)> = vec![
-        (note(&missing, DAY, 1), |c| *c == Cause::NoWorkflow),
+    let cases: Vec<(TypedRecord, Cause)> = vec![
+        (note(&missing, DAY, 1), Cause::NoWorkflow),
         (
             TypedRecord {
                 kind: "test_unknown",
                 json: "{}".to_owned(),
             },
-            |c| *c == Cause::UnknownKind,
+            Cause::UnknownKind,
         ),
         (
             TypedRecord {
                 kind: "summary",
                 json: "{}".to_owned(),
             },
-            |c| *c == Cause::WorkflowRun,
+            Cause::WorkflowRun,
         ),
         (
             TypedRecord {
                 kind: "agent_run",
                 json: "{}".to_owned(),
             },
-            |c| *c == Cause::OtherFamily,
+            Cause::OtherFamily,
         ),
         (
             TypedRecord {
                 kind: "test_note",
                 json: format!(r#"{{"v":1,"workflow":"{w}","day":{DAY}}}"#),
             },
-            |c| *c == Cause::Record("test_note: n: missing_key".to_owned()),
+            Cause::Record("test_note: n: missing_key".to_owned()),
         ),
     ];
     for (bad, cause) in cases {
@@ -191,10 +191,7 @@ fn the_typed_commit_refuses_the_whole_list_for_one_record_that_breaks_a_rule() {
             .commit_batch(&store_id(1), &[], position(9, 0), &mut Seq(1))
             .unwrap();
         drop(store);
-        match &outcome.steps[..] {
-            [Err(Refusal { index: 1, cause: c })] if cause(c) => {}
-            other => panic!("the step's list was answered {other:?}"),
-        }
+        assert_eq!(outcome.steps, vec![Err(Refusal { index: 1, cause })]);
         assert_eq!(kind_rows(&scratch, "test_note").len(), 0);
         common::raw(&scratch)
             .execute("UPDATE meta SET seg = 1, idx = 0", [])
