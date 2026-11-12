@@ -8,7 +8,7 @@ use halvo_capture::consent::status::{
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Builder, Context, Manager, Runtime, WindowEvent};
 
-use crate::commands::{self, AppState};
+use crate::commands::{self, capture::AppState};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

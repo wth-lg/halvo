@@ -55,9 +55,9 @@ impl From<ShredReport> for ShredView {
     }
 }
 
-/// The invoke handler of the capture commands.
-pub fn handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'static {
-    tauri::generate_handler![
+/// Answers an invoke of a command of `names::CAPTURE`; returns false for any other name.
+pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
+    let handle: fn(Invoke<R>) -> bool = tauri::generate_handler![
         capture_status,
         inventory,
         set_capture_state,
@@ -66,7 +66,8 @@ pub fn handler<R: Runtime>() -> impl Fn(Invoke<R>) -> bool + Send + Sync + 'stat
         onboarding_state,
         request_permission,
         open_permission_pane,
-    ]
+    ];
+    handle(invoke)
 }
 
 fn status_view(state: &AppState, controller: &mut ConsentController) -> Result<StatusView, String> {

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -8,12 +8,13 @@ use halvo_capture::event::Modality;
 use halvo_capture::store::{SegmentExpiry, ShredReport, StoreResult};
 use serde::Deserialize;
 use serde_json::Value;
-use tauri::ipc::{CallbackFn, InvokeBody};
+use tauri::ipc::{CallbackFn, Invoke, InvokeBody};
 use tauri::test::{get_ipc_response, mock_builder, MockRuntime, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
 use tauri::{App, Manager, WebviewWindow};
 
 use crate::app;
+use crate::commands::{self, names};
 
 pub const APP_URL: &str = if cfg!(windows) {
     "http://tauri.localhost"
@@ -156,6 +157,17 @@ fn no_tray(_app: &tauri::AppHandle<MockRuntime>) -> tauri::Result<()> {
     Ok(())
 }
 
+pub fn test_parts(config_dir: PathBuf, probe: &FakeProbe) -> app::Parts<MockRuntime> {
+    app::Parts {
+        config_dir: Some(config_dir),
+        store: Box::new(FakeStore::two_rows_on_one_day()),
+        store_backend: crate::unwired_store::DESCRIPTION,
+        probe: Box::new(probe.clone()),
+        open_pane: no_pane,
+        tray: no_tray,
+    }
+}
+
 pub struct TestApp {
     pub app: App<MockRuntime>,
     pub probe: FakeProbe,
@@ -166,14 +178,7 @@ pub struct TestApp {
 /// of the event loop, which runs the set-up.
 pub fn test_app(config_dir: PathBuf) -> TestApp {
     let probe = FakeProbe::default();
-    let parts = app::Parts {
-        config_dir: Some(config_dir),
-        store: Box::new(FakeStore::two_rows_on_one_day()),
-        store_backend: crate::unwired_store::DESCRIPTION,
-        probe: Box::new(probe.clone()),
-        open_pane: no_pane,
-        tray: no_tray,
-    };
+    let parts = test_parts(config_dir, &probe);
     let mut app = app::build(mock_builder(), parts)
         .build(app::context())
         .expect("the app builds on the mock runtime");
@@ -251,4 +256,74 @@ fn every_command_answers_the_page_arguments_with_its_fixture() {
             call.command, call.args
         );
     }
+}
+
+fn is_unknown_command(reply: &Result<Value, Value>) -> bool {
+    matches!(reply, Err(Value::String(text)) if text.contains("not found"))
+}
+
+/// The names that a test asks a handler about: every name of every module,
+/// every command of calls.json and one name that no module has.
+fn candidate_names() -> BTreeSet<String> {
+    let calls: Vec<Call> = serde_json::from_value(read_json(&fixtures_dir().join("calls.json")))
+        .expect("calls.json lists calls");
+    names::MODULES
+        .iter()
+        .flat_map(|m| m.commands.iter().map(|c| c.to_string()))
+        .chain(calls.into_iter().map(|c| c.command))
+        .chain(["no_such_command".to_string()])
+        .collect()
+}
+
+/// The candidate names that `handler` answers, on an app built with it alone.
+fn answered_by(handler: fn(Invoke<MockRuntime>) -> bool, name: &str) -> BTreeSet<String> {
+    let probe = FakeProbe::default();
+    let mut app = app::build(mock_builder(), test_parts(scratch_dir(name), &probe))
+        .invoke_handler(handler)
+        .build(app::context())
+        .expect("the app builds on the mock runtime");
+    #[allow(deprecated)]
+    app.run_iteration(|_, _| {});
+    let window = main_window(&app);
+    candidate_names()
+        .into_iter()
+        .filter(|command| {
+            !is_unknown_command(&invoke(&window, APP_URL, command, serde_json::json!({})))
+        })
+        .collect()
+}
+
+#[test]
+fn the_module_table_routes_exactly_the_names_that_each_handler_answers() {
+    let table = commands::table::<MockRuntime>();
+    assert_eq!(
+        table.iter().map(|m| m.names.module).collect::<Vec<_>>(),
+        names::MODULES.iter().map(|n| n.module).collect::<Vec<_>>(),
+        "the module table has one line for each module of names::MODULES, in its order"
+    );
+    for line in &table {
+        let listed: BTreeSet<String> = line.names.commands.iter().map(|c| c.to_string()).collect();
+        assert_eq!(
+            answered_by(line.handler, line.names.module),
+            listed,
+            "the handler of the module {} answers other names than its list",
+            line.names.module
+        );
+    }
+    let test = test_app(scratch_dir("table"));
+    let window = main_window(&test.app);
+    let routed: BTreeSet<String> = candidate_names()
+        .into_iter()
+        .filter(|command| {
+            !is_unknown_command(&invoke(&window, APP_URL, command, serde_json::json!({})))
+        })
+        .collect();
+    let listed: BTreeSet<String> = names::MODULES
+        .iter()
+        .flat_map(|m| m.commands.iter().map(|c| c.to_string()))
+        .collect();
+    assert_eq!(
+        routed, listed,
+        "the app answers other names than names::MODULES"
+    );
 }

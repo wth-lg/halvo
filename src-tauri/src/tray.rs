@@ -3,7 +3,7 @@ use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::commands::AppState;
+use crate::commands::capture::AppState;
 
 const TRAY_ID: &str = "halvo-status";
 const TOGGLE_ID: &str = "toggle-capture";
