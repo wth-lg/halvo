@@ -72,7 +72,7 @@ check() {
     CI_D_JOB=macos
     CI_D_ARTIFACTS=$work/artifacts/$1
     RUNNER_TEMP=$work/runner-temp
-    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES
+    export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES STUB_KILLS_PARENT
     sh "$0" 2>&1
   )
   code=$?
@@ -101,6 +101,7 @@ check() {
   STUB_TEST_EXIT=0
   STUB_LEAVES=
   STUB_MOVES=no
+  STUB_KILLS_PARENT=no
 }
 
 self_test() {
@@ -131,8 +132,9 @@ for entry in $STUB_LEAVES; do
   mkdir "$TMPDIR/$entry"
 done
 [ "$STUB_MOVES" = no ] || mv "$TMPDIR" "$TMPDIR.moved"
+[ "$STUB_KILLS_PARENT" = no ] || kill -s KILL "$PPID"
 printf '     Running unittests src/lib.rs (target/debug/deps/stub-0123456789abcdef)\n' >&2
-printf '\nrunning 3 tests\ntest a::one ... ok\ntest a::two ... ignored, needs a window\n'
+printf '\nrunning 3 tests\ntest a::one ... ok\ntest a::two ... ignored, needs a window\r\n'
 if [ "$STUB_TEST_EXIT" -ne 0 ]; then
   printf 'test a::three ... FAILED\n\ntest result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out\n\n'
   exit "$STUB_TEST_EXIT"
@@ -164,6 +166,7 @@ EOF
   STUB_TEST_EXIT=0
   STUB_LEAVES=
   STUB_MOVES=no
+  STUB_KILLS_PARENT=no
 
   nl='
 '
@@ -172,7 +175,9 @@ EOF
   failed="$ran${nl}test a::three ... FAILED"
 
   repo=$work/literal-tracked
-  check tests-pass PASS 'login-keychain items of com.halvo.capture.dev-fallback before the tests: 2' "$passed"
+  check tests-pass PASS "login-keychain items of com.halvo.capture.dev-fallback before the tests: 2${nl}     Running unittests src/lib.rs (target/debug/deps/stub-0123456789abcdef)" "$passed"
+  STUB_KILLS_PARENT=yes
+  check test-status-lost FAIL 'cargo test exited without a status)'
   STUB_BUILD_EXIT=101
   check build-fails FAIL 'the test build failed: cargo test --no-run exited 101'
   STUB_TEST_EXIT=101
