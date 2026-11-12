@@ -360,6 +360,7 @@ case $mode in
   silent-when-mutated) [ "$got" = FAIL ] || exit 0 ;;
   wrong-unmutated) got=PASS ;;
   blind) got=FAIL ;;
+  slow) sleep 1 ;;
 esac
 printf 'case demo/c1 want=FAIL got=%s\n' "$got"
 STUB
@@ -465,6 +466,16 @@ cases() {
   t only-runs-a-name-given-twice-once PASS with_only 'second second first' fixture_once ordered 'PASS mutation:second'
   t only-runs-a-name-given-once-once PASS with_only 'first' fixture_once ordered 'PASS mutation:first'
   t only-skips-a-name-not-given FAIL with_only 'first' fixture_once ordered 'PASS mutation:second'
+  fixture_tree slow
+  stub_test slow slow
+  row slow/scripts/r1-gate/mutants.rows first b.sh 's/two/three/' 'test selftest:demo/c1' required X-1
+  row slow/scripts/r1-gate/mutants.rows second b.sh 's/echo two/echo three/' 'test selftest:demo/c1' required X-1
+  row slow/scripts/r1-gate/mutants.rows third b.sh 's/o two/o three/' 'test selftest:demo/c1' required X-1
+  t budget-counts-from-the-first-row PASS with_budget 4 with_only 'first second third' fixture_says slow 'NOT-RUN mutation:third (the budget of 4 s is used)'
+  fixture_tree defective
+  row defective/scripts/r1-gate/mutants.rows good b.sh 's/two/three/' leak required X-1
+  printf 'broken\tline\n' >> "$gate_scratch/defective/scripts/r1-gate/mutants.rows"
+  t only-still-checks-the-rows-it-does-not-name FAIL with_only good fixture_run defective yes
   t budget-not-a-number-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --budget 4x
   t unknown-argument-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --no-such-flag
   t limit-status-of-a-hang-is-124 PASS limit_status_is 124 1 sleep 5

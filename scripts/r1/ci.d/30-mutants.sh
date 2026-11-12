@@ -135,6 +135,12 @@ check() {
     *"$3"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  if [ -n "${5:-}" ]; then
+    rows=$(printf '%s\n' "$out" | awk '
+      /^row mutation:/ { if ($2 == "mutation:alpha-gone") $4 = ($4 > 0 ? "N" : "0"); else $4 = "*"; print }
+      /^ran [0-9]+ of [0-9]+ rows$/ { print }')
+    [ "$rows" = "$5" ] || got=$got-with-other-rows
+  fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
     wrong="$wrong $1"
@@ -148,6 +154,28 @@ check() {
 }
 
 # shellcheck disable=SC2016
+real_runner() {
+  dir=$work/$1
+  mkdir -p "$dir/scripts/r1-gate/helper" "$dir/tmp" || exit 2
+  cp "$repo/scripts/r1-gate/mutation-test.sh" "$repo/scripts/r1-gate/lib.sh" "$dir/scripts/r1-gate/" || exit 2
+  cp "$repo/scripts/r1-gate/helper/"* "$dir/scripts/r1-gate/helper/" || exit 2
+  printf 'echo alpha\necho beta\necho gamma\n' >"$dir/scripts/r1-gate/target.sh"
+  printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do [ "$1" != --case ] || w=$2; shift; done' \
+    '[ "$w" != alpha ] || sleep 1' \
+    'if grep -qx "echo $w" "$GATE_ROOT/scripts/r1-gate/target.sh"; then got=PASS; else got=FAIL; fi' \
+    'printf "case fx/%s want=PASS got=%s\n" "$w" "$got"' >"$dir/scripts/r1-gate/check-fx.sh"
+  for gone in alpha beta gamma; do
+    printf '%s-gone\ttarget.sh\ts/echo %s\\n//\ttest selftest:fx/%s\trequired\tX-1\n' "$gone" "$gone" "$gone"
+  done >"$dir/scripts/r1-gate/mutants.rows"
+  printf 'later-row\ttarget.sh\ts/echo beta/echo b/\tleak\tpending X-2\tX-2\n' >>"$dir/scripts/r1-gate/mutants.rows"
+  : >"$dir/scripts/r1-gate/mutants.expected"
+  git -C "$dir" init -q && git -C "$dir" add -A || exit 2
+  tree=$(git -C "$dir" write-tree) || exit 2
+  head=$(printf 'tree %s\nauthor 30-mutants fixture <fixture@example.invalid> 1 +0000\ncommitter 30-mutants fixture <fixture@example.invalid> 1 +0000\n\nfixture\n' "$tree" | git -C "$dir" hash-object -t commit -w --stdin) || exit 2
+  git -C "$dir" update-ref HEAD "$head" || exit 2
+}
+
+# shellcheck disable=SC2016
 runner() {
   mkdir -p "$work/$1/scripts/r1-gate" "$work/$1/tmp" || exit 2
   printf 'printf "call %%s\\n" "$*" >>"$STUB_CALLS"\nmkdir -p "$TMPDIR/r1-gate-mutation.stub"\n%s\n' "$2" >"$work/$1/scripts/r1-gate/mutation-test.sh"
@@ -157,6 +185,7 @@ runner() {
 self_test() {
   make_scratch
   work=$scratch
+  repo=$(cd "$(dirname "$0")/../../.." && pwd) || exit 2
   only='[ "${1:-}" = --apply-only ] || exit 9'
   applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and builds)\n"; exit 0 ;; esac'
   apply_only='call --apply-only --remove-scratch'
@@ -224,6 +253,15 @@ self_test() {
   runner push-to-main-name-in-two-row-files "$applies; $twice; printf \"$caught\\n$counted\\n\""
   ref=refs/heads/main
   check push-to-main-name-in-two-row-files PASS 'ran 1 of 5 rows' "$order1"
+  real_runner real-runner-rows-and-count
+  ref=refs/heads/main
+  check real-runner-rows-and-count PASS "PASS $name" '' "row mutation:gamma-gone PASS * s${nl}row mutation:alpha-gone PASS N s${nl}row mutation:beta-gone PASS * s${nl}ran 3 of 4 rows"
+  real_runner real-runner-first-row-only
+  sed 's/^budget_s=.*/budget_s=0/' "$0" >"$work/real-runner-first-row-only/30-mutants.sh" || exit 2
+  script=$work/real-runner-first-row-only/30-mutants.sh
+  ref=refs/heads/main
+  sha=$commit3
+  check real-runner-first-row-only PASS "PASS $name" '' "row mutation:alpha-gone PASS N s${nl}ran 1 of 4 rows"
   runner push-to-main-row-not-caught "$applies; $listing; printf \"FAIL mutation:segment-roundtrip-broken (test store::x: passed)\\nseconds mutation:segment-roundtrip-broken 31\\nmutation rows: 0 caught, 1 failed\\n\"; exit 1"
   ref=refs/heads/main
   check push-to-main-row-not-caught FAIL "row mutation:segment-roundtrip-broken FAIL 31 s${nl}ran 1 of 5 rows${nl}FAIL $name (mutation-test.sh --budget 240 exited 1: FAIL mutation:segment-roundtrip-broken (test store::x: passed))" "$order1"
@@ -243,6 +281,10 @@ self_test() {
   ref=refs/heads/main
   sha=
   check push-to-main-without-a-commit FAIL 'GITHUB_SHA is not a commit id of 40 hex digits)' 'call --apply-only --remove-scratch'
+  runner push-to-main-commit-not-hex "$applies; $listing; exit 9"
+  ref=refs/heads/main
+  sha=gggggggggggggggggggggggggggggggggggggggg
+  check push-to-main-commit-not-hex FAIL 'GITHUB_SHA is not a commit id of 40 hex digits)' 'call --apply-only --remove-scratch'
   runner budget-not-a-number "$applies; exit 9"
   sed 's/^budget_s=.*/budget_s=4x/' "$0" >"$work/budget-not-a-number/30-mutants.sh" || exit 2
   script=$work/budget-not-a-number/30-mutants.sh
