@@ -234,9 +234,11 @@ impl Held {
     }
 }
 
-/// Issues a confirmation for a confirm request that `raise_step` admitted (I4.2, I4.4): mints
+/// Issues a confirmation for a confirm request that `raise_confirm` admitted (I4.2, I4.4): mints
 /// the item id and stores `item_raised` with the run. A request of a run that the guard's table
-/// holds as stopped is refused with `state`: nothing is stored and nothing sent (I4.2). A request whose item does not compose is
+/// holds as stopped, and one that names an effect that has begun or whose newest released
+/// decision is `reject_once` (`Table::asks_too_late`, ruling IG-32), are refused with `state`:
+/// nothing is stored and nothing sent (I4.2). A request whose item does not compose is
 /// `malformed`: no item, nothing stored and nothing sent. A request whose digests do not hold is
 /// not shown: the port answers `reject` for every effect with a record that writes no row, and
 /// `item_lapsed` with the cause `digest` is stored, with no `item_raised`.
@@ -247,7 +249,11 @@ pub fn issue<P: Owner + Runs + Clock + Rng>(
     limits: &Limits,
     ask: &ConfirmAsk,
 ) -> Result<Held, Cause> {
-    if table.is_stopped(ask.run()) {
+    let late = ask
+        .effects()
+        .iter()
+        .any(|e| table.asks_too_late(ask.run(), &e.effect));
+    if table.is_stopped(ask.run()) || late {
         return Err(Cause::State);
     }
     let confirmation = confirm_step(None, ConfirmMove::Issue(ask))?;

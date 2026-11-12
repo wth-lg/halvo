@@ -1,3 +1,4 @@
+use crate::guard::Table;
 use crate::types::{
     Answered, BindAsk, Category, CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Doing, Facts,
     HandbackAsk, HandbackReason, HandbackResult, ItemId, ItemKind, Limits, Live, OwnItemKind,
@@ -250,4 +251,26 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
         return Raise::End(RunEnd::Budget);
     }
     Raise::Run(kind)
+}
+
+/// What a confirm request does to the agent of `facts` (I3.1, I4.7): `raise_step`, with the rule
+/// of ruling IG-32 among the requests outside the closed list, before the budget: a request
+/// that names an effect that has begun, or whose newest released decision is `reject_once`, in
+/// `table`, the guard's table of this life (`Table::asks_too_late`), shows no card and ends the
+/// run with `kind`.
+pub fn raise_confirm<C>(
+    facts: &Facts<C>,
+    table: &Table,
+    ask: &ConfirmAsk,
+    limits: &Limits,
+) -> Raise {
+    let raise = raise_step(facts, Source::Confirm(ask), limits);
+    let late = ask
+        .effects()
+        .iter()
+        .any(|e| table.asks_too_late(ask.run(), &e.effect));
+    match raise {
+        Raise::Run(_) | Raise::End(RunEnd::Budget) if late => Raise::End(RunEnd::Kind),
+        other => other,
+    }
 }

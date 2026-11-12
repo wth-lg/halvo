@@ -146,14 +146,16 @@ struct Row {
 /// The guard's table (I4.7): the `item_answered` rows whose acknowledgement came before the
 /// release of their decision, each with the number of its decision's release, counted from 1 in
 /// this life (the rows stand in the order of acknowledgement, and an item id holds no order), and
-/// marked when a record used it, and the runs that were stopped. A row counts for a record only
-/// from the release on; the rows of an item that lapsed leave the table, whatever the cause. A new
-/// life of the app starts with an empty table.
+/// marked when a record used it, the runs that were stopped, and for each run and effect id the
+/// fact that the effect has begun (ruling IG-32). A row counts for a record only from the release
+/// on; the rows of an item that lapsed leave the table, whatever the cause. A new life of the app
+/// starts with an empty table.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Table {
     rows: Vec<Row>,
     stopped: Vec<RunId>,
     releases: u32,
+    begun: Vec<(RunId, EffectId)>,
 }
 
 impl Table {
@@ -217,19 +219,56 @@ impl Table {
         self.stopped.contains(run)
     }
 
-    /// Whether the newest decision that was released for `effect` of `run` in this life is
-    /// `allow_once`: the fact on which a later item of the run that names the effect shows the
-    /// line `confirm.changed` (I4.3, rulings IG-6d, IG-25). The newest is the one with the highest
-    /// number of release; whether a record used its row plays no part. A row whose decision was
-    /// not released gives nothing, the rows of an item that lapsed are no longer in the table, so
-    /// the decision released before them decides, and a new life gives no line.
-    pub fn newest_allows(&self, run: &RunId, effect: &EffectId) -> bool {
+    /// The answer of the newest decision that was released for `effect` of `run` in this life,
+    /// or none: the newest is the one with the highest number of release, and whether a record
+    /// used its row plays no part. A row whose decision was not released gives nothing, the rows
+    /// of an item that lapsed are no longer in the table, so the decision released before them
+    /// decides, and a new life gives none (I4.3, I4.7, rulings IG-25, IG-32).
+    pub fn newest_released(&self, run: &RunId, effect: &EffectId) -> Option<EffectAnswer> {
         self.rows
             .iter()
             .filter(|r| r.run == *run && r.entry.effect == *effect)
             .filter_map(|r| r.release.map(|number| (number, r.entry.answer)))
             .max_by_key(|(number, _)| *number)
-            .is_some_and(|(_, answer)| answer == EffectAnswer::AllowOnce)
+            .map(|(_, answer)| answer)
+    }
+
+    /// Whether the newest decision that was released for `effect` of `run` in this life is
+    /// `allow_once` (`newest_released`): the fact on which a later item of the run that names the
+    /// effect shows the line `confirm.changed` (I4.3, rulings IG-6d, IG-25).
+    pub fn newest_allows(&self, run: &RunId, effect: &EffectId) -> bool {
+        self.newest_released(run, effect) == Some(EffectAnswer::AllowOnce)
+    }
+
+    /// The table after the owner acknowledged the store of `record`: a record `releasing`,
+    /// `committed` or `unknown` sets the fact that its effect has begun, for its run and effect
+    /// id, and any other record changes nothing. The caller calls it at the acknowledgement and
+    /// not where the guard passes the record, because a record whose store failed began nothing
+    /// (I4.7, ruling IG-32).
+    pub fn stored(&self, record: &EffectRecord) -> Table {
+        let mut t = self.clone();
+        let begins = matches!(
+            record.state,
+            EffectState::Releasing | EffectState::Committed | EffectState::Unknown
+        );
+        let key = (record.run.clone(), record.effect.clone());
+        if begins && !t.begun.contains(&key) {
+            t.begun.push(key);
+        }
+        t
+    }
+
+    /// Whether the owner acknowledged a record that began `effect` of `run` in this life.
+    pub fn has_begun(&self, run: &RunId, effect: &EffectId) -> bool {
+        self.begun.iter().any(|(r, e)| r == run && e == effect)
+    }
+
+    /// Whether a confirm request of `run` that names `effect` shows no card and ends the run with
+    /// `kind`: the effect has begun, or its newest released decision is `reject_once` (I3.1,
+    /// I4.7, ruling IG-32).
+    pub fn asks_too_late(&self, run: &RunId, effect: &EffectId) -> bool {
+        self.has_begun(run, effect)
+            || self.newest_released(run, effect) == Some(EffectAnswer::RejectOnce)
     }
 
     /// The approval ids of the rows that the table holds, with whether each counts and whether

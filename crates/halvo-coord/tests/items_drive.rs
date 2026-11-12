@@ -527,6 +527,74 @@ fn an_answer_with_no_clock_leaves_the_item_armed_and_calls_no_port() {
 /// A stopped run gets no further item and no decision that allows (I4.2, L6): an answer for
 /// an item of a run that the table holds as stopped, and a request of a run whose item lapsed
 /// with wait_limit or cancelled, are refused with state and reach no port.
+/// `issue` raises no item for a request that names an effect that has begun or whose newest
+/// released decision is `reject_once`: it is refused with `state`, nothing is stored and nothing
+/// sent, so that no card shows it even where the caller did not ask `raise_confirm` first (I4.7,
+/// ruling IG-32). The record whose acknowledgement sets the fact is one that the guard passed.
+#[test]
+fn no_item_is_issued_for_an_effect_that_has_begun_or_whose_newest_decision_rejects_it() {
+    let p = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let mut held = armed(&p, &|n| p.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+    answer(
+        &p,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Allow,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .unwrap();
+    let entry = released(&p)[0].clone();
+    let rec = record_of(&entry, EffectState::Releasing, PAGE[0]);
+    t = guard_step(&t, &rec, Gives::Confirm).unwrap();
+    let again = ask_of(1, 1, vec![asked(1, Class::Send, 7, true)]);
+    let before = p.calls.borrow().len();
+    assert!(
+        issue(&p, &mut l, &t, &LIMITS, &again).is_ok(),
+        "passed, not stored"
+    );
+    t = t.stored(&rec);
+    let before_refused = p.calls.borrow().len();
+    assert_eq!(
+        issue(&p, &mut l, &t, &LIMITS, &again).err(),
+        Some(Cause::State)
+    );
+    assert_eq!(
+        p.calls.borrow().len(),
+        before_refused,
+        "nothing stored or sent"
+    );
+    assert!(before_refused > before);
+
+    let q = ports();
+    let (mut l, mut t) = (ledger(), Table::new());
+    let mut held = armed(&q, &|n| q.set_clock(n, TODAY), &mut l, &mut t, &ask(PAGE));
+    answer(
+        &q,
+        &mut l,
+        &mut t,
+        &mut held,
+        ConfirmAnswer::Reject,
+        Presenter::Page,
+        &LIMITS,
+    )
+    .unwrap();
+    let before = q.calls.borrow().len();
+    assert_eq!(
+        issue(&q, &mut l, &t, &LIMITS, &again).err(),
+        Some(Cause::State),
+        "the newest released decision of effect 1 is reject_once"
+    );
+    assert_eq!(q.calls.borrow().len(), before);
+    let other = ask_of(1, 1, vec![asked(9, Class::Send, 9, true)]);
+    assert!(
+        issue(&q, &mut l, &t, &LIMITS, &other).is_ok(),
+        "another effect"
+    );
+}
+
 #[test]
 fn a_stopped_run_gets_no_item_and_no_allow_decision() {
     let p = ports();
@@ -1056,8 +1124,9 @@ fn answered<P: Owner + Runs + Clock + Rng>(
 /// `allow_once`, whether or not a record used that decision's row. Effect 1 is allowed with no
 /// record; effect 2 is the flow of ruling XA-4: allowed, its record `approved` marks the row used,
 /// a `begin` refused with `digest` and a `rebind` (no record of either crosses the link), then the
-/// second request; effect 3 is rejected; effect 4 has only an item that lapsed; effect 5 is
-/// allowed, then an item for it lapsed, then the third request comes.
+/// second request; effect 3 is rejected, so that a later request for it gets no item at all
+/// (ruling IG-32); effect 4 has only an item that lapsed; effect 5 is allowed, then an item for it
+/// lapsed, then the third request comes.
 #[test]
 fn refusal_changed_line() {
     let p = ports();
@@ -1098,7 +1167,12 @@ fn refusal_changed_line() {
     );
     p.clear_refusals();
     let later = |run: u32, n: u32| ask_of(run, 1, vec![asked(n, Class::Send, n + 100, true)]);
-    for (n, line) in [(1, true), (2, true), (3, false), (4, false), (5, true)] {
+    assert_eq!(
+        issue(&p, &mut l, &t, &LIMITS, &later(1, 3)).err(),
+        Some(Cause::State),
+        "effect 3, whose newest released decision is reject_once, gets no item (ruling IG-32)"
+    );
+    for (n, line) in [(1, true), (2, true), (4, false), (5, true)] {
         let held = issue(&p, &mut l, &t, &LIMITS, &later(1, n)).unwrap();
         let item = page(&held);
         let want = if line { vec![0] } else { vec![] };

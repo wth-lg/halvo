@@ -1,6 +1,8 @@
 #[path = "items_support.rs"]
 mod support;
 
+use halvo_coord::guard::{EffectRecord, EffectState, Table};
+use halvo_coord::items::raise_confirm;
 use halvo_coord::items::{
     choices, handback_kind, handback_result, params, raise_step, Raise, Source, CONFIRM_CLASSES,
 };
@@ -11,8 +13,36 @@ use halvo_coord::types::{
     HandbackAsk, HandbackReason, HandbackResult, ItemKind, Limits, Live, Outcome, OwnItemKind,
     Param, PastRun, Raised, RunEnd, RunEvent, RunItem, RunItemKind, What,
 };
+use halvo_coord::types::{Decision, DecisionEntry, EffectAnswer};
 use std::num::NonZeroU32;
 use support::{ask_of, asked, item_id, name, run_id};
+
+/// A record of effect `effect` of run `run` in `state`.
+fn record(run: u32, effect: u32, state: EffectState) -> EffectRecord {
+    EffectRecord {
+        run: run_id(run),
+        agent: support::agent_id(1),
+        effect: support::effect_id(effect),
+        state,
+        class: Class::Payment,
+        digest: support::digest(effect),
+        approval: None,
+    }
+}
+
+/// The table after the release of a decision of item `item` of run `run` with `answer` for
+/// effect `effect`.
+fn released(t: &Table, item: u32, run: u32, effect: u32, answer: EffectAnswer) -> Table {
+    let decision = Decision::new(vec![DecisionEntry {
+        approval: support::approval(item),
+        effect: support::effect_id(effect),
+        digest: support::digest(effect),
+        answer,
+    }])
+    .unwrap();
+    t.record(&item_id(item), &run_id(run), &decision)
+        .release(&item_id(item))
+}
 
 fn agent_in(state: State, category: Category) -> Facts<Config> {
     fixtures::facts(state)
@@ -596,4 +626,149 @@ fn the_parameters_of_each_category() {
             assert!(params(*c).is_empty(), "{c}");
         }
     }
+}
+
+/// A confirm request that names an effect that has begun, by the guard's table of this life,
+/// shows no card and ends the run with `kind`, also where `raise_step` would end it with
+/// `budget`; a request whose effects have not begun, an effect that began in another run, and a
+/// record that did not begin the effect raise the item (I3.1, I4.7, ruling IG-32).
+#[test]
+fn a_confirm_request_for_an_effect_that_has_begun_ends_the_run_with_kind() {
+    let ask = confirm_of(&[Class::Send, Class::Payment]);
+    let f = working();
+    let t = Table::new();
+    assert_eq!(
+        raise_confirm(&f, &t, &ask, &LIMITS),
+        Raise::Run(RunItemKind::Confirm)
+    );
+    for state in [
+        EffectState::Releasing,
+        EffectState::Committed,
+        EffectState::Unknown,
+    ] {
+        let begun = t.stored(&record(1, 2, state));
+        assert_eq!(
+            raise_confirm(&f, &begun, &ask, &LIMITS),
+            Raise::End(RunEnd::Kind),
+            "{state}"
+        );
+        let mut full = working();
+        for n in 1..=LIMITS.items_per_run {
+            push(
+                &mut full,
+                What::ItemRaised {
+                    item: item_id(n),
+                    raised: Raised::Confirm(run_id(1)),
+                },
+            );
+        }
+        assert_eq!(
+            raise_confirm(&full, &begun, &ask, &LIMITS),
+            Raise::End(RunEnd::Kind),
+            "{state}: the rule of a request outside the closed list comes before the budget"
+        );
+        let elsewhere = t.stored(&record(2, 2, state));
+        assert_eq!(
+            raise_confirm(&f, &elsewhere, &ask, &LIMITS),
+            Raise::Run(RunItemKind::Confirm),
+            "{state}: the effect id began in another run"
+        );
+    }
+    for state in [
+        EffectState::Refused,
+        EffectState::Cleared,
+        EffectState::Held,
+        EffectState::Approved,
+        EffectState::Rejected,
+    ] {
+        assert_eq!(
+            raise_confirm(&f, &t.stored(&record(1, 2, state)), &ask, &LIMITS),
+            Raise::Run(RunItemKind::Confirm),
+            "{state} begins nothing"
+        );
+    }
+    assert_eq!(
+        raise_confirm(
+            &waiting(),
+            &t.stored(&record(1, 2, EffectState::Committed)),
+            &ask,
+            &LIMITS
+        ),
+        Raise::End(RunEnd::Kind)
+    );
+    assert_eq!(
+        raise_confirm(
+            &fixtures::facts(State::Ten).remove(0),
+            &t.stored(&record(1, 2, EffectState::Committed)),
+            &ask,
+            &LIMITS
+        ),
+        Raise::Refused(Cause::State),
+        "a run that is not live is refused as raise_step refuses it"
+    );
+}
+
+/// A confirm request that names an effect whose newest released decision in this run and life is
+/// `reject_once` shows no card and ends the run with `kind`; where the newest is `allow_once`,
+/// where the rejection was recorded and not released, where its item lapsed, and where it was
+/// another run's, the request raises the item (I3.1, I4.3, I4.7, ruling IG-32).
+#[test]
+fn a_confirm_request_for_an_effect_whose_newest_released_decision_is_reject_once_ends_the_run_with_kind(
+) {
+    let ask = confirm_of(&[Class::Send]);
+    let f = working();
+    let t = Table::new();
+    let rejected = released(&t, 1, 1, 1, EffectAnswer::RejectOnce);
+    assert_eq!(
+        raise_confirm(&f, &rejected, &ask, &LIMITS),
+        Raise::End(RunEnd::Kind)
+    );
+    let allowed_then_rejected = released(
+        &released(&t, 1, 1, 1, EffectAnswer::AllowOnce),
+        2,
+        1,
+        1,
+        EffectAnswer::RejectOnce,
+    );
+    assert_eq!(
+        raise_confirm(&f, &allowed_then_rejected, &ask, &LIMITS),
+        Raise::End(RunEnd::Kind)
+    );
+    let rejected_then_allowed = released(&rejected, 2, 1, 1, EffectAnswer::AllowOnce);
+    assert_eq!(
+        raise_confirm(&f, &rejected_then_allowed, &ask, &LIMITS),
+        Raise::Run(RunItemKind::Confirm),
+        "the newest released decision is allow_once"
+    );
+    let recorded = t.record(
+        &item_id(1),
+        &run_id(1),
+        &Decision::new(vec![DecisionEntry {
+            approval: support::approval(1),
+            effect: support::effect_id(1),
+            digest: support::digest(1),
+            answer: EffectAnswer::RejectOnce,
+        }])
+        .unwrap(),
+    );
+    assert_eq!(
+        raise_confirm(&f, &recorded, &ask, &LIMITS),
+        Raise::Run(RunItemKind::Confirm),
+        "a decision that was not released"
+    );
+    assert_eq!(
+        raise_confirm(&f, &rejected.lapse(&item_id(1)), &ask, &LIMITS),
+        Raise::Run(RunItemKind::Confirm),
+        "the rows of an item that lapsed are not in the table"
+    );
+    assert_eq!(
+        raise_confirm(
+            &f,
+            &released(&t, 1, 2, 1, EffectAnswer::RejectOnce),
+            &ask,
+            &LIMITS
+        ),
+        Raise::Run(RunItemKind::Confirm),
+        "another run's rejection"
+    );
 }

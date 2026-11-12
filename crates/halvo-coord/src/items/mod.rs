@@ -20,6 +20,7 @@ pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confir
 pub use key::Key;
 pub use presenter::{presenter, request_presenter};
 pub use raise::{
-    choices, handback_kind, handback_result, params, raise_step, Raise, Source, CONFIRM_CLASSES,
+    choices, handback_kind, handback_result, params, raise_confirm, raise_step, Raise, Source,
+    CONFIRM_CLASSES,
 };
 pub use setup::{setup_step, Setup, SetupBody, SetupInput, SetupMove, SetupState};
