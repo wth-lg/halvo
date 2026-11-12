@@ -44,7 +44,7 @@
   var statuses = {};
   var card = null;
   var asking = 0;
-  var pending = null;
+  var busy = {};
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -59,6 +59,24 @@
 
   function call(name, args) {
     return Halvo.ipc.call(name, args);
+  }
+
+  function send(agent, name, args) {
+    var mark = {};
+    busy[agent] = mark;
+    var free = function () {
+      if (busy[agent] === mark) delete busy[agent];
+    };
+    return call(name, args).then(
+      function (reply) {
+        free();
+        return reply;
+      },
+      function () {
+        free();
+        return null;
+      }
+    );
   }
 
   function button(act, param, text) {
@@ -79,11 +97,12 @@
 
   function control(row, c) {
     var b = button(c.control, row.agent, c.text);
-    b.addEventListener('click', function () {
+    b.addEventListener('click', function (event) {
+      if (event.detail > 1 || busy[row.agent]) return;
       if (c.control === 'delete') {
-        call('interface_decision', { decision: 'delete', workflow: row.workflow }).catch(function () {});
+        send(row.agent, 'interface_decision', { decision: 'delete', workflow: row.workflow });
       } else if (CONTROL[c.control]) {
-        call('agents_control', { agent: row.agent, action: c.control }).catch(function () {});
+        send(row.agent, 'agents_control', { agent: row.agent, action: c.control });
       }
     });
     return b;
@@ -144,30 +163,23 @@
     var b = button(open ? 'close_card' : 'open_card', row.agent, row.name);
     b.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) b.setAttribute('aria-controls', 'r4a-card-' + row.agent);
-    b.addEventListener('click', function () {
+    b.addEventListener('click', function (event) {
+      if (event.detail > 1) return;
       if (card !== null && card.agent === row.agent) {
         asking += 1;
-        pending = null;
         card = null;
         render();
         return;
       }
-      if (pending === row.agent) return;
+      if (busy[row.agent]) return;
       asking += 1;
       var mine = asking;
       var asked = turn;
-      pending = row.agent;
-      call('agents_card', { agent: row.agent })
-        .then(function (reply) {
-          if (mine !== asking) return;
-          pending = null;
-          if (asked !== turn || !reply || reply.agent !== row.agent || !Array.isArray(reply.runs)) return;
-          card = reply;
-          render();
-        })
-        .catch(function () {
-          if (mine === asking) pending = null;
-        });
+      send(row.agent, 'agents_card', { agent: row.agent }).then(function (reply) {
+        if (mine !== asking || asked !== turn || !reply || reply.agent !== row.agent || !Array.isArray(reply.runs)) return;
+        card = reply;
+        render();
+      });
     });
     return b;
   }
@@ -240,6 +252,7 @@
     });
     seq = reply.seq;
     snapshot = reply;
+    busy = {};
     says.forEach(function (s) {
       status.appendChild(el('p', null, s));
     });
@@ -273,6 +286,9 @@
       root.appendChild(note);
       groups = el('div', null, null);
       root.appendChild(groups);
+      root.addEventListener('keydown', function (event) {
+        if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON') event.preventDefault();
+      });
     },
     show: function () {
       if (shown) return;
