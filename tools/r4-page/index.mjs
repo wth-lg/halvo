@@ -357,7 +357,7 @@ async function wait(h) {
   for (;;) {
     const left = end - Date.now();
     if (left <= 0) break;
-    if (h.inflight > 0) {
+    if (h.inflight > 0 || h.writing > 0) {
       await sleep(10);
       continue;
     }
@@ -365,7 +365,7 @@ async function wait(h) {
     const moving = await h.page.evaluate(FINISH);
     const quiet = await h.page.evaluate(QUIET, [QUIET_MS, Math.max(1, end - Date.now())]);
     if (quiet === 'limit') break;
-    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
+    if (quiet === 'quiet' && moving === 0 && h.inflight === 0 && h.writing === 0 && h.started === calls && (await h.page.evaluate(FINISH)) === 0) return;
   }
   h.flags.add('unsettled');
 }
@@ -390,6 +390,11 @@ function note(h, line) {
 function why(err) {
   const c = err && (err.code || (err.cause && err.cause.code));
   return String(c || (err && err.name) || 'unknown').replace(/\s+/g, '_');
+}
+
+/** Waits until the page has settled as a check reads it, the stub's own writes of calls.jsonl among what it waits for. */
+export async function settled(h) {
+  await settle(h);
 }
 
 /** The stub's lines for one page: each call that it rejected, refused or could not answer, and each fixture that it could not read. */
@@ -480,7 +485,13 @@ function fromTranscript(h, name, args) {
 
 async function record(h, name, a) {
   h.calls++;
-  if (h.out) await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  if (!h.out) return;
+  h.writing++;
+  try {
+    await appendFile(join(h.out, 'calls.jsonl'), JSON.stringify({ n: h.calls, call: name, args: a }) + '\n');
+  } finally {
+    h.writing--;
+  }
 }
 
 function unheld(h, fn) {
@@ -584,6 +595,7 @@ async function openWith(options, context, transform, inner) {
       errors: 0,
       mismatch: [],
       trail: [],
+      writing: 0,
       closed: false,
       modes: null,
       word: false,

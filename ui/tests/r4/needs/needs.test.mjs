@@ -18,6 +18,7 @@ import {
   outDir,
   pageConfirms,
   read,
+  settled,
   trail,
   serve,
   stateFile,
@@ -273,6 +274,7 @@ async function hidden(origin, dir) {
 
 async function frames(h) {
   await h.page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  await settled(h);
 }
 
 async function escape(origin, dir, states) {
