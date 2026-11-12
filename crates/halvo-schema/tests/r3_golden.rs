@@ -12,10 +12,10 @@ use halvo_schema::executable::body::{
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
 use halvo_schema::executable::frame::{
-    Approval, Cancel, Confirm, ConfirmDecision, ConfirmEffect, ConfirmReply, ConfirmRequest, Done,
-    FromRunner, Handback, HandbackReply, HandbackRequest, HandbackResult, Hello, Progress,
-    ReplyError, RunError, Secret, SecretReply, Store, StoreReply, StoreReplyFrame, StoreRequest,
-    ToRunner,
+    Approval, Bind, BindReply, Browser, BrowserReply, Cancel, Confirm, ConfirmDecision,
+    ConfirmEffect, ConfirmReply, ConfirmRequest, Done, FromRunner, Handback, HandbackReply,
+    HandbackRequest, HandbackResult, Hello, Progress, ReplyError, RunError, Secret, SecretReply,
+    Store, StoreReply, StoreReplyFrame, StoreRequest, ToRunner,
 };
 use halvo_schema::executable::names::*;
 use halvo_schema::executable::record::{AgentEffect, AgentLog, AgentRun, Slot};
@@ -23,8 +23,8 @@ use halvo_schema::executable::step::{
     ApiTarget, Arg, Cond, ExecutableStep, FileTarget, Locator, Playbook, Target, WebTarget,
 };
 use halvo_schema::executable::text::{
-    ApprovalId, Digest, EffectId, Endpoint, Name, OwnText, OwnValue, RunId, SecretText,
-    SessionData, WebOrigin, V1,
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, OwnText, OwnValue, RunId,
+    SecretText, SessionData, WebOrigin, V1,
 };
 use halvo_schema::executable::{self, ERROR_NAMES, NAMES};
 use halvo_schema::record::Instant;
@@ -844,6 +844,19 @@ fn from_runner() -> Vec<FromRunner> {
         FromRunner::Done(Done {
             outcome: Outcome::Completed,
         }),
+        FromRunner::Bind(Bind {
+            origin: origin(PAY),
+        }),
+        FromRunner::Browser(Browser {
+            pid: n(4242),
+            created: CreationTime::parse("1794339000123456").unwrap(),
+            group: Some(n(4242)),
+        }),
+        FromRunner::Browser(Browser {
+            pid: n(4242),
+            created: CreationTime::parse("1794339000123456").unwrap(),
+            group: None,
+        }),
     ]
 }
 
@@ -889,6 +902,9 @@ fn to_runner() -> Vec<ToRunner> {
             value: Some(SecretText::new("tok_fixture")),
         }),
         ToRunner::Cancel(Cancel {}),
+        ToRunner::BindReply(BindReply { bound: YesNo::Yes }),
+        ToRunner::BindReply(BindReply { bound: YesNo::No }),
+        ToRunner::BrowserReply(BrowserReply {}),
     ]
 }
 

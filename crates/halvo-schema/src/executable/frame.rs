@@ -11,8 +11,10 @@ use crate::request::{self, Decoded, ErrorName, RunnerRequest};
 use super::body::{RunnerCall, RunnerReply};
 use super::bound::Bound;
 use super::json::{self, each_once, from_json, list, object_type, opt, FromJson};
-use super::names::{ActionClass, Answer, HandbackOutcome, HandbackReason, Outcome};
-use super::text::{ApprovalId, Digest, EffectId, Endpoint, Name, RunId, SecretText, WebOrigin, V1};
+use super::names::{ActionClass, Answer, HandbackOutcome, HandbackReason, Outcome, YesNo};
+use super::text::{
+    ApprovalId, CreationTime, Digest, EffectId, Endpoint, Name, RunId, SecretText, WebOrigin, V1,
+};
 use super::{Refusal, ERROR_NAMES};
 
 /// The most bytes of the JSON of one frame.
@@ -429,6 +431,46 @@ object_type! {
     rules(_f) { Ok(()) }
 }
 
+object_type! {
+    /// `{"t":"bind","origin":<origin>}`: the origin of the address that the runner read once after the result `done`
+    /// of a handback of the reasons `sign_in`, `second_factor` or `captcha`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Bind [t = "bind"] {
+        pub origin: WebOrigin = "origin" => from_json,
+    }
+    rules(_f) { Ok(()) }
+}
+
+object_type! {
+    /// `{"t":"browser","pid":<count>,"created":"<creation time>","group":<count>|null}`: the process of the browser
+    /// that the runner started, its creation time as the process table records it, and its process group on macOS
+    /// (null on Windows), sent once the browser runs and before it loads any page.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Browser [t = "browser"] {
+        pub pid: NonZeroU32 = "pid" => from_json,
+        pub created: CreationTime = "created" => from_json,
+        pub group: Option<NonZeroU32> = "group" => opt(from_json),
+    }
+    rules(_f) { Ok(()) }
+}
+
+object_type! {
+    /// `{"t":"bind_reply","bound":"yes"|"no"}`: `yes` only once the origin is bound, `no` only after the person's
+    /// `decline`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct BindReply [t = "bind_reply"] {
+        pub bound: YesNo = "bound" => from_json,
+    }
+    rules(_f) { Ok(()) }
+}
+
+object_type! {
+    /// `{"t":"browser_reply"}`, written once the mark of the run holds the browser's line.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct BrowserReply [t = "browser_reply"] {}
+    rules(_f) { Ok(()) }
+}
+
 macro_rules! frame_enum {
     (
         $(#[$meta:meta])*
@@ -481,6 +523,8 @@ frame_enum! {
         Secret(Secret) = "secret",
         Progress(Progress) = "progress",
         Done(Done) = "done",
+        Bind(Bind) = "bind",
+        Browser(Browser) = "browser",
     }
 }
 
@@ -492,5 +536,7 @@ frame_enum! {
         HandbackReply(HandbackReply) = "handback_reply",
         SecretReply(SecretReply) = "secret_reply",
         Cancel(Cancel) = "cancel",
+        BindReply(BindReply) = "bind_reply",
+        BrowserReply(BrowserReply) = "browser_reply",
     }
 }

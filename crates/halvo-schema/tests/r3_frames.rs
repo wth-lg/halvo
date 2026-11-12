@@ -3,6 +3,7 @@ use halvo_schema::executable::frame::{
     ConfirmDecision, ConfirmRequest, FromRunner, HandbackRequest, HandbackResult, ReplyError,
     RunError, StoreRequest, ToRunner, FRAME_JSON_MAX,
 };
+use halvo_schema::executable::names::YesNo;
 use halvo_schema::executable::{Refusal, RefusalCause, ERROR_NAMES};
 use halvo_schema::request::{
     CoordinatorRole, CoordinatorWrite, ErrorName, RunnerRequest, RunnerRole,
@@ -89,8 +90,13 @@ fn from_runner() -> Vec<String> {
         r#"{"t":"progress","step":1,"of":9}"#.to_owned(),
         r#"{"t":"progress","step":9,"of":9}"#.to_owned(),
         r#"{"t":"done","outcome":"completed"}"#.to_owned(),
+        r#"{"t":"bind","origin":"https://pay.test:443"}"#.to_owned(),
+        BROWSER.to_owned(),
+        r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null}"#.to_owned(),
     ]
 }
+
+const BROWSER: &str = r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":4242}"#;
 
 fn to_runner() -> Vec<String> {
     vec![
@@ -106,6 +112,9 @@ fn to_runner() -> Vec<String> {
         r#"{"t":"secret_reply","value":"tok_fixture"}"#.to_owned(),
         r#"{"t":"secret_reply","value":null}"#.to_owned(),
         r#"{"t":"cancel"}"#.to_owned(),
+        r#"{"t":"bind_reply","bound":"yes"}"#.to_owned(),
+        r#"{"t":"bind_reply","bound":"no"}"#.to_owned(),
+        r#"{"t":"browser_reply"}"#.to_owned(),
     ]
 }
 
@@ -864,5 +873,363 @@ fn debug_of_a_frame_prints_no_secret_and_no_value_of_the_user() {
     let shown = format!("{secret:?} {confirm_frame:?} {store:?}");
     for value in ["4711", "Northwind", "card", "c2VjcmV0"] {
         assert!(!shown.contains(value), "{value}: {shown}");
+    }
+}
+
+#[test]
+fn the_frames_bind_and_browser_and_their_replies_hold_the_keys_of_the_contract() {
+    let FromRunner::Bind(bind) =
+        FromRunner::parse(br#"{"t":"bind","origin":"http://pay.test:18090"}"#).unwrap()
+    else {
+        panic!("bind")
+    };
+    assert_eq!(bind.origin.as_str(), "http://pay.test:18090");
+    let FromRunner::Browser(browser) = FromRunner::parse(BROWSER.as_bytes()).unwrap() else {
+        panic!("browser")
+    };
+    assert_eq!(
+        (
+            browser.pid.get(),
+            browser.created.micros().get(),
+            browser.created.to_string(),
+            browser.group.map(|g| g.get())
+        ),
+        (
+            4242,
+            1_794_339_000_123_456,
+            "1794339000123456".to_owned(),
+            Some(4242)
+        )
+    );
+    let windows = r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null}"#;
+    let FromRunner::Browser(windows) = FromRunner::parse(windows.as_bytes()).unwrap() else {
+        panic!("browser")
+    };
+    assert_eq!(windows.group, None);
+    for (text, yes) in [
+        (r#"{"t":"bind_reply","bound":"yes"}"#, YesNo::Yes),
+        (r#"{"t":"bind_reply","bound":"no"}"#, YesNo::No),
+    ] {
+        let ToRunner::BindReply(reply) = ToRunner::parse(text.as_bytes()).unwrap() else {
+            panic!("bind_reply")
+        };
+        assert_eq!(reply.bound, yes);
+    }
+    assert!(matches!(
+        ToRunner::parse(br#"{"t":"browser_reply"}"#),
+        Ok(ToRunner::BrowserReply(_))
+    ));
+    let largest =
+        r#"{"t":"browser","pid":4294967295,"created":"18446744073709551615","group":4294967295}"#;
+    assert_eq!(
+        FromRunner::parse(largest.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        largest
+    );
+
+    let from: Vec<(&str, &str, &str, &str)> = vec![
+        (
+            r#"["bind","http://pay.test:18090"]"#,
+            "FromRunner",
+            "not_an_object",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090","origin":"http://pay.test:18090"}"#,
+            "FromRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":null}"#,
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (r#"{"t":"bind"}"#, "Bind", "missing_key", "origin"),
+        (
+            r#"{"t":"bind","origin":"https://pay.test"}"#,
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090/"}"#,
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://PAY.test:18090"}"#,
+            "WebOrigin",
+            "origin_form",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":["http://pay.test:18090"]}"#,
+            "WebOrigin",
+            "not_a_string",
+            "origin",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090","way":"sign_in"}"#,
+            "Bind",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090","bound":"yes"}"#,
+            "Bind",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origins":["http://pay.test:18090"]}"#,
+            "Bind",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"[4242,"1794339000123456",4242]"#,
+            "FromRunner",
+            "not_an_object",
+            "-",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"pid":4243,"created":"1794339000123456","group":null}"#,
+            "FromRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser","pid":"4242","created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":0,"created":"1794339000123456","group":null}"#,
+            "number",
+            "zero",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":-1,"created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4242.0,"created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4294967296,"created":"1794339000123456","group":null}"#,
+            "number",
+            "range",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":null,"created":"1794339000123456","group":null}"#,
+            "number",
+            "not_a_count",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":1794339000123456,"group":null}"#,
+            "CreationTime",
+            "not_a_string",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"0","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"01794339000123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"-1","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000 123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"18446744073709551616","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"2026-11-12T05:00:00Z","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":null,"group":null}"#,
+            "CreationTime",
+            "not_a_string",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":0}"#,
+            "number",
+            "zero",
+            "group",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":"job"}"#,
+            "number",
+            "not_a_count",
+            "group",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456"}"#,
+            "Browser",
+            "missing_key",
+            "group",
+        ),
+        (
+            r#"{"t":"browser","created":"1794339000123456","group":null}"#,
+            "Browser",
+            "missing_key",
+            "pid",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null,"run":null}"#,
+            "Browser",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":"1794339000123456","group":null,"origin":"http://pay.test:18090"}"#,
+            "Browser",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"yes"}"#,
+            "FromRunner",
+            "unknown_frame",
+            "t",
+        ),
+        (
+            r#"{"t":"browser_reply"}"#,
+            "FromRunner",
+            "unknown_frame",
+            "t",
+        ),
+    ];
+    for (text, type_name, rule, key) in from {
+        expect(FromRunner::parse(text.as_bytes()), type_name, rule, key);
+    }
+
+    let to: Vec<(&str, &str, &str, &str)> = vec![
+        (r#"["bind_reply","yes"]"#, "ToRunner", "not_an_object", "-"),
+        (
+            r#"{"t":"bind_reply","bound":"yes","bound":"no"}"#,
+            "ToRunner",
+            "repeated_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":null}"#,
+            "YesNo",
+            "not_a_string",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":true}"#,
+            "YesNo",
+            "not_a_string",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"Yes"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"true"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"allow"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"declined"}"#,
+            "YesNo",
+            "unknown_name",
+            "bound",
+        ),
+        (r#"{"t":"bind_reply"}"#, "BindReply", "missing_key", "bound"),
+        (
+            r#"{"t":"bind_reply","bound":"yes","origin":"http://pay.test:18090"}"#,
+            "BindReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind_reply","bound":"yes","rev":2}"#,
+            "BindReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser_reply","pid":4242}"#,
+            "BrowserReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser_reply","ok":"yes"}"#,
+            "BrowserReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"browser_reply","group":null}"#,
+            "BrowserReply",
+            "unknown_key",
+            "-",
+        ),
+        (
+            r#"{"t":"bind","origin":"http://pay.test:18090"}"#,
+            "ToRunner",
+            "unknown_frame",
+            "t",
+        ),
+        (BROWSER, "ToRunner", "unknown_frame", "t"),
+    ];
+    for (text, type_name, rule, key) in to {
+        expect(ToRunner::parse(text.as_bytes()), type_name, rule, key);
     }
 }

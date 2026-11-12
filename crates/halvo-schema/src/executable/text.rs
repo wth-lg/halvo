@@ -1,4 +1,5 @@
 use std::fmt;
+use std::num::NonZeroU64;
 
 use serde::{Serialize, Serializer};
 use serde_json::value::RawValue;
@@ -376,6 +377,53 @@ impl Serialize for Endpoint {
 impl FromJson for Endpoint {
     fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
         Endpoint::parse(&json::string("Endpoint", raw)?)
+    }
+}
+
+/// The creation time of a process as the process table records it on macOS and on Windows, in microseconds since
+/// the Unix epoch, written as a string of 1 to 20 decimal digits with no leading zero: 1 to 18,446,744,073,709,551,615.
+/// 0, which the process table gives a process whose creation time it could not read, is refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CreationTime(NonZeroU64);
+
+impl CreationTime {
+    /// Returns the creation time when `s` has the form, else the refusal with the rule `creation_time`.
+    pub fn parse(s: &str) -> Result<CreationTime, Refusal> {
+        let fail = || Refusal::malformed("CreationTime", "creation_time");
+        if s.starts_with('0') || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(fail());
+        }
+        s.parse::<NonZeroU64>()
+            .map(CreationTime)
+            .map_err(|_| fail())
+    }
+
+    /// The creation time of the microseconds that the process table records.
+    pub fn from_micros(micros: NonZeroU64) -> CreationTime {
+        CreationTime(micros)
+    }
+
+    /// The microseconds.
+    pub fn micros(self) -> NonZeroU64 {
+        self.0
+    }
+}
+
+impl fmt::Display for CreationTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Serialize for CreationTime {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&self.0)
+    }
+}
+
+impl FromJson for CreationTime {
+    fn from_json(raw: &RawValue) -> Result<Self, Refusal> {
+        CreationTime::parse(&json::string("CreationTime", raw)?)
     }
 }
 

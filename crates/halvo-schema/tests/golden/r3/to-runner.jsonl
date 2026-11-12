@@ -5,3 +5,6 @@
 {"t":"handback_reply","result":{"v":1,"outcome":"done","secret":"fixture_token"}}
 {"t":"secret_reply","value":"tok_fixture"}
 {"t":"cancel"}
+{"t":"bind_reply","bound":"yes"}
+{"t":"bind_reply","bound":"no"}
+{"t":"browser_reply"}
