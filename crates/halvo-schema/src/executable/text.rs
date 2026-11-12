@@ -450,8 +450,7 @@ impl FromJson for CreationTime {
 pub struct SecretText(String);
 
 impl SecretText {
-    /// The value `s`, or the refusal with the rule `empty_secret` when it is empty: a store that returns an empty
-    /// secret is answered as `unreadable` with `fault`, never as `stored`.
+    /// The value `s`, or the refusal with the rule `empty_secret` when it is empty.
     pub fn parse(s: &str) -> Result<SecretText, Refusal> {
         if s.is_empty() {
             return Err(Refusal::malformed("SecretText", "empty_secret"));
