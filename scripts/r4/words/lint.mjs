@@ -25,6 +25,7 @@ const STATES = [
   'working',
   'queue',
   'no_service',
+  'needs_sign_in_bind',
 ];
 const FIXTURES = 'ui/tests/fixtures/coord';
 const WORDS = `${FIXTURES}/words.json`;
@@ -604,7 +605,7 @@ function selfTest(dir, repo) {
   const base = fixture('base');
   expect(base, 'PASS', {
     lines: [
-      `words sentences=${5 + 18 * 19} never_read=0 long=0 clash=0`,
+      `words sentences=${5 + STATES.length * 19} never_read=0 long=0 clash=0`,
       'words other_views files=0 findings=0',
     ],
   });
@@ -736,7 +737,7 @@ function selfTest(dir, repo) {
     'FAIL:never_read',
     {
       findings: ['finding file=ui/app/views/agents.js line=2 rule=never_read class=model key=-'],
-      lines: [`words sentences=${5 + 18 * 19 + 2} never_read=1 long=0 clash=0`],
+      lines: [`words sentences=${5 + STATES.length * 19 + 2} never_read=1 long=0 clash=0`],
       secret: [NEVER],
     },
   );
@@ -777,7 +778,7 @@ function selfTest(dir, repo) {
     'FAIL:view',
     {
       lines: [
-        `words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`,
+        `words sentences=${5 + STATES.length * 19 + 1} never_read=0 long=0 clash=0`,
         'words other_views files=0 findings=0',
         'words view file=ui/app/views/needs.js line=3',
       ],
@@ -790,7 +791,7 @@ function selfTest(dir, repo) {
       files: (f) => (f['ui/app/views/needs.js'] = view("  id: 'needs',\n  // \"Ask the model now\"\n")),
     }),
     'PASS',
-    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 19 + 1} never_read=0 long=0 clash=0`] },
   );
   expect(
     fixture('a-view-string-with-a-no-break-space-ends-with-view', {
@@ -1002,12 +1003,12 @@ function selfTest(dir, repo) {
       },
     }),
     'PASS',
-    { lines: [`words sentences=${5 + 18 * 19 + 1} never_read=0 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 19 + 1} never_read=0 long=0 clash=0`] },
   );
   expect(
     fixture('two-classes-in-one-sentence-count-twice', { words: say('Claude saved it to /Users/ann/x.') }),
     'FAIL:never_read',
-    { lines: [`words sentences=${5 + 18 * 19} never_read=2 long=0 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 19} never_read=2 long=0 clash=0`] },
   );
   expect(fixture('ui-app-that-is-a-file', { files: (f) => (f['ui/app'] = 'x\n') }), 'FAIL:input');
   if (process.platform !== 'win32') {
@@ -1047,12 +1048,12 @@ function selfTest(dir, repo) {
   expect(
     fixture('never-read-comes-before-long', { words: (w) => (w['line.time'] = `${NEVER} ${longText}`) }),
     'FAIL:never_read',
-    { lines: [`words sentences=${5 + 18 * 19} never_read=1 long=1 clash=0`] },
+    { lines: [`words sentences=${5 + STATES.length * 19} never_read=1 long=1 clash=0`] },
   );
   expect(
     fixture('long-comes-before-clash', { words: (w) => (w['line.time'] = `It is paused ${longText}`) }),
     'FAIL:long',
-    { lines: [`words sentences=${5 + 18 * 19} never_read=0 long=1 clash=1`] },
+    { lines: [`words sentences=${5 + STATES.length * 19} never_read=0 long=1 clash=1`] },
   );
   for (const [name, space] of [
     ['a-tab', '\t'],

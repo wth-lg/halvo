@@ -325,9 +325,17 @@ fn an_answered_row_pairs_each_kind_with_its_own_choices_of_i3_1() {
             origin: Origin::parse("https://mail.site2.example:443").unwrap(),
         })
     };
+    let bound = |answer| {
+        Answered::SignIn(SignInAnswer::Second(BindAnswer {
+            answer,
+            origin: Origin::parse("https://pay.site1.example:8443").unwrap(),
+        }))
+    };
     let rows = [
-        Answered::SignIn(DoneAnswer::Decline),
-        Answered::SignIn(DoneAnswer::Done),
+        Answered::SignIn(SignInAnswer::First(DoneAnswer::Decline)),
+        Answered::SignIn(SignInAnswer::First(DoneAnswer::Done)),
+        bound(BindResult::Decline),
+        bound(BindResult::Allow),
         linked(DoneAnswer::Decline),
         linked(DoneAnswer::Done),
         Answered::Stuck(DoneAnswer::Decline),
@@ -350,6 +358,8 @@ fn an_answered_row_pairs_each_kind_with_its_own_choices_of_i3_1() {
         [
             "sign_in.decline",
             "sign_in.done",
+            "sign_in.decline",
+            "sign_in.allow",
             "link_account.decline",
             "link_account.done",
             "stuck.decline",

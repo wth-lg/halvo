@@ -1,8 +1,8 @@
 use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
 use crate::types::{
-    hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
-    DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome, PastRun,
-    Reply, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId, WorkflowState,
+    hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
+    Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
+    PastRun, Reply, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -49,6 +49,8 @@ pub enum Method {
     AnswerConfirm,
     /// `Runs::answer_handback`.
     AnswerHandback,
+    /// `Runs::answer_bind`.
+    AnswerBind,
     /// `Runs::cancel`.
     Cancel,
     /// `Runs::kill`.
@@ -83,6 +85,8 @@ pub enum Call {
     AnswerConfirm(RunId, Vec<Answer>, Decision),
     /// `Runs::answer_handback` with its run and result.
     AnswerHandback(RunId, HandbackResult),
+    /// `Runs::answer_bind` with its run and answer.
+    AnswerBind(RunId, BindResult),
     /// `Runs::cancel` with its run.
     Cancel(RunId),
     /// `Runs::kill` with its run.
@@ -109,6 +113,7 @@ impl Call {
             Call::Start(_) => "start",
             Call::AnswerConfirm(..) => "answer_confirm",
             Call::AnswerHandback(..) => "answer_handback",
+            Call::AnswerBind(..) => "answer_bind",
             Call::Cancel(_) => "cancel",
             Call::Kill(_) => "kill",
             Call::Reap => "reap",
@@ -151,8 +156,9 @@ pub struct Tried {
 ///
 /// `Runs` answers as the supervisor library does (I5.10, A-A6.6): `started` for a `start` of a
 /// run id that this life of the library already started, and no second runner is made;
-/// `unknown_run` for `cancel`, `kill` and `answer_handback` of a run id that this life never
-/// started; `ended` for `cancel` and `answer_handback` of a run whose runner has ended, by
+/// `unknown_run` for `cancel`, `kill`, `answer_handback` and `answer_bind` of a run id that this
+/// life never started; `ended` for `cancel`, `answer_handback` and `answer_bind` of a run whose
+/// runner has ended, by
 /// `end_runner` or by a kill, while `kill` of such a run succeeds. `new_life` is a new process
 /// of the library: it knows no runner of the earlier one, and the marks stay. `reap` answers
 /// every mark once with its answer and keeps only the marks that it answered `alive`.
@@ -754,6 +760,14 @@ impl<C> Runs for Ports<C> {
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
         let call = Call::AnswerHandback(run.clone(), result);
         self.checked(Method::AnswerHandback, &call)?;
+        self.runner(run, &call, true)?;
+        self.record(call);
+        Ok(())
+    }
+
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        let call = Call::AnswerBind(run.clone(), result);
+        self.checked(Method::AnswerBind, &call)?;
         self.runner(run, &call, true)?;
         self.record(call);
         Ok(())

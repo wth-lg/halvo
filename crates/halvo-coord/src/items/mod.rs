@@ -13,8 +13,8 @@ mod raise;
 mod setup;
 
 pub use compose::{
-    compose_check, compose_confirm, compose_link_account, compose_plain, compose_setup, field_from,
-    kept_source, site_name, Plain, SetupParam,
+    compose_bind, compose_check, compose_confirm, compose_link_account, compose_plain,
+    compose_setup, field_from, kept_source, site_name, Plain, SetupParam,
 };
 pub use confirm::{confirm_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 pub use key::Key;

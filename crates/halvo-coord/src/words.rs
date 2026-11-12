@@ -329,6 +329,12 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     ("tray.needs", "Agents that need you: {count}"),
     ("item.link_account.origin", "Site of your account"),
+    (
+        "item.sign_in.bind",
+        "This agent will now work on {origin}. Allow this site only if you know it.",
+    ),
+    ("choice.sign_in.bind_decline", "Don't allow this site"),
+    ("choice.sign_in.bind_allow", "Allow this site"),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

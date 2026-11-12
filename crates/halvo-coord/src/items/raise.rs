@@ -1,7 +1,7 @@
 use crate::types::{
-    Answered, Category, CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Doing, Facts, HandbackAsk,
-    HandbackReason, HandbackResult, ItemId, ItemKind, Limits, Live, OwnItemKind, Param, Raised,
-    RunEnd, RunEvent, RunId, RunItemKind, What,
+    Answered, BindAsk, Category, CheckAnswer, Choice, Class, Cleared, ConfirmAsk, Doing, Facts,
+    HandbackAsk, HandbackReason, HandbackResult, ItemId, ItemKind, Limits, Live, OwnItemKind,
+    Param, Raised, RunEnd, RunEvent, RunId, RunItemKind, What,
 };
 
 /// The six classes that a confirm request may name (A-A4.1, I3.1).
@@ -22,6 +22,8 @@ pub enum Source<'a> {
     Confirm(&'a ConfirmAsk),
     /// A handback request of the live run.
     Handback(&'a HandbackAsk),
+    /// The second step of a `sign_in` item of the live run, the run's event `Bind`.
+    Bind(&'a BindAsk),
     /// A request of a type that A-A6.2 does not list.
     Other,
     /// The first run of an agent in the mode `compile`, in path B of the agent-setup run.
@@ -41,6 +43,7 @@ impl<'a> Source<'a> {
         match event {
             RunEvent::Confirm(ask) => Some(Source::Confirm(ask)),
             RunEvent::Handback(ask) => Some(Source::Handback(ask)),
+            RunEvent::Bind(ask) => Some(Source::Bind(ask)),
             RunEvent::Other => Some(Source::Other),
             RunEvent::Hello | RunEvent::Progress(_) | RunEvent::Ended(_) => None,
         }
@@ -129,6 +132,7 @@ fn run_of(source: &Source<'_>) -> Option<RunId> {
     match source {
         Source::Confirm(ask) => Some(ask.run().clone()),
         Source::Handback(ask) => Some(ask.run.clone()),
+        Source::Bind(ask) => Some(ask.run.clone()),
         Source::Show(run) => Some((*run).clone()),
         Source::Other | Source::Check | Source::Setup | Source::Ready => None,
     }
@@ -185,7 +189,11 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
         Source::Check => Some(OwnItemKind::Check),
         Source::Setup => Some(OwnItemKind::Setup),
         Source::Ready => Some(OwnItemKind::Ready),
-        Source::Confirm(_) | Source::Handback(_) | Source::Other | Source::Show(_) => None,
+        Source::Confirm(_)
+        | Source::Handback(_)
+        | Source::Bind(_)
+        | Source::Other
+        | Source::Show(_) => None,
     };
     if let Some(kind) = own {
         if facts.doing.item().is_some() || matches!(facts.doing, Doing::Live(_)) {
@@ -219,6 +227,7 @@ pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> R
             RunItemKind::Confirm
         }
         Source::Handback(ask) => handback_kind(ask.reason),
+        Source::Bind(_) => RunItemKind::SignIn,
         Source::Show(_) => RunItemKind::Show,
         Source::Other | Source::Check | Source::Setup | Source::Ready => {
             return Raise::End(RunEnd::Kind)

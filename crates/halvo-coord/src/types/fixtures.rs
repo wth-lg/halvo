@@ -1,5 +1,5 @@
 //! The page's fixtures (I8.3), written from the Rust types. `facts(state)` gives the facts that
-//! each row of a state was written from (I1.3), and `write(dir)` writes the 35 files.
+//! each row of a state was written from (I1.3), and `write(dir)` writes the files of I8.3.
 //!
 //! What a state holds beyond the words of I9.4, and the other choices that I8.3 leaves to this
 //! file. The clock stands at 2026-11-03T12:00:00Z (day 20760); `seq` is 1. In each state the
@@ -26,6 +26,7 @@
 //! | `needs_confirm_page` | `email`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `waiting` with an open `confirm` item of three effects of the class `send`, presenter `page`, `armed` `yes`, no `new_origin` |
 //! | `needs_confirm_native` | `utility_bill_payment`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `confirm` item of one effect of the class `payment`, presenter `native`, `armed` `no`, its one choice `present` |
 //! | `needs_sign_in` | `shop_order`: `needs_you.sign_in`; `stop`, `switch_off`, `delete` | `approved`, no playbook, no ended run, its three slots, a live first run `waiting` with an open `sign_in` item |
+//! | `needs_sign_in_bind` | `shop_order`: `needs_you.sign_in`; `stop`, `switch_off`, `delete` | as in `needs_sign_in`, and the open `sign_in` item is its second step, for the origin `https://`, the workflow's site value and the port 443, so that its text names the site value and its choices are `decline` and `allow` |
 //! | `needs_link_account` | `email`: `needs_you.link_account`; `stop`, `switch_off`, `delete` | `active`, no ended run, a live first run `waiting` with an open `link_account` item, whose request's origin is `https://`, the workflow's site value and the port 443, so that its field shows the site value |
 //! | `needs_stuck` | `utility_bill_payment`: `needs_you.stuck`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `stuck` item |
 //! | `needs_check` | `utility_bill_payment`: `needs_you.check`; `switch_off`, `delete` | as in `ten`, and a run on 20759 `effect_unknown` with `unknown` 1, so the hold `check` stands; its `check` item shows the four kept fields of a `payment` |
@@ -71,7 +72,7 @@ const DAY_NS: i64 = 86_400_000_000_000;
 const NOON_NS: i64 = 43_200_000_000_000;
 
 names! {
-    /// The 18 states of I9.4, each a file `state-<state>.json`.
+    /// The states of I9.4, each a file `state-<state>.json`.
     State {
         Empty = "empty",
         Ten = "ten",
@@ -91,6 +92,7 @@ names! {
         Working = "working",
         Queue = "queue",
         NoService = "no_service",
+        NeedsSignInBind = "needs_sign_in_bind",
     }
 }
 
@@ -302,7 +304,9 @@ fn specs(state: State) -> Vec<Spec> {
             ..email(StatusLine::NeedsYou(ItemKind::Confirm))
         }],
         State::NeedsConfirmNative => vec![utility_waiting(ItemKind::Confirm)],
-        State::NeedsSignIn => vec![first_run_waiting(Category::ShopOrder, ItemKind::SignIn)],
+        State::NeedsSignIn | State::NeedsSignInBind => {
+            vec![first_run_waiting(Category::ShopOrder, ItemKind::SignIn)]
+        }
         State::NeedsLinkAccount => {
             vec![first_run_waiting(Category::Email, ItemKind::LinkAccount)]
         }
@@ -839,6 +843,24 @@ fn item(state: State, b: &Built) -> Option<Item> {
                 .collect();
             Item::setup(id, agent, title, text, asked, choices)
         }
+        ItemKind::SignIn if state == State::NeedsSignInBind => {
+            let (title, _, _) = plain();
+            let site = b.facts.workflow.site.clone().expect("a site");
+            let text = tp("item.sign_in.bind", &[("origin", &site)]);
+            let choices = vec![
+                ChoiceText {
+                    choice: Choice::Decline,
+                    text: t("choice.sign_in.bind_decline"),
+                    safe: YesNo::Yes,
+                },
+                ChoiceText {
+                    choice: Choice::Allow,
+                    text: t("choice.sign_in.bind_allow"),
+                    safe: YesNo::No,
+                },
+            ];
+            Item::sign_in(id, agent, title, text, choices)
+        }
         ItemKind::SignIn => {
             let (title, text, choices) = plain();
             Item::sign_in(id, agent, title, text, choices)
@@ -948,7 +970,7 @@ fn line<T: Serialize>(value: &T) -> String {
     text
 }
 
-/// Writes the 35 files of I8.3 into `dir`, which it makes if needed, and returns their count;
+/// Writes the files of I8.3 into `dir`, which it makes if needed, and returns their count;
 /// a second call writes the same bytes.
 pub fn write(dir: &Path) -> std::io::Result<u32> {
     std::fs::create_dir_all(dir)?;

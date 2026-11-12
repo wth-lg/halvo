@@ -9,10 +9,10 @@ use halvo_coord::items::{ConfirmAnswer, ConfirmMove, ConfirmState};
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Clock, Owner, PortError, Rng, Runs};
 use halvo_coord::types::{
-    Agent, AgentId, Answer, Answered, Body, Category, Cause, Choice, Class, ConfirmAsk, Decision,
-    DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow, HandbackAsk, HandbackReason,
-    HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin, Presenter, Raised, Reply,
-    RunId, RunSpec, What, Workflow, WorkflowState, WorkflowTrigger,
+    Agent, AgentId, Answer, Answered, BindResult, Body, Category, Cause, Choice, Class, ConfirmAsk,
+    Decision, DecisionEntry, DoneAnswer, EffectAnswer, Event, FullWorkflow, HandbackAsk,
+    HandbackReason, HandbackResult, LapseCause, Lapsed, Limits, LinkAnswer, Name, Origin,
+    Presenter, Raised, Reply, RunId, RunSpec, What, Workflow, WorkflowState, WorkflowTrigger,
 };
 use std::cell::{Cell, RefCell};
 use support::{agent_id, ask, ask_of, asked, field, run_id, workflow_id};
@@ -352,6 +352,9 @@ impl Runs for Faulty<'_> {
     }
     fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
         self.inner.answer_handback(run, result)
+    }
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        self.inner.answer_bind(run, result)
     }
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         self.inner.cancel(run)

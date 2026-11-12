@@ -3,16 +3,17 @@
 //! keeps the guard's table in step with the items, and sends the setup's body until the owner
 //! acknowledges it (I3.5).
 
-use super::{compose_confirm, confirm_step, handback_kind, handback_result, setup_step};
-use super::{ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
+use super::{compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
+use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
 use crate::ports::{Clock, Owner, PortError, Rng, Runs};
 use crate::schedule::wants_active;
 use crate::types::{
-    hex, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Choice, ConfigView, ConfirmAsk,
-    DoneAnswer, Event, Facts, HandbackAsk, Item, ItemId, LapseCause, Lapsed, Limits, LinkAnswer,
-    Presenter, Raised, RunItemKind, What, WorkflowId,
+    hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
+    Choice, ConfigView, ConfirmAsk, DoneAnswer, Event, Facts, HandbackAsk, Item, ItemId,
+    LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse, Presenter, Raised, RunItemKind,
+    SignInAnswer, What, WorkflowId,
 };
 use std::num::NonZeroU32;
 
@@ -470,7 +471,7 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
     let result = handback_result(kind, choice)?;
     let done = || DoneAnswer::parse(choice.name());
     let answer = match kind {
-        RunItemKind::SignIn => Answered::SignIn(done()?),
+        RunItemKind::SignIn => Answered::SignIn(SignInAnswer::First(done()?)),
         RunItemKind::LinkAccount => Answered::LinkAccount(LinkAnswer {
             answer: done()?,
             origin: ask.origin.clone().ok_or(Cause::Malformed)?,
@@ -494,6 +495,183 @@ pub fn answer_handback<P: Owner + Runs + Clock>(
         Err(e) if refused_with(&e, "ended") => Ok(()),
         Err(e) => Err(cause_of(&e)),
     }
+}
+
+/// The state of a held second step of a `sign_in` item: open for the person's answer; its
+/// `item_answered` row stored with this answer, which the run has not taken yet; or closed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BindState {
+    /// Waits for the person.
+    Open,
+    /// The row of this answer is stored and `Runs::answer_bind` has not taken it.
+    Recorded(BindResult),
+    /// Answered or lapsed.
+    Closed,
+}
+
+/// The second step of a `sign_in` item that the coordinator holds (I3.1): its item id, its
+/// request, when it was raised, in milliseconds of the clock, and its state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldBind {
+    item: ItemId,
+    ask: BindAsk,
+    raised_at: u64,
+    state: BindState,
+}
+
+impl HeldBind {
+    /// The item id.
+    pub fn item(&self) -> &ItemId {
+        &self.item
+    }
+
+    /// The request.
+    pub fn ask(&self) -> &BindAsk {
+        &self.ask
+    }
+
+    /// When the item was raised.
+    pub fn raised_at(&self) -> u64 {
+        self.raised_at
+    }
+
+    /// The state.
+    pub fn state(&self) -> &BindState {
+        &self.state
+    }
+
+    /// The item as the page gets it (I3.4), for the agent of the name `name` (I2.3).
+    pub fn page_item(&self, name: &str) -> Result<Item, Cause> {
+        compose_bind(&self.item, &self.ask.agent, name, &self.ask.origin)
+    }
+}
+
+/// Raises the second step of a `sign_in` item for a request `Bind` that `raise_step` admitted
+/// (I3.1): mints the item id and stores `item_raised` with the kind `sign_in` and the run. A
+/// request of a run that the guard's table holds as stopped is refused with `state`: nothing is
+/// stored and nothing sent.
+pub fn raise_bind<P: Owner + Clock + Rng>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    ask: &BindAsk,
+) -> Result<HeldBind, Cause> {
+    if table.is_stopped(&ask.run) {
+        return Err(Cause::State);
+    }
+    let now = ports.now().map_err(|e| cause_of(&e))?;
+    let item = ItemId::parse(&hex(ports.bytes16().map_err(|e| cause_of(&e))?))?;
+    let raised = What::ItemRaised {
+        item: item.clone(),
+        raised: Raised::SignIn(ask.run.clone()),
+    };
+    let _ = store(ports, ledger, limits, vec![raised]);
+    Ok(HeldBind {
+        item,
+        ask: ask.clone(),
+        raised_at: now,
+        state: BindState::Open,
+    })
+}
+
+/// Whether an open second step has waited `wait_limit_s` since it was raised at `now`, so that
+/// it lapses with `wait_limit` (I3.1, ruling IG-18).
+pub fn bind_due(held: &HeldBind, now: u64, limits: &Limits) -> bool {
+    let limit = held
+        .raised_at
+        .saturating_add(limits.wait_limit_s.saturating_mul(1000));
+    held.state == BindState::Open && now >= limit
+}
+
+/// The person's choice on a second step (I3.1): `stale` for a closed step, `malformed` for a
+/// choice other than `decline` and `allow`, and `state` for a run that the guard's table holds as
+/// stopped, after which no port is called. An open step stores its `item_answered` row, which
+/// holds the answer and the whole origin (I7.1, ruling IG-14), and only once the owner
+/// acknowledged it calls `Runs::answer_bind` with the row's answer; with no acknowledgement the
+/// answer is `no_service`, nothing is stored and the run gets nothing. A step whose row is stored
+/// and whose answer the run did not take sends the row's answer again, stores no second row, and
+/// refuses the other choice with `state`. An `answer_bind` refused with `ended` is dropped and
+/// the step closes (ruling IG-18).
+pub fn answer_bind<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &Table,
+    limits: &Limits,
+    held: &mut HeldBind,
+    choice: Choice,
+) -> Result<(), Cause> {
+    if held.state == BindState::Closed {
+        return Err(Cause::Stale);
+    }
+    let result = BindResult::parse(choice.name())?;
+    if table.is_stopped(&held.ask.run) {
+        return Err(Cause::State);
+    }
+    match held.state {
+        BindState::Recorded(stored) if stored != result => return Err(Cause::State),
+        BindState::Recorded(_) | BindState::Closed => {}
+        BindState::Open => {
+            let (now, today) = match (ports.now(), ports.today()) {
+                (Ok(now), Ok(today)) => (now, today),
+                (Err(e), _) | (_, Err(e)) => return Err(cause_of(&e)),
+            };
+            let row = What::ItemAnswered {
+                item: held.item.clone(),
+                answer: Answered::SignIn(SignInAnswer::Second(BindAnswer {
+                    answer: result,
+                    origin: held.ask.origin.clone(),
+                })),
+            };
+            store_once(ports, ledger, limits, vec![row], now, today).map_err(|e| cause_of(&e))?;
+            held.state = BindState::Recorded(result);
+        }
+    }
+    match ports.answer_bind(&held.ask.run, result) {
+        Ok(()) => {
+            held.state = BindState::Closed;
+            Ok(())
+        }
+        Err(e) if refused_with(&e, "ended") => {
+            held.state = BindState::Closed;
+            Ok(())
+        }
+        Err(e) => Err(cause_of(&e)),
+    }
+}
+
+/// A lapse of an open second step with `cause` (I3.1, ruling IG-18), as a confirmation lapses:
+/// `stale` for a step that is not open. For `wait_limit`, a lapse of a run that lives, the
+/// waiting call is answered `decline` through `Runs::answer_bind`, whose refusal is dropped;
+/// then `item_lapsed` is stored; then the run is stopped in the guard's table and through
+/// `Runs::cancel`. For `run_ended` and `app_ended` only `item_lapsed` is stored.
+pub fn lapse_bind<P: Owner + Runs + Clock>(
+    ports: &P,
+    ledger: &mut Ledger,
+    table: &mut Table,
+    held: &mut HeldBind,
+    cause: OtherLapse,
+    limits: &Limits,
+) -> Result<(), Cause> {
+    if held.state != BindState::Open {
+        return Err(Cause::Stale);
+    }
+    let run = held.ask.run.clone();
+    let lives = cause == OtherLapse::WaitLimit;
+    if lives {
+        let _ = ports.answer_bind(&run, BindResult::Decline);
+    }
+    held.state = BindState::Closed;
+    let lapsed = What::ItemLapsed {
+        item: held.item.clone(),
+        lapsed: Lapsed::SignIn(cause),
+    };
+    let _ = store(ports, ledger, limits, vec![lapsed]);
+    if lives {
+        *table = table.stop(&run);
+        let _ = ports.cancel(&run);
+    }
+    Ok(())
 }
 
 /// What a move of the setup flow did (I3.5).

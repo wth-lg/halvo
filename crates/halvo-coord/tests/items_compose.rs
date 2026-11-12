@@ -3,8 +3,8 @@ mod support;
 
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Table};
 use halvo_coord::items::{
-    compose_check, compose_confirm, compose_link_account, compose_plain, compose_setup,
-    confirm_step, kept_source, ConfirmMove, Key, Plain, SetupParam,
+    compose_bind, compose_check, compose_confirm, compose_link_account, compose_plain,
+    compose_setup, confirm_step, kept_source, ConfirmMove, Key, Plain, SetupParam,
 };
 use halvo_coord::types::{
     AgentId, AskedEffect, BoundField, BoundFrom, CandidateFrom, Cause, Choice, Class, ConfirmAsk,
@@ -520,6 +520,7 @@ const PAYMENT: [&str; 4] = [
 fn the_composed_items_equal_the_items_of_the_fixtures() {
     let states = [
         "needs_sign_in",
+        "needs_sign_in_bind",
         "needs_link_account",
         "needs_stuck",
         "needs_ready",
@@ -545,6 +546,10 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
             .unwrap();
         let name = row["name"].as_str().unwrap();
         let composed = match want["kind"].as_str().unwrap() {
+            "sign_in" if state == "needs_sign_in_bind" => {
+                let origin = Origin::parse("https://site7.example:443").unwrap();
+                compose_bind(&item, &agent, name, &origin)
+            }
             "sign_in" => compose_plain(&item, &agent, Plain::SignIn, name),
             "link_account" => {
                 let site = want["fields"][0]["value"][0].as_str().unwrap();

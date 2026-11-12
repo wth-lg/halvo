@@ -8,7 +8,7 @@ use halvo_coord::types::{
 use halvo_coord::types::{
     Answered, ApprovalId, CheckAnswer, DecisionEntry, Digest, Doing, DoneAnswer, EffectId, ItemId,
     Lapsed, LinkAnswer, Live, Origin, OtherLapse, OwnItem, OwnItemKind, Raised, ReadyAnswer, RunId,
-    RunItem, RunItemKind, SetupAnswer,
+    RunItem, RunItemKind, SetupAnswer, SignInAnswer,
 };
 
 fn names<T: Copy>(all: &[T], name: fn(T) -> &'static str) -> Vec<&'static str> {
@@ -528,7 +528,7 @@ fn answered_has_one_member_for_each_of_the_eight_kinds_of_i3_1() {
     };
     let all = [
         Answered::Confirm(entry),
-        Answered::SignIn(DoneAnswer::Done),
+        Answered::SignIn(SignInAnswer::First(DoneAnswer::Done)),
         Answered::LinkAccount(LinkAnswer {
             answer: DoneAnswer::Done,
             origin: Origin::parse("https://site2.example:443").unwrap(),

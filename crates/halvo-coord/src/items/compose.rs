@@ -3,9 +3,9 @@ use super::raise::choices;
 use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
-    AgentId, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class, ConfirmAsk,
-    Field, FieldFrom, Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry, Presenter,
-    Unknown, YesNo,
+    AgentId, BindResult, BoundFrom, Candidate, CandidateFrom, Cause, Choice, ChoiceText, Class,
+    ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits, Origin, Param, ParamEntry,
+    Presenter, Unknown, YesNo,
 };
 
 const PIECE_MAX: usize = 1024;
@@ -298,6 +298,36 @@ pub fn compose_plain(
         Plain::Ready => Item::ready(item, agent, title, text, choices),
         Plain::Show => Item::show(item, agent, title, text, choices),
     })
+}
+
+/// The item of the second step of a `sign_in` item (I3.1, I3.4): the title `item.sign_in.title`
+/// with the agent's name, the text `item.sign_in.bind` with the site's name of `origin` (ruling
+/// IG-14), and the two choices `decline` and `allow` with the texts
+/// `choice.sign_in.bind_decline` and `choice.sign_in.bind_allow`, the safe one first (ruling
+/// IG-15).
+pub fn compose_bind(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    origin: &Origin,
+) -> Result<Item, Cause> {
+    let title = Key::parse("item.sign_in.title")?.text(&[("name", name)])?;
+    let text = Key::parse("item.sign_in.bind")?.text(&[("origin", &site_name(origin))])?;
+    let mut choices = Vec::new();
+    for (i, result) in BindResult::ALL.iter().enumerate() {
+        choices.push(ChoiceText {
+            choice: result.choice(),
+            text: say(&format!("choice.sign_in.bind_{}", result.name()))?,
+            safe: (i == 0).into(),
+        });
+    }
+    Ok(Item::sign_in(
+        item.clone(),
+        agent.clone(),
+        title,
+        text,
+        choices,
+    ))
 }
 
 /// The item `link_account` (I3.4): the plain parts and one field, labelled

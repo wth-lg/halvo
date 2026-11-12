@@ -244,7 +244,9 @@ fn sched_call(call: &Call, names: &Names) -> Option<Value> {
         Call::Cancel(run) => json!({"call": "cancel", "run": names.run(run)}),
         Call::Kill(run) => json!({"call": "kill", "run": names.run(run)}),
         Call::Reap => json!({"call": "reap"}),
-        Call::AnswerConfirm(..) | Call::AnswerHandback(..) => json!({"call": "answer"}),
+        Call::AnswerConfirm(..) | Call::AnswerHandback(..) | Call::AnswerBind(..) => {
+            json!({"call": "answer"})
+        }
         Call::Log(_)
         | Call::History(..)
         | Call::Workflows
