@@ -6,10 +6,13 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 name=service-run
 
 tmp_scan_defect() {
-  find "${TMPDIR:-/tmp}" -type f -newer "$2" -exec grep -l -F -e "$1" {} \; > "$svc_dir/tmp-hits" 2> "$svc_dir/tmp-errors"
-  tmp_status=$?
-  if [ "$tmp_status" -ne 0 ] || [ -s "$svc_dir/tmp-errors" ]; then
-    printf 'not scanned: find or grep could not read every file made under TMPDIR during the run\n'; return 1
+  tmp_base=${TMPDIR:-/tmp}
+  tmp_user=$(id -u)
+  find "${tmp_base%/}/" -mindepth 1 \( -type d ! -user "$tmp_user" -prune \) -o \( -type f -user "$tmp_user" -newer "$2" -exec grep -l -F -e "$1" {} + \) > "$svc_dir/tmp-hits" 2> "$svc_dir/tmp-errors"
+  tmp_left=$(sed -n 's/^[a-z]*: \(.*\): [A-Z][^:]*$/\1/p' "$svc_dir/tmp-errors" | while IFS= read -r tmp_path; do [ ! -e "$tmp_path" ] || printf '%s\n' "$tmp_path"; done)
+  tmp_other=$(grep -v -E '^[a-z]*: .*: [A-Z][^:]*$' "$svc_dir/tmp-errors")
+  if [ -n "$tmp_left" ] || [ -n "$tmp_other" ]; then
+    printf 'not scanned: find or grep could not read a file of this user made under TMPDIR during the run\n'; return 1
   fi
   [ -s "$svc_dir/tmp-hits" ] || return 0
   tmp_first=$(sed -n "1s#^${TMPDIR:-/tmp}/##p" "$svc_dir/tmp-hits")
