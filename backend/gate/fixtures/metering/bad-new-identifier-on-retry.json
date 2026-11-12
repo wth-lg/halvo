@@ -1,0 +1,12 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "return { kind: \"send\", interval: interval.start, identifier: interval.identifier,",
+      "replace": "return { kind: \"send\", interval: interval.start, identifier: interval.firstAttempt === null ? interval.identifier : `${interval.identifier}-${interval.nextAttempt}`,"
+    }
+  ],
+  "line": [
+    "FAIL metering: "
+  ]
+}

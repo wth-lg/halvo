@@ -1,0 +1,13 @@
+{
+  "edits": [
+    {
+      "file": "src/metering/sync.ts",
+      "find": "interval.firstAttempt ?? (kind === \"send\" ? now : null),",
+      "replace": "forced === \"send\" ? now : (interval.firstAttempt ?? (kind === \"send\" ? now : null)),"
+    }
+  ],
+  "line": [
+    "FAIL metering: ",
+    "first failure: the fault-sequence search"
+  ]
+}
