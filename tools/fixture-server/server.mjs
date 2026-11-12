@@ -47,20 +47,31 @@ function hostOf(req) {
   return match ? match[1] : null;
 }
 
+function target(req, host) {
+  if (req.url.startsWith('/')) return req.url;
+  const absolute = /^http:\/\/([^/?#]*)(\/.*)$/.exec(req.url);
+  if (absolute === null) return null;
+  const authority = /^([^:]+)(?::[0-9]+)?$/.exec(absolute[1]);
+  return authority !== null && authority[1] === host ? absolute[2] : null;
+}
+
 function answer(hosts, req) {
   if (req.method !== 'GET') return null;
-  const service = hosts.get(hostOf(req));
+  const host = hostOf(req);
+  const service = hosts.get(host);
   if (service === undefined) return null;
-  if (req.url === '/api/pages') return { type: 'application/json', body: service.api };
-  const at = req.url.indexOf('?');
-  const route = service.pages.get(at < 0 ? req.url : req.url.slice(0, at));
+  const url = target(req, host);
+  if (url === null) return null;
+  if (url === '/api/pages') return { type: 'application/json', body: service.api };
+  const at = url.indexOf('?');
+  const route = service.pages.get(at < 0 ? url : url.slice(0, at));
   if (route === undefined) return null;
   const values = new Map();
   if (route.names.length === 0) {
     if (at >= 0) return null;
   } else {
     if (at < 0) return null;
-    const pairs = req.url.slice(at + 1).split('&');
+    const pairs = url.slice(at + 1).split('&');
     if (pairs.length !== route.names.length) return null;
     for (let i = 0; i < pairs.length; i += 1) {
       const { name, values: listed } = route.names[i];
@@ -87,7 +98,7 @@ const loaded = loadSites(args.files);
 if (loaded.refused !== undefined) refuse('site-data', loaded.refused);
 const hosts = routes(loaded.sites);
 
-const server = createServer({ requireHostHeader: false }, (req, res) => {
+function respond(req, res) {
   const found = answer(hosts, req);
   if (found === null) {
     res.writeHead(404, { 'Content-Length': '0' });
@@ -96,9 +107,22 @@ const server = createServer({ requireHostHeader: false }, (req, res) => {
   }
   res.writeHead(200, { 'Content-Type': found.type, 'Content-Length': String(found.body.length) });
   res.end(found.body);
-});
+}
+
+function respondWithoutUpgrade(req, socket) {
+  const found = answer(hosts, req);
+  if (found === null || !socket.writable) {
+    endWithNotFound(socket);
+    return;
+  }
+  const head = `HTTP/1.1 200 OK\r\nContent-Type: ${found.type}\r\nContent-Length: ${found.body.length}\r\nConnection: close\r\n\r\n`;
+  socket.end(Buffer.concat([Buffer.from(head, 'latin1'), found.body]));
+}
+
+const server = createServer({ requireHostHeader: false }, respond);
+server.on('checkExpectation', respond);
 server.on('connect', (_req, socket) => endWithNotFound(socket));
-server.on('upgrade', (_req, socket) => endWithNotFound(socket));
+server.on('upgrade', respondWithoutUpgrade);
 server.on('clientError', (_error, socket) => endWithNotFound(socket));
 server.once('error', () => refuse('port', String(port)));
 server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {

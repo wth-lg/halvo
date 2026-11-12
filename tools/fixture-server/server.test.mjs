@@ -201,7 +201,10 @@ test('server: the page face and the API face answer 200, and every other request
       ['API prefix alone', '/api', shop],
       ['API face in upper case', '/API/pages', shop],
       ['favicon', '/favicon.ico', shop],
-      ['absolute form', `http://acorn-shop.test:${port}/sign-in`, shop],
+      ['absolute form with another authority', `http://acorn-news.test:${port}/sign-in`, shop],
+      ['absolute form of an unlisted path', `http://acorn-shop.test:${port}/nothing`, shop],
+      ['absolute form with no path', `http://acorn-shop.test:${port}`, shop],
+      ['absolute form of another scheme', `https://acorn-shop.test:${port}/sign-in`, shop],
       ['asterisk form', '*', shop],
     ];
     for (const [name, target, host] of notFound) {
@@ -216,13 +219,29 @@ test('server: the page face and the API face answer 200, and every other request
       assert.equal(res.status, 404, method);
       assert.equal(res.body.length, 0, method);
     }
+    const listedRaw = [
+      ['absolute form', `GET http://acorn-shop.test:${port}/sign-in HTTP/1.1\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
+      ['absolute form with a query', `GET http://acorn-shop.test/item?item=blue%20cup&size=small HTTP/1.1\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
+      ['upgrade offer', `GET /sign-in HTTP/1.1\r\nHost: ${shop}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`],
+      ['upgrade offer h2c, API face', `GET /api/pages HTTP/1.1\r\nHost: ${shop}\r\nConnection: Upgrade, HTTP2-Settings\r\nUpgrade: h2c\r\nHTTP2-Settings: AAMAAABkAARAAAAAAAIAAAAA\r\n\r\n`],
+      ['expectation other than 100-continue', `GET /sign-in HTTP/1.1\r\nHost: ${shop}\r\nExpect: x-probe\r\nConnection: close\r\n\r\n`],
+    ];
+    for (const [name, text] of listedRaw) {
+      const res = await raw(port, text);
+      console.log(`case 200 ${name}: status=${res.status} type=${res.headers.get('content-type')}`);
+      assert.equal(res.status, 200, name);
+      assert.equal(Number(res.headers.get('content-length')), res.body.length, name);
+      assert.ok(res.body.length > 0, name);
+    }
     const rawCases = [
       ['no Host header', 'GET /sign-in HTTP/1.0\r\n\r\n'],
       ['two Host headers', `GET /sign-in HTTP/1.1\r\nHost: ${shop}\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
       ['two Host headers, the first unknown', `GET /sign-in HTTP/1.1\r\nHost: nobody.test\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
       ['method CONNECT', `CONNECT acorn-shop.test:${port} HTTP/1.1\r\nHost: ${shop}\r\n\r\n`],
       ['method in lower case', `get /sign-in HTTP/1.1\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
-      ['upgrade request', `GET /sign-in HTTP/1.1\r\nHost: ${shop}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`],
+      ['upgrade offer on an unlisted path', `GET /nothing HTTP/1.1\r\nHost: ${shop}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`],
+      ['upgrade offer with another method', `POST /sign-in HTTP/1.1\r\nHost: ${shop}\r\nConnection: Upgrade\r\nUpgrade: h2c\r\nContent-Length: 0\r\n\r\n`],
+      ['expectation on an unlisted path', `GET /nothing HTTP/1.1\r\nHost: ${shop}\r\nExpect: x-probe\r\nConnection: close\r\n\r\n`],
       ['request that is not HTTP', 'hello\r\n\r\n'],
     ];
     for (const [name, text] of rawCases) {
