@@ -83,6 +83,10 @@ enum Fault {
     FilteredOpenServesFromTheStart,
     OldStoreOpensAtZero,
     KindsOutOfOrderRefused,
+    WatermarkLowAfterAShred,
+    ReopenByIdGetsClosed,
+    StoreChangedNamesAnAlias,
+    LeavesOutTheFirstRecordAfterStoreChanged,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -188,6 +192,13 @@ struct Proxy {
     changed_on_read: bool,
     old_files: Vec<PathBuf>,
     lines: Vec<u64>,
+    shredded: bool,
+    first_open_null: Option<bool>,
+    after_close: bool,
+    answer_closed: bool,
+    alias_open: bool,
+    changed: Option<StoreId>,
+    skip_first: bool,
 }
 
 impl Proxy {
@@ -215,9 +226,14 @@ impl Proxy {
         self.open_w = b.watermark;
         self.reads = 0;
         self.stop = None;
-        self.renamed = self.fault == OpenNamesAnotherStore && open.store().is_some();
+        self.renamed =
+            (self.fault == OpenNamesAnotherStore && open.store().is_some()) || self.alias_open;
+        self.skip_first = self.fault == LeavesOutTheFirstRecordAfterStoreChanged
+            && open.store().is_some()
+            && open.store() == self.changed.as_ref();
         match self.fault {
             WatermarkFalls => b.watermark.seg += 1,
+            WatermarkLowAfterAShred if self.shredded => b.watermark.seg -= 1,
             FilteredOpenServesFromTheStart => b.next = open.position(),
             OpenHoldsARecord => b.records.push(self.first.clone()),
             OpenHoldsExpiry => b.expiry.push(Expiry {
@@ -241,6 +257,9 @@ impl Proxy {
             (StoreChangedNamesTheOldId, Cause::StoreChanged(id)) => {
                 Cause::StoreChanged(asked.cloned().unwrap_or(id))
             }
+            (StoreChangedNamesAnAlias, Cause::StoreChanged(id)) if !on_read => {
+                Cause::StoreChanged(other(&id))
+            }
             (StoreChangedGetsStoreError, Cause::StoreChanged(_)) if !on_read => Cause::StoreError,
             (StoreChangedOnReadNamesTheOldId, Cause::StoreChanged(id)) if on_read => {
                 Cause::StoreChanged(self.store.clone().unwrap_or(id))
@@ -260,8 +279,11 @@ impl Proxy {
             }
             (_, cause) => cause,
         };
-        if let Cause::StoreChanged(_) = cause {
+        if let Cause::StoreChanged(id) = &cause {
             self.changed_on_read = on_read;
+            if !on_read {
+                self.changed = Some(id.clone());
+            }
         }
         error(cause)
     }
@@ -298,6 +320,7 @@ impl Proxy {
             }
             ReadGetsClosed => return ServerMessage::Closed,
             ReadGetsStoreError => return error(Cause::StoreError),
+            ReopenByIdGetsClosed if first && self.answer_closed => return ServerMessage::Closed,
             _ => {}
         }
         let mut b = match t.handle(&ClientMessage::ReadBatch) {
@@ -305,6 +328,10 @@ impl Proxy {
             ServerMessage::Error(e) => return self.refused(e.cause().clone(), None, true),
             other => return other,
         };
+        if self.skip_first && !b.records.is_empty() {
+            b.records.remove(0);
+            self.skip_first = false;
+        }
         if self.fault == IgnoresTheByteBound && !b.records.is_empty() && b.next != b.watermark {
             if let ServerMessage::Batch(more) = t.handle(&ClientMessage::ReadBatch) {
                 for x in more.expiry {
@@ -520,6 +547,13 @@ impl Subject for Control {
                     text.iter().filter(|b| **b == b'\n').count() as u64
                 })
                 .collect(),
+            shredded: self.first_live > 1,
+            first_open_null: None,
+            after_close: false,
+            answer_closed: false,
+            alias_open: false,
+            changed: None,
+            skip_first: false,
         };
         let (mut requests_in, requests_out) = io::pipe().map_err(|e| e.to_string())?;
         let (replies_in, mut replies_out) = io::pipe().map_err(|e| e.to_string())?;
@@ -534,6 +568,16 @@ impl Subject for Control {
                         let w = t.watermark();
                         let p = open.position();
                         let fault = proxy.fault;
+                        let first_null =
+                            *proxy.first_open_null.get_or_insert(open.store().is_none());
+                        proxy.answer_closed = fault == ReopenByIdGetsClosed
+                            && first_null
+                            && proxy.after_close
+                            && open.store().is_some()
+                            && open.kinds().is_none()
+                            && open.range().is_none();
+                        proxy.alias_open = fault == StoreChangedNamesAnAlias
+                            && open.store() == Some(&other(t.store()));
                         let sent = match open.store() {
                             Some(s)
                                 if fault == OpensInsideTheWatermarkSegment
@@ -562,6 +606,13 @@ impl Subject for Control {
                             {
                                 OpenCursor::fresh(open.kinds().cloned(), open.range())
                             }
+                            Some(_) if proxy.alias_open => OpenCursor::at(
+                                t.store().clone(),
+                                p,
+                                open.kinds().cloned(),
+                                open.range(),
+                            )
+                            .unwrap(),
                             _ => unfiltered(&open, fault),
                         };
                         let refuse = match fault {
@@ -613,6 +664,7 @@ impl Subject for Control {
                     }
                     Err(Refusal::BadFrame) => break,
                 };
+                proxy.after_close = matches!(request, ClientMessage::Close);
                 let reply = proxy.payload(&request, &reply);
                 if write_frame(&mut replies_out, &reply, 1 << 20).is_err() {
                     break;
@@ -1085,6 +1137,58 @@ fn control_a_server_that_refuses_a_position_two_past_the_end_of_an_inner_segment
             Pass,
             Pass,
             Pass,
+        ],
+    );
+}
+
+#[test]
+fn control_an_open_reply_whose_watermark_falls_below_the_reference_after_a_shred() {
+    check(
+        WatermarkLowAfterAShred,
+        [
+            Pass,
+            Fail("after shred_oldest, a watermark below that of the reference read"),
+            Pass,
+            Pass,
+        ],
+    );
+}
+
+#[test]
+fn control_a_read_before_the_replace_that_gets_closed() {
+    check(
+        ReopenByIdGetsClosed,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the read before replace_live got a reply other than batch or error"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_store_changed_whose_id_the_new_store_does_not_carry() {
+    check(
+        StoreChangedNamesAnAlias,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the new store's reply names another id than store-changed did"),
+        ],
+    );
+}
+
+#[test]
+fn control_a_cursor_opened_with_the_new_id_that_serves_other_entries() {
+    check(
+        LeavesOutTheFirstRecordAfterStoreChanged,
+        [
+            Pass,
+            Pass,
+            Pass,
+            Fail("the new store served other entries with its new id"),
         ],
     );
 }
