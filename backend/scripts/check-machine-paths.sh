@@ -27,12 +27,11 @@ a blank, the end of the line, a double or single quote, a backtick, a comma, a r
 curly bracket, or a period before a blank or the end of the line follows it. What stands behind
 one of these characters is not read as a name.
 
-  sh scripts/check-machine-paths.sh                  every file in the index
-  sh scripts/check-machine-paths.sh --staged [TREE]  the files that the index adds or changes
-                                                     against TREE (default: the last commit);
-                                                     .githooks/pre-commit runs this, and
-                                                     .githooks/pre-merge-commit when a merge
-                                                     makes a commit
+  sh scripts/check-machine-paths.sh                  every file that it reads in the index
+  sh scripts/check-machine-paths.sh --staged [TREE]  of those, the files that the index adds or
+                                                     changes against TREE (default: the last
+                                                     commit), for a pre-commit or a
+                                                     pre-merge-commit hook
   sh scripts/check-machine-paths.sh --self-test      prove both ways on indexes made for it
 
 It reads the index of the checkout it is started in, from any directory of it, and not the
