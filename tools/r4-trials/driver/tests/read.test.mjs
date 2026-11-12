@@ -180,3 +180,31 @@ test('an entry outside the list that no built target compiles is named and not c
   assert.equal(entryLine('webdriver', all[1]),
     'reading trial=driver machine=mac candidate=webdriver entry=target-lexicon version=0.13.5 licence=Apache-2.0_WITH_LLVM-exception built_targets=- rulings=P7-52,CP-102');
 });
+
+test('the base tree is resolved without the candidate, so a crate that the candidate brings by a feature counts as added', () => {
+  const pkg = (name) => ({ id: `${name}-id`, name, version: '1.0.0', license: 'MIT' });
+  const graph = (deps) => ({ packages: Object.keys(deps).map(pkg), resolve: { nodes: Object.entries(deps).map(([n, d]) => ({ id: `${n}-id`, deps: d.map((x) => ({ pkg: `${x}-id` })) })) } });
+  const withFeature = graph({ app: ['shared'], shared: ['extra'], extra: [], cand: ['shared'] });
+  const without = graph({ app: ['shared'], shared: [] });
+  assert.deepEqual(addedPackages(withFeature, 'cand', 'app', without).map((p) => p.name).sort(), ['cand', 'extra']);
+  assert.deepEqual(addedOnTargets({ t: withFeature }, 'cand', 'app', { t: without }).map((a) => a.pkg.name).sort(), ['cand', 'extra']);
+});
+
+test('the pattern file finds the Swift, objc2 and core-graphics method forms and the npm and shell ways of posting input', () => {
+  for (const line of ['let e = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: true)', 'e?.post(tap: .cghidEventTap)',
+    'e.postToPid(pid)', 'NSApp.postEvent(event, atStart: false)', 'CGEvent::post(CGEventTapLocation::HID, Some(&e));',
+    'CGEvent::post_to_pid(pid, Some(&e));', 'ev.post_to_pid(pid);', 'CGEvent::new_scroll_wheel_event2(src, unit, 1, 0, 0, 0)',
+    "execFileSync('osascript', ['-e', 'tell application \"System Events\" to keystroke \"a\"'])", "spawn('xdotool', ['key', 'Return'])",
+    "[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')"]) {
+    assert.ok(countInputCalls(patterns, [line], []) >= 1, line);
+  }
+  assert.equal(countInputCalls(patterns, [], ['robotjs', '@nut-tree/nut-js', '@nut-tree-fork/nut-js']), 3);
+  assert.equal(countInputCalls(patterns, ['client.post(url).send()', 'router.post("/session", create)', 'http.post(tap)'], []), 0);
+});
+
+test('the Windows reading of the system form rests on a button table that puts the rejecting label on REJECT_ID first', () => {
+  const native = fs.readFileSync(path.join(crate, 'src', 'native.rs'), 'utf8');
+  assert.match(native, /TASKDIALOG_BUTTON \{\s*nButtonID: card::REJECT_ID,\s*pszButtonText: PCWSTR\(reject\.as_ptr\(\)\),\s*\},\s*TASKDIALOG_BUTTON \{\s*nButtonID: card::ALLOW_ID,\s*pszButtonText: PCWSTR\(allow\.as_ptr\(\)\),/);
+  assert.match(native, /let reject = HSTRING::from\(card::REJECT\);\s*let allow = HSTRING::from\(card::ALLOW\);/);
+  assert.match(native, /dwFlags: TDF_ALLOW_DIALOG_CANCELLATION \| TDF_SIZE_TO_CONTENT,/);
+});

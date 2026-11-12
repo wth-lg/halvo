@@ -220,7 +220,11 @@ async function driverCells(machine, name) {
   return true;
 }
 
-export const UNREAD = Object.freeze({ found: 'no', trusted: '-', text: '-', default: '-', cancel: '-', close: '-', error: 'yes' });
+export class ReaderError extends Error {}
+
+export function ownerFits(form, owner) {
+  return form === 'system' ? owner === 'app' : owner === 'app' || owner === 'other';
+}
 
 export async function readUntilFound(pid, read1 = readDialog, waitMs = 500) {
   const until = Date.now() + FIND_MS;
@@ -228,8 +232,8 @@ export async function readUntilFound(pid, read1 = readDialog, waitMs = 500) {
   do {
     try {
       read = read1(pid);
-    } catch {
-      return UNREAD;
+    } catch (e) {
+      throw new ReaderError(e.message);
     }
     if (read.found === 'yes') return read;
     await sleep(waitMs);
@@ -240,8 +244,15 @@ export async function readUntilFound(pid, read1 = readDialog, waitMs = 500) {
 async function answerOf(machine, form, app, n, press) {
   const shown = await waitLine(app, (line) => line === `dialog show form=${form} n=${n}`, ANSWER_MS);
   if (!shown) throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=show`);
-  const read = await readUntilFound(app.pid);
+  let read;
+  try {
+    read = await readUntilFound(app.pid);
+  } catch (e) {
+    if (e instanceof ReaderError) throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=read`);
+    throw e;
+  }
   if (read.found !== 'yes') return { read, answer: null };
+  if (!ownerFits(form, read.owner)) throw new Miss(`miss trial=dialog machine=${machine} form=${form} run=1 step=owner`);
   const which = typeof press === 'function' ? press(read) : press;
   let pressed = false;
   try {
@@ -270,7 +281,7 @@ async function dialogCellOf(machine, form, bin) {
       } catch {
         list = 'list=error';
       }
-      console.log(`trace trial=dialog machine=${machine} form=${form} app_dialog_lines=${lines} reader_error=${first.read.error ?? 'no'} ${list}`);
+      console.log(`trace trial=dialog machine=${machine} form=${form} app_dialog_lines=${lines} ${list}`);
       stop(app);
       return null;
     }

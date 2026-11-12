@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseList, parsePressed, parseRead } from '../dialog.mjs';
 import {
-  readUntilFound, UNREAD, cancelOf, dialogCell, driverCell, engineOf, machineOf, parseArgs, Refused, sessionCounts,
+  ownerFits, ReaderError, readUntilFound, cancelOf, dialogCell, driverCell, engineOf, machineOf, parseArgs, Refused, sessionCounts,
 } from '../run.mjs';
 import { ELEMENT, elementId } from '../webdriver.mjs';
 
@@ -165,8 +165,8 @@ test('the list line of a reader holds counts and class names alone', () => {
   }
 });
 
-test('a reader that fails counts as a dialog not reached, and a found dialog ends the wait', async () => {
-  assert.deepEqual(await readUntilFound(1, () => { throw new Error('exit 1'); }, 1), UNREAD);
+test('a reader that fails is a reader error and no dialog not reached, and a found dialog ends the wait', async () => {
+  await assert.rejects(readUntilFound(1, () => { throw new Error('exit 1'); }, 1), (e) => e instanceof ReaderError);
   let calls = 0;
   const read = await readUntilFound(1, () => {
     calls += 1;
@@ -174,4 +174,26 @@ test('a reader that fails counts as a dialog not reached, and a found dialog end
   }, 1);
   assert.equal(read.found, 'yes');
   assert.equal(calls, 3);
+});
+
+test('the system form is read in the app process alone; the plugin form may be drawn by the system', () => {
+  assert.equal(ownerFits('system', 'app'), true);
+  assert.equal(ownerFits('system', 'other'), false);
+  assert.equal(ownerFits('plugin', 'app'), true);
+  assert.equal(ownerFits('plugin', 'other'), true);
+  assert.equal(ownerFits('plugin', '-'), false);
+});
+
+test('the macOS reader prints unread where an attribute read fails, and reads each control by its own attribute', () => {
+  const swift = fs.readFileSync(path.join(crate, 'dialog', 'macos.swift'), 'utf8');
+  for (const text of ['default=\\(name(of: control(window, defaultAttr)))', 'cancel=\\(name(of: control(window, cancelAttr)))',
+    'case .noValue, .attributeUnsupported: return .absent', 'default: return .unread', 'case .unread: return "unread"',
+    'let closeWord: String', '?? "unread"']) {
+    assert.ok(swift.includes(text), `macos.swift: ${text}`);
+  }
+  const ps = fs.readFileSync(path.join(crate, 'dialog', 'windows.ps1'), 'utf8');
+  for (const text of ["if (($rs -band $STATE_SYSTEM_DEFAULT) -ne 0) { $defaultWord = 'reject' } elseif (($as -band $STATE_SYSTEM_DEFAULT) -ne 0) { $defaultWord = 'allow' }",
+    "$closeWord = if ($closeState -lt 0) { 'unread' } elseif (($closeState -band $hidden) -eq 0) { 'yes' } else { 'no' }"]) {
+    assert.ok(ps.includes(text), `windows.ps1: ${text}`);
+  }
 });

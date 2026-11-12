@@ -134,15 +134,15 @@ export function closure(metadata, rootName) {
   return [...seen].map((id) => byId.get(id));
 }
 
-export function addedPackages(metadata, candidateCrate, baseCrate) {
-  const base = new Set(closure(metadata, baseCrate).map((p) => p.id));
+export function addedPackages(metadata, candidateCrate, baseCrate, baseMetadata = metadata) {
+  const base = new Set(closure(baseMetadata, baseCrate).map((p) => p.id));
   return closure(metadata, candidateCrate).filter((p) => !base.has(p.id));
 }
 
-export function addedOnTargets(metaByTarget, candidateCrate, baseCrate) {
+export function addedOnTargets(metaByTarget, candidateCrate, baseCrate, baseByTarget = metaByTarget) {
   const byId = new Map();
   for (const [target, meta] of Object.entries(metaByTarget)) {
-    for (const pkg of addedPackages(meta, candidateCrate, baseCrate)) {
+    for (const pkg of addedPackages(meta, candidateCrate, baseCrate, baseByTarget[target])) {
       if (!byId.has(pkg.id)) byId.set(pkg.id, { pkg, targets: [] });
       byId.get(pkg.id).targets.push(target);
     }
@@ -273,7 +273,8 @@ function candidateReading(name) {
   const crate = meta.packages.find((p) => p.name === candidate.crate);
   if (!crate) throw new Error(`the metadata holds no ${candidate.crate}`);
   const perTarget = Object.fromEntries(BUILT_TARGETS.map((t) => [t, metadata(candidate.feature, t)]));
-  const onTargets = addedOnTargets(perTarget, candidate.crate, 'r4-trial-app');
+  const basePerTarget = Object.fromEntries(BUILT_TARGETS.map((t) => [t, metadata(null, t)]));
+  const onTargets = addedOnTargets(perTarget, candidate.crate, 'r4-trial-app', basePerTarget);
   const added = onTargets.map((a) => a.pkg);
   const details = BUILT_TARGETS.map((t) => `detail trial=driver candidate=${name} target=${t} added=${onTargets.filter((a) => a.targets.includes(t)).length}`);
   let licences = true;
@@ -282,7 +283,7 @@ function candidateReading(name) {
     licences &&= ok;
     details.push(`detail trial=driver candidate=${name} tree=cargo package=${p.name} version=${p.version} licence=${String(p.license).replace(/\s+/g, '_')} targets=${targets.length} ok=${ok ? 'yes' : 'no'}`);
   }
-  const entries = unbuiltEntries(addedPackages(meta, candidate.crate, 'r4-trial-app'), onTargets).map((p) => entryLine(name, p));
+  const entries = unbuiltEntries(addedPackages(meta, candidate.crate, 'r4-trial-app', metadata(null)), onTargets).map((p) => entryLine(name, p));
   const texts = sourceTexts(path.dirname(crate.manifest_path));
   const names = added.map((p) => p.name);
   if (candidate.npm) {

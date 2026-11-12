@@ -10,6 +10,13 @@ call \.post\(\s*CGEventTapLocation
 call \bIOHIDPostEvent\b
 call \bpostEvent_atStart\b
 call \bpostEvent:\s*\S+\s+atStart:
+call \bpostEvent\([^)]*atStart:
+call \bCGEvent\(\s*(?:keyboardEventSource|mouseEventSource|scrollWheelEvent2Source):
+call \.post\(\s*tap:
+call \.postToPid\(
+call \bCGEvent::post(?:_to_pid)?\(
+call \.post_to_pid\(
+call \bnew_scroll_wheel_event2\b
 # Windows: the input functions of user32 and the structure that SendInput takes.
 call \bSendInput\b
 call \bkeybd_event\b
@@ -18,7 +25,11 @@ call \bKeyboardAndMouse::mouse_event\b
 call \bINPUT_(?:KEYBOARD|MOUSE)\b
 # Linux: the X test extension.
 call \bXTestFake(?:Key|Button|Motion)Event\b
-# Crates whose purpose is posting input, by name in source and in the tree.
+# Posting input through another program.
+call \bSystem Events\b
+call \bxdotool\b
+call \bSendKeys\b
+# Crates and packages whose purpose is posting input, by name in source and in the tree.
 call \benigo::
 call \brdev::simulate\b
 crate enigo
@@ -28,3 +39,6 @@ crate inputbot
 crate winput
 crate mouse-rs
 crate mouce
+crate robotjs
+crate @nut-tree/nut-js
+crate @nut-tree-fork/nut-js

@@ -1,7 +1,7 @@
 // The reader of the trial's native dialog on macOS, through the accessibility interface; built and run by dialog.mjs.
 // usage: macos read <pid> | list <pid> | press <pid> <close|allow|reject>
 // The dialog is looked for in the app's process and then in the system's UserNotificationCenter, which shows a CFUserNotification alert.
-// read prints `dialog found=<yes|no> trusted=<yes|no> text=<same|differ|-> default=<reject|allow|none|other|-> cancel=<...> close=<yes|no|-> owner=<app|other|->`;
+// read prints `dialog found=<yes|no> trusted=<yes|no> text=<same|differ|-> default=<reject|allow|none|other|unread|-> cancel=<...> close=<yes|no|unread|-> owner=<app|other|->`;
 // list prints counts of the app's windows and their buttons; press prints `pressed=<yes|no>`. It posts no input event: a control is pressed by its AXPress action.
 import AppKit
 import ApplicationServices
@@ -25,9 +25,26 @@ func value(_ element: AXUIElement, _ name: String) -> AnyObject? {
   return AXUIElementCopyAttributeValue(element, name as CFString, &out) == .success ? out : nil
 }
 
-func element(_ element: AXUIElement, _ name: String) -> AXUIElement? {
-  guard let found = value(element, name), CFGetTypeID(found) == AXUIElementGetTypeID() else { return nil }
-  return (found as! AXUIElement)
+enum Control {
+  case found(AXUIElement)
+  case absent
+  case unread
+}
+
+func control(_ window: AXUIElement, _ name: String) -> Control {
+  var out: AnyObject?
+  switch AXUIElementCopyAttributeValue(window, name as CFString, &out) {
+  case .success:
+    guard let found = out, CFGetTypeID(found) == AXUIElementGetTypeID() else { return .absent }
+    return .found(found as! AXUIElement)
+  case .noValue, .attributeUnsupported: return .absent
+  default: return .unread
+  }
+}
+
+func element(_ window: AXUIElement, _ name: String) -> AXUIElement? {
+  if case .found(let found) = control(window, name) { return found }
+  return nil
 }
 
 func text(_ element: AXUIElement, _ name: String) -> String? {
@@ -68,8 +85,15 @@ func dialog(_ pid: pid_t) -> AXUIElement? {
   return dialogOf(pid)?.0
 }
 
-func name(of control: AXUIElement?) -> String {
-  guard let control = control else { return "none" }
+func name(of control: Control) -> String {
+  switch control {
+  case .absent: return "none"
+  case .unread: return "unread"
+  case .found(let found): return label(of: found)
+  }
+}
+
+func label(of control: AXUIElement) -> String {
   switch text(control, kAXTitleAttribute as String) {
   case rejectLabel?: return "reject"
   case allowLabel?: return "allow"
@@ -87,9 +111,13 @@ func read(_ pid: pid_t) {
   }
   let texts = descendants(window).filter { role($0) == (kAXStaticTextRole as String) }.compactMap { text($0, kAXValueAttribute as String) }.map(normal)
   let same = texts.contains(title) && texts.contains(body)
-  let close = element(window, closeAttr)
-  let closeEnabled = close.flatMap { value($0, kAXEnabledAttribute as String) as? Bool } ?? false
-  print("dialog found=yes trusted=\(trusted) text=\(same ? "same" : "differ") default=\(name(of: element(window, defaultAttr))) cancel=\(name(of: element(window, cancelAttr))) close=\(close != nil && closeEnabled ? "yes" : "no") owner=\(owner)")
+  let closeWord: String
+  switch control(window, closeAttr) {
+  case .absent: closeWord = "no"
+  case .unread: closeWord = "unread"
+  case .found(let close): closeWord = (value(close, kAXEnabledAttribute as String) as? Bool).map { $0 ? "yes" : "no" } ?? "unread"
+  }
+  print("dialog found=yes trusted=\(trusted) text=\(same ? "same" : "differ") default=\(name(of: control(window, defaultAttr))) cancel=\(name(of: control(window, cancelAttr))) close=\(closeWord) owner=\(owner)")
 }
 
 func list(_ pid: pid_t) {
