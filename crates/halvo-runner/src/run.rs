@@ -1,17 +1,25 @@
+use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::time::{Duration, Instant as Clock};
 
 use halvo_schema::executable::body::{Finish, Load, LoadReply, PutLog, Stored};
-use halvo_schema::executable::frame::{Done, Hello, ReplyError, Store, StoreReplyFrame};
-use halvo_schema::executable::names::{LogEvent, Runtime};
+use halvo_schema::executable::frame::{
+    Done, Handback, HandbackReply, Hello, Progress, ReplyError, Store, StoreReplyFrame,
+};
+use halvo_schema::executable::names::{HandbackReason, LogEvent};
+use halvo_schema::executable::step::Target;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    AgentLog, AgentRun, Cause, FromRunner, Outcome, RunnerCall, RunnerReply, StoreRequest, ToRunner,
+    ActionClass, AgentLog, AgentRun, Cause, EffectState, ExecutableStep, FromRunner,
+    HandbackRequest, HandbackResult, Limits, Outcome, RunnerCall, RunnerReply, StoreRequest,
+    ToRunner, WebOrigin,
 };
 use halvo_schema::{RequestId, RunnerRequest, RunnerRole};
+use halvo_sheet::Value;
 
 use crate::args::Args;
 use crate::clock::{day, now, random16};
+use crate::effect::Tracked;
 use crate::link::{Broken, Link};
 
 /// Why the run's work stopped before its end: the link broke, or the run ends with an outcome and a cause.
@@ -27,8 +35,27 @@ impl From<Broken> for Stop {
     }
 }
 
+/// Why a step did not end well: it failed with a cause, or the run stops.
+#[derive(Debug)]
+pub(crate) enum Failure {
+    Step(Cause),
+    Stop(Stop),
+}
+
+impl From<Stop> for Failure {
+    fn from(stop: Stop) -> Failure {
+        Failure::Stop(stop)
+    }
+}
+
+impl From<Broken> for Failure {
+    fn from(broken: Broken) -> Failure {
+        Failure::Stop(Stop::Link(broken))
+    }
+}
+
 /// The cause that a store's refusal of a body gives a run's end.
-fn cause_of(error: ReplyError) -> Cause {
+pub(crate) fn cause_of(error: ReplyError) -> Cause {
     match error.as_str() {
         "effect" => Cause::Effect,
         "class" => Cause::Class,
@@ -47,6 +74,8 @@ pub(crate) struct Runner {
     pub(crate) handbacks: u32,
     pub(crate) confirmations: u32,
     pub(crate) playbook: Option<NonZeroU32>,
+    pub(crate) effects: Vec<Tracked>,
+    pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -63,6 +92,8 @@ pub(crate) fn run(args: Args, link: Link) -> i32 {
         handbacks: 0,
         confirmations: 0,
         playbook: None,
+        effects: Vec::new(),
+        kept: HashMap::new(),
     };
     let end = runner.carry_out();
     runner.close(end)
@@ -77,9 +108,88 @@ impl Runner {
         }))?;
         let loaded = self.load()?;
         self.check()?;
-        match loaded.config.runtime {
-            Runtime::None => Ok(Outcome::NothingToDo),
-            _ => Err(Stop::End(Outcome::Failed, Some(Cause::StepFailed))),
+        let steps = self.playbook(&loaded)?;
+        let of = NonZeroU32::new(steps.len() as u32).unwrap_or(NonZeroU32::MIN);
+        for step in &steps {
+            self.within(&loaded.config.limits)?;
+            self.check()?;
+            self.link
+                .send(&FromRunner::Progress(Progress { step: step.n, of }))?;
+            self.steps += 1;
+            match self.step(step, &loaded) {
+                Ok(()) => self.log(LogEvent::StepOk, Some(step.n), None)?,
+                Err(Failure::Stop(stop)) => return Err(stop),
+                Err(Failure::Step(cause)) => return Err(self.failed_step(step, cause)),
+            }
+        }
+        Ok(Outcome::Completed)
+    }
+
+    /// Ends the run at a limit of its configuration that it has reached: `steps`, then `wall`.
+    fn within(&self, limits: &Limits) -> Result<(), Stop> {
+        if self.steps >= limits.steps {
+            return Err(Stop::End(Outcome::Limit, Some(Cause::Steps)));
+        }
+        if self.wall_s() > limits.wall_s {
+            return Err(Stop::End(Outcome::Limit, Some(Cause::Wall)));
+        }
+        Ok(())
+    }
+
+    /// Carries out one step. A condition reads a page, and this build has no browser, so a step with a condition
+    /// fails, and so does a `web` step.
+    fn step(&mut self, step: &ExecutableStep, loaded: &LoadReply) -> Result<(), Failure> {
+        if !step.pre.is_empty() || !step.post.is_empty() {
+            return Err(Failure::Step(Cause::StepFailed));
+        }
+        match &step.target {
+            Some(Target::File(target)) if step.class == ActionClass::Read => {
+                self.file_read(step, target, loaded)
+            }
+            Some(Target::File(target)) => self.file_write(step, target, loaded),
+            _ => Err(Failure::Step(Cause::StepFailed)),
+        }
+    }
+
+    /// The end of a run whose step failed (A5.1): a step of the class `read` or `prepare` is handed back with the
+    /// reason `step_failed`, and the run ends `handed_back`; a step of an effect class ends the run `failed`.
+    fn failed_step(&mut self, step: &ExecutableStep, cause: Cause) -> Stop {
+        if let Err(stop) = self.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
+            return stop;
+        }
+        if !matches!(step.class, ActionClass::Read | ActionClass::Prepare) {
+            return Stop::End(Outcome::Failed, Some(cause));
+        }
+        match self.handback(HandbackReason::StepFailed, None) {
+            Ok(_) => Stop::End(Outcome::HandedBack, Some(cause)),
+            Err(stop) => stop,
+        }
+    }
+
+    /// Opens a handback and waits for its result; the wait is no time of the run's `wall_s`.
+    pub(crate) fn handback(
+        &mut self,
+        reason: HandbackReason,
+        origin: Option<WebOrigin>,
+    ) -> Result<HandbackResult, Stop> {
+        self.log(LogEvent::Handback, None, None)?;
+        self.handbacks += 1;
+        let frame = FromRunner::Handback(Handback {
+            request: HandbackRequest {
+                v: V1,
+                run: self.args.run.clone(),
+                agent: self.args.agent.clone(),
+                reason,
+                origin,
+                endpoint: None,
+            },
+        });
+        let asked = Clock::now();
+        let reply = self.link.ask(&frame);
+        self.waited += asked.elapsed();
+        match reply? {
+            ToRunner::HandbackReply(HandbackReply { result }) => Ok(result),
+            _ => Err(Broken::Frame("not_a_handback_reply").into()),
         }
     }
 
@@ -97,9 +207,22 @@ impl Runner {
         &mut self,
         call: RunnerCall,
     ) -> Result<Result<RunnerReply, ReplyError>, Broken> {
-        let id = RequestId::from_random(random16());
-        let request = RunnerRequest::new(&self.role, id.clone(), call);
-        let envelope = StoreRequest::new(&request).map_err(|_| Broken::Frame("own_body"))?;
+        let request = RunnerRequest::new(&self.role, RequestId::from_random(random16()), call);
+        self.send_store(&request)
+    }
+
+    /// The role that builds the runner's requests.
+    pub(crate) fn role(&self) -> &RunnerRole {
+        &self.role
+    }
+
+    /// Writes the `store` frame of a request and returns the store's reply, which must answer it.
+    pub(crate) fn send_store(
+        &mut self,
+        request: &RunnerRequest<RunnerCall>,
+    ) -> Result<Result<RunnerReply, ReplyError>, Broken> {
+        let id = request.id();
+        let envelope = StoreRequest::new(request).map_err(|_| Broken::Frame("own_body"))?;
         let reply = self
             .link
             .ask(&FromRunner::Store(Store { request: envelope }))?;
@@ -107,10 +230,10 @@ impl Runner {
             return Err(Broken::Frame("not_a_store_reply"));
         };
         match reply.outcome {
-            Ok(answer) if reply.id.as_ref() == Some(&id) && answer.answers(request.body()) => {
+            Ok(answer) if reply.id.as_ref() == Some(id) && answer.answers(request.body()) => {
                 Ok(Ok(answer))
             }
-            Err(error) if reply.id.as_ref().is_none_or(|got| *got == id) => Ok(Err(error)),
+            Err(error) if reply.id.as_ref().is_none_or(|got| got == id) => Ok(Err(error)),
             _ => Err(Broken::Frame("not_the_answer")),
         }
     }
@@ -178,16 +301,31 @@ impl Runner {
     }
 
     fn close(mut self, end: Result<Outcome, Stop>) -> i32 {
-        let (outcome, cause) = match end {
+        let (mut outcome, mut cause) = match end {
             Ok(outcome) => (outcome, None),
             Err(Stop::End(outcome, cause)) => (outcome, cause),
             Err(Stop::Link(broken)) => return ended(broken),
         };
+        if self.unknown() > 0 {
+            if let Err(Stop::Link(broken)) = self.handback(HandbackReason::EffectUnknown, None) {
+                return ended(broken);
+            }
+            outcome = Outcome::EffectUnknown;
+            cause = Some(Cause::Unknown);
+        }
         match self.finish(outcome, cause) {
             Ok(true) => 0,
             Ok(false) => 1,
             Err(broken) => ended(broken),
         }
+    }
+
+    /// The count of effects that are `releasing`, which the store's handler of the run's end makes `unknown`.
+    fn unknown(&self) -> u32 {
+        self.effects
+            .iter()
+            .filter(|e| e.state == EffectState::Releasing)
+            .count() as u32
     }
 
     /// Stores the run's record and writes `done`; whether the store took the record.
@@ -211,8 +349,8 @@ impl Runner {
             prompts: self.handbacks + self.confirmations,
             handbacks: self.handbacks,
             confirmations: self.confirmations,
-            effects: 0,
-            unknown: 0,
+            effects: self.effects.len() as u32,
+            unknown: self.unknown(),
             model_calls: 0,
             tokens_in: 0,
             tokens_out: 0,

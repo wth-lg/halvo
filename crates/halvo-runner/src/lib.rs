@@ -5,7 +5,10 @@
 
 mod args;
 mod clock;
+mod effect;
+mod file;
 mod link;
+mod playbook;
 mod run;
 
 use std::ffi::OsString;
