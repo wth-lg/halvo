@@ -27,6 +27,12 @@ impl Drop for Host {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        if mark_of(&self.data, &self.run).is_some() {
+            let _ = reap_in(&self.data);
+        }
+        if let Some(dir) = self.data.parent() {
+            common::end_logged(dir);
+        }
     }
 }
 
@@ -205,5 +211,43 @@ fn a_browser_whose_runner_was_killed_first_is_ended_by_the_next_life_reap_throug
     assert_eq!(answers[0].run, host.run);
     assert_eq!(answers[0].answer, Reaped::Gone);
     assert!(wait_until(SHORT, || line_gone(&browser) && gone(child.0, child.1)));
+    assert!(mark_of(&host.data, &host.run).is_none());
+}
+
+#[test]
+fn a_browser_in_the_runner_group_whose_runner_was_killed_first_is_ended_by_the_next_life_reap() {
+    let dir = common::scratch("next-life-runner-group");
+    let script = Script::new(
+        &dir,
+        &[
+            "hello",
+            "on-eof hang",
+            "browser in-runner-group child",
+            "log ready",
+            "idle",
+        ],
+    );
+    let mut host = host(&dir, &script);
+    assert!(script.wait_log("ready", SHORT), "{}", script.log());
+    let (runner, browser) = lines_of(&host);
+    host.child.kill().unwrap();
+    host.child.wait().unwrap();
+    if !line_gone(&runner) {
+        common::kill_pid(runner.pid.get());
+    }
+    assert!(wait_until(SHORT, || line_gone(&runner)));
+    let child = script.logged("browser-child");
+    if cfg!(target_os = "macos") {
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!line_gone(&browser), "the browser outlives its runner here");
+    }
+    let answers = reap_in(&host.data);
+    assert_eq!(answers.len(), 1);
+    assert_eq!(answers[0].answer, Reaped::Gone);
+    assert!(
+        wait_until(SHORT, || line_gone(&browser)
+            && child.iter().all(|(p, c)| gone(*p, *c))),
+        "a browser in the runner's group outlived the next life's reap: {answers:?}"
+    );
     assert!(mark_of(&host.data, &host.run).is_none());
 }

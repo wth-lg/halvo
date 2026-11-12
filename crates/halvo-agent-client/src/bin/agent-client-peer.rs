@@ -84,6 +84,20 @@ fn spawn_self_with(role: &str, own_group: bool, log: Option<&Path>) -> io::Resul
     cmd.spawn()
 }
 
+#[cfg(unix)]
+fn close_stdout() {
+    use std::os::fd::FromRawFd;
+    drop(unsafe { std::os::fd::OwnedFd::from_raw_fd(1) });
+}
+
+#[cfg(windows)]
+fn close_stdout() {
+    use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    drop(unsafe {
+        std::os::windows::io::OwnedHandle::from_raw_handle(io::stdout().as_raw_handle())
+    });
+}
+
 fn end_browsers(browsers: &Mutex<Vec<Child>>) {
     if let Ok(mut list) = browsers.lock() {
         for b in list.iter_mut() {
@@ -132,6 +146,45 @@ impl Peer {
                     r#"{"t":"hello","run":"ffffffffffffffffffffffffffffffff","agent":"{agent}","v":1}"#,
                 );
                 self.send(&json);
+            }
+            "hello-other-agent" => {
+                let json = self.fill(
+                    r#"{"t":"hello","run":"{run}","agent":"ffffffffffffffffffffffffffffffff","v":1}"#,
+                );
+                self.send(&json);
+            }
+            "garbage" => self.send("{\"t\":"),
+            "oversize" => {
+                let mut out = self.out.lock();
+                let _ = out.write_all(&[0, 1, 0, 1]);
+                let _ = out.flush();
+            }
+            "close-stdout" => {
+                close_stdout();
+                self.log.line("stdout-closed");
+            }
+            "child-on-stdout" => {
+                let made = std::env::current_exe().and_then(|exe| {
+                    Command::new(exe)
+                        .arg("child")
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::inherit())
+                        .stderr(Stdio::null())
+                        .spawn()
+                });
+                match made {
+                    Ok(c) => {
+                        let created = process::creation_time(c.id())
+                            .map(|t| t.to_string())
+                            .unwrap_or_default();
+                        self.log
+                            .line(&format!("child pid={} created={created}", c.id()));
+                        if let Ok(mut list) = self.browsers.lock() {
+                            list.push(c);
+                        }
+                    }
+                    Err(_) => self.log.line("child-failed"),
+                }
             }
             "send" => {
                 let json = self.fill(rest);
@@ -223,10 +276,13 @@ impl Peer {
             }
             thread::sleep(Duration::from_millis(20));
         }
+        let real = created.map(|c| c.to_string()).unwrap_or_default();
+        self.log
+            .line(&format!("browser-real pid={pid} created={real}"));
         let created = if has("created=wrong") {
             "1".to_owned()
         } else {
-            created.map(|c| c.to_string()).unwrap_or_default()
+            real
         };
         let group = if has("group=null") {
             "null".to_owned()

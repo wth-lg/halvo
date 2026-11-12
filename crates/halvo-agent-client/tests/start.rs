@@ -322,3 +322,84 @@ fn a_kill_while_the_start_runs_answers_success_only_for_a_runner_that_is_then_go
         );
     }
 }
+
+#[test]
+fn a_refused_answer_handback_during_the_start_does_not_end_the_start() {
+    let rig = Rig::new("handback-during-start");
+    let script = rig.script(&["sleep 3000", "hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let sup = rig.sup.clone();
+    let starter = std::thread::spawn(move || sup.start(spec));
+    assert!(script.wait_log("runner pid=", SHORT), "{}", script.log());
+    std::thread::sleep(Duration::from_millis(700));
+    let result = HandbackResult {
+        v: V1,
+        outcome: HandbackOutcome::Declined,
+        secret: None,
+    };
+    let answered = rig.sup.answer_handback(&run, result);
+    let started = starter.join().unwrap();
+    assert!(answered.is_err(), "{answered:?}");
+    assert_eq!(
+        started,
+        Ok(()),
+        "the refused call {answered:?} ended the start"
+    );
+    let runner = rig.mark(&run).unwrap().runner.unwrap();
+    assert!(!line_gone(&runner));
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_hello_of_another_agent_is_no_start() {
+    let rig = Rig::new("start-other-agent");
+    let script = rig.script(&["hello-other-agent", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_runner_gone(&script);
+    assert!(rig.rec.wait_end(&run, SHORT).is_some());
+}
+
+#[test]
+fn a_frame_that_cannot_be_read_ends_the_run_and_its_runner() {
+    for bad in ["garbage", "oversize"] {
+        let rig = Rig::new("broken-frame");
+        let script = rig.script(&["hello", "on-eof hang", "child", bad, "log sent", "idle"]);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        assert!(script.wait_log("sent", SHORT), "{}", script.log());
+        let end = rig.rec.wait_end(&run, SHORT);
+        assert!(end.is_some(), "{bad}: the run did not end");
+        assert_runner_gone(&script);
+        let child = script.logged("child");
+        assert!(
+            wait_until(SHORT, || child.iter().all(|(p, c)| gone(*p, *c))),
+            "{bad}"
+        );
+    }
+}
+
+#[test]
+fn a_runner_that_closes_its_output_gets_link_end_to_end_by_itself_before_the_library_ends_it() {
+    let link_end = Duration::from_secs(4);
+    let rig = Rig::configured("link-end", |c| c.link_end = link_end);
+    let script = rig.script(&["hello", "on-eof hang", "close-stdout", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("stdout-closed", SHORT), "{}", script.log());
+    let closed = std::time::Instant::now();
+    assert!(script.wait_log("eof", SHORT), "{}", script.log());
+    let runner = script.logged("runner");
+    std::thread::sleep(Duration::from_millis(1500));
+    assert!(
+        !gone(runner[0].0, runner[0].1),
+        "the library ended a runner whose output closed before LINK_END passed"
+    );
+    assert!(rig.rec.wait_end(&run, SHORT + link_end).is_some());
+    assert!(gone(runner[0].0, runner[0].1));
+    assert!(closed.elapsed() >= link_end - Duration::from_millis(1600));
+}

@@ -271,3 +271,35 @@ fn an_owner_reply_for_another_request_id_or_of_another_call_form_is_answered_int
     assert!(replies[2].contains(r#""ok":{"config":"#), "{}", replies[2]);
     rig.sup.kill(&run).unwrap();
 }
+
+#[test]
+fn a_finish_that_the_owner_did_not_store_still_owes_end_run_and_keeps_the_relay_open() {
+    let rig = Rig::new("relay-finish-refused");
+    rig.store.fail_all.store(1, Ordering::SeqCst);
+    let script = rig.script(&[
+        "hello",
+        &ask_store(&id(0x33), &finish()),
+        &ask_store(&id(0x34), &load()),
+        "log finished",
+        r#"send {"t":"done","outcome":"completed"}"#,
+        "exit 0",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("finished", SHORT), "{}", script.log());
+    let replies = script.replies();
+    assert_eq!(
+        replies[0],
+        format!(
+            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"internal"}}}}"#,
+            id(0x33)
+        )
+    );
+    assert!(replies[1].contains(r#""ok":{"config":"#), "{}", replies[1]);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    assert_eq!(end.finish, None);
+    assert_eq!(end.end_run, EndRun::Acknowledged);
+    assert_eq!(rig.store.count(r#""op":"end_run""#), 1);
+    assert!(rig.mark(&run).is_none());
+}

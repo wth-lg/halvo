@@ -401,6 +401,8 @@ pub struct People {
     pub asked_origins: Mutex<Vec<WebOrigin>>,
     pub handbacks: Mutex<Vec<HandbackRequest>>,
     pub progress: Mutex<Vec<(u32, u32)>>,
+    pub hold_answers: Mutex<bool>,
+    pub asked_confirms: AtomicUsize,
 }
 
 impl Default for People {
@@ -413,12 +415,18 @@ impl Default for People {
             asked_origins: Mutex::new(Vec::new()),
             handbacks: Mutex::new(Vec::new()),
             progress: Mutex::new(Vec::new()),
+            hold_answers: Mutex::new(false),
+            asked_confirms: AtomicUsize::new(0),
         }
     }
 }
 
 impl Confirmer for People {
     fn answers(&self, _run: &RunId, request: &ConfirmRequest) -> Vec<Answer> {
+        self.asked_confirms.fetch_add(1, Ordering::SeqCst);
+        while *self.hold_answers.lock().unwrap() {
+            thread::sleep(Duration::from_millis(10));
+        }
         self.answers
             .lock()
             .unwrap()
@@ -475,6 +483,13 @@ impl Rig {
     }
 
     pub fn with(name: &str, runner: PathBuf, start_wait: Duration) -> Rig {
+        Rig::configured(name, |c| {
+            c.runner = runner;
+            c.start_wait = start_wait;
+        })
+    }
+
+    pub fn configured(name: &str, set: impl FnOnce(&mut Config)) -> Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
         let people = Arc::new(People::default());
@@ -487,8 +502,9 @@ impl Rig {
             secrets: vault.clone(),
             marks: rec.clone(),
         };
-        let mut config = Config::new(dir.join("data"), runner);
-        config.start_wait = start_wait;
+        let mut config = Config::new(dir.join("data"), peer());
+        config.start_wait = Duration::from_secs(10);
+        set(&mut config);
         let sup = Supervisor::new(CoordinatorRole::claim(), config, parts);
         Rig {
             dir,
@@ -530,7 +546,60 @@ impl Drop for Rig {
         for mark in marks::read_all(&self.data()).unwrap_or_default() {
             let _ = self.sup.kill(&mark.run);
         }
+        end_logged(&self.dir);
     }
+}
+
+/// Ends every stand-in process that a peer under `dir` logged as made, while it still has its logged number and
+/// creation time: the runners, their children, the browsers and the browsers' children.
+pub fn end_logged(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|e| e != "log") {
+            continue;
+        }
+        let text = fs::read_to_string(&path).unwrap_or_default();
+        for line in text.lines() {
+            let word = line.split(' ').next().unwrap_or("");
+            if !matches!(word, "runner" | "child" | "browser-real" | "browser-child") {
+                continue;
+            }
+            let mut pid = None;
+            let mut created = None;
+            for part in line.split(' ') {
+                if let Some(p) = part.strip_prefix("pid=") {
+                    pid = p.parse::<u32>().ok();
+                }
+                if let Some(c) = part.strip_prefix("created=") {
+                    created = CreationTime::parse(c).ok();
+                }
+            }
+            if let (Some(pid), Some(created)) = (pid, created) {
+                if process::is_running(pid, created) {
+                    let _ = kill_quiet(pid);
+                }
+            }
+        }
+    }
+}
+
+fn kill_quiet(pid: u32) -> bool {
+    let status = if cfg!(windows) {
+        std::process::Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+    } else {
+        std::process::Command::new("/bin/kill")
+            .args(["-KILL", &pid.to_string()])
+            .stderr(std::process::Stdio::null())
+            .status()
+    };
+    status.is_ok_and(|s| s.success())
 }
 pub const PAYMENT: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","effect":"EFFECT","seq":SEQ,"day":20768,"at":1794339000000000001,"state":"STATE","class":"payment","digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kept":[{"name":"payee","value":["Northwind Power"]},{"name":"amount","value":["84.20"]},{"name":"instrument","value":["card 4242"]},{"name":"origin","value":["http://pay.test:18090"]}],"fields":4,"approval":APPROVAL,"cause":null}"#;
 

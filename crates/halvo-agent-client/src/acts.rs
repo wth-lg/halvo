@@ -138,6 +138,9 @@ impl Running<'_> {
     /// `account_link` once the `add_origin` of the request's origin is acknowledged. `ended` when no handback is
     /// open, since no answer is then applied.
     pub(crate) fn answer(&mut self, result: HandbackResult) -> Result<(), CallError> {
+        if !matches!(self.acts.waiting, Waiting::Handback(_)) {
+            return Err(CallError::Ended);
+        }
         let Waiting::Handback(request) = std::mem::take(&mut self.acts.waiting) else {
             return Err(CallError::Ended);
         };

@@ -182,21 +182,35 @@ impl RunProc {
         self.reaped
     }
 
+    /// Ends the runner's group, whose number is the runner's own (`process_group(0)`), while the unreaped runner
+    /// holds that number.
     #[cfg(target_os = "macos")]
     fn end_own_group(&self) {
-        if let Some(Group::Leader(g)) = self.line.map(|l| l.group) {
-            sys::kill_group(g.get());
-        }
+        end_group(self.child.id());
     }
 
-    /// Ends every process of the run that the library may end and waits for the runner: on macOS the runner's
-    /// group only while the runner, running or exited and not reaped, still holds its number, and the browser's
-    /// group while its leader has the number, creation time and group of its line; on Windows the job.
+    /// Ends every process of the run that the library may end and waits for the runner. On macOS, while the
+    /// runner runs, it stops the runner's group, reads the runner's living descendants, ends the runner's group and
+    /// then each descendant outside it (its group when it leads one); while the runner has exited unreaped it ends
+    /// the runner's group; and it ends the browser's group while a process of a line is in it. On Windows the job.
     pub(crate) fn end_all(&mut self) {
         #[cfg(target_os = "macos")]
         if !self.reaped {
             match sys::child_state(self.child.id()) {
-                sys::ChildState::Running | sys::ChildState::Exited => self.end_own_group(),
+                sys::ChildState::Running => {
+                    let pid = self.child.id();
+                    sys::stop_group(pid);
+                    let created = match sys::info(pid) {
+                        sys::Read::Found(i) => i.started_us,
+                        _ => self.line.map_or(0, |l| l.created.micros().get()),
+                    };
+                    let tree = descendants(pid, created);
+                    self.end_own_group();
+                    for d in &tree {
+                        end_descendant(d, pid);
+                    }
+                }
+                sys::ChildState::Exited => self.end_own_group(),
                 sys::ChildState::Gone => self.reaped = true,
             }
         }
@@ -212,7 +226,7 @@ impl RunProc {
     pub(crate) fn end_leftovers(&mut self) {
         #[cfg(target_os = "macos")]
         if let Some(b) = self.browser {
-            end_led_group(&b);
+            end_line_group(&b);
         }
         #[cfg(windows)]
         self.job.terminate();
@@ -236,14 +250,15 @@ impl RunProc {
     fn nothing_left(&self) -> bool {
         #[cfg(target_os = "macos")]
         {
-            let groups: Vec<u32> = [self.line, self.browser]
+            let mut groups: Vec<u32> = self
+                .browser
                 .into_iter()
-                .flatten()
                 .filter_map(|l| match l.group {
                     Group::Leader(g) => Some(g.get()),
                     Group::Job => None,
                 })
                 .collect();
+            groups.push(self.child.id());
             sys::table().is_ok_and(|t| !t.iter().any(|p| !p.zombie && groups.contains(&p.pgid)))
         }
         #[cfg(windows)]
@@ -262,11 +277,20 @@ pub(crate) fn reap_mark(mark: &Mark) -> (Reaped, Vec<NonZeroU32>) {
     };
     #[cfg(target_os = "macos")]
     {
+        let tree = if holds_group(&runner) {
+            sys::stop_group(runner.pid.get());
+            descendants(runner.pid.get(), runner.created.micros().get())
+        } else {
+            Vec::new()
+        };
         let mut left = Vec::new();
         for line in [Some(runner), mark.browser].into_iter().flatten() {
-            if !end_led_group(&line) && !lives(&line) {
+            if !end_line_group(&line) && !lives(&line) {
                 left.extend(members(&line));
             }
+        }
+        for d in &tree {
+            end_descendant(d, runner.pid.get());
         }
         left.sort();
         left.dedup();
@@ -307,9 +331,6 @@ fn members(line: &ProcLine) -> Vec<NonZeroU32> {
     let Group::Leader(g) = line.group else {
         return Vec::new();
     };
-    if g != line.pid {
-        return Vec::new();
-    }
     sys::table()
         .unwrap_or_default()
         .into_iter()
@@ -318,20 +339,93 @@ fn members(line: &ProcLine) -> Vec<NonZeroU32> {
         .collect()
 }
 
-/// Signals the group of a line whose process leads it, only while that process still has the line's number,
-/// creation time and group, read just before the signal.
+/// Whether the process of a line, with the line's number and creation time, is in the line's group, read now.
 #[cfg(target_os = "macos")]
-pub(crate) fn end_led_group(line: &ProcLine) -> bool {
+fn holds_group(line: &ProcLine) -> bool {
     let Group::Leader(g) = line.group else {
         return false;
     };
-    if g != line.pid {
+    matches!(
+        sys::info(line.pid.get()),
+        sys::Read::Found(i) if i.started_us == line.created.micros().get() && i.pgid == g.get()
+    )
+}
+
+/// Ends the group of a line only while the line's process, with the line's number and creation time, is in it,
+/// read just before the signal: a group that holds a process of the mark keeps its number, so the signal reaches
+/// that group alone, the browser in the runner's group among it.
+#[cfg(target_os = "macos")]
+pub(crate) fn end_line_group(line: &ProcLine) -> bool {
+    match line.group {
+        Group::Leader(g) if holds_group(line) => end_group(g.get()),
+        _ => false,
+    }
+}
+
+#[cfg(target_os = "macos")]
+const GROUP_WAIT: Duration = Duration::from_secs(2);
+
+/// Signals the group `g`, then reads it again and signals it again while a process that is no zombie is in it, until
+/// none is or `GROUP_WAIT` passes: a process forked while the signal goes out joins the group after it. While a
+/// member is left the group keeps its number, so each later signal reaches the same group.
+#[cfg(target_os = "macos")]
+fn end_group(g: u32) -> bool {
+    if !sys::kill_group(g) {
         return false;
     }
-    match sys::info(line.pid.get()) {
-        sys::Read::Found(i) if i.started_us == line.created.micros().get() && i.pgid == g.get() => {
-            sys::kill_group(g.get())
+    let deadline = Instant::now() + GROUP_WAIT;
+    while Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(10));
+        let left = sys::table().is_ok_and(|t| t.iter().any(|p| p.pgid == g && !p.zombie));
+        if !left || !sys::kill_group(g) {
+            break;
         }
-        _ => false,
+    }
+    true
+}
+
+/// The living descendants of the process `root` created at `created_us`, parents before children: a process is a
+/// child of a member when its parent's number is the member's and it was created at or after the member, as the
+/// trial's `procs.rs` walks a tree.
+#[cfg(target_os = "macos")]
+fn descendants(root: u32, created_us: u64) -> Vec<sys::Info> {
+    let Ok(table) = sys::table() else {
+        return Vec::new();
+    };
+    let mut tree: Vec<(u32, u64)> = vec![(root, created_us)];
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i < tree.len() {
+        let (parent, since) = tree[i];
+        i += 1;
+        for p in &table {
+            if p.ppid == parent
+                && p.pid != parent
+                && p.started_us >= since
+                && !tree.iter().any(|(t, _)| *t == p.pid)
+            {
+                tree.push((p.pid, p.started_us));
+                found.push(*p);
+            }
+        }
+    }
+    found
+}
+
+/// Ends one descendant of the runner read before the runner's group was ended, after reading it again: nothing
+/// when it is gone, has another creation time or is in the runner's group; its group when it leads one; else the
+/// process alone.
+#[cfg(target_os = "macos")]
+fn end_descendant(d: &sys::Info, runner_group: u32) {
+    let sys::Read::Found(now) = sys::info(d.pid) else {
+        return;
+    };
+    if now.started_us != d.started_us || now.pgid == runner_group {
+        return;
+    }
+    if now.pgid == d.pid {
+        end_group(d.pid);
+    } else {
+        sys::kill_pid(d.pid);
     }
 }

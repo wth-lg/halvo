@@ -147,21 +147,24 @@ pub struct Parts {
     pub marks: Arc<dyn MarkSink>,
 }
 
-/// Where the library keeps its marks, the runner binary that it starts, and how long a start waits.
+/// Where the library keeps its marks, the runner binary that it starts, how long a start waits, and how long a
+/// runner whose link closed has to end by itself before the library ends what is left.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub data_dir: PathBuf,
     pub runner: PathBuf,
     pub start_wait: Duration,
+    pub link_end: Duration,
 }
 
 impl Config {
-    /// The configuration with `START_WAIT`.
+    /// The configuration with `START_WAIT` and `LINK_END`.
     pub fn new(data_dir: PathBuf, runner: PathBuf) -> Config {
         Config {
             data_dir,
             runner,
             start_wait: START_WAIT,
+            link_end: LINK_END,
         }
     }
 }

@@ -12,7 +12,7 @@ use halvo_schema::executable::text::{CreationTime, RunId};
 
 const SHORT: Duration = Duration::from_secs(10);
 
-struct Sleeper(Child);
+struct Sleeper(Child, std::path::PathBuf);
 
 impl Drop for Sleeper {
     fn drop(&mut self) {
@@ -24,12 +24,15 @@ impl Drop for Sleeper {
         }
         let _ = self.0.kill();
         let _ = self.0.wait();
+        common::end_logged(&self.1);
     }
 }
 
 fn sleeper(role: &str, own_group: bool) -> (Sleeper, CreationTime) {
+    let dir = common::scratch("sleeper");
     let mut cmd = Command::new(common::peer());
     cmd.arg(role)
+        .arg(dir.join("sleeper.log"))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -47,7 +50,7 @@ fn sleeper(role: &str, own_group: bool) -> (Sleeper, CreationTime) {
         created = process::creation_time(pid);
         created.is_some()
     }));
-    (Sleeper(child), created.unwrap())
+    (Sleeper(child, dir), created.unwrap())
 }
 
 fn line(pid: u32, created: CreationTime, group: u32) -> ProcLine {
@@ -366,4 +369,87 @@ fn a_browser_and_a_child_of_a_runner_that_exits_by_itself_are_ended_with_the_run
             "{placement}: a process of the run outlived its end"
         );
     }
+}
+
+#[test]
+fn reap_answers_gone_for_a_run_of_this_life_whose_runner_is_gone_while_its_end_run_waits() {
+    let rig = Rig::new("reap-held-end-run");
+    *rig.store.hold_end_run.lock().unwrap() = true;
+    let script = rig.script(&["hello", "sleep 400", "exit 1"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let runner = rig.mark(&run).unwrap().runner.unwrap();
+    assert!(wait_until(SHORT, || line_gone(&runner)));
+    assert!(wait_until(SHORT, || rig.store.count(r#""op":"end_run""#) >= 1));
+    let answers = rig.sup.reap().unwrap();
+    *rig.store.hold_end_run.lock().unwrap() = false;
+    assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
+    let mine: Vec<_> = answers.iter().filter(|a| a.run == run).collect();
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].answer, Reaped::Gone);
+    assert!(rig.mark(&run).is_none());
+}
+
+#[test]
+fn a_browser_whose_frame_is_refused_is_ended_with_its_run() {
+    let mut cases = vec!["browser created=wrong child", "browser group=other child"];
+    if cfg!(target_os = "macos") {
+        cases.push("browser group=null child");
+        cases.push("browser group=runner-claim child");
+    }
+    for case in cases {
+        let rig = Rig::new("browser-refused-own-group");
+        let script = rig.script(&["hello", "on-eof hang", case, "idle"]);
+        let spec = rig.spec(&script);
+        let run = spec.run.clone();
+        rig.sup.start(spec).unwrap();
+        assert!(
+            rig.rec.wait_end(&run, Duration::from_secs(30)).is_some(),
+            "{case}"
+        );
+        assert!(
+            !script.log().contains("browser_reply"),
+            "{case}: {}",
+            script.log()
+        );
+        let mut made = script.logged("browser-real");
+        made.extend(script.logged("browser-child"));
+        assert!(!made.is_empty(), "{case}: {}", script.log());
+        assert!(
+            wait_until(SHORT, || made.iter().all(|(p, c)| gone(*p, *c))),
+            "{case}: a browser whose frame was refused outlived its run"
+        );
+    }
+}
+
+#[test]
+fn a_second_browser_that_leads_its_own_group_is_ended_with_its_run() {
+    let rig = Rig::new("browser-twice-own-group");
+    let script = rig.script(&["hello", "on-eof hang", "browser", "browser child", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(rig.rec.wait_end(&run, Duration::from_secs(30)).is_some());
+    let mut made = script.logged("browser-real");
+    made.extend(script.logged("browser-child"));
+    assert!(made.len() >= 2, "{}", script.log());
+    assert!(wait_until(SHORT, || made.iter().all(|(p, c)| gone(*p, *c))));
+}
+
+#[test]
+fn a_runner_that_exits_while_a_child_holds_its_output_is_seen_gone_and_its_child_ended() {
+    let rig = Rig::new("exit-child-holds-output");
+    let script = rig.script(&["hello", "child-on-stdout", "log ready", "exit 1"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("ready", SHORT), "{}", script.log());
+    let child = script.logged("child");
+    assert_eq!(child.len(), 1, "{}", script.log());
+    assert!(
+        rig.rec.wait_end(&run, SHORT).is_some(),
+        "the run's end was not seen"
+    );
+    assert!(wait_until(SHORT, || gone(child[0].0, child[0].1)));
 }

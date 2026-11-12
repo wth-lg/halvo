@@ -36,6 +36,7 @@ const _: () = assert!(size_of::<ProcBsdInfo>() == 136);
 const PROC_PIDTBSDINFO: i32 = 3;
 const SZOMB: u32 = 5;
 const SIGKILL: i32 = 9;
+const SIGSTOP: i32 = 17;
 const ESRCH: i32 = 3;
 
 const P_PID: i32 = 1;
@@ -145,6 +146,22 @@ pub(crate) fn child_state(pid: u32) -> ChildState {
 pub(crate) fn kill_group(pgid: u32) -> bool {
     match as_pid(pgid) {
         Some(g) => unsafe { kill(-g, SIGKILL) == 0 },
+        None => false,
+    }
+}
+
+/// Sends SIGSTOP to the process group `pgid`, with the guard of `kill_group`.
+pub(crate) fn stop_group(pgid: u32) -> bool {
+    match as_pid(pgid) {
+        Some(g) => unsafe { kill(-g, SIGSTOP) == 0 },
+        None => false,
+    }
+}
+
+/// Sends SIGKILL to the one process `pid`, never to a number below 2 or above the largest pid.
+pub(crate) fn kill_pid(pid: u32) -> bool {
+    match as_pid(pid) {
+        Some(p) => unsafe { kill(p, SIGKILL) == 0 },
         None => false,
     }
 }

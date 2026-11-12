@@ -20,7 +20,7 @@ use halvo_schema::executable::text::{Name, RunId};
 use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::acts::Acts;
-use crate::api::{CallError, Config, EndRun, Parts, ReapAnswer, Reaped, RunEnd, RunSpec, LINK_END};
+use crate::api::{CallError, Config, EndRun, Parts, ReapAnswer, Reaped, RunEnd, RunSpec};
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
 use crate::proc::{self, RunProc, SpawnFailed};
@@ -272,16 +272,17 @@ impl Supervisor {
     }
 
     /// Answers for every mark under the data directory, one answer per run: a run of this life whose runner has
-    /// not ended is `alive` and is left alone; for any other the library ends the processes of its mark that it may end, answers
-    /// `gone` when its runner is gone, or its mark not complete, and then removes the mark, and `alive` when its
-    /// runner lives and could not be ended.
+    /// not exited is `alive` and is left alone; for any other the library ends the processes of its mark that it
+    /// may end, answers `gone` when its runner is gone, or its mark not complete, and then removes the mark, and
+    /// `alive` when its runner lives and could not be ended.
     pub fn reap(&self) -> io::Result<Vec<ReapAnswer>> {
         let data_dir = &self.inner.config.data_dir;
         let mut answers = Vec::new();
         for mark in marks::read_all(data_dir)? {
-            let live = lock(&self.inner.runs)
-                .get(&mark.run)
-                .is_some_and(|slot| !slot.ended());
+            let slot = lock(&self.inner.runs).get(&mark.run).cloned();
+            let live = slot.is_some_and(|slot| {
+                !slot.ended() && slot.with_proc(RunProc::exited) == Some(false)
+            });
             if live {
                 answers.push(ReapAnswer {
                     run: mark.run,
@@ -375,8 +376,12 @@ fn drive(
                 if slot.with_proc(RunProc::exited).unwrap_or(true) {
                     break;
                 }
-                run.retry_adds()
+                Flow::Go
             }
+        };
+        let flow = match flow {
+            Flow::Go => run.retry_adds(),
+            Flow::Lost => Flow::Lost,
         };
         if let Flow::Lost = flow {
             slot.with_proc(RunProc::end_all);
@@ -402,8 +407,13 @@ impl Running<'_> {
         let deadline = Instant::now() + wait;
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
-            let Ok(Event::Frame(frame)) = rx.recv_timeout(left) else {
-                return false;
+            let frame = match rx.recv_timeout(left) {
+                Ok(Event::Frame(frame)) => frame,
+                Ok(Event::Handback(_, reply)) => {
+                    let _ = reply.send(Err(CallError::Ended));
+                    continue;
+                }
+                _ => return false,
             };
             match *frame {
                 FromRunner::Hello(h) => {
@@ -533,10 +543,11 @@ impl Running<'_> {
     }
 }
 
-/// Closes the link, gives the runner `LINK_END` to end by itself and then ends what is left, and reports the end.
+/// Closes the link, gives the runner `link_end` (`LINK_END` by default) to end by itself and then ends what is
+/// left, and reports the end.
 fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     slot.close_link();
-    let deadline = Instant::now() + LINK_END;
+    let deadline = Instant::now() + inner.config.link_end;
     loop {
         match slot.with_proc(RunProc::exited) {
             Some(false) if Instant::now() < deadline => thread::sleep(TICK),
