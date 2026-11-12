@@ -2456,7 +2456,9 @@ fn each_later_file_re_exports_its_two_lists_at_their_old_paths() {
         let text = read(&schema_dir().join("src").join(format!("{module}.rs")));
         assert_eq!(old_path_faults(module, &text), Vec::<String>::new());
     }
-    let line = "pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let line = "pub use ::halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let old = "pub use halvo_schema_core::learning::{ERROR_NAMES, KINDS};\n";
+    let fake = "pub mod fake;\nmod halvo_schema_core {\n    pub use super::fake as learning;\n}\n";
     let own =
         "pub const KINDS: &[crate::KindEntry] = &[];\npub const ERROR_NAMES: &[&str] = &[];\n";
     let file = "halvo-schema/src/learning.rs";
@@ -2491,6 +2493,12 @@ fn each_later_file_re_exports_its_two_lists_at_their_old_paths() {
             vec![named.clone()],
         ),
         (format!("{line}{line}"), vec![no_line.clone(), named.clone()]),
+        (old.to_owned(), vec![no_line.clone()]),
+        (
+            format!("{old}mod halvo_schema_core {{\n    pub use ::halvo_schema_core::routing as learning;\n}}\n"),
+            vec![no_line.clone()],
+        ),
+        (format!("{old}{fake}"), vec![no_line.clone()]),
     ] {
         assert_eq!(old_path_faults("learning", &text), faults, "{text}");
     }
@@ -2499,6 +2507,7 @@ fn each_later_file_re_exports_its_two_lists_at_their_old_paths() {
             "/// The lists of the learning run.\npub mod more {{}}\n{line}pub fn shown() {{}}\n"
         ),
         format!("#![allow(unused)]\n{line}"),
+        format!("{line}{fake}"),
     ] {
         assert_eq!(
             old_path_faults("learning", &twin),
@@ -2514,7 +2523,7 @@ fn old_path_faults(module: &str, text: &str) -> Vec<String> {
         Ok(stream) => stream.into_iter().collect(),
         Err(cause) => return vec![unread(&file, &cause.to_string())],
     };
-    let line = format!("pub use halvo_schema_core::{module}::{{ERROR_NAMES, KINDS}};");
+    let line = format!("pub use ::halvo_schema_core::{module}::{{ERROR_NAMES, KINDS}};");
     let want = trees(&line);
     let at: Vec<usize> = (0..top.len())
         .filter(|&i| top.len() >= i + want.len() && flat(&top[i..i + want.len()]) == flat(&want))
