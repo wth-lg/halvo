@@ -260,7 +260,8 @@ fn remove_temp_files_of_dead_installs(
             .and_then(|rest| rest.strip_suffix(".tmp"))
             .filter(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
             .and_then(|digits| digits.parse::<libc::pid_t>().ok());
-        if pid.is_some_and(|pid| pid > 0 && !process_is_alive(pid)) {
+        if pid.is_some_and(|pid| pid > 0 && !process_is_alive(pid)) && entry.file_type()?.is_file()
+        {
             match std::fs::remove_file(entry.path()) {
                 Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
                 _ => {}
@@ -299,17 +300,20 @@ fn replace_with_temp(
     std::fs::File::open(dir)?.sync_all()
 }
 
+/// Takes the login item's file away, then the temporary files of dead installs. An error
+/// of that sweep is returned after the file is gone.
 #[cfg(target_os = "macos")]
 pub fn remove_login_item(
     spec: &LoginItemSpec,
     dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<RemoveOutcome> {
+    let removed = match std::fs::remove_file(login_item_path(spec, dir)) {
+        Ok(()) => RemoveOutcome::Removed,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => RemoveOutcome::Absent,
+        Err(e) => return Err(e),
+    };
     remove_temp_files_of_dead_installs(spec, dir)?;
-    match std::fs::remove_file(login_item_path(spec, dir)) {
-        Ok(()) => Ok(RemoveOutcome::Removed),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(RemoveOutcome::Absent),
-        Err(e) => Err(e),
-    }
+    Ok(removed)
 }
 
 pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -862,6 +866,48 @@ mod login_item_tests {
         for kept in &kept {
             assert!(dir.path().join(kept).exists(), "{kept} was taken away");
         }
+    }
+
+    #[test]
+    fn a_directory_at_a_dead_install_s_name_is_kept_and_stops_no_install_or_remove() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let spec = login_item();
+        let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let dead = child.id();
+        child.wait().unwrap();
+        let odd = dir.path().join(format!(".{}.{dead}.tmp", spec.file_name()));
+        std::fs::create_dir(&odd).unwrap();
+        assert_eq!(
+            install_login_item(&spec, &dir).unwrap(),
+            InstallOutcome::Written
+        );
+        assert_eq!(
+            remove_login_item(&spec, &dir).unwrap(),
+            RemoveOutcome::Removed
+        );
+        assert!(!login_item_path(&spec, &dir).exists());
+        assert!(odd.is_dir());
+    }
+
+    #[test]
+    fn an_error_of_the_sweep_does_not_keep_the_login_item() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        let spec = login_item();
+        install_login_item(&spec, &dir).unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o300)).unwrap();
+        let removed = remove_login_item(&spec, &dir);
+        let left = login_item_path(&spec, &dir).exists();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            removed.map_err(|e| e.kind()),
+            Err(std::io::ErrorKind::PermissionDenied)
+        );
+        assert!(!left, "the login item stayed");
     }
 
     #[test]
