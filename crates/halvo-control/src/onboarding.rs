@@ -956,6 +956,63 @@ mod tests {
     }
 
     #[test]
+    fn each_row_says_whether_its_permission_was_asked_about() {
+        every_state(|input, state| {
+            for row in &state.permissions {
+                assert_eq!(
+                    row.asked,
+                    input.asked.contains(row.permission),
+                    "{:?}",
+                    row.permission
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn the_why_of_a_row_follows_the_screen_activity_switch() {
+        for screen_activity in [false, true] {
+            let mut input = input(&Permission::R1_MACOS, &[]);
+            input.screen_activity = screen_activity;
+            let whys: Vec<String> = assess(&input)
+                .permissions
+                .into_iter()
+                .map(|row| row.why)
+                .collect();
+            let want: Vec<&str> = Permission::R1_MACOS
+                .iter()
+                .map(|permission| permission.why(screen_activity))
+                .collect();
+            assert_eq!(whys, want, "screen_activity={screen_activity}");
+        }
+    }
+
+    #[test]
+    fn a_permission_granted_now_is_never_lost() {
+        every_state(|input, state| {
+            for row in &state.permissions {
+                if input.now.of(row.permission) == GrantState::Granted {
+                    assert!(!row.lost, "{:?}", row.permission);
+                    assert!(!state.lost_grants.contains(&row.permission));
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn the_lost_and_the_relist_sentences_name_the_entry_given() {
+        let mut input = input(&[Accessibility], &[(Accessibility, GrantState::NotGranted)]);
+        input.settings_entry_name = "Halvo Dev";
+        input.once_granted = [Accessibility].into_iter().collect();
+        let text = step_text(&input, Accessibility, WalkbackAction::OpenSettingsPane);
+        assert!(text.starts_with("Halvo Dev no longer has the "), "{text}");
+        assert!(
+            text.ends_with(" If Halvo Dev is already listed and still not working, remove it with the minus button and add it again."),
+            "{text}"
+        );
+    }
+
+    #[test]
     fn the_entry_name_is_an_input() {
         let mut input = input(&[Accessibility], &[]);
         input.settings_entry_name = "Halvo Dev";

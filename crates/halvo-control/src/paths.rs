@@ -17,6 +17,8 @@ pub enum PathError {
     NotNormal,
     #[error("the path is not UTF-8")]
     NotUtf8,
+    #[error("the scratch directory does not resolve to a directory that exists")]
+    Unresolved,
     #[error("the scratch directory is the data directory or lies inside it")]
     InsideDataDir,
     #[error("the scratch directory is the account's LaunchAgents directory or lies inside it")]
@@ -242,11 +244,12 @@ pub struct ScratchDir(PathBuf);
 
 impl ScratchDir {
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
-        let path = checked(path.into())?;
-        if lies_within(&path, user_data_dir.path()) {
+        let given = checked(path.into())?;
+        let real = checked(given.canonicalize().map_err(|_| PathError::Unresolved)?)?;
+        if lies_within(&given, &real, user_data_dir.path()) {
             return Err(PathError::InsideDataDir);
         }
-        Ok(Self(path))
+        Ok(Self(real))
     }
 
     pub fn path(&self) -> &Path {
@@ -285,7 +288,7 @@ impl LoginItemDir {
 
     pub fn scratch_form(dir: &ScratchDir, account: &dyn AccountLookup) -> Result<Self, PathError> {
         let agents = Self::for_account(account)?;
-        if lies_within(dir.path(), agents.path()) {
+        if lies_within(dir.path(), dir.path(), agents.path()) {
             return Err(PathError::InsideLaunchAgents);
         }
         Ok(Self {
@@ -324,59 +327,68 @@ fn checked(path: PathBuf) -> Result<PathBuf, PathError> {
     Ok(path.components().collect())
 }
 
-fn lies_within(path: &Path, dir: &Path) -> bool {
-    same_or_inside(path, dir)
-        || same_or_inside(&resolved(path), &resolved(dir))
-        || inside_by_identity(path, dir)
-}
-
-fn same_or_inside(path: &Path, dir: &Path) -> bool {
-    let mut path = path.components();
-    dir.components().all(|d| match path.next() {
-        Some(p) => p
-            .as_os_str()
-            .to_string_lossy()
-            .to_lowercase()
-            .eq(&d.as_os_str().to_string_lossy().to_lowercase()),
-        None => false,
-    })
+fn lies_within(given: &Path, real: &Path, dir: &Path) -> bool {
+    let Some(target) = identity(dir) else {
+        return false;
+    };
+    real.ancestors()
+        .chain(given.ancestors())
+        .any(|ancestor| identity(ancestor) == Some(target))
 }
 
 #[cfg(unix)]
-fn inside_by_identity(path: &Path, dir: &Path) -> bool {
+fn identity(path: &Path) -> Option<(u64, u64)> {
     use std::os::unix::fs::MetadataExt;
 
-    let Some((existing, rest)) = deepest_existing(dir) else {
-        return false;
-    };
-    let Ok(target) = std::fs::metadata(existing) else {
-        return false;
-    };
-    path.ancestors().any(|ancestor| {
-        std::fs::metadata(ancestor)
-            .is_ok_and(|meta| meta.dev() == target.dev() && meta.ino() == target.ino())
-            && path
-                .strip_prefix(ancestor)
-                .is_ok_and(|tail| same_or_inside(tail, &rest))
-    })
+    std::fs::metadata(path)
+        .ok()
+        .map(|meta| (meta.dev(), meta.ino()))
 }
 
-#[cfg(not(unix))]
-fn inside_by_identity(_path: &Path, _dir: &Path) -> bool {
-    false
-}
+/// The volume's serial number and the file's index, as the unix branch reads device and
+/// inode.
+#[cfg(windows)]
+fn identity(path: &Path) -> Option<(u64, u64)> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
 
-#[cfg(unix)]
-fn deepest_existing(dir: &Path) -> Option<(&Path, PathBuf)> {
-    let mut rest = Vec::new();
-    let mut existing = dir;
-    while !existing.exists() {
-        rest.push(existing.file_name()?);
-        existing = existing.parent()?;
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: `wide` ends in a NUL and outlives the call.
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            FILE_READ_ATTRIBUTES.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            None,
+        )
     }
-    Some((existing, rest.into_iter().rev().collect()))
+    .ok()?;
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: `handle` is open and `info` is a live value of the type the call fills.
+    let read = unsafe { GetFileInformationByHandle(handle, &mut info) };
+    // SAFETY: `handle` came from CreateFileW above and is closed once.
+    let _ = unsafe { CloseHandle(handle) };
+    read.ok()?;
+    Some((
+        u64::from(info.dwVolumeSerialNumber),
+        u64::from(info.nFileIndexHigh) << 32 | u64::from(info.nFileIndexLow),
+    ))
 }
 
+#[cfg(windows)]
 fn resolved(path: &Path) -> PathBuf {
     let mut existing = path;
     let mut rest = Vec::new();
@@ -420,12 +432,9 @@ pub fn pipe_name(sid: &str, data_dir: &DataDir) -> String {
 
 #[cfg(windows)]
 fn final_path(data_dir: &DataDir) -> String {
-    data_dir
-        .path()
-        .canonicalize()
-        .ok()
-        .and_then(|path| path.to_str().map(str::to_string))
-        .unwrap_or_else(|| data_dir.text().to_string())
+    resolved(data_dir.path())
+        .to_str()
+        .map_or_else(|| data_dir.text().to_string(), str::to_string)
 }
 
 #[cfg(not(windows))]
@@ -787,10 +796,54 @@ mod tests {
     }
 
     #[test]
+    fn a_scratch_directory_is_refused_when_its_given_or_its_resolved_path_is_in_the_data_directory()
+    {
+        #[cfg(unix)]
+        use std::os::unix::fs::symlink as symlink_dir;
+        #[cfg(windows)]
+        use std::os::windows::fs::symlink_dir;
+
+        let guard = tempfile::tempdir().unwrap();
+        let root = guard.path();
+        let data = DataDir::from_flag(root.join("data")).unwrap();
+        std::fs::create_dir_all(data.path().join("store").join("x")).unwrap();
+        std::fs::create_dir(root.join("elsewhere")).unwrap();
+        let to_store = root.join("to-store");
+        symlink_dir(data.path().join("store"), &to_store).unwrap();
+        let to_data = root.join("to-data");
+        symlink_dir(data.path(), &to_data).unwrap();
+        let out = data.path().join("out");
+        symlink_dir(root.join("elsewhere"), &out).unwrap();
+        let got: Vec<_> = [
+            to_store.clone(),
+            to_store.join("x"),
+            to_store.join("missing"),
+            to_data.join("store"),
+            out,
+            root.join("elsewhere"),
+        ]
+        .iter()
+        .map(|scratch| ScratchDir::new(scratch, &data).map(|_| ()))
+        .collect();
+        assert_eq!(
+            got,
+            [
+                Err(PathError::InsideDataDir),
+                Err(PathError::InsideDataDir),
+                Err(PathError::Unresolved),
+                Err(PathError::InsideDataDir),
+                Err(PathError::InsideDataDir),
+                Ok(()),
+            ]
+        );
+    }
+
+    #[test]
     fn a_scratch_directory_is_never_the_data_directory_or_inside_it() {
         let root = tempfile::tempdir().unwrap();
         let data = DataDir::from_flag(root.path().join("Halvo")).unwrap();
-        std::fs::create_dir_all(data.path()).unwrap();
+        std::fs::create_dir_all(data.path().join("store")).unwrap();
+        std::fs::create_dir_all(data.path().join("a").join("b")).unwrap();
         let upper = PathBuf::from(data.path().to_str().unwrap().to_uppercase());
         for inside in [
             data.path().to_path_buf(),
@@ -809,9 +862,10 @@ mod tests {
             root.path().join("Halvo-scratch"),
             root.path().join("scratch"),
         ] {
+            std::fs::create_dir(&outside).unwrap();
             assert_eq!(
                 ScratchDir::new(&outside, &data).unwrap().path(),
-                outside.as_path()
+                outside.canonicalize().unwrap()
             );
         }
         #[cfg(unix)]
@@ -929,18 +983,14 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let real = root.path().canonicalize().unwrap();
         let data = DataDir::from_flag(real.join("Halvo")).unwrap();
-        std::fs::create_dir_all(data.path()).unwrap();
+        std::fs::create_dir_all(data.path().join("store")).unwrap();
         let firm = Path::new("/System/Volumes/Data").join(data.path().strip_prefix("/").unwrap());
         let (a, b) = (
             std::fs::metadata(data.path()).unwrap(),
             std::fs::metadata(&firm).unwrap(),
         );
         assert_eq!((a.dev(), a.ino()), (b.dev(), b.ino()));
-        for inside in [
-            firm.clone(),
-            firm.join("store"),
-            firm.join("not-yet").join("x"),
-        ] {
+        for inside in [firm.clone(), firm.join("store")] {
             assert_eq!(
                 ScratchDir::new(&inside, &data),
                 Err(PathError::InsideDataDir),
@@ -948,13 +998,18 @@ mod tests {
                 inside.display()
             );
         }
+        assert_eq!(
+            ScratchDir::new(firm.join("not-yet").join("x"), &data),
+            Err(PathError::Unresolved)
+        );
         let missing = DataDir::from_flag(real.join("Later")).unwrap();
         let firm_missing =
             Path::new("/System/Volumes/Data").join(missing.path().strip_prefix("/").unwrap());
         assert_eq!(
             ScratchDir::new(firm_missing.join("store"), &missing),
-            Err(PathError::InsideDataDir)
+            Err(PathError::Unresolved)
         );
+        std::fs::create_dir(real.join("Halvo-scratch")).unwrap();
         assert!(ScratchDir::new(firm.with_file_name("Halvo-scratch"), &data).is_ok());
     }
 
@@ -1027,6 +1082,268 @@ mod tests {
         assert_eq!(by_real, format!(r"\\.\pipe\halvo-control-{sid}-{hash}"));
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_a_scratch_path_is_refused_in_every_form_of_the_data_directory() {
+        let guard = tempfile::tempdir().unwrap();
+        let root = guard.path();
+        let data = DataDir::from_flag(root.join("data")).unwrap();
+        std::fs::create_dir_all(data.path().join("store")).unwrap();
+        std::fs::create_dir(root.join("elsewhere")).unwrap();
+        let missing = DataDir::from_flag(root.join("missing-data")).unwrap();
+        let mut rows = vec![
+            (
+                "another case",
+                &data,
+                root.join("DATA").join("store"),
+                Err(PathError::InsideDataDir),
+            ),
+            (
+                "a trailing dot",
+                &data,
+                root.join("data."),
+                Err(PathError::InsideDataDir),
+            ),
+            (
+                "below a trailing dot",
+                &data,
+                root.join("data.").join("store"),
+                Err(PathError::InsideDataDir),
+            ),
+            (
+                "a trailing dot of a missing data dir",
+                &missing,
+                root.join("missing-data."),
+                Err(PathError::Unresolved),
+            ),
+            (
+                "control: a directory outside",
+                &data,
+                root.join("elsewhere"),
+                Ok(()),
+            ),
+        ];
+        let real = data.path().canonicalize().unwrap();
+        let text = real.to_str().unwrap().trim_start_matches(r"\\?\");
+        let (drive, rest) = text.split_once(":\\").unwrap();
+        let share = PathBuf::from(format!(r"\\localhost\{drive}$\{rest}")).join("store");
+        let reachable = share.is_dir();
+        println!("admin share {} reachable={reachable}", share.display());
+        if reachable {
+            rows.push((
+                "the admin share",
+                &data,
+                share,
+                Err(PathError::InsideDataDir),
+            ));
+        }
+        let wrong: Vec<String> = rows
+            .iter()
+            .filter_map(|(form, data, scratch, want)| {
+                let got = ScratchDir::new(scratch, data).map(|_| ());
+                println!("{form}: {} -> {got:?}", scratch.display());
+                (got != *want).then(|| format!("{form}: got {got:?}, want {want:?}"))
+            })
+            .collect();
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn one_data_directory_keeps_its_pipe_name_when_it_is_made() {
+        let root = tempfile::tempdir().unwrap();
+        let data = DataDir::from_flag(root.path().join("Data")).unwrap();
+        let sid = "S-1-5-21-1-2-3-1001";
+        let before = pipe_name(sid, &data);
+        std::fs::create_dir(data.path()).unwrap();
+        let after = pipe_name(sid, &data);
+        println!("pipe name before {before}, after {after}");
+        assert_eq!(before, after);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_scratch_path_is_refused_in_every_form_of_the_data_or_launch_agents_directory() {
+        use std::os::unix::fs::symlink;
+
+        enum Target<'a> {
+            Data(&'a Path),
+            LaunchAgents,
+        }
+        let guard = tempfile::tempdir().unwrap();
+        let root = guard.path().canonicalize().unwrap();
+        let home = root.join("home");
+        std::fs::create_dir_all(home.join("Library")).unwrap();
+        let account = Account {
+            base: Some(Box::leak(
+                home.to_str().unwrap().to_owned().into_boxed_str(),
+            )),
+            temp: None,
+        };
+        let agents = LoginItemDir::for_account(&account).unwrap();
+        let far = DataDir::from_flag(root.join("far-data")).unwrap();
+        let mut wrong = Vec::new();
+        let mut count = 0;
+        let mut judge =
+            |form: &str, target: Target, scratch: &Path, want: Result<(), PathError>| {
+                count += 1;
+                let got = match target {
+                    Target::Data(data) => {
+                        ScratchDir::new(scratch, &DataDir::from_flag(data).unwrap()).map(|_| ())
+                    }
+                    Target::LaunchAgents => ScratchDir::new(scratch, &far)
+                        .and_then(|scratch| LoginItemDir::scratch_form(&scratch, &account))
+                        .map(|_| ()),
+                };
+                if got != want {
+                    wrong.push(format!("{form}: got {got:?}, want {want:?}"));
+                }
+            };
+        let dir_of = |case: &str| {
+            let dir = root.join(case);
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        };
+        let unresolved = Err(PathError::Unresolved);
+
+        for (case, data, scratch, form) in [
+            (
+                "1",
+                "Caf\u{e9}",
+                "Cafe\u{301}",
+                "another spelling (NFD) of a missing data dir",
+            ),
+            (
+                "2",
+                "stra\u{df}e",
+                "STRASSE",
+                "another spelling (STRASSE) of a missing data dir",
+            ),
+            (
+                "3",
+                "store",
+                "\u{17f}tore",
+                "another spelling (long s) of a missing data dir",
+            ),
+        ] {
+            let dir = dir_of(case);
+            judge(
+                form,
+                Target::Data(&dir.join(data)),
+                &dir.join(scratch),
+                unresolved,
+            );
+        }
+
+        let dir = dir_of("4");
+        let data = dir.join("data");
+        symlink(&data, dir.join("link")).unwrap();
+        judge(
+            "a dangling link to a missing data dir",
+            Target::Data(&data),
+            &dir.join("link"),
+            unresolved,
+        );
+        judge(
+            "a path below a dangling link to a missing data dir",
+            Target::Data(&data),
+            &dir.join("link").join("store"),
+            unresolved,
+        );
+
+        judge(
+            "another spelling (long s) of a missing LaunchAgents",
+            Target::LaunchAgents,
+            &home.join("Library").join("LaunchAgent\u{17f}"),
+            unresolved,
+        );
+        symlink(agents.path(), root.join("agents-link")).unwrap();
+        judge(
+            "a dangling link to a missing LaunchAgents",
+            Target::LaunchAgents,
+            &root.join("agents-link"),
+            unresolved,
+        );
+
+        let dir = dir_of("8");
+        let live = dir.join("live-data");
+        std::fs::create_dir(&live).unwrap();
+        symlink(live.join("store"), dir.join("store-link")).unwrap();
+        judge(
+            "a dangling link to a missing child of an existing data dir",
+            Target::Data(&live),
+            &dir.join("store-link"),
+            unresolved,
+        );
+        judge(
+            "a missing parent below an existing data dir",
+            Target::Data(&live),
+            &live.join("no-such-parent").join("scratch"),
+            unresolved,
+        );
+
+        std::fs::create_dir(live.join("store")).unwrap();
+        symlink(&live, dir.join("live-link")).unwrap();
+        for (form, scratch) in [
+            ("a link to an existing data dir", dir.join("live-link")),
+            (
+                "a path below a link to an existing data dir",
+                dir.join("live-link").join("store"),
+            ),
+            (
+                "another case of an existing data dir",
+                dir.join("LIVE-DATA").join("store"),
+            ),
+            (
+                "another spelling (long s) of an existing data dir's store",
+                live.join("\u{17f}tore"),
+            ),
+        ] {
+            judge(
+                form,
+                Target::Data(&live),
+                &scratch,
+                Err(PathError::InsideDataDir),
+            );
+        }
+
+        std::fs::create_dir_all(agents.path()).unwrap();
+        symlink(agents.path(), root.join("agents-link-2")).unwrap();
+        for (form, scratch) in [
+            (
+                "a link to an existing LaunchAgents",
+                root.join("agents-link-2"),
+            ),
+            (
+                "another spelling (long s) of an existing LaunchAgents",
+                home.join("Library").join("LaunchAgent\u{17f}"),
+            ),
+        ] {
+            judge(
+                form,
+                Target::LaunchAgents,
+                &scratch,
+                Err(PathError::InsideLaunchAgents),
+            );
+        }
+
+        let outside = dir_of("outside");
+        judge(
+            "control: an existing directory outside both",
+            Target::Data(&live),
+            &outside,
+            Ok(()),
+        );
+
+        assert!(
+            wrong.is_empty(),
+            "{} of {count} forms wrong:\n{}",
+            wrong.len(),
+            wrong.join("\n")
+        );
+        assert!(!agents.path().join("com.halvo.check-l.plist").exists());
+    }
+
     #[test]
     fn the_endpoint_hash_is_fnv_1a_64_in_16_lowercase_hex_digits() {
         assert_eq!(endpoint_hash(""), "cbf29ce484222325");
@@ -1040,7 +1357,11 @@ mod tests {
         let a = DataDir::from_flag(absolute("Data A")).unwrap();
         let b = DataDir::from_flag(absolute("Data B")).unwrap();
         assert_ne!(pipe_name(sid, &a), pipe_name(sid, &b));
-        let hash = endpoint_hash(&a.path().to_str().unwrap().to_lowercase());
+        #[cfg(windows)]
+        let final_path = r"\\?\C:\Data A";
+        #[cfg(not(windows))]
+        let final_path = a.path().to_str().unwrap();
+        let hash = endpoint_hash(&final_path.to_lowercase());
         assert_eq!(
             pipe_name(sid, &a),
             format!(r"\\.\pipe\halvo-control-{sid}-{hash}")
@@ -1057,6 +1378,98 @@ mod tests {
         assert_eq!(
             socket_path(&data, &SystemAccount).unwrap(),
             data.path().join("run").join("control.sock")
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_temp_dir_of_another_account_never_holds_the_fallback_socket() {
+        use std::os::unix::fs::MetadataExt;
+
+        let me = unsafe { libc::geteuid() };
+        let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
+        let mut seen = 0;
+        for a in std::fs::read_dir("/var/folders").unwrap().flatten() {
+            let Ok(inner) = std::fs::read_dir(a.path()) else {
+                continue;
+            };
+            for b in inner.flatten() {
+                let temp = b.path().join("T");
+                let Ok(meta) = std::fs::metadata(&temp) else {
+                    continue;
+                };
+                if !meta.is_dir() || meta.uid() == me || meta.mode() & 0o777 != 0o700 {
+                    continue;
+                }
+                seen += 1;
+                let account = Account {
+                    base: None,
+                    temp: Some(temp),
+                };
+                assert_eq!(
+                    socket_path(&long, &account),
+                    Err(PathError::SocketPathTooLong)
+                );
+            }
+        }
+        println!("temp dirs of other accounts with mode 0700: {seen}");
+        assert!(seen > 0, "no directory of another account here");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_path_that_is_not_utf8_is_refused_by_both_types() {
+        use std::os::unix::ffi::OsStrExt;
+
+        let path = Path::new(std::ffi::OsStr::from_bytes(b"/data-\xff"));
+        let data = DataDir::from_flag("/data").unwrap();
+        assert_eq!(DataDir::from_flag(path), Err(PathError::NotUtf8));
+        assert_eq!(ScratchDir::new(path, &data), Err(PathError::NotUtf8));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_fallback_starts_at_a_socket_path_of_exactly_104_bytes() {
+        let none = Account {
+            base: None,
+            temp: None,
+        };
+        let socket_for = |len: usize| {
+            let name = "a".repeat(len - "/run/control.sock".len() - 1);
+            let data = DataDir::from_flag(format!("/{name}")).unwrap();
+            assert_eq!(data.control_socket().as_os_str().len(), len);
+            socket_path(&data, &none)
+        };
+        assert!(socket_for(SOCKET_PATH_MAX_BYTES - 1).is_ok());
+        assert_eq!(
+            socket_for(SOCKET_PATH_MAX_BYTES),
+            Err(PathError::SocketPathTooLong)
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_fallback_socket_path_of_exactly_104_bytes_is_refused() {
+        let mine = SystemAccount.user_temp_dir().unwrap().unwrap();
+        let private: PathBuf = Path::new("/private")
+            .join(mine.path().strip_prefix("/").unwrap())
+            .components()
+            .collect();
+        let fallback =
+            private.as_os_str().len() + "/com.halvo.capture/0123456789abcdef/control.sock".len();
+        println!("fallback bytes through the /private spelling: {fallback}");
+        assert_eq!(
+            fallback, SOCKET_PATH_MAX_BYTES,
+            "the case needs a path of 104 bytes"
+        );
+        let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
+        let account = Account {
+            base: None,
+            temp: Some(private),
+        };
+        assert_eq!(
+            socket_path(&long, &account),
+            Err(PathError::SocketPathTooLong)
         );
     }
 

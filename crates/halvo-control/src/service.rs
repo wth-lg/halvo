@@ -40,6 +40,7 @@ impl LoginItemSpec {
         data_dir: Option<&crate::paths::DataDir>,
     ) -> Result<Self, SpecError> {
         let capture_agent = label
+            .to_ascii_lowercase()
             .strip_prefix(CAPTURE_AGENT_LABEL)
             .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
         let label_ok = !label.is_empty()
@@ -54,10 +55,12 @@ impl LoginItemSpec {
         if !program.is_absolute() {
             return Err(SpecError::RelativeProgram);
         }
-        if program
-            .components()
-            .any(|component| component.as_os_str() == "AppTranslocation")
-        {
+        if program.components().any(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .is_some_and(|name| name.eq_ignore_ascii_case("AppTranslocation"))
+        }) {
             return Err(SpecError::Translocated);
         }
         let program = plist_text(program)?;
@@ -199,6 +202,7 @@ pub fn install_login_item(
 ) -> std::io::Result<InstallOutcome> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 
+    remove_temp_files_of_dead_installs(spec, dir)?;
     if login_item_state(spec, dir)? == LoginItemState::Current {
         return Ok(InstallOutcome::Unchanged);
     }
@@ -225,6 +229,45 @@ pub fn install_login_item(
 #[cfg(target_os = "macos")]
 fn temp_file_name(spec: &LoginItemSpec) -> String {
     format!(".{}.{}.tmp", spec.file_name(), std::process::id())
+}
+
+/// Removes `.<file name>.<pid>.tmp` of every process that is no longer alive: an
+/// install that crashed between the create and the rename leaves one.
+#[cfg(target_os = "macos")]
+fn remove_temp_files_of_dead_installs(
+    spec: &LoginItemSpec,
+    dir: &crate::paths::LoginItemDir,
+) -> std::io::Result<()> {
+    let prefix = format!(".{}.", spec.file_name());
+    let entries = match std::fs::read_dir(dir.path()) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let pid = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.strip_prefix(prefix.as_str()))
+            .and_then(|rest| rest.strip_suffix(".tmp"))
+            .filter(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|digits| digits.parse::<libc::pid_t>().ok());
+        if pid.is_some_and(|pid| pid > 0 && !process_is_alive(pid)) {
+            match std::fs::remove_file(entry.path()) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn process_is_alive(pid: libc::pid_t) -> bool {
+    // SAFETY: signal 0 sends nothing; kill only checks that the process exists.
+    let sent = unsafe { libc::kill(pid, 0) };
+    sent == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
 #[cfg(target_os = "macos")]
@@ -254,6 +297,7 @@ pub fn remove_login_item(
     spec: &LoginItemSpec,
     dir: &crate::paths::LoginItemDir,
 ) -> std::io::Result<RemoveOutcome> {
+    remove_temp_files_of_dead_installs(spec, dir)?;
     match std::fs::remove_file(login_item_path(spec, dir)) {
         Ok(()) => Ok(RemoveOutcome::Removed),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(RemoveOutcome::Absent),
@@ -336,7 +380,9 @@ fn is_windows_absolute(path: &str) -> bool {
 #[cfg(windows)]
 mod registry {
     use windows::core::PCWSTR;
-    use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR};
+    use windows::Win32::Foundation::{
+        ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, ERROR_UNSUPPORTED_TYPE, WIN32_ERROR,
+    };
     use windows::Win32::System::Registry::{
         RegCloseKey, RegCreateKeyExW, RegDeleteKeyValueW, RegGetValueW, RegSetValueExW, HKEY,
         HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RRF_RT_REG_SZ,
@@ -407,7 +453,11 @@ mod registry {
 
     pub fn write(spec: &StartValueSpec) -> std::io::Result<InstallOutcome> {
         let data = spec.data();
-        if read(spec)?.as_deref() == Some(data.as_str()) {
+        let stored = match read(spec) {
+            Err(e) if e.raw_os_error() == Some(ERROR_UNSUPPORTED_TYPE.0 as i32) => None,
+            stored => stored?,
+        };
+        if stored.as_deref() == Some(data.as_str()) {
             return Ok(InstallOutcome::Unchanged);
         }
         let (key, name) = (wide(spec.key()), wide(spec.value_name()));
@@ -590,6 +640,16 @@ mod login_item_tests {
     fn the_spec_refuses_a_relative_or_translocated_program_and_a_bad_label() {
         let translocated =
             "/private/var/folders/x/T/AppTranslocation/0A1B/d/Halvo.app/Contents/MacOS/Halvo";
+        for spelling in ["apptranslocation", "APPTRANSLOCATION", "AppTransLocation"] {
+            let program = format!(
+                "/private/var/folders/x/T/{spelling}/0A1B/d/Halvo.app/Contents/MacOS/Halvo"
+            );
+            assert_eq!(
+                LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(&program), None),
+                Err(SpecError::Translocated),
+                "{spelling}"
+            );
+        }
         for program in ["Halvo.app/Contents/MacOS/Halvo", "", translocated] {
             assert!(
                 LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(program), None).is_err(),
@@ -691,6 +751,59 @@ mod login_item_tests {
     }
 
     #[test]
+    fn an_install_and_a_remove_take_away_the_temp_file_of_a_dead_install_alone() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        std::fs::create_dir_all(dir.path()).unwrap();
+        let spec = login_item();
+        let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let dead = child.id();
+        child.wait().unwrap();
+        let live = std::os::unix::process::parent_id();
+        let name = spec.file_name();
+        let kept = [
+            format!(".{name}.{live}.tmp"),
+            format!(".{name}.x{dead}.tmp"),
+            format!(".{name}..tmp"),
+            format!(".{name}.{dead}.tmpx"),
+            format!("{name}.{dead}.tmp"),
+            format!(".com.halvo.other.plist.{dead}.tmp"),
+        ];
+        for kept in &kept {
+            std::fs::write(dir.path().join(kept), "kept").unwrap();
+        }
+        let left = dir.path().join(format!(".{name}.{dead}.tmp"));
+        let mut steps = Vec::new();
+        for (step, run) in [
+            ("an install that writes", true),
+            ("an install that finds the item current", true),
+            ("a remove that removes", false),
+            ("a remove that finds nothing", false),
+        ] {
+            std::fs::write(&left, "half of a plist").unwrap();
+            if run {
+                install_login_item(&spec, &dir).unwrap();
+            } else {
+                remove_login_item(&spec, &dir).unwrap();
+            }
+            steps.push((step, left.exists()));
+        }
+        assert_eq!(
+            steps,
+            [
+                ("an install that writes", false),
+                ("an install that finds the item current", false),
+                ("a remove that removes", false),
+                ("a remove that finds nothing", false),
+            ]
+        );
+        for kept in &kept {
+            assert!(dir.path().join(kept).exists(), "{kept} was taken away");
+        }
+    }
+
+    #[test]
     fn a_failed_rewrite_keeps_the_old_bytes() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();
@@ -704,6 +817,43 @@ mod login_item_tests {
         let path = login_item_path(&other, &dir);
         assert_eq!(std::fs::read_to_string(path).unwrap(), LOGIN_ITEM_PLIST);
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn umask_077_gives_a_0644_plist_in_a_new_0755_directory() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        let before = unsafe { libc::umask(0o077) };
+        let result = install_login_item(&login_item(), &dir);
+        unsafe { libc::umask(before) };
+        assert_eq!(result.unwrap(), InstallOutcome::Written);
+        assert_eq!(mode(dir.path()), 0o755);
+        assert_eq!(mode(&login_item_path(&login_item(), &dir)), 0o644);
+    }
+
+    #[test]
+    fn a_failed_rename_takes_its_temp_file_away() {
+        let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        let home = tempfile::tempdir().unwrap();
+        let dir = agents(home.path());
+        let spec = login_item();
+        std::fs::create_dir_all(login_item_path(&spec, &dir)).unwrap();
+        assert!(install_login_item(&spec, &dir).is_err());
+        let names: Vec<String> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, [spec.file_name()]);
+    }
+
+    #[test]
+    fn a_data_directory_with_a_control_character_is_an_error() {
+        let data = DataDir::from_flag("/Users/a b/Halvo\u{7}").unwrap();
+        assert_eq!(
+            LoginItemSpec::new(LOGIN_ITEM_LABEL, Path::new(APP), Some(&data)),
+            Err(SpecError::Text)
+        );
     }
 
     #[test]
@@ -759,7 +909,13 @@ mod login_item_tests {
             InstallOutcome::Written
         );
         let path = login_item_path(&spec, &target);
-        assert_eq!(path, root.path().join("com.halvo.check-l.plist"));
+        assert_eq!(
+            path,
+            root.path()
+                .canonicalize()
+                .unwrap()
+                .join("com.halvo.check-l.plist")
+        );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), spec.plist());
         assert!(spec
             .plist()
@@ -772,10 +928,10 @@ mod login_item_tests {
         );
         let user_dir = std::fs::read_dir(root.path()).unwrap().count();
         assert_eq!(user_dir, 1);
-        let gone = ScratchDir::new(root.path().join("missing"), &user).unwrap();
-        let gone_dir =
-            LoginItemDir::scratch_form(&gone, &Home(PathBuf::from("/Users/a b"))).unwrap();
-        assert!(install_login_item(&spec, &gone_dir).is_err());
+        assert_eq!(
+            ScratchDir::new(root.path().join("missing"), &user),
+            Err(PathError::Unresolved)
+        );
     }
 
     #[test]
@@ -783,7 +939,7 @@ mod login_item_tests {
         let home = tempfile::tempdir().unwrap();
         let account = Home(home.path().to_path_buf());
         let agents = LoginItemDir::for_account(&account).unwrap();
-        std::fs::create_dir_all(agents.path()).unwrap();
+        std::fs::create_dir_all(agents.path().join("check")).unwrap();
         let user = DataDir::for_account(&account).unwrap();
         let link = home.path().join("link");
         std::os::unix::fs::symlink(agents.path(), &link).unwrap();
@@ -802,6 +958,7 @@ mod login_item_tests {
                 inside.display()
             );
         }
+        std::fs::create_dir(home.path().join("scratch")).unwrap();
         let outside = ScratchDir::new(home.path().join("scratch"), &user).unwrap();
         assert_eq!(
             LoginItemDir::scratch_form(&outside, &account)
@@ -826,7 +983,13 @@ mod login_item_tests {
     fn the_builder_refuses_the_capture_agent_label() {
         assert_eq!(CAPTURE_AGENT_LABEL, "com.halvo.capture");
         assert_eq!(crate::paths::FALLBACK_SOCKET_DIR, CAPTURE_AGENT_LABEL);
-        for label in ["com.halvo.capture", "com.halvo.capture.test"] {
+        for label in [
+            "com.halvo.capture",
+            "com.halvo.capture.test",
+            "COM.HALVO.CAPTURE",
+            "com.halvo.Capture",
+            "Com.Halvo.Capture.Test",
+        ] {
             assert_eq!(
                 LoginItemSpec::new(label, Path::new(APP), None),
                 Err(SpecError::Label),
@@ -930,5 +1093,33 @@ mod start_value_registry_tests {
         assert_eq!(remove_start_value(&spec).unwrap(), RemoveOutcome::Removed);
         assert_eq!(read_start_value(&spec).unwrap(), None);
         assert_eq!(remove_start_value(&spec).unwrap(), RemoveOutcome::Absent);
+    }
+
+    #[test]
+    fn a_start_value_of_another_type_is_replaced_by_the_string() {
+        let scratch = ScratchKey(format!(r"Software\Halvo-Test-Type-{}", std::process::id()));
+        let spec =
+            StartValueSpec::with_key(&scratch.0, RUN_VALUE_NAME, Path::new(r"C:\Halvo\halvo.exe"))
+                .unwrap();
+        for (kind, data) in [
+            ("REG_DWORD", "1"),
+            ("REG_BINARY", "00"),
+            ("REG_MULTI_SZ", "x"),
+        ] {
+            let status = std::process::Command::new("reg")
+                .args(["add", &format!(r"HKCU\{}", scratch.0), "/v", RUN_VALUE_NAME])
+                .args(["/t", kind, "/d", data, "/f"])
+                .status()
+                .unwrap();
+            assert!(status.success(), "reg add {kind}");
+            let written = write_start_value(&spec);
+            println!("a stored {kind}: write={written:?}");
+            assert_eq!(written.unwrap(), InstallOutcome::Written, "{kind}");
+            assert_eq!(
+                read_start_value(&spec).unwrap(),
+                Some(spec.data()),
+                "{kind}"
+            );
+        }
     }
 }
