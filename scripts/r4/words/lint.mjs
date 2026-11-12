@@ -5,6 +5,7 @@ const NAME = '45-r4-words';
 const CLASSES = ['model', 'tier', 'count', 'tool', 'bundle', 'path', 'address', 'enum', 'code', 'trace', 'prompt'];
 const RUNS = ['capture', 'workflow', 'agents', 'interface', 'billing'];
 const THIS_RUN = 'interface';
+const FIXED_TERMS = ['paused|capture|yes', 'cap|capture|yes', 'delete|workflow|yes', 'approve|workflow|yes'];
 const STATES = [
   'empty',
   'ten',
@@ -33,6 +34,7 @@ const LIST = 'scripts/r4/words/never-read.txt';
 const CASES = 'scripts/r4/words/never-read-cases.txt';
 const ALLOWED = 'scripts/r4/words/allowed.txt';
 const GLOSSARY = 'docs/r4/words.md';
+const NAMES = ['crates/halvo-coord/src/types/names.rs', 'crates/halvo-coord/src/types/cause.rs'];
 const MAX_WORDS = 20;
 const HEADING = /^\s*heading: "([^"\\]*)",$/u;
 
@@ -103,6 +105,20 @@ function parseList(text) {
   return patterns;
 }
 
+function closedNames(repo) {
+  const names = new Set();
+  for (const rel of NAMES) {
+    const found = splitLines(readText(repo, rel, 'input'))
+      .map((l) => /^\s*[A-Z][A-Za-z0-9]* = "([a-z][a-z0-9_]*)",$/u.exec(l))
+      .filter(Boolean);
+    if (found.length === 0) throw new Stop('input', rel);
+    for (const m of found) if (m[1].includes('_')) names.add(m[1]);
+  }
+  if (names.size === 0) throw new Stop('input', NAMES[0]);
+  const alt = [...names].sort().map((n) => n.split('_').join('[-_]')).join('|');
+  return { cls: 'enum', re: new RegExp(`(?<![\\p{L}\\p{N}])(?:${alt})(?![\\p{L}\\p{N}])`, 'iu') };
+}
+
 function cells(line) {
   const t = line.trim();
   if (!t.startsWith('|') || !t.endsWith('|') || t.length < 2) return null;
@@ -118,6 +134,7 @@ function escapeTerm(term) {
 
 function parseGlossary(text) {
   const terms = [];
+  const rows = [];
   const seen = new Set();
   let state = 'before';
   for (const line of splitLines(text)) {
@@ -131,12 +148,22 @@ function parseGlossary(text) {
       state = 'rows';
       continue;
     }
-    if (!c) break;
+    const tableLine = line.trim().startsWith('|');
+    if (state === 'after') {
+      if (tableLine) throw new Stop('glossary', GLOSSARY);
+      continue;
+    }
+    if (!c) {
+      if (tableLine) throw new Stop('glossary', GLOSSARY);
+      state = 'after';
+      continue;
+    }
     const [term, meaning, run, reserved] = c;
     if (c.length !== 4 || term === '' || term.includes('`') || meaning === '') throw new Stop('glossary', GLOSSARY);
     if (!RUNS.includes(run) || (reserved !== 'yes' && reserved !== 'no')) throw new Stop('glossary', GLOSSARY);
     if (seen.has(term.toLowerCase())) throw new Stop('glossary', GLOSSARY);
     seen.add(term.toLowerCase());
+    rows.push(`${term}|${run}|${reserved}`);
     if (reserved === 'yes') {
       terms.push({
         term,
@@ -145,7 +172,8 @@ function parseGlossary(text) {
       });
     }
   }
-  if (state !== 'rows' || seen.size === 0) throw new Stop('glossary', GLOSSARY);
+  if (state === 'before' || state === 'rule' || seen.size === 0) throw new Stop('glossary', GLOSSARY);
+  if (!FIXED_TERMS.every((row) => rows.includes(row))) throw new Stop('glossary', GLOSSARY);
   return terms;
 }
 
@@ -382,13 +410,14 @@ function check(repo) {
       return null;
     }
   };
-  const patterns = attempt(() => parseList(readText(repo, LIST, 'list')));
+  const listed = attempt(() => parseList(readText(repo, LIST, 'list')));
+  const closed = attempt(() => closedNames(repo));
   const terms = attempt(() => parseGlossary(readText(repo, GLOSSARY, 'glossary')));
   const allowed = attempt(() => parseAllowed(readText(repo, ALLOWED, 'allowed'), terms));
   const read = attempt(() => readSentences(repo));
   const views = attempt(() => listViews(repo));
   if (causes.size > 0) return { out: problems, findings: [], cause: firstCause(causes) };
-  const ctx = { patterns, allowed };
+  const ctx = { patterns: [...listed, closed], allowed };
   const others = terms.filter((t) => t.run !== THIS_RUN);
   const { sentences, headingMissing, viewStrings } = read;
   if (headingMissing) causes.add('heading');
@@ -519,7 +548,7 @@ function setAt(doc, spec, value) {
 
 function selfTest(dir, repo) {
   const copies = {};
-  for (const rel of [LIST, CASES, ALLOWED, GLOSSARY]) copies[rel] = readText(repo, rel, 'input');
+  for (const rel of [LIST, CASES, ALLOWED, GLOSSARY, ...NAMES]) copies[rel] = readText(repo, rel, 'input');
   const patterns = parseList(copies[LIST]);
   const lines = [];
   const wrong = [];
@@ -770,6 +799,20 @@ function selfTest(dir, repo) {
     'FAIL:view',
   );
   expect(
+    fixture('a-spaced-view-string-after-a-template-literal-ends-with-view', {
+      files: (f) => (f['ui/app/views/needs.js'] = view('  id: `x`,\n  note: "two words",\n')),
+    }),
+    'FAIL:view',
+    { lines: ['words view file=ui/app/views/needs.js line=4'] },
+  );
+  expect(
+    fixture('other-view-strings-with-no-space-are-not-judged', {
+      files: (f) => (f['ui/app/main.js'] = "const a = 'Claude';\n"),
+    }),
+    'PASS',
+    { lines: ['words other_views files=1 findings=0'] },
+  );
+  expect(
     fixture('a-heading-inside-a-comment-does-not-count', {
       files: (f) => (f['ui/app/views/needs.js'] = 'export const view = {\n  // heading: "What needs you",\n  id: `x`,\n};\n'),
     }),
@@ -863,8 +906,65 @@ function selfTest(dir, repo) {
   expect(fixture('a-glossary-run-outside-the-list', { files: row('| zzz | A test term. | captur | yes |') }), 'FAIL:glossary');
   expect(fixture('a-glossary-reserved-value-outside-yes-and-no', { files: row('| zzz | A test term. | capture | Yes |') }), 'FAIL:glossary');
   expect(
-    fixture('glossary-rows-after-the-table-are-not-read', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n\n| a | b |\n`) }),
-    'PASS',
+    fixture('a-table-line-after-the-table-is-glossary', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n\n| a | b |\n`) }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('an-indented-table-line-after-the-table-is-glossary', { files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n   | a | b |\n`) }),
+    'FAIL:glossary',
+  );
+  expect(fixture('text-after-the-table-passes',{ files: (f) => (f[GLOSSARY] = `${copies[GLOSSARY]}\nNotes.\n`) }), 'PASS');
+  const glossaryLines = (edit) => (f) => (f[GLOSSARY] = splitLines(copies[GLOSSARY]).flatMap(edit).join('\n'));
+  for (const term of ['paused', 'cap', 'delete', 'approve']) {
+    expect(
+      fixture(`the-fixed-term-${term}-missing`, { files: glossaryLines((l) => (l.startsWith(`| ${term} |`) ? [] : [l])) }),
+      'FAIL:glossary',
+    );
+  }
+  expect(
+    fixture('a-typo-in-the-fixed-term-paused', {
+      files: (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| paused |', '| pasued |')),
+      words: say('It is paused.'),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('a-blank-line-before-the-approve-row', {
+      files: (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| approve |', '\n| approve |')),
+      words: say('You approve it.'),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-approve-row-without-its-end-pipe', {
+      files: glossaryLines((l) => (l.startsWith('| approve |') ? [l.replace(/ \|$/u, '')] : [l])),
+      words: say('You approve it.'),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-last-row-without-its-end-pipe', {
+      files: glossaryLines((l) => (l.startsWith('| Thorough |') ? [l.replace(/ \|$/u, '')] : [l])),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-fixed-term-paused-in-capitals', {
+      files: (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| paused |', '| Paused |')),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-fixed-term-approve-not-reserved', {
+      files: glossaryLines((l) => (l.startsWith('| approve |') ? [l.replace(/\| yes \|$/u, '| no |')] : [l])),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-fixed-term-cap-under-another-run', {
+      files: glossaryLines((l) => (l.startsWith('| cap |') ? [l.replace('| capture |', '| billing |')] : [l])),
+    }),
+    'FAIL:glossary',
   );
   expect(fixture('an-empty-allowed-list', { files: (f) => (f[ALLOWED] = '') }), 'FAIL:allowed');
   expect(fixture('an-allowed-term-of-this-run', { files: (f) => (f[ALLOWED] = 'control.delete\tNeeds you\n') }), 'FAIL:allowed');
@@ -959,6 +1059,7 @@ function selfTest(dir, repo) {
     ['a-no-break-space', '\u00a0'],
     ['an-em-space', '\u2003'],
     ['a-line-break', '\n'],
+    ['a-next-line', '\u0085'],
   ]) {
     expect(
       fixture(`${name}-parts-words`, {
@@ -994,7 +1095,36 @@ function selfTest(dir, repo) {
     fixture('list-with-a-pattern-that-flag-u-refuses', { files: (f) => (f[LIST] = `${copies[LIST]}code\ta\\:b\n`) }),
     'FAIL:list',
   );
-  expect(fixture('letter-case-counts', { words: (w) => (w['line.time'] = 'The CLAUDE and the TIER are here.') }), 'PASS');
+  expect(
+    fixture('a-closed-name-with-a-hyphen-in-the-table', { words: say('It needs-you now.') }),
+    'FAIL:never_read',
+    { findings: [wordsFinding('never_read', 'enum', 'line.time')] },
+  );
+  expect(
+    fixture('a-closed-name-with-an-underscore-in-a-fixture', {
+      state: (s, doc) => {
+        if (s === 'queue') doc.snapshot.rows[0].line = 'It is waiting_turn.';
+      },
+    }),
+    'FAIL:never_read',
+    { findings: [`finding file=${FIXTURES}/state-queue.json line=1 rule=never_read class=enum key=snapshot.rows.1.line`] },
+  );
+  expect(fixture('a-closed-name-with-an-underscore-before-a-file-suffix', { words: say('It saved needs_you.pdf today.') }), 'FAIL:never_read');
+  expect(fixture('a-cause-with-a-hyphen',{ words: say('It stopped: queue-full.') }), 'FAIL:never_read');
+  expect(fixture('a-closed-name-with-a-hyphen-in-capitals', { words: say('It is ALL-SET now.') }), 'FAIL:never_read');
+  expect(fixture('a-closed-name-inside-a-longer-word-passes', { words: say('It needs-your answer on the sign-up page of a non-device plan.') }), 'PASS');
+  expect(
+    fixture('names-files-with-no-name-that-holds-an-underscore', {
+      files: (f) => {
+        f[NAMES[0]] = '    Status = "off",\n';
+        f[NAMES[1]] = '    Busy = "busy",\n';
+      },
+    }),
+    'FAIL:input',
+  );
+  expect(fixture('a-names-file-missing', { files: (f) => (f[NAMES[0]] = null) }), 'FAIL:input');
+  expect(fixture('a-names-file-with-no-names', { files: (f) => (f[NAMES[1]] = 'pub enum Cause {}\n') }), 'FAIL:input');
+  expect(fixture('letter-case-counts',{ words: (w) => (w['line.time'] = 'The CLAUDE and the TIER are here.') }), 'PASS');
 
   const cases = dataLines(copies[CASES]).map((l) => l.split('\t'));
   const misses = [];

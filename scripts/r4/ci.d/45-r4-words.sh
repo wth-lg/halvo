@@ -3,6 +3,7 @@
 # rule: Every sentence of the words table, of the 18 state fixtures and of the two view headings matches no pattern of scripts/r4/words/never-read.txt, holds at most 20 words and holds no reserved term of another run in docs/r4/words.md.
 set -u
 name=45-r4-words
+nested=self-test-of-$name
 
 usage() {
   printf 'FAIL %s (usage)\n' "$name"
@@ -37,7 +38,10 @@ esac
 here=$(cd "$here" 2>/dev/null && pwd) || setup
 repo=${CI_D_REPO:-}
 if [ -z "$repo" ]; then
-  repo=$(cd "$here/../../.." 2>/dev/null && pwd) || setup
+  case $here in
+    *?/scripts/r4/ci.d) repo=${here%/scripts/r4/ci.d} ;;
+    *) setup ;;
+  esac
 fi
 artifacts=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
 
@@ -73,7 +77,7 @@ script_case() {
   label=$1
   want=$2
   shift 2
-  out=$("$@" 2>/dev/null)
+  out=$(CI_D_JOB=$nested "$@" 2>/dev/null)
   code=$?
   last=${out##*
 }
@@ -103,6 +107,10 @@ script_case() {
 
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX" 2>/dev/null) || setup
+  if [ "${CI_D_JOB:-}" = "$nested" ]; then
+    printf 'FAIL self-test:%s (nested)\n' "$name"
+    exit 1
+  fi
   if ! node_ok; then
     printf 'FAIL self-test:%s (node)\n' "$name"
     exit 1
@@ -137,6 +145,11 @@ self_test() {
   script_case usage-the-self-test-and-more FAIL:usage env CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me" --self-test extra
   script_case setup-artifacts-under-a-file FAIL:setup env CI_D_ARTIFACTS="$work/blocker/a" "$shell" "$me"
   script_case setup-no-temporary-directory FAIL:setup env TMPDIR="$work/blocker" "$shell" "$me" --self-test
+  script_case a-self-test-inside-the-self-test FAIL:nested env PATH="$work/bin-20:$PATH" "$shell" "$me" --self-test
+  script_case a-self-test-with-no-job-is-not-nested FAIL:node env CI_D_JOB= PATH="$work/bin-20:$PATH" "$shell" "$me" --self-test
+  as0="f=\$1; shift; . \"\$f\""
+  script_case setup-own-directory-not-entered FAIL:setup env CI_D_REPO="$work/lint/base" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" -c "$as0" "$work/no-such-directory/$name.sh" "$me"
+  script_case setup-no-repository-above-the-script FAIL:setup env CI_D_REPO= CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" -c "$as0" "$work/$name.sh" "$me"
   script_case order-usage-before-setup FAIL:usage env CI_D_ARTIFACTS="$work/blocker/a" "$shell" "$me" --bogus
   script_case order-setup-before-node FAIL:setup env PATH="$work/bin-20:$PATH" CI_D_ARTIFACTS="$work/blocker/a" "$shell" "$me"
   script_case order-node-before-list FAIL:node env PATH="$work/bin-20:$PATH" CI_D_REPO="$work/lint/list-with-a-broken-pattern" CI_D_ARTIFACTS="$work/ok-artifacts" "$shell" "$me"
