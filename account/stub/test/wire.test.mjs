@@ -105,7 +105,8 @@ test("bytes that are no request get one cause, and nothing after them is read", 
       "GET / HTTP/1.1\r\nnocolon\r\n\r\n",
       "GET / HTTP/1.1\r\nx: a\x00b\r\n\r\n",
       "GET / HTTP/1.1\r\nx: a\rb\r\n\r\n",
-      "GET / HTTP/1.1\r\nx: a\nb: c\r\n\r\n",
+      "GET / HTTP/1.1\r\nx: a\r\r\n\r\n",
+      "GET / HTTP/1.1\nx: a\n\rb: c\n\n",
       "GET / HTTP/1.1\r\n: a\r\n\r\n",
       "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n0\r\nbad trailer\r\n\r\n",
     ],
@@ -146,6 +147,40 @@ test("bytes that are no request get one cause, and nothing after them is read", 
   }
 });
 
+test("a head whose lines end in a bare LF, or in CRLF and LF mixed, is read as the same head with CRLF", () => {
+  const crlf = read([`\r\n${GET}`]).messages;
+  assert.equal(crlf.length, 1);
+  for (const text of [
+    "GET /v1/subscription HTTP/1.1\nhost: 127.0.0.1\n\n",
+    "\nGET /v1/subscription HTTP/1.1\nhost: 127.0.0.1\n\n",
+    "\r\n\nGET /v1/subscription HTTP/1.1\r\nhost: 127.0.0.1\n\n",
+    "GET /v1/subscription HTTP/1.1\nhost: 127.0.0.1\r\n\r\n",
+    "GET /v1/subscription HTTP/1.1\r\nhost: 127.0.0.1\n\r\n",
+    "GET /v1/subscription HTTP/1.1\nhost: 127.0.0.1\r\n\n",
+  ]) {
+    for (const chunks of [[text], bytewise(text)]) {
+      const { messages, causes } = read(chunks);
+      assert.deepEqual(causes, [], JSON.stringify(text));
+      assert.deepEqual(messages, crlf, JSON.stringify(text));
+    }
+  }
+  const two = read(["GET / HTTP/1.1\r\nx: a\nb: c\r\n\r\n"]);
+  assert.deepEqual(two.causes, []);
+  assert.deepEqual(two.messages[0].headers, [["x", "a"], ["b", "c"]]);
+  const body = read(["POST /v1/cap HTTP/1.1\ncontent-length: 2\n\n{}GET / HTTP/1.1\n\n"]);
+  assert.deepEqual(body.causes, []);
+  assert.deepEqual(body.messages.map((message) => [message.method, message.body.toString("latin1")]), [["POST", "{}"], ["GET", ""]]);
+});
+
+test("a head with bare LF ends is held to HEAD_MAX as with CRLF", () => {
+  const start = "GET / HTTP/1.1\nx: ";
+  const head = start + "a".repeat(HEAD_MAX - start.length);
+  assert.equal(read([`${head}\n\n`]).messages.length, 1);
+  assert.equal(read([`${head}\r\n\n`]).messages.length, 1);
+  assert.deepEqual(read([`${head}a\n\n`]).causes, ["head-too-large"]);
+  assert.deepEqual(read([`${head}${"a".repeat(4)}`], { end: false }).causes, ["head-too-large"]);
+});
+
 test("a head that grows past HEAD_MAX with no end is refused before its end arrives", () => {
   assert.deepEqual(read([`GET / HTTP/1.1\r\nx: ${"a".repeat(HEAD_MAX)}`], { end: false }).causes, ["head-too-large"]);
 });
@@ -176,6 +211,8 @@ test("a peer that stops inside a request gives the cause incomplete, and one tha
   assert.deepEqual(read([GET]).causes, []);
   assert.deepEqual(read([]).causes, []);
   assert.deepEqual(read(["\r\n"]).causes, []);
+  assert.deepEqual(read(["\n"]).causes, []);
+  assert.deepEqual(read(["GET / HTTP/1.1\nhost: a\n"]).causes, ["incomplete"]);
 });
 
 test("the reader reads no request after one that its caller stops at", () => {

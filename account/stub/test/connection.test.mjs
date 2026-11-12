@@ -145,11 +145,28 @@ test("the idle limit is 5,000 ms", async () => {
 test("a request that sends nothing for the idle limit gets the contract's 400 and the line idle", async () => {
   const dir = fresh();
   const stub = await startStub({ record: dir, idleMs: 200 });
-  const answer = parse(await exchange(portOf(stub.app), Buffer.from("GET /v1/done HTTP/1.1\nhost: a\n\n")));
+  const answer = parse(await exchange(portOf(stub.app), Buffer.from("GET /v1/done HTTP/1.1\r\nhost: a\r\n")));
   assert.equal(answer.status, 400);
   assert.equal(answer.body, REJECTED);
   assert.equal(answer.headers.get("connection"), "close");
   assert.deepEqual(lines(dir).map((line) => [line.seq, line.connection, line.error]), [[1, 1, "idle"]]);
+});
+
+test("requests whose lines end in a bare LF are answered at once and recorded as sent", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 2000 });
+  const sent = Buffer.from(`GET /v1/done HTTP/1.1\nhost: a\n\nPUT /v1/cap HTTP/1.1\nhost: a\nhalvo-account: ${ID}\nauthorization: Bearer ${CRED}\ncontent-type: application/json\ncontent-length: 36\nconnection: close\n\n${CAP}`);
+  const started = performance.now();
+  const answers = parseAll(await exchange(portOf(stub.app), sent));
+  const waited = performance.now() - started;
+  assert.ok(waited < 1000, `the answers took ${Math.round(waited)} ms, so the idle limit of 2,000 ms did not send them`);
+  assert.deepEqual(answers.map((a) => a.status), [200, 200]);
+  assert.equal(answers[1].body, '{"result":"no-such-account"}');
+  const got = lines(dir);
+  assert.deepEqual(got.map((line) => [line.connection, line.method, line.target, line.status]), [[1, "GET", "/v1/done", 200], [1, "PUT", "/v1/cap", 200]]);
+  assert.deepEqual(got[1].headers.map(([name]) => name), ["host", "halvo-account", "authorization", "content-type", "content-length", "connection"]);
+  assert.equal(got[1].bytes, 36);
+  assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), sent);
 });
 
 test("a connection that sends no byte of a request for the idle limit is closed with the line idle-close", async () => {

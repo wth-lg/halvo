@@ -11,6 +11,20 @@ const VALUE_BAD = /[\r\n\x00]/;
 const BLANK = (code) => code === 0x20 || code === 0x09;
 const CHUNK_SIZE = /^([0-9A-Fa-f]{1,13})(?:[ \t]*;[^\r\n\x00]*)?$/;
 const CRLF = Buffer.from("\r\n");
+const LF = 0x0a;
+const CR = 0x0d;
+
+function headEnd(buffer) {
+  for (let from = 0; ; ) {
+    const lf = buffer.indexOf(LF, from);
+    if (lf < 0) return null;
+    if (buffer[lf + 1] === LF) return { end: lf, next: lf + 2 };
+    if (buffer[lf + 1] === CR && buffer[lf + 2] === LF) return { end: lf, next: lf + 3 };
+    from = lf + 1;
+  }
+}
+
+const unCR = (line) => (line.endsWith("\r") ? line.slice(0, -1) : line);
 
 function field(line) {
   const colon = line.indexOf(":");
@@ -38,7 +52,8 @@ function fields(lines) {
 const values = (list, name) => list.filter(([key]) => key.toLowerCase() === name).map(([, value]) => value);
 
 /**
- * Makes a reader of HTTP/1.1 requests from the bytes of one connection, in order. `feed(chunk)` takes the next bytes
+ * Makes a reader of HTTP/1.1 requests from the bytes of one connection, in order. A line of a head ends in LF, with
+ * one CR before it dropped (RFC 9112 section 2.2); the lines of a chunked body end in CRLF. `feed(chunk)` takes the next bytes
  * and `end()` says that the peer sent no more. For each whole request it calls `request(message)` with
  * `{method, target, version, headers, trailers, body}`, the fields as [name, value] pairs in the order received, each
  * byte as one character, and the first BODY_CAP bytes of the body; `request` returns true to read the next request
@@ -84,14 +99,18 @@ export function makeReader({ request, malformed }) {
   };
 
   function head() {
-    while (buffer.subarray(0, 2).equals(CRLF)) take(2);
-    const end = buffer.indexOf("\r\n\r\n");
-    if (end < 0) {
+    for (;;) {
+      if (buffer[0] === LF) take(1);
+      else if (buffer[0] === CR && buffer[1] === LF) take(2);
+      else break;
+    }
+    const found = headEnd(buffer);
+    if (found === null) {
       if (buffer.length > HEAD_MAX + 3) fail("head-too-large");
       return false;
     }
-    if (end > HEAD_MAX) return stop("head-too-large");
-    const [first, ...rest] = take(end + 4).subarray(0, end).toString("latin1").split("\r\n");
+    if (found.end - (buffer[found.end - 1] === CR ? 1 : 0) > HEAD_MAX) return stop("head-too-large");
+    const [first, ...rest] = take(found.next).subarray(0, found.end).toString("latin1").split("\n").map(unCR);
     const line = REQUEST_LINE.exec(first);
     if (line === null) return stop("request-line");
     const headers = fields(rest);
