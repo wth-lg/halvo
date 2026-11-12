@@ -240,3 +240,15 @@ test("after an answer that closes, no idle-close line follows", async () => {
   assert.equal(parse(client.got()).status, 200);
   assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
 });
+
+test("after the peer resets the connection behind an answer, no idle-close line follows", async () => {
+  const dir = fresh();
+  const stub = await startStub({ record: dir, idleMs: 200 });
+  const client = await halfOpen(portOf(stub.app));
+  client.socket.write("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
+  await pause(100);
+  client.socket.resetAndDestroy();
+  await pause(600);
+  assert.equal(parse(client.got()).status, 200);
+  assert.deepEqual(lines(dir).map((line) => line.status ?? line.error), [200]);
+});
