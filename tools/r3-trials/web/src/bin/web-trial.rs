@@ -2967,6 +2967,7 @@ mod driver {
     const CHILD_WAIT: Duration = Duration::from_secs(60);
     const CHILD_LIFE: Duration = Duration::from_secs(120);
     const CONTROL_WAIT: Duration = Duration::from_secs(15);
+    const PORT_FREE_WATCH: Duration = Duration::from_secs(30);
 
     struct Form {
         step: &'static str,
@@ -3421,7 +3422,7 @@ mod driver {
         let mut gone_ms = None;
         let mut free_ms = None;
         if paused && watch_port.is_some() {
-            while t_kill.elapsed() < KILL_WATCH && (gone_ms.is_none() || free_ms.is_none()) {
+            while t_kill.elapsed() < PORT_FREE_WATCH && (gone_ms.is_none() || free_ms.is_none()) {
                 if free_ms.is_none() && watch_port.is_some_and(port_bindable) {
                     free_ms = Some(t_kill.elapsed().as_millis());
                 }
