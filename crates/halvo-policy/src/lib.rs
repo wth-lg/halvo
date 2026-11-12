@@ -8,10 +8,15 @@ mod class;
 mod config;
 mod decide;
 mod digest;
+mod effect;
 mod limits;
+
+#[cfg(test)]
+mod step_traces;
 
 pub use class::{check_playbook, class_of, ClassDiffers};
 pub use config::{preset, validate, ConfigCause};
 pub use decide::{decide, decide_row, Checkpoint, Decided, Decision};
 pub use digest::digest;
+pub use effect::{effect_step, Effect, EffectMove, StepCause};
 pub use limits::{LimitTable, LIMITS};

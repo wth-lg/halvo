@@ -3,24 +3,25 @@ use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy,
 
 /// The decision that the table gives for an agent's configuration and a class (A5.1), as `decide` returns it and
 /// `propose` takes it. Only `decide` makes one: the fields are private and the type has no public constructor, so
-/// a plain `Decision` cannot become a `Decided`. What must not compile, a `Decided` made from a decision of its own:
+/// a plain `Decision` cannot become a `Decided`. What must not compile, a `propose` built from a decision of its
+/// own:
 ///
 /// ```compile_fail
-/// use halvo_policy::{Decided, Decision};
+/// use halvo_policy::{Decided, Decision, EffectMove};
 /// use halvo_schema::executable::ActionClass;
 /// let own = Decided { class: ActionClass::Payment, decision: Decision::Run };
-/// let _ = own;
+/// let _ = EffectMove::Propose(own);
 /// ```
 ///
 /// Its twin, which takes the `Decided` from `decide` and compiles:
 ///
 /// ```
-/// use halvo_policy::{decide, Checkpoint, Decided, Decision};
+/// use halvo_policy::{decide, Checkpoint, Decided, Decision, EffectMove};
 /// use halvo_schema::executable::{ActionClass, AgentConfig};
 /// let config = AgentConfig::parse(br#"{"v":1,"workflow":"30000000000000000000000000000001","agent":"40000000000000000000000000000001","rev":1,"category":"utility_bill_payment","tier":"on_device","reasoning":"medium","autonomy":"draft_and_confirm","allow":[],"caps":{"untrusted":"yes","private":"yes","external":"yes"},"limits":{"steps":20,"wall_s":120,"model_tokens":0},"budget":null,"permissions":[],"runtime":"web","playbook":null}"#).unwrap();
 /// let own: Decided = decide(&config, ActionClass::Payment, Checkpoint::No);
 /// assert_eq!(own.decision(), Decision::Confirm);
-/// let _ = own;
+/// let _ = EffectMove::Propose(own);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Decided {
@@ -37,6 +38,13 @@ impl Decided {
     /// The decision that `decide_row` gave for the configuration and the class.
     pub fn decision(&self) -> Decision {
         self.decision
+    }
+
+    /// A `Decided` with a free decision, for the tests that follow the model's traces, whose moves take the
+    /// decision as a free value. It exists in the crate's own test build alone.
+    #[cfg(test)]
+    pub(crate) fn free(class: ActionClass, decision: Decision) -> Decided {
+        Decided { class, decision }
     }
 }
 
