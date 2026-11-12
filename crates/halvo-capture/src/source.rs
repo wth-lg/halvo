@@ -662,6 +662,61 @@ mod tests {
         assert_eq!(new_over_new.0.calls, ["begin", "shutdown"]);
     }
 
+    struct Leaf(std::rc::Rc<std::cell::Cell<u32>>);
+
+    impl CaptureSource for Leaf {
+        fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
+            self.0.set(self.0.get() + 1);
+            Ok(Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            self.0.set(self.0.get() + 100);
+            Ok(())
+        }
+    }
+
+    struct Group {
+        children: Vec<Box<dyn CaptureSource>>,
+    }
+
+    impl CaptureSource for Group {
+        fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+            for child in &mut self.children {
+                child.start(ctx.sink().clone())?;
+            }
+            Ok(Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            for child in &mut self.children {
+                child.stop();
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_group_of_groups_starts_and_stops_through_the_old_pair() {
+        let count = std::rc::Rc::new(std::cell::Cell::new(0));
+        let inner = Group {
+            children: vec![Box::new(Leaf(count.clone()))],
+        };
+        let mut outer: Box<dyn CaptureSource> = Box::new(Group {
+            children: vec![Box::new(inner)],
+        });
+        let (handle, _writer) = sink::channel(1);
+        let started =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| outer.start(handle).is_ok()));
+        assert!(
+            matches!(started, Ok(true)),
+            "the old start panicked or failed"
+        );
+        let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| outer.stop()));
+        assert!(stopped.is_ok(), "the old stop panicked");
+        assert_eq!(count.get(), 101);
+    }
+
     struct HeldUntilTheThreadEnds {
         source: Option<NewPair>,
         report: std::sync::mpsc::Sender<std::thread::Result<Vec<&'static str>>>,
