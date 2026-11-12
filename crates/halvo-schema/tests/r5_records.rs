@@ -1708,3 +1708,101 @@ fn a_routine_of_one_day_is_read_and_written_back_to_the_same_bytes() {
         .unwrap();
     assert_eq!(check_record(entry, ROUTINE_ONE_DAY), Ok(()));
 }
+
+#[test]
+fn a_state_name_in_another_letter_case_is_refused_and_never_repaired() {
+    let runs: [(&str, &str, &str); 4] = [
+        (RUN_STARTED, r#""state":"started""#, r#""state":"Started""#),
+        (RUN_STARTED, r#""state":"started""#, r#""state":"STARTED""#),
+        (
+            RUN_EXAMPLE,
+            r#""state":"verified""#,
+            r#""state":"Verified""#,
+        ),
+        (
+            RUN_UNVERIFIED,
+            r#""state":"unverified""#,
+            r#""state":"unVerified""#,
+        ),
+    ];
+    for (line, from, to) in runs {
+        assert_eq!(
+            run_refused(&changed(line, from, to)),
+            ("RunState", Some("state"), "unknown_name"),
+            "{to}"
+        );
+    }
+    let edits: [(&str, &str, &str); 4] = [
+        (
+            EDIT_EXAMPLE,
+            r#""state":"provisional""#,
+            r#""state":"Provisional""#,
+        ),
+        (EDIT_ACTIVE, r#""state":"active""#, r#""state":"ACTIVE""#),
+        (
+            EDIT_REVERTED,
+            r#""state":"reverted""#,
+            r#""state":"Reverted""#,
+        ),
+        (
+            EDIT_WITHDRAWN,
+            r#""state":"withdrawn""#,
+            r#""state":"withdrawN""#,
+        ),
+    ];
+    for (line, from, to) in edits {
+        assert_eq!(
+            edit_refused(&changed(line, from, to)),
+            ("EditState", Some("state"), "unknown_name"),
+            "{to}"
+        );
+    }
+}
+
+#[test]
+fn a_name_of_the_other_closed_lists_in_another_letter_case_is_refused() {
+    assert_eq!(
+        run_refused(&changed(
+            RUN_EXAMPLE,
+            r#""mode":"replay""#,
+            r#""mode":"Replay""#
+        )),
+        ("Mode", Some("mode"), "unknown_name")
+    );
+    assert_eq!(
+        run_refused(&changed(
+            RUN_UNVERIFIED,
+            r#""cause":"failed""#,
+            r#""cause":"Failed""#
+        )),
+        ("RunCause", Some("cause"), "unknown_name")
+    );
+    assert_eq!(
+        edit_refused(&changed(
+            EDIT_REVERTED,
+            r#""cause":"class_mismatch""#,
+            r#""cause":"CLASS_MISMATCH""#
+        )),
+        ("EditCause", Some("cause"), "unknown_name")
+    );
+    assert_eq!(
+        edit_refused(&changed(EDIT_EXAMPLE, r#""by":"role""#, r#""by":"Role""#)),
+        ("LocatorBy", Some("by"), "unknown_name")
+    );
+    assert_eq!(
+        routine_refused(&changed(
+            ROUTINE_EXAMPLE,
+            r#""mark":"none""#,
+            r#""mark":"None""#
+        )),
+        ("Mark", Some("mark"), "unknown_name")
+    );
+    assert_eq!(
+        routine_refused(&changed(
+            ROUTINE_EXAMPLE,
+            r#""category":"utility_bill_payment""#,
+            r#""category":"Utility_bill_payment""#
+        )),
+        ("SeedCategory", Some("category"), "unknown_name")
+    );
+}

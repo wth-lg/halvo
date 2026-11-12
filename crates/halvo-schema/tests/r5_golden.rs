@@ -9,6 +9,7 @@ use halvo_schema::learning::KINDS;
 use halvo_schema::request::{
     decode, decode_reply, write_reply, CoordinatorRole, CoordinatorWrite, Decoded, ReplyResult,
 };
+use halvo_schema::{AgentId, RequestId, WorkflowId};
 use serde_json::value::RawValue;
 
 const EDIT_EXAMPLE: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","edit":"5c4b3a29180f7e6d5c4b3a29180f7e6d","rev":1,"base":1,"n":4,"state":"provisional","cause":null,"on":null,"runs":["9f8e7d6c5b4a39281706f5e4d3c2b1a0"],"first":20767,"last":20767,"clean":0,"target":{"desc":"button \"Submit payment\"","locators":[{"by":"role","value":"button","name":"Submit payment"}]}}"#;
@@ -123,4 +124,23 @@ fn r5_golden_requests() {
     let raw = RawValue::from_string(refinements.to_json().unwrap()).unwrap();
     let written = write_reply(reply.id.as_ref(), Ok(&ReplyResult::Raw(raw))).unwrap();
     assert_eq!(String::from_utf8(written).unwrap(), lines[1]);
+
+    let id = RequestId::parse("2c3d4e5f60718293a4b5c6d7e8f90a1b").unwrap();
+    let body = LearnedRead {
+        workflow: WorkflowId::parse("0f1e2d3c4b5a69788796a5b4c3d2e1f0").unwrap(),
+        agent: AgentId::parse("1a2b3c4d5e6f708192a3b4c5d6e7f809").unwrap(),
+    };
+    let from_values = CoordinatorWrite::new(&CoordinatorRole::claim(), id.clone(), body)
+        .to_bytes()
+        .unwrap();
+    assert_eq!(String::from_utf8(from_values).unwrap(), lines[0]);
+    let reply = Refinements {
+        refinements: vec![Refinement {
+            day: Day::new(20767).unwrap(),
+            what: RefinementKind::TargetLearned,
+        }],
+    };
+    let raw = RawValue::from_string(reply.to_json().unwrap()).unwrap();
+    let from_values = write_reply(Some(&id), Ok(&ReplyResult::Raw(raw))).unwrap();
+    assert_eq!(String::from_utf8(from_values).unwrap(), lines[1]);
 }
