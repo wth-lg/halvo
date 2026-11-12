@@ -1,5 +1,6 @@
 # Build output
 /target/
+/tools/r5-trials/target/
 src-tauri/gen/
 
 # Dependencies
