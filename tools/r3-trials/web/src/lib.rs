@@ -64,7 +64,7 @@ pub const REACH_STEPS: [&str; 6] = [
 
 /// The rows of U0.7b (A13.7) that run with the browser as the command of the repository's egress
 /// check (`--rows egress --round 2`), with a list that holds the relay's port alone.
-pub const EGRESS_STEPS: [&str; 10] = [
+pub const EGRESS_STEPS: [&str; 11] = [
     "no_worker_paths",
     "udp_quic",
     "webtransport",
@@ -75,6 +75,7 @@ pub const EGRESS_STEPS: [&str; 10] = [
     "after_unload",
     "reports",
     "handler_launch",
+    "updater_wake",
 ];
 
 /// The flag by which the trial program, started in the browser's place, knows that it is the
@@ -107,11 +108,13 @@ pub const FIRST_FLAGS: [&str; 11] = [
 pub const RESOLVER_RULE: &str = "--host-resolver-rules=MAP *.test 127.0.0.1,MAP * ~NOTFOUND";
 
 /// The start flags that U0.7b adds to the first flag set, the resolver rule and the relay's flags,
-/// each to close a way out of A13.7: lookups for links, hyperlink pings, the browser's extensions,
+/// each to close a way out of A13.7: the browser's waking of its updater, which then looks names up
+/// itself, lookups for links, hyperlink pings, the browser's extensions,
 /// and the features of fetches after a document is gone, discovery on the local network, signed
 /// exchanges, prerendering, prefetch through a proxy, reports, federated sign-in, payment handlers,
 /// a passkey on another device and the measurement interfaces.
-pub const ROUND2_FLAGS: [&str; 5] = [
+pub const ROUND2_FLAGS: [&str; 6] = [
+    "--disable-updater-scheduler",
     "--dns-prefetch-disable",
     "--no-pings",
     "--disable-extensions",
@@ -332,6 +335,7 @@ mod tests {
         assert_eq!(prefs["net"]["network_prediction_options"], 2);
         assert_eq!(prefs["credentials_enable_service"], false);
         assert!(ROUND2_FLAGS.iter().any(|f| f.contains("FetchLaterAPI")));
+        assert!(ROUND2_FLAGS.contains(&"--disable-updater-scheduler"));
     }
 
     #[test]

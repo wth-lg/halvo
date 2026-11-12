@@ -155,12 +155,16 @@ try { document.execCommand('insertBrOnReturn'); } catch (e) {}
 </script>`];
     }
     case 'handler_launch':
-      return [html, `<!doctype html><title>handler launch</title>
-<iframe src="halvo-way-test:frame"></iframe>
-<script>
-setTimeout(() => { location.href = 'mailto:way@example.invalid'; }, 300);
-setTimeout(() => { location.href = 'halvo-way-test:launch'; }, 900);
+      // The frame and the two navigations come after the load, so that the executor's open ends.
+      return [html, `<!doctype html><title>handler launch</title><body>handler launch<script>
+addEventListener('load', () => {
+  setTimeout(() => { const f = document.createElement('iframe'); f.src = 'halvo-way-test:frame'; document.body.appendChild(f); }, 100);
+  setTimeout(() => { location.href = 'mailto:way@example.invalid'; }, 300);
+  setTimeout(() => { location.href = 'halvo-way-test:launch'; }, 900);
+});
 </script>`];
+    case 'updater_wake':
+      return [html, '<!doctype html><title>updater wake</title><body>a page that does nothing for 75 s</body>'];
     case 'next':
       return [html, '<!doctype html><title>next</title><body>next</body>'];
     default:

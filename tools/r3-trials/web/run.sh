@@ -62,10 +62,10 @@ starts the browser headless with a new profile for every run, and stops both at 
                     listener) and frame_doc on the port with the relay.
   --rows egress     with --round 2, runs the rows of the ways out (no_worker_paths, udp_quic,
                     webtransport, peer_connection, secure_dns, lan_discovery, link_lookup,
-                    after_unload, reports, handler_launch) with the browser as the command of
-                    sh scripts/egress/check.sh and a list that holds the relay's port alone
-                    (tools/r3-trials/web/ways-listener.mjs serves the pages); handler_launch does
-                    not run on this Mac.
+                    after_unload, reports, handler_launch, updater_wake) with the browser as the
+                    command of sh scripts/egress/check.sh and a list that holds the relay's port
+                    alone (tools/r3-trials/web/ways-listener.mjs serves the pages); handler_launch
+                    does not run on this Mac.
   --rows reach      with --round 2, runs the rows of ruling CP-78: through the relay, a read to a
                     host outside the request rule's list from a page, a page opened after the
                     rule was armed, a frame, a dedicated, a shared and a service worker.
@@ -186,7 +186,7 @@ case "$rows" in
   egress)
     [ "$round" = 2 ] || refuse usage "--rows egress belongs to --round 2"
     case "$step" in
-      '' | no_worker_paths | udp_quic | webtransport | peer_connection | secure_dns | lan_discovery | link_lookup | after_unload | reports | handler_launch) ;;
+      '' | no_worker_paths | udp_quic | webtransport | peer_connection | secure_dns | lan_discovery | link_lookup | after_unload | reports | handler_launch | updater_wake) ;;
       *) refuse usage "--step with --rows egress takes one of the rows of the ways out" ;;
     esac
     ;;

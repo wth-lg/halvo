@@ -1497,7 +1497,10 @@ mod driver {
     /// The rows whose page only reaches out: ok when the listener counts nothing but the page.
     async fn way_plain(ex: &mut Executor, ctx: &Ctx, row: &str) -> Res<Option<u128>> {
         let mut listener = way_open(ex, ctx, row).await?;
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        // updater_wake stays on an idle page past the moment, some 30 s after the start, when the
+        // browser wakes its updater (seen on hosted-mac with Chrome 157 and Edge 157).
+        let wait = if row == "updater_wake" { 75 } else { 4 };
+        tokio::time::sleep(Duration::from_secs(wait)).await;
         let c = way_counts(&mut listener);
         listener.stop();
         let c = c?;
@@ -1900,7 +1903,7 @@ mod driver {
             "no_worker_paths" => no_worker_paths(ex, ctx).await,
             "reports" => way_reports(ex, ctx).await,
             "udp_quic" | "webtransport" | "peer_connection" | "secure_dns" | "lan_discovery"
-            | "link_lookup" => way_plain(ex, ctx, name).await,
+            | "link_lookup" | "updater_wake" => way_plain(ex, ctx, name).await,
             _ => Err(Fault::new("usage", name.to_string())),
         }
     }
