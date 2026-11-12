@@ -84,15 +84,19 @@ built_binary() {
     {
       dir = field("manifest_path")
       sub(/\/[^\/]*$/, "", dir)
+      if (stale == "" && index($0, "\"fresh\":true") == 0) {
+        crate = dir
+        sub(/.*\//, "", crate)
+        stale = "the target " field("name") " of " crate
+      }
       if (field("src_path") != dir "/" target) next
       n++
       binary = field("executable")
-      fresh = index($0, "\"fresh\":true") > 0
     }
     END {
-      if (n != 1) print "names " (n + 0) " test targets built from " target ", not one"
+      if (stale != "") print "compiled " stale ", so code of the workspace ran while its messages were written"
+      else if (n != 1) print "names " (n + 0) " test targets built from " target ", not one"
       else if (binary == "") print "names no test binary built from " target
-      else if (!fresh) print "compiled " target ", so the test run did not build it"
       else print "binary " binary
     }
   ' "$2"
@@ -399,7 +403,10 @@ EOF
 #!/bin/sh
 case $* in
   'show HEAD:scripts/r2/20-schema-tests.txt')
-    if [ -n "$STUB_HEAD" ]; then
+    if [ "$STUB_HEAD" = fails ]; then
+      printf "fatal: path 'scripts/r2/20-schema-tests.txt' does not exist in 'HEAD'\n" >&2
+      exit 128
+    elif [ -n "$STUB_HEAD" ]; then
       cat "$STUB_HEAD"
     elif [ -f scripts/r2/20-schema-tests.txt ]; then
       cat scripts/r2/20-schema-tests.txt
@@ -496,7 +503,15 @@ names 3'
   usual_schema_targets false
   message '{"reason":"build-finished","success":true}'
   STUB_SCHEMA_LOG=$work/forged.log
-  check target-the-run-did-not-build FAIL "FAIL $name ($build compiled tests/locked_files.rs, so the test run did not build it)"
+  check target-the-run-did-not-build FAIL "FAIL $name ($build compiled the target locked_files of halvo-schema, so code of the workspace ran while its messages were written)"
+  lists_of macro-prints-artifacts
+  messages_of "$STUB_LISTS" halvo-schema 0
+  message '{"reason":"compiler-artifact","package_id":"forged","manifest_path":"/r/crates/halvo-schema/Cargo.toml","target":{"kind":["test"],"crate_types":["bin"],"name":"locked_files","src_path":"/r/crates/halvo-schema/tests/locked_files.rs","edition":"2021","doc":false,"doctest":false,"test":true},"profile":{"test":true},"features":[],"filenames":[],"executable":"@DIR@/halvo-schema-locked_files","fresh":true}'
+  message '{"reason":"compiler-artifact","package_id":"path+file:///r/crates/zz#0.0.0","manifest_path":"/r/crates/zz/Cargo.toml","target":{"kind":["lib"],"crate_types":["lib"],"name":"zz","src_path":"/r/crates/zz/src/lib.rs","edition":"2021","doc":true,"doctest":true,"test":true},"profile":{"test":false},"features":[],"filenames":[],"executable":null,"fresh":false}'
+  artifact halvo-schema later_file_builds tests/later_file_builds.rs '"@DIR@/halvo-schema-later_file_builds"' true
+  message '{"reason":"build-finished","success":true}'
+  STUB_SCHEMA_LOG=$work/forged.log
+  check a-macro-prints-artifacts-while-a-crate-compiles FAIL "FAIL $name ($build compiled the target zz of zz, so code of the workspace ran while its messages were written)"
   lists_of build-refused
   messages_of "$STUB_LISTS" halvo-schema 101
   check build-refused FAIL "FAIL $name ($build exited 101)"
@@ -506,6 +521,12 @@ names 3'
   lists_of ignored-refused
   stub_list "$STUB_LISTS" halvo-schema-later_file_builds ignored 2 ''
   check binary-refuses-the-ignored-list FAIL "FAIL $name (the test binary of tests/later_file_builds.rs of halvo-schema exited 2 on --list --ignored)"
+  lists_of list-exits-1
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 1 'both_manifests_are_the_fixed_files: test\neach_lib_rs_holds_its_form: test\n\n2 tests, 0 benchmarks\n'
+  check binary-exits-1-on-the-list FAIL "FAIL $name (the test binary of tests/locked_files.rs of halvo-schema exited 1 on --list)"
+  lists_of ignored-exits-1
+  stub_list "$STUB_LISTS" halvo-schema-locked_files ignored 1 '0 tests, 0 benchmarks\n'
+  check binary-exits-1-on-the-ignored-list FAIL "FAIL $name (the test binary of tests/locked_files.rs of halvo-schema exited 1 on --list --ignored)"
   for form in other-file no-messages starts-like replayed-warning stand-in leading-directory; do
     lists_of "$form"
     messages_of "$STUB_LISTS" halvo-schema 0
@@ -552,6 +573,11 @@ names 3'
 crates/halvo-schema/Cargo.toml
 '
   check tracked-file-differs-after-the-tests FAIL "FAIL $name (the tracked file scripts/r2/20-schema-tests.txt differs from HEAD after the test runs)"
+  STUB_DIFF='crates/halvo-schema/tests/golden/names.txt
+'
+  check tracked-file-of-a-crate-differs FAIL "FAIL $name (the tracked file crates/halvo-schema/tests/golden/names.txt differs from HEAD after the test runs)"
+  STUB_HEAD=fails
+  check list-not-at-head FAIL "FAIL $name ($required is missing)"
   STUB_DIFF=fails
   check git-diff-fails FAIL "FAIL $name (git diff --name-only HEAD failed)"
   lists_of warning
@@ -568,6 +594,10 @@ $later_line
   STUB_HEAD=$work/head-list.txt
   STUB_SCHEMA_LOG=$work/no-targets.log
   check list-read-from-head FAIL "FAIL $name (the test target tests/locked_files.rs of halvo-schema did not run)"
+  lists_of targets-from-head
+  stub_list "$STUB_LISTS" halvo-schema-locked_files all 0 'forged: test\n\n1 test, 0 benchmarks\n'
+  STUB_HEAD=$work/head-list.txt
+  check targets-read-from-head FAIL "FAIL $name (the test each_lib_rs_holds_its_form of tests/locked_files.rs of halvo-schema is not in the list of its test binary)"
   repo=$work/repo
   for signal in HUP INT TERM; do
     STUB_SIGNAL=$signal
