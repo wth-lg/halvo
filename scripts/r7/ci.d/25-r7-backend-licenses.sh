@@ -74,8 +74,7 @@ check_in() {
   counts="$lists check85-exit=$code exceptions=${excepted:-none} tracked-changed=$changed"
   [ "$changed" = 0 ] || cause="a tracked file differs from HEAD after check 85"
   [ -n "$cause" ] || [ "$code" = 0 ] || cause="check 85 exited $code"
-  [ -n "$cause" ] || [ -n "$excepted" ] || cause="the last line of check 85 is no PASS line"
-  [ -n "$cause" ] || [ "$excepted" = "$d28" ] || cause="check 85 counts $excepted packages outside the owner's list, not the $d28 of the owner's item D28"
+  [ -n "$cause" ] || [ "$excepted" = "$d28" ] || cause="the last line of check 85 is not its PASS line with ${excepted:-no} count but $d28 packages outside the owner's list, the count of the owner's item D28"
   [ -z "$cause" ]
 }
 
@@ -218,6 +217,17 @@ self_test() {
   commit_stub "$scratch/pass-line-not-last"
   printf 'PASS licenses: packages=231 exceptions=29 bundled=1 cached=121\nanother line\n' >"$scratch/pass-line-not-last/state/lines"
   stub_case FAIL pass-line-not-last
+
+  stub_repo pass-line-with-more-after-it
+  commit_stub "$scratch/pass-line-with-more-after-it"
+  printf 'PASS licenses: packages=231 exceptions=29 bundled=1 cached=121 exceptions=26\n' >"$scratch/pass-line-with-more-after-it/state/lines"
+  stub_case FAIL pass-line-with-more-after-it
+
+  stub_repo allowlist-staged-and-differs-from-head
+  commit_stub "$scratch/allowlist-staged-and-differs-from-head"
+  printf '["0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "Unicode-3.0", "Zlib"]\n' >"$scratch/allowlist-staged-and-differs-from-head/$allowlist"
+  git -C "$scratch/allowlist-staged-and-differs-from-head" add "$allowlist" || exit 2
+  stub_case FAIL allowlist-staged-and-differs-from-head
 
   stub_repo allowlist-with-0bsd
   printf '["0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "Unicode-3.0", "Zlib"]\n' >"$scratch/allowlist-with-0bsd/$allowlist"
