@@ -23,8 +23,8 @@ use super::Refusal;
 /// The most steps of one `put_playbook` body and of one `load_steps` reply.
 pub const STEPS_PER_REQUEST_MAX: usize = 16;
 
-/// The most bytes of the reply of `list_checkpoints`: the bound of a reply less the 53 bytes of its envelope beside
-/// a request id.
+/// The most bytes of the reply of `list_checkpoints` and of every reply of a coordinator body, as they arrive: the
+/// bound of a reply less the 53 bytes of its envelope beside a request id.
 pub const CHECKPOINTS_REPLY_MAX: usize = REPLY_MAX - 53;
 
 macro_rules! op_enum {
@@ -628,7 +628,9 @@ object_type! {
 
 object_type! {
     /// The reply of `list_checkpoints`: the checkpoints in ascending order of run id, each run and workbook once,
-    /// and the run id to ask after for the next page, or null; at most `CHECKPOINTS_REPLY_MAX` bytes.
+    /// and the run id to ask after for the next page, or null. Its bound, `CHECKPOINTS_REPLY_MAX`, counts the
+    /// compact text here, which the writer writes; the bytes of a reply as it arrives are counted by
+    /// `CoordinatorReply::parse`, the reader of the reply.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct CheckpointsReply {
         pub checkpoints: Vec<ListedCheckpoint> = "checkpoints" => list(ListedCheckpoint::from_raw),
@@ -681,8 +683,16 @@ pub enum CoordinatorReply {
     Stored(Stored),
 }
 
+fn reply_bytes(len: usize) -> Result<(), Refusal> {
+    if len > CHECKPOINTS_REPLY_MAX {
+        return Err(Refusal::length("CoordinatorReply", "reply_bytes"));
+    }
+    Ok(())
+}
+
 impl CoordinatorReply {
     pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
+        reply_bytes(raw.get().len())?;
         let obj = json::object("CoordinatorReply", raw)?;
         if obj.has("rev") {
             RevReply::from_raw(raw).map(CoordinatorReply::Rev)
@@ -699,8 +709,11 @@ impl CoordinatorReply {
         }
     }
 
-    /// Reads one reply and refuses every other input.
+    /// Reads one reply as it arrives and refuses every other input. An input of more than `CHECKPOINTS_REPLY_MAX`
+    /// bytes, counted on the bytes given before anything is read, is refused with the cause `length` and the rule
+    /// `reply_bytes`.
     pub fn parse(bytes: &[u8]) -> Result<Self, Refusal> {
+        reply_bytes(bytes.len())?;
         Self::from_raw(json::whole("CoordinatorReply", bytes)?)
     }
 

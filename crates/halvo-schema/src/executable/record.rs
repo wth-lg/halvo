@@ -257,8 +257,9 @@ object_type! {
     /// `prepare` was given, the workbook's path as given to it and the copy's file name, each a value of at least one
     /// byte in pieces of at most 1,024 bytes, the copy's SHA-256 and length, both or neither, and the state. The row
     /// with `seq` 1 is `planned` and holds no digest, and a `planned` row has `seq` 1; a `made` row has `seq` 2 and a
-    /// digest; a `gone` or `left` row follows one of them; `left` names the reason in a `left` row and is null in
-    /// every other.
+    /// digest; a `gone` or `left` row has `seq` 2 or 3, since a checkpoint has at most three rows (which of the two
+    /// follows which newest row is the store's to hold); `left` names the reason in a `left` row and is null in every
+    /// other.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentCheckpoint {
         pub v: V1 = "v" => from_json,
@@ -281,6 +282,7 @@ object_type! {
         let first = c.seq.get() == 1;
         if first != (c.state == CheckpointState::Planned)
             || (c.state == CheckpointState::Made && c.seq.get() != 2)
+            || c.seq.get() > 3
         {
             return fail("seq", "seq_of_state");
         }

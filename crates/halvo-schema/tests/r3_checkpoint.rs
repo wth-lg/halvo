@@ -3,16 +3,20 @@ use halvo_schema::executable::body::{
 };
 use halvo_schema::executable::names::{CheckpointState, LeftReason, ListedState, MarkState};
 use halvo_schema::executable::record::AgentCheckpoint;
+use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{Refusal, RefusalCause};
 use halvo_schema::request::{
-    self, CoordinatorRole, CoordinatorWrite, Decoded, RunnerRequest, RunnerRole, REPLY_MAX,
+    self, write_reply, CoordinatorRole, CoordinatorWrite, Decoded, ReplyResult, RunnerRequest,
+    RunnerRole, REPLY_MAX,
 };
 use halvo_schema::RequestId;
+use serde_json::value::RawValue;
 
 const W: &str = "30303030303030303030303030303030";
 const A: &str = "40404040404040404040404040404040";
 const R: &str = "50505050505050505050505050505050";
 const R2: &str = "51515151515151515151515151515151";
+const R3: &str = "52525252525252525252525252525252";
 const SHA: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const PLANNED: &str = r#""sha256":null,"bytes":null,"state":"planned","left":null"#;
 
@@ -153,6 +157,31 @@ fn a_checkpoint_row_of_each_state_reads_and_writes_back_to_the_same_bytes() {
         let read =
             AgentCheckpoint::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
         assert_eq!(read.to_json().unwrap(), text);
+    }
+}
+
+#[test]
+fn a_checkpoint_has_at_most_three_rows_so_a_gone_or_left_row_has_seq_2_or_3() {
+    for (state, left) in [("gone", "null"), ("left", r#""changed""#)] {
+        let rest = format!(r#""sha256":null,"bytes":null,"state":"{state}","left":{left}"#);
+        for seq in [2, 3] {
+            let text = row(R, seq, &rest);
+            assert_eq!(
+                AgentCheckpoint::parse(text.as_bytes())
+                    .unwrap()
+                    .to_json()
+                    .unwrap(),
+                text
+            );
+        }
+        for seq in [4, 5, 4_294_967_295] {
+            expect(
+                AgentCheckpoint::parse(row(R, seq, &rest).as_bytes()),
+                "AgentCheckpoint",
+                "seq_of_state",
+                "seq",
+            );
+        }
     }
 }
 
@@ -423,6 +452,21 @@ fn a_list_body_names_no_workflow_and_no_agent() {
         "not_null",
         "agent",
     );
+    for key in ["workflow", "agent"] {
+        for value in ["0", "false", "{}", "[]"] {
+            let body = swap(
+                &list_body("null"),
+                &format!(r#""{key}":null"#),
+                &format!(r#""{key}":{value}"#),
+            );
+            expect(
+                CoordinatorCall::parse(body.as_bytes()),
+                "Null",
+                "not_null",
+                key,
+            );
+        }
+    }
     expect(
         CoordinatorCall::parse(swap(&list_body("null"), r#","agent":null"#, "").as_bytes()),
         "ListCheckpoints",
@@ -610,6 +654,41 @@ fn a_list_reply_is_refused_for_each_rule_of_its_rows() {
             checkpoints(
                 &[swap(
                     &listed_made(R),
+                    r#""workbook":["/data/books/bills.xlsx"]"#,
+                    r#""workbook":[]"#,
+                )],
+                "null",
+            ),
+            "ListedCheckpoint",
+            "empty_path",
+            "workbook",
+        ),
+        (
+            checkpoints(
+                &[swap(
+                    &listed_made(R),
+                    &format!(r#""copy":["bills.halvo-checkpoint-{R}.xlsx"]"#),
+                    r#""copy":[]"#,
+                )],
+                "null",
+            ),
+            "ListedCheckpoint",
+            "empty_path",
+            "copy",
+        ),
+        (
+            checkpoints(
+                &[listed_made(R), listed_made(R3), listed_planned(R2)],
+                "null",
+            ),
+            "CheckpointsReply",
+            "run_order",
+            "checkpoints",
+        ),
+        (
+            checkpoints(
+                &[swap(
+                    &listed_made(R),
                     r#""state":"made""#,
                     r#""state":"gone""#,
                 )],
@@ -659,35 +738,67 @@ fn a_list_reply_is_refused_for_each_rule_of_its_rows() {
         r#""workbook":["/data/books/bills.xlsx"]"#,
         r#""workbook":["/data/books/rent.xlsx"]"#,
     );
-    let text = checkpoints(&[listed_planned(R), second_workbook], "null");
+    let text = checkpoints(&[listed_planned(R), second_workbook.clone()], "null");
     assert!(CoordinatorReply::parse(text.as_bytes()).is_ok(), "{text}");
+    let text = checkpoints(
+        &[listed_planned(R), second_workbook, listed_made(R3)],
+        "null",
+    );
+    assert_eq!(
+        CoordinatorReply::parse(text.as_bytes())
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        text
+    );
 }
 
-#[test]
-fn a_list_reply_holds_at_most_the_bound_of_a_reply_beside_its_envelope() {
-    assert_eq!(CHECKPOINTS_REPLY_MAX, REPLY_MAX - 53);
-    let with_copy = |len: usize| {
-        let copy: Vec<String> = (0..len.div_ceil(1024))
-            .map(|i| format!("\"{}\"", "c".repeat((len - i * 1024).min(1024))))
-            .collect();
-        checkpoints(
-            &[swap(
-                &listed_made(R),
-                &format!(r#""copy":["bills.halvo-checkpoint-{R}.xlsx"]"#),
-                &format!(r#""copy":[{}]"#, copy.join(",")),
-            )],
-            "null",
-        )
-    };
-    let base = with_copy(1).len() - 1;
-    let mut len = CHECKPOINTS_REPLY_MAX - base;
-    while with_copy(len).len() != CHECKPOINTS_REPLY_MAX
-        || with_copy(len + 1).len() != CHECKPOINTS_REPLY_MAX + 1
+fn with_copy(len: usize, piece: impl Fn(usize) -> String) -> String {
+    let copy: Vec<String> = (0..len.div_ceil(1024))
+        .map(|i| format!("\"{}\"", piece((len - i * 1024).min(1024))))
+        .collect();
+    checkpoints(
+        &[swap(
+            &listed_made(R),
+            &format!(r#""copy":["bills.halvo-checkpoint-{R}.xlsx"]"#),
+            &format!(r#""copy":[{}]"#, copy.join(",")),
+        )],
+        "null",
+    )
+}
+
+fn plain(len: usize) -> String {
+    with_copy(len, |n| "c".repeat(n))
+}
+
+fn copy_at_the_bound() -> usize {
+    let mut len = CHECKPOINTS_REPLY_MAX - (plain(1).len() - 1);
+    while plain(len).len() != CHECKPOINTS_REPLY_MAX
+        || plain(len + 1).len() != CHECKPOINTS_REPLY_MAX + 1
     {
         len -= 1;
     }
-    let exact = with_copy(len);
+    len
+}
+
+fn refused_by_the_bound(input: &[u8]) {
+    let refusal = CoordinatorReply::parse(input).unwrap_err();
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (RefusalCause::Length, "CoordinatorReply", "reply_bytes"),
+        "{} bytes",
+        input.len()
+    );
+}
+
+#[test]
+fn a_list_reply_holds_at_most_the_bound_of_a_reply_with_the_envelope_that_the_core_writes() {
+    let exact = plain(copy_at_the_bound());
     assert_eq!(exact.len(), CHECKPOINTS_REPLY_MAX);
+    let raw = RawValue::from_string(exact.clone()).unwrap();
+    let id = RequestId::from_random([0x40; 16]);
+    let enveloped = write_reply(Some(&id), Ok(&ReplyResult::Raw(raw))).unwrap();
+    assert_eq!(enveloped.len(), REPLY_MAX);
     assert_eq!(
         CoordinatorReply::parse(exact.as_bytes())
             .unwrap()
@@ -695,9 +806,59 @@ fn a_list_reply_holds_at_most_the_bound_of_a_reply_beside_its_envelope() {
             .unwrap(),
         exact
     );
-    let over = with_copy(len + 1);
+    let over = plain(copy_at_the_bound() + 1);
     assert_eq!(over.len(), CHECKPOINTS_REPLY_MAX + 1);
-    let refusal = CoordinatorReply::parse(over.as_bytes()).unwrap_err();
+    refused_by_the_bound(over.as_bytes());
+}
+
+#[test]
+fn a_list_reply_is_counted_on_the_bytes_given_before_anything_is_read() {
+    let exact = plain(copy_at_the_bound());
+    let inside = exact.replacen(r#","next""#, r#", "next""#, 1);
+    for padded in [format!(" {exact}"), format!("{exact}\n"), inside] {
+        assert_eq!(padded.len(), CHECKPOINTS_REPLY_MAX + 1);
+        refused_by_the_bound(padded.as_bytes());
+    }
+    let wide = format!("{exact}{}", " ".repeat(391));
+    refused_by_the_bound(wide.as_bytes());
+    let escape_of_c = format!("{}u0063", '\\');
+    assert_eq!(escape_of_c.len(), 6);
+    let escaped = with_copy(60_000, |n| escape_of_c.repeat(n));
+    let compact = plain(60_000);
+    assert!(
+        compact.len() < CHECKPOINTS_REPLY_MAX && escaped.len() > CHECKPOINTS_REPLY_MAX,
+        "{} {}",
+        compact.len(),
+        escaped.len()
+    );
+    assert!(CoordinatorReply::parse(compact.as_bytes()).is_ok());
+    refused_by_the_bound(escaped.as_bytes());
+    let not_json = format!("x{exact}");
+    refused_by_the_bound(not_json.as_bytes());
+    let over = plain(copy_at_the_bound() + 1);
+    let broken = format!("{}x", &over[..over.len() - 1]);
+    assert_eq!(broken.len(), CHECKPOINTS_REPLY_MAX + 1);
+    refused_by_the_bound(broken.as_bytes());
+    let short_broken = format!("{}x", &exact[..exact.len() - 1]);
+    let refusal = CoordinatorReply::parse(short_broken.as_bytes()).unwrap_err();
+    assert_eq!(
+        (refusal.cause(), refusal.rule()),
+        (RefusalCause::Malformed, "json")
+    );
+}
+
+#[test]
+fn the_writer_of_a_list_reply_counts_the_compact_text_that_it_writes() {
+    let len = copy_at_the_bound();
+    let exact = plain(len);
+    let CoordinatorReply::Checkpoints(mut reply) =
+        CoordinatorReply::parse(exact.as_bytes()).unwrap()
+    else {
+        panic!("not a list reply")
+    };
+    assert_eq!(reply.to_json().unwrap(), exact);
+    reply.checkpoints[0].copy = OwnValue::new(&"c".repeat(len + 1));
+    let refusal = reply.to_json().unwrap_err();
     assert_eq!(
         (refusal.cause(), refusal.type_name(), refusal.rule()),
         (RefusalCause::Length, "CheckpointsReply", "json_length")
