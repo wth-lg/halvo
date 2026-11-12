@@ -328,6 +328,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "You have as many agents as Halvo can hold, so it cannot add one for a new task.",
     ),
     ("tray.needs", "Agents that need you: {count}"),
+    (
+        "line.waiting_turn.store",
+        "It waits for Halvo to finish closing its last task, then it can start again.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {
