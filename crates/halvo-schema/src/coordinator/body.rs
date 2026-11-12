@@ -32,8 +32,10 @@ fn one_agent<'a>(
 }
 
 /// The body `{"op":"coord_log","workflow":..,"agent":..,"records":[..]}` (contracts.md I7.2): 1 to
-/// `REQUEST_RECORDS` records of the body's workflow and agent, and at most `REQUEST_BYTES` bytes as written. Its
-/// reply is `Stored`. That each `seq` is the stored last plus 1 is the handler's rule, which answers `seq`.
+/// `REQUEST_RECORDS` records of the body's workflow and agent, and at most `REQUEST_BYTES` bytes: `parse` counts
+/// the bytes of the input as it arrives, white space around the value among them, before it reads any of them, and
+/// `to_json` refuses a body whose compact text has more. Its reply is `Stored`. That each `seq` is the stored last
+/// plus 1 is the handler's rule, which answers `seq`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoordLog {
     pub workflow: WorkflowId,
@@ -87,8 +89,12 @@ impl CoordLog {
         Ok(body)
     }
 
-    /// Reads one body and refuses every other input.
+    /// Reads one body and refuses every other input; an input of more than `REQUEST_BYTES` bytes is refused with
+    /// the rule `bytes` before any of it is read.
     pub fn parse(bytes: &[u8]) -> Result<CoordLog, Refusal> {
+        if bytes.len() > REQUEST_BYTES {
+            return Err(Refusal::new("CoordLog", "bytes"));
+        }
         CoordLog::from_raw(json::whole("CoordLog", bytes)?)
     }
 
@@ -115,6 +121,9 @@ impl Serialize for CoordLog {
     }
 }
 
+/// Reads a body from a value that the caller already holds. It bounds that value's own text by `REQUEST_BYTES`
+/// after the caller holds it, so it cannot bound what arrived: a caller that holds the bytes of a request calls
+/// `CoordLog::parse`, and a caller that reads from a stream bounds the read itself.
 impl<'de> Deserialize<'de> for CoordLog {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         json::deserialize("CoordLog", deserializer, CoordLog::from_raw)
@@ -165,6 +174,8 @@ impl<'de> Deserialize<'de> for Stored {
 
 /// The body `{"op":"coord_history","workflow":..,"agent":..,"after":<count>|null}` (contracts.md I7.2): the
 /// records of the agent with a `seq` above `after`, or from the first where it is null. Its reply is `History`.
+/// `parse` refuses an input of more than `REQUEST_BYTES` bytes as it arrives before it reads any of them. The
+/// compact text of this body has at most 130 bytes, far under the bound, so `to_json` has no rule for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoordHistory {
     pub workflow: WorkflowId,
@@ -189,8 +200,12 @@ impl CoordHistory {
         })
     }
 
-    /// Reads one body and refuses every other input.
+    /// Reads one body and refuses every other input; an input of more than `REQUEST_BYTES` bytes is refused with
+    /// the rule `bytes` before any of it is read.
     pub fn parse(bytes: &[u8]) -> Result<CoordHistory, Refusal> {
+        if bytes.len() > REQUEST_BYTES {
+            return Err(Refusal::new("CoordHistory", "bytes"));
+        }
         CoordHistory::from_raw(json::whole("CoordHistory", bytes)?)
     }
 
@@ -215,6 +230,8 @@ impl Serialize for CoordHistory {
     }
 }
 
+/// Reads a body from a value that the caller already holds, with no bound in bytes: a caller that holds the bytes
+/// of a request calls `CoordHistory::parse`, and a caller that reads from a stream bounds the read itself.
 impl<'de> Deserialize<'de> for CoordHistory {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         json::deserialize("CoordHistory", deserializer, CoordHistory::from_raw)
