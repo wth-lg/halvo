@@ -12,6 +12,7 @@ mod host;
 mod propose;
 mod purge;
 mod sql;
+mod state;
 mod typed;
 
 use std::path::Path;
@@ -23,6 +24,7 @@ pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError};
 pub use handler::{Cause, Committed, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource};
+pub use state::MoveTo;
 
 use db::Db;
 
