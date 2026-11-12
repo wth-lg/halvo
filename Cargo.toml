@@ -1,5 +1,6 @@
 [workspace]
 members = ["src-tauri", "crates/*"]
+exclude = ["account"]
 resolver = "2"
 
 [workspace.package]
