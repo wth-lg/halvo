@@ -55,7 +55,7 @@ test('the cell lines have the keys of I11.3 in their order', () => {
 
 test('a figure is the median and the range of key_bytes over the counted runs of one machine and arm', () => {
   const cells = [
-    wcell('hosted-mac', 'a', 1, { key_bytes: 10 }), wcell('hosted-mac', 'a', 2, { key_bytes: 30 }),
+    wcell('hosted-mac', 'a', 1, { key_bytes: 30 }), wcell('hosted-mac', 'a', 2, { key_bytes: 10 }),
     wcell('hosted-mac', 'a', 3, { key_bytes: 1000, counted: 'no' }), wcell('hosted-mac', 'a', 4, { key_bytes: 20 }),
     wcell('hosted-win', 'a', 1, { key_bytes: 7 }),
   ];
