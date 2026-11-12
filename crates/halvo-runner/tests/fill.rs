@@ -536,3 +536,156 @@ fn a_begin_whose_every_send_meets_a_store_fault_is_handed_back_unknown_and_leave
         "no replace without a stored begin"
     );
 }
+
+#[test]
+fn a_finish_that_the_store_refuses_still_ends_with_done_and_the_status_1() {
+    let files = FillFiles::new("finish-refused", 1);
+    let sup = fill(54, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_op(frame, "finish") {
+                Act::With(store_error(frame, "binding"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(seen.done(), Some(Outcome::Completed));
+    assert_eq!(seen.code(), Some(1), "the run's record was not stored");
+    assert!(seen.stderr.contains("finish=no"), "{}", seen.stderr);
+}
+
+#[test]
+fn a_propose_that_the_store_refuses_makes_no_effect_and_no_replace() {
+    let files = FillFiles::new("propose-refused", 2);
+    let before = files.workbook_bytes();
+    let sup = fill(55, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Cleared) {
+                Act::With(store_error(frame, "effect"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(seen.states(), [EffectState::Cleared]);
+    assert_eq!(seen.done(), Some(Outcome::Failed));
+    let finish = seen.finish().expect("finish");
+    assert_eq!(
+        (finish.effects, finish.unknown),
+        (0, 0),
+        "the store holds no effect"
+    );
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+#[test]
+fn a_cancel_that_comes_with_the_begins_ack_lets_no_byte_reach_the_workbook() {
+    let files = FillFiles::new("cancel-at-begin", 3);
+    let before = files.workbook_bytes();
+    let sup = fill(56, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Releasing) {
+                Act::Then(ToRunner::Cancel(Cancel {}), Box::new(Act::Answer))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(
+        seen.states(),
+        [EffectState::Cleared, EffectState::Releasing]
+    );
+    assert_eq!(
+        files.workbook_bytes(),
+        before,
+        "the paused edit did not leave"
+    );
+    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
+    assert_eq!(
+        files.names(),
+        [
+            checkpoint_name(&sup),
+            "formulas.xlsx".into(),
+            "source.csv".into()
+        ]
+    );
+}
+
+#[test]
+fn an_agent_without_the_permission_user_files_touches_no_file() {
+    let files = FillFiles::new("no-permission", 1);
+    let before = files.workbook_bytes();
+    let mut sup = fill(57, &files);
+    sup.config.permissions.clear();
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::StepFailed],
+        "the read fails"
+    );
+    assert_eq!(seen.done(), Some(Outcome::HandedBack));
+    assert_eq!(files.workbook_bytes(), before);
+    assert_eq!(files.names(), ["formulas.xlsx", "source.csv"]);
+}
+
+#[test]
+fn a_workbook_slot_that_holds_a_relative_path_is_refused() {
+    let files = FillFiles::new("relative", 1);
+    let before = files.workbook_bytes();
+    let mut slots = files.slots();
+    slots[0] = support::slot("workbook", "formulas.xlsx");
+    let sup = Supervisor::new(58, Category::SpreadsheetFill, slots);
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+#[test]
+fn a_page_of_steps_that_does_not_start_at_from_is_refused_with_frame() {
+    let navigate = r#"{"v":1,"n":N,"kind":"web","verb":"navigate","target":null,"args":[{"name":"url","from":"slot","value":null,"key":"start"}],"pre":[],"post":[],"effect":"none","class":"read"}"#;
+    let mut sup = Supervisor::new(59, Category::UtilityBillPayment, Vec::new());
+    sup.steps = (1..=17)
+        .map(|n| step(&navigate.replace(r#""n":N"#, &format!(r#""n":{n}"#))))
+        .collect();
+    let first_page = sup.steps[..16].to_vec();
+    let seen = sup.serve(
+        |frame, _| {
+            let FromRunner::Store(s) = frame else {
+                return Act::Answer;
+            };
+            match s.request.body() {
+                halvo_schema::executable::RunnerCall::LoadSteps(b) if b.from.get() == 17 => {
+                    Act::With(ToRunner::StoreReply(
+                        halvo_schema::executable::frame::StoreReplyFrame {
+                            reply: halvo_schema::executable::StoreReply {
+                                id: Some(s.request.id().clone()),
+                                outcome: Ok(halvo_schema::executable::RunnerReply::Steps(
+                                    halvo_schema::executable::body::StepsReply {
+                                        steps: first_page.clone(),
+                                    },
+                                )),
+                            },
+                        },
+                    ))
+                }
+                _ => Act::Answer,
+            }
+        },
+        LONG,
+    );
+    assert_eq!(seen.code(), Some(2));
+    assert!(
+        seen.stderr.starts_with("REFUSED frame: "),
+        "{}",
+        seen.stderr
+    );
+    assert!(!seen.tags().contains(&"progress"));
+}

@@ -14,8 +14,8 @@ use crate::run::{cause_of, Runner, Stop};
 
 /// How many times a row of an effect is sent when the store answers it with a fault (`store` or `internal`), each
 /// time with the same request id, so that the store answers a repeat of its last row as the first (A7.5). A fault
-/// may come after the row was stored, so a `begin` that meets a fault at each send counts as `releasing`: the
-/// runner lets no request leave for it and hands it back as `effect_unknown` before its `finish`.
+/// may come after the row was stored, so a `begin` that met a fault and was not stored in the end counts as
+/// `releasing`: the runner lets no request leave for it and hands it back as `effect_unknown` before its `finish`.
 const ROW_SENDS: u32 = 3;
 
 /// An effect of this run as its last stored row has it.
@@ -117,22 +117,26 @@ impl Runner {
         });
         let request = RunnerRequest::new(self.role(), RequestId::from_random(random16()), call);
         let mut sends = 0;
-        loop {
+        let mut faulted = false;
+        let cause = loop {
             sends += 1;
             match self.send_store(&request)? {
-                Ok(RunnerReply::Stored(Stored { stored: 1 })) => break,
-                Ok(_) => return Err(failed(Cause::Effect)),
-                Err(error) if matches!(error.as_str(), "store" | "internal") => {
-                    if sends < ROW_SENDS {
-                        continue;
+                Ok(RunnerReply::Stored(Stored { stored: 1 })) => break None,
+                Ok(_) => break Some(Cause::Effect),
+                Err(error) => {
+                    let fault = matches!(error.as_str(), "store" | "internal");
+                    faulted |= fault;
+                    if !fault || sends >= ROW_SENDS {
+                        break Some(cause_of(error));
                     }
-                    if state == EffectState::Releasing {
-                        self.effects[at].state = state;
-                    }
-                    return Err(failed(cause_of(error)));
                 }
-                Err(error) => return Err(failed(cause_of(error))),
             }
+        };
+        if let Some(cause) = cause {
+            if faulted && state == EffectState::Releasing {
+                self.effects[at].state = state;
+            }
+            return Err(failed(cause));
         }
         let e = &mut self.effects[at];
         e.seq += 1;

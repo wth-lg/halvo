@@ -87,7 +87,8 @@ impl Runner {
 
     /// A `file` `write`, one file edit (A5.2, A11.3): `prepare` makes the checkpoint and a checked copy; the effect
     /// is proposed with the `Decided` of the configuration as it stands then, `begin` is stored before the
-    /// `replace` and `commit` after it. A close or a cancel before the `replace` lets nothing reach the workbook,
+    /// `replace` and `commit` after it. A cancel or a passed `wall` limit before the `propose` or the `begin` ends
+    /// the run there. A close or a cancel before the `replace` lets nothing reach the workbook,
     /// and the prepared copy goes when its value is dropped.
     pub(crate) fn file_write(
         &mut self,
@@ -133,8 +134,9 @@ impl Runner {
         };
         admit(step.class, &bound, &facts)
             .map_err(|refused| Stop::End(Outcome::Failed, Some(refused.cause())))?;
-        self.check()?;
         let config = self.load()?.config;
+        self.check()?;
+        self.within_wall(&loaded.config.limits)?;
         let at = self.propose(decide(&config, step.class, Checkpoint::Yes), &bound)?;
         match self.effects[at].state {
             EffectState::Cleared => {}
@@ -149,6 +151,7 @@ impl Runner {
             _ => return Err(Stop::End(Outcome::Failed, Some(Cause::Effect)).into()),
         }
         self.check()?;
+        self.within_wall(&loaded.config.limits)?;
         let again = digest(&bound).map_err(|_| Failure::Step(Cause::StepFailed))?;
         self.advance(at, EffectMove::Begin { digest: again })?;
         self.check()?;

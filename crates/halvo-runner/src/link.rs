@@ -1,7 +1,5 @@
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::sync::Arc;
 use std::time::Duration;
 
 use halvo_schema::executable::frame::FRAME_JSON_MAX;
@@ -54,7 +52,6 @@ pub(crate) fn encode(json: &str) -> Vec<u8> {
 pub(crate) struct Link {
     out: Box<dyn Write>,
     events: Receiver<Event>,
-    closed: Arc<AtomicBool>,
     cancelled: bool,
     broken: Option<Broken>,
 }
@@ -68,8 +65,6 @@ impl Link {
         end_after_grace: bool,
     ) -> Link {
         let (tx, events) = mpsc::channel();
-        let closed = Arc::new(AtomicBool::new(false));
-        let seen = Arc::clone(&closed);
         std::thread::spawn(move || {
             let mut input = input;
             loop {
@@ -82,9 +77,6 @@ impl Link {
                     Err(None) => Event::Closed,
                 };
                 let last = !matches!(event, Event::Frame(_));
-                if last {
-                    seen.store(true, Ordering::SeqCst);
-                }
                 if tx.send(event).is_err() || last {
                     break;
                 }
@@ -97,7 +89,6 @@ impl Link {
         Link {
             out,
             events,
-            closed,
             cancelled: false,
             broken: None,
         }
@@ -118,15 +109,12 @@ impl Link {
     }
 
     fn fail(&mut self, broken: Broken) -> Broken {
-        self.closed.store(true, Ordering::SeqCst);
         *self.broken.get_or_insert(broken)
     }
 
-    /// Writes one frame.
+    /// Writes one frame, unless the link has closed or broken, which it reads first from what came on it.
     pub(crate) fn send(&mut self, frame: &FromRunner) -> Result<(), Broken> {
-        if let Some(broken) = self.broken {
-            return Err(broken);
-        }
+        self.poll()?;
         let json = frame
             .to_json()
             .map_err(|_| self.fail(Broken::Frame("own_frame")))?;

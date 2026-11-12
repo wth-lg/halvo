@@ -76,7 +76,6 @@ pub(crate) struct Runner {
     pub(crate) playbook: Option<NonZeroU32>,
     pub(crate) effects: Vec<Tracked>,
     pub(crate) kept: HashMap<String, Vec<Vec<Value>>>,
-    pub(crate) linked: bool,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -95,7 +94,6 @@ pub(crate) fn run(args: Args, link: Link) -> i32 {
         playbook: None,
         effects: Vec::new(),
         kept: HashMap::new(),
-        linked: false,
     };
     let end = runner.carry_out();
     runner.close(end)
@@ -132,18 +130,20 @@ impl Runner {
         if self.steps >= limits.steps {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Steps)));
         }
+        self.within_wall(limits)
+    }
+
+    /// Ends the run when its `wall` limit has passed.
+    pub(crate) fn within_wall(&self, limits: &Limits) -> Result<(), Stop> {
         if self.wall_s() > limits.wall_s {
             return Err(Stop::End(Outcome::Limit, Some(Cause::Wall)));
         }
         Ok(())
     }
 
-    /// Carries out one step. A condition reads a page, and this build has no browser, so a step with a condition
-    /// fails, and so does a `web` step.
+    /// Carries out one step. This build has no browser, so a `web` step fails, and with it every step that holds a
+    /// condition, since only the stored playbook of a `web` agent can hold one.
     fn step(&mut self, step: &ExecutableStep, loaded: &LoadReply) -> Result<(), Failure> {
-        if !step.pre.is_empty() || !step.post.is_empty() {
-            return Err(Failure::Step(Cause::StepFailed));
-        }
         match &step.target {
             Some(Target::File(target)) if step.class == ActionClass::Read => {
                 self.file_read(step, target, loaded)
@@ -157,8 +157,8 @@ impl Runner {
     /// The end of a run whose step failed (A5.1): a step of the class `read` or `prepare` is handed back with the
     /// reason `step_failed`, and the run ends `handed_back`; a step of an effect class ends the run `failed`.
     fn failed_step(&mut self, step: &ExecutableStep, cause: Cause) -> Stop {
-        if let Err(stop) = self.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
-            return stop;
+        if let Err(Stop::Link(broken)) = self.log(LogEvent::StepFailed, Some(step.n), Some(cause)) {
+            return Stop::Link(broken);
         }
         if !matches!(step.class, ActionClass::Read | ActionClass::Prepare) {
             return Stop::End(Outcome::Failed, Some(cause));
@@ -169,13 +169,16 @@ impl Runner {
         }
     }
 
-    /// Opens a handback and waits for its result; the wait is no time of the run's `wall_s`.
+    /// Opens a handback and waits for its result; the wait is no time of the run's `wall_s`. A log line that the
+    /// store refuses does not keep the handback from opening.
     pub(crate) fn handback(
         &mut self,
         reason: HandbackReason,
         origin: Option<WebOrigin>,
     ) -> Result<HandbackResult, Stop> {
-        self.log(LogEvent::Handback, None, None)?;
+        if let Err(Stop::Link(broken)) = self.log(LogEvent::Handback, None, None) {
+            return Err(Stop::Link(broken));
+        }
         self.handbacks += 1;
         let frame = FromRunner::Handback(Handback {
             request: HandbackRequest {

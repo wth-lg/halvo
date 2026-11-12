@@ -235,3 +235,60 @@ fn a_cancel_before_the_first_step_ends_the_run_declined_with_no_step() {
     assert_eq!(files.workbook_bytes(), before);
     let _ = Duration::ZERO;
 }
+
+#[test]
+fn a_reply_of_another_form_with_the_requests_id_is_refused_with_frame() {
+    let files = support::FillFiles::new("other-form", 1);
+    let sup = Supervisor::new(13, Category::SpreadsheetFill, files.slots());
+    let seen = sup.serve(
+        |frame, _| {
+            let FromRunner::Store(s) = frame else {
+                return Act::Answer;
+            };
+            if s.request.body().op() != "log" {
+                return Act::Answer;
+            }
+            Act::With(ToRunner::StoreReply(StoreReplyFrame {
+                reply: StoreReply {
+                    id: Some(s.request.id().clone()),
+                    outcome: Ok(halvo_schema::executable::RunnerReply::Steps(
+                        halvo_schema::executable::body::StepsReply { steps: Vec::new() },
+                    )),
+                },
+            }))
+        },
+        LONG,
+    );
+    assert_eq!(seen.code(), Some(2));
+    assert!(
+        seen.stderr.starts_with("REFUSED frame: "),
+        "{}",
+        seen.stderr
+    );
+    assert!(seen.effects().is_empty(), "no effect after the refusal");
+}
+
+#[test]
+fn a_frame_out_of_turn_is_refused_with_frame_before_any_effect() {
+    let files = support::FillFiles::new("out-of-turn", 2);
+    let before = files.workbook_bytes();
+    let sup = Supervisor::new(14, Category::SpreadsheetFill, files.slots());
+    let seen = sup.serve(
+        |frame, _| {
+            if matches!(frame, FromRunner::Progress(p) if p.step.get() == 2) {
+                Act::With(ToRunner::SecretReply(SecretReply::None))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(seen.code(), Some(2));
+    assert!(
+        seen.stderr.starts_with("REFUSED frame: "),
+        "{}",
+        seen.stderr
+    );
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.workbook_bytes(), before);
+}

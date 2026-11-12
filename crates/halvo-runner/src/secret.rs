@@ -16,7 +16,8 @@ fn unreadable() -> Stop {
 impl Runner {
     /// An `api` `call`. Before it the runner reads the adapter's token and acts on the three answers of
     /// `secret_reply` (A8.6): with the secret it makes the call; with `none` it asks the handback `account_link`
-    /// once, with the base address of the bindings as its origin, and reads the secret that the result names;
+    /// once, with the base address of the bindings as its origin, and reads the secret that the result names,
+    /// whose `none` ends the run `handed_back`;
     /// with `unreadable` it makes no call, asks nothing and ends the run `failed` with the cause `secret`. This
     /// build links no adapter, so the call itself fails with the cause `adapter`.
     pub(crate) fn api_call(
@@ -36,10 +37,6 @@ impl Runner {
             SecretReply::Unreadable(_) => return Err(unreadable()),
             SecretReply::None => {}
         }
-        if self.linked {
-            return Err(Stop::End(Outcome::HandedBack, None));
-        }
-        self.linked = true;
         let origin = loaded
             .bindings
             .as_ref()
