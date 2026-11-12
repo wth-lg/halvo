@@ -91,3 +91,14 @@ test("the page runs with the global API off and shows the version from the core 
   assert.equal(page.text("version"), "9.8.7");
   assert.equal(page.text("state"), "capturing");
 });
+
+test("Halvo.ipc.replied() names each command that has answered, and no command that failed", async () => {
+  const page = await openPage({
+    replies: {
+      onboarding_state: () => {
+        throw "not now";
+      },
+    },
+  });
+  assert.deepEqual(Array.from(page.window.Halvo.ipc.replied()).sort(), ["capture_status", "inventory", "plugin:app|version"]);
+});

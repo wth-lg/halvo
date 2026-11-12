@@ -4,6 +4,7 @@
 )]
 
 mod app;
+mod check_page;
 mod commands;
 mod launch;
 mod tray;
@@ -14,7 +15,7 @@ mod tests;
 
 use halvo_capture::consent::onboarding::{open_settings_pane, platform_probe, Permission};
 
-fn open_pane(permission: Permission) -> Result<(), String> {
+pub fn open_pane(permission: Permission) -> Result<(), String> {
     open_settings_pane(permission).map_err(|e| e.to_string())
 }
 
@@ -22,6 +23,9 @@ fn main() {
     match launch::parse(std::env::args_os().skip(1)) {
         Ok(launch::Launch::Version) => println!("{}", app::VERSION),
         Ok(launch::Launch::Run) => run(),
+        Ok(launch::Launch::CheckPage { config_dir, within }) => {
+            std::process::exit(check_page::run(config_dir, within))
+        }
         Err(usage) => {
             eprintln!("halvo: {usage}\n{}", launch::USAGE);
             std::process::exit(64);
@@ -37,6 +41,8 @@ fn run() {
         probe: platform_probe(),
         open_pane,
         tray: tray::install,
+        window_visible: true,
+        webview_data_dir: None,
     };
     app::build(tauri::Builder::default(), parts)
         .run(app::context())

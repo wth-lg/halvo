@@ -165,6 +165,8 @@ pub fn test_parts(config_dir: PathBuf, probe: &FakeProbe) -> app::Parts<MockRunt
         probe: Box::new(probe.clone()),
         open_pane: no_pane,
         tray: no_tray,
+        window_visible: false,
+        webview_data_dir: None,
     }
 }
 
