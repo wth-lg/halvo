@@ -70,7 +70,7 @@ comment, because TLC reads no line inside a comment. To run a small configuratio
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
-| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | - | - | - |
+| `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two | 1,200,775 | 43,607,738 | 16 |
 | `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 167,133 | 4,127,606 | 12 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and both stops: the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 10,092 | 192,595 | 12 |
@@ -98,20 +98,20 @@ What each configuration costs. The first three columns are from the development 
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
 runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run 43115435599 on 2026-11-11, at commit 6178aaa, which is the round before the failed starts of ruling XB-15: `days` had 180,817 states there and `store` 7,926.
+configuration, with three workers, in the hosted jobs of run 43122481909 on 2026-11-11, at commit 8a2d7a0, the commit before this file's last change, which changed this file alone.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
-| `Schedule` | `full` | - s, - | - bytes | - | not run | not run |
-| `Schedule` | `days` | 291.14 s, three workers | 1,459,355,648 bytes | 57.54 | 115 s | 127 s |
-| `Schedule` | `queue` | 5.54 s, one worker | 431,833,088 bytes | 56.75 | 5 s | 3 s |
-| `Schedule` | `store` | 27.93 s, one worker | 744,833,024 bytes | 58.91 | 6 s | 5 s |
-| `Confirm4` | `full` | 66.00 s, one worker | 430,702,592 bytes | 44.58 | 15 s | 14 s |
+| `Schedule` | `full` | 3385.09 s, four workers | 1,484,144,640 bytes | 481.59 | not run | not run |
+| `Schedule` | `days` | 291.14 s, three workers | 1,459,355,648 bytes | 57.54 | 102 s | 96 s |
+| `Schedule` | `queue` | 5.54 s, one worker | 431,833,088 bytes | 56.75 | 3 s | 2 s |
+| `Schedule` | `store` | 27.93 s, one worker | 744,833,024 bytes | 58.91 | 6 s | 4 s |
+| `Confirm4` | `full` | 66.00 s, one worker | 430,702,592 bytes | 44.58 | 15 s | 11 s |
 | `Confirm4` | `apart` | 31.88 s, one worker | 423,051,264 bytes | 474.76 | 5 s | 4 s |
 
-In that run the check took 177 s and its self-test 32 s in the
-`macos` job, and 177 s and 118 s in the `windows` job; the
-export of both trace files is 23 s and 18 s of the check's.
+In that run the check took 161 s and its self-test 25 s in the
+`macos` job, and 137 s and 86 s in the `windows` job; the
+export of both trace files is 22 s and 15 s of the check's.
 
 ## What a property is read from
 
@@ -518,14 +518,14 @@ replay of that design gives another answer, event, call or state at some move.
 
 | # | Wrong design | TLC reports | Traces that differ |
 |---|---|---|---|
-| 1 | a restart rebuilds the day's count of starts from this life only | C7 | - of 213 |
-| 2 | a start that failed at step 7 or 8 is not counted | C7 | - of 213 |
-| 3 | the budget counts only the person's starts | C7 | - of 213 |
-| 4 | the budget counts only the scheduler's starts | C7 | - of 213 |
-| 5 | the hold `failures` is lost at a restart | C4 | - of 213 |
-| 6 | the scheduler starts an agent that never had a completed run | C5 | - of 213 |
-| 7 | a restart forgets which workflows are gone | C8 | - of 213 |
-| 8 | the kill comes only for runs stopped for `deleted` | C9 | - of 213 |
+| 1 | a restart rebuilds the day's count of starts from this life only | C7 | 40 of 213 |
+| 2 | a start that failed at step 7 or 8 is not counted | C7 | 55 of 213 |
+| 3 | the budget counts only the person's starts | C7 | 85 of 213 |
+| 4 | the budget counts only the scheduler's starts | C7 | 210 of 213 |
+| 5 | the hold `failures` is lost at a restart | C4 | 0 of 213 |
+| 6 | the scheduler starts an agent that never had a completed run | C5 | 146 of 213 |
+| 7 | a restart forgets which workflows are gone | C8 | 15 of 213 |
+| 8 | the kill comes only for runs stopped for `deleted` | C9 | 47 of 213 |
 | 9 | an item in `recorded` lapses with any cause and its rows stay in the table | L4; L3 when the lapse's decision also holds the approval ids of the answer; L9, checked alone, when the guard then also counts a row before its release | 175 of 215 |
 | 10 | the table takes the stored rows of a `no_record` lapse | L7, and not L9: the lapse's decision holds new ids | 27 of 215 |
 | 11 | the guard passes every `releasing` record of a native class | L8 | 202 of 215 |
@@ -534,45 +534,45 @@ replay of that design gives another answer, event, call or state at some move.
 | 14 | the `approved` match does not ask for `allow_once` | L7 | 190 of 215 |
 | 15 | a `releasing` record with an unused row passes | L8 | 42 of 215 |
 | 16 | the `approved` match drops the effect id | L7 | 47 of 215 |
-| 17 | step 3 asks only the live run, not the queue | C3 | - of 213 |
-| 18 | the tick asks "needs the person" only | C5 | - of 213 |
-| 19 | a person's start names no slot | C6 | - of 213 |
-| 20 | a failed start is not counted | C7 | - of 213 |
-| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0; with step 0 in place that start is answered `state` and no property is broken | C8 | - of 213 |
-| 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | - of 215 |
-| 23 | a lapse is taken from `recorded` with any cause | L4 | - of 215 |
-| 24 | the guard's rule for `releasing` records of a native class is dropped | L8 | - of 215 |
-| 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | - of 215 |
-| 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | - of 215 |
-| 27 | a `releasing` record of the class `send` passes with another digest | L10 | - of 215 |
-| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | - of 213 |
-| 29 | a run that was not stopped and whose last frame says `failed` is stored `cancelled` | C10 | - of 213 |
-| 30 | a tick starts an agent that needs no person and whose workflow has no schedule | C11 | - of 213 |
-| 31 | a tick starts for a slot that a served run has closed | C11 | - of 213 |
-| 32 | a tick starts for a slot that is older than `catch_up_days` | C11 | - of 213 |
-| 33 | a start of the scheduler leaves the queue without being asked for its slot again | C11 | - of 213 |
-| 34 | the end of a run whose workflow is gone stores `run_ended` | C10 | - of 213 |
-| 35 | an item that the person has answered lapses with `wait_limit` | L4 | - of 215 |
-| 36 | a release from `answered`, before the acknowledgement, that writes the rows itself and then sends the decision | L5; L7, L8 and L10, each checked alone, once a record passes on those rows | - of 215 |
-| 37 | the same release that sends the decision and then writes the rows | L5; L10 checked alone | - of 215 |
-| 38 | a run that a lapse stopped is stored `cancelled` | C10 | - of 213 |
-| 39 | the record stores one row of two, and the release sends both | L5 | - of 215 |
-| 40 | the guard passes every `releasing` record with no approval, whatever the port `Policy` answers | L10 | - of 215 |
-| 41 | the answer `run` passes a `releasing` record of a native class with no approval | L8 | - of 215 |
-| 42 | the answer `run` passes a `releasing` record whose approval id no row holds | L10 | - of 215 |
-| 43 | the guard counts a repeat as a second use and refuses it | L7 | - of 215 |
-| 44 | a repeat is matched by its approval id alone, so a record on a used row passes with another effect or another digest | L7 | - of 215 |
-| 45 | the run asks again for an effect that its earlier item rejected or let lapse | `AskedOnApproval`; none of L1 to L10 | - of 215 |
-| 46 | a start by the person does not ask whether the store has ended the agent's newest run | C4 | - of 213 |
-| 47 | no hold `check` from the store's `unknown`: no `check` after a kill of a run whose request may have left | C4 | - of 213 |
-| 48 | recovery sends `end_run` for a run that `reap` answered `alive` | C12 | - of 213 |
-| 49 | recovery sends `end_run` only for the runs that it ends itself, so one that is owed from the earlier life is forgotten | C12 | - of 213 |
-| 50 | one answered `check` clears every later `check` | C4 | - of 213 |
-| 51 | a lapse sends its decision under new approval ids and the port's count of ids does not go on, so a later answer gets the same ids | L3, in `apart` alone | - of 215 |
-| 52 | the same for the decision of an `issue` whose digests do not hold | L3, in `apart` alone | - of 215 |
-| 53 | no `end_run` after a start whose step 7 failed | C12 | - of 213 |
-| 54 | no `end_run` after a start whose step 8 failed | C12 | - of 213 |
-| 55 | a start of the agent before the store's record of a run that the coordinator owes, a failed start among them | C4 | - of 213 |
+| 17 | step 3 asks only the live run, not the queue | C3 | 125 of 213 |
+| 18 | the tick asks "needs the person" only | C5 | 146 of 213 |
+| 19 | a person's start names no slot | C6 | 186 of 213 |
+| 20 | a failed start is not counted | C7 | 55 of 213 |
+| 21 | the tick does not skip an agent whose workflow is gone, and its start skips step 0; with step 0 in place that start is answered `state` and no property is broken | C8 | 15 of 213 |
+| 22 | the rows say `reject_once`, the release sends `allow_once` | L5 | 201 of 215 |
+| 23 | a lapse is taken from `recorded` with any cause | L4 | 175 of 215 |
+| 24 | the guard's rule for `releasing` records of a native class is dropped | L8 | 202 of 215 |
+| 25 | a `releasing` record of the class `send` passes on an `allow_once` row before its release | L10 | 131 of 215 |
+| 26 | a `releasing` record of the class `send` passes on the approval of another effect | L10 | 47 of 215 |
+| 27 | a `releasing` record of the class `send` passes with another digest | L10 | 42 of 215 |
+| 28 | a tick queues a start of an agent that needs the person, under the trigger `person` | C5 | 94 of 213 |
+| 29 | a run that was not stopped and whose last frame says `failed` is stored `cancelled` | C10 | 26 of 213 |
+| 30 | a tick starts an agent that needs no person and whose workflow has no schedule | C11 | 114 of 213 |
+| 31 | a tick starts for a slot that a served run has closed | C11 | 2 of 213 |
+| 32 | a tick starts for a slot that is older than `catch_up_days` | C11 | 48 of 213 |
+| 33 | a start of the scheduler leaves the queue without being asked for its slot again | C11 | 4 of 213 |
+| 34 | the end of a run whose workflow is gone stores `run_ended` | C10 | 17 of 213 |
+| 35 | an item that the person has answered lapses with `wait_limit` | L4 | 192 of 215 |
+| 36 | a release from `answered`, before the acknowledgement, that writes the rows itself and then sends the decision | L5; L7, L8 and L10, each checked alone, once a record passes on those rows | 189 of 215 |
+| 37 | the same release that sends the decision and then writes the rows | L5; L10 checked alone | 189 of 215 |
+| 38 | a run that a lapse stopped is stored `cancelled` | C10 | 1 of 213 |
+| 39 | the record stores one row of two, and the release sends both | L5 | 102 of 215 |
+| 40 | the guard passes every `releasing` record with no approval, whatever the port `Policy` answers | L10 | 115 of 215 |
+| 41 | the answer `run` passes a `releasing` record of a native class with no approval | L8 | 109 of 215 |
+| 42 | the answer `run` passes a `releasing` record whose approval id no row holds | L10 | 201 of 215 |
+| 43 | the guard counts a repeat as a second use and refuses it | L7 | 35 of 215 |
+| 44 | a repeat is matched by its approval id alone, so a record on a used row passes with another effect or another digest | L7 | 38 of 215 |
+| 45 | the run asks again for an effect that its earlier item rejected or let lapse | `AskedOnApproval`; none of L1 to L10 | 200 of 215 |
+| 46 | a start by the person does not ask whether the store has ended the agent's newest run | C4 | 118 of 213 |
+| 47 | no hold `check` from the store's `unknown`: no `check` after a kill of a run whose request may have left | C4 | 60 of 213 |
+| 48 | recovery sends `end_run` for a run that `reap` answered `alive` | C12 | 8 of 213 |
+| 49 | recovery sends `end_run` only for the runs that it ends itself, so one that is owed from the earlier life is forgotten | C12 | 16 of 213 |
+| 50 | one answered `check` clears every later `check` | C4 | 4 of 213 |
+| 51 | a lapse sends its decision under new approval ids and the port's count of ids does not go on, so a later answer gets the same ids | L3, in `apart` alone | 4 of 215 |
+| 52 | the same for the decision of an `issue` whose digests do not hold | L3, in `apart` alone | 9 of 215 |
+| 53 | no `end_run` after a start whose step 7 failed | C12 | 58 of 213 |
+| 54 | no `end_run` after a start whose step 8 failed | C12 | 55 of 213 |
+| 55 | a start of the agent before the store's record of a run that the coordinator owes, a failed start among them | C4 | 92 of 213 |
 
 The count of row 21 is that of its first half alone: a replay in which the tick does not
 skip the agent gives another line whether or not its start skips step 0. A design that
@@ -646,8 +646,8 @@ the jobs of this line, and prints `same=-` in a job that the line does not name:
 export compared in jobs: macos windows
 ```
 
-One export of both files took - s on the Mac under a load of -,
-with a largest resident size of - bytes.
+One export of both files took 63.73 s on the Mac under a load of 94.11,
+with a largest resident size of 553,697,280 bytes.
 
 The first line of a file is `{"seed":<n>,"count":<n>,"stamp":"<digest>"}`. The stamp is
 the SHA-256, as 64 hex digits, of the bytes of `Schedule.tla`, `Schedule.cfg`,
@@ -785,6 +785,9 @@ The replay starts on day 1 with no run, an empty queue, no item, no hold and eve
 workflow in the owner's list. Day 1 is any day that the replay picks. Every run has
 `unknown` 0 in the agent store but one that ended with the frame `effect_unknown` and one
 that the store ended at an `ack` after an end with `left` `yes`; each of those has 1.
+Every agent of a trace is active from the trace's first line. The model is about agents
+that may run, and how an agent becomes active is outside it: the rule by which a tick
+sends `set_state` `active` sends nothing in a trace (ruling IG-8).
 
 | Agent | Needs the person | Needs the model | Workflow | Before the trace |
 |---|---|---|---|---|
