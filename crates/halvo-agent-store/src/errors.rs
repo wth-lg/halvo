@@ -8,6 +8,7 @@ pub(crate) enum Own {
     Config,
     Class,
     Length,
+    Effect,
 }
 
 impl Own {
@@ -18,6 +19,7 @@ impl Own {
             Own::Config => "config",
             Own::Class => "class",
             Own::Length => "length",
+            Own::Effect => "effect",
         }
     }
 }

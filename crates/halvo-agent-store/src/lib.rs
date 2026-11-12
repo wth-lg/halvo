@@ -7,6 +7,7 @@
 mod bind;
 mod bindings;
 mod coordinator;
+mod effect;
 mod errors;
 mod host;
 mod memory;

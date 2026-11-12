@@ -1,5 +1,5 @@
 use halvo_schema::executable::{
-    AgentBindings, AgentConfig, AgentLog, AgentPlaybook, AgentSession, Refusal,
+    AgentBindings, AgentConfig, AgentEffect, AgentLog, AgentPlaybook, AgentSession, Refusal,
 };
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
 
@@ -8,6 +8,7 @@ use crate::errors::refused;
 pub(crate) const AGENT_CONFIG: &str = "agent_config";
 pub(crate) const AGENT_PLAYBOOK: &str = "agent_playbook";
 pub(crate) const AGENT_BINDINGS: &str = "agent_bindings";
+pub(crate) const AGENT_EFFECT: &str = "agent_effect";
 pub(crate) const AGENT_LOG: &str = "agent_log";
 pub(crate) const AGENT_SESSION: &str = "agent_session";
 
@@ -48,6 +49,10 @@ pub(crate) fn playbooks(rows: &dyn RowRead) -> Result<Vec<AgentPlaybook>, ErrorN
 
 pub(crate) fn bindings(rows: &dyn RowRead) -> Result<Vec<AgentBindings>, ErrorName> {
     parsed(rows, AGENT_BINDINGS, AgentBindings::parse)
+}
+
+pub(crate) fn effects(rows: &dyn RowRead) -> Result<Vec<AgentEffect>, ErrorName> {
+    parsed(rows, AGENT_EFFECT, AgentEffect::parse)
 }
 
 pub(crate) fn logs(rows: &dyn RowRead) -> Result<Vec<AgentLog>, ErrorName> {
