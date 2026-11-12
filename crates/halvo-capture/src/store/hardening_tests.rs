@@ -2248,9 +2248,11 @@ fn a_create_under_a_root_of_another_store_that_it_cannot_read_fails_and_leaves_t
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+type AnswerOfTheRootStep = fn() -> CustodyError;
+
 struct ARootThatCannotBeRead {
     root_id: RootId,
-    answer: fn() -> CustodyError,
+    answer: AnswerOfTheRootStep,
     destroy_calls: Arc<AtomicUsize>,
 }
 
@@ -2278,7 +2280,7 @@ impl KeyCustody for ARootThatCannotBeRead {
 
 #[test]
 fn a_create_whose_custody_cannot_read_the_root_of_its_id_destroys_no_root() {
-    let states: [(&str, fn() -> CustodyError); 4] = [
+    let states: [(&str, AnswerOfTheRootStep); 4] = [
         ("locked", || CustodyError::RootLocked(-25308)),
         ("denied", || CustodyError::RootDenied),
         ("corrupt", || {

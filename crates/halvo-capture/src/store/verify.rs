@@ -182,9 +182,7 @@ pub(crate) fn check_store(
         started.elapsed().as_millis()
     };
 
-    let reopened = EncryptedStore::open_with(dir, DEFAULT_RETENTION, |kind, root_id| {
-        rebuild(kind, root_id)
-    })?;
+    let reopened = EncryptedStore::open_with(dir, DEFAULT_RETENTION, rebuild)?;
     let db = reopened.db()?;
     let rows: i64 = db
         .connection()
@@ -430,9 +428,7 @@ pub(crate) fn check_deletion(
         RootState::Unknown(e) => return Err(StoreError::Custody(e)),
     };
     let store_sealed = matches!(
-        EncryptedStore::open_with(dir, DEFAULT_RETENTION, |kind, root_id| rebuild(
-            kind, root_id
-        )),
+        EncryptedStore::open_with(dir, DEFAULT_RETENTION, rebuild),
         Err(StoreError::Sealed)
     );
 
