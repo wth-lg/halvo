@@ -32,7 +32,7 @@ advice() {
     hash) printf 'read: formal/r5-admit/README.md, section The checker\ndo: the SHA-256 of the jar is not the pinned one; take the jar that the line pins.\n' ;;
     invariant)
       printf 'read: formal/r5-admit/README.md, sections The bounds of Admit.cfg, The properties and Running TLC; small.txt (the TLC output), admit-want.cfg and small-want.cfg in this directory\n'
-      printf 'do: result=%s. admit-form or small-form: make Admit.cfg or Small.cfg equal to admit-want.cfg or small-want.cfg (a change of the bound is a Revision of item L12). formulas-form: write each line of Admit.tla that starts with Q and a digit as a definition "Q<n> ==", "Q<n>Step ==" or "Q<n>Move ==" with n from 1 to 14. formulas-count: Admit.tla defines Q1 to Q14. violated, status or incomplete: read small.txt and replay its trace against the code and the contract.\n' "$detail"
+      printf 'do: result=%s. admit-form or small-form: make Admit.cfg or Small.cfg equal to admit-want.cfg or small-want.cfg (a change of the bound is a Revision of item L12). formulas-form: each line of Admit.tla whose first word, after leading blanks or LOCAL, is Q and a digit must be the definition, in the first column, of one of the 18 formulas that 30-r5-formal.sh lists (Q1 to Q14, Q7Step, Q11Step, Q12Step, Q12Move), as "Q7Step == ...". Word a comment so that no line of it starts with such a name, and put another token before a formula that an indented line uses, such as the conjunction sign. A new formula goes into the list of 30-r5-formal.sh and into Admit.cfg and Small.cfg in the same change. violated, status or incomplete: read small.txt and replay its trace against the code and the contract.\n' "$detail"
       ;;
     table | traces) printf 'read: formal/r5-admit/README.md, sections edit-table.tsv, traces.jsonl and export.sh; export.txt and the directory export/ here hold what the model exports now\ndo: run sh formal/r5-admit/export.sh and commit both files; never edit them by hand.\n' ;;
     control) printf 'read: formal/r5-admit/README.md, sections The wrong designs and Running TLC; control-*.txt in this directory\ndo: the copy with Fault serve_reverted must report Q1 and the copy with Fault no_bar must report Q5.\n' ;;
@@ -227,12 +227,16 @@ tlc() {
 }
 
 formulas() {
-  : >"$tmp/q-lines.txt"
-  [ ! -f "$dir/Admit.tla" ] || grep -E '^[[:blank:]]*(LOCAL[[:blank:]]+)?Q[0-9]' "$dir/Admit.tla" >"$tmp/q-lines.txt"
-  odd_q=$(grep -c -v -E '^Q([1-9]|1[0-4])(Step|Move)? ==( |$)' "$tmp/q-lines.txt")
-  sed -n -E 's/^(Q([1-9]|1[0-4])(Step|Move)?) ==( .*)?$/\1/p' "$tmp/q-lines.txt" >"$tmp/names.txt" || fail invariant
+  printf '%s\n' Q1 Q2 Q3 Q4 Q5 Q6 Q7 Q7Step Q8 Q9 Q10 Q11 Q11Step Q12 Q12Step Q12Move Q13 Q14 >"$tmp/names.txt" ||
+    fail invariant
   sed -E 's/^Q([0-9]+).*$/\1/' "$tmp/names.txt" | sort -u >"$tmp/numbers.txt" || fail invariant
   numbers=$(grep -c '' "$tmp/numbers.txt")
+  : >"$tmp/q-lines.txt"
+  [ ! -f "$dir/Admit.tla" ] || grep -E '^[[:blank:]]*(LOCAL[[:blank:]]+)?Q[0-9]' "$dir/Admit.tla" >"$tmp/q-lines.txt"
+  odd_q=$(awk -v list="$tmp/names.txt" '
+    BEGIN { while ((getline n < list) > 0) ok[n] = 1 }
+    !($0 ~ /^Q[0-9]+[A-Za-z]* ==( |$)/ && ($1 in ok)) { odd++ }
+    END { print odd + 0 }' "$tmp/q-lines.txt")
 }
 
 cfg_text() {
@@ -267,7 +271,6 @@ small() {
   check admit-form cmp -s "$tmp/admit-want.cfg" "$dir/Admit.cfg" || miss admit-form
   check small-form cmp -s "$tmp/small-want.cfg" "$dir/Small.cfg" || miss small-form
   check formulas-form [ "$odd_q" -eq 0 ] || miss formulas-form
-  check formulas-count [ "$numbers" -eq 14 ] || miss formulas-count
   distinct=0
   violated=0
   if [ "$result" = ok ]; then
@@ -384,6 +387,15 @@ runs_read() {
   check runs-once [ "$runs_dup" -eq 0 ] || runs_miss twice
   check runs-designs [ "$nd" -gt 0 ] || runs_miss no-designs
   check runs-reach [ "$nr" -gt 0 ] || runs_miss no-reach
+  : >"$tmp/model-designs.txt"
+  [ ! -f "$dir/Admit.tla" ] || grep -o -E 'Fault (=|#) "[a-z0-9_]+"|Fault \\(notin|in) \{[^}]*\}' "$dir/Admit.tla" |
+    grep -o -E '"[a-z0-9_]+"' | tr -d '"' | grep -v -x none | sort -u >"$tmp/model-designs.txt"
+  awk '$1 == "design" { print $2 }' "$tmp/runs.txt" | sort -u >"$tmp/runs-designs.txt"
+  : >"$tmp/model-reach.txt"
+  [ ! -f "$dir/Reach.tla" ] || sed -n -E 's/^((Not|Never)[A-Za-z]+) ==.*$/\1/p' "$dir/Reach.tla" | sort -u >"$tmp/model-reach.txt"
+  awk '$1 == "reach" { print $2 }' "$tmp/runs.txt" | sort -u >"$tmp/runs-reach.txt"
+  check runs-designs-model cmp -s "$tmp/model-designs.txt" "$tmp/runs-designs.txt" || runs_miss designs-model
+  check runs-reach-model cmp -s "$tmp/model-reach.txt" "$tmp/runs-reach.txt" || runs_miss reach-model
 }
 
 record_ok() {
@@ -787,9 +799,29 @@ fixtures() {
   expect small-other "$invariant" good '^formal small result=small-form'
   fixture formula-two-spaces
   edit formula-two-spaces "$t" 's/^Q7Step == /Q7Step  == /'
-  edit formula-two-spaces "$a" '/^    Q7Step$/d'
-  edit formula-two-spaces "$s" '/^    Q7Step$/d'
   expect formula-two-spaces "$invariant" good '^formal small result=formulas-form'
+  fixture comment-line-q
+  edit comment-line-q "$t" 's/^Q7Step == /(* The step form of Q7:\
+Q7 holds on states, Q7Step on steps. *)\
+&/'
+  expect comment-line-q "$invariant" good '^formal small result=formulas-form'
+  fixture use-line-q
+  edit use-line-q "$t" 's/^Q7Step == /AllOfQ1AndQ2 ==\
+    Q1 \/\\ Q2\
+\
+&/'
+  expect use-line-q "$invariant" good '^formal small result=formulas-form'
+  for c in comment-before comment-end-line; do
+    fixture "$c"
+    case $c in
+      comment-before) edit "$c" "$t" 's/^Q7Step == /(* q *) &/' ;;
+      comment-end-line) edit "$c" "$t" 's/^Q7Step == /(* the step form of Q7\
+*) &/' ;;
+    esac
+    edit "$c" "$a" '/^    Q7Step$/d'
+    edit "$c" "$s" '/^    Q7Step$/d'
+    expect "$c" "$invariant" good '^formal small result=admit-form'
+  done
   for c in formula-indented formula-tab formula-local formula-other-suffix; do
     fixture "$c"
     case $c in
@@ -798,8 +830,6 @@ fixtures() {
       formula-local) edit "$c" "$t" 's/^Q7Step == /LOCAL Q7Step == /' ;;
       formula-other-suffix) edit "$c" "$t" 's/^Q7Step == /Q7Foo == /' ;;
     esac
-    edit "$c" "$a" '/^    Q7Step$/d'
-    edit "$c" "$s" '/^    Q7Step$/d'
     expect "$c" "$invariant" good '^formal small result=formulas-form'
   done
   fixture formula-number-15
@@ -809,7 +839,7 @@ fixtures() {
   edit property-out-of-both "$t" 's/^Q5 ==/Kept5 ==/'
   edit property-out-of-both "$a" '/^    Q5$/d'
   edit property-out-of-both "$s" '/^    Q5$/d'
-  expect property-out-of-both "$invariant" good '^formal states=0 properties=13 violated=0' '^formal small result=formulas-count'
+  expect property-out-of-both "$invariant" good '^formal states=0 properties=14 violated=0' '^formal small result=admit-form'
   fixture model-as-control-q1
   expect model-as-control-q1 "$invariant" as-control-q1 '^formal states=0 properties=14 violated=1' '^formal small result=violated'
   fixture tlc-status
@@ -908,6 +938,14 @@ CONSTRAINT Bound/'
   edit runs-bound-zero "$ru" 's/^design no_scope 3 2 3 Q3$/design no_scope 0 2 3 Q3/'
   edit runs-bound-zero "$rt" 's/^design fault=no_scope bound=3-2-3 /design fault=no_scope bound=0-2-3 /'
   expect runs-bound-zero "$rec" good 'runs=unreadable'
+  fixture runs-design-dropped
+  edit runs-design-dropped "$ru" '/^design no_scope /d'
+  edit runs-design-dropped "$rt" '/^design fault=no_scope /d'
+  expect runs-design-dropped "$rec" good 'runs=designs-model'
+  fixture runs-reach-dropped
+  edit runs-reach-dropped "$ru" '/^reach NotCauseBase /d'
+  edit runs-reach-dropped "$rt" '/^reach property=NotCauseBase /d'
+  expect runs-reach-dropped "$rec" good 'runs=reach-model'
   fixture runs-no-designs
   edit runs-no-designs "$ru" '/^design /d'
   edit runs-no-designs "$rt" '/^design /d'
