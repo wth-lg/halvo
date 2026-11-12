@@ -2,11 +2,11 @@
 mod support;
 
 use halvo_coord::mem::Method;
-use halvo_coord::ports::PortError;
-use halvo_coord::run::{Act, StopBy};
-use halvo_coord::schedule::Answer;
+use halvo_coord::ports::{PortError, Reaped};
+use halvo_coord::run::{recover, run_step, Act, Ending, Next, Phase, RunMove, StopBy, StopCause};
+use halvo_coord::schedule::{Answer, Ended};
 use halvo_coord::types::{
-    Cause, Doing, ItemId, Limits, Live, Name, Outcome, RunEnd, RunId, RunItem, RunItemKind,
+    Cause, Doing, ItemId, Limits, Live, Name, Outcome, RunEnd, RunId, RunItem, RunItemKind, What,
 };
 use support::{agent, world, World, MANUAL, T0};
 
@@ -456,4 +456,234 @@ fn a_tick_whose_clock_reads_earlier_than_a_stop_kills_the_run_and_the_tree_of_a_
     w.set_clock(T0 - HOUR, support::DAY);
     w.act(Act::Tick);
     assert!(killed(&mut w));
+}
+
+/// The phase of a run before its stop and its end, in RD-9's table.
+#[derive(Clone, Copy, Debug)]
+enum Before {
+    Starting,
+    Working,
+    Waiting,
+}
+
+/// The stop of a run before its end: none, the person's, a lapse at `wait_limit`, its
+/// workflow gone at a tick, or the person's and then its workflow gone.
+#[derive(Clone, Copy, Debug)]
+enum StopOf {
+    None,
+    Person,
+    WaitLimit,
+    Gone,
+    PersonThenGone,
+}
+
+/// The end of a run: its last frame with an outcome or none, a kill, a kill that the
+/// library refuses with `unknown_run`, or a restart of the app.
+#[derive(Clone, Copy, Debug)]
+enum EndOf {
+    Frame(Option<Outcome>),
+    Kill,
+    UnknownRun,
+    Restart,
+}
+
+fn step_moves(before: Before, stop: StopOf, end: EndOf) -> Vec<RunMove> {
+    let mut moves = vec![RunMove::Spawn];
+    if !matches!(before, Before::Starting) {
+        moves.push(RunMove::Hello);
+    }
+    if matches!(before, Before::Waiting) {
+        moves.push(RunMove::Wait(item()));
+    }
+    match stop {
+        StopOf::None => {}
+        StopOf::Person => moves.push(RunMove::Stop(StopCause::Cancelled)),
+        StopOf::WaitLimit => moves.push(RunMove::Stop(StopCause::Lapsed)),
+        StopOf::Gone => moves.push(RunMove::Stop(StopCause::Deleted)),
+        StopOf::PersonThenGone => {
+            moves.push(RunMove::Stop(StopCause::Cancelled));
+            moves.push(RunMove::Stop(StopCause::Deleted));
+        }
+    }
+    moves.push(RunMove::End(match end {
+        EndOf::Frame(outcome) => Ending::Frame(outcome),
+        EndOf::Kill => Ending::Kill,
+        EndOf::UnknownRun => Ending::UnknownRun,
+        EndOf::Restart => Ending::Restart,
+    }));
+    moves
+}
+
+/// The cause with which `run_step` ends the run after the moves, or its refusal.
+fn step_cause(moves: Vec<RunMove>) -> Result<RunEnd, Cause> {
+    let mut phase: Option<Phase> = None;
+    for mv in moves {
+        match run_step(phase.as_ref(), mv)? {
+            Next::Live(p) => phase = Some(p),
+            Next::Ended(cause) => return Ok(cause),
+        }
+    }
+    Err(Cause::State)
+}
+
+/// What the moves of the drive and of recovery make of the same run: the refusal of the last
+/// move, the causes of the run's ends that they report, and the causes of its `run_ended`
+/// events that the owner stored.
+#[derive(Debug)]
+struct Drove {
+    refused: Option<Cause>,
+    reported: Vec<RunEnd>,
+    stored: Vec<RunEnd>,
+}
+
+fn drive_end(before: Before, stop: StopOf, end: EndOf) -> Drove {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    if !matches!(before, Before::Starting) {
+        w.act(Act::Hello { run: run.clone() });
+    }
+    if matches!(before, Before::Waiting) {
+        w.act(Act::Wait {
+            run: run.clone(),
+            item: item(),
+        });
+    }
+    let by = match stop {
+        StopOf::Person | StopOf::PersonThenGone => Some(StopBy::Person),
+        StopOf::WaitLimit => Some(StopBy::WaitLimit),
+        StopOf::None | StopOf::Gone => None,
+    };
+    if let Some(by) = by {
+        w.act(Act::Stop {
+            run: run.clone(),
+            by,
+        });
+    }
+    if matches!(stop, StopOf::Gone | StopOf::PersonThenGone) {
+        w.ports
+            .workflows
+            .borrow_mut()
+            .retain(|wf| wf.id() != &support::flow(0));
+        w.act(Act::Tick);
+    }
+    let of_run = |ended: &[Ended]| -> Vec<RunEnd> {
+        ended
+            .iter()
+            .filter(|e| e.run == run)
+            .map(|e| e.cause)
+            .collect()
+    };
+    let (refused, reported) = match end {
+        EndOf::Frame(outcome) => {
+            w.ports.end_runner(&run);
+            let done = w.act(Act::End {
+                run: run.clone(),
+                outcome,
+            });
+            (done.report.answer.err(), of_run(&done.report.ended))
+        }
+        EndOf::Kill | EndOf::UnknownRun => {
+            if matches!(end, EndOf::UnknownRun) {
+                w.ports.refuse(
+                    Method::Kill,
+                    PortError::Refused(Name::parse("unknown_run").unwrap()),
+                );
+            }
+            w.set_clock(T0 + GRACE_MS, support::DAY);
+            (None, of_run(&w.act(Act::Tick).report.ended))
+        }
+        EndOf::Restart => {
+            w.ports.new_life();
+            w.ports.leave_marks(&[(run.clone(), Reaped::Gone)]);
+            w.forget();
+            let life = recover(&w.ports, &w.limits).expect("recovery");
+            (None, of_run(&life.ended))
+        }
+    };
+    let stored = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run: r, cause } if *r == run => Some(*cause),
+            _ => None,
+        })
+        .collect();
+    Drove {
+        refused,
+        reported,
+        stored,
+    }
+}
+
+#[test]
+fn the_cause_that_run_step_gives_an_end_is_the_cause_that_the_moves_report_and_store_for_every_end()
+{
+    let mut ends = vec![
+        EndOf::Frame(None),
+        EndOf::Kill,
+        EndOf::UnknownRun,
+        EndOf::Restart,
+    ];
+    ends.extend(Outcome::ALL.iter().map(|o| EndOf::Frame(Some(*o))));
+    let mut wrong = Vec::new();
+    let mut compared = 0;
+    for before in [Before::Starting, Before::Working, Before::Waiting] {
+        for stop in [
+            StopOf::None,
+            StopOf::Person,
+            StopOf::WaitLimit,
+            StopOf::Gone,
+            StopOf::PersonThenGone,
+        ] {
+            for end in &ends {
+                let step = step_cause(step_moves(before, stop, *end));
+                let drove = drive_end(before, stop, *end);
+                let gone = matches!(stop, StopOf::Gone | StopOf::PersonThenGone);
+                let nothing = drove.reported.is_empty() && drove.stored.is_empty();
+                let holds = match &step {
+                    Err(Cause::State)
+                        if matches!(stop, StopOf::None)
+                            && matches!(end, EndOf::Kill | EndOf::UnknownRun) =>
+                    {
+                        nothing
+                    }
+                    Ok(_)
+                        if matches!(
+                            (before, stop, end),
+                            (Before::Waiting, StopOf::None, EndOf::Frame(_))
+                        ) =>
+                    {
+                        drove.refused == Some(Cause::State) && nothing
+                    }
+                    Ok(_) if gone && matches!(end, EndOf::Restart) => nothing,
+                    Ok(cause) => {
+                        compared += 1;
+                        drove.refused.is_none()
+                            && drove.reported == [*cause]
+                            && (drove.stored == [*cause] || gone && drove.stored.is_empty())
+                    }
+                    Err(_) => false,
+                };
+                if !holds {
+                    wrong.push(format!(
+                        "{before:?}, {stop:?}, {end:?}: run_step {step:?}, the moves {drove:?}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} ends differ (RD-9):\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+    assert_eq!(
+        compared, 173,
+        "195 chains: 6 kills of a run with no stop, which neither ends; 10 last frames of a \
+         waiting run, which the drive takes once its item is closed; 6 restarts after the \
+         workflow went, whose agent a new life does not know"
+    );
 }
