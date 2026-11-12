@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use chromiumoxide::browser::BrowserConfig;
 use chromiumoxide::cdp::browser_protocol::accessibility::{AxNode, GetFullAxTreeParams};
 use chromiumoxide::cdp::browser_protocol::browser::{
-    SetDownloadBehaviorBehavior, SetDownloadBehaviorParams,
+    CloseParams, GetVersionParams, SetDownloadBehaviorBehavior, SetDownloadBehaviorParams,
 };
 use chromiumoxide::cdp::browser_protocol::dom::{
     BackendNodeId, DescribeNodeParams, FocusParams, GetContentQuadsParams, ResolveNodeParams,
@@ -18,19 +17,19 @@ use chromiumoxide::cdp::browser_protocol::input::{
 };
 use chromiumoxide::cdp::browser_protocol::network::LoaderId;
 use chromiumoxide::cdp::browser_protocol::page::{
-    AddScriptToEvaluateOnNewDocumentParams, CreateIsolatedWorldParams, FrameId, FrameTree,
-    GetFrameTreeParams, NavigateParams,
+    AddScriptToEvaluateOnNewDocumentParams, CreateIsolatedWorldParams, EnableParams as PageEnable,
+    FrameId, FrameTree, GetFrameTreeParams, NavigateParams,
 };
-use chromiumoxide::cdp::browser_protocol::target::{CloseTargetParams, GetTargetsParams, TargetId};
+use chromiumoxide::cdp::browser_protocol::target::{
+    CloseTargetParams, CreateTargetParams, GetTargetsParams,
+};
 use chromiumoxide::cdp::js_protocol::runtime::{
-    AddBindingParams, CallArgument, CallFunctionOnParams, EvaluateParams, EventBindingCalled,
-    ExecutionContextId, RemoteObjectId,
+    AddBindingParams, CallArgument, CallFunctionOnParams, EnableParams as RuntimeEnable,
+    EvaluateParams, ExecutionContextId, RemoteObjectId,
 };
-use chromiumoxide::error::CdpError;
-use chromiumoxide::handler::HandlerConfig;
-use chromiumoxide::{Browser, Page};
-use futures::StreamExt;
 use tokio::task::JoinHandle;
+
+use crate::start;
 
 mod session;
 mod wire;
@@ -39,6 +38,22 @@ pub use wire::host_port;
 
 pub const STEP_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL: Duration = Duration::from_millis(50);
+
+/// How long the executor waits for the browser's first reply on its debugging channel before it
+/// ends the browser (A11.1): an organisation's setting `RemoteDebuggingAllowed` off turns the pipe
+/// off, and the browser then runs and gives no reply (CP-93 (4)).
+pub const FIRST_REPLY_WAIT: Duration = Duration::from_secs(30);
+
+/// The plain message that the person gets when the browser gave no first reply in time.
+pub const NO_CHANNEL_MESSAGE: &str = "The browser did not answer Halvo. A setting of your organisation on this computer may forbid the channel that Halvo uses to work in the browser.";
+
+/// The debugging channel of a started browser: the pipe, the product's form, or a debugging port,
+/// a control of the trial alone (CP-89 (b)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Channel {
+    Pipe,
+    Port,
+}
 
 pub type Res<T> = Result<T, Fault>;
 
@@ -51,16 +66,12 @@ impl Fault {
     }
 }
 
-fn cdp<E: std::fmt::Display>(cause: &'static str) -> impl FnOnce(E) -> Fault {
-    move |e| Fault::new(cause, e.to_string())
-}
-
 pub struct StartOptions {
     pub browser: PathBuf,
     pub profile: PathBuf,
     pub headless: bool,
     pub flags: Vec<String>,
-    pub debug_port: Option<u16>,
+    pub channel: Channel,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -167,15 +178,49 @@ pub enum Resolved {
     Many { locator: usize },
 }
 
+/// The browser's first process as the start made it.
+pub(crate) enum BrowserChild {
+    Pipe(start::Started),
+    #[cfg(feature = "port-control")]
+    Port(std::process::Child),
+}
+
+impl BrowserChild {
+    fn pid(&self) -> u32 {
+        match self {
+            BrowserChild::Pipe(c) => c.pid(),
+            #[cfg(feature = "port-control")]
+            BrowserChild::Port(c) => c.id(),
+        }
+    }
+
+    pub(crate) fn exited(&mut self) -> bool {
+        match self {
+            BrowserChild::Pipe(c) => c.exited(),
+            #[cfg(feature = "port-control")]
+            BrowserChild::Port(c) => !matches!(c.try_wait(), Ok(None)),
+        }
+    }
+
+    pub(crate) fn kill(&mut self) {
+        match self {
+            BrowserChild::Pipe(c) => c.kill(),
+            #[cfg(feature = "port-control")]
+            BrowserChild::Port(c) => {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+        }
+    }
+}
+
 pub struct Executor {
-    browser: Browser,
-    page: Page,
-    handler: JoinHandle<()>,
+    child: BrowserChild,
+    home: String,
     pid: Option<u32>,
+    pipe_ids: Option<start::PipeIds>,
+    channel: Channel,
     refs: Vec<Target>,
-    recorded: Arc<Mutex<Vec<String>>>,
-    recorder: Option<JoinHandle<()>>,
-    owns_process: bool,
     profile: Option<PathBuf>,
     temp: Option<PathBuf>,
     wire: wire::Wire,
@@ -184,14 +229,11 @@ pub struct Executor {
     owners: Mutex<HashMap<String, (Place, BackendNodeId)>>,
 }
 
-fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
-    let stderr = match &e {
-        CdpError::LaunchExit(_, s) | CdpError::LaunchTimeout(s) | CdpError::LaunchIo(_, s) => {
-            s.as_slice().to_vec()
-        }
-        other => other.to_string().into_bytes(),
-    };
-    let mut kept = opts.profile.clone().into_os_string();
+/// Keeps the browser's standard error, which its start wrote into the temporary directory, in a
+/// file beside the profile whose name ends in `.stderr`, and names its size.
+fn keep_stderr(profile: &Path, temp: &Path) -> usize {
+    let stderr = std::fs::read(temp.join("stderr")).unwrap_or_default();
+    let mut kept = profile.as_os_str().to_owned();
     kept.push(".stderr");
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .write(true)
@@ -200,10 +242,7 @@ fn start_failed(opts: &StartOptions, e: CdpError) -> Fault {
     {
         let _ = std::io::Write::write_all(&mut file, &stderr);
     }
-    Fault::new(
-        "browser_start",
-        format!("stderr_kept_bytes_{}", stderr.len()),
-    )
+    stderr.len()
 }
 
 /// Writes the agent's settings of U0.7b into a new profile directory: `Local State` and
@@ -221,11 +260,23 @@ fn write_settings(profile: &Path) -> Res<()> {
     Ok(())
 }
 
+/// The browser's command line after its path: the caller's flags, the mock keychain of the trial
+/// on macOS (A13.3: a flag of the trial that the product does not carry), headless, the profile,
+/// the debugging channel and the first page.
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
     let mut args: Vec<String> = opts.flags.clone();
     if cfg!(target_os = "macos") {
         args.push("--use-mock-keychain".into());
     }
+    if opts.headless {
+        args.push("--headless=new".into());
+    }
+    args.push(format!("--user-data-dir={}", opts.profile.display()));
+    args.push(match opts.channel {
+        Channel::Pipe => "--remote-debugging-pipe".into(),
+        Channel::Port => "--remote-debugging-port=0".into(),
+    });
+    args.push("about:blank".into());
     args
 }
 
@@ -252,9 +303,9 @@ impl Executor {
             let ex = Executor::launch(opts, &temp).await?;
             if settled {
                 let deny = SetDownloadBehaviorParams::new(SetDownloadBehaviorBehavior::Deny);
-                if let Err(e) = ex.browser.execute(deny).await {
+                if let Err(f) = ex.wire.call(None, deny).await {
                     let _ = ex.stop().await;
-                    return Err(Fault::new("start", e.to_string()));
+                    return Err(Fault::new("start", f.1));
                 }
             }
             Ok(ex)
@@ -276,172 +327,201 @@ impl Executor {
     }
 
     async fn launch(opts: &StartOptions, temp: &Path) -> Res<Executor> {
-        let temp_text = temp.to_string_lossy().into_owned();
-        let mut builder = BrowserConfig::builder()
-            .chrome_executable(&opts.browser)
-            .disable_default_args()
-            .user_data_dir(&opts.profile)
-            .port(opts.debug_port.unwrap_or(0))
-            .launch_timeout(Duration::from_secs(30))
-            .request_timeout(STEP_TIMEOUT)
-            .respect_https_errors();
-        builder = if opts.headless {
-            builder.new_headless_mode()
+        let args: Vec<std::ffi::OsString> = launch_args(opts).into_iter().map(Into::into).collect();
+        let env: Vec<(std::ffi::OsString, std::ffi::OsString)> = if cfg!(windows) {
+            vec![("TMP".into(), temp.into()), ("TEMP".into(), temp.into())]
         } else {
-            builder.with_head()
+            vec![("TMPDIR".into(), temp.into())]
         };
-        builder = if cfg!(windows) {
-            builder.env("TMP", temp_text.clone()).env("TEMP", temp_text)
-        } else {
-            builder.env("TMPDIR", temp_text)
+        let stderr = temp.join("stderr");
+        let spec = start::Spec {
+            program: &opts.browser,
+            args,
+            env,
+            stderr: Some(&stderr),
         };
-        for flag in launch_args(opts) {
-            let bare = flag.trim_start_matches('-');
-            builder = match bare.split_once('=') {
-                Some((k, v)) => builder.arg((k, v)),
-                None => builder.arg(bare),
+        let (mut child, link, pipe_ids) = match opts.channel {
+            Channel::Pipe => {
+                let on = {
+                    let held = start::lock();
+                    start::start_on_pipe(&held, &spec)
+                };
+                let on = on.map_err(|f| Fault::new("browser_start", f.to_string()))?;
+                let link =
+                    wire::Link::Pipe(crate::pipe::PipeLink::new(on.from_browser, on.to_browser));
+                (BrowserChild::Pipe(on.child), link, Some(on.ids))
+            }
+            Channel::Port => Executor::start_on_port(&spec, temp).await?,
+        };
+        let (wire, wire_task) = wire::Wire::open(link);
+        let fail = |child: &mut BrowserChild, task: &JoinHandle<()>, f: Fault| {
+            child.kill();
+            task.abort();
+            let kept = keep_stderr(&opts.profile, temp);
+            Fault::new(f.0, format!("{} stderr_kept_bytes_{kept}", f.1))
+        };
+        if wire
+            .call_within(None, GetVersionParams::default(), FIRST_REPLY_WAIT)
+            .await
+            .is_err()
+        {
+            return Err(fail(
+                &mut child,
+                &wire_task,
+                Fault::new("no_channel", NO_CHANNEL_MESSAGE),
+            ));
+        }
+        let home = async {
+            wire.attach_all().await?;
+            let made = wire
+                .call(None, CreateTargetParams::new("about:blank"))
+                .await?;
+            let target = made.target_id.inner().clone();
+            let deadline = Instant::now() + STEP_TIMEOUT;
+            let session = loop {
+                if let Some((s, _)) = wire.session_of(&target) {
+                    break s;
+                }
+                if Instant::now() > deadline {
+                    return Err(Fault::new("start", "page_session"));
+                }
+                tokio::time::sleep(POLL).await;
             };
-        }
-        let config = builder.build().map_err(|e| Fault::new("start", e))?;
-        let (mut browser, mut handler) = Browser::launch(config)
-            .await
-            .map_err(|e| start_failed(opts, e))?;
-        let pid = browser.get_mut_child().and_then(|c| c.inner.id());
-        let handler = tokio::spawn(async move { while handler.next().await.is_some() {} });
-        let address = browser.websocket_address().clone();
-        let (wire, wire_task) = match wire::Wire::open(&address).await {
-            Ok(w) => w,
-            Err(f) => {
-                let _ = browser.kill().await;
-                handler.abort();
-                return Err(Fault::new("start", f.1));
+            wire.set_home(&target);
+            wire.call(Some(&session), PageEnable::default()).await?;
+            wire.call(Some(&session), RuntimeEnable::default()).await?;
+            let r = wire.call(None, GetTargetsParams::default()).await?;
+            for t in r.target_infos {
+                if t.r#type == "page" && *t.target_id.inner() != target {
+                    wire.call(None, CloseTargetParams::new(t.target_id)).await?;
+                }
             }
-        };
-        let page = match browser.new_page("about:blank").await {
-            Ok(p) => p,
-            Err(e) => {
-                wire_task.abort();
-                let _ = browser.kill().await;
-                return Err(Fault::new("start", e.to_string()));
-            }
-        };
-        wire.set_home(page.target_id().inner());
-        if let Err(f) = Executor::close_other_pages(&browser, &page).await {
-            wire_task.abort();
-            let _ = browser.kill().await;
-            return Err(Fault::new("start", f.1));
+            Ok(session)
         }
-        Ok(Executor::wrap(
-            browser,
-            page,
-            handler,
+        .await;
+        let home = match home {
+            Ok(h) => h,
+            Err(f) => return Err(fail(&mut child, &wire_task, Fault::new("start", f.1))),
+        };
+        let pid = Some(child.pid());
+        Ok(Executor {
+            child,
+            home,
             pid,
-            true,
-            (wire, wire_task),
-        ))
+            pipe_ids,
+            channel: opts.channel,
+            refs: Vec::new(),
+            profile: None,
+            temp: None,
+            wire,
+            wire_task,
+            places: Mutex::new(HashMap::new()),
+            owners: Mutex::new(HashMap::new()),
+        })
     }
 
-    async fn close_other_pages(browser: &Browser, page: &Page) -> Res<()> {
-        let r = browser
-            .execute(GetTargetsParams::default())
-            .await
-            .map_err(cdp("start"))?;
-        for t in r.result.target_infos {
-            if t.r#type == "page" && &t.target_id != page.target_id() {
-                browser
-                    .execute(CloseTargetParams::new(t.target_id))
-                    .await
-                    .map_err(cdp("start"))?;
-            }
+    #[cfg(feature = "port-control")]
+    async fn start_on_port(
+        spec: &start::Spec<'_>,
+        temp: &Path,
+    ) -> Res<(BrowserChild, wire::Link, Option<start::PipeIds>)> {
+        use std::io::BufRead;
+        let mut cmd = std::process::Command::new(spec.program);
+        cmd.args(&spec.args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped());
+        for (k, v) in &spec.env {
+            cmd.env(k, v);
         }
-        Ok(())
-    }
-
-    pub async fn connect(address: &str, url_prefix: &str) -> Res<Executor> {
-        let config = HandlerConfig {
-            ignore_https_errors: false,
-            ..HandlerConfig::default()
-        };
-        let (mut browser, mut handler) =
-            Browser::connect_with_config(format!("http://{address}"), config)
-                .await
-                .map_err(cdp("attach"))?;
-        let handler = tokio::spawn(async move { while handler.next().await.is_some() {} });
-        let (wire, wire_task) = match wire::Wire::open(browser.websocket_address()).await {
-            Ok(w) => w,
-            Err(f) => {
-                handler.abort();
-                return Err(Fault::new("attach", f.1));
-            }
-        };
-        match Executor::page_of(&mut browser, url_prefix).await {
-            Ok(page) => {
-                wire.set_home(page.target_id().inner());
-                Ok(Executor::wrap(
-                    browser,
-                    page,
-                    handler,
-                    None,
-                    false,
-                    (wire, wire_task),
-                ))
-            }
-            Err(f) => {
-                wire_task.abort();
-                handler.abort();
-                Err(f)
-            }
+        let mut child = {
+            let held = start::lock();
+            held.spawn(&mut cmd)
         }
-    }
-
-    async fn page_of(browser: &mut Browser, url_prefix: &str) -> Res<Page> {
-        let targets = browser.fetch_targets().await.map_err(cdp("attach"))?;
-        let pages: Vec<TargetId> = targets
-            .into_iter()
-            .filter(|t| t.r#type == "page" && t.url.starts_with(url_prefix))
-            .map(|t| t.target_id)
-            .collect();
-        let target = match pages.as_slice() {
-            [one] => one.clone(),
-            [] => return Err(Fault::new("attach", "none")),
-            _ => return Err(Fault::new("attach", "many")),
+        .map_err(|e| Fault::new("browser_start", e.kind().to_string()))?;
+        let Some(err) = child.stderr.take() else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(Fault::new("browser_start", "stderr"));
         };
-        let deadline = Instant::now() + STEP_TIMEOUT;
-        loop {
-            match browser.get_page(target.clone()).await {
-                Ok(p) => return Ok(p),
-                Err(e) if Instant::now() > deadline => {
-                    return Err(Fault::new("attach", e.to_string()))
+        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        let kept = temp.join("stderr");
+        std::thread::spawn(move || {
+            let mut file = std::fs::File::create(kept).ok();
+            for line in std::io::BufReader::new(err).lines() {
+                let Ok(line) = line else { break };
+                if let Some(f) = file.as_mut() {
+                    let _ = std::io::Write::write_all(
+                        f,
+                        format!(
+                            "{line}
+"
+                        )
+                        .as_bytes(),
+                    );
+                }
+                if let Some(at) = line.find("ws://") {
+                    if line.contains("DevTools listening on") {
+                        let _ = tx.send(line[at..].trim().to_string());
+                    }
+                }
+            }
+        });
+        let deadline = Instant::now() + FIRST_REPLY_WAIT;
+        let address = loop {
+            match rx.try_recv() {
+                Ok(a) => break a,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(Fault::new("browser_start", "no_address"));
+                }
+                Err(_) if Instant::now() > deadline => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(Fault::new("no_channel", NO_CHANNEL_MESSAGE));
                 }
                 Err(_) => tokio::time::sleep(POLL).await,
             }
+        };
+        match chromiumoxide::Connection::<chromiumoxide::cdp::CdpEventMessage>::connect(&address)
+            .await
+        {
+            Ok(conn) => Ok((
+                BrowserChild::Port(child),
+                wire::Link::Socket(Box::new(conn)),
+                None,
+            )),
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                Err(Fault::new("browser_start", e.to_string()))
+            }
         }
     }
 
-    fn wrap(
-        browser: Browser,
-        page: Page,
-        handler: JoinHandle<()>,
-        pid: Option<u32>,
-        owns_process: bool,
-        wired: (wire::Wire, JoinHandle<()>),
-    ) -> Executor {
-        Executor {
-            browser,
-            page,
-            handler,
-            pid,
-            refs: Vec::new(),
-            recorded: Arc::new(Mutex::new(Vec::new())),
-            recorder: None,
-            owns_process,
-            profile: None,
-            temp: None,
-            wire: wired.0,
-            wire_task: wired.1,
-            places: Mutex::new(HashMap::new()),
-            owners: Mutex::new(HashMap::new()),
-        }
+    #[cfg(not(feature = "port-control"))]
+    async fn start_on_port(
+        _spec: &start::Spec<'_>,
+        _temp: &Path,
+    ) -> Res<(BrowserChild, wire::Link, Option<start::PipeIds>)> {
+        Err(Fault::new("browser_start", "no_port_control"))
+    }
+
+    /// The channel on which the executor drives its browser.
+    pub fn channel(&self) -> Channel {
+        self.channel
+    }
+
+    /// The identity of the browser's pipe, which the checks of a session read (CP-89 (c)); none
+    /// on the port.
+    pub fn pipe_ids(&self) -> Option<&start::PipeIds> {
+        self.pipe_ids.as_ref()
+    }
+
+    /// Whether the transport of the debugging channel has ended.
+    pub fn channel_closed(&self) -> bool {
+        self.wire.closed()
     }
 
     pub fn pid(&self) -> Option<u32> {
@@ -449,7 +529,11 @@ impl Executor {
     }
 
     pub async fn version(&self) -> Res<String> {
-        let v = self.browser.version().await.map_err(cdp("version"))?;
+        let v = self
+            .wire
+            .call(None, GetVersionParams::default())
+            .await
+            .map_err(|f| Fault::new("version", f.1))?;
         Ok(v.product)
     }
 
@@ -459,19 +543,21 @@ impl Executor {
         self.wire.faults()
     }
 
+    /// Closes the browser over its channel and waits up to 10 s for its first process to end,
+    /// then ends it with the system's hard kill through the child that the start made.
     pub async fn stop(mut self) -> Vec<u32> {
-        if let Some(t) = self.recorder.take() {
-            t.abort();
+        let _ = self
+            .wire
+            .call_within(None, CloseParams::default(), Duration::from_secs(5))
+            .await;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !self.child.exited() && Instant::now() < deadline {
+            tokio::time::sleep(POLL).await;
         }
-        if self.owns_process {
-            let _ = tokio::time::timeout(Duration::from_secs(5), self.browser.close()).await;
-            let exited = tokio::time::timeout(Duration::from_secs(10), self.browser.wait()).await;
-            if !matches!(exited, Ok(Ok(Some(_)))) {
-                let _ = self.browser.kill().await;
-            }
+        if !self.child.exited() {
+            self.child.kill();
         }
         self.wire_task.abort();
-        self.handler.abort();
         self.pid.into_iter().collect()
     }
 
@@ -481,19 +567,14 @@ impl Executor {
         cause: &'static str,
         cmd: C,
     ) -> Res<C::Response> {
-        match place {
-            Place::Page => self
-                .page
-                .execute(cmd)
-                .await
-                .map(|r| r.result)
-                .map_err(cdp(cause)),
-            Place::Frame(session) => self
-                .wire
-                .call(Some(session), cmd)
-                .await
-                .map_err(|f| Fault::new(cause, f.1)),
-        }
+        let session = match place {
+            Place::Page => &self.home,
+            Place::Frame(session) => session,
+        };
+        self.wire
+            .call(Some(session), cmd)
+            .await
+            .map_err(|f| Fault::new(cause, f.1))
     }
 
     fn place_of(&self, frame: &FrameId) -> Place {
@@ -627,11 +708,9 @@ impl Executor {
         let frame = self.main_frame().await?;
         let before = self.loader(&frame).await?;
         let r = self
-            .page
-            .execute(NavigateParams::new(url))
-            .await
-            .map_err(cdp("navigate"))?;
-        if let Some(err) = r.result.error_text {
+            .exec(&Place::Page, "navigate", NavigateParams::new(url))
+            .await?;
+        if let Some(err) = r.error_text {
             return Err(Fault::new("navigate", err));
         }
         self.refs.clear();
@@ -640,11 +719,9 @@ impl Executor {
 
     pub async fn navigate_error(&self, url: &str) -> Res<Option<String>> {
         let r = self
-            .page
-            .execute(NavigateParams::new(url))
-            .await
-            .map_err(cdp("navigate"))?;
-        Ok(r.result.error_text)
+            .exec(&Place::Page, "navigate", NavigateParams::new(url))
+            .await?;
+        Ok(r.error_text)
     }
 
     async fn ax_tree(&self, frame: &FrameId) -> Res<Vec<AxNode>> {
@@ -1129,7 +1206,7 @@ impl Executor {
                 b = b.button(MouseButton::Left).click_count(1);
             }
             let params = b.build().map_err(|e| Fault::new("click", e))?;
-            self.page.execute(params).await.map_err(cdp("click"))?;
+            self.exec(&Place::Page, "click", params).await?;
         }
         Ok(())
     }
@@ -1323,11 +1400,6 @@ impl Executor {
         Ok(walk(&self.frame_tree().await?, frame))
     }
 
-    /// The WebSocket address of the browser's debugging channel.
-    pub fn debug_address(&self) -> String {
-        self.browser.websocket_address().clone()
-    }
-
     /// Runs a script of the trial in the page's own world of the main frame, through the debugging
     /// protocol, and returns its value. It is no operation of A11.1: the rows of A13.7 change the
     /// page with it.
@@ -1337,23 +1409,22 @@ impl Executor {
             .return_by_value(true)
             .build()
             .map_err(|e| Fault::new("script", e))?;
-        let r = self.page.execute(params).await.map_err(cdp("script"))?;
-        if r.result.exception_details.is_some() {
+        let r = self.exec(&Place::Page, "script", params).await?;
+        if r.exception_details.is_some() {
             return Err(Fault::new("script", "exception"));
         }
-        Ok(r.result.result.value.unwrap_or(serde_json::Value::Null))
+        Ok(r.result.value.unwrap_or(serde_json::Value::Null))
     }
 
     /// The frames that the browser runs as targets of their own, out of the process of the page
     /// that holds them: the id and the address of each target of type `iframe`.
     pub async fn frame_targets(&self) -> Res<Vec<(String, String)>> {
         let r = self
-            .browser
-            .execute(GetTargetsParams::default())
+            .wire
+            .call(None, GetTargetsParams::default())
             .await
-            .map_err(cdp("targets"))?;
-        Ok(r.result
-            .target_infos
+            .map_err(|f| Fault::new("targets", f.1))?;
+        Ok(r.target_infos
             .into_iter()
             .filter(|t| t.r#type == "iframe")
             .map(|t| (t.target_id.inner().clone(), t.url))
@@ -1365,34 +1436,23 @@ impl Executor {
     }
 
     pub async fn add_recorder(&mut self) -> Res<()> {
-        let mut events = self
-            .page
-            .event_listener::<EventBindingCalled>()
-            .await
-            .map_err(cdp("record"))?;
-        let recorded = self.recorded.clone();
-        self.recorder = Some(tokio::spawn(async move {
-            while let Some(ev) = events.next().await {
-                if ev.name == RECORD_BINDING {
-                    if let Ok(mut r) = recorded.lock() {
-                        r.push(ev.payload.clone());
-                    }
-                }
-            }
-        }));
-        self.page
-            .execute(AddBindingParams::new(RECORD_BINDING))
-            .await
-            .map_err(cdp("record"))?;
-        self.page
-            .execute(AddScriptToEvaluateOnNewDocumentParams::new(RECORDER_JS))
-            .await
-            .map_err(cdp("record"))?;
+        self.exec(
+            &Place::Page,
+            "record",
+            AddBindingParams::new(RECORD_BINDING),
+        )
+        .await?;
+        self.exec(
+            &Place::Page,
+            "record",
+            AddScriptToEvaluateOnNewDocumentParams::new(RECORDER_JS),
+        )
+        .await?;
         Ok(())
     }
 
     pub fn recorded(&self) -> Vec<String> {
-        self.recorded.lock().map(|r| r.clone()).unwrap_or_default()
+        self.wire.binding_calls(RECORD_BINDING)
     }
 }
 
@@ -1530,7 +1590,7 @@ mod tests {
             profile,
             headless: true,
             flags: Vec::new(),
-            debug_port: None,
+            channel: Channel::Pipe,
         };
         let refused = Executor::start(&opts).await.err();
         assert_eq!(
@@ -1610,7 +1670,7 @@ mod tests {
             profile: base.join(format!("rule-{}-{port}", std::process::id())),
             headless: true,
             flags,
-            debug_port: None,
+            channel: Channel::Pipe,
         };
         let mut ex = Executor::start(&opts).await.expect("start");
         let utility = crate::fixture::origin(crate::fixture::UTILITY, port);

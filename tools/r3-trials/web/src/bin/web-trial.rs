@@ -1,4 +1,6 @@
 use std::io::Write;
+
+use r3_web::start::Start;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -33,6 +35,8 @@ struct Args {
     headed: bool,
     relay: bool,
     routes: bool,
+    round3: bool,
+    port_channel: bool,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -119,12 +123,19 @@ fn parse(argv: &[String]) -> Result<Args, String> {
             "--headed" => a.headed = true,
             "--relay" => a.relay = true,
             "--net-log" => a.net_log = Some(PathBuf::from(take()?)),
-            "--round" => {
-                if take()? != "2" {
-                    return Err("--round takes 2".into());
+            "--round" => match take()?.as_str() {
+                "2" => a.round2 = true,
+                "3" => {
+                    a.round2 = true;
+                    a.round3 = true;
                 }
-                a.round2 = true;
-            }
+                _ => return Err("--round takes 2 or 3".into()),
+            },
+            "--channel" => match take()?.as_str() {
+                "pipe" => a.port_channel = false,
+                "port" => a.port_channel = true,
+                _ => return Err("--channel takes pipe or port".into()),
+            },
             "--routes" => a.routes = true,
             _ => return Err(format!("unknown argument {flag}")),
         }
@@ -219,7 +230,7 @@ fn egress_wrap(spec: &str, argv: &[String]) -> ExitCode {
         .args(rest)
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::from(err_file))
-        .spawn();
+        .start();
     let mut child = match spawned {
         Ok(c) => c,
         Err(e) => {
@@ -323,17 +334,17 @@ fn run(args: Args, kind: &'static str) -> ExitCode {
 
 #[cfg(feature = "driver")]
 mod driver {
+    use r3_web::start::Start;
     use std::path::{Path, PathBuf};
     use std::process::ExitCode;
     use std::time::{Duration, Instant};
 
-    use futures::StreamExt;
     use r3_web::cdp::host_of;
     use r3_web::cdp::{
-        Executor, Fault, Locator, Outcome, PausedRequest, Res, Resolved, SnapshotLine, StartOptions,
+        Channel, Executor, Fault, Locator, Outcome, PausedRequest, Res, Resolved, SnapshotLine,
+        StartOptions,
     };
     use r3_web::fixture::{count, fixture_program, origin, Control, Seed, Server, PAY, UTILITY};
-    use r3_web::pipe::PipeBrowser;
     use r3_web::relay::{relay_flags, HostPort, Relay, RelayHandle};
     use r3_web::tls::{make_certificate, openssl_runs, CertFault, Listener};
     use r3_web::{
@@ -416,6 +427,7 @@ mod driver {
         relay_port: u16,
         net_log: Option<PathBuf>,
         repo: PathBuf,
+        channel: Channel,
     }
 
     impl Ctx {
@@ -426,7 +438,7 @@ mod driver {
             f
         }
 
-        fn options(&self, profile: &str, debug_port: Option<u16>) -> StartOptions {
+        fn options(&self, profile: &str) -> StartOptions {
             StartOptions {
                 browser: self.browser.clone(),
                 profile: self
@@ -434,12 +446,21 @@ mod driver {
                     .join(format!("{}-{profile}", std::process::id())),
                 headless: self.headless,
                 flags: self.flags(),
-                debug_port,
+                channel: self.channel,
             }
         }
 
         fn u(&self, path: &str) -> String {
             format!("{}{path}", origin(UTILITY, self.port))
+        }
+
+        fn form(&self) -> &'static str {
+            match (self.channel, self.relayed) {
+                (Channel::Pipe, true) => "pipe_relay",
+                (Channel::Pipe, false) => "pipe",
+                (Channel::Port, true) => "port_relay",
+                (Channel::Port, false) => "port",
+            }
         }
     }
 
@@ -1267,11 +1288,11 @@ mod driver {
                     "-Command",
                     "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.CommandLine)\" }",
                 ])
-                .output()
+                .start_output()
         } else {
             std::process::Command::new("ps")
                 .args(["-axww", "-o", "pid=,command="])
-                .output()
+                .start_output()
         };
         let Ok(o) = listed else { return };
         let own = std::process::id();
@@ -1290,11 +1311,11 @@ mod driver {
             let _ = if cfg!(windows) {
                 std::process::Command::new("taskkill")
                     .args(["/F", "/PID", &p.to_string()])
-                    .output()
+                    .start_output()
             } else {
                 std::process::Command::new("kill")
                     .args(["-KILL", &p.to_string()])
-                    .output()
+                    .start_output()
             };
         }
         eprintln!("egress ended_left_browser_processes={}", pids.len());
@@ -1643,11 +1664,11 @@ mod driver {
                     "-Command",
                     "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.Name)`t$($_.CommandLine)\" }",
                 ])
-                .output()
+                .start_output()
         } else {
             std::process::Command::new("ps")
                 .args(["-axww", "-o", "pid=,ppid=,comm=,command="])
-                .output()
+                .start_output()
         };
         let Ok(o) = text else { return Vec::new() };
         String::from_utf8_lossy(&o.stdout)
@@ -1990,7 +2011,7 @@ mod driver {
     fn socket_owners(port: u16) -> Option<Vec<u32>> {
         let out = std::process::Command::new("lsof")
             .args(["-nP", &format!("-iTCP:{port}"), "-sTCP:ESTABLISHED", "-Fpn"])
-            .output()
+            .start_output()
             .ok()?;
         let suffix = format!("->127.0.0.1:{port}");
         let mut pid = 0;
@@ -2011,7 +2032,7 @@ mod driver {
     fn socket_owners(port: u16) -> Option<Vec<u32>> {
         let out = std::process::Command::new("netstat")
             .args(["-ano", "-p", "TCP"])
-            .output()
+            .start_output()
             .ok()?;
         let suffix = format!(":{port}");
         let mut owners = Vec::new();
@@ -2059,7 +2080,7 @@ mod driver {
                 r.set_list(Some(fixture_list(ctx)));
             }
         }
-        let mut opts = ctx.options(&format!("p-{name}-{i}"), None);
+        let mut opts = ctx.options(&format!("p-{name}-{i}"));
         let egress = if EGRESS_STEPS.contains(&name) {
             Some(egress_setup(ctx, &mut opts, name, i).map_err(|e| NotRun::new("egress", e))?)
         } else {
@@ -2220,7 +2241,7 @@ mod driver {
             let relay_key = if name.ends_with("_relay") {
                 format!(" relay={}", name.trim_start_matches("driver_killed_"))
             } else if ctx.relayed {
-                " relay=port_relay".to_string()
+                format!(" relay={}", ctx.form())
             } else {
                 String::new()
             };
@@ -2268,7 +2289,8 @@ mod driver {
             }
             if *name == "frame_doc" {
                 out(&format!(
-                    "way row=frame_doc form=port_relay machine={} browser={} closed={} runs={runs} told={ok}",
+                    "way row=frame_doc form={} machine={} browser={} closed={} runs={runs} told={ok}",
+                    ctx.form(),
                     ctx.machine,
                     ctx.kind,
                     if ok == runs { "yes" } else { "no" }
@@ -2290,8 +2312,10 @@ mod driver {
             ));
             if ctx.round2 && ctx.relayed && STEPS.contains(name) {
                 out(&format!(
-                    "relay_cell machine={} browser={} form=port_relay step={name} ok={ok} of={runs}",
-                    ctx.machine, ctx.kind
+                    "relay_cell machine={} browser={} form={} step={name} ok={ok} of={runs}",
+                    ctx.machine,
+                    ctx.kind,
+                    ctx.form()
                 ));
             }
             if ctx.routes {
@@ -2316,7 +2340,7 @@ mod driver {
         let t0 = Instant::now();
         let mut ex = ctx
             .stop
-            .or(Executor::start(&ctx.options(&format!("p-cold-{i}"), None)))
+            .or(Executor::start(&ctx.options(&format!("p-cold-{i}"))))
             .await?;
         let opened = ctx.stop.or(ex.open(&ctx.u("/signin"))).await;
         let ms = t0.elapsed().as_millis();
@@ -2330,7 +2354,7 @@ mod driver {
             .map_err(|e| Fault::new("control", e))?;
         let mut ex = ctx
             .stop
-            .or(Executor::start(&ctx.options("p-record", None)))
+            .or(Executor::start(&ctx.options("p-record")))
             .await?;
         let outcome = ctx
             .stop
@@ -2372,30 +2396,6 @@ mod driver {
         outcome
     }
 
-    async fn attach(ctx: &Ctx) -> Res<()> {
-        ctx.control
-            .reset(&[])
-            .map_err(|e| Fault::new("control", e))?;
-        let debug = ctx.port + 1;
-        let mut ex = ctx
-            .stop
-            .or(Executor::start(&ctx.options("p-attach", Some(debug))))
-            .await?;
-        let outcome = ctx
-            .stop
-            .or(async {
-                signin(&mut ex, ctx).await?;
-                let mut second =
-                    Executor::connect(&format!("127.0.0.1:{debug}"), &ctx.u("/bill")).await?;
-                let heading = second.resolve(&[role("heading", "Your bill")], &[]).await;
-                second.stop().await;
-                check(matches!(heading?, Resolved::One { .. }), "heading")
-            })
-            .await;
-        ex.stop_and_remove().await;
-        outcome
-    }
-
     async fn extras(ctx: &Ctx, added_bytes: u64) -> bool {
         let mut colds = Vec::new();
         let mut faults = Vec::new();
@@ -2408,10 +2408,6 @@ mod driver {
         let rec = record(ctx).await;
         if let Err(f) = &rec {
             faults.push(("record", f.clone()));
-        }
-        let att = attach(ctx).await;
-        if let Err(f) = &att {
-            faults.push(("attach", f.clone()));
         }
         for (part, f) in &faults {
             eprintln!("{part} cause={} detail={}", f.0, printable(&f.1));
@@ -2435,10 +2431,14 @@ mod driver {
             return false;
         }
         out(&format!(
-            "extras candidate={CANDIDATE} added_bytes={added_bytes} cold_ms={} record={} attach={} pipe=no",
+            "extras candidate={CANDIDATE} form={} added_bytes={added_bytes} cold_ms={} record={}",
+            if ctx.channel == Channel::Pipe {
+                "pipe"
+            } else {
+                "port"
+            },
             median(&mut colds),
-            if rec.is_ok() { "ok" } else { "miss" },
-            if att.is_ok() { "ok" } else { "miss" }
+            if rec.is_ok() { "ok" } else { "miss" }
         ));
         true
     }
@@ -2462,7 +2462,7 @@ mod driver {
             .map_err(|e| Fault::new("control", e))?;
         let mut ex = ctx
             .stop
-            .or(Executor::start(&ctx.options("p-resolver", None)))
+            .or(Executor::start(&ctx.options("p-resolver")))
             .await?;
         let outcome = ctx
             .stop
@@ -2496,7 +2496,7 @@ mod driver {
             .map_err(|e| Fault::new("control", e))?;
         let mut ex = ctx
             .stop
-            .or(Executor::start(&ctx.options("p-snapshot", None)))
+            .or(Executor::start(&ctx.options("p-snapshot")))
             .await?;
         let outcome = ctx
             .stop
@@ -2522,14 +2522,7 @@ mod driver {
     const KILL_WATCH: Duration = Duration::from_secs(10);
     const CHILD_WAIT: Duration = Duration::from_secs(60);
     const CHILD_LIFE: Duration = Duration::from_secs(120);
-    const CLOSE_WAIT: Duration = Duration::from_secs(15);
     const CONTROL_WAIT: Duration = Duration::from_secs(15);
-
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Channel {
-        Pipe,
-        Port,
-    }
 
     struct Form {
         step: &'static str,
@@ -2673,10 +2666,7 @@ mod driver {
         if a.round2 {
             flags.extend(ROUND2_FLAGS.iter().map(|f| f.to_string()));
         }
-        let code = match a.channel {
-            Channel::Port => rt.block_on(port_child(&a, flags)),
-            Channel::Pipe => pipe_child(&a, flags),
-        };
+        let code = rt.block_on(port_child(&a, flags));
         drop(relay);
         code
     }
@@ -2687,7 +2677,7 @@ mod driver {
             profile: a.profile.clone(),
             headless: true,
             flags,
-            debug_port: None,
+            channel: a.channel,
         };
         let started = if a.round2 {
             Executor::start_settled(&opts).await
@@ -2709,7 +2699,6 @@ mod driver {
                 .unwrap_or_else(|_| "-".into())
                 .replace(' ', "_")
         ));
-        out(&format!("address {}", ex.debug_address()));
         let held = async {
             ex.open(&a.page).await?;
             if a.let_through {
@@ -2745,148 +2734,6 @@ mod driver {
         }
     }
 
-    fn pipe_child(a: &ChildArgs, mut flags: Vec<String>) -> ExitCode {
-        let mut temp = a.profile.clone().into_os_string();
-        temp.push("-tmp");
-        let temp = PathBuf::from(temp);
-        if std::fs::create_dir(&a.profile).is_err() || std::fs::create_dir(&temp).is_err() {
-            eprintln!("driver pipe dirs");
-            return ExitCode::from(1);
-        }
-        if a.round2 && r3_web::cdp::write_agent_settings(&a.profile).is_err() {
-            eprintln!("driver pipe settings");
-            return ExitCode::from(1);
-        }
-        flags.push("--headless=new".into());
-        flags.push("--remote-debugging-pipe".into());
-        flags.push(format!("--user-data-dir={}", a.profile.display()));
-        if cfg!(target_os = "macos") {
-            flags.push("--use-mock-keychain".into());
-        }
-        flags.push("about:blank".into());
-        let mut b = match PipeBrowser::launch(&a.browser, &flags, &temp) {
-            Ok(b) => b,
-            Err(e) => {
-                eprintln!("driver pipe launch {}", printable(&e));
-                return ExitCode::from(1);
-            }
-        };
-        let let_through = a.let_through;
-        let allow = a.allow.clone();
-        let held: std::cell::Cell<Option<&'static str>> = std::cell::Cell::new(None);
-        let mut on = |b: &mut PipeBrowser, m: &serde_json::Value| {
-            if m["method"] != "Fetch.requestPaused" {
-                return;
-            }
-            let p = &m["params"];
-            let rid = p["requestId"].clone();
-            let method = p["request"]["method"].as_str().unwrap_or("").to_string();
-            let (origin, path) = r3_web::cdp::split_url(p["request"]["url"].as_str().unwrap_or(""));
-            let session = m["sessionId"].as_str().map(str::to_string);
-            let reads = matches!(method.as_str(), "GET" | "HEAD" | "OPTIONS");
-            if path == HELD_PATH {
-                if let_through {
-                    b.send_only(
-                        "Fetch.continueRequest",
-                        serde_json::json!({"requestId": rid}),
-                        session.as_deref(),
-                    );
-                    held.set(Some("Continued"));
-                } else {
-                    held.set(Some("Held"));
-                }
-            } else if allow.contains(&origin) && reads {
-                b.send_only(
-                    "Fetch.continueRequest",
-                    serde_json::json!({"requestId": rid}),
-                    session.as_deref(),
-                );
-            } else {
-                b.send_only(
-                    "Fetch.failRequest",
-                    serde_json::json!({"requestId": rid, "errorReason": "BlockedByClient"}),
-                    session.as_deref(),
-                );
-            }
-        };
-        let steps = (|| -> Result<(), String> {
-            let v = b.call("Browser.getVersion", serde_json::json!({}), None, &mut on)?;
-            out(&format!(
-                "started browser_pid={} version={}",
-                b.pid(),
-                v["product"].as_str().unwrap_or("-").replace(' ', "_")
-            ));
-            let t = b.call("Target.getTargets", serde_json::json!({}), None, &mut on)?;
-            let page = t["targetInfos"]
-                .as_array()
-                .and_then(|a| a.iter().find(|x| x["type"] == "page"))
-                .and_then(|x| x["targetId"].as_str())
-                .ok_or("no page")?
-                .to_string();
-            let s = b.call(
-                "Target.attachToTarget",
-                serde_json::json!({"targetId": page, "flatten": true}),
-                None,
-                &mut on,
-            )?;
-            let session = s["sessionId"].as_str().ok_or("no session")?.to_string();
-            let pattern =
-                serde_json::json!({"patterns": [{"urlPattern": "*", "requestStage": "Request"}]});
-            b.call("Fetch.enable", pattern.clone(), None, &mut on)?;
-            b.call("Fetch.enable", pattern, Some(&session), &mut on)?;
-            b.call(
-                "Page.navigate",
-                serde_json::json!({"url": a.page}),
-                Some(&session),
-                &mut on,
-            )?;
-            let deadline = Instant::now() + r3_web::cdp::STEP_TIMEOUT;
-            loop {
-                let r = b.call(
-                    "Runtime.evaluate",
-                    serde_json::json!({"expression": "location.href + ' ' + document.readyState", "returnByValue": true}),
-                    Some(&session),
-                    &mut on,
-                )?;
-                if r["result"]["value"].as_str() == Some(&format!("{} complete", a.page)) {
-                    break;
-                }
-                if Instant::now() > deadline {
-                    return Err("load".into());
-                }
-                b.pump(Duration::from_millis(100), &mut on);
-            }
-            b.call(
-                "Runtime.evaluate",
-                serde_json::json!({"expression": held_script(&a.target), "returnByValue": true}),
-                Some(&session),
-                &mut on,
-            )?;
-            Ok(())
-        })();
-        if let Err(e) = steps {
-            eprintln!("driver pipe step {}", printable(&e));
-            b.kill();
-            return ExitCode::from(1);
-        }
-        let deadline = Instant::now() + r3_web::cdp::STEP_TIMEOUT;
-        while held.get().is_none() && Instant::now() < deadline {
-            b.pump(Duration::from_millis(100), &mut on);
-        }
-        let Some(outcome) = held.get() else {
-            eprintln!("driver pipe step no_paused");
-            b.kill();
-            return ExitCode::from(1);
-        };
-        out(&format!("paused outcome={outcome}"));
-        let deadline = Instant::now() + CHILD_LIFE;
-        while Instant::now() < deadline {
-            b.pump(Duration::from_millis(500), &mut on);
-        }
-        b.kill();
-        ExitCode::from(3)
-    }
-
     struct Killed {
         bytes: u64,
         connections: u64,
@@ -2910,26 +2757,7 @@ mod driver {
         false
     }
 
-    async fn close_browser(address: Option<&str>, root: &r3_web::procs::Proc) -> bool {
-        if let Some(address) = address {
-            if let Ok(Ok((mut browser, mut handler))) = tokio::time::timeout(
-                Duration::from_secs(10),
-                chromiumoxide::Browser::connect(address.to_string()),
-            )
-            .await
-            {
-                let pump = tokio::spawn(async move { while handler.next().await.is_some() {} });
-                let _ = tokio::time::timeout(Duration::from_secs(5), browser.close()).await;
-                pump.abort();
-            }
-            let deadline = Instant::now() + CLOSE_WAIT;
-            while Instant::now() < deadline {
-                if !r3_web::procs::running(root) {
-                    return true;
-                }
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        }
+    async fn close_browser(root: &r3_web::procs::Proc) -> bool {
         r3_web::procs::kill(root);
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
@@ -2997,7 +2825,7 @@ mod driver {
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
-            .spawn()
+            .start()
             .map_err(|e| NotRun::new("driver", e.to_string()))?;
         let Some(stdout) = child.stdout.take() else {
             let _ = child.kill();
@@ -3016,7 +2844,6 @@ mod driver {
         });
         let mut pid = None;
         let mut version = "-".to_string();
-        let mut address = None;
         let mut paused = false;
         let deadline = Instant::now() + CHILD_WAIT;
         while Instant::now() < deadline && !ctx.stop.is_set() {
@@ -3030,8 +2857,6 @@ mod driver {
                                 _ => {}
                             }
                         }
-                    } else if let Some(a) = line.strip_prefix("address ") {
-                        address = Some(a.to_string());
                     } else if line.starts_with("paused ") {
                         paused = true;
                         break;
@@ -3085,7 +2910,7 @@ mod driver {
         let mut left = false;
         if let Some(r) = &root {
             if r3_web::procs::running(r) {
-                left = !close_browser(address.as_deref(), r).await;
+                left = !close_browser(r).await;
             }
         }
         let mut temp = profile.clone().into_os_string();
@@ -3287,6 +3112,11 @@ mod driver {
             relay_port: 0,
             net_log: args.net_log.clone(),
             repo: repo.clone(),
+            channel: if args.round3 && !args.port_channel {
+                Channel::Pipe
+            } else {
+                Channel::Port
+            },
         };
         let relay = if args.relay {
             match Relay::start().await {
@@ -3313,7 +3143,7 @@ mod driver {
                 .extend(ROUND2_FLAGS.iter().map(|f| f.to_string()));
         }
         out(&format!(
-            "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} added_flags={} rows={} round={} headless={}",
+            "start candidate={CANDIDATE} machine={machine} browser={kind} fixture_pid={} flags={} added_flags={} rows={} round={} headless={} channel={}",
             server.pid(),
             FIRST_FLAGS.len(),
             ctx.added_flags.len(),
@@ -3332,8 +3162,15 @@ mod driver {
             } else {
                 "nine"
             },
-            if args.round2 { 2 } else { 1 },
-            if ctx.headless { "yes" } else { "no" }
+            if args.round3 {
+                3
+            } else if args.round2 {
+                2
+            } else {
+                1
+            },
+            if ctx.headless { "yes" } else { "no" },
+            if ctx.channel == Channel::Pipe { "pipe" } else { "port" }
         ));
         let code = match args.mode {
             Mode::Cells if args.driver => {

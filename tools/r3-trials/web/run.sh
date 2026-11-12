@@ -54,6 +54,10 @@ starts the browser headless with a new profile for every run, and stops both at 
                     the agent's settings in its new profile and the start flags of U0.7b, and the
                     relay holds a list: the fixture's utility and pay hosts on its port, and what a
                     row adds.
+  --round 3         runs the third round of A13.7 (U0.7c) as --round 2 does, with each browser
+                    started by the trial program on its debugging pipe and driven over it alone.
+  --channel C       with --round 3: pipe (the default, the product's form) or port, the control
+                    in which the browser is driven over a debugging port on the loopback address.
   --rows relay      with --round 2, runs the rows of the relay's list: list_refuse, list_hops,
                     list_close and own_traffic (tools/r3-trials/web/chain-listener.mjs serves the
                     hops).
@@ -98,7 +102,7 @@ refuse() {
 }
 
 candidate='' browser='' port='' runs='' step='' mode=cells out='' fault='' scratch='' rows=nine
-relay='' routes='' round='' netlog=''
+relay='' routes='' round='' netlog='' channel=''
 while [ $# -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
@@ -118,6 +122,7 @@ while [ $# -gt 0 ]; do
     --runs) runs=$2 ;;
     --step) step=$2 ;;
     --round) round=$2 ;;
+    --channel) channel=$2 ;;
     --rows) rows=$2 ;;
     --driver) refuse usage "--driver belongs to the webdriver candidate, which has no adapter" ;;
     --snapshot-pay) mode=snapshot; out=$2 ;;
@@ -170,28 +175,28 @@ case "$rows" in
     esac
     ;;
   relay)
-    [ "$round" = 2 ] || refuse usage "--rows relay belongs to --round 2"
+    case "$round" in 2 | 3) ;; *) refuse usage "--rows relay belongs to --round 2 or 3" ;; esac
     case "$step" in
       '' | list_refuse | list_hops | list_close | own_traffic) ;;
       *) refuse usage "--step with --rows relay takes one of list_refuse, list_hops, list_close and own_traffic" ;;
     esac
     ;;
   ways)
-    [ "$round" = 2 ] || refuse usage "--rows ways belongs to --round 2"
+    case "$round" in 2 | 3) ;; *) refuse usage "--rows ways belongs to --round 2 or 3" ;; esac
     case "$step" in
       '' | ws_allowed | ws_allowed_control | frame_doc) ;;
       *) refuse usage "--step with --rows ways takes one of ws_allowed, ws_allowed_control and frame_doc" ;;
     esac
     ;;
   egress)
-    [ "$round" = 2 ] || refuse usage "--rows egress belongs to --round 2"
+    case "$round" in 2 | 3) ;; *) refuse usage "--rows egress belongs to --round 2 or 3" ;; esac
     case "$step" in
       '' | no_worker_paths | udp_quic | webtransport | peer_connection | secure_dns | lan_discovery | link_lookup | after_unload | reports | handler_launch | updater_wake) ;;
       *) refuse usage "--step with --rows egress takes one of the rows of the ways out" ;;
     esac
     ;;
   reach)
-    [ "$round" = 2 ] || refuse usage "--rows reach belongs to --round 2"
+    case "$round" in 2 | 3) ;; *) refuse usage "--rows reach belongs to --round 2 or 3" ;; esac
     case "$step" in
       '' | reach_page | reach_opened | reach_frame | reach_worker | reach_shared | reach_service) ;;
       *) refuse usage "--step with --rows reach takes one of the six contexts of CP-78" ;;
@@ -208,6 +213,15 @@ case "$fault" in
   *) refuse usage "--fault takes one of the faults that --help names" ;;
 esac
 [ "$mode" = snapshot ] && [ -z "$out" ] && refuse usage "--snapshot-pay needs a file"
+case "$round" in
+  '' | 2 | 3) ;;
+  *) refuse usage "--round takes 2 or 3" ;;
+esac
+case "$channel" in
+  '') ;;
+  pipe | port) [ "$round" = 3 ] || refuse usage "--channel belongs to --round 3" ;;
+  *) refuse usage "--channel takes pipe or port" ;;
+esac
 system=$(uname -s)
 if [ -n "${GITHUB_ACTIONS:-}" ] && [ "${RUNNER_OS:-}" = macOS ]; then
   machine=hosted-mac
@@ -284,6 +298,7 @@ case "$mode" in
     [ "$rows" = reach ] && set -- "$@" --rows reach
     [ -n "$netlog" ] && set -- "$@" --net-log "$netlog"
     [ -n "$round" ] && set -- "$@" --round "$round"
+    [ -n "$channel" ] && set -- "$@" --channel "$channel"
     ;;
   extras)
     with=$(wc -c <"$bin" | tr -d ' ')

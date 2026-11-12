@@ -1,11 +1,13 @@
 #[cfg(feature = "driver")]
 pub mod cdp;
 pub mod fixture;
+pub mod peer;
 #[cfg(feature = "driver")]
 pub mod pipe;
 pub mod procs;
 #[cfg(feature = "driver")]
 pub mod relay;
+pub mod start;
 pub mod tls;
 
 pub const CANDIDATE: &str = "cdp";

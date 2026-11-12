@@ -1,3 +1,4 @@
+use crate::start::Start;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -32,7 +33,7 @@ pub fn openssl_runs() -> bool {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
+        .start_status()
         .map(|s| s.success())
         .unwrap_or(false)
 }
@@ -63,7 +64,7 @@ pub fn make_certificate(dir: &Path) -> Result<(PathBuf, PathBuf), CertFault> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
+        .start_status()
         .map_err(|e| CertFault::Failed(format!("spawn {}", e.kind())))?;
     if !status.success() || !cert.is_file() || !key.is_file() {
         return Err(CertFault::Failed(format!(
@@ -220,7 +221,7 @@ impl Listener {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
-            .spawn()
+            .start()
             .map_err(|e| format!("node {}", e.kind()))?;
         let stdin = child.stdin.take();
         let Some(stdout) = child.stdout.take() else {

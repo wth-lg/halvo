@@ -6,21 +6,29 @@ use chromiumoxide::cdp::browser_protocol::fetch::{
     EventRequestPaused, FailRequestParams, FulfillRequestParams, GetResponseBodyParams,
     HeaderEntry, RequestPattern, RequestStage,
 };
-use chromiumoxide::cdp::browser_protocol::network::{ErrorReason, ResourceType};
+use chromiumoxide::cdp::browser_protocol::network::{
+    EnableParams as NetworkEnable, ErrorReason, ResourceType,
+};
 use chromiumoxide::cdp::browser_protocol::target::{
-    ActivateTargetParams, SessionId, SetAutoAttachParams, TargetId,
+    ActivateTargetParams, SetAutoAttachParams, TargetId,
 };
 use chromiumoxide::cdp::js_protocol::runtime::RunIfWaitingForDebuggerParams;
 use chromiumoxide::cdp::{CdpEvent, CdpEventMessage};
-use chromiumoxide::error::CdpError;
 use chromiumoxide::types::{CallId, Command, Message, MethodId};
-use chromiumoxide::Connection;
-use futures::StreamExt;
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 use super::{body_of, split_url, Fault, Outcome, PausedRequest, Res, STEP_TIMEOUT};
+use crate::pipe::PipeLink;
+
+/// The transport of the wire: the pipe of the product's form, or, for the trial's port-form
+/// control alone, the library's connection to a debugging port.
+pub(crate) enum Link {
+    Pipe(PipeLink),
+    #[cfg(feature = "port-control")]
+    Socket(Box<chromiumoxide::Connection<CdpEventMessage>>),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Attached {
@@ -58,6 +66,9 @@ pub(crate) struct Book {
     pub answered: HashSet<String>,
     pub on_main_document: Option<Hook>,
     pub policy_counts: std::collections::BTreeMap<String, u64>,
+    pub storage_pages: HashSet<String>,
+    pub bindings: Vec<(String, String)>,
+    pub closed: bool,
 }
 
 struct Order {
@@ -136,26 +147,47 @@ fn intercept_all(policy: bool) -> FetchEnableParams {
 }
 
 impl Wire {
-    pub(crate) async fn open(address: &str) -> Res<(Wire, JoinHandle<()>)> {
-        let conn = Connection::<CdpEventMessage>::connect(address)
-            .await
-            .map_err(|e| Fault::new("wire", e.to_string()))?;
+    /// Starts the wire's task on `link`; nothing is sent yet.
+    pub(crate) fn open(link: Link) -> (Wire, JoinHandle<()>) {
         let (tx, rx) = mpsc::unbounded_channel();
         let wire = Wire {
             tx,
             book: Arc::new(Mutex::new(Book::default())),
         };
-        let task = tokio::spawn(run(conn, rx, wire.clone()));
-        if let Err(f) = wire.call(None, auto_attach()?).await {
-            task.abort();
-            return Err(f);
-        }
-        Ok((wire, task))
+        let task = tokio::spawn(run(link, rx, wire.clone()));
+        (wire, task)
+    }
+
+    /// Asks every target of the browser to wait for the wire before it runs, nested.
+    pub(crate) async fn attach_all(&self) -> Res<()> {
+        self.call(None, auto_attach()?).await.map(|_| ())
     }
 
     pub(crate) async fn call<C: Command>(&self, session: Option<&str>, cmd: C) -> Res<C::Response> {
+        self.call_within(session, cmd, STEP_TIMEOUT).await
+    }
+
+    pub(crate) async fn call_within<C: Command>(
+        &self,
+        session: Option<&str>,
+        cmd: C,
+        wait: std::time::Duration,
+    ) -> Res<C::Response> {
         let method = cmd.identifier();
         let params = serde_json::to_value(&cmd).map_err(|e| Fault::new("wire", e.to_string()))?;
+        let value = self
+            .raw_within(session, method.clone(), params, wait)
+            .await?;
+        C::response_from_value(value).map_err(|e| Fault::new("wire", e.to_string()))
+    }
+
+    pub(crate) async fn raw_within(
+        &self,
+        session: Option<&str>,
+        method: MethodId,
+        params: Value,
+        wait: std::time::Duration,
+    ) -> Res<Value> {
         let (reply, answer) = oneshot::channel();
         self.tx
             .send(Order {
@@ -165,13 +197,42 @@ impl Wire {
                 reply,
             })
             .map_err(|_| Fault::new("wire", "closed"))?;
-        let value = match tokio::time::timeout(STEP_TIMEOUT, answer).await {
-            Ok(Ok(Ok(v))) => v,
-            Ok(Ok(Err(e))) => return Err(Fault::new("wire", format!("{method}: {e}"))),
-            Ok(Err(_)) => return Err(Fault::new("wire", "closed")),
-            Err(_) => return Err(Fault::new("wire", format!("{method}: timeout"))),
-        };
-        C::response_from_value(value).map_err(|e| Fault::new("wire", e.to_string()))
+        match tokio::time::timeout(wait, answer).await {
+            Ok(Ok(Ok(v))) => Ok(v),
+            Ok(Ok(Err(e))) => Err(Fault::new("wire", format!("{method}: {e}"))),
+            Ok(Err(_)) => Err(Fault::new("wire", "closed")),
+            Err(_) => Err(Fault::new("wire", format!("{method}: timeout"))),
+        }
+    }
+
+    /// Whether the transport has ended.
+    pub(crate) fn closed(&self) -> bool {
+        self.book.lock().map(|b| b.closed).unwrap_or(true)
+    }
+
+    /// Answers every request for `url` with the executor's own storage page from now on.
+    pub(crate) fn serve_storage_page(&self, url: &str, on: bool) {
+        if let Ok(mut b) = self.book.lock() {
+            if on {
+                b.storage_pages.insert(url.to_string());
+            } else {
+                b.storage_pages.remove(url);
+            }
+        }
+    }
+
+    /// The payloads of every call of a binding named `name` so far.
+    pub(crate) fn binding_calls(&self, name: &str) -> Vec<String> {
+        self.book
+            .lock()
+            .map(|b| {
+                b.bindings
+                    .iter()
+                    .filter(|(n, _)| n == name)
+                    .map(|(_, p)| p.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn session_of(&self, target: &str) -> Option<(String, String)> {
@@ -302,6 +363,11 @@ impl Wire {
                 let wire = self.clone();
                 tokio::spawn(async move { wire.decide(from, *p).await });
             }
+            CdpEvent::RuntimeBindingCalled(c) => {
+                if let Ok(mut b) = self.book.lock() {
+                    b.bindings.push((c.name.clone(), c.payload.clone()));
+                }
+            }
             _ => {}
         }
     }
@@ -349,6 +415,20 @@ impl Wire {
         }
     }
 
+    async fn serve(&self, session: Option<String>, ev: EventRequestPaused) {
+        use base64::Engine;
+        let body = base64::engine::general_purpose::STANDARD.encode(super::session::STORAGE_PAGE);
+        let params = FulfillRequestParams::builder()
+            .request_id(ev.request_id.clone())
+            .response_code(200)
+            .response_header(HeaderEntry::new("Content-Type", "text/html; charset=utf-8"))
+            .body(body)
+            .build();
+        if let Ok(p) = params {
+            let _ = self.call(session.as_deref(), p).await;
+        }
+    }
+
     fn count_policy(&self, what: &str) {
         if let Ok(mut b) = self.book.lock() {
             *b.policy_counts.entry(what.to_string()).or_insert(0) += 1;
@@ -363,6 +443,15 @@ impl Wire {
     }
 
     async fn decide(&self, session: Option<String>, ev: EventRequestPaused) {
+        let storage = self
+            .book
+            .lock()
+            .map(|b| b.storage_pages.contains(&ev.request.url))
+            .unwrap_or(false);
+        if storage {
+            self.serve(session, ev).await;
+            return;
+        }
         if let Some(code) = ev.response_status_code {
             self.respond(session, ev, code).await;
             return;
@@ -449,6 +538,12 @@ impl Wire {
                 }
             }
             if !nested {
+                if must_arm(&kind) {
+                    if let Err(f) = self.call(Some(&session), NetworkEnable::default()).await {
+                        self.fault("network", &session, &kind, &f);
+                        return;
+                    }
+                }
                 let attached = match auto_attach() {
                     Ok(params) => self.call(Some(&session), params).await.map(|_| ()),
                     Err(f) => Err(f),
@@ -490,11 +585,68 @@ impl Wire {
     }
 }
 
-async fn run(
-    mut conn: Connection<CdpEventMessage>,
-    mut orders: mpsc::UnboundedReceiver<Order>,
-    wire: Wire,
+fn answer(
+    pending: &mut HashMap<CallId, oneshot::Sender<Result<Value, String>>>,
+    m: Message<CdpEventMessage>,
+    wire: &Wire,
 ) {
+    match m {
+        Message::Response(r) => {
+            if let Some(reply) = pending.remove(&r.id) {
+                let answer = match (r.result, r.error) {
+                    (_, Some(e)) => Err(e.message),
+                    (Some(v), None) => Ok(v),
+                    (None, None) => Ok(Value::Null),
+                };
+                let _ = reply.send(answer);
+            }
+        }
+        Message::Event(ev) => wire.on_event(ev),
+    }
+}
+
+async fn run(link: Link, orders: mpsc::UnboundedReceiver<Order>, wire: Wire) {
+    match link {
+        Link::Pipe(p) => run_pipe(p, orders, &wire).await,
+        #[cfg(feature = "port-control")]
+        Link::Socket(c) => run_socket(*c, orders, &wire).await,
+    }
+    if let Ok(mut b) = wire.book.lock() {
+        b.closed = true;
+    }
+}
+
+async fn run_pipe(mut link: PipeLink, mut orders: mpsc::UnboundedReceiver<Order>, wire: &Wire) {
+    let mut pending: HashMap<CallId, oneshot::Sender<Result<Value, String>>> = HashMap::new();
+    loop {
+        tokio::select! {
+            order = orders.recv() => match order {
+                Some(o) => match link.submit(o.method, o.session, o.params) {
+                    Ok(id) => {
+                        pending.insert(id, o.reply);
+                    }
+                    Err(e) => {
+                        let _ = o.reply.send(Err(e));
+                    }
+                },
+                None => break,
+            },
+            message = link.reads.recv() => match message {
+                Some(m) => answer(&mut pending, m, wire),
+                None => break,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "port-control")]
+async fn run_socket(
+    mut conn: chromiumoxide::Connection<CdpEventMessage>,
+    mut orders: mpsc::UnboundedReceiver<Order>,
+    wire: &Wire,
+) {
+    use chromiumoxide::cdp::browser_protocol::target::SessionId;
+    use futures::StreamExt;
     let mut pending: HashMap<CallId, oneshot::Sender<Result<Value, String>>> = HashMap::new();
     loop {
         tokio::select! {
@@ -513,18 +665,8 @@ async fn run(
                 None => break,
             },
             message = conn.next() => match message {
-                Some(Ok(Message::Response(r))) => {
-                    if let Some(reply) = pending.remove(&r.id) {
-                        let answer = match (r.result, r.error) {
-                            (_, Some(e)) => Err(e.message),
-                            (Some(v), None) => Ok(v),
-                            (None, None) => Ok(Value::Null),
-                        };
-                        let _ = reply.send(answer);
-                    }
-                }
-                Some(Ok(Message::Event(ev))) => wire.on_event(ev),
-                Some(Err(CdpError::Ws(_))) => break,
+                Some(Ok(m)) => answer(&mut pending, m, wire),
+                Some(Err(chromiumoxide::error::CdpError::Ws(_))) => break,
                 Some(Err(_)) => {}
                 None => break,
             },

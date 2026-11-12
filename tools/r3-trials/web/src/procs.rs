@@ -309,6 +309,7 @@ pub fn kill(_p: &Proc) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::start::Start;
 
     fn p(pid: u32, ppid: u32, started_us: u64, exe: &str) -> Proc {
         Proc {
@@ -451,12 +452,12 @@ mod tests {
             std::process::Command::new("ping")
                 .args(["-n", "30", "127.0.0.1"])
                 .stdout(std::process::Stdio::null())
-                .spawn()
+                .start()
                 .unwrap()
         } else {
             std::process::Command::new("/bin/sleep")
                 .arg("30")
-                .spawn()
+                .start()
                 .unwrap()
         };
         let real = found(child.id()).expect("the child is in the table");
@@ -480,7 +481,7 @@ mod tests {
     fn table_sees_a_grandchild_and_kill_ends_it() {
         let mut child = std::process::Command::new("/bin/sh")
             .args(["-c", "/bin/sleep 30 & /bin/sleep 30; wait"])
-            .spawn()
+            .start()
             .unwrap();
         let root = child.id();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -510,7 +511,7 @@ mod tests {
     fn table_sees_a_child_of_cmd_and_kill_ends_it() {
         let mut child = std::process::Command::new("cmd")
             .args(["/C", "ping -n 30 127.0.0.1 >NUL"])
-            .spawn()
+            .start()
             .unwrap();
         let root = child.id();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
