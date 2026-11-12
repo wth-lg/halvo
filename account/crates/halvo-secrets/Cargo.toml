@@ -1,0 +1,6 @@
+[package]
+name = "halvo-secrets"
+version = "0.0.0"
+description = "Where the account helper keeps its one secret: the Keychain or a file of mode 0600 on macOS, DPAPI in user scope on Windows"
+edition = "2021"
+publish = false
