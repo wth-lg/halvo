@@ -110,9 +110,11 @@ fn is_own_process(pid: libc::pid_t) -> bool {
 
 fn excluded_applications<T>(
     apps: impl IntoIterator<Item = T>,
-    is_halvo: impl Fn(&T) -> bool,
+    pid_of: impl Fn(&T) -> libc::pid_t,
 ) -> Vec<T> {
-    apps.into_iter().filter(is_halvo).collect()
+    apps.into_iter()
+        .filter(|app| is_own_process(pid_of(app)))
+        .collect()
 }
 
 fn filter_excluding_self(
@@ -125,7 +127,7 @@ fn filter_excluding_self(
     let excluded = excluded_applications(apps.iter(), |app| {
         // SAFETY: `app` is a retained element of `apps`, and `processID` is a
         // property getter that takes no argument.
-        is_own_process(unsafe { app.processID() })
+        unsafe { app.processID() }
     });
     let excluded_refs: Vec<&SCRunningApplication> = excluded.iter().map(|r| &**r).collect();
     let excluded_apps = NSArray::from_slice(&excluded_refs);
@@ -370,7 +372,7 @@ mod tests {
             (1, "com.example.finder"),
             (own + 2, ""),
         ];
-        let excluded = excluded_applications(apps, |&(pid, _)| is_own_process(pid));
+        let excluded = excluded_applications(apps, |&(pid, _)| pid);
         assert_eq!(excluded, [(own, "")]);
     }
 
@@ -566,6 +568,31 @@ mod tests {
             Err(RecvTimeoutError::Disconnected),
             "a kept output emitted an event or still holds a handle"
         );
+    }
+
+    #[test]
+    fn the_stream_output_message_gives_exactly_one_screen_frame_event() {
+        let (handle, writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let output = ScreenOutput::new(handle, reader);
+        let frame = Frame::new(16, 16);
+        deliver(&output, frame.sample());
+        drop(output);
+        let kinds: Vec<Modality> = std::iter::from_fn(|| writer.recv())
+            .map(|event| event.modality)
+            .collect();
+        assert_eq!(kinds, [Modality::ScreenFrame]);
+    }
+
+    #[test]
+    fn the_stream_output_message_keeps_no_reference_to_the_sample() {
+        let (handle, _sink_writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let output = ScreenOutput::new(handle, reader);
+        let frame = Frame::new(16, 16);
+        let before = frame.retain_count();
+        deliver(&output, frame.sample());
+        assert_eq!(frame.retain_count(), before);
     }
 
     fn screen_ivars() -> (ScreenIvars, SinkWriter) {
