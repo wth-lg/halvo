@@ -302,6 +302,25 @@ impl TapThread {
     }
 }
 
+#[cfg(test)]
+impl TapThread {
+    fn wait_until_its_run_loop_waits(&self) {
+        let started = std::time::Instant::now();
+        // SAFETY: `run_loop` is a retained reference to the tap thread's run
+        // loop, and CFRunLoopIsWaiting only reads the state of that loop.
+        while unsafe {
+            core_foundation::runloop::CFRunLoopIsWaiting(self.run_loop.as_concrete_TypeRef())
+        } == 0
+        {
+            assert!(
+                started.elapsed() < std::time::Duration::from_secs(5),
+                "the tap thread's run loop did not start within 5 s"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+}
+
 /// The keystroke + pointer source.
 pub struct InputSource {
     foreground: ForegroundReader,
@@ -540,6 +559,7 @@ mod tests {
                 Ok((timer, alive_tx))
             })
             .expect("the tap thread starts");
+            tap.wait_until_its_run_loop_waits();
             tap.stop();
             assert_eq!(
                 alive_rx.recv_timeout(Duration::from_secs(1)),
@@ -664,6 +684,11 @@ mod granted_tests {
         let mut source = InputSource::new(reader);
         source.start(handle).expect("the input source starts");
         let taps = own_taps();
+        source
+            .tap
+            .as_ref()
+            .expect("a started source holds its tap thread")
+            .wait_until_its_run_loop_waits();
         source.stop();
         drain.join().expect("the drain thread ends");
         assert_eq!(taps.len(), 1, "taps of this process while the source runs");
@@ -695,6 +720,7 @@ mod granted_tests {
         port.reenable();
         // SAFETY: as above.
         let enabled_after_reenable = unsafe { CGEventTapIsEnabled(live) };
+        tap.wait_until_its_run_loop_waits();
         tap.stop();
         drain.join().expect("the drain thread ends");
         assert_eq!(
@@ -715,6 +741,11 @@ mod granted_tests {
         let mut source = InputSource::new(reader);
         source.start(handle).expect("the input source starts");
         let running = (own_taps().len(), tap_threads());
+        source
+            .tap
+            .as_ref()
+            .expect("a started source holds its tap thread")
+            .wait_until_its_run_loop_waits();
         source.stop();
         drain.join().expect("the drain thread ends");
         assert_eq!(
