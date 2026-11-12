@@ -79,4 +79,17 @@ fn the_memory_owner_merges_the_slots_of_set_bindings_by_name() {
         "the first set_bindings of an agent stores revision 1 (IG-20)"
     );
     assert_eq!(p.slots(&w, &other), vec![slot("start", "Site2")]);
+    let w2 = WorkflowId::parse("000000000000000000000000000000f2").unwrap();
+    let in_another_workflow = Body::SetBindings {
+        workflow: w2.clone(),
+        agent: a.clone(),
+        slots: vec![slot("payee", "Gas Co")],
+    };
+    assert_eq!(
+        p.send(&in_another_workflow).unwrap(),
+        serde_json::json!({"rev": 1}),
+        "the bindings of one agent of another workflow are their own"
+    );
+    assert_eq!(p.slots(&w2, &a), vec![slot("payee", "Gas Co")]);
+    assert_eq!(p.slots(&w, &a)[1], slot("payee", "City Water"));
 }

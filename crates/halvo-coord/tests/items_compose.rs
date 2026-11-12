@@ -897,3 +897,31 @@ fn the_reader_gives_the_line_only_for_a_released_allow_once_that_no_record_used(
         "a later allow_once that no record used"
     );
 }
+
+/// A confirmation composes only with its own request: one of fewer effects, one whose effect
+/// has another digest, and one of another effect id with the same digests are each refused
+/// with `state` (review findings mixed-A, mixed-B and mixed-H).
+#[test]
+fn a_confirmation_composes_only_with_a_request_of_its_count_its_effects_and_its_digests() {
+    let send = |n: u32, d: u32| {
+        let mut e = effect(n, Class::Send, support::fields_of(Class::Send));
+        e.digest = digest(d);
+        e
+    };
+    let own = ask_of(1, 1, vec![send(1, 1), send(2, 2)]);
+    let confirmation = armed(&own);
+    let compose = |ask: &ConfirmAsk| {
+        compose_confirm(&item_id(1), ask, &confirmation, &Table::new()).map(|_| ())
+    };
+    assert_eq!(compose(&own), Ok(()));
+    let fewer = ask_of(1, 1, vec![send(1, 1)]);
+    assert_eq!(compose(&fewer), Err(Cause::State), "fewer effects");
+    let other_digest = ask_of(1, 1, vec![send(1, 1), send(2, 9)]);
+    assert_eq!(compose(&other_digest), Err(Cause::State), "another digest");
+    let other_effect = ask_of(1, 1, vec![send(1, 1), send(3, 2)]);
+    assert_eq!(
+        compose(&other_effect),
+        Err(Cause::State),
+        "another effect id"
+    );
+}

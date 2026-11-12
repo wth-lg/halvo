@@ -709,6 +709,14 @@ fn a_drive_for_another_agent_is_refused_and_sends_nothing() {
     f.agent = AgentId::parse("000000000000000000000000000000a2").unwrap();
     assert_eq!(answer_setup(&p, &mut s, &f, LAST), Err(Cause::State));
     assert_eq!(tick_setup(&p, &mut s, &f), Err(Cause::State));
+    let mut other_flow = facts(Category::SpreadsheetFill, "file", WorkflowState::Approved);
+    other_flow.workflow.id = WorkflowId::parse("000000000000000000000000000000f2").unwrap();
+    assert_eq!(
+        answer_setup(&p, &mut s, &other_flow, LAST),
+        Err(Cause::State),
+        "the same agent in another workflow"
+    );
+    assert_eq!(tick_setup(&p, &mut s, &other_flow), Err(Cause::State));
     assert_eq!(s.state(), &SetupState::Open);
     assert!(p.sends.borrow().is_empty());
 }
