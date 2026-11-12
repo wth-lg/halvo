@@ -103,6 +103,19 @@ pub enum StoreError {
     /// of another store, a damaged page or a cut file.
     #[error("the store key does not open the store database")]
     DatabaseUnreadable,
+    /// store.key or store.db has a format version above the one this build
+    /// reads. `open` changed nothing.
+    #[error(
+        "the store has format version {found}, above version {supported} that this build reads"
+    )]
+    NewerStore { found: i64, supported: i64 },
+    /// store.key or store.db has a format version below the one this build
+    /// reads. No migration exists: the store can only be deleted. `open`
+    /// changed nothing.
+    #[error(
+        "the store has format version {found}, below version {supported} that this build reads"
+    )]
+    OlderStore { found: i64, supported: i64 },
     /// A segment whose key is live has no file.
     #[error("a segment whose key is live has no file")]
     SegmentMissing(Uuid),

@@ -21,6 +21,22 @@ use super::durable::{self, DurableFs, OsFs};
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{SegmentStore, StoreError, StoreResult};
 
+const KEY_FILE_VERSION: u32 = 1;
+const DATABASE_VERSION: i64 = 1;
+
+#[derive(Deserialize)]
+struct KeyFileVersion {
+    version: u32,
+}
+
+fn known_version(found: i64, supported: i64) -> StoreResult<()> {
+    match found.cmp(&supported) {
+        std::cmp::Ordering::Equal => Ok(()),
+        std::cmp::Ordering::Greater => Err(StoreError::NewerStore { found, supported }),
+        std::cmp::Ordering::Less => Err(StoreError::OlderStore { found, supported }),
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct KeyFile {
     pub version: u32,
@@ -57,6 +73,9 @@ impl KeyFile {
             Err(e) if e.kind() == ErrorKind::NotFound => return Err(StoreError::Sealed),
             Err(e) => return Err(io_error(e)),
         };
+        serde_json::from_slice::<KeyFileVersion>(&json)
+            .map_err(|_| StoreError::KeyFileUnparseable)
+            .and_then(|head| known_version(i64::from(head.version), i64::from(KEY_FILE_VERSION)))?;
         serde_json::from_slice(&json).map_err(|_| StoreError::KeyFileUnparseable)
     }
 
@@ -305,6 +324,9 @@ impl Db {
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
             .map_err(db_error)?;
         verify_key(&conn, store_dir)?;
+        if database == Database::Existing {
+            known_version(pragma_int(&conn, "user_version")?, DATABASE_VERSION)?;
+        }
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
@@ -322,7 +344,12 @@ impl Db {
             wal_path: path.with_extension("db-wal"),
         };
         match database {
-            Database::New => db.init_schema()?,
+            Database::New => {
+                db.init_schema()?;
+                db.conn
+                    .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
+                    .map_err(db_error)?;
+            }
             Database::Existing => db.require_schema()?,
         }
         db.enable_fts_secure_delete()?;
@@ -716,7 +743,7 @@ impl EncryptedStore {
     ) -> StoreResult<()> {
         let wrapped = custody.wrap_store_key(store_key)?;
         KeyFile {
-            version: 1,
+            version: KEY_FILE_VERSION,
             custody_kind: custody.kind(),
             root_id: custody.root_id(),
             wrapped_store_key_b64: BASE64.encode(&wrapped.0),

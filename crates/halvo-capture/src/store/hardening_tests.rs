@@ -1179,6 +1179,202 @@ fn answers_after_damage(cases: &[(&str, DamageToTheDatabase)], expected: &str) -
     problems
 }
 
+fn edit_key_file(store_dir: &Path, edit: impl FnOnce(&mut serde_json::Value)) {
+    let mut fields: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(KeyFile::path(store_dir)).unwrap()).unwrap();
+    edit(&mut fields);
+    std::fs::write(
+        KeyFile::path(store_dir),
+        serde_json::to_vec(&fields).unwrap(),
+    )
+    .unwrap();
+}
+
+fn set_user_version(store_dir: &Path, roots_dir: &Path, root_id: RootId, version: i64) {
+    let store = open_over_file_root(store_dir, roots_dir, root_id).unwrap();
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .execute_batch(&format!("PRAGMA user_version = {version};"))
+        .unwrap();
+}
+
+fn open_by_the_recorded_root(store_dir: &Path, roots_dir: &Path) -> StoreResult<EncryptedStore> {
+    EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, recorded| {
+        Ok(Box::new(file_root_custody(
+            roots_dir,
+            TestProtector::new(0x5a).0,
+            recorded,
+        )))
+    })
+}
+
+fn version_answers(cases: &[(&str, DamageToTheDatabase)]) -> Vec<String> {
+    cases
+        .iter()
+        .map(|(case, change)| {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+            change(&store_dir, &roots_dir, root_id);
+            let before = files_and_lengths(&store_dir);
+            let answer = match open_by_the_recorded_root(&store_dir, &roots_dir) {
+                Ok(_) => "Ok".to_string(),
+                Err(e) => format!("{e:?}"),
+            };
+            let changed = files_and_lengths(&store_dir) != before;
+            format!(
+                "{case}: {answer}{}",
+                if changed { ", files changed" } else { "" }
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_file() {
+    let answers = version_answers(&[
+        ("store.key version 999", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["version"] = 999.into())
+        }),
+        ("store.key version 2", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["version"] = 2.into())
+        }),
+        ("store.key version 0", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["version"] = 0.into())
+        }),
+        (
+            "store.key version 999 and no other field",
+            |store_dir, _, _| {
+                std::fs::write(KeyFile::path(store_dir), b"{\"version\": 999}").unwrap()
+            },
+        ),
+        ("user_version 99", |store_dir, roots_dir, root_id| {
+            set_user_version(store_dir, roots_dir, root_id, 99)
+        }),
+        ("user_version 0", |store_dir, roots_dir, root_id| {
+            set_user_version(store_dir, roots_dir, root_id, 0)
+        }),
+        ("user_version -1", |store_dir, roots_dir, root_id| {
+            set_user_version(store_dir, roots_dir, root_id, -1)
+        }),
+    ]);
+    assert_eq!(
+        answers,
+        [
+            "store.key version 999: NewerStore { found: 999, supported: 1 }",
+            "store.key version 2: NewerStore { found: 2, supported: 1 }",
+            "store.key version 0: OlderStore { found: 0, supported: 1 }",
+            "store.key version 999 and no other field: NewerStore { found: 999, supported: 1 }",
+            "user_version 99: NewerStore { found: 99, supported: 1 }",
+            "user_version 0: OlderStore { found: 0, supported: 1 }",
+            "user_version -1: OlderStore { found: -1, supported: 1 }",
+        ]
+    );
+}
+
+#[test]
+fn every_form_of_a_key_file_opens_as_the_result_that_names_it() {
+    let mut answers = version_answers(&[
+        ("control", |_, _, _| {}),
+        (
+            "names the root of another store",
+            |store_dir, roots_dir, _| {
+                let other =
+                    file_root_custody(roots_dir, TestProtector::new(0x5a).0, RootId::fresh());
+                other.create_root().unwrap();
+                edit_key_file(store_dir, |v| {
+                    v["root_id"] = serde_json::to_value(other.root_id).unwrap()
+                });
+            },
+        ),
+        (
+            "holds the wrap of another store",
+            |store_dir, roots_dir, root_id| {
+                let custody = file_root_custody(roots_dir, TestProtector::new(0x5a).0, root_id);
+                let another = custody
+                    .wrap_store_key(&StoreKey::random().unwrap())
+                    .unwrap();
+                edit_key_file(store_dir, |v| {
+                    v["wrapped_store_key_b64"] = {
+                        use base64::Engine;
+                        base64::engine::general_purpose::STANDARD
+                            .encode(&another.0)
+                            .into()
+                    }
+                });
+            },
+        ),
+        ("zero length", |store_dir, _, _| {
+            std::fs::write(KeyFile::path(store_dir), b"").unwrap()
+        }),
+        ("cut to 1 byte", |store_dir, _, _| {
+            let bytes = std::fs::read(KeyFile::path(store_dir)).unwrap();
+            std::fs::write(KeyFile::path(store_dir), &bytes[..1]).unwrap();
+        }),
+        ("cut to half", |store_dir, _, _| {
+            let bytes = std::fs::read(KeyFile::path(store_dir)).unwrap();
+            std::fs::write(KeyFile::path(store_dir), &bytes[..bytes.len() / 2]).unwrap();
+        }),
+        ("cut by 1 byte", |store_dir, _, _| {
+            let bytes = std::fs::read(KeyFile::path(store_dir)).unwrap();
+            std::fs::write(KeyFile::path(store_dir), &bytes[..bytes.len() - 1]).unwrap();
+        }),
+        ("a wrapped key that is no base64", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["wrapped_store_key_b64"] = "!!!!".into())
+        }),
+        ("a wrapped key of 8 bytes", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| {
+                v["wrapped_store_key_b64"] = "AAAAAAAAAAA=".into()
+            })
+        }),
+        ("custody kind tpm", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["custody_kind"] = "tpm".into())
+        }),
+        ("version as a string", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["version"] = "1".into())
+        }),
+        ("version below zero", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["version"] = (-1).into())
+        }),
+        ("version 999", |store_dir, _, _| {
+            edit_key_file(store_dir, |v| v["version"] = 999.into())
+        }),
+    ]);
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let first = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let second = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    drop(first);
+    answers.push(format!(
+        "opened twice: {}",
+        match second {
+            Ok(()) => "Ok".to_string(),
+            Err(StoreError::Locked(_)) => "Locked".to_string(),
+            Err(e) => format!("{e:?}"),
+        }
+    ));
+    assert_eq!(
+        answers,
+        [
+            "control: Ok",
+            "names the root of another store: Custody(WrapAuthFailed)",
+            "holds the wrap of another store: DatabaseUnreadable",
+            "zero length: KeyFileUnparseable",
+            "cut to 1 byte: KeyFileUnparseable",
+            "cut to half: KeyFileUnparseable",
+            "cut by 1 byte: KeyFileUnparseable",
+            "a wrapped key that is no base64: KeyFileUnparseable",
+            "a wrapped key of 8 bytes: KeyFileUnparseable",
+            "custody kind tpm: KeyFileUnparseable",
+            "version as a string: KeyFileUnparseable",
+            "version below zero: KeyFileUnparseable",
+            "version 999: NewerStore { found: 999, supported: 1 }",
+            "opened twice: Locked",
+        ]
+    );
+}
+
 #[test]
 fn open_answers_a_missing_or_empty_database_as_database_missing_and_makes_no_file() {
     let problems = answers_after_damage(
