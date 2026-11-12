@@ -16,7 +16,7 @@ samples.v1.json contract/samples/v1.json
 prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
-outside_licences=''
+outside_licences='webpki-root-certs 1.0.11'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

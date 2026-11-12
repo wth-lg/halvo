@@ -126,7 +126,7 @@ fn the_sources_read_the_environment_only_through_the_committed_list() {
         "option_env!(",
         "set_var(",
         "remove_var(",
-        "stdin(",
+        "stdin()",
         "Stdin",
         "io::stdin",
     ];

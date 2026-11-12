@@ -184,7 +184,8 @@ impl Outcome {
             Outcome::Environment(EnvironmentFault::BadStoreDirectory) => "HALVO_ACCOUNT_STORE_DIR is no absolute directory without a .. step; nothing was stored, read or sent",
             Outcome::Environment(EnvironmentFault::NoClient) => "the HTTP client could not be built; nothing was sent",
             Outcome::NotOpened { .. } => "the page could not be opened",
-            Outcome::Usage(_) => "usage: halvo-account [--print-url] status | subscribe AMOUNT PERIOD | set-cap AMOUNT PERIOD | cap | manage | delete; nothing was sent",
+            Outcome::Usage(_) if cfg!(debug_assertions) => "usage: halvo-account [--print-url] status | subscribe AMOUNT PERIOD | set-cap AMOUNT PERIOD | cap | manage | delete; nothing was sent",
+            Outcome::Usage(_) => "usage: halvo-account status | subscribe AMOUNT PERIOD | set-cap AMOUNT PERIOD | cap | manage | delete; nothing was sent",
         }
     }
 }
