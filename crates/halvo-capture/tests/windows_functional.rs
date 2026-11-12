@@ -701,6 +701,7 @@ fn child_title(step: usize) -> String {
 }
 
 const CHILD_TITLE_LENGTHS: std::ops::RangeInclusive<u64> = 14..=21;
+const CHILD_TITLE_SIZES_NO_SWITCH_SHOWS: [u64; 4] = [15, 17, 19, 21];
 
 #[test]
 #[ignore = "helper: does nothing unless a functional test launches it as a child process"]
@@ -1169,6 +1170,16 @@ fn c2_screen_source_delivers_a_frame() {
             ),
         );
         assert!(!frames.is_empty(), "no frame of the desktop in 15 seconds");
+        assert!(
+            frames
+                .iter()
+                .all(|e| e.segment_ref.byte_len == expected_len),
+            "a frame event does not have the size of the full screen"
+        );
+        assert!(
+            frames.iter().all(|e| e.foreground_app == ATTRIBUTION),
+            "a frame event does not carry the app in the shared cell"
+        );
     });
 }
 
@@ -1265,6 +1276,12 @@ fn c4_window_title_source_reports_a_title_change() {
         assert!(
             distinct_sizes.len() >= 2,
             "the events must follow more than one title change"
+        );
+        assert!(
+            distinct_sizes
+                .iter()
+                .any(|len| CHILD_TITLE_SIZES_NO_SWITCH_SHOWS.contains(len)),
+            "no event for a title that only a title change shows"
         );
     });
 }
@@ -1651,18 +1668,33 @@ struct RestrictedProcess {
 }
 
 impl RestrictedProcess {
-    fn wait(self, millis: u32) -> u32 {
-        use windows_sys::Win32::Foundation::CloseHandle;
+    fn wait(&self, millis: u32) -> Option<u32> {
+        use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
         use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
         let mut code = u32::MAX;
-        // SAFETY: `handle` is the process handle that CreateProcessAsUserW gave
-        // this value; it is waited on, read and closed once, here.
+        // SAFETY: `handle` is the open process handle that CreateProcessAsUserW
+        // gave this value; Drop closes it, after this call.
         unsafe {
-            WaitForSingleObject(self.handle, millis);
+            if WaitForSingleObject(self.handle, millis) != WAIT_OBJECT_0 {
+                return None;
+            }
             GetExitCodeProcess(self.handle, &mut code);
+        }
+        Some(code)
+    }
+}
+
+impl Drop for RestrictedProcess {
+    fn drop(&mut self) {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::TerminateProcess;
+        // SAFETY: `handle` is the open process handle of this value; ending a
+        // process that has already exited fails and changes nothing, and the
+        // handle is closed once, here.
+        unsafe {
+            TerminateProcess(self.handle, 1);
             CloseHandle(self.handle);
         }
-        code
     }
 }
 
@@ -1678,6 +1710,7 @@ fn spawn_restricted(test_name: &str, env: &[(&str, String)]) -> Result<Restricte
     const SE_GROUP_INTEGRITY: u32 = 0x20;
     const MEDIUM_INTEGRITY_RID: u32 = 0x2000;
     let last_error = || std::io::Error::last_os_error().to_string();
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
 
     let mut token: HANDLE = std::ptr::null_mut();
     // SAFETY: the pseudo handle of this process needs no close, and `token`
@@ -1730,8 +1763,10 @@ fn spawn_restricted(test_name: &str, env: &[(&str, String)]) -> Result<Restricte
             Attributes: SE_GROUP_INTEGRITY,
         },
     };
-    // SAFETY: `label` points at `medium`, both live for the call, and the
-    // length covers the label and the one-authority SID it names.
+    // SAFETY: the pointer is to `label`, and Windows reads the SID through
+    // `label.Label.Sid`, which points at `medium`; both live for the call. The
+    // length is the label's size plus the SID's, the sum Microsoft's own sample
+    // passes, and Windows reads no byte past either value.
     let labelled = unsafe {
         SetTokenInformation(
             limited,
@@ -1749,7 +1784,6 @@ fn spawn_restricted(test_name: &str, env: &[(&str, String)]) -> Result<Restricte
         return Err(format!("SetTokenInformation: {error}"));
     }
 
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let mut command_line: Vec<u16> = format!(
         "\"{}\" {test_name} --exact --ignored --nocapture",
         exe.display()
@@ -1816,6 +1850,7 @@ fn helper_limited_listener() {
     let (sink, events) = capture(4096);
     let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
     let start = keyboard.start(sink.clone());
+    let started_ms = unix_millis(SystemTime::now());
     let window = TestWindow::create(&normal_window(
         LISTENER_WINDOW_CLASS,
         "halvo-verify-listener",
@@ -1834,7 +1869,7 @@ fn helper_limited_listener() {
     }
     keyboard.stop();
     let report = format!(
-        "keyboard_start={} window_created={} integrity_is_medium={}\n{}",
+        "keyboard_start={} window_created={} integrity_is_medium={}\n{started_ms}\n{}",
         show(&start),
         window.is_ok(),
         integrity_is_medium(),
@@ -1908,6 +1943,7 @@ fn x8_raw_input_across_the_integrity_boundary() {
         let report = std::fs::read_to_string(&out_path).unwrap_or_default();
         let mut lines = report.lines();
         let header = lines.next().unwrap_or("").to_string();
+        let listener_started: Option<u128> = lines.next().and_then(|line| line.parse().ok());
         let stamps: Vec<u128> = lines
             .next()
             .unwrap_or("")
@@ -1916,7 +1952,16 @@ fn x8_raw_input_across_the_integrity_boundary() {
             .collect();
         let within =
             |from: u128, to: u128| stamps.iter().filter(|t| (from..=to).contains(*t)).count();
-        say("x8", format!("listener exit_code={exit_code} {header}"));
+        let source_started_before_typing = listener_started.is_some_and(|t| t < elevated_from);
+        let between_the_phases = within(elevated_from, medium_from.saturating_sub(1));
+        say(
+            "x8",
+            format!(
+                "listener exit_code={exit_code:?} {header} \
+                 listener_source_started_before_typing={source_started_before_typing} \
+                 keystroke_events_from_the_elevated_phase_to_the_medium_phase={between_the_phases}"
+            ),
+        );
         say(
             "x8",
             format!(
@@ -1942,35 +1987,52 @@ fn x8_raw_input_across_the_integrity_boundary() {
             "INCONCLUSIVE: the foreground window was not where the test needed it"
         );
         assert!(
+            source_started_before_typing,
+            "INCONCLUSIVE: the listener's keyboard source did not start before the keys were typed"
+        );
+        assert!(
             within(medium_from, medium_to) >= 1,
             "INCONCLUSIVE: the listener saw no keys even for a window of its own integrity"
         );
         assert_eq!(
-            within(elevated_from, elevated_to),
-            0,
+            between_the_phases, 0,
             "keys typed into an elevated window reached a medium-integrity keyboard source"
         );
     });
 }
 
 fn yellow_edge_pixels() -> usize {
+    const CLR_INVALID: u32 = 0xFFFF_FFFF;
     let (_, cy) = screen_size();
     let mut yellow = 0;
+    let mut unread = 0;
     // SAFETY: the screen DC is taken and released once in this block, and
-    // GetPixel reads it only between the two calls.
-    unsafe {
+    // GetPixel reads it only between the two calls and only when it is not null.
+    let dc_taken = unsafe {
         let dc = GetDC(None);
-        for x in 0..6 {
-            for y in [cy / 6, cy / 3, cy / 2, 2 * cy / 3, 5 * cy / 6] {
-                let color = GetPixel(dc, x, y).0;
-                let (r, g, b) = (color & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF);
-                if r > 200 && g > 150 && b < 100 {
-                    yellow += 1;
+        let taken = !dc.is_invalid();
+        if taken {
+            for x in 0..6 {
+                for y in [cy / 6, cy / 3, cy / 2, 2 * cy / 3, 5 * cy / 6] {
+                    let color = GetPixel(dc, x, y).0;
+                    if color == CLR_INVALID {
+                        unread += 1;
+                        continue;
+                    }
+                    let (r, g, b) = (color & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF);
+                    if r > 200 && g > 150 && b < 100 {
+                        yellow += 1;
+                    }
                 }
             }
+            ReleaseDC(None, dc);
         }
-        ReleaseDC(None, dc);
-    }
+        taken
+    };
+    assert!(
+        dc_taken && unread == 0,
+        "INCONCLUSIVE: the screen could not be read ({unread} of 30 edge pixels unread, screen DC taken: {dc_taken})"
+    );
     yellow
 }
 
@@ -2344,9 +2406,11 @@ mod known_defect {
             );
             defect!(
                 "RR-windows-08",
-                with_size(50) == 0 && with_size(60) == 0,
+                with_size(40) == 0 && with_size(50) == 0 && with_size(60) == 0,
                 format!(
-                    "TF x2 events_for_background_window_title={} events_for_never_shown_window_title={}",
+                    "TF x2 events_for_child_control_text={} events_for_background_window_title={} \
+                     events_for_never_shown_window_title={}",
+                    with_size(40),
                     with_size(50),
                     with_size(60),
                 )
@@ -2383,7 +2447,9 @@ mod known_defect {
             let titles_of = |wanted: &dyn Fn(u64) -> bool| {
                 seen.iter()
                     .filter(|e| {
-                        e.modality == Modality::WindowTitle && wanted(e.segment_ref.byte_len)
+                        e.modality == Modality::WindowTitle
+                            && is_child_app(&e.foreground_app)
+                            && wanted(e.segment_ref.byte_len)
                     })
                     .count()
             };
@@ -2516,10 +2582,12 @@ mod known_defect {
             );
             defect!(
                 "RR-windows-10",
-                empty_app(&before) == 0,
+                child_app(&before) == keys(&before),
                 format!(
-                    "TF x3 keystrokes_before_first_foreground_change_with_empty_app={}",
-                    empty_app(&before)
+                    "TF x3 keystrokes_before_first_foreground_change_with_empty_app={} \
+                     attributed_to_child={}",
+                    empty_app(&before),
+                    child_app(&before)
                 )
             );
         });
@@ -2736,6 +2804,10 @@ mod known_defect {
                      windows_terminal_packages={terminal_packages}",
                     scan.len(),
                 ),
+            );
+            assert!(
+                !scan.is_empty(),
+                "INCONCLUSIVE: the registry scan returned no entries"
             );
             assert!(
                 packages >= 1 && terminal_packages >= 1,
