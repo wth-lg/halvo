@@ -174,7 +174,7 @@ t() {
   st_note=''
   if [ "$st_got" != "$st_want" ]; then
     st_wrong=$((st_wrong + 1))
-    st_tail=$(tail -n 1 "$st_out" 2>/dev/null)
+    st_tail=$(awk '/^scratch / { next } { last = $0 } /share=/ { share = $0 } END { print (share != "" ? share : last) }' "$st_out" 2>/dev/null)
     st_note=": ${st_tail:-no output}"
   fi
   [ "$st_want" = PASS ] || st_rejected=$((st_rejected + 1))
