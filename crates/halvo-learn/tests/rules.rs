@@ -49,6 +49,20 @@ fn candidate_drops_a_barred_locator_beside_one_left() {
         candidate_move(&kept(vec![loc("x"), loc("y")])),
         CandidateMove::Keep(vec![loc("x"), loc("y")])
     );
+    let barred_first = CandidateFacts {
+        barred: vec![loc("y")],
+        ..kept(vec![loc("y"), loc("x")])
+    };
+    assert_eq!(candidate_move(&barred_first), CandidateMove::Drop);
+    let barred_in_the_middle = CandidateFacts {
+        barred: vec![loc("y")],
+        ..kept(vec![loc("x"), loc("y"), loc("z")])
+    };
+    assert_eq!(candidate_move(&barred_in_the_middle), CandidateMove::Drop);
+    assert_eq!(
+        candidate_move(&kept(vec![loc("x"), loc("y"), loc("z")])),
+        CandidateMove::Keep(vec![loc("x"), loc("y"), loc("z")])
+    );
 }
 
 #[test]
@@ -65,10 +79,13 @@ fn first_revision_days_are_its_run_day() {
 
 #[test]
 fn first_revision_holds_one_run() {
-    assert_eq!(
-        check_sources(&first_revision(&["r0", "r1"], 10, 10, 10)),
-        Err(SourceCause::Source)
-    );
+    for runs in [&["r0", "r1"][..], &["r0", "r9", "r1"], &["r1", "r1"]] {
+        assert_eq!(
+            check_sources(&first_revision(runs, 10, 10, 10)),
+            Err(SourceCause::Source),
+            "runs {runs:?}"
+        );
+    }
     assert_eq!(check_sources(&first_revision(&["r1"], 10, 10, 10)), Ok(()));
 }
 
@@ -76,6 +93,10 @@ fn first_revision_holds_one_run() {
 fn first_revision_days_follow_the_run_not_each_other() {
     assert_eq!(
         check_sources(&first_revision(&["r1"], 10, 10, 30)),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(
+        check_sources(&first_revision(&["r1"], 12, 12, 10)),
         Err(SourceCause::Source)
     );
     assert_eq!(check_sources(&first_revision(&["r1"], 30, 30, 30)), Ok(()));
@@ -94,6 +115,10 @@ fn candidate_keeps_the_left_locators_in_their_order() {
     assert_eq!(
         candidate_move(&base_in_the_middle),
         CandidateMove::Keep(vec![loc("a"), loc("b")])
+    );
+    assert_eq!(
+        candidate_move(&kept(vec![loc("b"), loc("a")])),
+        CandidateMove::Keep(vec![loc("b"), loc("a")])
     );
 }
 
