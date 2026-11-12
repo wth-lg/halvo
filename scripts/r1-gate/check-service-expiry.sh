@@ -14,6 +14,24 @@ segment_list() {
   done < "$3"
 }
 
+listing_defect() {
+  while read -r _ listing_file; do
+    case /$listing_file/ in
+      //* | */../*) printf 'the prefill named a segment file outside the data directory: %s\n' "$listing_file"; return 1 ;;
+      *) ;;
+    esac
+  done < "$1"
+  listing_files=$(cd "$2" 2>/dev/null && find store/segments -type f 2>/dev/null)
+  [ -n "$listing_files" ] || return 0
+  listing_left=$(printf '%s\n' "$listing_files" | awk 'FILENAME == ARGV[1] { named[$2] = 1; next } !($0 in named) { print; exit }' "$1" -)
+  [ -z "$listing_left" ] || { printf 'a file under store/segments that no segment line of the prefill names: %s\n' "$listing_left"; return 1; }
+}
+
+prefill_listed() {
+  segment_list "$1" "$2" "$3" || { printf 'the prefill printed no line segment day=<day> file=<path> (P3)\n'; return 1; }
+  listing_defect "$3" "$2"
+}
+
 files_with_hash() {
   find "$@" -type f -exec shasum -a 256 {} + 2>/dev/null
 }
@@ -51,7 +69,7 @@ expiry_steps() {
   take_bound expiry_bound_s || return 1; expiry_s=$bound
   take_bound stop_deadline_s || return 1; stop_s=$bound
   prefill_run prefill 170 --span-days 16 || { gate_defect="$gate_defect; not tried: --service-run, ctl"; return 1; }
-  segment_list "$svc_dir/prefill.stdout" "$svc_data" "$svc_dir/segments" || { gate_defect="the prefill printed no line segment day=<day> file=<path> (P3)"; return 1; }
+  found=$(prefill_listed "$svc_dir/prefill.stdout" "$svc_data" "$svc_dir/segments") || { gate_defect=$found; return 1; }
   state_file_write "$svc_data" false paused || { gate_defect="the state file could not be written"; return 1; }
   service_start run || { gate_defect="$gate_defect; not tried: ctl"; return 1; }
   started=$(date +%s)
@@ -143,12 +161,41 @@ cases() {
   t newer-file-deleted-instead FAIL expiry_case "$wrong"
   : > "$gate_scratch/no-segments"
   t prefill-named-no-segment FAIL predicate_expired "$gate_scratch/inv-window" 2026-10-29 "$gate_scratch/no-segments" "$good/data" "$good/tmp"
+  listed=$(listing_store every-file)
+  t prefill-listing-names-every-file PASS listing_line "$listed"
+  left_out=$(listing_store left-out)
+  printf 'bytes of 2026-10-27, a second file\n' > "$left_out/data/store/segments/00/seg-2026-10-27-second.seg"
+  t file-of-an-expired-day-left-out-of-the-listing FAIL fails_saying 'no segment line of the prefill names: store/segments/00/seg-2026-10-27-second.seg' listing_line "$left_out"
+  stepped=$(listing_store steps-out)
+  printf 'bytes of 2026-10-26\n' > "$stepped/outside.seg"
+  printf 'segment day=2026-10-26 file=store/segments/../../../outside.seg\n' >> "$stepped/prefill.stdout"
+  t segment-line-that-steps-out-of-the-data-directory FAIL fails_saying 'outside the data directory: store/segments/../../../outside.seg' listing_line "$stepped"
+  absolute=$(listing_store absolute)
+  printf 'bytes of 2026-10-26\n' > "$absolute/outside.seg"
+  printf 'segment day=2026-10-26 file=%s/outside.seg\n' "$absolute" >> "$absolute/prefill.stdout"
+  t segment-line-with-an-absolute-path FAIL fails_saying "outside the data directory: $absolute/outside.seg" listing_line "$absolute"
   t expired-row-is-named-by-its-key FAIL fails_saying 'measured: expired_days_listed' expiry_line "$gate_scratch/inv-15-days" "$good"
   t standin-good-run PASS against_the_standin good none
   t standin-keeps-expired-files FAIL against_the_standin expiry-keeps-files none
   t standin-expires-after-the-bound FAIL against_the_standin expiry-late none
   t standin-main-names-the-mode PASS says 'FAIL service-expiry (no --prefill-store mode' main none
   t privacy-line-before-the-service PASS privacy_line_first main none
+}
+
+listing_store() {
+  listing_dir=$gate_scratch/listing-$1
+  mkdir -p "$listing_dir/data/store/segments/00"
+  printf 'prefill: 4 days\n' > "$listing_dir/prefill.stdout"
+  for listing_day in 2026-10-27 2026-10-28 2026-11-11 2026-11-12; do
+    printf 'bytes of %s\n' "$listing_day" > "$listing_dir/data/store/segments/00/seg-$listing_day.seg"
+    printf 'segment day=%s file=store/segments/00/seg-%s.seg\n' "$listing_day" "$listing_day" >> "$listing_dir/prefill.stdout"
+  done
+  printf '%s\n' "$listing_dir"
+}
+
+listing_line() {
+  found=$(prefill_listed "$1/prefill.stdout" "$1/data" "$1/segments") || { emit_fail "$name" "$found"; return 1; }
+  emit_pass "$name"
 }
 
 expiry_line() {
