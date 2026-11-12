@@ -216,8 +216,11 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                 Some("name") => &["name", "label", "candidates", "typed"],
                 Some("n") => &["n", "value", "from"],
                 Some("choice") => &["choice", "text", "safe"],
+                Some("key") if keys.get(2).map(String::as_str) == Some("fields") => {
+                    &["key", "text", "fields"]
+                }
                 Some("key") => &["key", "text"],
-                Some("day") => &["day", "text"],
+                Some("day") => &["day", "text", "effects"],
                 _ => panic!("{state}: an object with the keys {keys:?}"),
             };
             assert_eq!(keys, want, "{state}");

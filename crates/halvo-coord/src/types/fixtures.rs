@@ -22,7 +22,7 @@
 //! | | `spreadsheet_fill`: `all_set.nothing`; `run_now`, `switch_off`, `delete` | `active`, `schedule` every 7 days, `last` 20750, so `next` is 20764; its four slots; runs on 20750 `completed` and on 20757 `nothing_to_do`, started by the scheduler for the slot 20757 |
 //! | | `shop_order`: `all_set.done`; `run_now`, `switch_off`, `delete` | `active`; its three slots; a run on 20755 `completed` |
 //! | | `calendar_cleanup`: `all_set.done`; `run_now`, `switch_off`, `delete` | `active`, `schedule` every day, `last` 20759, so `next` is 20761; runs on 20759 `completed` and on 20760 `completed`, the second with the slot 20760 |
-//! | `card` | the agents of `ten` | the card of `utility_bill_payment`, the first agent made (agent id 2), whose two runs are the card's; the act `open_card` with its id is U3.3's |
+//! | `card` | the agents of `ten` | the card of `utility_bill_payment`, the first agent made (agent id 2), whose two runs are the card's, the newer with one committed `payment` effect whose four kept fields are those of the item of `needs_check` (ruling H-8); the act `open_card` with its id is U3.3's |
 //! | `needs_confirm_page` | `email`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `waiting` with an open `confirm` item of three effects of the class `send`, presenter `page`, `armed` `yes`, no `new_origin` |
 //! | `needs_confirm_native` | `utility_bill_payment`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `confirm` item of one effect of the class `payment`, presenter `native`, `armed` `no`, its one choice `present` |
 //! | `needs_sign_in` | `shop_order`: `needs_you.sign_in`; `stop`, `switch_off`, `delete` | `approved`, no playbook, no ended run, its three slots, a live first run `waiting` with an open `sign_in` item |
@@ -53,12 +53,12 @@
 use super::names::names;
 use super::{commands, Class, Doing, Live, OwnItem, OwnItemKind, Raised, RunItem, RunItemKind};
 use super::{
-    hex, AgentId, BoundFrom, Candidate, CandidateFrom, Card, CardLine, CardRun, Category, Cause,
-    Choice, ChoiceText, ClosedReply, ConfigView, Control, ControlText, ErrorReply, Event, Facts,
-    Field, FieldFrom, FullWorkflow, HoldSetCause, Item, ItemId, ItemKind, LineKey, LivePhase, Name,
-    OkReply, OpenItem, Outcome, Param, ParamEntry, PastRun, Permission, Presenter, Row, RunId,
-    Runtime, Snapshot, StatusLine, Tier, Trigger, What, WorkflowId, WorkflowState, WorkflowTrigger,
-    YesNo,
+    hex, AgentId, BoundFrom, Candidate, CandidateFrom, Card, CardEffect, CardLine, CardRun,
+    Category, Cause, Choice, ChoiceText, ClosedReply, ConfigView, Control, ControlText, ErrorReply,
+    Event, Facts, Field, FieldFrom, FullWorkflow, HoldSetCause, Item, ItemId, ItemKind, Kept,
+    LineKey, LivePhase, Name, OkReply, OpenItem, Outcome, Param, ParamEntry, PastRun, Permission,
+    Presenter, Row, RunId, Runtime, Snapshot, StatusLine, Tier, Trigger, What, WorkflowId,
+    WorkflowState, WorkflowTrigger, YesNo,
 };
 use crate::mem::Config;
 use crate::words;
@@ -101,6 +101,7 @@ struct Past {
     trigger: Trigger,
     slot: Option<u32>,
     unknown: u32,
+    committed: Option<(Class, &'static [Bound])>,
 }
 
 fn past(day: u32, end: Outcome) -> Past {
@@ -110,6 +111,7 @@ fn past(day: u32, end: Outcome) -> Past {
         trigger: Trigger::Person,
         slot: None,
         unknown: 0,
+        committed: None,
     }
 }
 
@@ -174,7 +176,10 @@ fn utility(line: StatusLine) -> Spec {
         playbook: true,
         runs: vec![
             past(20_720, Outcome::NothingToDo),
-            past(20_750, Outcome::Completed),
+            Past {
+                committed: Some((Class::Payment, &PAYMENT)),
+                ..past(20_750, Outcome::Completed)
+            },
         ],
         next: Some(20_780),
         ..spec(Category::UtilityBillPayment, line)
@@ -862,6 +867,17 @@ fn item(state: State, b: &Built) -> Option<Item> {
     })
 }
 
+fn committed(class: Class, bound: &[Bound]) -> CardEffect {
+    let kept: Vec<Kept> = bound
+        .iter()
+        .map(|(field, _, value)| Kept {
+            name: Name::parse(field).expect("a field name"),
+            value: vec![(*value).to_owned()],
+        })
+        .collect();
+    CardEffect::committed(class, &kept).expect("the kept fields of the class")
+}
+
 fn card(b: &Built) -> Card {
     let c = &b.facts.config;
     let mut lines = vec![CardLine {
@@ -904,6 +920,11 @@ fn card(b: &Built) -> Card {
             .map(|p| CardRun {
                 day: words::day(p.day),
                 text: t(&format!("line.run.{}", super::RunEnd::from(p.end).name())),
+                effects: p
+                    .committed
+                    .map(|(class, bound)| committed(class, bound))
+                    .into_iter()
+                    .collect(),
             })
             .collect(),
     }
@@ -980,4 +1001,47 @@ pub fn write(dir: &Path) -> std::io::Result<u32> {
         std::fs::write(dir.join(name), text)?;
     }
     Ok(files.len() as u32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{state_file, FieldFrom, State};
+
+    #[test]
+    fn the_newer_run_of_the_card_holds_one_committed_payment_with_its_four_kept_fields() {
+        let card = state_file(State::Card)
+            .card
+            .expect("the state card has a card");
+        assert_eq!(card.runs.len(), 2);
+        let newer = &card.runs[0];
+        assert_eq!(
+            (newer.day.as_str(), newer.text.as_str()),
+            ("24 October 2026", "It finished the task.")
+        );
+        assert_eq!(newer.effects.len(), 1);
+        let paid = &newer.effects[0];
+        assert_eq!(
+            (paid.key().as_str(), paid.text()),
+            ("run.effect.payment", "It made this payment.")
+        );
+        let fields: Vec<(&str, &[String], FieldFrom)> = paid
+            .fields()
+            .iter()
+            .map(|f| (f.label.as_str(), &f.value[..], f.from))
+            .collect();
+        let one = |v: &str| vec![v.to_owned()];
+        assert_eq!(
+            fields,
+            [
+                ("Pay to", &one("City Power")[..], FieldFrom::You),
+                ("Amount", &one("42.10 USD")[..], FieldFrom::Site),
+                ("Pay with", &one("Card ending 4242")[..], FieldFrom::You),
+                ("Site", &one("site1.example")[..], FieldFrom::Halvo),
+            ]
+        );
+        assert!(card.runs[1].effects.is_empty());
+        for state in State::ALL.iter().filter(|s| **s != State::Card) {
+            assert!(state_file(*state).card.is_none(), "{}", state.name());
+        }
+    }
 }

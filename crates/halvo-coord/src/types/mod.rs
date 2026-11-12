@@ -34,8 +34,8 @@ pub use names::{
     Reasoning, RunEnd, Runtime, Status, Tier, Trigger, WorkflowState, WorkflowTrigger, YesNo,
 };
 pub use reply::{
-    Candidate, Card, CardLine, CardRun, ChoiceText, ClosedReply, ControlText, ErrorReply, Field,
-    Item, OkReply, ParamEntry, Row, Snapshot,
+    Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ClosedReply, ControlText,
+    ErrorReply, Field, Item, OkReply, ParamEntry, Row, Snapshot,
 };
 pub use run::{
     Answer, AskedEffect, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk, Progress,
