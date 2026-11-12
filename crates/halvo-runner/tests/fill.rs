@@ -56,6 +56,30 @@ fn the_fill_playbook_replays_on_seeds_1_to_3() {
             "seed {seed}"
         );
         let first = &effects[0];
+        let bound = halvo_schema::executable::Bound::new(
+            ActionClass::LocalEdit,
+            [
+                (
+                    FieldName::File,
+                    files.workbook.to_string_lossy().into_owned(),
+                ),
+                (FieldName::Range, "B2:D6".to_string()),
+            ]
+            .into_iter()
+            .map(|(name, value)| halvo_schema::executable::BoundField {
+                name,
+                from: halvo_schema::executable::names::Source::Slot,
+                origin: None,
+                value: halvo_schema::executable::text::OwnValue::new(&value),
+            })
+            .collect(),
+        )
+        .expect("the bound object of the seed's slots");
+        assert_eq!(
+            first.digest,
+            halvo_policy::digest(&bound).expect("a digest"),
+            "seed {seed}: the digest of the bound object built from the slots"
+        );
         for (i, row) in effects.iter().enumerate() {
             assert_eq!(row.seq.get(), i as u32 + 1, "seed {seed}: seq");
             assert_eq!(
@@ -427,6 +451,12 @@ fn a_workbook_changed_under_the_paused_edit_is_not_replaced_and_its_effect_is_ha
     );
     assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
     assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
+    let stopped = seen.logs().into_iter().last().expect("a line");
+    assert_eq!(
+        (stopped.event, stopped.cause),
+        (LogEvent::Stopped, Some(Cause::Unknown)),
+        "the stopped line of a run that ends effect_unknown names unknown"
+    );
     let finish = seen.finish().expect("finish");
     assert_eq!(
         (finish.effects, finish.unknown, finish.handbacks),

@@ -86,10 +86,14 @@ impl Runner {
     }
 
     /// A `file` `write`, one file edit (A5.2, A11.3): `prepare` makes the checkpoint and a checked copy; the effect
-    /// is proposed with the `Decided` of the configuration as it stands then, `begin` is stored before the
-    /// `replace` and `commit` after it. A cancel or a passed `wall` limit before the `propose` or the `begin` ends
-    /// the run there. A close or a cancel before the `replace` lets nothing reach the workbook,
-    /// and the prepared copy goes when its value is dropped.
+    /// is proposed with the `Decided` of the configuration as it stands then, and under its permission `user_files`;
+    /// `begin` is stored before the `replace` and `commit` after it. A cancel or a passed `wall` limit before the
+    /// `propose` or the `begin` ends the run there. A close that the runner has got before the `replace`, or a
+    /// cancel, lets nothing reach the workbook. A propose or begin row can leave after an end of file that the
+    /// runner's reader has not yet returned, and it is never followed by its effect; the supervisor drops what it
+    /// reads after its close. The prepared copy goes when its value is
+    /// dropped, and stays beside the workbook after the two exits that drop no value: the panic hook's exit and the
+    /// reader's exit `LINK_GRACE` after a close.
     pub(crate) fn file_write(
         &mut self,
         step: &ExecutableStep,
@@ -135,6 +139,9 @@ impl Runner {
         admit(step.class, &bound, &facts)
             .map_err(|refused| Stop::End(Outcome::Failed, Some(refused.cause())))?;
         let config = self.load()?.config;
+        if !config.permissions.contains(&Permission::UserFiles) {
+            return Err(Failure::Step(Cause::StepFailed));
+        }
         self.check()?;
         self.within_wall(&loaded.config.limits)?;
         let at = self.propose(decide(&config, step.class, Checkpoint::Yes), &bound)?;
@@ -155,7 +162,7 @@ impl Runner {
         let again = digest(&bound).map_err(|_| Failure::Step(Cause::StepFailed))?;
         self.advance(at, EffectMove::Begin { digest: again })?;
         self.check()?;
-        if folder.replace(&prepared).is_err() {
+        if self.link.settle(|| folder.replace(&prepared))?.is_err() {
             return Err(Stop::End(Outcome::EffectUnknown, Some(Cause::StepFailed)).into());
         }
         self.advance(at, EffectMove::Commit)?;

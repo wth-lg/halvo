@@ -616,8 +616,22 @@ pub fn store_error(frame: &FromRunner, name: &str) -> ToRunner {
     let FromRunner::Store(s) = frame else {
         panic!("not a store frame")
     };
+    store_error_for(s.request.id().as_str(), name)
+}
+
+/// A store refusal `name` that names the request id `id`, which the test chooses.
+pub fn store_error_for(id: &str, name: &str) -> ToRunner {
+    let text = format!(r#"{{"t":"store_reply","reply":{{"v":1,"id":"{id}","error":"{name}"}}}}"#);
+    ToRunner::parse(text.as_bytes()).expect("a store reply")
+}
+
+/// The reply `{"stored":<count>}` to the store frame `frame`.
+pub fn stored(frame: &FromRunner, count: u32) -> ToRunner {
+    let FromRunner::Store(s) = frame else {
+        panic!("not a store frame")
+    };
     let text = format!(
-        r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"{name}"}}}}"#,
+        r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","ok":{{"stored":{count}}}}}}}"#,
         s.request.id().as_str()
     );
     ToRunner::parse(text.as_bytes()).expect("a store reply")

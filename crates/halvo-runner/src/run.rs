@@ -214,7 +214,7 @@ impl Runner {
         call: RunnerCall,
     ) -> Result<Result<RunnerReply, ReplyError>, Broken> {
         let request = RunnerRequest::new(&self.role, RequestId::from_random(random16()), call);
-        self.send_store(&request)
+        self.send_store(&request, false)
     }
 
     /// The role that builds the runner's requests.
@@ -222,16 +222,21 @@ impl Runner {
         &self.role
     }
 
-    /// Writes the `store` frame of a request and returns the store's reply, which must answer it.
+    /// Writes the `store` frame of a request and returns the store's reply, which must answer it; the frame of a
+    /// row that proposes or begins an effect goes as `Link::ask_effect` lets it.
     pub(crate) fn send_store(
         &mut self,
         request: &RunnerRequest<RunnerCall>,
+        effect: bool,
     ) -> Result<Result<RunnerReply, ReplyError>, Broken> {
         let id = request.id();
         let envelope = StoreRequest::new(request).map_err(|_| Broken::Frame("own_body"))?;
-        let reply = self
-            .link
-            .ask(&FromRunner::Store(Store { request: envelope }))?;
+        let frame = FromRunner::Store(Store { request: envelope });
+        let reply = if effect {
+            self.link.ask_effect(&frame)?
+        } else {
+            self.link.ask(&frame)?
+        };
         let ToRunner::StoreReply(StoreReplyFrame { reply }) = reply else {
             return Err(Broken::Frame("not_a_store_reply"));
         };
