@@ -413,6 +413,27 @@ fn an_owed_end_run_of_a_failed_start_is_dropped_at_the_tick_once_the_store_holds
 }
 
 #[test]
+fn an_owed_end_run_is_dropped_once_the_store_holds_the_record_of_a_later_run_of_the_agent() {
+    let mut w = world(&[MANUAL]);
+    w.ports.refuse(Method::Start, PortError::NoService);
+    w.ports.refuse(Method::EndRun, PortError::NoService);
+    let first = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
+    w.store_end(0, &first, Outcome::Failed, 0);
+    let second = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
+    assert_ne!(first, second);
+    assert_eq!(w.board.owed.len(), 2);
+    w.store_end(0, &second, Outcome::Failed, 0);
+    w.forget();
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert!(
+        !w.calls().iter().any(|c| c.starts_with("end_run")),
+        "the store took a later run of the agent, so it ended the first"
+    );
+    assert!(w.board.owed.is_empty());
+}
+
+#[test]
 fn recover_step_owes_end_run_from_the_events_and_the_stores_last_record_alone() {
     let a = agent(0);
     let run = |n: u32| RunId::parse(&format!("{:032x}", 0x7000 + n)).unwrap();
