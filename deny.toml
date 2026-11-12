@@ -14,13 +14,11 @@ allow = [
 ]
 confidence-threshold = 0.8
 exceptions = [
-  # reason: MPL-2.0 is file-level copyleft, and Halvo ships these crates unmodified with their notices; the owner confirms the entry (units/gate-2.md, owner ask)
   { crate = "cssparser", allow = ["MPL-2.0"] },
   { crate = "cssparser-macros", allow = ["MPL-2.0"] },
   { crate = "dtoa-short", allow = ["MPL-2.0"] },
   { crate = "option-ext", allow = ["MPL-2.0"] },
   { crate = "selectors", allow = ["MPL-2.0"] },
-  # reason: blessing is the public-domain dedication of SQLite and WTFPL covers one bundled file; neither asks anything of a binary that ships them
   { crate = "sqlcipher-src", allow = ["blessing", "WTFPL"] },
 ]
 

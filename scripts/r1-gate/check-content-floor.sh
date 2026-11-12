@@ -1,5 +1,4 @@
 #!/bin/sh
-# privacy rows: the unattended half adds no row, because it starts no capture source; a run with --input operator adds rows for target/r1-gate/debug/halvo-capture, the one gate-built path, under Screen & System Audio Recording, Accessibility and Input Monitoring
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"

@@ -1,6 +1,4 @@
 #!/bin/sh
-# privacy rows: a first run on a Mac adds rows for target/r1-gate/debug/halvo-capture, the one gate-built path, under Screen & System Audio Recording, Accessibility and Input Monitoring, and no row for the helper window, which reads nothing
-# older stores: R1 builds no migration and refuses an older store (E11, RD-22), so this check opens no older store; for a refused older store the gate asserts only the status text of fixtures/c2-status-unsupported-version.txt, and a later migration ships with a C9 way to write the old schema and a run of this check on such a store
 set -u
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
