@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 extern "C" {
     fn mkfifo(path: *const c_char, mode: u16) -> c_int;
@@ -216,19 +216,59 @@ fn a_directory_in_the_place_of_the_file_is_refused() {
     assert!(dir.join("account").is_dir());
 }
 
+fn make_fifo(path: &Path) {
+    let path = CString::new(path.as_os_str().as_bytes()).expect("a path");
+    // SAFETY: `path` is a NUL-terminated string that lives to the end of this function.
+    let made = unsafe { mkfifo(path.as_ptr(), 0o600) };
+    assert_eq!(made, 0);
+}
+
+fn within_five_seconds(store: Store) -> (String, Delete) {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let read = format!("{:?}", store.read());
+        let _ = sender.send((read, store.delete()));
+    });
+    receiver
+        .recv_timeout(Duration::from_secs(5))
+        .expect("a read and a delete that end within five seconds")
+}
+
 #[test]
 fn a_fifo_in_the_place_of_the_file_is_refused_without_waiting() {
     let dir = scratch("fifo");
     private_dir(&dir);
-    let path = CString::new(dir.join("account").as_os_str().as_bytes()).expect("a path");
-    // SAFETY: `path` is a NUL-terminated string that lives to the end of the test.
-    let made = unsafe { mkfifo(path.as_ptr(), 0o600) };
-    assert_eq!(made, 0);
-    let store = store_in(&dir);
-    let start = Instant::now();
-    assert!(matches!(store.read(), Read::Locked(Locked::NotAFile)));
-    assert_eq!(store.delete(), Delete::Locked(Locked::NotAFile));
-    assert!(start.elapsed() < Duration::from_secs(5));
+    make_fifo(&dir.join("account"));
+    let (read, delete) = within_five_seconds(store_in(&dir));
+    assert_eq!(read, "Locked(NotAFile)");
+    assert_eq!(delete, Delete::Locked(Locked::NotAFile));
+}
+
+#[test]
+fn a_fifo_in_the_place_of_the_directory_is_refused_without_waiting() {
+    let base = scratch("fifo-dir");
+    let place = base.join("store");
+    make_fifo(&place);
+    let (read, delete) = within_five_seconds(store_in(&place));
+    assert_eq!(read, "Locked(NotADirectory)");
+    assert_eq!(delete, Delete::Locked(Locked::NotADirectory));
+}
+
+#[test]
+fn a_write_leaves_a_temporary_file_of_another_writer_as_it_was() {
+    let dir = scratch("leftover");
+    private_dir(&dir);
+    let leftover = dir.join(format!(".account.{}.0.tmp", std::process::id()));
+    private_file(&leftover, b"another writer");
+    assert_eq!(
+        store_in(&dir).write(&secret(b"the credential")),
+        Write::Stored
+    );
+    assert_eq!(
+        fs::read(&leftover).expect("the leftover"),
+        b"another writer"
+    );
+    assert_eq!(found(store_in(&dir).read()), b"the credential");
 }
 
 #[test]
