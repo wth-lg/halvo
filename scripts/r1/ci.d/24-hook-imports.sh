@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: No Windows binary that Halvo ships imports SetWindowsHookExA or SetWindowsHookExW, and halvo-capture.exe imports RegisterRawInputDevices, the control that the reader sees imports.
+# rule: No Windows binary that Halvo ships imports SetWindowsHookExA or SetWindowsHookExW; the reader must show the KERNEL32.dll imports of halvo-capture.exe, and once that binary imports USER32.dll it must import RegisterRawInputDevices.
 set -u
 name=24-hook-imports
 
@@ -15,8 +15,11 @@ imports_defect() {
   hook_name=$(printf '%s\n' "$hook" | sed 's/.*Symbol: \([A-Za-z]*\).*/\1/')
   [ -z "$hook" ] || { printf '%s imports %s\n' "$1" "$hook_name"; return 1; }
   [ "$3" = control ] || return 0
+  kernel=$(awk '{ line = tolower($0) } line ~ /^ *name: kernel32\.dll$/ { inside = 1; next } line ~ /^ *name: / { inside = 0 } inside && line ~ /^ *symbol: / { n++ } END { print n + 0 }' "$2")
+  [ "$kernel" -gt 0 ] || { printf '%s: the reader shows no symbol imported from KERNEL32.dll, so it does not read the import table\n' "$1"; return 1; }
+  grep -q -i -E '^ *Name: user32\.dll$' "$2" || return 0
   grep -q -E 'Symbol: RegisterRawInputDevices( |$)' "$2" && return 0
-  printf '%s does not import RegisterRawInputDevices, so the reader shows no import of the pointer source\n' "$1"
+  printf '%s imports USER32.dll and not RegisterRawInputDevices, so the pointer source registers no raw input\n' "$1"
   return 1
 }
 
@@ -54,6 +57,8 @@ measure() {
 }
 
 listing() {
+  printf 'Import {\n  Name: KERNEL32.dll\n  Symbol: GetLastError (1)\n}\n'
+  [ $# -gt 0 ] || return 0
   printf 'Import {\n  Name: USER32.dll\n'
   for symbol in "$@"; do printf '  Symbol: %s (1)\n' "$symbol"; done
   printf '}\n'
@@ -85,6 +90,10 @@ self_test() {
   case_of app-imports-the-hook halvo.exe "$work/hook-w" none FAIL
   case_of a-longer-symbol-name-is-no-hook halvo-capture.exe "$work/longer-name" control PASS
   case_of empty-listing halvo-capture.exe "$work/empty" control FAIL
+  listing > "$work/kernel-only"
+  case_of capture-without-user32-needs-no-raw-input halvo-capture.exe "$work/kernel-only" control PASS
+  printf 'Import {\n  Name: USER32.dll\n  Symbol: RegisterRawInputDevices (1)\n}\n' > "$work/no-kernel32"
+  case_of reader-sees-no-kernel32 halvo-capture.exe "$work/no-kernel32" control FAIL
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
