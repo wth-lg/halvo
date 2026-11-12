@@ -1,7 +1,9 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ and no package named with sqlite or sqlcipher, and cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/, no file that the dep-info of a package of account/ lists after them (a module of a path attribute, a file of include!, include_str! or include_bytes!) lies outside account/ and the build's target directory, and on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside and include-from-the-target-directory in the macos job alone and includes-inside in both jobs, and fails when the real builds of its job are none or none ran.
+# rule: Every vendored file of account/schema/ has its recorded sha256, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources, build, test, fmt --check and clippy with all features pass for account/ and the dep-info files that this build wrote for the packages of account/, each package with at least one, list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right and member-named-with-a-hash in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
+LC_ALL=C
+export LC_ALL
 name=10-r7-account
 case $0 in
   /*) self=$0 ;;
@@ -16,7 +18,7 @@ samples.v1.json contract/samples/v1.json
 prompt-budget.json gate/prompt-budget.json'
 required_bans='rusqlite libsqlite3-sys sqlite sqlite3-sys sqlite3-src sqlx-sqlite libsql libsql-sys libsql-ffi limbo limbo_core turso turso_core sentry sentry-core sentry-types sentry-rust-minidump tauri-plugin-sentry bugsnag rollbar honeybadger airbrake posthog-rs segment aptabase tauri-plugin-aptabase opentelemetry-otlp'
 crates_io='registry+https://github.com/rust-lang/crates.io-index'
-real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside'
+real_builds_macos='path-attribute-outside include-outside include-str-outside include-bytes-outside include-from-the-target-directory includes-inside moved-tree moved-tree-with-an-outside-include source-put-right member-named-with-a-hash'
 real_builds_windows='includes-inside'
 
 fail() {
@@ -222,6 +224,7 @@ function closed(   j) {
   if (where[d] != "root.packages[]") return
   print "name\t" package
   if (null_source) {
+    print "member\t" package "\t" manifest
     print "local\t" manifest
     print "path\t" manifest
     for (j = 1; j <= paths; j++) print "path\t" path_of[j]
@@ -309,8 +312,14 @@ check_metadata() {
   json_pairs <"$work/metadata.json" >"$work/metadata.pairs" || fail 'cargo metadata printed nothing that this script reads'
   account_dir=$(cd account && pwd -P) || fail 'cannot enter account/'
   packages=0
-  while IFS="$tab" read -r kind value || [ -n "$kind" ]; do
+  members=
+  : >"$work/members.tsv" || fail 'cannot write in the temp directory'
+  while IFS="$tab" read -r kind value manifest || [ -n "$kind" ]; do
     case $kind in
+      member)
+        members="$members -p $value"
+        printf '%s\t%s\n' "$value" "$manifest" >>"$work/members.tsv"
+        ;;
       name)
         case $value in
           *[sS][qQ][lL][iI][tT][eE]* | *[sS][qQ][lL][cC][iI][pP][hH][eE][rR]*) fail "account/'s metadata holds a package whose name contains sqlite or sqlcipher" ;;
@@ -325,136 +334,231 @@ check_metadata() {
     esac
   done <"$work/metadata.pairs"
   [ "$packages" -gt 0 ] || fail "account/'s metadata holds no package"
+  [ -n "$members" ] || fail "account/'s metadata holds no package of account/"
 }
 
-dep_info_reads() {
+check_tracked_target() {
+  git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  tracked=$(git -C "$repo" ls-files -- target/account) || fail 'git ls-files cannot read the index'
+  [ -z "$tracked" ] || fail 'a tracked file lies under the build target directory target/account'
+}
+
+clear_members() {
+  set --
+  while IFS="$tab" read -r member manifest || [ -n "$member" ]; do
+    set -- "$@" -p "$member"
+  done <"$work/members.tsv"
+  CARGO_TARGET_DIR=$target cargo clean --offline "$@" --manifest-path account/Cargo.toml
+  code=$?
+  [ "$code" -eq 0 ] || fail "cargo clean --offline of the packages of account/ exited $code"
+}
+
+dep_info_parse() {
   awk '
-function normal(p,   n, part, i, k, kept, out) {
-  n = split(p, part, "/"); k = 0
-  for (i = 1; i <= n; i++) {
-    if (part[i] == "" || part[i] == ".") continue
-    if (part[i] == "..") { if (k > 0) k--; continue }
-    kept[++k] = part[i]
-  }
-  out = ""
-  for (i = 1; i <= k; i++) out = out "/" kept[i]
-  return out
-}
-function under(p, dir) { return index(p, dir "/") == 1 }
-function converted(p) {
-  gsub(/\\ /, " ", p)
-  gsub(/\\/, "/", p)
-  if (p ~ /^[A-Za-z]:/) return "/" tolower(substr(p, 1, 1)) substr(p, 3)
-  if (substr(p, 1, 1) != "/") { relative = 1; return account "/" p }
-  return p
-}
 BEGIN {
-  account = normal(ENVIRON["DEP_INFO_ACCOUNT"])
-  target = normal(ENVIRON["DEP_INFO_TARGET"])
-  files = 0; unread = 0
+  files = 0
   while ((getline file) > 0) {
-    n = 0; heads = 0; local = 0; bad = 0
-    while ((getline line < file) > 0) {
-      if (line == "" || substr(line, 1, 1) == "#") continue
-      relative = 0
-      if (line ~ /:$/) {
-        read[++n] = converted(substr(line, 1, length(line) - 1))
-        if (relative) local = 1
+    files++
+    status = (getline line < file)
+    if (status < 0) { print "unopenable\t" files "\t-"; continue }
+    while (status > 0) {
+      if (index(line, "# env-dep:OUT_DIR=") == 1) {
+        value = substr(line, 19)
+        gsub(/\\ /, " ", value)
+        print "outdir\t" files "\t" value
+      } else if (index(line, "# env-dep:") == 1 || line == "") {
+      } else if (line ~ /:$/) {
+        value = substr(line, 1, length(line) - 1)
+        gsub(/\\ /, " ", value)
+        print "path\t" files "\t" value
       } else if (index(line, ": ") > 1) {
-        head[++heads] = converted(substr(line, 1, index(line, ": ") - 1))
+        value = substr(line, 1, index(line, ": ") - 1)
+        gsub(/\\ /, " ", value)
+        print "head\t" files "\t" value
       } else {
-        bad = 1
+        print "bad\t" files "\t-"
       }
+      status = (getline line < file)
     }
     close(file)
-    if (!local) continue
-    files++
-    unread += bad
-    for (i = 1; i <= heads; i++) {
-      dir = head[i]; sub(/\/[^\/]*$/, "", dir)
-      if (!seen_head[dir]++) print "head\t" dir "\t.\t" normal(dir)
-    }
-    for (i = 1; i <= n; i++) {
-      if (seen[read[i]]++) continue
-      dir = read[i]; sub(/\/[^\/]*$/, "", dir)
-      leaf = substr(read[i], length(dir) + 2)
-      print "path\t" dir "\t" leaf "\t" normal(read[i])
-    }
   }
-  print "local\t" files
-  print "unread\t" unread
 }'
 }
 
-drive_form() {
-  windows=$(cygpath -m "$1") || return 1
-  letter=$(printf '%s' "${windows%%:*}" | tr '[:upper:]' '[:lower:]')
-  printf '/%s%s\n' "$letter" "${windows#*:}"
+dep_info_join() {
+  DEP_INFO_NAMES=$1 awk '
+BEGIN { FS = "\t"; account = ENVIRON["DEP_INFO_ACCOUNT"]; names = ENVIRON["DEP_INFO_NAMES"] }
+{
+  kind[NR] = $1; idx[NR] = $2; value[NR] = $3
+  if ($1 == "path" || $1 == "head" || $1 == "outdir") {
+    if ((getline converted < names) <= 0) { print "unconverted\t0\t-\t-"; exit }
+    value[NR] = converted
+    if ($1 == "path" && substr(converted, 1, 1) != "/") local[$2] = 1
+  }
+}
+END {
+  files = 0
+  for (i = 1; i <= NR; i++) {
+    if (kind[i] == "unopenable") { print "unopenable\t" idx[i] "\t-\t-"; continue }
+    if (!(idx[i] in local)) continue
+    if (!(idx[i] in counted)) { counted[idx[i]] = 1; files++ }
+    if (kind[i] == "bad") { print "bad\t" idx[i] "\t-\t-"; continue }
+    p = value[i]
+    if (substr(p, 1, 1) != "/") p = account "/" p
+    if (kind[i] == "outdir") { print "outdir\t" idx[i] "\t" p "\t."; continue }
+    dir = p; sub(/\/[^\/]*$/, "", dir)
+    if (dir == "") dir = "/"
+    print kind[i] "\t" idx[i] "\t" dir "\t" substr(p, length(dir) + 2)
+  }
+  print "local\t" files "\t-\t-"
+}' "$2"
+}
+
+place_of() {
+  place=$1
+  while :; do
+    if [ "$place" -ef "$account_dir" ]; then
+      place=account
+      return 0
+    fi
+    if [ "$place" -ef "$target" ]; then
+      place=target
+      return 0
+    fi
+    case $place in
+      */*) place=${place%/*} ;;
+      *) break ;;
+    esac
+    [ -n "$place" ] || break
+  done
+  place=other
+}
+
+below() {
+  inner=$1
+  while :; do
+    [ "$inner" -ef "$2" ] && return 0
+    case $inner in
+      */*) inner=${inner%/*} ;;
+      *) return 1 ;;
+    esac
+    [ -n "$inner" ] || return 1
+  done
+}
+
+out_dir_of() {
+  out=$(cd -P "$1" 2>/dev/null && pwd -P) || return 1
+  [ "${out##*/}" = out ] || return 1
+  build=${out%/*}
+  build=${build%/*}
+  [ "${build##*/}" = build ] || return 1
+  [ "${build%/*/*}" -ef "$target" ] || return 1
+  printf '%s\n' "$out"
 }
 
 check_sources() {
-  find "$target" -name '*.d' -type f >"$work/dep-info.txt" 2>/dev/null
-  DEP_INFO_ACCOUNT=$account_dir DEP_INFO_TARGET=$target dep_info_reads <"$work/dep-info.txt" >"$work/dep-info.reads" || fail 'cannot read the dep-info files of the build'
-  sort "$work/dep-info.reads" >"$work/dep-info.sorted" || fail 'cannot read the dep-info files of the build'
-  target_physical=$(cd -P "$target" 2>/dev/null && pwd -P) || target_physical=$target
-  account_drive=$account_dir
-  target_drive=$target_physical
+  stale_fix='cargo clean --manifest-path account/Cargo.toml --target-dir target/account clears it'
+  find "$target" -name '*.d' -type f >"$work/dep-info.txt" || fail "the search for dep-info files under target/account failed; $stale_fix"
+  dep_info_parse <"$work/dep-info.txt" >"$work/dep-info.raw" || fail 'awk cannot read the dep-info files'
+  awk -F "$tab" '$1 == "path" || $1 == "head" || $1 == "outdir" { print $3 }' "$work/dep-info.raw" >"$work/dep-info.names" || fail 'awk cannot read the dep-info files'
   if command -v cygpath >/dev/null 2>&1; then
-    account_drive=$(drive_form "$account_dir") || fail 'cygpath cannot name account/'
-    target_drive=$(drive_form "$target_physical") || fail 'cygpath cannot name the target directory'
+    cygpath -u -f "$work/dep-info.names" >"$work/dep-info.converted" || fail 'cygpath cannot convert the paths of the dep-info files'
+  else
+    cp "$work/dep-info.names" "$work/dep-info.converted" || fail 'cannot write in the temp directory'
   fi
+  DEP_INFO_ACCOUNT=$account_dir dep_info_join "$work/dep-info.converted" "$work/dep-info.raw" >"$work/dep-info.joined" || fail 'awk cannot read the dep-info files'
+  sort -t "$tab" -k 3,3 "$work/dep-info.joined" >"$work/dep-info.sorted" || fail 'sort cannot order the dep-info lines'
+  : >"$work/dep-info.outs" || fail 'cannot write in the temp directory'
+  : >"$work/dep-info.dirs" || fail 'cannot write in the temp directory'
+  while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
+    if [ "$kind" = outdir ] && out=$(out_dir_of "$dir"); then
+      printf '%s\t%s\n' "$idx" "$out" >>"$work/dep-info.outs"
+    fi
+  done <"$work/dep-info.sorted"
   dep_info=0
+  unopenable=0
+  unread=0
+  elsewhere=0
+  missing=0
+  links=0
   outside=0
   last_dir=
-  resolved_dir=
-  while IFS="$tab" read -r kind dir leaf lexical || [ -n "$kind" ]; do
+  real=
+  while IFS="$tab" read -r kind idx dir leaf || [ -n "$kind" ]; do
     case $kind in
-      local) dep_info=$dir ;;
-      unread)
-        if [ "$dir" -gt 0 ]; then
-          outside=$((outside + 1))
-          printf 'a dep-info file of account/ holds a line that names no file whole\n'
-        fi
+      local) dep_info=$idx ;;
+      unconverted) fail 'cygpath gave fewer paths than the dep-info files hold' ;;
+      unopenable) unopenable=$((unopenable + 1)) ;;
+      bad)
+        unread=$((unread + 1))
+        printf 'a dep-info file of account/ holds a line that names no file whole\n'
         ;;
       head | path)
         if [ "$dir" != "$last_dir" ]; then
           last_dir=$dir
-          resolved_dir=$(cd -P "$dir" 2>/dev/null && pwd -P) || resolved_dir=
+          real=$(cd -P "$dir" 2>/dev/null && pwd -P) || real=
+          place=other
+          [ -z "$real" ] || place_of "$real"
+          [ "$place" != account ] || printf '%s\n' "$real" >>"$work/dep-info.dirs"
         fi
-        if [ -n "$resolved_dir" ]; then
-          file=$resolved_dir/$leaf
-        else
-          file=$lexical
+        if [ "$kind" = head ]; then
+          if [ -z "$real" ] || [ ! -f "$real/$leaf" ] || [ "$place" != target ]; then
+            elsewhere=$((elsewhere + 1))
+          fi
+        elif [ -z "$real" ] || { [ ! -e "$real/$leaf" ] && [ ! -L "$real/$leaf" ]; }; then
+          missing=$((missing + 1))
+        elif [ -L "$real/$leaf" ]; then
+          links=$((links + 1))
+          printf 'read through a symbolic link: %s\n' "$leaf"
+        elif [ "$place" = target ]; then
+          admitted=no
+          while IFS="$tab" read -r out_idx out || [ -n "$out_idx" ]; do
+            if [ "$out_idx" = "$idx" ] && below "$real" "$out"; then
+              admitted=yes
+            fi
+          done <"$work/dep-info.outs"
+          if [ "$admitted" = no ]; then
+            outside=$((outside + 1))
+            printf 'read outside account/: a file under target/account outside the out directory of its build script\n'
+          fi
+        elif [ "$place" != account ]; then
+          outside=$((outside + 1))
+          case $real/$leaf in
+            "${account_dir%/*}"/*) printf 'read outside account/: %s\n' "${real#"${account_dir%/*}"/}/$leaf" ;;
+            *) printf 'read outside account/: a file outside the repository\n' ;;
+          esac
         fi
-      ;;
-    esac
-    case $kind in
-      head)
-        case $file in
-          "$target_physical"/* | "$target_drive"/* | "$target"/*) ;;
-          *)
-            outside=$((outside + 1))
-            printf 'a dep-info file of account/ holds a line that names no file whole\n'
-            ;;
-        esac
-        ;;
-      path)
-        case $file in
-          "$account_dir"/* | "$account_drive"/* | "$target_physical"/*/build/*/out/* | "$target_drive"/*/build/*/out/* | "$target"/*/build/*/out/*) ;;
-          "${account_dir%/*}"/*)
-            outside=$((outside + 1))
-            printf 'read outside account/: %s\n' "${file#"${account_dir%/*}"/}"
-            ;;
-          *)
-            outside=$((outside + 1))
-            printf 'read outside account/: a file outside the repository\n'
-            ;;
-        esac
         ;;
     esac
   done <"$work/dep-info.sorted"
-  [ "$dep_info" -gt 0 ] || fail 'cargo wrote no dep-info file of a package of account/'
+  [ "$unopenable" -eq 0 ] || fail "the target holds a dep-info file that this check cannot open; $stale_fix"
+  [ "$unread" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
+  [ "$elsewhere" -eq 0 ] || fail "the target holds dep-info that this build did not write, whose rule names another place; $stale_fix"
+  [ "$missing" -eq 0 ] || fail "the target holds dep-info that this build did not write, which lists a file that is not there; $stale_fix"
+  [ "$links" -eq 0 ] || fail 'a source of account/ reads a file through a symbolic link'
   [ "$outside" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
+  [ "$dep_info" -gt 0 ] || fail 'cargo wrote no dep-info file of a package of account/'
+  check_members_read
+}
+
+check_members_read() {
+  while IFS="$tab" read -r member manifest || [ -n "$member" ]; do
+    case $manifest in
+      [A-Za-z]:*) if command -v cygpath >/dev/null 2>&1; then manifest=$(cygpath -u "$manifest") || fail 'cygpath cannot convert a manifest path'; fi ;;
+    esac
+    member_dir=$(cd -P "$(dirname "$manifest")" 2>/dev/null && pwd -P) || fail "cannot enter the directory of the package $member"
+    found=no
+    while IFS= read -r read_dir || [ -n "$read_dir" ]; do
+      if below "$read_dir" "$member_dir"; then
+        found=yes
+        break
+      fi
+    done <"$work/dep-info.dirs"
+    if [ "$found" = no ]; then
+      printf 'no dep-info file names a source of the package %s\n' "$member"
+      fail 'a package of account/ has no dep-info file that this check read'
+    fi
+  done <"$work/members.tsv"
 }
 
 count_tests() {
@@ -514,9 +618,11 @@ measure() {
   check_fetched
   check_metadata
   target=$repo/target/account
+  check_tracked_target
   CARGO_TARGET_DIR=$target cargo deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
   code=$?
   [ "$code" -eq 0 ] || fail "cargo deny check bans licenses sources exited $code"
+  clear_members
   CARGO_TARGET_DIR=$target cargo build --manifest-path account/Cargo.toml --locked --offline
   code=$?
   [ "$code" -eq 0 ] || fail "cargo build --locked --offline exited $code"
@@ -559,12 +665,33 @@ case $1 in
     exec "$STUB_REAL_CARGO" "$@"
     ;;
   deny) exit "${STUB_DENY_EXIT:-0}" ;;
+  clean)
+    [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
+    exit "${STUB_CLEAN_EXIT:-0}"
+    ;;
   build)
     [ -z "${STUB_BUILD_REAL:-}" ] || exec "$STUB_REAL_CARGO" "$@"
+    t=$CARGO_TARGET_DIR
+    mkdir -p "$t/debug/deps" || exit 98
     if [ -z "${STUB_NO_DEP_INFO:-}" ]; then
-      mkdir -p "$CARGO_TARGET_DIR/debug/deps" || exit 98
-      printf '%s/debug/deps/halvo_wire-0.d: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/debug/build/halvo-wire-0/out/bounds.rs:\n%s\n# env-dep:STUB=../../../../../../../..\n' "${STUB_TARGET_SPELLING:-$CARGO_TARGET_DIR}" "${STUB_TARGET_SPELLING:-$CARGO_TARGET_DIR}" "${STUB_DEP:+$STUB_DEP:}" >"$CARGO_TARGET_DIR/debug/deps/halvo_wire-0.d" || exit 98
-      printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$CARGO_TARGET_DIR" >"$CARGO_TARGET_DIR/debug/deps/itoa-0.d" || exit 98
+      s=${STUB_TARGET_SPELLING:-$t}
+      out=${STUB_OUT_DIR:-debug/build/halvo-wire-0/out}
+      mkdir -p "$t/$out" && printf 'pub const X: u8 = 0;\n' >"$t/$out/bounds.rs" || exit 98
+      extra=${STUB_DEP:+$STUB_DEP:}
+      if [ -n "${STUB_TARGET_DEP:-}" ]; then
+        mkdir -p "$t/${STUB_TARGET_DEP%/*}" && printf 'x\n' >"$t/$STUB_TARGET_DEP" || exit 98
+        extra=$s/$STUB_TARGET_DEP:
+      fi
+      case ${STUB_LINK_IN:-} in
+        src) ln -s ../../../../outside/code.rs account/crates/halvo-wire/src/linked.rs && extra='crates/halvo-wire/src/linked.rs:' || exit 98 ;;
+        out) ln -s "$(pwd -P)/outside/code.rs" "$t/$out/linked.rs" && extra=$s/$out/linked.rs: || exit 98 ;;
+      esac
+      printf '%s: crates/halvo-wire/src/lib.rs\n\ncrates/halvo-wire/src/lib.rs:\ncrates/halvo-wire/src/../build.rs:\n%s/%s/bounds.rs:\n%s\n# env-dep:OUT_DIR=%s/%s\n# env-dep:STUB=../../../../../../../..\n' "${STUB_HEAD:-$s/debug/deps/halvo_wire-0.d}" "$s" "$out" "$extra" "$s" "$out" >"$t/debug/deps/halvo_wire-0.d" || exit 98
+      if [ -z "${STUB_SKIP_SECRETS:-}" ]; then
+        printf '%s/debug/deps/halvo_secrets-0.d: crates/halvo-secrets/src/lib.rs\n\ncrates/halvo-secrets/src/lib.rs:\n' "$s" >"$t/debug/deps/halvo_secrets-0.d" || exit 98
+      fi
+      printf '%s/debug/deps/itoa-0.d: /registry/itoa/src/lib.rs\n\n/registry/itoa/src/lib.rs:\n' "$t" >"$t/debug/deps/itoa-0.d" || exit 98
+      [ -z "${STUB_UNREADABLE:-}" ] || chmod 000 "$t/debug/deps/halvo_wire-0.d" || exit 98
     fi
     exit "${STUB_BUILD_EXIT:-0}"
     ;;
@@ -603,7 +730,36 @@ make_fixture() {
   for entry in Cargo.toml Cargo.lock deny.toml schema crates; do
     cp -R "$repo/account/$entry" "$fixture/account/$entry" || return 1
   done
-  mkdir "$fixture/scripts" && cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh"
+  mkdir "$fixture/scripts" && cp "$repo/scripts/prerequisites.sh" "$fixture/scripts/prerequisites.sh" || return 1
+  mkdir "$fixture/outside" && printf 'pub fn included() {}\n' >"$fixture/outside/code.rs"
+}
+
+write_stand_in() {
+  mkdir "$1" || return 1
+  cat >"$1/cygpath" <<'EOF' || return 1
+#!/bin/sh
+case $1 in
+  -u)
+    [ "$2" = -f ] || exit 2
+    awk 'BEGIN { root = ENVIRON["STAND_IN_DRIVE"] } { line = $0; gsub(/\\/, "/", line); if (line ~ /^[Zz]:\//) line = root substr(line, 3); print line }' "$3"
+    ;;
+  -w)
+    rest=${2#"$STAND_IN_DRIVE"}
+    [ "$rest" != "$2" ] || exit 1
+    printf 'Z:%s\n' "$(printf '%s' "$rest" | tr '/' '\\')"
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+  chmod +x "$1/cygpath"
+}
+
+windows_name() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    STAND_IN_DRIVE=$work "$work/stand-in/cygpath" -w "$1"
+  fi
 }
 
 edit() {
@@ -654,6 +810,14 @@ make_probe_fixture() {
   relock
 }
 
+write_probe_build_script() {
+  printf 'fn main() {\n    let out = std::env::var("OUT_DIR").unwrap();\n    std::fs::write(std::path::Path::new(&out).join("generated.rs"), "pub fn generated() {}\\n").unwrap();\n}\n' >"$fixture/account/crates/probe/build.rs"
+}
+
+build_probe() {
+  (cd "$fixture" && CARGO_TARGET_DIR=$fixture/target/account "$real_cargo" build --offline --manifest-path account/Cargo.toml >/dev/null 2>&1)
+}
+
 relock() {
   (cd "$fixture" && "$real_cargo" metadata --offline --format-version 1 --manifest-path account/Cargo.toml >/dev/null 2>&1)
 }
@@ -664,6 +828,19 @@ selected() {
     *" $1 "*) return 0 ;;
   esac
   return 1
+}
+
+job_real_builds() {
+  case $1 in
+    macos) real_builds=$real_builds_macos ;;
+    windows) real_builds=$real_builds_windows ;;
+    *) real_builds= ;;
+  esac
+  [ -n "$real_builds" ]
+}
+
+no_real_build() {
+  [ "$1" = whole ] && [ "$2" -eq 0 ]
 }
 
 real_build() {
@@ -688,7 +865,10 @@ run_case() {
   else
     path=$PATH
   fi
-  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_LOG="$fixture/cargo-calls.txt" "$@" sh "$self" 2>&1 </dev/null)
+  case " $* " in
+    *' STAND_IN_CYGPATH=1 '*) command -v cygpath >/dev/null 2>&1 || path=$work/stand-in:$path ;;
+  esac
+  out=$(env -u GITHUB_ACTIONS -u RUNNER_ENVIRONMENT PATH="$path" CI_D_REPO="$fixture" CI_D_ARTIFACTS="$fixture" STUB_DENY_VERSION="$pin" STUB_REAL_CARGO="$real_cargo" STUB_LOG="$fixture/cargo-calls.txt" STAND_IN_DRIVE="$work" "$@" sh "$self" 2>&1 </dev/null)
   code=$?
   last=${out##*"$nl"}
   case $want in
@@ -702,7 +882,7 @@ run_case() {
   fi
   if [ "$want" = "PASS $name" ]; then
     case $nl$out$nl in
-      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-1}$nl"*) ;;
+      *"${nl}account packages=${want_packages:-$packages} vendored=4 of 4 bans=$bans tests=3 cargo-deny=$pin found dep-info=${want_dep_info:-2}$nl"*) ;;
       *) got="$got, without its counts line" ;;
     esac
     calls=$(cat "$fixture/cargo-calls.txt" 2>/dev/null)
@@ -749,10 +929,12 @@ self_test() {
   check_metadata
   rejected=0
   wrong=
+  write_stand_in "$work/stand-in" || fail 'cannot write the stand-in cygpath'
   calls_before="deny --version
 fetch --locked --offline --manifest-path account/Cargo.toml
 metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
 deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
+clean --offline$members --manifest-path account/Cargo.toml
 build --manifest-path account/Cargo.toml --locked --offline
 test --manifest-path account/Cargo.toml --locked --offline"
   calls_after="fmt --manifest-path account/Cargo.toml --all --check
@@ -771,6 +953,25 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   cause_name="account/'s metadata holds a package whose name contains sqlite or sqlcipher"
   cause_source='a source of account/ reads a file outside account/'
   cause_no_dep_info='cargo wrote no dep-info file of a package of account/'
+  stale_fix='cargo clean --manifest-path account/Cargo.toml --target-dir target/account clears it'
+  cause_unopenable="the target holds a dep-info file that this check cannot open; $stale_fix"
+  cause_elsewhere="the target holds dep-info that this build did not write, whose rule names another place; $stale_fix"
+  cause_missing="the target holds dep-info that this build did not write, which lists a file that is not there; $stale_fix"
+  cause_link='a source of account/ reads a file through a symbolic link'
+  cause_member='a package of account/ has no dep-info file that this check read'
+  cause_tracked='a tracked file lies under the build target directory target/account'
+  inside_source='include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+#[path = "../inner/module.rs"]
+pub mod inner;
+pub const TEXT: &str = include_str!("../inner/text.txt");'
+  probe_calls="deny --version
+fetch --locked --offline --manifest-path account/Cargo.toml
+metadata --locked --offline --format-version 1 --manifest-path account/Cargo.toml
+deny --offline --locked --manifest-path account/Cargo.toml check bans licenses sources
+clean --offline -p probe --manifest-path account/Cargo.toml
+build --manifest-path account/Cargo.toml --locked --offline
+test --manifest-path account/Cargo.toml --locked --offline
+$calls_after"
 
   fixture=$work/no-repository
   run_case no-repository "FAIL $name (cannot enter the repository that CI_D_REPO names)" stub
@@ -849,7 +1050,7 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   make_fixture escaped-path-key && write_crate "$fixture/outside-crate" outside &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { \"\\u0070ath\" = \"../../../outside-crate\" }" } }' &&
     relock && run_case escaped-path-key "FAIL $name ($cause_path)" stub
-  make_fixture escaped-build-key && mkdir "$fixture/outside" && printf 'fn main() {}\n' >"$fixture/outside/build.rs" &&
+  make_fixture escaped-build-key && printf 'fn main() {}\n' >"$fixture/outside/build.rs" &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "publish = false") print "\"\\u0062uild\" = \"../../../outside/build.rs\"" } }' &&
     run_case escaped-build-key "FAIL $name ($cause_path)" stub
   make_fixture path-outside-account && write_crate "$fixture/outside-crate" outside &&
@@ -887,11 +1088,25 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
 
   stub_case dep-info-absent "FAIL $name ($cause_no_dep_info)" stub STUB_NO_DEP_INFO=1
   stub_case dep-info-path-outside "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../outside/code.rs'
-  stub_case dep-info-absolute-path-outside "FAIL $name ($cause_source)" stub STUB_DEP=/outside/code.rs
-  stub_case dep-info-windows-separators "FAIL $name ($cause_source)" stub STUB_DEP='crates\halvo-wire\src\..\..\..\..\outside\code.rs'
-  stub_case dep-info-windows-drive "FAIL $name ($cause_source)" stub STUB_DEP='D:\outside\code.rs'
+  make_fixture dep-info-absolute-path-outside &&
+    run_case dep-info-absolute-path-outside "FAIL $name ($cause_source)" stub STUB_DEP="$fixture/outside/code.rs"
+  stub_case dep-info-windows-separators "FAIL $name ($cause_source)" stub STUB_DEP='crates\halvo-wire\src\..\..\..\..\outside\code.rs' STAND_IN_CYGPATH=1
+  make_fixture dep-info-windows-drive && drive_name=$(windows_name "$fixture/outside/code.rs") &&
+    run_case dep-info-windows-drive "FAIL $name ($cause_source)" stub STUB_DEP="$drive_name" STAND_IN_CYGPATH=1
+  stub_case dep-info-missing-file "FAIL $name ($cause_missing)" stub STUB_DEP='crates/halvo-wire/src/gone.rs'
+  stub_case dep-info-missing-directory "FAIL $name ($cause_missing)" stub STUB_DEP='crates/halvo-wire/gone/lib.rs'
+  stub_case dep-info-head-elsewhere "FAIL $name ($cause_elsewhere)" stub STUB_HEAD=crates/halvo-wire/Cargo.toml
+  make_fixture dep-info-unopenable && probe_file=$fixture/mode-000 && : >"$probe_file" && chmod 000 "$probe_file"
+  if [ -r "$probe_file" ]; then
+    printf 'case %s/dep-info-unopenable not run: this system reads a file of mode 000\n' "$name"
+  else
+    run_case dep-info-unopenable "FAIL $name ($cause_unopenable)" stub STUB_UNREADABLE=1
+  fi
+  stub_case member-without-dep-info "FAIL $name ($cause_member)" stub STUB_SKIP_SECRETS=1
+  make_fixture dep-info-name-starting-with-a-hash && mkdir -p "$fixture/account/#m/src" &&
+    run_case dep-info-name-starting-with-a-hash "FAIL $name ($cause_source)" stub STUB_DEP='#m/src/../../../outside/code.rs'
   make_fixture dep-info-link-then-dot-dot && mkdir -p "$fixture/elsewhere/d" "$fixture/elsewhere/account/crates/halvo-wire/src" &&
-    ln -s elsewhere/d "$fixture/sneak" 2>/dev/null
+    : >"$fixture/elsewhere/account/crates/halvo-wire/src/lib.rs" && ln -s elsewhere/d "$fixture/sneak" 2>/dev/null
   if [ -L "$fixture/sneak" ]; then
     run_case dep-info-link-then-dot-dot "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../sneak/../account/crates/halvo-wire/src/lib.rs'
   else
@@ -903,9 +1118,34 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   else
     printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
   fi
-  stub_case dep-info-target-outside-out "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../target/account/debug/deps/code.rs'
-  stub_case dep-info-escaped-space "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/s\ /../../../../outside/code.rs'
-  stub_case dep-info-name-with-a-colon-and-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x: y${nl}z.txt"
+  if [ "$CI_D_JOB" = macos ]; then
+    stub_case dep-info-link-in-a-source-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=src
+    stub_case dep-info-link-in-an-out-directory "FAIL $name ($cause_link)" stub STUB_LINK_IN=out
+    make_fixture dep-info-backslash-in-a-directory-name && mkdir "$fixture/account/crates/halvo-wire/src/a\\b" &&
+      run_case dep-info-backslash-in-a-directory-name "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/a\b/../../../../../outside/code.rs'
+    make_fixture dep-info-letter-and-colon-directory && mkdir -p "$fixture/account/c:x/src" &&
+      run_case dep-info-letter-and-colon-directory "FAIL $name ($cause_source)" stub STUB_DEP='c:x/src/../../../outside/code.rs'
+  else
+    for case_name in dep-info-link-in-a-source-directory dep-info-link-in-an-out-directory dep-info-backslash-in-a-directory-name dep-info-letter-and-colon-directory; do
+      selected "$case_name" && printf 'case %s/%s not run: the %s job cannot hold its names or links\n' "$name" "$case_name" "$CI_D_JOB"
+    done
+  fi
+  stub_case dep-info-target-outside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/deps/code.rs
+  stub_case dep-info-file-beside-out "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/halvo-wire-0/other.rs
+  stub_case dep-info-in-another-out-directory "FAIL $name ($cause_source)" stub STUB_TARGET_DEP=debug/build/fake-0/out/code.rs
+  stub_case dep-info-out-directory-without-build "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/notbuild/halvo-wire-0/out
+  make_fixture tracked-file-under-the-target && mkdir -p "$fixture/target/account/debug/build/fake-0/out" &&
+    cp "$fixture/outside/code.rs" "$fixture/target/account/debug/build/fake-0/out/code.rs" &&
+    git -C "$fixture" init -q >/dev/null 2>&1 && git -C "$fixture" add -f target/account/debug/build/fake-0/out/code.rs >/dev/null 2>&1 &&
+    run_case tracked-file-under-the-target "FAIL $name ($cause_tracked)" stub
+  make_fixture dep-info-in-a-sibling-of-account && mkdir "$fixture/account-tools" && cp "$fixture/outside/code.rs" "$fixture/account-tools/code.rs" &&
+    run_case dep-info-in-a-sibling-of-account "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../account-tools/code.rs'
+  make_fixture metadata-path-in-a-sibling-of-account && write_crate "$fixture/account-tools/sibling" sibling &&
+    edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "sibling = { path = \"../../../account-tools/sibling\" }" } }' &&
+    relock && run_case metadata-path-in-a-sibling-of-account "FAIL $name ($cause_path)" stub
+  make_fixture dep-info-escaped-space && mkdir "$fixture/account/crates/halvo-wire/s " &&
+    run_case dep-info-escaped-space "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/s\ /../../../../outside/code.rs'
+  stub_case dep-info-name-with-a-colon-and-a-newline "FAIL $name ($cause_elsewhere)" stub STUB_DEP="crates/halvo-wire/src/../../../../x: y${nl}z.txt"
   make_fixture repository-through-a-link && mkdir -p "$fixture/target/account/debug/build/halvo-wire-0/out" && ln -s "${fixture##*/}" "$work/link-to-the-repository" 2>/dev/null
   if [ -L "$work/link-to-the-repository" ]; then
     run_case repository-through-a-link "PASS $name" stub CI_D_REPO="$work/link-to-the-repository"
@@ -925,12 +1165,10 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     printf 'case %s/target-in-another-spelling could not name the target in another spelling\n' "$name"
     wrong="$wrong target-in-another-spelling"
   fi
+  make_fixture target-in-the-drive-spelling && mkdir -p "$fixture/target/account" && drive_target=$(windows_name "$fixture/target/account") &&
+    run_case target-in-the-drive-spelling "PASS $name" stub STUB_TARGET_SPELLING="$drive_target" STAND_IN_CYGPATH=1
   stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
-  case $CI_D_JOB in
-    macos) real_builds=$real_builds_macos ;;
-    windows) real_builds=$real_builds_windows ;;
-  esac
-  [ -n "$real_builds" ] || wrong="$wrong real-builds-of-the-$CI_D_JOB-job"
+  job_real_builds "$CI_D_JOB" || wrong="$wrong real-builds-of-the-$CI_D_JOB-job"
   want_packages=1
   real_build path-attribute-outside && make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
 pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
@@ -944,12 +1182,30 @@ pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)
     mkdir -p "$fixture/target/account" && cp "$fixture/outside/code.rs" "$fixture/target/account/code.rs" &&
     run_case include-from-the-target-directory "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
   want_dep_info=2
-  real_build includes-inside && make_probe_fixture includes-inside 'include!(concat!(env!("OUT_DIR"), "/generated.rs"));
-#[path = "../inner/module.rs"]
-pub mod inner;
-pub const TEXT: &str = include_str!("../inner/text.txt");' &&
-    printf 'fn main() {\n    let out = std::env::var("OUT_DIR").unwrap();\n    std::fs::write(std::path::Path::new(&out).join("generated.rs"), "pub fn generated() {}\\n").unwrap();\n}\n' >"$fixture/account/crates/probe/build.rs" &&
+  want_calls=$probe_calls
+  real_build includes-inside && make_probe_fixture includes-inside "$inside_source" && write_probe_build_script &&
     run_case includes-inside "PASS $name" stub STUB_BUILD_REAL=1
+  if real_build moved-tree && make_probe_fixture moved-tree-before-the-move "$inside_source" && write_probe_build_script && build_probe &&
+    mv "$fixture" "$work/moved-tree" && fixture=$work/moved-tree; then
+    run_case moved-tree "PASS $name" stub STUB_BUILD_REAL=1
+    if real_build moved-tree-with-an-outside-include; then
+      printf 'include!("../../../../outside/code.rs");\n' >>"$fixture/account/crates/probe/src/lib.rs"
+      run_case moved-tree-with-an-outside-include "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+    fi
+  fi
+  want_dep_info=1
+  if real_build source-put-right && make_probe_fixture source-put-right 'pub const TEXT: &str = include_str!("../../../../outside/text.txt");' && build_probe &&
+    printf 'pub const TEXT: &str = include_str!("../inner/text.txt");\n' >"$fixture/account/crates/probe/src/lib.rs" &&
+    edit crates/probe/Cargo.toml sed 's/^version = "0.1.0"$/version = "0.1.1"/' && relock; then
+    run_case source-put-right "PASS $name" stub STUB_BUILD_REAL=1
+  fi
+  want_packages=2
+  if real_build member-named-with-a-hash && make_probe_fixture member-named-with-a-hash '' && write_crate "$fixture/account/#m" hashm &&
+    printf 'pub const TEXT: &str = include_str!("../../../outside/text.txt");\n' >"$fixture/account/#m/src/lib.rs" &&
+    edit Cargo.toml sed 's|^members = \["crates/\*"\]$|members = ["crates/*", "#m"]|' && relock; then
+    run_case member-named-with-a-hash "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  fi
+  want_calls=$calls_before$nl$calls_after
   want_packages=
   want_dep_info=
 
@@ -1052,10 +1308,30 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
   else
     harness_case crlf-without-carriage-returns refused
   fi
-  if [ -z "${R7_ACCOUNT_CASES:-}" ] && [ "$real_runs" -eq 0 ]; then
+  run=whole
+  [ -z "${R7_ACCOUNT_CASES:-}" ] || run=part
+  if no_real_build "$run" "$real_runs"; then
     printf 'the %s job ran no real build\n' "$CI_D_JOB"
     wrong="$wrong no-real-build"
   fi
+  saved_macos=$real_builds_macos
+  saved_windows=$real_builds_windows
+  real_builds_macos=
+  real_builds_windows=
+  got=accepted
+  job_real_builds macos || got=refused
+  harness_case macos-list-emptied "$got"
+  got=accepted
+  job_real_builds windows || got=refused
+  harness_case windows-list-emptied "$got"
+  real_builds_macos=$saved_macos
+  real_builds_windows=$saved_windows
+  got=accepted
+  no_real_build whole 0 && got=refused
+  harness_case whole-run-without-a-real-build "$got"
+  got=accepted
+  job_real_builds windows && real_build include-outside >/dev/null || got=refused
+  harness_case windows-job-runs-a-macos-build "$got"
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
