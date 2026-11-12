@@ -97,10 +97,11 @@ impl Start for std::process::Command {
 
 /// The identity of the two pipes of a browser's debugging channel, by which a check finds a
 /// process that holds an end of them: on macOS the system's handles of the four ends, as
-/// `proc_pidfdinfo` reports them for a pipe; on Windows the values, in this process, of the
-/// executor's two ends and of the copies of the browser's two ends that `OnPipe::kept` holds, to
-/// which a check compares another process's handle with `CompareObjectHandles` (no query that
-/// waits on a pipe with a pending read). The Windows values are valid while those handles are open.
+/// `proc_pidfdinfo` reports them for a pipe; on Windows the values, in this process, of the copies
+/// of the four ends that `OnPipe::kept` holds, to which a check compares another process's handle
+/// with `CompareObjectHandles` (no query that waits on a pipe with a pending read). The Windows
+/// values are valid while `kept` is open; the ends themselves close at the stop, and a value of a
+/// closed handle may name another object of this process.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PipeIds {
     #[cfg(target_os = "macos")]
@@ -769,15 +770,23 @@ mod sys {
             };
             (ok != 0).then_some(dup)
         };
-        let (Some(kept_reads), Some(kept_writes)) = (copy(browser_reads), copy(browser_writes))
+        let copies = [
+            copy(we_write),
+            copy(we_read),
+            copy(browser_reads),
+            copy(browser_writes),
+        ];
+        let [Some(kept_we_write), Some(kept_we_read), Some(kept_reads), Some(kept_writes)] = copies
         else {
             let fault = StartFault::last("pipe_copy");
+            let made: Vec<HANDLE> = copies.iter().flatten().copied().collect();
+            close_all(&made);
             close_all(&[browser_reads, we_write, we_read, browser_writes]);
             return Err(fault);
         };
         let handles = [
-            we_write as usize,
-            we_read as usize,
+            kept_we_write as usize,
+            kept_we_read as usize,
             kept_reads as usize,
             kept_writes as usize,
         ];
@@ -796,16 +805,25 @@ mod sys {
         let child = match started {
             Ok(c) => c,
             Err(f) => {
-                close_all(&[we_write, we_read, kept_reads, kept_writes]);
+                close_all(&[
+                    we_write,
+                    we_read,
+                    kept_we_write,
+                    kept_we_read,
+                    kept_reads,
+                    kept_writes,
+                ]);
                 return Err(f);
             }
         };
-        // SAFETY: the four handles are open, owned here alone, and moved into one `File` each.
+        // SAFETY: the six handles are open, owned here alone, and moved into one `File` each.
         let (to_browser, from_browser, kept) = unsafe {
             (
                 File::from_raw_handle(we_write as _),
                 File::from_raw_handle(we_read as _),
                 vec![
+                    File::from_raw_handle(kept_we_write as _),
+                    File::from_raw_handle(kept_we_read as _),
                     File::from_raw_handle(kept_reads as _),
                     File::from_raw_handle(kept_writes as _),
                 ],
