@@ -196,6 +196,7 @@ check_reset() {
   case_actions=
   case_ext=
   case_repo=
+  case_target=
 }
 
 check() {
@@ -203,10 +204,11 @@ check() {
     PATH=$work/bin:$PATH
     CI_D_REPO=${case_repo:-$work/repo}
     CI_D_ARTIFACTS=$work/artifacts/$1
-    STUB_EXE=target/debug/route-gate$case_ext
+    STUB_EXE=${case_target:-target}/debug/route-gate$case_ext
     unset CARGO_TARGET_DIR GITHUB_ACTIONS
     [ -z "$case_actions" ] || GITHUB_ACTIONS=$case_actions
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_EXE GITHUB_ACTIONS
+    [ -z "$case_target" ] || CARGO_TARGET_DIR=$case_target
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_EXE GITHUB_ACTIONS CARGO_TARGET_DIR
     export STUB_UNAME STUB_BUILD_EXIT STUB_OUT STUB_ERR STUB_CODE
     sh "$self" 2>&1
   )
@@ -278,7 +280,10 @@ EOF
   sed 's/peak_bytes=1327104/peak_bytes=01327104/' "$work/good.out" >"$work/zero.out"
   write_runs "$work/nothing.out" 0 0 0 0 0 0
   cp "$work/good.out" "$work/extra.out" && printf 'checks exit=ok cap=ok median=ok\n' >>"$work/extra.out"
-  for each in breach four median checks limit exit zero extra; do
+  sed 's/n=4 exit=0 peak_bytes=1302528 capped=no/n=4 exit=0 peak_bytes=1302528 capped=yes/' "$work/good.out" >"$work/capped.out"
+  sed '/^checks /d' "$work/good.out" >"$work/short.out"
+  sed 's/n=1 exit=0 peak_bytes=1310720 capped=no/n=1 exit=0 peak_bytes=1310720 rss=1 capped=no/' "$work/good.out" >"$work/key.out"
+  for each in breach four median checks limit exit zero extra capped short key; do
     if cmp -s "$work/good.out" "$work/$each.out"; then
       setup_failed
     fi
@@ -350,6 +355,19 @@ FAIL $name (run)"
   check peaks-of-0 FAIL "FAIL $name (run)"
   STUB_OUT=$work/extra.out
   check line-after-checks FAIL "FAIL $name (run)"
+  STUB_OUT=$work/short.out
+  check no-checks-line FAIL "FAIL $name (run)"
+  STUB_OUT=$work/capped.out
+  check capped-with-checks-ok FAIL "FAIL $name (run)"
+  STUB_OUT=$work/exit.out
+  check child-exits-1-with-checks-ok FAIL "FAIL $name (run)"
+  STUB_CODE=1
+  check measure-peak-exits-1-alone FAIL "bound_bytes=8388608
+FAIL $name (run)"
+  STUB_OUT=$work/key.out
+  check run-line-with-another-key FAIL "FAIL $name (run)"
+  case_target=$work/other-target
+  check target-dir-of-cargo PASS "PASS $name"
   case_repo=$work/missing
   check repo-missing FAIL "FAIL $name (setup)"
 
