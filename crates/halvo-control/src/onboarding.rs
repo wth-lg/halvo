@@ -168,6 +168,15 @@ pub const MACOS_ROWS: [MacosRow; 4] = [
     },
 ];
 
+const _: () = {
+    assert!(MACOS_ROWS[0].major == MACOS_FLOOR_MAJOR);
+    let mut at = 1;
+    while at < MACOS_ROWS.len() {
+        assert!(MACOS_ROWS[at - 1].major < MACOS_ROWS[at].major);
+        at += 1;
+    }
+};
+
 fn macos_row(major: Option<u32>) -> &'static MacosRow {
     MACOS_ROWS
         .iter()
@@ -774,6 +783,20 @@ mod tests {
             Permission::R1_MACOS.map(|p| p.pane_title_on_macos(None)),
             before_27
         );
+    }
+
+    #[test]
+    fn a_major_below_the_floor_takes_the_floor_row() {
+        let floor = &MACOS_ROWS[0];
+        for major in [0, 12, MACOS_FLOOR_MAJOR - 1] {
+            assert_eq!(macos_row(Some(major)), floor, "{major}");
+            for permission in Permission::R1_MACOS {
+                assert_eq!(
+                    permission.pane_title_on_macos(Some(major)),
+                    floor.pane_title(permission)
+                );
+            }
+        }
     }
 
     #[test]
