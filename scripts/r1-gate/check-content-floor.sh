@@ -84,6 +84,7 @@ predicate_no_excluded_record() {
 floor_steps() {
   build_for_measure || return 1
   service_prepare || return 1
+  privacy_no_capture_line
   title_marker=$(gate_marker)
   prefill_run prefill 100 --marker "$title_marker" --span-days 1 || { gate_defect="$gate_defect; not tried: --floor-report"; return 1; }
   floor_run floor --marker "$title_marker" || return 1
@@ -108,6 +109,7 @@ measure() {
     emit_no_input "$name" "input=none, so the typed half did not run: $floor_result; $where"
     return 3
   fi
+  privacy_rows_line
   emit_fail "$name" "the typed half is not built: it needs a text window whose title carries a second marker and the session log of what was sent; $floor_result; $where"
   return 1
 }
@@ -136,6 +138,13 @@ floor_fixture() {
     printf 'floor titles=20 max_title_bytes=40 sites=0\n%s\n' "$5"
   } > "$gate_scratch/$1"
   printf '%s\n' "$gate_scratch/$1"
+}
+
+no_capture_line_first() {
+  service_standin "$1" "$2"
+  first_out=$(measure 2>/dev/null)
+  first_line=$(printf '%s\n' "$first_out" | sed -n 1p)
+  [ "$first_line" = "note privacy rows: the unattended half of this check starts no capture source and adds no row" ]
 }
 
 cases() {
@@ -176,6 +185,7 @@ cases() {
   t excluded-app-record FAIL predicate_no_excluded_record "$fixture"
   t standin-unattended-half NO-INPUT against_the_standin good none
   t standin-main-names-the-mode PASS says 'FAIL content-floor (no --prefill-store mode' main none
+  t unattended-half-says-it-starts-no-capture-source PASS no_capture_line_first main none
 }
 
 check_main "$@"

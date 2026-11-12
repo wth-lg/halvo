@@ -106,6 +106,7 @@ control_run() {
 run_steps() {
   build_for_measure || return 1
   service_prepare || return 1
+  privacy_rows_line
   scan_marker=$(gate_marker)
   take_bound lease_bound_s || return 1; lease_s=$bound
   take_bound stop_deadline_s || return 1; stop_s=$bound
@@ -205,6 +206,13 @@ says() {
   return 1
 }
 
+privacy_line_first() {
+  service_standin "$1" "$2"
+  first_out=$(measure 2>/dev/null)
+  first_line=$(printf '%s\n' "$first_out" | sed -n 1p)
+  [ "$first_line" = "note privacy rows: a run of this check starts scripts/r1-gate/helper/service-standin.sh, the one gate-built path, which macOS lists in Privacy & Security under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row" ]
+}
+
 cases() {
   scratch_root
   running=$(status_with running 's/^switch name=screen_activity value=off/switch name=screen_activity value=on/; s/^source name=screen state=off/source name=screen state=running/')
@@ -264,6 +272,7 @@ cases() {
   t standin-typed-run-under-operator PASS against_the_standin typed operator
   t standin-lease-ignored FAIL against_the_standin lease-ignored none
   t standin-main-names-the-mode PASS says 'FAIL service-run (no --prefill-store mode' main none
+  t privacy-line-before-the-service PASS privacy_line_first main none
   t standin-main-fails FAIL against_the_standin main none
   name=data-dir-scan
   mkdir -p "$gate_scratch/batch-data/store"

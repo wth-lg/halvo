@@ -36,6 +36,7 @@ predicate_restart_paused() {
 pause_steps() {
   build_for_measure || return 1
   service_prepare || return 1
+  privacy_rows_line
   take_bound lease_bound_s || return 1; lease_s=$bound
   take_bound stop_deadline_s || return 1; stop_s=$bound
   take_bound batch_age_s || return 1; batch_s=$bound

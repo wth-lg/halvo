@@ -36,6 +36,7 @@ expired_days_of() {
 expiry_steps() {
   build_for_measure || return 1
   service_prepare || return 1
+  privacy_rows_line
   take_bound expiry_bound_s || return 1; expiry_s=$bound
   take_bound stop_deadline_s || return 1; stop_s=$bound
   prefill_run prefill 170 --span-days 16 || { gate_defect="$gate_defect; not tried: --service-run, ctl"; return 1; }

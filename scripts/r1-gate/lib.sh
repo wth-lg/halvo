@@ -1453,6 +1453,14 @@ helper_outside_stop() {
   svc_helper_pid=''
 }
 
+privacy_rows_line() {
+  printf 'note privacy rows: a run of this check starts %s, the one gate-built path, which macOS lists in Privacy & Security under Screen & System Audio Recording, Accessibility and Input Monitoring; the helper window reads nothing and adds no row\n' "${capture_bin#"$GATE_ROOT"/}"
+}
+
+privacy_no_capture_line() {
+  printf 'note privacy rows: the unattended half of this check starts no capture source and adds no row\n'
+}
+
 service_line() {
   printf 'with screen_activity on in daemon-state.json; binary=%s' "${capture_bin#"$GATE_ROOT"/}"
 }

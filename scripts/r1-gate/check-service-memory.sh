@@ -124,6 +124,7 @@ sample_until() {
 memory_steps() {
   build_for_measure || return 1
   service_prepare || return 1
+  privacy_rows_line
   take_bound prefill_events || return 1; prefill_n=$bound
   take_bound rss_max_bytes || return 1; rss_max=$bound
   take_bound lease_bound_s || return 1; lease_s=$bound
