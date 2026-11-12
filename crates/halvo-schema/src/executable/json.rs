@@ -1,4 +1,6 @@
+use std::collections::HashSet;
 use std::fmt;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::num::NonZeroU32;
 
@@ -159,8 +161,9 @@ pub(in crate::executable) fn object<'a>(
     let entries = serde_json::from_str::<Entries<'a>>(raw.get())
         .map_err(|_| Refusal::malformed(type_name, "not_an_object"))?
         .0;
-    for (i, (key, _)) in entries.iter().enumerate() {
-        if entries[..i].iter().any(|(k, _)| k == key) {
+    let mut seen = HashSet::with_capacity(entries.len());
+    for (key, _) in &entries {
+        if !seen.insert(key.as_str()) {
             return Err(Refusal::malformed(type_name, "repeated_key"));
         }
     }
@@ -239,12 +242,13 @@ pub(in crate::executable) fn list<T>(
     }
 }
 
-pub(in crate::executable) fn each_once<T: PartialEq>(
+pub(in crate::executable) fn each_once<T: Eq + Hash>(
     type_name: &'static str,
     items: &[T],
 ) -> Result<(), Refusal> {
-    for (i, item) in items.iter().enumerate() {
-        if items[..i].contains(item) {
+    let mut seen = HashSet::with_capacity(items.len());
+    for item in items {
+        if !seen.insert(item) {
             return Err(Refusal::malformed(type_name, "repeated_name"));
         }
     }
