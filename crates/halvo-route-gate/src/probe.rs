@@ -38,15 +38,23 @@ impl Data<'static> {
 const BODY_BYTES: u64 = 4096;
 const MAX_OUTPUT_TOKENS: u64 = 1024;
 
+/// What `run` made: the number of rounds and whether every round held.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Probe {
+    pub rounds: u64,
+    pub ok: bool,
+}
+
 /// Makes `rounds` rounds on `data`, round `i` from 0: the pick of the cell `i` mod 44 of
 /// `halvo_route::policy::cells()` under the ceiling `Tier::ALL[i mod 3]`; the admission of a task
 /// of that cell's category, with the estimate of `admit::estimate`, the room that the cap and the
 /// spend machine's account give and one running task of the same estimate; and one step of the
 /// spend machine on one hold of the low-cost tier's amount for 4,096 body bytes and 1,024 output
 /// tokens, which goes `reserve`, `dispatch`, `settle` at that amount and starts a new hold on a new
-/// account every third round. It allocates nothing. It returns true when no pick names a tier
-/// that the ruling does not allow and every step goes through.
-pub fn run(data: &Data<'_>, rounds: u64) -> bool {
+/// account every third round. It allocates nothing. It returns the number of rounds that it made,
+/// and `ok` true when no pick names a tier that the ruling does not allow and every step goes
+/// through.
+pub fn run(data: &Data<'_>, rounds: u64) -> Probe {
     let fresh = Account {
         cap_minor: data.cap.map(|cap| cap.amount),
         active: true,
@@ -59,6 +67,7 @@ pub fn run(data: &Data<'_>, rounds: u64) -> bool {
     let mut account = fresh;
     let mut hold = Hold::new();
     let mut ok = true;
+    let mut made = 0;
     for round in 0..rounds {
         let round = black_box(round);
         let cell = (round % CELL_COUNT as u64) as usize;
@@ -92,8 +101,9 @@ pub fn run(data: &Data<'_>, rounds: u64) -> bool {
             }
             Err(_) => ok = false,
         }
+        made += 1;
     }
-    ok
+    Probe { rounds: made, ok }
 }
 
 /// The command `route-gate probe --rounds N` on the release data. It prints `probe rounds=<N>
@@ -112,10 +122,10 @@ fn command_on(data: &Data<'_>, args: &[String], out: &mut dyn Write, err: &mut d
             return 2;
         }
     };
-    let held = run(data, rounds);
-    let word = if held { "yes" } else { "no" };
-    match writeln!(out, "probe rounds={rounds} ok={word}").and_then(|()| out.flush()) {
-        Ok(()) if held => 0,
+    let probe = run(data, rounds);
+    let word = if probe.ok { "yes" } else { "no" };
+    match writeln!(out, "probe rounds={} ok={word}", probe.rounds).and_then(|()| out.flush()) {
+        Ok(()) if probe.ok => 0,
         _ => 1,
     }
 }
@@ -158,7 +168,12 @@ mod tests {
     use std::alloc::{GlobalAlloc, Layout, System};
     use std::cell::Cell;
 
+    use halvo_route::policy::{Basis, PickCell, Row};
+    use halvo_route::tier::Level;
+
     use super::*;
+
+    const HOSTED_CELLS: usize = 30;
 
     struct Counting;
 
@@ -180,7 +195,7 @@ mod tests {
     #[global_allocator]
     static COUNTING: Counting = Counting;
 
-    fn allocations(work: impl FnOnce() -> bool) -> (u64, bool) {
+    fn allocations<T>(work: impl FnOnce() -> T) -> (u64, T) {
         let before = ALLOCATIONS.with(Cell::get);
         let held = work();
         (ALLOCATIONS.with(Cell::get) - before, held)
@@ -228,11 +243,48 @@ mod tests {
     #[test]
     fn probe_allocates_nothing_per_round() {
         let data = Data::release();
-        assert!(run(&data, 1));
+        assert!(run(&data, 1).ok);
         let one = allocations(|| run(&data, 1));
         let many = allocations(|| run(&data, 30_000));
-        assert!(one.1 && many.1);
+        assert_eq!(
+            (one.1, many.1),
+            (
+                Probe {
+                    rounds: 1,
+                    ok: true
+                },
+                Probe {
+                    rounds: 30_000,
+                    ok: true
+                }
+            )
+        );
         assert_eq!(many.0, one.0);
+    }
+
+    #[test]
+    fn probe_visits_every_cell_that_can_hold_a_hosted_pick() {
+        let mut hosted = 0;
+        for index in 0..CELL_COUNT {
+            let mut rows = *Policy::hand_back_all().rows();
+            rows[index] = Row {
+                pick: PickCell::Tier(Tier::Frontier),
+                level: Some(Level::Low),
+                basis: Basis::LineMet,
+                k: 4,
+                n: 4,
+            };
+            let Ok(policy) = Policy::from_rows(rows, &Tier::ALL) else {
+                continue;
+            };
+            hosted += 1;
+            let data = Data {
+                policy: &policy,
+                ..Data::release()
+            };
+            assert!(!run(&data, CELL_COUNT as u64 * 3).ok, "cell {index}");
+        }
+        assert_eq!(hosted, HOSTED_CELLS);
     }
 
     #[test]
@@ -243,9 +295,9 @@ mod tests {
 
     #[test]
     fn probe_holds_on_the_release_data() {
-        assert!(run(&Data::release(), 44 * 3 * 2));
-        assert!(run(&Data::release(), 1));
-        assert!(run(&Data::release(), 0));
+        assert!(run(&Data::release(), 44 * 3 * 2).ok);
+        assert!(run(&Data::release(), 1).ok);
+        assert!(run(&Data::release(), 0).ok);
     }
 
     #[test]
@@ -255,8 +307,8 @@ mod tests {
             policy: &policy,
             ..Data::release()
         };
-        assert!(!run(&data, 44 * 3));
-        assert!(run(&Data::release(), 44 * 3));
+        assert!(!run(&data, 44 * 3).ok);
+        assert!(run(&Data::release(), 44 * 3).ok);
     }
 
     #[test]
@@ -265,7 +317,7 @@ mod tests {
             cap: None,
             ..Data::release()
         };
-        assert!(!run(&no_cap, 1));
+        assert!(!run(&no_cap, 1).ok);
         let dear = Prices::parse(
             "tier\tinput\toutput\tsource\tdate\n\
              on_device\t0\t0\tdevice\t2026-11-10\n\
@@ -277,7 +329,7 @@ mod tests {
             prices: &dear,
             ..Data::release()
         };
-        assert!(!run(&over, 1));
+        assert!(!run(&over, 1).ok);
         let tiny = DefaultCap {
             amount: 1,
             ..release::cap().expect("the release cap")
@@ -286,7 +338,7 @@ mod tests {
             cap: Some(tiny),
             ..Data::release()
         };
-        assert!(!run(&small, 1));
+        assert!(!run(&small, 1).ok);
     }
 
     #[test]
