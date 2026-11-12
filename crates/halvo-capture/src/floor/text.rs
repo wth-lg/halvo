@@ -65,7 +65,6 @@ impl CapturedText {
     pub fn was_cut(&self) -> bool {
         self.cut
     }
-
 }
 
 /// The string writer of the record encoder and the one reader of captured
