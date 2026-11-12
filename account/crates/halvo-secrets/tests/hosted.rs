@@ -85,6 +85,35 @@ mod dpapi {
     use std::sync::Arc;
 
     #[test]
+    fn the_access_lists_of_the_runners_directories_are_read() {
+        on_a_hosted_runner();
+        let places = [
+            ("temp", std::env::temp_dir()),
+            ("work", PathBuf::from(env!("CARGO_TARGET_TMPDIR"))),
+        ];
+        for (which, place) in places {
+            let real = fs::canonicalize(&place).expect("a real path");
+            let mut steps: Vec<&Path> = real.ancestors().collect();
+            steps.reverse();
+            for (depth, step) in steps.iter().enumerate() {
+                let lines = halvo_secrets::access_list_lines(step).expect("an access list");
+                assert!(!lines.is_empty());
+                let shown = step
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                println!(
+                    "
+acl {which} {depth} {shown}"
+                );
+                for line in lines {
+                    println!("acl {which} {depth}   {line}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn dpapi_keeps_the_secret_sealed_and_locks_a_blob_it_cannot_open() {
         on_a_hosted_runner();
         let store = store("sealed");
