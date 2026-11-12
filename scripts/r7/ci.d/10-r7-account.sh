@@ -378,11 +378,23 @@ BEGIN {
 }'
 }
 
+drive_form() {
+  windows=$(cygpath -m "$1") || return 1
+  letter=$(printf '%s' "${windows%%:*}" | tr '[:upper:]' '[:lower:]')
+  printf '/%s%s\n' "$letter" "${windows#*:}"
+}
+
 check_sources() {
   find "$target" -name '*.d' -type f >"$work/dep-info.txt" 2>/dev/null
   DEP_INFO_ACCOUNT=$account_dir DEP_INFO_TARGET=$target dep_info_reads <"$work/dep-info.txt" >"$work/dep-info.reads" || fail 'cannot read the dep-info files of the build'
   sort "$work/dep-info.reads" >"$work/dep-info.sorted" || fail 'cannot read the dep-info files of the build'
   target_physical=$(cd -P "$target" 2>/dev/null && pwd -P) || target_physical=$target
+  account_drive=$account_dir
+  target_drive=$target_physical
+  if command -v cygpath >/dev/null 2>&1; then
+    account_drive=$(drive_form "$account_dir") || fail 'cygpath cannot name account/'
+    target_drive=$(drive_form "$target_physical") || fail 'cygpath cannot name the target directory'
+  fi
   dep_info=0
   outside=0
   last_dir=
@@ -407,7 +419,7 @@ check_sources() {
           file=$lexical
         fi
         case $file in
-          "$account_dir"/* | "$target_physical"/*/build/*/out/* | "$target"/*/build/*/out/*) ;;
+          "$account_dir"/* | "$account_drive"/* | "$target_physical"/*/build/*/out/* | "$target_drive"/*/build/*/out/* | "$target"/*/build/*/out/*) ;;
           "${account_dir%/*}"/*)
             outside=$((outside + 1))
             printf 'read outside account/: %s\n' "${file#"${account_dir%/*}"/}"
@@ -667,6 +679,7 @@ run_case() {
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case"
+    printf '%s\n' "$out" | grep -E '^(read outside account/|a dep-info file of account/)'
   elif [ "$want" != "PASS $name" ]; then
     rejected=$((rejected + 1))
   fi
