@@ -243,6 +243,10 @@ impl DataDir {
 pub struct ScratchDir(PathBuf);
 
 impl ScratchDir {
+    /// Takes a scratch path that exists now and holds the path it resolves to. A path that
+    /// does not exist yet is refused with [`PathError::Unresolved`], so a caller makes the
+    /// scratch directory first. A path that is or lies in `user_data_dir`, as given or as
+    /// resolved, is refused with [`PathError::InsideDataDir`].
     pub fn new(path: impl Into<PathBuf>, user_data_dir: &DataDir) -> Result<Self, PathError> {
         let given = checked(path.into())?;
         let real = checked(given.canonicalize().map_err(|_| PathError::Unresolved)?)?;
@@ -286,6 +290,11 @@ impl LoginItemDir {
         })
     }
 
+    /// The login item's directory for a scratch run: `dir` itself. An install writes into
+    /// it and never makes it, so it must exist; [`ScratchDir::new`] refuses a path that does
+    /// not exist yet with [`PathError::Unresolved`], and a caller makes the directory before
+    /// it takes the scratch value. A directory that is or lies in the account's
+    /// LaunchAgents directory is refused with [`PathError::InsideLaunchAgents`].
     pub fn scratch_form(dir: &ScratchDir, account: &dyn AccountLookup) -> Result<Self, PathError> {
         let agents = Self::for_account(account)?;
         if lies_within(dir.path(), dir.path(), agents.path()) {
