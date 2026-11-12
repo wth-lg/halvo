@@ -72,6 +72,8 @@ live_cpu_above() {
   timed_child 30 "$gate_scratch/live-$1" "$standin" "$@" || return 2
   child_report_defect || return 2
   cpu=$(time_file_cpu_pct "$gate_scratch/live-$1/time") || return 2
+  live_load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ print $2 }')
+  printf 'share=%s%% of one core for the loop, 1-minute load=%s\n' "$cpu" "${live_load:-unread}"
   predicate_cost_within_bound "$cpu" 0 600 "$live_floor" 2000000000 && return 1
   return 0
 }
@@ -80,6 +82,11 @@ exit_status_gives() {
   child_status=$1
   child_dir=$gate_scratch
   child_report_defect
+}
+
+share_and_load_printed() {
+  share_out=$(live_cpu_above sleep 1)
+  printf '%s\n' "$share_out" | grep -q -E '^share=[0-9]+\.[0-9]+% of one core for the loop, 1-minute load=[0-9]+\.[0-9]+$'
 }
 
 under_a_german_locale() {
@@ -301,6 +308,7 @@ cases() {
   t live-busy-loop-reads-above-50 PASS live_cpu_above burn 2
   t live-idle-reads-under-50 FAIL live_cpu_above sleep 1
   t german-locale-of-the-caller PASS under_a_german_locale
+  t live-loop-share-is-printed PASS share_and_load_printed
   t comm-is-bin-sh FAIL child_of_script
   t child-past-deadline FAIL deadline_run 2 sleep 30.25
   t child-in-time PASS deadline_run 5 sleep 1

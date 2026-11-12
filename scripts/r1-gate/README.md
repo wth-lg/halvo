@@ -80,10 +80,12 @@ empty, and a line that is empty is skipped.
   - `retired REASON`: the code is gone; REASON names the test that replaced the row.
 - **item**: the id of the plan item that owns the row.
 
-The runner builds every mutant before it judges it, with the build of its kind:
-cargo for a file that cargo builds, `sh -n` for a `.sh` file, `cc -fsyntax-only`
-for a `.c` file, `perl -c` for a `.pl` file and `swiftc -parse` for a `.swift`
-file. It refuses a row on a file of any other kind.
+The runner builds every mutant before it judges it. Every path under crates/ or
+src-tauri/, and Cargo.toml and Cargo.lock, gets the cargo build, whatever kind of
+file it is: a data file or a `.pl` file there also gets the cargo build, so a row
+on it can apply and build when no build read the file. Outside those paths a `.sh`
+file gets `sh -n`, a `.c` file `cc -fsyntax-only`, a `.pl` file `perl -c` and a
+`.swift` file `swiftc -parse`, and a row on a file of any other kind is refused.
 `FAIL mutation:<name> (the mutant does not build)` is never a caught mutant.
 `mutants.expected` lists one name for each mutant that a review applied; under
 `--strict` a name that no row file holds or retires is a FAIL, and so is a
