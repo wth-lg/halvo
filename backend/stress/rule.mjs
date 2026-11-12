@@ -1,4 +1,11 @@
-import { expectedCostOf } from "./config.mjs";
+import { config, expectedCostOf } from "./config.mjs";
+
+/** The hold life, upstream deadline and dispatch margin that the driver starts the gateway with for a cell. */
+export const gatewayOf = (cfg, cell) => ({
+  holdLifeMs: cell.kind === "void" ? cfg.voidHoldLifeMs : cfg.holdLifeMs,
+  deadlineMs: cfg.deadlineMs,
+  marginMs: cfg.marginMs,
+});
 
 export const CLAUSES = {
   "wave-admits-k": "the wave admits exactly K",
@@ -45,6 +52,20 @@ function legal409(request, row, upstream, ledger) {
     return row.state === "voided" && row.ended_at < row.expires_at && !upstream;
   }
   return body.result === "repeat" && sentMoreThanOnce(request) && fitsTheRow(body, row);
+}
+const FAULTS_THAT_FAIL_THE_UPSTREAM = new Set(["error-status", "reset"]);
+const lifeOf = (request, gateway) =>
+  request.receipt?.now === undefined ? gateway.holdLifeMs : request.receipt.expiresAt - request.receipt.now;
+function voidCameInTime(request, gateway) {
+  const bound = lifeOf(request, gateway) - gateway.deadlineMs - gateway.marginMs;
+  return bound < 0 || (request.headersAt !== null && request.headersAt - request.sentAt > bound);
+}
+function legal502(request, gateway) {
+  const body = bodyOf(request);
+  if (body?.result === "no-time-left") return voidCameInTime(request, gateway);
+  if (body?.result !== "upstream-failed") return false;
+  if (FAULTS_THAT_FAIL_THE_UPSTREAM.has(request.fault)) return true;
+  return body.why === "AbortError" && request.headersAt !== null && request.headersAt >= request.sentAt + lifeOf(request, gateway) - gateway.marginMs;
 }
 const endedByTime = (row, ledger) => row.state === "expired" || (ledger.voidsUnmarkedAtExpiry === true && row.state === "voided" && endedAtItsExpiry(row));
 
@@ -95,6 +116,7 @@ export function judge({
   periodMs,
   chatStatus,
   ledger,
+  gateway = gatewayOf(config, cell),
 }) {
   const violations = [];
   const bad = (clause, id, detail) => violations.push({ clause, id, detail });
@@ -124,10 +146,14 @@ export function judge({
         if (row?.state !== "voided") {
           bad("voided-clean", request.id, `the gateway answered with a void, the row is ${row?.state ?? "missing"}`);
         }
+        if (!voidCameInTime(request, gateway)) bad("integrity", request.id, "the gateway voided before the time left on the receipt fell under the deadline and the margin");
         break;
       case 200:
+        if (!row) bad("integrity", request.id, `answered ${request.status} with a receipt, but no row is stored`);
+        break;
       case chatStatus.upstreamFailed:
         if (!row) bad("integrity", request.id, `answered ${request.status} with a receipt, but no row is stored`);
+        if (!legal502(request, gateway)) bad("integrity", request.id, `answered ${request.status} ${request.body}, which neither the request's fault nor the bound of src/gateway/timing.ts allows at that time`);
         break;
       case 409:
         if (!diedInKill && !legal409(request, row, mock.get(request.id), ledger)) {

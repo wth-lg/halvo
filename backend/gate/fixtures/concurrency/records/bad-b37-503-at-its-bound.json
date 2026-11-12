@@ -1,0 +1,25 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "a 503 voided whose answer came 1,100 ms after the send: timing.ts voids only when more than 1,100 ms passed",
+  "source": "by hand",
+  "request": {
+    "status": 503,
+    "body": "{\"result\":\"voided\"}",
+    "headersAt": 2100,
+    "endedAt": 2105
+  },
+  "row": {
+    "ended_at": 2190,
+    "ended_by": "void"
+  },
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

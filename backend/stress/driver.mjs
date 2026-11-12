@@ -10,7 +10,7 @@ import { stripVTControlCharacters } from "node:util";
 import { z } from "zod";
 import { holdFor } from "./config.mjs";
 import { call } from "./http.mjs";
-import { judge } from "./rule.mjs";
+import { gatewayOf, judge } from "./rule.mjs";
 import { MICRO_PER_MINOR, spikeApi } from "./targets.mjs";
 
 const int = z.number().int();
@@ -23,7 +23,8 @@ const MockEvent = z.object({
   output_tokens: int.optional(),
   clean: z.boolean().optional(),
 });
-const Receipt = z.object({ requestId: z.string(), amount: int, expiresAt: int });
+/** The header x-ledger-receipt as the driver keeps it: the hold's amount, its expiry and the ledger's time of the reserve, which the S1 spike's receipt lacks. */
+export const Receipt = z.object({ requestId: z.string(), amount: int, now: int.optional(), expiresAt: int });
 const Trailer = z.union([
   z.object({ settled: z.literal(true), outcome: z.string(), cost: int, settle_ms: int }),
   z.object({ settled: z.literal(false), why: z.string() }),
@@ -545,6 +546,7 @@ export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
   let server = null;
   let record;
   let kill = null;
+  const gateway = gatewayOf(cfg, cell);
   try {
     const options = {
       port: await freePort(),
@@ -552,7 +554,7 @@ export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
       stateDir: join(dir, "state"),
       logFile: join(dir, "server.log"),
       mockPort: mock.port,
-      holdLifeMs: cell.kind === "void" ? cfg.voidHoldLifeMs : cfg.holdLifeMs,
+      holdLifeMs: gateway.holdLifeMs,
       variant,
     };
     server = await startServer(ctx, options);
@@ -615,7 +617,7 @@ export async function runOnce(ctx, cell, variant, runNo, withKill, attempt) {
     await sleep(Math.max(0, due - Date.now()));
     firstLedgerReadAt ??= Date.now();
     const final = await api.snapshot(server.port, run);
-    record = { requests: traffic.records, empty, afterRestart, final, kill, firstLedgerReadAt, restartReadyAt, startMs, restartMs, anchor, periodMs: cfg.periodMs };
+    record = { requests: traffic.records, empty, afterRestart, final, kill, firstLedgerReadAt, restartReadyAt, startMs, restartMs, anchor, periodMs: cfg.periodMs, gateway };
   } catch (error) {
     if (error instanceof Error) error.afterKill = kill !== null;
     throw error;

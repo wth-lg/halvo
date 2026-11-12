@@ -1,0 +1,43 @@
+{
+  "kind": "judge",
+  "ruling": "B-37",
+  "about": "the same cut answered 1 ms before the send plus the receipt's life less the margin",
+  "source": "evidence/researcher-check50/runs, record ledger-usage-last-at-200-kill-2-try2, request index 208 (a first burst with a median wait of 256 ms): times shifted by +1000 ms from its send, its hold made the base's 100, its receipt's now read from the row's created_at, and the dispatch mark set as unit 4.5's ledger writes it after a go",
+  "request": {
+    "status": 502,
+    "body": "{\"result\":\"upstream-failed\",\"why\":\"AbortError\"}",
+    "headersAt": 3599,
+    "endedAt": 3669,
+    "receipt": {
+      "requestId": "r",
+      "amount": 100,
+      "now": 1589,
+      "expiresAt": 4589
+    }
+  },
+  "row": {
+    "state": "expired",
+    "dispatched": 1,
+    "created_at": 1589,
+    "expires_at": 4589,
+    "ended_at": 4591,
+    "ended_by": "expire"
+  },
+  "periods": [
+    {
+      "period_start": 1000,
+      "reported": 0,
+      "unreported": 100,
+      "open": 0
+    }
+  ],
+  "expect": {
+    "counted": true,
+    "violations": [
+      {
+        "clause": "integrity",
+        "id": "r"
+      }
+    ]
+  }
+}

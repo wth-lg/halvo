@@ -2,8 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
+import { config } from "../../../stress/config.mjs";
 import * as driver from "../../../stress/driver.mjs";
-import { judge } from "../../../stress/rule.mjs";
+import * as rule from "../../../stress/rule.mjs";
 import { testEntryApi } from "../../../stress/targets.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -24,7 +25,7 @@ function judgeInput(record) {
 const pairs = (violations) => violations.map((violation) => `${violation.clause} ${violation.id ?? "-"}`).sort();
 
 function readJudge(record) {
-  const verdict = judge(judgeInput(record));
+  const verdict = rule.judge(judgeInput(record));
   const problems = [];
   if (verdict.counted !== record.expect.counted) problems.push(`counted is ${verdict.counted}, expected ${record.expect.counted}`);
   const got = pairs(verdict.violations);
@@ -43,7 +44,21 @@ function readSend(record) {
   return { good, problems: got === good ? [] : [`sent again is ${got}, expected ${good}`] };
 }
 
-const READINGS = { judge: readJudge, send: readSend };
+function readReceipt(record) {
+  const good = record.expect.now !== null;
+  if (driver.Receipt === undefined) return { good, problems: ["stress/driver.mjs exports no Receipt"] };
+  const parsed = driver.Receipt.safeParse(JSON.parse(record.header));
+  const now = parsed.success ? (parsed.data.now ?? "missing") : null;
+  return { good, problems: now === record.expect.now ? [] : [`now is ${now}, expected ${record.expect.now}`] };
+}
+
+function readGateway(record) {
+  if (typeof rule.gatewayOf !== "function") return { good: true, problems: ["stress/rule.mjs exports no gatewayOf"] };
+  const got = rule.gatewayOf(config, record.cell);
+  return { good: true, problems: isDeepStrictEqual(got, record.expect) ? [] : [`the gateway is ${JSON.stringify(got)}, expected ${JSON.stringify(record.expect)}`] };
+}
+
+const READINGS = { judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway };
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
