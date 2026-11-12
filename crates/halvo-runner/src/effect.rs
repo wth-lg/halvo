@@ -13,7 +13,9 @@ use crate::clock::{day, now, random16};
 use crate::run::{cause_of, Runner, Stop};
 
 /// How many times a row of an effect is sent when the store answers it with a fault (`store` or `internal`), each
-/// time with the same request id, so that the store answers a repeat of its last row as the first (A7.5).
+/// time with the same request id, so that the store answers a repeat of its last row as the first (A7.5). A fault
+/// may come after the row was stored, so a `begin` that meets a fault at each send counts as `releasing`: the
+/// runner lets no request leave for it and hands it back as `effect_unknown` before its `finish`.
 const ROW_SENDS: u32 = 3;
 
 /// An effect of this run as its last stored row has it.
@@ -120,8 +122,15 @@ impl Runner {
             match self.send_store(&request)? {
                 Ok(RunnerReply::Stored(Stored { stored: 1 })) => break,
                 Ok(_) => return Err(failed(Cause::Effect)),
-                Err(error)
-                    if matches!(error.as_str(), "store" | "internal") && sends < ROW_SENDS => {}
+                Err(error) if matches!(error.as_str(), "store" | "internal") => {
+                    if sends < ROW_SENDS {
+                        continue;
+                    }
+                    if state == EffectState::Releasing {
+                        self.effects[at].state = state;
+                    }
+                    return Err(failed(cause_of(error)));
+                }
                 Err(error) => return Err(failed(cause_of(error))),
             }
         }

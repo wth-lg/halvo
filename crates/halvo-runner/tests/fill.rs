@@ -497,3 +497,42 @@ fn a_stored_playbook_is_loaded_and_one_whose_class_differs_is_refused_with_class
     );
     assert_eq!(seen.done(), Some(Outcome::HandedBack));
 }
+
+#[test]
+fn a_begin_whose_every_send_meets_a_store_fault_is_handed_back_unknown_and_leaves_nothing() {
+    let files = FillFiles::new("begin-faults", 2);
+    let before = files.workbook_bytes();
+    let sup = fill(53, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Releasing) {
+                Act::With(store_error(frame, "internal"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Releasing,
+            EffectState::Releasing,
+            EffectState::Releasing
+        ],
+        "three sends of one begin"
+    );
+    assert_eq!(
+        seen.handbacks(),
+        [HandbackReason::EffectUnknown],
+        "the store may hold the begin, so the effect may end unknown"
+    );
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
+    assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
+    assert_eq!(
+        files.workbook_bytes(),
+        before,
+        "no replace without a stored begin"
+    );
+}
