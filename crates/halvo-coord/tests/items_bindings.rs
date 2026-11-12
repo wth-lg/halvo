@@ -14,7 +14,8 @@ fn slot(name: &str, value: &str) -> Slot {
 
 /// Two bodies `set_bindings`, the second naming one slot of the first with a new value and one
 /// new slot: the memory owner merges them by name, as the agent-setup run's handler does (its
-/// CP-36), so that a setup asked again for one parameter keeps the others.
+/// CP-36), so that a setup asked again for one parameter keeps the others; the first body of an
+/// agent stores revision 1 and each later one the next (ruling IG-20).
 #[test]
 fn the_memory_owner_merges_the_slots_of_set_bindings_by_name() {
     let p: Ports<Config> = Ports::new(0, 0);
@@ -49,8 +50,8 @@ fn the_memory_owner_merges_the_slots_of_set_bindings_by_name() {
             slot("instrument", "Card ending 4242"),
         ],
     };
-    assert_eq!(p.send(&first).unwrap(), serde_json::json!({"rev": 2}));
-    assert_eq!(p.send(&second).unwrap(), serde_json::json!({"rev": 3}));
+    assert_eq!(p.send(&first).unwrap(), serde_json::json!({"rev": 1}));
+    assert_eq!(p.send(&second).unwrap(), serde_json::json!({"rev": 2}));
     let names: Vec<String> = p.agents().unwrap()[0]
         .slots
         .iter()
@@ -67,4 +68,15 @@ fn the_memory_owner_merges_the_slots_of_set_bindings_by_name() {
     );
     let other = AgentId::parse("000000000000000000000000000000a2").unwrap();
     assert!(p.slots(&w, &other).is_empty(), "another agent's slots");
+    let first_of_other = Body::SetBindings {
+        workflow: w.clone(),
+        agent: other.clone(),
+        slots: vec![slot("start", "Site2")],
+    };
+    assert_eq!(
+        p.send(&first_of_other).unwrap(),
+        serde_json::json!({"rev": 1}),
+        "the first set_bindings of an agent stores revision 1 (IG-20)"
+    );
+    assert_eq!(p.slots(&w, &other), vec![slot("start", "Site2")]);
 }

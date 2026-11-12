@@ -363,8 +363,8 @@ fn owner_answers_each_body_as_a_a7_2_says() {
         mode: Mode::Replay,
     };
     assert_eq!(p.send(&create).unwrap(), serde_json::json!({"rev": 1}));
+    assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 1}));
     assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 2}));
-    assert_eq!(p.send(&bind).unwrap(), serde_json::json!({"rev": 3}));
     assert_eq!(p.send(&start).unwrap(), serde_json::json!({"ok": "yes"}));
 }
 

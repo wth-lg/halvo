@@ -12,6 +12,16 @@ fn refusal(name: &str) -> PortError {
     PortError::Refused(Name::parse(name).expect("an error name of I0.6's form"))
 }
 
+/// The bindings that `set_bindings` stored for one agent of one workflow: their slots and the
+/// number of the newest revision, 1 for the first body (ruling IG-20).
+#[derive(Clone, Debug)]
+struct Bound {
+    workflow: WorkflowId,
+    agent: AgentId,
+    slots: Vec<Slot>,
+    rev: u32,
+}
+
 /// A port method, by which a test makes it refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Method {
@@ -137,7 +147,8 @@ pub struct Timed {
 /// for its workflow and agent, as the agent-setup run's handler does (its CP-36): a slot of the
 /// body replaces the stored slot of its name or is added, and a slot that the body does not name
 /// stays; the agent's entry of `agents` then lists each name, and the answer is the revision
-/// that it stored. `start_run` is refused with `no_workflow` for a
+/// that it stored: 1 for the first body of the agent, whatever `create_agent` answered, and the
+/// next number for each later one (ruling IG-20). `start_run` is refused with `no_workflow` for a
 /// workflow that is not in `workflows`, with `binding` for an agent that is not the workflow's,
 /// and with `state` unless the workflow is `active`, or `approved` for the mode `compile`
 /// (A-A7.2). `history` answers at most 64 events for one call.
@@ -156,8 +167,7 @@ pub struct Ports<C> {
     today: Cell<u32>,
     bytes: Cell<u128>,
     approvals: Cell<u128>,
-    bindings_rev: Cell<u32>,
-    bound_slots: RefCell<Vec<(WorkflowId, AgentId, Vec<Slot>)>>,
+    bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
@@ -182,7 +192,6 @@ impl<C> Ports<C> {
             today: Cell::new(today),
             bytes: Cell::new(0),
             approvals: Cell::new(0),
-            bindings_rev: Cell::new(1),
             bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
             limits,
@@ -237,24 +246,31 @@ impl<C> Ports<C> {
         self.bound_slots
             .borrow()
             .iter()
-            .find(|(w, a, _)| w == workflow && a == agent)
-            .map(|(_, _, s)| s.clone())
+            .find(|b| &b.workflow == workflow && &b.agent == agent)
+            .map(|b| b.slots.clone())
             .unwrap_or_default()
     }
 
-    fn merge_slots(&self, workflow: &WorkflowId, agent: &AgentId, slots: &[Slot]) {
+    fn merge_slots(&self, workflow: &WorkflowId, agent: &AgentId, slots: &[Slot]) -> u32 {
         let mut bound = self.bound_slots.borrow_mut();
         let at = match bound
             .iter()
-            .position(|(w, a, _)| w == workflow && a == agent)
+            .position(|b| &b.workflow == workflow && &b.agent == agent)
         {
             Some(at) => at,
             None => {
-                bound.push((workflow.clone(), agent.clone(), Vec::new()));
+                bound.push(Bound {
+                    workflow: workflow.clone(),
+                    agent: agent.clone(),
+                    slots: Vec::new(),
+                    rev: 0,
+                });
                 bound.len() - 1
             }
         };
-        let stored = &mut bound[at].2;
+        bound[at].rev = bound[at].rev.saturating_add(1);
+        let rev = bound[at].rev;
+        let stored = &mut bound[at].slots;
         for slot in slots {
             match stored.iter_mut().find(|s| s.name == slot.name) {
                 Some(s) => s.value.clone_from(&slot.value),
@@ -273,6 +289,7 @@ impl<C> Ports<C> {
                 }
             }
         }
+        rev
     }
 
     /// Leaves `count` runner trees of an earlier life of the app, which the next `Runs::reap`
@@ -571,9 +588,7 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 agent,
                 slots,
             } => {
-                self.merge_slots(workflow, agent, slots);
-                let rev = self.bindings_rev.get() + 1;
-                self.bindings_rev.set(rev);
+                let rev = self.merge_slots(workflow, agent, slots);
                 serde_json::json!({ "rev": rev })
             }
             Body::SetState { state, .. } => serde_json::json!({ "state": state.name() }),
