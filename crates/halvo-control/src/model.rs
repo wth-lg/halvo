@@ -12,10 +12,26 @@ use serde::{Deserialize, Serialize};
 /// Windows data directory.
 pub const APP_BUNDLE_ID: &str = "com.halvo.desktop";
 
+/// A spelling that the one codec does not know.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("not a spelling of a {what}")]
+pub struct UnknownSpelling {
+    what: &'static str,
+}
+
+fn from_text<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: FromStr,
+    T::Err: fmt::Display,
+{
+    let text = String::deserialize(deserializer)?;
+    text.parse().map_err(serde::de::Error::custom)
+}
+
 /// What a capture event observed. Closed set; adding a modality is a code change,
 /// not an open string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Modality {
     ScreenFrame,
     Keystroke,
@@ -40,6 +56,21 @@ impl Modality {
         Modality::Camera,
     ];
 
+    /// The one spelling of the kind (contracts.md 0.2): serde, the store and every
+    /// text line write this and read nothing else.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Modality::ScreenFrame => "screen_frame",
+            Modality::Keystroke => "keystroke",
+            Modality::Pointer => "pointer",
+            Modality::ForegroundApp => "foreground_app",
+            Modality::WindowTitle => "window_title",
+            Modality::SystemAudio => "system_audio",
+            Modality::Microphone => "microphone",
+            Modality::Camera => "camera",
+        }
+    }
+
     /// Whether the sink may drop this modality under backpressure. Continuous
     /// high-rate streams (frames, audio, camera) are droppable; discrete input
     /// and context events are not, so a keystroke is never lost to backpressure.
@@ -51,12 +82,69 @@ impl Modality {
     }
 }
 
+impl FromStr for Modality {
+    type Err = UnknownSpelling;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        Modality::ALL
+            .into_iter()
+            .find(|kind| kind.as_str() == text)
+            .ok_or(UnknownSpelling { what: "kind" })
+    }
+}
+
+impl Serialize for Modality {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for Modality {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        from_text(deserializer)
+    }
+}
+
 /// Whether capture is currently running.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CaptureState {
     Running,
     Paused,
+}
+
+impl CaptureState {
+    /// The one spelling of the state.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            CaptureState::Running => "running",
+            CaptureState::Paused => "paused",
+        }
+    }
+}
+
+impl FromStr for CaptureState {
+    type Err = UnknownSpelling;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        [CaptureState::Running, CaptureState::Paused]
+            .into_iter()
+            .find(|state| state.as_str() == text)
+            .ok_or(UnknownSpelling {
+                what: "capture state",
+            })
+    }
+}
+
+impl Serialize for CaptureState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for CaptureState {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        from_text(deserializer)
+    }
 }
 
 /// The fixed observation window: what is kept and when the first report is due.
@@ -266,8 +354,7 @@ impl Serialize for UtcDay {
 
 impl<'de> Deserialize<'de> for UtcDay {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let text = String::deserialize(deserializer)?;
-        text.parse().map_err(serde::de::Error::custom)
+        from_text(deserializer)
     }
 }
 
@@ -354,6 +441,78 @@ mod tests {
     fn the_window_is_fixed_and_not_a_setting() {
         assert_eq!(ObservationWindow::ROLLING_DAYS, 14);
         assert_eq!(ObservationWindow::FIRST_REPORT_DAY, 7);
+    }
+
+    const KIND_SPELLINGS: [(Modality, &str); 8] = [
+        (Modality::ScreenFrame, "screen_frame"),
+        (Modality::Keystroke, "keystroke"),
+        (Modality::Pointer, "pointer"),
+        (Modality::ForegroundApp, "foreground_app"),
+        (Modality::WindowTitle, "window_title"),
+        (Modality::SystemAudio, "system_audio"),
+        (Modality::Microphone, "microphone"),
+        (Modality::Camera, "camera"),
+    ];
+
+    #[test]
+    fn each_kind_has_one_spelling_for_as_str_serde_and_from_str() {
+        assert_eq!(KIND_SPELLINGS.map(|(kind, _)| kind), Modality::ALL);
+        for (kind, text) in KIND_SPELLINGS {
+            let quoted = format!("\"{text}\"");
+            assert_eq!(kind.as_str(), text);
+            assert_eq!(serde_json::to_string(&kind).unwrap(), quoted);
+            assert_eq!(text.parse::<Modality>(), Ok(kind));
+            assert_eq!(serde_json::from_str::<Modality>(&quoted).unwrap(), kind);
+        }
+    }
+
+    #[test]
+    fn a_kind_spelling_the_codec_does_not_know_is_an_error() {
+        for text in [
+            "ScreenFrame",
+            "Keystroke",
+            "ForegroundApp",
+            "screen-frame",
+            "SCREEN_FRAME",
+            "Screen_frame",
+            " screen_frame",
+            "screen_frame ",
+            "screenframe",
+            "run_mark",
+            "",
+        ] {
+            assert!(text.parse::<Modality>().is_err(), "{text:?}");
+            let quoted = format!("\"{text}\"");
+            assert!(
+                serde_json::from_str::<Modality>(&quoted).is_err(),
+                "{text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn each_capture_state_has_one_spelling_for_as_str_serde_and_from_str() {
+        for (state, text) in [
+            (CaptureState::Running, "running"),
+            (CaptureState::Paused, "paused"),
+        ] {
+            let quoted = format!("\"{text}\"");
+            assert_eq!(state.as_str(), text);
+            assert_eq!(serde_json::to_string(&state).unwrap(), quoted);
+            assert_eq!(text.parse::<CaptureState>(), Ok(state));
+            assert_eq!(
+                serde_json::from_str::<CaptureState>(&quoted).unwrap(),
+                state
+            );
+        }
+        for text in ["Running", "Paused", "RUNNING", "pausing", "stopped", ""] {
+            assert!(text.parse::<CaptureState>().is_err(), "{text:?}");
+            let quoted = format!("\"{text}\"");
+            assert!(
+                serde_json::from_str::<CaptureState>(&quoted).is_err(),
+                "{text:?}"
+            );
+        }
     }
 
     #[test]
