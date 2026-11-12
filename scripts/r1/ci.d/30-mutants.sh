@@ -6,6 +6,21 @@ name=30-mutants
 nl='
 '
 
+scratch=
+
+remove_scratch() {
+  [ -z "$scratch" ] || rm -rf "$scratch"
+}
+
+trap remove_scratch EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+make_scratch() {
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+}
+
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
@@ -14,7 +29,7 @@ fail() {
 run_rows() {
   label=$1
   shift
-  out=$(sh scripts/r1-gate/mutation-test.sh "$@" 2>&1)
+  out=$(TMPDIR=$scratch sh scripts/r1-gate/mutation-test.sh "$@" --remove-scratch 2>&1)
   code=$?
   printf '%s\n' "$out"
   first=$(printf '%s\n' "$out" | sed -n '/^FAIL /{p;q;}')
@@ -28,6 +43,7 @@ run_rows() {
 
 measure() {
   cd "$CI_D_REPO" || exit 2
+  make_scratch
   [ -f scripts/r1-gate/mutation-test.sh ] || fail "scripts/r1-gate/mutation-test.sh is missing"
   grep -q -e '--apply-only' scripts/r1-gate/mutation-test.sh ||
     fail "scripts/r1-gate/mutation-test.sh takes no --apply-only"
@@ -42,7 +58,8 @@ check() {
   out=$(
     CI_D_REPO=$work/$1
     STUB_CALLS=$work/$1/calls
-    export CI_D_REPO STUB_CALLS
+    TMPDIR=$work/$1/tmp
+    export CI_D_REPO STUB_CALLS TMPDIR
     unset GITHUB_EVENT_NAME GITHUB_REF
     if [ -n "$event" ]; then
       GITHUB_EVENT_NAME=$event
@@ -61,6 +78,8 @@ check() {
   calls=
   [ ! -f "$work/$1/calls" ] || calls=$(cat "$work/$1/calls")
   [ "$calls" = "$4" ] || got=$got-with-other-calls
+  left=$(find "$work/$1/tmp" -mindepth 1 -maxdepth 1)
+  [ -z "$left" ] || got=$got-with-leftovers
   case $out in
     *"$3"*) ;;
     *) got=$got-without-the-text ;;
@@ -77,17 +96,18 @@ check() {
 
 # shellcheck disable=SC2016
 runner() {
-  mkdir -p "$work/$1/scripts/r1-gate" || exit 2
-  printf 'printf "call %%s\\n" "$*" >>"$STUB_CALLS"\n%s\n' "$2" >"$work/$1/scripts/r1-gate/mutation-test.sh"
+  mkdir -p "$work/$1/scripts/r1-gate" "$work/$1/tmp" || exit 2
+  printf 'printf "call %%s\\n" "$*" >>"$STUB_CALLS"\nmkdir -p "$TMPDIR/r1-gate-mutation.stub"\n%s\n' "$2" >"$work/$1/scripts/r1-gate/mutation-test.sh"
 }
 
 # shellcheck disable=SC2016
 self_test() {
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
+  make_scratch
+  work=$scratch
   only='[ "${1:-}" = --apply-only ] || exit 9'
   applies='case ${1:-} in --apply-only) printf "PASS mutation:shredded-key-survives (applies and builds)\n"; exit 0 ;; esac'
-  apply_only='call --apply-only'
-  both="call --apply-only${nl}call "
+  apply_only='call --apply-only --remove-scratch'
+  both="call --apply-only --remove-scratch${nl}call --remove-scratch"
   rejected=0
   wrong=
   event=push
@@ -115,7 +135,7 @@ self_test() {
   check scratch-line-only FAIL 'mutation-test.sh --apply-only printed no PASS mutation line)' "$apply_only"
   runner runner-without-the-flag 'printf "PASS mutation:shredded-key-survives (gate said: FAIL deletion)\n"'
   check runner-without-the-flag FAIL 'scripts/r1-gate/mutation-test.sh takes no --apply-only)' ''
-  mkdir -p "$work/runner-missing"
+  mkdir -p "$work/runner-missing/tmp"
   check runner-missing FAIL 'scripts/r1-gate/mutation-test.sh is missing)' ''
   runner run-outside-github-actions "$applies; exit 9"
   event=
