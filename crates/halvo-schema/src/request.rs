@@ -75,19 +75,114 @@ name_enum! {
     }
 }
 
-name_enum! {
-    /// The error names of a reply, a closed list. This type holds an error name; no error name is a key or a
-    /// stored token of a record or a request.
-    pub enum ErrorName {
-        Malformed = "malformed",
-        Version = "version",
-        Role = "role",
-        TooLarge = "too_large",
-        Store = "store",
-        NoWorkflow = "no_workflow",
-        State = "state",
-        Unsupported = "unsupported",
-        Internal = "internal",
+/// The error name of a reply: one of the nine of the reply form, or a name that a file of a later run declares in
+/// its list `ERROR_NAMES` and that run's handlers answer. This type holds an error name; no error name is a key or
+/// a stored token of a record or a request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ErrorName {
+    Malformed,
+    Version,
+    Role,
+    TooLarge,
+    Store,
+    NoWorkflow,
+    State,
+    Unsupported,
+    Internal,
+    /// A name that a file of a later run declares and that is none of the nine.
+    Declared(DeclaredName),
+}
+
+/// A name that a file of a later run declares in its list `ERROR_NAMES` and that is none of the nine names of the
+/// reply form. It holds the string of the list that declares it, and only `ErrorName::read` makes one, so no value
+/// holds a name that no file declares.
+///
+/// ```compile_fail
+/// let name = halvo_schema::request::DeclaredName("nobody_declares_this");
+/// ```
+///
+/// ```
+/// let name = halvo_schema::request::ErrorName::read("nobody_declares_this");
+/// assert!(name.is_err());
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeclaredName(&'static str);
+
+impl DeclaredName {
+    /// The name: the string of the list `ERROR_NAMES` that declares it.
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+}
+
+impl ErrorName {
+    /// The nine names of the reply form, in the order of the contract.
+    pub const ALL: &'static [ErrorName] = &[
+        ErrorName::Malformed,
+        ErrorName::Version,
+        ErrorName::Role,
+        ErrorName::TooLarge,
+        ErrorName::Store,
+        ErrorName::NoWorkflow,
+        ErrorName::State,
+        ErrorName::Unsupported,
+        ErrorName::Internal,
+    ];
+
+    /// The name as it is serialized.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ErrorName::Malformed => "malformed",
+            ErrorName::Version => "version",
+            ErrorName::Role => "role",
+            ErrorName::TooLarge => "too_large",
+            ErrorName::Store => "store",
+            ErrorName::NoWorkflow => "no_workflow",
+            ErrorName::State => "state",
+            ErrorName::Unsupported => "unsupported",
+            ErrorName::Internal => "internal",
+            ErrorName::Declared(name) => name.as_str(),
+        }
+    }
+
+    /// Returns the one of the nine whose name is `s`, else the error with the rule `unknown_name`. It takes no
+    /// declared name: `read` does.
+    pub fn parse(s: &str) -> Result<Self, crate::ids::ParseError> {
+        ErrorName::ALL
+            .iter()
+            .copied()
+            .find(|name| name.as_str() == s)
+            .ok_or_else(|| crate::ids::ParseError::new(Key(()), "ErrorName", "unknown_name"))
+    }
+
+    /// Returns the error name of a reply whose text is `s`: one of the nine, else a name that a file of a later run
+    /// declares, which holds the string of the list that declares it; else the error with the rule `unknown_name`.
+    /// A name of the nine that a later file lists again is that one of the nine.
+    pub fn read(s: &str) -> Result<Self, crate::ids::ParseError> {
+        ErrorName::parse(s).or_else(|refused| {
+            crate::kinds::declared_error_names()
+                .find(|name| *name == s)
+                .map(|name| ErrorName::Declared(DeclaredName(name)))
+                .ok_or(refused)
+        })
+    }
+}
+
+impl fmt::Display for ErrorName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for ErrorName {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ErrorName {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        crate::ids::parse_str(deserializer, "a name of ErrorName", ErrorName::read)
     }
 }
 
@@ -859,7 +954,8 @@ pub struct Reply {
 }
 
 /// Reads a reply: checks `v` as `decode` does, then that the keys are `v`, `id` and one of `ok` and `error`,
-/// each once; the id is null or a request id; an error name is one of the closed list. A result is the null
+/// each once; the id is null or a request id; an error name is one of the nine or a name that a file of a later
+/// run declares (`ErrorName::read`), and any other name is `malformed`. A result is the null
 /// result when it is `null`, a workflows page when it is an object whose keys are exactly `workflows` and
 /// `next`, an evidence page when they are exactly `evidence` and `next`, and else the raw value; a page that
 /// breaks a rule of its type is `malformed`. It applies no length bound.
@@ -887,7 +983,7 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, DecodeError> {
         let error = fields
             .unique("error")
             .and_then(|raw| serde_json::from_str::<String>(raw.get()).ok())
-            .and_then(|name| ErrorName::parse(&name).ok())
+            .and_then(|name| ErrorName::read(&name).ok())
             .ok_or_else(|| fail(ErrorName::Malformed))?;
         Err(error)
     } else {
@@ -898,6 +994,7 @@ pub fn decode_reply(bytes: &[u8]) -> Result<Reply, DecodeError> {
 
 /// The one writer of a reply. It takes the request id, or none when the request's id could not be read, and
 /// either a result or an error name, and returns `{"v":1,"id":..,"ok":..}` or `{"v":1,"id":..,"error":..}`.
+/// It writes an error name of the nine and a declared name alike, and `ErrorName` holds no other name.
 /// It refuses with `malformed` a result that `decode_reply` would refuse, and applies no length bound: the owner
 /// keeps a page inside 261,120 bytes.
 pub fn write_reply(
