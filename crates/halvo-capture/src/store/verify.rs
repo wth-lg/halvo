@@ -1,11 +1,10 @@
 //! Store and deletion verification the gate drives through `--verify-store` and
-//! `--verify-deletion`. Every field the gate reads is a measurement of the
-//! store under test; nothing here prints a constant it did not observe.
+//! `--verify-deletion`.
 
 use std::fmt::{self, Write as _};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use base64::engine::GeneralPurpose;
@@ -91,7 +90,7 @@ pub struct StoreCheck {
     pub fts_secure_delete: i64,
     pub cipher_provider: String,
     pub segment_roundtrip: bool,
-    /// Wall time of the owner's store-key unwrap through the recorded custody.
+    /// Wall time of the store-key unwrap of the `open` that reopened the store.
     pub unwrap_ms: u128,
 }
 
@@ -174,15 +173,8 @@ pub(crate) fn check_store(
     };
     drop(store);
 
-    let unwrap_ms = {
-        let key_file = KeyFile::read(dir)?;
-        let custody = rebuild(key_file.custody_kind, key_file.root_id)?;
-        let started = Instant::now();
-        custody.unwrap_store_key(&key_file.wrapped_store_key()?)?;
-        started.elapsed().as_millis()
-    };
-
     let reopened = EncryptedStore::open_with(dir, DEFAULT_RETENTION, rebuild)?;
+    let unwrap_ms = reopened.unwrap_time().as_millis();
     let db = reopened.db()?;
     let rows: i64 = db
         .connection()

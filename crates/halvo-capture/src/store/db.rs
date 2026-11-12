@@ -4,7 +4,7 @@ use std::fs::{File, TryLockError};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -697,6 +697,7 @@ pub struct EncryptedStore {
     custody: Box<dyn KeyCustody + Send>,
     keyed: Keyed,
     fs: Arc<dyn DurableFs>,
+    unwrap_time: Duration,
     _writer_lock: WriterLock,
 }
 
@@ -732,6 +733,7 @@ impl EncryptedStore {
                 custody,
                 keyed: Keyed::Open { db, store_key },
                 fs: Arc::new(OsFs),
+                unwrap_time: Duration::ZERO,
                 _writer_lock,
             }),
             Err(e) => {
@@ -817,7 +819,9 @@ impl EncryptedStore {
         segment::refuse_a_linked_segments_root(dir)?;
         Db::refuse_a_live_holder(dir)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
+        let started = Instant::now();
         let store_key = custody.unwrap_store_key(&wrapped)?;
+        let unwrap_time = started.elapsed();
         let db = Db::open_existing(dir, store_key.expose())?;
         Ok(Self {
             dir: dir.to_path_buf(),
@@ -825,6 +829,7 @@ impl EncryptedStore {
             custody,
             keyed: Keyed::Open { db, store_key },
             fs: Arc::new(OsFs),
+            unwrap_time,
             _writer_lock,
         })
     }
@@ -842,6 +847,12 @@ impl EncryptedStore {
 
     pub(crate) fn dir(&self) -> &Path {
         &self.dir
+    }
+
+    /// How long the custody unwrap of the store key took when `open` made this
+    /// handle; zero for a handle from `create`, which unwraps nothing.
+    pub fn unwrap_time(&self) -> Duration {
+        self.unwrap_time
     }
 
     pub(crate) fn fs(&self) -> &dyn DurableFs {
