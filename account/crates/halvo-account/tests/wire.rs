@@ -425,3 +425,45 @@ fn a_run_sends_one_request_also_after_a_redirect_to_the_same_origin_or_a_server_
         assert_eq!(seen.len(), 1, "{status} brought {} requests", seen.len());
     }
 }
+
+fn supported_versions(record: &[u8]) -> Vec<u16> {
+    assert_eq!(record[0], 0x16, "a handshake record");
+    let hello = &record[5..];
+    assert_eq!(hello[0], 0x01, "a ClientHello");
+    let pair = |at: usize| usize::from(u16::from_be_bytes([hello[at], hello[at + 1]]));
+    let mut at = 4 + 2 + 32;
+    at += 1 + usize::from(hello[at]);
+    at += 2 + pair(at);
+    at += 1 + usize::from(hello[at]);
+    let end = at + 2 + pair(at);
+    at += 2;
+    while at + 4 <= end {
+        let kind = pair(at);
+        let length = pair(at + 2);
+        let data = &hello[at + 4..at + 4 + length];
+        if kind == 0x002b {
+            return data[1..]
+                .chunks(2)
+                .map(|two| u16::from_be_bytes([two[0], two[1]]))
+                .collect();
+        }
+        at += 4 + length;
+    }
+    Vec::new()
+}
+
+#[test]
+fn the_client_offers_tls_1_3_alone() {
+    let dir = scratch("tls").join("store");
+    keep_sign_in(&dir, &kept());
+    let listener = Listener::new();
+    let origin = format!("https://127.0.0.1:{}", listener.port);
+    let hello = listener.first_record();
+    let ran = helper(&["status"], &backend_and_store(&origin, &dir));
+    let record = hello
+        .join()
+        .expect("the listener thread")
+        .expect("a ClientHello");
+    assert_eq!((ran.code, ran.stdout.as_str()), (1, "error=failed-call\n"));
+    assert_eq!(supported_versions(&record), [0x0304]);
+}

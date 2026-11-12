@@ -137,7 +137,7 @@ fn the_sources_read_the_environment_only_through_the_committed_list() {
         }
         for (number, line) in text.lines().enumerate() {
             for reader in readers {
-                if line.contains(reader) {
+                for _ in line.matches(reader) {
                     uses.push(format!("{name}:{} {reader}", number + 1));
                 }
             }

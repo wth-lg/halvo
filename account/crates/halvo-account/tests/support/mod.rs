@@ -113,6 +113,21 @@ impl Listener {
         Counting { origin, thread }
     }
 
+    pub fn first_record(self) -> JoinHandle<Option<Vec<u8>>> {
+        thread::spawn(move || {
+            let mut stream = self.accept_within(Duration::from_secs(20))?;
+            stream
+                .set_read_timeout(Some(Duration::from_secs(10)))
+                .expect("a read timeout");
+            let mut head = [0; 5];
+            stream.read_exact(&mut head).ok()?;
+            let length = usize::from(u16::from_be_bytes([head[3], head[4]]));
+            let mut record = vec![0; length];
+            stream.read_exact(&mut record).ok()?;
+            Some([head.to_vec(), record].concat())
+        })
+    }
+
     fn accept_within(&self, limit: Duration) -> Option<TcpStream> {
         self.listener
             .set_nonblocking(true)
