@@ -102,6 +102,25 @@ fn a_file_of_more_than_64_mib_is_refused_before_it_is_read() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn a_file_over_the_bound_is_refused_by_its_size_before_it_is_opened() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("bounds-file-unopened");
+    let path = scratch.path("big.xlsx");
+    let file = fs::File::create(&path).expect("create");
+    file.set_len(64 * MIB + 1).expect("set the length");
+    drop(file);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).expect("chmod");
+    refused_by_both(
+        &scratch,
+        "big.xlsx",
+        "a file that cannot be opened for reading",
+        Error::Workbook(Refusal::Size),
+    );
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("chmod");
+}
+
 #[test]
 fn an_entry_or_the_entries_over_their_bounds_by_declared_size_are_refused_before_inflating() {
     let stored = zip::CompressionMethod::Stored;

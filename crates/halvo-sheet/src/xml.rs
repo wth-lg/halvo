@@ -654,6 +654,9 @@ mod tests {
             ),
             r#"<worksheet xmlns="urn:other"><sheetData/></worksheet>"#.to_string(),
             format!(r#"<chartsheet {NS}/>"#),
+            format!(r#"<chartsheet {NS}><sheetData/></chartsheet>"#),
+            format!(r#"<worksheet {NS}><sheetData><extLst/></sheetData></worksheet>"#),
+            format!(r#"<worksheet {NS}><sheetData/>"#),
             format!(
                 r#"<worksheet {NS}><dimension ref="A1"/><dimension ref="A1"/><sheetData/></worksheet>"#
             ),

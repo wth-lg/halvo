@@ -81,6 +81,40 @@ fn a_range_that_holds_a_header_cell_and_body_cells_is_refused() {
 }
 
 #[test]
+fn a_table_with_no_header_row_takes_a_write_into_its_first_row_and_a_table_of_another_namespace_is_refused(
+) {
+    let table = "xl/tables/table1.xml";
+    let scratch = Scratch::new("refuse-no-header");
+    let no_header = (
+        table,
+        r#" totalsRowShown="0""#,
+        r#" totalsRowShown="0" headerRowCount="0""#,
+    );
+    rewrite(
+        &corpus("chart.xlsx"),
+        &scratch.path("chart.xlsx"),
+        &[no_header],
+    );
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let run = RunId::parse(RUN).expect("a run id");
+    let a1 = Range::parse("A1").expect("a range");
+    let got = folder.prepare(
+        Path::new("chart.xlsx"),
+        &run,
+        "Sales",
+        a1,
+        &[vec![Value::Number(1.0)]],
+    );
+    assert!(got.is_ok(), "{:?}", got.err());
+    drop(got);
+    let scratch = Scratch::new("refuse-table-namespace");
+    let main = r#"<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main""#;
+    let other = (table, main, r#"<table xmlns="urn:other""#);
+    rewrite(&corpus("chart.xlsx"), &scratch.path("chart.xlsx"), &[other]);
+    refused_before_any_write(&scratch, "chart.xlsx", "Sales", "C5", Refusal::Part);
+}
+
+#[test]
 fn a_cell_of_an_array_or_data_table_formula_or_inside_its_range_is_refused() {
     for kind in ["array", "dataTable"] {
         let scratch = Scratch::new("refuse-array");

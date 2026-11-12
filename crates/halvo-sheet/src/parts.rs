@@ -146,10 +146,10 @@ pub(crate) fn size() -> Error {
 /// The bytes of a workbook file, refused before it is read when it holds more than
 /// [`FILE_MAX`], and cut there when it grows while it is read.
 pub(crate) fn package_file(path: &Path) -> Result<Vec<u8>, Error> {
-    let file = File::open(path)?;
-    if file.metadata()?.len() > FILE_MAX {
+    if std::fs::metadata(path)?.len() > FILE_MAX {
         return Err(size());
     }
+    let file = File::open(path)?;
     let mut bytes = Vec::new();
     file.take(FILE_MAX + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > FILE_MAX {
@@ -918,6 +918,44 @@ mod tests {
             orphan.as_bytes().to_vec(),
         );
         let found = inventory(&all).expect("an inventory");
+        assert_eq!(names(found.refused()), vec!["validation"]);
+    }
+
+    #[test]
+    fn a_validation_in_a_part_that_the_workbook_names_or_a_worksheet_relationship_links_is_found() {
+        let moved = |kind: &str| {
+            let mut all = corpus("validation.xlsx");
+            let sheet = all.remove("xl/worksheets/sheet1.xml").expect("the sheet");
+            all.insert("xl/data/table1.xml".to_string(), sheet);
+            edit(
+                &mut all,
+                "xl/_rels/workbook.xml.rels",
+                "worksheets/sheet1.xml",
+                "data/table1.xml",
+            );
+            let od = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+            edit(
+                &mut all,
+                "xl/_rels/workbook.xml.rels",
+                &format!("{od}/worksheet"),
+                kind,
+            );
+            all
+        };
+        let named_by_the_workbook = moved("http://example.com/relationships/sheet");
+        let found = inventory(&named_by_the_workbook).expect("an inventory");
+        assert_eq!(names(found.refused()), vec!["validation"]);
+        let mut orphan = corpus("values.xlsx");
+        let sheet = corpus("validation.xlsx")["xl/worksheets/sheet1.xml"].clone();
+        orphan.insert("xl/data/extra.xml".to_string(), sheet);
+        let rel = r#"<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="data/extra.xml"/></Relationships>"#;
+        edit(
+            &mut orphan,
+            "xl/_rels/workbook.xml.rels",
+            "</Relationships>",
+            rel,
+        );
+        let found = inventory(&orphan).expect("an inventory");
         assert_eq!(names(found.refused()), vec!["validation"]);
     }
 

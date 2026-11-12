@@ -111,19 +111,22 @@ fn a_sheet_part_out_of_the_writers_form_is_refused_before_any_write_and_never_pa
     }
 }
 
-#[test]
-fn a_sheet_whose_used_cells_and_the_range_span_more_than_a_million_cells_is_refused() {
-    let wide = |first: &str, last: &str| {
-        let row = |cell: &str| {
-            let digits = cell.trim_start_matches(|c: char| c.is_ascii_alphabetic());
-            format!(r#"<row r="{digits}"><c r="{cell}"><v>1</v></c></row>"#)
-        };
-        format!(
-            r#"<worksheet {NS}><sheetData>{}{}</sheetData></worksheet>"#,
-            row(first),
-            row(last)
-        )
+fn wide(first: &str, last: &str) -> String {
+    let row = |cell: &str| {
+        let digits = cell.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+        format!(r#"<row r="{digits}"><c r="{cell}"><v>1</v></c></row>"#)
     };
+    format!(
+        r#"<worksheet {NS}><sheetData>{}{}</sheetData></worksheet>"#,
+        row(first),
+        row(last)
+    )
+}
+
+/// The runner of one-rule changes skips this test: with a rule of the bound taken out, the
+/// reader would build a grid of 17 billion cells.
+#[test]
+fn the_first_and_the_last_cell_of_a_sheet_are_refused_by_prepare_and_by_read() {
     let corners = wide("A1", "XFD1048576");
     assert!(
         corners.len() < 400,
@@ -141,6 +144,21 @@ fn a_sheet_whose_used_cells_and_the_range_span_more_than_a_million_cells_is_refu
     let folder = Folder::new(&scratch.dir).expect("the folder opens");
     let b5 = Range::parse("B5").expect("a range");
     let read = folder.read(Path::new("book.xlsx"), "Values", b5);
+    assert_eq!(
+        read,
+        Err(Error::Workbook(Refusal::Size)),
+        "read refuses it too"
+    );
+}
+
+#[test]
+fn a_sheet_whose_used_cells_and_the_range_span_more_than_a_million_cells_is_refused() {
+    let scratch = Scratch::new("structure-over");
+    made(&scratch, &sheet_is(wide("A1", "ALL1001")));
+    refused(&scratch, "used cells one row over", "B5", Refusal::Size);
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let a1 = Range::parse("A1").expect("a range");
+    let read = folder.read(Path::new("book.xlsx"), "Values", a1);
     assert_eq!(
         read,
         Err(Error::Workbook(Refusal::Size)),

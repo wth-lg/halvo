@@ -138,9 +138,6 @@ pub(crate) fn prepare(
     range: Range,
     values: &[Vec<Value>],
 ) -> Result<Prepared, Error> {
-    if range_cells(range) > parts::RANGE_MAX {
-        return Err(Error::RangeSize);
-    }
     let shape = values.len() == range.rows() as usize
         && values.iter().all(|row| row.len() == range.cols() as usize);
     if !shape {

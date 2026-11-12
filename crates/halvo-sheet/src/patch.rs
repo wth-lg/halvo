@@ -780,16 +780,31 @@ mod tests {
     }
 
     #[test]
-    fn an_array_range_that_touches_the_range_or_a_shared_member_in_it_is_refused() {
+    fn a_dimension_that_holds_the_range_is_carried_as_it_is_spelled() {
         let xml = sheet(
-            r#"<sheetData><row r="1"><c r="A1"><f t="array" ref="A1:B3">1</f></c><c r="D1"><f t="shared" si="0" ref="D1:D2">1</f></c></row><row r="2"><c r="D2"><f t="shared" si="0"/></c></row></sheetData>"#,
+            r#"<dimension ref="a1:d21"/><sheetData><row r="2"><c r="B2"/></row></sheetData>"#,
         );
+        let (range, values) = one("B2", Value::Number(1.0));
+        let got = sheet_part(&xml, range, &values).expect("patched");
+        assert!(got.contains(r#"<dimension ref="a1:d21"/>"#), "{got}");
+    }
+
+    #[test]
+    fn an_array_range_that_touches_the_range_or_a_shared_member_in_it_is_refused() {
+        let xml = sheet(concat!(
+            r#"<sheetData><row r="1"><c r="A1"><f t="array" ref="A1:B3">1</f></c><c r="D1"><f t="shared" si="0" ref="D1:D2">1</f></c></row>"#,
+            r#"<row r="2"><c r="D2"><f t="shared" si="0"/></c></row>"#,
+            r#"<row r="5"><c r="C5"><f t="array">1</f></c><c r="E5" xmlns:o="urn:o"><o:f t="shared" si="1"/></c></row></sheetData>"#
+        ));
         let cases = [
             ("B3", Some(Refusal::ArrayFormula)),
             ("A1:C1", Some(Refusal::ArrayFormula)),
             ("C1:C3", None),
             ("D2", Some(Refusal::SharedFormula)),
             ("E1:E2", None),
+            ("C5", Some(Refusal::ArrayFormula)),
+            ("E5", Some(Refusal::SharedFormula)),
+            ("D5", None),
         ];
         for (cells, want) in cases {
             let range = Range::parse(cells).expect("a range");
