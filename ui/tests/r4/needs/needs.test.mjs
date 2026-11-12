@@ -57,7 +57,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-' };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0, clicks: '-', features: 0 };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -715,6 +715,36 @@ async function bound(origin, dir) {
   return faults;
 }
 
+const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
+
+async function features(origin) {
+  if (!existsSync(FEATURES)) return ['no_list'];
+  const faults = [];
+  const lines = readFileSync(FEATURES, 'utf8').split('\n').filter((l) => l !== '');
+  const allow = [];
+  lines.forEach((line, i) => {
+    if (line.startsWith('#')) return;
+    const cells = line.split('\t');
+    const [kind, name, version, test] = cells;
+    if (cells.length !== 4 || !['allow', 'deny'].includes(kind) || !/^[a-z0-9_]{1,32}$/.test(name) || !/^\d+(\.\d+)*$/.test(version)) faults.push('form_line_' + (i + 1));
+    else if (!lines[i - 1] || !lines[i - 1].startsWith('# ')) faults.push('no_comment_line_' + (i + 1));
+    else if (kind === 'allow' && parseFloat(version) > 17) faults.push('above_17_' + name);
+    else if (kind === 'allow') allow.push([name, test]);
+  });
+  const h = await open({ origin, state: 'empty', views: [VIEW] });
+  try {
+    for (const [name, test] of allow) {
+      const ok = await h.page.evaluate(test).catch(() => false);
+      seen.features += 1;
+      if (ok !== true) faults.push('missing_' + name);
+    }
+  } finally {
+    await h.close();
+  }
+  if (allow.length === 0) faults.push('no_allow_line');
+  return faults;
+}
+
 const want = (name) => !onlyTests || onlyTests.includes(name);
 
 const { dir, states: tracked, tests } = fixtures();
@@ -722,7 +752,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'bound'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'bound', 'features'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -740,6 +770,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('reorder')) report('reorder', await reorder(origin, dir));
     if (want('confirms')) report('confirms', await confirms(origin, dir), ['clicks']);
     if (want('bound')) report('bound', await bound(origin, dir));
+    if (want('features')) report('features', await features(origin), ['features']);
   }
 }
 const passed = results.filter((r) => r.ok).length;
