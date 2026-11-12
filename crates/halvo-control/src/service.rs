@@ -757,6 +757,8 @@ mod login_item_tests {
         );
     }
 
+    /// The dead process is a child that the test spawned and waited for, so no process has
+    /// its number when the sweep runs; the live process is the test's own parent.
     #[test]
     fn an_install_and_a_remove_take_away_the_temp_file_of_a_dead_install_alone() {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
