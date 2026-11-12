@@ -423,9 +423,46 @@ fn a_confirmation_request_holds_confirm_classes_whose_bound_object_fits() {
     }
 }
 
+const DELETE_BOUND: &str = r#"{"class":"delete","fields":[{"name":"items","from":"extract","origin":null,"value":["AAMk1"]}]}"#;
+const SUBMIT_BOUND: &str = r#"{"class":"submit","fields":[{"name":"origin","from":"const","origin":null,"value":["http://form.test:18090"]},{"name":"fields","from":"slot","origin":null,"value":["name, address"]}]}"#;
+const PURCHASE_BOUND: &str = r#"{"class":"purchase","fields":[{"name":"seller","from":"slot","origin":null,"value":["Corner Shop"]},{"name":"items","from":"extract","origin":"http://shop.test:18090","value":["tea"]},{"name":"amount","from":"extract","origin":"http://shop.test:18090","value":["12.40"]},{"name":"instrument","from":"slot","origin":null,"value":["card 4242"]},{"name":"origin","from":"const","origin":null,"value":["http://pay.test:18090"]}]}"#;
+const SIGN_BOUND: &str = r#"{"class":"sign","fields":[{"name":"document","from":"slot","origin":null,"value":["lease"]},{"name":"party","from":"slot","origin":null,"value":["landlord"]}]}"#;
+
+#[test]
+fn each_confirm_class_refuses_the_bound_object_of_another_class() {
+    let own = [
+        ("send", SEND_BOUND),
+        ("delete", DELETE_BOUND),
+        ("submit", SUBMIT_BOUND),
+        ("purchase", PURCHASE_BOUND),
+        ("payment", PAY_BOUND),
+        ("sign", SIGN_BOUND),
+    ];
+    for (class, bound) in own {
+        let text = confirm(&[confirm_effect(E, class, bound, None)]);
+        assert!(ConfirmRequest::parse(text.as_bytes()).is_ok(), "{class}");
+    }
+    for (class, other) in [
+        ("send", DELETE_BOUND),
+        ("delete", SEND_BOUND),
+        ("submit", PAY_BOUND),
+        ("purchase", SUBMIT_BOUND),
+        ("payment", PURCHASE_BOUND),
+        ("sign", PAY_BOUND),
+    ] {
+        let text = confirm(&[confirm_effect(E, class, other, None)]);
+        expect(
+            ConfirmRequest::parse(text.as_bytes()),
+            "ConfirmEffect",
+            "class_of_bound",
+            "bound",
+        );
+    }
+}
+
 #[test]
 fn a_submit_effect_is_a_request_of_the_browser_and_stands_alone() {
-    let submit = r#"{"class":"submit","fields":[{"name":"origin","from":"const","origin":null,"value":["http://form.test:18090"]},{"name":"fields","from":"slot","origin":null,"value":["name, address"]}]}"#;
+    let submit = SUBMIT_BOUND;
     let alone = confirm(&[confirm_effect(
         E,
         "submit",

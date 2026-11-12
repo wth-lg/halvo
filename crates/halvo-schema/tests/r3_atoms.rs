@@ -494,6 +494,9 @@ fn session_data_is_1_to_48_pieces_of_base64_full_but_the_last() {
     assert!(!SessionData::new(vec![full.clone(), "QQ==".to_owned()])
         .unwrap()
         .is_full());
+    let mut short_last = vec![full.clone(); 47];
+    short_last.push("QQ==".to_owned());
+    assert!(!SessionData::new(short_last).unwrap().is_full());
     malformed(SessionData::new(Vec::new()), "SessionData", "piece_count");
     malformed(
         SessionData::new(vec![full.clone(); 49]),

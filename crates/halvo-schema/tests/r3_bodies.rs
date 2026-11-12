@@ -798,6 +798,35 @@ fn a_log_line_holds_figures_and_no_text() {
 }
 
 #[test]
+fn a_part_before_the_last_of_48_pieces_with_a_short_last_piece_is_refused() {
+    let mut pieces = vec![format!("\"{}\"", "A".repeat(1024)); 47];
+    pieces.push("\"QQ==\"".to_owned());
+    let data = pieces.join(",");
+    let first = session(&format!(
+        r#""rev":1,"part":1,"of":2,"day":20768,"data":[{data}]"#
+    ));
+    expect(
+        AgentSession::parse(first.as_bytes()),
+        "AgentSession",
+        "part_not_full",
+        "data",
+    );
+    let body = format!(
+        r#"{{"op":"put_session","agent":"{A}","run":"{R}","origin":"{U}","rev":1,"part":1,"of":2,"data":[{data}]}}"#
+    );
+    expect(
+        RunnerCall::parse(body.as_bytes()),
+        "PutSession",
+        "part_not_full",
+        "data",
+    );
+    let last = session(&format!(
+        r#""rev":1,"part":2,"of":2,"day":20768,"data":[{data}]"#
+    ));
+    assert!(AgentSession::parse(last.as_bytes()).is_ok());
+}
+
+#[test]
 fn a_session_part_is_part_of_of_at_most_64_full_but_the_last() {
     let good = session(r#""rev":1,"part":1,"of":1,"day":20768,"data":["QUJD"]"#);
     assert_eq!(

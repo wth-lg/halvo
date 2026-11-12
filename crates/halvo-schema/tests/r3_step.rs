@@ -329,6 +329,26 @@ fn the_step_of_a_verb_has_the_kind_target_and_effect_of_its_row() {
             "target",
         ),
         (
+            file(
+                "read",
+                r#"{"file":"source","sheet":null,"range":"range"}"#,
+                vec![c("as", "rows")],
+                "read",
+            ),
+            "target_of_verb",
+            "target",
+        ),
+        (
+            file(
+                "write",
+                r#"{"file":"workbook","sheet":null,"range":"range"}"#,
+                vec![x("values", "rows")],
+                "local_edit",
+            ),
+            "target_of_verb",
+            "target",
+        ),
+        (
             file("write", READ_FILE, vec![x("values", "rows")], "local_edit"),
             "target_of_verb",
             "target",
