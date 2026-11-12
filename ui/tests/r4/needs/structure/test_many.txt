@@ -1,0 +1,46 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"“Writing or answering email on Site5” is ready to start","role":"heading"}
+        - {"role":"paragraph","text":"Start it now, or skip it this time."}
+        - {"name":"Skip this time","role":"button"}
+        - {"name":"Start now","role":"button"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Help “Paying a utility bill on Site1” with one step","role":"heading"}
+        - {"role":"paragraph","text":"Do the next step in its own window and choose Done, or choose Stop this time."}
+        - {"name":"Stop this time","role":"button"}
+        - {"name":"Done","role":"button"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Answer a few questions for “Ordering from a shop on Site7”","role":"heading"}
+        - {"role":"paragraph","text":"Choose one answer for each question, then choose Use these answers."}
+        - {"name":"Where to start","role":"group"}
+          - {"0":"W","1":"h","2":"e","3":"r","4":"e","5":" ","6":"t","7":"o","8":" ","9":"s","10":"t","11":"a","12":"r","13":"t"}
+          - {"name":"site7.example","role":"radio"}
+          - {"0":"s","1":"i","2":"t","3":"e","4":"7","5":".","6":"e","7":"x","8":"a","9":"m","10":"p","11":"l","12":"e"}
+        - {"name":"Which shop","role":"group"}
+          - {"0":"W","1":"h","2":"i","3":"c","4":"h","5":" ","6":"s","7":"h","8":"o","9":"p"}
+          - {"name":"site7.example","role":"radio"}
+          - {"0":"s","1":"i","2":"t","3":"e","4":"7","5":".","6":"e","7":"x","8":"a","9":"m","10":"p","11":"l","12":"e"}
+        - {"name":"How to pay","role":"group"}
+          - {"0":"H","1":"o","2":"w","3":" ","4":"t","5":"o","6":" ","7":"p","8":"a","9":"y"}
+          - {"name":"How to pay","role":"textbox"}
+        - {"name":"Not now","role":"button"}
+        - {"name":"Use these answers","role":"button"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Pay this?","role":"heading"}
+        - {"role":"term","text":"Pay to"}
+        - {"role":"definition","text":"City Power"}
+        - {"role":"definition","text":"You gave this"}
+        - {"role":"term","text":"Amount"}
+        - {"role":"definition","text":"42.10 USD"}
+        - {"role":"definition","text":"From the site"}
+        - {"role":"term","text":"Pay with"}
+        - {"role":"definition","text":"Card ending 4242"}
+        - {"role":"definition","text":"You gave this"}
+        - {"role":"term","text":"Site"}
+        - {"role":"definition","text":"site1.example"}
+        - {"role":"definition","text":"Set by Halvo"}
+        - {"name":"See the details and answer","role":"button"}

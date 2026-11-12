@@ -1,0 +1,10 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Help “Paying a utility bill on Site1” with one step","role":"heading"}
+        - {"role":"paragraph","text":"Do the next step in its own window and choose Done, or choose Stop this time."}
+        - {"name":"Stop this time","role":"button"}
+        - {"name":"Done","role":"button"}

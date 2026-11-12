@@ -1,0 +1,13 @@
+- {"role":"main"}
+  - {"level":1,"name":"Halvo","role":"heading"}
+  - {"name":"What needs you","role":"region"}
+    - {"level":2,"name":"What needs you","role":"heading"}
+    - {"role":"list"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Link your account for “Writing or answering email on Site5”","role":"heading"}
+        - {"role":"paragraph","text":"Link your mail or calendar account in its own window, then choose Done."}
+        - {"role":"term","text":"Site of your account"}
+        - {"role":"definition","text":"site5.example"}
+        - {"role":"definition","text":"Set by Halvo"}
+        - {"name":"Stop this time","role":"button"}
+        - {"name":"Done","role":"button"}
