@@ -171,12 +171,17 @@ pub(in crate::executable) fn object<'a>(
 }
 
 impl<'a> Obj<'a> {
-    pub(in crate::executable) fn exactly(&self, keys: &[&'static str]) -> Result<(), Refusal> {
+    pub(in crate::executable) fn known(&self, keys: &[&'static str]) -> Result<(), Refusal> {
         for (key, _) in &self.entries {
             if !keys.contains(&key.as_str()) {
                 return Err(Refusal::malformed(self.type_name, "unknown_key"));
             }
         }
+        Ok(())
+    }
+
+    pub(in crate::executable) fn exactly(&self, keys: &[&'static str]) -> Result<(), Refusal> {
+        self.known(keys)?;
         for key in keys {
             if !self.has(key) {
                 return Err(Refusal::malformed(self.type_name, "missing_key").at(key));
