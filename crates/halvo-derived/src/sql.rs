@@ -6,12 +6,13 @@ store TEXT, seg INTEGER, idx INTEGER, mark INTEGER NOT NULL) STRICT;
 CREATE TABLE revisions (family TEXT PRIMARY KEY NOT NULL, n INTEGER NOT NULL) STRICT, WITHOUT ROWID;
 CREATE TABLE purged (ordinal INTEGER PRIMARY KEY) STRICT;
 CREATE TABLE rows (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, family TEXT NOT NULL, class INTEGER NOT NULL, \
-day INTEGER, expires INTEGER, workflow TEXT, summary TEXT, wkey TEXT, body TEXT NOT NULL) STRICT;
+day INTEGER, gone INTEGER, expires INTEGER, workflow TEXT, summary TEXT, wkey TEXT, body TEXT NOT NULL) STRICT;
 CREATE TABLE sources (ordinal INTEGER NOT NULL, row INTEGER NOT NULL REFERENCES rows(id) ON DELETE CASCADE, \
 PRIMARY KEY (ordinal, row)) STRICT, WITHOUT ROWID;
 CREATE INDEX sources_row ON sources(row);
 CREATE INDEX rows_class ON rows(class);
 CREATE INDEX rows_day ON rows(day);
+CREATE INDEX rows_gone ON rows(gone);
 CREATE INDEX rows_expires ON rows(expires);
 CREATE INDEX rows_workflow ON rows(workflow);
 CREATE INDEX rows_summary ON rows(summary, kind);
@@ -56,8 +57,8 @@ catalogue! {
     META_SITE_KEY = "SELECT site_key FROM meta WHERE one = 1";
     META_POSITION = "UPDATE meta SET store = ?1, seg = ?2, idx = ?3 WHERE one = 1";
     SUMMARY_STORED = "SELECT id FROM rows WHERE summary = ?1 AND kind = 'summary'";
-    ROW_INSERT = "INSERT INTO rows (kind, family, class, day, expires, workflow, summary, wkey, body) \
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)";
+    ROW_INSERT = "INSERT INTO rows (kind, family, class, day, gone, expires, workflow, summary, wkey, body) \
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)";
     SOURCE_INSERT = "INSERT INTO sources (ordinal, row) VALUES (?1, ?2)";
     MARK_READ = "SELECT mark FROM meta WHERE one = 1";
     MARK_SET = "UPDATE meta SET mark = ?1 WHERE one = 1";
@@ -81,4 +82,11 @@ catalogue! {
     KEY_SUMMARIES = "SELECT summary FROM rows WHERE wkey = ?1 AND kind = 'summary'";
     REMOVE_OF_SUMMARY = "SELECT id, family FROM rows WHERE summary = ?1";
     ROWS_READ = "SELECT body FROM rows WHERE kind = ?1 AND family <> 'workflow' ORDER BY body";
+    EXPIRE_GONE = "SELECT id, family FROM rows WHERE gone <= ?1";
+    EXPIRE_AHEAD = "SELECT id, family FROM rows WHERE day > ?1";
+    EXPIRE_WINDOW = "SELECT id, family FROM rows WHERE expires <= ?1";
+    REVISION_READ = "SELECT n FROM revisions WHERE family = ?1";
+    COUNT_CLASS = "SELECT count(*) FROM rows WHERE class = ?1";
+    MIN_EXPIRES = "SELECT min(expires) FROM rows";
+    MIN_GONE = "SELECT min(gone) FROM rows";
 }

@@ -17,7 +17,7 @@ impl Store {
     pub fn purge(&mut self, ordinals: &[Ordinal]) -> Result<u64, Fault> {
         let db = &self.db;
         db.arm();
-        let removed = db.write(|tx| {
+        db.write_checkpointed(|tx| {
             let mark = tx.mark()?;
             let mut removed = 0;
             for ordinal in ordinals {
@@ -29,9 +29,7 @@ impl Store {
             }
             tx.raise_mark(mark)?;
             Ok::<_, Fault>(removed)
-        })?;
-        db.checkpoint()?;
-        Ok(removed)
+        })
     }
 
     /// Does what `purge` does for every ordinal below `first_live`, the lowest live ordinal of the capture store, and
@@ -39,12 +37,10 @@ impl Store {
     pub fn purge_below(&mut self, first_live: Ordinal) -> Result<u64, Fault> {
         let db = &self.db;
         db.arm();
-        let removed = db.write(|tx| {
+        db.write_checkpointed(|tx| {
             let removed = tx.remove(sql::PURGE_BELOW_ROWS, [as_i64(first_live)?])?;
             tx.raise_mark(first_live.get())?;
             Ok::<_, Fault>(removed)
-        })?;
-        db.checkpoint()?;
-        Ok(removed)
+        })
     }
 }

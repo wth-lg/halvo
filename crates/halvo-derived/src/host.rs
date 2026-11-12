@@ -3,6 +3,7 @@ use std::fmt;
 use halvo_schema_core::record::{Instant, RecurrenceStep};
 
 use crate::handler::{HandlerEntry, StepEntry};
+use crate::report::Report;
 
 /// The clock of a host: the instant now and the local calendar. The owner gives the machine's clock and time zone;
 /// a replay gives a clock that it sets, with UTC as local time.
@@ -58,7 +59,11 @@ pub struct Host {
     pub(crate) recurrence: Box<dyn RecurrenceStep>,
     pub(crate) steps: Vec<StepEntry>,
     pub(crate) handlers: Vec<HandlerEntry>,
+    pub(crate) report: Option<ReportSink>,
 }
+
+/// Where the store hands its host the report after each committed transaction.
+pub type ReportSink = Box<dyn FnMut(&Report)>;
 
 impl Host {
     /// A host with its clock and its recurrence step: the test proposer in a test host, halvo-identify's step in
@@ -69,6 +74,14 @@ impl Host {
             recurrence,
             steps: Vec::new(),
             handlers: Vec::new(),
+            report: None,
         }
+    }
+
+    /// Hands the host the report after each committed transaction of the store: the revision of every family, the
+    /// count per retention class, the database's bytes on disk and its next expiry deadline.
+    pub fn on_report(mut self, sink: ReportSink) -> Host {
+        self.report = Some(sink);
+        self
     }
 }

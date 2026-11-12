@@ -98,13 +98,10 @@ impl Store {
         let id = decision.workflow();
         match decision.decision() {
             Decision::Approve => db.write(|tx| approve(tx, id)),
-            Decision::Dismiss => {
-                db.write(|tx| dismiss(tx, id))?;
-                Ok(db.checkpoint()?)
-            }
+            Decision::Dismiss => db.write_checkpointed(|tx| dismiss(tx, id)),
             Decision::Delete => {
-                db.write(|tx| delete(tx, id))?;
-                Ok(db.checkpoint()?)
+                db.write_checkpointed(|tx| delete(tx, id))?;
+                Ok(())
             }
         }
     }

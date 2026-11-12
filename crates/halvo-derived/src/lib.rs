@@ -11,6 +11,7 @@ mod hash;
 mod host;
 mod propose;
 mod purge;
+mod report;
 mod sql;
 mod state;
 mod typed;
@@ -23,7 +24,8 @@ use halvo_schema_core::record::RecurrenceStep;
 pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError};
 pub use handler::{Cause, Committed, Handler, HandlerCx, Refusal, Takes};
-pub use host::{Clock, DbKey, Host, IdSource};
+pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
+pub use report::{Counts, Report};
 pub use state::MoveTo;
 
 use db::Db;
@@ -72,7 +74,7 @@ impl Store {
                 return Err(OpenError::Family(family));
             }
         }
-        let db = Db::open(data_dir, key, entries, host.clock, ids)?;
+        let db = Db::open(data_dir, key, entries, host.clock, host.report, ids)?;
         Ok(Store {
             db,
             recurrence: host.recurrence,

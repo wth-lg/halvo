@@ -9,10 +9,12 @@ use std::time::Duration;
 
 use halvo_schema_core::ids::Position;
 use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
+use halvo_schema_core::record::Instant;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, Params, Row};
 
 use crate::error::{db_fault, io_fault, Fault, OpenError};
-use crate::host::{Clock, DbKey, IdSource};
+use crate::host::{Clock, DbKey, IdSource, ReportSink};
+use crate::report::{Counts, Report};
 use crate::sql::{self, Sql};
 
 pub(crate) const PAGE_CACHE_KIB: i64 = 4096;
@@ -173,6 +175,7 @@ impl Tx<'_> {
                 row.entry.family,
                 class_code(row.entry.class),
                 row.day,
+                gone(row.entry.class, row.day),
                 row.expires,
                 row.workflow,
                 row.summary,
@@ -187,6 +190,16 @@ impl Tx<'_> {
         }
         self.changed(row.entry.family);
         Ok(id)
+    }
+
+    /// The expiry by class, from the store's own rows: every bounded row whose bound has passed on the local day of
+    /// the clock or whose day lies after it, every window row whose expiry instant has passed, and then every row
+    /// that names a summary or a workflow that is not stored. It returns the number of rows removed.
+    pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
+        Ok(self.remove(sql::EXPIRE_GONE, [now.today])?
+            + self.remove(sql::EXPIRE_AHEAD, [now.today])?
+            + self.remove(sql::EXPIRE_WINDOW, [now.now])?
+            + self.sweep()?)
     }
 
     /// Removes every evidence or support row whose summary is not stored and every row of another kind than
@@ -207,6 +220,14 @@ pub(crate) struct NewRow<'a> {
     pub(crate) wkey: Option<&'a str>,
     pub(crate) body: &'a str,
     pub(crate) segments: &'a [u64],
+}
+
+/// The first local day on which a bounded row of `day` is past its bound: its day plus the days of its entry.
+fn gone(class: RetentionClass, day: Option<u32>) -> Option<i64> {
+    match (class, day) {
+        (RetentionClass::Bounded { days }, Some(day)) => Some(i64::from(day) + i64::from(days)),
+        _ => None,
+    }
 }
 
 pub(crate) fn class_code(class: RetentionClass) -> i64 {
@@ -283,6 +304,7 @@ pub(crate) struct Db {
     pub(crate) clock: Box<dyn Clock>,
     pub(crate) paths: Paths,
     pub(crate) site_key: [u8; 32],
+    sink: RefCell<Option<ReportSink>>,
     progress: Progress,
     _lock: WriterLock,
 }
@@ -300,6 +322,7 @@ impl Db {
         key: &DbKey,
         entries: &[&'static KindEntry],
         clock: Box<dyn Clock>,
+        sink: Option<ReportSink>,
         ids: &mut dyn IdSource,
     ) -> Result<Db, OpenError> {
         check_entries(entries)?;
@@ -345,6 +368,7 @@ impl Db {
             clock,
             paths,
             site_key: [0; 32],
+            sink: RefCell::new(sink),
             progress,
             _lock: lock,
         };
@@ -421,11 +445,13 @@ impl Db {
 
     fn reconcile(&self) -> Result<(), Fault> {
         self.checkpoint()?;
-        self.write(|tx| {
+        let now = self.now();
+        self.write_checkpointed(|tx| {
             for family in &self.families {
                 tx.exec(sql::REVISION_ENSURE, [family])?;
             }
-            tx.sweep()
+            tx.sweep()?;
+            tx.expire(now)
         })?;
         Ok(())
     }
@@ -436,6 +462,82 @@ impl Db {
         &self,
         f: impl FnOnce(&Tx<'_>) -> Result<T, E>,
     ) -> Result<T, E> {
+        let out = self.commit(f)?;
+        self.give_report()?;
+        Ok(out)
+    }
+
+    /// `write`, with the truncating checkpoint after the commit and before the report.
+    pub(crate) fn write_checkpointed<T, E: From<Fault>>(
+        &self,
+        f: impl FnOnce(&Tx<'_>) -> Result<T, E>,
+    ) -> Result<T, E> {
+        let out = self.commit(f)?;
+        self.checkpoint()?;
+        self.give_report()?;
+        Ok(out)
+    }
+
+    fn give_report(&self) -> Result<(), Fault> {
+        if self.sink.borrow().is_none() {
+            return Ok(());
+        }
+        let report = self.report()?;
+        if let Some(sink) = self.sink.borrow_mut().as_mut() {
+            sink(&report);
+        }
+        Ok(())
+    }
+
+    /// The four values of the owner's report: the revision of every family of the entries in their order, the count
+    /// of rows per retention class, the bytes on disk of the database with its log and its shared-memory file, and
+    /// the next expiry deadline.
+    pub(crate) fn report(&self) -> Result<Report, Fault> {
+        let mut revisions = Vec::new();
+        for family in &self.families {
+            let n = one(&self.conn, sql::REVISION_READ, [family], |r| {
+                r.get::<_, i64>(0)
+            })?
+            .unwrap_or(0);
+            revisions.push((*family, u64::try_from(n).map_err(|_| Fault::Row)?));
+        }
+        let count = |class: RetentionClass| -> Result<u64, Fault> {
+            let n = one(&self.conn, sql::COUNT_CLASS, [class_code(class)], |r| {
+                r.get::<_, i64>(0)
+            })?
+            .unwrap_or(0);
+            u64::try_from(n).map_err(|_| Fault::Row)
+        };
+        let counts = Counts {
+            window: count(RetentionClass::Window)?,
+            bounded: count(RetentionClass::Bounded { days: 0 })?,
+            kept: count(RetentionClass::Kept)?,
+        };
+        let disk_bytes =
+            file_len(&self.paths.db)? + file_len(&self.paths.wal)? + file_len(&self.paths.shm)?;
+        let min_expires = one(&self.conn, sql::MIN_EXPIRES, [], |r| {
+            r.get::<_, Option<i64>>(0)
+        })?
+        .flatten();
+        let min_gone = one(&self.conn, sql::MIN_GONE, [], |r| {
+            r.get::<_, Option<i64>>(0)
+        })?
+        .flatten();
+        let gone_at =
+            min_gone.map(|day| self.clock.day_start(u32::try_from(day).unwrap_or(u32::MAX)));
+        let expiry = [min_expires.map(Instant), gone_at]
+            .into_iter()
+            .flatten()
+            .min();
+        Ok(Report {
+            revisions,
+            counts,
+            disk_bytes,
+            expiry,
+        })
+    }
+
+    fn commit<T, E: From<Fault>>(&self, f: impl FnOnce(&Tx<'_>) -> Result<T, E>) -> Result<T, E> {
         let tx = self.conn.unchecked_transaction().map_err(db_fault)?;
         let writer = Tx {
             conn: &tx,
