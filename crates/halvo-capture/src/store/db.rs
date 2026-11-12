@@ -218,6 +218,29 @@ impl Db {
         Self::open_file(store_dir, key, Database::Existing)
     }
 
+    fn refuse_a_live_holder(store_dir: &Path) -> StoreResult<()> {
+        let path = Self::path(store_dir);
+        let probe = match Connection::open_with_flags(
+            &path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_URI
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        ) {
+            Ok(probe) => probe,
+            Err(_) => return Ok(()),
+        };
+        probe.busy_timeout(Duration::ZERO).map_err(db_error)?;
+        let read = probe.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+            r.get::<_, i64>(0)
+        });
+        match read.map_err(|e| e.sqlite_error_code()) {
+            Err(Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)) => {
+                Err(StoreError::Locked(store_dir.to_path_buf()))
+            }
+            _ => Ok(()),
+        }
+    }
+
     fn require_file(store_dir: &Path) -> StoreResult<()> {
         match std::fs::metadata(Self::path(store_dir)) {
             Ok(meta) if meta.is_file() && meta.len() == 0 => Err(StoreError::DatabaseMissing),
@@ -705,6 +728,7 @@ impl EncryptedStore {
         let _writer_lock = WriterLock::take(dir)?;
         let key_file = KeyFile::read(dir)?;
         let wrapped = key_file.wrapped_store_key()?;
+        Db::refuse_a_live_holder(dir)?;
         let custody = custody_for(key_file.custody_kind, key_file.root_id)?;
         let store_key = custody.unwrap_store_key(&wrapped)?;
         let db = Db::open_existing(dir, store_key.expose())?;

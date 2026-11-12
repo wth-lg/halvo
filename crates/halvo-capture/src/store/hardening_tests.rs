@@ -202,6 +202,51 @@ fn a_second_process_is_refused_even_after_the_lock_file_is_unlinked() {
 }
 
 #[test]
+fn a_held_store_answers_locked_before_its_custody_is_called() {
+    let dir = tempfile::tempdir().unwrap();
+    let root_id = RootId::fresh();
+    drop(
+        EncryptedStore::create(
+            dir.path(),
+            Box::new(DevFallbackCustody::new(root_id)),
+            DEFAULT_RETENTION,
+        )
+        .unwrap(),
+    );
+
+    let mut child = hold_store_in_child(dir.path());
+    wait_for(&dir.path().join("child-ready"), &mut child);
+    let _ = std::fs::remove_file(dir.path().join("writer.lock"));
+    let mut key_file = KeyFile::read(dir.path()).unwrap();
+    key_file.root_id = RootId::fresh();
+    std::fs::write(
+        KeyFile::path(dir.path()),
+        serde_json::to_vec(&key_file).unwrap(),
+    )
+    .unwrap();
+    let custody_calls = AtomicUsize::new(0);
+
+    let second = EncryptedStore::open_with(dir.path(), DEFAULT_RETENTION, |kind, root_id| {
+        custody_calls.fetch_add(1, Ordering::SeqCst);
+        crate::custody::custody_for(kind, root_id)
+    });
+
+    std::fs::write(dir.path().join("child-stop"), b"").unwrap();
+    assert!(child.wait().unwrap().success(), "the holding child failed");
+    DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    assert!(
+        matches!(second, Err(StoreError::Locked(_))),
+        "a held store with a root id that names no root answered {:?}",
+        second.err()
+    );
+    assert_eq!(
+        custody_calls.load(Ordering::SeqCst),
+        0,
+        "open called the custody of a held store"
+    );
+}
+
+#[test]
 fn hold_store_for_parent() {
     let Ok(dir) = std::env::var("HALVO_TEST_HOLD_STORE") else {
         println!("hold_store_for_parent: HALVO_TEST_HOLD_STORE is not set, so no parent asked for a holder");
