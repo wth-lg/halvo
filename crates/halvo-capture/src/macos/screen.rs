@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use block2::RcBlock;
@@ -44,7 +44,7 @@ pub const SCREEN_FRAME_CAP: FrameRateCap = FrameRateCap(FrameRateCap::MAX_PER_SE
 const STREAM_QUEUE_DEPTH: NSInteger = 8;
 
 struct ScreenIvars {
-    sink: SinkHandle,
+    sink: Mutex<Option<SinkHandle>>,
     foreground: ForegroundReader,
 }
 
@@ -73,8 +73,12 @@ fn on_sample(ivars: &ScreenIvars, _sample: &CMSampleBuffer, ty: SCStreamOutputTy
     if ty != SCStreamOutputType::Screen {
         return;
     }
+    let sink = ivars.sink.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(sink) = sink.as_ref() else {
+        return;
+    };
     let _ = emit_metadata_only(
-        &ivars.sink,
+        sink,
         Modality::ScreenFrame,
         ivars.foreground.get(),
         Unpersisted::EMPTY,
@@ -83,7 +87,10 @@ fn on_sample(ivars: &ScreenIvars, _sample: &CMSampleBuffer, ty: SCStreamOutputTy
 
 impl ScreenOutput {
     fn new(sink: SinkHandle, foreground: ForegroundReader) -> Retained<Self> {
-        let this = Self::alloc().set_ivars(ScreenIvars { sink, foreground });
+        let this = Self::alloc().set_ivars(ScreenIvars {
+            sink: Mutex::new(Some(sink)),
+            foreground,
+        });
         // SAFETY: `this` is a fresh allocation of this class with its ivars set,
         // and `init` is NSObject's initializer: it takes no argument and returns
         // the object it was sent to.
@@ -324,6 +331,16 @@ fn keep_for_the_life_of_the_process(
     output: Option<Retained<ScreenOutput>>,
     queue: Option<DispatchRetained<DispatchQueue>>,
 ) {
+    if let Some(output) = &output {
+        drop(
+            output
+                .ivars()
+                .sink
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take(),
+        );
+    }
     std::mem::forget(output);
     std::mem::forget(queue);
 }
@@ -334,8 +351,10 @@ mod tests {
     use crate::macos::foreground::foreground_state;
     use crate::sink::{self, SinkWriter};
     use core_foundation::base::{CFGetRetainCount, CFRelease};
+    use objc2::rc::Allocated;
     use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
     use std::ffi::c_void;
+    use std::sync::mpsc::RecvTimeoutError;
 
     #[test]
     fn self_exclusion_is_enforced_in_the_filter() {
@@ -496,11 +515,64 @@ mod tests {
         }
     }
 
+    fn deliver(output: &ScreenOutput, sample: &CMSampleBuffer) {
+        let stream = SCStream::alloc();
+        let stream_ptr = Allocated::as_ptr(&stream);
+        // SAFETY: ScreenOutput implements this selector with these argument
+        // types; the method never reads its stream argument, which points to an
+        // allocated SCStream that stays allocated, and `sample` is live for the
+        // call.
+        unsafe {
+            let _: () = msg_send![
+                output,
+                stream: stream_ptr,
+                didOutputSampleBuffer: sample,
+                ofType: SCStreamOutputType::Screen
+            ];
+        }
+        std::mem::forget(stream);
+    }
+
+    #[test]
+    fn a_kept_output_lets_the_drain_end() {
+        let (handle, writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let output = ScreenOutput::new(handle, reader);
+        keep_for_the_life_of_the_process(Some(output), Some(DispatchQueue::new("kept", None)));
+        assert_eq!(
+            writer
+                .receiver()
+                .recv_timeout(Duration::from_secs(1))
+                .map(|event| event.modality),
+            Err(RecvTimeoutError::Disconnected),
+            "the kept output still holds a handle of the sink"
+        );
+    }
+
+    #[test]
+    fn a_sample_that_reaches_a_kept_output_emits_nothing() {
+        let (handle, writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let output = ScreenOutput::new(handle.clone(), reader);
+        keep_for_the_life_of_the_process(Some(output.clone()), None);
+        let frame = Frame::new(16, 16);
+        deliver(&output, frame.sample());
+        drop(handle);
+        assert_eq!(
+            writer
+                .receiver()
+                .recv_timeout(Duration::from_secs(1))
+                .map(|event| event.modality),
+            Err(RecvTimeoutError::Disconnected),
+            "a kept output emitted an event or still holds a handle"
+        );
+    }
+
     fn screen_ivars() -> (ScreenIvars, SinkWriter) {
         let (handle, writer) = sink::channel(8);
         let (_writer, reader) = foreground_state();
         let ivars = ScreenIvars {
-            sink: handle,
+            sink: Mutex::new(Some(handle)),
             foreground: reader,
         };
         (ivars, writer)
