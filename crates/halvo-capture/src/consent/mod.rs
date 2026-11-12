@@ -45,3 +45,30 @@ pub enum ConsentError {
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
 }
+
+impl From<halvo_control::model::CapError> for ConsentError {
+    fn from(error: halvo_control::model::CapError) -> Self {
+        ConsentError::Action(error.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::status::StorageCap;
+    use super::ConsentError;
+
+    fn cap(bytes: u64) -> Result<StorageCap, ConsentError> {
+        Ok(StorageCap::from_bytes(bytes)?)
+    }
+
+    #[test]
+    fn a_refused_cap_converts_into_the_consent_error() {
+        assert_eq!(cap(StorageCap::MIN.bytes()).unwrap(), StorageCap::MIN);
+        let error = cap(5).unwrap_err();
+        assert!(matches!(error, ConsentError::Action(_)), "{error:?}");
+        assert_eq!(
+            error.to_string(),
+            "the consent action failed: the storage cap must be at least 1073741824 bytes"
+        );
+    }
+}
