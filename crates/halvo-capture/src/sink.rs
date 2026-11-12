@@ -300,18 +300,18 @@ impl Received {
         self.number.0 < barrier.0
     }
 
-    /// The floor value with its number, or this value back when it holds an
-    /// event of the old emit.
-    pub fn into_floor(self) -> Result<FloorReceived, Received> {
+    /// The floor value with its number, or this value back, boxed, when it
+    /// holds an event of the old emit.
+    pub fn into_floor(self) -> Result<FloorReceived, Box<Received>> {
         match self.arrived {
             Arrived::Floor { event, .. } => Ok(FloorReceived {
                 event,
                 number: self.number,
             }),
-            Arrived::Old(event) => Err(Received {
+            Arrived::Old(event) => Err(Box::new(Received {
                 arrived: Arrived::Old(event),
                 number: self.number,
-            }),
+            })),
         }
     }
 }

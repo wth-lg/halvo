@@ -673,7 +673,7 @@ mod tests {
         let key = key_event(Some(Duration::from_millis(800)), &clock);
         assert_eq!(key.at(), 1_799_999_999 * SECOND);
         let oldest = app_event(Some(Duration::MAX), &EventClock::new(fixed));
-        assert!(oldest.at() < 0 && oldest.at() >= i64::MIN);
+        assert!(oldest.at() < 0);
         assert_eq!(id_millis(oldest.id()), 0);
     }
 
