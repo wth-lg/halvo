@@ -39,11 +39,12 @@ pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVEN
     unsafe { SetWinEventHook(event, event, None, callback, 0, 0, HOOK_FLAGS) }
 }
 
-pub(crate) fn foreground_packet(exe_path: String) -> Packet {
+pub(crate) fn foreground_packet(exe_path: String, tick: u32) -> Packet {
     Packet {
         kind: Modality::ForegroundApp,
         app: exe_path,
         byte_len: 0,
+        tick,
     }
 }
 
@@ -158,7 +159,7 @@ unsafe extern "system" fn foreground_proc(
     _id_object: i32,
     _id_child: i32,
     _thread: u32,
-    _time: u32,
+    time: u32,
 ) {
     let Some(app) = foreground_app_for(hwnd) else {
         return;
@@ -168,7 +169,7 @@ unsafe extern "system" fn foreground_proc(
             if let Ok(mut last) = state.last_app.lock() {
                 *last = Some(app.clone());
             }
-            state.producer.push(foreground_packet(app));
+            state.producer.push(foreground_packet(app, time));
         }
     });
 }
@@ -229,9 +230,10 @@ mod tests {
 
     #[test]
     fn a_foreground_change_maps_to_a_foreground_app_packet() {
-        let packet = foreground_packet("C:\\Windows\\explorer.exe".to_string());
+        let packet = foreground_packet("C:\\Windows\\explorer.exe".to_string(), 5);
         assert_eq!(packet.kind, Modality::ForegroundApp);
         assert_eq!(packet.app, "C:\\Windows\\explorer.exe");
+        assert_eq!(packet.tick, 5);
     }
 
     fn no_hook(_event: u32, _callback: WINEVENTPROC) -> HWINEVENTHOOK {

@@ -23,6 +23,7 @@ c4_window_title_source_reports_a_title_change
 c5_installed_software_returns_registry_entries
 c8_display_affinity_exclude_from_capture_is_set_and_read_back
 c9_peak_working_set_of_sources_1_to_4_for_60_seconds
+capture_times_follow_the_input_order
 helper_child_window
 helper_limited_listener
 known_defect::a_dropped_keyboard_source_keeps_capturing RR-windows-11
@@ -405,7 +406,7 @@ self_test() {
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
     "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=24 pass=14 known_defect=10 fail=0${nl}PASS $name"
+    "${nl}WF total=25 pass=15 known_defect=10 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \

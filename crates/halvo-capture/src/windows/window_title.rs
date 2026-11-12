@@ -19,7 +19,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 /// The packet of a title, or `None` for an empty title or one of whitespace
 /// only, so a cleared caption records nothing.
-pub(crate) fn title_packet(title: &str, exe_path: String) -> Option<Packet> {
+pub(crate) fn title_packet(title: &str, exe_path: String, tick: u32) -> Option<Packet> {
     if title.trim().is_empty() {
         return None;
     }
@@ -27,6 +27,7 @@ pub(crate) fn title_packet(title: &str, exe_path: String) -> Option<Packet> {
         kind: Modality::WindowTitle,
         app: exe_path,
         byte_len: title.len() as u64,
+        tick,
     })
 }
 
@@ -105,7 +106,7 @@ unsafe extern "system" fn title_proc(
     id_object: i32,
     _id_child: i32,
     _thread: u32,
-    _time: u32,
+    time: u32,
 ) {
     // Only the window object's own name is a window title; child objects
     // (menus, list items) raise the same event and are not titles.
@@ -116,7 +117,7 @@ unsafe extern "system" fn title_proc(
     let app = foreground_app_for(hwnd).unwrap_or_default();
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow().as_ref() {
-            if let Some(packet) = title_packet(&title, app) {
+            if let Some(packet) = title_packet(&title, app, time) {
                 state.producer.push(packet);
             }
         }
@@ -178,17 +179,18 @@ mod tests {
 
     #[test]
     fn a_non_empty_title_maps_to_a_window_title_packet() {
-        let packet = title_packet("Inbox - Mail", "C:\\mail.exe".to_string())
+        let packet = title_packet("Inbox - Mail", "C:\\mail.exe".to_string(), 3)
             .expect("a non-empty title produces a packet");
         assert_eq!(packet.kind, Modality::WindowTitle);
         assert_eq!(packet.app, "C:\\mail.exe");
         assert_eq!(packet.byte_len, 12);
+        assert_eq!(packet.tick, 3);
     }
 
     #[test]
     fn an_empty_or_whitespace_title_produces_no_packet() {
-        assert!(title_packet("", "a.exe".to_string()).is_none());
-        assert!(title_packet("   ", "a.exe".to_string()).is_none());
+        assert!(title_packet("", "a.exe".to_string(), 3).is_none());
+        assert!(title_packet("   ", "a.exe".to_string(), 3).is_none());
     }
 
     fn no_hook(

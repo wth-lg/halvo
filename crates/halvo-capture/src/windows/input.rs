@@ -80,7 +80,11 @@ impl PointerSample {
 }
 
 /// The packet of a decoded key, or `None` for a key-up: one press is one event.
-pub(crate) fn keystroke_packet(key: KeyStroke, foreground_app: String) -> Option<Packet> {
+pub(crate) fn keystroke_packet(
+    key: KeyStroke,
+    foreground_app: String,
+    tick: u32,
+) -> Option<Packet> {
     if key.released {
         return None;
     }
@@ -88,14 +92,16 @@ pub(crate) fn keystroke_packet(key: KeyStroke, foreground_app: String) -> Option
         kind: Modality::Keystroke,
         app: foreground_app,
         byte_len: key.payload_len(),
+        tick,
     })
 }
 
-pub(crate) fn pointer_packet(sample: PointerSample, foreground_app: String) -> Packet {
+pub(crate) fn pointer_packet(sample: PointerSample, foreground_app: String, tick: u32) -> Packet {
     Packet {
         kind: Modality::Pointer,
         app: foreground_app,
         byte_len: sample.payload_len(),
+        tick,
     }
 }
 
@@ -116,9 +122,9 @@ use windows::Win32::UI::Input::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, PostQuitMessage, RegisterClassW,
-    UnregisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE, WM_DESTROY,
-    WM_INPUT, WNDCLASSW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostQuitMessage,
+    RegisterClassW, UnregisterClassW, HWND_MESSAGE, RI_KEY_BREAK, WINDOW_EX_STYLE, WINDOW_STYLE,
+    WM_DESTROY, WM_INPUT, WNDCLASSW,
 };
 
 #[cfg(target_os = "windows")]
@@ -228,7 +234,7 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 }
 
 #[cfg(target_os = "windows")]
-fn emit_from_raw(packet: RawInputPacket) {
+fn emit_from_raw(packet: RawInputPacket, tick: u32) {
     INPUT_CTX.with(|cell| {
         let borrow = cell.borrow();
         let Some(state) = borrow.as_ref() else {
@@ -237,12 +243,12 @@ fn emit_from_raw(packet: RawInputPacket) {
         let app = attributed_app(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
-                if let Some(packet) = keystroke_packet(key, app) {
+                if let Some(packet) = keystroke_packet(key, app, tick) {
                     state.producer.push(packet);
                 }
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
-                let packet = pointer_packet(sample, app);
+                let packet = pointer_packet(sample, app, tick);
                 if sample.is_motion_only() {
                     state.producer.push_motion(packet);
                 } else {
@@ -263,7 +269,10 @@ unsafe extern "system" fn wnd_proc(
 ) -> LRESULT {
     match msg {
         WM_INPUT => {
-            read_raw_input(HRAWINPUT(lparam.0 as *mut core::ffi::c_void));
+            read_raw_input(
+                HRAWINPUT(lparam.0 as *mut core::ffi::c_void),
+                message_tick(),
+            );
             // WM_INPUT docs: the application must call DefWindowProc so the system
             // can perform cleanup.
             DefWindowProcW(hwnd, msg, wparam, lparam)
@@ -277,7 +286,13 @@ unsafe extern "system" fn wnd_proc(
 }
 
 #[cfg(target_os = "windows")]
-fn read_raw_input(handle: HRAWINPUT) {
+fn message_tick() -> u32 {
+    // SAFETY: GetMessageTime takes no argument and reads the time of the
+    // message that this thread's pump took last.
+    unsafe { GetMessageTime() as u32 }
+}
+
+fn read_raw_input(handle: HRAWINPUT, tick: u32) {
     let header_size = core::mem::size_of::<RAWINPUTHEADER>() as u32;
     let mut size: u32 = 0;
     // GetRawInputData with pData NULL writes the required size to pcbSize and
@@ -300,7 +315,7 @@ fn read_raw_input(handle: HRAWINPUT) {
         return;
     }
     if let Some(packet) = decode_raw_input(&buf) {
-        emit_from_raw(packet);
+        emit_from_raw(packet, tick);
     }
 }
 
@@ -505,10 +520,11 @@ mod tests {
             vkey: 0x41,
             released: false,
         };
-        let packet = keystroke_packet(key, "C:\\editor.exe".to_string()).unwrap();
+        let packet = keystroke_packet(key, "C:\\editor.exe".to_string(), 7).unwrap();
         assert_eq!(packet.kind, Modality::Keystroke);
         assert_eq!(packet.app, "C:\\editor.exe");
         assert_eq!(packet.byte_len, 2);
+        assert_eq!(packet.tick, 7);
     }
 
     #[test]
@@ -517,15 +533,16 @@ mod tests {
             vkey: 0x41,
             released: true,
         };
-        assert!(keystroke_packet(key, String::new()).is_none());
+        assert!(keystroke_packet(key, String::new(), 7).is_none());
     }
 
     #[test]
     fn a_pointer_sample_maps_to_a_pointer_packet_and_only_a_flagless_one_is_motion() {
-        let packet = pointer_packet(PointerSample::default(), "C:\\game.exe".to_string());
+        let packet = pointer_packet(PointerSample::default(), "C:\\game.exe".to_string(), 9);
         assert_eq!(packet.kind, Modality::Pointer);
         assert_eq!(packet.app, "C:\\game.exe");
         assert_eq!(packet.byte_len, 12);
+        assert_eq!(packet.tick, 9);
         assert!(PointerSample::default().is_motion_only());
         let wheel = PointerSample {
             button_flags: 0x0400,

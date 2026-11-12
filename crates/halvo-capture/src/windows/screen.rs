@@ -39,7 +39,12 @@ const SINK_GONE: &str = "the capture writer has stopped";
 /// The packet of a frame of the given size, or `None` for a zero-area frame,
 /// which carries no image. No pixel is read: the size is the frame's byte
 /// count in Bgra8.
-pub(crate) fn frame_packet(width: u32, height: u32, foreground_app: String) -> Option<Packet> {
+pub(crate) fn frame_packet(
+    width: u32,
+    height: u32,
+    foreground_app: String,
+    tick: u32,
+) -> Option<Packet> {
     if width == 0 || height == 0 {
         return None;
     }
@@ -47,6 +52,7 @@ pub(crate) fn frame_packet(width: u32, height: u32, foreground_app: String) -> O
         kind: Modality::ScreenFrame,
         app: foreground_app,
         byte_len: u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
+        tick,
     })
 }
 
@@ -86,7 +92,7 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             .ok()
             .and_then(|g| g.clone())
             .unwrap_or_default();
-        if let Some(packet) = frame_packet(width, height, app) {
+        if let Some(packet) = frame_packet(width, height, app, super::now_tick()) {
             self.producer.push(packet);
         }
         if self.producer.writer_gone() {
@@ -176,7 +182,7 @@ mod tests {
 
     #[test]
     fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
-        let packet = frame_packet(1920, 1080, "C:\\browser.exe".to_string())
+        let packet = frame_packet(1920, 1080, "C:\\browser.exe".to_string(), 1)
             .expect("a sized frame produces a packet");
         assert_eq!(packet.kind, Modality::ScreenFrame);
         assert_eq!(packet.app, "C:\\browser.exe");
@@ -185,7 +191,7 @@ mod tests {
 
     #[test]
     fn a_zero_area_frame_is_not_recorded() {
-        assert!(frame_packet(0, 1080, String::new()).is_none());
-        assert!(frame_packet(1920, 0, String::new()).is_none());
+        assert!(frame_packet(0, 1080, String::new(), 1).is_none());
+        assert!(frame_packet(1920, 0, String::new(), 1).is_none());
     }
 }

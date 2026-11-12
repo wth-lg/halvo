@@ -73,6 +73,21 @@ pub(crate) struct Packet {
     pub(crate) kind: Modality,
     pub(crate) app: String,
     pub(crate) byte_len: u64,
+    /// When the OS made the event, in milliseconds since the system started.
+    #[allow(dead_code)]
+    pub(crate) tick: u32,
+}
+
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetTickCount() -> u32;
+}
+
+/// The system's tick count now, in milliseconds since it started: the clock of
+/// `GetMessageTime` and of a WinEvent's event time.
+pub(crate) fn now_tick() -> u32 {
+    // SAFETY: GetTickCount takes no argument and reads a counter.
+    unsafe { GetTickCount() }
 }
 
 /// The counts of a source's hand-off queue: packets that a full or closed
@@ -505,7 +520,31 @@ pub(crate) mod tests {
             kind: Modality::Pointer,
             app: app.to_string(),
             byte_len: 12,
+            tick: now_tick(),
         }
+    }
+
+    #[test]
+    fn an_event_carries_the_time_of_its_os_event() {
+        let (sink, writer) = crate::sink::channel(4);
+        let before = std::time::SystemTime::now();
+        let packet = Packet {
+            kind: Modality::Keystroke,
+            app: String::new(),
+            byte_len: 2,
+            tick: now_tick().wrapping_sub(250),
+        };
+        assert!(forward_one(&sink, packet).is_ok());
+        let after = std::time::SystemTime::now();
+        let received = writer.try_recv().expect("the event is queued");
+        let stamped = received.event().captured_at.wall_clock;
+        let early = before - Duration::from_millis(320);
+        let late = after - Duration::from_millis(180);
+        assert!(
+            early <= stamped && stamped <= late,
+            "the event is stamped {:?} before the forward, not about 250 ms",
+            after.duration_since(stamped).unwrap_or_default()
+        );
     }
 
     #[test]

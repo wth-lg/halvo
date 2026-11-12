@@ -2263,6 +2263,82 @@ fn pointer_moves_coalesce() {
     });
 }
 
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn capture_times_follow_the_input_order() {
+    with_deadline("order", Duration::from_secs(60), || {
+        const ROUNDS: usize = 3;
+        env_report("order");
+        source_built_by_test("order", "keyboard");
+        let (sink, writer) = channel(1);
+        let last_app = Arc::new(Mutex::new(None));
+        let mut keyboard = RawInputSource::keyboard(Arc::clone(&last_app));
+        let mut pointer = RawInputSource::pointer(last_app);
+        let keyboard_start = keyboard.start(sink.clone());
+        let pointer_start = pointer.start(sink.clone());
+        let mut injected = Vec::new();
+        let mut accepted = 0;
+        for _ in 0..ROUNDS {
+            accepted += send(&[key_input(VK_F15, false)]);
+            injected.push((Modality::Keystroke, SystemTime::now()));
+            accepted += send(&[key_input(VK_F15, true)]);
+            std::thread::sleep(Duration::from_millis(100));
+            accepted += send(&[wheel_notch()]);
+            injected.push((Modality::Pointer, SystemTime::now()));
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        std::thread::sleep(Duration::from_millis(1500));
+        let events = forward(writer).drain_for(Duration::from_secs(2));
+        keyboard.stop();
+        pointer.stop();
+        let mut stamped: Vec<(Modality, SystemTime)> = events
+            .iter()
+            .map(|e| (e.modality, e.captured_at.wall_clock))
+            .collect();
+        stamped.sort_by_key(|(_, at)| *at);
+        let kinds: Vec<Modality> = stamped.iter().map(|(kind, _)| *kind).collect();
+        let wanted: Vec<Modality> = injected.iter().map(|(kind, _)| *kind).collect();
+        let worst_ms = stamped
+            .iter()
+            .zip(&injected)
+            .map(|((_, at), (_, sent))| {
+                at.duration_since(*sent)
+                    .or_else(|e| Ok::<Duration, ()>(e.duration()))
+                    .unwrap_or_default()
+                    .as_millis()
+            })
+            .max()
+            .unwrap_or(0);
+        say(
+            "order",
+            format!(
+                "keyboard_start={} pointer_start={} sink_capacity=1 draining_stopped_ms=1500 \
+                 sendinput_events_accepted={accepted} events={} order_matches={} \
+                 worst_distance_from_input_ms={worst_ms}",
+                show(&keyboard_start),
+                show(&pointer_start),
+                events.len(),
+                kinds == wanted,
+            ),
+        );
+        assert!(keyboard_start.is_ok(), "the keyboard source must start");
+        assert!(pointer_start.is_ok(), "the pointer source must start");
+        assert_eq!(
+            accepted,
+            3 * ROUNDS as u32,
+            "INCONCLUSIVE: SendInput did not insert every key and wheel event"
+        );
+        assert_eq!(
+            kinds, wanted,
+            "the capture times do not follow the input order"
+        );
+        assert!(
+            worst_ms <= 250,
+            "a capture time is {worst_ms} ms away from its input"
+        );
+    });
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
