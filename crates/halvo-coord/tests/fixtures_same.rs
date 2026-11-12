@@ -84,7 +84,7 @@ fn json(name: &str) -> Value {
 }
 
 #[test]
-fn the_files_are_the_37_of_i8_3() {
+fn the_files_are_those_of_i8_3() {
     let mut want: BTreeSet<String> = ["commands.json", "words.json", "reply-ok.json"]
         .iter()
         .map(|s| s.to_string())
