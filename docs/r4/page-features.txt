@@ -228,7 +228,7 @@ deny	focus_visible_option	18.4	\bfocusVisible\s*:|['"]focusVisible['"]\s*:
 # https://developer.mozilla.org/ (api.HTMLElement.togglePopover.options_force_parameter), Safari 18.4 of 2025-03-31
 deny	toggle_popover_options	18.4	(?:\?\.|\.)togglePopover\s*\(\s*\{
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Iterator/map, Safari 18.4 of 2025-03-31
-deny	iterator_helpers	18.4	\bIterator\s*(?:\?\.|\.)\s*(?:from|concat|prototype)\b|\b(?:new|extends)\s+Iterator\b|(?<!\bObject\s*\.\s*)\b(?:values|keys|entries)\s*\(\s*\)\s*(?:\?\.|\.)\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\b|\bmatchAll\s*\([^()]*\)\s*(?:\?\.|\.)\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\b|(?:\?\.|\.)toArray\s*\(
+deny	iterator_helpers	18.4	\bIterator\s*(?:\?\.|\.)\s*(?:from|concat|prototype)\b|\b(?:new|extends)\s+Iterator\b|\b(?:values|keys|entries)\s*\(\s*\)\s*(?:\?\.|\.)\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\b|\bmatchAll\s*\([^()]*\)\s*(?:\?\.|\.)\s*(?:map|filter|take|drop|flatMap|reduce|toArray|forEach|some|every|find)\b|(?:\?\.|\.)toArray\s*\(
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/JSON/rawJSON, Safari 18.4 of 2025-03-31
 deny	json_raw	18.4	\bJSON\s*(?:\?\.|\.)\s*rawJSON\b|\bJSON\s*(?:\?\.)?\s*\[\s*['"]rawJSON['"]\s*\]|\{[^{}]*\brawJSON\b[^{}]*\}\s*=\s*JSON\b|\bJSON\s*(?:\?\.|\.)\s*isRawJSON\b|\bJSON\s*(?:\?\.)?\s*\[\s*['"]isRawJSON['"]\s*\]|\{[^{}]*\bisRawJSON\b[^{}]*\}\s*=\s*JSON\b
 # https://developer.mozilla.org/ (api.HTMLElement.showPopover.options_source_parameter), Safari 18.4 of 2025-03-31

@@ -112,7 +112,7 @@ export const DENY = [
   ['dialog_request_close', 'api.HTMLDialogElement.requestClose', call('requestClose')],
   ['focus_visible_option', 'api.HTMLElement.focus.options_focusVisible_parameter', `\\bfocusVisible\\s*:|['"]focusVisible['"]\\s*:`],
   ['toggle_popover_options', 'api.HTMLElement.togglePopover.options_force_parameter', `(?:\\?\\.|\\.)togglePopover\\s*\\(\\s*\\{`],
-  ['iterator_helpers', 'javascript.builtins.Iterator.map', any(`\\bIterator\\s*(?:\\?\\.|\\.)\\s*(?:from|concat|prototype)\\b`, `\\b(?:new|extends)\\s+Iterator\\b`, `(?<!\\bObject\\s*\\.\\s*)\\b(?:values|keys|entries)\\s*\\(\\s*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, `\\bmatchAll\\s*\\([^()]*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, call('toArray'))],
+  ['iterator_helpers', 'javascript.builtins.Iterator.map', any(`\\bIterator\\s*(?:\\?\\.|\\.)\\s*(?:from|concat|prototype)\\b`, `\\b(?:new|extends)\\s+Iterator\\b`, `\\b(?:values|keys|entries)\\s*\\(\\s*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, `\\bmatchAll\\s*\\([^()]*\\)\\s*(?:\\?\\.|\\.)\\s*${HELPERS}`, call('toArray'))],
   ['json_raw', 'javascript.builtins.JSON.rawJSON', any(fixed('JSON', 'rawJSON'), fixed('JSON', 'isRawJSON'))],
   ['show_popover_source', 'api.HTMLElement.showPopover.options_source_parameter', `(?:\\?\\.|\\.)showPopover\\s*\\(\\s*\\{`],
   ['custom_element_registry', 'api.Element.customElementRegistry', member('customElementRegistry')],
