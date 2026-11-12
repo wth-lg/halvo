@@ -8,6 +8,7 @@ const REPO = resolve(HERE, '..', '..', '..', '..');
 const FIXTURES = join(REPO, 'ui', 'tests', 'fixtures', 'coord');
 const STRUCTURE = join(HERE, 'structure');
 const VIEW = '/app/views/agents.js';
+const NEEDS = '/app/views/needs.js';
 const ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
 const ACTING = ['run_now', 'stop', 'switch_off', 'switch_on'];
 
@@ -116,8 +117,9 @@ function cardActs(state) {
   return state.card ? [{ act: 'open_card', param: state.card.agent }] : [];
 }
 
-function pageConfirms(snapshot) {
-  return snapshot.items.some((i) => i.kind === 'confirm' && i.presenter === 'page');
+function pageConfirmFirst(snapshot) {
+  const first = snapshot.items[0];
+  return Boolean(first && first.kind === 'confirm' && first.presenter === 'page');
 }
 
 function expectedModel(snapshot, card) {
@@ -215,7 +217,7 @@ const MODEL = () => {
 
 const origin = await serve({ ui: join(REPO, 'ui'), fixtures: FIXTURES });
 
-async function harness(name, options, snapshotFile, expectKeyboard) {
+async function harness(name, options, snapshotFile) {
   await test('harness_' + name, async () => {
     const line = {};
     const names = [];
@@ -233,13 +235,13 @@ async function harness(name, options, snapshotFile, expectKeyboard) {
     );
     const ok =
       line.violations === 0 &&
+      line.keyboard === 'ok' &&
       line.structure === 'same' &&
       line.size === 'ok' &&
-      line.markup === 'ok' &&
+      line.modes === 'ok' &&
       line.modes_off === '-' &&
-      (expectKeyboard
-        ? line.keyboard === 'ok' && line.modes === 'ok' && names.length === 0
-        : line.keyboard === 'miss' && line.modes === 'miss' && same(names, ['2:dialog_missing']));
+      line.markup === 'ok' &&
+      names.length === 0;
     return [ok, { line, names }];
   });
 }
@@ -258,12 +260,8 @@ for (const s of STATES) {
     }),
   );
   result('card_call_' + s, same(calls(out), acts.map((a) => ({ call: 'agents_card', args: { agent: a.param } }))), calls(out));
-  const confirms = pageConfirms(state.snapshot);
-  await harness(s, { origin, state: s, views: [VIEW], acts }, join(STRUCTURE, s + '.txt'), !confirms);
-  if (confirms) {
-    const bare = { ...state.snapshot, items: state.snapshot.items.filter((i) => !(i.kind === 'confirm' && i.presenter === 'page')) };
-    await harness(s + '_without_page_confirm', { origin, replies: [{ state: bare }], views: [VIEW] }, join(STRUCTURE, s + '.txt'), true);
-  }
+  const views = pageConfirmFirst(state.snapshot) ? [NEEDS, VIEW] : [VIEW];
+  await harness(s + (views.length > 1 ? '_with_both_views' : ''), { origin, state: s, views, acts }, join(STRUCTURE, s + '.txt'));
 }
 if (STATES.length > 0) {
   result('a_row_shows_no_element_for_delete', deletes.inReplies > 0 && deletes.shown === 0, deletes);
