@@ -2523,6 +2523,7 @@ mod driver {
     const CHILD_WAIT: Duration = Duration::from_secs(60);
     const CHILD_LIFE: Duration = Duration::from_secs(120);
     const CLOSE_WAIT: Duration = Duration::from_secs(15);
+    const CONTROL_WAIT: Duration = Duration::from_secs(15);
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum Channel {
@@ -3046,6 +3047,23 @@ mod driver {
                 .into_iter()
                 .find(|q| q.pid == p)
         });
+        if paused && let_through {
+            let waited = Instant::now();
+            let mut arrived = false;
+            while waited.elapsed() < CONTROL_WAIT && !ctx.stop.is_set() {
+                if matches!(listener.record_counts(), Ok(c) if c.path_requests > 0) {
+                    arrived = true;
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            eprintln!(
+                "control_wait step={} arrived_before_kill={} ms={}",
+                form.step,
+                if arrived { "yes" } else { "no" },
+                waited.elapsed().as_millis()
+            );
+        }
         let t_kill = Instant::now();
         let _ = child.kill();
         let _ = child.wait();
