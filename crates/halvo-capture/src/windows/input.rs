@@ -332,15 +332,17 @@ impl CaptureSource for RawInputSource {
             last_app: Arc::clone(&self.last_app),
         };
         let name = format!("halvo-rawinput-{:?}", self.device);
-        let pump = super::spawn_pump(name, move |ready| run_raw_input(state, ready))?;
+        let pump = super::spawn_pump(name, move |ready, signal| {
+            run_raw_input(state, ready, &signal)
+        })?;
         self.pump = Some(pump);
         self.handoff = Some(handoff);
         Ok(())
     }
 
     fn stop(&mut self) {
-        if let Some(pump) = self.pump.take() {
-            pump.stop();
+        if let Some(mut pump) = self.pump.take() {
+            let _ = pump.stop(super::INPUT_STOP_DEADLINE);
         }
         if let Some(handoff) = &self.handoff {
             handoff.close();
@@ -418,7 +420,7 @@ impl Drop for ClassGuard {
 }
 
 #[cfg(target_os = "windows")]
-fn run_raw_input(state: InputState, ready: PumpReady) {
+fn run_raw_input(state: InputState, ready: PumpReady, signal: &super::StopSignal) {
     use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 
@@ -507,7 +509,7 @@ fn run_raw_input(state: InputState, ready: PumpReady) {
     // readiness, then a stop() that races in posts WM_QUIT to a queue that keeps it.
     super::ensure_message_queue();
     ready.report(Ok(()));
-    super::pump_messages();
+    super::pump_messages(signal);
 }
 
 #[cfg(test)]
@@ -687,6 +689,25 @@ mod tests {
     #[test]
     fn decode_rejects_a_short_buffer() {
         assert!(decode_raw_input(&[0u8; 2]).is_none());
+    }
+
+    #[test]
+    fn a_keyboard_source_refuses_a_second_begin_and_starts_again_after_its_stop() {
+        use crate::source::{SourceContext, SourceState, Started};
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut source = RawInputSource::keyboard(Arc::new(Mutex::new(None)));
+        let first = source.begin(SourceContext::new(sink.clone()));
+        let second = source.begin(SourceContext::new(sink.clone()));
+        let running = source.health().state;
+        let stopped = source.shutdown();
+        let again = source.begin(SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert!(matches!(first, Ok(Started::Running)), "{first:?}");
+        assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert_eq!(running, SourceState::Running);
+        assert_eq!(stopped, Ok(()));
+        assert!(matches!(again, Ok(Started::Running)), "{again:?}");
     }
 
     #[test]

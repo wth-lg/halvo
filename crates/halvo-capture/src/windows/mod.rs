@@ -343,20 +343,33 @@ pub(crate) fn os_error(stage: &'static str, error: &windows::core::Error) -> Cap
 
 const PUMP_ENDED_UNREPORTED: &str = "the pump thread ended before it reported its setup";
 
-/// A started pump thread: its reported id and its join handle. `stop` posts
-/// `WM_QUIT` to the recorded id and joins, so teardown always targets the real
-/// pump thread.
-#[cfg(target_os = "windows")]
+/// How long `shutdown` of the keyboard, pointer, window_title and foreground
+/// sources waits for its thread to end (C12.7, first value).
+pub const INPUT_STOP_DEADLINE: Duration = Duration::from_millis(1_000);
+
+/// How long `shutdown` of the screen source waits for its capture thread to
+/// end (C12.7, first value).
+pub const SCREEN_STOP_DEADLINE: Duration = Duration::from_millis(6_000);
+
+/// The signal that tells a pump to end, besides `WM_QUIT`.
+pub(crate) struct StopSignal(());
+
+/// A started pump thread: its reported id, its join handle and its stop
+/// signal.
 pub(crate) struct PumpHandle {
     id: PumpThreadId,
-    join: std::thread::JoinHandle<()>,
+    join: Option<std::thread::JoinHandle<()>>,
+    signal: Arc<StopSignal>,
 }
 
-#[cfg(target_os = "windows")]
 impl PumpHandle {
-    pub(crate) fn stop(self) {
-        post_quit_to(self.id);
-        let _ = self.join.join();
+    pub(crate) fn stop(&mut self, deadline: Duration) -> Result<(), CaptureError> {
+        let _ = (deadline, &self.signal);
+        if let Some(join) = self.join.take() {
+            post_quit_to(self.id);
+            let _ = join.join();
+        }
+        Ok(())
     }
 }
 
@@ -365,22 +378,27 @@ impl PumpHandle {
 /// always has a real [`PumpThreadId`] to post `WM_QUIT` to. If the body returns
 /// before it reports (a setup failure), the sender drops, `recv` errors, and the
 /// start fails instead of handing back a pump that never came up.
-#[cfg(target_os = "windows")]
 pub(crate) fn spawn_pump<F>(name: String, body: F) -> Result<PumpHandle, CaptureError>
 where
-    F: FnOnce(PumpReady) + Send + 'static,
+    F: FnOnce(PumpReady, Arc<StopSignal>) + Send + 'static,
 {
+    let signal = Arc::new(StopSignal(()));
+    let pump_signal = Arc::clone(&signal);
     let (tx, rx) = std::sync::mpsc::channel();
     let join = std::thread::Builder::new()
         .name(name)
-        .spawn(move || body(PumpReady(tx)))
+        .spawn(move || body(PumpReady(tx), pump_signal))
         .map_err(|e| CaptureError::Os {
             stage: "spawn the pump thread",
             domain: "io",
             code: i64::from(e.raw_os_error().unwrap_or(0)),
         })?;
     match rx.recv() {
-        Ok(Ok(id)) => Ok(PumpHandle { id, join }),
+        Ok(Ok(id)) => Ok(PumpHandle {
+            id,
+            join: Some(join),
+            signal,
+        }),
         Ok(Err(error)) => {
             let _ = join.join();
             Err(error)
@@ -423,8 +441,8 @@ pub(crate) fn ensure_message_queue() {
 
 /// Pump the current thread's message queue until `WM_QUIT`. A WinEvent hook or a
 /// message-only window delivers its callbacks on the thread that runs this loop.
-#[cfg(target_os = "windows")]
-pub(crate) fn pump_messages() {
+pub(crate) fn pump_messages(signal: &StopSignal) {
+    let _ = signal;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, GetMessageW, TranslateMessage, MSG,
@@ -545,7 +563,7 @@ pub(crate) mod tests {
         // must not return until report() runs, so the handle's id is the pump
         // thread's real id: never 0, never the starting thread's id.
         let starter = PumpThreadId::current();
-        let handle = spawn_pump("halvo-pump-test".to_string(), |ready| {
+        let mut handle = spawn_pump("halvo-pump-test".to_string(), |ready, _signal| {
             ready.report(Ok(()));
         })
         .expect("pump reports its id");
@@ -558,9 +576,7 @@ pub(crate) mod tests {
             handle.id, starter,
             "the reported id is the pump thread's, not the starter's"
         );
-        // stop() posts WM_QUIT to the (now-exited) pump thread and joins; a post
-        // to a finished thread fails harmlessly, so this must not hang or panic.
-        handle.stop();
+        let _ = handle.stop(INPUT_STOP_DEADLINE);
     }
 
     fn pointer(app: &str) -> Packet {
@@ -639,17 +655,38 @@ pub(crate) mod tests {
         assert_eq!(apps.len(), 3 + motions);
     }
 
+    #[test]
+    fn stop_ends_a_pump_whose_first_quit_post_fails_inside_its_deadline() {
+        let mut pump = spawn_pump("halvo-pump-late-queue".to_string(), |ready, signal| {
+            ready.report(Ok(()));
+            std::thread::sleep(Duration::from_millis(300));
+            ensure_message_queue();
+            pump_messages(&signal);
+        })
+        .expect("the pump reports");
+        let (done, stopped) = std::sync::mpsc::channel();
+        let began = Instant::now();
+        std::thread::spawn(move || {
+            let _ = done.send(pump.stop(INPUT_STOP_DEADLINE));
+        });
+        let outcome = stopped.recv_timeout(Duration::from_secs(3));
+        let waited = began.elapsed();
+        assert!(
+            matches!(outcome, Ok(Ok(()))),
+            "{outcome:?} after {waited:?}"
+        );
+        assert!(waited < INPUT_STOP_DEADLINE, "{waited:?}");
+    }
+
     #[cfg(target_os = "windows")]
     #[test]
     fn spawn_pump_fails_when_the_body_never_reports() {
-        let result = spawn_pump("halvo-pump-silent".to_string(), |_ready| {
-            // never reports
-        });
+        let result = spawn_pump("halvo-pump-silent".to_string(), |_ready, _signal| {});
         assert!(
             matches!(result, Err(CaptureError::Start(ref text)) if text == PUMP_ENDED_UNREPORTED),
             "a body that never reports must fail the start"
         );
-        let failed = spawn_pump("halvo-pump-failed".to_string(), |ready| {
+        let failed = spawn_pump("halvo-pump-failed".to_string(), |ready, _signal| {
             ready.report(Err(CaptureError::Os {
                 stage: "a scripted step",
                 domain: "HRESULT",

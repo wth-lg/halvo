@@ -186,8 +186,8 @@ impl CaptureSource for ForegroundAppSource {
             last_app: Arc::clone(&self.last_app),
         };
         let installer = self.installer;
-        let pump = super::spawn_pump("halvo-foreground".to_string(), move |ready| {
-            run_foreground_hook(state, installer, ready)
+        let pump = super::spawn_pump("halvo-foreground".to_string(), move |ready, signal| {
+            run_foreground_hook(state, installer, ready, &signal)
         })?;
         self.pump = Some(pump);
         self.handoff = Some(handoff);
@@ -195,8 +195,8 @@ impl CaptureSource for ForegroundAppSource {
     }
 
     fn stop(&mut self) {
-        if let Some(pump) = self.pump.take() {
-            pump.stop();
+        if let Some(mut pump) = self.pump.take() {
+            let _ = pump.stop(super::INPUT_STOP_DEADLINE);
         }
         if let Some(handoff) = &self.handoff {
             handoff.close();
@@ -205,7 +205,12 @@ impl CaptureSource for ForegroundAppSource {
 }
 
 #[cfg(target_os = "windows")]
-fn run_foreground_hook(state: ForegroundState, installer: HookInstaller, ready: PumpReady) {
+fn run_foreground_hook(
+    state: ForegroundState,
+    installer: HookInstaller,
+    ready: PumpReady,
+    signal: &super::StopSignal,
+) {
     FOREGROUND_CTX.with(|cell| *cell.borrow_mut() = Some(state));
     let hook = installer(EVENT_SYSTEM_FOREGROUND, Some(foreground_proc));
     if hook.is_invalid() {
@@ -216,7 +221,7 @@ fn run_foreground_hook(state: ForegroundState, installer: HookInstaller, ready: 
     }
     super::ensure_message_queue();
     ready.report(Ok(()));
-    super::pump_messages();
+    super::pump_messages(signal);
     // SAFETY: `hook` is the valid handle that this thread installed above.
     unsafe {
         let _ = UnhookWinEvent(hook);
@@ -234,6 +239,29 @@ mod tests {
         assert_eq!(packet.kind, Modality::ForegroundApp);
         assert_eq!(packet.app, "C:\\Windows\\explorer.exe");
         assert_eq!(packet.tick, 5);
+    }
+
+    #[test]
+    fn a_second_begin_is_refused_and_health_follows_the_lifecycle() {
+        use crate::source::{SourceContext, SourceState, Started, StopCause};
+        let _serial = crate::windows::tests::serial();
+        let (sink, _writer) = crate::sink::channel(64);
+        let mut source = ForegroundAppSource::new();
+        let before = source.health().state;
+        let first = source.begin(SourceContext::new(sink.clone()));
+        let second = source.begin(SourceContext::new(sink.clone()));
+        let running = source.health().state;
+        let stopped = source.shutdown();
+        let after = source.health().state;
+        let again = source.begin(SourceContext::new(sink));
+        let _ = source.shutdown();
+        assert_eq!(before, SourceState::NotReported);
+        assert!(matches!(first, Ok(Started::Running)), "{first:?}");
+        assert_eq!(second, Err(CaptureError::AlreadyStarted));
+        assert_eq!(running, SourceState::Running);
+        assert_eq!(stopped, Ok(()));
+        assert_eq!(after, SourceState::Stopped(StopCause::Request));
+        assert!(matches!(again, Ok(Started::Running)), "{again:?}");
     }
 
     fn no_hook(_event: u32, _callback: WINEVENTPROC) -> HWINEVENTHOOK {

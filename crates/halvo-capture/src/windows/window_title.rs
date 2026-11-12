@@ -135,8 +135,8 @@ impl CaptureSource for WindowTitleSource {
             producer: handoff.producer(),
         };
         let installer = self.installer;
-        let pump = super::spawn_pump("halvo-window-title".to_string(), move |ready| {
-            run_title_hook(state, installer, ready)
+        let pump = super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
+            run_title_hook(state, installer, ready, &signal)
         })?;
         self.pump = Some(pump);
         self.handoff = Some(handoff);
@@ -144,8 +144,8 @@ impl CaptureSource for WindowTitleSource {
     }
 
     fn stop(&mut self) {
-        if let Some(pump) = self.pump.take() {
-            pump.stop();
+        if let Some(mut pump) = self.pump.take() {
+            let _ = pump.stop(super::INPUT_STOP_DEADLINE);
         }
         if let Some(handoff) = &self.handoff {
             handoff.close();
@@ -154,7 +154,12 @@ impl CaptureSource for WindowTitleSource {
 }
 
 #[cfg(target_os = "windows")]
-fn run_title_hook(state: TitleState, installer: HookInstaller, ready: PumpReady) {
+fn run_title_hook(
+    state: TitleState,
+    installer: HookInstaller,
+    ready: PumpReady,
+    signal: &super::StopSignal,
+) {
     TITLE_CTX.with(|cell| *cell.borrow_mut() = Some(state));
     let hook = installer(EVENT_OBJECT_NAMECHANGE, Some(title_proc));
     if hook.is_invalid() {
@@ -165,7 +170,7 @@ fn run_title_hook(state: TitleState, installer: HookInstaller, ready: PumpReady)
     }
     super::ensure_message_queue();
     ready.report(Ok(()));
-    super::pump_messages();
+    super::pump_messages(signal);
     // SAFETY: `hook` is the valid handle that this thread installed above.
     unsafe {
         let _ = UnhookWinEvent(hook);
