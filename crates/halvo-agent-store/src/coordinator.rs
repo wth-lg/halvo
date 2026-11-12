@@ -14,14 +14,17 @@ use crate::rows;
 use crate::{bind, bindings, end};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
-/// the first check that refuses it, with nothing stored. A body that is not the form is `malformed`. The checks,
-/// first that fits:
+/// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
+/// after its commit: when the state call is refused, the stored configuration stays, and a repeat of the body makes
+/// the state call and stores no second configuration. A body that is not the form is `malformed`. The checks, first
+/// that fits:
 ///
 /// - `create_agent`: `no_workflow`; `state` for a workflow that is `proposed` or `dismissed`; `binding` when the
 ///   workflow's agent is another agent or the agent's configuration is stored for another workflow. It stores the
 ///   preset of the workflow's category as revision 1 unless the agent's configuration is stored, makes the state
 ///   call (`approved`, the agent) unless the workflow's agent is this agent, and answers `{"rev":1}`.
-/// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's; `playbook` for `active` while
+/// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
+///   configuration of the agent is stored; `playbook` for `active` while
 ///   the agent's runtime is `web` and no playbook step of the agent is stored; then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`

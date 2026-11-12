@@ -2,8 +2,9 @@ use halvo_schema::executable::names::AgentState;
 use halvo_schema::{AgentId, ErrorName, Instant, RowRead, TypedRecord, WorkflowId, WorkflowItem};
 
 /// The four calls that a store offers a handler while the handler answers one request (W-C25.5), and no other.
-/// The host calls a handler to its end before it passes it the next request, so the rows that a handler reads and
-/// the rows that it commits belong to one transaction of its request.
+/// The host calls a handler to its end before it passes it the next request, so no other request changes the rows
+/// between a handler's reads and its commits. Each commit is a transaction of its own: a handler that makes a commit
+/// and then a state call (`create_agent`) leaves the commit stored when the state call is refused.
 pub trait Host {
     /// The typed commit (W-C25.3): every record of the list, each a kind of the family `agent` and its compact
     /// JSON, in one transaction, or none of them with the error of the refusal.
