@@ -1,3 +1,4 @@
+use super::check::raise_checks;
 use super::{delete_step, run_step, Ending, Next, Phase, RunMove, StopCause};
 use crate::guard::Table;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
@@ -93,6 +94,8 @@ pub struct Done {
     /// of their runs with nothing stored and sends no more event of their agents, whose
     /// ledgers `forgotten` empties (I5.7).
     pub gone: Vec<WorkflowId>,
+    /// The agents for which the move raised the item `check` (ruling XB-18).
+    pub checked: Vec<AgentId>,
 }
 
 fn refused_with(error: &PortError, name: &str) -> bool {
@@ -107,6 +110,7 @@ fn answer(cause: Option<Cause>) -> Done {
         },
         lost: Vec::new(),
         gone: Vec::new(),
+        checked: Vec::new(),
     }
 }
 
@@ -115,6 +119,7 @@ fn of_report(report: Report) -> Done {
         report,
         lost: Vec::new(),
         gone: Vec::new(),
+        checked: Vec::new(),
     }
 }
 
@@ -308,6 +313,7 @@ where
         report,
         lost,
         gone: gone.map(|g| g.seen).unwrap_or_default(),
+        checked: raise_checks(ports, board, None),
     }
 }
 
@@ -341,7 +347,16 @@ where
     match act {
         Act::Tick => tick(ports, board, table, limits),
         Act::Start { agent } => {
-            of_report(schedule::drive(ports, board, limits, Move::Start { agent }))
+            let mut done = of_report(schedule::drive(
+                ports,
+                board,
+                limits,
+                Move::Start {
+                    agent: agent.clone(),
+                },
+            ));
+            done.checked = raise_checks(ports, board, Some(&agent));
+            done
         }
         Act::SwitchOff { agent } => {
             let report = schedule::drive(ports, board, limits, Move::SwitchOff { agent });
@@ -363,12 +378,14 @@ where
             {
                 return answer(Some(Cause::State));
             }
-            of_report(schedule::drive(
+            let mut done = of_report(schedule::drive(
                 ports,
                 board,
                 limits,
                 Move::End { run, outcome },
-            ))
+            ));
+            done.checked = raise_checks(ports, board, None);
+            done
         }
     }
 }

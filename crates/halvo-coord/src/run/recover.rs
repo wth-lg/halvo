@@ -1,3 +1,4 @@
+use super::check::raise_checks;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use crate::schedule::{Board, Ended, Member, Owed, Owing};
 use crate::types::{
@@ -114,6 +115,8 @@ pub struct Life<C> {
     pub board: Board<C>,
     /// The runs that recovery ended, each with the cause `interrupted` and no start taken.
     pub ended: Vec<Ended>,
+    /// The agents for which recovery raised the item `check` (ruling XB-18).
+    pub checked: Vec<AgentId>,
 }
 
 fn cause(error: &PortError) -> Cause {
@@ -164,7 +167,8 @@ struct Found<C> {
 /// `end_run` for each owed run. A `run_ended` that the owner does not acknowledge, and an
 /// `end_run` that it does not acknowledge, are owed on the board, which the schedule's tick
 /// sends again. The board takes the facts so read, with the day of the clock, an idle agent
-/// with no item, an empty queue and no live run.
+/// with no item, an empty queue and no live run; then recovery raises the item `check` where
+/// `check_due` holds, since it read the store's records.
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
 where
     P: Owner + Runs + Analysis + Clock + Rng,
@@ -310,5 +314,10 @@ where
         .collect();
     let mut board = Board::new(day, members);
     board.owed = owed;
-    Ok(Life { board, ended })
+    let checked = raise_checks(ports, &mut board, None);
+    Ok(Life {
+        board,
+        ended,
+        checked,
+    })
 }
