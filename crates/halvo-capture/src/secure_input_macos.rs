@@ -12,8 +12,7 @@ extern "C" {
     fn DisableSecureEventInput();
 }
 
-/// Whether the OS is currently withholding keystrokes from event taps because a
-/// secure-input (password) field is focused.
+/// Whether the OS is currently withholding keystrokes from event taps.
 pub fn secure_input_active() -> bool {
     // SAFETY: a parameterless C predicate with no side effects.
     secure_input_on(unsafe { IsSecureEventInputEnabled() })
@@ -26,16 +25,14 @@ pub struct SecureInputHold(());
 
 /// Hold secure input until the returned [`SecureInputHold`] drops.
 pub fn hold_secure_input() -> SecureInputHold {
-    // SAFETY: parameterless Carbon call; reference counted, balanced by the Drop
-    // below.
+    // SAFETY: parameterless Carbon call.
     unsafe { EnableSecureEventInput() };
     SecureInputHold(())
 }
 
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        // SAFETY: parameterless Carbon call, balancing the EnableSecureEventInput
-        // taken in hold_secure_input.
+        // SAFETY: parameterless Carbon call.
         unsafe { DisableSecureEventInput() };
     }
 }

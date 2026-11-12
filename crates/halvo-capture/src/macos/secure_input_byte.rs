@@ -1,5 +1,3 @@
-//! The reading of the byte that `IsSecureEventInputEnabled` returns.
-
 pub(crate) fn secure_input_on(byte: u8) -> bool {
     byte != 0
 }

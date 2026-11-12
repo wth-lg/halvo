@@ -20,8 +20,6 @@ use crate::secure_input_macos::secure_input_active;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
 
-// Re-enable a tap the OS disabled (by timeout or by a security event). Declared
-// here so the callback can re-enable its own tap without owning the wrapper.
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     fn CGEventTapEnable(tap: *mut c_void, enable: bool);
@@ -29,8 +27,6 @@ extern "C" {
 
 type TapEnable = unsafe extern "C" fn(tap: *mut c_void, enable: bool);
 
-/// The live mach port of this source's tap, shared so the callback can re-enable
-/// a tap the OS disables without owning the `CGEventTap` wrapper.
 #[derive(Clone)]
 struct TapPort {
     port: Arc<AtomicPtr<c_void>>,
@@ -53,8 +49,6 @@ impl TapPort {
         self.port.store(port, Ordering::Relaxed);
     }
 
-    /// Re-enable the tap, if its port is live. A disabled tap stays dead until
-    /// re-enabled, so the callback calls this on every disable event.
     fn reenable(&self) {
         let port = self.port.load(Ordering::Relaxed);
         if !port.is_null() {
@@ -68,14 +62,10 @@ impl TapPort {
     }
 }
 
-/// The count of keystrokes the tap saw while secure input was active. The
-/// product guarantee is that this is always zero: a non-zero value is one or
-/// more keystrokes the OS should have withheld but the tap recorded.
+/// The count of keystrokes the tap saw while secure input was active.
 #[derive(Clone)]
 pub struct SecureInputViolations(Arc<AtomicU64>);
 
-/// A non-zero [`SecureInputViolations`] count: the number of keystrokes seen
-/// under secure input, which must never happen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecureInputViolated(pub u64);
 
@@ -102,14 +92,10 @@ impl SecureInputViolations {
     }
 }
 
-/// What the tap does with one event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Classification {
-    /// Record an event of this modality.
     Record(Modality),
-    /// A key event under secure input: record nothing, count a violation.
     SecureSuppressed,
-    /// An event the tap does not record.
     Ignore,
 }
 
@@ -188,7 +174,6 @@ fn create_tap(
     )
 }
 
-/// What the tap callback needs to turn one OS event into an emit or a violation.
 struct TapContext {
     sink: SinkHandle,
     foreground: ForegroundReader,
@@ -197,9 +182,6 @@ struct TapContext {
     secure: fn() -> SecureInputState,
 }
 
-/// Classify one event and act: emit a metadata-only event, count a secure-input
-/// violation, or ignore it. The secure-input state is read once and passed in,
-/// so "key event under secure input" is decided in exactly one place.
 fn dispatch_tap_event(ctx: &TapContext, etype: CGEventType, secure: SecureInputState) {
     match classify(etype, secure) {
         Classification::Record(modality) => {
@@ -713,7 +695,7 @@ mod granted_tests {
         // SAFETY: `live` is the mach port of the tap that the tap thread keeps
         // until `stop` below.
         let enabled_at_start = unsafe { CGEventTapIsEnabled(live) };
-        // SAFETY: as above; this is the call that the OS makes on a timeout.
+        // SAFETY: as above.
         unsafe { CGEventTapEnable(live, false) };
         // SAFETY: as above.
         let enabled_after_disable = unsafe { CGEventTapIsEnabled(live) };

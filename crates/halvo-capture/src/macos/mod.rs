@@ -22,8 +22,6 @@ use foreground::{foreground_state, FOREGROUND_POLL};
 /// The bounded sink capacity.
 pub const SINK_CAPACITY: usize = 2048;
 
-/// A source that failed to start. Reported, not fatal: the timed run continues
-/// with the sources that did start.
 #[derive(Debug)]
 struct SourceStartFailure {
     name: &'static str,
@@ -44,8 +42,6 @@ pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
     run_sources(seconds, secure_gate)
 }
 
-/// Run every macOS source for `seconds`. When `secure_gate` is set, hold secure
-/// input for the window so the zero-keystroke invariant can be measured.
 fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, DaemonError> {
     let (handle, writer) = sink::channel(SINK_CAPACITY);
     let counts = Arc::new(Counts::default());

@@ -108,8 +108,6 @@ fn excluded_applications<T>(
     apps.into_iter().filter(is_halvo).collect()
 }
 
-/// A content filter for `display` that excludes this process's own windows, so
-/// Halvo never captures itself.
 fn filter_excluding_self(
     content: &SCShareableContent,
     display: &SCDisplay,
@@ -158,9 +156,7 @@ fn stream_configuration(
     config
 }
 
-/// The screen capture source. Created, started and stopped on one thread; the
-/// `PhantomData` pins it there because the ScreenCaptureKit objects are not safe
-/// to move between threads.
+/// The screen capture source. Created, started and stopped on one thread.
 pub struct ScreenSource {
     cap: FrameRateCap,
     foreground: ForegroundReader,

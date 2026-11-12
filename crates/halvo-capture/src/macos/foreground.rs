@@ -17,8 +17,7 @@ use crate::source::{CaptureError, CaptureSource, EmitOutcome, EventSink};
 /// How often the foreground poller samples `NSWorkspace.frontmostApplication`.
 pub const FOREGROUND_POLL: Duration = Duration::from_millis(400);
 
-/// The write side of the current foreground bundle id. Not `Clone`: the
-/// foreground poller is its only holder.
+/// The write side of the current foreground bundle id.
 #[derive(Debug)]
 pub struct ForegroundWriter(Arc<Mutex<String>>);
 
@@ -74,8 +73,6 @@ impl Unpersisted {
     }
 }
 
-/// Emit an event that carries only metadata: the modality, the foreground app
-/// and the [`Unpersisted`] placement. No payload bytes are read or persisted.
 pub(crate) fn emit_metadata_only(
     sink: &SinkHandle,
     modality: Modality,

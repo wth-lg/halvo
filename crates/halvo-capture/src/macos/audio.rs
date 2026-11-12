@@ -1,10 +1,9 @@
-//! System-audio capture source: present, but off by default in R1.
+//! System-audio capture source.
 
 use crate::event::Modality;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
 
-/// System-audio capture. Off by default; R1 does not wire the capture.
 pub struct SystemAudioSource;
 
 impl SystemAudioSource {
