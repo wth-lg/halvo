@@ -1005,9 +1005,10 @@ fn a_wrapped_store_key_that_decodes_to_another_length_than_a_wrap_opens_as_key_f
     one_byte_changed[40] ^= 0x01;
     let mut one_byte_more = wrap.clone();
     one_byte_more.push(0x00);
-    let cases: [(&str, Vec<u8>, &str); 7] = [
+    let cases: [(&str, Vec<u8>, &str); 8] = [
         ("empty", Vec::new(), "KeyFileUnparseable"),
         ("3 bytes", wrap[..3].to_vec(), "KeyFileUnparseable"),
+        ("cut to 10 bytes", wrap[..10].to_vec(), "KeyFileUnparseable"),
         ("the nonce alone", wrap[..24].to_vec(), "KeyFileUnparseable"),
         ("one byte short", wrap[..71].to_vec(), "KeyFileUnparseable"),
         ("one byte more", one_byte_more, "KeyFileUnparseable"),
