@@ -80,6 +80,75 @@ fn origins_are_lower_case_with_the_port_written() {
     }
 }
 
+/// The inputs of the two test lists of `WebOrigin::parse` of the agent-setup run at b8e367e
+/// (`crates/halvo-schema/tests/r3_atoms.rs`, `a_web_origin_is_scheme_host_and_port_in_lower_case`
+/// and `a_host_holds_at_most_253_bytes`), each with that function's answer: taken or refused.
+fn web_origin_cases() -> Vec<(String, bool)> {
+    let taken = [
+        "http://127.0.0.1:18090",
+        "https://utility.test:443",
+        "http://pay.utility.test:1",
+        "https://a-b.example:65535",
+    ];
+    let refused = [
+        "http://utility.test",
+        "https://utility.test/",
+        "http://utility.test:80/",
+        "HTTP://utility.test:80",
+        "http://Utility.test:80",
+        "ftp://utility.test:21",
+        "ws://utility.test:80",
+        "http://utility.test:0",
+        "http://utility.test:65536",
+        "http://utility.test:080",
+        "http://utility.test:+80",
+        "http://-utility.test:80",
+        "http://utility-.test:80",
+        "http://utility..test:80",
+        "http://.test:80",
+        "http://[::1]:80",
+        "http://user@utility.test:80",
+        "http://utility.test:80 ",
+        "http://utility.test:80?x",
+        "http://:80",
+        "utility.test:80",
+        "",
+    ];
+    let labels = |last: usize| {
+        format!(
+            "{}.{}.{}.{}",
+            "a".repeat(63),
+            "b".repeat(63),
+            "c".repeat(63),
+            "d".repeat(last)
+        )
+    };
+    let mut cases: Vec<(String, bool)> = taken.iter().map(|s| (s.to_string(), true)).collect();
+    cases.extend(refused.iter().map(|s| (s.to_string(), false)));
+    cases.push((format!("http://{}.test:80", "a".repeat(64)), false));
+    cases.push((format!("http://{}:80", labels(61)), true));
+    cases.push((format!("http://{}:80", labels(62)), false));
+    cases
+}
+
+#[test]
+fn origin_parse_answers_every_input_as_web_origin_parse_of_the_agent_setup_run() {
+    let cases = web_origin_cases();
+    assert_eq!(cases.len(), 29);
+    let mut differ = Vec::new();
+    for (input, taken) in &cases {
+        let got = Origin::parse(input);
+        let agrees = match got {
+            Ok(o) => *taken && o.as_str() == input,
+            Err(cause) => !*taken && cause == Cause::Malformed,
+        };
+        if !agrees {
+            differ.push(input.clone());
+        }
+    }
+    assert!(differ.is_empty(), "Origin::parse differs on {differ:?}");
+}
+
 #[test]
 fn an_origin_has_one_written_form() {
     for bad in [
@@ -89,13 +158,14 @@ fn an_origin_has_one_written_form() {
         "https://pay.site1.example:00",
         "https://.:443",
         "https://-:443",
+        "http://localhost:0",
     ] {
         assert_eq!(Origin::parse(bad), Err(Cause::Malformed), "{bad:?}");
     }
     for good in [
         "https://pay.site1.example:443",
         "http://127.0.0.1:8080",
-        "http://localhost:0",
+        "http://localhost:1",
         "https://a-b.example:65535",
     ] {
         assert_eq!(Origin::parse(good).unwrap().as_str(), good);
