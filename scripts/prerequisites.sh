@@ -230,6 +230,11 @@ ensure_backend() {
     echo "prerequisites: error: backend/scripts/fetch-tools.sh could not fetch a pinned tool; its line above names the file, check the network or its proxy or move a file whose sha256 differs away, then run sh scripts/prerequisites.sh again" >&2
     return 1
   fi
+  echo "prerequisites: fetching the licence of each package of backend/pnpm-lock.yaml that this platform does not install, for the backend's check 85"
+  if ! node backend/scripts/fetch-licenses.mjs; then
+    echo "prerequisites: error: backend/scripts/fetch-licenses.mjs could not fetch a licence from the package registry; its lines above name the package, check the network or its proxy, then run sh scripts/prerequisites.sh again" >&2
+    return 1
+  fi
 }
 
 self_test() {
@@ -490,7 +495,12 @@ EOF
 echo "npm \$*" >>'$case_dir/calls'
 mkdir -p '$case_dir/home/.local/bin' && cp '$case_dir/pnpm' '$case_dir/home/.local/bin/pnpm'
 EOF
-    chmod +x "$case_dir/pnpm" "$case_dir/stubs/npm"
+    cat >"$case_dir/stubs/node" <<EOF
+#!/bin/sh
+echo "node \$* in \$(pwd -P)" >>'$case_dir/calls'
+exit "\$(cat '$case_dir/node.exit' 2>/dev/null || echo 0)"
+EOF
+    chmod +x "$case_dir/pnpm" "$case_dir/stubs/npm" "$case_dir/stubs/node"
     backend_dir=$(cd "$case_dir/repo/backend" && pwd -P)
     repo_dir=$(cd "$case_dir/repo" && pwd -P)
     archive_path=$repo_dir/backend/.tools/downloads/pnpm-12.14.0.tgz
@@ -624,6 +634,31 @@ EOF
   run_ensure_backend fails
   [ "$(count 'fetch-tools ' "$case_dir/calls")" = 0 ] || problems="$problems; the tools were fetched after the failed install"
   [ "$(count 'pnpm could not install the packages of backend/pnpm-lock.yaml' "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after the failed install"
+  verdict "$name"
+
+  name='the licences of the packages that this platform does not install are fetched at the repository root after the tools, on each run'
+  new_backend_case backend-licences
+  cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
+  run_ensure_backend ok
+  run_ensure_backend ok
+  [ "$(count "node backend/scripts/fetch-licenses.mjs in $repo_dir" "$case_dir/calls")" = 2 ] || problems="$problems; backend/scripts/fetch-licenses.mjs did not run at the repository root on each run"
+  [ "$(sed -n '2,3p' "$case_dir/calls" | tr '\n' ';')" = "fetch-tools $repo_dir;node backend/scripts/fetch-licenses.mjs in $repo_dir;" ] || problems="$problems; the licences were not fetched right after the tools"
+  verdict "$name"
+
+  name='a failed fetch of the licences fails the step, and one line says what to do'
+  new_backend_case backend-licences-fail
+  cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
+  echo 1 >"$case_dir/node.exit"
+  run_ensure_backend fails
+  [ "$(count 'backend/scripts/fetch-licenses.mjs could not fetch a licence from the package registry; its lines above name the package, check the network or its proxy, then run sh scripts/prerequisites.sh again' "$case_dir/output")" = 1 ] || problems="$problems; no line said what to do after the failed fetch of the licences"
+  verdict "$name"
+
+  name='a failed fetch of the pinned tools fetches no licence'
+  new_backend_case backend-tools-fail-no-licences
+  cp "$case_dir/pnpm" "$case_dir/stubs/pnpm"
+  printf 'exit 1\n' >>"$case_dir/repo/backend/scripts/fetch-tools.sh"
+  run_ensure_backend fails
+  [ "$(count 'node ' "$case_dir/calls")" = 0 ] || problems="$problems; the licences were fetched after the failed fetch of the tools"
   verdict "$name"
 
   if [ "$failures" -gt 0 ]; then
