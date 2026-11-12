@@ -39,17 +39,23 @@ fn backend_and_store(origin: &str, dir: &std::path::Path) -> Vec<(&'static str, 
     ]
 }
 
-fn exchange(words: &[&str], sign_in: Option<&SignIn>, status: u16, body: &str) -> (Ran, Seen) {
+fn exchange(
+    words: &[&str],
+    sign_in: Option<&SignIn>,
+    status: u16,
+    body: &str,
+) -> (Ran, Seen, String) {
     let dir = scratch("wire").join("store");
     if let Some(sign_in) = sign_in {
         keep_sign_in(&dir, sign_in);
     }
     let answering = Listener::new().answer(status, "", body);
+    let origin = answering.origin.clone();
     let ran = helper(words, &backend_and_store(&answering.origin, &dir));
     let seen = answering
         .seen()
         .unwrap_or_else(|| panic!("{words:?} sent nothing: {}", ran.stderr));
-    (ran, seen)
+    (ran, seen, origin)
 }
 
 fn kept() -> SignIn {
@@ -132,7 +138,7 @@ fn each_command_sends_its_route_with_the_stored_sign_in_and_only_the_listed_head
     let mut every_name = BTreeSet::new();
     let sign_in = kept();
     for (words, answer, method, target, body, line) in table {
-        let (ran, seen) = exchange(words, Some(&sign_in), 200, answer);
+        let (ran, seen, origin) = exchange(words, Some(&sign_in), 200, answer);
         assert_eq!(
             (ran.code, ran.stdout.as_str()),
             (0, &*format!("{line}\n")),
@@ -143,6 +149,7 @@ fn each_command_sends_its_route_with_the_stored_sign_in_and_only_the_listed_head
             (method, target)
         );
         assert_eq!(seen.version, "HTTP/1.1");
+        assert_eq!(seen.header("host"), origin.strip_prefix("http://"));
         assert_eq!(
             seen.header("halvo-account"),
             Some(sign_in.account().as_str())
@@ -391,4 +398,30 @@ fn a_failed_call_says_so_on_standard_error_and_keeps_the_sign_in() {
     assert_eq!((ran.code, ran.stdout.as_str()), (1, "error=failed-call\n"));
     assert!(ran.stderr.starts_with("halvo-account: the call failed"));
     assert!(matches!(store_at(&dir).read(), Read::Found(_)));
+}
+
+#[test]
+fn a_run_sends_one_request_also_after_a_redirect_to_the_same_origin_or_a_server_error() {
+    for (status, path) in [
+        (302, Some("/v1/cap")),
+        (307, Some("/v1/subscription")),
+        (500, None),
+        (503, None),
+    ] {
+        let dir = scratch("one-request").join("store");
+        keep_sign_in(&dir, &kept());
+        let listener = Listener::new();
+        let extra = path
+            .map(|path| format!("location: {}{path}\r\n", listener.origin()))
+            .unwrap_or_default();
+        let counting = listener.answer_each(status, &extra, r#"{"result":"active"}"#);
+        let ran = helper(&["status"], &backend_and_store(&counting.origin, &dir));
+        let seen = counting.seen_all();
+        assert_eq!(
+            (ran.code, ran.stdout.as_str()),
+            (1, "error=failed-call\n"),
+            "{status}"
+        );
+        assert_eq!(seen.len(), 1, "{status} brought {} requests", seen.len());
+    }
 }

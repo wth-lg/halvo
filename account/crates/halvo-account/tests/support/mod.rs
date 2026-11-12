@@ -97,6 +97,22 @@ impl Listener {
         Answering { origin, thread }
     }
 
+    pub fn answer_each(self, status: u16, extra: &str, body: &str) -> Counting {
+        let origin = self.origin();
+        let extra = extra.to_string();
+        let body = body.to_string();
+        let thread = thread::spawn(move || {
+            let mut seen = Vec::new();
+            let mut limit = Duration::from_secs(20);
+            while let Some(stream) = self.accept_within(limit) {
+                seen.push(serve(stream, status, &extra, &body));
+                limit = Duration::from_secs(2);
+            }
+            seen
+        });
+        Counting { origin, thread }
+    }
+
     fn accept_within(&self, limit: Duration) -> Option<TcpStream> {
         self.listener
             .set_nonblocking(true)
@@ -131,6 +147,17 @@ pub struct Answering {
 
 impl Answering {
     pub fn seen(self) -> Option<Seen> {
+        self.thread.join().expect("the listener thread")
+    }
+}
+
+pub struct Counting {
+    pub origin: String,
+    thread: JoinHandle<Vec<Seen>>,
+}
+
+impl Counting {
+    pub fn seen_all(self) -> Vec<Seen> {
         self.thread.join().expect("the listener thread")
     }
 }

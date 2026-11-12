@@ -875,3 +875,69 @@ fn an_integer_written_with_a_fraction_fails_the_call() {
     );
     assert!(outcome.note().contains("integer"));
 }
+
+fn answers_of(route: &str) -> Vec<(u16, String)> {
+    let mut answers: Vec<(u16, String)> = results_of(route)
+        .iter()
+        .map(|result| (200, sample(route, result)))
+        .collect();
+    answers.push((400, r#"{"result":"rejected"}"#.to_string()));
+    answers.push((404, r#"{"result":"rejected"}"#.to_string()));
+    answers.push((500, String::new()));
+    answers.push((200, "{".to_string()));
+    answers
+}
+
+#[test]
+fn a_sign_in_that_subscribe_made_stays_whatever_the_backend_answers() {
+    let made = SignIn::from_random(&[3; 48]).to_secret().expose().to_vec();
+    for (status, body) in answers_of("checkout-start") {
+        let world = World::new().answering(status, &body);
+        world.run(&["--print-url", "subscribe", "5", "week"]);
+        assert_eq!(world.log(), ["read", "write", "send"], "{status} {body}");
+        assert_eq!(world.stored(), Some(made.clone()), "{status} {body}");
+    }
+    let world = World::new().silent();
+    world.run(&["--print-url", "subscribe", "5", "week"]);
+    assert_eq!(world.stored(), Some(made));
+}
+
+#[test]
+fn a_page_that_was_not_opened_or_was_refused_removes_nothing() {
+    let kept = sign_in(12);
+    let refused = [
+        r#"{"result":"session","url":"http://evil.example/x"}"#,
+        r#"{"result":"page","url":"http://evil.example/x"}"#,
+    ];
+    for (words, route, result, off_list) in [
+        (
+            &["subscribe", "5", "week"][..],
+            "checkout-start",
+            "session",
+            refused[0],
+        ),
+        (&["manage"][..], "manage", "page", refused[1]),
+    ] {
+        for open_fails in [false, true] {
+            let world = World {
+                open_fails,
+                ..World::holding(&kept)
+            }
+            .answering(200, &sample(route, result));
+            world.run(words);
+            assert_eq!(world.log(), ["read", "send", "open"], "{words:?}");
+            assert_eq!(world.stored(), Some(kept.to_secret().expose().to_vec()));
+        }
+        for words in [words.to_vec(), printing(words)] {
+            let world = World::holding(&kept).answering(200, off_list);
+            let outcome = world.run(&words);
+            assert_eq!(outcome.code(), 1, "{words:?}");
+            assert_eq!(world.log(), ["read", "send"], "{words:?}");
+            assert_eq!(world.stored(), Some(kept.to_secret().expose().to_vec()));
+        }
+    }
+    let world = World::new().answering(200, refused[0]);
+    world.run(&["subscribe", "5", "week"]);
+    assert_eq!(world.log(), ["read", "write", "send"]);
+    assert!(world.stored().is_some());
+}
