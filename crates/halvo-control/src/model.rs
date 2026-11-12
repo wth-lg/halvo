@@ -427,12 +427,13 @@ pub struct InventoryRow {
     pub bytes: u64,
 }
 
-/// Two inventory rows for one day and one kind.
+/// Why an inventory was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("the inventory holds two rows for {day} and {}", .modality.as_str())]
-pub struct DuplicateRow {
-    pub day: UtcDay,
-    pub modality: Modality,
+pub enum InventoryError {
+    #[error("the inventory holds two rows for {day} and {}", .modality.as_str())]
+    DuplicateRow { day: UtcDay, modality: Modality },
+    #[error("the inventory's total events or bytes exceed what 64 bits hold")]
+    TotalTooLarge,
 }
 
 /// The per-day rollup of the store, oldest day first and, within a day, in the
@@ -443,9 +444,10 @@ pub struct Inventory {
 }
 
 impl Inventory {
-    /// The inventory of `rows`, put in day and kind order; two rows for one day
-    /// and one kind are an error.
-    pub fn from_rows(mut rows: Vec<InventoryRow>) -> Result<Self, DuplicateRow> {
+    /// The inventory of `rows`, put in day and kind order. Two rows for one day
+    /// and one kind are an error, and so are rows whose total events or bytes do
+    /// not fit in a u64, so the totals never overflow.
+    pub fn from_rows(mut rows: Vec<InventoryRow>) -> Result<Self, InventoryError> {
         rows.sort_by(|a, b| {
             a.day
                 .cmp(&b.day)
@@ -455,10 +457,17 @@ impl Inventory {
             .windows(2)
             .find(|pair| (pair[0].day, pair[0].modality) == (pair[1].day, pair[1].modality))
         {
-            return Err(DuplicateRow {
+            return Err(InventoryError::DuplicateRow {
                 day: pair[0].day,
                 modality: pair[0].modality,
             });
+        }
+        let total = |field: fn(&InventoryRow) -> u64| {
+            rows.iter()
+                .try_fold(0u64, |sum, row| sum.checked_add(field(row)))
+        };
+        if total(|row| row.events).is_none() || total(|row| row.bytes).is_none() {
+            return Err(InventoryError::TotalTooLarge);
         }
         Ok(Self { rows })
     }
@@ -776,13 +785,42 @@ mod tests {
         ];
         assert_eq!(
             Inventory::from_rows(rows.clone()),
-            Err(DuplicateRow {
+            Err(InventoryError::DuplicateRow {
                 day: UtcDay::from_days_since_epoch(20_766).unwrap(),
                 modality: Modality::Keystroke,
             })
         );
         let reply = serde_json::to_string(&serde_json::json!({ "rows": rows })).unwrap();
         assert!(serde_json::from_str::<Inventory>(&reply).is_err());
+    }
+
+    #[test]
+    fn an_inventory_whose_totals_exceed_u64_is_an_error_and_never_a_panic() {
+        let too_many_bytes = vec![
+            inventory_row(20_765, Modality::Keystroke, 1, u64::MAX),
+            inventory_row(20_766, Modality::Keystroke, 1, 1),
+        ];
+        let too_many_events = vec![
+            inventory_row(20_765, Modality::Keystroke, u64::MAX, 1),
+            inventory_row(20_765, Modality::Pointer, 1, 1),
+        ];
+        for rows in [too_many_bytes, too_many_events] {
+            assert_eq!(
+                Inventory::from_rows(rows.clone()),
+                Err(InventoryError::TotalTooLarge)
+            );
+            let reply = serde_json::to_string(&serde_json::json!({ "rows": rows })).unwrap();
+            assert!(serde_json::from_str::<Inventory>(&reply).is_err());
+        }
+        let full = Inventory::from_rows(vec![
+            inventory_row(20_765, Modality::Keystroke, u64::MAX - 1, u64::MAX - 1),
+            inventory_row(20_766, Modality::Keystroke, 1, 1),
+        ])
+        .unwrap();
+        assert_eq!(
+            (full.total_events(), full.total_bytes()),
+            (u64::MAX, u64::MAX)
+        );
     }
 
     #[test]
