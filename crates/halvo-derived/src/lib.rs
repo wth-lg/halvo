@@ -99,8 +99,11 @@ impl Store {
     /// write-ahead log, foreign keys, the page-cache cap) is not in effect after it, and when an existing database
     /// holds another schema. The tables and their indexes are created only in a database that holds no table. At
     /// every open the store reconciles: it runs the truncating checkpoint, adds a revision of 0 for each family of
-    /// `entries` that has none, and removes every evidence or support row whose summary is not stored and every row
-    /// that names a workflow that is not stored. `ids` gives the key of the site hash when the database is created.
+    /// `entries` that has none, fills the workflow column of each row of a kind whose entry gives a `workflow_key`
+    /// from the value under that key where the row holds none, removes every evidence or support row whose summary
+    /// is not stored and every row that names a workflow that is not stored, and then runs the expiry of
+    /// `Store::expire`, which reads the bound of each bounded kind from its entry in `entries` as well as from the
+    /// row. `ids` gives the key of the site hash when the database is created.
     /// It also fails when a step or a handler of `host` names the family `workflow` or a family outside the form of
     /// 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`.
     pub fn open(

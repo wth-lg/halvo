@@ -25,14 +25,15 @@ pub struct Report {
 
 impl Store {
     /// Runs the expiry that every open runs, on the store's clock as it reads now: it removes every bounded row past
-    /// its bound or whose day lies after the clock's day, every window row whose expiry has passed, and every row
+    /// its bound, by the entry of its kind when it was stored and by the entry that the store was opened with, or
+    /// whose day lies after the clock's day, every window row whose expiry has passed, and every row
     /// that then names a summary or a workflow that is not stored. It returns the number of rows removed and raises
     /// the revision of every family that lost a row; the truncating checkpoint runs after it.
     pub fn expire(&mut self) -> Result<u64, Fault> {
         let db = &self.db;
         db.arm();
         let now = db.now();
-        db.write_checkpointed(|tx| tx.expire(now))
+        db.write_checkpointed(|tx| tx.expire(now, &db.entries))
     }
 
     /// The four values of the report as they stand.

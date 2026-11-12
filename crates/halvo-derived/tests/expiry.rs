@@ -229,3 +229,41 @@ fn the_store_gives_its_host_the_report_after_each_committed_transaction() {
     );
     assert_eq!(store.report().unwrap(), last);
 }
+
+static BOUND_93: KindEntry = KindEntry {
+    name: "test_bound",
+    class: RetentionClass::Bounded { days: 93 },
+    origin: Origin::Capture,
+    family: "test",
+    workflow_key: None,
+    fields: &[("v", FieldType::Version), ("day", FieldType::Day)],
+    example: r#"{"v":1,"day":20767}"#,
+};
+
+static BOUND_10: KindEntry = KindEntry {
+    class: RetentionClass::Bounded { days: 10 },
+    ..BOUND_93
+};
+
+#[test]
+fn expiry_at_open_reads_the_bound_of_the_entry_that_names_the_kind() {
+    let scratch = Scratch::new("expiry-entry-bound");
+    let clock = TestClock::at_day(DAY);
+    let emitted = Rc::new(RefCell::new(vec![TypedRecord {
+        kind: "test_bound",
+        json: format!(r#"{{"v":1,"day":{DAY}}}"#),
+    }]));
+    let host = Host::new(Box::new(clock.clone()), Box::new(NoProposals))
+        .step("test", Box::new(Emit(Rc::clone(&emitted))));
+    let mut store = open_entries(&scratch, host, &[&BOUND_93]).unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(1, 0), &mut Seq(1))
+        .unwrap();
+    drop(store);
+    assert_eq!(bodies(&scratch, "test_bound").len(), 1);
+    clock.set_day(DAY + 20);
+    drop(open_entries(&scratch, plain(&clock), &[&BOUND_93]).unwrap());
+    assert_eq!(bodies(&scratch, "test_bound").len(), 1);
+    drop(open_entries(&scratch, plain(&clock), &[&BOUND_10]).unwrap());
+    assert_eq!(bodies(&scratch, "test_bound").len(), 0);
+}

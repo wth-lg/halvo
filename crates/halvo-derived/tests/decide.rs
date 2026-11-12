@@ -326,3 +326,49 @@ fn common_proposal(ids: &[u64]) -> Proposal {
         summaries: ids.iter().map(|n| summary_id(*n)).collect(),
     }
 }
+
+#[test]
+fn delete_removes_each_summary_of_the_support_set_whatever_its_key() {
+    let scratch = Scratch::new("delete-support-set");
+    let clock = TestClock::at_day(DAY);
+    let mut signed = common_proposal(&[1, 2]);
+    signed.site = Some(halvo_schema_core::site::SiteValue::Domain {
+        key: halvo_schema_core::site::SiteDomain::parse("northwind-power.test").unwrap(),
+        source: halvo_schema_core::site::DomainSource::SignIn,
+    });
+    let fixed: Rc<RefCell<Vec<Proposal>>> = Rc::new(RefCell::new(vec![signed]));
+    let mut store = open_host(&scratch, host(&clock, Fixed(Rc::clone(&fixed)))).unwrap();
+    store
+        .commit_batch(
+            &store_id(1),
+            &[
+                episode(1, DAY, domain("northwind-power.test")),
+                episode(2, DAY, domain("northwind-power.test")),
+                episode(3, DAY, None),
+            ],
+            position(1, 0),
+            &mut Seq(100),
+        )
+        .unwrap();
+    fixed.borrow_mut().clear();
+    let id = {
+        drop(store);
+        workflows(&scratch)[0].id().clone()
+    };
+    let mut store = open_host(&scratch, host(&clock, Fixed(Rc::clone(&fixed)))).unwrap();
+    assert_eq!(delete(&mut store, &id), Ok(()));
+    drop(store);
+    let left: Vec<String> = bodies(&scratch, "summary")
+        .iter()
+        .map(|b| {
+            serde_json::from_str::<Summary>(b)
+                .unwrap()
+                .id
+                .as_str()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(left, vec![summary_id(3).as_str().to_owned()]);
+    assert_eq!(bodies(&scratch, "evidence").len(), 1);
+    assert_eq!(bodies(&scratch, "support").len(), 0);
+}

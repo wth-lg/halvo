@@ -85,6 +85,8 @@ catalogue! {
     EXPIRE_GONE = "SELECT id, family FROM rows WHERE gone <= ?1";
     EXPIRE_AHEAD = "SELECT id, family FROM rows WHERE day > ?1";
     EXPIRE_WINDOW = "SELECT id, family FROM rows WHERE expires <= ?1";
+    EXPIRE_KIND = "SELECT id, family FROM rows WHERE kind = ?1 AND day <= ?2";
+    WORKFLOW_FILL = "UPDATE rows SET workflow = json_extract(body, ?2) WHERE kind = ?1 AND workflow IS NULL";
     REVISION_READ = "SELECT n FROM revisions WHERE family = ?1";
     COUNT_CLASS = "SELECT count(*) FROM rows WHERE class = ?1";
     MIN_EXPIRES = "SELECT min(expires) FROM rows";

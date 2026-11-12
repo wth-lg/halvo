@@ -193,13 +193,35 @@ impl Tx<'_> {
     }
 
     /// The expiry by class, from the store's own rows: every bounded row whose bound has passed on the local day of
-    /// the clock or whose day lies after it, every window row whose expiry instant has passed, and then every row
-    /// that names a summary or a workflow that is not stored. It returns the number of rows removed.
-    pub(crate) fn expire(&self, now: Now) -> Result<u64, Fault> {
-        Ok(self.remove(sql::EXPIRE_GONE, [now.today])?
+    /// the clock, by the bound of its kind's entry when it was stored and by the bound of the entry of `entries` that
+    /// names its kind, or whose day lies after the clock's day, every window row whose expiry instant has passed, and
+    /// then every row that names a summary or a workflow that is not stored. It returns the number of rows removed.
+    pub(crate) fn expire(&self, now: Now, entries: &[&KindEntry]) -> Result<u64, Fault> {
+        let mut removed = self.remove(sql::EXPIRE_GONE, [now.today])?
             + self.remove(sql::EXPIRE_AHEAD, [now.today])?
-            + self.remove(sql::EXPIRE_WINDOW, [now.now])?
-            + self.sweep()?)
+            + self.remove(sql::EXPIRE_WINDOW, [now.now])?;
+        for entry in entries {
+            if let RetentionClass::Bounded { days } = entry.class {
+                let last_gone = now.today - i64::from(days);
+                removed +=
+                    self.remove(sql::EXPIRE_KIND, rusqlite::params![entry.name, last_gone])?;
+            }
+        }
+        Ok(removed + self.sweep()?)
+    }
+
+    /// Fills the workflow column of every row of a kind whose entry gives a `workflow_key` and that holds none, from
+    /// the value under that key, so that a row stored before its entry gave the key goes with its workflow.
+    pub(crate) fn fill_workflow(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
+        for entry in entries {
+            if let Some(key) = entry.workflow_key {
+                self.exec(
+                    sql::WORKFLOW_FILL,
+                    rusqlite::params![entry.name, format!("$.{key}")],
+                )?;
+            }
+        }
+        Ok(())
     }
 
     /// Removes every evidence or support row whose summary is not stored and every row of another kind than
@@ -450,8 +472,9 @@ impl Db {
             for family in &self.families {
                 tx.exec(sql::REVISION_ENSURE, [family])?;
             }
+            tx.fill_workflow(&self.entries)?;
             tx.sweep()?;
-            tx.expire(now)
+            tx.expire(now, &self.entries)
         })?;
         Ok(())
     }

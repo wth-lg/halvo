@@ -558,3 +558,32 @@ fn open_refuses_a_step_or_a_handler_of_the_family_workflow() {
     );
     let _unused: Option<Store> = None;
 }
+
+#[test]
+fn a_row_stored_before_its_entry_gave_a_workflow_key_goes_with_its_workflow() {
+    let scratch = Scratch::new("cascade-late-key");
+    let clock = TestClock::at_day(DAY);
+    let w = workflow(&scratch, &clock, &[&NOTE_UNKEYED]);
+    let records: Records = Rc::new(RefCell::new(vec![note(&w, DAY, 1)]));
+    let mut store = open_entries(
+        &scratch,
+        with_step(&clock, &records, vec![]),
+        &[&NOTE_UNKEYED],
+    )
+    .unwrap();
+    store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(1))
+        .unwrap();
+    drop(store);
+    assert_eq!(kind_rows(&scratch, "test_note").len(), 1);
+    let mut store = open_entries(&scratch, base(&clock, Grouping { min: 1 }), &[&NOTE]).unwrap();
+    store
+        .decide(&halvo_schema_core::request::InterfaceDecision::delete(
+            &halvo_schema_core::request::InterfaceRole::claim(),
+            halvo_schema_core::ids::RequestId::from_random([1; 16]),
+            halvo_schema_core::ids::WorkflowId::parse(&w).unwrap(),
+        ))
+        .unwrap();
+    drop(store);
+    assert_eq!(kind_rows(&scratch, "test_note").len(), 0);
+}
