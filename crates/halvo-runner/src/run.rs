@@ -373,12 +373,12 @@ impl Runner {
             Ok(RunnerReply::Stored(Stored { stored: 1 }))
         );
         self.link.send(&FromRunner::Done(Done { outcome }))?;
-        eprintln!(
+        crate::line(&format!(
             "run outcome={} steps={} finish={}",
             outcome.as_str(),
             self.steps,
             if stored { "yes" } else { "no" }
-        );
+        ));
         Ok(stored)
     }
 }
@@ -388,11 +388,11 @@ impl Runner {
 fn ended(broken: Broken) -> i32 {
     match broken {
         Broken::Closed => {
-            eprintln!("run link=closed");
+            crate::line("run link=closed");
             1
         }
         Broken::Frame(rule) => {
-            eprintln!("REFUSED frame: {rule}");
+            crate::line(&format!("REFUSED frame: {rule}"));
             2
         }
     }

@@ -336,6 +336,10 @@ impl Runner {
         let _ = self.child.wait();
     }
 
+    pub fn close_stderr(&mut self) {
+        self.stderr = None;
+    }
+
     pub fn stderr(&mut self) -> String {
         let mut text = String::new();
         if let Some(mut err) = self.stderr.take() {

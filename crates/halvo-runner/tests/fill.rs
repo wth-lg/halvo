@@ -689,3 +689,64 @@ fn a_page_of_steps_that_does_not_start_at_from_is_refused_with_frame() {
     );
     assert!(!seen.tags().contains(&"progress"));
 }
+
+#[test]
+fn a_propose_whose_every_send_meets_a_fault_counts_as_an_effect_that_did_not_begin() {
+    let files = FillFiles::new("propose-faults", 3);
+    let before = files.workbook_bytes();
+    let sup = fill(60, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Cleared) {
+                Act::With(store_error(frame, "store"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(
+        seen.states(),
+        [
+            EffectState::Cleared,
+            EffectState::Cleared,
+            EffectState::Cleared
+        ]
+    );
+    assert_eq!(seen.done(), Some(Outcome::Failed));
+    let finish = seen.finish().expect("finish");
+    assert_eq!(
+        (finish.effects, finish.unknown),
+        (1, 0),
+        "the store may hold the cleared row"
+    );
+    assert!(
+        seen.handbacks().is_empty(),
+        "a cleared effect did not leave"
+    );
+    assert_eq!(files.workbook_bytes(), before);
+}
+
+#[test]
+fn a_commit_whose_every_send_meets_a_fault_is_handed_back_unknown() {
+    let files = FillFiles::new("commit-faults", 1);
+    let sup = fill(61, &files);
+    let seen = sup.serve(
+        |frame, _| {
+            if is_effect(frame, EffectState::Committed) {
+                Act::With(store_error(frame, "internal"))
+            } else {
+                Act::Answer
+            }
+        },
+        LONG,
+    );
+    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
+    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
+    assert_eq!(seen.finish().map(|f| (f.effects, f.unknown)), Some((1, 1)));
+    assert_eq!(
+        range_texts(&files.dir, &files.workbook),
+        files.rows,
+        "the edit left once"
+    );
+}

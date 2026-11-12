@@ -14,8 +14,10 @@ use crate::run::{cause_of, Runner, Stop};
 
 /// How many times a row of an effect is sent when the store answers it with a fault (`store` or `internal`), each
 /// time with the same request id, so that the store answers a repeat of its last row as the first (A7.5). A fault
-/// may come after the row was stored, so a `begin` that met a fault and was not stored in the end counts as
-/// `releasing`: the runner lets no request leave for it and hands it back as `effect_unknown` before its `finish`.
+/// may come after the row was stored, so a row that met a fault and was not stored in the end counts as stored
+/// in the direction that tells the person more: a `propose` counts as an effect, a `begin` as `releasing`, for
+/// which the runner lets no request leave and which it hands back as `effect_unknown` before its `finish`, and a
+/// `commit` as not stored, so that the effect stays `releasing`.
 const ROW_SENDS: u32 = 3;
 
 /// An effect of this run as its last stored row has it.
@@ -68,7 +70,9 @@ impl Runner {
         match self.store_row(at, state) {
             Ok(()) => Ok(at),
             Err(stop) => {
-                self.effects.pop();
+                if self.effects[at].seq == 0 {
+                    self.effects.pop();
+                }
                 Err(stop)
             }
         }
@@ -133,8 +137,10 @@ impl Runner {
             }
         };
         if let Some(cause) = cause {
-            if faulted && state == EffectState::Releasing {
-                self.effects[at].state = state;
+            if faulted && state != EffectState::Committed {
+                let e = &mut self.effects[at];
+                e.seq += 1;
+                e.state = state;
             }
             return Err(failed(cause));
         }

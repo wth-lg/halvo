@@ -292,3 +292,24 @@ fn a_frame_out_of_turn_is_refused_with_frame_before_any_effect() {
     assert!(seen.effects().is_empty());
     assert_eq!(files.workbook_bytes(), before);
 }
+
+#[test]
+fn a_closed_standard_error_does_not_change_the_end_of_a_run() {
+    let sup = deferred();
+    let mut runner = Runner::start(&sup.args());
+    runner.close_stderr();
+    let mut tags = Vec::new();
+    while let Some(frame) = runner.recv() {
+        tags.push(support::tag(&frame));
+        if let Some(reply) = sup.answer(&frame) {
+            runner.send(&reply);
+        }
+    }
+    let status = runner.wait_within(LONG);
+    assert_eq!(tags, ["hello", "store", "store", "done"]);
+    assert_eq!(
+        status.and_then(|s| s.code()),
+        Some(0),
+        "the status of a stored finish"
+    );
+}
