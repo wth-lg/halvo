@@ -160,7 +160,8 @@ name in a listed file is still refused. A line of the list itself passes when
 its path is the path of an entry. A line with fewer than three fields, with
 an empty file or reason, or with a path that is not one home path as a whole
 makes the list malformed. An entry is only for a made-up name that a fixture
-holds on purpose, never the home path of a person's machine: in the pre-push
+holds on purpose, or for the public account of a hosting service's runner,
+never the home path of a person's machine: in the pre-push
 mode the scan refuses an entry whose name is the name of the home directory
 of the account that runs it (the last part of $HOME, in any case), and names
 the entry by its line. The range mode does not apply that rule, because the
