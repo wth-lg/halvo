@@ -172,6 +172,8 @@ impl ObservationWindow {
 pub enum CapError {
     #[error("the storage cap must be at least {min} bytes")]
     TooSmall { min: u64 },
+    #[error("the storage cap must be at most {max} bytes")]
+    TooLarge { max: u64 },
 }
 
 /// The largest number of bytes the store may hold before the oldest days are
@@ -184,6 +186,8 @@ impl StorageCap {
     pub const GIB: u64 = 1024 * 1024 * 1024;
     pub const ESTIMATED_BYTES_PER_DAY: u64 = Self::GIB;
     pub const MIN: StorageCap = StorageCap(Self::ESTIMATED_BYTES_PER_DAY);
+    /// 1 TiB (RD-45), below 2^53 so that the page's number stays exact.
+    pub const MAX: StorageCap = StorageCap(1024 * Self::GIB);
     const HEADROOM_BYTES: u64 = 11 * Self::GIB;
     pub const DEFAULT: StorageCap = StorageCap(
         ObservationWindow::ROLLING_DAYS as u64 * Self::ESTIMATED_BYTES_PER_DAY
@@ -194,6 +198,9 @@ impl StorageCap {
     pub fn from_bytes(bytes: u64) -> Result<Self, CapError> {
         if bytes < Self::MIN.0 {
             return Err(CapError::TooSmall { min: Self::MIN.0 });
+        }
+        if bytes > Self::MAX.0 {
+            return Err(CapError::TooLarge { max: Self::MAX.0 });
         }
         Ok(Self(bytes))
     }
@@ -603,9 +610,38 @@ mod tests {
     }
 
     #[test]
-    fn a_cap_below_the_minimum_is_rejected() {
-        assert!(StorageCap::from_bytes(StorageCap::MIN.bytes() - 1).is_err());
-        assert!(StorageCap::from_bytes(StorageCap::MIN.bytes()).is_ok());
+    fn a_cap_has_a_floor_and_a_ceiling_with_a_typed_error() {
+        assert_eq!(StorageCap::MIN.bytes(), 1_073_741_824);
+        assert_eq!(StorageCap::MAX.bytes(), 1_099_511_627_776);
+        assert_eq!(StorageCap::DEFAULT.bytes(), 26_843_545_600);
+        assert!(StorageCap::MAX.bytes() < 1 << 53);
+        let too_large = Err(CapError::TooLarge {
+            max: 1_099_511_627_776,
+        });
+        let too_small = Err(CapError::TooSmall { min: 1_073_741_824 });
+        assert_eq!(StorageCap::from_bytes(u64::MAX), too_large);
+        assert_eq!(StorageCap::from_bytes(1_099_511_627_777), too_large);
+        assert_eq!(StorageCap::from_bytes(0), too_small);
+        assert_eq!(StorageCap::from_bytes(1_073_741_823), too_small);
+        assert_eq!(
+            StorageCap::from_bytes(1_099_511_627_776),
+            Ok(StorageCap::MAX)
+        );
+        assert_eq!(StorageCap::from_bytes(1_073_741_824), Ok(StorageCap::MIN));
+        for stored in [u64::MAX, 1_099_511_627_777] {
+            assert!(serde_json::from_str::<StorageCap>(&stored.to_string()).is_err());
+        }
+        assert_eq!(
+            CapError::TooLarge {
+                max: 1_099_511_627_776
+            }
+            .to_string(),
+            "the storage cap must be at most 1099511627776 bytes"
+        );
+        assert_eq!(
+            CapError::TooSmall { min: 1_073_741_824 }.to_string(),
+            "the storage cap must be at least 1073741824 bytes"
+        );
     }
 
     fn refused_day_texts() -> Vec<String> {
