@@ -146,3 +146,13 @@ test("the toggle is held for about 1 s after the state changes", async () => {
   await page.click("toggle");
   assert.deepEqual(sentStates(page), ["paused", "running"]);
 });
+
+test("a confirmation 10 s or more after arming sends nothing, also when the disarm timer runs late", async () => {
+  const page = await deletePage();
+  await page.click("delete");
+  page.clock.now = 12000;
+  await page.click("confirm-delete");
+  assert.equal(deletes(page), 0);
+  assert.equal(armed(page), false);
+  assert.equal(page.byId("delete").disabled, false);
+});

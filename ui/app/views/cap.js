@@ -8,7 +8,7 @@
   var confirmRow;
   var question;
   var dirty = false;
-  var stored = 0;
+  var stored = null;
   var pending = null;
 
   function parse(text) {
@@ -48,6 +48,10 @@
       closeConfirm();
       return Promise.resolve();
     }
+    if (stored === null) {
+      message.textContent = "The stored size is not known yet. Try again in a moment.";
+      return Promise.resolve();
+    }
     message.textContent = "";
     if (stored > cap.bytes) {
       pending = cap.bytes;
@@ -67,6 +71,7 @@
       field = Halvo.el("input", { id: "cap-gb", type: "number", min: String(MIN_GB), max: String(MAX_GB), step: "1" });
       field.addEventListener("input", function () {
         dirty = true;
+        closeConfirm();
       });
       message = Halvo.el("span", { id: "cap-message", class: "field-message" });
       var button = Halvo.el("button", { id: "save-cap", text: "Save" });

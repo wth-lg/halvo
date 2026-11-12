@@ -52,7 +52,12 @@
   function onConfirm(event) {
     if (armedAt === null) return Promise.resolve();
     if (event && event.detail > 1) return Promise.resolve();
-    if (performance.now() - armedAt < ARM_DELAY_MS) return Promise.resolve();
+    var since = performance.now() - armedAt;
+    if (since < ARM_DELAY_MS) return Promise.resolve();
+    if (since >= DISARM_AFTER_MS) {
+      disarm();
+      return Promise.resolve();
+    }
     disarm();
     return remove();
   }

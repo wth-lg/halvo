@@ -82,3 +82,27 @@ test("Keep the current cap sends nothing", async () => {
   assert.deepEqual(sentCaps(page), []);
   assert.equal(page.visible("cap-confirm-row"), false);
 });
+
+test("before the first status reply a cap sends nothing and says that the stored size is not known", async () => {
+  const page = await openPage({
+    replies: {
+      capture_status: () => new Promise(() => {}),
+      set_storage_cap: ({ capBytes }) => ({ ...fixture("capture_status-running"), store_cap_bytes: capBytes }),
+    },
+  });
+  await page.type("cap-gb", "1");
+  await page.click("save-cap");
+  assert.deepEqual(sentCaps(page), []);
+  assert.equal(page.text("cap-message"), "The stored size is not known yet. Try again in a moment.");
+});
+
+test("an edit of the field closes an open confirmation, which then sends nothing", async () => {
+  const page = await capPage(3);
+  await page.type("cap-gb", "2");
+  await page.click("save-cap");
+  assert.equal(page.visible("cap-confirm-row"), true);
+  await page.type("cap-gb", "20");
+  assert.equal(page.visible("cap-confirm-row"), false);
+  await page.click("confirm-cap");
+  assert.deepEqual(sentCaps(page), []);
+});
