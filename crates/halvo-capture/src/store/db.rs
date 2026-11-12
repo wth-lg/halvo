@@ -48,10 +48,13 @@ impl KeyFile {
     }
 
     pub(crate) fn wrapped_store_key(&self) -> StoreResult<WrappedKey> {
-        BASE64
+        let wrapped = BASE64
             .decode(self.wrapped_store_key_b64.as_bytes())
-            .map(WrappedKey)
-            .map_err(|_| StoreError::KeyFileUnparseable)
+            .map_err(|_| StoreError::KeyFileUnparseable)?;
+        match self.custody_kind.wrapped_store_key_len() {
+            Some(len) if wrapped.len() != len => Err(StoreError::KeyFileUnparseable),
+            _ => Ok(WrappedKey(wrapped)),
+        }
     }
 
     pub(crate) fn destroy(store_dir: &Path) -> StoreResult<()> {

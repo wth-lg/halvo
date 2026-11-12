@@ -18,6 +18,15 @@ impl CustodyKind {
             CustodyKind::Dpapi => true,
         }
     }
+
+    pub(crate) fn wrapped_store_key_len(self) -> Option<usize> {
+        match self {
+            CustodyKind::DevFallback | CustodyKind::Dpapi => {
+                Some(XNONCE_LEN + 32 + size_of::<chacha20poly1305::Tag>())
+            }
+            CustodyKind::SecureEnclave => None,
+        }
+    }
 }
 
 /// Fail unless `custody` is acceptable for a release build.
@@ -509,6 +518,15 @@ mod tests {
         the_wrap_opens_under_its_root_and_no_other_key(&DevFallbackCustody::new(RootId::fresh()));
         let dir = tempfile::tempdir().unwrap();
         the_wrap_opens_under_its_root_and_no_other_key(&file_root_custody(dir.path()));
+    }
+
+    #[test]
+    fn a_store_key_wrap_of_each_kind_that_this_build_makes_is_72_bytes() {
+        assert_eq!(CustodyKind::DevFallback.wrapped_store_key_len(), Some(72));
+        assert_eq!(CustodyKind::Dpapi.wrapped_store_key_len(), Some(72));
+        assert_eq!(CustodyKind::SecureEnclave.wrapped_store_key_len(), None);
+        let sealed = aead_seal(&[0x11; 32], &[0x22; 32], b"a root id").unwrap();
+        assert_eq!(sealed.len(), 72, "a seal of a 32-byte key");
     }
 
     #[test]

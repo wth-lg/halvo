@@ -991,6 +991,64 @@ fn an_empty_a_zeroed_and_a_garbled_key_file_open_as_key_file_unparseable() {
     );
 }
 
+#[test]
+fn a_wrapped_store_key_that_decodes_to_another_length_than_a_wrap_opens_as_key_file_unparseable() {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let written = KeyFile::read(&store_dir).unwrap();
+    let wrap = STANDARD.decode(&written.wrapped_store_key_b64).unwrap();
+    assert_eq!(wrap.len(), 72, "a wrap of the store key is not 72 bytes");
+    let mut one_byte_changed = wrap.clone();
+    one_byte_changed[40] ^= 0x01;
+    let mut one_byte_more = wrap.clone();
+    one_byte_more.push(0x00);
+    let cases: [(&str, Vec<u8>, &str); 7] = [
+        ("empty", Vec::new(), "KeyFileUnparseable"),
+        ("3 bytes", wrap[..3].to_vec(), "KeyFileUnparseable"),
+        ("the nonce alone", wrap[..24].to_vec(), "KeyFileUnparseable"),
+        ("one byte short", wrap[..71].to_vec(), "KeyFileUnparseable"),
+        ("one byte more", one_byte_more, "KeyFileUnparseable"),
+        (
+            "a wrap with one byte changed",
+            one_byte_changed,
+            "Custody(WrapAuthFailed)",
+        ),
+        ("the wrap itself", wrap.clone(), "opens"),
+    ];
+    let mut problems = Vec::new();
+    for (case, field, expected) in cases {
+        let mut key_file = KeyFile::read(&store_dir).unwrap();
+        key_file.wrapped_store_key_b64 = STANDARD.encode(&field);
+        std::fs::write(
+            KeyFile::path(&store_dir),
+            serde_json::to_vec(&key_file).unwrap(),
+        )
+        .unwrap();
+        let opened = EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+            Ok(Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )))
+        });
+        let answer = match &opened {
+            Ok(_) => "opens".to_string(),
+            Err(e) => format!("{e:?}"),
+        };
+        drop(opened);
+        if answer != expected {
+            problems.push(format!(
+                "a wrapped-key field of {} bytes ({case}) answered {answer} in place of {expected}",
+                field.len()
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
 fn reopened_file_root_store(store_dir: &Path, roots_dir: &Path, root_id: RootId) -> EncryptedStore {
     EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, _| {
         Ok(Box::new(file_root_custody(
