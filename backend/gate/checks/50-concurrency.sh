@@ -56,8 +56,8 @@ expect() {
 }
 
 failed=0
-if [ "$(git -C "$ROOT" rev-parse --show-toplevel 2> /dev/null)" != "$ROOT" ]; then
-  echo "self-test concurrency: the bad fixtures need a git checkout: they copy the files that git lists; $ROOT is not the top of one"
+if [ -z "$(git -C "$ROOT" ls-files --cached --others --exclude-standard -- gate/checks/50-concurrency.sh 2> /dev/null)" ]; then
+  echo "self-test concurrency: the bad fixtures need a git checkout: they copy the files that git lists under $ROOT, and git lists no gate/checks/50-concurrency.sh there"
   exit 1
 fi
 want=

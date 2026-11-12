@@ -35,8 +35,9 @@ one of these characters is not read as a name.
                                                      makes a commit
   sh scripts/check-machine-paths.sh --self-test      prove both ways on indexes made for it
 
-It reads the whole index of the checkout it is started in, from any directory of it, and not
-the working tree. It prints
+It reads the index of the checkout it is started in, from any directory of it, and not the
+working tree: when that checkout holds the directory above scripts/, only the files under that
+directory, named from there, and else the whole index. It prints
 "FILE:LINE:PATH" for each path it finds, in text and binary files and in the target of a
 symbolic link. A Windows path counts in any letter case. A home path that a tool wrote with
 dashes for separators into the name of a directory, -Users-<name> or -home-<name>, counts at the
@@ -50,7 +51,8 @@ relative path that holds such a part is refused too, and a path in UTF-16 text o
 percent-encoding is not found. Exit 0 when it finds none, 1 when it finds one, 2 when it cannot
 read the index, 64 on bad usage. It only reads, so it is safe to run twice; the self-test
 leaves its indexes under .tmp/. One of them is a repository in which the self-test commits and
-merges as the configured git user, the merges and one refused commit under the hooks of .githooks.
+merges as the configured git user, the merges and one refused commit under a pre-commit and a
+pre-merge-commit hook that run it with --staged, which the self-test writes beside its indexes.
 EOF
   exit 64
 }
@@ -85,7 +87,7 @@ paths_in_the_index() {
 }
 
 paths_in_the_staged_files() {
-  git diff --cached --name-only --diff-filter=ACMRT -z "$@" |
+  git diff --cached --name-only --relative --diff-filter=ACMRT -z "$@" |
     xargs -0 sh -c "$PATHS_IN_THE_GIVEN_FILES_OR_THE_WHOLE_INDEX" sh staged "$HOME_DIRECTORY_AND_A_NAME" "$HOME_WITH_DASHES_AND_A_NAME"
 }
 
@@ -100,7 +102,9 @@ report() {
 check() {
   [ "$(git rev-parse --is-inside-work-tree 2> /dev/null)" = true ] || cannot_read "$(pwd) is in no git checkout"
   top_of_the_work_tree=$(git rev-parse --show-toplevel) || cannot_read "git names no top of the work tree for $(pwd)"
-  cd "$top_of_the_work_tree" || cannot_read "$top_of_the_work_tree cannot be entered"
+  where_to_read=$top_of_the_work_tree
+  [ "$(git -C "$ROOT" rev-parse --show-toplevel 2> /dev/null)" != "$top_of_the_work_tree" ] || where_to_read=$ROOT
+  cd "$where_to_read" || cannot_read "$where_to_read cannot be entered"
   if [ "$1" = index ]; then
     found=$(paths_in_the_index) || cannot_read "git grep failed"
   else
@@ -158,7 +162,7 @@ expect_under_the_hooks() {
   want_lines=$4
   want_commits=$5
   shift 5
-  output=$(git -c core.hooksPath="$ROOT/.githooks" -c commit.gpgsign=false "$@" 2>&1)
+  output=$(git -c core.hooksPath="$scratch/hooks" -c commit.gpgsign=false "$@" 2>&1)
   got=$?
   printf '%s\n' "$output" | sed "s/^/  $name: /"
   lines=$(printf '%s\n' "$output" | grep -ac '^[^:]*:[0-9][0-9]*:')
@@ -191,6 +195,13 @@ self_test() {
   state=${GATE_STATE:-$ROOT/.tmp}
   mkdir -p "$state"
   scratch=$(mktemp -d "$state/machine-paths.XXXXXX") || exit 2
+  mkdir -p "$scratch/hooks" || exit 2
+  MACHINE_PATHS_SCRIPT=$ROOT/scripts/check-machine-paths.sh
+  export MACHINE_PATHS_SCRIPT
+  for hook in pre-commit pre-merge-commit; do
+    printf '#!/bin/sh\nexec sh "$%s" --staged\n' MACHINE_PATHS_SCRIPT > "$scratch/hooks/$hook" || exit 2
+    chmod +x "$scratch/hooks/$hook" || exit 2
+  done
   failed=0
   while read -r kind name want_lines text; do
     (

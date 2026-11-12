@@ -59,8 +59,8 @@ expect() {
 }
 
 failed=0
-if [ "$(git -C "$ROOT" rev-parse --show-toplevel 2> /dev/null)" != "$ROOT" ]; then
-  echo "self-test contract: the bad fixtures need a git checkout, as the gate does: they copy the files that git lists; $ROOT is not the top of one"
+if [ -z "$(git -C "$ROOT" ls-files --cached --others --exclude-standard -- gate/checks/70-contract.sh 2> /dev/null)" ]; then
+  echo "self-test contract: the bad fixtures need a git checkout, as the gate does: they copy the files that git lists under $ROOT, and git lists no gate/checks/70-contract.sh there"
   exit 1
 fi
 sh "$ROOT/scripts/stack.sh" up > "$STATE/contract-self-test-stack.log" 2>&1 ||
