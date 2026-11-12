@@ -772,3 +772,91 @@ fn the_origin_of_each_of_100000_drawn_addresses_is_the_one_that_the_reader_of_th
         assert!(n >= 500, "{name}={n}");
     }
 }
+
+#[test]
+fn a_refused_address_names_the_rule_that_refused_it_and_no_text_of_the_address() {
+    let cases: [(&str, &str); 18] = [
+        ("http://pay.test/ x", "address_control"),
+        ("http://pay.test/\u{7f}", "address_control"),
+        ("http://pay\u{0}.test/", "address_control"),
+        ("ftp://pay.test/", "address_scheme"),
+        ("http:pay.test", "address_scheme"),
+        ("http://user@pay.test/", "address_userinfo"),
+        ("http://pay.test:80@evil.test/", "address_userinfo"),
+        ("http://[::1]:8080/", "address_ip_literal"),
+        ("http://[127.0.0.1]/", "address_ip_literal"),
+        ("http://pay.test:0/", "address_port"),
+        ("http://pay.test:80:90/", "address_port"),
+        ("http://pay.test:/", "address_port"),
+        ("http://0x7f.0.0.1/", "address_ipv4"),
+        ("http://pay.123/", "address_ipv4"),
+        ("http://pay..test/", "address_host"),
+        ("http://pay_now.test/", "address_host"),
+        ("http://xn--b\u{fc}cher.test/", "address_host"),
+        (
+            "http://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.test/",
+            "address_host",
+        ),
+    ];
+    for (address, rule) in cases {
+        let refusal = WebOrigin::of_address(address).unwrap_err();
+        assert_eq!(
+            (refusal.type_name(), refusal.rule(), refusal.key()),
+            ("WebOrigin", rule, None),
+            "{address:?}"
+        );
+        let shown = refusal.to_string();
+        for word in ["pay", "evil", "now", "::1", "127", "0x7f", "aaaa"] {
+            assert!(!shown.contains(word), "{shown}");
+        }
+    }
+}
+
+#[test]
+fn a_capital_of_each_taken_range_gives_the_origin_of_its_small_letter_and_each_range_ends_where_the_text_says(
+) {
+    let pairs = [
+        ('A', 'a'),
+        ('Z', 'z'),
+        ('\u{c0}', '\u{e0}'),
+        ('\u{d6}', '\u{f6}'),
+        ('\u{d8}', '\u{f8}'),
+        ('\u{de}', '\u{fe}'),
+        ('\u{391}', '\u{3b1}'),
+        ('\u{3a1}', '\u{3c1}'),
+        ('\u{3a3}', '\u{3c3}'),
+        ('\u{3a9}', '\u{3c9}'),
+        ('\u{400}', '\u{450}'),
+        ('\u{40f}', '\u{45f}'),
+        ('\u{410}', '\u{430}'),
+        ('\u{42f}', '\u{44f}'),
+    ];
+    for (capital, small) in pairs {
+        let address = format!("http://x{capital}y.test/");
+        let big = origin_of(&address);
+        assert!(big.is_some(), "{capital:?}");
+        assert_eq!(
+            big,
+            origin_of(&format!("http://x{small}y.test/")),
+            "{capital:?}"
+        );
+        assert_eq!(big, read_origin(&address), "{capital:?}");
+    }
+    for taken in [
+        '\u{e0}', '\u{ff}', '\u{3b1}', '\u{3c9}', '\u{3041}', '\u{3096}', '\u{30a1}', '\u{30fa}',
+        '\u{30fc}', '\u{4e00}', '\u{9fff}', '\u{ac00}', '\u{d7a3}',
+    ] {
+        let address = format!("http://x{taken}y.test/");
+        assert!(origin_of(&address).is_some(), "{taken:?}");
+        assert_eq!(origin_of(&address), read_origin(&address), "{taken:?}");
+    }
+    for refused in [
+        '\u{bf}', '\u{d7}', '\u{df}', '\u{f7}', '\u{100}', '\u{390}', '\u{3a2}', '\u{3aa}',
+        '\u{3b0}', '\u{3c2}', '\u{3ca}', '\u{3ff}', '\u{460}', '\u{3040}', '\u{3097}', '\u{30a0}',
+        '\u{30fb}', '\u{30fd}', '\u{4dff}', '\u{a000}', '\u{abff}', '\u{d7a4}',
+    ] {
+        let address = format!("http://x{refused}y.test/");
+        assert_eq!(origin_of(&address), None, "{refused:?}");
+        assert_eq!(read_origin(&address), None, "{refused:?}");
+    }
+}

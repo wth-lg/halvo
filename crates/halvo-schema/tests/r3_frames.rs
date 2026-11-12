@@ -1069,6 +1069,18 @@ fn the_frames_bind_and_browser_and_their_replies_hold_the_keys_of_the_contract()
             "created",
         ),
         (
+            r#"{"t":"browser","pid":4242,"created":"+1794339000123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
+            r#"{"t":"browser","pid":4242,"created":" 1794339000123456","group":null}"#,
+            "CreationTime",
+            "creation_time",
+            "created",
+        ),
+        (
             r#"{"t":"browser","pid":4242,"created":"-1","group":null}"#,
             "CreationTime",
             "creation_time",
@@ -1525,4 +1537,36 @@ fn a_secret_reply_is_refused_for_each_form_that_the_contract_does_not_give() {
             .unwrap_err()
             .to_string();
     assert!(!error.contains("4711"), "{error}");
+}
+
+#[test]
+fn a_secret_reply_read_alone_checks_its_own_tag() {
+    assert_eq!(
+        SecretReply::parse(br#"{"t":"secret_reply","answer":"none"}"#),
+        Ok(SecretReply::None)
+    );
+    for text in [
+        r#"{"t":"secret","answer":"none"}"#,
+        r#"{"t":"bind_reply","answer":"none"}"#,
+        r#"{"t":"Secret_reply","answer":"none"}"#,
+    ] {
+        expect(
+            SecretReply::parse(text.as_bytes()),
+            "SecretReply",
+            "tag",
+            "t",
+        );
+    }
+    expect(
+        SecretReply::parse(br#"{"t":1,"answer":"none"}"#),
+        "SecretReply",
+        "not_a_string",
+        "t",
+    );
+    expect(
+        SecretReply::parse(br#"{"answer":"none"}"#),
+        "SecretReply",
+        "missing_key",
+        "t",
+    );
 }

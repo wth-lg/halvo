@@ -2,20 +2,14 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use halvo_schema::executable::text::WebOrigin;
 use halvo_schema::executable::{AgentBindings, AgentConfig, Refusal, RefusalCause, RunnerCall};
 
-const LIMIT: Duration = Duration::from_secs(60);
 const A: &str = "40000000000000000000000000000001";
 const W: &str = "30000000000000000000000000000001";
 
 fn within<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    let (send, receive) = mpsc::channel();
-    thread::spawn(move || {
-        let _ = send.send(work());
-    });
-    receive
-        .recv_timeout(LIMIT)
-        .expect("the parser did not answer within 60 s")
+    within_seconds(60, work)
 }
 
 fn keys(count: usize) -> String {
@@ -85,4 +79,28 @@ fn an_agent_bindings_record_of_50000_distinct_origins_is_taken_in_time_that_grow
         refused,
         (RefusalCause::Malformed, "AgentBindings", "repeated_name")
     );
+}
+
+#[test]
+fn an_address_whose_label_holds_300000_letters_is_refused_in_time_that_grows_with_its_size() {
+    let label: String = ('\u{4e00}'..='\u{9fff}').cycle().take(300_000).collect();
+    let address = format!("http://{label}.test/");
+    let refusal = within_seconds(10, move || {
+        WebOrigin::of_address(&address).map(|o| o.to_string())
+    });
+    let refusal = refusal.expect_err("refused");
+    assert_eq!(
+        (refusal.cause(), refusal.type_name(), refusal.rule()),
+        (RefusalCause::Malformed, "WebOrigin", "address_host")
+    );
+}
+
+fn within_seconds<T: Send + 'static>(seconds: u64, work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (send, receive) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = send.send(work());
+    });
+    receive
+        .recv_timeout(Duration::from_secs(seconds))
+        .unwrap_or_else(|_| panic!("no answer within {seconds} s"))
 }
