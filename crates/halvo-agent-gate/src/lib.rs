@@ -15,6 +15,7 @@ compile_error!(
 
 pub mod configs;
 mod host;
+pub mod seed;
 
 pub use host::{GateHost, Sent};
 
