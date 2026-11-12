@@ -521,3 +521,41 @@ fn a_start_closes_a_lost_run_started_that_its_events_already_hold() {
     );
     agree(&w, 0);
 }
+
+#[test]
+fn an_owed_item_lapsed_whose_log_meets_seq_is_read_then_logged_at_the_next_tick() {
+    let mut w = world(&[MANUAL]);
+    let item = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0xe901)).unwrap();
+    let lapsed = halvo_coord::types::Lapsed::Stuck(halvo_coord::types::OtherLapse::AppEnded);
+    w.board.owed.push(halvo_coord::schedule::Owed {
+        agent: agent(0),
+        workflow: support::flow(0),
+        what: halvo_coord::schedule::Owing::ItemLapsed {
+            item: item.clone(),
+            lapsed,
+            day: DAY,
+            at: 0,
+        },
+    });
+    stored_by_another_writer(&w, 0, What::SlotSkipped { slot: None });
+    let lapses = |w: &World| {
+        count(
+            w,
+            0,
+            |what| matches!(what, What::ItemLapsed { item: i, .. } if *i == item),
+        )
+    };
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(
+        lapses(&w),
+        0,
+        "the debt's log meets seq and its read holds no close, so it stays owed"
+    );
+    assert_eq!(w.board.owed.len(), 1);
+    w.set_clock(T0 + 20_000, DAY);
+    w.act(Act::Tick);
+    assert_eq!(lapses(&w), 1);
+    assert!(w.board.owed.is_empty());
+    agree(&w, 0);
+}

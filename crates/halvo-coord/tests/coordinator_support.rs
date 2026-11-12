@@ -46,7 +46,10 @@ impl Both {
             if line.starts_with("at ") {
                 continue;
             }
-            let name = line.split_once(": ").map_or(line, |(_, n)| n);
+            let name = line
+                .split_once(": ")
+                .map_or(line, |(_, n)| n)
+                .trim_start_matches('<');
             if name.contains("Both as halvo_coord::ports::") && name.ends_with(method) {
                 below = true;
                 continue;
