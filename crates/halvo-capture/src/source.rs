@@ -66,14 +66,16 @@ impl DefaultPairCall {
             std::any::type_name::<S>(),
             member,
         );
-        let again = DEFAULT_PAIR_CALLS.with(|calls| {
-            let mut calls = calls.borrow_mut();
-            let again = calls.contains(&call);
-            if !again {
-                calls.push(call);
-            }
-            again
-        });
+        let again = DEFAULT_PAIR_CALLS
+            .try_with(|calls| {
+                let mut calls = calls.borrow_mut();
+                let again = calls.contains(&call);
+                if !again {
+                    calls.push(call);
+                }
+                again
+            })
+            .unwrap_or(false);
         if again {
             panic!("CaptureSource implements neither begin and shutdown nor start and stop");
         }
@@ -658,6 +660,52 @@ mod tests {
         assert!(new_over_new.start(handle).is_ok());
         new_over_new.stop();
         assert_eq!(new_over_new.0.calls, ["begin", "shutdown"]);
+    }
+
+    struct HeldUntilTheThreadEnds {
+        source: Option<NewPair>,
+        report: std::sync::mpsc::Sender<std::thread::Result<Vec<&'static str>>>,
+    }
+
+    impl Drop for HeldUntilTheThreadEnds {
+        fn drop(&mut self) {
+            if let Some(mut source) = self.source.take() {
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    source.stop();
+                    source.calls.clone()
+                }));
+                let _ = self.report.send(outcome);
+            }
+        }
+    }
+
+    thread_local! {
+        static HELD: std::cell::RefCell<Option<HeldUntilTheThreadEnds>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    #[test]
+    fn a_default_stop_in_a_thread_local_destructor_returns() {
+        let (report, outcomes) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            HELD.with(|held| {
+                *held.borrow_mut() = Some(HeldUntilTheThreadEnds {
+                    source: None,
+                    report,
+                });
+            });
+            let mut source = NewPair::default();
+            let (handle, _writer) = sink::channel(1);
+            source.start(handle).unwrap();
+            HELD.with(|held| held.borrow_mut().as_mut().unwrap().source = Some(source));
+        })
+        .join()
+        .unwrap();
+        let outcome = outcomes
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the holder reported inside 5 s");
+        let calls = outcome.expect("the default stop panicked in a thread-local destructor");
+        assert_eq!(calls, ["begin", "shutdown"]);
     }
 
     #[test]
