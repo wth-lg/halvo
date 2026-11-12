@@ -37,9 +37,6 @@ pub(crate) fn open(bytes: &[u8]) -> Result<Xlsx<Cursor<&[u8]>>, Error> {
 pub(crate) fn read(bytes: &[u8], sheet: &str, range: Range) -> Result<Vec<Vec<Cell>>, Error> {
     guarded(|| {
         let mut xlsx = open(bytes)?;
-        if !xlsx.sheet_names().iter().any(|name| name == sheet) {
-            return Err(Error::NoSheet);
-        }
         let values = xlsx.worksheet_range(sheet).map_err(|_| unreadable())?;
         let mut rows = Vec::new();
         for row in range.first.0..=range.last.0 {
@@ -68,12 +65,11 @@ fn cell(value: Option<&Data>) -> Cell {
 
 type Grids = (calamine::Range<Data>, calamine::Range<String>);
 
-/// The values and the formulas of the sheet named `sheet`, and of no other sheet.
+/// The values and the formulas of the sheet named `sheet`, and of no other sheet. The caller
+/// found the sheet by the same name rule first ([`crate::parts::part_of`]), so a name that the
+/// reader lacks is an error of the reader.
 fn named_sheet(bytes: &[u8], sheet: &str) -> Result<Grids, Error> {
     let mut xlsx = open(bytes)?;
-    if !xlsx.sheet_names().iter().any(|name| name == sheet) {
-        return Err(Error::NoSheet);
-    }
     let values = xlsx.worksheet_range(sheet).map_err(|_| unreadable())?;
     let formulas = xlsx.worksheet_formula(sheet).map_err(|_| unreadable())?;
     Ok((values, formulas))
@@ -157,7 +153,7 @@ mod tests {
         assert_eq!(read(&original, "Values", Value::Number(77.0)), Ok(false));
         assert_eq!(
             read(&changed, "Missing", Value::Number(77.0)),
-            Err(Error::NoSheet)
+            Err(unreadable())
         );
     }
 
