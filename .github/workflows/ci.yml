@@ -1,4 +1,5 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
 
 on:
   push:
@@ -28,18 +29,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,24 +78,59 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-r7-account
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Build
-        shell: bash
-        run: npm run tauri build
-      - name: Version
-        shell: bash
-        run: test "$(target/release/bundle/macos/Halvo.app/Contents/MacOS/halvo --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-macos
-          path: target/release/bundle/macos/Halvo.app
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-r7-account
       - name: Lockfile unchanged
         shell: bash
         run: git diff --exit-code -- Cargo.lock
+      - name: Hosted rules of unit 7.7 taken out (scratch only)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          s=account/crates/halvo-secrets/src
+          caught=0
+          total=0
+          mutant() {
+            id=$1
+            f=$s/$2
+            features=$3
+            expect=$4
+            total=$((total + 1))
+            perl -0pi -e "$5" "$f"
+            if git diff --quiet -- "$f"; then
+              echo "mutant $id applied=no"
+              return
+            fi
+            log=$RUNNER_TEMP/mutant-$id.log
+            start=$(date +%s)
+            CARGO_TARGET_DIR=$RUNNER_TEMP/mutants cargo test --manifest-path account/Cargo.toml --locked --offline -p halvo-secrets --features "$features" --test hosted -- --test-threads=1 >"$log" 2>&1
+            code=$?
+            git checkout -- "$f"
+            if grep -q "^test $expect \.\.\. FAILED" "$log"; then hit=yes; caught=$((caught + 1)); else hit=no; fi
+            echo "mutant $id exit=$code expected_failed=$hit failed_tests=$(grep -c '\.\.\. FAILED$' "$log") seconds=$(( $(date +%s) - start ))"
+            grep -E '^test .* \.\.\. FAILED$' "$log"
+          }
+          k=hosted-store-tests,keychain
+          u=hosted-store-tests
+          mutant h01-no-move mac.rs $k moves::a_file_of_an_earlier_build_moves_once_into_the_keychain_and_reads_found_after 's/Read::Found\(secret\) => self\.move_in\(secret\),/Read::Found(_) => Read::NotStored,/'
+          mutant h02-no-read-back-compare mac.rs $k moves::a_read_back_that_differs_leaves_the_file_and_answers_locked 's/Read::Found\(back\) if back\.expose\(\) == secret\.expose\(\) => \{\}/Read::Found(_) => {}/'
+          mutant h03-file-removed-before-read-back mac.rs $k moves::a_read_back_that_differs_leaves_the_file_and_answers_locked 's/Write::Stored => \{\}/Write::Stored => { let _ = self.file.delete(); }/'
+          mutant h04-failed-add-drops-file mac.rs $k moves::a_failed_add_leaves_the_file_and_answers_locked 's/Write::Fault\(fault\) => return not_moved\(Some\(Ok\(fault\)\)\),/Write::Fault(_) => { let _ = self.file.delete(); return Read::NotStored; }/'
+          mutant h05-both-full-found mac.rs $k moves::with_both_places_full_the_read_answers_locked_never_not_stored 's/Read::Found\(_\) => Read::Locked\(Locked::OtherStore\),\s*_ => Read::Found\(secret\),/_ => Read::Found(secret),/'
+          mutant h06-unsigned-ignores-item mac.rs $u beside_the_keychain::a_keychain_item_read_by_a_build_without_the_feature_answers_locked 's/Ok\(_\) => Read::Locked\(Locked::OtherStore\),/Ok(_) => self.file.read(),/'
+          mutant h07-equal-bytes-not-finished mac.rs $k moves::a_read_back_that_differs_leaves_the_file_and_answers_locked 's/Read::Found\(other\) if other\.expose\(\) == secret\.expose\(\) => \{\s*self\.remove_the_file\(secret\)\s*\}\s*//'
+          mutant h08-delete-without-read mac.rs $k moves::with_both_places_full_the_read_answers_locked_never_not_stored 's/match self\.read\(\) \{\s*Read::Found\(_\) => match self\.keeps \{/match Read::Found(Secret::new(vec![1]).expect("a secret")) {\n            Read::Found(_) => match self.keeps {/'
+          mutant h09-feature-picks-file store.rs $k the_store_of_this_build_stores_reads_and_deletes_one_item 's/let keeps = if cfg!\(feature = "keychain"\) \{/let keeps = if !cfg!(feature = "keychain") {/'
+          mutant h10-kind-of-keychain-is-file store.rs $k the_store_of_this_build_stores_reads_and_deletes_one_item 's/Keeps::Keychain => StoreKind::Keychain,/Keeps::Keychain => StoreKind::File,/'
+          mutant h11-store-reads-file-alone store.rs $u beside_the_keychain::a_keychain_item_read_by_a_build_without_the_feature_answers_locked 's/Place::Mac\(mac\) => mac\.read\(\),/Place::Mac(mac) => mac.file.read(),/'
+          mutant h12-unsigned-delete-removes-item store.rs $u beside_the_keychain::a_keychain_item_read_by_a_build_without_the_feature_answers_locked 's/Place::Mac\(mac\) => mac\.delete\(\),/Place::Mac(mac) => mac.keychain.delete(),/'
+          mutant h13-boxed-count-zero keychain.rs $k moves::a_file_of_an_earlier_build_moves_once_into_the_keychain_and_reads_found_after 's/\(\*\*self\)\.count\(service, account\)/Ok(0)/'
+          mutant h14-hook-add-works keychain/failing.rs $k moves::a_failed_add_leaves_the_file_and_answers_locked 's/MoveFault::Add => Err\(WRITE_PERMISSION\),/MoveFault::Add => self.inner.add(service, account, bytes),/'
+          mutant h15-hook-read-back-equal keychain/failing.rs $k moves::a_read_back_that_differs_leaves_the_file_and_answers_locked 's/\*last \^= 1;/let _ = last;/'
+          echo "hosted mutants caught=$caught of $total changed_files=$(git status --short | wc -l | tr -d ' ')"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -140,21 +164,10 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r7-account
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Build
-        shell: bash
-        run: npm run tauri build -- --no-bundle
-      - name: Version
-        shell: bash
-        run: test "$(target/release/halvo.exe --version)" = 0.0.0
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: halvo-windows
-          path: target/release/halvo.exe
-          if-no-files-found: error
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-r7-account
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
