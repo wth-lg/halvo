@@ -10,5 +10,6 @@ pub mod ports;
 pub mod roster;
 pub mod run;
 pub mod schedule;
+pub mod sync;
 pub mod types;
 pub mod words;
