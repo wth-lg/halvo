@@ -117,9 +117,12 @@ impl Folder {
     /// is read, or a package whose entries declare or hold more than 32 MiB in one or 128 MiB
     /// in all ([`Refusal::Size`]); a file that is no zip package, is encrypted or holds an entry
     /// name twice, names compared as the package format compares them ([`Refusal::Unreadable`]);
-    /// a relationship inside the package that does not name a part as that format names it
-    /// ([`Refusal::Relationship`]; an external target such as a hyperlink's address is not read
-    /// as a part name and is never a reason to refuse); a workbook that holds a kind of the
+    /// a relationship of a type that the crate or its reader reads as a part (a worksheet, a
+    /// table, a macro project, a pivot part and the other sheet types) that is marked `External`,
+    /// or a relationship inside the package that does not name a part as that format names it
+    /// ([`Refusal::Relationship`]; a relationship of another type marked `External`, such as a
+    /// hyperlink, is skipped: its address is not read as a part name and is never a reason to
+    /// refuse); a workbook that holds a kind of the
     /// executor's refused list
     /// ([`Refusal::Kinds`]: `pivot`, `macro`, `validation`); a sheet that the workbook lacks
     /// ([`Error::NoSheet`], with the cause `step_failed`); a sheet whose used cells and the range

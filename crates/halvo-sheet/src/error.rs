@@ -78,13 +78,17 @@ pub enum Refusal {
     /// or `c` other than those rows and cells, nor a second element named `sheetData`, since
     /// the reader would take it as one.
     Part,
-    /// A relationship inside the package does not name a part the way the package format names
-    /// parts; a relationship whose target mode is `External` (a hyperlink) is never one. Its target
-    /// does not decode: a percent sign is not followed by two hex digits, a `/` or a `\` is
-    /// percent-encoded, or the bytes are not UTF-8. Or a relationship of a type that the crate
-    /// or its reader reads names no entry, or its type equals such a type only when ASCII case
-    /// is ignored. Or the package's office document is not `xl/workbook.xml`, or the crate and
-    /// the reader would find the named sheet in two different parts.
+    /// A relationship of a type that the crate or its reader reads as a part (a worksheet, a
+    /// chart or dialog sheet, a macro sheet, a table, a macro project, a pivot part, the office
+    /// document), its type compared without ASCII case, is marked `External`; a relationship of
+    /// another type marked `External`, a hyperlink among them, is skipped and never a reason to
+    /// refuse. Or a relationship inside the package does not name a part the way the package
+    /// format names parts: its target does not decode (a percent sign is not followed by two hex
+    /// digits, a `/` or a `\` is percent-encoded, or the bytes are not UTF-8). Or a relationship
+    /// of a type that the crate or its reader reads names no entry, or its type equals such a
+    /// type only when ASCII case is ignored. Or the package's office document is not
+    /// `xl/workbook.xml`, or the crate and the reader would find the named sheet in two
+    /// different parts.
     Relationship,
     /// Over a bound: the file holds more than 64 MiB; an entry declares or holds more than
     /// 32 MiB uncompressed, or the entries more than 128 MiB in all; or the rectangle of the

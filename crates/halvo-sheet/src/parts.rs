@@ -689,11 +689,13 @@ struct Linked {
     kinds: BTreeSet<Kind>,
 }
 
-/// Reads every relationship of the package. Refuses a target that does not decode, a type that
-/// equals a type of [`READ`] only when ASCII case is ignored, and a relationship of a type of
-/// [`READ`] whose target names no entry. Collects the kinds that relationships link, and the
-/// sheet parts that the element rules scan: each target of a sheet type and each part that the
-/// workbook names as a sheet.
+/// Reads every relationship of the package. Refuses a relationship marked `External` whose type
+/// equals a type of [`READ`], ASCII case ignored, whatever its target; skips every other one
+/// marked `External`. Refuses a target that does not decode, a type that equals a type of
+/// [`READ`] only when ASCII case is ignored, and a relationship of a type of [`READ`] whose
+/// target names no entry. Collects the kinds that relationships link, and the sheet parts that
+/// the element rules scan: each target of a sheet type and each part that the workbook names as
+/// a sheet.
 fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error> {
     let mut linked = Linked::default();
     for (name, xml) in entries {
@@ -704,6 +706,9 @@ fn by_relationship(entries: &Entries, names: &Names<'_>) -> Result<Linked, Error
         let source = source_of(&folded).unwrap_or_default();
         for rel in relationships(xml)? {
             if rel.external {
+                if READ.iter().any(|read| read.eq_ignore_ascii_case(&rel.tail)) {
+                    return Err(relationship());
+                }
                 continue;
             }
             let target = named(names, &source, &rel.target)?;
