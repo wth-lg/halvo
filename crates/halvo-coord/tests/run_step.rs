@@ -122,3 +122,62 @@ fn a_kill_ends_only_a_stopped_run() {
         );
     }
 }
+
+#[test]
+fn stop_cause_of_gives_the_stop_of_cancelled_lapsed_and_deleted_and_none_for_the_twelve_other_ends()
+{
+    let stops = [
+        (RunEnd::Cancelled, StopCause::Cancelled),
+        (RunEnd::Lapsed, StopCause::Lapsed),
+        (RunEnd::Deleted, StopCause::Deleted),
+    ];
+    assert_eq!(RunEnd::ALL.len(), 15, "the fifteen ends of I5.6");
+    for end in RunEnd::ALL {
+        let want = stops.iter().find(|(e, _)| e == end).map(|(_, s)| *s);
+        assert_eq!(StopCause::of(*end), want, "the end {}", end.name());
+    }
+    for (end, stop) in stops {
+        assert_eq!(
+            stop.end(),
+            end,
+            "the stop {stop:?} ends the run {}",
+            end.name()
+        );
+    }
+}
+
+#[test]
+fn phase_of_reads_the_live_state_and_the_cause_of_a_stopping_runs_stop() {
+    use halvo_coord::schedule::Stop;
+    use halvo_coord::types::Live;
+    let stop = |cause| Some(Stop { at: 5, cause });
+    assert_eq!(Phase::of(&Live::Starting, None), Phase::Starting);
+    assert_eq!(Phase::of(&Live::Working, None), Phase::Working);
+    assert_eq!(
+        Phase::of(&Live::Working, stop(RunEnd::Deleted)),
+        Phase::Working,
+        "only a stopping run reads its stop"
+    );
+    assert_eq!(
+        Phase::of(&Live::Waiting(item()), None),
+        Phase::Waiting(item())
+    );
+    assert_eq!(
+        Phase::of(&Live::Stopping, None),
+        Phase::Stopping(StopCause::Cancelled),
+        "a stopping run with no stop is cancelled"
+    );
+    for (cause, want) in [
+        (RunEnd::Cancelled, StopCause::Cancelled),
+        (RunEnd::Lapsed, StopCause::Lapsed),
+        (RunEnd::Deleted, StopCause::Deleted),
+        (RunEnd::Interrupted, StopCause::Cancelled),
+    ] {
+        assert_eq!(
+            Phase::of(&Live::Stopping, stop(cause)),
+            Phase::Stopping(want),
+            "a stop of the cause {}",
+            cause.name()
+        );
+    }
+}

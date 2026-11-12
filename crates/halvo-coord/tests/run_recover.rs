@@ -1135,3 +1135,80 @@ fn a_read_after_a_seq_refusal_of_recoverys_check_holds_no_item_of_the_earlier_li
         "the agent holds the check, not the item of the earlier life that lapses"
     );
 }
+
+#[test]
+fn an_item_that_had_already_lapsed_gets_no_second_item_lapsed_in_a_new_life() {
+    let mut w = world(&[MANUAL]);
+    let lapsed = ItemId::parse(&format!("{:032x}", 0x7401)).unwrap();
+    let open = ItemId::parse(&format!("{:032x}", 0x7402)).unwrap();
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: lapsed.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    stored_outside(
+        &w,
+        0,
+        What::ItemLapsed {
+            item: lapsed.clone(),
+            lapsed: Lapsed::Ready(OtherLapse::AppEnded),
+        },
+    );
+    stored_outside(
+        &w,
+        0,
+        What::ItemRaised {
+            item: open.clone(),
+            raised: Raised::Ready,
+        },
+    );
+    relife(&mut w, &[]);
+    relife(&mut w, &[]);
+    assert_eq!(
+        lapses_of(&w, &lapsed),
+        1,
+        "I5.8: an item with an item_lapsed is not open, in any later life"
+    );
+    assert_eq!(
+        lapses_of(&w, &open),
+        1,
+        "the open item lapses in the first new life and in no later one"
+    );
+}
+
+#[test]
+fn a_new_life_knows_the_agent_of_a_dismissed_workflow_as_paused_manual_with_no_period() {
+    let mut w = world(&[A {
+        person: false,
+        slotted: true,
+    }]);
+    assert_eq!(
+        w.facts(0).workflow.trigger,
+        halvo_coord::types::WorkflowTrigger::Schedule
+    );
+    let site = Some("calendar.example".to_string());
+    w.ports.workflows.borrow_mut()[0] =
+        Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(0),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: site.clone(),
+        });
+    relife(&mut w, &[]);
+    assert_eq!(
+        w.facts(0).workflow,
+        halvo_coord::types::FullWorkflow {
+            id: flow(0),
+            state: halvo_coord::types::WorkflowState::Paused,
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site,
+            trigger: halvo_coord::types::WorkflowTrigger::Manual,
+            period: None,
+            last: DAY,
+            agent: Some(agent(0)),
+        },
+        "paused, with the trigger manual and no period (ruling XB-28 (a))"
+    );
+}
