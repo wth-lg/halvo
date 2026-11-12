@@ -1,0 +1,11 @@
+[package]
+name = "halvo-policy"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-schema = { path = "../halvo-schema" }
+serde = "1"
+serde_json = "1"
+sha2 = "0.10.9"
