@@ -2,12 +2,17 @@ import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const server = spawn(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), 'server.mjs'), ...process.argv.slice(2)], {
-  stdio: ['pipe', 'pipe', 'ignore'],
+const [input, ...rest] = process.argv.slice(2);
+if (input !== 'pipe' && input !== 'null') {
+  process.stderr.write('REFUSED usage: node parent.mjs pipe|null [server argument]...\n');
+  process.exit(2);
+}
+const server = spawn(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), 'server.mjs'), ...rest], {
+  stdio: [input === 'pipe' ? 'pipe' : 'ignore', 'pipe', 'ignore'],
   detached: true,
   windowsHide: true,
 });
-server.stdin.on('error', () => {});
+server.stdin?.on('error', () => {});
 let out = '';
 let told = false;
 server.stdout.on('data', (d) => {
@@ -20,6 +25,10 @@ server.stdout.on('data', (d) => {
   }
 });
 server.on('exit', () => process.exit(1));
-process.stdin.on('end', () => process.exit(0));
-process.stdin.on('error', () => process.exit(0));
+const leave = () => {
+  if (server.exitCode === null && server.signalCode === null) server.kill();
+  else process.exit(0);
+};
+process.stdin.on('end', leave);
+process.stdin.on('error', leave);
 process.stdin.resume();
