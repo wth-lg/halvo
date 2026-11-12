@@ -85,7 +85,12 @@ function startServer() {
       const line = /^listening 127\.0\.0\.1:(\d+)\n/.exec(out);
       if (line) resolve({ child, port: Number(line[1]) });
     });
-    child.on('exit', (code) => reject(new Error(`server exited ${code}`)));
+    const deadline = setTimeout(() => child.kill('SIGKILL'), 20000);
+    child.stdout.once('data', () => clearTimeout(deadline));
+    child.on('exit', (code) => {
+      clearTimeout(deadline);
+      reject(new Error(`server exited ${code}`));
+    });
   });
 }
 

@@ -81,7 +81,12 @@ function start(args) {
       const line = /^listening 127\.0\.0\.1:(\d+)\n/.exec(out);
       if (line) resolve({ child, port: Number(line[1]), line: line[0] });
     });
-    child.on('exit', (code) => reject(new Error(`server exited ${code} before it listened`)));
+    const deadline = setTimeout(() => child.kill('SIGKILL'), 20000);
+    child.on('exit', (code) => {
+      clearTimeout(deadline);
+      reject(new Error(`server exited ${code} before it listened`));
+    });
+    child.stdout.once('data', () => clearTimeout(deadline));
     child.on('error', reject);
   });
 }
@@ -187,6 +192,7 @@ test('server: the page face and the API face answer 200, and every other request
       ['query missing', '/item', shop],
       ['one name missing', '/item?item=blue%20cup', shop],
       ['names in another order', '/item?size=small&item=blue%20cup', shop],
+      ['another name of the same length', '/item?itex=blue%20cup&size=small', shop],
       ['plus for a space', '/item?item=blue+cup&size=small', shop],
       ['lower-case hex digits', '/item?item=cr%c3%a8me%20%3cb%3e&size=small', shop],
       ['value not encoded', '/item?item=tea%20&%20honey&size=small', shop],
@@ -235,6 +241,9 @@ test('server: the page face and the API face answer 200, and every other request
     }
     const rawCases = [
       ['no Host header', 'GET /sign-in HTTP/1.0\r\n\r\n'],
+      ['no Host header, page of a native service', 'GET /book HTTP/1.0\r\n\r\n'],
+      ['no Host header, API face', 'GET /api/pages HTTP/1.0\r\n\r\n'],
+      ['two Host headers, page of a native service', `GET /book HTTP/1.1\r\nHost: ${shop}\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
       ['two Host headers', `GET /sign-in HTTP/1.1\r\nHost: ${shop}\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
       ['two Host headers, the first unknown', `GET /sign-in HTTP/1.1\r\nHost: nobody.test\r\nHost: ${shop}\r\nConnection: close\r\n\r\n`],
       ['method CONNECT', `CONNECT acorn-shop.test:${port} HTTP/1.1\r\nHost: ${shop}\r\n\r\n`],
@@ -325,7 +334,11 @@ test('server: refusals usage, site-data and port, each with nothing on standard 
       let stderr = '';
       child.stdout.on('data', (chunk) => { stdout += chunk; });
       child.stderr.on('data', (chunk) => { stderr += chunk; });
-      child.on('exit', (status) => resolve({ status, stdout, stderr }));
+      const deadline = setTimeout(() => child.kill('SIGKILL'), 20000);
+      child.on('exit', (status) => {
+        clearTimeout(deadline);
+        resolve({ status, stdout, stderr });
+      });
     });
     console.log(`refusal port: status=${run.status}`);
     assert.equal(run.status, 2);

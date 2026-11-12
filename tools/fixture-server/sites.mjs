@@ -167,7 +167,6 @@ function checkShape(site) {
   for (const name of array(site.parameters, 'parameters')) {
     if (!NAME.test(string(name, 'a parameter name'))) fail('parameter', 'parameter name');
   }
-  if (new Set(site.parameters).size !== site.parameters.length) fail('D2', 'a parameter name stands twice');
   if (!isObject(site.values)) fail('type', 'values is not an object');
   const valueKeys = Object.keys(site.values);
   if (valueKeys.length !== site.parameters.length || valueKeys.some((key, i) => key !== site.parameters[i])) {
