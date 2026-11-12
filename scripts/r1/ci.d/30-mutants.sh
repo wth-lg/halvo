@@ -314,6 +314,10 @@ self_test() {
   ref=refs/heads/main
   sha=gggggggggggggggggggggggggggggggggggggggg
   check push-to-main-commit-not-hex FAIL 'GITHUB_SHA is not a commit id of 40 hex digits)' 'call --apply-only --remove-scratch'
+  runner budget-below-one "$applies; exit 9"
+  sed 's/^budget_s=.*/budget_s=0/' "$0" >"$work/budget-below-one/30-mutants.sh" || exit 2
+  script=$work/budget-below-one/30-mutants.sh
+  check budget-below-one FAIL 'the budget budget_s=0 is below 1 second)' ''
   runner budget-not-a-number "$applies; exit 9"
   sed 's/^budget_s=.*/budget_s=4x/' "$0" >"$work/budget-not-a-number/30-mutants.sh" || exit 2
   script=$work/budget-not-a-number/30-mutants.sh
