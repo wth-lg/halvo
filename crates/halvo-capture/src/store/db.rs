@@ -164,7 +164,23 @@ const LOCK_FILE_OPEN_TRIES: u32 = 4;
 
 impl WriterLock {
     fn take(store_dir: &Path) -> StoreResult<Self> {
-        let file = Self::open_lock_file(&store_dir.join("writer.lock")).map_err(io_error)?;
+        Self::take_with(store_dir, &mut Self::open_lock_file)
+    }
+
+    fn take_with(
+        store_dir: &Path,
+        open: &mut dyn FnMut(&Path) -> std::io::Result<File>,
+    ) -> StoreResult<Self> {
+        let path = store_dir.join("writer.lock");
+        let mut tries = 1;
+        let file = loop {
+            match open(&path) {
+                Err(e) if e.kind() == ErrorKind::NotFound && tries < LOCK_FILE_OPEN_TRIES => {
+                    tries += 1
+                }
+                opened => break opened.map_err(io_error)?,
+            }
+        };
         match file.try_lock() {
             Ok(()) => Ok(Self { file }),
             Err(TryLockError::WouldBlock) => Err(StoreError::Locked(store_dir.to_path_buf())),
@@ -177,16 +193,7 @@ impl WriterLock {
         options.create(true).truncate(false).write(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        durable::no_follow(&mut options);
-        let mut tries = 1;
-        loop {
-            match options.open(path) {
-                Err(e) if e.kind() == ErrorKind::NotFound && tries < LOCK_FILE_OPEN_TRIES => {
-                    tries += 1
-                }
-                opened => return opened,
-            }
-        }
+        durable::no_follow(&mut options).open(path)
     }
 }
 
@@ -1326,6 +1333,50 @@ mod tests {
             "{not_found} of {TAKES} takes answered Io(NotFound), the first at take {first_not_found:?}"
         );
         assert!(other.is_empty(), "takes answered {other:?}");
+    }
+
+    fn take_whose_first_opens_answer(failing: u32, kind: ErrorKind) -> (StoreResult<()>, u32) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tries = 0;
+        let taken = WriterLock::take_with(dir.path(), &mut |path| {
+            tries += 1;
+            if tries <= failing {
+                Err(std::io::Error::from(kind))
+            } else {
+                WriterLock::open_lock_file(path)
+            }
+        })
+        .map(drop);
+        (taken, tries)
+    }
+
+    #[test]
+    fn a_take_tries_the_open_of_the_lock_file_again_while_it_answers_not_found() {
+        let mut wrong = Vec::new();
+        for failing in 0..=3 {
+            let (taken, tries) = take_whose_first_opens_answer(failing, ErrorKind::NotFound);
+            if taken.is_err() || tries != failing + 1 {
+                wrong.push(format!(
+                    "{failing} opens that answer NotFound: {taken:?} after {tries} tries"
+                ));
+            }
+        }
+        let (taken, tries) = take_whose_first_opens_answer(4, ErrorKind::NotFound);
+        if !matches!(taken, Err(StoreError::Io(ErrorKind::NotFound))) || tries != 4 {
+            wrong.push(format!(
+                "4 opens that answer NotFound: {taken:?} after {tries} tries"
+            ));
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    #[test]
+    fn a_take_hands_on_an_open_error_of_another_kind_after_one_try() {
+        let (taken, tries) = take_whose_first_opens_answer(1, ErrorKind::PermissionDenied);
+        assert!(
+            matches!(taken, Err(StoreError::Io(ErrorKind::PermissionDenied))) && tries == 1,
+            "an open that answered PermissionDenied: {taken:?} after {tries} tries"
+        );
     }
 
     #[test]

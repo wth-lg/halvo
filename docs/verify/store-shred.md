@@ -977,12 +977,6 @@ it in the plan before weakening an assertion.
   those edges passes.
   `store::hardening_tests::a_held_store_answers_locked_before_its_custody_is_called`
   counts the custody calls of one open of a held store.
-- The retry of the open of the lock file, in `WriterLock::open_lock_file`.
-  With the retry taken out, check 2 failed 4 of 376 runs, so one run of it
-  passes that store about 99 times in 100, and no row of check 2 names the
-  retry.
-  `db::tests::a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file`
-  judges it, with the row `lock-file-open-not-retried`.
 - Two writers in different user accounts, or over a network filesystem.
 - The unlock call in `WriterLock`'s `Drop`, as distinct from the release of
   the lock. Check 1 fails when the lock outlives the store, and check 2
@@ -1055,8 +1049,18 @@ takes the lock 1,000,000 times from five threads while another thread
 unlinks the file every 1 ms. Without the retry 7 takes answered
 `Io(NotFound)`, the first at take 182,838; with it, none. Check 2 alone:
 4 failed runs in 376 before the fix, none in 300 after it, at a 1-minute
-load of 41 to 95. The row `lock-file-open-not-retried` of
-`store/mutants.rows` takes the retry out, and that test then fails. On
+load of 41 to 95. That test asserts only what every run shows: no take
+fails. Since ruling ST-24 the retry is decided by a seam and draws nothing
+from the system: `WriterLock::take` opens the file through
+`WriterLock::take_with`, which takes the opener as a parameter, and a test
+passes an opener whose first k opens answer "no such file".
+`db::tests::a_take_tries_the_open_of_the_lock_file_again_while_it_answers_not_found`
+requires that k of 0 to 3 take the lock after exactly k + 1 opens and that
+k of 4 answers `Io(NotFound)` after exactly 4, and
+`db::tests::a_take_hands_on_an_open_error_of_another_kind_after_one_try`
+requires one open for another kind of error. The row
+`lock-file-open-not-retried` of `store/mutants.rows` takes the retry out,
+and the first of those tests fails in every run. On
 Windows a delete of the name while a holder keeps it open leaves it
 delete-pending, and the open answers access denied, not "no such file", so
 the retry changes no answer there.
@@ -1070,7 +1074,7 @@ with an error. A process whose locked file was unlinked, beside one that
 locked a new file of that name, is the case that check 2 makes in every
 case with an unlink cadence, with or without the retry, and
 `Db::refuse_a_live_holder` and the database lock refuse the second of
-them. Check 2 does not decide the retry itself (see Not covered). How
+them. Check 2 does not decide the retry itself; the seam tests above do. How
 often a second try fails was counted outside the store, with the same two
 system calls from five processes while a sixth unlinked the name every
 1 ms: the first try answered "no such file" in 23 of 2,867,815 takes, and
