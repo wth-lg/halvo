@@ -19,9 +19,6 @@ use crate::sink::{self, SinkWriter};
 use crate::source::CaptureSource;
 use foreground::{foreground_state, FOREGROUND_POLL};
 
-/// The cap on the screen stream's frame rate.
-pub const SCREEN_FRAME_CAP_FPS: i32 = 2;
-
 /// The bounded sink capacity.
 pub const SINK_CAPACITY: usize = 2048;
 
@@ -59,7 +56,7 @@ fn run_sources(seconds: u64, secure_gate: bool) -> Result<TimedRunReport, Daemon
 
     let (foreground_writer, foreground_reader) = foreground_state();
 
-    let mut screen = screen::ScreenSource::new(SCREEN_FRAME_CAP_FPS, foreground_reader.clone());
+    let mut screen = screen::ScreenSource::new(screen::SCREEN_FRAME_CAP, foreground_reader.clone());
     let mut input = input::InputSource::new(foreground_reader);
     let secure_violations = input.violations_handle();
     let mut foreground = foreground::ForegroundSource::new(FOREGROUND_POLL, foreground_writer);

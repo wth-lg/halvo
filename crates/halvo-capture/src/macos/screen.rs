@@ -12,7 +12,7 @@ use objc2::rc::Retained;
 use objc2::runtime::{NSObject, ProtocolObject};
 use objc2::{define_class, msg_send, AnyThread, DefinedClass};
 use objc2_core_media::{CMSampleBuffer, CMTime};
-use objc2_foundation::{NSArray, NSError, NSObjectProtocol};
+use objc2_foundation::{NSArray, NSError, NSInteger, NSObjectProtocol};
 use objc2_screen_capture_kit::{
     SCContentFilter, SCDisplay, SCRunningApplication, SCShareableContent, SCStream,
     SCStreamConfiguration, SCStreamOutput, SCStreamOutputType, SCWindow,
@@ -23,6 +23,25 @@ use crate::macos::foreground::{emit_metadata_only, ForegroundReader, Unpersisted
 use crate::secure_input::SecureInputError;
 use crate::sink::SinkHandle;
 use crate::source::{CaptureError, CaptureSource};
+
+/// A cap on the screen stream's frame rate. No value of this type allows more
+/// than [`FrameRateCap::MAX_PER_SECOND`] frames a second.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameRateCap(i32);
+
+impl FrameRateCap {
+    /// The most frames a second that a cap allows.
+    pub const MAX_PER_SECOND: i32 = 2;
+
+    const fn per_second(self) -> i32 {
+        self.0
+    }
+}
+
+/// The cap on the screen stream's frame rate.
+pub const SCREEN_FRAME_CAP: FrameRateCap = FrameRateCap(FrameRateCap::MAX_PER_SECOND);
+
+const STREAM_QUEUE_DEPTH: NSInteger = 8;
 
 struct ScreenIvars {
     sink: SinkHandle,
@@ -39,20 +58,23 @@ define_class!(
 
     unsafe impl SCStreamOutput for ScreenOutput {
         #[unsafe(method(stream:didOutputSampleBuffer:ofType:))]
-        fn did_output(&self, _stream: &SCStream, _sample: &CMSampleBuffer, ty: SCStreamOutputType) {
-            if ty != SCStreamOutputType::Screen {
-                return;
-            }
-            let ivars = self.ivars();
-            let _ = emit_metadata_only(
-                &ivars.sink,
-                Modality::ScreenFrame,
-                ivars.foreground.get(),
-                Unpersisted::EMPTY,
-            );
+        fn did_output(&self, _stream: &SCStream, sample: &CMSampleBuffer, ty: SCStreamOutputType) {
+            on_sample(self.ivars(), sample, ty);
         }
     }
 );
+
+fn on_sample(ivars: &ScreenIvars, _sample: &CMSampleBuffer, ty: SCStreamOutputType) {
+    if ty != SCStreamOutputType::Screen {
+        return;
+    }
+    let _ = emit_metadata_only(
+        &ivars.sink,
+        Modality::ScreenFrame,
+        ivars.foreground.get(),
+        Unpersisted::EMPTY,
+    );
+}
 
 impl ScreenOutput {
     fn new(sink: SinkHandle, foreground: ForegroundReader) -> Retained<Self> {
@@ -70,25 +92,31 @@ pub fn self_exclusion_enforced_in_filter() -> Result<(), SecureInputError> {
     Ok(())
 }
 
+fn is_own_process(pid: libc::pid_t) -> bool {
+    pid == std::process::id() as libc::pid_t
+}
+
+fn excluded_applications<T>(
+    apps: impl IntoIterator<Item = T>,
+    is_halvo: impl Fn(&T) -> bool,
+) -> Vec<T> {
+    apps.into_iter().filter(is_halvo).collect()
+}
+
 /// A content filter for `display` that excludes this process's own windows, so
 /// Halvo never captures itself.
 fn filter_excluding_self(
     content: &SCShareableContent,
     display: &SCDisplay,
 ) -> Retained<SCContentFilter> {
-    let my_pid = std::process::id() as i32;
     // SAFETY: `content` is a live SCShareableContent that the caller holds, and
     // `applications` is a property getter that takes no argument.
     let apps = unsafe { content.applications() };
-    let excluded: Vec<Retained<SCRunningApplication>> = apps
-        .iter()
-        .filter(|a| {
-            // SAFETY: `a` is a retained element of `apps`, and `processID` is a
-            // property getter that takes no argument.
-            let pid = unsafe { a.processID() };
-            pid == my_pid
-        })
-        .collect();
+    let excluded = excluded_applications(apps.iter(), |app| {
+        // SAFETY: `app` is a retained element of `apps`, and `processID` is a
+        // property getter that takes no argument.
+        is_own_process(unsafe { app.processID() })
+    });
     let excluded_refs: Vec<&SCRunningApplication> = excluded.iter().map(|r| &**r).collect();
     let excluded_apps = NSArray::from_slice(&excluded_refs);
     let no_windows: Retained<NSArray<SCWindow>> = NSArray::new();
@@ -105,11 +133,31 @@ fn filter_excluding_self(
     }
 }
 
+fn stream_configuration(
+    width: usize,
+    height: usize,
+    cap: FrameRateCap,
+) -> Retained<SCStreamConfiguration> {
+    // SAFETY: `new` allocates and initializes a default configuration and
+    // takes no argument.
+    let config = unsafe { SCStreamConfiguration::new() };
+    // SAFETY: the setters run on a configuration that only this function
+    // holds, before a stream reads it; `CMTime::new` is CMTimeMake, and the
+    // interval that it makes has a positive timescale.
+    unsafe {
+        config.setWidth(width);
+        config.setHeight(height);
+        config.setMinimumFrameInterval(CMTime::new(1, cap.per_second()));
+        config.setQueueDepth(STREAM_QUEUE_DEPTH);
+    }
+    config
+}
+
 /// The screen capture source. Created, started and stopped on one thread; the
 /// `PhantomData` pins it there because the ScreenCaptureKit objects are not safe
 /// to move between threads.
 pub struct ScreenSource {
-    fps: i32,
+    cap: FrameRateCap,
     foreground: ForegroundReader,
     stream: Option<Retained<SCStream>>,
     _output: Option<Retained<ScreenOutput>>,
@@ -118,9 +166,9 @@ pub struct ScreenSource {
 }
 
 impl ScreenSource {
-    pub fn new(fps: i32, foreground: ForegroundReader) -> Self {
+    pub fn new(cap: FrameRateCap, foreground: ForegroundReader) -> Self {
         Self {
-            fps,
+            cap,
             foreground,
             stream: None,
             _output: None,
@@ -169,17 +217,10 @@ impl CaptureSource for ScreenSource {
 
         let filter = filter_excluding_self(&content, &display);
 
-        // SAFETY: `new` allocates and initializes a default configuration and
-        // takes no argument.
-        let config = unsafe { SCStreamConfiguration::new() };
-        // SAFETY: the setters run on a configuration that only this function
-        // holds, before a stream reads it; `display` is live, and the interval
-        // is a CMTime with a positive timescale.
-        unsafe {
-            config.setWidth(display.width() as usize);
-            config.setHeight(display.height() as usize);
-            config.setMinimumFrameInterval(CMTime::new(1, self.fps));
-        }
+        // SAFETY: `display` is a live, retained SCDisplay, and `width` and
+        // `height` are property getters that take no argument.
+        let (width, height) = unsafe { (display.width() as usize, display.height() as usize) };
+        let config = stream_configuration(width, height, self.cap);
 
         let output = ScreenOutput::new(sink, self.foreground.clone());
         // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
@@ -249,9 +290,199 @@ impl CaptureSource for ScreenSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::macos::foreground::foreground_state;
+    use crate::sink::{self, SinkWriter};
+    use core_foundation::base::{CFGetRetainCount, CFRelease};
+    use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
+    use std::ffi::c_void;
 
     #[test]
     fn self_exclusion_is_enforced_in_the_filter() {
         assert!(self_exclusion_enforced_in_filter().is_ok());
+    }
+
+    #[test]
+    fn only_the_own_process_is_excluded_and_every_other_entry_is_kept() {
+        let own = std::process::id() as libc::pid_t;
+        let apps = [
+            (own + 1, "com.example.editor"),
+            (own, ""),
+            (1, "com.example.finder"),
+            (own + 2, ""),
+        ];
+        let excluded = excluded_applications(apps, |&(pid, _)| is_own_process(pid));
+        assert_eq!(excluded, [(own, "")]);
+    }
+
+    #[test]
+    fn the_stream_asks_for_two_frames_a_second_the_named_queue_depth_and_no_audio() {
+        let config = stream_configuration(640, 480, SCREEN_FRAME_CAP);
+        // SAFETY: property getters that take no argument, on a live configuration.
+        let (interval, depth, audio, microphone, size) = unsafe {
+            (
+                config.minimumFrameInterval(),
+                config.queueDepth(),
+                config.capturesAudio(),
+                config.captureMicrophone(),
+                (config.width(), config.height()),
+            )
+        };
+        assert_eq!(
+            (interval.value, interval.timescale),
+            (1, 2),
+            "minimum frame interval"
+        );
+        assert_eq!(depth, STREAM_QUEUE_DEPTH);
+        assert!(!audio, "the stream captures system audio");
+        assert!(!microphone, "the stream captures the microphone");
+        assert_eq!(size, (640, 480));
+    }
+
+    #[link(name = "CoreVideo", kind = "framework")]
+    extern "C" {
+        fn CVPixelBufferCreate(
+            allocator: *const c_void,
+            width: usize,
+            height: usize,
+            pixel_format: u32,
+            attributes: *const c_void,
+            buffer: *mut *mut c_void,
+        ) -> i32;
+    }
+
+    #[link(name = "CoreMedia", kind = "framework")]
+    extern "C" {
+        fn CMVideoFormatDescriptionCreateForImageBuffer(
+            allocator: *const c_void,
+            image: *mut c_void,
+            format: *mut *mut c_void,
+        ) -> i32;
+        fn CMSampleBufferCreateReadyWithImageBuffer(
+            allocator: *const c_void,
+            image: *mut c_void,
+            format: *mut c_void,
+            timing: *const CMSampleTimingInfo,
+            sample: *mut *mut c_void,
+        ) -> i32;
+    }
+
+    const PIXEL_FORMAT_BGRA: u32 = 0x4247_5241;
+
+    struct Frame {
+        image: *mut c_void,
+        sample: *mut c_void,
+    }
+
+    impl Frame {
+        fn new(width: usize, height: usize) -> Self {
+            let mut image = std::ptr::null_mut();
+            // SAFETY: a null allocator and null attributes are allowed, and
+            // `image` is a valid place for the new pixel buffer.
+            let status = unsafe {
+                CVPixelBufferCreate(
+                    std::ptr::null(),
+                    width,
+                    height,
+                    PIXEL_FORMAT_BGRA,
+                    std::ptr::null(),
+                    &mut image,
+                )
+            };
+            assert_eq!(status, 0, "CVPixelBufferCreate");
+            let mut format = std::ptr::null_mut();
+            // SAFETY: `image` is the live pixel buffer made above, and `format`
+            // is a valid place for the new description.
+            let status = unsafe {
+                CMVideoFormatDescriptionCreateForImageBuffer(std::ptr::null(), image, &mut format)
+            };
+            assert_eq!(status, 0, "CMVideoFormatDescriptionCreateForImageBuffer");
+            let invalid = CMTime {
+                value: 0,
+                timescale: 0,
+                flags: CMTimeFlags(0),
+                epoch: 0,
+            };
+            let timing = CMSampleTimingInfo {
+                duration: invalid,
+                presentationTimeStamp: CMTime {
+                    value: 0,
+                    timescale: 2,
+                    flags: CMTimeFlags::Valid,
+                    epoch: 0,
+                },
+                decodeTimeStamp: invalid,
+            };
+            let mut sample = std::ptr::null_mut();
+            // SAFETY: `image` and `format` are live and `format` describes
+            // `image`; `timing` lives past the call, and `sample` is a valid
+            // place for the new sample buffer.
+            let status = unsafe {
+                CMSampleBufferCreateReadyWithImageBuffer(
+                    std::ptr::null(),
+                    image,
+                    format,
+                    &timing,
+                    &mut sample,
+                )
+            };
+            // SAFETY: `format` is the +1 reference that the create call above
+            // returned; the sample buffer holds a reference of its own.
+            unsafe { CFRelease(format) };
+            assert_eq!(status, 0, "CMSampleBufferCreateReadyWithImageBuffer");
+            Self { image, sample }
+        }
+
+        fn sample(&self) -> &CMSampleBuffer {
+            // SAFETY: `sample` is a live CMSampleBuffer that this frame owns
+            // until it drops, and the reference borrows the frame.
+            unsafe { &*(self.sample as *const CMSampleBuffer) }
+        }
+
+        fn retain_count(&self) -> isize {
+            // SAFETY: `sample` is a live CF object that this frame owns.
+            unsafe { CFGetRetainCount(self.sample) }
+        }
+    }
+
+    impl Drop for Frame {
+        fn drop(&mut self) {
+            // SAFETY: both are +1 references that `new` created and that this
+            // frame owns alone.
+            unsafe {
+                CFRelease(self.sample);
+                CFRelease(self.image);
+            }
+        }
+    }
+
+    fn screen_ivars() -> (ScreenIvars, SinkWriter) {
+        let (handle, writer) = sink::channel(8);
+        let (_writer, reader) = foreground_state();
+        let ivars = ScreenIvars {
+            sink: handle,
+            foreground: reader,
+        };
+        (ivars, writer)
+    }
+
+    #[test]
+    fn a_complete_frame_gives_exactly_one_screen_frame_event() {
+        let (ivars, writer) = screen_ivars();
+        let frame = Frame::new(16, 16);
+        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        drop(ivars);
+        let kinds: Vec<Modality> = std::iter::from_fn(|| writer.recv())
+            .map(|event| event.modality)
+            .collect();
+        assert_eq!(kinds, [Modality::ScreenFrame]);
+    }
+
+    #[test]
+    fn the_frame_handler_keeps_no_reference_to_the_sample() {
+        let (ivars, _writer) = screen_ivars();
+        let frame = Frame::new(16, 16);
+        let before = frame.retain_count();
+        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        assert_eq!(frame.retain_count(), before);
     }
 }
