@@ -538,7 +538,7 @@ impl Wire {
                 }
             }
             if !nested {
-                if must_arm(&kind) {
+                if must_arm(&kind) && opener.is_none() {
                     if let Err(f) = self.call(Some(&session), NetworkEnable::default()).await {
                         self.fault("network", &session, &kind, &f);
                         return;
