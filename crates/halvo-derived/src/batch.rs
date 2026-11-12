@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::collections::BTreeSet;
 
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{Position, StoreId};
@@ -212,9 +211,8 @@ impl Store {
         let mut out = db.write(|tx| {
             let mark = tx.mark()?;
             let mut out = CommitOutcome::default();
-            let mut seen = BTreeSet::new();
             for episode in episodes {
-                if !seen.insert(episode.id.as_str()) || summary_stored(tx, episode.id.as_str())? {
+                if summary_stored(tx, episode.id.as_str())? {
                     out.skipped += 1;
                     continue;
                 }
