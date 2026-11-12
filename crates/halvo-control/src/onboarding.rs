@@ -1,7 +1,47 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+use crate::model::{from_text, UnknownSpelling};
+
+/// Writes the enum as its one spelling and reads that spelling alone, from a JSON string,
+/// as model.rs does for the kinds of capture.
+macro_rules! one_spelling {
+    ($kind:ident, $what:literal, [$($variant:ident => $text:literal),+ $(,)?]) => {
+        impl $kind {
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $($kind::$variant => $text),+
+                }
+            }
+        }
+
+        impl FromStr for $kind {
+            type Err = UnknownSpelling;
+
+            fn from_str(text: &str) -> Result<Self, Self::Err> {
+                [$($kind::$variant),+]
+                    .into_iter()
+                    .find(|value| value.as_str() == text)
+                    .ok_or(UnknownSpelling { what: $what })
+            }
+        }
+
+        impl Serialize for $kind {
+            fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $kind {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                from_text(deserializer)
+            }
+        }
+    };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Permission {
     ScreenAndSystemAudioRecording,
     Accessibility,
@@ -191,20 +231,35 @@ fn macos_row(major: Option<u32>) -> &'static MacosRow {
         .unwrap_or(&MACOS_ROWS[0])
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GrantState {
     Granted,
     NotGranted,
     NotDetermined,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestOutcome {
     AlreadyGranted,
     Requested,
 }
+
+one_spelling!(Permission, "permission", [
+    ScreenAndSystemAudioRecording => "screen_and_system_audio_recording",
+    Accessibility => "accessibility",
+    InputMonitoring => "input_monitoring",
+]);
+
+one_spelling!(GrantState, "grant state", [
+    Granted => "granted",
+    NotGranted => "not_granted",
+    NotDetermined => "not_determined",
+]);
+
+one_spelling!(RequestOutcome, "request outcome", [
+    AlreadyGranted => "already_granted",
+    Requested => "requested",
+]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Grants([GrantState; 3]);
@@ -252,13 +307,18 @@ pub struct PermissionStatus {
     pub asked: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WalkbackAction {
     RequestFromSystem,
     OpenSettingsPane,
     RestartCapture,
 }
+
+one_spelling!(WalkbackAction, "walk-back action", [
+    RequestFromSystem => "request_from_system",
+    OpenSettingsPane => "open_settings_pane",
+    RestartCapture => "restart_capture",
+]);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WalkbackStep {
@@ -746,6 +806,62 @@ mod tests {
             .permissions
             .iter()
             .all(|p| p.grant == GrantState::Granted));
+    }
+
+    fn reads_and_writes_one_spelling<T>(rows: &[(T, &str)])
+    where
+        T: Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug + Copy,
+    {
+        for &(value, text) in rows {
+            assert_eq!(
+                serde_json::to_string(&value).unwrap(),
+                format!("\"{text}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<T>(&format!("\"{text}\"")).unwrap(),
+                value
+            );
+            assert!(
+                serde_json::from_str::<T>(&format!("{{\"{text}\":null}}")).is_err(),
+                "the map form of {text} was read"
+            );
+        }
+        assert!(serde_json::from_str::<T>("\"unknown\"").is_err());
+    }
+
+    #[test]
+    fn each_permission_has_one_spelling() {
+        reads_and_writes_one_spelling(&[
+            (Screen, "screen_and_system_audio_recording"),
+            (Accessibility, "accessibility"),
+            (InputMonitoring, "input_monitoring"),
+        ]);
+    }
+
+    #[test]
+    fn each_grant_state_has_one_spelling() {
+        reads_and_writes_one_spelling(&[
+            (GrantState::Granted, "granted"),
+            (GrantState::NotGranted, "not_granted"),
+            (GrantState::NotDetermined, "not_determined"),
+        ]);
+    }
+
+    #[test]
+    fn each_walk_back_action_has_one_spelling() {
+        reads_and_writes_one_spelling(&[
+            (WalkbackAction::RequestFromSystem, "request_from_system"),
+            (WalkbackAction::OpenSettingsPane, "open_settings_pane"),
+            (WalkbackAction::RestartCapture, "restart_capture"),
+        ]);
+    }
+
+    #[test]
+    fn each_request_outcome_has_one_spelling() {
+        reads_and_writes_one_spelling(&[
+            (RequestOutcome::AlreadyGranted, "already_granted"),
+            (RequestOutcome::Requested, "requested"),
+        ]);
     }
 
     #[test]

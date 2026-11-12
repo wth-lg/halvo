@@ -9,10 +9,10 @@ pub const APP_BUNDLE_ID: &str = "com.halvo.desktop";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("not a spelling of a {what}")]
 pub struct UnknownSpelling {
-    what: &'static str,
+    pub(crate) what: &'static str,
 }
 
-fn from_text<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+pub(crate) fn from_text<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: FromStr,
