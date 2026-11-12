@@ -353,3 +353,42 @@ fn a_first_web_run_keeps_the_mode_compile_through_its_moves_and_its_end_sends_no
         "no set_state at the end"
     );
 }
+
+#[test]
+fn review_stop_1() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.act(Act::Stop {
+        run: run.clone(),
+        by: StopBy::Person,
+    });
+    w.ports.end_runner(&run);
+    let end = w.act(Act::End {
+        run: run.clone(),
+        outcome: Some(Outcome::Completed),
+    });
+    assert_eq!(end.report.ended[0].cause, RunEnd::Cancelled);
+    assert_eq!(w.board.dying.len(), 1, "the ended run waits for its kill");
+    w.ports.refuse(
+        Method::Kill,
+        PortError::Refused(Name::parse("unknown_run").unwrap()),
+    );
+    w.forget();
+    w.set_clock(T0 + GRACE_MS, support::DAY);
+    let tick = w.act(Act::Tick);
+    assert!(
+        w.calls().iter().any(|c| c == "kill refused"),
+        "the kill at the first tick at which the grace has passed"
+    );
+    assert!(tick.lost.is_empty(), "a run that had ended is not lost");
+    assert!(
+        w.board.dying.is_empty(),
+        "a kill refused with unknown_run is not tried again"
+    );
+    w.set_clock(T0 + 2 * GRACE_MS, support::DAY);
+    w.act(Act::Tick);
+    assert!(
+        !w.calls().iter().any(|c| c.starts_with("kill")),
+        "no second kill of a run that the library does not know"
+    );
+}
