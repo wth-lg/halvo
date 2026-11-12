@@ -33,6 +33,8 @@ allow	keyboard_event_repeat	10.1	'repeat' in KeyboardEvent.prototype
 allow	pointerdown_event	13	'onpointerdown' in window
 # https://developer.mozilla.org/docs/Web/API/Element/pointerup_event, Safari 13 of 2019-09-19
 allow	pointerup_event	13	'onpointerup' in window
+# https://developer.mozilla.org/docs/Web/API/Element/pointercancel_event, Safari 13 of 2019-09-19
+allow	pointercancel_event	13	'onpointercancel' in window
 # https://developer.mozilla.org/docs/Web/API/UIEvent/detail, Safari 1 of 2003-06-23
 allow	click_count_detail	1	'detail' in UIEvent.prototype
 # https://developer.mozilla.org/docs/Web/API/Window/focus_event, Safari 5.1 of 2011-07-20
