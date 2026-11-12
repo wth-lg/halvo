@@ -1,4 +1,4 @@
-#![cfg(debug_assertions)]
+#![cfg(all(target_os = "macos", debug_assertions))]
 
 use halvo_secrets::{Delete, Directory, Fault, Locked, Name, Read, Secret, Store, Write};
 use std::path::Path;

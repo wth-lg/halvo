@@ -49,6 +49,7 @@ pub(crate) trait Fs {
 }
 
 pub(crate) enum Sealed<'a> {
+    #[cfg_attr(windows, allow(dead_code))]
     Plain(&'a [u8]),
     #[cfg_attr(not(windows), allow(dead_code))]
     Blob(Vec<u8>),
@@ -69,6 +70,7 @@ pub(crate) trait Codec {
     fn limit(&self) -> usize;
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 pub(crate) struct Plain;
 
 impl Codec for Plain {
@@ -87,6 +89,7 @@ impl Codec for Plain {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Rules {
+    #[cfg_attr(windows, allow(dead_code))]
     Private,
     #[cfg_attr(not(windows), allow(dead_code))]
     KindOnly,

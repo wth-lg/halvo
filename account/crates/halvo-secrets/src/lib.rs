@@ -6,6 +6,8 @@ compile_error!("halvo-secrets keeps its secret on macOS and on Windows only");
 
 mod answer;
 mod directory;
+#[cfg(windows)]
+mod dpapi;
 #[cfg_attr(not(all(target_os = "macos", feature = "keychain")), allow(dead_code))]
 mod keychain;
 mod name;

@@ -67,10 +67,13 @@ impl Drop for Buffer {
 }
 
 fn wipe(bytes: &mut Vec<u8>) {
-    let start = bytes.as_mut_ptr();
-    for offset in 0..bytes.capacity() {
-        unsafe { std::ptr::write_volatile(start.add(offset), 0) };
+    unsafe { wipe_raw(bytes.as_mut_ptr(), bytes.capacity()) };
+    bytes.clear();
+}
+
+pub(crate) unsafe fn wipe_raw(start: *mut u8, len: usize) {
+    for offset in 0..len {
+        std::ptr::write_volatile(start.add(offset), 0);
     }
     compiler_fence(Ordering::SeqCst);
-    bytes.clear();
 }

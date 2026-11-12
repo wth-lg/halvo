@@ -1,30 +1,39 @@
 use crate::answer::{Delete, Read, StoreKind, Write};
-#[cfg(feature = "keychain")]
+#[cfg(windows)]
+use crate::dpapi::{Dpapi, WindowsFs};
+#[cfg(all(target_os = "macos", feature = "keychain"))]
 use crate::keychain::{system::SystemKeychain, KeychainItem};
-use crate::place::{Item, Plain, Rules};
-use crate::unix::UnixFs;
+use crate::place::{Item, Rules};
+#[cfg(target_os = "macos")]
+use crate::{place::Plain, unix::UnixFs};
 use crate::{Directory, Name, Secret};
 
 /// The one store of a secret under one name, picked when the crate is built. On macOS it is
 /// the file `<dir>/<name>` of mode 0600 in a directory of mode 0700, or, when the crate is
 /// built with the feature `keychain` that a Developer ID release sets, the Keychain item of
-/// `service` and `name`. A read that fails answers `Locked` or `Fault` and never
-/// `NotStored`; a write only creates; a delete removes the one item that a read gives.
+/// `service` and `name`. On Windows it is the file `<dir>/<name>` that holds the secret
+/// sealed by DPAPI in the scope of the user. A read that fails answers `Locked` or `Fault`
+/// and never `NotStored`; a write only creates; a delete removes the one item that a read
+/// gives.
 pub struct Store {
     place: Place,
 }
 
 enum Place {
+    #[cfg(target_os = "macos")]
     File(Item<UnixFs, Plain>),
-    #[cfg(feature = "keychain")]
+    #[cfg(windows)]
+    Dpapi(Item<WindowsFs, Dpapi>),
+    #[cfg(all(target_os = "macos", feature = "keychain"))]
     Keychain(KeychainItem<SystemKeychain>),
 }
 
 impl Store {
-    /// The store that this build keeps the secret `name` in: the file `name` in `dir`, or
-    /// with the feature `keychain` the Keychain item of `service` and `name`.
+    /// The store that this build keeps the secret `name` in: on macOS the file `name` in
+    /// `dir`, or with the feature `keychain` the Keychain item of `service` and `name`; on
+    /// Windows the DPAPI file `name` in `dir`.
     pub fn new(dir: Directory, service: Name, name: Name) -> Store {
-        #[cfg(feature = "keychain")]
+        #[cfg(all(target_os = "macos", feature = "keychain"))]
         {
             let _ = dir;
             Store {
@@ -35,38 +44,54 @@ impl Store {
                 }),
             }
         }
-        #[cfg(not(feature = "keychain"))]
+        #[cfg(not(all(target_os = "macos", feature = "keychain")))]
         {
             let _ = service;
-            Store::file(dir, name)
+            Store::local(dir, name)
         }
     }
 
-    /// Debug builds only: the file `name` in `dir`, whatever the features, so that a gate
-    /// keeps its secret in a temporary directory and never in the Keychain.
+    /// Debug builds only: the file `name` in `dir` (sealed by DPAPI on Windows), whatever
+    /// the features, so that a gate keeps its secret in a temporary directory and never in
+    /// the Keychain.
     #[cfg(debug_assertions)]
     pub fn in_directory(dir: Directory, name: Name) -> Store {
-        Store::file(dir, name)
+        Store::local(dir, name)
     }
 
-    #[cfg_attr(feature = "keychain", allow(dead_code))]
-    fn file(dir: Directory, name: Name) -> Store {
-        Store {
-            place: Place::File(Item {
-                fs: UnixFs,
-                codec: Plain,
-                rules: Rules::Private,
-                dir: dir.as_path().to_path_buf(),
-                name,
-            }),
-        }
+    #[cfg_attr(
+        all(target_os = "macos", feature = "keychain", not(debug_assertions)),
+        allow(dead_code)
+    )]
+    fn local(dir: Directory, name: Name) -> Store {
+        let dir = dir.as_path().to_path_buf();
+        #[cfg(target_os = "macos")]
+        let place = Place::File(Item {
+            fs: UnixFs,
+            codec: Plain,
+            rules: Rules::Private,
+            dir,
+            name,
+        });
+        #[cfg(windows)]
+        let place = Place::Dpapi(Item {
+            fs: WindowsFs,
+            codec: Dpapi,
+            rules: Rules::KindOnly,
+            dir,
+            name,
+        });
+        Store { place }
     }
 
     /// The kind of store that this one reads and writes.
     pub fn kind(&self) -> StoreKind {
         match &self.place {
+            #[cfg(target_os = "macos")]
             Place::File(_) => StoreKind::File,
-            #[cfg(feature = "keychain")]
+            #[cfg(windows)]
+            Place::Dpapi(_) => StoreKind::Dpapi,
+            #[cfg(all(target_os = "macos", feature = "keychain"))]
             Place::Keychain(_) => StoreKind::Keychain,
         }
     }
@@ -74,8 +99,11 @@ impl Store {
     /// Reads the secret: `NotStored`, `Found`, `Locked` or `Fault`.
     pub fn read(&self) -> Read {
         match &self.place {
+            #[cfg(target_os = "macos")]
             Place::File(item) => item.read(),
-            #[cfg(feature = "keychain")]
+            #[cfg(windows)]
+            Place::Dpapi(item) => item.read(),
+            #[cfg(all(target_os = "macos", feature = "keychain"))]
             Place::Keychain(item) => item.read(),
         }
     }
@@ -83,8 +111,11 @@ impl Store {
     /// Stores `secret` when nothing stands under the name, and changes nothing otherwise.
     pub fn write(&self, secret: &Secret) -> Write {
         match &self.place {
+            #[cfg(target_os = "macos")]
             Place::File(item) => item.write(secret),
-            #[cfg(feature = "keychain")]
+            #[cfg(windows)]
+            Place::Dpapi(item) => item.write(secret),
+            #[cfg(all(target_os = "macos", feature = "keychain"))]
             Place::Keychain(item) => item.write(secret),
         }
     }
@@ -92,8 +123,11 @@ impl Store {
     /// Removes the item that a read would give, and nothing else.
     pub fn delete(&self) -> Delete {
         match &self.place {
+            #[cfg(target_os = "macos")]
             Place::File(item) => item.delete(),
-            #[cfg(feature = "keychain")]
+            #[cfg(windows)]
+            Place::Dpapi(item) => item.delete(),
+            #[cfg(all(target_os = "macos", feature = "keychain"))]
             Place::Keychain(item) => item.delete(),
         }
     }
