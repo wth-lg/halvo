@@ -30,6 +30,43 @@
     },
     "card": null
   },
+  "test_setup": {
+    "snapshot": {
+      "seq": 1,
+      "rows": [],
+      "items": [
+        {
+          "item": "0000000000000000000000000000000f",
+          "agent": "0000000000000000000000000000000e",
+          "kind": "setup",
+          "presenter": null,
+          "armed": "no",
+          "title": "Answer a few questions for “Ordering from a shop on Site7”",
+          "text": "Choose one answer for each question, then choose Use these answers.",
+          "fields": [],
+          "params": [
+            {
+              "name": "seller",
+              "label": "Which shop",
+              "candidates": [
+                { "n": 1, "value": ["Corner Shop"], "from": "records" },
+                { "n": 2, "value": ["Main Street ", "Shop"], "from": "site" }
+              ],
+              "typed": "no"
+            },
+            { "name": "instrument", "label": "How to pay", "candidates": [], "typed": "yes" },
+            { "name": "start", "label": "Where to start", "candidates": [], "typed": "yes" }
+          ],
+          "choices": [
+            { "choice": "none", "text": "Not now", "safe": "yes" },
+            { "choice": "choose", "text": "Use these answers", "safe": "no" }
+          ]
+        }
+      ],
+      "note": null
+    },
+    "card": null
+  },
   "test_changed": {
     "snapshot": {
       "seq": 1,

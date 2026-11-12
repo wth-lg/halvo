@@ -56,7 +56,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0 };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0 };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -85,9 +85,10 @@ function lint() {
 }
 
 function itemsTrueToWords(tests, dir) {
-  const table = Object.values(words());
-  const sentence = (text) =>
-    table.some((w) => w === text || ['1', '2', '3'].some((n) => w.split('{count}').join(n) === text));
+  const patterns = Object.values(words()).map(
+    (w) => new RegExp('^' + w.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{[a-z]+\}/g, '.+') + '$', 'u'),
+  );
+  const sentence = (text) => patterns.some((p) => p.test(text));
   const faults = [];
   for (const state of tests) {
     for (const item of stateFile(dir, state).snapshot.items) {
@@ -138,8 +139,9 @@ function plan(item, choice) {
     const calls = [];
     for (const p of item.params) {
       if (p.candidates.length > 0) {
-        acts.push({ act: 'candidate', param: p.name, n: 1 });
-        calls.push({ call: 'agents_answer', args: { item: item.item, choice: 'choose', param: p.name, n: 1 } });
+        const n = p.candidates[p.candidates.length - 1].n;
+        acts.push({ act: 'candidate', param: p.name, n });
+        calls.push({ call: 'agents_answer', args: { item: item.item, choice: 'choose', param: p.name, n } });
       } else if (p.typed === 'yes') {
         acts.push({ act: 'typed', param: p.name, text: TYPED });
         calls.push({ call: 'agents_setup_typed', args: { item: item.item, param: p.name, text: TYPED } });
@@ -240,6 +242,55 @@ async function nextState(origin, dir) {
   return faults;
 }
 
+async function hidden(origin, dir) {
+  const native = withId(stateFile(dir, 'needs_confirm_native').snapshot.items[0], 'a'.repeat(32));
+  const ready = withId(stateFile(dir, 'needs_ready').snapshot.items[0], 'c'.repeat(32));
+  const first = { seq: 1, rows: [], items: [native], note: null };
+  const second = { seq: 2, rows: [], items: [native, ready], note: null };
+  const replies = [
+    { state: first },
+    { call: 'agents_present', args: { item: native.item }, reply: { ok: 'yes' } },
+    { state: second },
+  ];
+  const faults = [];
+  const h = await open({ origin, replies, views: [VIEW] });
+  try {
+    await h.page.evaluate(() => Halvo.views.window('hidden'));
+    await act(h, { act: 'present', param: native.item });
+    const later = await read(h);
+    if (firstDiff(later.units, expectedUnits(first.items)) >= 0) faults.push('applied_while_hidden');
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
+async function frames(h) {
+  await h.page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+}
+
+async function escape(origin, dir, states) {
+  const faults = [];
+  for (const state of states) {
+    if (pageConfirms(stateFile(dir, state).snapshot.items).length === 0) continue;
+    const out = outDir();
+    const h = await open({ origin, state, views: [VIEW], out });
+    try {
+      for (let i = 0; i < 3; i++) {
+        await h.page.keyboard.press('Escape');
+        await frames(h);
+      }
+      const r = await read(h);
+      seen.escapes += 1;
+      if (!(r.dialogs[0] && r.dialogs[0].modal && r.dialogs[0].rendered)) faults.push(state + ':closed_by_escape');
+      if (callsOf(out).length !== 0) faults.push(state + ':call_on_escape');
+    } finally {
+      await h.close();
+    }
+  }
+  return faults;
+}
+
 const want = (name) => !onlyTests || onlyTests.includes(name);
 
 const { dir, states: tracked, tests } = fixtures();
@@ -247,14 +298,16 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-if (want('render') || want('calls') || want('next')) {
+if (['render', 'calls', 'next', 'hidden', 'escape'].some(want)) {
   if (!existsSync(VIEW_FILE)) {
-    for (const name of ['render', 'calls', 'next']) if (want(name)) report(name, ['no_view']);
+    for (const name of ['render', 'calls', 'next', 'hidden', 'escape']) if (want(name)) report(name, ['no_view']);
   } else {
     const origin = await serve({ ui: join(ROOT, 'ui'), fixtures: dir });
     if (want('render')) report('render', await render(origin, dir, states), ['states', 'items', 'texts', 'controls']);
     if (want('calls')) report('calls', await calls(origin, dir, states), ['plans', 'calls']);
     if (want('next')) report('next', await nextState(origin, dir));
+    if (want('hidden')) report('hidden', await hidden(origin, dir));
+    if (want('escape')) report('escape', await escape(origin, dir, states), ['escapes']);
   }
 }
 const passed = results.filter((r) => r.ok).length;

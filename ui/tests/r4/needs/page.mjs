@@ -4,6 +4,7 @@ import { HERE, ROOT, VIEW, check, fixtures, open, serve } from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const write = argv.includes('--write');
+const noStructure = argv.includes('--no-structure');
 if (write) mkdirSync(join(HERE, 'structure'), { recursive: true });
 const i = argv.indexOf('--states');
 const only = i >= 0 && argv[i + 1] ? argv[i + 1].split(',') : null;
@@ -12,7 +13,7 @@ const { dir, states: tracked, tests } = fixtures();
 const states = [...tracked, ...tests].filter((s) => !only || only.includes(s));
 const origin = await serve({ ui: join(ROOT, 'ui'), fixtures: dir });
 
-const total = { violations: 0, review: 0, keyboard: 'ok', structure: 'same', size: 'ok', modes: 'ok', markup: 'ok' };
+const total = { violations: 0, review: 0, keyboard: 'ok', structure: noStructure ? '-' : 'same', size: 'ok', modes: 'ok', markup: 'ok' };
 const off = new Set();
 let engine = 'offline';
 let failed = 0;
@@ -23,15 +24,16 @@ let testFailed = 0;
 for (const state of states) {
   const snapshot = join(HERE, 'structure', state + '.txt');
   const h = await open({ origin, state, views: [VIEW] });
-  const line = { violations: 0, review: 0, keyboard: 'ok', structure: 'same', size: 'ok', modes: 'ok', modes_off: '-', markup: 'ok' };
+  const line = { violations: 0, review: 0, keyboard: 'ok', structure: noStructure ? '-' : 'same', size: 'ok', modes: 'ok', modes_off: '-', markup: 'ok' };
   const names = [];
   let ok = true;
   try {
     for (let n = 1; n <= 6; n++) {
       if (n === 1 && engine === 'none') continue;
+      if (n === 3 && noStructure) continue;
       let r;
       try {
-        r = await check(h, n, { snapshot, write });
+        r = await check(h, n, noStructure ? {} : { snapshot, write });
       } catch (err) {
         if (n === 1 && err && err.code === 'engine') {
           engine = 'none';
