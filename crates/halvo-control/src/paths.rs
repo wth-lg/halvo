@@ -470,6 +470,7 @@ pub fn socket_path(data_dir: &DataDir, account: &dyn AccountLookup) -> Result<Pa
         .ok_or(PathError::SocketPathTooLong)?;
     let temp = temp.path();
     let meta = std::fs::metadata(temp).map_err(|_| PathError::SocketPathTooLong)?;
+    // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
     let uid = unsafe { libc::geteuid() };
     if !is_a_private_dir_of(&meta, uid) {
         return Err(PathError::SocketPathTooLong);
@@ -523,11 +524,18 @@ mod system {
     const MAX_BUFFER: usize = 1 << 20;
 
     pub fn base_dir() -> Result<Option<OsString>, PathError> {
+        // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot
+        // fail.
         let uid = unsafe { libc::geteuid() };
         let mut buf = vec![0u8; 1024];
         loop {
+            // SAFETY: passwd holds integers and raw pointers only, so all-zero bytes are a valid
+            // value; getpwuid_r fills it before a field is read.
             let mut pwd: libc::passwd = unsafe { std::mem::zeroed() };
             let mut found: *mut libc::passwd = std::ptr::null_mut();
+            // SAFETY: `pwd`, `found` and `buf` live across the call and `buf.len()` is the length
+            // of `buf`, so getpwuid_r writes only inside them, and the strings that it points `pwd`
+            // at lie in `buf`.
             let rc = unsafe {
                 libc::getpwuid_r(
                     uid,
@@ -547,6 +555,9 @@ mod system {
             if found.is_null() || pwd.pw_dir.is_null() {
                 return Ok(None);
             }
+            // SAFETY: getpwuid_r returned 0 with `found` and `pw_dir` not null, so `pw_dir` points
+            // to a NUL-terminated string in `buf`, which lives and is not written until `dir` is
+            // copied below.
             let dir = unsafe { CStr::from_ptr(pwd.pw_dir) };
             return Ok(Some(OsString::from_vec(dir.to_bytes().to_vec())));
         }
@@ -554,11 +565,15 @@ mod system {
 
     pub fn user_temp_dir() -> Result<Option<DarwinUserTempDir>, PathError> {
         let name = libc::_CS_DARWIN_USER_TEMP_DIR;
+        // SAFETY: with a null buffer and a length of 0, confstr writes nothing and returns the
+        // length that the value needs.
         let len = unsafe { libc::confstr(name, std::ptr::null_mut(), 0) };
         if len == 0 {
             return Ok(None);
         }
         let mut buf = vec![0u8; len];
+        // SAFETY: `buf` is live and writable for `buf.len()` bytes, the length passed, so confstr
+        // writes inside it.
         let got = unsafe { libc::confstr(name, buf.as_mut_ptr().cast(), buf.len()) };
         if got == 0 || got > buf.len() {
             return Ok(None);
@@ -587,6 +602,8 @@ mod system {
 
     impl Drop for Token {
         fn drop(&mut self) {
+            // SAFETY: a Token holds the handle that OpenProcessToken opened, and this drop closes
+            // it once.
             let _ = unsafe { CloseHandle(self.0) };
         }
     }
@@ -597,12 +614,17 @@ mod system {
 
     impl Drop for TaskMem {
         fn drop(&mut self) {
+            // SAFETY: the pointer is null or the buffer that SHGetKnownFolderPath allocated for its
+            // caller to free, and this drop frees it once; CoTaskMemFree of a null pointer does
+            // nothing.
             unsafe { CoTaskMemFree(Some(self.0 .0 as *const _)) };
         }
     }
 
     pub fn base_dir() -> Result<Option<OsString>, PathError> {
         let mut token = HANDLE::default();
+        // SAFETY: GetCurrentProcess returns a pseudo-handle that needs no closing, and `token` is a
+        // live HANDLE that the call writes.
         unsafe {
             OpenProcessToken(
                 GetCurrentProcess(),
@@ -614,6 +636,9 @@ mod system {
         let token = Token(token);
         windows::core::link!("shell32.dll" "system" fn SHGetKnownFolderPath(rfid: *const GUID, dwflags: u32, htoken: HANDLE, ppszpath: *mut PWSTR) -> HRESULT);
         let mut path = TaskMem(PWSTR::null());
+        // SAFETY: the folder id is a static GUID, the token is open with the TOKEN_QUERY and
+        // TOKEN_IMPERSONATE rights that the function asks for, and `path.0` is a live PWSTR that
+        // the call writes.
         unsafe {
             SHGetKnownFolderPath(
                 &FOLDERID_LocalAppData,
@@ -624,7 +649,10 @@ mod system {
         }
         .ok()
         .map_err(|e| PathError::Lookup(e.code().0))?;
-        Ok(Some(OsString::from_wide(unsafe { path.0.as_wide() })))
+        // SAFETY: the call succeeded, so `path.0` points to a NUL-terminated string, which
+        // `path` frees only after this copy.
+        let wide = unsafe { path.0.as_wide() };
+        Ok(Some(OsString::from_wide(wide)))
     }
 
     pub fn user_temp_dir() -> Result<Option<super::DarwinUserTempDir>, PathError> {
@@ -1066,6 +1094,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn the_socket_path_bound_is_the_size_of_sun_path() {
+        // SAFETY: sockaddr_un holds integers and a byte array only, so all-zero bytes are a valid
+        // value.
         let address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
         assert_eq!(SOCKET_PATH_MAX_BYTES, address.sun_path.len());
     }
@@ -1439,6 +1469,8 @@ mod tests {
     fn a_temp_dir_of_another_account_never_holds_the_fallback_socket() {
         use std::os::unix::fs::MetadataExt;
 
+        // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot
+        // fail.
         let me = unsafe { libc::geteuid() };
         let long = DataDir::from_flag(format!("/{}", "a".repeat(120))).unwrap();
         let mut seen = 0;

@@ -182,6 +182,7 @@ pub fn login_item_state(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(LoginItemState::Absent),
         Err(e) => return Err(e),
     };
+    // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot fail.
     let owner = unsafe { libc::geteuid() };
     if !is_the_plist_of(&meta, owner) {
         return Ok(LoginItemState::Stale);
@@ -413,6 +414,8 @@ mod registry {
 
     impl Drop for Key {
         fn drop(&mut self) {
+            // SAFETY: a Key holds the handle that RegCreateKeyExW opened, and this drop closes it
+            // once.
             let _ = unsafe { RegCloseKey(self.0) };
         }
     }
@@ -420,6 +423,8 @@ mod registry {
     pub fn read(spec: &StartValueSpec) -> std::io::Result<Option<String>> {
         let (key, name) = (wide(spec.key()), wide(spec.value_name()));
         let mut size: u32 = 0;
+        // SAFETY: `key` and `name` are NUL-terminated wide strings that live across the call; with
+        // no data buffer, RegGetValueW writes `size` alone.
         let found = unsafe {
             RegGetValueW(
                 HKEY_CURRENT_USER,
@@ -439,6 +444,9 @@ mod registry {
         }
         let mut data = vec![0u16; (size as usize).div_ceil(2)];
         let mut size = u32::try_from(data.len() * 2).unwrap_or(u32::MAX);
+        // SAFETY: `key` and `name` are NUL-terminated wide strings that live across the call, and
+        // the length passed in `size` is at most the byte length of `data`, so the call writes
+        // inside `data`.
         let read = unsafe {
             RegGetValueW(
                 HKEY_CURRENT_USER,
@@ -473,6 +481,8 @@ mod registry {
         }
         let (key, name) = (wide(spec.key()), wide(spec.value_name()));
         let mut handle = HKEY::default();
+        // SAFETY: `key` is a NUL-terminated wide string that lives across the call, the class is
+        // null, and `handle` is a live HKEY that the call writes.
         let created = unsafe {
             RegCreateKeyExW(
                 HKEY_CURRENT_USER,
@@ -494,6 +504,8 @@ mod registry {
             .iter()
             .flat_map(|unit| unit.to_le_bytes())
             .collect();
+        // SAFETY: `handle.0` is the key that RegCreateKeyExW opened, `name` ends in a NUL, and
+        // `name` and `bytes` live across the call.
         let set =
             unsafe { RegSetValueExW(handle.0, PCWSTR(name.as_ptr()), None, REG_SZ, Some(&bytes)) };
         if set != ERROR_SUCCESS {
@@ -504,6 +516,7 @@ mod registry {
 
     pub fn remove(spec: &StartValueSpec) -> std::io::Result<RemoveOutcome> {
         let (key, name) = (wide(spec.key()), wide(spec.value_name()));
+        // SAFETY: `key` and `name` are NUL-terminated wide strings that live across the call.
         let deleted = unsafe {
             RegDeleteKeyValueW(
                 HKEY_CURRENT_USER,
@@ -713,6 +726,8 @@ mod login_item_tests {
         let spec = login_item();
         let other = dir.path().join(format!(".{}.1.tmp", spec.file_name()));
         std::fs::write(&other, b"x").unwrap();
+        // SAFETY: signal 0 sends nothing; kill only checks whether process 1 exists and whether
+        // this user may signal it.
         let sent = unsafe { libc::kill(1, 0) };
         assert_eq!(
             (sent, std::io::Error::last_os_error().raw_os_error()),
@@ -778,6 +793,8 @@ mod login_item_tests {
         );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), LOGIN_ITEM_PLIST);
         assert_eq!(mode(&path), 0o644);
+        // SAFETY: geteuid reads the process's effective user id; it takes no pointer and cannot
+        // fail.
         assert_eq!(std::fs::metadata(&path).unwrap().uid(), unsafe {
             libc::geteuid()
         });
@@ -983,8 +1000,12 @@ mod login_item_tests {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();
         let dir = agents(home.path());
+        // SAFETY: umask sets the process's file mode mask and returns the old one; it takes no
+        // pointer and cannot fail.
         let before = unsafe { libc::umask(0o077) };
         let result = install_login_item(&login_item(), &dir);
+        // SAFETY: umask sets the process's file mode mask and returns the old one; it takes no
+        // pointer and cannot fail.
         unsafe { libc::umask(before) };
         assert_eq!(result.unwrap(), InstallOutcome::Written);
         assert_eq!(mode(dir.path()), 0o755);
@@ -1020,8 +1041,12 @@ mod login_item_tests {
         let _guard = PROCESS_STATE.lock().unwrap_or_else(|e| e.into_inner());
         let home = tempfile::tempdir().unwrap();
         let dir = agents(home.path());
+        // SAFETY: umask sets the process's file mode mask and returns the old one; it takes no
+        // pointer and cannot fail.
         let before = unsafe { libc::umask(0) };
         let result = install_login_item(&login_item(), &dir);
+        // SAFETY: umask sets the process's file mode mask and returns the old one; it takes no
+        // pointer and cannot fail.
         unsafe { libc::umask(before) };
         assert_eq!(result.unwrap(), InstallOutcome::Written);
         assert_eq!(mode(dir.path()), 0o755);
@@ -1239,6 +1264,7 @@ mod start_value_registry_tests {
     impl Drop for ScratchKey {
         fn drop(&mut self) {
             let key = registry::wide(&self.0);
+            // SAFETY: `key` is a NUL-terminated wide string that lives across the call.
             let _ = unsafe { RegDeleteTreeW(HKEY_CURRENT_USER, PCWSTR(key.as_ptr())) };
         }
     }
