@@ -84,8 +84,6 @@ read_runs() {
         'checks exit='*' cap='*' median='*) ;;
         *) well=no ;;
       esac
-    else
-      well=no
     fi
   done <"$1"
   [ "$at" -eq $((runs + 3)) ] || well=no
@@ -282,8 +280,9 @@ EOF
   cp "$work/good.out" "$work/extra.out" && printf 'checks exit=ok cap=ok median=ok\n' >>"$work/extra.out"
   sed 's/n=4 exit=0 peak_bytes=1302528 capped=no/n=4 exit=0 peak_bytes=1302528 capped=yes/' "$work/good.out" >"$work/capped.out"
   sed '/^checks /d' "$work/good.out" >"$work/short.out"
+  sed 's/^median peak_bytes=1318912$/median bytes=1318912/' "$work/good.out" >"$work/median-form.out"
   sed 's/n=1 exit=0 peak_bytes=1310720 capped=no/n=1 exit=0 peak_bytes=1310720 rss=1 capped=no/' "$work/good.out" >"$work/key.out"
-  for each in breach four median checks limit exit zero extra capped short key; do
+  for each in breach four median checks limit exit zero extra capped short key median-form; do
     if cmp -s "$work/good.out" "$work/$each.out"; then
       setup_failed
     fi
@@ -357,6 +356,8 @@ FAIL $name (run)"
   check line-after-checks FAIL "FAIL $name (run)"
   STUB_OUT=$work/short.out
   check no-checks-line FAIL "FAIL $name (run)"
+  STUB_OUT=$work/median-form.out
+  check median-line-of-another-form FAIL "FAIL $name (run)"
   STUB_OUT=$work/capped.out
   check capped-with-checks-ok FAIL "FAIL $name (run)"
   STUB_OUT=$work/exit.out
