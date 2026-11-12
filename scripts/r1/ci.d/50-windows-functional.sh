@@ -18,16 +18,48 @@ judge() {
 test result: ok. 1 passed; 0 failed;"*) ran_one_and_passed=yes ;;
   esac
   id=
+  cause=
+  case $1 in
+    known_defect::*) ;;
+    *)
+      if [ "$2" -eq 0 ] && [ "$ran_one_and_passed" = yes ]; then
+        verdict=pass
+      elif [ "$2" -eq 0 ]; then
+        verdict=FAIL
+        cause='exit 0, and not one test ran and passed'
+      else
+        verdict=FAIL
+        cause="exit $2"
+      fi
+      return 0
+      ;;
+  esac
   if [ "$2" -eq 0 ] && [ "$ran_one_and_passed" = yes ]; then
-    verdict=pass
-    cause=
-  elif [ "$2" -eq 0 ]; then
-    verdict=FAIL
-    cause='exit 0, and not one test ran and passed'
-  else
-    verdict=FAIL
-    cause="exit $2"
+    verdict=FIXED-BUT-LISTED
+    cause='the listed defect passed'
+    return 0
   fi
+  verdict=FAIL
+  if [ "$2" -eq 0 ]; then
+    cause='exit 0, and not one test ran and passed'
+    return 0
+  fi
+  markers=$(printf '%s\n' "$out" | grep -E '^KNOWN-DEFECT [A-Za-z0-9-]+$')
+  case $markers in
+    '') cause="exit $2 without a KNOWN-DEFECT line" ;;
+    *"
+"*) cause="exit $2 with more than one KNOWN-DEFECT line" ;;
+    *)
+      case $2:$out in
+        "101:"*"
+test result: FAILED. 0 passed; 1 failed;"*)
+          verdict='known-defect'
+          id=${markers#KNOWN-DEFECT }
+          ;;
+        *) cause="exit $2 with a KNOWN-DEFECT line, and not the exit 101 of one failed test" ;;
+      esac
+      ;;
+  esac
 }
 
 run_test() {
