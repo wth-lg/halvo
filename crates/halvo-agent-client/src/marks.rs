@@ -1,8 +1,8 @@
 //! The mark of a run: the file `<data directory>/agents/marks/<run id>`, written before the runner starts and
 //! completed with the runner's line after it, so that a later life of the library finds what may still run.
 
-use std::fs;
-use std::io;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 
@@ -109,6 +109,43 @@ pub fn parse(run: &RunId, text: &str) -> Option<Mark> {
         runner,
         browser,
     })
+}
+
+/// The open mark of a run that this life is starting.
+pub(crate) struct MarkFile {
+    file: File,
+}
+
+/// What a create of a mark found.
+pub(crate) enum Created {
+    Made(MarkFile),
+    Exists,
+}
+
+impl MarkFile {
+    /// Makes the mark with its first line, refusing one that exists.
+    pub(crate) fn create(data_dir: &Path, run: &RunId) -> io::Result<Created> {
+        let dir = marks_dir(data_dir);
+        fs::create_dir_all(&dir)?;
+        let path = dir.join(run.as_str());
+        let file = match OpenOptions::new().append(true).create_new(true).open(&path) {
+            Ok(file) => file,
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => return Ok(Created::Exists),
+            Err(e) => return Err(e),
+        };
+        let mut mark = MarkFile { file };
+        if let Err(e) = mark.append(&first_line(run)) {
+            let _ = fs::remove_file(&path);
+            return Err(e);
+        }
+        Ok(Created::Made(mark))
+    }
+
+    /// Appends one line.
+    pub(crate) fn append(&mut self, line: &str) -> io::Result<()> {
+        self.file.write_all(line.as_bytes())?;
+        self.file.flush()
+    }
 }
 
 /// Removes the mark of `run`; one that is not there is no error.

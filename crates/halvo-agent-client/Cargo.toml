@@ -6,3 +6,9 @@ publish = false
 
 [dependencies]
 halvo-schema = { path = "../halvo-schema" }
+
+[[bin]]
+name = "agent-client-peer"
+path = "src/bin/agent-client-peer.rs"
+test = false
+doctest = false

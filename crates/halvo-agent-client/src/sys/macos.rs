@@ -1,0 +1,138 @@
+#![allow(unsafe_code)]
+
+use std::ffi::c_void;
+use std::io;
+use std::mem::{size_of, MaybeUninit};
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct ProcBsdInfo {
+    pbi_flags: u32,
+    pbi_status: u32,
+    pbi_xstatus: u32,
+    pbi_pid: u32,
+    pbi_ppid: u32,
+    pbi_uid: u32,
+    pbi_gid: u32,
+    pbi_ruid: u32,
+    pbi_rgid: u32,
+    pbi_svuid: u32,
+    pbi_svgid: u32,
+    rfu_1: u32,
+    pbi_comm: [u8; 16],
+    pbi_name: [u8; 32],
+    pbi_nfiles: u32,
+    pbi_pgid: u32,
+    pbi_pjobc: u32,
+    e_tdev: u32,
+    e_tpgid: u32,
+    pbi_nice: i32,
+    pbi_start_tvsec: u64,
+    pbi_start_tvusec: u64,
+}
+
+const _: () = assert!(size_of::<ProcBsdInfo>() == 136);
+
+const PROC_PIDTBSDINFO: i32 = 3;
+const SZOMB: u32 = 5;
+const SIGKILL: i32 = 9;
+const ESRCH: i32 = 3;
+
+extern "C" {
+    fn proc_pidinfo(pid: i32, flavor: i32, arg: u64, buffer: *mut c_void, size: i32) -> i32;
+    fn proc_listallpids(buffer: *mut c_void, size: i32) -> i32;
+    fn kill(pid: i32, sig: i32) -> i32;
+    fn getentropy(buffer: *mut c_void, len: usize) -> i32;
+}
+
+/// What the process table holds for one process.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Info {
+    pub pid: u32,
+    pub ppid: u32,
+    pub pgid: u32,
+    pub started_us: u64,
+    pub zombie: bool,
+}
+
+/// One read of the process table for a pid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Read {
+    Found(Info),
+    Gone,
+    Unknown,
+}
+
+fn as_pid(n: u32) -> Option<i32> {
+    i32::try_from(n).ok().filter(|p| *p > 1)
+}
+
+pub(crate) fn info(pid: u32) -> Read {
+    let Some(p) = as_pid(pid) else {
+        return Read::Unknown;
+    };
+    let mut buf = MaybeUninit::<ProcBsdInfo>::zeroed();
+    let size = size_of::<ProcBsdInfo>() as i32;
+    let got = unsafe { proc_pidinfo(p, PROC_PIDTBSDINFO, 0, buf.as_mut_ptr().cast(), size) };
+    if got != size {
+        return match io::Error::last_os_error().raw_os_error() {
+            Some(ESRCH) => Read::Gone,
+            _ => Read::Unknown,
+        };
+    }
+    let i = unsafe { buf.assume_init() };
+    let started_us = i
+        .pbi_start_tvsec
+        .checked_mul(1_000_000)
+        .and_then(|s| s.checked_add(i.pbi_start_tvusec));
+    match started_us {
+        Some(started_us) if i.pbi_pid == pid => Read::Found(Info {
+            pid,
+            ppid: i.pbi_ppid,
+            pgid: i.pbi_pgid,
+            started_us,
+            zombie: i.pbi_status == SZOMB,
+        }),
+        _ => Read::Unknown,
+    }
+}
+
+/// Sends SIGKILL to the process group `pgid`, never to a group below 2 or above the largest pid: `kill` reads
+/// 0, -1 and a negative number of another form as the caller's own group or as every process.
+pub(crate) fn kill_group(pgid: u32) -> bool {
+    match as_pid(pgid) {
+        Some(g) => unsafe { kill(-g, SIGKILL) == 0 },
+        None => false,
+    }
+}
+
+/// Every process of the table whose information can be read.
+pub(crate) fn table() -> io::Result<Vec<Info>> {
+    let needed = unsafe { proc_listallpids(std::ptr::null_mut(), 0) };
+    if needed <= 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let mut pids = vec![0i32; usize::try_from(needed).unwrap_or(0) + 512];
+    let bytes = i32::try_from(pids.len() * size_of::<i32>()).unwrap_or(i32::MAX);
+    let got = unsafe { proc_listallpids(pids.as_mut_ptr().cast(), bytes) };
+    if got <= 0 {
+        return Err(io::Error::last_os_error());
+    }
+    pids.truncate(usize::try_from(got).unwrap_or(0));
+    Ok(pids
+        .into_iter()
+        .filter_map(|p| u32::try_from(p).ok())
+        .filter_map(|p| match info(p) {
+            Read::Found(i) => Some(i),
+            _ => None,
+        })
+        .collect())
+}
+
+pub(crate) fn random16() -> io::Result<[u8; 16]> {
+    let mut buf = [0u8; 16];
+    if unsafe { getentropy(buf.as_mut_ptr().cast(), buf.len()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(buf)
+}
