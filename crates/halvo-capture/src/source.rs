@@ -3,6 +3,10 @@ use std::cell::RefCell;
 use crate::event::{CaptureStreamEvent, Modality};
 use crate::sink::{SinkError, SinkHandle};
 
+/// The default bodies of `start`, `stop`, `begin` and `shutdown` reach the
+/// other pair. A default member must not be entered again for the same source
+/// while it runs, and two sources of one zero-sized type count as one source:
+/// either panics with the text for a source that implements neither pair.
 pub trait CaptureSource {
     /// Retired: no product code calls it, and the default body panics.
     fn modality(&self) -> Modality {
@@ -584,6 +588,73 @@ mod tests {
             Ok(text) => (*text).to_string(),
             Err(payload) => *payload.downcast::<String>().expect("a text payload"),
         }
+    }
+
+    #[derive(Default)]
+    struct StopThatShutsDownOnceMore {
+        calls: Vec<&'static str>,
+        inside: bool,
+    }
+
+    impl CaptureSource for StopThatShutsDownOnceMore {
+        fn start(&mut self, _sink: SinkHandle) -> Result<(), CaptureError> {
+            self.calls.push("start");
+            Ok(())
+        }
+
+        fn stop(&mut self) {
+            self.calls.push("stop");
+            if !self.inside {
+                self.inside = true;
+                let _ = self.shutdown();
+                self.inside = false;
+            }
+        }
+    }
+
+    #[test]
+    fn a_stop_that_enters_the_default_shutdown_again_panics_with_the_fixed_text() {
+        let neither = "CaptureSource implements neither begin and shutdown nor start and stop";
+        let mut source = StopThatShutsDownOnceMore::default();
+        let shutdown = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = source.shutdown();
+        }));
+        assert_eq!(panic_text(shutdown), neither);
+        assert_eq!(source.calls, ["stop"]);
+    }
+
+    thread_local! {
+        static ZERO_SIZED_CHILD_STARTED: std::cell::Cell<bool> =
+            const { std::cell::Cell::new(false) };
+    }
+
+    struct ZeroSized;
+
+    impl CaptureSource for ZeroSized {
+        fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+            if !ZERO_SIZED_CHILD_STARTED.with(|started| started.replace(true)) {
+                let mut child = Box::new(ZeroSized);
+                child.start(ctx.sink().clone())?;
+            }
+            Ok(Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn two_boxed_sources_of_one_zero_sized_type_count_as_one_source() {
+        let neither = "CaptureSource implements neither begin and shutdown nor start and stop";
+        let mut parent = Box::new(ZeroSized);
+        let other = Box::new(ZeroSized);
+        assert!(std::ptr::eq(&*parent, &*other));
+        let (handle, _writer) = sink::channel(1);
+        let start = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = parent.start(handle);
+        }));
+        assert_eq!(panic_text(start), neither);
     }
 
     #[derive(Default)]
