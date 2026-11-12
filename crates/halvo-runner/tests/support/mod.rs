@@ -4,7 +4,8 @@ use std::io::{Read, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use halvo_policy::preset;
@@ -253,6 +254,33 @@ pub struct Runner {
     input: Option<ChildStdin>,
     output: Option<ChildStdout>,
     stderr: Option<std::process::ChildStderr>,
+    reaped: Arc<AtomicBool>,
+}
+
+/// The longest a runner of a test may live: one still running then is ended, so that its test fails and does not
+/// hang.
+pub const DEADLINE: Duration = Duration::from_secs(90);
+
+/// Ends the process `pid` unless `reaped` is set by then; the process is the test's own child and is not reaped
+/// before `reaped` is set, so its number names no other process.
+fn end_at_deadline(pid: u32, reaped: Arc<AtomicBool>) {
+    std::thread::spawn(move || {
+        let start = Instant::now();
+        while start.elapsed() < DEADLINE {
+            if reaped.load(Ordering::SeqCst) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        if !reaped.load(Ordering::SeqCst) {
+            #[cfg(unix)]
+            let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
+            #[cfg(not(unix))]
+            let _ = Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .status();
+        }
+    });
 }
 
 impl Runner {
@@ -270,11 +298,14 @@ impl Runner {
             command.process_group(0);
         }
         let mut child = command.spawn().expect("start the runner");
+        let reaped = Arc::new(AtomicBool::new(false));
+        end_at_deadline(child.id(), Arc::clone(&reaped));
         Runner {
             input: child.stdin.take(),
             output: child.stdout.take(),
             stderr: child.stderr.take(),
             child,
+            reaped,
         }
     }
 
@@ -322,6 +353,7 @@ impl Runner {
         let start = Instant::now();
         loop {
             if let Some(status) = self.child.try_wait().expect("try_wait") {
+                self.reaped.store(true, Ordering::SeqCst);
                 return Some(status);
             }
             if start.elapsed() > limit {
@@ -334,6 +366,7 @@ impl Runner {
     pub fn kill(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        self.reaped.store(true, Ordering::SeqCst);
     }
 
     pub fn close_stderr(&mut self) {
@@ -377,6 +410,7 @@ impl Drop for Runner {
         if matches!(self.child.try_wait(), Ok(None)) {
             self.kill();
         }
+        self.reaped.store(true, Ordering::SeqCst);
     }
 }
 
