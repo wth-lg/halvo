@@ -75,6 +75,7 @@ Open(s, a) ==
 
 Checked(s, a) == s.f.unknown[a] # 0 /\ s.f.unknown[a] \notin s.cleared
 Held(s, a) == a \notin s.lost /\ (a \in s.off \/ a \in s.paused \/ Checked(s, a))
+Unready(s, read) == [s EXCEPT !.ready = {a \in @ : a \notin read \/ a \in s.gone \/ ~Checked(s, a)}]
 
 LiveOf(s, a) == {r \in s.runs : r.agent = a}
 Queued(s, a) == \E i \in DOMAIN s.queue : s.queue[i].agent = a
@@ -174,7 +175,8 @@ Pressed(s, a, port) ==
                          \o @]
 
 Press(s, a, port) ==
-    IF a \in s.lost THEN [r |-> "unknown_agent", st |-> s, run |-> 0, out |-> <<>>] ELSE Pressed(s, a, port)
+    IF a \in s.lost THEN [r |-> "unknown_agent", st |-> s, run |-> 0, out |-> <<>>]
+    ELSE LET x == Pressed(s, a, port) IN [x EXCEPT !.st = Unready(@, {a})]
 
 Dequeue(s, port) ==
     IF Len(s.queue) = 0 THEN [st |-> s, next |-> <<>>, out |-> <<>>]
@@ -279,7 +281,7 @@ Tick(s, d, g, port) ==
              ELSE [st |-> paid, next |-> <<>>, out |-> <<>>]
         t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, out |-> <<>>], 1, port)
     IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended, next |-> i.next,
-        raised |-> t.raised, started |-> t.started, st |-> t.st,
+        raised |-> t.raised, started |-> t.started, st |-> Unready(t.st, Agents),
         out |-> again \o v.out \o k.out \o Sends(pay) \o i.out \o t.out]
 
 RECURSIVE Recover(_, _, _)
@@ -306,7 +308,7 @@ Check(s, a) ==
     IF a \in s.gone \/ ~Checked(s, a) THEN [r |-> "state", st |-> s, out |-> <<>>]
     ELSE [r |-> "ok",
           out |-> <<[k |-> "hold_cleared", agent |-> a, cause |-> "check", run |-> s.f.unknown[a]]>>,
-          st |-> [s EXCEPT !.cleared = @ \cup {s.f.unknown[a]}]]
+          st |-> [Unready(s, {a}) EXCEPT !.cleared = @ \cup {s.f.unknown[a]}]]
 
 Delete(s, a) ==
     [r |-> "ok", out |-> <<>>,
@@ -344,7 +346,8 @@ End(s, mv) ==
                       ELSE "interrupted"
              e == EndRun(s, run, cause, mv.port, mv.frame # "none", mv.frame = "effect_unknown")
          IN [r |-> "ok", cause |-> cause, next |-> e.next, out |-> e.out,
-             st |-> IF run.phase = "stopping" THEN [e.st EXCEPT !.dying = @ \cup {run.id}] ELSE e.st]
+             st |-> Unready(IF run.phase = "stopping" THEN [e.st EXCEPT !.dying = @ \cup {run.id}] ELSE e.st,
+                            Agents)]
 
 Read(s, mv) ==
     CASE mv.m = "start" -> Press(s, mv.agent, mv.port)

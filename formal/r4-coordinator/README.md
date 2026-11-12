@@ -376,7 +376,10 @@ follow these readings.
 1. An agent has a finished run when a run of it ended `completed`. Until then every run of
    it is a first run: the scheduler starts none, and a tick raises `ready`.
 2. A tick raises no `ready` item for an agent that has a live run, a queued start, a hold
-   or an open `ready` item, or whose workflow is gone.
+   or an open `ready` item, or whose workflow is gone. A tick also reads the hold `check`
+   of every agent, and it takes each agent whose `check` stands out of the ready set
+   (reading 11), so that no line after a tick holds an agent in `ready` beside an
+   unanswered `check` (ruling RD-5).
 3. A start by the person names the current slot when that slot is open and the agent has
    a finished run, and no slot otherwise. A start by the scheduler names the slot that is
    current when the start is stored.
@@ -413,8 +416,18 @@ follow these readings.
     no stored event, so recovery finds a `run_started` event with no `run_ended` and stores
     `interrupted` (I5.6, I5.8), whatever `reap` answered for the run. It empties the queue
     and closes every `ready` item, and it takes the day that the new life reads.
-11. A `ready` item closes when a start of its agent is stored or queued. It stays open
-    when the start is refused.
+11. A `ready` item closes when a start of its agent is stored or queued. It also closes
+    at every move that reads the hold `check` of its agent while that hold stands and the
+    agent's workflow is not gone (I5.4, ruling RD-5): a tick and an `end` that is answered
+    `ok` read every agent, as the code's tick and end of a run read every agent's record;
+    a `start` and a `check` that is answered `ok` read their own agent. In the code that
+    move lapses the item with the cause `check` and raises the item `check` in the same
+    body, before anything else of its own, and a `check` then answers that item; the
+    schedule model holds neither item, so a line shows only the agent gone from `ready`.
+    The lapse stores no `slot_skipped`: once the person has answered, the next tick raises
+    `ready` again where reading 2 asks for it. A start that is refused for any other
+    reason leaves the item open, and so do `off`, `delete`, `ack` and the moves of a run's
+    phase, which read no hold `check`. A restart closes every `ready` item (reading 10).
 12. The day changes only at a tick or at a restart. The kill comes at a tick at which
     `cancel_grace_s` have passed since the stop; a run that the same tick stopped is not
     killed by it. The tick calls `Runs::kill` also for a stopped run whose runner ended in
@@ -450,7 +463,11 @@ follow these readings.
     start is answered `state` at step 3, the scheduler's start in a tick among them, which
     stands in `started` with `state`. A tick raises `ready` for such an agent as for any
     other: I5.3's list of the cases without a `ready` item is closed and does not hold
-    this one (ruling XB-24). `Runs::start` is not called.
+    this one (ruling XB-24). `Runs::start` is not called. When the store ends such a run
+    with `unknown` above 0 at its `ack`, the hold `check` stands from that move on
+    (reading 17), and the next move that reads it closes that `ready` item (reading 11).
+    Until that move a line still shows the agent in `ready`, because no move of the
+    coordinator has read the store's record yet.
 17. The key `left` of the move that ended a runner says whether one of the run's requests
     may have left. With `yes`, the store ends the run with `unknown` above 0 at its `ack`,
     and the hold `check` stands from that move on, until the move `check`. A run that
@@ -508,7 +525,10 @@ three alike, and the history holds neither. `VIEW` keeps the cause of a stop, `c
 calls for runs that have ended, which change no history; `ReachKillEnded` reads it and runs
 without the `VIEW` line too. The model has no `skip`, no `switch_on`, no answer
 `went_through` to a `check`, no items budget, no effect and no state of an effect, and no
-time but the grace. An `end_run` that gets no acknowledgement is the time before the move
+time but the grace. So no move ends or stops a run with the cause `kind` or `budget`: a
+run ends so when a request of it asks for an item that the rules of I3.6 refuse, and the
+model holds no request. No trace holds those two ends; the tests `refusal_kind_reason`,
+`refusal_kind_class`, `refusal_kind_frame` and `refusal_items_budget` hold them (I5.13). An `end_run` that gets no acknowledgement is the time before the move
 `ack`; the model does not tell a lost `end_run` from a late one. No property counts a
 start that was refused: a coordinator that holds an agent longer than I5.4 asks, with a
 `check` that the person's answer does not end or that a restart brings back, breaks none
