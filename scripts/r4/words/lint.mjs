@@ -939,6 +939,18 @@ function selfTest(dir, repo) {
     'FAIL:glossary',
   );
   expect(
+    fixture('the-last-row-without-its-end-pipe', {
+      files: glossaryLines((l) => (l.startsWith('| Thorough |') ? [l.replace(/ \|$/u, '')] : [l])),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
+    fixture('the-fixed-term-paused-in-capitals', {
+      files: (f) => (f[GLOSSARY] = copies[GLOSSARY].replace('| paused |', '| Paused |')),
+    }),
+    'FAIL:glossary',
+  );
+  expect(
     fixture('the-fixed-term-approve-not-reserved', {
       files: glossaryLines((l) => (l.startsWith('| approve |') ? [l.replace(/\| yes \|$/u, '| no |')] : [l])),
     }),
@@ -1095,7 +1107,16 @@ function selfTest(dir, repo) {
   );
   expect(fixture('a-cause-with-a-hyphen', { words: say('It stopped: queue-full.') }), 'FAIL:never_read');
   expect(fixture('a-closed-name-with-a-hyphen-in-capitals', { words: say('It is ALL-SET now.') }), 'FAIL:never_read');
-  expect(fixture('a-closed-name-inside-a-longer-word-passes', { words: say('It needs-your answer on the sign-up page.') }), 'PASS');
+  expect(fixture('a-closed-name-inside-a-longer-word-passes', { words: say('It needs-your answer on the sign-up page of a non-device plan.') }), 'PASS');
+  expect(
+    fixture('names-files-with-no-name-that-holds-an-underscore', {
+      files: (f) => {
+        f[NAMES[0]] = '    Status = "off",\n';
+        f[NAMES[1]] = '    Busy = "busy",\n';
+      },
+    }),
+    'FAIL:input',
+  );
   expect(fixture('a-names-file-missing', { files: (f) => (f[NAMES[0]] = null) }), 'FAIL:input');
   expect(fixture('a-names-file-with-no-names', { files: (f) => (f[NAMES[1]] = 'pub enum Cause {}\n') }), 'FAIL:input');
   expect(fixture('letter-case-counts',{ words: (w) => (w['line.time'] = 'The CLAUDE and the TIER are here.') }), 'PASS');
