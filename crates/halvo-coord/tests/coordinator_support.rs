@@ -35,7 +35,8 @@ pub struct Both {
 
 impl Both {
     /// Notes the function that called `log` or `send`: the first frame of the stack below this
-    /// wrapper's own method.
+    /// wrapper's own method, which a target names `<..::support::Both as ..>::log` or, with
+    /// MSVC, `..::support::impl$1::log`.
     fn note(&self, method: &str) {
         if !self.trace.get() {
             return;
@@ -50,7 +51,7 @@ impl Both {
                 .split_once(": ")
                 .map_or(line, |(_, n)| n)
                 .trim_start_matches('<');
-            if name.contains("Both as halvo_coord::ports::") && name.ends_with(method) {
+            if name.contains("support::") && name.ends_with(method) {
                 below = true;
                 continue;
             }
