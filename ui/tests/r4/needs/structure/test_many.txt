@@ -29,3 +29,18 @@
           - {"name":"How to pay","role":"textbox"}
         - {"name":"Not now","role":"button"}
         - {"name":"Use these answers","role":"button"}
+      - {"role":"listitem"}
+        - {"level":3,"name":"Pay this?","role":"heading"}
+        - {"role":"term","text":"Pay to"}
+        - {"role":"definition","text":"City Power"}
+        - {"role":"definition","text":"You gave this"}
+        - {"role":"term","text":"Amount"}
+        - {"role":"definition","text":"42.10 USD"}
+        - {"role":"definition","text":"From the site"}
+        - {"role":"term","text":"Pay with"}
+        - {"role":"definition","text":"Card ending 4242"}
+        - {"role":"definition","text":"You gave this"}
+        - {"role":"term","text":"Site"}
+        - {"role":"definition","text":"site1.example"}
+        - {"role":"definition","text":"Set by Halvo"}
+        - {"name":"See the details and answer","role":"button"}

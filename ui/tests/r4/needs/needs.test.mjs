@@ -301,7 +301,23 @@ function sel(act, param) {
 }
 
 async function presses(h, how, locator) {
-  if (how === 'held_enter') {
+  if (how === 'slow_held_enter') {
+    await locator.focus();
+    await h.page.keyboard.down('Enter');
+    await frames(h);
+    await frames(h);
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.up('Enter');
+  } else if (how === 'slow_double_click') {
+    const box = await locator.boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await h.page.mouse.click(x, y);
+    await frames(h);
+    await frames(h);
+    await h.page.mouse.down({ clickCount: 2 });
+    await h.page.mouse.up({ clickCount: 2 });
+  } else if (how === 'held_enter') {
     await locator.focus();
     await h.page.keyboard.down('Enter');
     await h.page.keyboard.down('Enter');
@@ -337,7 +353,7 @@ async function once(origin, dir) {
   for (const [state, choice] of cases) {
     const item = stateFile(dir, state).snapshot.items[0];
     const want = plan(item, item.choices.find((c) => c.choice === choice)).calls;
-    for (const how of ['held_enter', 'double_click']) {
+    for (const how of ['held_enter', 'double_click', 'slow_held_enter', 'slow_double_click']) {
       const out = outDir();
       const h = await open({ origin, state, views: [VIEW], out });
       try {
@@ -479,7 +495,7 @@ async function setups(origin, dir) {
   const odd = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'odd id x');
   const dup = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], '9'.repeat(32));
   const out = outDir();
-  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }], views: [VIEW], out });
+  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }, { state: snap(2, [one, two, dup, dup, odd]) }], views: [VIEW], out });
   try {
     await shows(h, [one, two, dup, dup, odd], 'two_setups', faults);
     const facts = await h.page.evaluate((words) => {
