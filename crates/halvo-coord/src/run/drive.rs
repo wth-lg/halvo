@@ -1,10 +1,10 @@
-use super::{run_step, Ending, Next, Phase, RunMove, StopCause};
+use super::{delete_step, run_step, Ending, Next, Phase, RunMove, StopCause};
 use crate::guard::Table;
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use crate::schedule::{self, stop_run, Board, Move, Owing, Report, Stop};
 use crate::types::{
     Agent, AgentId, Answer, Body, Cause, ConfigView, Decision, Doing, Event, HandbackResult,
-    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow,
+    Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow, WorkflowId,
 };
 use std::cell::RefCell;
 
@@ -89,6 +89,10 @@ pub struct Done {
     pub report: Report,
     /// The runs that a tick ended `interrupted` after a kill refused with `unknown_run`.
     pub lost: Vec<RunId>,
+    /// The workflows that a tick saw gone for the first time: the coordinator drops the items
+    /// of their runs with nothing stored and sends no more event of their agents, whose
+    /// ledgers `forgotten` empties (I5.7).
+    pub gone: Vec<WorkflowId>,
 }
 
 fn refused_with(error: &PortError, name: &str) -> bool {
@@ -102,6 +106,7 @@ fn answer(cause: Option<Cause>) -> Done {
             ..Report::default()
         },
         lost: Vec::new(),
+        gone: Vec::new(),
     }
 }
 
@@ -109,6 +114,7 @@ fn of_report(report: Report) -> Done {
     Done {
         report,
         lost: Vec::new(),
+        gone: Vec::new(),
     }
 }
 
@@ -139,6 +145,7 @@ fn phase_of(phase: &Phase) -> Live {
 struct Watch<'a, P> {
     ports: &'a P,
     unknown: RefCell<Vec<RunId>>,
+    listed: RefCell<Option<Vec<WorkflowId>>>,
 }
 
 impl<P: Owner> Owner for Watch<'_, P> {
@@ -153,7 +160,11 @@ impl<P: Owner> Owner for Watch<'_, P> {
     }
 
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
-        self.ports.workflows()
+        let list = self.ports.workflows();
+        if let Ok(l) = &list {
+            *self.listed.borrow_mut() = Some(l.iter().map(|w| w.id().clone()).collect());
+        }
+        list
     }
 
     fn agents(&self) -> Result<Vec<Agent<P::Config>>, PortError> {
@@ -274,9 +285,16 @@ where
     let watch = Watch {
         ports,
         unknown: RefCell::new(Vec::new()),
+        listed: RefCell::new(None),
     };
+    let before = board.clone();
     let mut report = schedule::drive(&watch, board, limits, Move::Tick);
-    for run in &report.stopped {
+    let gone = watch
+        .listed
+        .borrow()
+        .as_ref()
+        .map(|listed| delete_step(&before, listed));
+    for run in gone.iter().flat_map(|g| g.stop.iter()) {
         *table = table.stop(run);
     }
     let mut lost = Vec::new();
@@ -286,7 +304,11 @@ where
             lost.push(run);
         }
     }
-    Done { report, lost }
+    Done {
+        report,
+        lost,
+        gone: gone.map(|g| g.seen).unwrap_or_default(),
+    }
 }
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,
