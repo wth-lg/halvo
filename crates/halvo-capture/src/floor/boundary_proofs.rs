@@ -22,6 +22,7 @@ fn clearance_made_outside_secure_input_twin(
 mod probe_implemented_outside_secure_input {
     use crate::secure_input::{SecureInputProbe, SecureInputReading};
     struct Elsewhere;
+    impl crate::secure_input::seal::Sealed for Elsewhere {}
     impl SecureInputProbe for Elsewhere {
         fn read(&self) -> SecureInputReading {
             SecureInputReading::Inactive

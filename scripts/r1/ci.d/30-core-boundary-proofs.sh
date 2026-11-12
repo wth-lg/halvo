@@ -10,7 +10,7 @@ prefill=$src/daemon/prefill.rs
 
 # name, the error code that its build must report, the build it belongs to.
 PROOFS='clearance_made_outside_secure_input E0624 debug
-probe_implemented_outside_secure_input E0277 debug
+probe_implemented_outside_secure_input E0603 debug
 record_from_an_old_path_event E0308 debug
 received_value_made_outside_the_sink E0451 debug
 emitted_value_without_the_keep_verdict E0624 debug
