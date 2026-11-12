@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io::{self, Read};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,7 +11,7 @@ use reqwest::{redirect, retry, Method, Url};
 use serde_json::Value;
 
 use crate::answer::FORM;
-use crate::error::{BuildError, CallError};
+use crate::error::{AnswerFault, BuildError, CallError};
 use crate::token::Token;
 
 /// How the client of the adapter finds the address of the origin's host.
@@ -26,8 +27,9 @@ pub enum Route {
 
 /// The Graph-shaped adapter of A11.2 for one origin, the faces of mail and calendar under `/v1.0/me/`. It holds
 /// its HTTP client and the origin, and no token. The client is reqwest with rustls on the ring provider and the
-/// verifier of the OS trust store, TLS 1.2 or 1.3, HTTP/1.1, no proxy, no redirect, no retry, no cookie, and one
-/// time limit for each request.
+/// verifier of the OS trust store, TLS 1.2 or 1.3, HTTP/1.1, no proxy, no redirect, no retry and no cookie. Each
+/// request has one time limit, which holds its connect, its head and its body together, and the body of an answer
+/// that an operation reads is bounded at 33,554,432 bytes.
 ///
 /// It offers no request beyond the operations of `Mail` and `Calendar`: its own request calls cannot be reached from
 /// outside this crate. Each call below fails to compile, and the same text with a public operation in its place
@@ -67,10 +69,12 @@ pub enum Route {
 pub struct Graph {
     client: Client,
     origin: String,
+    timeout: Duration,
 }
 
 impl Graph {
-    /// The adapter for `origin`, whose requests each end within `timeout`. Refuses an `http` origin on the route
+    /// The adapter for `origin`, whose requests each end within `timeout`, from the start of the request to the
+    /// end of its answer's body. Refuses an `http` origin on the route
     /// `System` with `Cleartext` and an address host on the route `Loopback` with `Address`, and answers `Client`
     /// when the TLS configuration or the client cannot be built.
     pub fn new(origin: &WebOrigin, route: Route, timeout: Duration) -> Result<Graph, BuildError> {
@@ -109,6 +113,7 @@ impl Graph {
         Ok(Graph {
             client,
             origin: origin.as_str().to_owned(),
+            timeout,
         })
     }
 
@@ -121,7 +126,7 @@ impl Graph {
         success: u16,
     ) -> Result<Value, CallError> {
         let response = self.send(token, method, path, body, success)?;
-        let bytes = response.bytes().map_err(|_| CallError::NoAnswer)?;
+        let bytes = read_bounded(response)?;
         serde_json::from_slice(&bytes).map_err(|_| FORM)
     }
 
@@ -146,7 +151,8 @@ impl Graph {
         let mut request = self
             .client
             .request(method, format!("{}{path}", self.origin))
-            .bearer_auth(token.value());
+            .bearer_auth(token.value())
+            .timeout(self.timeout);
         if let Some(body) = body {
             request = request
                 .header(CONTENT_TYPE, "application/json")
@@ -172,6 +178,28 @@ impl fmt::Debug for Graph {
         f.debug_struct("Graph")
             .field("origin", &self.origin)
             .finish_non_exhaustive()
+    }
+}
+
+const BOUND: usize = 33_554_432;
+
+fn read_bounded(mut response: Response) -> Result<Vec<u8>, CallError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > BOUND as u64)
+    {
+        return Err(CallError::Answer(AnswerFault::Size));
+    }
+    let mut bytes = Vec::new();
+    let mut chunk = [0u8; 65_536];
+    loop {
+        match response.read(&mut chunk) {
+            Ok(0) => return Ok(bytes),
+            Ok(n) if bytes.len() + n > BOUND => return Err(CallError::Answer(AnswerFault::Size)),
+            Ok(n) => bytes.extend_from_slice(&chunk[..n]),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => return Err(CallError::NoAnswer),
+        }
     }
 }
 

@@ -11,7 +11,8 @@ pub enum CallError {
     /// documents for the request and the fixture answers: 200 for a GET and for the PATCH, 201 for createReply,
     /// 202 for send, 204 for DELETE. Another 2xx is such a status too. No redirect is followed.
     Status(u16),
-    /// The request left and its answer did not arrive whole within the time limit of the adapter.
+    /// The request left and its answer did not arrive whole: the adapter's time limit, counted from the start of
+    /// the request to the end of the answer's body, ran out, or the connection ended before the body did.
     NoAnswer,
     /// The answer arrived and does not have the form of the face.
     Answer(AnswerFault),
@@ -30,6 +31,8 @@ pub enum AnswerFault {
     Id,
     /// The answer names another item than the one that the request addressed.
     Item,
+    /// The answer's body is longer than 33,554,432 bytes (32 MiB), or says that it is.
+    Size,
 }
 
 /// Whether the effect of a call of the class `send` or `delete` that returned an error was made.
@@ -78,6 +81,7 @@ impl fmt::Display for CallError {
                 AnswerFault::Repeated => "the answer holds one id twice",
                 AnswerFault::Id => "the answer holds an id that is empty, . or ..",
                 AnswerFault::Item => "the answer names another item than the request",
+                AnswerFault::Size => "the answer is longer than 33554432 bytes",
             }),
         }
     }
