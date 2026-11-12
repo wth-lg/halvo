@@ -863,6 +863,10 @@ async function bound(origin, dir) {
     ['bytes_1025', 'é'.repeat(512) + 'a', 'é'.repeat(512)],
     ['three_byte_edge', 'a'.repeat(1023) + '€', 'a'.repeat(1023)],
     ['four_byte_letters', '𝄞'.repeat(257), '𝄞'.repeat(256)],
+    ['combining_accent', 'a'.repeat(1022) + 'é', 'a'.repeat(1022)],
+    ['joined_emoji', 'a'.repeat(1016) + '\u{1F469}‍\u{1F4BB}', 'a'.repeat(1016)],
+    ['flag', 'a'.repeat(1020) + '\u{1F1EB}\u{1F1F7}', 'a'.repeat(1020)],
+    ['emoji_with_its_variation', 'a'.repeat(1021) + '❤️', 'a'.repeat(1021)],
   ];
   for (const [tag, typed, sent] of cases) {
     const out = outDir();

@@ -48,14 +48,24 @@
     return node;
   }
 
-  function bounded(text) {
+  const letters = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+  function bytes(text) {
     let size = 0;
-    let out = '';
     for (const ch of text) {
       const code = ch.codePointAt(0);
       size += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
+    }
+    return size;
+  }
+
+  function bounded(text) {
+    let size = 0;
+    let out = '';
+    for (const part of letters.segment(text)) {
+      size += bytes(part.segment);
       if (size > 1024) break;
-      out += ch;
+      out += part.segment;
     }
     return out;
   }

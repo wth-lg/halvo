@@ -53,3 +53,5 @@ allow	map_and_set	8	typeof Map === 'function' && typeof Set === 'function'
 allow	promise	8	typeof Promise === 'function'
 # https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array/from, Safari 9 of 2015-09-30
 allow	array_from	9	typeof Array.from === 'function'
+# https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter, Safari 14.1 of 2021-04-26
+allow	intl_segmenter	14.1	typeof Intl.Segmenter === 'function' && typeof new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment === 'function'
