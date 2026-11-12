@@ -112,7 +112,8 @@ impl<'a> SetLines<'a> {
 
 impl InputSet {
     /// Reads a set file by `parse`, reporting the path with the defect (C6.4). A path that is no regular
-    /// file is unreadable, and it is not opened when the system says so before the open. The reader takes at
+    /// file is unreadable, a symbolic link among them, also one that names a regular file, because the reader
+    /// follows no link; it is not opened when the system says so before the open. The reader takes at
     /// most `SET_MAX` bytes and one more, so that a longer file is refused, as no file of C6.2, with the
     /// number of the line that holds its byte `SET_MAX + 1`, and is not read further.
     pub fn read(path: &Path) -> Result<InputSet, SetError> {
@@ -125,7 +126,7 @@ impl InputSet {
             Ok(_) => Err(unreadable(io::ErrorKind::InvalidInput)),
             Err(e) => Err(unreadable(e.kind())),
         };
-        regular(fs::metadata(path))?;
+        regular(fs::symlink_metadata(path))?;
         let file = File::open(path).map_err(|e| unreadable(e.kind()))?;
         regular(file.metadata())?;
         let mut bytes = Vec::with_capacity(SET_MAX + 1);

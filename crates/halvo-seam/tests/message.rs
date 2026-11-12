@@ -486,6 +486,27 @@ fn a_watermark_or_a_segment_ordinal_outside_the_form_of_c5_3_is_refused() {
 }
 
 #[test]
+fn an_expiry_seg_above_2_63_minus_1_gets_the_fixed_error_of_an_expiry_entry() {
+    use halvo_seam::message::Expiry;
+    for seg in ["9223372036854775808", "18446744073709551615"] {
+        let input = format!(r#"{{"seg":{seg},"at":1}}"#);
+        let value: serde_json::Value = serde_json::from_str(&input).unwrap();
+        for e in [
+            serde_json::from_str::<Expiry>(&input).err(),
+            serde_json::from_value::<Expiry>(value).err(),
+        ] {
+            let text = e.unwrap_or_else(|| panic!("{input} was taken")).to_string();
+            assert!(
+                text.starts_with("malformed entry of expiry") && !text.contains(seg),
+                "{input}: {text}"
+            );
+        }
+    }
+    let top: Expiry = serde_json::from_str(r#"{"seg":9223372036854775807,"at":1}"#).unwrap();
+    assert_eq!(top.seg, 9_223_372_036_854_775_807);
+}
+
+#[test]
 fn the_serde_forms_of_a_record_an_entry_and_an_expiry_entry_hold_no_value_in_their_errors() {
     use halvo_seam::message::{Entry, Expiry};
     use halvo_seam::record::CaptureRecord;
