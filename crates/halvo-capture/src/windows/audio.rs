@@ -1,8 +1,8 @@
 //! System-audio capture, present but off by default.
 
-use crate::event::Modality;
-use crate::sink::SinkHandle;
-use crate::source::{CaptureError, CaptureSource};
+use crate::source::{
+    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+};
 
 /// The system-audio source. The default constructor leaves it disabled, so audio
 /// is never captured unless something explicitly enables it.
@@ -34,20 +34,32 @@ impl Default for SystemAudioSource {
 }
 
 impl CaptureSource for SystemAudioSource {
-    fn modality(&self) -> Modality {
-        Modality::SystemAudio
-    }
-
-    fn start(&mut self, _sink: SinkHandle) -> Result<(), CaptureError> {
+    /// A disabled source never captures and answers `Off`; an enabled one is
+    /// not built in R1.
+    fn begin(&mut self, _ctx: SourceContext) -> Result<Started, CaptureError> {
         if !self.enabled {
-            return Ok(());
+            return Ok(Started::Off);
         }
         Err(CaptureError::NotImplemented(
             "Windows system-audio WASAPI loopback",
         ))
     }
 
-    fn stop(&mut self) {}
+    fn shutdown(&mut self) -> Result<(), CaptureError> {
+        Ok(())
+    }
+
+    fn health(&self) -> SourceHealth {
+        let state = if self.enabled {
+            SourceState::NotReported
+        } else {
+            SourceState::Off
+        };
+        SourceHealth {
+            state,
+            counters: SourceCounters::default(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -86,7 +98,7 @@ mod tests {
         let (sink, _writer) = crate::sink::channel(1);
         let mut source = SystemAudioSource::enabled();
         assert!(matches!(
-            source.start(sink),
+            source.begin(crate::source::SourceContext::new(sink)),
             Err(CaptureError::NotImplemented(_))
         ));
     }
