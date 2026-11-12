@@ -438,6 +438,32 @@ fn a_release_counts_the_rows_of_its_own_item_alone() {
     );
 }
 
+/// A second `release` of one item renumbers no row: its decision keeps the number of its first
+/// release, so that a later item's decision for the same effect stays the newest (I4.7, ruling
+/// IG-25; the reader of U2.2b's copy O4).
+#[test]
+fn a_second_release_of_one_item_renumbers_no_row() {
+    let allowed = Decision::new(vec![entry(1, 1, 1, EffectAnswer::AllowOnce)]).unwrap();
+    let rejected = Decision::new(vec![entry(1, 2, 2, EffectAnswer::RejectOnce)]).unwrap();
+    let t = Table::new()
+        .record(&item_id(1), &run_id(1), &allowed)
+        .release(&item_id(1))
+        .record(&item_id(2), &run_id(1), &rejected)
+        .release(&item_id(2));
+    assert_eq!(
+        t.newest_released(&run_id(1), &effect_id(1)),
+        Some(EffectAnswer::RejectOnce)
+    );
+    let again = t.release(&item_id(1));
+    assert_eq!(
+        again.newest_released(&run_id(1), &effect_id(1)),
+        Some(EffectAnswer::RejectOnce),
+        "item 1's decision does not become the newest"
+    );
+    assert!(!again.newest_allows(&run_id(1), &effect_id(1)));
+    assert_eq!(again, t, "the table does not change");
+}
+
 #[test]
 fn the_ids_of_a_reject_once_decision_pass_nothing() {
     let t = table();

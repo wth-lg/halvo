@@ -1122,7 +1122,13 @@ fn a_request_is_mixed_wherever_an_effect_of_another_class_stands() {
             if x == y {
                 continue;
             }
-            for form in [vec![x, x, y], vec![x, y, y], vec![x, x, y, x]] {
+            for form in [
+                vec![x, x, y],
+                vec![x, y, y],
+                vec![x, x, y, x],
+                vec![x, x, x, y],
+                vec![x, x, x, x, y],
+            ] {
                 let effects = form
                     .iter()
                     .zip(1..)
