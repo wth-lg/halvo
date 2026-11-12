@@ -122,6 +122,15 @@ pub fn guard_main(argv: &[String]) -> i32 {
     }
 }
 
+/// Counts one more open connection when fewer than `MAX_OPEN` are open, and says whether it did.
+fn admit(open: &AtomicUsize) -> bool {
+    if open.fetch_add(1, Ordering::SeqCst) >= MAX_OPEN {
+        open.fetch_sub(1, Ordering::SeqCst);
+        return false;
+    }
+    true
+}
+
 fn keep<T>(record: &Mutex<Vec<T>>, entry: T, unkept: &AtomicU64) {
     if let Ok(mut r) = record.lock() {
         if r.len() < MAX_RECORD {
@@ -352,8 +361,7 @@ impl Relay {
         let task = tokio::spawn(async move {
             while let Ok((socket, _)) = listener.accept().await {
                 let shared = serving.clone();
-                if shared.connections.fetch_add(1, Ordering::SeqCst) >= MAX_OPEN {
-                    shared.connections.fetch_sub(1, Ordering::SeqCst);
+                if !admit(&shared.connections) {
                     shared.over_bound.fetch_add(1, Ordering::SeqCst);
                     drop(socket);
                     continue;
@@ -838,6 +846,25 @@ mod tests {
         };
         assert!(!bound, "a socket with SO_REUSEADDR bound the relay's port");
         drop(listener);
+    }
+
+    #[test]
+    fn the_relay_admits_max_open_connections_and_keeps_max_record_entries() {
+        let open = AtomicUsize::new(0);
+        for _ in 0..MAX_OPEN {
+            assert!(admit(&open));
+        }
+        assert!(!admit(&open));
+        assert_eq!(open.load(Ordering::SeqCst), MAX_OPEN);
+        open.fetch_sub(1, Ordering::SeqCst);
+        assert!(admit(&open));
+        let record = Mutex::new(Vec::new());
+        let unkept = AtomicU64::new(0);
+        for i in 0..MAX_RECORD + 3 {
+            keep(&record, i, &unkept);
+        }
+        assert_eq!(record.lock().unwrap().len(), MAX_RECORD);
+        assert_eq!(unkept.load(Ordering::SeqCst), 3);
     }
 
     #[test]

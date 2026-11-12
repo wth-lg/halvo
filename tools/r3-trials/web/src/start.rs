@@ -466,18 +466,24 @@ mod sys {
         })
     }
 
+    /// A copy of `placed` at a number of 10 or more with close-on-exec set, so that the action
+    /// that places it at 3 never copies a descriptor onto itself, which would keep its
+    /// close-on-exec flag and leave the child without it.
+    pub(super) fn lifted_copy(placed: RawFd) -> Result<RawFd, StartFault> {
+        // SAFETY: F_DUPFD_CLOEXEC makes a new descriptor for the open `placed`.
+        let lifted = unsafe { libc::fcntl(placed, libc::F_DUPFD_CLOEXEC, 10) };
+        if lifted < 0 {
+            return Err(StartFault::last("placed"));
+        }
+        Ok(lifted)
+    }
+
     pub(super) fn start_with(
         _held: &StartLock,
         spec: &Spec<'_>,
         placed: RawPlaced,
     ) -> Result<Started, StartFault> {
-        // SAFETY: F_DUPFD_CLOEXEC makes a new descriptor of 10 or more for the open `placed`, so
-        // that the action that places it at 3 never copies a descriptor onto itself, which
-        // would keep its close-on-exec flag.
-        let lifted = unsafe { libc::fcntl(placed, libc::F_DUPFD_CLOEXEC, 10) };
-        if lifted < 0 {
-            return Err(StartFault::last("placed"));
-        }
+        let lifted = lifted_copy(placed)?;
         let spawned = spawn(spec, &[lifted]);
         close_all(&[lifted]);
         Ok(Started {
@@ -855,6 +861,23 @@ mod tests {
         unsafe {
             libc::close(spare_read);
             libc::close(spare_write);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_placed_descriptor_is_copied_above_the_placed_numbers_with_close_on_exec() {
+        let file = std::fs::File::open("/dev/null").expect("open");
+        let fd = std::os::fd::AsRawFd::as_raw_fd(&file);
+        let copy = sys::lifted_copy(fd).expect("copy");
+        assert!(copy >= 10, "{copy}");
+        // SAFETY: F_GETFD reads the flags of the open copy, which is closed once after.
+        unsafe {
+            assert_eq!(
+                libc::fcntl(copy, libc::F_GETFD) & libc::FD_CLOEXEC,
+                libc::FD_CLOEXEC
+            );
+            libc::close(copy);
         }
     }
 
