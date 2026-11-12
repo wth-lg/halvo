@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: TLC finds none of the properties Q1 to Q14 of formal/r5-admit violated at the small bound of Small.cfg, the model exports the committed table and traces byte for byte, each of two control copies breaks its property, and formal/r5-admit/record.txt holds the full bound, every design and every reach run of the README at the stamp of the model's files.
+# rule: Admit.cfg and Small.cfg of formal/r5-admit have the one fixed form of the model's bound and formulas, TLC finds none of Q1 to Q14 violated at the small bound, the model exports the committed table and traces byte for byte, each of two control copies breaks its property, and record.txt holds the full bound, the small run's count of states and every run of runs.txt at the stamp of the model's files.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -8,13 +8,44 @@ unset CDPATH JAVA_TOOL_OPTIONS JDK_JAVA_OPTIONS _JAVA_OPTIONS
 name=30-r5-formal
 label=$name
 workers=3
+art=
+detail=-
 case $0 in
   /*) self=$0 ;;
   *) self=$(pwd)/$0 ;;
 esac
 
+check() {
+  shift
+  "$@"
+}
+
+advice() {
+  printf 'cause: %s\n' "$1"
+  case $1 in
+    model) printf 'read: formal/r5-admit/README.md\ndo: formal/r5-admit/ is missing; restore it from main.\n' ;;
+    scratch) printf 'read: the variable TMPDIR\ndo: mktemp -d made no directory under TMPDIR, or /tmp when it is not set; point TMPDIR at a writable directory.\n' ;;
+    attributes) printf 'read: formal/r5-admit/.gitattributes, formal/r3-confirm/.gitattributes, and attributes.txt in this directory, which lists each file that git does not take as text with eol=lf\ndo: keep the one line "* text eol=lf" in each of the two files.\n' ;;
+    pin) printf 'read: formal/r5-admit/README.md, section The checker, and the tla2tools.jar line of formal/r3-confirm/README.md\ndo: give each README one jar line, both with the same address, size and SHA-256.\n' ;;
+    java) printf 'read: formal/r5-admit/README.md, section The checker\ndo: install java 17 or later, or set JAVA_HOME to one.\n' ;;
+    fetch) printf 'read: formal/r5-admit/README.md, section The checker\ndo: check the address of the jar line and the network, or name the jar in TLA2TOOLS_JAR.\n' ;;
+    hash) printf 'read: formal/r5-admit/README.md, section The checker\ndo: the SHA-256 of the jar is not the pinned one; take the jar that the line pins.\n' ;;
+    invariant)
+      printf 'read: formal/r5-admit/README.md, sections The bounds of Admit.cfg, The properties and Running TLC; small.txt (the TLC output), admit-want.cfg and small-want.cfg in this directory\n'
+      printf 'do: result=%s. admit-form or small-form: make Admit.cfg or Small.cfg equal to admit-want.cfg or small-want.cfg (a change of the bound is a Revision of item L12). formulas-form: write each line of Admit.tla that starts with Q and a digit as a definition "Q<n> ==", "Q<n>Step ==" or "Q<n>Move ==" with n from 1 to 14. formulas-count: Admit.tla defines Q1 to Q14. violated, status or incomplete: read small.txt and replay its trace against the code and the contract.\n' "$detail"
+      ;;
+    table | traces) printf 'read: formal/r5-admit/README.md, sections edit-table.tsv, traces.jsonl and export.sh; export.txt and the directory export/ here hold what the model exports now\ndo: run sh formal/r5-admit/export.sh and commit both files; never edit them by hand.\n' ;;
+    control) printf 'read: formal/r5-admit/README.md, sections The wrong designs and Running TLC; control-*.txt in this directory\ndo: the copy with Fault serve_reverted must report Q1 and the copy with Fault no_bar must report Q5.\n' ;;
+    record) printf 'read: formal/r5-admit/README.md, sections The record and Writing the record\ndo: the record must name the model'"'"'s files, the small run and runs.txt as they are now; write it again with sh formal/r5-admit/record.sh: list, then run for each line it prints, then write.\n' ;;
+    selftest) printf 'read: selftest-*.txt in this directory\ndo: a fixture of the self-test did not end as it should.\n' ;;
+    usage) printf 'do: the arguments are none or --self-test.\n' ;;
+  esac
+  printf 'run again: sh scripts/ci/run-ci-d.sh %s %s\n' "${CI_D_JOB:-macos}" "$name"
+}
+
 fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
+  [ -z "$art" ] || advice "$1" >"$art/fix.txt" 2>/dev/null
   exit 1
 }
 
@@ -37,6 +68,12 @@ sha256() {
   fi
 }
 
+number() {
+  case $1 in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+}
+
 locate() {
   if [ -n "${CI_D_REPO:-}" ]; then
     repo=$CI_D_REPO
@@ -44,11 +81,11 @@ locate() {
     repo=$(cd "${self%/*}/../../.." && pwd) || repo=
   fi
   dir=$repo/formal/r5-admit
-  art=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
+  art_dir=${CI_D_ARTIFACTS:-$repo/target/ci-artifacts/$name}
 }
 
 scratch() {
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r5-formal.XXXXXX") || tmp=
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/r5-formal.XXXXXX" 2>/dev/null) || tmp=
   made=$tmp
   [ -z "$tmp" ] || tmp=$(cd "$tmp" && pwd) || tmp=
   [ -z "$tmp" ] || made=$tmp
@@ -60,34 +97,62 @@ since() {
   start=$now
 }
 
+other_form() {
+  [ "$other_lines" -eq 0 ] || [ "$other_lines:$other_read" = 1:1 ]
+}
+
+other_same() {
+  [ "$other_lines" -eq 0 ] || [ "$other" = "$own" ]
+}
+
 pin() {
+  : >"$tmp/own.txt"
+  : >"$tmp/other.txt"
+  [ ! -f "$dir/README.md" ] || grep '^jar ' "$dir/README.md" >"$tmp/own.txt"
+  [ ! -f "$repo/formal/r3-confirm/README.md" ] || grep '^tla2tools\.jar ' "$repo/formal/r3-confirm/README.md" >"$tmp/other.txt"
+  sed -n 's/^jar url=\([^ ]*\) bytes=\([0-9][0-9]*\) sha256=\([0-9a-f]\{64\}\)$/\1 \2 \3/p' "$tmp/own.txt" >"$tmp/own-read.txt"
+  sed -n 's/^tla2tools\.jar release=[^ ]* url=\([^ ]*\) bytes=\([0-9][0-9]*\) sha256=\([0-9a-f]\{64\}\)$/\1 \2 \3/p' \
+    "$tmp/other.txt" >"$tmp/other-read.txt"
+  own_lines=$(grep -c '' "$tmp/own.txt")
+  own_read=$(grep -c '' "$tmp/own-read.txt")
+  other_lines=$(grep -c '' "$tmp/other.txt")
+  other_read=$(grep -c '' "$tmp/other-read.txt")
   own=
-  [ -f "$dir/README.md" ] && own=$(tr -d '\r' <"$dir/README.md" |
-    sed -n 's/^jar url=\([^ ]*\) bytes=\([0-9][0-9]*\) sha256=\([0-9a-f]\{64\}\)$/\1 \2 \3/p')
+  read -r own <"$tmp/own-read.txt" || own=
   other=
-  named=0
-  if [ -f "$repo/formal/r3-confirm/README.md" ]; then
-    other=$(tr -d '\r' <"$repo/formal/r3-confirm/README.md" |
-      sed -n 's/^tla2tools\.jar release=[^ ]* url=\([^ ]*\) bytes=\([0-9][0-9]*\) sha256=\([0-9a-f]\{64\}\)$/\1 \2 \3/p')
-    named=$(grep -c '^tla2tools\.jar ' "$repo/formal/r3-confirm/README.md")
-  fi
-  case $own in
-    '' | *"
-"*) state=differ ;;
-    *)
-      case $named:$other in
-        0:) state=alone ;;
-        "1:$own") state=same ;;
-        *) state=differ ;;
-      esac
-      ;;
-  esac
+  read -r other <"$tmp/other-read.txt" || other=
+  state=same
+  check pin-alone [ "$other_lines" -ne 0 ] || state=alone
+  check pin-other-form other_form || state=differ
+  check pin-other-same other_same || state=differ
+  check pin-own [ "$own_lines:$own_read" = 1:1 ] || state=differ
   printf 'formal pin=%s\n' "$state"
-  [ "$state" != differ ] || fail pin
+  check pin-differ [ "$state" != differ ] || fail pin
   url=${own%% *}
-  rest=${own#* }
-  bytes=${rest% *}
-  want=${rest#* }
+  want=${own##* }
+}
+
+attributes() {
+  (cd "$repo" && git -c core.quotepath=off ls-files -- 'formal/r5-admit/*.tla' 'formal/r5-admit/*.cfg') \
+    >"$tmp/attr-files.txt" 2>/dev/null
+  printf '%s\n' formal/r5-admit/edit-table.tsv formal/r5-admit/traces.jsonl formal/r5-admit/record.txt \
+    formal/r5-admit/runs.txt formal/r5-admit/README.md >>"$tmp/attr-files.txt"
+  [ ! -f "$repo/formal/r3-confirm/README.md" ] || printf 'formal/r3-confirm/README.md\n' >>"$tmp/attr-files.txt"
+  (cd "$repo" && git check-attr --stdin text eol <"$tmp/attr-files.txt") >"$tmp/attr.txt" 2>/dev/null
+  awk -F': ' -v bad="$art/attributes.txt" '
+    NR == FNR { want[$0] = 1; n++; next }
+    $2 == "text" && $3 == "set" { t[$1] = 1 }
+    $2 == "eol" && $3 == "lf" { e[$1] = 1 }
+    END {
+      printf "" >bad
+      for (f in want) if ((f in t) && (f in e)) good++; else print f >>bad
+      printf "%d %d\n", n, good
+    }' "$tmp/attr-files.txt" "$tmp/attr.txt" >"$tmp/attr-count.txt" || fail attributes
+  files=0
+  lf=-1
+  read -r files lf <"$tmp/attr-count.txt" || fail attributes
+  printf 'formal attributes files=%s lf=%s\n' "$files" "$lf"
+  check attributes [ "$files" -eq "$lf" ] || fail attributes
 }
 
 java_of() {
@@ -100,44 +165,43 @@ java_of() {
   else
     java=java
   fi
+  "$java" -version >"$tmp/java.raw" 2>&1 </dev/null
+  tr -d '\r' <"$tmp/java.raw" >"$tmp/java.txt" || fail java
+  sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p' "$tmp/java.txt" >"$tmp/major.txt" || fail java
   major=none
-  if command -v "$java" >/dev/null 2>&1; then
-    "$java" -version >"$tmp/java.raw" 2>&1 </dev/null || major=none
-    tr -d '\r' <"$tmp/java.raw" >"$tmp/java.txt" || fail java
-    sed -n 's/.* version "\([0-9][0-9]*\).*/\1/p' "$tmp/java.txt" >"$tmp/major.txt" || fail java
-    read -r major <"$tmp/major.txt" || major=none
-  fi
+  read -r major <"$tmp/major.txt" || major=none
   printf 'formal java major=%s\n' "$major"
-  case $major in
-    '' | *[!0-9]*) fail java ;;
-  esac
-  [ "$major" -ge 17 ] || fail java
+  check java-number number "$major" || fail java
+  check java-17 [ "$major" -ge 17 ] || fail java
+}
+
+fetch_jar() {
+  command -v curl >/dev/null 2>&1 &&
+    (cd "$tmp" && curl -q -fsSL --retry 2 --max-time 300 -o tla2tools.jar "$url") &&
+    [ -f "$tmp/tla2tools.jar" ]
+}
+
+jar_missing() {
+  printf 'formal jar source=%s bytes=0 same=no\n' "$source"
+  fail fetch
 }
 
 jar() {
   if [ -n "${TLA2TOOLS_JAR:-}" ]; then
     source=given
-    if [ ! -f "$TLA2TOOLS_JAR" ] || ! cp "$TLA2TOOLS_JAR" "$tmp/tla2tools.jar"; then
-      printf 'formal jar source=given bytes=0 same=no\n'
-      fail fetch
-    fi
+    check jar-given cp "$TLA2TOOLS_JAR" "$tmp/tla2tools.jar" 2>/dev/null || jar_missing
   else
     source=fetch
-    if ! command -v curl >/dev/null 2>&1 ||
-      ! (cd "$tmp" && curl -q -fsSL --retry 2 --max-time 300 -o tla2tools.jar "$url") ||
-      [ ! -f "$tmp/tla2tools.jar" ]; then
-      printf 'formal jar source=fetch bytes=0 same=no\n'
-      fail fetch
-    fi
+    check jar-fetch fetch_jar || jar_missing
   fi
   size=$(wc -c <"$tmp/tla2tools.jar") || fail hash
   size=$((size + 0))
   sum=$(sha256 <"$tmp/tla2tools.jar") || fail hash
   sum=${sum%% *}
-  same=no
-  [ "$size" = "$bytes" ] && [ "$sum" = "$want" ] && same=yes
+  same=yes
+  check jar-sum [ "$sum" = "$want" ] || same=no
   printf 'formal jar source=%s bytes=%s same=%s\n' "$source" "$size" "$same"
-  [ "$same" = yes ] || fail hash
+  check jar-same [ "$same" = yes ] || fail hash
 }
 
 tlc() {
@@ -159,158 +223,109 @@ tlc() {
   ' "$1/out.txt" >"$1/facts.txt" || status=99
 }
 
-numbers() {
-  tr -d '\r' <"$2" | sed -n 's/^\(Q[0-9][0-9]*[A-Za-z]*\) ==.*$/\1/p' | sort -u >"$tmp/formulas.txt" || return 1
-  awk -v formulas="$tmp/formulas.txt" '
-    BEGIN { while ((getline f < formulas) > 0) want[f] = 1 }
-    { sub(/\r$/, ""); sub(/\\\*.*$/, "") }
-    index($0, "(*") > 0 || index($0, "<-") > 0 { odd = 1 }
-    part == "constants" && match($0, /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) {
-      c = substr($0, RSTART, RLENGTH)
-      gsub(/[ \t=]/, "", c)
-      if (c in assigned) odd = 1
-      assigned[c] = 1
-    }
-    {
-      for (i = 1; i <= NF; i++) {
-        w = $i
-        if (w ~ /^[A-Z][A-Z_]*$/ && w != "TRUE" && w != "FALSE") {
-          if (w in keyword) odd = 1
-          keyword[w] = 1
-          if (w ~ /^(PROPERT(Y|IES)|INVARIANTS?)$/) part = "checked"
-          else if (w ~ /^CONSTANTS?$/) part = "constants"
-          else part = "other"
-          continue
-        }
-        if (part != "checked") {
-          if (w ~ /^Q[0-9]/) odd = 1
-          continue
-        }
-        if (w !~ /^Q[0-9]+(Step|Move)?$/ || (w in listed)) { odd = 1; continue }
-        listed[w] = 1
-        q = w
-        sub(/^Q/, "", q)
-        sub(/[A-Za-z]+$/, "", q)
-        if (q + 0 >= 1 && q + 0 <= 14) seen[q + 0] = 1
-      }
-    }
-    END {
-      for (q in seen) k++
-      for (f in want) if (!(f in listed)) missing++
-      printf "%d %s %d\n", k, odd ? "odd" : "plain", missing
-    }' "$1"
+formulas() {
+  : >"$tmp/q-lines.txt"
+  [ ! -f "$dir/Admit.tla" ] || grep '^Q[0-9]' "$dir/Admit.tla" >"$tmp/q-lines.txt"
+  odd_q=$(grep -c -v -E '^Q([1-9]|1[0-4])(Step|Move)? ==( |$)' "$tmp/q-lines.txt")
+  sed -n -E 's/^(Q([1-9]|1[0-4])(Step|Move)?) ==( .*)?$/\1/p' "$tmp/q-lines.txt" >"$tmp/names.txt" || fail invariant
+  sed -E 's/^Q([0-9]+).*$/\1/' "$tmp/names.txt" | sort -u >"$tmp/numbers.txt" || fail invariant
+  numbers=$(grep -c '' "$tmp/numbers.txt")
+}
+
+cfg_text() {
+  printf 'CONSTANTS\n'
+  printf '    Slots = {r1, r2}\n    FurtherA = {a1, a2, a3}\n    FurtherB = {b1, b2, b3}\n    Compiled = {c1, c2}\n'
+  printf '    ListMax = 2\n    EditMax = 3\n    RunsMax = %s\n    RunsOnBothSteps = %s\n    Fault = "%s"\n' "$1" "$2" "$3"
+  printf 'SYMMETRY Symmetry\nCHECK_DEADLOCK FALSE\nCONSTRAINT Bound\nINIT Init\nNEXT Next\nPROPERTIES\n'
+  sed 's/^/    /' "$4"
+}
+
+miss() {
+  [ "$result" != ok ] || result=$1
 }
 
 small() {
   result=ok
-  config=$dir/Small.cfg
-  sed -e 's/^    RunsMax = 5$/    RunsMax = 3/' -e 's/^    RunsOnBothSteps = 3$/    RunsOnBothSteps = 2/' \
-    "$dir/Admit.cfg" >"$tmp/small-want.cfg" || fail invariant
-  a=$(grep -c '^    RunsMax = 5$' "$dir/Admit.cfg")
-  b=$(grep -c '^    RunsOnBothSteps = 3$' "$dir/Admit.cfg")
-  if [ "$a:$b" != 1:1 ] || [ ! -f "$config" ] || ! cmp -s "$tmp/small-want.cfg" "$config"; then
-    result=config
-  fi
-  checked=0
-  shape=plain
-  if [ "$result" = ok ]; then
-    numbers "$config" "$dir/Admit.tla" >"$tmp/numbers.txt" || fail invariant
-    read -r checked shape missing <"$tmp/numbers.txt" || fail invariant
-    if [ "$shape" != plain ]; then
-      result=form
-    elif [ "$missing" -ne 0 ]; then
-      result=formulas
-    fi
-  fi
+  formulas
+  cfg_text 5 3 none "$tmp/names.txt" >"$tmp/admit-want.cfg" || fail invariant
+  cfg_text 3 2 none "$tmp/names.txt" >"$tmp/small-want.cfg" || fail invariant
+  cp "$tmp/admit-want.cfg" "$tmp/small-want.cfg" "$art/" || fail invariant
+  check admit-form cmp -s "$tmp/admit-want.cfg" "$dir/Admit.cfg" || miss admit-form
+  check small-form cmp -s "$tmp/small-want.cfg" "$dir/Small.cfg" || miss small-form
+  check formulas-form [ "$odd_q" -eq 0 ] || miss formulas-form
+  check formulas-count [ "$numbers" -eq 14 ] || miss formulas-count
   distinct=0
   violated=0
   if [ "$result" = ok ]; then
     run=$tmp/small
-    mkdir "$run" "$run/jtmp" || fail invariant
-    cp "$dir"/*.tla "$config" "$run/" || fail invariant
+    mkdir "$run" "$run/jtmp" || fail scratch
+    cp "$dir"/*.tla "$dir/Small.cfg" "$run/" || fail invariant
     tlc "$run" Small.cfg
     sed -n 's/^violated //p' "$run/facts.txt" | sort -u >"$tmp/violated.txt" || fail invariant
-    violated=$(grep -c . "$tmp/violated.txt")
+    violated=$(grep -c '' "$tmp/violated.txt")
     sed -n 's/^distinct //p' "$run/facts.txt" >"$tmp/distinct.txt" || fail invariant
     read -r distinct <"$tmp/distinct.txt" || distinct=0
     complete=$(grep -c '^complete$' "$run/facts.txt")
-    if [ "$violated" -ne 0 ]; then
-      result=violated
-    elif [ "$status" -ne 0 ]; then
-      result=status
-    elif [ "$complete" -ne 1 ] || [ "$distinct" -eq 0 ]; then
-      result=incomplete
-    elif [ "$checked" -ne 14 ]; then
-      result=properties
-    fi
+    check tlc-violated [ "$violated" -eq 0 ] || miss violated
+    check tlc-status [ "$status" -eq 0 ] || miss status
+    check tlc-complete [ "$complete" -eq 1 ] || miss incomplete
   fi
-  printf 'formal states=%s properties=%s violated=%s\n' "$distinct" "$checked" "$violated"
-  if [ "$result" != ok ]; then
-    printf 'formal small result=%s\n' "$result"
-    fail invariant
-  fi
+  printf 'formal states=%s properties=%s violated=%s\n' "$distinct" "$numbers" "$violated"
+  [ "$result" = ok ] || printf 'formal small result=%s\n' "$result"
+  detail=$result
+  check small-ok [ "$result" = ok ] || fail invariant
 }
 
 exported() {
-  mkdir "$tmp/export" "$tmp/export-tmp" || fail table
-  TLA2TOOLS_JAR=$tmp/tla2tools.jar TMPDIR=$tmp/export-tmp sh "$dir/export.sh" --out "$tmp/export" \
-    >"$tmp/export.txt" 2>&1 </dev/null
+  mkdir -p "$art/export" || fail invariant
+  : >"$art/export/edit-table.tsv"
+  : >"$art/export/traces.jsonl"
+  mkdir "$tmp/export-tmp" || fail scratch
+  TLA2TOOLS_JAR=$tmp/tla2tools.jar TMPDIR=$tmp/export-tmp sh "$dir/export.sh" --out "$art/export" \
+    >"$art/export.txt" 2>&1 </dev/null
   code=$?
-  cp "$tmp/export.txt" "$art/export.txt" || fail table
   rows=0
-  [ -f "$dir/edit-table.tsv" ] && rows=$(wc -l <"$dir/edit-table.tsv")
-  rows=$((rows + 0))
-  table=no
-  if [ "$code" -eq 0 ] && [ "$rows" -eq 57 ] && cmp -s "$dir/edit-table.tsv" "$tmp/export/edit-table.tsv"; then
-    table=yes
-  fi
+  [ ! -f "$dir/edit-table.tsv" ] || rows=$(grep -c '' "$dir/edit-table.tsv")
   lines=0
-  [ -f "$dir/traces.jsonl" ] && lines=$(wc -l <"$dir/traces.jsonl")
+  [ ! -f "$dir/traces.jsonl" ] || lines=$(grep -c '' "$dir/traces.jsonl")
   count=$((lines - 1))
   [ "$count" -ge 0 ] || count=0
-  traces=no
-  if [ "$code" -eq 0 ] && cmp -s "$dir/traces.jsonl" "$tmp/export/traces.jsonl"; then
-    traces=yes
-  fi
+  table=yes
+  check export-status [ "$code" -eq 0 ] || table=no
+  check table-rows [ "$rows" -eq 57 ] || table=no
+  check table-same cmp -s "$dir/edit-table.tsv" "$art/export/edit-table.tsv" || table=no
+  traces=yes
+  check traces-same cmp -s "$dir/traces.jsonl" "$art/export/traces.jsonl" || traces=no
   [ "$code" -eq 0 ] || printf 'formal export status=%s\n' "$code"
   printf 'formal table rows=%s same=%s\n' "$rows" "$table"
   printf 'formal traces count=%s same=%s\n' "$count" "$traces"
-  [ "$table" = yes ] || fail table
-  [ "$traces" = yes ] || fail traces
+  check table-ok [ "$table" = yes ] || fail table
+  check traces-ok [ "$traces" = yes ] || fail traces
 }
 
 control() {
   run=$tmp/control-$1
   mkdir "$run" "$run/jtmp" || return 2
   cp "$dir"/*.tla "$run/" || return 2
-  R5_FAULT=$1 R5_PROPERTY=$2 awk '
-    BEGIN { fault = ENVIRON["R5_FAULT"]; property = ENVIRON["R5_PROPERTY"] }
-    $0 == "    Fault = \"none\"" { print "    Fault = \"" fault "\""; f++; next }
-    $0 == "PROPERTIES" { print "PROPERTY " property; p++; block = 1; next }
-    block && /^    / { next }
-    { block = 0; print }
-    END { if (f != 1 || p != 1) exit 3 }' "$dir/Admit.cfg" >"$run/Control.cfg" || return 2
+  printf '%s\n' "$2" >"$run/property.txt" || return 2
+  cfg_text 5 3 "$1" "$run/property.txt" >"$run/Control.cfg" || return 2
   tlc "$run" Control.cfg
   sed -n 's/^violated //p' "$run/facts.txt" >"$run/violated.txt" || return 2
   first=
   read -r first <"$run/violated.txt" || first=
-  [ "$status" -ne 0 ] && [ "$first" = "$2" ]
+  check control-status [ "$status" -ne 0 ] || return 1
+  check control-property [ "$first" = "$2" ] || return 1
 }
 
 controls() {
   broken=0
-  applied=yes
   for copy in serve_reverted:Q1 no_bar:Q5; do
-    control "${copy%:*}" "${copy#*:}"
-    case $? in
-      0) broken=$((broken + 1)) ;;
-      2) applied=no ;;
-    esac
+    if control "${copy%:*}" "${copy#*:}"; then
+      broken=$((broken + 1))
+    fi
   done
-  [ "$applied" = yes ] || printf 'formal control applied=no\n'
   printf 'formal control violated=%s\n' "$broken"
-  [ "$applied" = yes ] || fail control
-  [ "$broken" -eq 2 ] || fail control
+  check control-count [ "$broken" -eq 2 ] || fail control
 }
 
 stamp_of() {
@@ -320,124 +335,95 @@ stamp_of() {
   sort "$2.files" >"$2.sorted" || return 1
   : >"$2.list" || return 1
   while IFS= read -r f; do
-    [ -f "$1/$f" ] || return 1
     one=$(sha256 <"$1/$f") || return 1
     printf '%s  %s\n' "${one%% *}" "$f" >>"$2.list" || return 1
   done <"$2.sorted"
-  [ -s "$2.list" ] || return 1
   stamp=$(sha256 <"$2.list") || return 1
   stamp=${stamp%% *}
-  [ "${#stamp}" -eq 64 ]
 }
 
-designs_of() {
-  tr -d '\r' <"$1" | awk '
-    $0 == "| `Fault` | from | what it changes | TLC reports | distinct states | bound | output |" { state = 1; heads++; next }
-    state == 1 { state = 2; next }
-    state == 2 && /^\|/ {
-      n = split($0, cell, "|")
-      f = cell[2]; r = cell[5]
-      gsub(/^[ ]+|[ ]+$/, "", f); gsub(/^[ ]+|[ ]+$/, "", r)
-      if (n != 9 || f !~ /^`[a-z0-9_]+`$/ || r !~ /^(Q[0-9]+[A-Za-z]*|nothing)$/) bad++
-      gsub(/`/, "", f)
-      print f, r
-      next
-    }
-    state == 2 { state = 0 }
-    /^[ \t]*\|[ \t]*`[a-z0-9_]+`[ \t]*\|/ && split($0, cell, "|") == 9 { bad++ }
-    END { if (heads != 1 || bad) print "bad bad" }'
+runs_miss() {
+  [ "$runs_state" != ok ] || runs_state=$1
 }
 
-reaches_of() {
-  tr -d '\r' <"$1" | awk '
-    $0 == "## The reach runs" { part = 1; next }
-    part && /^## / { part = 0 }
-    part && !block && /^[ \t]*```/ { block = 1; blocks++; next }
-    block && $0 == "```" { block = 0; next }
-    !block { next }
-    /^for name in / { collect = 1; sub(/^for name in /, "") }
-    collect {
-      line = $0
-      last = (line ~ /; do$/)
-      sub(/; do$/, "", line); sub(/\\$/, "", line)
-      k = split(line, word, " ")
-      for (i = 1; i <= k; i++) wait[++waiting] = word[i]
-      if (last) collect = 0
-      next
-    }
-    /^    reach (INVARIANT|PROPERTY) "(Not|Never)\$name" [0-9]+ [0-9]+$/ {
-      p = $3; gsub(/"/, "", p); sub(/\$name$/, "", p)
-      if (($2 == "INVARIANT") != (p == "Not")) bad++
-      if (!waiting) bad++
-      for (i = 1; i <= waiting; i++) print p wait[i], $4 "-" $5
-      waiting = 0
-      next
-    }
-    /^reach (INVARIANT|PROPERTY) (Not|Never)[A-Za-z]+ [0-9]+ [0-9]+$/ {
-      if (($2 == "INVARIANT") != ($3 ~ /^Not/)) bad++
-      print $3, $4 "-" $5
-      next
-    }
-    /(^|[^A-Za-z0-9_])(reach|for)([^A-Za-z0-9_(]|$)/ { bad++ }
-    END { if (blocks != 1 || waiting || collect || bad) print "bad bad" }'
+stamp_miss() {
+  [ "$stamped" != same ] || stamped=$1
+}
+
+runs_read() {
+  runs_state=ok
+  : >"$tmp/runs.txt"
+  [ ! -f "$dir/runs.txt" ] || cp "$dir/runs.txt" "$tmp/runs.txt" || fail record
+  runs_odd=$(grep -c -v -E '^(design [a-z0-9_]+ [1-9] [0-9] [1-9] (Q([1-9]|1[0-4])(Step|Move)?|nothing)|reach (Not|Never)[A-Z][A-Za-z]* [1-9] [0-9])$' "$tmp/runs.txt")
+  runs_dup=$(awk '{ k = ($1 == "design") ? $1 " " $2 : $1 " " $2 " " $3 " " $4; if (k in s) d++; s[k] = 1 } END { print d + 0 }' "$tmp/runs.txt")
+  grep '^design ' "$tmp/runs.txt" | sort >"$tmp/want-designs.txt"
+  grep '^reach ' "$tmp/runs.txt" | sort >"$tmp/want-reach.txt"
+  nd=$(grep -c '' "$tmp/want-designs.txt")
+  nr=$(grep -c '' "$tmp/want-reach.txt")
+  check runs-present [ -f "$dir/runs.txt" ] || runs_miss absent
+  check runs-form [ "$runs_odd" -eq 0 ] || runs_miss unreadable
+  check runs-once [ "$runs_dup" -eq 0 ] || runs_miss twice
+  check runs-designs [ "$nd" -gt 0 ] || runs_miss no-designs
+  check runs-reach [ "$nr" -gt 0 ] || runs_miss no-reach
+}
+
+record_ok() {
+  [ "$stamped:$full:$small_state:$runs_state:$designs_ok:$reach_ok:$lines" = same:ok:same:ok:yes:yes:ok ]
 }
 
 record() {
-  stamped=absent
-  full=miss
   file=$dir/record.txt
-  designs_of "$dir/README.md" | sort >"$tmp/want-designs.txt" || fail record
-  reaches_of "$dir/README.md" | sort >"$tmp/want-reach.txt" || fail record
-  if [ -f "$file" ]; then
-    tr -d '\r' <"$file" >"$tmp/record.txt" || fail record
-    stamped=none
-    n=$(grep -c '^stamp=' "$tmp/record.txt")
-    have=$(sed -n 's/^stamp=\([0-9a-f]\{64\}\)$/\1/p' "$tmp/record.txt")
-    if [ "$n" -eq 1 ] && [ -n "$have" ]; then
-      stamped=differ
-      stamp_of "$repo" "$tmp/stamp" || stamp=
-      [ "$have" != "$stamp" ] || stamped=same
-    fi
-    n=$(grep -c '^full ' "$tmp/record.txt")
-    m=$(grep -c -E '^full config=Admit\.cfg states=[1-9][0-9]* properties=14 violated=0 workers=[1-9][0-9]* run=(helper|nice19) seconds=[0-9]+$' "$tmp/record.txt")
-    [ "$n:$m" != 1:1 ] || full=ok
-    sed -n 's/^design fault=\([^ ]*\) reports=\([^ ]*\) states=[0-9][0-9]*$/\1 \2/p' "$tmp/record.txt" |
-      sort >"$tmp/have-designs.txt" || fail record
-    sed -n 's/^reach property=\([^ ]*\) bound=\([^ ]*\) reached=yes states=[0-9][0-9]*$/\1 \2/p' "$tmp/record.txt" |
-      sort >"$tmp/have-reach.txt" || fail record
-  else
-    : >"$tmp/have-designs.txt" || fail record
-    : >"$tmp/have-reach.txt" || fail record
-  fi
-  lines=$(grep -c . "$tmp/record.txt" 2>/dev/null) || lines=0
-  designs=$(grep -c . "$tmp/want-designs.txt")
-  reported=$(comm -12 "$tmp/want-designs.txt" "$tmp/have-designs.txt" | grep -c .)
-  reach=$(grep -c . "$tmp/want-reach.txt")
-  reached=$(comm -12 "$tmp/want-reach.txt" "$tmp/have-reach.txt" | grep -c .)
-  readme=ok
-  if grep -q '^bad bad$' "$tmp/want-designs.txt" "$tmp/want-reach.txt" ||
-    [ "$designs" -eq 0 ] || [ "$reach" -eq 0 ]; then
-    readme=unreadable
-  fi
-  printf 'formal record stamp=%s full=%s designs=%s reported=%s reach=%s reached=%s readme=%s\n' \
-    "$stamped" "$full" "$designs" "$reported" "$reach" "$reached" "$readme"
-  [ "$stamped" = same ] || fail record
-  [ "$full" = ok ] || fail record
-  if [ "$readme" != ok ] ||
-    ! cmp -s "$tmp/want-designs.txt" "$tmp/have-designs.txt" ||
-    ! cmp -s "$tmp/want-reach.txt" "$tmp/have-reach.txt" ||
-    [ "$lines" -ne $((2 + designs + reach)) ]; then
-    fail record
-  fi
+  r=$tmp/record.txt
+  runs_read
+  stamped=same
+  full=ok
+  small_state=same
+  designs_ok=yes
+  reach_ok=yes
+  lines=ok
+  : >"$r"
+  [ ! -f "$file" ] || cp "$file" "$r" || fail record
+  n_stamp=$(grep -c '^stamp=' "$r")
+  sed -n 's/^stamp=\([0-9a-f]\{64\}\)$/\1/p' "$r" >"$tmp/have-stamp.txt" || fail record
+  n_have=$(grep -c '' "$tmp/have-stamp.txt")
+  have=
+  read -r have <"$tmp/have-stamp.txt" || have=
+  stamp_of "$repo" "$tmp/stamp" || stamp=
+  check record-present [ -f "$file" ] || stamp_miss absent
+  check record-stamp-form [ "$n_stamp:$n_have" = 1:1 ] || stamp_miss none
+  check record-stamp [ "$have" = "$stamp" ] || stamp_miss differ
+  n_full=$(grep -c '^full ' "$r")
+  m_full=$(grep -c -E '^full config=Admit\.cfg states=[1-9][0-9]* properties=14 violated=0 workers=[1-9][0-9]* run=(helper|nice19) seconds=[0-9]+$' "$r")
+  check record-full [ "$n_full:$m_full" = 1:1 ] || full=miss
+  n_small=$(grep -c '^small ' "$r")
+  m_small=$(grep -c -x -F "small config=Small.cfg states=$distinct" "$r")
+  check record-small [ "$n_small:$m_small" = 1:1 ] || small_state=differ
+  sed -n 's/^design fault=\([a-z0-9_]*\) bound=\([1-9]\)-\([0-9]\)-\([1-9]\) reports=\([A-Za-z0-9]*\) states=[0-9][0-9]*$/design \1 \2 \3 \4 \5/p' \
+    "$r" | sort >"$tmp/have-designs.txt"
+  sed -n 's/^reach property=\([A-Za-z]*\) bound=\([1-9]\)-\([0-9]\) reached=yes states=[0-9][0-9]*$/reach \1 \2 \3/p' \
+    "$r" | sort >"$tmp/have-reach.txt"
+  check record-designs cmp -s "$tmp/want-designs.txt" "$tmp/have-designs.txt" || designs_ok=no
+  check record-reach cmp -s "$tmp/want-reach.txt" "$tmp/have-reach.txt" || reach_ok=no
+  comm -12 "$tmp/want-designs.txt" "$tmp/have-designs.txt" >"$tmp/both-designs.txt" || fail record
+  comm -12 "$tmp/want-reach.txt" "$tmp/have-reach.txt" >"$tmp/both-reach.txt" || fail record
+  reported=$(grep -c '' "$tmp/both-designs.txt")
+  reached=$(grep -c '' "$tmp/both-reach.txt")
+  total=$(grep -c '' "$r")
+  check record-lines [ "$total" -eq $((3 + nd + nr)) ] || lines=differ
+  printf 'formal record stamp=%s full=%s small=%s runs=%s designs=%s reported=%s reach=%s reached=%s lines=%s\n' \
+    "$stamped" "$full" "$small_state" "$runs_state" "$nd" "$reported" "$nr" "$reached" "$lines"
+  check record-ok record_ok || fail record
 }
 
 measure() {
   locate
-  [ -d "$dir" ] || fail pin
-  mkdir -p "$art" || fail fetch
-  pin
+  check artifacts mkdir -p "$art_dir" 2>/dev/null || fail artifacts
+  art=$art_dir
+  check model [ -d "$dir" ] || fail model
   scratch
-  [ -n "$tmp" ] || fail fetch
+  check scratch [ -n "$tmp" ] || fail scratch
+  pin
+  attributes
   java_of
   jar
   start=$(date +%s)
@@ -451,11 +437,12 @@ measure() {
   since
   printf 'formal seconds small=%s export=%s control=%s\n' "$t_small" "$t_export" "$seconds"
   record
+  printf 'cause: none\n' >"$art/fix.txt" 2>/dev/null
   printf 'PASS %s\n' "$name"
 }
 
 stubs() {
-  mkdir -p "$work/stub" "$work/jdk/bin" "$work/empty" || fail selftest
+  mkdir -p "$work/stub" "$work/jdk/bin" "$work/empty" "$work/stub-curl" || fail selftest
   cat >"$work/stub/java" <<'EOF' || fail selftest
 #!/bin/sh
 mode=${R5_STUB_MODE:-good}
@@ -506,6 +493,10 @@ if [ -n "$want" ]; then
       exit 0
       ;;
     control-other) broke Q3 ;;
+    control-status)
+      printf 'Error: Action property %s is violated.\r\n' "$want"
+      exit 0
+      ;;
   esac
   broke "$want"
 fi
@@ -516,7 +507,10 @@ case $mode in
     printf 'Error: Invariant Q7 is violated.\r\n'
     exit 12
     ;;
-  incomplete) exit 0 ;;
+  incomplete)
+    printf '300000 states generated, 15690 distinct states found, 0 states left on queue.\r\n'
+    exit 0
+    ;;
   status)
     good 15690 300000
     exit 1
@@ -529,6 +523,12 @@ EOF
 #!/bin/sh
 exit 22
 EOF
+  cat >"$work/copy-export.sh" <<'EOF' || fail selftest
+#!/bin/sh
+here=$(cd "$(dirname "$0")" && pwd)
+cp "$here/edit-table.tsv" "$here/traces.jsonl" "$2/" || exit 1
+exit STATUS
+EOF
   cp "$work/stub/java" "$work/jdk/bin/java" || fail selftest
   chmod +x "$work/stub/java" "$work/jdk/bin/java" "$work/stub-curl/curl" || fail selftest
 }
@@ -536,13 +536,11 @@ EOF
 write_record() {
   {
     printf 'stamp=%s\n' "$1"
-    printf 'full config=Admit.cfg states=1660030 properties=14 violated=0 workers=4 run=nice19 seconds=5009\n'
-    while read -r f r; do
-      printf 'design fault=%s reports=%s states=100\n' "$f" "$r"
-    done <"$work/designs.txt"
-    while read -r p b; do
-      printf 'reach property=%s bound=%s reached=yes states=10\n' "$p" "$b"
-    done <"$work/reach.txt"
+    printf 'full config=Admit.cfg states=1660030 properties=14 violated=0 workers=4 run=nice19 seconds=2193\n'
+    printf 'small config=Small.cfg states=15690\n'
+    awk '
+      $1 == "design" { printf "design fault=%s bound=%s-%s-%s reports=%s states=100\n", $2, $3, $4, $5, $6 }
+      $1 == "reach" { printf "reach property=%s bound=%s-%s reached=yes states=10\n", $2, $3, $4 }' "$3"
   } >"$2" || fail selftest
 }
 
@@ -550,6 +548,7 @@ base() {
   b=$work/base
   mkdir -p "$b/formal/r3-confirm" || fail selftest
   cp -R "$dir" "$b/formal/" || fail selftest
+  printf '* text eol=lf\n' >"$b/formal/r3-confirm/.gitattributes" || fail selftest
   printf 'r5 stub jar\n' >"$work/stub.jar" || fail selftest
   fake_bytes=$(wc -c <"$work/stub.jar") || fail selftest
   fake_bytes=$((fake_bytes + 0))
@@ -560,17 +559,13 @@ base() {
     >"$b/formal/r5-admit/README.md" || fail selftest
   printf 'tla2tools.jar release=v1.7.4 url=%s bytes=%s sha256=%s\n' "$fake_url" "$fake_bytes" "$fake_sum" \
     >"$b/formal/r3-confirm/README.md" || fail selftest
-  designs_of "$b/formal/r5-admit/README.md" >"$work/designs.txt" || fail selftest
-  reaches_of "$b/formal/r5-admit/README.md" >"$work/reach.txt" || fail selftest
-  if grep -q '^bad bad$' "$work/designs.txt" "$work/reach.txt"; then
-    printf 'selftest the README lists of the model are not readable\n'
-    fail selftest
-  fi
   git init -q "$b" >/dev/null 2>&1 || fail selftest
   (cd "$b" && git add -A) >/dev/null 2>&1 || fail selftest
   stamp_of "$b" "$work/base-stamp" || fail selftest
   base_stamp=$stamp
-  write_record "$base_stamp" "$b/formal/r5-admit/record.txt"
+  write_record "$base_stamp" "$b/formal/r5-admit/record.txt" "$b/formal/r5-admit/runs.txt"
+  nd=$(grep -c '^design ' "$b/formal/r5-admit/runs.txt")
+  nr=$(grep -c '^reach ' "$b/formal/r5-admit/runs.txt")
 }
 
 fixture() {
@@ -586,12 +581,20 @@ edit() {
   cp "$work/edited" "$work/$1/$2" || fail selftest
 }
 
+away() {
+  mv "$work/$1/$2" "$work/$1-away" || fail selftest
+}
+
+copy_export() {
+  sed "s/STATUS/$2/" "$work/copy-export.sh" >"$work/$1/formal/r5-admit/export.sh" || fail selftest
+}
+
 expect() {
   mkdir -p "$work/$1/tmp" "$work/$1/art" || fail selftest
   : >"$work/$1/java.log" || fail selftest
   (
     CI_D_REPO=$work/$1
-    CI_D_ARTIFACTS=$work/$1/art
+    CI_D_ARTIFACTS=${art_as:-$work/$1/art}
     CI_D_JOB=macos
     R5_STUB_MODE=$3
     R5_STUB_FROM=$work/base/formal/r5-admit
@@ -599,7 +602,7 @@ expect() {
     JAVA_TOOL_OPTIONS=-Dr5.stub=1
     JDK_JAVA_OPTIONS=-Dr5.stub=2
     _JAVA_OPTIONS=-Dr5.stub=3
-    TMPDIR=$work/$1/tmp
+    TMPDIR=${tmp_as:-$work/$1/tmp}
     PATH=$work/stub:$PATH
     JAVA_HOME=$java_as
     TLA2TOOLS_JAR=$jar_as
@@ -639,6 +642,8 @@ expect() {
   fi
   java_as=$work/jdk
   jar_as=$work/stub.jar
+  art_as=
+  tmp_as=
 }
 
 other_digit() {
@@ -648,34 +653,76 @@ other_digit() {
   esac
 }
 
+logged() {
+  n_small=$(grep -c '^Admit Small\.cfg$' "$work/good/java.log")
+  n_control=$(grep -c '^Admit Control\.cfg$' "$work/good/java.log")
+  n_export=$(grep -c '^Export Export\.cfg$' "$work/good/java.log")
+  n_all=$(grep -c '' "$work/good/java.log")
+  ran=no
+  [ "$n_small:$n_control:$n_export:$n_all" = 1:2:1:4 ] && ran=yes
+  printf 'selftest rule=runs held=%s\n' "$ran"
+  [ "$ran" = yes ] || missed=$((missed + 1))
+}
+
 fixtures() {
   java_as=$work/jdk
   jar_as=$work/stub.jar
+  art_as=
+  tmp_as=
   passed="0:PASS $name"
+  invariant="1:FAIL $name (invariant)"
+  rec="1:FAIL $name (record)"
+  whole="designs=$nd reported=$nd reach=$nr reached=$nr"
+  cr=$(printf '\r')
+  a=formal/r5-admit/Admit.cfg
+  s=formal/r5-admit/Small.cfg
+  t=formal/r5-admit/Admit.tla
+  rt=formal/r5-admit/record.txt
+  ru=formal/r5-admit/runs.txt
 
-  designs_n=$(grep -c . "$work/designs.txt")
-  reach_n=$(grep -c . "$work/reach.txt")
-  traces_n=$(($(wc -l <"$dir/traces.jsonl") - 1))
   fixture good
-  expect good "$passed" good 'formal pin=same' \
-    "formal record stamp=same full=ok designs=$designs_n reported=$designs_n reach=$reach_n reached=$reach_n"
+  expect good "$passed" good 'formal pin=same' "formal record stamp=same full=ok small=same runs=ok $whole lines=ok"
   logged
   fixture on-the-path
   java_as=
   expect on-the-path "$passed" good 'formal java major=17'
   fixture alone
-  mv "$work/alone/formal/r3-confirm/README.md" "$work/alone-r3.md" || fail selftest
+  away alone formal/r3-confirm/README.md
   expect alone "$passed" good 'formal pin=alone'
 
+  fixture artifacts-a-file
+  : >"$work/artifacts-a-file/art-file" || fail selftest
+  art_as=$work/artifacts-a-file/art-file
+  expect artifacts-a-file "1:FAIL $name (artifacts)" good
+  fixture model-missing
+  away model-missing formal/r5-admit
+  expect model-missing "1:FAIL $name (model)" good
+  fixture scratch-missing
+  tmp_as=$work/scratch-missing/no-such-directory
+  expect scratch-missing "1:FAIL $name (scratch)" good
+  fixture attributes-no-eol
+  edit attributes-no-eol formal/r5-admit/.gitattributes 's/ eol=lf$//'
+  expect attributes-no-eol "1:FAIL $name (attributes)" good 'formal attributes files='
+
+  fixture pin-own-twice
+  edit pin-own-twice formal/r5-admit/README.md '/^jar url=/p'
+  expect pin-own-twice "1:FAIL $name (pin)" good 'formal pin=differ'
+  fixture pin-other-two-lines
+  edit pin-other-two-lines formal/r3-confirm/README.md '/^tla2tools/{p;s/ sha256=/ sha256=x/;}'
+  expect pin-other-two-lines "1:FAIL $name (pin)" good 'formal pin=differ'
   fixture pin-differs
   other_digit "$fake_sum"
   edit pin-differs formal/r3-confirm/README.md "s/sha256=./sha256=$digit/"
   expect pin-differs "1:FAIL $name (pin)" good 'formal pin=differ'
-  fixture java-old
-  expect java-old "1:FAIL $name (java)" java-old 'formal java major=11'
+
   fixture java-missing
   java_as=$work/empty
   expect java-missing "1:FAIL $name (java)" good 'formal java major=none'
+  fixture java-old
+  expect java-old "1:FAIL $name (java)" java-old 'formal java major=11'
+  fixture jar-given-missing
+  jar_as=$work/no-such.jar
+  expect jar-given-missing "1:FAIL $name (fetch)" good 'formal jar source=given bytes=0 same=no'
   fixture fetch
   jar_as=
   expect fetch "1:FAIL $name (fetch)" good 'formal jar source=fetch bytes=0 same=no'
@@ -683,177 +730,138 @@ fixtures() {
   printf 'r5 stub jaR\n' >"$work/other.jar" || fail selftest
   jar_as=$work/other.jar
   expect hash "1:FAIL $name (hash)" good 'formal jar source=given bytes=12 same=no'
-  fixture pin-unreadable
-  edit pin-unreadable formal/r3-confirm/README.md 's/$/ /'
-  expect pin-unreadable "1:FAIL $name (pin)" good 'formal pin=differ'
 
-  fixture small-property-out
-  edit small-property-out formal/r5-admit/Small.cfg '/^    Q5$/d'
-  expect small-property-out "1:FAIL $name (invariant)" good 'formal small result=config'
+  fixture admit-constant
+  edit admit-constant "$a" 's/^    FurtherA = {a1, a2, a3}$/    FurtherA = {a1}/'
+  expect admit-constant "$invariant" good 'formal small result=admit-form'
+  fixture small-other
+  edit small-other "$s" 's/^    ListMax = 2$/    ListMax = 1/'
+  expect small-other "$invariant" good 'formal small result=small-form'
+  fixture formula-two-spaces
+  edit formula-two-spaces "$t" 's/^Q7Step == /Q7Step  == /'
+  edit formula-two-spaces "$a" '/^    Q7Step$/d'
+  edit formula-two-spaces "$s" '/^    Q7Step$/d'
+  expect formula-two-spaces "$invariant" good 'formal small result=formulas-form'
   fixture property-out-of-both
-  edit property-out-of-both formal/r5-admit/Small.cfg '/^    Q5$/d'
-  edit property-out-of-both formal/r5-admit/Admit.cfg '/^    Q5$/d'
-  edit property-out-of-both formal/r5-admit/Admit.tla 's/^Q5 ==/Kept5 ==/'
-  expect property-out-of-both "1:FAIL $name (invariant)" good 'formal states=15690 properties=13 violated=0' \
-    'formal small result=properties'
-  fixture small-other-bound
-  edit small-other-bound formal/r5-admit/Small.cfg 's/^    ListMax = 2$/    ListMax = 1/'
-  expect small-other-bound "1:FAIL $name (invariant)" good 'formal small result=config'
-  fixture property-replaced
-  edit property-replaced formal/r5-admit/Small.cfg 's/^    Fault = "none"$/&\
-    Q5 <- Q4/'
-  edit property-replaced formal/r5-admit/Admit.cfg 's/^    Fault = "none"$/&\
-    Q5 <- Q4/'
-  expect property-replaced "1:FAIL $name (invariant)" good 'formal small result=form'
-  fixture formula-dropped
-  edit formula-dropped formal/r5-admit/Small.cfg '/^    Q12Move$/d'
-  edit formula-dropped formal/r5-admit/Admit.cfg '/^    Q12Move$/d'
-  expect formula-dropped "1:FAIL $name (invariant)" good 'formal states=0 properties=14 violated=0' 'result=formulas'
-  fixture constant-for-a-property
-  edit constant-for-a-property formal/r5-admit/Small.cfg 's/^    Fault = "none"$/&\
-    Q14 = TRUE/'
-  edit constant-for-a-property formal/r5-admit/Admit.cfg 's/^    Fault = "none"$/&\
-    Q14 = TRUE/'
-  expect constant-for-a-property "1:FAIL $name (invariant)" good 'formal small result=form'
-  fixture unknown-section
-  edit unknown-section formal/r5-admit/Small.cfg 's/^    Q14$/TYPE_CONSTRAINT\
-&/'
-  edit unknown-section formal/r5-admit/Admit.cfg 's/^    Q14$/TYPE_CONSTRAINT\
-&/'
-  expect unknown-section "1:FAIL $name (invariant)" good 'formal small result=form'
-  fixture constant-twice
-  edit constant-twice formal/r5-admit/Small.cfg 's/^    Q14$/&\
-CONSTANTS\
-    ListMax = 1/'
-  edit constant-twice formal/r5-admit/Admit.cfg 's/^    Q14$/&\
-CONSTANTS\
-    ListMax = 1/'
-  expect constant-twice "1:FAIL $name (invariant)" good 'formal small result=form'
-  fixture model-invariant
-  expect model-invariant "1:FAIL $name (invariant)" invariant-q7 'formal states=0 properties=14 violated=1'
+  edit property-out-of-both "$t" 's/^Q5 ==/Kept5 ==/'
+  edit property-out-of-both "$a" '/^    Q5$/d'
+  edit property-out-of-both "$s" '/^    Q5$/d'
+  expect property-out-of-both "$invariant" good 'formal states=0 properties=13 violated=0' 'result=formulas-count'
   fixture model-as-control-q1
-  expect model-as-control-q1 "1:FAIL $name (invariant)" as-control-q1 'formal states=0 properties=14 violated=1'
-  fixture model-as-control-q5
-  expect model-as-control-q5 "1:FAIL $name (invariant)" as-control-q5 'formal small result=violated'
+  expect model-as-control-q1 "$invariant" as-control-q1 'formal states=0 properties=14 violated=1' 'result=violated'
   fixture tlc-status
-  expect tlc-status "1:FAIL $name (invariant)" status 'formal small result=status'
+  expect tlc-status "$invariant" status 'formal small result=status'
   fixture tlc-incomplete
-  expect tlc-incomplete "1:FAIL $name (invariant)" incomplete 'formal small result=incomplete'
+  expect tlc-incomplete "$invariant" incomplete 'formal small result=incomplete'
 
-  fixture table-row-removed
-  edit table-row-removed formal/r5-admit/edit-table.tsv 9d
-  expect table-row-removed "1:FAIL $name (table)" good 'formal table rows=56 same=no'
+  for c in constraints-init constant-runsmax glued-brace view cr-inside constraints-after-bound; do
+    fixture "$c"
+    for f in "$a" "$s"; do
+      case $c in
+        constraints-init) edit "$c" "$f" 's/^    Q14$/&\
+    CONSTRAINTS Init/' ;;
+        constant-runsmax) edit "$c" "$f" 's/^    Q14$/&\
+    CONSTANT RunsMax = 1/' ;;
+        glued-brace) edit "$c" "$f" 's/^    Compiled = {c1, c2}$/&Q14 = TRUE/' ;;
+        view) edit "$c" "$f" 's/^    Q14$/&\
+VIEW Init/' ;;
+        cr-inside) edit "$c" "$f" "s/^CONSTRAINT Bound\$/CONSTRAINT Bound${cr}CONSTRAINT Init/" ;;
+        constraints-after-bound) edit "$c" "$f" 's/^CONSTRAINT Bound$/&\
+CONSTRAINTS Init/' ;;
+      esac
+    done
+    expect "$c" "$invariant" good 'formal small result=admit-form'
+  done
+  fixture model-as-control-q5
+  expect model-as-control-q5 "$invariant" as-control-q5 'formal small result=violated'
+  fixture model-invariant
+  expect model-invariant "$invariant" invariant-q7 'formal states=0 properties=14 violated=1'
+
+  fixture export-exit-1
+  copy_export export-exit-1 1
+  expect export-exit-1 "1:FAIL $name (table)" good 'formal export status=1' 'formal table rows=57 same=no'
+  fixture table-56-rows
+  copy_export table-56-rows 0
+  edit table-56-rows formal/r5-admit/edit-table.tsv 9d
+  expect table-56-rows "1:FAIL $name (table)" good 'formal table rows=56 same=no'
   fixture table-token
   edit table-token formal/r5-admit/edit-table.tsv '1s/edit/refused/'
   expect table-token "1:FAIL $name (table)" good 'formal table rows=57 same=no'
   fixture trace-move
   edit trace-move formal/r5-admit/traces.jsonl '9s/"move":"recompile"/"move":"use_ok"/'
-  expect trace-move "1:FAIL $name (traces)" good 'formal table rows=57 same=yes' "formal traces count=$traces_n same=no"
+  expect trace-move "1:FAIL $name (traces)" good 'formal table rows=57 same=yes' 'formal traces count=200 same=no'
 
-  fixture control-holds
-  expect control-holds "1:FAIL $name (control)" control-holds 'formal control violated=0'
+  fixture control-status
+  expect control-status "1:FAIL $name (control)" control-status 'formal control violated=0'
   fixture control-other
   expect control-other "1:FAIL $name (control)" control-other 'formal control violated=0'
-  fixture control-unapplied
-  edit control-unapplied formal/r5-admit/Admit.cfg 's/^    Fault = "none"$/    Fault = "none" /'
-  edit control-unapplied formal/r5-admit/Small.cfg 's/^    Fault = "none"$/    Fault = "none" /'
-  expect control-unapplied "1:FAIL $name (control)" good 'formal control applied=no'
+  fixture control-holds
+  expect control-holds "1:FAIL $name (control)" control-holds 'formal control violated=0'
+
+  fixture runs-missing
+  away runs-missing "$ru"
+  expect runs-missing "$rec" good 'runs=absent'
+  fixture runs-odd-line
+  edit runs-odd-line "$ru" '1s/$/ /'
+  expect runs-odd-line "$rec" good 'runs=unreadable'
+  fixture runs-twice
+  edit runs-twice "$ru" '1p'
+  expect runs-twice "$rec" good 'runs=twice'
+  fixture runs-no-designs
+  edit runs-no-designs "$ru" '/^design /d'
+  edit runs-no-designs "$rt" '/^design /d'
+  expect runs-no-designs "$rec" good 'runs=no-designs'
+  fixture runs-no-reach
+  edit runs-no-reach "$ru" '/^reach /d'
+  edit runs-no-reach "$rt" '/^reach /d'
+  expect runs-no-reach "$rec" good 'runs=no-reach'
 
   fixture record-missing
-  mv "$work/record-missing/formal/r5-admit/record.txt" "$work/record-away.txt" || fail selftest
-  expect record-missing "1:FAIL $name (record)" good 'formal record stamp=absent'
+  away record-missing "$rt"
+  expect record-missing "$rec" good 'formal record stamp=absent'
   fixture record-no-stamp
-  edit record-no-stamp formal/r5-admit/record.txt '/^stamp=/d'
-  expect record-no-stamp "1:FAIL $name (record)" good 'formal record stamp=none'
+  edit record-no-stamp "$rt" '/^stamp=/d'
+  expect record-no-stamp "$rec" good 'formal record stamp=none'
   fixture record-one-digit
   other_digit "$base_stamp"
-  edit record-one-digit formal/r5-admit/record.txt "s/^stamp=./stamp=$digit/"
-  expect record-one-digit "1:FAIL $name (record)" good 'formal record stamp=differ'
+  edit record-one-digit "$rt" "s/^stamp=./stamp=$digit/"
+  expect record-one-digit "$rec" good 'formal record stamp=differ'
   fixture record-older-model
-  printf '\n' >>"$work/record-older-model/formal/r5-admit/Admit.tla" || fail selftest
-  expect record-older-model "1:FAIL $name (record)" good 'formal record stamp=differ'
+  printf '\n' >>"$work/record-older-model/$t" || fail selftest
+  expect record-older-model "$rec" good 'formal record stamp=differ'
   fixture record-full-violated
-  edit record-full-violated formal/r5-admit/record.txt 's/^\(full .*\) violated=0 /\1 violated=1 /'
-  expect record-full-violated "1:FAIL $name (record)" good 'formal record stamp=same full=miss'
-  fixture record-full-how-unsaid
-  edit record-full-how-unsaid formal/r5-admit/record.txt 's/^\(full .*\) run=nice19 /\1 /'
-  expect record-full-how-unsaid "1:FAIL $name (record)" good 'formal record stamp=same full=miss'
-  whole="designs=$designs_n reported=$designs_n reach=$reach_n reached=$reach_n"
+  edit record-full-violated "$rt" 's/^\(full .*\) violated=0 /\1 violated=1 /'
+  expect record-full-violated "$rec" good 'formal record stamp=same full=miss small=same'
+  fixture record-small-states
+  edit record-small-states "$rt" 's/^small config=Small.cfg states=15690$/small config=Small.cfg states=15689/'
+  expect record-small-states "$rec" good 'formal record stamp=same full=ok small=differ runs=ok'
   fixture record-design-missing
-  edit record-design-missing formal/r5-admit/record.txt '/^design fault=no_scope /d'
-  expect record-design-missing "1:FAIL $name (record)" good \
-    "full=ok designs=$designs_n reported=$((designs_n - 1)) reach=$reach_n reached=$reach_n"
+  edit record-design-missing "$rt" '/^design fault=no_scope /d'
+  expect record-design-missing "$rec" good "designs=$nd reported=$((nd - 1)) reach=$nr reached=$nr"
   fixture record-design-other
-  edit record-design-other formal/r5-admit/record.txt 's/^\(design fault=no_scope\) reports=Q3 /\1 reports=Q4 /'
-  expect record-design-other "1:FAIL $name (record)" good "reported=$((designs_n - 1)) "
-  fixture record-design-twice
-  edit record-design-twice formal/r5-admit/record.txt '/^design fault=no_scope /p'
-  expect record-design-twice "1:FAIL $name (record)" good "stamp=same full=ok $whole"
+  edit record-design-other "$rt" 's/^\(design fault=no_scope .*\) reports=Q3 /\1 reports=Q4 /'
+  expect record-design-other "$rec" good "designs=$nd reported=$((nd - 1)) reach=$nr reached=$nr lines=ok"
+  fixture record-design-bound-changed
+  edit record-design-bound-changed "$ru" 's/^design no_scope 3 2 3 Q3$/design no_scope 5 0 3 Q3/'
+  expect record-design-bound-changed "$rec" good "designs=$nd reported=$((nd - 1)) reach=$nr reached=$nr lines=ok"
   fixture record-reach-not-reached
-  edit record-reach-not-reached formal/r5-admit/record.txt 's/^\(reach property=NotListCut .*\) reached=yes /\1 reached=no /'
-  expect record-reach-not-reached "1:FAIL $name (record)" good \
-    "designs=$designs_n reported=$designs_n reach=$reach_n reached=$((reach_n - 1))"
-  fixture record-design-added
-  edit record-design-added formal/r5-admit/README.md '/^| .no_scope. | first round | /{p;s/no_scope/no_scope_twice/;}'
-  expect record-design-added "1:FAIL $name (record)" good \
-    "designs=$((designs_n + 1)) reported=$designs_n reach=$reach_n reached=$reach_n"
-  fixture record-reach-added
-  edit record-reach-added formal/r5-admit/README.md 's/^reach PROPERTY NeverCountedOnActive 5 0$/&\
-reach INVARIANT NotListCut 3 2/'
-  expect record-reach-added "1:FAIL $name (record)" good \
-    "designs=$designs_n reported=$designs_n reach=$((reach_n + 1)) reached=$reach_n readme=ok"
-  fixture record-reach-unreadable
-  edit record-reach-unreadable formal/r5-admit/README.md 's/^reach PROPERTY NeverCountedOnActive 5 0$/& /'
-  expect record-reach-unreadable "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  fixture record-design-unreadable
-  edit record-design-unreadable formal/r5-admit/README.md 's/^\(| .no_scope. | first round | .*\) | 3 runs | \(.*\)$/\1 | 3 runs | | \2/'
-  expect record-design-unreadable "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  fixture record-design-header-twice
-  edit record-design-header-twice formal/r5-admit/README.md '/^| .Fault. | from | /p'
-  expect record-design-header-twice "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  fixture record-design-indented
-  edit record-design-indented formal/r5-admit/README.md '/^| .no_scope. | first round | /{p;s/no_scope/no_scope_twice/;s/^/ /;}'
-  expect record-design-indented "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  fixture record-reach-pairing
-  edit record-reach-pairing formal/r5-admit/README.md 's/^reach PROPERTY NeverCountedOnActive 5 0$/reach INVARIANT NeverCountedOnActive 5 0/'
-  expect record-reach-pairing "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  tab=$(printf '\t')
-  fence=$(printf '\140\140\140')
-  fixture record-reach-tab
-  edit record-reach-tab formal/r5-admit/README.md "s/^reach PROPERTY NeverCountedOnActive 5 0\$/&\\
-${tab}reach INVARIANT NotListCut 3 2/"
-  expect record-reach-tab "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  fixture record-reach-second-block
-  edit record-reach-second-block formal/r5-admit/README.md "s/^| name | line of the configuration | bound |.*\$/${fence}sh\\
-reach INVARIANT NotListCut 3 2\\
-${fence}\\
-&/"
-  expect record-reach-second-block "1:FAIL $name (record)" good 'stamp=same full=ok' 'readme=unreadable'
-  fixture record-extra-line
-  printf 'note=x\n' >>"$work/record-extra-line/formal/r5-admit/record.txt" || fail selftest
-  expect record-extra-line "1:FAIL $name (record)" good "stamp=same full=ok $whole readme=ok"
-}
-
-logged() {
-  n_small=$(grep -c '^Admit Small\.cfg$' "$work/good/java.log")
-  n_control=$(grep -c '^Admit Control\.cfg$' "$work/good/java.log")
-  n_export=$(grep -c '^Export Export\.cfg$' "$work/good/java.log")
-  n_all=$(grep -c . "$work/good/java.log")
-  ran=no
-  [ "$n_small:$n_control:$n_export:$n_all" = 1:2:1:4 ] && ran=yes
-  printf 'selftest rule=runs held=%s\n' "$ran"
-  [ "$ran" = yes ] || missed=$((missed + 1))
+  edit record-reach-not-reached "$rt" 's/^\(reach property=NotListCut .*\) reached=yes /\1 reached=no /'
+  expect record-reach-not-reached "$rec" good "designs=$nd reported=$nd reach=$nr reached=$((nr - 1))"
+  fixture record-empty-line
+  printf '\n' >>"$work/record-empty-line/$rt" || fail selftest
+  expect record-empty-line "$rec" good "stamp=same full=ok small=same runs=ok $whole lines=differ"
 }
 
 selftest() {
   label=self-test:$name
   locate
-  [ -d "$dir" ] || fail selftest
-  mkdir -p "$art" || fail selftest
+  mkdir -p "$art_dir" 2>/dev/null || fail artifacts
+  art=$art_dir
+  [ -d "$dir" ] || fail model
   scratch
-  [ -n "$tmp" ] || fail selftest
+  [ -n "$tmp" ] || fail scratch
   work=$tmp/fixtures
-  mkdir -p "$work/stub-curl" || fail selftest
+  mkdir -p "$work" || fail selftest
   stubs
   base
   rejected=0
