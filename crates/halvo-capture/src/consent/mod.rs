@@ -8,15 +8,9 @@ pub mod status;
 
 use serde::{Deserialize, Serialize};
 
-use crate::event::Modality;
+pub use halvo_control::model::CaptureState;
 
-/// Whether capture is currently running.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CaptureState {
-    Running,
-    Paused,
-}
+use crate::event::Modality;
 
 /// Whether the user has enabled a modality. Microphone, camera and system audio
 /// are disabled by default in R1 (researcher-3).
@@ -36,8 +30,7 @@ pub struct CaptureStatus {
     pub store_cap_bytes: u64,
 }
 
-/// What the data view reads and controls. Phase P5 implements it against the
-/// store and the daemon.
+/// What the data view reads and controls.
 pub trait ConsentView {
     fn status(&self) -> CaptureStatus;
     fn modality_consent(&self, modality: Modality) -> ModalityConsent;

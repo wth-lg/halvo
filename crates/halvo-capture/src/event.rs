@@ -10,32 +10,7 @@ use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// What a capture event observed. Closed set; adding a modality is a code change,
-/// not an open string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Modality {
-    ScreenFrame,
-    Keystroke,
-    Pointer,
-    ForegroundApp,
-    WindowTitle,
-    SystemAudio,
-    Microphone,
-    Camera,
-}
-
-impl Modality {
-    /// Whether the sink may drop this modality under backpressure. Continuous
-    /// high-rate streams (frames, audio, camera) are droppable; discrete input
-    /// and context events are not, so a keystroke is never lost to backpressure.
-    pub fn is_droppable_under_backpressure(self) -> bool {
-        matches!(
-            self,
-            Modality::ScreenFrame | Modality::SystemAudio | Modality::Microphone | Modality::Camera
-        )
-    }
-}
+pub use halvo_control::model::Modality;
 
 /// How long a record may be kept. Raw capture and derived data have different
 /// retention bounds; the enum is closed so every store path handles both.
@@ -176,14 +151,5 @@ mod tests {
         );
         assert!(!event.is_derived);
         assert_eq!(event.retention_class, RetentionClass::Raw);
-    }
-
-    #[test]
-    fn frames_are_droppable_but_input_is_not() {
-        assert!(Modality::ScreenFrame.is_droppable_under_backpressure());
-        assert!(Modality::SystemAudio.is_droppable_under_backpressure());
-        assert!(!Modality::Keystroke.is_droppable_under_backpressure());
-        assert!(!Modality::Pointer.is_droppable_under_backpressure());
-        assert!(!Modality::ForegroundApp.is_droppable_under_backpressure());
     }
 }
