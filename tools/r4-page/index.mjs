@@ -452,6 +452,8 @@ function fromTranscript(h, name, args) {
   }
   t.i++;
   setImmediate(() => flush(h));
+  if (line.reject === true) return Promise.reject(new Error('the transcript rejects this call'));
+  if (line.hold === true) return new Promise((wake) => h.held.push(wake));
   return h.transform ? h.transform(line.reply) : line.reply;
 }
 

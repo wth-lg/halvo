@@ -57,7 +57,7 @@ const onlyTests = pick('--tests');
 const onlyStates = pick('--states');
 
 const results = [];
-const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0 };
+const seen = { states: 0, items: 0, texts: 0, controls: 0, plans: 0, calls: 0, escapes: 0, presses: 0 };
 function report(name, faults, counted) {
   results.push({ name, ok: faults.length === 0 });
   const tail = counted ? ' ' + counted.map((k) => k + '=' + seen[k]).join(' ') : '';
@@ -295,6 +295,107 @@ async function escape(origin, dir, states) {
   return faults;
 }
 
+function sel(act, param) {
+  return '[data-act="' + act + '"][data-param="' + param + '"]';
+}
+
+async function presses(h, how, locator) {
+  if (how === 'held_enter') {
+    await locator.focus();
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.down('Enter');
+    await h.page.keyboard.up('Enter');
+  } else {
+    await locator.dblclick();
+  }
+  await frames(h);
+  await frames(h);
+}
+
+function prepare(item) {
+  return item.params
+    .map((p) =>
+      p.candidates.length > 0
+        ? { act: 'candidate', param: p.name, n: p.candidates[p.candidates.length - 1].n }
+        : p.typed === 'yes'
+          ? { act: 'typed', param: p.name, text: TYPED }
+          : null,
+    )
+    .filter(Boolean);
+}
+
+async function once(origin, dir) {
+  const faults = [];
+  const cases = [
+    ['needs_confirm_native', 'present'],
+    ['needs_sign_in', 'done'],
+    ['needs_setup', 'choose'],
+    ['test_setup', 'choose'],
+  ];
+  for (const [state, choice] of cases) {
+    const item = stateFile(dir, state).snapshot.items[0];
+    const want = plan(item, item.choices.find((c) => c.choice === choice)).calls;
+    for (const how of ['held_enter', 'double_click']) {
+      const out = outDir();
+      const h = await open({ origin, state, views: [VIEW], out });
+      try {
+        for (const a of prepare(item)) await act(h, a);
+        await presses(h, how, h.page.locator(sel(choice, item.item)));
+        const got = callsOf(out).map((c) => ({ call: c.call, args: c.args }));
+        seen.presses += 1;
+        if (firstDiff(got, want) >= 0) faults.push(state + ':' + choice + ':' + how + ':calls=' + got.length + ':want=' + want.length);
+      } finally {
+        await h.close();
+      }
+    }
+  }
+  const setup = stateFile(dir, 'needs_setup').snapshot.items[0];
+  const chain = plan(setup, setup.choices.find((c) => c.choice === 'choose')).calls;
+  const out = outDir();
+  const h = await open({ origin, state: 'needs_setup', views: [VIEW], out });
+  try {
+    await act(h, { act: 'choose', param: setup.item });
+    if (callsOf(out).length !== 0) faults.push('choose_with_nothing:calls=' + callsOf(out).length);
+    for (const a of prepare(setup)) await act(h, a);
+    await act(h, { act: 'choose', param: setup.item });
+    const got = callsOf(out).map((c) => ({ call: c.call, args: c.args }));
+    if (firstDiff(got, chain) >= 0) faults.push('choose_after_nothing:calls=' + got.length + ':want=' + chain.length);
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
+async function hold(origin, dir) {
+  const faults = [];
+  const item = stateFile(dir, 'needs_sign_in').snapshot.items[0];
+  const first = { seq: 1, rows: [], items: [item], note: null };
+  const same = { seq: 2, rows: [], items: [item], note: null };
+  const done = { call: 'agents_answer', args: { item: item.item, choice: 'done' } };
+  let h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }], views: [VIEW] });
+  try {
+    await act(h, { act: 'done', param: item.item });
+    await act(h, { act: 'done', param: item.item });
+  } catch {
+    faults.push('second_call_while_the_first_waits');
+  } finally {
+    await h.close();
+  }
+  const out = outDir();
+  h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }, { state: same }, { ...done, reply: { ok: 'yes' } }], views: [VIEW], out });
+  try {
+    await act(h, { act: 'done', param: item.item });
+    await act(h, { act: 'done', param: item.item });
+    if (callsOf(out).length !== 2) faults.push('not_given_back_by_a_newer_reply:calls=' + callsOf(out).length);
+  } catch {
+    faults.push('not_given_back_by_a_newer_reply');
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const want = (name) => !onlyTests || onlyTests.includes(name);
 
 const { dir, states: tracked, tests } = fixtures();
@@ -302,9 +403,10 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-if (['render', 'calls', 'next', 'hidden', 'escape'].some(want)) {
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold'];
+if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
-    for (const name of ['render', 'calls', 'next', 'hidden', 'escape']) if (want(name)) report(name, ['no_view']);
+    for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
   } else {
     const origin = await serve({ ui: join(ROOT, 'ui'), fixtures: dir });
     if (want('render')) report('render', await render(origin, dir, states), ['states', 'items', 'texts', 'controls']);
@@ -312,6 +414,8 @@ if (['render', 'calls', 'next', 'hidden', 'escape'].some(want)) {
     if (want('next')) report('next', await nextState(origin, dir));
     if (want('hidden')) report('hidden', await hidden(origin, dir));
     if (want('escape')) report('escape', await escape(origin, dir, states), ['escapes']);
+    if (want('once')) report('once', await once(origin, dir), ['presses']);
+    if (want('hold')) report('hold', await hold(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

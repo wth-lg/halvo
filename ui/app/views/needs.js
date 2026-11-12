@@ -125,17 +125,28 @@
     return calls;
   }
 
+  function held(card, sent) {
+    card.busy = true;
+    return sent.then(function (reply) {
+      card.busy = false;
+      return reply;
+    });
+  }
+
   function answer(item, choice, card) {
+    if (card.busy) return;
     if (choice.choice === 'present') {
-      call('agents_present', { item: item.item });
+      held(card, call('agents_present', { item: item.item }));
       return;
     }
     if (choice.choice === 'choose' && item.params.length > 0) {
-      chosen(item, card.answers).reduce(function (done, c) {
+      const calls = chosen(item, card.answers);
+      if (calls.length === 0) return;
+      held(card, calls.reduce(function (done, c) {
         return done.then(function (reply) {
           return reply === null ? null : call(c[0], c[1]);
         });
-      }, Promise.resolve({}));
+      }, Promise.resolve({})));
       return;
     }
     if (isPage(item)) {
@@ -143,13 +154,17 @@
       drop(item.item);
       openNext();
     }
-    call('agents_answer', { item: item.item, choice: choice.choice }).then(function (reply) {
+    held(card, call('agents_answer', { item: item.item, choice: choice.choice })).then(function (reply) {
       if (reply && reply.error && answered.delete(item.item) && last) apply(last);
     });
   }
 
+  function repeated(event) {
+    if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
+  }
+
   function build(item) {
-    const card = { json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false };
+    const card = { json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -170,7 +185,8 @@
       b.setAttribute('data-act', c.choice);
       b.setAttribute('data-param', item.item);
       if (page && c.safe === 'yes') b.autofocus = true;
-      b.addEventListener('click', function () {
+      b.addEventListener('click', function (event) {
+        if (event.detail > 1) return;
         answer(item, c, card);
       });
       controls.appendChild(b);
@@ -217,7 +233,7 @@
     if (waiting) modal(waiting);
   }
 
-  function apply(snapshot) {
+  function apply(snapshot, newer) {
     const items = snapshot.items.filter(function (item) {
       return !answered.has(item.item);
     });
@@ -239,6 +255,7 @@
     items.forEach(function (item) {
       let card = cards.get(item.item);
       if (card && card.li === ref) {
+        if (newer) card.busy = false;
         ref = ref.nextSibling;
       } else {
         if (card) drop(item.item);
@@ -255,7 +272,7 @@
     if (!reply || !Array.isArray(reply.items)) return;
     seq = reply.seq;
     last = reply;
-    apply(reply);
+    apply(reply, true);
   }
 
   function wait(mine) {
@@ -276,6 +293,7 @@
       element.appendChild(style);
       list = el('ul', 'hn-items', '');
       element.appendChild(list);
+      window.addEventListener('keydown', repeated, true);
     },
     show: function () {
       if (shown) return;
