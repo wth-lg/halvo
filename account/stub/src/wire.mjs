@@ -6,16 +6,31 @@ const LINE_MAX = 4096;
 
 const TOKEN = "[!#$%&'*+.^_`|~0-9A-Za-z-]+";
 const REQUEST_LINE = new RegExp(`^(${TOKEN}) ([\\x21-\\xff]+) HTTP/1\\.([01])$`);
-const FIELD_LINE = new RegExp(`^(${TOKEN}):[ \\t]*([^\\r\\n\\x00]*?)[ \\t]*$`);
+const NAME = new RegExp(`^${TOKEN}$`);
+const VALUE_BAD = /[\r\n\x00]/;
+const BLANK = (code) => code === 0x20 || code === 0x09;
 const CHUNK_SIZE = /^([0-9A-Fa-f]{1,13})(?:[ \t]*;[^\r\n\x00]*)?$/;
 const CRLF = Buffer.from("\r\n");
+
+function field(line) {
+  const colon = line.indexOf(":");
+  if (colon < 0) return null;
+  const name = line.slice(0, colon);
+  if (!NAME.test(name)) return null;
+  let start = colon + 1;
+  let end = line.length;
+  while (start < end && BLANK(line.charCodeAt(start))) start += 1;
+  while (end > start && BLANK(line.charCodeAt(end - 1))) end -= 1;
+  const value = line.slice(start, end);
+  return VALUE_BAD.test(value) ? null : [name, value];
+}
 
 function fields(lines) {
   const out = [];
   for (const line of lines) {
-    const match = FIELD_LINE.exec(line);
-    if (match === null) return null;
-    out.push([match[1], match[2]]);
+    const pair = field(line);
+    if (pair === null) return null;
+    out.push(pair);
   }
   return out;
 }

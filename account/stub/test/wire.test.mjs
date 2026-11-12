@@ -182,3 +182,10 @@ test("the reader reads no request after one that its caller stops at", () => {
   assert.equal(messages.length, 1);
   assert.deepEqual(causes, []);
 });
+
+test("a field value with an inner run of 65,400 spaces is kept whole and trimmed only at its ends", () => {
+  const value = `a${" ".repeat(65400)}b`;
+  const { messages, causes } = read([`GET / HTTP/1.1\r\nx-pad: \t ${value} \t\r\nx-empty:  \t \r\n\r\n`]);
+  assert.deepEqual(causes, []);
+  assert.deepEqual(messages[0].headers, [["x-pad", value], ["x-empty", ""]]);
+});
