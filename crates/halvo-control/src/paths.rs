@@ -772,6 +772,49 @@ mod tests {
     }
 
     #[test]
+    fn a_scratch_directory_is_refused_when_its_given_or_its_resolved_path_is_in_the_data_directory()
+    {
+        #[cfg(unix)]
+        use std::os::unix::fs::symlink as symlink_dir;
+        #[cfg(windows)]
+        use std::os::windows::fs::symlink_dir;
+
+        let guard = tempfile::tempdir().unwrap();
+        let root = guard.path();
+        let data = DataDir::from_flag(root.join("data")).unwrap();
+        std::fs::create_dir_all(data.path().join("store").join("x")).unwrap();
+        std::fs::create_dir(root.join("elsewhere")).unwrap();
+        let to_store = root.join("to-store");
+        symlink_dir(data.path().join("store"), &to_store).unwrap();
+        let to_data = root.join("to-data");
+        symlink_dir(data.path(), &to_data).unwrap();
+        let out = data.path().join("out");
+        symlink_dir(root.join("elsewhere"), &out).unwrap();
+        let got: Vec<_> = [
+            to_store.clone(),
+            to_store.join("x"),
+            to_store.join("missing"),
+            to_data.join("store"),
+            out,
+            root.join("elsewhere"),
+        ]
+        .iter()
+        .map(|scratch| ScratchDir::new(scratch, &data).map(|_| ()))
+        .collect();
+        assert_eq!(
+            got,
+            [
+                Err(PathError::InsideDataDir),
+                Err(PathError::InsideDataDir),
+                Err(PathError::Unresolved),
+                Err(PathError::InsideDataDir),
+                Err(PathError::InsideDataDir),
+                Ok(()),
+            ]
+        );
+    }
+
+    #[test]
     fn a_scratch_directory_is_never_the_data_directory_or_inside_it() {
         let root = tempfile::tempdir().unwrap();
         let data = DataDir::from_flag(root.path().join("Halvo")).unwrap();
