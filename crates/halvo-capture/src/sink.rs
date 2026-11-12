@@ -747,48 +747,59 @@ mod tests {
     }
 
     #[test]
-    fn a_burst_of_keystrokes_on_a_one_slot_queue_is_queued_and_received_whole() {
+    fn a_burst_of_each_blocking_kind_on_a_one_slot_queue_is_queued_and_received_whole() {
         const BURST: u64 = 5_000;
-        let (handle, writer) = bounded(NonZeroUsize::MIN);
-        let emitter = {
-            let handle = handle.clone();
-            thread::spawn(move || {
-                let mut returned = KindCounts::default();
-                for index in 0..BURST {
-                    match handle.emit(unnumbered(Modality::Keystroke, 0, index)) {
-                        Ok(EmitOutcome::Queued) => returned.accepted += 1,
-                        Ok(EmitOutcome::Dropped) => returned.dropped += 1,
-                        Err(SinkError::Disconnected) => returned.refused += 1,
+        let blocking = [
+            Modality::Keystroke,
+            Modality::Pointer,
+            Modality::ForegroundApp,
+            Modality::WindowTitle,
+        ];
+        for kind in blocking {
+            let (handle, writer) = bounded(NonZeroUsize::MIN);
+            let emitter = {
+                let handle = handle.clone();
+                thread::spawn(move || {
+                    let mut returned = KindCounts::default();
+                    for index in 0..BURST {
+                        match handle.emit(unnumbered(kind, 0, index)) {
+                            Ok(EmitOutcome::Queued) => returned.accepted += 1,
+                            Ok(EmitOutcome::Dropped) => returned.dropped += 1,
+                            Err(SinkError::Disconnected) => returned.refused += 1,
+                        }
+                    }
+                    returned
+                })
+            };
+            drop(handle);
+            let mut received = 0u64;
+            let mut in_order = true;
+            loop {
+                match writer.recv_timeout(Duration::from_secs(10)) {
+                    Ok(event) => {
+                        in_order &= event.event().modality == kind;
+                        in_order &= event.event().segment_ref.byte_offset == received;
+                        in_order &= event.number() == ArrivalNumber::for_test(received);
+                        received += 1;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => break,
+                    Err(RecvTimeoutError::Timeout) => {
+                        panic!("{kind:?}: no event and no disconnect in 10 s")
                     }
                 }
-                returned
-            })
-        };
-        drop(handle);
-        let mut received = 0u64;
-        let mut in_order = true;
-        loop {
-            match writer.recv_timeout(Duration::from_secs(10)) {
-                Ok(keystroke) => {
-                    in_order &= keystroke.event().segment_ref.byte_offset == received;
-                    in_order &= keystroke.number() == ArrivalNumber::for_test(received);
-                    received += 1;
-                }
-                Err(RecvTimeoutError::Disconnected) => break,
-                Err(RecvTimeoutError::Timeout) => panic!("no keystroke and no disconnect in 10 s"),
             }
+            let returned = emitter.join().unwrap();
+            let all_queued = KindCounts {
+                accepted: BURST,
+                ..KindCounts::default()
+            };
+            assert_eq!(
+                returned, all_queued,
+                "{kind:?}: outcomes that the emits returned"
+            );
+            assert_eq!(received, BURST, "{kind:?}");
+            assert!(in_order, "{kind:?}: out of order or with skipped numbers");
         }
-        let returned = emitter.join().unwrap();
-        let all_queued = KindCounts {
-            accepted: BURST,
-            ..KindCounts::default()
-        };
-        assert_eq!(returned, all_queued, "outcomes that the emits returned");
-        assert_eq!(received, BURST);
-        assert!(
-            in_order,
-            "the keystrokes arrived out of order or with skipped numbers"
-        );
     }
 
     #[test]
