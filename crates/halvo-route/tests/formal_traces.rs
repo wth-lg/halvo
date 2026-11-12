@@ -8,6 +8,7 @@ const HEADER_KEYS: [&str; 2] = ["count", "seed"];
 const TRACE_KEYS: [&str; 5] = ["active", "cap", "held", "moves", "spent"];
 const MOVE_KEYS: [&str; 7] = ["answer", "arg", "cost", "held", "move", "spent", "state"];
 
+#[derive(Clone)]
 struct Want {
     answer: Result<(), SpendCause>,
     state: State,
@@ -16,11 +17,14 @@ struct Want {
     cost: u64,
 }
 
+#[derive(Clone)]
 struct Trace {
     line: usize,
     account: Account,
     moves: Vec<(Move, Want)>,
 }
+
+type Change = (&'static str, fn(&mut Want));
 
 fn object<'a>(value: &'a Value, keys: &[&str], at: &str) -> Result<&'a Map<String, Value>, String> {
     let map = value
@@ -228,10 +232,200 @@ fn check(text: &str) -> Result<(usize, usize), String> {
     Ok((traces.len(), moves))
 }
 
+fn committed() -> String {
+    std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(TRACES))
+        .expect("the committed traces of formal/r6-spend")
+}
+
+fn edited(line: usize, edit: impl Fn(&mut Value)) -> String {
+    let mut lines: Vec<String> = committed().lines().map(str::to_string).collect();
+    let mut value: Value = serde_json::from_str(&lines[line - 1]).expect("a line of JSON");
+    edit(&mut value);
+    lines[line - 1] = value.to_string();
+    lines.join("\n")
+}
+
 #[test]
 fn step_answers_every_move_of_the_committed_traces_as_the_model_does() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(TRACES);
-    let text = std::fs::read_to_string(&path).expect("the committed traces of formal/r6-spend");
-    let (traces, moves) = check(&text).unwrap_or_else(|fault| panic!("traces.jsonl: {fault}"));
+    let (traces, moves) =
+        check(&committed()).unwrap_or_else(|fault| panic!("traces.jsonl: {fault}"));
     println!("formal_traces traces={traces} moves={moves}");
+}
+
+#[test]
+fn a_changed_value_of_any_move_of_any_trace_is_a_fault() {
+    let traces = read_file(&committed()).expect("the committed traces");
+    let changes: [Change; 5] = [
+        ("answer", |want| {
+            want.answer = match want.answer {
+                Err(SpendCause::State) => Err(SpendCause::Used),
+                _ => Err(SpendCause::State),
+            }
+        }),
+        ("state", |want| {
+            let index = State::ALL.iter().position(|state| *state == want.state);
+            want.state = State::ALL[(index.expect("a state of the list") + 1) % State::ALL.len()];
+        }),
+        ("spent", |want| want.spent += 1),
+        ("held", |want| want.held += 1),
+        ("cost", |want| want.cost += 1),
+    ];
+    let mut unseen = Vec::new();
+    for trace in &traces {
+        for index in 0..trace.moves.len() {
+            for (key, change) in changes {
+                let mut changed = trace.clone();
+                change(&mut changed.moves[index].1);
+                if replay(&changed).is_empty() {
+                    unseen.push(format!("line {} move {} {key}", trace.line, index + 1));
+                }
+            }
+        }
+    }
+    assert!(
+        unseen.is_empty(),
+        "{} changed values of the traces gave no fault, among them {:?}",
+        unseen.len(),
+        &unseen[..unseen.len().min(5)]
+    );
+}
+
+#[test]
+fn a_changed_first_or_last_trace_fails_the_check() {
+    let last = committed().lines().count();
+    for (line, key) in [(2, "spent"), (last, "cost")] {
+        let text = edited(line, |trace| {
+            let moves = trace["moves"].as_array_mut().expect("a list of moves");
+            let mv = if line == 2 {
+                &mut moves[0]
+            } else {
+                moves.last_mut().expect("a move")
+            };
+            mv[key] = serde_json::json!(mv[key].as_u64().expect("a number") + 1);
+        });
+        match check(&text) {
+            Err(fault) => assert!(
+                fault.contains("differs from the model"),
+                "line {line}: {fault}"
+            ),
+            Ok(_) => panic!("line {line} with a changed {key} passed the check"),
+        }
+    }
+}
+
+#[test]
+fn the_reader_refuses_a_file_outside_the_form() {
+    use serde_json::json;
+    let fewer = committed()
+        .lines()
+        .take(200)
+        .enumerate()
+        .map(|(index, line)| {
+            if index == 0 {
+                "{\"count\":199,\"seed\":3}"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let cases: [(&str, String, &str); 15] = [
+        (
+            "count",
+            edited(1, |head| head["count"] = json!(205)),
+            "its count is 205",
+        ),
+        ("fewer", fewer, "fewer than 200"),
+        (
+            "seed",
+            edited(1, |head| head["seed"] = json!("x")),
+            "is no whole number",
+        ),
+        (
+            "renamed key",
+            edited(2, |trace| {
+                let mv = trace["moves"][0].as_object_mut().expect("a move");
+                let cost = mv.remove("cost").expect("a cost");
+                mv.insert("costs".to_string(), cost);
+            }),
+            "the keys are",
+        ),
+        (
+            "missing key",
+            edited(2, |trace| {
+                trace["moves"][0]
+                    .as_object_mut()
+                    .expect("a move")
+                    .remove("held");
+            }),
+            "the keys are",
+        ),
+        (
+            "extra key",
+            edited(2, |trace| {
+                trace
+                    .as_object_mut()
+                    .expect("a trace")
+                    .insert("note".to_string(), json!(1));
+            }),
+            "the keys are",
+        ),
+        (
+            "move",
+            edited(2, |trace| trace["moves"][1]["move"] = json!("send")),
+            "the move \"send\" is outside the list",
+        ),
+        (
+            "answer",
+            edited(2, |trace| trace["moves"][3]["answer"] = json!("again")),
+            "again is outside the list",
+        ),
+        (
+            "state",
+            edited(2, |trace| trace["moves"][0]["state"] = json!("done")),
+            "done is outside the list",
+        ),
+        (
+            "active",
+            edited(2, |trace| trace["active"] = json!("maybe")),
+            "active is \"maybe\"",
+        ),
+        (
+            "argument of dispatch",
+            edited(2, |trace| trace["moves"][1]["arg"] = json!(1)),
+            "dispatch holds the argument 1",
+        ),
+        (
+            "no argument of reserve",
+            edited(2, |trace| trace["moves"][0]["arg"] = json!(null)),
+            "null is no whole number",
+        ),
+        (
+            "fraction",
+            edited(2, |trace| trace["spent"] = json!(0.5)),
+            "0.5 is no whole number",
+        ),
+        (
+            "negative",
+            edited(2, |trace| trace["held"] = json!(-1)),
+            "-1 is no whole number",
+        ),
+        (
+            "too large",
+            edited(2, |trace| trace["moves"][0]["arg"] = json!(u64::MAX / 2)),
+            "does not fit a u64",
+        ),
+    ];
+    let taken: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, text, fragment)| match read_file(text) {
+            Err(fault) if fault.contains(fragment) => None,
+            Err(fault) => Some(format!("{name}: refused as {fault}")),
+            Ok(_) => Some(format!("{name}: accepted")),
+        })
+        .collect();
+    assert!(
+        taken.is_empty(),
+        "the reader took or refused otherwise: {taken:?}"
+    );
 }
