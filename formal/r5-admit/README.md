@@ -412,5 +412,5 @@ that file is not there. A file that is there and whose first line has another fo
 empty file among them, is refused with `usage`. To draw other traces, change the first
 line and run it again. A second run with the same first line writes the same bytes.
 `sh formal/r5-admit/export.sh --help` states the refusals `usage`, `java` and `jar`. A
-refusal writes no file and leaves none: where the script fetched the jar, it removes
-its temporary directory before it refuses.
+refusal writes no file. The script makes its temporary directories under `TMPDIR`, or
+`/tmp` when that is not set, and removes them when it ends, on every path out.
