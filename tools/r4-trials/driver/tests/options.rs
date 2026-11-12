@@ -67,6 +67,8 @@ fn bad_flags_are_usage() {
         &["--dialog"],
         &["--dialog", "alert"],
         &["--dialog", "plugin", "--dialog", "plugin"],
+        &["--dialog", "plugin", "--shows", "2", "--shows", "2"],
+        &["--control-port", "47001", "--control-port", "47001"],
         &["--shows", "2"],
         &["--dialog", "plugin", "--shows", "0"],
         &["--dialog", "plugin", "--shows", "10"],
