@@ -91,8 +91,8 @@ pub struct Done {
     /// The runs that a tick ended `interrupted` after a kill refused with `unknown_run`.
     pub lost: Vec<RunId>,
     /// The workflows that a tick saw gone for the first time: the coordinator drops the items
-    /// of their runs with nothing stored and sends no more event of their agents, whose
-    /// ledgers `forgotten` empties (I5.7).
+    /// of their runs with nothing stored and empties their agents' ledgers with `forgotten`, so
+    /// that an event that waits there is not sent again (I5.7).
     pub gone: Vec<WorkflowId>,
     /// The agents for which the move raised the item `check` (ruling XB-18).
     pub checked: Vec<AgentId>,

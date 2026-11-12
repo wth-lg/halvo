@@ -613,10 +613,39 @@ fn send_owed<P: Owner, C: ConfigView>(cx: &Cx<'_, P>, board: &mut Board<C>, owed
             };
             match log_end(cx, board, i, &owed.run, *cause, *day, *at) {
                 Ok(()) => true,
+                Err(PortError::Refused(name)) if name.as_str() == "seq" => {
+                    resync_end(cx, board, i, &owed.run)
+                }
                 Err(e) => gone_refusal(&e),
             }
         }
     }
+}
+
+/// After the owner refused an owed `run_ended` with `seq` (I7.2): the facts take the owner's
+/// events after the last one that they hold, page by page of at most 64, and the debt is paid
+/// when those hold the run's `run_ended`, which the owner stored with an acknowledgement that
+/// was lost; else the next tick logs it after them.
+fn resync_end<P: Owner, C>(cx: &Cx<'_, P>, board: &mut Board<C>, i: usize, run: &RunId) -> bool {
+    loop {
+        let facts = &mut board.members[i].facts;
+        let after = facts.events.last().map_or(0, |e| e.seq.get());
+        let Ok(page) = cx.ports.history(&facts.agent, after) else {
+            return false;
+        };
+        let full = page.len() >= 64;
+        facts
+            .events
+            .extend(page.into_iter().filter(|e| e.seq.get() > after));
+        if !full {
+            break;
+        }
+    }
+    board.members[i]
+        .facts
+        .events
+        .iter()
+        .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run))
 }
 
 /// Whether the agent store's last record of the agent, as the move's read of `Owner::agents`
@@ -1038,7 +1067,9 @@ where
 /// What is owed is sent at each tick until the owner acknowledges it, also for a workflow that
 /// the owner's list no longer holds, whose debt the owner's refusal `no_workflow` ends (ruling
 /// XB-26); an owed `end_run` is acknowledged too once the tick's read of the agent store's last
-/// record names its run or a later run of the agent (I5.8, ruling XB-30).
+/// record names its run or a later run of the agent (I5.8, ruling XB-30), and an owed
+/// `run_ended` that the owner refuses with `seq` is paid when the owner's events, read again,
+/// hold it (I7.2).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,

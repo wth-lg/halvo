@@ -487,6 +487,63 @@ fn a_run_ended_of_recovery_that_the_owner_does_not_take_is_owed_and_holds_the_ag
 }
 
 #[test]
+fn an_owed_run_ended_that_the_owner_stored_with_a_lost_acknowledgement_is_paid_at_the_next_tick() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    assert_eq!(w.board.owed.len(), 1, "the run_ended is owed");
+    let last = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap();
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::RunEnded {
+            run: run.clone(),
+            cause: RunEnd::Interrupted,
+        },
+    });
+    w.ports.clear_refusals();
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        w.act(Act::Tick);
+    }
+    assert!(w.board.owed.is_empty(), "the owner holds it: paid");
+    assert_eq!(
+        w.events_of(0)
+            .iter()
+            .filter(|e| *e == "run_ended interrupted")
+            .count(),
+        1,
+        "stored once"
+    );
+    assert_eq!(
+        w.act(Act::Start { agent: agent(0) }).report.answer,
+        Ok(Answer::Ok),
+        "the agent is not held for good"
+    );
+}
+
+#[test]
 fn an_owed_end_run_of_a_failed_start_is_dropped_at_the_tick_once_the_store_holds_the_record() {
     let mut w = world(&[MANUAL]);
     w.ports.refuse(Method::Start, PortError::NoService);
