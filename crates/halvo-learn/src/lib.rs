@@ -41,6 +41,7 @@ macro_rules! tokens {
 mod admit;
 mod edit;
 mod run;
+mod sources;
 
 pub use admit::{
     admit, brought, build_list, is_rejected, new_locators, value_hit, AdmitCause, AdmitFacts,
@@ -51,6 +52,7 @@ pub use run::{
     candidate_move, counted, verify_run, CandidateFacts, CandidateMove, EditCause, LogCause,
     Outcome, RunCause, RunFacts,
 };
+pub use sources::{check_sources, EditSources, RunSource, SourceCause, SourceFacts};
 
 /// The clean uses that make a `provisional` edit `active` (L3.6).
 pub const K_CLEAN: u32 = 2;

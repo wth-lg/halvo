@@ -1,9 +1,118 @@
 use halvo_learn::{
-    admit, brought, candidate_move, counted, edit_step, is_rejected, new_locators, use_move,
-    value_hit, verify_run, AdmitCause, AdmitFacts, CandidateFacts, CandidateMove, EditAnswer,
-    EditCause, EditMove, EditState, Locator, LogCause, Outcome, RunCause, RunFacts, RunMode,
-    Target, EDITS_MAX,
+    admit, brought, candidate_move, check_sources, counted, edit_step, is_rejected, new_locators,
+    use_move, value_hit, verify_run, AdmitCause, AdmitFacts, CandidateFacts, CandidateMove,
+    EditAnswer, EditCause, EditMove, EditSources, EditState, Locator, LogCause, Outcome, RunCause,
+    RunFacts, RunMode, RunSource, SourceCause, SourceFacts, Target, EDITS_MAX,
 };
+
+fn sources(runs: &[&str], first: u32, last: u32, clean: u32) -> EditSources {
+    EditSources {
+        workflow: "w1".to_owned(),
+        agent: "a1".to_owned(),
+        runs: runs.iter().map(|run| (*run).to_owned()).collect(),
+        first,
+        last,
+        clean,
+    }
+}
+
+fn run_source(workflow: &str, run: &str, day: u32) -> Option<RunSource> {
+    Some(RunSource {
+        workflow: workflow.to_owned(),
+        agent: "a1".to_owned(),
+        run: run.to_owned(),
+        day,
+    })
+}
+
+fn check(
+    edit: EditSources,
+    before: Option<EditSources>,
+    run: Option<RunSource>,
+) -> Result<(), SourceCause> {
+    check_sources(&SourceFacts { edit, before, run })
+}
+
+#[test]
+fn refusal_no_source() {
+    let rev1 = || sources(&["r1"], 10, 10, 0);
+    let rev2 = || sources(&["r1", "r2"], 10, 12, 1);
+    assert_eq!(check(rev1(), None, run_source("w1", "r1", 10)), Ok(()));
+    assert_eq!(
+        check(rev1(), None, run_source("w1", "r9", 10)),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(
+        check(rev1(), None, run_source("w2", "r1", 10)),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(check(rev1(), None, None), Err(SourceCause::Source));
+
+    assert_eq!(
+        check(rev2(), Some(rev1()), run_source("w1", "r2", 12)),
+        Ok(())
+    );
+    assert_eq!(
+        check(
+            sources(&["r9", "r2"], 10, 12, 1),
+            Some(rev1()),
+            run_source("w1", "r2", 12)
+        ),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(
+        check(
+            sources(&["r2", "r3"], 12, 14, 1),
+            Some(rev2()),
+            run_source("w1", "r3", 14)
+        ),
+        Err(SourceCause::Source)
+    );
+
+    assert_eq!(
+        check(
+            sources(&["r1", "r2"], 10, 11, 1),
+            Some(rev1()),
+            run_source("w1", "r2", 12)
+        ),
+        Err(SourceCause::Source)
+    );
+    assert_eq!(
+        check(
+            sources(&["r1", "r2"], 8, 10, 1),
+            Some(rev1()),
+            run_source("w1", "r2", 8)
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        check(
+            sources(&["r1", "r2"], 10, 10, 1),
+            Some(rev1()),
+            run_source("w1", "r2", 8)
+        ),
+        Err(SourceCause::Source)
+    );
+
+    assert_eq!(check(rev2(), Some(rev2()), None), Ok(()));
+    assert_eq!(
+        check(sources(&["r1", "r2"], 10, 12, 2), Some(rev2()), None),
+        Err(SourceCause::Source)
+    );
+
+    assert_eq!(
+        check(rev2(), Some(rev2()), run_source("w1", "r3", 14)),
+        Ok(())
+    );
+    assert_eq!(
+        check(
+            sources(&["r1", "r2"], 10, 14, 1),
+            Some(rev2()),
+            run_source("w1", "r3", 14)
+        ),
+        Err(SourceCause::Source)
+    );
+}
 
 #[derive(Clone, Copy)]
 enum Event {
