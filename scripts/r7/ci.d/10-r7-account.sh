@@ -642,6 +642,10 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     run_case record-with-a-fifth-line "FAIL $name ($cause_record)" stub
   make_fixture fifth-line-without-newline && edit schema/vendored.txt awk 'BEGIN { while ((getline line) > 0) print line; printf "%s", "x" }' &&
     run_case fifth-line-without-newline "FAIL $name ($cause_record)" stub
+  make_fixture record-line-with-another-name && edit schema/vendored.txt sed 's/ schema\.v1\.json / schema.v2.json /' &&
+    run_case record-line-with-another-name "FAIL $name ($cause_record)" stub
+  make_fixture record-line-with-another-path && edit schema/vendored.txt sed 's| contract/routes/v1\.json$| contract/routes/v2.json|' &&
+    run_case record-line-with-another-path "FAIL $name ($cause_record)" stub
 
   make_fixture config-source-replacement && mkdir "$fixture/.cargo" &&
     printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "vendor"\n' >"$fixture/.cargo/config.toml" &&
@@ -669,6 +673,10 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   make_fixture path-outside-account && write_crate "$fixture/outside-crate" outside &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { path = \"../../../outside-crate\" }" } }' &&
     relock && run_case path-outside-account "FAIL $name ($cause_path)" stub
+  make_fixture manifest-outside-account && write_crate "$fixture/outside-crate" outside &&
+    printf '[lib]\npath = "../account/sources/lib.rs"\n' >>"$fixture/outside-crate/Cargo.toml" && mkdir "$fixture/account/sources" && : >"$fixture/account/sources/lib.rs" &&
+    edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { path = \"../../../outside-crate\" }" } }' &&
+    relock && run_case manifest-outside-account "FAIL $name ($cause_path)" stub
   make_fixture respelled-lock-entry && write_crate "$fixture/account/crates/sqlite-shim" sqlite-shim && relock &&
     edit Cargo.lock sed "s/^name = \"sqlite-shim\"\$/name = 'sqlite-shim'/" &&
     run_case respelled-lock-entry "FAIL $name ($cause_name)" stub
@@ -746,6 +754,12 @@ exceptions = [{ allow = ["GPL-3.0-only"], crate = "serde" }]/' &&
     run_case ban-name-with-other-characters "FAIL $name ($cause_ban)" stub
   make_fixture ban-reason-with-a-quote && edit deny.toml sed 's/reason = "SQLite: bindings/reason = "SQLite: \\"bindings/' &&
     run_case ban-reason-with-a-quote "FAIL $name ($cause_ban)" stub
+  make_fixture ban-with-a-third-key && edit deny.toml sed 's/^    { crate = "rusqlite", reason = ".*" },$/    { crate = "rusqlite", reason = "SQLite", use-instead = "none" },/' &&
+    run_case ban-with-a-third-key "FAIL $name ($cause_ban)" stub
+  make_fixture ban-reason-with-a-backslash && edit deny.toml sed 's/{ crate = "rusqlite", reason = "SQLite: bindings/{ crate = "rusqlite", reason = "SQLite:\\tbindings/' &&
+    run_case ban-reason-with-a-backslash "FAIL $name ($cause_ban)" stub
+  make_fixture ban-line-cut-after-its-reason && edit deny.toml sed 's/^\(    { crate = "rusqlite", reason = ".*\)" },$/\1/' &&
+    run_case ban-line-cut-after-its-reason "FAIL $name ($cause_ban)" stub
   make_fixture ban-deleted && edit deny.toml sed '/{ crate = "sentry", /d' &&
     run_case ban-deleted "FAIL $name (account/deny.toml lacks the ban of sentry)" stub
   make_fixture ban-renamed && edit deny.toml sed 's/{ crate = "libsqlite3-sys"/{ crate = "libsqlite4-sys"/' &&
