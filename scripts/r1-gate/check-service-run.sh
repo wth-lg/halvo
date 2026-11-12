@@ -96,6 +96,35 @@ log_scan_note() {
   printf 'the unified log was read and holds no marker'
 }
 
+log_note_with_stub() {
+  stub_dir=$gate_scratch/log-stub-$1
+  mkdir -p "$stub_dir/bin" || return 1
+  printf '%s\n' "$1" > "$stub_dir/mode"
+  cat > "$stub_dir/bin/log" <<'EOF'
+#!/bin/sh
+stub=${0%/bin/log}
+printf '%s\n' "$*" >> "$stub/log-calls"
+read -r mode < "$stub/mode"
+case " $* " in
+  *" --last 2m "*) [ "$mode" = probe ] && exit 3; printf 'stub answer: %s\n' "$*"; exit 0 ;;
+  *" --last 10m "*) exit 5 ;;
+esac
+exit 64
+EOF
+  cat > "$stub_dir/bin/logger" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "${0%/bin/logger}/logger-calls"
+EOF
+  chmod 755 "$stub_dir/bin/log" "$stub_dir/bin/logger" || return 1
+  PATH=$stub_dir/bin:$PATH
+  capture_builds=yes
+  svc_dir=$stub_dir
+  stub_said=$(log_scan_note r1gateMARKER-9)
+  printf '%s\n' "$stub_said"
+  [ -s "$stub_dir/logger-calls" ] || { printf 'the stub of logger was not called\n'; return 1; }
+  [ "$stub_said" = "the unified log was not read: log show of the $1 exited $2" ]
+}
+
 scan_now() {
   scan_when=$1
   set -- "$svc_dir/run.stdout" "$svc_dir/run.stderr"
@@ -346,6 +375,8 @@ cases() {
   t outer-temporary-file-that-appears-and-goes PASS outer_churn_changes_nothing
   t unreadable-file-in-the-run-tmpdir FAIL unreadable_run_file
   t unreadable-file-line-is-named PASS unreadable_line_is
+  t unified-log-not-read-when-log-show-of-the-probe-fails PASS log_note_with_stub probe 3
+  t unified-log-not-read-when-log-show-of-the-marker-fails PASS log_note_with_stub marker 5
   t symbolic-link-in-the-data-directory FAIL predicate_data_dir_clean "$gate_scratch/link-data" r1gateMARKER-7 "$gate_scratch/scan-captures/stdout"
   registered=$gate_scratch/registered
   mkdir -p "$registered/store/segments" "$registered/roots" "$registered/run" "$registered/logs"
