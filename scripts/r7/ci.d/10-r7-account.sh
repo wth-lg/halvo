@@ -102,7 +102,7 @@ check_config_files() {
 }
 
 check_links() {
-  find account -path account/target -prune -o -type l -print >"$work/links.txt" 2>/dev/null
+  find account -path account/target -type d -prune -o -type l -print >"$work/links.txt" 2>/dev/null
   [ ! -s "$work/links.txt" ] || fail 'account/ holds a symbolic link'
 }
 
@@ -285,12 +285,15 @@ inside_account() {
     [A-Za-z]:*) if command -v cygpath >/dev/null 2>&1; then place=$(cygpath -u "$place") || return 1; fi ;;
   esac
   if [ -d "$place" ]; then
-    resolved=$(cd "$place" 2>/dev/null && pwd -P) || return 1
+    dir=$place
+    leaf=
   else
-    parent=$(dirname "$place")
-    resolved=$(cd "$parent" 2>/dev/null && pwd -P) || return 1
-    resolved=$resolved/${place##*/}
+    dir=$(dirname "$place")
+    leaf=/${place##*/}
   fi
+  both=$(cd "$dir" 2>/dev/null && pwd -L && pwd -P) || return 1
+  [ "${both%%"$nl"*}" = "${both#*"$nl"}" ] || return 1
+  resolved=${both#*"$nl"}$leaf
   case $resolved/ in
     "$account_dir"/*) return 0 ;;
   esac
@@ -336,46 +339,87 @@ function normal(p,   n, part, i, k, kept, out) {
   return out
 }
 function under(p, dir) { return index(p, dir "/") == 1 }
+function converted(p) {
+  gsub(/\\ /, " ", p)
+  gsub(/\\/, "/", p)
+  if (p ~ /^[A-Za-z]:/) return "/" tolower(substr(p, 1, 1)) substr(p, 3)
+  if (substr(p, 1, 1) != "/") { relative = 1; return account "/" p }
+  return p
+}
 BEGIN {
   account = normal(ENVIRON["DEP_INFO_ACCOUNT"])
   target = normal(ENVIRON["DEP_INFO_TARGET"])
+  files = 0; unread = 0
   while ((getline file) > 0) {
-    n = 0; local = 0
+    n = 0; local = 0; bad = 0
     while ((getline line < file) > 0) {
-      if (line !~ /:$/) continue
-      p = substr(line, 1, length(line) - 1)
-      gsub(/\\/, "/", p)
-      if (p ~ /^[A-Za-z]:/) p = "/" tolower(substr(p, 1, 1)) substr(p, 3)
-      else if (substr(p, 1, 1) != "/") { local = 1; p = account "/" p }
-      read[++n] = normal(p)
+      if (line == "" || substr(line, 1, 1) == "#") continue
+      relative = 0
+      if (line ~ /:$/) {
+        read[++n] = converted(substr(line, 1, length(line) - 1))
+        if (relative) local = 1
+      } else if (!(index(line, ": ") > 1 && under(normal(converted(substr(line, 1, index(line, ": ") - 1))), target))) {
+        bad = 1
+      }
     }
     close(file)
     if (!local) continue
-    print "local"
+    files++
+    unread += bad
     for (i = 1; i <= n; i++) {
-      if (!under(read[i], account) && !under(read[i], target) && !seen[read[i]]++) print "outside\t" read[i]
+      if (seen[read[i]]++) continue
+      dir = read[i]; sub(/\/[^\/]*$/, "", dir)
+      leaf = substr(read[i], length(dir) + 2)
+      print "path\t" dir "\t" leaf "\t" normal(read[i])
     }
   }
+  print "local\t" files
+  print "unread\t" unread
 }'
 }
 
 check_sources() {
   find "$target" -name '*.d' -type f >"$work/dep-info.txt" 2>/dev/null
   DEP_INFO_ACCOUNT=$account_dir DEP_INFO_TARGET=$target dep_info_reads <"$work/dep-info.txt" >"$work/dep-info.reads" || fail 'cannot read the dep-info files of the build'
+  sort "$work/dep-info.reads" >"$work/dep-info.sorted" || fail 'cannot read the dep-info files of the build'
+  target_physical=$(cd -P "$target" 2>/dev/null && pwd -P) || target_physical=$target
   dep_info=0
   outside=0
-  while IFS="$tab" read -r kind value || [ -n "$kind" ]; do
+  last_dir=
+  resolved_dir=
+  while IFS="$tab" read -r kind dir leaf lexical || [ -n "$kind" ]; do
     case $kind in
-      local) dep_info=$((dep_info + 1)) ;;
-      outside)
-        outside=$((outside + 1))
-        case $value in
-          "${account_dir%/*}"/*) printf 'read outside account/: %s\n' "${value#"${account_dir%/*}"/}" ;;
-          *) printf 'read outside account/: a file outside the repository\n' ;;
+      local) dep_info=$dir ;;
+      unread)
+        if [ "$dir" -gt 0 ]; then
+          outside=$((outside + 1))
+          printf 'a dep-info file of account/ holds a line that names no file whole\n'
+        fi
+        ;;
+      path)
+        if [ "$dir" != "$last_dir" ]; then
+          last_dir=$dir
+          resolved_dir=$(cd -P "$dir" 2>/dev/null && pwd -P) || resolved_dir=
+        fi
+        if [ -n "$resolved_dir" ]; then
+          file=$resolved_dir/$leaf
+        else
+          file=$lexical
+        fi
+        case $file in
+          "$account_dir"/* | "$target_physical"/*/build/*/out/* | "$target"/*/build/*/out/*) ;;
+          "${account_dir%/*}"/*)
+            outside=$((outside + 1))
+            printf 'read outside account/: %s\n' "${file#"${account_dir%/*}"/}"
+            ;;
+          *)
+            outside=$((outside + 1))
+            printf 'read outside account/: a file outside the repository\n'
+            ;;
         esac
         ;;
     esac
-  done <"$work/dep-info.reads"
+  done <"$work/dep-info.sorted"
   [ "$dep_info" -gt 0 ] || fail 'cargo wrote no dep-info file of a package of account/'
   [ "$outside" -eq 0 ] || fail 'a source of account/ reads a file outside account/'
 }
@@ -765,6 +809,13 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
     printf '[lib]\npath = "../account/sources/lib.rs"\n' >>"$fixture/outside-crate/Cargo.toml" && mkdir "$fixture/account/sources" && : >"$fixture/account/sources/lib.rs" &&
     edit crates/halvo-wire/Cargo.toml awk 'BEGIN { while ((getline line) > 0) { print line; if (line == "[dependencies]") print "outside = { path = \"../../../outside-crate\" }" } }' &&
     relock && run_case manifest-outside-account "FAIL $name ($cause_path)" stub
+  make_fixture target-through-a-link && ln -s account "$fixture/link-to-account" 2>/dev/null
+  if [ -L "$fixture/link-to-account" ]; then
+    edit crates/halvo-wire/Cargo.toml awk '{ print } END { print ""; print "[[test]]"; print "name = \"through_a_link\""; print "path = \"../../../link-to-account/crates/halvo-wire/tests/request.rs\"" }' &&
+      relock && run_case target-through-a-link "FAIL $name ($cause_path)" stub
+  else
+    printf 'case %s/target-through-a-link not run: this system made no symbolic link\n' "$name"
+  fi
   make_fixture respelled-lock-entry && write_crate "$fixture/account/crates/sqlite-shim" sqlite-shim && relock &&
     edit Cargo.lock sed "s/^name = \"sqlite-shim\"\$/name = 'sqlite-shim'/" &&
     run_case respelled-lock-entry "FAIL $name ($cause_name)" stub
@@ -789,6 +840,21 @@ clippy --manifest-path account/Cargo.toml --all-targets --all-features --locked 
   stub_case dep-info-absolute-path-outside "FAIL $name ($cause_source)" stub STUB_DEP=/outside/code.rs
   stub_case dep-info-windows-separators "FAIL $name ($cause_source)" stub STUB_DEP='crates\halvo-wire\src\..\..\..\..\outside\code.rs'
   stub_case dep-info-windows-drive "FAIL $name ($cause_source)" stub STUB_DEP='D:\outside\code.rs'
+  make_fixture dep-info-link-then-dot-dot && mkdir -p "$fixture/elsewhere/d" "$fixture/elsewhere/account/crates/halvo-wire/src" &&
+    ln -s elsewhere/d "$fixture/sneak" 2>/dev/null
+  if [ -L "$fixture/sneak" ]; then
+    run_case dep-info-link-then-dot-dot "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/src/../../../../sneak/../account/crates/halvo-wire/src/lib.rs'
+  else
+    printf 'case %s/dep-info-link-then-dot-dot not run: this system made no symbolic link\n' "$name"
+  fi
+  make_fixture link-as-account-target && mkdir "$fixture/elsewhere" && ln -s ../elsewhere "$fixture/account/target" 2>/dev/null
+  if [ -L "$fixture/account/target" ]; then
+    run_case link-as-account-target "FAIL $name (account/ holds a symbolic link)" stub
+  else
+    printf 'case %s/link-as-account-target not run: this system made no symbolic link\n' "$name"
+  fi
+  stub_case dep-info-escaped-space "FAIL $name ($cause_source)" stub STUB_DEP='crates/halvo-wire/s\ /../../../../outside/code.rs'
+  stub_case dep-info-name-with-a-newline "FAIL $name ($cause_source)" stub STUB_DEP="crates/halvo-wire/src/../../../../x${nl}y.txt"
   want_packages=1
   make_probe_fixture path-attribute-outside '#[path = "../../../../outside/module.rs"]
 pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
@@ -798,6 +864,9 @@ pub mod outside;' && run_case path-attribute-outside "FAIL $name ($cause_source)
     run_case include-str-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
   make_probe_fixture include-bytes-outside 'pub const BYTES: &[u8] = include_bytes!("../../../../outside/bytes.bin");' &&
     run_case include-bytes-outside "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
+  make_probe_fixture include-from-the-target-directory 'include!("../../../../target/account/code.rs");' &&
+    mkdir -p "$fixture/target/account" && cp "$fixture/outside/code.rs" "$fixture/target/account/code.rs" &&
+    run_case include-from-the-target-directory "FAIL $name ($cause_source)" stub STUB_BUILD_REAL=1
   want_dep_info=2
   make_probe_fixture includes-inside 'include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 #[path = "../inner/module.rs"]
