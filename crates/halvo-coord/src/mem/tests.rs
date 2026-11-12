@@ -171,7 +171,7 @@ fn clock_gives_what_the_test_set() {
 
 fn spec() -> RunSpec {
     RunSpec {
-        run: id(RunId::parse, 9),
+        run: id(RunId::parse, 14),
         agent: id(AgentId::parse, 2),
         workflow: id(WorkflowId::parse, 1),
         mode: Mode::Compile,
@@ -202,16 +202,22 @@ fn runs_records_each_call_with_the_clock_time() {
     p.set_clock(6000, 1);
     p.cancel(&spec().run).unwrap();
     p.kill(&spec().run).unwrap();
-    assert_eq!(p.reap(), Ok(0));
-    p.answer_handback(&spec().run, HandbackResult::Done)
+    assert_eq!(p.reap(), Ok(vec![]));
+    p.start(&RunSpec {
+        run: id(RunId::parse, 48),
+        ..spec()
+    })
+    .unwrap();
+    p.answer_handback(&id(RunId::parse, 48), HandbackResult::Done)
         .unwrap();
     let calls = p.calls.borrow();
     let at: Vec<u64> = calls.iter().map(|c| c.at).collect();
-    assert_eq!(at, vec![1000, 6000, 6000, 6000, 6000]);
+    assert_eq!(at, vec![1000, 6000, 6000, 6000, 6000, 6000]);
     assert!(matches!(calls[0].call, Call::Start(ref s) if s == &spec()));
     assert!(matches!(calls[1].call, Call::Cancel(_)));
     assert!(matches!(calls[2].call, Call::Kill(_)));
     assert!(matches!(calls[3].call, Call::Reap));
+    let calls = &calls[1..];
     assert!(matches!(
         calls[4].call,
         Call::AnswerHandback(_, HandbackResult::Done)
@@ -359,7 +365,7 @@ fn owner_answers_each_body_as_a_a7_2_says() {
     let start = Body::StartRun {
         workflow: w,
         agent: a,
-        run: id(RunId::parse, 9),
+        run: id(RunId::parse, 14),
         mode: Mode::Replay,
     };
     assert_eq!(p.send(&create).unwrap(), serde_json::json!({"rev": 1}));
@@ -494,10 +500,11 @@ fn ports_keep_the_request_records_of_the_limits_that_they_are_given() {
 #[test]
 fn reap_ends_and_counts_the_trees_of_an_earlier_life() {
     let p: Ports<Config> = Ports::new(0, 0);
-    assert_eq!(p.reap(), Ok(0));
-    p.leave_trees(2);
-    assert_eq!(p.reap(), Ok(2));
-    assert_eq!(p.reap(), Ok(0), "a reaped tree is gone");
+    assert_eq!(p.reap(), Ok(vec![]));
+    let gone = (id(RunId::parse, 4), crate::ports::Reaped::Gone);
+    p.leave_marks(std::slice::from_ref(&gone));
+    assert_eq!(p.reap(), Ok(vec![gone]));
+    assert_eq!(p.reap(), Ok(vec![]), "a run answered gone has no mark left");
 }
 
 #[test]

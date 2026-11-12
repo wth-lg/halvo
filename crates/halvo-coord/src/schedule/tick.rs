@@ -84,7 +84,9 @@ pub struct Plan {
     /// The workflows that are not listed and that no earlier tick saw gone.
     pub seen: Vec<WorkflowId>,
     /// In the order of their starts, the runs whose stop came before the tick and at least
-    /// `cancel_grace_s` before `now`, live or ended in between: each gets `Runs::kill`.
+    /// `cancel_grace_s` before `now`, or whose stop the clock reads as later than `now` because
+    /// it stepped back, live or ended in between: each gets `Runs::kill` (ruling RD-7). A stop
+    /// at the instant `now` kills nothing.
     pub kill: Vec<RunId>,
     /// Whether the tick serves the queue: no run is live before it, so none is live after the
     /// kills and no kill ends a run.
@@ -96,7 +98,7 @@ pub struct Plan {
 /// the kills at `now` by the clock of `Clock::now`.
 pub fn tick_plan<C>(board: &Board<C>, listed: &[WorkflowId], now: u64, limits: &Limits) -> Plan {
     let grace = limits.cancel_grace_s.saturating_mul(1000);
-    let passed = |at: u64| now.saturating_sub(at) >= grace;
+    let passed = |at: u64| now < at || now - at >= grace;
     let mut kill: Vec<(u64, RunId)> = board
         .runs
         .iter()
