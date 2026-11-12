@@ -866,6 +866,7 @@ mod tests {
         assert!(!Modality::Keystroke.is_droppable_under_backpressure());
         assert!(!Modality::Pointer.is_droppable_under_backpressure());
         assert!(!Modality::ForegroundApp.is_droppable_under_backpressure());
+        assert!(!Modality::WindowTitle.is_droppable_under_backpressure());
     }
 
     #[test]
