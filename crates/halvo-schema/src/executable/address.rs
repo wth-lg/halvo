@@ -126,19 +126,20 @@ fn octet(part: &str) -> bool {
 }
 
 impl WebOrigin {
-    /// The origin of an address that a browser reports, `<scheme>://<host>[:<port>]` and then, after a `/`, `?`,
-    /// `#` or `\`, anything: the scheme `http` or `https` in any case; the default port, 80 or 443, added where
-    /// none is written; the host in lower case, with one dot at its end dropped and each internationalized label
-    /// turned into its A-label (RFC 3492). The origin is the form of `WebOrigin::parse`. Refused, with the cause
-    /// `malformed` and no text of the address: a space or a control character anywhere, another scheme or no `://`,
-    /// userinfo, an address in brackets, a port that is not 1 to 65,535 with no leading zero, an empty label, a
-    /// label or a host too long for the form, a character outside the form that is not one of the letters below,
-    /// a non-ASCII label that starts with `xn--`, and a host whose last label is a number (all digits, or `0x` and
-    /// hex digits) unless it is four decimal octets with no leading zero, the form in which a browser writes an
-    /// IPv4 address. The non-ASCII letters taken are those for which a browser's mapping of a host is lower case
-    /// alone: Latin-1 letters but `ß`, Greek letters without accents but `ς`, the Cyrillic letters U+0400 to
-    /// U+045F, hiragana, katakana with `ー`, the CJK ideographs U+4E00 to U+9FFF and the Hangul syllables; any
-    /// other is refused, so no address gives an origin other than the one a browser gives it.
+    /// The origin of an address that a browser reports, `<scheme>://<host>[:<port>]` and then, after a `/`, `?`, `#` or
+    /// `\`, any text but an ASCII space or control character: the scheme `http` or `https` in any case; the default
+    /// port, 80 or 443, added where none is written; the host in lower case, with one dot at its end dropped and each
+    /// internationalized label turned into its A-label (RFC 3492). The origin is the form of `WebOrigin::parse`.
+    /// Refused, with the cause `malformed` and no text of the address: an ASCII space or control character (U+0000 to
+    /// U+0020, U+007F) anywhere, another scheme or no `://`, userinfo, an address in brackets, a port that is not 1 to
+    /// 65,535 with no leading zero, an empty label, a label or a host too long for the form, a character outside the
+    /// form that is not one of the letters below, a non-ASCII label that starts with `xn--`, and a host whose last
+    /// label is a number (all digits, or `0x` and hex digits) unless it is four decimal octets with no leading zero,
+    /// the form in which a browser writes an IPv4 address. The non-ASCII letters taken are those for which a browser's
+    /// mapping of a host is lower case alone: Latin-1 letters but `ß`, Greek letters without accents but `ς`, the
+    /// Cyrillic letters U+0400 to U+045F, hiragana, katakana with `ー`, the CJK ideographs U+4E00 to U+9FFF and the
+    /// Hangul syllables; any other is refused. An ASCII label that starts with `xn--` is taken as it stands, also where
+    /// it is no valid A-label.
     pub fn of_address(address: &str) -> Result<WebOrigin, Refusal> {
         if address.chars().any(|c| c <= ' ' || c == '\u{7f}') {
             return Err(refused("address_control"));
