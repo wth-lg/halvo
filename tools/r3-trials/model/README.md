@@ -23,6 +23,7 @@ root workspace does not list it.
 | `run.sh` | Runs the cells of one model on the machine it is on |
 | `fits.py` | The budget arithmetic: prints the bound lines and the verdict line from the cell lines |
 | `.cargo/config.toml` | Turns llama.cpp's Metal backend off for the build |
+| `.gitattributes` | Checks out every file of the trial with LF line ends, also where `core.autocrlf` is true |
 
 ## The models
 
@@ -47,6 +48,10 @@ repositories is one of Qwen3.5, so no 4-bit file of the publisher's own exists, 
 third party converted is not taken. `ternary_bonsai_2_9b`: its publisher's repository
 `prism-ml/Ternary-Bonsai-2-9B-gguf` is Apache-2.0 and holds 2-bit and ternary files and no 4-bit
 one, as the routing run found (`docs/r6/trials/routing-group.md`).
+
+The pages of all three name Apache-2.0. The result file holds no licence line for them, because
+the licence line of a model names the one file that the SHA-256 of its `weights` line pins
+(A13.5), and none of the three has a `weights` line; their `notrun` lines give the cause.
 
 ## Fetch
 
@@ -184,3 +189,30 @@ model on a machine is the larger of its two prompts' bounds; the budget is 8,589
 less the browser bound with one step of 8,388,608 bytes added, less 268,435,456 bytes for the
 runner. `fits` is `not-measured` when a prompt has fewer than five cell lines, a run was capped,
 or a median peak is below the file's size.
+
+## How the cells of unit U0.5 ran
+
+On `mac` the cells ran in three rounds, each cell one call of the timed-run helper. The result
+file holds the last round, which ran on the release binary of commit 6344f80, the binary that
+`check-binary.sh` passed last; the captures of the earlier rounds stay in the builder's evidence.
+The first round ran on the binary of commit 854151b: there the two Gemma 4 models answered no
+request (llama.cpp's template engine returned an error for their template), which commit e48a9b8
+turned into the plain form above; one cell of `ministral_3_3b` stopped with a syntax error
+because `run.sh` was changed while it ran; and two captures of `ministral_3_3b` lost their cell
+lines because the capture helper's `sed` stopped at a byte of llama.cpp's log that is no UTF-8. The
+second round ran on the binary of e48a9b8; commit 6344f80 changed the order in which the child
+frees its lock at exit and the error paths of `run.sh`, so the third round ran the cells again on
+that binary.
+
+On `hosted-win` three scratch runs reached the cell steps. In run 43094722413 (commit ed471a5) the
+child did not build on MSVC: its log callback took the level as `u32`, which bindgen makes `i32`
+there (fixed in e48a9b8). In that run and in run 43099238425 (commit e48a9b8) `fetch.sh` refused
+every line of `weights.txt`, because the checkout with `core.autocrlf=true` had given the file CRLF
+line ends (fixed in 250f84b by the trial's `.gitattributes`). Run 43099769860 (commit 250f84b)
+ran the twelve cells; the result file takes them from that run. Run 43094693697 (commit ed471a5)
+ran the repository's own checks alone, trimmed, and was green in both jobs.
+
+Each cell keeps its temporary directory under `TMPDIR` or `/tmp`, with the request, the child's
+replies and the raw output of `measure-peak` and of the child, and `run.sh` removes nothing. The
+request holds the invented values of the prompt file and the replies hold the model's text, so a
+search of a machine for fixture values finds them there.
