@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The router's tests pass, the gate tool's self-test fails the three bad routers and passes the derived one on 20 generated tables, and the tool regenerates the committed specimen.
+# rule: The router's tests pass, each test of scripts/r6/required-tests.txt prints ok under its own target and stands in its test binary's list and not among its ignored tests, the gate tool's self-test fails the three bad routers and passes the derived one on 20 generated tables, and the tool regenerates the committed specimen.
 set -u
 name=30-r6-table
 case $0 in
@@ -8,6 +8,9 @@ case $0 in
   *) self=$(pwd)/$0 ;;
 esac
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
+required=scripts/r6/required-tests.txt
+fixed_tests='halvo-route tests/no_grant_in_release.rs no_grant_in_release
+halvo-route tests/no_grant_in_release.rs pinned_files_hold_their_hashes'
 want_line='selftest tables=20 derived_pass=20 product_pass=- one_tier_fail=20 random_fail=20 peek_fail=20'
 want_product='selftest tables=20 derived_pass=20 product_pass=20 one_tier_fail=20 random_fail=20 peek_fail=20'
 
@@ -20,6 +23,109 @@ enter_repo() {
   cd "$repo" || exit 2
 }
 
+list_target() {
+  package=$1
+  source=$2
+  stem=${source#tests/}
+  stem=${stem%.rs}
+  if [ "$source" = src/lib.rs ]; then
+    stem=lib
+    set -- --lib
+  else
+    set -- --test "$stem"
+  fi
+  listing=$artifacts/list-$package-$stem
+  cargo test --locked -p "$package" "$@" -- --list >"$listing.txt" 2>"$listing.err" </dev/null
+  list_code=$?
+  cargo test --locked -p "$package" "$@" -- --list --ignored >"$listing-ignored.txt" 2>>"$listing.err" </dev/null
+  ignored_code=$?
+  awk -v target="$package $source" -v list_code="$list_code" -v ignored_code="$ignored_code" '
+    FILENAME == ARGV[1] {
+      if ($0 ~ /: test$/) listed[substr($0, 1, length($0) - 6)] = 1
+      next
+    }
+    FILENAME == ARGV[2] {
+      if ($0 ~ /: test$/) ignored[substr($0, 1, length($0) - 6)] = 1
+      next
+    }
+    ($1 " " $2) != target || seen[$0]++ { next }
+    {
+      if (list_code != 0) print "no_list " $0
+      else if (!($3 in listed)) print "not_listed " $0
+      if (ignored_code != 0) print "no_ignored_list " $0
+      else if ($3 in ignored) print "ignored " $0
+    }
+  ' "$listing.txt" "$listing-ignored.txt" "$wanted" >>"$result"
+}
+
+require_tests() {
+  wanted=$scratch/required.txt
+  result=$scratch/required-result.txt
+  if [ ! -s "$required" ] || ! { printf '%s\n' "$fixed_tests" && cat "$required"; } >"$wanted" 2>/dev/null ||
+    ! awk '!/^halvo-route(-gate)? (src\/lib|tests\/[a-z0-9_]+)\.rs [A-Za-z0-9_:]+$/ { bad = 1 } END { exit bad }' "$wanted"; then
+    printf 'required list=bad\n'
+    return 1
+  fi
+  awk '
+    FILENAME == ARGV[1] {
+      sub(/\r$/, "")
+      if ($0 ~ /^ *Doc-tests /) {
+        target = ""
+      } else if ($0 ~ /^ *Running /) {
+        line = $0
+        sub(/^ *Running /, "", line)
+        gsub(/\\/, "/", line)
+        target = ""
+        paren = index(line, " (")
+        if (paren > 0 && line ~ /\)$/) {
+          bin = substr(line, paren + 2, length(line) - paren - 2)
+          sub(/.*\//, "", bin)
+          sub(/\.exe$/, "", bin)
+          sub(/-[0-9a-f]+$/, "", bin)
+          target = bin " " substr(line, 1, paren - 1)
+        }
+      } else if (target != "" && $0 ~ /^test [^ ]+ \.\.\. ok$/) {
+        ran[target " " substr($0, 6, length($0) - 12)] = 1
+      }
+      next
+    }
+    seen[$0]++ { next }
+    {
+      if ($2 == "src/lib.rs") {
+        bin = $1
+        gsub(/-/, "_", bin)
+        printed = "unittests src/lib.rs"
+      } else {
+        bin = $2
+        sub(/^tests\//, "", bin)
+        sub(/\.rs$/, "", bin)
+        printed = $2
+      }
+      print (((bin " " printed " " $3) in ran) ? "ok " : "not_ok ") $0
+    }
+  ' "$artifacts/cargo-test.txt" "$wanted" >"$result"
+  awk '!seen[$1 " " $2]++ { print $1, $2 }' "$wanted" >"$scratch/required-targets.txt"
+  while read -r package source; do
+    list_target "$package" "$source"
+  done <"$scratch/required-targets.txt"
+  awk '
+    $1 == "ok" { tests++; ok++; next }
+    $1 == "not_ok" { tests++ }
+    $1 == "no_list" || $1 == "not_listed" { unlisted++ }
+    $1 == "ignored" || $1 == "no_ignored_list" { ignored++ }
+    {
+      entry = $0
+      sub(/^[^ ]+ /, "", entry)
+      printf "required %s=%s\n", $1, entry
+      bad = 1
+    }
+    END {
+      printf "required tests=%d ok=%d listed=%d ignored=%d\n", tests, ok, tests - unlisted, ignored
+      exit bad
+    }
+  ' "$result"
+}
+
 measure() {
   enter_repo
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
@@ -30,6 +136,7 @@ measure() {
   if ! cargo test --locked -p halvo-route -p halvo-route-gate >"$artifacts/cargo-test.txt" 2>&1; then
     cause=tests
   fi
+  require_tests || cause=tests
 
   cargo run -q --locked -p halvo-route-gate --bin route-gate -- self-test --tables 20 --seed 1 \
     >"$artifacts/selftest.out" 2>"$artifacts/selftest.err"
@@ -62,10 +169,11 @@ measure() {
 
 check() {
   out=$(
-    PATH=$work/bin:$PATH
+    PATH=$work/bin:${STUB_PATH:-$PATH}
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts/$1
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_TEST_EXIT STUB_SELFTEST STUB_SELFTEST_EXIT STUB_FRESH
+    export STUB_DIR STUB_NO_TARGETS STUB_NO_IGNORED
     sh "$self" 2>&1
   )
   code=$?
@@ -75,20 +183,162 @@ check() {
     "1:FAIL $name ("*")") got=FAIL ;;
     *) got=exit-$code ;;
   esac
-  case $out in
-    *"$3"*) ;;
-    *) got=$got-without-the-text ;;
-  esac
-  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
-  if [ "$got" != "$2" ]; then
-    wrong="$wrong $1"
-  elif [ "$2" = FAIL ]; then
+  case_name=$1
+  want=$2
+  shift 2
+  for text in "$@"; do
+    case $out in
+      *"$text"*) ;;
+      *) got=$got-without-the-text ;;
+    esac
+  done
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
+  if [ "$got" != "$want" ]; then
+    wrong="$wrong $case_name"
+  elif [ "$want" = FAIL ]; then
     rejected=$((rejected + 1))
   fi
   STUB_TEST_EXIT=0
   STUB_SELFTEST=$want_line
   STUB_SELFTEST_EXIT=0
   STUB_FRESH=$work/fresh.tsv
+  STUB_DIR=$work/stub
+  STUB_NO_TARGETS=
+  STUB_NO_IGNORED=
+  STUB_PATH=
+}
+
+stub_case() {
+  STUB_DIR=$work/stub-$1
+  mkdir "$STUB_DIR" || exit 2
+  cp "$work/stub/"* "$STUB_DIR/" || exit 2
+}
+
+restore_repo() {
+  cp -R "$work/pristine/." "$work/repo/" || exit 2
+}
+
+make_stub() {
+  mkdir -p "$work/stub" "$work/pristine/scripts/r6" || exit 2
+  cp "$required" "$work/pristine/$required" || exit 2
+  { printf '%s\n' "$fixed_tests" && cat "$required"; } >"$work/wanted.txt" || exit 2
+  awk -v dir="$work/stub" '
+    seen[$0]++ { next }
+    {
+      if ($2 == "src/lib.rs") {
+        stem = "lib"
+        bin = $1
+        gsub(/-/, "_", bin)
+        printed = "unittests src/lib.rs"
+      } else {
+        stem = $2
+        sub(/^tests\//, "", stem)
+        sub(/\.rs$/, "", stem)
+        bin = stem
+        printed = $2
+      }
+      target = $1 " " $2
+      if (!(target in order)) {
+        order[target] = ++n
+        head[n] = "     Running " printed " (target/debug/deps/" bin "-0123456789abcdef)"
+        listed[n] = dir "/list-" $1 "-" stem ".txt"
+        ignored[n] = dir "/ignored-" $1 "-" stem ".txt"
+      }
+      k = order[target]
+      oks[k] = oks[k] "test " $3 " ... ok\n"
+      names[k] = names[k] $3 ": test\n"
+    }
+    END {
+      out = dir "/test.out"
+      for (k = 1; k <= n; k++) {
+        printf "%s\n\nrunning tests\n%s\n", head[k], oks[k] >out
+        printf "%s\n", names[k] >listed[k]
+        printf "" >ignored[k]
+      }
+      printf "     Running tests/pick_rules.rs (target/debug/deps/pick_rules-0123456789abcdef)\n\ntest pick_rule ... ok\n\n" >out
+      printf "     Running unittests src/lib.rs (target/debug/deps/halvo_route_gate-0123456789abcdef)\n\ntest gate_rule ... ok\n\n" >out
+      printf "   Doc-tests halvo_route\n\nrunning 0 tests\n" >out
+    }
+  ' "$work/wanted.txt" || exit 2
+  STUB_DIR=$work/stub
+  STUB_NO_TARGETS=
+  STUB_NO_IGNORED=
+  STUB_PATH=
+}
+
+required_cases() {
+  t=halvo-route
+  stub_case ignored-required-test
+  awk '$0 == "test refusal_no_hold ... ok" { $0 = "test refusal_no_hold ... ignored" } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  printf 'refusal_no_hold: test\n' >"$STUB_DIR/ignored-$t-refusal_spend.txt"
+  check ignored-required-test FAIL "required not_ok=$t tests/refusal_spend.rs refusal_no_hold" \
+    "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
+
+  stub_case test-table-gives-a-name-to-another-file
+  awk '/Running tests\/refusal_spend\.rs / { sub(/tests\/refusal_spend\.rs/, "tests/spend_table.rs") } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check test-table-gives-a-name-to-another-file FAIL "required not_ok=$t tests/refusal_spend.rs refusal_no_hold" \
+    "required not_ok=$t tests/refusal_spend.rs refusal_final_state"
+
+  stub_case autotests-false
+  awk '/^ *(Running|Doc-tests) / { skip = ($0 ~ /Running tests\//) } !skip { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  STUB_NO_TARGETS='no_grant_in_release refusal_spend pick_rules'
+  check autotests-false FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release" \
+    "required no_list=$t tests/no_grant_in_release.rs pinned_files_hold_their_hashes" \
+    "required no_ignored_list=$t tests/refusal_spend.rs refusal_no_hold"
+
+  stub_case test-writes-the-ok-lines-itself
+  awk '{ print } /Running tests\/no_grant_in_release\.rs / { print "test forge ... ok" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  printf 'forge: test\nlib_rs_is_the_forbid_line_and_the_module_lines: test\n' >"$STUB_DIR/list-$t-no_grant_in_release.txt"
+  check test-writes-the-ok-lines-itself FAIL "required not_listed=$t tests/no_grant_in_release.rs no_grant_in_release" \
+    "required not_listed=$t tests/no_grant_in_release.rs pinned_files_hold_their_hashes"
+
+  stub_case other-target-prints-the-first-targets-line
+  awk '/Running tests\/no_grant_in_release\.rs / { print "     Running tests/pick_rules.rs (target/debug/deps/pick_rules-0123456789abcdef)" } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  STUB_NO_TARGETS=no_grant_in_release
+  check other-target-prints-the-first-targets-line FAIL "required no_list=$t tests/no_grant_in_release.rs no_grant_in_release" \
+    "required no_ignored_list=$t tests/no_grant_in_release.rs pinned_files_hold_their_hashes"
+
+  stub_case ignored-test-with-a-written-ok-line
+  printf 'refusal_no_hold: test\n' >"$STUB_DIR/ignored-$t-refusal_spend.txt"
+  check ignored-test-with-a-written-ok-line FAIL "required ignored=$t tests/refusal_spend.rs refusal_no_hold"
+
+  stub_case ok-lines-under-the-next-target
+  awk '/^test (no_grant_in_release|pinned_files_hold_their_hashes) \.\.\. ok$/ { held = held $0 "\n"; next } { print } $0 == "test pick_rule ... ok" { printf "%s", held }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check ok-lines-under-the-next-target FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release" \
+    "required not_ok=$t tests/no_grant_in_release.rs pinned_files_hold_their_hashes"
+
+  stub_case ok-line-after-a-doc-tests-line
+  awk '$0 == "test admit::tests::refusal_admit_ruling ... ok" { print "   Doc-tests halvo_route" } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check ok-line-after-a-doc-tests-line FAIL "required not_ok=$t src/lib.rs admit::tests::refusal_admit_ruling"
+
+  stub_case should-panic-ok-line
+  awk '$0 == "test pinned_files_hold_their_hashes ... ok" { $0 = "test pinned_files_hold_their_hashes - should panic ... ok" } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check should-panic-ok-line FAIL "required not_ok=$t tests/no_grant_in_release.rs pinned_files_hold_their_hashes"
+
+  stub_case ok-line-under-the-gate-library
+  awk '$0 == "test admit::tests::refusal_admit_ruling ... ok" { next } { print } $0 == "test gate_rule ... ok" { print "test admit::tests::refusal_admit_ruling ... ok" }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  check ok-line-under-the-gate-library FAIL "required not_ok=$t src/lib.rs admit::tests::refusal_admit_ruling"
+
+  stub_case ignored-listing-fails
+  STUB_NO_IGNORED=refusal_spend
+  check ignored-listing-fails FAIL "required no_ignored_list=$t tests/refusal_spend.rs refusal_no_hold"
+
+  stub_case list-without-the-pin-tests
+  awk '/^test (no_grant_in_release|pinned_files_hold_their_hashes) \.\.\. ok$/ { next } { print }' "$work/stub/test.out" >"$STUB_DIR/test.out" || exit 2
+  printf 'lib_rs_is_the_forbid_line_and_the_module_lines: test\n' >"$STUB_DIR/list-$t-no_grant_in_release.txt"
+  grep -v ' tests/no_grant_in_release\.rs ' "$work/pristine/$required" >"$work/repo/$required"
+  check list-without-the-pin-tests FAIL "required not_ok=$t tests/no_grant_in_release.rs no_grant_in_release" \
+    "required not_listed=$t tests/no_grant_in_release.rs pinned_files_hold_their_hashes"
+  restore_repo
+
+  printf '%s tests/refusal_spend.rs\n' "$t" >>"$work/repo/$required"
+  check list-with-a-line-of-two-fields FAIL 'required list=bad'
+  restore_repo
+  : >"$work/repo/$required"
+  check empty-list FAIL 'required list=bad'
+  mv "$work/repo/$required" "$work/repo/$required.away" || exit 2
+  check no-list FAIL 'required list=bad'
+  restore_repo
 }
 
 self_test() {
@@ -105,7 +355,29 @@ self_test() {
 #!/bin/sh
 case $* in
   'test --locked -p halvo-route -p halvo-route-gate')
+    cat "$STUB_DIR/test.out"
     exit "$STUB_TEST_EXIT"
+    ;;
+  'test --locked -p '*' --lib -- --list' | 'test --locked -p '*' --lib -- --list --ignored' | \
+    'test --locked -p '*' --test '*' -- --list' | 'test --locked -p '*' --test '*' -- --list --ignored')
+    package=$4
+    stem=lib
+    [ "$5" = --test ] && stem=$6
+    case " $STUB_NO_TARGETS " in
+      *" $stem "*)
+        printf 'error: no test target named %s\n' "$stem" >&2
+        exit 101
+        ;;
+    esac
+    case $* in
+      *' --ignored')
+        case " $STUB_NO_IGNORED " in
+          *" $stem "*) exit 101 ;;
+        esac
+        cat "$STUB_DIR/ignored-$package-$stem.txt"
+        ;;
+      *) cat "$STUB_DIR/list-$package-$stem.txt" ;;
+    esac
     ;;
   'run -q --locked -p halvo-route-gate --bin route-gate -- self-test --tables 20 --seed 1')
     [ -z "$STUB_SELFTEST" ] || printf '%s\n' "$STUB_SELFTEST"
@@ -123,6 +395,8 @@ case $* in
 esac
 EOF
   chmod +x "$work/bin/cargo"
+  make_stub
+  restore_repo
   rejected=0
   wrong=
   STUB_TEST_EXIT=0
@@ -130,9 +404,10 @@ EOF
   STUB_SELFTEST_EXIT=0
   STUB_FRESH=$work/fresh.tsv
 
-  check all-hold PASS "$want_line
+  check all-hold PASS 'required tests=21 ok=21 listed=21 ignored=0' "$want_line
 specimen rows=540 same=yes
 PASS $name"
+  required_cases
   STUB_SELFTEST=$want_product
   check product-counted PASS 'product_pass=20 one_tier_fail=20'
   STUB_TEST_EXIT=101
