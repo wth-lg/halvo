@@ -160,19 +160,32 @@ struct WriterLock {
     file: File,
 }
 
+const LOCK_FILE_OPEN_TRIES: u32 = 4;
+
 impl WriterLock {
     fn take(store_dir: &Path) -> StoreResult<Self> {
-        let mut options = File::options();
-        options.create(true).truncate(false).write(true);
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-        let file = durable::no_follow(&mut options)
-            .open(store_dir.join("writer.lock"))
-            .map_err(io_error)?;
+        let file = Self::open_lock_file(&store_dir.join("writer.lock")).map_err(io_error)?;
         match file.try_lock() {
             Ok(()) => Ok(Self { file }),
             Err(TryLockError::WouldBlock) => Err(StoreError::Locked(store_dir.to_path_buf())),
             Err(TryLockError::Error(e)) => Err(io_error(e)),
+        }
+    }
+
+    fn open_lock_file(path: &Path) -> std::io::Result<File> {
+        let mut options = File::options();
+        options.create(true).truncate(false).write(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        durable::no_follow(&mut options);
+        let mut tries = 1;
+        loop {
+            match options.open(path) {
+                Err(e) if e.kind() == ErrorKind::NotFound && tries < LOCK_FILE_OPEN_TRIES => {
+                    tries += 1
+                }
+                opened => return opened,
+            }
         }
     }
 }
@@ -1238,6 +1251,93 @@ mod tests {
         EncryptedStore::open(dir.path(), DEFAULT_RETENTION)
             .expect("a dropped writer leaves the store free to reopen");
         DevFallbackCustody::new(root_id).destroy_root().unwrap();
+    }
+
+    #[test]
+    fn a_take_of_the_writer_lock_never_answers_not_found_while_another_thread_unlinks_the_file() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::sync::Arc;
+
+        const TAKERS: usize = 5;
+        #[cfg(not(windows))]
+        const TAKES: u64 = 1_000_000;
+        #[cfg(windows)]
+        const TAKES: u64 = 20_000;
+
+        let dir = tempfile::tempdir().unwrap();
+        let taken = Arc::new(AtomicU64::new(0));
+        let takers: Vec<_> = (0..TAKERS)
+            .map(|_| {
+                let (dir, taken) = (dir.path().to_path_buf(), Arc::clone(&taken));
+                std::thread::spawn(move || {
+                    let (mut not_found, mut first_not_found, mut denied) = (0u64, None, 0u64);
+                    let mut other = Vec::new();
+                    loop {
+                        let take = taken.fetch_add(1, Ordering::Relaxed) + 1;
+                        if take > TAKES {
+                            break;
+                        }
+                        durable::make_private(&dir).unwrap();
+                        match WriterLock::take(&dir) {
+                            Ok(lock) => drop(lock),
+                            Err(StoreError::Locked(_)) => {}
+                            Err(StoreError::Io(ErrorKind::NotFound)) => {
+                                not_found += 1;
+                                first_not_found.get_or_insert(take);
+                            }
+                            Err(StoreError::Io(ErrorKind::PermissionDenied)) if cfg!(windows) => {
+                                denied += 1
+                            }
+                            Err(e) => other.push(format!("{e:?}")),
+                        }
+                    }
+                    (not_found, first_not_found, denied, other)
+                })
+            })
+            .collect();
+        let lock_file = dir.path().join("writer.lock");
+        let mut unlinks = 0u64;
+        while !takers.iter().all(|taker| taker.is_finished()) {
+            if std::fs::remove_file(&lock_file).is_ok() {
+                unlinks += 1;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let (mut not_found, mut first_not_found, mut denied, mut other) =
+            (0u64, None::<u64>, 0u64, Vec::new());
+        for taker in takers {
+            let (n, first, d, o) = taker.join().unwrap();
+            not_found += n;
+            first_not_found = match (first_not_found, first) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
+            denied += d;
+            other.extend(o);
+        }
+        println!(
+            "TAKES takes={TAKES} takers={TAKERS} unlinks={unlinks} not_found={not_found} \
+             first_not_found_at_take={first_not_found:?} permission_denied={denied} other_errors={}",
+            other.len()
+        );
+        assert!(unlinks > 0, "the file was never unlinked during the takes");
+        assert_eq!(
+            not_found, 0,
+            "{not_found} of {TAKES} takes answered Io(NotFound), the first at take {first_not_found:?}"
+        );
+        assert!(other.is_empty(), "takes answered {other:?}");
+    }
+
+    #[test]
+    fn a_take_of_the_writer_lock_in_a_directory_that_is_gone_answers_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = dir.path().join("gone");
+        let taken = WriterLock::take(&gone).map(drop);
+        assert!(
+            matches!(taken, Err(StoreError::Io(ErrorKind::NotFound))),
+            "a take in a directory that is gone answered {taken:?}"
+        );
+        assert!(!gone.exists(), "a take made the directory that was gone");
     }
 
     #[test]
