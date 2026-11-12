@@ -21,6 +21,23 @@ predicate_run_tmp_clean() {
   tmp_scan_defect "$1" "$2" > /dev/null
 }
 
+late_helper_is_gone() {
+  service_standin good none
+  late_helper=$gate_scratch/late-helper
+  printf '#!/bin/sh\nsleep 3\nprintf "helper visible pid=%%s\\n" "%s"\nsleep 30\n' "\$\$" > "$late_helper"
+  chmod 755 "$late_helper"
+  capture_helper_bin=$late_helper
+  svc_dir=$(mktemp -d "$gate_scratch/late-run.XXXXXX") || return 2
+  gate_helper_polls=5
+  helper_outside_start 60 && { printf 'the late helper was taken as started\n'; return 1; }
+  sleep 0.5
+  late_left=$(pgrep -f "$late_helper")
+  [ -z "$late_left" ] && return 0
+  printf 'the late helper is left after the check gave up: pid %s\n' "$late_left"
+  pkill -f "$late_helper"
+  return 1
+}
+
 churn_outer() {
   churn_end=$(( $(date +%s) + $1 ))
   while churn_now=$(date +%s) && [ "$churn_now" -lt "$churn_end" ]; do
@@ -280,6 +297,7 @@ cases() {
   t standin-main-names-the-mode PASS says 'FAIL service-run (no --prefill-store mode' main none
   t privacy-line-before-the-service PASS privacy_line_first main none
   t standin-main-fails FAIL against_the_standin main none
+  t late-helper-is-ended-by-the-check PASS late_helper_is_gone
   t standin-leak-while-live FAIL against_the_standin live-leak none
   t standin-leak-at-the-stop FAIL against_the_standin stop-leak none
   t standin-name-left-after-delete FAIL against_the_standin delete-leaves-name none

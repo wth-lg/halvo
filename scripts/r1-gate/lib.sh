@@ -175,7 +175,8 @@ t() {
   if [ "$st_got" != "$st_want" ]; then
     st_wrong=$((st_wrong + 1))
     st_tail=$(awk '/^scratch / { next } { last = $0 } /share=/ { share = $0 } END { print (share != "" ? share : last) }' "$st_out" 2>/dev/null)
-    st_note=": ${st_tail:-no output}"
+    st_load=$(sysctl -n vm.loadavg 2>/dev/null | awk '{ print $2 }')
+    st_note=": ${st_tail:-no output}; 1-minute load=${st_load:-unread}"
   fi
   [ "$st_want" = PASS ] || st_rejected=$((st_rejected + 1))
   if [ -n "$gate_verbose" ] || [ -n "$st_note" ]; then printf 'case %s/%s want=%s got=%s%s\n' "$name" "$st_case" "$st_want" "$st_got" "$st_note"; fi
@@ -400,18 +401,20 @@ signal_leaves_no_child() {
   signal_polls=0
   until pgrep -f "$signal_root" > /dev/null; do
     signal_polls=$((signal_polls + 1))
-    [ "$signal_polls" -lt 100 ] || { kill "$signal_pid" 2> /dev/null; return 1; }
+    [ "$signal_polls" -lt 100 ] || { kill "$signal_pid" 2> /dev/null; printf 'the child of the check did not start within %s polls of 0.1 s\n' "$signal_polls"; return 1; }
     sleep 0.1
   done
   kill "-$2" "$signal_pid"
   signal_polls=0
   while kill -0 "$signal_pid" 2> /dev/null; do
     signal_polls=$((signal_polls + 1))
-    [ "$signal_polls" -lt 100 ] || return 1
+    [ "$signal_polls" -lt 100 ] || { printf 'the check did not end within %s polls of 0.1 s after the signal\n' "$signal_polls"; return 1; }
     sleep 0.1
   done
   signal_left=$(pgrep -f "$signal_root")
-  [ -z "$signal_left" ]
+  [ -z "$signal_left" ] && return 0
+  printf 'a child of the check is left after the signal, after %s polls of 0.1 s\n' "$signal_polls"
+  return 1
 }
 
 fails_saying() {
@@ -1195,7 +1198,8 @@ lease_control() {
   lapse_a=$ctl_out
   hold_for "$((batch_s + gate_slack_s))" no-claims || return 1
   ctl_or_defect lapse-b inventory || return 1
-  lapse_found=$(lease_defect "$lapse_status" "$lapse_a" "$ctl_out") || { gate_defect="lease control, ${lease_s}s plus ${gate_slack_s}s after the last claim: $lapse_found"; return 1; }
+  lapse_now=$(date +%s)
+  lapse_found=$(lease_defect "$lapse_status" "$lapse_a" "$ctl_out") || { gate_defect="lease control, ${lease_s}s plus ${gate_slack_s}s after the last claim, read $((lapse_now - svc_claimed))s after it: $lapse_found"; return 1; }
 }
 
 window_steps() {
@@ -1444,17 +1448,23 @@ helper_outside_start() {
   outside_out=$svc_dir/helper-outside.out
   : > "$outside_out"
   if [ "$capture_builds" = yes ]; then
+    outside_path=$GATE_TARGET/window-helper.app/Contents/MacOS/window-helper
     helper_build || return 1
     helper_bundle || { gate_defect="the helper bundle could not be made"; return 1; }
     open -n -g -a "$GATE_TARGET/window-helper.app" --stdout "$outside_out" --stderr "$outside_out.err" --args "$1" 7>&- ||
       { gate_defect="open could not start the helper window outside the check's tree"; return 1; }
   else
+    outside_path=$capture_helper_bin
     ( "$capture_helper_bin" "$1" > "$outside_out" 2>&1 7>&- & )
   fi
   outside_polls=0
   until svc_helper_pid=$(sed -n 's/^helper visible pid=\([0-9][0-9]*\)$/\1/p' "$outside_out" 2>/dev/null) && [ -n "$svc_helper_pid" ]; do
     outside_polls=$((outside_polls + 1))
-    [ "$outside_polls" -lt 100 ] || { gate_defect="the helper window outside the check's tree was not on screen in time"; return 1; }
+    [ "$outside_polls" -lt "${gate_helper_polls:-100}" ] || {
+      pkill -f "$outside_path" 2>/dev/null
+      gate_defect="the helper window outside the check's tree was not on screen after $outside_polls polls of 0.1 s, and the check ended it"
+      return 1
+    }
     sleep 0.1
   done
 }

@@ -100,16 +100,19 @@ deadline_run() {
   deadline_status=$?
   deadline_to=$(date +%s)
   deadline_took=$((deadline_to - deadline_from))
+  printf 'the child took %ss against a deadline of %ss: %s\n' "$deadline_took" "$1" "${gate_defect:-ended in time}"
   return "$deadline_status"
 }
 
 deadline_ends_the_child() {
-  deadline_run 2 "$1" "$2" && return 1
-  [ "$gate_defect" = "the child ran past its deadline of 2s and was ended" ] || return 1
-  [ "$deadline_took" -ge 2 ] || return 1
-  [ "$deadline_took" -le "$3" ] || return 1
+  deadline_run 2 "$1" "$2" && { printf 'the child ended by itself after %ss and was not ended at its deadline of 2s\n' "$deadline_took"; return 1; }
+  [ "$gate_defect" = "the child ran past its deadline of 2s and was ended" ] || { printf 'after %ss the gate said: %s\n' "$deadline_took" "${gate_defect:-nothing}"; return 1; }
+  [ "$deadline_took" -ge 2 ] || { printf 'the child was ended after %ss, before its deadline of 2s\n' "$deadline_took"; return 1; }
+  [ "$deadline_took" -le "$3" ] || { printf 'the child was ended after %ss, past the margin of %ss\n' "$deadline_took" "$3"; return 1; }
   left=$(pgrep -f "load-standin $1 $2")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'a stand-in process is left %ss after the start\n' "$deadline_took"
+  return 1
 }
 
 signal_ends_the_child() {
@@ -132,17 +135,19 @@ MINI
   mini_pid=$!
   polls=0
   until pgrep -f "load-standin sleep $2" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   kill "-$1" "$mini_pid"
   polls=0
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   left=$(pgrep -f "load-standin sleep $2")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'a stand-in process is left after %s polls of 0.1 s\n' "$polls"
+  return 1
 }
 
 watched_child_ends() {
@@ -161,17 +166,19 @@ MINI
   mini_pid=$!
   polls=0
   until pgrep -f "load-standin sleep 36.25" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   kill -TERM "$mini_pid"
   polls=0
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   left=$(pgrep -f "load-standin sleep 36.25")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'a stand-in process is left after %s polls of 0.1 s\n' "$polls"
+  return 1
 }
 
 helper_ends_with_the_check() {
@@ -196,17 +203,19 @@ MINI
   mini_pid=$!
   polls=0
   until pgrep -f "load-standin sleep 39.25" > /dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   kill -TERM "$mini_pid"
   polls=0
   while kill -0 "$mini_pid" 2>/dev/null; do
-    polls=$((polls + 1)); [ "$polls" -lt 50 ] || return 1
+    polls=$((polls + 1)); [ "$polls" -lt 50 ] || { printf 'gave up after %s polls of 0.1 s\n' "$polls"; return 1; }
     sleep 0.1
   done
   left=$(pgrep -f "sleep 38.25")
-  [ -z "$left" ]
+  [ -z "$left" ] && return 0
+  printf 'the helper is left after %s polls of 0.1 s\n' "$polls"
+  return 1
 }
 
 live_cpu_within() {

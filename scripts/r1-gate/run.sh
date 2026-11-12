@@ -353,13 +353,15 @@ standin_helper() {
 }
 
 helper_starts() {
-  helper_start 5 "$gate_scratch/$1" 10 || return 1
+  helper_start 5 "$gate_scratch/$1" 10 || { printf '%s, after %s polls of 0.1 s\n' "$gate_defect" "$helper_polls"; return 1; }
   helper_stop
 }
 
 helper_defect_is() {
-  helper_start 5 "$gate_scratch/$2" 10 && return 1
-  [ "$gate_defect" = "$1" ]
+  helper_start 5 "$gate_scratch/$2" 10 && { printf 'the helper started after %s polls of 0.1 s\n' "$helper_polls"; return 1; }
+  [ "$gate_defect" = "$1" ] && return 0
+  printf 'the helper said: %s, after %s polls of 0.1 s\n' "$gate_defect" "$helper_polls"
+  return 1
 }
 
 cases_helper() {
