@@ -1049,6 +1049,52 @@ fn a_wrapped_store_key_that_decodes_to_another_length_than_a_wrap_opens_as_key_f
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+#[cfg(unix)]
+fn with_mode_000<T>(path: &Path, action: impl FnOnce() -> T) -> T {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let answer = action();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    answer
+}
+
+#[cfg(unix)]
+#[test]
+fn a_key_file_that_exists_and_cannot_be_read_opens_as_io_permission_denied() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let opened = with_mode_000(&KeyFile::path(&store_dir), || {
+        EncryptedStore::open_with(&store_dir, DEFAULT_RETENTION, |_, _| {
+            Ok(Box::new(file_root_custody(
+                &roots_dir,
+                TestProtector::new(0x5a).0,
+                root_id,
+            )))
+        })
+        .map(drop)
+    });
+    assert!(
+        matches!(opened, Err(StoreError::Io(io::ErrorKind::PermissionDenied))),
+        "a store.key of mode 000 answered {opened:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_segment_file_that_exists_and_cannot_be_read_reads_as_io_permission_denied() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
+    let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    let read = with_mode_000(&segment_path(&store_dir, segment_id), || {
+        store.read_segment(segment_id, &mut Vec::new())
+    });
+    assert!(
+        matches!(read, Err(StoreError::Io(io::ErrorKind::PermissionDenied))),
+        "a segment file of mode 000 answered {read:?}"
+    );
+}
+
 fn reopened_file_root_store(store_dir: &Path, roots_dir: &Path, root_id: RootId) -> EncryptedStore {
     EncryptedStore::open_with(store_dir, DEFAULT_RETENTION, |_, _| {
         Ok(Box::new(file_root_custody(
