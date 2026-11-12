@@ -1,5 +1,6 @@
-//! The per-user data directory and the control endpoint. This is the only file
-//! that performs a per-user lookup (contracts.md C3.4).
+//! The per-user data directory, the registry of what Halvo keeps under it, and
+//! the control endpoint. This is the only file that performs a per-user lookup
+//! (contracts.md C3.4).
 
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
@@ -71,8 +72,96 @@ const DATA_DIR: &[&str] = &MACOS_DATA_DIR;
 
 /// The state file of contracts.md C3.7.
 pub const STATE_FILE: &str = "daemon-state.json";
+/// The delete-all intent of contracts.md C17.3.
+pub const INTENT_FILE: &str = "delete-all.intent";
+/// The instance lock file, Windows only (contracts.md C3.5).
+pub const INSTANCE_LOCK_FILE: &str = "daemon.lock";
 /// The control socket under run/.
 pub const CONTROL_SOCKET: &str = "control.sock";
+/// The run marker under run/.
+pub const RUN_MARKER: &str = "running";
+/// The daemon's error log under logs/.
+pub const DAEMON_ERR: &str = "daemon.err";
+
+/// What an entry of the data directory holds; the daemon decides how delete-all
+/// handles each kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryKind {
+    /// Captured content, readable only through its key files.
+    Content,
+    /// The custody root files.
+    Custody,
+    /// Files of the running daemon: the control socket and the run marker.
+    Runtime,
+    /// The daemon's log, which holds neither captured nor derived content.
+    Log,
+}
+
+/// One registered entry of the data directory (contracts.md C17.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Entry {
+    /// One path component under the data directory.
+    pub name: &'static str,
+    pub kind: EntryKind,
+    /// The key files, relative to the data directory and inside the entry.
+    pub key_files: &'static [&'static str],
+    /// The file that names the process that owns the entry, relative to the data
+    /// directory and inside the entry.
+    pub owner_pid_file: Option<&'static str>,
+}
+
+pub const STORE: Entry = Entry {
+    name: "store",
+    kind: EntryKind::Content,
+    key_files: &["store/store.key"],
+    owner_pid_file: None,
+};
+pub const ROOTS: Entry = Entry {
+    name: "roots",
+    kind: EntryKind::Custody,
+    key_files: &[],
+    owner_pid_file: None,
+};
+pub const RUN: Entry = Entry {
+    name: "run",
+    kind: EntryKind::Runtime,
+    key_files: &[],
+    owner_pid_file: None,
+};
+pub const LOGS: Entry = Entry {
+    name: "logs",
+    kind: EntryKind::Log,
+    key_files: &[],
+    owner_pid_file: None,
+};
+
+/// Every registered entry, in the table order of contracts.md C17.2. Delete-all
+/// removes these and no other entry.
+pub const ENTRIES: [Entry; 4] = [STORE, ROOTS, RUN, LOGS];
+
+/// Names reserved for later runs (contracts.md C17.2); R1 registers and creates
+/// neither.
+pub const RESERVED_ENTRY_NAMES: [&str; 2] = ["derived", "agents"];
+
+/// Who removes a keychain item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemovedBy {
+    DeleteAll,
+    RemoveHalvo,
+}
+
+/// One keychain item that Halvo creates (contracts.md C17.7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeychainItem {
+    pub service: &'static str,
+    pub account_form: &'static str,
+    pub owner: &'static str,
+    pub removed_by: RemovedBy,
+}
+
+/// Every keychain item. R1 creates none (RD-24, RD-42).
+pub const KEYCHAIN_ITEMS: [KeychainItem; 0] = [];
+
 /// The per-user data directory: absolute, UTF-8 and with no parent-directory
 /// component.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,21 +196,50 @@ impl DataDir {
         self.state_file().exists()
     }
 
+    /// The directory of a registered entry.
+    pub fn entry(&self, entry: &Entry) -> PathBuf {
+        self.0.join(entry.name)
+    }
+
+    pub fn store_dir(&self) -> PathBuf {
+        self.entry(&STORE)
+    }
+
     /// The root files of the custody (RD-24), on both systems.
     pub fn roots_dir(&self) -> PathBuf {
-        self.0.join("roots")
+        self.entry(&ROOTS)
     }
 
     pub fn run_dir(&self) -> PathBuf {
-        self.0.join("run")
+        self.entry(&RUN)
+    }
+
+    pub fn logs_dir(&self) -> PathBuf {
+        self.entry(&LOGS)
     }
 
     pub fn state_file(&self) -> PathBuf {
         self.0.join(STATE_FILE)
     }
 
+    pub fn intent_file(&self) -> PathBuf {
+        self.0.join(INTENT_FILE)
+    }
+
+    pub fn instance_lock_file(&self) -> PathBuf {
+        self.0.join(INSTANCE_LOCK_FILE)
+    }
+
     pub fn control_socket(&self) -> PathBuf {
         self.run_dir().join(CONTROL_SOCKET)
+    }
+
+    pub fn run_marker(&self) -> PathBuf {
+        self.run_dir().join(RUN_MARKER)
+    }
+
+    pub fn daemon_err(&self) -> PathBuf {
+        self.logs_dir().join(DAEMON_ERR)
     }
 
     fn text(&self) -> &str {
@@ -601,6 +719,96 @@ mod tests {
                 Err(PathError::InsideDataDir)
             );
         }
+    }
+
+    #[test]
+    fn the_registry_holds_the_four_r1_entries_in_table_order() {
+        assert_eq!(
+            ENTRIES.map(|entry| entry.name),
+            ["store", "roots", "run", "logs"]
+        );
+        assert_eq!(
+            ENTRIES.map(|entry| entry.kind),
+            [
+                EntryKind::Content,
+                EntryKind::Custody,
+                EntryKind::Runtime,
+                EntryKind::Log
+            ]
+        );
+        assert_eq!(STORE.key_files, ["store/store.key"]);
+        assert!(ENTRIES[1..].iter().all(|entry| entry.key_files.is_empty()));
+        assert!(ENTRIES.iter().all(|entry| entry.owner_pid_file.is_none()));
+        assert_eq!(RESERVED_ENTRY_NAMES, ["derived", "agents"]);
+        assert!(KEYCHAIN_ITEMS.is_empty());
+    }
+
+    #[test]
+    fn every_entry_name_is_one_unique_path_component_and_no_reserved_or_file_name() {
+        let files = [STATE_FILE, INTENT_FILE, INSTANCE_LOCK_FILE];
+        for (at, entry) in ENTRIES.iter().enumerate() {
+            let mut components = Path::new(entry.name).components();
+            assert!(matches!(components.next(), Some(Component::Normal(_))));
+            assert!(components.next().is_none(), "{}", entry.name);
+            assert!(!entry.name.contains(['/', '\\']), "{}", entry.name);
+            assert!(!RESERVED_ENTRY_NAMES.contains(&entry.name));
+            assert!(!files.contains(&entry.name));
+            assert!(ENTRIES[at + 1..]
+                .iter()
+                .all(|other| !other.name.eq_ignore_ascii_case(entry.name)));
+        }
+    }
+
+    #[test]
+    fn key_files_and_pid_files_are_relative_and_stay_inside_their_entry() {
+        for entry in ENTRIES {
+            for file in entry.key_files.iter().chain(entry.owner_pid_file.iter()) {
+                let path = Path::new(file);
+                assert!(path.is_relative(), "{file}");
+                assert!(path
+                    .components()
+                    .all(|component| matches!(component, Component::Normal(_))));
+                assert!(path.starts_with(entry.name), "{file}");
+                assert_ne!(path, Path::new(entry.name));
+            }
+        }
+    }
+
+    #[test]
+    fn every_layout_accessor_lies_in_a_registered_entry_or_is_a_top_level_file() {
+        let data = DataDir::from_flag(absolute("data")).unwrap();
+        for path in [
+            data.store_dir(),
+            data.roots_dir(),
+            data.run_dir(),
+            data.logs_dir(),
+            data.control_socket(),
+            data.run_marker(),
+            data.daemon_err(),
+        ] {
+            let inside = path.strip_prefix(data.path()).unwrap();
+            let first = inside.components().next().unwrap();
+            assert!(
+                ENTRIES
+                    .iter()
+                    .any(|entry| Path::new(entry.name) == Path::new(first.as_os_str())),
+                "{}",
+                path.display()
+            );
+        }
+        for path in [
+            data.state_file(),
+            data.intent_file(),
+            data.instance_lock_file(),
+        ] {
+            assert_eq!(path.parent(), Some(data.path()));
+        }
+        assert_eq!(data.entry(&STORE), data.path().join("store"));
+        assert_eq!(data.run_marker(), data.path().join("run").join("running"));
+        assert_eq!(
+            data.daemon_err(),
+            data.path().join("logs").join("daemon.err")
+        );
     }
 
     #[test]
