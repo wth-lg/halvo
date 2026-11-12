@@ -9,11 +9,12 @@ use super::{CustodyError, CustodyKind, KeyCustody, RootId, StoreKey, WrappedKey}
 const XNONCE_LEN: usize = size_of::<XNonce>();
 
 impl CustodyKind {
-    /// Whether a release build accepts this custody kind.
+    /// Whether a release build accepts this custody kind: only a kind whose
+    /// custody this build can rebuild and whose root it can destroy.
     pub fn is_acceptable_for_release(self) -> bool {
         match self {
             CustodyKind::DevFallback | CustodyKind::SecureEnclave => false,
-            CustodyKind::Dpapi => true,
+            CustodyKind::Dpapi => cfg!(target_os = "windows"),
         }
     }
 
@@ -577,11 +578,44 @@ mod tests {
         assert_eq!(sealed.len(), 72, "a seal of a 32-byte key");
     }
 
+    fn every_custody_kind() -> Vec<CustodyKind> {
+        let kinds = vec![
+            CustodyKind::DevFallback,
+            CustodyKind::SecureEnclave,
+            CustodyKind::Dpapi,
+        ];
+        for kind in &kinds {
+            match kind {
+                CustodyKind::DevFallback | CustodyKind::SecureEnclave | CustodyKind::Dpapi => {}
+            }
+        }
+        kinds
+    }
+
+    #[test]
+    fn a_release_accepts_only_a_kind_whose_custody_this_build_can_rebuild() {
+        let mut wrong = Vec::new();
+        for kind in every_custody_kind() {
+            if !kind.is_acceptable_for_release() {
+                continue;
+            }
+            if let Err(e) = crate::custody::custody_for(kind, RootId::fresh()) {
+                wrong.push(format!(
+                    "{kind:?} is accepted for a release and custody_for answers {e:?}"
+                ));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
     #[test]
     fn a_release_accepts_only_a_kind_whose_delete_all_can_finish() {
         assert!(!CustodyKind::DevFallback.is_acceptable_for_release());
         assert!(!CustodyKind::SecureEnclave.is_acceptable_for_release());
-        assert!(CustodyKind::Dpapi.is_acceptable_for_release());
+        assert_eq!(
+            CustodyKind::Dpapi.is_acceptable_for_release(),
+            cfg!(target_os = "windows")
+        );
     }
 
     fn destroying_its_root_twice_is_no_error(custody: &dyn KeyCustody) {
