@@ -14,7 +14,7 @@ const PINNED: [(&str, &str); 5] = [
     ),
     (
         "src/ruling.rs",
-        "abcd31c5b4f2cb98362a907d73c41c87e3342b9a06455ba81ee9f268bd85612e",
+        "507e4e9563c0b2c94695ba74484f6a42f667f99e99e38dc2f12aba79ad3ebb21",
     ),
     (
         "src/tier.rs",

@@ -19,11 +19,13 @@ impl RulingError {
 
 /// What the owner has ruled. Every build that does not set `cfg(test)` has the one value `None`:
 /// no tier but `on_device` may be picked and no origin may be reached. A build that sets
-/// `cfg(test)` also has the test value `TestHosted`, which the code of this file alone can make,
-/// whatever flags the build sets: the type of its payload stands in a module private to this file,
-/// and its maker `test_hosted` is private to this file. The tests of leave.rs get a test value with
-/// a key that leave.rs alone can make, and the tests of admit.rs get the answers of `admit` under
-/// a test value that allows no origin, never a value.
+/// `cfg(test)` also has the test value `TestHosted`. No file but this one can name its maker
+/// `test_hosted` or its payload's type `TestOrigins`, or set its origins, whatever flags the build
+/// sets: the maker is private to this file and the type stands in a module private to it. Other
+/// files can name the variant `Ruling::TestHosted` and, from the value that
+/// `admit_under_test_value` hands to the body of `admit`, hold or make again a test value with no
+/// origin, under which `grant` makes no grant. The tests of leave.rs get a test value with origins
+/// through a key that leave.rs alone can make.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Ruling {
     None,
@@ -92,8 +94,9 @@ impl Drop for Ruling {
     fn drop(&mut self) {}
 }
 
-/// `admit` under the test value that allows no origin, for the tests of admit.rs: the answer
-/// leaves this file and the value does not, and under that value `grant` makes no grant.
+/// `admit` under the test value that allows no origin, for the tests of admit.rs. The value reaches
+/// the body of `admit` by reference; it allows no origin, so `grant` makes no grant under it or
+/// under a value made again from it.
 #[cfg(test)]
 pub(crate) fn admit_under_test_value(
     room: Option<&crate::admit::Room>,
