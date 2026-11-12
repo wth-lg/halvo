@@ -351,7 +351,6 @@ fn owner_answers_each_body_as_a_a7_2_says() {
     let bind = Body::SetBindings {
         workflow: w.clone(),
         agent: a.clone(),
-        origins: vec![Origin::parse("https://site1.example:443").unwrap()],
         slots: vec![Slot {
             name: Name::parse("payee").unwrap(),
             value: vec!["City Power".to_owned()],

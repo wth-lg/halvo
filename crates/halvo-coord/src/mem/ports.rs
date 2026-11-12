@@ -2,7 +2,7 @@ use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, Body, Category, ConfigView, Decision,
     DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome, PastRun,
-    Reply, RunId, RunSpec, Runtime, What, Workflow, WorkflowId, WorkflowState,
+    Reply, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -133,7 +133,11 @@ pub struct Timed {
 /// `playbook` for `active` and an agent whose runtime is `web` and which has no playbook (an
 /// agent of `agents` by its configuration, and an agent that only a `create_agent` made by the
 /// preset of its workflow's category, A-A1.3), then with `state`. `set_bindings` refuses
-/// nothing, as A-A7.2 gives it no refusal. `start_run` is refused with `no_workflow` for a
+/// nothing, as A-A7.2 gives it no refusal, and merges its slots by name into the slots stored
+/// for its workflow and agent, as the agent-setup run's handler does (its CP-36): a slot of the
+/// body replaces the stored slot of its name or is added, and a slot that the body does not name
+/// stays; the agent's entry of `agents` then lists each name, and the answer is the revision
+/// that it stored. `start_run` is refused with `no_workflow` for a
 /// workflow that is not in `workflows`, with `binding` for an agent that is not the workflow's,
 /// and with `state` unless the workflow is `active`, or `approved` for the mode `compile`
 /// (A-A7.2). `history` answers at most 64 events for one call.
@@ -153,6 +157,7 @@ pub struct Ports<C> {
     bytes: Cell<u128>,
     approvals: Cell<u128>,
     bindings_rev: Cell<u32>,
+    bound_slots: RefCell<Vec<(WorkflowId, AgentId, Vec<Slot>)>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
@@ -178,6 +183,7 @@ impl<C> Ports<C> {
             bytes: Cell::new(0),
             approvals: Cell::new(0),
             bindings_rev: Cell::new(1),
+            bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
             limits,
             created: RefCell::new(Vec::new()),
@@ -222,6 +228,50 @@ impl<C> Ports<C> {
                     unknown: 0,
                 },
             );
+        }
+    }
+
+    /// The slots that `set_bindings` stored for `agent` of `workflow`, in the order of their
+    /// first binding.
+    pub fn slots(&self, workflow: &WorkflowId, agent: &AgentId) -> Vec<Slot> {
+        self.bound_slots
+            .borrow()
+            .iter()
+            .find(|(w, a, _)| w == workflow && a == agent)
+            .map(|(_, _, s)| s.clone())
+            .unwrap_or_default()
+    }
+
+    fn merge_slots(&self, workflow: &WorkflowId, agent: &AgentId, slots: &[Slot]) {
+        let mut bound = self.bound_slots.borrow_mut();
+        let at = match bound
+            .iter()
+            .position(|(w, a, _)| w == workflow && a == agent)
+        {
+            Some(at) => at,
+            None => {
+                bound.push((workflow.clone(), agent.clone(), Vec::new()));
+                bound.len() - 1
+            }
+        };
+        let stored = &mut bound[at].2;
+        for slot in slots {
+            match stored.iter_mut().find(|s| s.name == slot.name) {
+                Some(s) => s.value.clone_from(&slot.value),
+                None => stored.push(slot.clone()),
+            }
+        }
+        for entry in self
+            .agents
+            .borrow_mut()
+            .iter_mut()
+            .filter(|e| &e.workflow == workflow && &e.agent == agent)
+        {
+            for slot in slots {
+                if !entry.slots.contains(&slot.name) {
+                    entry.slots.push(slot.name.clone());
+                }
+            }
         }
     }
 
@@ -516,7 +566,12 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 }
                 serde_json::json!({ "rev": 1 })
             }
-            Body::SetBindings { .. } => {
+            Body::SetBindings {
+                workflow,
+                agent,
+                slots,
+            } => {
+                self.merge_slots(workflow, agent, slots);
                 let rev = self.bindings_rev.get() + 1;
                 self.bindings_rev.set(rev);
                 serde_json::json!({ "rev": rev })
