@@ -1,6 +1,6 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-  var CONTROL = { run_now: true, stop: true, switch_off: true, switch_on: true };
+  var CONTROL = { run_now: true, stop: true, switch_off: true, switch_on: true, delete: true };
   var CSS = [
     '.r4a{overflow-wrap:anywhere}',
     '.r4a-group{margin-top:16px}',
@@ -97,11 +97,12 @@
 
   function control(row, c) {
     var b = button(c.control, row.agent, c.text);
+    b.setAttribute('aria-describedby', 'r4a-name-' + row.agent);
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || busy[row.agent]) return;
       if (c.control === 'delete') {
         send(row.agent, 'interface_decision', { decision: 'delete', workflow: row.workflow });
-      } else if (CONTROL[c.control]) {
+      } else {
         send(row.agent, 'agents_control', { agent: row.agent, action: c.control });
       }
     });
@@ -161,6 +162,7 @@
   function toggle(row) {
     var open = card !== null && card.agent === row.agent;
     var b = button(open ? 'close_card' : 'open_card', row.agent, row.name);
+    b.id = 'r4a-name-' + row.agent;
     b.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) b.setAttribute('aria-controls', 'r4a-card-' + row.agent);
     b.addEventListener('click', function (event) {
@@ -200,7 +202,7 @@
     li.appendChild(el('p', 'r4a-line', row.line));
     var controls = el('div', 'r4a-controls', null);
     row.controls.forEach(function (c) {
-      controls.appendChild(control(row, c));
+      if (CONTROL[c.control]) controls.appendChild(control(row, c));
     });
     li.appendChild(controls);
     if (card !== null && card.agent === row.agent) li.appendChild(cardOf(row, card));
@@ -244,7 +246,7 @@
     if (!reply || !Array.isArray(reply.rows) || typeof reply.seq !== 'number') return;
     var says = [];
     reply.rows.forEach(function (r) {
-      if (statuses[r.agent] && statuses[r.agent] !== r.status) says.push(r.say);
+      if (statuses[r.agent] && statuses[r.agent] !== r.status && ORDER.indexOf(r.status) >= 0) says.push(r.say);
     });
     statuses = {};
     reply.rows.forEach(function (r) {

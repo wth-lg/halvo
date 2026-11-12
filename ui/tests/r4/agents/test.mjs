@@ -618,5 +618,49 @@ if (want('card')) {
   }
 }
 
+
+if (want('ten')) {
+  const ten = json('state-ten.json').snapshot;
+  const [A, B] = ten.rows;
+  const odd = {
+    ...ten,
+    seq: 2,
+    rows: ten.rows.map((r) => {
+      if (r.agent === A.agent) return { ...r, status: 'paused', word: 'Paused', say: 'It paused.' };
+      if (r.agent === B.agent) return { ...r, controls: [...r.controls, { control: 'switch_offf', text: 'Switch offf' }, { control: 'open_card', text: 'Open' }] };
+      return r;
+    }),
+  };
+  const h = await open({ origin, replies: [{ state: ten }, { state: odd }], views: [VIEW] });
+  try {
+    const seen = await h.page.evaluate(([a, b]) => ({
+      says: document.querySelector('[role="status"]').textContent,
+      rowA: document.querySelectorAll('[data-param="' + a + '"]').length,
+      actsB: [...document.querySelectorAll('[data-param="' + b + '"]')].map((x) => x.getAttribute('data-act')),
+    }), [A.agent, B.agent]);
+    const wantB = ['open_card', ...B.controls.map((c) => c.control)];
+    result('a_status_or_a_control_outside_the_closed_lists_is_not_shown', seen.says === '' && seen.rowA === 0 && same(seen.actsB, wantB), seen);
+  } finally {
+    await h.close();
+  }
+}
+
+if (want('ten')) {
+  const h = await open({ origin, state: 'ten', views: [VIEW] });
+  try {
+    const bad = await h.page.evaluate(() =>
+      [...document.querySelectorAll('.r4a-controls button')]
+        .filter((b) => {
+          const d = document.getElementById(b.getAttribute('aria-describedby') || '');
+          return !d || d.getAttribute('data-param') !== b.getAttribute('data-param') || !/_card$/.test(d.getAttribute('data-act'));
+        })
+        .map((b) => b.getAttribute('data-act') + ':' + b.getAttribute('data-param')),
+    );
+    result('each_control_is_described_by_its_agents_name', bad.length === 0, bad);
+  } finally {
+    await h.close();
+  }
+}
+
 console.log('agents tests passed=' + passed + ' failed=' + failed + ' states=' + STATES.length);
 process.exit(failed === 0 ? 0 : 1);
