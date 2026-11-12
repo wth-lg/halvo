@@ -713,6 +713,40 @@ mod tests {
     }
 
     #[test]
+    fn drops_of_two_kinds_add_up_in_dropped_count() {
+        let (handle, writer) = bounded(NonZeroUsize::MIN);
+        let kept = unnumbered(Modality::ScreenFrame, 0, 0);
+        assert_eq!(handle.emit(kept).unwrap(), EmitOutcome::Queued);
+        let (done_tx, done) = mpsc::channel();
+        let emitter = {
+            let handle = handle.clone();
+            thread::spawn(move || {
+                let mut outcomes = Vec::new();
+                for (kind, times) in [(Modality::SystemAudio, 3), (Modality::Microphone, 2)] {
+                    for index in 0..times {
+                        outcomes.push((kind, handle.emit(unnumbered(kind, 0, index))));
+                    }
+                }
+                let _ = done_tx.send(outcomes);
+            })
+        };
+        let outcomes = done
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the five emits on a full queue returned inside 1 s");
+        emitter.join().unwrap();
+        for (kind, outcome) in &outcomes {
+            assert!(matches!(outcome, Ok(EmitOutcome::Dropped)), "{kind:?}");
+        }
+        let counts = handle.counts();
+        assert_eq!(counts.of(Modality::SystemAudio).dropped, 3);
+        assert_eq!(counts.of(Modality::Microphone).dropped, 2);
+        assert_eq!(counts.of(Modality::ScreenFrame).dropped, 0);
+        assert_eq!(handle.dropped_count(), 5);
+        assert_eq!(outcomes.len(), 5);
+        drop(writer);
+    }
+
+    #[test]
     fn a_burst_of_keystrokes_on_a_one_slot_queue_is_queued_and_received_whole() {
         const BURST: u64 = 5_000;
         let (handle, writer) = bounded(NonZeroUsize::MIN);
