@@ -27,6 +27,7 @@ c3_foreground_source_reports_an_activated_window
 c4_window_title_source_reports_a_title_change
 c5_installed_software_returns_registry_entries
 c8_display_affinity_exclude_from_capture_is_set_and_read_back
+c8b_window_destroyed_after_the_last_capture_session
 c9_peak_working_set_of_sources_1_to_4_for_60_seconds
 capture_times_follow_the_input_order
 helper_child_window
@@ -41,7 +42,9 @@ known_defect::x2_window_title_events_for_other_windows_and_controls RR-windows-0
 known_defect::x3_attribution_before_the_first_foreground_change RR-windows-10
 pointer_moves_coalesce
 stop_with_a_full_sink
+x12_screen_source_fifteen_start_stop_cycles
 x13_frames_on_a_static_screen
+x5_screen_source_stop_and_start_again
 x7_capture_border_on_the_screen
 x8_raw_input_across_the_integrity_boundary
 x9_screen_source_across_a_display_mode_change
@@ -507,7 +510,7 @@ fixtures() {
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
     "${nl}WF known_defect::x1_keystrokes_typed_into_a_password_field result=known-defect id=RR-windows-01${nl}" \
-    "${nl}WF total=25 pass=17 known_defect=8 fail=0${nl}PASS $name"
+    "${nl}WF total=28 pass=20 known_defect=8 fail=0${nl}PASS $name"
   check a-test-prints-the-lines-of-the-script PASS "c1_raw_input|fakes${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01" \
     "${nl}    | WF ghost_test_not_in_the_file result=pass${nl}" \
     "${nl}WF total=3 pass=2 known_defect=1 fail=0${nl}PASS $name" \

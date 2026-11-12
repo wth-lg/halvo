@@ -46,6 +46,152 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[link(name = "kernel32")]
 extern "system" {
     fn ProcessIdToSessionId(process_id: u32, session_id: *mut u32) -> i32;
+    fn AddVectoredExceptionHandler(first: u32, handler: VectoredHandler) -> *mut core::ffi::c_void;
+    fn GetModuleHandleExW(
+        flags: u32,
+        address: *const u16,
+        module: *mut *mut core::ffi::c_void,
+    ) -> i32;
+    fn GetModuleFileNameW(module: *mut core::ffi::c_void, name: *mut u16, size: u32) -> u32;
+    fn GetStdHandle(which: u32) -> *mut core::ffi::c_void;
+    fn WriteFile(
+        file: *mut core::ffi::c_void,
+        buffer: *const u8,
+        len: u32,
+        written: *mut u32,
+        overlapped: *mut core::ffi::c_void,
+    ) -> i32;
+}
+
+#[repr(C)]
+struct ExceptionRecord {
+    code: u32,
+    flags: u32,
+    record: *mut ExceptionRecord,
+    address: *mut core::ffi::c_void,
+    params: u32,
+    info: [usize; 15],
+}
+
+#[repr(C)]
+struct ExceptionPointers {
+    record: *mut ExceptionRecord,
+    context: *mut core::ffi::c_void,
+}
+
+type VectoredHandler = unsafe extern "system" fn(*mut ExceptionPointers) -> i32;
+
+const STD_OUTPUT_HANDLE: u32 = (-11i32) as u32;
+const MODULE_FROM_ADDRESS: u32 = 0x4;
+const MODULE_UNCHANGED_REFCOUNT: u32 = 0x2;
+
+static FAULT_LINES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+struct FaultLine {
+    buf: [u8; 320],
+    len: usize,
+}
+
+impl FaultLine {
+    fn text(&mut self, s: &[u8]) {
+        for &b in s {
+            if self.len < self.buf.len() - 1 {
+                self.buf[self.len] = b;
+                self.len += 1;
+            }
+        }
+    }
+
+    fn hex(&mut self, mut v: usize) {
+        let mut digits = [0u8; 16];
+        let mut n = 0;
+        loop {
+            let d = (v & 0xF) as u8;
+            digits[n] = if d < 10 { b'0' + d } else { b'a' + d - 10 };
+            n += 1;
+            v >>= 4;
+            if v == 0 {
+                break;
+            }
+        }
+        self.text(b"0x");
+        while n > 0 {
+            n -= 1;
+            self.text(&digits[n..n + 1]);
+        }
+    }
+}
+
+/// Print `fault code=<hex> module=<name> offset=<hex>` for the first faults of
+/// the access-violation and heap classes, before the process dies. It
+/// allocates nothing, because the heap may be what is broken; a module that
+/// is no longer loaded prints as `<none>` with the address's offset in its
+/// 64 KiB region.
+unsafe extern "system" fn on_fault(pointers: *mut ExceptionPointers) -> i32 {
+    // SAFETY: the system passes a valid EXCEPTION_POINTERS whose record lives
+    // while the handler runs.
+    let record = unsafe { &*(*pointers).record };
+    let watched = matches!(record.code, 0xC000_0005 | 0xC000_0374 | 0xC000_0409);
+    if !watched || FAULT_LINES.fetch_add(1, std::sync::atomic::Ordering::SeqCst) >= 3 {
+        return 0;
+    }
+    let mut line = FaultLine {
+        buf: [0; 320],
+        len: 0,
+    };
+    line.text(b"fault code=");
+    line.hex(record.code as usize);
+    let mut module: *mut core::ffi::c_void = core::ptr::null_mut();
+    // SAFETY: with FROM_ADDRESS the call reads the address as a lookup key
+    // only, and `module` is a live local that it writes.
+    let found = unsafe {
+        GetModuleHandleExW(
+            MODULE_FROM_ADDRESS | MODULE_UNCHANGED_REFCOUNT,
+            record.address as *const u16,
+            &mut module,
+        )
+    } != 0;
+    if found {
+        let mut name = [0u16; 260];
+        // SAFETY: `name` holds 260 units, the size passed, and `module` is the
+        // handle that the lookup above returned.
+        let n = unsafe { GetModuleFileNameW(module, name.as_mut_ptr(), 260) } as usize;
+        let start = name[..n]
+            .iter()
+            .rposition(|&c| c == b'\\' as u16)
+            .map_or(0, |i| i + 1);
+        line.text(b" module=");
+        for &c in &name[start..n] {
+            line.text(&[if c < 128 { c as u8 } else { b'?' }]);
+        }
+        line.text(b" offset=");
+        line.hex(record.address as usize - module as usize);
+    } else {
+        line.text(b" module=<none> offset=");
+        line.hex(record.address as usize & 0xFFFF);
+    }
+    line.text(b"\n");
+    let mut written = 0u32;
+    // SAFETY: the buffer and its length describe `line.buf`, and `written` is
+    // a live local; the standard output handle is the process's own.
+    unsafe {
+        WriteFile(
+            GetStdHandle(STD_OUTPUT_HANDLE),
+            line.buf.as_ptr(),
+            line.len as u32,
+            &mut written,
+            core::ptr::null_mut(),
+        );
+    }
+    0
+}
+
+fn install_fault_line() {
+    // SAFETY: `on_fault` has the PVECTORED_EXCEPTION_HANDLER signature and
+    // lives for the whole process.
+    unsafe {
+        AddVectoredExceptionHandler(1, on_fault);
+    }
 }
 
 #[link(name = "user32")]
@@ -2461,6 +2607,139 @@ fn a_dropped_keyboard_source_stops_capturing() {
         );
         assert!(next_keys >= 1, "the new keyboard source recorded no key");
         assert!(next_stop.is_ok(), "the new keyboard source must stop");
+    });
+}
+
+fn screen_frames_within(events: &Events, window: Duration) -> usize {
+    count(&events.drain_for(window), Modality::ScreenFrame)
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x5_screen_source_stop_and_start_again() {
+    install_fault_line();
+    with_deadline("x5", Duration::from_secs(90), || {
+        env_report("x5");
+        source_built_by_test("x5", "screen");
+        let (sink, events) = capture(256);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let first = screen.begin(SourceContext::new(sink.clone()));
+        let first_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
+        let first_stop = screen.shutdown();
+        let _ = events.drain_for(Duration::from_millis(500));
+        let second = screen.begin(SourceContext::new(sink.clone()));
+        let second_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
+        let second_stop = screen.shutdown();
+        say(
+            "x5",
+            format!(
+                "first_start={} first_frame={first_frame} first_stop={} second_start={} \
+                 second_frame={second_frame} second_stop={}",
+                show(&first),
+                show(&first_stop),
+                show(&second),
+                show(&second_stop),
+            ),
+        );
+        assert!(first.is_ok() && second.is_ok(), "both starts must succeed");
+        assert!(
+            first_frame && second_frame,
+            "each session must deliver a frame"
+        );
+        assert!(
+            first_stop.is_ok() && second_stop.is_ok(),
+            "both stops must succeed"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn x12_screen_source_fifteen_start_stop_cycles() {
+    const CYCLES: usize = 15;
+    install_fault_line();
+    with_deadline("x12", Duration::from_secs(180), || {
+        env_report("x12");
+        source_built_by_test("x12", "screen");
+        let last_app = Arc::new(Mutex::new(None));
+        let mut started = 0;
+        let mut stopped = 0;
+        let mut frames = 0;
+        for _ in 0..CYCLES {
+            let (sink, events) = capture(256);
+            let mut screen = ScreenSource::new(Arc::clone(&last_app));
+            if screen.begin(SourceContext::new(sink.clone())).is_ok() {
+                started += 1;
+            }
+            frames += screen_frames_within(&events, Duration::from_millis(700));
+            if screen.shutdown().is_ok() {
+                stopped += 1;
+            }
+        }
+        std::thread::sleep(Duration::from_secs(3));
+        say(
+            "x12",
+            format!(
+                "cycles={CYCLES} started={started} stopped={stopped} frames_total={frames} \
+                 idle_3s_after=true"
+            ),
+        );
+        assert_eq!(started, CYCLES, "every cycle must start");
+        assert_eq!(stopped, CYCLES, "every cycle must stop");
+        assert!(frames >= 1, "no frame in fifteen cycles");
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn c8b_window_destroyed_after_the_last_capture_session() {
+    install_fault_line();
+    with_deadline("c8b", Duration::from_secs(120), || {
+        env_report("c8b");
+        source_built_by_test("c8b", "screen");
+        let popup = TestWindow::create(&magenta_popup("HalvoVerifyC8b", "halvo-verify-c8b"))
+            .expect("the window");
+        pump_thread(Duration::from_millis(500));
+        let session = |label: &str| {
+            let (sink, events) = capture(256);
+            let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+            let start = screen.begin(SourceContext::new(sink.clone()));
+            let mut frames = 0;
+            let began = Instant::now();
+            while began.elapsed() < Duration::from_secs(3) {
+                pump_thread(Duration::from_millis(50));
+                frames += screen_frames_within(&events, Duration::from_millis(50));
+            }
+            let stop = screen.shutdown();
+            say(
+                "c8b",
+                format!(
+                    "capture={label} start={} frames={frames} stop={}",
+                    show(&start),
+                    show(&stop)
+                ),
+            );
+            start.is_ok() && stop.is_ok() && frames > 0
+        };
+        let first = session("first");
+        let excluded = exclude_from_capture(popup.hwnd);
+        pump_thread(Duration::from_millis(500));
+        let second = session("second");
+        drop(popup);
+        say(
+            "c8b",
+            "teardown window_destroyed_after_the_last_session=true",
+        );
+        std::thread::sleep(Duration::from_secs(2));
+        say("c8b", "teardown idle_2s_after=true");
+        assert!(
+            excluded.is_ok(),
+            "the window must take the display affinity"
+        );
+        assert!(
+            first && second,
+            "each session must start, deliver a frame and stop"
+        );
     });
 }
 
