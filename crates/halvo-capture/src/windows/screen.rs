@@ -143,7 +143,6 @@ pub struct ScreenHandler {
     last_app: Arc<Mutex<Option<String>>>,
     drop_within: Option<Duration>,
     last_kept: Option<Instant>,
-    #[allow(dead_code)]
     closed: Arc<AtomicBool>,
 }
 
@@ -184,11 +183,20 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         }
         Ok(())
     }
+
+    fn on_closed(&mut self) -> Result<(), Self::Error> {
+        self.closed.store(true, Ordering::Relaxed);
+        Ok(())
+    }
 }
 
 type Control = CaptureControl<ScreenHandler, CaptureError>;
 
-/// Screen capture source over the primary monitor, read again at each `begin`.
+/// Screen capture source over the primary monitor, the main display by choice
+/// (RD-39), read again at each `begin` so that a restart follows a changed
+/// primary display. A closed capture item, a capture thread that ended and a
+/// writer that is gone each read as failed health; the restart is the
+/// daemon's.
 /// `begin` opens a capture session on its own thread; `shutdown` ends it
 /// inside [`super::SCREEN_STOP_DEADLINE`], and dropping the source does the
 /// same.
