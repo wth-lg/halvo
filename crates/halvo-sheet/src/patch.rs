@@ -748,6 +748,23 @@ mod tests {
     }
 
     #[test]
+    fn a_row_below_the_dimension_grows_it_and_goes_after_the_last_row() {
+        let got = patched("values.xlsx", &[("A30", Value::Number(1.0))]);
+        let want = sheet1("values.xlsx")
+            .replacen(
+                r#"<dimension ref="A1:D21"/>"#,
+                r#"<dimension ref="A1:D30"/>"#,
+                1,
+            )
+            .replacen(
+                "</row></sheetData>",
+                r#"</row><row r="30"><c r="A30"><v>1</v></c></row></sheetData>"#,
+                1,
+            );
+        assert_eq!(got, want);
+    }
+
+    #[test]
     fn a_text_is_escaped_so_that_it_reads_back_as_written() {
         let cases = [
             ("a<b>&c", "a&lt;b&gt;&amp;c"),

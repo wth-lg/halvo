@@ -434,6 +434,19 @@ fn a_text_longer_than_a_cell_holds_is_refused_before_any_write() {
 }
 
 #[test]
+fn a_number_that_is_not_finite_is_refused_before_any_write() {
+    let scratch = Scratch::new("prepare-finite");
+    fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");
+    let folder = Folder::new(&scratch.dir).expect("the folder opens");
+    let b5 = Range::parse("B5").expect("a range");
+    for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let got = folder.prepare(Path::new("values.xlsx"), &run(), "Values", b5, &one(x));
+        assert_eq!(got.err(), Some(Error::Value), "{x}");
+        assert_eq!(scratch.names(""), vec!["values.xlsx".to_string()]);
+    }
+}
+
+#[test]
 fn a_second_prepare_of_the_run_while_the_first_is_held_writes_the_copy_again() {
     let scratch = Scratch::new("prepare-twice-held");
     fs::copy(corpus("values.xlsx"), scratch.path("values.xlsx")).expect("copy");

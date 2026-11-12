@@ -406,6 +406,9 @@ mod tests {
             &[(2, 1)]
         ));
         assert!(!package(&original, b"no zip", SHEET, &b5()));
+        let mut all = ordered(&original);
+        all[1].0 = "_rels/other.rels".to_string();
+        assert!(!package(&original, &zipped_in_order(&all), SHEET, &b5()));
     }
 
     #[test]
@@ -435,6 +438,7 @@ mod tests {
             ),
             ("", r#"<calcPr fullCalcOnLoad="1" calcId="1"/>"#, false),
             ("", r#"<calcPr fullCalcOnLoad="0"/>"#, false),
+            ("", r#"<calcPr fullCalcOnLoad="1" x:calcPr/>"#, false),
         ];
         for (old, new, want) in cases {
             let old = format!("{head}{old}</workbook>");
