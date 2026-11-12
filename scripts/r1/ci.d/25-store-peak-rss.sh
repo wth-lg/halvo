@@ -29,9 +29,8 @@ measure() {
 
 case_of() {
   printf '%s\n' "$3" > "$work/$1"
-  out=$(outcome_defect "$2" "$work/$1")
   got=PASS
-  [ -z "$out" ] || got=FAIL
+  outcome_defect "$2" "$work/$1" > /dev/null || got=FAIL
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$4" "$got"
   if [ "$got" != "$4" ]; then wrong="$wrong $1"; elif [ "$4" = FAIL ]; then rejected=$((rejected + 1)); fi
 }

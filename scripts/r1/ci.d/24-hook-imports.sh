@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: No Windows binary that Halvo ships imports SetWindowsHookExA or SetWindowsHookExW; the reader must show the KERNEL32.dll imports of halvo-capture.exe, and once that binary imports USER32.dll it must import RegisterRawInputDevices.
+# rule: The debug builds of halvo-capture.exe and halvo.exe that this script makes import neither SetWindowsHookExA nor SetWindowsHookExW; the reader must show the KERNEL32.dll imports of halvo-capture.exe, and once that binary imports USER32.dll it must import RegisterRawInputDevices.
 set -u
 name=24-hook-imports
 
@@ -65,9 +65,8 @@ listing() {
 }
 
 case_of() {
-  out=$(imports_defect "$2" "$3" "$4")
   got=PASS
-  [ -z "$out" ] || got=FAIL
+  imports_defect "$2" "$3" "$4" > /dev/null || got=FAIL
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$5" "$got"
   if [ "$got" != "$5" ]; then wrong="$wrong $1"; elif [ "$5" = FAIL ]; then rejected=$((rejected + 1)); fi
 }
