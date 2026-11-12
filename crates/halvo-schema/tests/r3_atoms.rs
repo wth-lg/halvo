@@ -417,6 +417,43 @@ fn a_web_origin_is_scheme_host_and_port_in_lower_case() {
 }
 
 #[test]
+fn a_web_origin_whose_host_is_a_number_form_of_an_ipv4_address_is_refused() {
+    for bad in [
+        "http://127.1:80",
+        "http://0x7f000001:80",
+        "http://2130706433:80",
+        "http://0177.0.0.1:80",
+        "http://1.2.3.04:80",
+        "http://127.0.0.1.1:80",
+        "http://256.0.0.1:80",
+        "http://0x7f.0.0.1:80",
+        "https://pay.123:443",
+        "https://pay.0x:443",
+        "https://pay.0xff:443",
+        "http://1:80",
+        "http://00.0.0.0:80",
+    ] {
+        malformed(WebOrigin::parse(bad), "WebOrigin", "origin_ipv4");
+        malformed(WebOrigin::of_address(bad), "WebOrigin", "address_ipv4");
+    }
+    for good in [
+        "http://127.0.0.1:18090",
+        "http://0.0.0.0:80",
+        "http://255.255.255.255:65535",
+        "http://1.2.3.a:80",
+        "https://pay.0xg:443",
+        "https://0x7f000001.test:443",
+        "https://127.1.test:443",
+        "http://utility.agent.test:18090",
+        "http://pay.agent.test:18090",
+        "http://control.agent.test:18090",
+    ] {
+        assert_eq!(WebOrigin::parse(good).unwrap().as_str(), good);
+        assert_eq!(WebOrigin::of_address(good).unwrap().as_str(), good);
+    }
+}
+
+#[test]
 fn a_host_holds_at_most_253_bytes() {
     let labels = |last: usize| {
         format!(
