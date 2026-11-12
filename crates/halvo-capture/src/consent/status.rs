@@ -281,7 +281,7 @@ mod tests {
 
     impl StoreInventory for MockStore {
         fn inventory(&self) -> StoreResult<Inventory> {
-            Ok(Inventory::from_rows(self.rows.clone()))
+            Ok(Inventory::from_rows(self.rows.clone()).unwrap())
         }
         fn crypto_shred_before(&mut self, day: UtcDay) -> StoreResult<ShredReport> {
             self.shred_before_calls.push(day);
@@ -415,7 +415,8 @@ mod tests {
             row(10, Modality::ScreenFrame, 1, 4 * gib),
             row(11, Modality::ScreenFrame, 1, 4 * gib),
             row(12, Modality::ScreenFrame, 1, 4 * gib),
-        ]);
+        ])
+        .unwrap();
         assert_eq!(eviction_cutoff(&inv, cap(12 * gib)), None);
         assert_eq!(
             eviction_cutoff(&inv, cap(9 * gib)),
@@ -438,7 +439,8 @@ mod tests {
             row(12, Modality::ScreenFrame, 1, gib),
             row(10, Modality::ScreenFrame, 1, gib),
             row(11, Modality::ScreenFrame, 1, gib),
-        ]);
+        ])
+        .unwrap();
         let days: Vec<i64> = inv
             .rows()
             .iter()

@@ -116,15 +116,16 @@ pub trait PermissionProbe {
     }
 }
 
-/// One permission row of the onboarding view.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// One permission row of the onboarding view (contracts.md C10.6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PermissionStatus {
     pub permission: Permission,
-    pub pane_name: &'static str,
-    pub settings_url: &'static str,
-    pub why: &'static str,
+    pub pane_name: String,
+    pub settings_url: String,
+    pub why: String,
     pub grant: GrantState,
     pub lost: bool,
+    pub asked: bool,
 }
 
 /// What a walk-back step asks for.
@@ -137,16 +138,16 @@ pub enum WalkbackAction {
 }
 
 /// One step that brings a missing permission back.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WalkbackStep {
     pub permission: Permission,
     pub action: WalkbackAction,
-    pub settings_url: &'static str,
+    pub settings_url: String,
     pub text: String,
 }
 
 /// The onboarding object of contracts.md C10.6.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OnboardingState {
     pub permissions: Vec<PermissionStatus>,
     pub lost_grants: Vec<Permission>,
@@ -179,11 +180,12 @@ pub fn assess(
         }
         permissions.push(PermissionStatus {
             permission,
-            pane_name,
-            settings_url: permission.settings_url(),
-            why: permission.why(false),
+            pane_name: pane_name.to_string(),
+            settings_url: permission.settings_url().to_string(),
+            why: permission.why(false).to_string(),
             grant,
             lost,
+            asked: false,
         });
     }
 
@@ -199,7 +201,7 @@ fn walkback_for(permission: Permission, pane: &str, lost: bool) -> Vec<WalkbackS
     let step = |action, text: String| WalkbackStep {
         permission,
         action,
-        settings_url: permission.settings_url(),
+        settings_url: permission.settings_url().to_string(),
         text,
     };
     let lead = if lost {
@@ -481,6 +483,78 @@ mod tests {
         assert!(state.walkback[0]
             .text
             .contains("Device Control and Data Access"));
+    }
+
+    const ONBOARDING_JSON: &str = r#"{"permissions":[{"permission":"accessibility","pane_name":"Accessibility","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","why":"the why text","grant":"not_granted","lost":true,"asked":true},{"permission":"input_monitoring","pane_name":"Input Monitoring","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","why":"another why text","grant":"not_determined","lost":false,"asked":false}],"lost_grants":["accessibility"],"all_granted":false,"walkback":[{"permission":"accessibility","action":"open_settings_pane","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility","text":"a step text"},{"permission":"input_monitoring","action":"request_from_system","settings_url":"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent","text":"another step text"}]}"#;
+
+    #[test]
+    fn the_onboarding_object_has_golden_json_and_reads_back() {
+        let row = |permission: Permission, why: &str, grant, lost, asked| PermissionStatus {
+            permission,
+            pane_name: permission.pane_title_on_macos(Some(26)).to_string(),
+            settings_url: permission.settings_url().to_string(),
+            why: why.to_string(),
+            grant,
+            lost,
+            asked,
+        };
+        let step = |permission: Permission, action, text: &str| WalkbackStep {
+            permission,
+            action,
+            settings_url: permission.settings_url().to_string(),
+            text: text.to_string(),
+        };
+        let state = OnboardingState {
+            permissions: vec![
+                row(
+                    Permission::Accessibility,
+                    "the why text",
+                    GrantState::NotGranted,
+                    true,
+                    true,
+                ),
+                row(
+                    Permission::InputMonitoring,
+                    "another why text",
+                    GrantState::NotDetermined,
+                    false,
+                    false,
+                ),
+            ],
+            lost_grants: vec![Permission::Accessibility],
+            all_granted: false,
+            walkback: vec![
+                step(
+                    Permission::Accessibility,
+                    WalkbackAction::OpenSettingsPane,
+                    "a step text",
+                ),
+                step(
+                    Permission::InputMonitoring,
+                    WalkbackAction::RequestFromSystem,
+                    "another step text",
+                ),
+            ],
+        };
+        assert_eq!(serde_json::to_string(&state).unwrap(), ONBOARDING_JSON);
+        assert_eq!(
+            serde_json::from_str::<OnboardingState>(ONBOARDING_JSON).unwrap(),
+            state
+        );
+    }
+
+    #[test]
+    fn an_assessed_onboarding_state_reads_back_from_a_buffer() {
+        let probe = FakeProbe(vec![(Permission::Accessibility, GrantState::Granted)]);
+        let state = assess(
+            &probe,
+            &Permission::R1_MACOS,
+            &[Permission::InputMonitoring],
+        );
+        let buffer: String = serde_json::to_string(&state).unwrap();
+        let read: OnboardingState = serde_json::from_str(&buffer).unwrap();
+        drop(buffer);
+        assert_eq!(read, state);
     }
 
     #[test]

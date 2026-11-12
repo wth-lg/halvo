@@ -427,6 +427,14 @@ pub struct InventoryRow {
     pub bytes: u64,
 }
 
+/// Two inventory rows for one day and one kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("the inventory holds two rows for {day} and {}", .modality.as_str())]
+pub struct DuplicateRow {
+    pub day: UtcDay,
+    pub modality: Modality,
+}
+
 /// The per-day rollup of the store, oldest day first and, within a day, in the
 /// kind order of contracts.md 0.2.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
@@ -435,14 +443,24 @@ pub struct Inventory {
 }
 
 impl Inventory {
-    /// The inventory of `rows`, put in day and kind order.
-    pub fn from_rows(mut rows: Vec<InventoryRow>) -> Self {
+    /// The inventory of `rows`, put in day and kind order; two rows for one day
+    /// and one kind are an error.
+    pub fn from_rows(mut rows: Vec<InventoryRow>) -> Result<Self, DuplicateRow> {
         rows.sort_by(|a, b| {
             a.day
                 .cmp(&b.day)
                 .then_with(|| modality_order(a.modality).cmp(&modality_order(b.modality)))
         });
-        Self { rows }
+        if let Some(pair) = rows
+            .windows(2)
+            .find(|pair| (pair[0].day, pair[0].modality) == (pair[1].day, pair[1].modality))
+        {
+            return Err(DuplicateRow {
+                day: pair[0].day,
+                modality: pair[0].modality,
+            });
+        }
+        Ok(Self { rows })
     }
 
     pub fn rows(&self) -> &[InventoryRow] {
@@ -469,7 +487,7 @@ impl<'de> Deserialize<'de> for Inventory {
             rows: Vec<InventoryRow>,
         }
         let Rows { rows } = Rows::deserialize(deserializer)?;
-        Ok(Self::from_rows(rows))
+        Self::from_rows(rows).map_err(serde::de::Error::custom)
     }
 }
 
@@ -676,6 +694,118 @@ mod tests {
             assert!(bad.parse::<StoreId>().is_err(), "{bad:?}");
             assert!(serde_json::from_str::<StoreId>(&format!("\"{bad}\"")).is_err());
         }
+    }
+
+    fn inventory_row(days: i64, modality: Modality, events: u64, bytes: u64) -> InventoryRow {
+        InventoryRow {
+            day: UtcDay::from_days_since_epoch(days).unwrap(),
+            modality,
+            events,
+            bytes,
+        }
+    }
+
+    const INVENTORY_JSON: &str = r#"{"rows":[{"day":"2026-11-08","modality":"screen_frame","events":3,"bytes":300},{"day":"2026-11-09","modality":"keystroke","events":7,"bytes":70}]}"#;
+
+    #[test]
+    fn the_inventory_object_and_its_row_have_golden_json() {
+        let inventory = Inventory::from_rows(vec![
+            inventory_row(20_766, Modality::Keystroke, 7, 70),
+            inventory_row(20_765, Modality::ScreenFrame, 3, 300),
+        ])
+        .unwrap();
+        assert_eq!(serde_json::to_string(&inventory).unwrap(), INVENTORY_JSON);
+        assert_eq!(
+            serde_json::from_str::<Inventory>(INVENTORY_JSON).unwrap(),
+            inventory
+        );
+        let row_json = r#"{"day":"2026-11-08","modality":"screen_frame","events":3,"bytes":300}"#;
+        assert_eq!(
+            serde_json::to_string(&inventory.rows()[0]).unwrap(),
+            row_json
+        );
+        assert_eq!(
+            serde_json::from_str::<InventoryRow>(row_json).unwrap(),
+            inventory.rows()[0]
+        );
+        assert_eq!(
+            serde_json::to_string(&Inventory::default()).unwrap(),
+            r#"{"rows":[]}"#
+        );
+    }
+
+    #[test]
+    fn within_a_day_the_rows_follow_the_kind_order_also_after_reading_an_unsorted_reply() {
+        let shuffled = [
+            Modality::Camera,
+            Modality::Pointer,
+            Modality::ScreenFrame,
+            Modality::WindowTitle,
+            Modality::Microphone,
+            Modality::Keystroke,
+            Modality::SystemAudio,
+            Modality::ForegroundApp,
+        ];
+        let mut rows: Vec<InventoryRow> = shuffled
+            .iter()
+            .zip(1..)
+            .map(|(&kind, events)| inventory_row(20_766, kind, events, 1))
+            .collect();
+        rows.push(inventory_row(20_765, Modality::Camera, 9, 1));
+        let built = Inventory::from_rows(rows.clone()).unwrap();
+        let reply = serde_json::to_string(&serde_json::json!({ "rows": rows })).unwrap();
+        let read = serde_json::from_str::<Inventory>(&reply).unwrap();
+        let mut expected = vec![(20_765, Modality::Camera)];
+        expected.extend(Modality::ALL.map(|kind| (20_766, kind)));
+        for inventory in [built, read] {
+            let order: Vec<(i64, Modality)> = inventory
+                .rows()
+                .iter()
+                .map(|row| (row.day.days_since_epoch(), row.modality))
+                .collect();
+            assert_eq!(order, expected);
+        }
+    }
+
+    #[test]
+    fn a_reply_with_two_rows_for_one_day_and_kind_is_an_error() {
+        let rows = vec![
+            inventory_row(20_766, Modality::Keystroke, 1, 10),
+            inventory_row(20_766, Modality::Pointer, 1, 10),
+            inventory_row(20_766, Modality::Keystroke, 2, 20),
+        ];
+        assert_eq!(
+            Inventory::from_rows(rows.clone()),
+            Err(DuplicateRow {
+                day: UtcDay::from_days_since_epoch(20_766).unwrap(),
+                modality: Modality::Keystroke,
+            })
+        );
+        let reply = serde_json::to_string(&serde_json::json!({ "rows": rows })).unwrap();
+        assert!(serde_json::from_str::<Inventory>(&reply).is_err());
+    }
+
+    #[test]
+    fn the_observation_window_and_the_delete_report_have_golden_json() {
+        let window_json = r#"{"rolling_days":14,"first_report_day":7}"#;
+        assert_eq!(
+            serde_json::to_string(&ObservationWindow::r1()).unwrap(),
+            window_json
+        );
+        assert_eq!(
+            serde_json::from_str::<ObservationWindow>(window_json).unwrap(),
+            ObservationWindow::r1()
+        );
+        let report = ShredView {
+            segments_shredded: 2,
+            keys_destroyed: 3,
+        };
+        let report_json = r#"{"segments_shredded":2,"keys_destroyed":3}"#;
+        assert_eq!(serde_json::to_string(&report).unwrap(), report_json);
+        assert_eq!(
+            serde_json::from_str::<ShredView>(report_json).unwrap(),
+            report
+        );
     }
 
     #[test]
@@ -941,7 +1071,7 @@ mod tests {
             events: 1,
             bytes,
         };
-        let inv = Inventory::from_rows(vec![row(12, 1), row(10, 2), row(11, 3)]);
+        let inv = Inventory::from_rows(vec![row(12, 1), row(10, 2), row(11, 3)]).unwrap();
         let days: Vec<i64> = inv
             .rows()
             .iter()
