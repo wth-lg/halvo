@@ -100,6 +100,7 @@ self_test() {
 
   sh "$repo/scripts/check-home-paths.sh" --self-test >"$scratch/predicate.out" 2>&1
   code=$?
+  grep -E '^case check-home-paths/[^ ]* (left out|not run)|^seconds check-home-paths/' "$scratch/predicate.out"
   predicate=$(sed -n "s/^PASS self-test:check-home-paths (\([0-9]*\) failing fixtures rejected)\$/\1/p" "$scratch/predicate.out") || predicate=
   if [ "$code" = 0 ] && [ -n "$predicate" ]; then
     printf 'case %s/predicate-self-test want=PASS got=PASS (%s failing fixtures rejected)\n' "$name" "$predicate"
