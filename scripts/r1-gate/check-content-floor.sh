@@ -19,6 +19,9 @@ floor_shape_defect() {
     floor_n=$(floor_head "$1" "$floor_key")
     [ "$floor_n" = 0 ] || { printf 'the floor report says %s=%s\n' "$floor_key" "${floor_n:-absent}"; return 1; }
   done
+  floor_kinds=$(sed -n 's/^floor kind=\([a-z_]*\) records=[0-9]*$/\1/p' "$1" | tr '\n' ' ')
+  [ "$floor_kinds" = 'screen_frame keystroke pointer foreground_app window_title system_audio microphone camera ' ] ||
+    { printf 'the floor report holds the kind lines [%s], and C13.9 has the eight kinds of 0.2 in their order\n' "${floor_kinds% }"; return 1; }
   floor_keys=$(sed -n 's/^floor key_class=\([a-z]*\) records=[0-9]*$/\1/p' "$1" | sort | tr '\n' ' ')
   floor_points=$(sed -n 's/^floor pointer_class=\([a-z]*\) records=[0-9]* folded=[0-9]*$/\1/p' "$1" | sort | tr '\n' ' ')
   [ "$floor_keys" = 'editing enter navigation other printable shortcut tab ' ] && [ "$floor_points" = 'click drag move scroll ' ] && return 0
@@ -56,12 +59,8 @@ predicate_typed_marker_absent() {
 }
 
 raw_scan_defect() {
-  grep -r -q -F -e "$2" -- "$1" 2>/dev/null
-  case $? in
-    1) return 0 ;;
-    0) printf 'the raw scan of the data directory finds the marker outside the encrypted payloads\n' ;;
-    *) printf 'the raw scan of the data directory could not read every file\n' ;;
-  esac
+  raw_found=$(tree_scan_defect "the data directory" "$2" "$1") && return 0
+  printf 'the raw scan, outside the encrypted payloads: %s\n' "$raw_found"
   return 1
 }
 
@@ -179,11 +178,26 @@ cases() {
   printf 'title r1gateTITLE-9 in plain text\n' > "$gate_scratch/raw-hit/store/store.db-wal"
   t title-marker-not-in-raw-scan PASS predicate_raw_scan_clean "$gate_scratch/raw-clean" r1gateTITLE-9
   t title-marker-in-raw-scan FAIL predicate_raw_scan_clean "$gate_scratch/raw-hit" r1gateTITLE-9
+  mkdir -p "$gate_scratch/raw-name/store" "$gate_scratch/raw-utf16/store" "$gate_scratch/raw-link/store"
+  : > "$gate_scratch/raw-name/store/r1gateTITLE-9.txt"
+  perl -e 'print join("", map { $_ . "\0" } split //, "r1gateTITLE-9")' > "$gate_scratch/raw-utf16/store/note"
+  printf 'title r1gateTITLE-9 in plain text\n' > "$gate_scratch/raw-plain"
+  ln -s "$gate_scratch/raw-plain" "$gate_scratch/raw-link/store/link"
+  t title-marker-in-a-name FAIL predicate_raw_scan_clean "$gate_scratch/raw-name" r1gateTITLE-9
+  t title-marker-in-utf-16 FAIL predicate_raw_scan_clean "$gate_scratch/raw-utf16" r1gateTITLE-9
+  t symbolic-link-in-the-raw-scan FAIL predicate_raw_scan_clean "$gate_scratch/raw-link" r1gateTITLE-9
+  fixture=$(floor_fixture ninth-kind 0 0 none "$found_line")
+  awk '/^floor kind=camera / { print; print "floor kind=run_mark records=1"; next } { print }' "$fixture" > "$fixture.nine" && mv "$fixture.nine" "$fixture"
+  t floor-ninth-kind FAIL predicate_title_marker_found "$fixture"
+  fixture=$(floor_fixture kinds-out-of-order 0 0 none "$found_line")
+  awk '/^floor kind=screen_frame / { held = $0; next } /^floor kind=keystroke / { print; print held; next } { print }' "$fixture" > "$fixture.order" && mv "$fixture.order" "$fixture"
+  t floor-kinds-out-of-order FAIL predicate_title_marker_found "$fixture"
   fixture=$(floor_fixture excluded-absent 0 0 none "$absent_line")
   t no-excluded-app-record PASS predicate_no_excluded_record "$fixture"
   fixture=$(floor_fixture excluded-found 0 0 none 'floor marker=found app=3 title=0 site=0 column=0')
   t excluded-app-record FAIL predicate_no_excluded_record "$fixture"
   t standin-unattended-half NO-INPUT against_the_standin good none
+  t standin-plaintext-title-in-the-store FAIL against_the_standin raw-leak none
   t standin-main-names-the-mode PASS says 'FAIL content-floor (no --prefill-store mode' main none
   t unattended-half-says-it-starts-no-capture-source PASS no_capture_line_first main none
 }
