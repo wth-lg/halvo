@@ -11,7 +11,7 @@ Mutant runner of the R1 gate. It discovers every mutants.rows file of HEAD and
 runs its rows in a throwaway copy of HEAD with its own target directory. The
 row grammar is in scripts/r1-gate/README.md.
 
-  sh scripts/r1-gate/mutation-test.sh [--strict] [--only NAME]...
+  sh scripts/r1-gate/mutation-test.sh [--strict] [--budget SECONDS] [--only NAME]...
       Build the unmutated copy, require PASS from the store, deletion and
       no-ll-hook checks and one passing test for each test verdict, then apply
       each row, build the mutant and judge it by the row's one verdict source.
@@ -20,6 +20,11 @@ row grammar is in scripts/r1-gate/README.md.
       --strict also fails on a pending or transitional row, on a row for the
       measuring Mac that did not run, and on a name of mutants.expected that no
       row file holds or retires.
+      --only runs the named rows in the order given.
+      --budget starts no row once SECONDS have passed since the first row
+      started, lets a running row end, prints NOT-RUN mutation:<name> (the
+      budget of SECONDS s is used) for each row that it did not start, and
+      prints seconds mutation:<name> <n> after each row that it started.
   sh scripts/r1-gate/mutation-test.sh --apply-only
       Check that every substitution still applies and that its mutant builds.
   sh scripts/r1-gate/mutation-test.sh --list
@@ -139,6 +144,12 @@ test_run() {
   esac
 }
 
+row_seconds() {
+  [ -n "$timed_name" ] || return 0
+  printf 'seconds mutation:%s %s\n' "$timed_name" "$((row_now - timed_start))"
+  timed_name=''
+}
+
 run_rows() {
   tree=$1
   failures=0; opens=0; transitionals=0; unrun=0; caught=0
@@ -155,12 +166,31 @@ run_rows() {
     [ -n "$only_hit" ] || { say FAIL "$only_name" "--only names no row"; failures=$((failures + 1)); }
   done
   built_unmutated=no
-  cp "$table" "$work/rows.loop" || return 2
+  if [ -n "$only" ]; then
+    : > "$work/rows.loop"
+    for only_name in $only; do
+      awk -F '\t' -v n="$only_name" '$3 == n' "$table" >> "$work/rows.loop" || return 2
+    done
+    awk -F '\t' -v only=" $only " 'index(only, " " $3 " ") == 0' "$table" >> "$work/rows.loop" || return 2
+  else
+    cp "$table" "$work/rows.loop" || return 2
+  fi
+  budget_start=''; timed_name=''
   while IFS="$TAB" read -r rows_file row_line row_name row_file row_subst row_verdict row_state _ <&3; do
     if ! defect=$(row_defect); then
       say FAIL "$row_name" "$defect"; failures=$((failures + 1)); continue
     fi
     case " $only " in "  "|*" $row_name "*) ;; *) continue ;; esac
+    if [ -n "$budget" ]; then
+      row_now=$(date +%s)
+      row_seconds
+      if [ -z "$budget_start" ]; then
+        budget_start=$row_now
+      elif [ "$((row_now - budget_start))" -ge "$budget" ]; then
+        say NOT-RUN "$row_name" "the budget of $budget s is used"; continue
+      fi
+      timed_name=$row_name; timed_start=$row_now
+    fi
     case $row_state in
       'retired '*) say RETIRED "$row_name" "${row_state#retired }"; continue ;;
       'pending '*)
@@ -248,6 +278,10 @@ run_rows() {
     fi
     cp "$work/pristine" "$tree/$mutated" || return 2
   done 3< "$work/rows.loop"
+  if [ -n "$budget" ]; then
+    row_now=$(date +%s)
+    row_seconds
+  fi
   missing=0
   if [ -f "$tree/scripts/r1-gate/mutants.expected" ]; then
     while IFS= read -r expected_name; do
@@ -280,7 +314,7 @@ row() {
 }
 
 fixture_run() {
-  list=no; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}
+  list=no; apply_only=${2:-no}; strict=${3:-no}; only=${fixture_only:-}; budget=${fixture_budget:-}
   work=$gate_scratch/work-$1
   mkdir -p "$work"
   run_rows "$gate_scratch/$1"
@@ -331,6 +365,17 @@ STUB
 with_only() {
   fixture_only=" $1"; shift
   "$@"
+}
+
+with_budget() {
+  fixture_budget=$1; shift
+  "$@"
+}
+
+fixture_in_order() {
+  out=$(fixture_run "$1" yes)
+  case $out in *"$2"*"$3"*) return 0 ;; esac
+  return 1
 }
 
 limit_status_is() {
@@ -401,6 +446,15 @@ cases() {
   t test-row-whose-test-vanishes-under-the-mutant FAIL fixture_run vanishing
   t only-names-no-row FAIL with_only no-such-row fixture_run builds yes
   t only-runs-the-named-row PASS with_only applies fixture_says builds 'PASS mutation:applies (applies and builds)' yes
+  fixture_tree ordered
+  row ordered/scripts/r1-gate/mutants.rows first b.sh 's/two/three/' leak required X-1
+  row ordered/scripts/r1-gate/mutants.rows second b.sh 's/echo two/echo 2/' leak required X-1
+  t only-keeps-the-order-given PASS with_only 'second first' fixture_in_order ordered 'PASS mutation:second' 'PASS mutation:first'
+  t only-in-the-other-order FAIL with_only 'first second' fixture_in_order ordered 'PASS mutation:second' 'PASS mutation:first'
+  t budget-used-starts-no-row PASS with_budget 0 with_only 'second first' fixture_says ordered 'NOT-RUN mutation:first (the budget of 0 s is used)' yes
+  t budget-times-the-row-it-ran PASS with_budget 0 with_only 'second first' fixture_in_order ordered 'PASS mutation:second' 'seconds mutation:second '
+  t budget-not-used-leaves-no-row-out FAIL with_budget 600 fixture_says ordered 'NOT-RUN mutation:' yes
+  t budget-not-a-number-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --budget 4x
   t unknown-argument-exits-64 PASS limit_status_is 64 30 sh "$DIR/mutation-test.sh" --no-such-flag
   t limit-status-of-a-hang-is-124 PASS limit_status_is 124 1 sleep 5
   fixture_tree broken
@@ -554,7 +608,7 @@ not_ci() {
 }
 
 main() {
-  mode=run; strict=no; apply_only=no; list=no; only=''
+  mode=run; strict=no; apply_only=no; list=no; only=''; budget=''
   while [ $# -gt 0 ]; do
     case $1 in
       --self-test) mode=self-test ;;
@@ -564,6 +618,7 @@ main() {
       --apply-only) apply_only=yes ;;
       --list) list=yes ;;
       --only) shift; [ -n "${1:-}" ] || { usage >&2; return 64; }; only="$only $1" ;;
+      --budget) shift; case ${1:-} in ''|*[!0-9]*) usage >&2; return 64 ;; esac; budget=$1 ;;
       --remove-scratch) gate_remove_scratch=yes ;;
       -h|--help) usage; return 0 ;;
       *) printf 'mutation-test.sh: unknown argument: %s\n' "$1" >&2; usage >&2; return 64 ;;
