@@ -141,7 +141,12 @@ mod beside_the_keychain {
         keychain_items::add(&name(label), b"kept by a build with the feature");
         let read = store.read();
         assert!(matches!(read, Read::Locked(Locked::OtherStore)), "{read:?}");
+        assert_eq!(
+            store.write(&secret(b"a new sign-in")),
+            Write::Locked(Locked::OtherStore)
+        );
         let file = file_store(label);
+        assert!(matches!(file.read(), Read::NotStored));
         assert_eq!(file.write(&secret(b"in the file")), Write::Stored);
         let both = store.read();
         assert!(matches!(both, Read::Locked(Locked::OtherStore)), "{both:?}");

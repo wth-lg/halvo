@@ -118,9 +118,14 @@ impl<S: FileSide, K: Keychain> Mac<S, K> {
     }
 
     pub(crate) fn write(&self, secret: &Secret) -> Write {
-        match self.keeps {
-            Keeps::File => self.file.write(secret),
-            Keeps::Keychain => self.keychain.write(secret),
+        match self.read() {
+            Read::NotStored => match self.keeps {
+                Keeps::File => self.file.write(secret),
+                Keeps::Keychain => self.keychain.write(secret),
+            },
+            Read::Found(_) => Write::Occupied,
+            Read::Locked(locked) => Write::Locked(locked),
+            Read::Fault(fault) => Write::Fault(fault),
         }
     }
 

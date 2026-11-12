@@ -452,10 +452,13 @@ fn a_build_without_the_feature_never_writes_or_deletes_a_keychain_item() {
         File::empty(),
         Keys::holding(&[b"in the keychain"]),
     );
-    assert_eq!(store.write(&secret(b"new")), Write::Stored);
-    assert_eq!(store.file.bytes(), Some(b"new".to_vec()));
+    assert_eq!(
+        store.write(&secret(b"new")),
+        Write::Locked(Locked::OtherStore)
+    );
+    assert_eq!(store.file.bytes(), None);
     assert_eq!(store.delete(), Delete::Locked(Locked::OtherStore));
-    assert_eq!(store.file.bytes(), Some(b"new".to_vec()));
+    assert_eq!(store.file.bytes(), None);
     assert!(store
         .keychain
         .keychain
@@ -1000,6 +1003,71 @@ fn a_delete_answers_from_both_places() {
         Keys::empty(),
     );
     assert_eq!(store.delete(), Delete::Locked(Locked::Mode));
+}
+
+#[test]
+fn a_write_stores_only_where_a_read_of_the_same_build_answers_not_stored() {
+    let store = mac(Keeps::File, File::empty(), Keys::holding(&[FILE]));
+    assert_eq!(
+        store.write(&secret(b"new")),
+        Write::Locked(Locked::OtherStore)
+    );
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+
+    let store = mac(Keeps::Keychain, File::holding(FILE), Keys::empty());
+    assert_eq!(store.write(&secret(b"new")), Write::Occupied);
+    assert_eq!(store.keychain.keychain.items(), [FILE.to_vec()]);
+    assert_eq!(store.file.bytes(), None);
+    assert_eq!(found(store.read()), FILE);
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(FILE).failing_read(Fails::Locked(refused(13))),
+        Keys::empty(),
+    );
+    assert_eq!(store.write(&secret(b"new")), Write::Locked(refused(13)));
+    assert!(store.keychain.keychain.items().is_empty());
+    assert_eq!(adds(&store.keychain.keychain), 0);
+
+    let store = mac(
+        Keeps::File,
+        File::empty(),
+        Keys::empty().failing("count", NOT_AVAILABLE),
+    );
+    assert_eq!(
+        store.write(&secret(b"new")),
+        Write::Fault(fault(NOT_AVAILABLE))
+    );
+    assert_eq!(store.file.bytes(), None);
+}
+
+#[test]
+fn a_write_that_answers_stored_reads_back_what_it_stored() {
+    for keeps in [Keeps::File, Keeps::Keychain] {
+        let store = mac(keeps, File::empty(), Keys::empty());
+        assert_eq!(store.write(&secret(b"new sign-in")), Write::Stored);
+        assert_eq!(found(store.read()), b"new sign-in", "{keeps:?}");
+    }
+
+    let store = mac(
+        Keeps::Keychain,
+        File::holding(b"the person's"),
+        Keys::empty(),
+    );
+    assert_eq!(store.write(&secret(b"a new sign-in")), Write::Occupied);
+    assert_eq!(found(store.read()), b"the person's");
+
+    let store = mac(
+        Keeps::File,
+        File::empty(),
+        Keys::holding(&[b"the person's"]),
+    );
+    assert_eq!(
+        store.write(&secret(b"a new sign-in")),
+        Write::Locked(Locked::OtherStore)
+    );
+    assert!(matches!(store.read(), Read::Locked(Locked::OtherStore)));
 }
 
 #[test]
