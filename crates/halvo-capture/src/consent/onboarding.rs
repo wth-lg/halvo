@@ -163,7 +163,7 @@ pub mod macos {
         fn check(&self, permission: Permission) -> GrantState {
             match permission {
                 Permission::ScreenAndSystemAudioRecording => {
-                    // SAFETY: a plain query with no arguments, documented thread-safe.
+                    // SAFETY: a plain query with no arguments.
                     if unsafe { CGPreflightScreenCaptureAccess() } {
                         GrantState::Granted
                     } else {
@@ -193,7 +193,7 @@ pub mod macos {
             }
             match permission {
                 Permission::ScreenAndSystemAudioRecording => {
-                    // SAFETY: no arguments; shows the system prompt at most once per install.
+                    // SAFETY: no arguments.
                     if unsafe { CGRequestScreenCaptureAccess() } {
                         RequestOutcome::AlreadyGranted
                     } else {
