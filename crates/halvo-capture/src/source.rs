@@ -4,20 +4,25 @@ use crate::event::{CaptureStreamEvent, Modality};
 use crate::sink::{SinkError, SinkHandle};
 
 pub trait CaptureSource {
+    /// Retired: no product code calls it, and the default body panics.
     fn modality(&self) -> Modality {
         panic!("CaptureSource::modality is retired and has no default answer")
     }
 
+    /// The old form of [`CaptureSource::begin`].
     fn start(&mut self, sink: SinkHandle) -> Result<(), CaptureError> {
         let _call = DefaultPairCall::enter(&*self);
         self.begin(SourceContext::new(sink)).map(|_| ())
     }
 
+    /// The old form of [`CaptureSource::shutdown`].
     fn stop(&mut self) {
         let _call = DefaultPairCall::enter(&*self);
         let _ = self.shutdown();
     }
 
+    /// An implementer answers a second `begin` on a source that is already
+    /// started with [`CaptureError::AlreadyStarted`]; the default body does not.
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let _call = DefaultPairCall::enter(&*self);
         self.start(ctx.sink).map(|()| Started::Running)
@@ -239,6 +244,8 @@ pub enum EmitOutcome {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CaptureError {
+    /// Only for a real denial: a service that cannot be reached is
+    /// [`CaptureError::Os`] or [`CaptureError::Timeout`].
     #[error("the capture permission for {0:?} is not granted")]
     PermissionDenied(Modality),
     #[error("the capture source failed to start: {0}")]

@@ -64,9 +64,16 @@ struct KindCounters {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct KindCounts {
+    /// Emits that returned `Queued`.
     pub accepted: u64,
+    /// Emits that returned `Dropped`: an event of a droppable kind met a full
+    /// queue.
     pub dropped: u64,
+    /// Emits whose fold record a full queue handed back to the source; it reads 0
+    /// until an emit coalesces.
     pub coalesced: u64,
+    /// Emits that returned `Disconnected`: the writer was gone when the emit
+    /// came, or went while the emit was blocked.
     pub refused: u64,
 }
 
